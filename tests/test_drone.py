@@ -12,6 +12,7 @@ from antennaknobs.designs.loops.delta_loop_marked import Builder as DeltaLoopMar
 from antennaknobs.designs.loops.delta_loop_reflected import (
     Builder as DeltaLoopReflected,
 )
+from antennaknobs.designs.loops.delta_loop_flown import Builder as DeltaLoopFlown
 from antennaknobs.designs.loops.delta_loop_plane import Builder as DeltaLoopPlane
 from antennaknobs.designs.loops.delta_loop_solved import Builder as DeltaLoopSolved
 from antennaknobs.designs.loops.horizontal_loop_drone import Builder as HLoopDrone
@@ -158,6 +159,27 @@ def test_forward_to_plane_rejects_zero_normal():
         Drone().pay_out().forward_to_plane((0.0, 0.0, 0.0, 1.0))
 
 
+def test_forward_to_plane_factor_reaches_the_mirror_when_perpendicular():
+    # Nose +x at the origin, plane x = 3. factor=2 flies to the plane and an
+    # equal distance past it -- squarely, so it lands on the mirror image
+    # (6, 0, 0), laying one edge the full length.
+    d = Drone(ref=1.0).pay_out()
+    d.forward_to_plane((1.0, 0.0, 0.0, 3.0), factor=2.0)
+    assert d.position == pytest.approx((6.0, 0.0, 0.0))
+    p0, p1, _ns, _ex = d.wires()[0]
+    assert p0 == pytest.approx((0.0, 0.0, 0.0))
+    assert p1 == pytest.approx((6.0, 0.0, 0.0))
+
+
+def test_forward_to_plane_factor_is_proportional_overshoot_when_oblique():
+    # Heading +x toward the tilted plane whose x-intercept is 2 (normal (1,1,0),
+    # d = sqrt(2)). factor=2 flies 2 * 2 = 4 ALONG THE NOSE to (4, 0, 0) -- not
+    # the geometric mirror of the origin across that plane (which is (2, 2, 0)).
+    d = Drone(ref=1.0).pay_out()
+    d.forward_to_plane((1.0, 1.0, 0.0, math.sqrt(2.0)), factor=2.0)
+    assert d.position == pytest.approx((4.0, 0.0, 0.0))
+
+
 def _key(edges):
     """Edges as an order- and direction-independent multiset (the drone may
     traverse a segment either way)."""
@@ -301,6 +323,48 @@ def test_delta_loop_plane_is_a_closed_symmetric_delta_loop():
 
     counts = Counter((round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1]))
     assert set(counts.values()) == {2}
+
+
+def test_delta_loop_flown_is_a_closed_symmetric_delta_loop():
+    # Built entirely by flying to planes (no explicit trig, no ry reflection):
+    # the top edge is laid with forward_to_plane(..., factor=2) across y = 0.
+    b = DeltaLoopFlown()
+    ws = b.build_wires()
+
+    # Same four-edge topology as the sibling delta loops.
+    assert len(ws) == 4
+    driven = [e for e in ws if e[3] is not None]
+    assert len(driven) == 1 and driven[0][3] == 1 + 0j
+
+    # Vertical loop, planar in x = 0.
+    assert {round(p[0], 9) for e in ws for p in (e[0], e[1])} == {0.0}
+
+    # The top edge sits at `top`; the feed gap straddles y = 0 at `base`.
+    top_z = max(p[2] for e in ws for p in (e[0], e[1]))
+    assert top_z == pytest.approx(b.default_params["top"])
+    (fy0, fy1) = (driven[0][0][1], driven[0][1][1])
+    assert sorted([round(fy0, 9), round(fy1, 9)]) == [-0.05, 0.05]
+    assert driven[0][0][2] == pytest.approx(b.default_params["base"])
+
+    # Symmetric about y = 0 (feed/pattern stay symmetric).
+    yz = {(round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1])}
+    assert {(-y, z) for (y, z) in yz} == yz
+
+    # Connected closed loop: every node shared by exactly two edges.
+    from collections import Counter
+
+    counts = Counter((round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1]))
+    assert set(counts.values()) == {2}
+
+
+def test_delta_loop_flown_size_tracks_top_height():
+    # No perimeter knob: the loop grows with the vertical extent (top - base).
+    def top_width(top):
+        ws = DeltaLoopFlown(dict(DeltaLoopFlown.default_params, top=top)).build_wires()
+        ys = [p[1] for e in ws for p in (e[0], e[1])]
+        return max(ys) - min(ys)
+
+    assert top_width(11.0) > top_width(10.0) > top_width(9.0)
 
 
 def test_delta_loop_plane_size_tracks_length_factor():
