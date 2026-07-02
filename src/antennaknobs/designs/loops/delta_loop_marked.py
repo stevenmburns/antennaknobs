@@ -16,7 +16,7 @@ to lay the top. The Drone works out the top segment from the two corner
 positions it has been tracking.
 
 The loop is vertical, in the plane x = 0, fed by a short driven gap centred at
-the bottom (height ``base``) and opening upward:
+the bottom (height ``feed_height``) and opening upward:
 
         L-----------R      top, drawn corner-to-corner (line_to a marked node)
          \\         /
@@ -36,7 +36,7 @@ class Builder(AntennaBuilder):
             "design_freq": 28.47,
             "freq": 28.47,
             # Height of the bottom feed gap above ground.
-            "base": 7.0,
+            "feed_height": 7.0,
             # Each slanted side is a third of a wavelength times this (three
             # ~equal sides -> a ~1 wl perimeter full-wave loop). Tunes resonance.
             "length_factor": 1.0,
@@ -61,10 +61,10 @@ class Builder(AntennaBuilder):
         side = (wavelength / 3.0) * self.length_factor
 
         # Bottom feed gap: a short horizontal segment centred on the y axis at
-        # height `base`. Its two ends seed the slants; T is just S mirrored, so
+        # height `feed_height`. Its two ends seed the slants; T is just S mirrored, so
         # no trig -- and everything above is flown by the drone.
-        S = (0.0, eps, self.base)  # right end of the feed gap
-        T = (0.0, -eps, self.base)  # left end
+        S = (0.0, eps, self.feed_height)  # right end of the feed gap
+        T = (0.0, -eps, self.feed_height)  # left end
 
         drone = Drone(nominal_nsegs=self.nominal_nsegs, ref=quarter)
 

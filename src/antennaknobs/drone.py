@@ -120,11 +120,9 @@ class Drone:
         self.pose = self.pose.postmult(Transform.translate(dist, 0, 0))
         return self
 
-    def forward_to_plane(self, plane, nsegs=None, factor=1.0):
-        """Fly along the nose until the path meets ``plane``, laying an edge if
-        the pen is down -- ``forward`` whose distance is solved for rather than
-        given. Handy for trimming a leg to a boundary (a ground plane, a
-        bounding box face, a reflector screen) without precomputing its length.
+    def _distance_to_plane(self, plane):
+        """Solve the forward distance along the nose to ``plane`` -- shared by
+        :meth:`forward_to_plane` and :meth:`forward_through_plane`.
 
         ``plane`` is a 4-tuple ``(nx, ny, nz, d)``: the direction
         ``(nx, ny, nz)`` is the plane normal (normalized internally, so it need
@@ -134,19 +132,9 @@ class Drone:
         ``z = 5`` and ``(0, 0, 2, 5)`` is the same plane (``d`` is a true
         distance, not scaled by the normal's length).
 
-        ``factor`` scales the solved distance: the default ``1.0`` stops *at*
-        the plane; ``2.0`` flies to the plane and an equal distance past it.
-        When the nose crosses the plane **squarely** (heading parallel to the
-        plane normal), ``factor=2`` lands exactly on the mirror image of the
-        start point -- so a segment straddling a symmetry plane (e.g. the top
-        edge of a symmetric loop) can be laid without computing its length or
-        reflecting a corner. For an oblique crossing it is simply a proportional
-        overshoot along the nose, not a geometric reflection.
-
         Raises ``ValueError`` if the normal is zero, if the nose is parallel to
         the plane (no intersection), or if the plane lies behind the nose (you
-        cannot extend *forward* to reach it). If the drone already sits on the
-        plane this is a no-op (no zero-length edge)."""
+        cannot extend *forward* to reach it)."""
         n = np.array(plane[:3], dtype=float)
         nn = np.linalg.norm(n)
         if nn < 1e-12:
@@ -164,7 +152,33 @@ class Drone:
         t = (d - float(np.dot(n, p0))) / denom
         if t < -1e-12:
             raise ValueError("plane lies behind the nose; cannot extend forward to it")
-        dist = t * factor
+        return t
+
+    def forward_to_plane(self, plane, nsegs=None):
+        """Fly along the nose until the path meets ``plane``, laying an edge if
+        the pen is down -- ``forward`` whose distance is solved for rather than
+        given. Handy for trimming a leg to a boundary (a ground plane, a
+        bounding box face, a reflector screen) without precomputing its length.
+        See :meth:`_distance_to_plane` for the ``plane`` convention and the
+        errors raised. If the drone already sits on the plane this is a no-op
+        (no zero-length edge). To continue *past* the plane, see
+        :meth:`forward_through_plane`."""
+        t = self._distance_to_plane(plane)
+        if t > 1e-12:
+            self.forward(t, nsegs)
+        return self
+
+    def forward_through_plane(self, plane, nsegs=None, factor=1.0):
+        """Fly *through* ``plane``: to it, then ``factor`` times the approach
+        distance *past* it, all as one edge. The default ``factor=1.0`` goes an
+        equal distance beyond, which lands exactly on the **mirror image** of the
+        start point when the nose crosses the plane squarely (heading parallel to
+        the plane normal). That lays a segment straddling a symmetry plane -- the
+        top edge of a symmetric loop, say -- without computing its length or
+        reflecting a corner. For an oblique crossing it is a proportional
+        overshoot along the nose, not a geometric reflection. Same ``plane``
+        convention and errors as :meth:`forward_to_plane`."""
+        dist = self._distance_to_plane(plane) * (1.0 + factor)
         if dist > 1e-12:
             self.forward(dist, nsegs)
         return self
