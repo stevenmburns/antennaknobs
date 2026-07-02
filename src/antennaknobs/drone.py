@@ -120,7 +120,7 @@ class Drone:
         self.pose = self.pose.postmult(Transform.translate(dist, 0, 0))
         return self
 
-    def forward_to_plane(self, plane, nsegs=None):
+    def forward_to_plane(self, plane, nsegs=None, factor=1.0):
         """Fly along the nose until the path meets ``plane``, laying an edge if
         the pen is down -- ``forward`` whose distance is solved for rather than
         given. Handy for trimming a leg to a boundary (a ground plane, a
@@ -133,6 +133,15 @@ class Drone:
         ``n_hat . x == d``; e.g. ``(0, 0, 1, 5)`` is the horizontal plane
         ``z = 5`` and ``(0, 0, 2, 5)`` is the same plane (``d`` is a true
         distance, not scaled by the normal's length).
+
+        ``factor`` scales the solved distance: the default ``1.0`` stops *at*
+        the plane; ``2.0`` flies to the plane and an equal distance past it.
+        When the nose crosses the plane **squarely** (heading parallel to the
+        plane normal), ``factor=2`` lands exactly on the mirror image of the
+        start point -- so a segment straddling a symmetry plane (e.g. the top
+        edge of a symmetric loop) can be laid without computing its length or
+        reflecting a corner. For an oblique crossing it is simply a proportional
+        overshoot along the nose, not a geometric reflection.
 
         Raises ``ValueError`` if the normal is zero, if the nose is parallel to
         the plane (no intersection), or if the plane lies behind the nose (you
@@ -155,8 +164,9 @@ class Drone:
         t = (d - float(np.dot(n, p0))) / denom
         if t < -1e-12:
             raise ValueError("plane lies behind the nose; cannot extend forward to it")
-        if t > 1e-12:
-            self.forward(t, nsegs)
+        dist = t * factor
+        if dist > 1e-12:
+            self.forward(dist, nsegs)
         return self
 
     def move_to(self, position):
