@@ -33,8 +33,13 @@ VFO dial; the rest are smaller). Three ways to change one:
 - **Drag** — press on the knob and move the mouse **vertically** (up to
   increase, down to decrease). Horizontal motion is ignored, so a natural hand
   motion won't fight you.
-- **Arrow keys** — focus a knob (click or tab to it) and press **↑ / ↓** to step
-  it by one increment — the precise way to nudge a value.
+- **Keyboard / physical dial** — click a knob (or tab to it) to **select** it;
+  it stays highlighted as the *armed* knob. Then **↑ / →** and **↓ / ←** step by
+  one increment, **Page Up / Down** by ten, **Home / End** jump to the range
+  ends, and **Enter** opens the value to type a number exactly. The selection is
+  **sticky** — it survives clicking away (onto the 3D view, say), so a physical
+  USB dial that emits arrow keys keeps driving the armed knob without having to
+  hold keyboard focus on it. **Esc** disarms.
 - **Right-click menu** — right-click a knob for its settings:
   - **Turn step** — how much one drag-notch / arrow press moves the value.
   - **Display range** — the min/max the knob sweeps between.
