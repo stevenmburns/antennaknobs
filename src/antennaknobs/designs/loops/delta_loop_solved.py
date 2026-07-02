@@ -23,7 +23,7 @@ class Builder(AntennaBuilder):
         {
             "design_freq": 28.47,
             "freq": 28.47,
-            "base": 7.0,  # height of the bottom feed gap
+            "feed_height": 7.0,  # height of the bottom feed gap
             # Total wire length as a multiple of a wavelength (~1 -> full-wave
             # loop). The side length is solved to hit this exactly.
             "length_factor": 1.0,
@@ -55,7 +55,7 @@ class Builder(AntennaBuilder):
             # Same construction as delta_loop_reflected: the Drone flies pen-up
             # to find the top corner A, reflection mirrors the left half, and
             # build_path stitches the perimeter and feed.
-            S = (0.0, eps, self.base)
+            S = (0.0, eps, self.feed_height)
             A = (
                 Drone(position=S)
                 .face(heading=(0.0, 0.0, 1.0), up=(1.0, 0.0, 0.0))
