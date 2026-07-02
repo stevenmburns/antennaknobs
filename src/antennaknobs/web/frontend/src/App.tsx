@@ -4923,12 +4923,33 @@ function FarFieldChart({
     const elevAzCos = Math.cos(elevAzRad);
     const elevAzSin = Math.sin(elevAzRad);
 
-    // Radial axis: absolute directivity in dBi over a fixed displayable
-    // range of +10 (outer edge) to −20 (origin). Labeled ticks are at the
-    // multiples of 6 strictly inside that range: +6, 0, −6, −12, −18.
-    const DBI_TOP = 10;
-    const DB_SPAN = 30;
-    const dbiToFrac = (db: number) => Math.max(0, (db - (DBI_TOP - DB_SPAN)) / DB_SPAN);
+    // Compute every trace (live + any pinned ghosts) up front, so the radial
+    // scale below can expand to fit the highest-gain lobe on screen. Cheap —
+    // each is computed once here and reused when drawing.
+    const liveTrace = result
+      ? computeCutDbi(result, cut, azElevDeg, elevAzDeg)
+      : null;
+    const pinnedTraces = pinned.map((p) =>
+      computeCutDbi(p.result, cut, azElevDeg, elevAzDeg),
+    );
+
+    // Radial axis: absolute directivity in dBi. Origin is a fixed −20 dBi
+    // floor. The outer edge is +10 dBi by default, but expands to fit the peak
+    // of the highest-gain trace (plus 1 dB headroom) so a high-gain array's
+    // lobe renders in full instead of drawing past the edge and clipping — the
+    // thumbnails escaped this only because their tiny radius left slack inside
+    // the margin. Labeled rings sit at +6/0/−6/−12/−18 (all inside any top).
+    const DBI_FLOOR = -20;
+    const peaks: number[] = [];
+    if (liveTrace) peaks.push(liveTrace.peakDbi);
+    for (const t of pinnedTraces) if (t) peaks.push(t.peakDbi);
+    const maxPeak = peaks.filter(Number.isFinite).reduce((a, b) => Math.max(a, b), 10);
+    const DBI_TOP = Math.max(10, Math.ceil(maxPeak + 1));
+    const DB_SPAN = DBI_TOP - DBI_FLOOR;
+    // Clamp to [0, 1]: a lobe at/above the top sits on the rim instead of
+    // drawing past R and clipping against the canvas edge.
+    const dbiToFrac = (db: number) =>
+      Math.max(0, Math.min(1, (db - DBI_FLOOR) / DB_SPAN));
     ctx.strokeStyle = PC.grid;
     ctx.lineWidth = 0.6;
     ctx.fillStyle = PC.labelDim;
@@ -5020,10 +5041,9 @@ function FarFieldChart({
     };
 
     // Pinned ghosts first (dimmed, dashed), so the live lobe sits on top. Each
-    // recomputes its own cut from its stored solve, so it tracks the cut and
+    // shares the adaptive radial scale computed above, so it tracks the cut and
     // angle sliders just like the live trace.
-    pinned.forEach((p, i) => {
-      const tr = computeCutDbi(p.result, cut, azElevDeg, elevAzDeg);
+    pinnedTraces.forEach((tr, i) => {
       if (!tr) return;
       const [r, g, b] = GHOST_COLORS[i % GHOST_COLORS.length];
       strokeTrace(tr.dbi, {
@@ -5034,9 +5054,8 @@ function FarFieldChart({
     });
 
     // Live lobe (filled).
-    const live = computeCutDbi(result, cut, azElevDeg, elevAzDeg);
-    if (!live) return;
-    strokeTrace(live.dbi, {
+    if (!liveTrace) return;
+    strokeTrace(liveTrace.dbi, {
       stroke: `rgba(${PC.lobeRgb}, 0.9)`,
       fill: `rgba(${PC.lobeRgb}, 0.12)`,
       width: 1.5,
@@ -5104,7 +5123,7 @@ function FarFieldChart({
     }
 
     // Peak dBi annotation (top-right corner).
-    const peakDbi = live.peakDbi;
+    const peakDbi = liveTrace.peakDbi;
     ctx.fillStyle = PC.labelStrong;
     ctx.font = "10px ui-monospace, monospace";
     const peakText = `peak ${peakDbi >= 0 ? "+" : ""}${peakDbi.toFixed(1)} dBi`;
