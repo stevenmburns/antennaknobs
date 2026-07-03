@@ -1,6 +1,6 @@
 ---
 title: Web workbench
-description: The browser-based simulator — driving the knobs, optimizing, switching solvers, and how it's served.
+description: The browser-based simulator — driving the knobs, running several designs at once, optimizing, switching solvers, and how it's served.
 ---
 
 The web workbench is the live, no-install face of antennaknobs: a panel of knobs
@@ -113,6 +113,27 @@ longer moves the impedance — run a **convergence sweep**. It re-solves the
 current antenna across a range of N values and plots the resulting feed-point
 impedance, so you can see where the curve flattens out. Details and how to read
 it: [Segments & convergence](/reference/solver/#segments--convergence).
+
+## Design sessions (tabs)
+
+The sidebar is a **notebook**: the tabs across its top (**D1**, **D2**, …) are
+independent design sessions, each with its own geometry, knob values, design and
+measurement frequency, ground setting, solver slot, and results. Click **+** to
+open a new session — it starts fresh and solves on its own — switch by clicking a
+tab, and close one with the **✕** (the last remaining tab can't be closed).
+
+- Sessions are **fully independent**: changing a knob, the solver, or the ground
+  model in one leaves every other session exactly as you left it.
+- **Hover a tab** for its summary — design, solver, segment count, and ground
+  model — e.g. `dipoles.invvee · Triangular N=40 · free space`.
+- Switching to a session **re-solves** it, which is near-instant because the
+  server caches recent solves (see [How a knob turn works](#how-a-knob-turn-works)).
+- The light/dark theme is shared across all sessions; everything else is
+  per-session.
+
+Open the same design in two tabs to compare tunings, or load two different
+antennas — then pair it with [pattern pinning](#comparing-patterns) to overlay
+one session's radiation pattern on another's.
 
 ## Comparing patterns
 
