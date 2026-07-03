@@ -1,4 +1,4 @@
-"""Tests for the 3D-turtle Drone and the delta_loop twin built with it."""
+"""Tests for the 3D-turtle Drone and the delta_loop twins built with it."""
 
 import math
 
@@ -7,16 +7,11 @@ import pytest
 
 from antennaknobs import Drone
 from antennaknobs.designs.loops.delta_loop import Builder as DeltaLoop
-from antennaknobs.designs.loops.delta_loop_drone import Builder as DeltaLoopDrone
-from antennaknobs.designs.loops.delta_loop_marked import Builder as DeltaLoopMarked
+from antennaknobs.designs.loops.delta_loop_flyby import Builder as DeltaLoopFlyby
 from antennaknobs.designs.loops.delta_loop_reflected import (
     Builder as DeltaLoopReflected,
 )
-from antennaknobs.designs.loops.delta_loop_flown import Builder as DeltaLoopFlown
-from antennaknobs.designs.loops.delta_loop_hoisted import Builder as DeltaLoopHoisted
-from antennaknobs.designs.loops.delta_loop_plane import Builder as DeltaLoopPlane
-from antennaknobs.designs.loops.delta_loop_sides import Builder as DeltaLoopSides
-from antennaknobs.designs.loops.delta_loop_solved import Builder as DeltaLoopSolved
+from antennaknobs.designs.loops.delta_loop_topdown import Builder as DeltaLoopTopdown
 from antennaknobs.designs.loops.horizontal_loop_drone import Builder as HLoopDrone
 
 
@@ -190,12 +185,6 @@ def test_forward_through_plane_is_proportional_overshoot_when_oblique():
     assert d.position == pytest.approx((4.0, 0.0, 0.0))
 
 
-def test_delta_loop_drone_matches_sides():
-    # Same feed-anchored loop as delta_loop_sides, flown instead of written: the
-    # slants are the given side, and only the top edge is a computed distance.
-    assert _undirected(DeltaLoopDrone()) == _undirected(DeltaLoopSides())
-
-
 def test_horizontal_loop_drone_is_a_closed_planar_square():
     b = HLoopDrone()
     wires = b.build_wires()
@@ -248,129 +237,6 @@ def test_mark_and_line_to_connects_to_a_pinned_node():
     assert d.position == pytest.approx((0.0, 0.0, 0.0))
 
 
-def test_delta_loop_marked_is_a_symmetric_delta_loop():
-    ws = DeltaLoopMarked().build_wires()
-    assert len(ws) == 4
-    pts = [p for e in ws for p in (e[0], e[1])]
-
-    # Vertical loop, planar in x = 0.
-    assert {round(p[0], 9) for p in pts} == {0.0}
-
-    # Exactly one one-segment driven feed.
-    driven = [e for e in ws if e[3] is not None]
-    assert len(driven) == 1 and driven[0][2] == 1 and driven[0][3] == 1 + 0j
-
-    # Symmetric about the y = 0 plane (so the feed/pattern stay symmetric).
-    yz = {(round(p[1], 6), round(p[2], 6)) for p in pts}
-    assert {(-y, z) for (y, z) in yz} == yz
-
-    # Two equal slanted sides and a horizontal top.
-    top_z = max(p[2] for p in pts)
-    structural = [e for e in ws if e[3] is None]
-    top = [e for e in structural if e[0][2] == top_z and e[1][2] == top_z]
-    slants = [e for e in structural if e not in top]
-    assert len(top) == 1 and len(slants) == 2
-    assert math.dist(slants[0][0], slants[0][1]) == pytest.approx(
-        math.dist(slants[1][0], slants[1][1])
-    )
-
-    # Connected closed loop: every node is shared by exactly two edges.
-    from collections import Counter
-
-    counts = Counter((round(p[1], 6), round(p[2], 6)) for p in pts)
-    assert set(counts.values()) == {2}
-
-
-def test_delta_loop_plane_is_a_closed_symmetric_delta_loop():
-    eps = 0.05
-    b = DeltaLoopPlane()
-    ws = b.build_wires()
-
-    # Same four-edge topology as the sibling delta loops: three structural
-    # perimeter edges (two slants + the top) and one driven feed gap.
-    assert len(ws) == 4
-    driven = [e for e in ws if e[3] is not None]
-    assert len(driven) == 1 and driven[0][3] == 1 + 0j
-
-    # Vertical loop, planar in x = 0.
-    assert {round(p[0], 9) for e in ws for p in (e[0], e[1])} == {0.0}
-
-    # The top edge sits at the `base` height (the flight starts there).
-    top_z = max(p[2] for e in ws for p in (e[0], e[1]))
-    assert top_z == pytest.approx(b.default_params["base"])
-
-    # forward_to_plane landed the feed on the plane y = eps (eps from centre):
-    # the two driven-gap ends straddle the centre line at +/- eps.
-    (fy0, fy1) = (driven[0][0][1], driven[0][1][1])
-    assert sorted([round(fy0, 9), round(fy1, 9)]) == [-eps, eps]
-
-    # Symmetric about the y = 0 plane (so feed/pattern stay symmetric).
-    yz = {(round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1])}
-    assert {(-y, z) for (y, z) in yz} == yz
-
-    # Connected closed loop: every node shared by exactly two edges.
-    from collections import Counter
-
-    counts = Counter((round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1]))
-    assert set(counts.values()) == {2}
-
-
-def test_delta_loop_flown_matches_sides():
-    # The same feed-anchored loop again, but the one computed distance (the top)
-    # is gone: forward_through_plane(y=0) lays it. No explicit trig at all,
-    # and no reflection -- yet identical geometry to sides/drone.
-    assert _undirected(DeltaLoopFlown()) == _undirected(DeltaLoopSides())
-
-
-def test_delta_loop_hoisted_seats_the_top_at_base():
-    # Built with the feed at z = 0, then a second pass lifts the loop so the
-    # top edge lands at `base` -- the feed follows below, not given.
-    b = DeltaLoopHoisted()
-    ws = b.build_wires()
-
-    assert len(ws) == 4
-    driven = [e for e in ws if e[3] is not None]
-    assert len(driven) == 1 and driven[0][3] == 1 + 0j
-
-    # Vertical loop, planar in x = 0.
-    assert {round(p[0], 9) for e in ws for p in (e[0], e[1])} == {0.0}
-
-    # The recalc'd top edge sits exactly at `base`; the feed is below it.
-    top_z = max(p[2] for e in ws for p in (e[0], e[1]))
-    feed_z = driven[0][0][2]
-    assert top_z == pytest.approx(b.default_params["base"])
-    assert feed_z < top_z
-
-    # Symmetric about y = 0, and a connected closed loop.
-    yz = {(round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1])}
-    assert {(-y, z) for (y, z) in yz} == yz
-    from collections import Counter
-
-    counts = Counter((round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1]))
-    assert set(counts.values()) == {2}
-
-
-def test_delta_loop_hoisted_plane_shipped_are_identical():
-    # The payoff: steps 7, 8 and 9 take the same parameter set (base,
-    # length_factor, angle_deg) and produce byte-identical geometry -- three
-    # interchangeable expressions of the one final design.
-    assert _undirected(DeltaLoopHoisted()) == _undirected(DeltaLoop())
-    assert _undirected(DeltaLoopPlane()) == _undirected(DeltaLoop())
-
-
-def test_delta_loop_plane_size_tracks_length_factor():
-    # length_factor is the total wire length, solved for; a bigger perimeter
-    # makes a bigger loop, so the top widens with it.
-    def top_width(lf):
-        ws = DeltaLoopPlane(
-            dict(DeltaLoopPlane.default_params, length_factor=lf)
-        ).build_wires()
-        ys = [p[1] for e in ws for p in (e[0], e[1])]
-        return max(ys) - min(ys)
-
-    assert top_width(1.1) > top_width(1.0) > top_width(0.9)
-
-
 def _undirected(builder):
     """{(sorted endpoint pair, is_driven)} for a design's wires, ignoring
     edge order, direction, and segment count."""
@@ -382,6 +248,59 @@ def _undirected(builder):
     return out
 
 
+# -- the four same-parameterization delta loops --------------------------------
+#
+# delta_loop (coordinates), delta_loop_flyby (drone flyby), delta_loop_reflected
+# (point-finder + reflection) and delta_loop_topdown (top-down flight) all take
+# the same knobs -- base, length_factor, angle_deg -- and must produce
+# byte-identical wires. They differ only in how the geometry is specified.
+
+
+def test_delta_loop_flyby_matches_shipped():
+    assert _undirected(DeltaLoopFlyby()) == _undirected(DeltaLoop())
+
+
+def test_delta_loop_reflected_matches_shipped():
+    assert _undirected(DeltaLoopReflected()) == _undirected(DeltaLoop())
+
+
+def test_delta_loop_topdown_matches_shipped():
+    assert _undirected(DeltaLoopTopdown()) == _undirected(DeltaLoop())
+
+
+def test_four_delta_loops_identical_across_a_second_param_set():
+    # The payoff: the same knob set produces identical geometry from every
+    # construction, at a different operating point too (z200, not the default).
+    p = dict(DeltaLoop.z200_params)
+    shipped = _undirected(DeltaLoop(p))
+    assert _undirected(DeltaLoopFlyby(p)) == shipped
+    assert _undirected(DeltaLoopReflected(p)) == shipped
+    assert _undirected(DeltaLoopTopdown(p)) == shipped
+
+
+def test_delta_loop_flyby_seats_the_top_at_base():
+    # Flown with the feed at z = 0, then a z-offset pass lifts the loop so the
+    # top edge lands at `base` -- the feed follows below, not given.
+    b = DeltaLoopFlyby()
+    ws = b.build_wires()
+
+    assert len(ws) == 4
+    driven = [e for e in ws if e[3] is not None]
+    assert len(driven) == 1 and driven[0][3] == 1 + 0j
+
+    # Vertical loop, planar in x = 0.
+    assert {round(p[0], 9) for e in ws for p in (e[0], e[1])} == {0.0}
+
+    # The lifted top edge sits exactly at `base`; the feed is below it.
+    top_z = max(p[2] for e in ws for p in (e[0], e[1]))
+    feed_z = driven[0][0][2]
+    assert top_z == pytest.approx(b.default_params["base"])
+    assert feed_z < top_z
+
+    # Symmetric about y = 0, and a connected closed loop.
+    _assert_symmetric_closed_loop(ws)
+
+
 def test_delta_loop_reflected_uses_build_path_topology():
     ws = DeltaLoopReflected().build_wires()
     # build_path([S, A, B, T]) -> 3 perimeter edges; build_path([T, S]) -> feed.
@@ -391,40 +310,55 @@ def test_delta_loop_reflected_uses_build_path_topology():
     # The feed uses the original delta_loop n_seg1 = max(3, nominal // 7).
     assert driven[0][2] == max(3, DeltaLoopReflected().nominal_nsegs // 7)
 
-
-def test_delta_loop_reflected_agrees_with_marked():
-    # Three constructions of the same antenna: the labelled-node version and
-    # the reflection+build_path version must produce the same loop (same nodes,
-    # same undirected edges, same driven edge) -- only segmentation differs.
-    assert _undirected(DeltaLoopReflected()) == _undirected(DeltaLoopMarked())
+    # Built with the feed at z = 0, then lifted so the top seats at `base`.
+    top_z = max(p[2] for e in ws for p in (e[0], e[1]))
+    assert top_z == pytest.approx(DeltaLoopReflected.default_params["base"])
+    _assert_symmetric_closed_loop(ws)
 
 
-def test_delta_loop_sides_agrees_with_marked():
-    # The direct side-length coordinate version and the flown labelled-node
-    # version describe the same antenna: same nodes, same undirected edges,
-    # same driven edge (only segmentation may differ). delta_loop_sides tilts
-    # each slant `angle_deg` from horizontal (default 60), which is the
-    # complement of marked's tilt from vertical (default 30) -- the same loop.
-    assert _undirected(DeltaLoopSides()) == _undirected(DeltaLoopMarked())
+def test_delta_loop_topdown_lands_the_feed_on_the_plane():
+    eps = 0.05
+    b = DeltaLoopTopdown()
+    ws = b.build_wires()
 
-
-def test_delta_loop_sides_is_a_symmetric_delta_loop():
-    ws = DeltaLoopSides().build_wires()
+    # Same four-edge topology: three structural perimeter edges + one feed gap.
     assert len(ws) == 4
     driven = [e for e in ws if e[3] is not None]
     assert len(driven) == 1 and driven[0][3] == 1 + 0j
 
-    # Vertical loop, planar in x = 0, symmetric about y = 0.
+    # Vertical loop, planar in x = 0.
     assert {round(p[0], 9) for e in ws for p in (e[0], e[1])} == {0.0}
-    yz = {(round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1])}
-    assert {(-y, z) for (y, z) in yz} == yz
+
+    # The top edge sits at `base` (the flight starts there -- no z-offset pass).
+    top_z = max(p[2] for e in ws for p in (e[0], e[1]))
+    assert top_z == pytest.approx(b.default_params["base"])
+
+    # forward_to_plane landed the feed on the plane y = eps: the two driven-gap
+    # ends straddle the centre line at +/- eps.
+    (fy0, fy1) = (driven[0][0][1], driven[0][1][1])
+    assert sorted([round(fy0, 9), round(fy1, 9)]) == [-eps, eps]
+
+    _assert_symmetric_closed_loop(ws)
+
+
+def test_delta_loop_topdown_size_tracks_length_factor():
+    # length_factor is the total wire length, solved for; a bigger perimeter
+    # makes a bigger loop, so the top widens with it.
+    def top_width(lf):
+        ws = DeltaLoopTopdown(
+            dict(DeltaLoopTopdown.default_params, length_factor=lf)
+        ).build_wires()
+        ys = [p[1] for e in ws for p in (e[0], e[1])]
+        return max(ys) - min(ys)
+
+    assert top_width(1.1) > top_width(1.0) > top_width(0.9)
 
 
 def test_delta_loop_side_follows_total_wire_length_in_closed_form():
-    # The tutorial's final tab claims the shipped apex-height formula is just
-    # the total-wire-length reparameterization solved for a top-anchored
-    # corner: the slant length equals (length_factor*wavelength - 4*eps) /
-    # (2*(1 + cos θ)), no apex height needed. Keep that claim honest.
+    # The shipped closed form is just the total-wire-length parameterization
+    # solved for a top-anchored corner: the slant length equals
+    # (length_factor*wavelength - 4*eps) / (2*(1 + cos θ)) in closed form, no
+    # numerical solve needed. Keep that claim honest.
     eps = 0.05
     for params in (DeltaLoop.default_params, DeltaLoop.z200_params):
         p = dict(params)
@@ -441,22 +375,12 @@ def test_delta_loop_side_follows_total_wire_length_in_closed_form():
         assert math.dist(slant[0], slant[1]) == pytest.approx(expected)
 
 
-def test_delta_loop_solved_hits_target_perimeter():
-    # The side length is found numerically so the total wire length equals
-    # length_factor * wavelength -- no apex formula, the solver inverts the
-    # build-and-measure model.
-    wl = 299.792458 / DeltaLoopSolved.default_params["design_freq"]
-    for lf in (0.9, 1.0, 1.1):
-        ws = DeltaLoopSolved(
-            dict(DeltaLoopSolved.default_params, length_factor=lf)
-        ).build_wires()
-        total = sum(math.dist(p0, p1) for p0, p1, _ns, _ex in ws)
-        assert total == pytest.approx(lf * wl, abs=1e-6)
+def _assert_symmetric_closed_loop(ws):
+    """The loop is symmetric about the y = 0 plane and every node is shared by
+    exactly two edges (a connected closed walk)."""
+    from collections import Counter
 
-    # Same symmetric build_path topology as the other delta loops.
-    ws = DeltaLoopSolved().build_wires()
-    assert len(ws) == 4
-    driven = [e for e in ws if e[3] is not None]
-    assert len(driven) == 1 and driven[0][3] == 1 + 0j
     yz = {(round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1])}
     assert {(-y, z) for (y, z) in yz} == yz
+    counts = Counter((round(p[1], 6), round(p[2], 6)) for e in ws for p in (e[0], e[1]))
+    assert set(counts.values()) == {2}
