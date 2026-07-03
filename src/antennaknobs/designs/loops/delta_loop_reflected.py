@@ -30,7 +30,7 @@ class Builder(AntennaBuilder):
         {
             "design_freq": 28.47,
             "freq": 28.47,
-            "base": 7.0,  # height of the bottom feed gap
+            "feed_height": 7.0,  # height of the bottom feed gap
             "length_factor": 1.0,  # each slant = (wavelength / 3) * this
             "angle_deg": 30.0,  # slant tilt from vertical (30 -> 60 apex)
             "ui_params": MappingProxyType(
@@ -60,7 +60,7 @@ class Builder(AntennaBuilder):
         # S is the right end of the bottom feed gap. Fly the drone (pen up, no
         # wire) from S up the right slant to read off the top corner A -- the
         # only point that would otherwise need trig.
-        S = (0.0, eps, self.base)
+        S = (0.0, eps, self.feed_height)
         A = (
             Drone(position=S)
             .face(heading=(0.0, 0.0, 1.0), up=(1.0, 0.0, 0.0))
