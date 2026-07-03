@@ -1614,6 +1614,18 @@ export function App() {
     setTheme(next);
   };
 
+  // Step 1 of the tabbed-sessions refactor. Every window listener, the
+  // WebSocket, and the background auto-poll effects below are gated on
+  // `active` so that a mounted-but-hidden instance (an inactive tab) holds no
+  // live socket, registers no global key listeners, and runs no background
+  // solves/sweeps/patterns — while its React state (the user's inputs) stays
+  // alive because the instance stays mounted. On re-activation each gated
+  // effect re-runs (`active` is in its deps) and reconnects / re-solves; the
+  // backend cache makes that the fast switch. Today there is a single,
+  // always-active instance, so this is a behaviour-preserving no-op; step 2
+  // turns `App` into `DesignSession` and `active` becomes a prop.
+  const active: boolean = true;
+
   // ---- Sticky knob selection (physical-dial support) ---------------------
   // `selectedKnob` drives the visible "armed" highlight; the ref mirror lets
   // the always-mounted global key listener read the latest selection without
@@ -1658,6 +1670,7 @@ export function App() {
   // keydown — avoids double-stepping) and when typing in a real field. Esc
   // disarms, freeing the arrow keys for normal page use again.
   useEffect(() => {
+    if (!active) return;
     const NAV = new Set([
       "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
       "PageUp", "PageDown", "Home", "End", "Enter",
@@ -1689,7 +1702,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [active]);
 
   // Tools (gear) dropdown in the header. Tucked away because it holds
   // occasional actions like the NEC deck export, not per-solve controls.
@@ -2193,6 +2206,7 @@ export function App() {
   const thumbSize = useThumbColumnSize(thumbStripRef, 280);
 
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
@@ -2202,7 +2216,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view]);
+  }, [view, active]);
 
   const sweepTimerRef = useRef<number | null>(null);
   const sweepAbortRef = useRef<AbortController | null>(null);
@@ -2360,7 +2374,7 @@ export function App() {
     // Paused (Live off) holds the optimiser too — it drives engine solves, so it
     // must respect the same gate as the main solve. Resuming re-runs this effect
     // (autoSim is a dep) and re-tunes.
-    if (!optFixedSig || !autoSim) return;
+    if (!optFixedSig || !autoSim || !active) return;
     const t = setTimeout(() => {
       runOptimize();
     }, 400);
@@ -2368,7 +2382,7 @@ export function App() {
     // runOptimize captured here reflects the state at this signature; re-running
     // only when the signature changes is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optFixedSig, autoSim]);
+  }, [optFixedSig, autoSim, active]);
 
   // The "paused — changing X by hand" cue is a brief flash: clear it a few
   // seconds after it appears so it doesn't linger while Optimize stays off.
@@ -2407,13 +2421,13 @@ export function App() {
 
   // Close the knob menu on Escape.
   useEffect(() => {
-    if (!knobMenu) return;
+    if (!knobMenu || !active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setKnobMenu(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [knobMenu]);
+  }, [knobMenu, active]);
 
   // Export the current design as a NEC2 .nec card deck and trigger a
   // browser download. The backend reuses the same builder construction as
@@ -2618,7 +2632,7 @@ export function App() {
   const pinCount = pinnedPatterns.length;
   const comparing = pinCount > 0 && (view === "azimuth" || view === "elevation");
   useEffect(() => {
-    if (!comparing || !result) {
+    if (!comparing || !result || !active) {
       setLiveMetrics(null);
       return;
     }
@@ -2633,7 +2647,7 @@ export function App() {
       window.clearTimeout(h);
     };
     // result identity changes per solve; that's the cue to refresh.
-  }, [comparing, result]);
+  }, [comparing, result, active]);
 
   // Reset the "solve anyway" approval whenever the design or solver changes, so
   // an inappropriate combo is re-evaluated (and re-warned) rather than riding a
@@ -2643,6 +2657,7 @@ export function App() {
   }, [geometry, backend, backendOptsKey]);
 
   useEffect(() => {
+    if (!active) return;
     // Hold the first solve after an antenna switch until that antenna's preview
     // has landed (previewReady === geometry). Param/freq tweaks on the *same*
     // antenna keep solving freely — previewReady stays equal to geometry until
@@ -2671,6 +2686,7 @@ export function App() {
     requestSolve();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    active,
     autoSim,
     geometry, previewReady, backend, backendOptsKey,
     currentValuesKey,
@@ -2754,7 +2770,7 @@ export function App() {
     }
     setSweep(null);
     setSweepRunning(false);
-    if (!sweepEnabled) {
+    if (!sweepEnabled || !active) {
       return;
     }
     // runSweep itself waits for the live solve to finish before it starts
@@ -2771,6 +2787,7 @@ export function App() {
     designFreq,
     groundEnabled, groundFast,
     sweepEnabled,
+    active,
     currentExample?.sweep_policy.anchor === "meas_freq" ? measFreq : null,
   ]);
 
@@ -2786,7 +2803,7 @@ export function App() {
     }
     setConverge(null);
     setConvergeRunning(false);
-    if (!convergeEnabled) {
+    if (!convergeEnabled || !active) {
       return;
     }
     // Like the sweep, runConverge waits for the live solve before starting.
@@ -2801,6 +2818,7 @@ export function App() {
     designFreq, measFreq,
     groundEnabled, groundFast,
     convergeEnabled,
+    active,
   ]);
 
   // Debounced NEC pattern fetch. PyNEC only — for momwire there's no rp_card
@@ -2808,7 +2826,7 @@ export function App() {
   useEffect(() => {
     if (patternTimerRef.current) window.clearTimeout(patternTimerRef.current);
     setPattern(null);
-    if (backend !== "pynec") return;
+    if (backend !== "pynec" || !active) return;
     patternTimerRef.current = window.setTimeout(() => {
       runPattern();
       patternTimerRef.current = null;
@@ -2822,6 +2840,7 @@ export function App() {
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundFast,
+    active,
   ]);
 
   async function runSweep() {
@@ -3164,6 +3183,7 @@ export function App() {
   }
 
   useEffect(() => {
+    if (!active) return;
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     ws.onopen = () => {
@@ -3229,7 +3249,7 @@ export function App() {
     };
     return () => ws.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   return (
     <ThemeContext.Provider value={theme}>
