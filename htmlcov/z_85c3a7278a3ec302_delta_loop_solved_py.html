@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_85c3a7278a3ec302_diamond_loop_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-02 15:04 +0000
+            created at 2026-07-03 01:27 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -105,7 +105,7 @@
     <p class="run run2"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">        <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">            <span class="str">"design_freq"</span><span class="op">:</span> <span class="num">28.47</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">            <span class="str">"freq"</span><span class="op">:</span> <span class="num">28.47</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">            <span class="str">"base"</span><span class="op">:</span> <span class="num">7.0</span><span class="op">,</span>  <span class="com"># height of the bottom feed gap</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">            <span class="str">"feed_height"</span><span class="op">:</span> <span class="num">7.0</span><span class="op">,</span>  <span class="com"># height of the bottom feed gap</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">            <span class="com"># Total wire length as a multiple of a wavelength (~1 -> full-wave</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t">            <span class="com"># loop). The side length is solved to hit this exactly.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">            <span class="str">"length_factor"</span><span class="op">:</span> <span class="num">1.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -137,7 +137,7 @@
     <p class="pln"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">            <span class="com"># Same construction as delta_loop_reflected: the Drone flies pen-up</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">            <span class="com"># to find the top corner A, reflection mirrors the left half, and</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">            <span class="com"># build_path stitches the perimeter and feed.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">            <span class="nam">S</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">            <span class="nam">S</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">feed_height</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">            <span class="nam">A</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">                <span class="nam">Drone</span><span class="op">(</span><span class="nam">position</span><span class="op">=</span><span class="nam">S</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">                <span class="op">.</span><span class="nam">face</span><span class="op">(</span><span class="nam">heading</span><span class="op">=</span><span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="num">1.0</span><span class="op">)</span><span class="op">,</span> <span class="nam">up</span><span class="op">=</span><span class="op">(</span><span class="num">1.0</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="num">0.0</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -171,7 +171,7 @@
             <a class="nav" href="z_85c3a7278a3ec302_diamond_loop_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-02 15:04 +0000
+            created at 2026-07-03 01:27 +0000
         </p>
     </div>
 </footer>

@@ -62,10 +62,10 @@
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_85c3a7278a3ec302_delta_loop_plane_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
-            <a id="nextFileLink" class="nav" href="z_85c3a7278a3ec302_delta_loop_slanted_py.html">&#xbb; next</a>
+            <a id="nextFileLink" class="nav" href="z_85c3a7278a3ec302_delta_loop_sides_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-02 15:04 +0000
+            created at 2026-07-03 01:27 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -112,7 +112,7 @@
     <p class="run run2"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">        <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">            <span class="str">"design_freq"</span><span class="op">:</span> <span class="num">28.47</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t">            <span class="str">"freq"</span><span class="op">:</span> <span class="num">28.47</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">            <span class="str">"base"</span><span class="op">:</span> <span class="num">7.0</span><span class="op">,</span>  <span class="com"># height of the bottom feed gap</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">            <span class="str">"feed_height"</span><span class="op">:</span> <span class="num">7.0</span><span class="op">,</span>  <span class="com"># height of the bottom feed gap</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">            <span class="str">"length_factor"</span><span class="op">:</span> <span class="num">1.0</span><span class="op">,</span>  <span class="com"># each slant = (wavelength / 3) * this</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t">            <span class="str">"angle_deg"</span><span class="op">:</span> <span class="num">30.0</span><span class="op">,</span>  <span class="com"># slant tilt from vertical (30 -> 60 apex)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">            <span class="str">"ui_params"</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -142,7 +142,7 @@
     <p class="pln"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">        <span class="com"># S is the right end of the bottom feed gap. Fly the drone (pen up, no</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">        <span class="com"># wire) from S up the right slant to read off the top corner A -- the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">        <span class="com"># only point that would otherwise need trig.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">        <span class="nam">S</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">        <span class="nam">S</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">feed_height</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">        <span class="nam">A</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">            <span class="nam">Drone</span><span class="op">(</span><span class="nam">position</span><span class="op">=</span><span class="nam">S</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">            <span class="op">.</span><span class="nam">face</span><span class="op">(</span><span class="nam">heading</span><span class="op">=</span><span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="num">1.0</span><span class="op">)</span><span class="op">,</span> <span class="nam">up</span><span class="op">=</span><span class="op">(</span><span class="num">1.0</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="num">0.0</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -165,10 +165,10 @@
         <p>
             <a class="nav" href="z_85c3a7278a3ec302_delta_loop_plane_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
-            <a class="nav" href="z_85c3a7278a3ec302_delta_loop_slanted_py.html">&#xbb; next</a>
+            <a class="nav" href="z_85c3a7278a3ec302_delta_loop_sides_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-02 15:04 +0000
+            created at 2026-07-03 01:27 +0000
         </p>
     </div>
 </footer>

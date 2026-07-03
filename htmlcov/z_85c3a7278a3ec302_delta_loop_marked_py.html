@@ -60,12 +60,12 @@
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
-            <a id="prevFileLink" class="nav" href="z_85c3a7278a3ec302_delta_loop_flown_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a id="prevFileLink" class="nav" href="z_85c3a7278a3ec302_delta_loop_hoisted_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_85c3a7278a3ec302_delta_loop_plane_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-02 15:04 +0000
+            created at 2026-07-03 01:27 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -98,7 +98,7 @@
     <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="str">positions it has been tracking.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="str">The loop is vertical, in the plane x = 0, fed by a short driven gap centred at</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="str">the bottom (height ``base``) and opening upward:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="str">the bottom (height ``feed_height``) and opening upward:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">        L-----------R      top, drawn corner-to-corner (line_to a marked node)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="str">         \\         /</span>&nbsp;</span><span class="r"></span></p>
@@ -118,7 +118,7 @@
     <p class="run run2"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">            <span class="str">"design_freq"</span><span class="op">:</span> <span class="num">28.47</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">            <span class="str">"freq"</span><span class="op">:</span> <span class="num">28.47</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">            <span class="com"># Height of the bottom feed gap above ground.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">            <span class="str">"base"</span><span class="op">:</span> <span class="num">7.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">            <span class="str">"feed_height"</span><span class="op">:</span> <span class="num">7.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">            <span class="com"># Each slanted side is a third of a wavelength times this (three</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">            <span class="com"># ~equal sides -> a ~1 wl perimeter full-wave loop). Tunes resonance.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t">            <span class="str">"length_factor"</span><span class="op">:</span> <span class="num">1.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -143,10 +143,10 @@
     <p class="run"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">        <span class="nam">side</span> <span class="op">=</span> <span class="op">(</span><span class="nam">wavelength</span> <span class="op">/</span> <span class="num">3.0</span><span class="op">)</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">length_factor</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">        <span class="com"># Bottom feed gap: a short horizontal segment centred on the y axis at</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">        <span class="com"># height `base`. Its two ends seed the slants; T is just S mirrored, so</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">        <span class="com"># height `feed_height`. Its two ends seed the slants; T is just S mirrored, so</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">        <span class="com"># no trig -- and everything above is flown by the drone.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">        <span class="nam">S</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span><span class="op">)</span>  <span class="com"># right end of the feed gap</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">        <span class="nam">T</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="op">-</span><span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span><span class="op">)</span>  <span class="com"># left end</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">        <span class="nam">S</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">feed_height</span><span class="op">)</span>  <span class="com"># right end of the feed gap</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">        <span class="nam">T</span> <span class="op">=</span> <span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="op">-</span><span class="nam">eps</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">feed_height</span><span class="op">)</span>  <span class="com"># left end</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">        <span class="nam">drone</span> <span class="op">=</span> <span class="nam">Drone</span><span class="op">(</span><span class="nam">nominal_nsegs</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">nominal_nsegs</span><span class="op">,</span> <span class="nam">ref</span><span class="op">=</span><span class="nam">quarter</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -177,12 +177,12 @@
 <footer>
     <div class="content">
         <p>
-            <a class="nav" href="z_85c3a7278a3ec302_delta_loop_flown_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a class="nav" href="z_85c3a7278a3ec302_delta_loop_hoisted_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_85c3a7278a3ec302_delta_loop_plane_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-02 15:04 +0000
+            created at 2026-07-03 01:27 +0000
         </p>
     </div>
 </footer>
