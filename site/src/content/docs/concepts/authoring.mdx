@@ -1,6 +1,6 @@
 ---
 title: Many ways to express geometry
-description: The same delta loop, built six different ways — from a coordinate formula to a 3D turtle to a numeric solve to a plane intersection. Pick the expression that fits how you think.
+description: One delta loop, built nine ways — a design walkthrough that starts with every corner spelled out in trig and evolves, one idea at a time, into the version the catalog ships.
 ---
 
 import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
@@ -8,9 +8,16 @@ import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
 The only thing the solver sees is the [edge list from
 `build_wires()`](/concepts/model/#the-build_wires-contract). *How* you produce
 that list is entirely up to you — and there is rarely one right way. To make
-that concrete, the catalog ships the **same delta loop built six different
-ways**, each rendering identical geometry. Pick the one that matches how you
-think about the shape; invent a seventh if none fit.
+that concrete, here is the **same delta loop built nine ways**, ordered as a
+*design walkthrough*: it starts with every corner spelled out in trig and
+evolves, one idea at a time, into what the catalog actually ships. Watch two
+things move as you go:
+
+- **the explicit trig you write** — all of it at first, then none (the
+  [`Drone`](#the-drone) hides it in its matrices), and finally back as one
+  deliberate closed form;
+- **the knob you design with** — a concrete *side length*, then *total wire
+  length* (resonance), then *top height* (where you hang it).
 
 A delta loop is a triangle fed by a short gap at the bottom:
 
@@ -19,113 +26,156 @@ A delta loop is a triangle fed by a short gap at the bottom:
          \\         /
           \\       /        two equal slanted sides
            \\     /
-            T~~~~S          short driven feed gap at the base
+            T~~~~S          short driven feed gap at the bottom
 ```
 
 <Tabs>
   <TabItem label="1. Coordinates">
-    **`delta_loop`** — the direct approach. Size the triangle from a perimeter
-    `length_factor`, then solve a closed-form apex-height formula for the corner
-    coordinates and write them down.
+    **[`delta_loop_sides`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_sides.py)** — the most explicit build. Give the feed height, each
+    slant's length and the apex angle, then write the four corners down with
+    `cos`/`sin` by hand.
 
     ```python
-    h = (cos * (d - 2 * eps) + 2 * eps) / (2 * (cos + 1))
-    # ...corner coordinates follow from h, then build_path stitches them
+    S = (0, eps, feed_height)
+    A = (0, eps + side * cos(t), feed_height + side * sin(t))   # top-right corner
+    B, T = ry(A), ry(S)                                        # left half mirrors y = 0
     ```
 
-    Honest and explicit — but that apex formula is the "scary trig" the other
-    versions exist to avoid.
+    Every bit of trig is on the page — the honest starting point the other eight
+    chip away at.
   </TabItem>
 
   <TabItem label="2. Drone">
-    **`delta_loop_drone`** — fly the shape with a [`Drone`](#the-drone), the 3D
-    analog of turtle graphics. Pay out wire, fly a slant, turn, fly the top,
-    turn, fly the other slant, close across the feed.
+    **[`delta_loop_drone`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_drone.py)** — fly the shape with a [`Drone`](#the-drone), the 3D
+    turtle — *same feed height, side and angle as #1*. The slants are the given
+    `side` and the turn angles live in the drone's matrices, so the flight
+    computes exactly **one** distance: the top edge, `2 * (side * cos(angle) + eps)`.
 
     ```python
-    drone.face(heading=(0, cos_t, sin_t), up=(1, 0, 0))
-    drone.pay_out().forward(side)   # right slant
-    drone.yaw(exterior_angle).forward(top)
-    drone.yaw(exterior_angle).forward(side)
-    drone.feed(1 + 0j).close()      # back across the feed gap
+    drone.face(heading=(0, 1, 0), up=(1, 0, 0)).yaw(angle)
+    drone.forward(side).yaw(ext)                           # S -> A  (given length)
+    drone.forward(2 * (side * cos(angle) + eps)).yaw(ext)  # A -> B  (the one computed leg)
+    drone.forward(side).feed(1 + 0j).close()               # B -> T, then the feed
     ```
 
-    No coordinates written by hand — the sin/cos lives in the drone's matrices.
-    Verified to match version 1 to machine precision.
+    All the trig has collapsed to that single leg length.
   </TabItem>
 
-  <TabItem label="3. Marked nodes">
-    **`delta_loop_marked`** — reparameterize by slant **angle** and **side
-    length**, with *no trig in the script at all*. Fly each slant, drop a
-    labelled pin at the right corner, then `line_to` it to lay the top — the
-    drone works out the top segment from the two corner positions it tracked.
+  <TabItem label="3. Fly to planes">
+    **[`delta_loop_flown`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_flown.py)** — the same feed-anchored flight, with that last
+    computed distance gone. Lay the top by *flight*:
+    `forward_through_plane((0, 1, 0, 0))` flies *through* the symmetry plane
+    `y = 0` to an equal distance past, landing on the mirror corner. **No
+    explicit trig anywhere, and no reflection.**
 
     ```python
-    drone.move_to(S).face(heading=(0, 0, 1), up=(1, 0, 0))
-    drone.yaw(-angle_deg).pay_out().forward(side)   # S -> R
-    drone.mark("R")
-    drone.cut().move_to(T).yaw(angle_deg)
-    drone.pay_out().forward(side).line_to("R")      # L -> R top
+    drone.forward(side).yaw(ext)                          # S -> A  (given length)
+    drone.forward_through_plane((0, 1, 0, 0)).yaw(ext)    # A -> B  (through y=0 to the mirror)
+    drone.forward(side).feed(1 + 0j).close()              # B -> T, then the feed
+    ```
+
+    Same three knobs as #1 and #2 — feed height, side, angle — but not a scrap of
+    trig on the page.
+  </TabItem>
+
+  <TabItem label="4. Marked nodes">
+    **[`delta_loop_marked`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_marked.py)** — fly each slant, drop a labelled pin at its top
+    corner, then `line_to` that pin to lay the top edge — the drone works out the
+    top segment from the two corners it tracked. Trig-free *and* reflection-free.
+
+    ```python
+    drone.yaw(-angle).forward(side).mark("R")               # S -> R
+    drone.move_to(T).yaw(angle).forward(side).line_to("R")  # L -> R top
     ```
   </TabItem>
 
-  <TabItem label="4. Reflection">
-    **`delta_loop_reflected`** — the most hybrid version. The drone is a
-    trig-free **point finder** (fly pen-up to read off corner `A`), a `ry`
-    reflection mirrors the right half to get `B` and `T`, and `build_path`
-    stitches the four points.
+  <TabItem label="5. Reflection">
+    **[`delta_loop_reflected`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_reflected.py)** — the drone as a trig-free **point finder**: fly
+    pen-up to read off corner `A`, then an `ry` reflection mirrors the right half
+    to `B` and `T`, and `build_path` stitches the four points.
 
     ```python
     A = (Drone(position=S)
          .face(heading=(0, 0, 1), up=(1, 0, 0))
-         .yaw(-angle_deg).forward(side).position)   # pen up: just read A
-    B, T = ry(A), ry(S)                              # reflect across y = 0
-    build_path([S, A, B, T], n0, None) + build_path([T, S], n1, 1 + 0j)
+         .yaw(-angle).forward(side).position)   # pen up: just read A
+    B, T = ry(A), ry(S)                          # reflect across y = 0
     ```
   </TabItem>
 
-  <TabItem label="5. Numeric solve">
-    **`delta_loop_solved`** — same construction as #4, but parameterized by
-    `length_factor` and the side length is found **numerically**. Build the loop
-    for a trial side, *measure* its total wire length, and let `brentq` invert
-    the model to hit `length_factor * wavelength`.
+  <TabItem label="6. Numeric solve">
+    **[`delta_loop_solved`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_solved.py)** — the first to size by **total wire length**, the
+    knob you actually design a loop with (resonant near ~1 wavelength around).
+    Same reflection build, but instead of a metre `side`, build for a trial side,
+    *measure* the wire, and let `brentq` hit `length_factor * wavelength`.
 
     ```python
-    from scipy.optimize import brentq
     target = length_factor * wavelength
     side = brentq(lambda s: total_wire_length(s) - target, 1e-3, 2 * wavelength)
     ```
 
-    No formula, no algebra — the drone computes the corner, `math.dist` measures
-    the wires, and the solver does the inversion.
+    No formula, no algebra — the model is the geometry, the solver inverts it.
   </TabItem>
 
-  <TabItem label="6. Fly to a plane">
-    **`delta_loop_plane`** — build it *top-down* and let a plane intersection
-    find the feed. Start at the top centre, fly right to the corner, turn down
-    onto the slant, and `forward_to_plane` flies until the slant crosses the
-    feed plane `y = eps` (the plane `eps` from the centre line). Neither the
-    slant length nor the feed height is computed — both fall out of where the
-    slant meets the plane. Then it borrows #3 and #4 wholesale: named pins plus
-    a `ry` reflection close the loop.
+  <TabItem label="7. Top height">
+    **[`delta_loop_hoisted`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_hoisted.py)** — from here on you're building the **final design**,
+    and the anchor flips: steps 1–6 fixed the *feed* (`feed_height`); 7, 8 and 9
+    fix the *top* with `base` (the top-edge height, where you hang it). All three
+    take the shipped set — `base`, `length_factor` (total wire length),
+    `angle_deg` — and produce *identical* wires, differing only in how much
+    machinery they lean on. This one leans on the most: solve the side
+    numerically (as in #6), build with the feed at `z = 0`, then a **second
+    pass** lifts every `z` so the top seats at `base`.
 
     ```python
-    R = drone.forward(half_top).position             # top corner (pen up)
-    drone.yaw(-(90 + angle_deg))                      # turn down the slant
-    S = drone.forward_to_plane((0, 1, 0, eps)).position  # land on the feed plane
-    L, T = ry(R), ry(S)                              # reflect across y = 0
+    side = brentq(...)                            # solve for the perimeter, as #6
+    wires = build_with_feed_at_zero(side)
+    shift = base - max(z for wires)
+    return [lift(edge, shift) for edge in wires]   # second pass: recalc z
     ```
 
-    Because the build is anchored at the top, the feed height is *emergent* —
-    it lands wherever the slant reaches the plane.
+    Two crutches — a solve *and* a second pass — that #8 and #9 knock away one at
+    a time.
+  </TabItem>
+
+  <TabItem label="8. Top-down">
+    **[`delta_loop_plane`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop_plane.py)** — the same design, **minus the second pass**. Start
+    the flight *at* the top centre, so the top height is right from move one; fly
+    out to the corner, then `forward_to_plane` drops down the slant to the feed
+    plane (the feed height is emergent). The side is still solved numerically.
+
+    ```python
+    R = drone.move_to((0, 0, base)).forward(half_top).position   # top corner
+    S = drone.yaw(180 + angle).forward_to_plane((0, 1, 0, eps)).position
+    L, T = ry(R), ry(S)                                          # reflect across y = 0
+    # half_top solved so the perimeter hits length_factor * wavelength
+    ```
+  </TabItem>
+
+  <TabItem label="9. What we ship">
+    **[`delta_loop`](https://github.com/stevenmburns/antennaknobs/blob/main/src/antennaknobs/designs/loops/delta_loop.py)** — the same design once more, **minus the solve too**. A
+    closed-form apex height sizes it from total wire length directly: no
+    trial-and-error, no second pass. This is the version in the catalog.
+
+    ```python
+    h = (cos * (d - 2 * eps) + 2 * eps) / (2 * (cos + 1))   # apex height, from perimeter d
+    A = (0, h, base)                                        # top corner, anchored at base
+    ```
+
+    The "scary trig" you started with in #1 — but *earned*: by now it reads as
+    just the perimeter solved in closed form, top-anchored.
   </TabItem>
 </Tabs>
 
 <Aside type="tip" title="The point">
-  All six produce the same shape. The progression — analytic → flown → labelled
-  → reflected → solved → flown-to-a-plane — is a tour of *how much you can lean
-  on the framework* instead of doing geometry by hand. Designs are meant to be
-  starting points; reach for whichever style makes your next antenna clearest.
+  Nine builds, one delta loop. Steps 1–6 are a genuine *progression* — the
+  **explicit trig** you write goes all → none (the Drone hides it), and the
+  **knob you design with** goes side length → total wire length. Steps 7, 8 and
+  9 are different: they're three *interchangeable* expressions of the **same
+  final design** — identical wires from the same `(base, length_factor,
+  angle_deg)` — shedding a numeric solve and a second pass until only the
+  closed-form apex remains. The Drone isn't a sidebar; it's how most of the trig
+  disappears along the way. Designs are starting points; reach for whichever
+  style makes your next antenna clearest.
 </Aside>
 
 ## The Drone
@@ -139,7 +189,8 @@ list `build_wires()` returns:
 | `pay_out()` / `cut()` | pen down / up (start / stop laying structural wire) |
 | `feed(excitation)` | like `pay_out`, but the wire is the driven segment |
 | `forward(dist)` / `jump(dist)` | fly along the nose, with / without laying wire |
-| `forward_to_plane(plane)` | fly along the nose until the path meets `plane=(nx, ny, nz, d)` (distance solved, not given) |
+| `forward_to_plane(plane)` | fly along the nose until the path meets `plane=(nx, ny, nz, d)` (distance solved, not given) — trims a leg to a boundary |
+| `forward_through_plane(plane)` | fly *through* `plane` to an equal distance past it — lands on the mirror across a symmetry plane, no length computed |
 | `yaw` / `pitch` / `roll` | turn in the body frame (degrees) |
 | `face(heading, up)` | point the nose along `heading` (handy to start a planar figure) |
 | `mark(label)` / `line_to(label)` | pin a node, then lay a wire straight to it |

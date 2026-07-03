@@ -22,18 +22,22 @@ after L. B. Cebik (W4RNL)'s articles.
 
 ## Loops
 
-The delta loop is the catalog's teaching showpiece — it exists **six ways**, a
-guided tour of how flexibly geometry can be expressed (see [Many ways to express
+The delta loop is the catalog's teaching showpiece — it exists **nine ways**, a
+guided tour (in this order) from the most explicit build to the version shipped,
+showing how flexibly geometry can be expressed (see [Many ways to express
 geometry](/concepts/authoring/)):
 
 | Design | Built by |
 | --- | --- |
-| `loops.delta_loop` | coordinate + apex-height formula |
-| `loops.delta_loop_drone` | a pure-`Drone` (3D turtle) twin |
+| `loops.delta_loop_sides` | side length written as direct coordinates (all the trig on the page) |
+| `loops.delta_loop_drone` | `Drone` (3D turtle) flight; only the top edge is a computed length |
+| `loops.delta_loop_flown` | `Drone`, top laid by `forward_through_plane` — no explicit trig, no reflection |
 | `loops.delta_loop_marked` | `Drone` + labelled nodes (angle + side, trig-free) |
 | `loops.delta_loop_reflected` | `Drone` point-finder + reflection + `build_path` |
 | `loops.delta_loop_solved` | the reflected build, with the side solved by `brentq` |
-| `loops.delta_loop_plane` | top-down: `Drone.forward_to_plane` finds the feed where the slant crosses `y = eps`, then named nodes + reflection |
+| `loops.delta_loop_hoisted` | top-anchored by a second-pass z recalc (side solved for the perimeter) |
+| `loops.delta_loop_plane` | top-down and solved: `forward_to_plane` lands the feed where the slant crosses `y = eps` |
+| `loops.delta_loop` | the shipped version: coordinates from a closed-form apex height |
 
 Other loops: `loops.delta_loop_slanted`, `loops.inv_delta_loop`,
 `loops.horizontal_loop` (full-wave "loop skywire") and its `Drone` twin
