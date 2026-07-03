@@ -10,7 +10,7 @@ live Moxon panels, and the delta-frame GIF encoder).
 | --- | --- | --- | --- |
 | `antennaknobs_728x90.gif` | animated | 3 knob-driven panels sweeping the Moxon spacing | ~34 KB |
 | `antennaknobs_728x90.png` | animated | frozen hero frame (static fallback) | ~15 KB |
-| `antennaknobs_728x90_cycling.gif` | cycling | frozen panels + a big line cycling every 2 s | ~35 KB |
+| `antennaknobs_728x90_cycling.gif` | cycling | frozen panels + a big line cycling every 3 s | ~35 KB |
 | `antennaknobs_728x90_cycling.png` | cycling | hero frame (the value-prop line) | ~12 KB |
 
 ## QRZ top-slot spec (verify current values with sales@qrz.com)
@@ -41,7 +41,7 @@ AntennaKNoBs.
 - **`animated`** — the panels *move*: the dial sweeps the spacing and all three
   panels reshape together, ping-ponging across the range.
 - **`cycling`** — the panels are *frozen* at the widest spacing (clean forward
-  beam) and a single **big line** cycles on the right at 2 s each, a four-step
+  beam) and a single **big line** cycles on the right at 3 s each, a four-step
   pitch: `Parameterize antennas in Python` → `Turn knobs to adjust parameters` →
   `See effects in real-time charts` → `Download at antennaknobs.dev`. Because
   only the right-hand line changes between frames, the delta-frame GIF stays

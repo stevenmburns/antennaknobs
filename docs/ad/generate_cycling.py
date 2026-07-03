@@ -2,7 +2,7 @@
 
 The three knob-driven panels sit **frozen** on the left (the dial at its widest
 spacing, its Moxon geometry and forward-beam pattern), and a single **big line**
-cycles on the right at 2 s each — a four-step pitch:
+cycles on the right at 3 s each — a four-step pitch:
 
     Parameterize antennas in Python
     Turn knobs to adjust parameters
@@ -39,7 +39,7 @@ LINES = [
 ]
 
 SIZE_CAP = 32  # keep the short lines from ballooning past the panels' height
-DURATION_MS = 2000  # 2 s per line
+DURATION_MS = 3000  # 3 s per line
 
 
 def base():
