@@ -1552,6 +1552,77 @@ function useThumbColumnSize(
 
 type Theme = "light" | "dark";
 const ThemeContext = createContext<Theme>("light");
+// Theme is global (owned by the shell) but the toggle button lives in each
+// session's sidebar header; sessions reach the setter through this context so
+// the single button drives the one shared theme.
+const ThemeControlContext = createContext<(next: Theme) => void>(() => {});
+
+// The open design sessions and the controls to switch / add / close them. The
+// shell provides this; each session renders a <TabStrip> off it, so all
+// mounted sessions show the same tabs (only the active one is visible).
+type SessionMeta = { id: number };
+type SessionsCtx = {
+  sessions: SessionMeta[];
+  activeId: number;
+  add: () => void;
+  close: (id: number) => void;
+  setActive: (id: number) => void;
+};
+const SessionsContext = createContext<SessionsCtx>({
+  sessions: [],
+  activeId: 0,
+  add: () => {},
+  close: () => {},
+  setActive: () => {},
+});
+
+// The session tab strip, atop each session's sidebar. Global state comes from
+// SessionsContext, so every mounted session renders an identical strip.
+function TabStrip() {
+  const { sessions, activeId, add, close, setActive } =
+    useContext(SessionsContext);
+  return (
+    <div className="tab-strip" role="tablist" aria-label="Design sessions">
+      {sessions.map((s, i) => (
+        <div
+          key={s.id}
+          className={`tab ${s.id === activeId ? "active" : ""}`}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={s.id === activeId}
+            className="tab-btn"
+            onClick={() => setActive(s.id)}
+            title={`Design ${i + 1}`}
+          >
+            Design {i + 1}
+          </button>
+          {sessions.length > 1 && (
+            <button
+              type="button"
+              className="tab-close"
+              onClick={() => close(s.id)}
+              aria-label={`Close design ${i + 1}`}
+              title={`Close design ${i + 1}`}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        className="tab-add"
+        onClick={add}
+        aria-label="New design"
+        title="New design"
+      >
+        +
+      </button>
+    </div>
+  );
+}
 
 // Response from POST /optimize.
 type OptMetrics = { z_in_re: number; z_in_im: number; z0_ohms: number; swr: number };
@@ -1588,43 +1659,20 @@ type KnobOpt = {
   step: number;
 };
 
-export function App() {
+// One antenna design session: the entire left sidebar + right stage plus all
+// the state, effects, and the WebSocket that drive them. The shell (`App`,
+// below) mounts one instance per tab and passes `active` — true only for the
+// visible tab. An inactive session stays mounted, so its inputs survive, but
+// suspends its WebSocket, global key listeners, and background solves via the
+// `active` gates threaded through the effects below. Theme is global and lives
+// in the shell; the canvases here read it through ThemeContext.
+function DesignSession({ active }: { active: boolean }) {
   const [geometry, setGeometry] = useState<string>("");
 
-  // Theme is seeded from the <html data-theme> the no-flash script in
-  // index.html set (localStorage || prefers-color-scheme); the effect mirrors
-  // changes back to the attribute + storage. The 3 canvases read their colors
-  // from CSS vars via getComputedStyle, so they consume ThemeContext to repaint
-  // on toggle (see FarFieldChart/SmithChart/CurrentCanvas).
-  const [theme, setTheme] = useState<Theme>(() =>
-    document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-  );
-  // Apply the attribute SYNCHRONOUSLY here, not in a post-render effect: React
-  // runs child effects before parent effects, so the canvases' draw effects
-  // would re-read getComputedStyle while the attribute still held the previous
-  // theme — lagging one toggle behind the (pure-CSS) chrome. Setting it eagerly
-  // means the attribute is already current when those effects re-run.
-  const applyTheme = (next: Theme) => {
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
-      /* storage disabled — in-memory toggle still works */
-    }
-    setTheme(next);
-  };
-
-  // Step 1 of the tabbed-sessions refactor. Every window listener, the
-  // WebSocket, and the background auto-poll effects below are gated on
-  // `active` so that a mounted-but-hidden instance (an inactive tab) holds no
-  // live socket, registers no global key listeners, and runs no background
-  // solves/sweeps/patterns — while its React state (the user's inputs) stays
-  // alive because the instance stays mounted. On re-activation each gated
-  // effect re-runs (`active` is in its deps) and reconnects / re-solves; the
-  // backend cache makes that the fast switch. Today there is a single,
-  // always-active instance, so this is a behaviour-preserving no-op; step 2
-  // turns `App` into `DesignSession` and `active` becomes a prop.
-  const active: boolean = true;
+  // Theme is global (shell-owned); the sidebar toggle reads the current value
+  // and writes through the control context so it drives the one shared theme.
+  const theme = useContext(ThemeContext);
+  const applyTheme = useContext(ThemeControlContext);
 
   // ---- Sticky knob selection (physical-dial support) ---------------------
   // `selectedKnob` drives the visible "armed" highlight; the ref mirror lets
@@ -3252,10 +3300,10 @@ export function App() {
   }, [active]);
 
   return (
-    <ThemeContext.Provider value={theme}>
     <KnobSelectionContext.Provider value={knobSelection}>
     <div className="app">
       <aside className="sidebar">
+        <TabStrip />
         <div className="sidebar-header">
           <div className="brand">
             <h1>AntennaKNoBs</h1>
@@ -4150,6 +4198,95 @@ export function App() {
       </main>
     </div>
     </KnobSelectionContext.Provider>
+  );
+}
+
+// App shell. Owns the two pieces of truly global state — the light/dark theme
+// and the list of open design sessions — and nothing else. Every session is a
+// mounted <DesignSession>; only the active one is shown (the rest are hidden
+// with CSS so their inputs survive). Switching flips `active`, which suspends
+// the outgoing session's socket/listeners/solves and resumes the incoming
+// one's (see the `active` gates in DesignSession).
+export function App() {
+  // Theme is seeded from the <html data-theme> the no-flash script in
+  // index.html set (localStorage || prefers-color-scheme). The 3 canvases read
+  // their colors from CSS vars via getComputedStyle, so they consume
+  // ThemeContext to repaint on toggle (see FarFieldChart/SmithChart/
+  // CurrentCanvas). The toggle button itself lives in each session's sidebar
+  // and writes back through ThemeControlContext.
+  const [theme, setTheme] = useState<Theme>(() =>
+    document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+  );
+  // Apply the attribute SYNCHRONOUSLY here, not in a post-render effect: React
+  // runs child effects before parent effects, so the canvases' draw effects
+  // would re-read getComputedStyle while the attribute still held the previous
+  // theme — lagging one toggle behind the (pure-CSS) chrome. Setting it eagerly
+  // means the attribute is already current when those effects re-run.
+  const applyTheme = useCallback((next: Theme) => {
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+      /* storage disabled — in-memory toggle still works */
+    }
+    setTheme(next);
+  }, []);
+
+  // Open sessions. Ids are stable and monotonic (never reused), so React keys
+  // each session to a fixed mount for its whole lifetime — the whole point:
+  // a session's inputs live in its component instance, so it must never be
+  // reconciled onto a different session's tree.
+  const [sessions, setSessions] = useState<SessionMeta[]>([{ id: 1 }]);
+  const [activeId, setActiveId] = useState(1);
+  const nextIdRef = useRef(2);
+
+  const add = useCallback(() => {
+    const id = nextIdRef.current++;
+    setSessions((prev) => [...prev, { id }]);
+    setActiveId(id);
+  }, []);
+
+  const close = useCallback((id: number) => {
+    setSessions((prev) => {
+      if (prev.length <= 1) return prev; // always keep one session open
+      const idx = prev.findIndex((s) => s.id === id);
+      const next = prev.filter((s) => s.id !== id);
+      // If the closed session was active, activate its neighbour (prefer the
+      // one to the left, matching browser-tab behaviour).
+      setActiveId((cur) =>
+        cur === id ? next[Math.max(0, idx - 1)].id : cur,
+      );
+      return next;
+    });
+  }, []);
+
+  const setActive = useCallback((id: number) => setActiveId(id), []);
+
+  const sessionsCtx = useMemo<SessionsCtx>(
+    () => ({ sessions, activeId, add, close, setActive }),
+    [sessions, activeId, add, close, setActive],
+  );
+
+  return (
+    <ThemeContext.Provider value={theme}>
+      <ThemeControlContext.Provider value={applyTheme}>
+        <SessionsContext.Provider value={sessionsCtx}>
+          <div className="sessions">
+            {sessions.map((s) => (
+              <div
+                key={s.id}
+                className="session-mount"
+                // Hidden — not unmounted — so an inactive session keeps its
+                // inputs. `hidden` also removes it from the a11y tree and stops
+                // its canvases painting.
+                hidden={s.id !== activeId}
+              >
+                <DesignSession active={s.id === activeId} />
+              </div>
+            ))}
+          </div>
+        </SessionsContext.Provider>
+      </ThemeControlContext.Provider>
     </ThemeContext.Provider>
   );
 }

@@ -219,6 +219,18 @@ button:focus-visible,
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Holds the mounted design sessions; the active one fills the viewport, the
+   rest are hidden (their inputs survive). Each session's `.app` grid is
+   height:100%. */
+.sessions {
+  height: 100%;
+  overflow: hidden;
+}
+
+.session-mount {
+  height: 100%;
+}
+
 .app {
   display: grid;
   grid-template-columns: 320px 1fr;
@@ -247,6 +259,95 @@ button:focus-visible,
   gap: var(--space-4);
 }
 
+/* Session tabs across the top of the sidebar column — a "notebook" whose pages
+   are the whole workspace. Sticky so they stay visible as the knob list
+   scrolls; bled to the sidebar edges via negative margins that cancel its
+   padding. */
+.tab-strip {
+  position: sticky;
+  top: calc(-1 * var(--space-7));
+  z-index: 3;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  margin: calc(-1 * var(--space-7)) calc(-1 * var(--space-7)) 0;
+  padding: var(--space-3) var(--space-5);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none; /* the +/tab row is self-evidently scrollable */
+}
+
+.tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+}
+
+.tab.active {
+  background: var(--inset);
+  border-color: var(--border-control);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+}
+
+.tab.active .tab-btn {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tab-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: var(--text-base);
+  line-height: 1;
+  padding: 0 var(--space-2) 0 0;
+  border-radius: var(--r-sm);
+}
+
+.tab-close:hover {
+  color: var(--accent);
+}
+
+.tab-add {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--border-control);
+  color: var(--muted);
+  border-radius: var(--r-sm);
+  width: 24px;
+  height: 24px;
+  align-self: center;
+  cursor: pointer;
+  font-size: var(--text-base);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-add:hover {
+  color: var(--accent);
+  border-color: var(--border-hover);
+}
+
 .brand {
   display: flex;
   flex-direction: column;
@@ -254,7 +355,7 @@ button:focus-visible,
   min-width: 0;
 }
 
-.sidebar h1 {
+.brand h1 {
   font-size: var(--text-lg);
   font-weight: 700;
   margin: 0;
