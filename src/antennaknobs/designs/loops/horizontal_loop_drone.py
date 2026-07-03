@@ -1,10 +1,10 @@
-"""A horizontal square loop, vertex-fed, authored with the 3D-turtle Drone.
+r"""A horizontal square loop, vertex-fed, authored with the 3D-turtle Drone.
 
 The simplest drone example there is: a flat square loop built by flying four
 equal sides with a 90 degrees turn at each corner -- no trig at all. Contrast
-``delta_loop_drone``, whose slants are given but whose top edge is still one
-computed length; here every side is the same length and the corners are just
-right angles.
+``delta_loop_flyby``, whose slants are flown but whose top edge is laid by
+flying through the symmetry plane; here every side is the same length and the
+corners are just right angles.
 
 The loop lies flat in the plane ``z = base``. Each side is a quarter wavelength
 scaled by a common ``length_factor`` (so the perimeter is ~1 wavelength at
@@ -22,8 +22,8 @@ bisected by the A-C diagonal, which is a mirror plane of the square, so the feed
         D-----------C       (loop lies flat at z = base, viewed from above)
         |           |
         |           |
-         \\          |       driven segment cuts across corner A,
-        A `\\--------B       bisected by the A-C diagonal (a mirror plane)
+         \          |       driven segment cuts across corner A,
+        A `\--------B       bisected by the A-C diagonal (a mirror plane)
 """
 
 from types import MappingProxyType

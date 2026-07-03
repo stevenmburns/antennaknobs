@@ -44,7 +44,8 @@ class Builder(AntennaBuilder):
         n_seg0 = self.nominal_nsegs
         n_seg1 = max(3, self.nominal_nsegs // 7)
 
-        h = (cos_theta * (driver - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
+        # y of the top corner (half the top-edge width), in closed form.
+        y = (cos_theta * (driver - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
 
         r"""
          B-----------------A
@@ -57,8 +58,8 @@ class Builder(AntennaBuilder):
                 T---S
     """
 
-        S = (0, eps, b - (h - eps) * tan_theta)
-        A = (0, h, b)
+        S = (0, eps, b - (y - eps) * tan_theta)
+        A = (0, y, b)
 
         B, T = ry(A), ry(S)
 

@@ -103,36 +103,37 @@ cleanly, and the engine coerces every count to its own parity at solve time.
 
 ### Example — a vertical delta loop
 
-From `designs/loops/delta_loop_drone.py`: a downward-pointing triangle in the
-x = 0 plane. `face()` sets the nose along a slant with the plane normal (+x) as
-"up", so every `yaw()` stays in-plane — no explicit trig.
+From `designs/loops/delta_loop_flyby.py`: a downward-pointing triangle in the
+x = 0 plane, flown in full. `face()` starts the nose along the top edge with the
+plane normal (+x) as "up", so every `yaw()` stays in-plane — no explicit trig.
+`forward_through_plane` lays the whole top edge in one move, flying through the
+symmetry plane `y = 0` to the mirror corner without computing its length.
 
 ```python
-import math
 from antennaknobs import Drone
 
 drone = Drone(position=S, nominal_nsegs=n_body, ref=quarter)
-drone.face(heading=(0.0, cos_theta, math.sin(theta)), up=(1.0, 0.0, 0.0))
+drone.face(heading=(0.0, 1.0, 0.0), up=(1.0, 0.0, 0.0))
+drone.yaw(self.angle_deg)                # tilt up onto the right slant
 
 drone.pay_out()
-drone.forward(side, nsegs=n_body)   # S -> A  (right side)
-drone.yaw(180 - self.angle_deg)     # exterior angle at A
-drone.forward(top, nsegs=n_body)    # A -> B  (top edge)
-drone.yaw(180 - self.angle_deg)     # exterior angle at B
-drone.forward(side, nsegs=n_body)   # B -> T  (left side)
+drone.forward(side, nsegs=n_body)                                # S -> A  (right slant)
+drone.yaw(180 - self.angle_deg)                                  # exterior angle at A
+drone.forward_through_plane((0.0, 1.0, 0.0, 0.0), nsegs=n_body)  # A -> B  (top edge)
+drone.yaw(180 - self.angle_deg)                                  # exterior angle at B
+drone.forward(side, nsegs=n_body)                                # B -> T  (left slant)
 drone.feed(1 + 0j)
-drone.close(nsegs=n_feed)           # T -> S  (driven feed gap, fly home)
+drone.close(nsegs=n_feed)                                        # T -> S  (feed gap, fly home)
 
 return drone.wires()
 ```
 
 Other idiomatic examples in the catalog: `horizontal_loop_drone.py` (a planar
-square via four `yaw(90).forward(side)` legs), `delta_loop_marked.py`
-(`mark`/`line_to` to bridge the top edge), `delta_loop_reflected.py` (the
-drone as a pure **point finder** — fly pen-up and read `.position`), and
-`delta_loop_plane.py` (start at the top centre and `forward_to_plane` down a
-slant onto the feed plane `y = eps`, so the slant length and feed height fall
-out of the intersection rather than being computed).
+square via four `yaw(90).forward(side)` legs), `delta_loop_reflected.py` (the
+drone as a pure **point finder** — fly pen-up and read `.position`, then reflect
+the rest), and `delta_loop_topdown.py` (start at the top centre and
+`forward_to_plane` down a slant onto the feed plane `y = eps`, so the slant
+length and feed height fall out of the intersection rather than being computed).
 
 ## `Transform`
 

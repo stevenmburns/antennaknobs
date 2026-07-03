@@ -1,4 +1,4 @@
-"""Bi-square: a two-wavelength loop worked as a vertical broadside curtain
+r"""Bi-square: a two-wavelength loop worked as a vertical broadside curtain
 (L. B. Cebik, W4RNL).
 
 Take the half-square (a 1 wl conductor) and double it into a 2 wl loop with
@@ -22,9 +22,9 @@ Geometry, in the framework's (x, y, z) convention:
   - x : firing axis; broadside off +/- x (planar in x = 0)
 
                     o  top corner             z = base + 2*hd
-                   / \\
+                   / \
        left corner o   o right corner         z = base + hd
-                   \\ /
+                   \ /
                     F  bottom corner (fed)     z = base
 """
 
