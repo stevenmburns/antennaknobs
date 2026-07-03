@@ -1,12 +1,17 @@
 # QRZ.com banner ads
 
 Marketing assets for a [QRZ.com](https://www.qrz.com/page/advertising.html)
-**top-slot leaderboard** campaign for AntennaKNoBs.
+**top-slot leaderboard** campaign for AntennaKNoBs. QRZ picks one banner per page
+view and holds it, so we run **several variants** and will add more over a
+campaign; each is a thin script over the shared `_adkit.py` (fonts, palette, the
+live Moxon panels, and the delta-frame GIF encoder).
 
-| File | What | Size |
-| --- | --- | --- |
-| `antennaknobs_728x90.gif` | Animated banner (3 knob-driven panels) | ~34 KB |
-| `antennaknobs_728x90.png` | A frozen hero frame of the GIF (static fallback) | ~15 KB |
+| File | Variant | What | Size |
+| --- | --- | --- | --- |
+| `antennaknobs_728x90.gif` | animated | 3 knob-driven panels sweeping the Moxon spacing | ~34 KB |
+| `antennaknobs_728x90.png` | animated | frozen hero frame (static fallback) | ~15 KB |
+| `antennaknobs_728x90_cycling.gif` | cycling | frozen panels + a big line cycling every 2 s | ~35 KB |
+| `antennaknobs_728x90_cycling.png` | cycling | hero frame (the value-prop line) | ~12 KB |
 
 ## QRZ top-slot spec (verify current values with sales@qrz.com)
 
@@ -15,31 +20,42 @@ Marketing assets for a [QRZ.com](https://www.qrz.com/page/advertising.html)
 - **Rate (as read from QRZ's page, June 2026):** top slot **$200 / month**
   ($540 / 3 mo, $2040 / yr); 10% off for 3+ units, 15% for 1 yr+. Confirm before buying.
 
-## What it shows
+## What the panels show
 
-Three panels, left to right, all driven by the dial and all computed live by this
-repo's `momwire` engine from the catalog `beams.moxon` design:
+Both variants share the same three panels, left to right, all computed live by
+this repo's `momwire` engine from the catalog `beams.moxon` design:
 
 1. **A labelled dial** ("spacing") with a live readout below it — the Moxon's
-   element spacing in wavelengths, ticking as the knob turns.
+   element spacing in wavelengths.
 2. **The Moxon geometry** — its real top view (driven element + feed gap,
-   reflector, bent tips) from `build_wires()`, reshaping as the spacing changes.
+   reflector, bent tips) from `build_wires()`.
 3. **The radiation pattern** — an azimuth cut from `far_field()`.
 
-The dial sweeps `aspect_ratio` (element spacing): as it widens, the boom deepens
-and the back lobe collapses into a clean forward beam — the actual Moxon
-spacing/front-to-back tradeoff. Turn a knob, the antenna responds: the point of
-AntennaKNoBs, drawn by AntennaKNoBs.
+As `aspect_ratio` (element spacing) widens, the boom deepens and the back lobe
+collapses into a clean forward beam — the actual Moxon spacing/front-to-back
+tradeoff. Turn a knob, the antenna responds: the point of AntennaKNoBs, drawn by
+AntennaKNoBs.
+
+## Variants
+
+- **`animated`** — the panels *move*: the dial sweeps the spacing and all three
+  panels reshape together, ping-ponging across the range.
+- **`cycling`** — the panels are *frozen* at the widest spacing (clean forward
+  beam) and a single **big line** cycles on the right at 2 s each, a four-step
+  pitch: `Parameterize antennas in Python` → `Turn knobs to adjust parameters` →
+  `See effects in real-time charts` → `Download at antennaknobs.dev`. Because
+  only the right-hand line changes between frames, the delta-frame GIF stays
+  small even with large type; each line auto-fits the text column so the short
+  lines render big.
 
 ## Messaging (deliberate)
 
-- **No URL** — the banner is clickable, so the address is omitted (it just looked
-  cramped). The ad links to **antennaknobs.dev**, the main site, so visitors land
-  on the installable open-source tool rather than the throwaway web demo.
-- Says **"open source"** in the subline (no "free trial" framing that would imply
-  a future paywall).
+- The ad links to **antennaknobs.dev**, the main site, so visitors land on the
+  installable open-source tool rather than the throwaway web demo.
+- Says **"open source"** / points at the download (no "free trial" framing that
+  would imply a future paywall).
 - Avoids the word **"tune"** — turning a design parameter is not antenna tuning.
-- Headline **"Your antennas, as code."**; KK7KNB credit for QRZ cred.
+- KK7KNB credit for QRZ cred.
 
 ## Typography
 
@@ -57,10 +73,12 @@ docs/ad/fetch_fonts.sh        # downloads IBM Plex into docs/ad/fonts/ (gitignor
 ```bash
 pip install -e ".[web]"        # needs antennaknobs (for the momwire patterns) + Pillow
 docs/ad/fetch_fonts.sh
-python docs/ad/generate_animated.py   # writes BOTH the .gif and the hero-frame .png
+python docs/ad/generate_animated.py   # animated variant: .gif + hero .png
+python docs/ad/generate_cycling.py    # cycling variant: _cycling.gif + _cycling.png
 ```
 
-Rendered at 3× and downscaled (LANCZOS) for antialiasing; the GIF is delta-frame
-encoded (only the changing left panels are stored per frame), which keeps it
-under the 48 KB limit. The PNG is the widest-spacing frame (clean forward beam).
-Override the font location with the `AD_FONTS` env var if your TTFs live elsewhere.
+Each variant writes both its `.gif` and a static hero-frame `.png` fallback.
+Rendered at 3× and downscaled (LANCZOS) for antialiasing; the GIFs are
+delta-frame encoded (only the changing region is stored per frame), which keeps
+them under the 48 KB limit. Shared drawing lives in `_adkit.py`. Override the
+font location with the `AD_FONTS` env var if your TTFs live elsewhere.
