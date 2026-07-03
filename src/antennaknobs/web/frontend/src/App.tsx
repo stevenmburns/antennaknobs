@@ -1567,6 +1567,10 @@ type SessionsCtx = {
   add: () => void;
   close: (id: number) => void;
   setActive: (id: number) => void;
+  // Per-session one-line summary (design · solver · segs · ground) for the tab
+  // hover, reported up from each session (which owns that state).
+  summaries: Record<number, string>;
+  reportSummary: (id: number, summary: string) => void;
 };
 const SessionsContext = createContext<SessionsCtx>({
   sessions: [],
@@ -1574,12 +1578,16 @@ const SessionsContext = createContext<SessionsCtx>({
   add: () => {},
   close: () => {},
   setActive: () => {},
+  summaries: {},
+  reportSummary: () => {},
 });
 
 // The session tab strip, atop each session's sidebar. Global state comes from
-// SessionsContext, so every mounted session renders an identical strip.
+// SessionsContext, so every mounted session renders an identical strip. Tabs
+// are labelled "D1", "D2", … to stay compact for many designs; the full
+// design/solver/segs/ground summary is on hover.
 function TabStrip() {
-  const { sessions, activeId, add, close, setActive } =
+  const { sessions, activeId, add, close, setActive, summaries } =
     useContext(SessionsContext);
   return (
     <div className="tab-strip" role="tablist" aria-label="Design sessions">
@@ -1594,9 +1602,9 @@ function TabStrip() {
             aria-selected={s.id === activeId}
             className="tab-btn"
             onClick={() => setActive(s.id)}
-            title={`Design ${i + 1}`}
+            title={summaries[s.id] ?? `Design ${i + 1}`}
           >
-            Design {i + 1}
+            D{i + 1}
           </button>
           {sessions.length > 1 && (
             <button
@@ -1666,13 +1674,16 @@ type KnobOpt = {
 // suspends its WebSocket, global key listeners, and background solves via the
 // `active` gates threaded through the effects below. Theme is global and lives
 // in the shell; the canvases here read it through ThemeContext.
-function DesignSession({ active }: { active: boolean }) {
+function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [geometry, setGeometry] = useState<string>("");
 
   // Theme is global (shell-owned); the sidebar toggle reads the current value
   // and writes through the control context so it drives the one shared theme.
   const theme = useContext(ThemeContext);
   const applyTheme = useContext(ThemeControlContext);
+
+  // Report this session's one-line summary up to the shell for the tab hover.
+  const { reportSummary } = useContext(SessionsContext);
 
   // ---- Sticky knob selection (physical-dial support) ---------------------
   // `selectedKnob` drives the visible "armed" highlight; the ref mirror lets
@@ -2088,6 +2099,23 @@ function DesignSession({ active }: { active: boolean }) {
   // PEC ground plane (image method at z = 0).
   const [groundEnabled, setGroundEnabled] = useState(false);
   const [groundFast, setGroundFast] = useState(false);
+
+  // One-line tab-hover summary: design · solver N=segs · ground model. The
+  // ground wording follows the backend family (momwire = PEC image method,
+  // PyNEC = Sommerfeld, or its fast reflection-coefficient approximation), and
+  // reads "free space" when ground is off or unsupported by the active solver.
+  const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
+  const groundSummary = !groundActiveForSummary
+    ? "free space"
+    : backend === "pynec"
+      ? groundFast
+        ? "reflection-coef ground"
+        : "Sommerfeld ground"
+      : "PEC ground";
+  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${BACKEND_LABEL[backend]} N=${nPerWire} · ${groundSummary}`;
+  useEffect(() => {
+    reportSummary(id, tabSummary);
+  }, [id, tabSummary, reportSummary]);
   // Far-field cut angles. The azimuth plot slices the pattern at elevation
   // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
   // bearing `elevAzDeg` (0° = +x). Defaults give the conventional views.
@@ -4239,6 +4267,8 @@ export function App() {
   const [sessions, setSessions] = useState<SessionMeta[]>([{ id: 1 }]);
   const [activeId, setActiveId] = useState(1);
   const nextIdRef = useRef(2);
+  // Per-session tab-hover summaries, reported up from each session.
+  const [summaries, setSummaries] = useState<Record<number, string>>({});
 
   const add = useCallback(() => {
     const id = nextIdRef.current++;
@@ -4258,13 +4288,25 @@ export function App() {
       );
       return next;
     });
+    setSummaries((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
   const setActive = useCallback((id: number) => setActiveId(id), []);
 
+  // Identity-guarded so a session re-reporting the same summary is a no-op
+  // (avoids a render loop from the reporting effect).
+  const reportSummary = useCallback((id: number, summary: string) => {
+    setSummaries((prev) => (prev[id] === summary ? prev : { ...prev, [id]: summary }));
+  }, []);
+
   const sessionsCtx = useMemo<SessionsCtx>(
-    () => ({ sessions, activeId, add, close, setActive }),
-    [sessions, activeId, add, close, setActive],
+    () => ({ sessions, activeId, add, close, setActive, summaries, reportSummary }),
+    [sessions, activeId, add, close, setActive, summaries, reportSummary],
   );
 
   return (
@@ -4281,7 +4323,7 @@ export function App() {
                 // its canvases painting.
                 hidden={s.id !== activeId}
               >
-                <DesignSession active={s.id === activeId} />
+                <DesignSession id={s.id} active={s.id === activeId} />
               </div>
             ))}
           </div>
