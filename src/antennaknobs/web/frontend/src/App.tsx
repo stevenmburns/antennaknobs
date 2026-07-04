@@ -304,26 +304,6 @@ function mixHex(a: string, b: string, t: number): string {
   return `rgb(${r}, ${g}, ${bl})`;
 }
 
-// Sticky knob selection. A physical dial (Ulanzi D100H et al.) emits plain
-// arrow-key presses, so "which knob the dial drives" must survive losing DOM
-// focus — otherwise clicking the canvas silently kills the dial. Each Knob
-// registers an imperative key handler under a stable id and marks itself
-// selected on focus; App's global keydown listener routes nav keys to the
-// selected knob whenever no knob is itself focused (and the target isn't a
-// text field). Esc disarms. Physical arrow keys ride the exact same path.
-type KnobSelectionCtx = {
-  selectedId: string | null;
-  select: (id: string | null) => void;
-  register: (id: string, handler: (key: string) => void) => void;
-  unregister: (id: string) => void;
-};
-const KnobSelectionContext = createContext<KnobSelectionCtx>({
-  selectedId: null,
-  select: () => {},
-  register: () => {},
-  unregister: () => {},
-});
-
 // A dependency-free rotary knob — a drop-in alternative to the range
 // slider for float/int params. Semantically a slider (role="slider"), so
 // it stays keyboard- and screen-reader-accessible: vertical drag, scroll
@@ -347,8 +327,7 @@ function Knob({
   variant = "param",
   disabled = false,
 }: {
-  // Stable id used by the sticky-selection registry; the dial drives whichever
-  // knob is selected, independent of DOM focus.
+  // Stable id, emitted as data-knob-id for testing/debugging.
   knobId: string;
   value: number;
   min: number;
@@ -378,9 +357,6 @@ function Knob({
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const isVfo = variant === "vfo";
-  const sel = useContext(KnobSelectionContext);
-  const selected = sel.selectedId === knobId;
-
   const span = max - min || 1;
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   // Clamp + round to the param's precision so we emit clean values (2.46, not
@@ -512,22 +488,6 @@ function Knob({
     if (applyKey(e.key)) e.preventDefault();
   };
 
-  // Register an always-current handler under this knob's id so the global
-  // router can drive it after focus has moved elsewhere. A ref keeps the
-  // closure fresh (latest value/min/max) without re-registering every render.
-  const applyRef = useRef(applyKey);
-  applyRef.current = applyKey;
-  // Register on mount / unregister on unmount only. Depend on the *stable*
-  // register/unregister callbacks — NOT the whole `sel` context object, whose
-  // identity changes on every selection. Depending on `sel` re-runs this effect
-  // each time a knob is armed, firing the unmount-disarm path in unregister and
-  // instantly clearing the very knob we just selected.
-  const { register, unregister } = sel;
-  useEffect(() => {
-    register(knobId, (key) => applyRef.current(key));
-    return () => unregister(knobId);
-  }, [knobId, register, unregister]);
-
   const commit = (raw: string) => {
     const n = Number(raw);
     if (Number.isFinite(n)) onChange(snap(n));
@@ -537,7 +497,8 @@ function Knob({
   const p = Math.max(0, precision);
   return (
     <div
-      className={`knob${isVfo ? " is-vfo" : ""}${disabled ? " is-disabled" : ""}${selected ? " is-selected" : ""}`}
+      className={`knob${isVfo ? " is-vfo" : ""}${disabled ? " is-disabled" : ""}`}
+      data-knob-id={knobId}
       ref={wrapRef}
       role="slider"
       tabIndex={editing || disabled ? -1 : 0}
@@ -547,9 +508,6 @@ function Knob({
       aria-valuenow={value}
       aria-valuetext={`${value.toFixed(p)}${unit ?? ""}`}
       aria-disabled={disabled || undefined}
-      onFocus={() => {
-        if (!disabled) sel.select(knobId);
-      }}
       onKeyDown={onKeyDown}
     >
       {editing ? (
@@ -1765,84 +1723,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // Report this session's one-line summary up to the shell for the tab hover.
   const { reportSummary } = useContext(SessionsContext);
 
-  // ---- Sticky knob selection (physical-dial support) ---------------------
-  // `selectedKnob` drives the visible "armed" highlight; the ref mirror lets
-  // the always-mounted global key listener read the latest selection without
-  // re-subscribing. `knobHandlers` maps each mounted knob's id to its
-  // imperative key handler.
-  const [selectedKnob, setSelectedKnob] = useState<string | null>(null);
-  const selectedKnobRef = useRef<string | null>(null);
-  const knobHandlers = useRef(new Map<string, (key: string) => void>());
-
-  const selectKnob = useCallback((id: string | null) => {
-    selectedKnobRef.current = id;
-    setSelectedKnob(id);
-  }, []);
-  const registerKnob = useCallback(
-    (id: string, handler: (key: string) => void) => {
-      knobHandlers.current.set(id, handler);
-    },
-    [],
-  );
-  const unregisterKnob = useCallback((id: string) => {
-    knobHandlers.current.delete(id);
-    // If the armed knob just unmounted (antenna switch, visibility change),
-    // disarm so a stale id can't silently swallow the dial's keys.
-    if (selectedKnobRef.current === id) {
-      selectedKnobRef.current = null;
-      setSelectedKnob(null);
-    }
-  }, []);
-  const knobSelection = useMemo<KnobSelectionCtx>(
-    () => ({
-      selectedId: selectedKnob,
-      select: selectKnob,
-      register: registerKnob,
-      unregister: unregisterKnob,
-    }),
-    [selectedKnob, selectKnob, registerKnob, unregisterKnob],
-  );
-
-  // Global key router: forward nav keys to the armed knob from anywhere on the
-  // page, so a physical dial (or the keyboard arrows) keeps working after focus
-  // has left the knob. Skips when a knob is itself focused (it handles its own
-  // keydown — avoids double-stepping) and when typing in a real field. Esc
-  // disarms, freeing the arrow keys for normal page use again.
-  useEffect(() => {
-    if (!active) return;
-    const NAV = new Set([
-      "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-      "PageUp", "PageDown", "Home", "End", "Enter",
-    ]);
-    const onKey = (e: KeyboardEvent) => {
-      const id = selectedKnobRef.current;
-      if (!id) return;
-      if (e.key === "Escape") {
-        selectedKnobRef.current = null;
-        setSelectedKnob(null);
-        return;
-      }
-      if (!NAV.has(e.key)) return;
-      const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.isContentEditable ||
-          t.classList.contains("knob"))
-      ) {
-        return;
-      }
-      const handler = knobHandlers.current.get(id);
-      if (!handler) return;
-      e.preventDefault();
-      handler(e.key);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active]);
-
   // Tools (gear) dropdown in the header. Tucked away because it holds
   // occasional actions like the NEC deck export, not per-solve controls.
   const [gearMenuOpen, setGearMenuOpen] = useState(false);
@@ -2378,8 +2258,20 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      // Don't hijack arrows while a knob (e.g. the cut-angle dials) or a real
+      // field is focused — those consume arrows to turn/edit their own value.
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable ||
+          t.classList.contains("knob"))
+      ) {
+        return;
+      }
       const idx = VIEWS.findIndex((v) => v.id === view);
       const next = e.key === "ArrowDown" ? (idx + 1) % VIEWS.length : (idx - 1 + VIEWS.length) % VIEWS.length;
       setView(VIEWS[next].id);
@@ -3439,7 +3331,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   }, [active]);
 
   return (
-    <KnobSelectionContext.Provider value={knobSelection}>
     <div className="app">
       <aside className="sidebar">
         <TabStrip />
@@ -4330,7 +4221,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         </div>
       </main>
     </div>
-    </KnobSelectionContext.Provider>
   );
 }
 
