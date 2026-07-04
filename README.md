@@ -56,6 +56,7 @@
 | src/antennaknobs/designs/loops/horizontal\_loop\_drone.py         |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/inv\_delta\_loop.py                |       31 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/quad.py                            |       35 |        0 |    100% |           |
+| src/antennaknobs/designs/loops/triangular\_skyloop.py             |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/fandipole.py                   |       59 |        1 |     98% |       120 |
 | src/antennaknobs/designs/multiband/hexbeam\_5band.py              |      103 |        0 |    100% |           |
@@ -116,7 +117,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      417 |       63 |     85% |66-68, 175-176, 340-343, 403, 435, 437, 486, 528, 561, 563-566, 607, 658, 693, 701-715, 726-727, 751-762, 782, 785-786, 802, 805-806, 822, 850-875, 1030, 1033-1034, 1051 |
 | src/antennaknobs/web/user\_designs.py                             |       56 |        6 |     89% |58-59, 83-84, 89-90 |
-| **TOTAL**                                                         | **5831** |  **319** | **95%** |           |
+| **TOTAL**                                                         | **5857** |  **319** | **95%** |           |
 
 
 ## Setup coverage badge
