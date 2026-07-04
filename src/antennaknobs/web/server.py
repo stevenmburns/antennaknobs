@@ -86,6 +86,7 @@ os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
 # ruff: noqa: E402 — imports below must follow the env-var setup above so
 # OpenBLAS picks up the thread count at its own import time.
+import asyncio
 import hashlib
 import json
 import time
@@ -464,6 +465,11 @@ _CACHE_KEY_BLOCKLIST = frozenset(
     {
         "_request_id",
         "_client_ts",
+        # Per-request sequence number for the /ws latest-wins protocol. Pure
+        # metadata — echoed back so the client can order/prune responses; must
+        # not shred the cache hit rate (a scrub back to an earlier value should
+        # still hit even though its _seq is higher).
+        "_seq",
     }
 )
 
@@ -1015,11 +1021,44 @@ def examples_endpoint():
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
+    # Latest-wins mailbox. A dedicated reader task drains the socket into a
+    # size-1 mailbox (overwriting any unsolved request), while the solver loop
+    # below pulls the newest request whenever it's free. This squashes
+    # superseded knob changes *server-side*: the client sends every change
+    # eagerly with a monotonic `_seq`, and only the freshest queued request is
+    # ever solved. Results known to be superseded (a newer request already sat
+    # in the mailbox before we could send) are skipped — the doomed payload
+    # never travels. The client renders monotonically by `_seq`, so a higher
+    # `_seq` response implicitly acknowledges every lower one.
     await ws.accept()
+    mailbox: list[dict] = []  # size-1: newest unsolved request only
+    newer = asyncio.Event()  # set when the mailbox is (re)filled
+    closed = asyncio.Event()  # set when the socket disconnects
+
+    async def reader() -> None:
+        # Starlette requires a single reader on the socket, so *all*
+        # receive_text calls happen here; the solver loop never reads.
+        try:
+            while True:
+                req = json.loads(await ws.receive_text())
+                mailbox[:] = [req]  # overwrite → squash anything unsolved
+                newer.set()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            closed.set()
+            newer.set()  # wake the solver so it can observe `closed` and exit
+
+    reader_task = asyncio.create_task(reader())
     try:
         while True:
-            raw = await ws.receive_text()
-            req = json.loads(raw)
+            await newer.wait()
+            newer.clear()
+            if closed.is_set() and not mailbox:
+                return
+            if not mailbox:
+                continue
+            req = mailbox.pop()
             try:
                 result = await run_in_threadpool(solve, req)
             except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
@@ -1030,23 +1069,32 @@ async def ws_endpoint(ws: WebSocket):
                     "geometry": req.get("geometry"),
                     "error": user_designs.format_solve_error(exc),
                 }
-            # The client can disconnect *during* the solve (rapid
-            # slider drag tears down the React effect's WS and opens
-            # a fresh one before our threadpool finishes). When that
-            # happens send_text races with the closed socket and
-            # uvicorn logs a noisy "socket.send() raised exception"
-            # per dropped response. Skip the send when we've already
-            # been disconnected, and treat any error during send as a
-            # disconnect (the next receive_text will raise
-            # WebSocketDisconnect anyway).
-            if ws.client_state != WebSocketState.CONNECTED:
+            # Echo the sequence number on EVERY response, error path included —
+            # the client keys ordering, RTT accounting, and solving-state off it,
+            # and a stuck request would leave `solving` true forever if any path
+            # dropped the echo. The stamp lands on the (deep)copied result solve()
+            # returns, never on a cached entry.
+            result["_seq"] = req.get("_seq")
+            # Superseded while we solved? A newer request is already queued, so
+            # skip this send entirely — its response will carry a higher `_seq`
+            # and the client renders monotonically. Saves the full doomed payload
+            # (wires + interleaved sample-current arrays) on the wire.
+            if mailbox:
+                continue
+            # The client can disconnect *during* the solve (rapid slider drag
+            # tears down the React effect's WS and opens a fresh one before our
+            # threadpool finishes). When that happens send_text races with the
+            # closed socket and uvicorn logs a noisy "socket.send() raised
+            # exception". Skip the send when we've already been disconnected, and
+            # treat any error during send as a disconnect.
+            if closed.is_set() or ws.client_state != WebSocketState.CONNECTED:
                 return
             try:
                 await ws.send_text(json.dumps(result))
             except (WebSocketDisconnect, RuntimeError):
                 return
-    except WebSocketDisconnect:
-        return
+    finally:
+        reader_task.cancel()
 
 
 # Serve the built React frontend (web/static, produced by `npm run build` in
