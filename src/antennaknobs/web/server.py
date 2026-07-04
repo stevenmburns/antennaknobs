@@ -91,7 +91,6 @@ import hashlib
 import json
 import time
 from collections import OrderedDict
-from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 
@@ -152,6 +151,37 @@ def _attach_derived_em_fields(out: dict) -> None:
     out["k_meas_m_inv"] = omega / C_LIGHT
     sigma = float(out.get("ground_sigma", 0.0) or 0.0)
     out["ground_eps_im"] = -sigma / (omega * _EPS0) if omega > 0 else 0.0
+
+
+_ETA0 = 376.730313668  # free-space impedance, ohms
+
+
+def _attach_gain_norm(out: dict) -> None:
+    """Attach `directivity_norm` = η₀k²/(8π·P_in), the O(1) gain normaliser.
+
+    Multiplying this by the frontend's azimuth-cut |M_perp(π/2, φ)|² yields
+    absolute GAIN (linear); 10·log10 is dBi. Derivation: the far field of the
+    moment sum M = Σ I·dr·e^{jk·r̂·x} is E = (jkη₀/4πr)·e^{−jkr}·M_perp, so the
+    radiation intensity is U = r²|E|²/(2η₀) = (η₀k²/32π²)·|M_perp|² and
+    gain = 4π·U/P_in = (η₀k²/8π)·|M_perp|²/P_in.
+
+    Normalising by SOURCE input power is what makes this gain rather than
+    directivity: power burned in resistive loads (terminated rhombic / T2FD)
+    or absorbed by a lossy ground stays inside P_in, so no efficiency multiply
+    — this replaces the old pattern-integral norm (4π/∮|M_perp|²dΩ)×efficiency,
+    which equals it identically up to the solver's self-consistency gap (the
+    NEC "average gain" diagnostic; `_pattern_integral_norm` measures it).
+
+    Falls back to the pattern-integral norm when the response carries no
+    usable input power (defensive: a pathological R_in ≤ 0 from a nearly
+    lossless, strongly reactive discretisation).
+    """
+    p_in = float(out.get("input_power_w", 0.0) or 0.0)
+    if p_in <= 0.0:
+        _compute_directivity_norm(out)
+        return
+    k = float(out["k_meas_m_inv"])
+    out["directivity_norm"] = _ETA0 * k * k / (8.0 * np.pi * p_in)
 
 
 def _adaptive_norm_grid(k: float, lo: np.ndarray, hi: np.ndarray) -> tuple[int, int]:
@@ -567,7 +597,7 @@ def _canonical_solve_key(req: dict) -> str:
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
 
-def _solve_uncached(req: dict, superseded: Callable[[], bool] | None = None) -> dict:
+def _solve_uncached(req: dict) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     _check_solve_size(req, use_pynec=use_pynec)
@@ -578,21 +608,11 @@ def _solve_uncached(req: dict, superseded: Callable[[], bool] | None = None) -> 
         out = ex.momwire_solve(req)
         out["solver"] = "momwire"
     _attach_derived_em_fields(out)
-    # The directivity norm is a ~430 ms far-field integral (the heaviest single
-    # step of a solve) whose only product is one scalar reference for absolute
-    # dBi. When a newer request already sits in the mailbox this result is
-    # doomed to be skip-sent, so computing its norm is pure waste — skip it and
-    # let the solver pull the fresher request sooner. The result then carries no
-    # `directivity_norm` key, which the caller uses to keep it out of the cache
-    # (only fully post-processed results may be cached) and which the frontend
-    # reads as "carry the last-good norm forward".
-    if superseded is not None and superseded():
-        return out
-    _compute_directivity_norm(out)
+    _attach_gain_norm(out)
     return out
 
 
-def solve(req: dict, superseded: Callable[[], bool] | None = None) -> dict:
+def solve(req: dict) -> dict:
     key = _canonical_solve_key(req)
     hit = _SOLVE_CACHE.get(key)
     if hit is not None:
@@ -606,16 +626,11 @@ def solve(req: dict, superseded: Callable[[], bool] | None = None) -> dict:
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
         return out
-    out = _solve_uncached(req, superseded)
+    out = _solve_uncached(req)
     out["cache_hit"] = False
-    # Only cache a fully post-processed result. A norm-skipped (superseded)
-    # solve lacks `directivity_norm`; caching it would let a later exact-repeat
-    # request hit a partial entry and render with a stale/absent absolute
-    # reference forever.
-    if "directivity_norm" in out:
-        _SOLVE_CACHE[key] = deepcopy(out)
-        while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
-            _SOLVE_CACHE.popitem(last=False)
+    _SOLVE_CACHE[key] = deepcopy(out)
+    while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
+        _SOLVE_CACHE.popitem(last=False)
     return out
 
 
@@ -738,9 +753,8 @@ def _solve_z_only(req: dict) -> tuple[complex, list[complex] | None]:
 
     Returns (primary_z, feeds_z) where feeds_z is the per-feed Z list for
     multi-feed geometries (bowtie 1×2 array) and None for single-feed
-    geometries. Skips the directivity-norm integral that `solve()` would
-    otherwise tack on — for the /converge sweep we only need Z(N), and
-    at N ≳ 60 the directivity step adds non-negligible cost.
+    geometries. Skips solve()'s post-processing (derived EM fields, gain
+    norm) — for the /converge sweep we only need Z(N).
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
@@ -1175,14 +1189,8 @@ async def ws_endpoint(ws: WebSocket):
             if not mailbox:
                 continue
             req = mailbox.pop()
-            # `bool(mailbox)` flips to True the instant the reader queues a newer
-            # request, and the reader only ever *fills* the mailbox while we hold
-            # this popped request — so this closure is a monotonic "am I already
-            # stale?" signal that's safe to poll from the solve worker thread.
-            # solve() uses it to skip the doomed result's directivity norm.
-            superseded = lambda: bool(mailbox)  # noqa: E731
             try:
-                result = await run_in_threadpool(solve, req, superseded)
+                result = await run_in_threadpool(solve, req)
             except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
                 # A solve that raises must not tear down the socket (that drops
                 # every subsequent slider-driven solve). Send the cause so the
