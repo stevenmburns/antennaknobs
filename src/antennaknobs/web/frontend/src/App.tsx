@@ -1662,7 +1662,7 @@ function TabStrip() {
 
   return (
     <div className="tab-strip" role="tablist" aria-label="Design sessions">
-      {sessions.map((s, i) => (
+      {sessions.map((s) => (
         <div
           key={s.id}
           className={`tab ${s.id === activeId ? "active" : ""}`}
@@ -1673,9 +1673,9 @@ function TabStrip() {
             aria-selected={s.id === activeId}
             className="tab-btn"
             onClick={() => setActive(s.id)}
-            title={summaries[s.id] ?? `Design ${i + 1}`}
+            title={summaries[s.id] ?? `Design ${s.id}`}
           >
-            D{i + 1}
+            D{s.id}
           </button>
           {sessions.length > 1 && (
             <button
@@ -1685,8 +1685,8 @@ function TabStrip() {
                 const r = e.currentTarget.getBoundingClientRect();
                 setConfirm({ id: s.id, x: r.left, y: r.bottom });
               }}
-              aria-label={`Close design ${i + 1}`}
-              title={`Close design ${i + 1}`}
+              aria-label={`Close design ${s.id}`}
+              title={`Close design ${s.id}`}
               aria-haspopup="dialog"
               aria-expanded={confirmId === s.id}
             >
@@ -1705,42 +1705,38 @@ function TabStrip() {
         +
       </button>
       {confirm !== null &&
-        (() => {
-          const idx = sessions.findIndex((s) => s.id === confirm.id);
-          if (idx === -1) return null; // session vanished out from under us
-          return (
-            <div
-              className="tab-close-confirm"
-              role="dialog"
-              aria-label={`Close design ${idx + 1}?`}
-              style={{ left: confirm.x, top: confirm.y + 6 }}
-            >
-              <span className="tab-close-confirm-msg">
-                Close design {idx + 1}?
-              </span>
-              <div className="tab-close-confirm-actions">
-                <button
-                  type="button"
-                  className="tab-close-confirm-cancel"
-                  autoFocus
-                  onClick={() => setConfirm(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="tab-close-confirm-ok"
-                  onClick={() => {
-                    close(confirm.id);
-                    setConfirm(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+        sessions.some((s) => s.id === confirm.id) && (
+          <div
+            className="tab-close-confirm"
+            role="dialog"
+            aria-label={`Close design ${confirm.id}?`}
+            style={{ left: confirm.x, top: confirm.y + 6 }}
+          >
+            <span className="tab-close-confirm-msg">
+              Close design {confirm.id}?
+            </span>
+            <div className="tab-close-confirm-actions">
+              <button
+                type="button"
+                className="tab-close-confirm-cancel"
+                autoFocus
+                onClick={() => setConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="tab-close-confirm-ok"
+                onClick={() => {
+                  close(confirm.id);
+                  setConfirm(null);
+                }}
+              >
+                Close
+              </button>
             </div>
-          );
-        })()}
+          </div>
+        )}
     </div>
   );
 }
