@@ -146,27 +146,50 @@ def profile_case(label, req, core_reps):
 
 def grid_convergence(label, req, grids, ref_grid=(240, 480)):
     """Show how the directivity-norm scalar + its cost vary with grid
-    resolution, vs a fine reference. Demonstrates the norm is oversampled for
-    small designs but that the required resolution scales with electrical size
-    (so a *fixed* coarse grid is not universally safe)."""
+    resolution, vs a fine reference, for BOTH the uniform-midpoint and the
+    Gauss–Legendre θ rules. Demonstrates (a) GL is far more accurate per
+    θ-point above the resolution floor, (b) the floor scales with electrical
+    size (a *fixed* coarse grid is not universally safe), and (c) the adaptive
+    sizer lands above the floor for each design."""
     import math
 
     print(f"\n{'=' * 68}\nGRID CONVERGENCE: {label}\n{'=' * 68}")
     base = core_only(req)
     server._attach_derived_em_fields(base)
 
-    def norm(nt, nph):
+    def norm(nt, nph, rule):
         o = deepcopy(base)
         t0 = time.perf_counter()
-        server._compute_directivity_norm(o, n_theta=nt, n_phi=nph)
+        server._compute_directivity_norm(o, n_theta=nt, n_phi=nph, _theta_rule=rule)
         return o["directivity_norm"], (time.perf_counter() - t0) * 1e3
 
-    ref, _ = norm(*ref_grid)
-    print(f"  {'grid':>9} {'points':>7} {'dB err vs ref':>14} {'ms':>8}")
+    ref, _ = norm(*ref_grid, "gl")
+    print(f"  {'grid':>9} {'points':>7} {'uniform dB':>12} {'GL dB':>10} {'GL ms':>8}")
     for nt, nph in grids:
-        dn, ms = norm(nt, nph)
-        db = 10 * math.log10(dn / ref) if dn > 0 and ref > 0 else float("nan")
-        print(f"  {f'{nt}x{nph}':>9} {nt * nph:>7} {db:>+11.3f} dB {ms:>8.1f}")
+        du, _ = norm(nt, nph, "uniform")
+        dg, ms = norm(nt, nph, "gl")
+        eu = 10 * math.log10(du / ref) if du > 0 and ref > 0 else float("nan")
+        eg = 10 * math.log10(dg / ref) if dg > 0 and ref > 0 else float("nan")
+        print(f"  {f'{nt}x{nph}':>9} {nt * nph:>7} {eu:>+11.3f} {eg:>+9.3f} {ms:>8.1f}")
+
+    # What the production adaptive sizer picks for this design, and its error.
+    lo = base_bbox_lo_hi(base)
+    ant, anp = server._adaptive_norm_grid(float(base["k_meas_m_inv"]), *lo)
+    dn, ms = norm(ant, anp, "gl")
+    db = 10 * math.log10(dn / ref) if dn > 0 and ref > 0 else float("nan")
+    print(f"  ADAPTIVE → {ant}x{anp} ({ant * anp} pts)  err {db:+.4f} dB  {ms:.1f} ms")
+
+
+def base_bbox_lo_hi(out):
+    import numpy as np
+
+    lo = np.array([np.inf, np.inf, np.inf])
+    hi = -lo
+    for w in out["wires"]:
+        pts = np.asarray(w.get("sample_positions", w["knot_positions"]), float)
+        lo = np.minimum(lo, pts.min(0))
+        hi = np.maximum(hi, pts.max(0))
+    return lo, hi
 
 
 def main():

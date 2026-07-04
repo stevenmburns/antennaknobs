@@ -154,7 +154,39 @@ def _attach_derived_em_fields(out: dict) -> None:
     out["ground_eps_im"] = -sigma / (omega * _EPS0) if omega > 0 else 0.0
 
 
-def _compute_directivity_norm(out: dict, n_theta: int = 45, n_phi: int = 90) -> None:
+def _adaptive_norm_grid(k: float, lo: np.ndarray, hi: np.ndarray) -> tuple[int, int]:
+    """Grid resolution (n_theta, n_phi) for the directivity-norm integral,
+    sized to the structure's electrical extent.
+
+    The far-field pattern is band-limited by the source's largest dimension: a
+    structure spanning D radiates angular detail up to spherical-harmonic degree
+    ~k·D, and the integrand |M_perp|² has twice that bandwidth. We size n_theta
+    off the bounding-box diagonal in wavelengths, D_λ, as a constant (the base
+    pattern's irreducible complexity) plus a slope in D_λ, then clamp.
+    n_phi = 2·n_theta mirrors the 2× azimuthal bandwidth.
+
+    The constant + slope are fit empirically (scripts/
+    profile_ws_postproc_serialization.py) to sit safely *above* the aliasing
+    floor: sampling just below the floor doesn't merely lose precision, it
+    corrupts the scalar by ~1 dB (a 13.8λ loop reads −0.9 dB at n_theta=14 then
+    snaps to −0.007 dB at n_theta=20). The bbox diagonal upper-bounds the true
+    source diameter, so this errs conservative (a finer grid than strictly
+    needed) — safe, and still ~10× cheaper than the old fixed 45×90 on the
+    common electrically-small design.
+    """
+    lam = (2.0 * np.pi / k) if k > 0 else float("inf")
+    d_lambda = float(np.linalg.norm(hi - lo)) / lam if np.isfinite(lam) else 0.0
+    n_theta = int(np.clip(np.ceil(13.0 + 1.2 * d_lambda), 12, 90))
+    return n_theta, 2 * n_theta
+
+
+def _compute_directivity_norm(
+    out: dict,
+    n_theta: int | None = None,
+    n_phi: int | None = None,
+    *,
+    _theta_rule: str = "gl",
+) -> None:
     """Attach `directivity_norm` = 4π / ∫|M_perp|² dΩ to the response.
 
     Multiplying this by the frontend's azimuth-cut |M_perp(π/2, φ)|² yields
@@ -163,6 +195,12 @@ def _compute_directivity_norm(out: dict, n_theta: int = 45, n_phi: int = 90) -> 
     With ground enabled, integrates only the upper hemisphere and adds the
     Fresnel-reflected contribution from the geometric image so the
     normalization matches what the JS far-field code displays.
+
+    The θ direction uses Gauss–Legendre quadrature in u = cos θ (the sin θ
+    Jacobian is absorbed into the weights); φ stays a uniform rectangle rule
+    (periodic → spectrally accurate). By default the grid is sized to the
+    structure's electrical extent via `_adaptive_norm_grid`; callers may pass an
+    explicit `n_theta`/`n_phi` (e.g. the convergence harness).
     """
     k = float(out["k_meas_m_inv"])
     ground_on = bool(out.get("ground", False))
@@ -190,16 +228,33 @@ def _compute_directivity_norm(out: dict, n_theta: int = 45, n_phi: int = 90) -> 
     dr = np.concatenate(drs, axis=0)  # (Nseg, 3)
     i_mid = np.concatenate(i_mids, axis=0)  # (Nseg,)
 
-    # Cell-centered grid. With ground, sample only the upper hemisphere so
-    # the integral is over the half-space the antenna actually radiates into.
-    if ground_on:
-        theta = (np.arange(n_theta) + 0.5) * (np.pi / 2 / n_theta)
-        dtheta = np.pi / 2 / n_theta
+    if n_theta is None or n_phi is None:
+        # Size the grid to the structure's electrical extent. Segment midpoints
+        # under-cover the true endpoints by at most half a (sub-λ) segment —
+        # negligible for the bounding-box diagonal used to pick the resolution.
+        n_theta, n_phi = _adaptive_norm_grid(k, mid.min(axis=0), mid.max(axis=0))
+
+    # θ integration in u = cos θ, with the sin θ Jacobian (du = −sin θ dθ)
+    # folded into `w_theta` so the radiated-power sum below needs no extra sin θ
+    # factor. Default is Gauss–Legendre (far more accurate per θ-point above the
+    # resolution floor); `_theta_rule="uniform"` selects the legacy midpoint-
+    # rectangle rule and exists only so the profiling harness can quantify the
+    # GL win. With ground, integrate only the upper hemisphere (θ ∈ [0, π/2]).
+    half = 0.5 if ground_on else 1.0
+    if _theta_rule == "gl":
+        gl_x, gl_w = np.polynomial.legendre.leggauss(n_theta)
+        # Map the [−1, 1] rule onto u ∈ [0, 1] for a hemisphere, else keep [−1, 1].
+        u = 0.5 * (gl_x + 1.0) if ground_on else gl_x
+        w_theta = half * gl_w
+    elif _theta_rule == "uniform":
+        theta = (np.arange(n_theta) + 0.5) * (half * np.pi / n_theta)
+        u = np.cos(theta)
+        w_theta = np.sin(theta) * (half * np.pi / n_theta)
     else:
-        theta = (np.arange(n_theta) + 0.5) * (np.pi / n_theta)
-        dtheta = np.pi / n_theta
+        raise ValueError(f"unknown _theta_rule {_theta_rule!r}")
+    cos_t = u
+    sin_t = np.sqrt(np.clip(1.0 - u * u, 0.0, None))
     phi = np.arange(n_phi) * (2 * np.pi / n_phi)
-    sin_t, cos_t = np.sin(theta), np.cos(theta)
     cos_p, sin_p = np.cos(phi), np.sin(phi)
 
     rx = sin_t[:, None] * cos_p[None, :]
@@ -255,8 +310,9 @@ def _compute_directivity_norm(out: dict, n_theta: int = 45, n_phi: int = 90) -> 
 
     mag2 = np.sum((M_perp.real**2 + M_perp.imag**2), axis=-1)  # (nθ, nφ)
 
+    # Gauss–Legendre in θ (weight absorbs sin θ) × uniform rectangle in φ.
     dphi = 2 * np.pi / n_phi
-    p_rad = float(np.sum(mag2 * sin_t[:, None]) * dtheta * dphi)
+    p_rad = float(np.sum(mag2 * w_theta[:, None]) * dphi)
     # Fold in the radiation efficiency (P_radiated / P_input) so a terminated /
     # loaded antenna plots GAIN, not directivity: 4π/p_rad is the directivity
     # normaliser, and multiplying by efficiency drops the peak by the fraction
