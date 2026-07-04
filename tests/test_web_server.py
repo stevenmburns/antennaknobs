@@ -324,6 +324,47 @@ def test_solve_dispatches_to_momwire_for_dipole():
     assert out["z_in_re"] > 0
 
 
+def test_solve_skips_norm_and_cache_when_superseded():
+    """A solve whose result is already superseded (a newer request queued)
+    skips the ~430 ms directivity-norm integral and must NOT enter the cache —
+    a norm-less partial result would otherwise be served forever on repeats."""
+    req = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "triangular",
+    }
+    server._SOLVE_CACHE.clear()
+    out = server.solve(req, superseded=lambda: True)
+    # Core solve ran and derived fields are attached...
+    assert out["solver"] == "momwire"
+    assert out["k_meas_m_inv"] > 0
+    # ...but the norm integral was skipped.
+    assert "directivity_norm" not in out
+    # And nothing was cached: the very next un-superseded solve must be a miss
+    # that produces a full (normed) result.
+    assert len(server._SOLVE_CACHE) == 0
+    full = server.solve(req, superseded=lambda: False)
+    assert full["cache_hit"] is False
+    assert full["directivity_norm"] > 0
+    assert len(server._SOLVE_CACHE) == 1
+
+
+def test_solve_computes_norm_when_not_superseded():
+    """The settled solve (mailbox empty → superseded() False) computes the norm
+    exactly as the default (superseded=None) path does, and caches it."""
+    req = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "triangular",
+    }
+    server._SOLVE_CACHE.clear()
+    out = server.solve(req, superseded=lambda: False)
+    assert out["directivity_norm"] > 0
+    assert len(server._SOLVE_CACHE) == 1
+
+
 def test_solve_reports_radiation_efficiency_for_terminated_antenna():
     """A terminated antenna (the rhombic's load resistor) burns most of its
     input power, so the server reports radiation_efficiency < 1 and folds it
@@ -1088,7 +1129,7 @@ def test_ws_endpoint_squashes_and_skips_superseded(client, monkeypatch):
     release = threading.Event()
     reader_saw_last = threading.Event()
 
-    def blocking_solve(req: dict) -> dict:
+    def blocking_solve(req: dict, superseded=None) -> dict:
         seq = req.get("_seq")
         seqs_solved.append(seq)
         if seq == 1:
@@ -1133,7 +1174,7 @@ def test_ws_endpoint_handles_disconnect_during_solve(client, monkeypatch):
     entered = threading.Event()
     release = threading.Event()
 
-    def blocking_solve(req: dict) -> dict:
+    def blocking_solve(req: dict, superseded=None) -> dict:
         entered.set()
         release.wait(5)
         return {"geometry": req.get("geometry")}

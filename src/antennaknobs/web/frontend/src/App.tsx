@@ -5029,6 +5029,7 @@ function computeCutDbi(
   cut: FarFieldCut,
   azElevDeg: number,
   elevAzDeg: number,
+  fallbackNorm?: number,
 ): { dbi: number[]; peakDbi: number } | null {
   const azElevRad = (azElevDeg * Math.PI) / 180;
   const azSinT = Math.cos(azElevRad);
@@ -5182,10 +5183,19 @@ function computeCutDbi(
     if (mag2 > maxMag2) maxMag2 = mag2;
   }
   if (maxMag2 <= 0) return null;
+  // Absolute-dBi reference. Prefer this result's own norm. When it's absent
+  // (the server skipped the directivity-norm integral because this solve was
+  // superseded mid-drag), carry forward the last settled norm the caller
+  // tracked — the pattern *shape* is already live from the currents above, and
+  // the norm is a smooth scalar that only shifts the absolute labels by tenths
+  // until the drag settles and an exact norm arrives. Only if nothing is known
+  // (first solve of a session) fall back to peak-normalizing the trace.
   const norm =
     result.directivity_norm && result.directivity_norm > 0
       ? result.directivity_norm
-      : 1 / maxMag2;
+      : fallbackNorm && fallbackNorm > 0
+        ? fallbackNorm
+        : 1 / maxMag2;
   const dbi = mag2s.map((m) => (norm * m > 0 ? 10 * Math.log10(norm * m) : -Infinity));
   return { dbi, peakDbi: 10 * Math.log10(norm * maxMag2) };
 }
@@ -5209,6 +5219,11 @@ function FarFieldChart({
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Last absolute-dBi norm from a *settled* solve. Superseded solves ship no
+  // `directivity_norm` (the server skips that ~430 ms integral for a doomed
+  // result), so we carry the last good one forward: shape tracks live, the
+  // absolute reference lags a few tenths and snaps exact when the drag stops.
+  const lastGoodNormRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -5249,9 +5264,22 @@ function FarFieldChart({
     // Compute every trace (live + any pinned ghosts) up front, so the radial
     // scale below can expand to fit the highest-gain lobe on screen. Cheap —
     // each is computed once here and reused when drawing.
+    // Record a fresh settled norm so it can be carried forward on the next
+    // superseded (norm-less) frame; pass the last good one as the fallback.
+    if (result?.directivity_norm && result.directivity_norm > 0) {
+      lastGoodNormRef.current = result.directivity_norm;
+    }
     const liveTrace = result
-      ? computeCutDbi(result, cut, azElevDeg, elevAzDeg)
+      ? computeCutDbi(
+          result,
+          cut,
+          azElevDeg,
+          elevAzDeg,
+          lastGoodNormRef.current ?? undefined,
+        )
       : null;
+    // Pinned ghosts are static captures of settled solves — they always carry
+    // their own norm, so no carry-forward applies.
     const pinnedTraces = pinned.map((p) =>
       computeCutDbi(p.result, cut, azElevDeg, elevAzDeg),
     );
