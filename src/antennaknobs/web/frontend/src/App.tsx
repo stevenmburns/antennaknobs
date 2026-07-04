@@ -1124,6 +1124,10 @@ type SolveResponse = {
   measurement_freq_mhz: number;
   lambda_design_m: number;
   solve_ms: number;
+  /** Echoed from the request. The latest-wins /ws protocol orders and prunes
+   *  responses by this; a higher `_seq` implicitly acks every lower one.
+   *  Absent from geometry-preview payloads (they never carry a request seq). */
+  _seq?: number;
   directivity_norm?: number;
   ground?: boolean;
   height_m?: number;
@@ -1426,6 +1430,9 @@ type SolveRequest = {
   length_factor?: number;
   del_y_m?: number;
   phase_lr_deg?: number;
+  /** Monotonic per-tab sequence number for the latest-wins /ws protocol. The
+   *  server echoes it back and keeps only the freshest queued request. */
+  _seq?: number;
 };
 
 type SweepData = {
@@ -2076,10 +2083,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // solve is withheld until the user clicks "Solve anyway" or changes the solver
   // themselves; the app never switches solvers on its own.
   const [solverWarning, setSolverWarning] = useState(false);
-  // Set by Cancel: discard the in-flight solve's result and drop the busy UI.
-  // The server's /ws loop is sequential and a running MoM solve can't be
-  // interrupted, so this cancels the WAIT, not the computation.
-  const solveCanceledRef = useRef(false);
   const [gearOpen, setGearOpen] = useState<Slot | null>(null);
   const activeConfig = slots[activeSlot];
   const backend = activeConfig.backend;
@@ -2285,9 +2288,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // keeps computing (its /ws loop is sequential and a running MoM solve can't be
   // interrupted), so this cancels the wait, not the computation.
   function cancelSolve() {
-    if (!inFlightRef.current) return;
-    solveCanceledRef.current = true;
-    pendingRef.current = null;
+    if (lastSentSeqRef.current <= lastReceivedSeqRef.current) return; // nothing in flight
+    // Mark every seq sent so far as cancelled: onmessage will advance the
+    // received watermark for these but drop their results. A newer knob change
+    // bumps lastSentSeq past this and solves again.
+    canceledThroughSeqRef.current = lastSentSeqRef.current;
     syncSolving();
   }
 
@@ -2368,9 +2373,18 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   geometryRef.current = geometry;
 
   const wsRef = useRef<WebSocket | null>(null);
-  const inFlightRef = useRef(false);
-  const pendingRef = useRef<SolveRequest | null>(null);
-  const sendStartRef = useRef(0);
+  // Latest-wins /ws protocol counters. Every knob change is sent eagerly with a
+  // monotonic `_seq`; the server keeps only the freshest queued request and may
+  // skip-send superseded results, so the client orders and prunes by `_seq`. A
+  // solve is outstanding iff more has been sent than received. These live in
+  // refs so they survive StrictMode/HMR socket teardown — the counter must
+  // never rewind below what's already been received.
+  const seqRef = useRef(0); // last _seq assigned (monotonic, never reset)
+  const lastSentSeqRef = useRef(0); // highest _seq put on the wire
+  const lastReceivedSeqRef = useRef(0); // highest _seq received or implicitly acked
+  const canceledThroughSeqRef = useRef(0); // drop rendering for _seq <= this
+  const sentAtRef = useRef<Map<number, number>>(new Map()); // _seq → send time (RTT)
+  const solveRafRef = useRef<number | null>(null); // trailing-edge rAF throttle handle
 
   function buildRequest(): SolveRequest {
     // Solver-family ground notes: PyNEC uses Sommerfeld-Norton (or the
@@ -2847,7 +2861,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     setSolveError(null);
     setPreviewReady(null); // close the solve gate until this antenna's preview lands
     setSolverWarning(false); // drop any combo warning from the prior design
-    solveCanceledRef.current = false;
     previewAbortRef.current?.abort();
     const controller = new AbortController();
     previewAbortRef.current = controller;
@@ -2995,7 +3008,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // pain that motivated this on large arrays. Re-poll until the main solve is
     // idle, then proceed; the input-change effect cancels this timer on the
     // next change, so rapid edits still debounce.
-    if (inFlightRef.current || pendingRef.current) {
+    if (solvePending()) {
       sweepTimerRef.current = window.setTimeout(runSweep, 200);
       return;
     }
@@ -3124,7 +3137,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // Same as runSweep: defer the converge ladder (another batch of solves)
     // until the live solve has returned, so it never competes with the solve
     // that draws the heatmap.
-    if (inFlightRef.current || pendingRef.current) {
+    if (solvePending()) {
       convergeTimerRef.current = window.setTimeout(runConverge, 200);
       return;
     }
@@ -3267,12 +3280,27 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     }
   }
 
-  // Mirror the solve refs into `solving` state so the UI can react. Called
-  // wherever inFlightRef/pendingRef change.
+  // True while a live /ws solve is outstanding — a request scheduled by the rAF
+  // throttle but not yet sent, or sent and not yet acked by an equal/higher
+  // `_seq`. Sweep/converge hold off on this so their batches of background
+  // solves don't compete with the live solve that draws the heatmap.
+  function solvePending(): boolean {
+    return (
+      solveRafRef.current !== null ||
+      lastSentSeqRef.current > lastReceivedSeqRef.current
+    );
+  }
+
+  // Mirror the seq counters into `solving` state so the UI can react. Called
+  // wherever the sent / received / cancel watermarks move. A solve reads as
+  // running when more has been sent than received — unless everything
+  // outstanding was cancelled (lastSentSeq hasn't advanced past the cancel
+  // watermark), in which case the wait is over even though a doomed response
+  // is still coming.
   function syncSolving() {
     setSolving(
-      (inFlightRef.current || pendingRef.current !== null) &&
-        !solveCanceledRef.current,
+      lastSentSeqRef.current > lastReceivedSeqRef.current &&
+        lastSentSeqRef.current > canceledThroughSeqRef.current,
     );
   }
 
@@ -3326,17 +3354,26 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   function requestSolve() {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      pendingRef.current = controlsRef.current;
-    } else if (inFlightRef.current) {
-      // Coalesce: latest controls will be picked up when the response arrives.
-      pendingRef.current = controlsRef.current;
-    } else {
-      inFlightRef.current = true;
-      solveCanceledRef.current = false; // a fresh send is never pre-cancelled
-      sendStartRef.current = performance.now();
-      ws.send(JSON.stringify(controlsRef.current));
+      // Can't send now. onopen resends controlsRef.current on (re)connect, so
+      // the latest state is solved as soon as the socket comes up.
+      return;
     }
-    syncSolving();
+    // Trailing-edge rAF throttle: coalesce a burst of knob changes within one
+    // animation frame to a single send of the latest controls. Bounds upload to
+    // ≤~60 msg/s during a drag and keeps localhost message churn near what the
+    // old one-in-flight gate produced; the server's latest-wins mailbox squashes
+    // whatever still piles up. The freshest value always wins within the frame.
+    if (solveRafRef.current !== null) return;
+    solveRafRef.current = requestAnimationFrame(() => {
+      solveRafRef.current = null;
+      const sock = wsRef.current;
+      if (!sock || sock.readyState !== WebSocket.OPEN) return;
+      const seq = ++seqRef.current;
+      lastSentSeqRef.current = seq;
+      sentAtRef.current.set(seq, performance.now());
+      sock.send(JSON.stringify({ ...controlsRef.current, _seq: seq }));
+      syncSolving();
+    });
   }
 
   useEffect(() => {
@@ -3345,47 +3382,60 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     wsRef.current = ws;
     ws.onopen = () => {
       setStatus("open");
-      // A prior socket's pending response can never arrive here; clear the
-      // in-flight flag so this socket can start sending. StrictMode and HMR
-      // both tear down + recreate this socket and would otherwise leave the
-      // flag stuck true, blocking all subsequent slider-driven solves.
-      inFlightRef.current = false;
-      pendingRef.current = controlsRef.current;
+      // A prior socket's in-flight responses can never arrive on this new one.
+      // Treat everything sent so far as received so `solving` can't stick true,
+      // drop stale RTT timers, then send fresh current state. StrictMode and HMR
+      // both tear the socket down + recreate it; the seq counters survive in
+      // refs, so they must never rewind below what's already been received.
+      lastReceivedSeqRef.current = lastSentSeqRef.current;
+      sentAtRef.current.clear();
       requestSolve();
     };
     ws.onclose = () => {
       setStatus("closed");
-      inFlightRef.current = false;
-      // No solve can progress while disconnected — drop the busy state so the
-      // bar doesn't spin under a "closed" status (reconnect re-arms it).
+      // No solve can progress while disconnected — collapse the outstanding
+      // count so the busy bar can't spin under a "closed" status (reconnect
+      // re-arms it via onopen).
+      lastReceivedSeqRef.current = lastSentSeqRef.current;
       setSolving(false);
     };
     ws.onerror = () => {
       setStatus("closed");
-      inFlightRef.current = false;
+      lastReceivedSeqRef.current = lastSentSeqRef.current;
       setSolving(false);
     };
     ws.onmessage = (ev) => {
-      setRttMs(performance.now() - sendStartRef.current);
       const data: SolveResponse = JSON.parse(ev.data);
-      inFlightRef.current = false;
-      // Cancelled solve: drop its result (the user bailed). Still honor any
-      // solve queued after the cancel so the next request isn't lost.
-      if (solveCanceledRef.current) {
-        solveCanceledRef.current = false;
-        if (pendingRef.current) {
-          pendingRef.current = null;
-          requestSolve();
-        }
+      const seq = data._seq ?? 0;
+      // One socket delivers in order, and the server may skip-send superseded
+      // results — so a higher `_seq` implicitly acknowledges every lower one.
+      // Ignore a straggler/duplicate at or below the received watermark.
+      if (seq <= lastReceivedSeqRef.current) {
+        syncSolving();
+        return;
+      }
+      lastReceivedSeqRef.current = seq;
+      // RTT from this seq's send; prune every acked entry (≤ seq) from the map —
+      // seqs skipped server-side never get their own response, so a single
+      // higher-seq arrival clears the whole run of them.
+      const sentAt = sentAtRef.current;
+      const t0 = sentAt.get(seq);
+      if (t0 !== undefined) setRttMs(performance.now() - t0);
+      for (const k of sentAt.keys()) {
+        if (k <= seq) sentAt.delete(k);
+      }
+      // Cancelled through this seq: the user bailed on it (and everything
+      // before). The watermark advanced above so `solving` can clear; just drop
+      // the result rather than rendering it.
+      if (seq <= canceledThroughSeqRef.current) {
         syncSolving();
         return;
       }
       // Drop a response for an antenna the user already switched away from: a
       // slow in-flight solve for the previous selection must not stomp the new
-      // antenna's geometry preview (and briefly show the wrong antenna). The
-      // pending solve below still fires so the current selection gets solved.
-      const stale = !!data.geometry && data.geometry !== geometryRef.current;
-      if (!stale) {
+      // antenna's geometry preview (and briefly show the wrong antenna).
+      const staleGeom = !!data.geometry && data.geometry !== geometryRef.current;
+      if (!staleGeom) {
         if (data.error) {
           // A solve that raised (e.g. a user design's build_wires) — show the
           // message and clear stale plot data rather than rendering an empty
@@ -3397,14 +3447,15 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           setResult(data);
         }
       }
-      // If controls changed while waiting, fire the next solve immediately.
-      if (pendingRef.current) {
-        pendingRef.current = null;
-        requestSolve();
-      }
       syncSolving();
     };
-    return () => ws.close();
+    return () => {
+      if (solveRafRef.current !== null) {
+        cancelAnimationFrame(solveRafRef.current);
+        solveRafRef.current = null;
+      }
+      ws.close();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
