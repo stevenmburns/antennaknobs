@@ -771,6 +771,81 @@ function GeometryCombobox({
   );
 }
 
+// Band picker — a click-only dropdown, deliberately NOT a native <select>.
+// A focused <select> captures the arrow keys, which would fight the sticky
+// meas-freq dial (the "physical dial survives focus loss" affordance): the dial
+// shows armed but arrows would drive the pulldown. This is a plain <button> +
+// popover, so it never captures arrows — they always flow to the armed knob.
+function BandDropdown({
+  bands,
+  value,
+  onSelect,
+  disabled,
+  ariaLabel,
+}: {
+  bands: BandSpec[];
+  value: string;
+  onSelect: (key: string) => void;
+  disabled?: boolean;
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const current = bands.find((b) => b.key === value) ?? bands[0];
+
+  return (
+    <div className="band-dropdown" ref={rootRef}>
+      <button
+        type="button"
+        className="band-select band-dropdown-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="band-dropdown-value">{current?.label ?? ""}</span>
+        <span className="band-dropdown-caret" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open && !disabled && (
+        <ul className="band-dropdown-list" role="listbox" aria-label={ariaLabel}>
+          {bands.map((b) => (
+            <li
+              key={b.key}
+              role="option"
+              aria-selected={b.key === value}
+              className={`band-dropdown-option${
+                b.key === value ? " is-selected" : ""
+              }`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelect(b.key);
+                setOpen(false);
+              }}
+            >
+              {b.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Translate a knob's optional layout hint into inline grid-placement
 // styles. Returns undefined when nothing is set so auto-flow fields stay
 // untouched. `col_span` / `row_span` use the CSS `span N` form; an explicit
@@ -2093,6 +2168,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // effect below picks the first band of the active example and
   // overwrites them once /examples resolves.
   const [band, setBand] = useState<string>("");
+  // Selected *measurement* band, authoritative while unlocked. Kept separate
+  // from the design `band` (and from re-deriving via bandContaining(measFreq),
+  // which collapses the moment the dial nudges measFreq out of a narrow ham
+  // band and would strand the VFO window on the design band). Set on unlock and
+  // by the meas-band picker; the dial roams measFreq within it without moving
+  // it. Only consulted while unlocked — the meas controls are disabled locked.
+  const [measBand, setMeasBand] = useState<string>("");
   const [designFreq, setDesignFreq] = useState(14.3);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
@@ -2132,7 +2214,14 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   }
   function toggleLink(next: boolean) {
     setLinkMeas(next);
-    if (next) setMeasFreq(designFreq);
+    if (next) {
+      setMeasFreq(designFreq);
+    } else {
+      // Unlocking: seed the measurement band from where measFreq sits right now
+      // (== the design band, since it was tracking designFreq while locked), so
+      // the VFO window and meas-band picker start on the band you were viewing.
+      setMeasBand(bandContaining(measFreq) ?? band);
+    }
   }
 
   // The pre-PR setFanBandSlot / setFanBandFreq / setFanHalfdriverFactor
@@ -2579,16 +2668,14 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
 
   const currentBands: BandSpec[] = currentExample?.bands ?? [];
 
-  // Anchor for the measurement-freq slider window: the snap-freq of the band
-  // measFreq currently sits in, falling back to designFreq when it's between
-  // bands. This lets the meas-freq dropdown jump to any band (e.g. 40m) and
-  // have the slider actually reach it, instead of staying pinned to a window
-  // around the design frequency (which would strand a fixed-metre 40m antenna
-  // near 14 MHz). design_freq-scaled designs are unaffected: there the band's
-  // snap-freq equals designFreq, so the window is identical to before.
+  // Anchor for the measurement-freq VFO window: the snap-freq of the *selected*
+  // measurement band (`measBand`), falling back to designFreq before one is
+  // chosen. Anchoring on the selected band — not on bandContaining(measFreq) —
+  // keeps the window stable as the dial roams measFreq within (or a touch
+  // outside) a narrow ham band; deriving it from measFreq would collapse the
+  // window back to the design band the instant measFreq left the band edge.
   const measBandAnchor =
-    currentBands.find((b) => b.key === bandContaining(measFreq))?.freq_mhz ??
-    designFreq;
+    currentBands.find((b) => b.key === measBand)?.freq_mhz ?? designFreq;
 
   // When the active example changes (or first loads), snap band /
   // designFreq / measFreq to the band whose [min, max] window contains
@@ -2647,6 +2734,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     const nb = currentBands.find((b) => b.key === nextKey);
     if (!nb) return;
     if (linkMeas) setLinkMeas(false);
+    setMeasBand(nextKey);
     setMeasFreq(nb.freq_mhz);
   }
 
@@ -2864,7 +2952,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     groundEnabled, groundFast,
     sweepEnabled,
     active,
-    currentExample?.sweep_policy.anchor === "meas_freq" ? measFreq : null,
+    // measFreq/linkMeas drive the anchor now (meas_freq policy, or any unlocked
+    // design), so a meas-band change or dial turn re-runs the sweep.
+    measFreq, linkMeas,
   ]);
 
   // Debounced convergence sweep over segments-per-wire. Independent of the
@@ -2945,7 +3035,14 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     const slowGround = backend === "pynec" && groundEnabled && !groundFast;
     const N = slowGround ? 21 : 41;
     const policy = currentExample?.sweep_policy;
-    const sweepAnchor = policy?.anchor === "meas_freq" ? measFreq : designFreq;
+    // Anchor on the measurement frequency whenever the sweep should follow what
+    // the user is *viewing*: multiband designs declare anchor="meas_freq", and
+    // any design that's been unlocked from its design freq (to check the pattern
+    // on another band) should sweep that band too — not stay pinned to the
+    // design band. Locked single-resonance designs keep sweeping design_freq
+    // (where measFreq == designFreq anyway).
+    const sweepAnchor =
+      !linkMeas || policy?.anchor === "meas_freq" ? measFreq : designFreq;
     // Band-locked sweep: when the active band contains the anchor,
     // snap the sweep range to that band's [min_mhz, max_mhz] so the
     // trace stays inside the band the user is tuning instead of
@@ -3496,18 +3593,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 <span>{designFreq.toFixed(3)} MHz</span>
               </label>
               <div className="band-row">
-                <select
-                  className="band-select"
-                  aria-label="band"
+                <BandDropdown
+                  bands={currentBands}
                   value={active.key}
-                  onChange={(e) => selectBand(e.target.value)}
-                >
-                  {currentBands.map((b) => (
-                    <option key={b.key} value={b.key}>
-                      {b.label}
-                    </option>
-                  ))}
-                </select>
+                  onSelect={selectBand}
+                  ariaLabel="band"
+                />
                 <input
                   type="range"
                   min={active.min_mhz}
@@ -3612,19 +3703,19 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         <div className={`field vfo-field${linkMeas ? " is-locked" : ""}`}>
           <div className="vfo-top">
             {currentBands.length > 0 && (
-              <select
-                className="band-select"
-                aria-label="measurement band"
-                value={bandContaining(measFreq) ?? currentBands[0].key}
+              <BandDropdown
+                bands={currentBands}
+                // Locked: mirror the design band (measFreq tracks designFreq).
+                // Unlocked: the persistent selection, stable as the dial roams.
+                value={
+                  linkMeas
+                    ? bandContaining(measFreq) ?? currentBands[0].key
+                    : measBand || currentBands[0].key
+                }
+                onSelect={selectMeasBand}
                 disabled={linkMeas}
-                onChange={(e) => selectMeasBand(e.target.value)}
-              >
-                {currentBands.map((b) => (
-                  <option key={b.key} value={b.key}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
+                ariaLabel="measurement band"
+              />
             )}
             <div className="freq-lcd" title={`${measFreq.toFixed(3)} MHz`}>
               <span className="lcd-digits">

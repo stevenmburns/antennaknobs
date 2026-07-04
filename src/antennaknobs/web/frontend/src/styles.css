@@ -542,6 +542,58 @@ button:focus-visible,
   cursor: not-allowed;
 }
 
+/* Click-only band picker (see BandDropdown): a button + popover styled to match
+   the old native .band-select, so nothing captures the arrow keys. */
+.band-dropdown {
+  position: relative;
+  flex: 0 0 auto;
+}
+.band-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+.band-dropdown-value {
+  white-space: nowrap;
+}
+.band-dropdown-caret {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: 1;
+}
+.band-dropdown-list {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  z-index: 30;
+  min-width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  box-shadow: 0 8px 22px var(--shadow);
+}
+.band-dropdown-option {
+  padding: var(--space-3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  color: var(--fg);
+}
+.band-dropdown-option:hover {
+  background: var(--inset);
+}
+.band-dropdown-option.is-selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .geometry-filter {
   flex: 1;
   background: var(--inset);
