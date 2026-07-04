@@ -157,6 +157,11 @@ type ExampleDescriptor = {
    *  variants. Complex-valued params arrive as {re, im}. */
   variant_values: { [variant: string]: { [key: string]: unknown } };
   sweep_policy: SweepPolicy;
+  /** Per-variant UI-hint overrides, keyed by variant name. Only variants
+   *  whose derived hints differ from the design-level values appear; look up
+   *  the active variant and fall back to the top-level field (e.g.
+   *  `sweep_policy`) for any variant not listed. */
+  variant_ui?: { [variant: string]: { sweep_policy?: SweepPolicy } };
   /** Grid-level layout for the top-level knob rail. {columns: N} pins the
    *  grid to a fixed column count so per-knob `layout.col` positions are
    *  stable. null = responsive auto-flow packing. */
@@ -2955,6 +2960,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // measFreq/linkMeas drive the anchor now (meas_freq policy, or any unlocked
     // design), so a meas-band change or dial turn re-runs the sweep.
     measFreq, linkMeas,
+    // A variant can override sweep_policy (variant_ui) without changing any
+    // param — e.g. a band-locked variant. currentValuesKey wouldn't move then,
+    // so depend on currentVariant directly to re-run the sweep on switch.
+    currentVariant,
   ]);
 
   // Debounced convergence sweep over segments-per-wire. Independent of the
@@ -3032,9 +3041,14 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     //
     // Anchor + span come from the active example's sweep_policy. See
     // SweepPolicy in web/examples/_base.py for the meaning of the fields.
+    // A variant can override the policy (e.g. a band-locked variant): prefer
+    // the active variant's entry in variant_ui, falling back to the
+    // design-level sweep_policy.
     const slowGround = backend === "pynec" && groundEnabled && !groundFast;
     const N = slowGround ? 21 : 41;
-    const policy = currentExample?.sweep_policy;
+    const policy =
+      currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
+      currentExample?.sweep_policy;
     // Anchor on the measurement frequency whenever the sweep should follow what
     // the user is *viewing*: multiband designs declare anchor="meas_freq", and
     // any design that's been unlocked from its design freq (to check the pattern

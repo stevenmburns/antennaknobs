@@ -223,6 +223,7 @@ def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
         "variants",
         "variant_values",
         "sweep_policy",
+        "variant_ui",
     }
     for ex in payload["examples"]:
         missing = required - set(ex.keys())
@@ -257,6 +258,39 @@ def test_examples_carry_sweep_policy_keys(client: TestClient):
         sp = ex["sweep_policy"]
         assert set(sp) == {"anchor", "lo_factor", "hi_factor", "band_locked"}
         assert sp["anchor"] in {"design_freq", "meas_freq"}
+
+
+def test_variant_ui_only_lists_variants_that_differ(client: TestClient):
+    # variant_ui is a per-variant override map; a variant appears only when its
+    # derived hints differ from the design-level value, and every listed
+    # sweep_policy is shaped exactly like the top-level one.
+    payload = client.get("/examples").json()
+    for ex in payload["examples"]:
+        vui = ex["variant_ui"]
+        assert isinstance(vui, dict)
+        for variant, hints in vui.items():
+            assert variant in ex["variants"]
+            assert variant != "default"
+            sp = hints["sweep_policy"]
+            assert set(sp) == {"anchor", "lo_factor", "hi_factor", "band_locked"}
+            assert sp != ex["sweep_policy"]  # only differing variants are listed
+
+
+def test_skyloop_band_locked_variant_flips_only_band_locked(client: TestClient):
+    # The Part 2 payoff: a variant carrying only ui_params.sweep_policy.
+    # band_locked deep-merges over the default's sweep_policy, inheriting anchor
+    # and the lo/hi factors and flipping just band_locked.
+    payload = client.get("/examples").json()
+    ex = next(e for e in payload["examples"] if e["name"] == "loops.triangular_skyloop")
+    assert "band_locked" in ex["variants"]
+    default_sp = ex["sweep_policy"]
+    assert default_sp["band_locked"] is False
+    locked_sp = ex["variant_ui"]["band_locked"]["sweep_policy"]
+    assert locked_sp["band_locked"] is True
+    # everything except band_locked is inherited from the design-level policy
+    assert {k: locked_sp[k] for k in ("anchor", "lo_factor", "hi_factor")} == {
+        k: default_sp[k] for k in ("anchor", "lo_factor", "hi_factor")
+    }
 
 
 # ---------------------------------------------------------------------------
