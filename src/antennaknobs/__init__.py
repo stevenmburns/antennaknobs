@@ -8,6 +8,8 @@ __all__ = [
     "Array2x4Builder",
     "Array1x4Builder",
     "Array1x4GroupedBuilder",
+    "merge_params",
+    "resolve_variant_params",
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
@@ -31,6 +33,8 @@ from .builder import (
     Array2x4Builder,
     Array1x4Builder,
     Array1x4GroupedBuilder,
+    merge_params,
+    resolve_variant_params,
 )
 from .transform import Transform, TransformStack
 from .drone import Drone

@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from .core import save_or_show
 import numpy as np
 
@@ -5,6 +7,46 @@ import numpy as np
 # draw() below — it costs ~0.1 s to import and only the drawing path needs it,
 # so keeping it off module import keeps `import antennaknobs` and web startup
 # (which never plots) lean.
+
+
+def merge_params(base, over):
+    """Recursively overlay ``over`` onto a copy of ``base``.
+
+    Dict values merge key-by-key at any depth; every other value replaces
+    wholesale. In practice ``ui_params`` (the only dict-valued param in the
+    catalog) deep-merges, so a variant can flip one nested ui hint without
+    restating the subtree, while scalars and the multiband ``bands`` *tuple*
+    replace as a unit. That tuple is the shallow-overlay "floor": a variant
+    that touches one sub-band must restate the whole ``bands`` tuple, because
+    a positional tuple has no key identity to merge on.
+    """
+    out = dict(base)
+    for k, v in over.items():
+        # Match Mapping, not dict: the catalog stores ui_params as
+        # MappingProxyType, which is a Mapping but not a dict subclass.
+        if isinstance(out.get(k), Mapping) and isinstance(v, Mapping):
+            out[k] = merge_params(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def resolve_variant_params(cls, variant):
+    """Seed params for the named variant, as an overlay on ``default_params``.
+
+    A variant lists only the keys it changes; the rest come from
+    ``default_params``. Overlaying a *complete* variant dict reproduces that
+    dict verbatim, so variants written before this became an overlay resolve
+    identically. Falls back to ``default_params`` when ``variant`` is falsy,
+    ``"default"``, or names no resolvable ``<variant>_params`` attribute
+    (stale frontend / unknown name).
+    """
+    base = dict(cls.default_params)
+    if variant and variant != "default":
+        v = getattr(cls, f"{variant}_params", None)
+        if v is not None and hasattr(v, "keys"):
+            return merge_params(base, v)
+    return base
 
 
 class AntennaBuilder:
