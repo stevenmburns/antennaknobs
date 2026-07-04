@@ -2764,6 +2764,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // param/freq tweaks on the *same* antenna keep updating in place (no flicker),
   // matching the prior behaviour for the fast designs where this isn't a pain.
   useEffect(() => {
+    // Skip the "unset" initial state. On a fresh load `geometry` is "" until the
+    // /examples list resolves and the auto-select effect picks the default
+    // (dipoles.invvee). Fetching a preview for "" would POST an empty key, which
+    // the server resolves to the alphabetically-first design (arrays.bowtiearray)
+    // — building and rendering a geometry nobody asked for, only to be replaced a
+    // beat later. Bail here so the first preview is the real default.
+    if (!geometry) return;
     setResult(null);
     setPreview(null);
     setSolveError(null);
