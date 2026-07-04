@@ -1466,14 +1466,15 @@ type ConvergeData = {
   feeds_z_im_extrap?: (number | null)[];
 };
 
-// Result of the far-field grid-check: the adaptive norm the live plot uses vs
-// a fine-grid norm, with the grids that produced each. `delta_db` is the dBi
-// offset between them — the gap you see between the solid and dotted lobes.
-type GridCheckData = {
+// Result of the far-field norm consistency check: the live gain norm comes
+// from the circuit side (input power); `pattern_norm` recomputes it from the
+// field side (closed-form pattern integral). `delta_db` is the gap between
+// them — the solver's power-balance error (NEC's "average gain" diagnostic),
+// rendered as the offset between the solid and dotted lobes.
+type NormCheckData = {
   directivity_norm: number;
-  directivity_norm_grid: [number, number];
-  directivity_norm_fine: number;
-  grid_fine: [number, number];
+  pattern_norm: number;
+  method: string;
   delta_db: number;
 };
 
@@ -2249,12 +2250,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [convergeEnabled, setConvergeEnabled] = useState(false);
   const [converge, setConverge] = useState<ConvergeData | null>(null);
   const [convergeRunning, setConvergeRunning] = useState(false);
-  // Far-field grid-check: on dwell, recompute the directivity norm on a much
-  // finer grid and overlay the resulting pattern (dotted) so the user can see
-  // whether the adaptive grid was fine enough. `gridCheck` holds the fine norm
-  // + the two grids for the readout; null while off or pending.
-  const [gridCheckEnabled, setGridCheckEnabled] = useState(false);
-  const [gridCheck, setGridCheck] = useState<GridCheckData | null>(null);
+  // Far-field norm consistency check: on dwell, recompute the gain norm from
+  // the pattern integral (field side) and overlay the resulting pattern
+  // (dotted) against the live input-power norm (circuit side). The gap is the
+  // solver's power-balance error. Cheap (closed form), so on by default;
+  // the checkbox hides the overlay. `normCheck` is null while off or pending.
+  const [normCheckEnabled, setNormCheckEnabled] = useState(true);
+  const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
   // NEC's rp_card pattern, fetched on a debounce so we don't fire one per
   // slider tick. Overlaid on the cuts as a comparison line.
   const [pattern, setPattern] = useState<PatternData | null>(null);
@@ -2379,8 +2381,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const patternAbortRef = useRef<AbortController | null>(null);
   const convergeTimerRef = useRef<number | null>(null);
   const convergeAbortRef = useRef<AbortController | null>(null);
-  const gridCheckTimerRef = useRef<number | null>(null);
-  const gridCheckAbortRef = useRef<AbortController | null>(null);
+  const normCheckTimerRef = useRef<number | null>(null);
+  const normCheckAbortRef = useRef<AbortController | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
   // Timestamp (performance.now) when the busy chrome last became visible, so
   // the reveal effect can enforce a minimum-visible window. null = not shown.
@@ -2998,22 +3000,23 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     active,
   ]);
 
-  // Debounced far-field grid-check. Same shape as the converge sweep: re-runs
-  // on any antenna/param change (which invalidates the norm), gated by its own
-  // overlay checkbox, and defers until the live solve lands so it reuses that
-  // solve's server-cached currents rather than forcing a re-solve.
+  // Debounced far-field norm consistency check. Same shape as the converge
+  // sweep: re-runs on any antenna/param change (which invalidates the norm),
+  // gated by its own overlay checkbox, and defers until the live solve lands
+  // so it reuses that solve's server-cached currents rather than forcing a
+  // re-solve.
   useEffect(() => {
-    gridCheckAbortRef.current?.abort();
-    if (gridCheckTimerRef.current) {
-      window.clearTimeout(gridCheckTimerRef.current);
+    normCheckAbortRef.current?.abort();
+    if (normCheckTimerRef.current) {
+      window.clearTimeout(normCheckTimerRef.current);
     }
-    setGridCheck(null);
-    if (!gridCheckEnabled || !active) {
+    setNormCheck(null);
+    if (!normCheckEnabled || !active) {
       return;
     }
-    gridCheckTimerRef.current = window.setTimeout(runGridCheck, 500);
+    normCheckTimerRef.current = window.setTimeout(runNormCheck, 500);
     return () => {
-      if (gridCheckTimerRef.current) window.clearTimeout(gridCheckTimerRef.current);
+      if (normCheckTimerRef.current) window.clearTimeout(normCheckTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -3021,7 +3024,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundFast,
-    gridCheckEnabled,
+    normCheckEnabled,
     active,
   ]);
 
@@ -3300,46 +3303,45 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     }
   }
 
-  async function runGridCheck() {
-    // Defer until the live solve has returned, like the sweeps — the fine-grid
-    // norm reuses that settled solve (a server cache hit), so running before it
-    // lands would miss the cache and re-solve.
+  async function runNormCheck() {
+    // Defer until the live solve has returned, like the sweeps — the pattern
+    // norm reuses that settled solve (a server cache hit), so running before
+    // it lands would miss the cache and re-solve.
     if (solvePending()) {
-      gridCheckTimerRef.current = window.setTimeout(runGridCheck, 200);
+      normCheckTimerRef.current = window.setTimeout(runNormCheck, 200);
       return;
     }
-    gridCheckTimerRef.current = null;
-    gridCheckAbortRef.current?.abort();
+    normCheckTimerRef.current = null;
+    normCheckAbortRef.current?.abort();
     const controller = new AbortController();
-    gridCheckAbortRef.current = controller;
+    normCheckAbortRef.current = controller;
     try {
-      const resp = await fetch("/norm_grid_check", {
+      const resp = await fetch("/norm_check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildRequest()),
         signal: controller.signal,
       });
-      if (!resp.ok) throw new Error(`grid check failed: ${resp.status}`);
+      if (!resp.ok) throw new Error(`norm check failed: ${resp.status}`);
       const data = await resp.json();
       if (controller.signal.aborted) return;
       if (!data.available) {
-        setGridCheck(null);
+        setNormCheck(null);
         return;
       }
-      const delta = 10 * Math.log10(data.directivity_norm_fine / data.directivity_norm);
-      setGridCheck({
+      const delta = 10 * Math.log10(data.pattern_norm / data.directivity_norm);
+      setNormCheck({
         directivity_norm: data.directivity_norm,
-        directivity_norm_grid: data.directivity_norm_grid,
-        directivity_norm_fine: data.directivity_norm_fine,
-        grid_fine: data.grid_fine,
+        pattern_norm: data.pattern_norm,
+        method: data.method,
         delta_db: delta,
       });
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      console.error("grid check error", e);
+      console.error("norm check error", e);
     } finally {
-      if (gridCheckAbortRef.current === controller) {
-        gridCheckAbortRef.current = null;
+      if (normCheckAbortRef.current === controller) {
+        normCheckAbortRef.current = null;
       }
     }
   }
@@ -4278,22 +4280,22 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             <div className="farfield-overlay">
               <label
                 className="overlay-checkbox"
-                title="On dwell, recompute the directivity norm on a far finer far-field grid and overlay it (dotted). Overlap ⇒ the adaptive grid is fine enough; a visible gap is the absolute-dBi error."
+                title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
               >
                 <input
                   type="checkbox"
-                  checked={gridCheckEnabled}
-                  onChange={(e) => setGridCheckEnabled(e.target.checked)}
+                  checked={normCheckEnabled}
+                  onChange={(e) => setNormCheckEnabled(e.target.checked)}
                 />
-                grid check
+                norm check
               </label>
-              {gridCheckEnabled && gridCheck && (
+              {normCheckEnabled && normCheck && (
                 <span
                   className="overlay-readout"
-                  title={`adaptive ${gridCheck.directivity_norm_grid[0]}×${gridCheck.directivity_norm_grid[1]} vs fine ${gridCheck.grid_fine[0]}×${gridCheck.grid_fine[1]}`}
+                  title={`input-power norm vs pattern-integral norm (${normCheck.method}); 0 dB = perfect power balance`}
                 >
-                  Δ {gridCheck.delta_db >= 0 ? "+" : ""}
-                  {gridCheck.delta_db.toFixed(3)} dB
+                  Δ {normCheck.delta_db >= 0 ? "+" : ""}
+                  {normCheck.delta_db.toFixed(3)} dB
                 </span>
               )}
             </div>
@@ -4397,7 +4399,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             showWireLabels={showWireLabels}
             showFeedNames={showFeedNames}
             multiFeed={effectiveMultiFeed}
-            fineNorm={gridCheck?.directivity_norm_fine ?? null}
+            fineNorm={normCheck?.pattern_norm ?? null}
           />
           {/* Solve readout, pinned to the lower-left of whichever view the
               carousel is centered on. Floats over the canvas as a HUD so the
@@ -5148,7 +5150,6 @@ function computeCutDbi(
   cut: FarFieldCut,
   azElevDeg: number,
   elevAzDeg: number,
-  fallbackNorm?: number,
 ): { dbi: number[]; peakDbi: number } | null {
   const azElevRad = (azElevDeg * Math.PI) / 180;
   const azSinT = Math.cos(azElevRad);
@@ -5302,19 +5303,13 @@ function computeCutDbi(
     if (mag2 > maxMag2) maxMag2 = mag2;
   }
   if (maxMag2 <= 0) return null;
-  // Absolute-dBi reference. Prefer this result's own norm. When it's absent
-  // (the server skipped the directivity-norm integral because this solve was
-  // superseded mid-drag), carry forward the last settled norm the caller
-  // tracked — the pattern *shape* is already live from the currents above, and
-  // the norm is a smooth scalar that only shifts the absolute labels by tenths
-  // until the drag settles and an exact norm arrives. Only if nothing is known
-  // (first solve of a session) fall back to peak-normalizing the trace.
+  // Absolute-dBi reference. Every solve carries its gain norm (an O(1)
+  // input-power scalar server-side), so the only fallback is peak-normalizing
+  // a response that somehow shipped without one (defensive).
   const norm =
     result.directivity_norm && result.directivity_norm > 0
       ? result.directivity_norm
-      : fallbackNorm && fallbackNorm > 0
-        ? fallbackNorm
-        : 1 / maxMag2;
+      : 1 / maxMag2;
   const dbi = mag2s.map((m) => (norm * m > 0 ? 10 * Math.log10(norm * m) : -Infinity));
   return { dbi, peakDbi: 10 * Math.log10(norm * maxMag2) };
 }
@@ -5336,20 +5331,16 @@ function FarFieldChart({
   cut: FarFieldCut;
   azElevDeg: number;
   elevAzDeg: number;
-  /** Directivity norm from a much finer far-field grid than the one that
-   *  produced `result.directivity_norm`, from the opt-in grid-check. When set,
-   *  the fine-grid pattern is overlaid dotted — the norm is a scalar multiplier,
-   *  so it is the live trace shifted radially by 10·log10(fineNorm/liveNorm).
-   *  Overlap ⇒ the adaptive grid was fine enough; a visible gap ⇒ its error. */
+  /** Field-side gain norm from the dwell-triggered norm check (the pattern
+   *  renormalised by its own integrated radiated power instead of the input
+   *  power the live norm uses). When set, that pattern is overlaid dotted —
+   *  the norm is a scalar multiplier, so it is the live trace shifted
+   *  radially by 10·log10(fineNorm/liveNorm). Overlap ⇒ the solve conserves
+   *  power; a visible gap ⇒ the solver's discretisation error. */
   fineNorm?: number | null;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Last absolute-dBi norm from a *settled* solve. Superseded solves ship no
-  // `directivity_norm` (the server skips that ~430 ms integral for a doomed
-  // result), so we carry the last good one forward: shape tracks live, the
-  // absolute reference lags a few tenths and snaps exact when the drag stops.
-  const lastGoodNormRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -5390,22 +5381,9 @@ function FarFieldChart({
     // Compute every trace (live + any pinned ghosts) up front, so the radial
     // scale below can expand to fit the highest-gain lobe on screen. Cheap —
     // each is computed once here and reused when drawing.
-    // Record a fresh settled norm so it can be carried forward on the next
-    // superseded (norm-less) frame; pass the last good one as the fallback.
-    if (result?.directivity_norm && result.directivity_norm > 0) {
-      lastGoodNormRef.current = result.directivity_norm;
-    }
     const liveTrace = result
-      ? computeCutDbi(
-          result,
-          cut,
-          azElevDeg,
-          elevAzDeg,
-          lastGoodNormRef.current ?? undefined,
-        )
+      ? computeCutDbi(result, cut, azElevDeg, elevAzDeg)
       : null;
-    // Pinned ghosts are static captures of settled solves — they always carry
-    // their own norm, so no carry-forward applies.
     const pinnedTraces = pinned.map((p) =>
       computeCutDbi(p.result, cut, azElevDeg, elevAzDeg),
     );
@@ -5420,9 +5398,9 @@ function FarFieldChart({
     const peaks: number[] = [];
     if (liveTrace) peaks.push(liveTrace.peakDbi);
     for (const t of pinnedTraces) if (t) peaks.push(t.peakDbi);
-    // Fine-grid overlay: the norm scales the whole pattern, so switching to the
-    // fine norm shifts every dBi by this constant. null when the grid-check is
-    // off or the live result carries no (settled) norm to compare against.
+    // Norm-check overlay: the norm scales the whole pattern, so switching to
+    // the field-side norm shifts every dBi by this constant. null when the
+    // check is off or the live result carries no norm to compare against.
     const liveNorm = result?.directivity_norm;
     const gridDeltaDb =
       fineNorm && fineNorm > 0 && liveNorm && liveNorm > 0
