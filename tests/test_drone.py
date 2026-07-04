@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from antennaknobs import Drone
+from antennaknobs import Drone, resolve_variant_params
 from antennaknobs.designs.loops.delta_loop import Builder as DeltaLoop
 from antennaknobs.designs.loops.delta_loop_flyby import Builder as DeltaLoopFlyby
 from antennaknobs.designs.loops.delta_loop_reflected import (
@@ -271,7 +271,7 @@ def test_delta_loop_topdown_matches_shipped():
 def test_four_delta_loops_identical_across_a_second_param_set():
     # The payoff: the same knob set produces identical geometry from every
     # construction, at a different operating point too (z200, not the default).
-    p = dict(DeltaLoop.z200_params)
+    p = resolve_variant_params(DeltaLoop, "z200")
     shipped = _undirected(DeltaLoop(p))
     assert _undirected(DeltaLoopFlyby(p)) == shipped
     assert _undirected(DeltaLoopReflected(p)) == shipped
@@ -360,8 +360,8 @@ def test_delta_loop_side_follows_total_wire_length_in_closed_form():
     # (length_factor*wavelength - 4*eps) / (2*(1 + cos θ)) in closed form, no
     # numerical solve needed. Keep that claim honest.
     eps = 0.05
-    for params in (DeltaLoop.default_params, DeltaLoop.z200_params):
-        p = dict(params)
+    for variant in ("default", "z200"):
+        p = resolve_variant_params(DeltaLoop, variant)
         wl = 299.792458 / p["design_freq"]
         theta = math.radians(p["angle_deg"])
         expected = (p["length_factor"] * wl - 4 * eps) / (2 * (1 + math.cos(theta)))

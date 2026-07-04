@@ -92,15 +92,13 @@ class Builder(AntennaBuilder):
         }
     )
 
+    # z100 (100 Ω feed) overlays default_params (= z50, the 50 Ω tuning);
+    # it states only the shape factors that differ (slant_deg matches default).
     z100_params = MappingProxyType(
         {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 10.0,
             "length_factor": 1.1114,
             "top_aspect": 1.672,
             "bot_aspect": 0.423,
-            "slant_deg": 30.0,
         }
     )
 

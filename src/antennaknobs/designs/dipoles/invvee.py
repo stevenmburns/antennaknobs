@@ -32,15 +32,9 @@ class Builder(AntennaBuilder):
     # resonance (Z ≈ 66 + j1 Ω). Equivalent to the old top-level
     # dipole.py geometry, now reachable as the "dipole" variant on
     # dipoles.invvee.
-    dipole_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 0.967,
-            "angle_deg": 0.0,
-        }
-    )
+    # Variants overlay default_params; each states only its length_factor /
+    # angle_deg tuning (design_freq / freq / base come from default).
+    dipole_params = MappingProxyType({"length_factor": 0.967, "angle_deg": 0.0})
 
     # Three-halves dipole: 1.484λ-long flat dipole, tuned to a near-
     # resonant length where Z_in collapses to ~95 Ω (real). Not the
@@ -52,15 +46,7 @@ class Builder(AntennaBuilder):
     # length_factor parameterises driver_y as 0.25·λ·length_factor, so
     # this 0.7422·λ driver_y lands at length_factor = 0.7422 / 0.25 =
     # 2.9688 (giving 2 × 0.7422 = 1.4844λ total length).
-    three_halves_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 2.9688,
-            "angle_deg": 0.0,
-        }
-    )
+    three_halves_params = MappingProxyType({"length_factor": 2.9688, "angle_deg": 0.0})
 
     # Classic Extended Double Zepp: 1.28λ total length (driver_y =
     # 0.64λ per leg → length_factor = 0.64 / 0.25 = 2.56). Tuned for
@@ -68,15 +54,7 @@ class Builder(AntennaBuilder):
     # above ~1λ anti-resonance, so the input impedance is high and
     # very reactive (≈ 100 − j600 Ω at the design freq) and a matching
     # network is required.
-    classic_edz_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 2.56,
-            "angle_deg": 0.0,
-        }
-    )
+    classic_edz_params = MappingProxyType({"length_factor": 2.56, "angle_deg": 0.0})
 
     def build_wires(self):
         eps = 0.05

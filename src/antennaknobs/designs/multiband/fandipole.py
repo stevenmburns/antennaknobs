@@ -88,11 +88,11 @@ class Builder(AntennaBuilder):
     # 17m/15m pair — the two active bands first, remaining slots padded
     # with the other bands so bumping n_bands back up reveals a sensible
     # 5-band fall-back instead of empty placeholders.
+    # Pair variants overlay default_params (base / angle_deg come from default);
+    # each drops n_bands to 2 and reorders the band tuple to lead with its pair.
     pair_17_15_params = MappingProxyType(
         {
             "freq": _BAND_15M["freq"],
-            "base": 7.0,
-            "angle_deg": 26.5651,
             "n_bands": 2,
             "bands": (_BAND_17M, _BAND_15M, _BAND_20M, _BAND_12M, _BAND_10M),
         }
@@ -102,8 +102,6 @@ class Builder(AntennaBuilder):
     pair_12_10_params = MappingProxyType(
         {
             "freq": _BAND_10M["freq"],
-            "base": 7.0,
-            "angle_deg": 26.5651,
             "n_bands": 2,
             "bands": (_BAND_12M, _BAND_10M, _BAND_20M, _BAND_17M, _BAND_15M),
         }

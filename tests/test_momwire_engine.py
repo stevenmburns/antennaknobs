@@ -4,6 +4,7 @@ geometry translator it sits on top of."""
 import numpy as np
 import pytest
 
+from antennaknobs import resolve_variant_params
 from antennaknobs.designs.dipoles.invvee import Builder
 from antennaknobs.engines import PyNECEngine, MomwireEngine
 from antennaknobs.geometry import flat_wires_to_polylines
@@ -12,7 +13,7 @@ from conftest import needs_pynec
 
 
 def test_translator_chains_dipole_into_single_polyline():
-    b = Builder(Builder.dipole_params)  # straight half-wave dipole
+    b = Builder(resolve_variant_params(Builder, "dipole"))  # straight half-wave dipole
     out = flat_wires_to_polylines(b.build_wires())
 
     assert len(out["polylines"]) == 1

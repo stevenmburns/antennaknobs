@@ -256,14 +256,11 @@ class Builder(AntennaBuilder):
 
     # Sequential single-band tune against Z = 50 + 0j on PyNEC.
     # See _BAND_*_OPT comment and scripts/tune_hexbeam_5band_band.py.
+    # Tuned variants overlay default_params, differing only in the per-band
+    # shape factors (design_freq / freq / base / z_spacing / daisy_chain /
+    # n_bands all come from default).
     opt_params = MappingProxyType(
         {
-            "design_freq": 14.300,
-            "freq": 14.300,
-            "base": 7.0,
-            "z_spacing": 0.2,
-            "daisy_chain": False,
-            "n_bands": _MAX_BANDS,
             "bands": (
                 _BAND_20M_OPT,
                 _BAND_17M_OPT,
@@ -277,12 +274,6 @@ class Builder(AntennaBuilder):
     # Coupled multi-band tune; see _BAND_*_COUPLED comment.
     opt_coupled_params = MappingProxyType(
         {
-            "design_freq": 14.300,
-            "freq": 14.300,
-            "base": 7.0,
-            "z_spacing": 0.2,
-            "daisy_chain": False,
-            "n_bands": _MAX_BANDS,
             "bands": (
                 _BAND_20M_COUPLED,
                 _BAND_17M_COUPLED,

@@ -3,12 +3,11 @@ from types import MappingProxyType
 
 
 class Builder(AntennaBuilder):
+    # Variants overlay default_params; each states only the driver geometry
+    # that differs (freq, base, aspect_ratio come from default).
     original_params = MappingProxyType(
         {
-            "freq": 28.57,
-            "base": 7.0,
             "halfdriver": (147.25 / 2 + 22 + 3 / 16) * 0.0254,
-            "aspect_ratio": (53 + 11 / 16) / 147.25,
             "tipspacer_factor": (4 + 1 / 16) / (53 + 11 / 16),
             "t0_factor": (22 + 3 / 16) / (53 + 11 / 16),
         }
@@ -27,10 +26,7 @@ class Builder(AntennaBuilder):
 
     opt_params = MappingProxyType(
         {
-            "freq": 28.57,
-            "base": 7.0,
             "halfdriver": 2.4454699666515394,
-            "aspect_ratio": 0.3646010186757216,
             "tipspacer_factor": 0.047061074343758946,
             "t0_factor": 0.42268888502818136,
         }
