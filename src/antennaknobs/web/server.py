@@ -91,6 +91,7 @@ import hashlib
 import json
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 
@@ -496,24 +497,32 @@ def _canonical_solve_key(req: dict) -> str:
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
 
-def _solve_uncached(req: dict) -> dict:
+def _solve_uncached(req: dict, superseded: Callable[[], bool] | None = None) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     _check_solve_size(req, use_pynec=use_pynec)
     if use_pynec:
         out = pynec_backend.solve(req)
-        _attach_derived_em_fields(out)
-        _compute_directivity_norm(out)
-        return out
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
-    out = ex.momwire_solve(req)
-    out["solver"] = "momwire"
+    else:
+        ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+        out = ex.momwire_solve(req)
+        out["solver"] = "momwire"
     _attach_derived_em_fields(out)
+    # The directivity norm is a ~430 ms far-field integral (the heaviest single
+    # step of a solve) whose only product is one scalar reference for absolute
+    # dBi. When a newer request already sits in the mailbox this result is
+    # doomed to be skip-sent, so computing its norm is pure waste — skip it and
+    # let the solver pull the fresher request sooner. The result then carries no
+    # `directivity_norm` key, which the caller uses to keep it out of the cache
+    # (only fully post-processed results may be cached) and which the frontend
+    # reads as "carry the last-good norm forward".
+    if superseded is not None and superseded():
+        return out
     _compute_directivity_norm(out)
     return out
 
 
-def solve(req: dict) -> dict:
+def solve(req: dict, superseded: Callable[[], bool] | None = None) -> dict:
     key = _canonical_solve_key(req)
     hit = _SOLVE_CACHE.get(key)
     if hit is not None:
@@ -527,11 +536,16 @@ def solve(req: dict) -> dict:
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
         return out
-    out = _solve_uncached(req)
+    out = _solve_uncached(req, superseded)
     out["cache_hit"] = False
-    _SOLVE_CACHE[key] = deepcopy(out)
-    while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
-        _SOLVE_CACHE.popitem(last=False)
+    # Only cache a fully post-processed result. A norm-skipped (superseded)
+    # solve lacks `directivity_norm`; caching it would let a later exact-repeat
+    # request hit a partial entry and render with a stale/absent absolute
+    # reference forever.
+    if "directivity_norm" in out:
+        _SOLVE_CACHE[key] = deepcopy(out)
+        while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
+            _SOLVE_CACHE.popitem(last=False)
     return out
 
 
@@ -1059,8 +1073,14 @@ async def ws_endpoint(ws: WebSocket):
             if not mailbox:
                 continue
             req = mailbox.pop()
+            # `bool(mailbox)` flips to True the instant the reader queues a newer
+            # request, and the reader only ever *fills* the mailbox while we hold
+            # this popped request — so this closure is a monotonic "am I already
+            # stale?" signal that's safe to poll from the solve worker thread.
+            # solve() uses it to skip the doomed result's directivity norm.
+            superseded = lambda: bool(mailbox)  # noqa: E731
             try:
-                result = await run_in_threadpool(solve, req)
+                result = await run_in_threadpool(solve, req, superseded)
             except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
                 # A solve that raises must not tear down the socket (that drops
                 # every subsequent slider-driven solve). Send the cause so the
