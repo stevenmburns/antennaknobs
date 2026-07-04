@@ -12,6 +12,9 @@ integration territory and want their own targeted tests.
 
 from __future__ import annotations
 
+import json
+import threading
+
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -1047,6 +1050,106 @@ def test_ws_solve_error_keeps_socket_alive(client, broken_user_design):
     assert "wires" in good
 
 
+def test_ws_endpoint_echoes_seq_on_success(client: TestClient):
+    # The latest-wins protocol keys ordering, RTT accounting, and solving-state
+    # off the echoed `_seq`; every successful response must carry the request's.
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(
+            json.dumps(
+                {
+                    "geometry": "dipoles.invvee",
+                    "measurement_freq_mhz": 28.47,
+                    "momwire_model": "triangular",
+                    "_seq": 7,
+                }
+            )
+        )
+        result = json.loads(ws.receive_text())
+    assert result["_seq"] == 7
+    assert result["geometry"] == "dipoles.invvee"
+
+
+def test_ws_endpoint_echoes_seq_on_error(client, broken_user_design):
+    # The error path must echo `_seq` too — a dropped echo here would leave the
+    # client's `solving` state stuck true forever when the newest request fails.
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps({"geometry": broken_user_design, "_seq": 42}))
+        bad = json.loads(ws.receive_text())
+    assert "error" in bad
+    assert bad["_seq"] == 42
+
+
+def test_ws_endpoint_squashes_and_skips_superseded(client, monkeypatch):
+    # Latest-wins: while the first solve is held, a burst of newer requests
+    # collapses in the size-1 mailbox to only the freshest. The held solve is
+    # then superseded, so its send is skipped and only the newest result ships.
+    seqs_solved: list[int] = []
+    entered = threading.Event()
+    release = threading.Event()
+    reader_saw_last = threading.Event()
+
+    def blocking_solve(req: dict) -> dict:
+        seq = req.get("_seq")
+        seqs_solved.append(seq)
+        if seq == 1:
+            entered.set()
+            # Hold until the reader has drained the whole burst into the mailbox,
+            # so this solve returns to find itself superseded (deterministic).
+            release.wait(5)
+        return {"geometry": req.get("geometry"), "z_in_re": 1.0}
+
+    real_loads = json.loads
+
+    def recording_loads(s):
+        d = real_loads(s)
+        if isinstance(d, dict) and d.get("_seq") == 5:
+            reader_saw_last.set()
+        return d
+
+    monkeypatch.setattr(server, "solve", blocking_solve)
+    monkeypatch.setattr(server.json, "loads", recording_loads)
+
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps({"geometry": "dipoles.invvee", "_seq": 1}))
+        assert entered.wait(5), "first solve never started"
+        for s in (2, 3, 4, 5):
+            ws.send_text(json.dumps({"geometry": "dipoles.invvee", "_seq": s}))
+        # Wait until the reader has consumed seq 5 (mailbox == [seq 5]) before
+        # releasing, so seq 2..4 are provably squashed, never solved.
+        assert reader_saw_last.wait(5), "reader never drained the burst"
+        release.set()
+        first = json.loads(ws.receive_text())
+
+    # Only seq 1 and seq 5 ever reach solve(); 2..4 die in the mailbox.
+    assert seqs_solved == [1, 5]
+    # seq 1's result is superseded → skipped; seq 5 is the only thing sent.
+    assert first["_seq"] == 5
+
+
+def test_ws_endpoint_handles_disconnect_during_solve(client, monkeypatch):
+    # Client drops mid-solve: the reader sees WebSocketDisconnect, the held
+    # solve later returns to a closed socket, and the handler exits cleanly with
+    # the reader task cancelled — no stray exception out of the context manager.
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocking_solve(req: dict) -> dict:
+        entered.set()
+        release.wait(5)
+        return {"geometry": req.get("geometry")}
+
+    monkeypatch.setattr(server, "solve", blocking_solve)
+
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps({"geometry": "dipoles.invvee", "_seq": 1}))
+        assert entered.wait(5), "solve never started"
+        # Release shortly after the context exit disconnects the socket, so the
+        # handler can finish its in-flight solve and return without deadlocking
+        # the close handshake.
+        threading.Timer(0.2, release.set).start()
+    release.set()  # belt-and-suspenders if the timer hasn't fired yet
+
+
 def test_solve_z_only_returns_primary_z_and_no_feeds_for_dipole():
     z, feeds_z = server._solve_z_only(
         {
@@ -1152,6 +1255,7 @@ _IGNORED_FIELDS = frozenset(
     {
         "_request_id",
         "_client_ts",
+        "_seq",
     }
 )
 
