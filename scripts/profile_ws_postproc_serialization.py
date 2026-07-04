@@ -1,6 +1,13 @@
 """Profile the /ws solve pipeline to decide whether phases 3 + 4 of the
 latest-wins refactor (docs/plan-ws-latest-wins.md) are worth building.
 
+HISTORICAL NOTE: this harness motivated the input-power norm rework. The live
+solve path no longer runs `_compute_directivity_norm` at all — the gain norm
+is η₀k²/(8π·P_in), O(1) (`_attach_gain_norm`), and the pattern integral
+survives only in the dwell-triggered /norm_check (closed form on PEC paths,
+this grid quadrature as the finite-ground fallback) — so the norm timings
+below profile the *check* path, not the hot path.
+
 Phase 3 — skip stale post-processing: when a solve is already superseded, skip
 `_attach_derived_em_fields` + `_compute_directivity_norm` between the core
 impedance/currents solve and the send. Worth it only if post-processing is a
