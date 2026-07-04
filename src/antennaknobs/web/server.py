@@ -895,6 +895,14 @@ def examples_endpoint():
     """
     load_errors = user_designs.refresh()
 
+    def _sweep_policy_json(p) -> dict:
+        return {
+            "anchor": p.anchor,
+            "lo_factor": p.lo_factor,
+            "hi_factor": p.hi_factor,
+            "band_locked": p.band_locked,
+        }
+
     def _serialize_schema_item(item) -> dict:
         # Discriminate by attribute: ParamGroupSpec has `params`, ParamSpec
         # doesn't. Recurses so groups-in-groups serialize cleanly (the
@@ -987,11 +995,16 @@ def examples_endpoint():
                 "has_design_freq": ex.has_design_freq,
                 "variants": list(ex.variants),
                 "variant_values": dict(ex.variant_values),
-                "sweep_policy": {
-                    "anchor": ex.sweep_policy.anchor,
-                    "lo_factor": ex.sweep_policy.lo_factor,
-                    "hi_factor": ex.sweep_policy.hi_factor,
-                    "band_locked": ex.sweep_policy.band_locked,
+                "sweep_policy": _sweep_policy_json(ex.sweep_policy),
+                # Per-variant hint overrides; only variants that differ from the
+                # design-level sweep_policy appear here. Frontend falls back to
+                # the top-level `sweep_policy` for any variant not listed.
+                "variant_ui": {
+                    v: {
+                        "sweep_policy": _sweep_policy_json(h["sweep_policy"]),
+                    }
+                    for v, h in ex.variant_ui.items()
+                    if "sweep_policy" in h
                 },
                 "layout": ex.layout,
             }

@@ -74,6 +74,16 @@ class Builder(AntennaBuilder):
         }
     )
 
+    # Band-locked variant: identical geometry to default, but the frontend
+    # clamps the freq sweep to the amateur band containing the anchor (80 m,
+    # which holds the 3.8 MHz default) instead of the wide ±multiplier window.
+    # Only ui_params is stated — it deep-merges over default_params.ui_params
+    # (inheriting target_z0 / default_view / length_factor) and flips just
+    # sweep_policy.band_locked; every regular param overlays from default.
+    band_locked_params = MappingProxyType(
+        {"ui_params": MappingProxyType({"sweep_policy": {"band_locked": True}})}
+    )
+
     def build_wires(self):
         eps = 0.05
 

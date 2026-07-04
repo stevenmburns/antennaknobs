@@ -870,6 +870,33 @@ def _recommended_backend(cls) -> str | None:
     return "arrayblock" if len(sigs) * 2 <= n_elem else None
 
 
+def _derive_sweep_policy(ui: dict) -> SweepPolicy:
+    """Build a SweepPolicy from a `ui_params` dict's `sweep_policy` entry.
+
+    Accepts the positional 3-tuple `(anchor, lo_factor, hi_factor)` form or the
+    dict form (which can opt into named fields like `band_locked` without
+    supplying every positional; missing fields fall back to the dataclass
+    defaults). Anything else yields the default policy. Takes any ui dict, so
+    the same derivation runs for the default's ui_params and for each variant's
+    deep-merged ui_params (see `variant_ui` in `_make_example`)."""
+    raw = ui.get("sweep_policy")
+    if isinstance(raw, (tuple, list)) and len(raw) == 3:
+        return SweepPolicy(
+            anchor=str(raw[0]),
+            lo_factor=float(raw[1]),
+            hi_factor=float(raw[2]),
+        )
+    if isinstance(raw, dict):
+        d = DEFAULT_SWEEP_POLICY
+        return SweepPolicy(
+            anchor=str(raw.get("anchor", d.anchor)),
+            lo_factor=float(raw.get("lo_factor", d.lo_factor)),
+            hi_factor=float(raw.get("hi_factor", d.hi_factor)),
+            band_locked=bool(raw.get("band_locked", d.band_locked)),
+        )
+    return DEFAULT_SWEEP_POLICY
+
+
 def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExample:
     dp = dict(cls.default_params)
     ui = dict(dp.get("ui_params") or {})
@@ -921,26 +948,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         else None
     )
     bands_override = ui.get("bands") if not isinstance(ui.get("bands"), dict) else None
-    sweep_pol_raw = ui.get("sweep_policy")
-    if isinstance(sweep_pol_raw, (tuple, list)) and len(sweep_pol_raw) == 3:
-        sweep_policy = SweepPolicy(
-            anchor=str(sweep_pol_raw[0]),
-            lo_factor=float(sweep_pol_raw[1]),
-            hi_factor=float(sweep_pol_raw[2]),
-        )
-    elif isinstance(sweep_pol_raw, dict):
-        # Dict form lets ui_params opt into named fields (band_locked,
-        # ...) without having to supply every positional. Anchor +
-        # factors fall back to the dataclass defaults when absent.
-        defaults = DEFAULT_SWEEP_POLICY
-        sweep_policy = SweepPolicy(
-            anchor=str(sweep_pol_raw.get("anchor", defaults.anchor)),
-            lo_factor=float(sweep_pol_raw.get("lo_factor", defaults.lo_factor)),
-            hi_factor=float(sweep_pol_raw.get("hi_factor", defaults.hi_factor)),
-            band_locked=bool(sweep_pol_raw.get("band_locked", defaults.band_locked)),
-        )
-    else:
-        sweep_policy = DEFAULT_SWEEP_POLICY
+    sweep_policy = _derive_sweep_policy(ui)
 
     # Band tabs default to the HF amateur set in canonical order. The
     # frontend snaps to whichever band contains the design's native
@@ -955,6 +963,22 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     param_schema = _derive_schema(dp)
     has_design_freq = "design_freq" in dp
     variants = _discover_variants(cls)
+
+    # Per-variant UI hints. A variant's `ui_params` deep-merges over the
+    # default's (resolve_variant_params), so a variant can flip a single nested
+    # hint (e.g. sweep_policy.band_locked) without restating the subtree. We
+    # emit only the variants whose derived hints differ from the design-level
+    # (default) value; the frontend falls back to the top-level field otherwise.
+    # Extensible per-variant map so more hints can move per-variant later
+    # without another /examples contract change.
+    variant_ui: dict[str, dict[str, Any]] = {}
+    for v in variants:
+        if v == "default":
+            continue
+        v_ui = dict(resolve_variant_params(cls, v).get("ui_params") or {})
+        v_sweep = _derive_sweep_policy(v_ui)
+        if v_sweep != sweep_policy:
+            variant_ui[v] = {"sweep_policy": v_sweep}
 
     def _design_freq_default(req: dict) -> float:
         # The active variant's `freq` is the right fallback when the
@@ -1328,6 +1352,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             v: _serialize_param_values(_strip_ui(_variant_params(cls, v)))
             for v in variants
         },
+        variant_ui=variant_ui,
         layout=grid_layout,
     )
 

@@ -389,6 +389,13 @@ class AntennaExample:
     # stripped. Single-variant designs ship {} since there's nothing
     # to switch between.
     variant_values: dict = field(default_factory=dict)
+    # Per-variant UI-hint overrides, keyed by variant name → {hint_name:
+    # value}. Today the only hint is `sweep_policy` (a SweepPolicy), emitted
+    # only for variants whose derived policy differs from the design-level
+    # `sweep_policy` above; the frontend falls back to that top-level value
+    # for any variant absent here. Kept as an open map so more ui hints can
+    # move per-variant later without another /examples contract change.
+    variant_ui: dict = field(default_factory=dict)
     # Optional grid-level layout config for the top-level knob rail.
     # Recognised key today: {"columns": int} — pins the param grid to a
     # fixed column count so per-ParamSpec.layout col positions land
