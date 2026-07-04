@@ -221,6 +221,108 @@ def _fine_norm_grid(n_theta_adaptive: int) -> tuple[int, int]:
     return n_theta, 2 * n_theta
 
 
+def _moment_segments(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Segment midpoints (Nseg,3), segment vectors dr (Nseg,3) and midpoint
+    currents (Nseg,) complex — the discrete moment set behind the far-field
+    sum M(r̂) = Σ I·dr·e^{jk·r̂·mid}, shared by every pattern normaliser.
+
+    Prefers the finer-grained sample arrays (knot + segment-midpoint) when
+    the model produced them, so non-tent bases get their intra-segment
+    curvature integrated. Falls back to knot arrays for any backend that
+    only ships knot data (PyNEC).
+    """
+    mids, drs, i_mids = [], [], []
+    for w in out["wires"]:
+        if "sample_positions" in w:
+            pts = np.asarray(w["sample_positions"], dtype=np.float64)
+            cur = np.asarray(
+                w["sample_currents_re"], dtype=np.float64
+            ) + 1j * np.asarray(w["sample_currents_im"], dtype=np.float64)
+        else:
+            pts = np.asarray(w["knot_positions"], dtype=np.float64)
+            cur = np.asarray(w["knot_currents_re"], dtype=np.float64) + 1j * np.asarray(
+                w["knot_currents_im"], dtype=np.float64
+            )
+        drs.append(pts[1:] - pts[:-1])
+        mids.append(0.5 * (pts[1:] + pts[:-1]))
+        i_mids.append(0.5 * (cur[1:] + cur[:-1]))
+    return (
+        np.concatenate(mids, axis=0),
+        np.concatenate(drs, axis=0),
+        np.concatenate(i_mids, axis=0),
+    )
+
+
+def _pattern_integral_norm(out: dict) -> float:
+    """The pattern-integral gain norm (4π/∮|M_perp|²dΩ)·efficiency evaluated
+    in CLOSED FORM — no angular grid. Because the radiated power is quadratic
+    in the currents, the sphere integral collapses to a pair sum over the
+    moment set with the classical mutual-radiation-resistance kernel:
+
+        ∮ (I₃ − r̂r̂)·e^{jk·r̂·d} dΩ = 4π[ a(x)·I₃ − b(x)·d̂d̂ ],  x = k|d|
+        a(x) = j₀(x) − j₁(x)/x        (→ 2/3 as x → 0)
+        b(x) = j₀(x) − 3·j₁(x)/x      (→ 0   as x → 0)
+
+    with spherical Bessels j₀, j₁ — real, smooth, exact. O(N²) pairs, no
+    aliasing floor, no grid to size.
+
+    Ground (the web paths are PEC — eps_r is the 1e10 sentinel): image
+    segments (x,y,z) → (x,y,−z) with horizontal moment components flipped
+    reproduce the reflected wave exactly, and the imaged 2N system is
+    mirror-symmetric, so the upper-hemisphere power is half its full-sphere
+    power. The Fresnel coefficients at eps_r = 1e10 differ from the PEC
+    limit only within ~1e-5 of grazing — beyond any displayed precision.
+
+    This is the same discrete functional the old grid integral sampled, so
+    the delta against the P_in-based `directivity_norm` isolates the solver
+    self-consistency gap (NEC's "average gain" diagnostic), not quadrature.
+    """
+    k = float(out["k_meas_m_inv"])
+    mid, dr, i_mid = _moment_segments(out)
+    w = i_mid[:, None] * dr  # complex moment per segment (Nseg, 3)
+    x_pts = mid
+    half = 1.0
+    if bool(out.get("ground", False)):
+        x_pts = np.concatenate([mid, mid * np.array([1.0, 1.0, -1.0])], axis=0)
+        w = np.concatenate([w, w * np.array([-1.0, -1.0, 1.0])], axis=0)
+        half = 0.5
+
+    # Pair sum in row blocks so peak memory stays O(block·N) instead of
+    # O(N²·3) — the terminated rhombic over ground is a ~2600-point set.
+    n_pts = x_pts.shape[0]
+    w_conj = np.conj(w)
+    block = max(1, int(2e6) // max(n_pts, 1))
+    p_sum = 0.0
+    for s in range(0, n_pts, block):
+        e = min(s + block, n_pts)
+        d = x_pts[s:e, None, :] - x_pts[None, :, :]  # (B, N, 3)
+        x = k * np.linalg.norm(d, axis=-1)  # (B, N)
+        small = x < 1e-3
+        xs = np.where(small, 1.0, x)  # avoid 0-division; small arm uses series
+        sin_x, cos_x = np.sin(xs), np.cos(xs)
+        j0 = sin_x / xs
+        j1_over_x = (sin_x / xs - cos_x) / (xs * xs)
+        x2 = x * x
+        # 2-term series at small x (the exact forms lose precision to
+        # cancellation): a = 2/3 − 2x²/15, b = −x²/15.
+        a = np.where(small, 2.0 / 3.0 - 2.0 * x2 / 15.0, j0 - j1_over_x)
+        b = np.where(small, -x2 / 15.0, j0 - 3.0 * j1_over_x)
+
+        # w_m*ᵀ [a·I − b·d̂d̂] w_n over the block's pairs. d̂ is undefined
+        # at d=0 but b→0 there, so guard the denominator instead of
+        # special-casing the diagonal.
+        dot_ww = w_conj[s:e] @ w.T  # (B, N)
+        d_norm = np.where(small, 1.0, x / k)  # |d| with the same guard
+        proj_m = np.einsum("bnc,bc->bn", d, w_conj[s:e]) / d_norm
+        proj_n = np.einsum("bnc,nc->bn", d, w) / d_norm
+        p_sum += float(np.sum(a * dot_ww.real - b * (proj_m * proj_n).real))
+    p_rad = 4.0 * np.pi * half * p_sum
+    if p_rad <= 0.0:
+        return 0.0
+    efficiency = float(out.get("radiation_efficiency", 1.0))
+    return 4.0 * np.pi / p_rad * efficiency
+
+
 def _compute_directivity_norm(
     out: dict,
     n_theta: int | None = None,
@@ -245,29 +347,7 @@ def _compute_directivity_norm(
     """
     k = float(out["k_meas_m_inv"])
     ground_on = bool(out.get("ground", False))
-
-    mids, drs, i_mids = [], [], []
-    for w in out["wires"]:
-        # Prefer the finer-grained sample arrays (knot + segment-midpoint)
-        # when the model produced them, so non-tent bases get their intra-
-        # segment curvature integrated. Falls back to knot arrays for any
-        # backend that only ships knot data (PyNEC).
-        if "sample_positions" in w:
-            pts = np.asarray(w["sample_positions"], dtype=np.float64)
-            cur = np.asarray(
-                w["sample_currents_re"], dtype=np.float64
-            ) + 1j * np.asarray(w["sample_currents_im"], dtype=np.float64)
-        else:
-            pts = np.asarray(w["knot_positions"], dtype=np.float64)
-            cur = np.asarray(w["knot_currents_re"], dtype=np.float64) + 1j * np.asarray(
-                w["knot_currents_im"], dtype=np.float64
-            )
-        drs.append(pts[1:] - pts[:-1])
-        mids.append(0.5 * (pts[1:] + pts[:-1]))
-        i_mids.append(0.5 * (cur[1:] + cur[:-1]))
-    mid = np.concatenate(mids, axis=0)  # (Nseg, 3)
-    dr = np.concatenate(drs, axis=0)  # (Nseg, 3)
-    i_mid = np.concatenate(i_mids, axis=0)  # (Nseg,)
+    mid, dr, i_mid = _moment_segments(out)
 
     if n_theta is None or n_phi is None:
         # Size the grid to the structure's electrical extent. Segment midpoints
@@ -843,36 +923,50 @@ async def pattern_endpoint(req: dict):
     return await run_in_threadpool(pynec_backend.pattern, req)
 
 
-def _norm_grid_check(req: dict) -> dict:
-    """Recompute the directivity norm on a grid much finer than the adaptive
-    one, on the *same* currents, so the frontend can overlay the fine-grid
-    pattern. The norm is a single scalar multiplying the whole pattern, so the
-    overlay is a pure radial dBi shift of the live trace — the gap between the
-    two lines is exactly the adaptive grid's error. Reuses the settled solve
-    (a cache hit on the dwell request, so no re-solve on the common path)."""
+def _norm_check(req: dict) -> dict:
+    """Consistency check for the far-field normalisation, dwell-triggered.
+
+    The live `directivity_norm` comes from the circuit side (η₀k²/8π·P_in);
+    here we recompute the same gain norm from the FIELD side — the closed-form
+    pattern integral (`_pattern_integral_norm`) × efficiency. The two agree
+    exactly for a self-consistent solve, so the dB gap between them is the
+    discretisation's power-balance error: NEC's "average gain" diagnostic.
+    The norm is a single scalar multiplying the whole pattern, so the frontend
+    overlays it as a pure radial dBi shift of the live trace.
+
+    Reuses the settled solve (a cache hit on the dwell request, so no re-solve
+    on the common path). Falls back to the fine-grid quadrature when the
+    response carries a finite (non-PEC-sentinel) ground — the image identity
+    behind the closed form is exact only for a perfect reflector."""
     out = solve(dict(req))
-    if "directivity_norm" not in out:
+    if "directivity_norm" not in out or out["directivity_norm"] <= 0:
         return {"available": False}
-    adaptive_grid = out.get("directivity_norm_grid") or [17, 34]
-    adaptive_norm = out["directivity_norm"]
-    n_theta, n_phi = _fine_norm_grid(int(adaptive_grid[0]))
-    # Recompute in place: `out` is already a copy solve() owns (cache-hit
-    # deepcopy or a fresh miss), and we only need its scalar norm now.
-    _compute_directivity_norm(out, n_theta=n_theta, n_phi=n_phi)
+    ground_on = bool(out.get("ground", False))
+    pec = float(out.get("ground_eps_r", _PEC_GROUND_EPS_R)) >= 1e6 and not float(
+        out.get("ground_sigma", 0.0) or 0.0
+    )
+    if not ground_on or pec:
+        pattern_norm = _pattern_integral_norm(out)
+        method = "closed_form"
+    else:
+        ref = dict(out)
+        n_theta, n_phi = _fine_norm_grid(45)
+        _compute_directivity_norm(ref, n_theta=n_theta, n_phi=n_phi)
+        pattern_norm = ref["directivity_norm"]
+        method = f"grid_{n_theta}x{n_phi}"
     return {
-        "available": True,
-        "directivity_norm": adaptive_norm,
-        "directivity_norm_grid": adaptive_grid,
-        "directivity_norm_fine": out["directivity_norm"],
-        "grid_fine": [n_theta, n_phi],
+        "available": pattern_norm > 0,
+        "directivity_norm": out["directivity_norm"],
+        "pattern_norm": pattern_norm,
+        "method": method,
     }
 
 
-@app.post("/norm_grid_check")
-async def norm_grid_check_endpoint(req: dict):
-    """Fine-grid directivity norm for the far-field grid-check overlay (opt-in,
-    dwell-triggered). See `_norm_grid_check`."""
-    return await run_in_threadpool(_norm_grid_check, req)
+@app.post("/norm_check")
+async def norm_check_endpoint(req: dict):
+    """Field-side vs circuit-side gain-norm consistency check for the
+    far-field overlay (dwell-triggered). See `_norm_check`."""
+    return await run_in_threadpool(_norm_check, req)
 
 
 @app.post("/export_nec")
