@@ -443,6 +443,29 @@ def test_directivity_norm_adaptive_within_005_dB_of_fine_reference(req):
     )
 
 
+def test_norm_grid_check_endpoint_returns_finer_converged_norm(client: TestClient):
+    """The grid-check endpoint returns a fine-grid norm on a strictly finer grid
+    than the adaptive one, and — since the adaptive grid is already converged for
+    this design — the two agree to within 0.05 dB (the overlay would sit on top
+    of the live trace)."""
+    server._SOLVE_CACHE.clear()
+    req = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "triangular",
+        "ground": True,
+    }
+    resp = client.post("/norm_grid_check", json=req).json()
+    assert resp["available"] is True
+    assert resp["directivity_norm"] > 0 and resp["directivity_norm_fine"] > 0
+    # Fine grid is strictly finer than the adaptive one.
+    assert resp["grid_fine"][0] > resp["directivity_norm_grid"][0]
+    assert resp["grid_fine"][1] == 2 * resp["grid_fine"][0]
+    db = 10 * np.log10(resp["directivity_norm"] / resp["directivity_norm_fine"])
+    assert abs(db) < 0.05
+
+
 def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
     """At a coarse theta grid on an electrically-large design, Gauss-Legendre is
     strictly closer to the fine reference than the legacy uniform-midpoint rule
