@@ -58,11 +58,11 @@
 | src/antennaknobs/designs/loops/quad.py                            |       35 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/triangular\_skyloop.py             |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
-| src/antennaknobs/designs/multiband/fandipole.py                   |       59 |        1 |     98% |       120 |
+| src/antennaknobs/designs/multiband/fandipole.py                   |       59 |        1 |     98% |       118 |
 | src/antennaknobs/designs/multiband/hexbeam\_5band.py              |      103 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_dipole.py                |       31 |        0 |    100% |           |
-| src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       90 |        3 |     97% |243, 304, 310 |
-| src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       71 |       12 |     83% |   219-231 |
+| src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       90 |        3 |     97% |237, 298, 304 |
+| src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       71 |       12 |     83% |   218-230 |
 | src/antennaknobs/designs/specialty/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/bowtie.py                      |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/helix.py                       |       36 |        0 |    100% |           |
