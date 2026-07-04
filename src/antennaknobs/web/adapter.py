@@ -51,6 +51,7 @@ from antennaknobs.builder import (
     Array1x4GroupedBuilder,
     Array2x2Builder,
     Array2x4Builder,
+    resolve_variant_params,
 )
 
 try:
@@ -717,14 +718,13 @@ def _serialize_param_values(params: dict) -> dict:
 
 
 def _variant_params(cls, variant: str | None) -> dict:
-    """Return the seed params dict for the named variant. Falls back to
-    `default_params` when variant is None or doesn't resolve to an
-    attribute (stale frontend, unknown name)."""
-    if variant:
-        params = getattr(cls, f"{variant}_params", None)
-        if params is not None and hasattr(params, "keys"):
-            return dict(params)
-    return dict(cls.default_params)
+    """Return the seed params dict for the named variant, overlaid on
+    `default_params` (see `resolve_variant_params`). A variant need only
+    list the keys it overrides — including nested `ui_params` hints, which
+    deep-merge — and missing keys come from `default_params`. Falls back to
+    `default_params` when variant is None, "default", or doesn't resolve to
+    an attribute (stale frontend, unknown name)."""
+    return resolve_variant_params(cls, variant)
 
 
 def _ui_scalar(default_params: dict, key: str, default):

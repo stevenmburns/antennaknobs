@@ -1,6 +1,6 @@
 from functools import partial
 
-from . import AntennaBuilder
+from . import AntennaBuilder, resolve_variant_params
 from . import (
     sweep,
     sweep_gain,
@@ -201,7 +201,11 @@ def get_builder(nm):
         raise ValueError(
             f"builder {name!r} has no variant {variant!r}; available: {available}"
         )
-    return partial(cls, params=params)
+    # Overlay the variant on default_params so a partial variant (only the
+    # keys it changes) resolves to a complete param set; a complete variant
+    # reproduces itself. Keep the getattr check above so an unknown variant
+    # name stays a hard error rather than silently falling back to default.
+    return partial(cls, params=resolve_variant_params(cls, variant))
 
 
 def get_builders(nms):
