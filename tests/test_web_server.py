@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import threading
+from copy import deepcopy
 
 import numpy as np
 import pytest
@@ -363,6 +364,109 @@ def test_solve_computes_norm_when_not_superseded():
     out = server.solve(req, superseded=lambda: False)
     assert out["directivity_norm"] > 0
     assert len(server._SOLVE_CACHE) == 1
+
+
+def test_adaptive_norm_grid_scales_with_size_and_clamps():
+    """The directivity-norm grid sizer grows n_theta with electrical extent,
+    keeps n_phi = 2*n_theta, and clamps to a floor/ceiling. A ~6λ structure
+    must land above the measured aliasing floor (~16 theta-points), since
+    sampling just below it corrupts the scalar by ~1 dB."""
+    k = 2 * np.pi  # lambda = 1 m, so the bbox diagonal in metres equals D_lambda
+    origin = np.zeros(3)
+
+    def grid(d_lambda):
+        return server._adaptive_norm_grid(k, origin, np.array([d_lambda, 0.0, 0.0]))
+
+    nt_small, nph_small = grid(0.5)
+    nt_mid, nph_mid = grid(6.0)
+    nt_big, nph_big = grid(200.0)
+
+    assert nph_small == 2 * nt_small and nph_mid == 2 * nt_mid
+    assert nt_small <= nt_mid <= nt_big  # monotonic in electrical size
+    assert nt_small >= 12  # floor
+    assert nt_big == 90  # 13 + 1.2*200 = 253, clamped to the ceiling
+    assert nt_mid >= 18  # clears the ~16-point aliasing floor with margin
+
+
+# Designs spanning the electrical-size range, incl. an 80m skyloop run up to
+# 50 MHz (~6λ bbox) — the case where a too-coarse grid falls off the aliasing
+# cliff (~1 dB). Ground on and off (the ground path is a separate integral).
+_NORM_ACCURACY_REQS = [
+    {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "triangular",
+        "ground": False,
+    },
+    {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "triangular",
+        "ground": True,
+    },
+    {
+        "geometry": "loops.triangular_skyloop",
+        "measurement_freq_mhz": 50.0,
+        "design_freq_mhz": 3.8,
+        "momwire_model": "triangular",
+        "n_per_wire": 80,
+        "ground": False,
+    },
+    {
+        "geometry": "loops.triangular_skyloop",
+        "measurement_freq_mhz": 50.0,
+        "design_freq_mhz": 3.8,
+        "momwire_model": "triangular",
+        "n_per_wire": 80,
+        "ground": True,
+    },
+]
+
+
+@pytest.mark.parametrize("req", _NORM_ACCURACY_REQS)
+def test_directivity_norm_adaptive_within_005_dB_of_fine_reference(req):
+    """The adaptively-sized norm must match a fine 120x240 reference to within
+    0.05 dB across the electrical-size range — the gain is read to ~0.1 dB."""
+    server._SOLVE_CACHE.clear()
+    out = server.solve(req)
+    adaptive = out["directivity_norm"]
+    assert adaptive > 0
+
+    ref = deepcopy(out)
+    server._compute_directivity_norm(ref, n_theta=120, n_phi=240)
+    db = 10 * np.log10(adaptive / ref["directivity_norm"])
+    assert abs(db) < 0.05, (
+        f"{req['geometry']} @ {req['measurement_freq_mhz']} MHz "
+        f"ground={req['ground']}: adaptive off by {db:+.4f} dB"
+    )
+
+
+def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
+    """At a coarse theta grid on an electrically-large design, Gauss-Legendre is
+    strictly closer to the fine reference than the legacy uniform-midpoint rule
+    — the accuracy gain that lets the adaptive grid stay small."""
+    req = {
+        "geometry": "loops.triangular_skyloop",
+        "measurement_freq_mhz": 50.0,
+        "design_freq_mhz": 3.8,
+        "momwire_model": "triangular",
+        "n_per_wire": 80,
+        "ground": False,
+    }
+    server._SOLVE_CACHE.clear()
+    out = server.solve(req)
+    ref = deepcopy(out)
+    server._compute_directivity_norm(ref, n_theta=120, n_phi=240)
+    fine = ref["directivity_norm"]
+
+    gl, uni = deepcopy(out), deepcopy(out)
+    server._compute_directivity_norm(gl, n_theta=20, n_phi=40, _theta_rule="gl")
+    server._compute_directivity_norm(uni, n_theta=20, n_phi=40, _theta_rule="uniform")
+    gl_err = abs(10 * np.log10(gl["directivity_norm"] / fine))
+    uni_err = abs(10 * np.log10(uni["directivity_norm"] / fine))
+    assert gl_err < uni_err
 
 
 def test_solve_reports_radiation_efficiency_for_terminated_antenna():
