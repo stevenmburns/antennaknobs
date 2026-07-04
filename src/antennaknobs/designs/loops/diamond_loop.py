@@ -5,26 +5,6 @@ from types import MappingProxyType
 
 
 class Builder(AntennaBuilder):
-    z100_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 1.0724,
-            "angle_deg": 51.4573,
-        }
-    )
-
-    z200_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 1.0703,
-            "angle_deg": 30.8767,
-        }
-    )
-
     default_params = MappingProxyType(
         {
             "design_freq": 28.47,
@@ -34,6 +14,12 @@ class Builder(AntennaBuilder):
             "angle_deg": 30.8767,
         }
     )
+
+    # Feed-point variants overlay default_params (only the tuning that differs).
+    # z200 (200 Ω feed) is the design default; z100 (100 Ω feed) raises the apex
+    # angle.
+    z100_params = MappingProxyType({"length_factor": 1.0724, "angle_deg": 51.4573})
+    z200_params = default_params
 
     def build_wires(self):
         eps = 0.05

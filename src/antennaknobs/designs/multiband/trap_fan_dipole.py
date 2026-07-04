@@ -221,18 +221,12 @@ class Builder(AntennaBuilder):
     # drives the right resonance into place. Used to refine defaults; once
     # the optimized length factors are folded back into the `bands` tuple
     # above these are just convenience entry points.
-    band0_inner_params = MappingProxyType(
-        {**default_params, "freq": _BAND_17_12["trap_freq"]}
-    )
-    band1_inner_params = MappingProxyType(
-        {**default_params, "freq": _BAND_15_10["trap_freq"]}
-    )
-    band0_full_params = MappingProxyType(
-        {**default_params, "freq": _BAND_17_12["full_freq"]}
-    )
-    band1_full_params = MappingProxyType(
-        {**default_params, "freq": _BAND_15_10["full_freq"]}
-    )
+    # Overlay default_params, anchoring only `freq` (band1_inner's target
+    # equals the default freq, so it resolves back to the default geometry).
+    band0_inner_params = MappingProxyType({"freq": _BAND_17_12["trap_freq"]})
+    band1_inner_params = MappingProxyType({"freq": _BAND_15_10["trap_freq"]})
+    band0_full_params = MappingProxyType({"freq": _BAND_17_12["full_freq"]})
+    band1_full_params = MappingProxyType({"freq": _BAND_15_10["full_freq"]})
 
     def build_wires(self):
         eps = 0.01

@@ -11,19 +11,14 @@ class Builder(Array2x2Builder):
     #   length_factor = (length / 2) / (0.25 · λ_design)
     #                 = 2.542 / 2.6325 = 0.9656
     #   angle_deg = degrees(atan(slope)) = degrees(atan(0.604)) = 31.1345
+    # Overlays default_params; states only the leg tuning that differs (freq,
+    # base, spacing, and phases come from default).
     old_params = MappingProxyType(
         {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
             "length_factor_top": 0.9656,
             "length_factor_bot": 0.9656,
             "angle_deg_top": 31.1345,
             "angle_deg_bot": 31.1345,
-            "del_y": 4.0,
-            "del_z": 2,
-            "phase_lr": 0.0,
-            "phase_tb": 0.0,
         }
     )
 

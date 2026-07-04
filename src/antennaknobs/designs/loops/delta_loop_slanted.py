@@ -18,26 +18,13 @@ class Builder(AntennaBuilder):
         }
     )
 
+    # Slant variants overlay default_params (only the tuning that differs);
+    # default is the 15° slant.
     slant30_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 1.0850,
-            "angle_deg": 66.4918,
-            "slant_deg": 30,
-        }
+        {"length_factor": 1.0850, "angle_deg": 66.4918, "slant_deg": 30}
     )
-
     slant0_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 7.0,
-            "length_factor": 1.0839,
-            "angle_deg": 61.4669,
-            "slant_deg": 0,
-        }
+        {"length_factor": 1.0839, "angle_deg": 61.4669, "slant_deg": 0}
     )
 
     def build_wires(self):

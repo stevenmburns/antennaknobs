@@ -31,13 +31,16 @@ def test_explicit_default_variant():
 def test_named_variant_resolves():
     factory = get_builder("hexbeam:opt")
     inst = factory()
-    assert _design_params(inst) == dict(hexbeam.Builder.opt_params)
+    # Variants are partial overlays now, so compare against the resolved set
+    # (opt overrides the driver geometry; `base` is inherited from default).
+    assert _design_params(inst) == resolve_variant_params(hexbeam.Builder, "opt")
+    assert _design_params(inst)["base"] == hexbeam.Builder.default_params["base"]
 
 
 def test_variant_on_moxon_original():
     factory = get_builder("moxon:original")
     inst = factory()
-    assert _design_params(inst) == dict(moxon.Builder.original_params)
+    assert _design_params(inst) == resolve_variant_params(moxon.Builder, "original")
 
 
 def test_renamed_twoband_variant():
@@ -56,13 +59,13 @@ def test_renamed_twoband_variant():
 def test_renamed_specialty_variant():
     factory = get_builder("specialty.hentenna:z100")
     inst = factory()
-    assert _design_params(inst) == dict(hentenna.Builder.z100_params)
+    assert _design_params(inst) == resolve_variant_params(hentenna.Builder, "z100")
 
 
 def test_renamed_loop_variant():
     factory = get_builder("loops.delta_loop:z200")
     inst = factory()
-    assert _design_params(inst) == dict(delta_loop.Builder.z200_params)
+    assert _design_params(inst) == resolve_variant_params(delta_loop.Builder, "z200")
 
 
 def test_unknown_variant_raises_with_available():

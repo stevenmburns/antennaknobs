@@ -25,8 +25,10 @@ from antennaknobs import AntennaBuilder
 logger = logging.getLogger(__name__)
 
 
-def _variant(freq, s, eps, *, len12, freq12, len10, freq10, base=7.0, angle=26.5651):
-    """A value-preset dict in the grouped (bands) shape.
+def _variant(freq, s, eps, *, len12, freq12, len10, freq10, angle=26.5651):
+    """A value-preset dict in the grouped (bands) shape, as an overlay on
+    default_params — it states only the swept knobs (freq / s / eps) and the
+    per-band lengths; base / gap_angle_deg / n_bands come from default.
 
     Band 0 is the 12m element (fans to +x), band 1 the 10m element (-x), matching
     the original A/B placement so geometry is unchanged by the regrouping.
@@ -34,11 +36,8 @@ def _variant(freq, s, eps, *, len12, freq12, len10, freq10, base=7.0, angle=26.5
     return MappingProxyType(
         {
             "freq": freq,
-            "base": base,
-            "gap_angle_deg": 0.0,
             "s": s,
             "eps": eps,
-            "n_bands": 2,
             # Plain dicts (NOT MappingProxyType): the adapter detects a band
             # group via isinstance(x, dict), which MappingProxyType fails.
             "bands": (

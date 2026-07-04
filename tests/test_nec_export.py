@@ -14,16 +14,21 @@ import pytest
 
 pytest.importorskip("PyNEC")
 
+from antennaknobs import resolve_variant_params  # noqa: E402
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee  # noqa: E402
 from antennaknobs.designs.beams.yagi import Builder as Yagi  # noqa: E402
 from antennaknobs.engines import PyNECEngine  # noqa: E402
 from antennaknobs.nec_export import export_nec  # noqa: E402
 
+# InvVee's `dipole` variant is a partial overlay on default_params; resolve it
+# to a complete param set before constructing the Builder directly.
+_DIPOLE = resolve_variant_params(InvVee, "dipole")
+
 HAVE_NEC2C = shutil.which("nec2c") is not None
 
 
 def test_export_basic_structure():
-    deck = export_nec(InvVee(InvVee.dipole_params), ground="free", include_rp=False)
+    deck = export_nec(InvVee(_DIPOLE), ground="free", include_rp=False)
     lines = deck.splitlines()
     assert lines[0].startswith("CM ")
     assert "CE" in lines
@@ -38,7 +43,7 @@ def test_export_basic_structure():
 
 
 def test_export_rp_card_when_pattern_requested():
-    deck = export_nec(InvVee(InvVee.dipole_params), include_rp=True)
+    deck = export_nec(InvVee(_DIPOLE), include_rp=True)
     lines = deck.splitlines()
     assert any(ln.startswith("RP ") for ln in lines)
     assert "XQ 0" not in lines  # RP triggers the solve instead
@@ -52,12 +57,10 @@ def test_export_one_gw_per_wire():
 
 
 def test_export_ground_cards():
-    assert "GN 1" in export_nec(InvVee(InvVee.dipole_params), ground="pec")
-    assert "GN 0" in export_nec(
-        InvVee(InvVee.dipole_params), ground=("finite", 10.0, 0.002)
-    )
+    assert "GN 1" in export_nec(InvVee(_DIPOLE), ground="pec")
+    assert "GN 0" in export_nec(InvVee(_DIPOLE), ground=("finite", 10.0, 0.002))
     # free space emits no GN card
-    assert "GN " not in export_nec(InvVee(InvVee.dipole_params), ground="free")
+    assert "GN " not in export_nec(InvVee(_DIPOLE), ground="free")
 
 
 def test_export_reducer_network_raises():
@@ -108,9 +111,9 @@ def _nec2c_impedances(deck):
 @pytest.mark.parametrize(
     "builder,ground",
     [
-        (InvVee(InvVee.dipole_params), "free"),
-        (InvVee(InvVee.dipole_params), "pec"),
-        (InvVee(InvVee.dipole_params), ("finite", 10.0, 0.002)),
+        (InvVee(_DIPOLE), "free"),
+        (InvVee(_DIPOLE), "pec"),
+        (InvVee(_DIPOLE), ("finite", 10.0, 0.002)),
         (Yagi(), "free"),
     ],
 )

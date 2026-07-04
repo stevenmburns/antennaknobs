@@ -5,11 +5,10 @@ from types import MappingProxyType
 
 
 class Builder(AntennaBuilder):
+    # z100 (100 Ω feed) overlays default_params (= z50, the 50 Ω tuning);
+    # it states only the shape factors that differ.
     z100_params = MappingProxyType(
         {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "base": 10.0,
             "top_height_factor": 0.4589,
             "mid_height_factor": 0.0962,
             "width_factor": 0.1841,

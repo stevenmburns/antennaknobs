@@ -21,40 +21,16 @@ class Builder(Array1x2Builder):
     # These were formerly suffixed `_dz2`; the del_z=2 they carried was an inert
     # rigid lift on this single-row 1x2 array (see Array1x2Builder) and has been
     # removed, so the variants are named by their distinguishing del_y.
+    # Element-spacing variants overlay default_params; each states only its
+    # top-leg tuning and del_y (design_freq / freq / base / phase_lr default).
     dy35_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "length_factor_top": 1.0843,
-            "angle_deg_top": 65.0422,
-            "base": 7.0,
-            "del_y": 3.5,
-            "phase_lr": 0.0,
-        }
+        {"length_factor_top": 1.0843, "angle_deg_top": 65.0422, "del_y": 3.5}
     )
-
     dy45_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "length_factor_top": 1.0801,
-            "angle_deg_top": 63.2603,
-            "base": 7.0,
-            "del_y": 4.5,
-            "phase_lr": 0.0,
-        }
+        {"length_factor_top": 1.0801, "angle_deg_top": 63.2603, "del_y": 4.5}
     )
-
     dy3_params = MappingProxyType(
-        {
-            "design_freq": 28.47,
-            "freq": 28.47,
-            "length_factor_top": 1.0801,
-            "angle_deg_top": 63.2603,
-            "base": 7.0,
-            "del_y": 3,
-            "phase_lr": 0.0,
-        }
+        {"length_factor_top": 1.0801, "angle_deg_top": 63.2603, "del_y": 3}
     )
 
     def __init__(self, params=None):
