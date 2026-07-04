@@ -180,6 +180,17 @@ def _adaptive_norm_grid(k: float, lo: np.ndarray, hi: np.ndarray) -> tuple[int, 
     return n_theta, 2 * n_theta
 
 
+def _fine_norm_grid(n_theta_adaptive: int) -> tuple[int, int]:
+    """A reference grid comfortably finer than the adaptive pick, for the
+    opt-in far-field grid-check overlay. At least 45×90 (the pre-adaptive
+    "gold" grid, measured converged to ~0.000 dB on the calibration designs)
+    and at least 2× the adaptive n_theta, capped to bound the one-shot cost on
+    electrically-huge designs. If the adaptive pick were badly low, doubling it
+    crosses the aliasing floor, so the overlay still exposes the shortfall."""
+    n_theta = int(np.clip(max(45, 2 * n_theta_adaptive), 45, 120))
+    return n_theta, 2 * n_theta
+
+
 def _compute_directivity_norm(
     out: dict,
     n_theta: int | None = None,
@@ -321,6 +332,9 @@ def _compute_directivity_norm(
     # unchanged.
     efficiency = float(out.get("radiation_efficiency", 1.0))
     out["directivity_norm"] = (4 * np.pi / p_rad * efficiency) if p_rad > 0 else 0.0
+    # Record the grid that produced this norm — the far-field grid-check overlay
+    # reads it to derive a finer reference grid and to label the comparison.
+    out["directivity_norm_grid"] = [int(n_theta), int(n_phi)]
 
 
 def _wire_record(
@@ -813,6 +827,38 @@ async def pattern_endpoint(req: dict):
     if req.get("solver") != "pynec" or not pynec_backend.HAVE_PYNEC:
         return {"available": False}
     return await run_in_threadpool(pynec_backend.pattern, req)
+
+
+def _norm_grid_check(req: dict) -> dict:
+    """Recompute the directivity norm on a grid much finer than the adaptive
+    one, on the *same* currents, so the frontend can overlay the fine-grid
+    pattern. The norm is a single scalar multiplying the whole pattern, so the
+    overlay is a pure radial dBi shift of the live trace — the gap between the
+    two lines is exactly the adaptive grid's error. Reuses the settled solve
+    (a cache hit on the dwell request, so no re-solve on the common path)."""
+    out = solve(dict(req))
+    if "directivity_norm" not in out:
+        return {"available": False}
+    adaptive_grid = out.get("directivity_norm_grid") or [17, 34]
+    adaptive_norm = out["directivity_norm"]
+    n_theta, n_phi = _fine_norm_grid(int(adaptive_grid[0]))
+    # Recompute in place: `out` is already a copy solve() owns (cache-hit
+    # deepcopy or a fresh miss), and we only need its scalar norm now.
+    _compute_directivity_norm(out, n_theta=n_theta, n_phi=n_phi)
+    return {
+        "available": True,
+        "directivity_norm": adaptive_norm,
+        "directivity_norm_grid": adaptive_grid,
+        "directivity_norm_fine": out["directivity_norm"],
+        "grid_fine": [n_theta, n_phi],
+    }
+
+
+@app.post("/norm_grid_check")
+async def norm_grid_check_endpoint(req: dict):
+    """Fine-grid directivity norm for the far-field grid-check overlay (opt-in,
+    dwell-triggered). See `_norm_grid_check`."""
+    return await run_in_threadpool(_norm_grid_check, req)
 
 
 @app.post("/export_nec")
