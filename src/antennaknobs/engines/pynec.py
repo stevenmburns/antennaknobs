@@ -59,6 +59,9 @@ class PyNECEngine(SimulationEngine):
         # NEC's own get_gain so engine-switching keeps the pattern meaning
         # the same thing. 1.0 = no resistive loss.
         self._excited_efficiency = 1.0
+        # Source input power 1/2·Re(Σ V·I*) in watts from the same solve; the
+        # web gain normaliser is η₀k²/(8π·P_in). None until a solve runs.
+        self._excited_p_in = None
         # Loads alone are handled natively (ld_card) and accurately by NEC, so
         # only divert to the multiport-Y + NetworkReducer path for what NEC
         # *can't* do natively: transmission lines (TL/DiffTL) and virtual
@@ -278,43 +281,45 @@ class PyNECEngine(SimulationEngine):
         return sc.get_current()[matches[seg - 1]]
 
     def _radiation_efficiency(self, sc, wavelength):
-        """P_radiated / P_input = 1 - P_dissipated / P_input over the explicit
-        resistive Load branches; 1.0 when there are none.
+        """Return ``(efficiency, p_in)``: the fraction of source input power
+        radiated rather than burned in explicit resistive Load branches
+        (1.0 when there are none), and the source input power
+        1/2·Re(Σ V·I*) itself in watts (the gain normaliser 4π·U/P_in).
 
-        This mirrors MomwireEngine's efficiency so the web UI can fold the same
-        directivity->gain correction on either engine (the JS far-field cut is
-        otherwise raw directivity). It matches NEC's own get_gain overlay to a
-        tenth of a dB -- NEC additionally counts the small global copper-loss
-        ld_card, which a PEC-wire analysis omits.
+        This mirrors MomwireEngine so the web UI normalises the far-field
+        cut identically on either engine. The efficiency matches NEC's own
+        get_gain overlay to a tenth of a dB -- NEC additionally counts the
+        small global copper-loss ld_card, which a PEC-wire analysis omits.
 
-        `sc` is the already-solved structure-currents object; `wavelength` sets
-        the load reactances. Reactive loads (a loading coil) burn nothing and
-        leave efficiency at 1.0.
+        `sc` is the already-solved structure-currents object; `wavelength`
+        sets the load reactances. Reactive loads (a loading coil) burn
+        nothing and leave efficiency at 1.0.
         """
-        if self._network is None:
-            return 1.0
-        loads = [b for b in self._network.branches if isinstance(b, Load)]
-        if not loads:
-            return 1.0
-        omega = 2.0 * np.pi * C_LIGHT / wavelength
-        # TL/DiffTL/virtual-driver networks carrying a load reduce through the
-        # shared reducer; reuse its port-level efficiency for them.
-        if self._use_reducer:
+        # TL/DiffTL/virtual-driver networks reduce through the shared
+        # reducer; reuse its port-level efficiency and input power.
+        if self._network is not None and self._use_reducer:
             Y = self._compute_y_matrix(wavelength)
-            return self._reducer.excited_state(Y, wavelength)[1]
-        # Native ld_card path: read the solved feed and load currents.
+            _v, efficiency, p_in = self._reducer.excited_state(Y, wavelength)
+            return efficiency, p_in
+        # Native path: read the solved feed (and load) currents.
         p_in = 0.0
-        for tag, seg, v in self.excitation_pairs:
+        for tag, seg, v in self.excitation_pairs or []:
             cur = self._port_current(sc, tag, seg)
             p_in += 0.5 * (complex(v) * np.conj(cur)).real
+        loads = (
+            [b for b in self._network.branches if isinstance(b, Load)]
+            if self._network is not None
+            else []
+        )
+        if not loads or p_in <= 0.0:
+            return 1.0, p_in
+        omega = 2.0 * np.pi * C_LIGHT / wavelength
         p_diss = 0.0
         for br in loads:
             tag, seg = self._network_port_loc[br.port]
             cur = self._port_current(sc, tag, seg)
             p_diss += 0.5 * load_impedance(br, omega).real * abs(cur) ** 2
-        if p_in <= 0.0:
-            return 1.0
-        return max(0.0, min(1.0, 1.0 - p_diss / p_in))
+        return max(0.0, min(1.0, 1.0 - p_diss / p_in)), p_in
 
     def _compute_y_matrix(self, wavelength):
         """Multiport short-circuit Y at the real ports, via one NEC solve per
@@ -422,7 +427,7 @@ class PyNECEngine(SimulationEngine):
             self.c = self._excited_real_context(C_LIGHT / (self.builder.freq * 1e6))
         self._set_freq_and_execute()
         sc = self.c.get_structure_currents(0)
-        self._excited_efficiency = self._radiation_efficiency(
+        self._excited_efficiency, self._excited_p_in = self._radiation_efficiency(
             sc, C_LIGHT / (self.builder.freq * 1e6)
         )
         all_tags = list(sc.get_current_segment_tag())

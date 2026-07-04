@@ -1042,11 +1042,13 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],
             # Fraction of input power actually radiated (1.0 unless the design
-            # has resistive loads, e.g. a terminated rhombic / T2FD). The
-            # server's far-field normaliser multiplies directivity by this so
-            # the UI plots GAIN, not directivity; current_distribution() above
-            # populated it on the engine.
+            # has resistive loads, e.g. a terminated rhombic / T2FD);
+            # current_distribution() above populated it on the engine.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
+            # Source input power in watts: the server's gain normaliser is
+            # η₀k²/(8π·P_in), which is what makes the plot GAIN (load and
+            # ground losses live inside P_in, so no efficiency multiply).
+            "input_power_w": float(eng.input_power()),
         }
         if hints()["multi_feed"] and len(zs) > 1:
             # Pull per-feed drive voltages off the engine so the frontend
@@ -1194,10 +1196,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "z0_ohms": hints()["target_z0"],
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],
-            # Same directivity->gain factor as the momwire path, so switching
-            # engines in the UI keeps the far-field plot meaning GAIN.
-            # current_distribution() set it from the solved load currents.
+            # Same fields as the momwire path, so switching engines in the UI
+            # keeps the far-field plot meaning GAIN. current_distribution()
+            # set both from the solved feed/load currents.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
+            "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
         }
         if hints()["multi_feed"] and len(zs) > 1:
             # PyNECEngine.excitation_pairs is [(tag, sub_seg, voltage)];
