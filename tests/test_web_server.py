@@ -318,17 +318,17 @@ def test_solve_dispatches_to_momwire_for_dipole():
     # _attach_derived_em_fields ran.
     assert "k_meas_m_inv" in out
     assert out["k_meas_m_inv"] > 0
-    # _compute_directivity_norm ran.
+    # _attach_gain_norm ran (η₀k²/8π·P_in — O(1), never skipped).
     assert "directivity_norm" in out
     assert out["directivity_norm"] > 0
+    assert out["input_power_w"] > 0
     # Real dipole has a real-part impedance roughly in the tens of ohms.
     assert out["z_in_re"] > 0
 
 
-def test_solve_skips_norm_and_cache_when_superseded():
-    """A solve whose result is already superseded (a newer request queued)
-    skips the ~430 ms directivity-norm integral and must NOT enter the cache —
-    a norm-less partial result would otherwise be served forever on repeats."""
+def test_solve_always_carries_norm_and_caches():
+    """Every solve carries directivity_norm (it's an O(1) input-power scalar
+    now, so there is no superseded-skip) and every solve result is cached."""
     req = {
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
@@ -336,34 +336,12 @@ def test_solve_skips_norm_and_cache_when_superseded():
         "momwire_model": "triangular",
     }
     server._SOLVE_CACHE.clear()
-    out = server.solve(req, superseded=lambda: True)
-    # Core solve ran and derived fields are attached...
-    assert out["solver"] == "momwire"
-    assert out["k_meas_m_inv"] > 0
-    # ...but the norm integral was skipped.
-    assert "directivity_norm" not in out
-    # And nothing was cached: the very next un-superseded solve must be a miss
-    # that produces a full (normed) result.
-    assert len(server._SOLVE_CACHE) == 0
-    full = server.solve(req, superseded=lambda: False)
-    assert full["cache_hit"] is False
-    assert full["directivity_norm"] > 0
-    assert len(server._SOLVE_CACHE) == 1
-
-
-def test_solve_computes_norm_when_not_superseded():
-    """The settled solve (mailbox empty → superseded() False) computes the norm
-    exactly as the default (superseded=None) path does, and caches it."""
-    req = {
-        "geometry": "dipoles.invvee",
-        "measurement_freq_mhz": 28.47,
-        "design_freq_mhz": 28.47,
-        "momwire_model": "triangular",
-    }
-    server._SOLVE_CACHE.clear()
-    out = server.solve(req, superseded=lambda: False)
+    out = server.solve(req)
     assert out["directivity_norm"] > 0
     assert len(server._SOLVE_CACHE) == 1
+    again = server.solve(req)
+    assert again["cache_hit"] is True
+    assert again["directivity_norm"] == out["directivity_norm"]
 
 
 def test_adaptive_norm_grid_scales_with_size_and_clamps():
@@ -426,28 +404,45 @@ _NORM_ACCURACY_REQS = [
 
 
 @pytest.mark.parametrize("req", _NORM_ACCURACY_REQS)
-def test_directivity_norm_adaptive_within_005_dB_of_fine_reference(req):
-    """The adaptively-sized norm must match a fine 120x240 reference to within
-    0.05 dB across the electrical-size range — the gain is read to ~0.1 dB."""
+def test_gain_norm_power_balance_within_005_dB(req):
+    """The circuit-side gain norm (η₀k²/8π·P_in) must match the field-side
+    pattern-integral norm to within 0.05 dB across the electrical-size range —
+    the momwire solve conserves power to well under the ~0.1 dB gain readout.
+    This is NEC's 'average gain' diagnostic run as a regression test."""
     server._SOLVE_CACHE.clear()
     out = server.solve(req)
-    adaptive = out["directivity_norm"]
-    assert adaptive > 0
-
-    ref = deepcopy(out)
-    server._compute_directivity_norm(ref, n_theta=120, n_phi=240)
-    db = 10 * np.log10(adaptive / ref["directivity_norm"])
+    circuit = out["directivity_norm"]
+    assert circuit > 0
+    field = server._pattern_integral_norm(out)
+    db = 10 * np.log10(circuit / field)
     assert abs(db) < 0.05, (
         f"{req['geometry']} @ {req['measurement_freq_mhz']} MHz "
-        f"ground={req['ground']}: adaptive off by {db:+.4f} dB"
+        f"ground={req['ground']}: power balance off by {db:+.4f} dB"
     )
 
 
-def test_norm_grid_check_endpoint_returns_finer_converged_norm(client: TestClient):
-    """The grid-check endpoint returns a fine-grid norm on a strictly finer grid
-    than the adaptive one, and — since the adaptive grid is already converged for
-    this design — the two agree to within 0.05 dB (the overlay would sit on top
-    of the live trace)."""
+@pytest.mark.parametrize("req", _NORM_ACCURACY_REQS)
+def test_pattern_integral_closed_form_matches_fine_grid(req):
+    """The closed-form pair-sum norm (spherical-Bessel kernel, PEC images)
+    equals the fine 120x240 GL quadrature of the same discrete functional to
+    within 0.01 dB — free space is exact; over ground the residual is the
+    eps=1e10-Fresnel-vs-PEC difference near grazing."""
+    server._SOLVE_CACHE.clear()
+    out = server.solve(req)
+    closed = server._pattern_integral_norm(out)
+    assert closed > 0
+    ref = deepcopy(out)
+    server._compute_directivity_norm(ref, n_theta=120, n_phi=240)
+    db = 10 * np.log10(closed / ref["directivity_norm"])
+    assert abs(db) < 0.01, (
+        f"{req['geometry']} ground={req['ground']}: closed form off by {db:+.4f} dB"
+    )
+
+
+def test_norm_check_endpoint_reports_power_balance(client: TestClient):
+    """/norm_check returns the live circuit-side norm plus the field-side
+    pattern norm (closed form on the PEC web paths); for a converged design
+    the two agree to within 0.05 dB (the overlay sits on the live trace)."""
     server._SOLVE_CACHE.clear()
     req = {
         "geometry": "dipoles.invvee",
@@ -456,13 +451,11 @@ def test_norm_grid_check_endpoint_returns_finer_converged_norm(client: TestClien
         "momwire_model": "triangular",
         "ground": True,
     }
-    resp = client.post("/norm_grid_check", json=req).json()
+    resp = client.post("/norm_check", json=req).json()
     assert resp["available"] is True
-    assert resp["directivity_norm"] > 0 and resp["directivity_norm_fine"] > 0
-    # Fine grid is strictly finer than the adaptive one.
-    assert resp["grid_fine"][0] > resp["directivity_norm_grid"][0]
-    assert resp["grid_fine"][1] == 2 * resp["grid_fine"][0]
-    db = 10 * np.log10(resp["directivity_norm"] / resp["directivity_norm_fine"])
+    assert resp["directivity_norm"] > 0 and resp["pattern_norm"] > 0
+    assert resp["method"] == "closed_form"
+    db = 10 * np.log10(resp["directivity_norm"] / resp["pattern_norm"])
     assert abs(db) < 0.05
 
 
@@ -494,9 +487,11 @@ def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
 
 def test_solve_reports_radiation_efficiency_for_terminated_antenna():
     """A terminated antenna (the rhombic's load resistor) burns most of its
-    input power, so the server reports radiation_efficiency < 1 and folds it
-    into directivity_norm — the UI then plots GAIN, not directivity. A lossless
-    design reports 1.0 and its normaliser is unchanged."""
+    input power, so the server reports radiation_efficiency < 1 and the plot
+    means GAIN. With the input-power norm the load loss lives inside P_in (no
+    efficiency multiply), so the norm must still agree with the old
+    field-side construction (4π/∮|M_perp|²dΩ)·efficiency — the plotted gain
+    of the rhombic did not move in this rework."""
     term = server.solve({"geometry": "wire.rhombic", "momwire_model": "triangular"})
     assert 0.1 < term["radiation_efficiency"] < 0.6  # ~0.29: most power in the load
 
@@ -505,11 +500,12 @@ def test_solve_reports_radiation_efficiency_for_terminated_antenna():
     )
     assert lossless["radiation_efficiency"] == 1.0
 
-    # The efficiency actually scales the normaliser: dividing it back out
-    # recovers the bare directivity, which is strictly larger.
+    # Circuit-side norm ≡ (pattern-integral norm × efficiency), the old
+    # displayed quantity, up to the solver's power-balance gap.
     assert term["directivity_norm"] > 0
-    bare_directivity = term["directivity_norm"] / term["radiation_efficiency"]
-    assert bare_directivity > term["directivity_norm"]
+    field_side = server._pattern_integral_norm(term)  # already × efficiency
+    db = 10 * np.log10(term["directivity_norm"] / field_side)
+    assert abs(db) < 0.05
 
 
 def test_pynec_path_also_reports_radiation_efficiency():

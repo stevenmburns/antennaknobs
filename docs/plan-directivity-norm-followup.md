@@ -1,10 +1,16 @@
 # Plan: directivity-norm rework + remaining /ws follow-ups
 
-Status: **not started.** Scoped 2026-07-04 for a subsequent session, from the
-profiling in `docs/status/2026-07-04-ws-postproc-serialization-profile.md`
-(merged as PR #227). Builds on the merged latest-wins /ws pipeline (PR #226,
-phases 1+2). Goal: kill the `_compute_directivity_norm` hotspot without
-compromising the absolute-gain reference on any design.
+Status: **superseded (2026-07-04).** Moves 1–3 shipped (superseded-skip +
+adaptive grid + GL quadrature, PRs through #230), then the whole approach was
+replaced by a change of algorithm on the `gain-norm-input-power` branch: the
+live norm is now the O(1) input-power identity `η₀k²/(8π·P_in)` (the displayed
+gain algebraically equals the old `(4π/∮|M_perp|²dΩ)·efficiency`, so the
+integral cancelled out of the product), and the pattern integral survives only
+as the dwell-triggered `/norm_check` power-balance diagnostic, computed in
+closed form (spherical-Bessel pair sum — exact, no grid) on the PEC web paths.
+The superseded-skip and JS norm carry-forward from move 1 were removed again
+along with the hotspot they worked around. Kept below for the profiling
+background.
 
 ## Background — what the profiling established
 

@@ -37,6 +37,7 @@ def _parity_for_solver(solver, solver_kwargs):
 
 
 C_LIGHT = 299_792_458.0
+ETA0 = 376.730313668  # free-space impedance, ohms
 EPS0 = 8.854_187_817e-12
 
 
@@ -519,30 +520,35 @@ class MomwireEngine(SimulationEngine):
         sim, coeffs, _z = self._solved_excited(wavelength)
         mid, dr, i_mid = self._segment_dipoles(sim, coeffs)
 
-        # Cell-centred integration grid for ∫|M_perp|² dΩ. With ground the
-        # antenna only radiates into the upper hemisphere, so integrate
-        # there only (otherwise we'd double-count the image contribution
-        # against zero-amplitude below the ground plane).
-        n_th_int, n_ph_int = 90, 180
-        if self._ground is not None:
-            theta_int = (np.arange(n_th_int) + 0.5) * (np.pi / 2 / n_th_int)
-            dtheta = np.pi / 2 / n_th_int
+        # Gain normaliser from the source input power (same convention as the
+        # web solve path): gain = 4π·U/P_in = η₀k²/(8π·P_in)·|M_perp|². Load
+        # loss lives inside P_in, so terminated antennas come out as GAIN with
+        # no efficiency multiply.
+        p_in = self.input_power()
+        if p_in > 0:
+            directivity_norm = ETA0 * k * k / (8.0 * np.pi * p_in)
         else:
-            theta_int = (np.arange(n_th_int) + 0.5) * (np.pi / n_th_int)
-            dtheta = np.pi / n_th_int
-        phi_int = np.arange(n_ph_int) * (2 * np.pi / n_ph_int)
-        dphi = 2 * np.pi / n_ph_int
-
-        mag2_int = self._evaluate_M_perp(mid, dr, i_mid, k, theta_int, phi_int, freq_hz)
-        p_rad = float(np.sum(mag2_int * np.sin(theta_int)[:, None]) * dtheta * dphi)
-        if p_rad <= 0:
-            raise RuntimeError("computed zero radiated power")
-        # For a network with resistive loads the excited solve reports the
-        # fraction of input power actually radiated; folding it in converts
-        # directivity into GAIN. Load-free / lossless designs report 1.0, so
-        # the field is unchanged for everything that isn't a terminated antenna.
-        efficiency = getattr(self, "_excited_efficiency", 1.0)
-        directivity_norm = 4 * np.pi / p_rad * efficiency
+            # Defensive fallback (a pathological R_in ≤ 0): normalise by the
+            # integrated pattern instead. Cell-centred grid over the sphere,
+            # upper hemisphere only with ground (the image contribution is
+            # already folded into |M_perp|² there).
+            n_th_int, n_ph_int = 90, 180
+            if self._ground is not None:
+                theta_int = (np.arange(n_th_int) + 0.5) * (np.pi / 2 / n_th_int)
+                dtheta = np.pi / 2 / n_th_int
+            else:
+                theta_int = (np.arange(n_th_int) + 0.5) * (np.pi / n_th_int)
+                dtheta = np.pi / n_th_int
+            phi_int = np.arange(n_ph_int) * (2 * np.pi / n_ph_int)
+            dphi = 2 * np.pi / n_ph_int
+            mag2_int = self._evaluate_M_perp(
+                mid, dr, i_mid, k, theta_int, phi_int, freq_hz
+            )
+            p_rad = float(np.sum(mag2_int * np.sin(theta_int)[:, None]) * dtheta * dphi)
+            if p_rad <= 0:
+                raise RuntimeError("computed zero radiated power")
+            efficiency = getattr(self, "_excited_efficiency", 1.0)
+            directivity_norm = 4 * np.pi / p_rad * efficiency
 
         # Evaluate on the user grid (NEC convention: θ from 0 to 90−Δθ).
         theta_deg = np.linspace(0, 90 - del_theta, n_theta)
