@@ -939,22 +939,18 @@ button:focus-visible,
   outline: none;
   touch-action: none; /* let us own pointer drags; no page pan/zoom */
 }
-/* "Armed" state: the knob a physical dial (or the arrow keys) drives. Shown on
+/* Focus ring: the knob the arrow keys (and a physical dial) drive. Shown on
    any focus — including a mouse click, which :focus-visible would suppress —
-   and on the sticky `.is-selected` flag, which persists after focus leaves so
-   the dial keeps a visible target. A soft ring plus an outward glow reads as
-   "this knob is live". */
-.knob:focus,
-.knob.is-selected {
+   so a clicked knob reads as "live". A soft ring plus an outward glow. */
+.knob:focus {
   border-radius: 50%;
   box-shadow: 0 0 0 3px var(--accent-soft), 0 0 14px -2px var(--accent);
 }
 /* The VFO box is 112×99 (cropped), so the round box-shadow ring above renders
-   as an off-centre ellipse. Suppress it in every armed state (mouse focus and
-   the sticky `.is-selected` flag, not just keyboard `:focus-visible`) and use
-   the in-SVG .vfo-focus-ring circle instead, which is concentric with the dial. */
-.knob.is-vfo:focus,
-.knob.is-vfo.is-selected {
+   as an off-centre ellipse. Suppress it on focus (including mouse focus, not
+   just keyboard :focus-visible) and use the in-SVG .vfo-focus-ring circle
+   instead, which is concentric with the dial. */
+.knob.is-vfo:focus {
   box-shadow: none;
 }
 /* Same look as the small knobs' box-shadow ring above, just drawn in SVG space
@@ -968,8 +964,7 @@ button:focus-visible,
   opacity: 0;
   filter: drop-shadow(0 0 7px var(--accent));
 }
-.knob.is-vfo:focus .vfo-focus-ring,
-.knob.is-vfo.is-selected .vfo-focus-ring {
+.knob.is-vfo:focus .vfo-focus-ring {
   opacity: 1;
 }
 .knob svg {
@@ -1237,11 +1232,9 @@ button:focus-visible,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* When a knob is armed (focused or sticky-selected), lift its label out of
-   muted so the active parameter the dial is turning is identifiable at a
-   glance. */
-.field-knob:focus-within .knob-label,
-.field-knob:has(.knob.is-selected) .knob-label {
+/* When a knob is focused, lift its label out of muted so the active parameter
+   the arrow keys / dial are turning is identifiable at a glance. */
+.field-knob:focus-within .knob-label {
   color: var(--accent);
   font-weight: 600;
 }
