@@ -288,8 +288,11 @@ class PyNECEngine(SimulationEngine):
 
         This mirrors MomwireEngine so the web UI normalises the far-field
         cut identically on either engine. The efficiency matches NEC's own
-        get_gain overlay to a tenth of a dB -- NEC additionally counts the
-        small global copper-loss ld_card, which a PEC-wire analysis omits.
+        get_gain overlay to a tenth of a dB. (With WIRE_CONDUCTIVITY left at
+        None there is no global copper-loss ld_card — wires are PEC on both
+        engines — so over ground the remaining rp-vs-cut gap is purely NEC's
+        Sommerfeld ground versus the PEC-image approximation, measured within
+        ~0.5 dB.)
 
         `sc` is the already-solved structure-currents object; `wavelength`
         sets the load reactances. Reactive loads (a loading coil) burn
