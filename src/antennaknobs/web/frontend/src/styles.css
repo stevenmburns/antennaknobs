@@ -326,6 +326,58 @@ button:focus-visible,
   color: var(--accent);
 }
 
+/* Confirmation popover shown when a tab's × is clicked. Fixed-positioned (left/
+   top set inline from the ×'s rect) so it escapes .tab-strip's overflow clip. */
+.tab-close-confirm {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  box-shadow: 0 6px 20px var(--shadow-strong);
+  white-space: nowrap;
+}
+
+.tab-close-confirm-msg {
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+
+.tab-close-confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.tab-close-confirm-actions button {
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-control);
+  background: var(--inset);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.tab-close-confirm-cancel:hover {
+  border-color: var(--border-hover);
+}
+
+.tab-close-confirm-ok {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.tab-close-confirm-ok:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--panel);
+}
+
 .tab-add {
   flex: 0 0 auto;
   background: none;
