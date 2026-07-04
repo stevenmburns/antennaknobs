@@ -319,11 +319,11 @@ class MomwireEngine(SimulationEngine):
         if self._network is not None:
             # excited_state imposes the physical series-load BC (not the V=0
             # pin the impedance path uses), so resistive loads shape the
-            # current; it also returns the radiation efficiency the far field
-            # uses to turn directivity into gain.
+            # current; it also returns the radiation efficiency and the
+            # source input power the far field uses to normalise gain.
             Y = self._compute_y_matrix(wavelength)
-            V_full, self._excited_efficiency = self._reducer.excited_state(
-                Y, wavelength
+            V_full, self._excited_efficiency, self._excited_p_in = (
+                self._reducer.excited_state(Y, wavelength)
             )
             feeds_resolved = [
                 (w, arc, complex(V_full[i]))
@@ -333,12 +333,22 @@ class MomwireEngine(SimulationEngine):
             self._excited_efficiency = 1.0
             Y = self._compute_y_matrix(wavelength)
             Y_total = self._apply_tls(Y, wavelength)
-            V, _ = self._resolve_feed_voltages(Y_total)
+            V, driven = self._resolve_feed_voltages(Y_total)
+            # Source input power at the driven ports of the TL-stamped port
+            # model; the TLs are lossless so this equals the power entering
+            # the wires.
+            I_ports = Y_total @ V
+            self._excited_p_in = 0.5 * float(
+                sum((V[i] * np.conj(I_ports[i])).real for i in driven)
+            )
             feeds_resolved = [
                 (w, arc, complex(V[i])) for i, (w, arc, _v) in enumerate(self._feeds)
             ]
         else:
             self._excited_efficiency = 1.0
+            # Plain path: no port model here; input_power() derives P_in from
+            # the excited solve's driving-point impedance(s) on demand.
+            self._excited_p_in = None
             return self._make_solver(wavelength=wavelength)
         return self._solver(
             wires=self._polylines,
@@ -350,6 +360,30 @@ class MomwireEngine(SimulationEngine):
             junctions=self._junctions or None,
             **self._solver_kwargs,
         )
+
+    def input_power(self):
+        """Input power 1/2·Re(Σ V_f·I_f*) in watts over the SOURCE feeds of
+        the excited solve — the gain normaliser (gain = 4π·U/P_in). Power
+        burned in resistive loads and any ground absorption stay inside
+        P_in (that is what makes 4π·U/P_in GAIN rather than directivity).
+
+        Network / TL designs record it while resolving the excitation in
+        `_make_excited_solver` (a load port is excited too, but it is not a
+        source, so its absorbed power must not be summed — the port model
+        separates the two). The plain path derives it from the excited
+        driving-point impedance(s): I_f = V_f/Z_f, so each feed contributes
+        ½·|V_f|²·Re(Z_f)/|Z_f|².
+        """
+        wavelength = self._wavelength_for(self.builder.freq)
+        sim, _coeffs, z = self._solved_excited(wavelength)
+        p_in = getattr(self, "_excited_p_in", None)
+        if p_in is not None:
+            return float(p_in)
+        z_arr = np.atleast_1d(np.asarray(z, dtype=np.complex128))
+        volts = np.array([complex(v) for *_, v in sim.feeds], dtype=np.complex128)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            terms = 0.5 * np.abs(volts) ** 2 * z_arr.real / np.abs(z_arr) ** 2
+        return float(np.sum(terms[np.isfinite(terms)]))
 
     def current_distribution(self):
         sim, coeffs, _z = self._solved_excited(self._wavelength_for(self.builder.freq))

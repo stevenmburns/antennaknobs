@@ -302,13 +302,15 @@ class NetworkReducer:
         ``V_k = -Z_L,k * I_k`` at each loaded port, so the load shapes the
         current the same way NEC2's ld_card does.
 
-        Returns ``(V_full, efficiency)``:
+        Returns ``(V_full, efficiency, p_in)``:
           V_full      -- (n_total,) port voltages to force in the excited solver
           efficiency  -- P_radiated / P_input = 1 - P_dissipated / P_input, the
                          fraction of input power radiated rather than burned in
-                         resistive loads. The far field multiplies directivity
-                         by it to get GAIN. A load-free / lossless network
-                         returns 1.0, leaving the field unchanged.
+                         resistive loads. A load-free / lossless network
+                         returns 1.0.
+          p_in        -- input power 1/2 Re(Σ V_src · I*) in watts, the gain
+                         normaliser (gain = 4π·U/P_in); it already includes the
+                         power burned in resistive loads.
         """
         omega = 2.0 * np.pi * C_LIGHT / wavelength
         # Lines stamped, loads left OUT -- they are imposed as BCs below, not
@@ -364,7 +366,7 @@ class NetworkReducer:
             sum(np.real(z_load[k]) * abs(current[k]) ** 2 for k in z_load)
         )
         efficiency = 1.0 if p_in <= 0.0 else max(0.0, min(1.0, 1.0 - p_diss / p_in))
-        return V, efficiency
+        return V, efficiency, p_in
 
     def impedance_from_y(self, Y_total):
         """Driven-port impedance: solve the network for V (loaded ports
