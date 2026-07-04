@@ -12,10 +12,17 @@ measurable cost on a large payload (swap to orjson / cache the string).
 
 Both are pure server-side CPU costs, so they profile on localhost — no fly.io
 deploy needed (the RTT-dependent tail-latency win is phases 1+2, already
-merged). Two cases on the worst-case design `arrays.bowtiearray2x4` + N=21:
+merged). Cases on the worst-case design `arrays.bowtiearray2x4` + N=21:
   - momwire / arrayblock (the interactive default; ~0.75 s warm/solve)
   - pynec (dense NEC; dozens of seconds — post-proc uses coarser KNOT arrays
     since PyNEC ships no segment-midpoint samples)
+
+Ground is the usual interactive case, and the ground-on norm runs a *second*
+exp/einsum (PEC image + Fresnel over the upper hemisphere), so it is ~2× the
+free-space norm cost. We profile arrayblock both ground OFF and ON so the delta
+is visible, and run the grid-convergence study under ground too — the adaptive
+grid (move 3 of the directivity-norm rework) must be sized for the ground-on
+integral, not the cheaper free-space one.
 
 Run: python scripts/profile_ws_postproc_serialization.py
 """
@@ -40,7 +47,9 @@ BASE_REQ = {
     "measurement_freq_mhz": 28.47,
     "design_freq_mhz": 28.47,
     "wire_radius": 0.001,
-    "ground": False,
+    # Ground on is the usual interactive case; per-case overrides below still
+    # exercise ground OFF for the delta.
+    "ground": True,
     "ground_fast": False,
 }
 
@@ -161,14 +170,18 @@ def grid_convergence(label, req, grids, ref_grid=(240, 480)):
 
 
 def main():
-    profile_case(
-        "momwire / arrayblock — bowtiearray2x4 N=21",
-        {**BASE_REQ, "solver": "momwire"},
-        core_reps=5,
-    )
+    # arrayblock both ground OFF and ON — the ground-on norm is ~2× (image +
+    # Fresnel), and ground on is the usual interactive case.
+    for ground in (False, True):
+        tag = "ground ON" if ground else "ground OFF"
+        profile_case(
+            f"momwire / arrayblock — bowtiearray2x4 N=21 [{tag}]",
+            {**BASE_REQ, "solver": "momwire", "ground": ground},
+            core_reps=5,
+        )
     if pynec_backend.HAVE_PYNEC:
         profile_case(
-            "pynec (dense NEC) — bowtiearray2x4 N=21",
+            "pynec (dense NEC) — bowtiearray2x4 N=21 [ground ON]",
             {**BASE_REQ, "solver": "pynec"},
             core_reps=2,  # dense solve is slow; keep rep count low
         )
@@ -177,12 +190,16 @@ def main():
 
     # Grid convergence: small design (bowtie) vs an electrically-large one
     # (80m skyloop run at harmonics). Shows required grid scales with size.
+    # Run the bowtie both ground OFF and ON — the adaptive grid must be sized
+    # for the ground-on integral (upper hemisphere + reflected term).
     grids = [(12, 24), (18, 36), (24, 48), (30, 60), (45, 90)]
-    grid_convergence(
-        "bowtiearray2x4 N=21 (moderate lobing)",
-        {**BASE_REQ, "solver": "momwire"},
-        grids,
-    )
+    for ground in (False, True):
+        tag = "ground ON" if ground else "ground OFF"
+        grid_convergence(
+            f"bowtiearray2x4 N=21 (moderate lobing) [{tag}]",
+            {**BASE_REQ, "solver": "momwire", "ground": ground},
+            grids,
+        )
     sky = {
         "geometry": "loops.triangular_skyloop",
         "variant": "default",
