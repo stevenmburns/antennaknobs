@@ -169,6 +169,48 @@ Flat targets (top-level scalar overrides — all safe under the recursive merge)
 Do **not** attempt to trim inside `bands` tuples (see the shallow-overlay floor
 under Part 1) — those stay whole.
 
+**Landed (2026-07-03):** 254 stated keys → 130 across all 40 variants; every
+variant's fully-resolved params verified byte-identical (numeric equality)
+before/after via a snapshot of `resolve_variant_params` over all 113 (design,
+variant) pairs. See Part 1c for a latent-crash class this surfaced.
+
+### Part 1c — make `AntennaBuilder.__init__` overlay-aware (follow-up, not yet built)
+
+Trimming surfaced a latent crash on a path Part 1 did **not** cover. Part 1 made
+the *resolvers* (`resolve_variant_params`, `_variant_params`, CLI `get_builder`)
+overlay-aware, but **direct construction** — `cls(cls.<variant>_params)` — passes
+the raw dict straight to `AntennaBuilder.__init__`, which replaces rather than
+overlays. While variants were complete this worked by accident; once trimmed to
+partial dicts, `build_wires` crashes on the missing keys (`self.base`, etc.).
+
+Part 1b fixed the *consumers* (all in tests — `src/` already routes through the
+resolvers): `test_nec_export`, `test_momwire_engine`, `test_drone` constructed
+Builders directly from a variant dict as a convenient "complete preset", now
+resolve the variant first.
+
+The deeper fix is to make `__init__` itself overlay a partial `params` on
+`default_params` (reusing `merge_params`), so `cls(partial_dict)` is safe
+everywhere and this whole bug class disappears:
+
+```python
+def __init__(self, params=None):
+    merged = dict(self.FRAMEWORK_PARAMS)
+    if params is None:
+        merged.update(self.__class__.default_params)
+    else:
+        merged.update(merge_params(self.__class__.default_params, params))
+    ...
+```
+
+**Why it's a separate PR, not folded into Part 1b:** it's a Builder-semantics
+change with a real interaction to settle first — the web adapter's `_build_builder`
+calls `_strip_ui(...)` to drop `ui_params` before `cls(params=base)`; if
+`__init__` then overlays on `default_params` (which *has* `ui_params`), the
+Builder would silently re-inherit `ui_params`. Harmless in principle (build_wires
+ignores it) but it needs verifying against the web path before landing. Backward
+-compat otherwise holds: a complete dict overlaid on default equals itself, and a
+partial dict was already a latent crash, so nothing depends on the old behavior.
+
 ### Part 2 — per-variant `ui_params` (per-field override)
 
 **The merge half is done** (Option A above): a variant's `ui_params` already
