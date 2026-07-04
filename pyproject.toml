@@ -82,6 +82,12 @@ Homepage = "https://github.com/stevenmburns/antennaknobs"
 Issues = "https://github.com/stevenmburns/antennaknobs/issues"
 
 [tool.pytest.ini_options]
+# Only discover this project's own suite. Without this, a bare `pytest`
+# recurses from the repo root into the momwire submodule's tests, which
+# fail to collect (they import momwire's `validation` package, only on-path
+# inside the submodule's own setup). CI already passes `tests/` explicitly;
+# this makes a bare local `pytest` match, mirroring ruff's momwire exclude.
+testpaths = ["tests"]
 markers = [
     # Tests that run an antenna solver across a *catalog* of named designs
     # (e.g. tests/test_cebik_designs.py) — the same solve code path repeated
