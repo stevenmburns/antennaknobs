@@ -3833,6 +3833,94 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                     >
                       Download .nec deck
                     </button>
+                    {/* Reactive copies of the chart-overlay toggles (same state
+                        the overlays use, so the two locations can never
+                        disagree). On mobile the checkbox overlays are not
+                        rendered on the chart screens — small screens can't
+                        spare the chart area — so this menu is the only place
+                        to reach them there; on desktop it's a convenience
+                        duplicate. */}
+                    <div className="gear-menu-divider" />
+                    <div className="gear-menu-section">antenna chart</div>
+                    <label
+                      className="gear-menu-check"
+                      title="Color wire segments by current magnitude; modulate wire width"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showHeatmap}
+                        onChange={(e) => setShowHeatmap(e.target.checked)}
+                      />
+                      heatmapped currents
+                    </label>
+                    <label
+                      className="gear-menu-check"
+                      title="Draw the |I| envelope curve along each wire"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showEnvelope}
+                        onChange={(e) => setShowEnvelope(e.target.checked)}
+                      />
+                      current waveforms
+                    </label>
+                    <label
+                      className="gear-menu-check"
+                      title="Draw the per-wire labels (off to declutter dense geometries)"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showWireLabels}
+                        onChange={(e) => setShowWireLabels(e.target.checked)}
+                      />
+                      wire labels
+                    </label>
+                    <label
+                      className="gear-menu-check"
+                      title="Draw the 'feed' name beside each feedpoint marker"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showFeedNames}
+                        onChange={(e) => setShowFeedNames(e.target.checked)}
+                      />
+                      feed labels
+                    </label>
+                    <div className="gear-menu-section">smith chart</div>
+                    <label
+                      className="gear-menu-check"
+                      title="Sweep Z across measurement freq and plot the locus on the Smith chart"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={sweepEnabled}
+                        onChange={(e) => setSweepEnabled(e.target.checked)}
+                      />
+                      freq sweep
+                    </label>
+                    <label
+                      className="gear-menu-check"
+                      title={`Re-solve at N = ${CONVERGE_N_VALUES.join(", ")} segments/wire and Richardson-extrapolate Z to N→∞`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={convergeEnabled}
+                        onChange={(e) => setConvergeEnabled(e.target.checked)}
+                      />
+                      converge sweep
+                    </label>
+                    <div className="gear-menu-section">azimuth / elevation</div>
+                    <label
+                      className="gear-menu-check"
+                      title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={normCheckEnabled}
+                        onChange={(e) => setNormCheckEnabled(e.target.checked)}
+                      />
+                      norm check
+                    </label>
                   </div>
                 </>
               )}
@@ -4423,53 +4511,63 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   </button>
                 ))}
               </div>
-              <label
-                className="overlay-checkbox"
-                title="Color wire segments by current magnitude; modulate wire width"
-              >
-                <input
-                  type="checkbox"
-                  checked={showHeatmap}
-                  onChange={(e) => setShowHeatmap(e.target.checked)}
-                />
-                heatmapped currents
-              </label>
-              <label
-                className="overlay-checkbox"
-                title="Draw the |I| envelope curve along each wire"
-              >
-                <input
-                  type="checkbox"
-                  checked={showEnvelope}
-                  onChange={(e) => setShowEnvelope(e.target.checked)}
-                />
-                current waveforms
-              </label>
-              <label
-                className="overlay-checkbox"
-                title="Draw the per-wire labels (off to declutter dense geometries)"
-              >
-                <input
-                  type="checkbox"
-                  checked={showWireLabels}
-                  onChange={(e) => setShowWireLabels(e.target.checked)}
-                />
-                wire labels
-              </label>
-              <label
-                className="overlay-checkbox"
-                title="Draw the 'feed' name beside each feedpoint marker"
-              >
-                <input
-                  type="checkbox"
-                  checked={showFeedNames}
-                  onChange={(e) => setShowFeedNames(e.target.checked)}
-                />
-                feed labels
-              </label>
+              {/* Mobile drops the checkbox column — it doesn't scale with the
+                  chart and covers it on a phone. The same toggles live in the
+                  sidebar gear menu (shared state). The projection toggle above
+                  stays: it's compact and it's how you turn the view. */}
+              {!isMobile && (
+                <>
+                  <label
+                    className="overlay-checkbox"
+                    title="Color wire segments by current magnitude; modulate wire width"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showHeatmap}
+                      onChange={(e) => setShowHeatmap(e.target.checked)}
+                    />
+                    heatmapped currents
+                  </label>
+                  <label
+                    className="overlay-checkbox"
+                    title="Draw the |I| envelope curve along each wire"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showEnvelope}
+                      onChange={(e) => setShowEnvelope(e.target.checked)}
+                    />
+                    current waveforms
+                  </label>
+                  <label
+                    className="overlay-checkbox"
+                    title="Draw the per-wire labels (off to declutter dense geometries)"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showWireLabels}
+                      onChange={(e) => setShowWireLabels(e.target.checked)}
+                    />
+                    wire labels
+                  </label>
+                  <label
+                    className="overlay-checkbox"
+                    title="Draw the 'feed' name beside each feedpoint marker"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showFeedNames}
+                      onChange={(e) => setShowFeedNames(e.target.checked)}
+                    />
+                    feed labels
+                  </label>
+                </>
+              )}
             </div>
           )}
-          {v === "smith" && (
+          {/* Both smith-overlay children are checkboxes — nothing to keep on
+              mobile (the toggles live in the gear menu there). */}
+          {v === "smith" && !isMobile && (
             <div className="smith-overlay">
               <label
                 className="overlay-checkbox"
@@ -4495,19 +4593,26 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               </label>
             </div>
           )}
-          {(v === "azimuth" || v === "elevation") && (
+          {/* On mobile only the Δ readout survives (it's output, not a
+              control, and it's one short span); the norm-check toggle lives in
+              the gear menu. The container is skipped entirely when it would
+              be empty. */}
+          {(v === "azimuth" || v === "elevation") &&
+            (!isMobile || (normCheckEnabled && normCheck)) && (
             <div className="farfield-overlay">
-              <label
-                className="overlay-checkbox"
-                title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
-              >
-                <input
-                  type="checkbox"
-                  checked={normCheckEnabled}
-                  onChange={(e) => setNormCheckEnabled(e.target.checked)}
-                />
-                norm check
-              </label>
+              {!isMobile && (
+                <label
+                  className="overlay-checkbox"
+                  title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
+                >
+                  <input
+                    type="checkbox"
+                    checked={normCheckEnabled}
+                    onChange={(e) => setNormCheckEnabled(e.target.checked)}
+                  />
+                  norm check
+                </label>
+              )}
               {normCheckEnabled && normCheck && (
                 <span
                   className="overlay-readout"
