@@ -2342,6 +2342,16 @@ canvas {
   .opt-gear-btn {
     min-width: 36px;
   }
+  /* The session tab strip parks flush with the pane's top edge and its chips
+     are mouse-sized — give the row breathing room and the tabs a ~40px
+     touch target on phones. */
+  .tab-strip {
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
+  }
+  .tab-btn {
+    min-height: 36px;
+  }
 }
 
 /* ---- Solver-choice prompt + cancel ------------------------------------------
