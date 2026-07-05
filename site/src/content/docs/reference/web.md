@@ -152,6 +152,31 @@ ghost so you can see the effect directly.
   overlaid shapes come with the numbers that matter. **clear** removes all
   pins; the **✕** on a row removes one.
 
+## Norm check — is the solve trustworthy?
+
+On the **azimuth** and **elevation** pattern views a **norm check** checkbox
+(top-right of the plot) draws a second, dotted radiation curve over the solid
+live one — a built-in "should I trust this pattern?" gauge.
+
+The two curves are the *same pattern normalised two different ways*. The solid
+line scales it by the **input power** the feed delivers (the circuit side — what
+the impedance solve says went in). The dotted line renormalises by the pattern's
+**own integrated radiated power** (the field side — what the far-field integral
+says came back out). For a lossless PEC antenna those two must be equal, so:
+
+- **The curves overlap** ⇒ the solve conserves power: the mesh is fine enough
+  that the currents and the radiated field agree.
+- **A visible gap** ⇒ discretisation error — too few segments (or too stiff a
+  basis) for this geometry. Add segments and the gap closes.
+
+Beside the checkbox a **Δ** readout gives that gap as one number in decibels —
+**0 dB is perfect power balance**. A few tenths of a dB is typical and harmless;
+a large value means the pattern and its gain figures should not be trusted until
+you refine the mesh. This is exactly NEC's classic **"average gain"** sanity
+check, which most tools make you compute by hand. It's cheap (a closed-form
+integral, evaluated once the knob settles), so it's **on by default** — uncheck
+it to hide the overlay and the readout.
+
 ## Copying params back to code
 
 The **gear menu** (⚙, top of the sidebar) has **Copy params (Python)**, which
