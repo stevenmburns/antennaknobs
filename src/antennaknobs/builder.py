@@ -49,6 +49,31 @@ def resolve_variant_params(cls, variant):
     return base
 
 
+def diff_params(base, target):
+    """Minimal overlay ``d`` such that ``merge_params(base, d) == target``.
+
+    The inverse of :func:`merge_params`: recurse into Mappings, keeping only the
+    leaves of ``target`` that ``base`` lacks or disagrees with. Used to trim a
+    fully-merged variant back down to just its deltas from ``default_params`` —
+    the same minimal form a hand-authored ``<variant>_params`` overlay takes.
+
+    Assumes ``target``'s keys are a superset of ``base``'s: a variant overlays
+    ``default_params`` and so only adds or changes keys, never drops one, which
+    is exactly the round-trip case this supports.
+    """
+    out = {}
+    for k, v in target.items():
+        if k not in base:
+            out[k] = v
+        elif isinstance(base[k], Mapping) and isinstance(v, Mapping):
+            sub = diff_params(base[k], v)
+            if sub:
+                out[k] = sub
+        elif base[k] != v:
+            out[k] = v
+    return out
+
+
 class AntennaBuilder:
     # Framework-level params live alongside per-design default_params but
     # don't surface in the UI param panel (adapter._auto_paramspec walks

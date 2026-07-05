@@ -566,9 +566,24 @@ def cli(arguments=None):
     def f(args):
         builder = get_builder(args.builder)
         name = args.name or emit_params_name(args.builder)
+        # For a real variant, emit only its deltas from default_params — the
+        # minimal <variant>_params overlay (see resolve_variant_params). A bare
+        # design / :default emits the full block, since it *is* the baseline.
+        design, _, variant = args.builder.partition(":")
+        base = None
+        if variant and variant != "default":
+            cls = resolve_class(design)
+            if cls is not None and hasattr(
+                getattr(cls, f"{variant}_params", None), "keys"
+            ):
+                base = dict(cls.default_params)
         print(
             builder_params_source(
-                builder(), name=name, include_ui=not args.no_ui, wrap=args.wrap
+                builder(),
+                name=name,
+                include_ui=not args.no_ui,
+                wrap=args.wrap,
+                base=base,
             )
         )
 

@@ -51,6 +51,7 @@ from antennaknobs.builder import (
     Array1x4GroupedBuilder,
     Array2x2Builder,
     Array2x4Builder,
+    diff_params,
     resolve_variant_params,
 )
 
@@ -1239,13 +1240,31 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 base[k] = _rehydrate_param(base[k], req[k])
             elif k in nested:
                 base[k] = _rehydrate_param(base[k], nested[k])
-        name = (
-            f"{variant}_params"
+        # A variant is stored as an *overlay* on default_params (only the keys it
+        # changes — see resolve_variant_params), so emit its block that way too:
+        # trim to just the deltas from default_params. This matches the minimal
+        # hand-authored form and keeps a copied variant paste-ready as a
+        # <variant>_params overlay. default_params itself is the baseline, so it
+        # is always emitted in full. A stale / unknown variant name (one with no
+        # <variant>_params attribute) resolves to default_params, where a delta
+        # would be an empty, misleading block — so fall back to the full block.
+        v_attr = (
+            getattr(cls, f"{variant}_params", None)
             if variant and variant != "default"
-            else "default_params"
+            else None
         )
+        if v_attr is not None and hasattr(v_attr, "keys"):
+            name = f"{variant}_params"
+            emit = diff_params(dict(_variant_params(cls, "default")), base)
+        else:
+            name = (
+                f"{variant}_params"
+                if variant and variant != "default"
+                else "default_params"
+            )
+            emit = base
         return _emit(
-            base,
+            emit,
             name=name,
             precision=_precision_map(ui),
             include_ui=bool(req.get("include_ui", False)),

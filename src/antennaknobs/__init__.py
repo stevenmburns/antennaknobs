@@ -9,6 +9,7 @@ __all__ = [
     "Array1x4Builder",
     "Array1x4GroupedBuilder",
     "merge_params",
+    "diff_params",
     "resolve_variant_params",
     "plot_patterns",
     "compare_patterns",
@@ -34,6 +35,7 @@ from .builder import (
     Array1x4Builder,
     Array1x4GroupedBuilder,
     merge_params,
+    diff_params,
     resolve_variant_params,
 )
 from .transform import Transform, TransformStack

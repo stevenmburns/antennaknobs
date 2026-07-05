@@ -84,18 +84,45 @@ beams.yagi            8.89         1       8.2        60        42
 ## Copying params back to code
 
 After tuning — in the workbench or with `optimize` — turn the knob values back
-into source you can paste into a design file. `params` prints a design's (or a
-`name:variant`'s) current values as a `default_params = {...}` block:
+into source you can paste into a design file. `params` prints a design's current
+values as a `default_params = {...}` block:
 
 ```bash
 python -m antennaknobs params --builder beams.yagi
 python -m antennaknobs params --builder specialty.hentenna:z100 --wrap mappingproxy
 ```
 
+For a **`name:variant`** it prints a `<variant>_params` block instead — and that
+block carries **only the keys that differ from `default_params`**, because a
+variant is stored as an *overlay* on the defaults (just the deltas; the resolver
+fills the rest in — see [Variants are overlays](#variants-are-overlays)). So the
+second command above emits a minimal `z100_params = {...}` you can paste straight
+back as the variant. A bare design (or `:default`) prints the full
+`default_params`, since that is the baseline everything overlays.
+
 Useful flags: `--name <var>` (name the emitted block), `--no-ui` (knob values
 only, drop the `ui_params` block), and `--wrap mappingproxy` (match the
 catalog's frozen-params style). An `optimize` run ends by printing the same
 paste-ready block for its result, so the tuned values go straight into code.
+
+## Variants are overlays
+
+A design can ship named **variants** — alternate knob-sets selected with
+`name:variant` (`beams.moxon:original`, `specialty.hentenna:z100`). A variant is
+declared as a `<variant>_params` mapping on the `Builder` class, and it is an
+**overlay on `default_params`**: it lists *only the keys it changes*, and every
+other key is inherited from `default_params`.
+
+```python
+class Builder(AntennaBuilder):
+    default_params = {"freq": 28.5, "halfdriver": 2.46, "tipspacer_factor": 0.077}
+    original_params = {"halfdriver": 2.4336}   # just the delta — the rest inherit
+```
+
+That is exactly the form `params name:variant` emits, so the round-trip is
+lossless: copy a tuned variant, paste it back as its `<variant>_params`, and it
+means the same thing. (A variant written out in full still works — overlaying a
+complete dict reproduces that dict — but the minimal delta form is the idiom.)
 
 ## Exporting to NEC
 

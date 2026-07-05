@@ -160,6 +160,7 @@ def builder_params_source(
     include_ui: bool = True,
     default_precision: int | None = None,
     wrap: str = "dict",
+    base: Mapping[str, Any] | None = None,
 ) -> str:
     """Serialise a live Builder instance's knobs to paste-ready source.
 
@@ -169,10 +170,20 @@ def builder_params_source(
     that *don't* declare a display precision: leave it ``None`` to dump existing
     literals losslessly, or set it (e.g. 6 after an optimise run) to trim the
     optimiser's sub-tolerance digits.
+
+    ``base``: if given (a params mapping, typically ``default_params``), emit
+    only the *deltas* of the builder's params from it — the minimal overlay a
+    ``<variant>_params`` block takes (the inverse of ``builder.merge_params``).
+    Display precision is still taken from the builder's full ``ui_params``.
+    ``None`` (default) emits the complete param set.
     """
     framework = type(builder).FRAMEWORK_PARAMS
     params = {k: v for k, v in builder._params.items() if k not in framework}
     precision = _precision_map(params.get("ui_params"))
+    if base is not None:
+        from .builder import diff_params
+
+        params = diff_params(dict(base), params)
     return params_source(
         params,
         name=name,
