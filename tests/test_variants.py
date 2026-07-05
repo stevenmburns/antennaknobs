@@ -175,3 +175,85 @@ def test_bands_tuple_replaced_wholesale():
     merged = resolve_variant_params(B, "one_band")
     assert merged["bands"] == ({"freq": 18.0},)  # not merged with the default pair
     assert merged["n_bands"] == 2  # untouched scalar still inherited
+
+
+# --- variants as deltas: diff_params is the inverse of merge_params ----------
+
+
+def test_diff_params_round_trips_merge():
+    from antennaknobs import diff_params, merge_params
+
+    base = {"a": 1, "b": 2, "ui_params": {"x": {"p": 1}, "y": {"p": 2}}}
+    target = {"a": 1, "b": 9, "ui_params": {"x": {"p": 1}, "y": {"p": 5}}}
+    d = diff_params(base, target)
+    # only the leaves that changed, recursively (a and x.p unchanged → dropped)
+    assert d == {"b": 9, "ui_params": {"y": {"p": 5}}}
+    assert merge_params(base, d) == target
+
+
+@pytest.mark.parametrize(
+    "cls, variant",
+    [(hexbeam.Builder, "opt"), (moxon.Builder, "original"), (moxon.Builder, "opt")],
+)
+def test_variant_delta_is_minimal_and_round_trips(cls, variant):
+    from antennaknobs import diff_params, merge_params
+
+    default = dict(cls.default_params)
+    full = resolve_variant_params(cls, variant)
+    delta = diff_params(default, full)
+    # a delta never restates a scalar it agrees with default on
+    for k, v in delta.items():
+        if not isinstance(v, dict):
+            assert default.get(k) != v, f"{k} equals default but is in the delta"
+    # and the overlay reconstructs the full variant
+    assert merge_params(default, delta) == full
+
+
+def test_cli_params_emits_variant_deltas_only():
+    """`params name:variant` emits the minimal <variant>_params overlay; a bare
+    design emits the full default_params block."""
+    from antennaknobs import diff_params
+    from antennaknobs.cli import get_builder
+    from antennaknobs.serialize import builder_params_source
+
+    cls = moxon.Builder
+    default = dict(cls.default_params)
+    variant_builder = get_builder("beams.moxon:original")
+    src = builder_params_source(
+        variant_builder(), name="original_params", include_ui=False, base=default
+    )
+    ns = {}
+    exec(src, {"MappingProxyType": dict}, ns)
+    emitted = ns["original_params"]
+    expected = {
+        k: v
+        for k, v in diff_params(default, dict(cls.original_params)).items()
+        if k != "ui_params"
+    }
+    assert emitted == expected
+    # it really is a subset — fewer keys than a full dump
+    assert set(emitted) < {k for k in default if k != "ui_params"}
+
+
+def test_web_params_source_emits_variant_deltas():
+    """The web 'Copy params' surface (adapter params_source) emits a variant as
+    its deltas from default_params, matching the CLI. Exercised by a built-in
+    catalog design that ships variants (dipoles.invvee)."""
+    from antennaknobs.web.examples import REGISTRY
+
+    ex = REGISTRY["dipoles.invvee"]
+    assert set(ex.variants) >= {"default", "dipole"}  # a real built-in with variants
+
+    src = ex.params_source({"geometry": "dipoles.invvee", "variant": "dipole"})
+    ns = {}
+    exec(src, {"MappingProxyType": dict}, ns)
+    # invvee's `dipole` variant overlays only length_factor + angle_deg
+    assert set(ns["dipole_params"]) == {"length_factor", "angle_deg"}
+
+    # the default is still emitted in full (it is the baseline)
+    src_default = ex.params_source({"geometry": "dipoles.invvee"})
+    ns2 = {}
+    exec(src_default, {"MappingProxyType": dict}, ns2)
+    assert {"design_freq", "base", "length_factor", "angle_deg"} <= set(
+        ns2["default_params"]
+    )

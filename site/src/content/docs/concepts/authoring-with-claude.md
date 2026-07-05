@@ -95,6 +95,14 @@ slider still reaches any band you select, but a fixed-metre wire only *resonates
 on the one band its dimensions happen to suit.
 :::
 
+:::note[Alternate knob-sets: variants are overlays]
+Ship alternate tunings as `<variant>_params` class attributes alongside
+`default_params` (`opt_params`, `z100_params`, …); a user selects one with
+`name:variant`. A variant lists **only the keys it changes** — the rest inherit
+from `default_params` — so keep them to the deltas. See
+[Variants are overlays](/reference/cli/#variants-are-overlays).
+:::
+
 For path-shaped geometry (loops, vees, rhombics), `build_wires` can fly a
 [`Drone`](/reference/drone-transform/) instead of computing corners by hand —
 return `drone.wires()`. Arrays of identical elements have dedicated builders
