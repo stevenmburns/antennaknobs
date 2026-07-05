@@ -4599,9 +4599,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           {renderOutput(view, chartSize, view === "antenna")}
           {/* Solve readout, pinned to the lower-left of whichever view the
               carousel is centered on. Floats over the canvas as a HUD so the
-              left input rail stays inputs-only. */}
+              left input rail stays inputs-only. It sits INSIDE the slide, so
+              the slide's stale dim already covers it — no own stale class, or
+              the two opacities would compound. */}
           <SolveReadout
-            className={`stage-readout${stale ? " stale" : ""}`}
+            className="stage-readout"
             result={result}
             rttMs={rttMs}
             currentExample={currentExample}
