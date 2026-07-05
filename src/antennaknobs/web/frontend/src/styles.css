@@ -1716,8 +1716,21 @@ input[type=checkbox] {
   cursor: default;
 }
 .pin-clear {
-  align-self: flex-end;
   padding: 0 var(--space-2);
+}
+
+/* clear + minimize sit in one right-aligned row above the table. */
+.pin-table-actions {
+  align-self: flex-end;
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Collapsed comparison table: a small "{n} pinned" chip in the pin-btn style
+   (the ▾ hints it expands). Muted so the live pin button stays the loudest
+   thing in the overlay. */
+.pin-chip {
+  color: var(--muted);
 }
 .compare-table {
   border-collapse: collapse;
