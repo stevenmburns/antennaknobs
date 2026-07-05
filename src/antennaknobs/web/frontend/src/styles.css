@@ -2252,10 +2252,20 @@ canvas {
 .mobile-screen-info {
   /* The readout can exceed a ~400px landscape pane (per-feed Z table), so
      this screen scrolls vertically; y-scroll inside an x-snap carousel
-     coexists fine. */
+     coexists fine. Column: the readout with the ws status row under it. */
+  flex-direction: column;
   overflow-y: auto;
-  align-items: flex-start;
+  align-items: stretch;
   padding: var(--space-7) 0;
+}
+
+/* The ws status inside the Info screen is a normal flow row — the desktop
+   .status is absolutely pinned bottom-right, which on a phone floated over
+   chart content (why the mobile tree renders it here instead). */
+.mobile-screen-info .status {
+  position: static;
+  width: fit-content;
+  margin: var(--space-4) auto 0;
 }
 
 .mobile-readout {
