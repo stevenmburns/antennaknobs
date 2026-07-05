@@ -1889,15 +1889,16 @@ canvas {
   }
 }
 
-/* Dim panels whose data is being recomputed (gated on the same dwell as the
-   bar). Transition lives on the base elements so it eases both in and out. */
-.carousel-slide,
-.readout {
+/* Dim the panel whose data is being recomputed (gated on the same dwell as
+   the bar). Transition lives on the base element so it eases both in and out.
+   The readout HUD lives inside the slide and inherits this dim visually; it
+   used to carry its own .readout.stale rule from when it lived in the sidebar,
+   which compounded to ~0.25 opacity once it moved into the slide. */
+.carousel-slide {
   transition: opacity 0.2s ease;
 }
 
-.carousel-slide.stale,
-.readout.stale {
+.carousel-slide.stale {
   opacity: 0.5;
 }
 
