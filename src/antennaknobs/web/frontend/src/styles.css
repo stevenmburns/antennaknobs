@@ -488,6 +488,11 @@ button:focus-visible,
   right: 0;
   z-index: 41;
   min-width: 160px;
+  /* The overlay-toggle section made the menu ~12 rows tall; on a short pane
+     (landscape phone) it would clip against the sidebar's overflow, so cap
+     it and scroll inside instead. */
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
   padding: var(--space-1);
   background: var(--bg);
   border: 1px solid var(--border-control);
@@ -510,6 +515,44 @@ button:focus-visible,
 }
 
 .gear-menu-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.gear-menu-divider {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--border);
+}
+
+/* Group headers for the chart-overlay toggles (same uppercase-mono treatment
+   as the sidebar's section labels). */
+.gear-menu-section {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Checkbox rows in the gear menu — reactive copies of the chart overlays'
+   toggles (mobile renders no overlay checkboxes, so this menu is the only
+   place to reach them there). Match .gear-menu-item's row feel. */
+.gear-menu-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gear-menu-check:hover {
   background: var(--accent-soft);
   color: var(--accent);
 }
