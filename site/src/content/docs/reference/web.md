@@ -83,6 +83,13 @@ fast **momwire** engine — never PyNEC, which is too slow for an interactive lo
 It's a tuning aid, not a global optimizer: give it sensible ranges and a couple
 of free knobs, not a dozen.
 
+**Loading a design pauses Optimize.** Switching antenna or picking a variant
+turns Optimize off — its objective and marks belong to the design you left —
+and briefly says so. Switching antenna *keeps* that design's marks (they're
+remembered per design, so coming back restores them); loading a **variant**
+instead *clears* its marks, because their ranges were scaled to the values the
+variant just replaced. Re-mark the knobs and turn Optimize back on to resume.
+
 ## Choosing a solver & segment count
 
 A **solver selector** offers a few preset slots so you can flip between engines
