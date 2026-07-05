@@ -2475,6 +2475,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const mobileCarouselRef = useRef<HTMLDivElement>(null);
   const mobileScrollRafRef = useRef<number | null>(null);
   const { ref: mobRef, size: mobChartSize } = useSlideSize(720, isMobile);
+  // The pinned-pattern comparison table minimizes to a "{n} pinned" chip so
+  // it can get off the chart — it grows a row per pin and swallows a phone
+  // screen. Starts collapsed on mobile, expanded on desktop (the pre-existing
+  // behavior); pinning always expands it so the new row is seen.
+  const [compareCollapsed, setCompareCollapsed] = useState(isMobile);
 
   // Track where a swipe/fling snaps and mirror it into state. rAF-throttled:
   // scroll events arrive per frame during a fling, one rounding per frame is
@@ -4676,30 +4681,55 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               <button
                 type="button"
                 className="pin-btn"
-                onClick={pinCurrentPattern}
+                onClick={() => {
+                  pinCurrentPattern();
+                  // Pinning always reveals the table so the new row is seen;
+                  // it stays open until minimized (no auto-collapse timer).
+                  setCompareCollapsed(false);
+                }}
                 disabled={!result}
                 title="Pin the current pattern as a ghost overlay, to compare another antenna or tuning against it"
               >
                 📌 Pin pattern
               </button>
-              {pinnedPatterns.length > 0 && (
-                <>
+              {pinnedPatterns.length > 0 &&
+                (compareCollapsed ? (
                   <button
                     type="button"
-                    className="pin-clear"
-                    onClick={() => setPinnedPatterns([])}
-                    title="Remove all pinned patterns"
+                    className="pin-btn pin-chip"
+                    onClick={() => setCompareCollapsed(false)}
+                    title="Show the pinned-pattern comparison table"
                   >
-                    clear
+                    {pinnedPatterns.length} pinned ▾
                   </button>
-                  <PatternCompareTable
-                    live={liveMetrics}
-                    liveLabel={`${currentExample?.label ?? geometry} @ ${measFreq.toFixed(2)} MHz`}
-                    pinned={pinnedPatterns}
-                    onRemove={removePin}
-                  />
-                </>
-              )}
+                ) : (
+                  <>
+                    <div className="pin-table-actions">
+                      <button
+                        type="button"
+                        className="pin-clear"
+                        onClick={() => setPinnedPatterns([])}
+                        title="Remove all pinned patterns"
+                      >
+                        clear
+                      </button>
+                      <button
+                        type="button"
+                        className="pin-clear"
+                        onClick={() => setCompareCollapsed(true)}
+                        title="Minimize the comparison table (pins and ghost overlays are kept)"
+                      >
+                        –
+                      </button>
+                    </div>
+                    <PatternCompareTable
+                      live={liveMetrics}
+                      liveLabel={`${currentExample?.label ?? geometry} @ ${measFreq.toFixed(2)} MHz`}
+                      pinned={pinnedPatterns}
+                      onRemove={removePin}
+                    />
+                  </>
+                ))}
             </div>
           )}
           <ViewPanel
