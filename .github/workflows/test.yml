@@ -103,3 +103,37 @@ jobs:
       uses: py-cov-action/python-coverage-comment-action@v3
       with:
         GITHUB_TOKEN: ${{ github.token }}
+
+  wheel-smoke:
+    # Install antennaknobs from the BUILT WHEEL with PyPI deps only — no git
+    # submodule — and run one real solve through the web server's entry point.
+    # This is the environment Fly and `pip install antennaknobs` actually get.
+    # The job above installs momwire editable from the submodule, so it can
+    # never catch code that uses a momwire API the pyproject version floor
+    # does not guarantee; that exact split shipped v0.13.0 broken (solves used
+    # momwire.CancelToken while the floor still admitted momwire 0.2.3).
+    #
+    # Deliberately cheap: no submodule checkout, no ccache, no PyNEC, no
+    # frontend build (the server's static mount is gated on the directory
+    # existing, and the smoke only calls the solve path).
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+      # No `submodules:` — momwire MUST come from PyPI here; that's the test.
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - name: Build the wheel
+      run: pipx run build --wheel
+    - name: Install from the wheel (PyPI deps only)
+      run: |
+        WHL=$(ls dist/*.whl)
+        pip install "${WHL}[web]"
+    - name: Solve smoke through the server entry point
+      # Run from a temp dir so a stray `momwire/` source dir on CWD can never
+      # shadow the installed package.
+      run: |
+        SMOKE=$(pwd)/.github/scripts/wheel_solve_smoke.py
+        cd "$(mktemp -d)"
+        python "$SMOKE"
