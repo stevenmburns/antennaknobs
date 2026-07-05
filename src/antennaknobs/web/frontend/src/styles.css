@@ -2101,6 +2101,16 @@ canvas {
   cursor: pointer;
   color: var(--fg);
 }
+/* Keyboard-shortcut hint chip: pushed to the right edge of the vary row. */
+.knob-menu-kbd {
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 0.72em;
+  line-height: 1.5;
+  color: var(--muted);
+}
 .knob-menu-row {
   display: flex;
   align-items: center;

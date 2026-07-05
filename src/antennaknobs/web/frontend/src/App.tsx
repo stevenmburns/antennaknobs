@@ -852,10 +852,13 @@ function ParamForm({
   // PyNEC; momwire engines don't support transmission lines yet).
   disabledFields?: Set<string>;
   // Optimiser integration (top-level rail only). `settings` overrides a knob's
-  // effective min/max/step; `onContext` opens that knob's right-click menu.
+  // effective min/max/step; `onContext` opens that knob's right-click menu;
+  // `onToggleVary` flips a knob's "Optimize this knob" flag (the `o` shortcut,
+  // parallel to the menu checkbox).
   opt?: {
     settings: Record<string, KnobOpt>;
     onContext: (name: string, e: React.MouseEvent) => void;
+    onToggleVary: (name: string) => void;
   };
 }) {
   return (
@@ -1000,6 +1003,28 @@ function ParamForm({
             className={`field field-knob${ko?.vary ? " is-opt-var" : ""}`}
             style={layoutStyle(item.layout)}
             onContextMenu={opt ? (e) => opt.onContext(item.name, e) : undefined}
+            // `o` toggles this knob's "Optimize this knob" flag while it's
+            // focused — the keyboard parallel to the right-click menu. The event
+            // bubbles up from the focused role="slider" Knob; the edit <input>
+            // stops propagation, so typing a value never triggers it. Ignore it
+            // when a modifier is held (reserved for other shortcuts) or on
+            // auto-repeat (holding the key mustn't flip-flop the flag).
+            onKeyDown={
+              opt
+                ? (e) => {
+                    if (
+                      e.key.toLowerCase() === "o" &&
+                      !e.ctrlKey &&
+                      !e.metaKey &&
+                      !e.altKey &&
+                      !e.repeat
+                    ) {
+                      e.preventDefault();
+                      opt.onToggleVary(item.name);
+                    }
+                  }
+                : undefined
+            }
           >
             <span
               className="knob-label"
@@ -3747,6 +3772,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   e.preventDefault();
                   setKnobMenu({ name, x: e.clientX, y: e.clientY });
                 },
+                onToggleVary: (name) =>
+                  updateKnobOpt(name, { vary: !knobOptFor(name).vary }),
               }}
             />
           </div>
@@ -3825,6 +3852,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                       onChange={(e) => set({ vary: e.target.checked })}
                     />
                     Optimize this knob
+                    <kbd
+                      className="knob-menu-kbd"
+                      title="Focus a knob and press O to toggle"
+                    >
+                      O
+                    </kbd>
                   </label>
                   <div className="knob-menu-row">
                     <span>Optimize range</span>

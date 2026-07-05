@@ -69,7 +69,9 @@ knobs you've marked to hit a target:
      by default).
 2. **Mark the knobs to vary** — right-click each knob you'll let the optimizer
    move, check **Optimize this knob**, and set its **Optimize range** (the search
-   bounds). A marked knob is visually flagged.
+   bounds). A marked knob is visually flagged. To flip the flag from the keyboard,
+   focus a knob (click or tab to it) and press **`o`** — the same toggle as the
+   menu checkbox, without leaving the home row.
 3. **Turn on Optimize.** While Live is also on, the optimizer runs reactively: any
    time you change a *fixed* knob, it re-tunes the *marked* knobs (a short
    debounce, then a few dozen solves) and writes the best values back, so the
