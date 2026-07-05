@@ -1,6 +1,7 @@
 # Plan: fast cooperative abort of in-flight momwire solves
 
-Status: **not started.** Scoped 2026-07-04. Follow-up to
+Status: **Phases 0–3 done (2026-07-05); Phase 4 optional, deferred.** Scoped
+2026-07-04. Follow-up to
 `plan-ws-latest-wins.md`, whose item 3 deferred exactly this: "No preemption
 of a stale in-flight solve … the engine can't be interrupted without
 cooperative checks." With latest-wins squashing merged (PR #226), a stale
@@ -9,6 +10,18 @@ occupying a threadpool worker and delaying the superseding solve by the full
 remainder of the doomed one. Goal: when a newer knob value arrives, the
 in-flight momwire solve dies within ~one LAPACK-call's worth of time
 (tens of ms), not seconds.
+
+**Outcome:** delivered. momwire PRs #112 (Phase 0), #113 (Phase 1), #114
+(Phase 2) and antennaknobs PR #232 (Phase 3, with the submodule-pointer bump)
+are all merged. Verified live: a superseding knob value aborts a real ~1.8 s
+array solve within ~2 ms — the doomed response never ships — and a mid-solve
+disconnect aborts cleanly with no server tracebacks. Two implementation notes
+that diverged from the plan below: Phase 2 reads the flag with a `volatile`
+load rather than C++20 `std::atomic_ref` (keeps the build at gnu++11 and dodges
+the Apple Clang / libc++ `atomic_ref` gap that would break the macOS wheel —
+the plan's own stated fallback); and the solve **cache** masks preemption (a
+cache hit returns in O(1) and never runs the abortable solve, by design), which
+matters when reproducing the behavior.
 
 Scope: momwire only (we own the code). PyNEC gets a start-gate check but no
 mid-solve abort — its solve is one opaque native call.
@@ -251,13 +264,13 @@ hurting; defer until observed.
 Phases 0–2 land as PRs in the **momwire repo**; 3–4 in antennaknobs with a
 submodule-pointer bump. Each is independently shippable and useful:
 
-| Phase | Repo | Content | Standalone value |
-|---|---|---|---|
-| 0 | momwire | GIL release on long C++ kernels (+ audit no Python API in released regions) | server event loop stops stalling during fills |
-| 1 | momwire | `CancelToken`, `SolveAborted`, Python checkpoints (phases, k-loops, ACA, matvec) | sweeps & array solvers abortable |
-| 2 | momwire | `cancel_flag` polling in C++ kernels, `AcceleratorAborted` mapping | single-frequency fills abortable; floor ≈ one LU |
-| 3 | antennaknobs | token threading; `/ws` cancel-on-squash + cancel-on-disconnect; `SolveAborted` handling; cache-store guard; PyNEC start-gate; submodule bump | end-to-end preemption on knob drag |
-| 4 | antennaknobs | `/sweep`/`/converge` in-chunk cancel via disconnect watcher | finer than 500 ms chunk granularity |
+| Phase | Repo | Content | Standalone value | Status |
+|---|---|---|---|---|
+| 0 | momwire | GIL release on long C++ kernels (+ audit no Python API in released regions) | server event loop stops stalling during fills | ✅ done — PR #112 |
+| 1 | momwire | `CancelToken`, `SolveAborted`, Python checkpoints (phases, k-loops, ACA, matvec) | sweeps & array solvers abortable | ✅ done — PR #113 |
+| 2 | momwire | `cancel_flag` polling in C++ kernels, `AcceleratorAborted` mapping | single-frequency fills abortable; floor ≈ one LU | ✅ done — PR #114 |
+| 3 | antennaknobs | token threading; `/ws` cancel-on-squash + cancel-on-disconnect; `SolveAborted` handling; cache-store guard; PyNEC start-gate; submodule bump | end-to-end preemption on knob drag | ✅ done — PR #232 |
+| 4 | antennaknobs | `/sweep`/`/converge` in-chunk cancel via disconnect watcher | finer than 500 ms chunk granularity | ⬜ optional, deferred |
 
 Phase 3 works end-to-end after Phase 1 alone (Phase 2 just tightens the
 latency), so the merge order 0 → 1 → 3 → 2 is also viable if we want the UX
