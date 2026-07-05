@@ -2384,6 +2384,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const normCheckTimerRef = useRef<number | null>(null);
   const normCheckAbortRef = useRef<AbortController | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
+  // JSON of the request the currently-displayed preview wireframe was built
+  // from. When Live is off no solve redraws the geometry, so the solve effect
+  // refetches the preview itself on a param/variant/freq change — but only when
+  // this signature actually changed, so it skips the redundant refetch right
+  // after an antenna switch (whose preview the switch effect already built).
+  const previewSigRef = useRef<string | null>(null);
   // Timestamp (performance.now) when the busy chrome last became visible, so
   // the reveal effect can enforce a minimum-visible window. null = not shown.
   const shownAtRef = useRef<number | null>(null);
@@ -2837,6 +2843,43 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // solves the current state.
     if (!autoSim) {
       setSolverWarning(false);
+      // Live is off, so no solve will run to redraw the geometry. Keep the
+      // preview wireframe in sync with the knobs ourselves: a variant switch
+      // or knob/freq change should still reshape the antenna. Refetch the cheap
+      // geometry-only preview (build_wires, no solve) when the request actually
+      // changed — the signature guard skips the redundant fetch right after an
+      // antenna switch, and unchanged re-renders. No camera snap or gate reset:
+      // this is in-place tuning of the same antenna.
+      const sig = JSON.stringify(controlsRef.current);
+      if (sig !== previewSigRef.current) {
+        previewSigRef.current = sig;
+        // A prior solve's result (rendered in preference to preview, and its
+        // impedance/far-field) is now stale for these knobs. Drop it so the
+        // fresh preview shows and no stale solved metrics linger.
+        setResult(null);
+        previewAbortRef.current?.abort();
+        const controller = new AbortController();
+        previewAbortRef.current = controller;
+        fetch("/geometry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: sig,
+          signal: controller.signal,
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (controller.signal.aborted) return;
+            if (data && data.error) {
+              setSolveError(data.error as string);
+              return;
+            }
+            if (data && data.wires) {
+              setSolveError(null);
+              setPreview(data as SolveResponse);
+            }
+          })
+          .catch(() => {});
+      }
       return;
     }
     // Withhold the solve when the design/solver combo is a poor match and the
@@ -2888,10 +2931,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // Capture the geometry this run is for, so the gate is released for the
     // right antenna even if `geometry` changed by the time the fetch resolves.
     const forGeometry = geometry;
+    const req = buildRequest();
+    previewSigRef.current = JSON.stringify(req);
     fetch("/geometry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildRequest()),
+      body: JSON.stringify(req),
       signal: controller.signal,
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -3464,6 +3509,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       lastSentSeqRef.current = seq;
       sentAtRef.current.set(seq, performance.now());
       sock.send(JSON.stringify({ ...controlsRef.current, _seq: seq }));
+      // Keep the preview signature current so that toggling Live *off* right
+      // after a solve doesn't see a stale signature and needlessly refetch the
+      // wireframe / drop the just-solved result — the solved geometry already
+      // matches these controls.
+      previewSigRef.current = JSON.stringify(controlsRef.current);
       syncSolving();
     });
   }
