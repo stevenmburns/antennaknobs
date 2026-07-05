@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type { CSSProperties } from "react";
 
@@ -1585,7 +1586,11 @@ const PROJECTIONS: { id: Projection; label: string; horizAxis: 0|1|2; vertAxis: 
   { id: "yz", label: "Side (yz)",  horizAxis: 1, vertAxis: 2 },
 ];
 
-function useSlideSize(maxSize = 720) {
+// `reattachKey`: the measuring effect early-returns while the ref is detached,
+// so a caller whose measured element mounts LATER (e.g. the layout branch flips
+// between mobile and desktop at runtime) must pass a value that changes with
+// the branch, re-running the effect once the element exists.
+function useSlideSize(maxSize = 720, reattachKey?: unknown) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(maxSize);
   useEffect(() => {
@@ -1600,13 +1605,48 @@ function useSlideSize(maxSize = 720) {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [maxSize]);
+  }, [maxSize, reattachKey]);
   return { ref, size };
+}
+
+// Mirror of the stylesheet's phone breakpoint. The query string MUST stay
+// identical to the mobile `@media` prelude in styles.css so the JS layout
+// branch and the CSS rules can never disagree about which viewports are
+// "mobile": max-width 700px catches portrait phones, and the short+coarse
+// clause catches landscape phones that are wider than 700px.
+const MOBILE_MEDIA_QUERY =
+  "(max-width: 700px), (max-height: 500px) and (pointer: coarse)";
+const PORTRAIT_MEDIA_QUERY = "(orientation: portrait)";
+
+function useMediaQuery(query: string): boolean {
+  // useSyncExternalStore is StrictMode-safe and avoids the subscribe/setState
+  // races of a hand-rolled effect. The snapshot is a boolean primitive — an
+  // object snapshot would be re-created every call, which React rejects
+  // ("The result of getSnapshot should be cached").
+  const [subscribe, getSnapshot] = useMemo(() => {
+    const mql = window.matchMedia(query);
+    const sub = (onChange: () => void) => {
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    };
+    return [sub, () => mql.matches] as const;
+  }, [query]);
+  return useSyncExternalStore(subscribe, getSnapshot);
+}
+
+function useIsMobile() {
+  const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
+  const portrait = useMediaQuery(PORTRAIT_MEDIA_QUERY);
+  return {
+    isMobile,
+    orientation: portrait ? ("portrait" as const) : ("landscape" as const),
+  };
 }
 
 function useThumbColumnSize(
   stripRef: React.RefObject<HTMLDivElement>,
   maxThumb = 280,
+  reattachKey?: unknown, // see useSlideSize
 ) {
   // Vertical thumbstrip: 3 thumbs scaled so they ALWAYS fit (the strip never
   // scrolls — overflow:hidden in CSS). Fixed overhead:
@@ -1628,7 +1668,7 @@ function useThumbColumnSize(
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [stripRef, maxThumb]);
+  }, [stripRef, maxThumb, reattachKey]);
   return size;
 }
 
@@ -2409,9 +2449,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // labels default OFF — they're the noisiest, especially on PyNEC.
   const [showWireLabels, setShowWireLabels] = useState(false);
   const [showFeedNames, setShowFeedNames] = useState(true);
-  const { ref: slideRef, size: chartSize } = useSlideSize(720);
+  // Layout branch. Desktop never reads isMobile except as the sizing hooks'
+  // reattach key, so no desktop viewport is affected; the key makes both
+  // hooks re-measure if the window is resized across the breakpoint.
+  const { isMobile } = useIsMobile();
+  const { ref: slideRef, size: chartSize } = useSlideSize(720, isMobile);
   const thumbStripRef = useRef<HTMLDivElement>(null);
-  const thumbSize = useThumbColumnSize(thumbStripRef, 280);
+  const thumbSize = useThumbColumnSize(thumbStripRef, 280, isMobile);
 
   useEffect(() => {
     if (!active) return;
@@ -3664,9 +3708,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  return (
-    <div className="app">
-      <aside className="sidebar">
+  // Hoisted JSX shared between the desktop tree below and the mobile tree
+  // (Phase B). These close over the session's locals, so they are consts /
+  // a closure rather than components — zero prop surface, identical DOM.
+  // The moved blocks keep their original indentation so the refactor diff
+  // shows them as pure moves.
+  const controls = (
+    <>
         <TabStrip />
         <div className="sidebar-header">
           <div className="brand">
@@ -4214,9 +4262,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             onClose={() => setGearOpen(null)}
           />
         )}
-      </aside>
+    </>
+  );
 
-      <main className="stage" aria-label="Antenna output views">
+  const solveOverlays = (
+    <>
         {/* Indeterminate progress bar: appears once a solve outlasts the dwell
             and lingers out its min-visible window (showBusy), so it never
             flashes — the dim/label (stale) clear earlier, when the result lands. */}
@@ -4276,48 +4326,16 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             </span>
           </div>
         )}
-        <div className="thumbstrip" ref={thumbStripRef}>
-          {VIEWS.filter((v) => v.id !== view).map((v) => (
-            <button
-              key={v.id}
-              className="thumb"
-              onClick={() => setView(v.id)}
-              title={`Switch to ${v.label}`}
-            >
-              <div
-                className="thumb-canvas"
-                style={{ width: thumbSize, height: thumbSize }}
-              >
-                <ViewPanel
-                  view={v.id}
-                  size={thumbSize}
-                  fill={false}
-                  result={result}
-                  preview={preview}
-                  sweep={sweep}
-                  converge={converge}
-                  pattern={pattern}
-                  pinnedPatterns={[]}
-                  measFreqMhz={measFreq}
-                  sweepRunning={sweepRunning}
-                  convergeRunning={convergeRunning}
-                  azElevDeg={azElevDeg}
-                  elevAzDeg={elevAzDeg}
-                  cameraProjection={cameraProjection}
-                  showHeatmap={showHeatmap}
-                  showEnvelope={showEnvelope}
-                  multiFeed={effectiveMultiFeed}
-                />
-              </div>
-              <div className="thumb-label">{v.label}</div>
-            </button>
-          ))}
-        </div>
-        <div
-          className={`carousel-slide${stale ? " stale" : ""}`}
-          ref={slideRef}
-        >
-          {view === "antenna" && (
+    </>
+  );
+
+  // One output view: the per-view overlays plus the main <ViewPanel>. A
+  // closure (not a component) so the ~30 captured locals need no props. The
+  // solve-readout HUD stays OUT of it — mobile chart screens must not
+  // inherit the floating readout.
+  const renderOutput = (v: View, size: number, fill: boolean) => (
+    <>
+          {v === "antenna" && (
             <div className="antenna-overlay">
               <div className="projection-toggle">
                 {PROJECTIONS.map((p) => (
@@ -4377,7 +4395,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               </label>
             </div>
           )}
-          {view === "smith" && (
+          {v === "smith" && (
             <div className="smith-overlay">
               <label
                 className="overlay-checkbox"
@@ -4403,7 +4421,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               </label>
             </div>
           )}
-          {(view === "azimuth" || view === "elevation") && (
+          {(v === "azimuth" || v === "elevation") && (
             <div className="farfield-overlay">
               <label
                 className="overlay-checkbox"
@@ -4430,7 +4448,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           {/* The cut-angle knob lives on the plot it drives: the azimuth
               (xy) cut is taken at elevation azElevDeg; the elevation (yz) cut
               is taken at azimuth bearing elevAzDeg. CCW dials from 3 o'clock. */}
-          {view === "azimuth" && (
+          {v === "azimuth" && (
             <div
               className="cut-overlay"
               title="elevation at which this azimuth cut is taken"
@@ -4452,7 +4470,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               <span className="cut-overlay-value">{azElevDeg}°</span>
             </div>
           )}
-          {view === "elevation" && (
+          {v === "elevation" && (
             <div
               className="cut-overlay"
               title="azimuth bearing at which this elevation cut is taken"
@@ -4474,7 +4492,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               <span className="cut-overlay-value">{elevAzDeg}°</span>
             </div>
           )}
-          {(view === "azimuth" || view === "elevation") && (
+          {(v === "azimuth" || v === "elevation") && (
             <div className="compare-overlay">
               <button
                 type="button"
@@ -4506,9 +4524,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             </div>
           )}
           <ViewPanel
-            view={view}
-            size={chartSize}
-            fill={view === "antenna"}
+            view={v}
+            size={size}
+            fill={fill}
             result={result}
             preview={preview}
             sweep={sweep}
@@ -4528,65 +4546,67 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             multiFeed={effectiveMultiFeed}
             fineNorm={normCheck?.pattern_norm ?? null}
           />
+    </>
+  );
+
+  return (
+    <div className="app">
+      <aside className="sidebar">{controls}</aside>
+
+      <main className="stage" aria-label="Antenna output views">
+        {solveOverlays}
+        <div className="thumbstrip" ref={thumbStripRef}>
+          {VIEWS.filter((v) => v.id !== view).map((v) => (
+            <button
+              key={v.id}
+              className="thumb"
+              onClick={() => setView(v.id)}
+              title={`Switch to ${v.label}`}
+            >
+              <div
+                className="thumb-canvas"
+                style={{ width: thumbSize, height: thumbSize }}
+              >
+                <ViewPanel
+                  view={v.id}
+                  size={thumbSize}
+                  fill={false}
+                  result={result}
+                  preview={preview}
+                  sweep={sweep}
+                  converge={converge}
+                  pattern={pattern}
+                  pinnedPatterns={[]}
+                  measFreqMhz={measFreq}
+                  sweepRunning={sweepRunning}
+                  convergeRunning={convergeRunning}
+                  azElevDeg={azElevDeg}
+                  elevAzDeg={elevAzDeg}
+                  cameraProjection={cameraProjection}
+                  showHeatmap={showHeatmap}
+                  showEnvelope={showEnvelope}
+                  multiFeed={effectiveMultiFeed}
+                />
+              </div>
+              <div className="thumb-label">{v.label}</div>
+            </button>
+          ))}
+        </div>
+        <div
+          className={`carousel-slide${stale ? " stale" : ""}`}
+          ref={slideRef}
+        >
+          {renderOutput(view, chartSize, view === "antenna")}
           {/* Solve readout, pinned to the lower-left of whichever view the
               carousel is centered on. Floats over the canvas as a HUD so the
               left input rail stays inputs-only. */}
-          <div className={`readout stage-readout${stale ? " stale" : ""}`}>
-            <div className="row">
-              <span>R</span>
-              <span className="val">{result ? `${result.z_in_re.toFixed(2)} Ω` : "—"}</span>
-            </div>
-            <div className="row">
-              <span>X</span>
-              <span className={result && Math.abs(result.z_in_im) < 2 ? "val val-hot" : "val"}>
-                {result ? `${result.z_in_im.toFixed(2)} Ω` : "—"}
-              </span>
-            </div>
-            {currentExample && (
-              <ResultPanel
-                schema={currentExample.result_schema}
-                result={result as Record<string, unknown> | null}
-              />
-            )}
-            {effectiveMultiFeed && result?.feeds && result.feeds.length > 1 && (
-              <div className="feeds-table">
-                <div className="feeds-table-header">per-feed Z (V/I)</div>
-                {result.feeds.map((f, i) => (
-                  <div className="row" key={`feed-z-${i}`}>
-                    <span>
-                      feed {i} ∠{Math.round(Math.atan2(f.v_im, f.v_re) * 180 / Math.PI)}°
-                    </span>
-                    <span className="val">
-                      {f.z_re.toFixed(1)} {f.z_im >= 0 ? "+" : "−"} j
-                      {Math.abs(f.z_im).toFixed(1)} Ω
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="row">
-              <span>|I_feed|</span>
-              <span className="val">
-                {result ? feedMag(result).toExponential(3) : "—"}
-              </span>
-            </div>
-            <div className="row">
-              <span>solve</span>
-              <span className="val">{result ? `${result.solve_ms.toFixed(1)} ms` : "—"}</span>
-            </div>
-            <div className="row">
-              <span>SWR ({(result?.z0_ohms ?? 50).toFixed(0)} Ω)</span>
-              <span className="val">
-                {result
-                  ? formatSwr(result.z_in_re, result.z_in_im, result.z0_ohms ?? 50)
-                  : "—"}
-              </span>
-            </div>
-            <div className="row">
-              <span>rtt</span>
-              <span className="val">{rttMs != null ? `${rttMs.toFixed(1)} ms` : "—"}</span>
-            </div>
-          </div>
+          <SolveReadout
+            className={`stage-readout${stale ? " stale" : ""}`}
+            result={result}
+            rttMs={rttMs}
+            currentExample={currentExample}
+            effectiveMultiFeed={effectiveMultiFeed}
+          />
         </div>
         <div className="status">
           ws: {status}
@@ -5052,6 +5072,83 @@ function formatSwr(r: number, x: number, z0: number): string {
   const swr = (1 + gMag) / (1 - gMag);
   if (swr > 99) return swr.toFixed(0);
   return swr.toFixed(2);
+}
+
+// The R/X/SWR/rtt solve readout. The desktop stage floats it over the canvas
+// as a HUD (className="stage-readout"); the mobile Info screen (Phase B)
+// renders it as a normal block. Module scope so both trees share one
+// implementation.
+function SolveReadout({
+  result,
+  rttMs,
+  currentExample,
+  effectiveMultiFeed,
+  className = "",
+}: {
+  result: SolveResponse | null;
+  rttMs: number | null;
+  currentExample: ExampleDescriptor | undefined;
+  effectiveMultiFeed: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`readout${className ? " " + className : ""}`}>
+      <div className="row">
+        <span>R</span>
+        <span className="val">{result ? `${result.z_in_re.toFixed(2)} Ω` : "—"}</span>
+      </div>
+      <div className="row">
+        <span>X</span>
+        <span className={result && Math.abs(result.z_in_im) < 2 ? "val val-hot" : "val"}>
+          {result ? `${result.z_in_im.toFixed(2)} Ω` : "—"}
+        </span>
+      </div>
+      {currentExample && (
+        <ResultPanel
+          schema={currentExample.result_schema}
+          result={result as Record<string, unknown> | null}
+        />
+      )}
+      {effectiveMultiFeed && result?.feeds && result.feeds.length > 1 && (
+        <div className="feeds-table">
+          <div className="feeds-table-header">per-feed Z (V/I)</div>
+          {result.feeds.map((f, i) => (
+            <div className="row" key={`feed-z-${i}`}>
+              <span>
+                feed {i} ∠{Math.round(Math.atan2(f.v_im, f.v_re) * 180 / Math.PI)}°
+              </span>
+              <span className="val">
+                {f.z_re.toFixed(1)} {f.z_im >= 0 ? "+" : "−"} j
+                {Math.abs(f.z_im).toFixed(1)} Ω
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="row">
+        <span>|I_feed|</span>
+        <span className="val">
+          {result ? feedMag(result).toExponential(3) : "—"}
+        </span>
+      </div>
+      <div className="row">
+        <span>solve</span>
+        <span className="val">{result ? `${result.solve_ms.toFixed(1)} ms` : "—"}</span>
+      </div>
+      <div className="row">
+        <span>SWR ({(result?.z0_ohms ?? 50).toFixed(0)} Ω)</span>
+        <span className="val">
+          {result
+            ? formatSwr(result.z_in_re, result.z_in_im, result.z0_ohms ?? 50)
+            : "—"}
+        </span>
+      </div>
+      <div className="row">
+        <span>rtt</span>
+        <span className="val">{rttMs != null ? `${rttMs.toFixed(1)} ms` : "—"}</span>
+      </div>
+    </div>
+  );
 }
 
 function ViewPanel({
