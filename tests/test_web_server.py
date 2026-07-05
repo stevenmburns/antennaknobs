@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from copy import deepcopy
 
+import momwire
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -1252,7 +1254,7 @@ def test_ws_endpoint_squashes_and_skips_superseded(client, monkeypatch):
     release = threading.Event()
     reader_saw_last = threading.Event()
 
-    def blocking_solve(req: dict, superseded=None) -> dict:
+    def blocking_solve(req: dict, cancel=None) -> dict:
         seq = req.get("_seq")
         seqs_solved.append(seq)
         if seq == 1:
@@ -1297,7 +1299,7 @@ def test_ws_endpoint_handles_disconnect_during_solve(client, monkeypatch):
     entered = threading.Event()
     release = threading.Event()
 
-    def blocking_solve(req: dict, superseded=None) -> dict:
+    def blocking_solve(req: dict, cancel=None) -> dict:
         entered.set()
         release.wait(5)
         return {"geometry": req.get("geometry")}
@@ -1312,6 +1314,59 @@ def test_ws_endpoint_handles_disconnect_during_solve(client, monkeypatch):
         # the close handshake.
         threading.Timer(0.2, release.set).start()
     release.set()  # belt-and-suspenders if the timer hasn't fired yet
+
+
+def test_ws_preempts_inflight_solve_on_supersede(client, monkeypatch):
+    # Phase 3: a newer request must PREEMPT the in-flight solve. The handler
+    # publishes a cancel token and the reader trips it the moment seq 2 lands;
+    # the in-flight solve observes it, raises SolveAborted, its doomed response
+    # is never sent, and only the superseding result ships.
+    entered = threading.Event()
+    aborted_seqs: list[int] = []
+    completed_seqs: list[int] = []
+
+    def cancellable_solve(req: dict, cancel=None) -> dict:
+        seq = req.get("_seq")
+        if seq == 1:
+            entered.set()
+            # Block until the reader trips our token (when seq 2 arrives), then
+            # abort cooperatively — exactly what a real solve's checkpoint does.
+            for _ in range(500):
+                if cancel is not None and cancel.cancelled:
+                    aborted_seqs.append(seq)
+                    raise momwire.SolveAborted()
+                time.sleep(0.01)
+        completed_seqs.append(seq)
+        return {"geometry": req.get("geometry"), "z_in_re": 1.0}
+
+    monkeypatch.setattr(server, "solve", cancellable_solve)
+
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps({"geometry": "dipoles.invvee", "_seq": 1}))
+        assert entered.wait(5), "first solve never started"
+        ws.send_text(json.dumps({"geometry": "dipoles.invvee", "_seq": 2}))
+        resp = json.loads(ws.receive_text())
+
+    assert aborted_seqs == [1], "the in-flight solve was not preempted"
+    assert 1 not in completed_seqs, "an aborted solve must not complete"
+    assert resp["_seq"] == 2, "only the superseding result should ship"
+
+
+def test_solve_aborted_propagates_uncached(monkeypatch):
+    # A SolveAborted from the miss path must propagate to the caller (so the /ws
+    # handler can `continue`) and never be stored in the solve cache.
+    server._SOLVE_CACHE.clear()
+    req = {
+        "geometry": "dipoles.invvee",
+        "solver": "momwire",
+        "momwire_model": "triangular",
+        "_seq": 7,
+    }
+    token = momwire.CancelToken()
+    token.cancel()
+    with pytest.raises(momwire.SolveAborted):
+        server.solve(req, cancel=token)
+    assert len(server._SOLVE_CACHE) == 0, "an aborted solve must not be cached"
 
 
 def test_solve_z_only_returns_primary_z_and_no_feeds_for_dipole():

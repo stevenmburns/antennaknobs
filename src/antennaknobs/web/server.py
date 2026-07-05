@@ -94,6 +94,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 
+import momwire
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
@@ -677,24 +678,32 @@ def _canonical_solve_key(req: dict) -> str:
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
 
-def _solve_uncached(req: dict) -> dict:
+def _solve_uncached(req: dict, cancel=None) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     _check_solve_size(req, use_pynec=use_pynec)
     if use_pynec:
+        # PyNEC start-gate only: a request already superseded before its solve
+        # begins dies for free here; the native solve is one opaque call with no
+        # mid-solve abort, so an in-flight one runs to completion (as today).
+        if cancel is not None:
+            cancel.raise_if_cancelled()
         out = pynec_backend.solve(req)
     else:
         ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
-        out = ex.momwire_solve(req)
+        out = ex.momwire_solve(req, cancel=cancel)
         out["solver"] = "momwire"
     _attach_derived_em_fields(out)
     _attach_gain_norm(out)
     return out
 
 
-def solve(req: dict) -> dict:
+def solve(req: dict, cancel=None) -> dict:
     key = _canonical_solve_key(req)
     hit = _SOLVE_CACHE.get(key)
+    # Cache hits are O(1) and never worth aborting — the token is only consulted
+    # on the (expensive) miss path below. A SolveAborted from _solve_uncached
+    # propagates before the cache-store line, so an aborted solve is never cached.
     if hit is not None:
         _SOLVE_CACHE.move_to_end(key)
         t0 = time.perf_counter()
@@ -706,7 +715,7 @@ def solve(req: dict) -> dict:
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
         return out
-    out = _solve_uncached(req)
+    out = _solve_uncached(req, cancel=cancel)
     out["cache_hit"] = False
     _SOLVE_CACHE[key] = deepcopy(out)
     while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
@@ -1258,6 +1267,11 @@ async def ws_endpoint(ws: WebSocket):
     mailbox: list[dict] = []  # size-1: newest unsolved request only
     newer = asyncio.Event()  # set when the mailbox is (re)filled
     closed = asyncio.Event()  # set when the socket disconnects
+    # In-flight solve's cancel token, shared between the reader and the solver
+    # loop (both coroutines on this event loop, so no lock needed — the token's
+    # flag is the only thing the threadpool worker touches). The reader trips it
+    # to preempt a solve the moment a newer request lands or the socket closes.
+    current: dict = {"token": None}
 
     async def reader() -> None:
         # Starlette requires a single reader on the socket, so *all*
@@ -1266,11 +1280,17 @@ async def ws_endpoint(ws: WebSocket):
             while True:
                 req = json.loads(await ws.receive_text())
                 mailbox[:] = [req]  # overwrite → squash anything unsolved
+                token = current["token"]
+                if token is not None:
+                    token.cancel()  # preempt the now-superseded in-flight solve
                 newer.set()
         except WebSocketDisconnect:
             pass
         finally:
             closed.set()
+            token = current["token"]
+            if token is not None:
+                token.cancel()  # disconnect: free the threadpool worker promptly
             newer.set()  # wake the solver so it can observe `closed` and exit
 
     reader_task = asyncio.create_task(reader())
@@ -1283,8 +1303,20 @@ async def ws_endpoint(ws: WebSocket):
             if not mailbox:
                 continue
             req = mailbox.pop()
+            # Publish the token BEFORE dispatch: a reader that fires in the gap
+            # cancels a not-yet-started solve, which then raises SolveAborted at
+            # its first checkpoint — no lost-wakeup window.
+            token = momwire.CancelToken()
+            current["token"] = token
             try:
-                result = await run_in_threadpool(solve, req)
+                result = await run_in_threadpool(solve, req, cancel=token)
+            except momwire.SolveAborted:
+                # Superseded (or disconnected) mid-solve: a newer request already
+                # tripped our token. Send nothing — the superseding response will
+                # carry a higher _seq and the client renders monotonically. This
+                # catch MUST precede the generic handler, which would otherwise
+                # ship the abort to the client as a solve-error banner.
+                continue
             except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
                 # A solve that raises must not tear down the socket (that drops
                 # every subsequent slider-driven solve). Send the cause so the
@@ -1293,6 +1325,8 @@ async def ws_endpoint(ws: WebSocket):
                     "geometry": req.get("geometry"),
                     "error": user_designs.format_solve_error(exc),
                 }
+            finally:
+                current["token"] = None
             # Echo the sequence number on EVERY response, error path included —
             # the client keys ordering, RTT accounting, and solving-state off it,
             # and a stuck request would leave `solving` true forever if any path

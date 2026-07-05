@@ -73,6 +73,7 @@ class MomwireEngine(SimulationEngine):
         solver_kwargs=None,
         ground=None,
         ground_z=0.0,
+        cancel=None,
     ):
         """
         solver:
@@ -96,6 +97,10 @@ class MomwireEngine(SimulationEngine):
         """
         super().__init__(builder)
 
+        # Cooperative-cancellation token (momwire.CancelToken or None). Forwarded
+        # into every solver construction so a mid-solve cancel aborts the C++
+        # fill / Python checkpoints, and polled between this engine's own phases.
+        self._cancel = cancel
         self._solver = solver
         self._solver_kwargs = dict(solver_kwargs) if solver_kwargs else {}
         # Per-instance parity: triangular wants even, sinusoidal odd,
@@ -183,6 +188,7 @@ class MomwireEngine(SimulationEngine):
             wire_radius=self._wire_radius,
             ground_z=self._ground_z,
             junctions=self._junctions or None,
+            cancel=self._cancel,
             **self._solver_kwargs,
         )
 
@@ -253,7 +259,18 @@ class MomwireEngine(SimulationEngine):
         self._solved_cache = (key, (sim, coeffs, z))
         return sim, coeffs, z
 
+    def _raise_if_cancelled(self):
+        """Poll the cancel token at an engine-phase boundary (no-op without one).
+
+        Complements the solver-internal checkpoints: catches a cancel that lands
+        between this engine's phases (e.g. after impedance() before far_field())
+        without waiting for the next solver-internal seam.
+        """
+        if self._cancel is not None:
+            self._cancel.raise_if_cancelled()
+
     def impedance(self):
+        self._raise_if_cancelled()
         wavelength = self._wavelength_for(self.builder.freq)
         if self._network is not None:
             Y = self._compute_y_matrix(wavelength)
@@ -359,6 +376,7 @@ class MomwireEngine(SimulationEngine):
             wire_radius=self._wire_radius,
             ground_z=self._ground_z,
             junctions=self._junctions or None,
+            cancel=self._cancel,
             **self._solver_kwargs,
         )
 
@@ -387,6 +405,7 @@ class MomwireEngine(SimulationEngine):
         return float(np.sum(terms[np.isfinite(terms)]))
 
     def current_distribution(self):
+        self._raise_if_cancelled()
         sim, coeffs, _z = self._solved_excited(self._wavelength_for(self.builder.freq))
         knot_currents = sim.currents_at_knots(coeffs)
         out = []
@@ -510,6 +529,7 @@ class MomwireEngine(SimulationEngine):
         return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
+        self._raise_if_cancelled()
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta
         assert 360 % n_phi == 0 and 360 == del_phi * n_phi
 
