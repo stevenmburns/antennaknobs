@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AntennaKNoBs</title>
+    <!-- PWA-lite: `display: standalone` in the manifest lets Android Chrome's
+         "Add to Home screen" launch the workbench full screen, with no URL
+         bar — the fixed-viewport layout never scrolls, so the bar would never
+         auto-hide in a normal tab. No service worker on purpose: the app is
+         useless offline (solves live on the server) and a stale-bundle cache
+         is exactly what we don't want after the v0.13.0 incident. -->
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#2563eb" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
