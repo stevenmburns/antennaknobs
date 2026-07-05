@@ -1820,6 +1820,11 @@ type KnobOpt = {
   step: number;
 };
 
+// Why the optimizer auto-paused, for the transient cue. `knob` = the user grabbed
+// a marked knob by hand; `load` = a new design/variant was loaded (its marks and
+// ranges no longer apply).
+type OptPause = { kind: "knob"; name: string } | { kind: "load" };
+
 // One antenna design session: the entire left sidebar + right stage plus all
 // the state, effects, and the WebSocket that drive them. The shell (`App`,
 // below) mounts one instance per tab and passes `active` — true only for the
@@ -1890,19 +1895,35 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [optRunning, setOptRunning] = useState(false);
   const [optResult, setOptResult] = useState<OptimizeResult | null>(null);
   const [optError, setOptError] = useState<string | null>(null);
-  // When a user change to a knob marked for optimization auto-pauses the
-  // optimizer, this holds that knob's name for a brief "paused, you're
-  // changing X by hand" cue (cleared on re-enable / after a few seconds).
-  const [optPausedBy, setOptPausedBy] = useState<string | null>(null);
+  // When something auto-pauses the optimizer, this holds *why* for a brief cue
+  // (cleared on re-enable / after a few seconds): grabbing a knob marked for
+  // optimization by hand ("changing X by hand"), or loading a new design/variant
+  // ("loaded a new design").
+  const [optPausedBy, setOptPausedBy] = useState<OptPause | null>(null);
   const optAbortRef = useRef<AbortController | null>(null);
+  // Latest optEnabled mirrored into a ref so the design-load reset (effects keyed
+  // on geometry, and selectVariant) can tell whether the optimizer was actually
+  // running — to show the pause cue only then — without taking optEnabled as a
+  // dep (which would re-run the reset on every toggle).
+  const optEnabledRef = useRef(false);
+  optEnabledRef.current = optEnabled; // mirror latest for the design-load reset
   // Per-knob settings persist per geometry (knobOpt is keyed by geometry); just
   // close any open menu / clear the last result / abort any in-flight run when
-  // the antenna changes.
+  // the antenna changes. The optimizer also *pauses* on a design switch — its
+  // objective and marks belong to the design you left — but this design's marks
+  // are kept (they're keyed by geometry), so returning restores them; only the
+  // running toggle is switched off. Show the cue only if it was actually on.
   useEffect(() => {
     optAbortRef.current?.abort();
     setKnobMenu(null);
     setOptResult(null);
     setOptError(null);
+    if (optEnabledRef.current) {
+      setOptEnabled(false);
+      setOptPausedBy({ kind: "load" });
+    }
+    // optEnabledRef is read (not a dep) on purpose — see its declaration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry]);
 
   useEffect(() => {
@@ -1981,6 +2002,23 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // via buildRequest on the next tick.
   function selectVariant(nextVariant: string) {
     if (!currentExample) return;
+    // Loading a variant bulk-replaces the knob values, so any optimize marks and
+    // their ranges (scaled to the values you're leaving) no longer apply. Drop
+    // this geometry's marks and pause the optimizer — the same "you took over"
+    // pause as grabbing a free knob by hand. (Unlike a design switch, the marks
+    // *are* wiped here: it's the same geometry, so keeping them would silently
+    // carry stale ranges into the new variant.)
+    optAbortRef.current?.abort();
+    setKnobOpt((prev) => {
+      if (!prev[geometry]) return prev;
+      const next = { ...prev };
+      delete next[geometry];
+      return next;
+    });
+    if (optEnabledRef.current) {
+      setOptEnabled(false);
+      setOptPausedBy({ kind: "load" });
+    }
     setVariantByGeom((prev) => ({ ...prev, [geometry]: nextVariant }));
     const vv = currentExample.variant_values?.[nextVariant];
     if (!vv) return;
@@ -2092,7 +2130,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       if (ko?.vary) {
         optAbortRef.current?.abort();
         setOptEnabled(false);
-        setOptPausedBy(path[0]);
+        setOptPausedBy({ kind: "knob", name: path[0] });
       }
     }
     setParamAtPath(path, value);
@@ -4026,9 +4064,15 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               {!optEnabled && optPausedBy && (
                 <span
                   className="opt-readout opt-paused"
-                  title="You changed a knob marked for optimization, so Optimize paused. Turn it back on to resume."
+                  title={
+                    optPausedBy.kind === "knob"
+                      ? "You changed a knob marked for optimization, so Optimize paused. Turn it back on to resume."
+                      : "Loading a design clears its optimize marks and pauses Optimize. Re-mark knobs and turn it back on to resume."
+                  }
                 >
-                  Paused — changing {optPausedBy} by hand
+                  {optPausedBy.kind === "knob"
+                    ? `Paused — changing ${optPausedBy.name} by hand`
+                    : "Paused — loaded a new design"}
                 </span>
               )}
             </div>
