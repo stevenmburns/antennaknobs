@@ -4753,13 +4753,25 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 className={`mobile-screen${s.id === "info" ? " mobile-screen-info" : ""}`}
               >
                 {s.id === "info" ? (
-                  <SolveReadout
-                    className="mobile-readout"
-                    result={result}
-                    rttMs={rttMs}
-                    currentExample={currentExample}
-                    effectiveMultiFeed={effectiveMultiFeed}
-                  />
+                  <>
+                    <SolveReadout
+                      className="mobile-readout"
+                      result={result}
+                      rttMs={rttMs}
+                      currentExample={currentExample}
+                      effectiveMultiFeed={effectiveMultiFeed}
+                    />
+                    {/* The ws status lives HERE, not floating over the
+                        carousel — on a phone the desktop-style absolute
+                        bottom-right .status covered chart content. Inside
+                        the Info screen it's a normal flow row. */}
+                    <div className="status">
+                      ws: {status}
+                      {stale && (
+                        <span className="status-busy"> · solving…</span>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   renderOutput(s.id as View, mobChartSize, s.id === "antenna")
                 )}
@@ -4777,10 +4789,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 onClick={() => goToMobileScreen(i)}
               />
             ))}
-          </div>
-          <div className="status">
-            ws: {status}
-            {stale && <span className="status-busy"> · solving…</span>}
           </div>
         </section>
       </div>
