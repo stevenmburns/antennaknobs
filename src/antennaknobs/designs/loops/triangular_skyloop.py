@@ -1,4 +1,4 @@
-"""Triangular horizontal full-wave loop ("skyloop"), fed at a corner.
+r"""Triangular horizontal full-wave loop ("skyloop"), fed at a corner.
 
 A single closed loop whose perimeter is about one wavelength, lying FLAT in a
 plane of constant height (z = base) like the square horizontal_loop skywire --
@@ -9,35 +9,44 @@ horizontally polarised with its main lobe broadside to the loop plane, along
 +/- z. A full-wave loop presents a moderate, near-resistive feed; a corner feed
 on a triangle runs a touch higher than the ~100 ohm of a side-fed loop.
 
+The wire mesh is SYMMETRIC on all three sides AND across each vertex: every
+corner is chamfered by the same short one-segment wire, centred ON the vertex
+and perpendicular to its bisector, so the loop is really an equiangular
+hexagon alternating long runs with short chamfers (a triangle with its
+corners clipped). Only the apex chamfer is driven; the other two are plain
+structural wire, so the three corners are meshed identically and the feed
+straddles its vertex symmetrically (compare horizontal_loop_drone's diagonal
+feed across a corner).
+
 Default design frequency is 3.8 MHz -- the centre of the 75 m voice band (the
 3.6-4.0 MHz phone segment of 80 m), where a full-size triangular skyloop is a
 classic high-and-flat NVIS/rag-chew antenna.
 
-Methodology purpose: a LARGE single closed loop with the feed placed AT A
-VERTEX (the two sides meet at 60 deg there and the driven segment is the first
-segment leaving the corner), exercising the engines' closed-loop assembly with
-an asymmetric, corner-anchored feed rather than the symmetric mid-side gap of
-horizontal_loop.
+Methodology purpose: a LARGE single closed loop with the feed placed ACROSS A
+VERTEX (the driven chamfer bridges the corner, half on each side of it),
+exercising the engines' closed-loop assembly with a corner-symmetric feed
+rather than the mid-side gap of horizontal_loop. Authored with the Drone (3D
+turtle): the hexagon is one continuous pen-down flight -- feed chamfer, then
+alternating -60 deg yaws between runs and chamfers, and a close.
 
 Geometry, in the framework's (x, y, z) convention:
   - z : height; the whole triangle sits in the plane z = base (HORIZONTAL)
-  - x, y : the equilateral triangle, apex toward +y, base toward -y
-  - feed F at the +y apex corner; main lobe along +/- z (toward zenith)
+  - x, y : the equilateral triangle, apex at the ORIGIN, hanging toward -y
+  - feed F straddling the apex corner at (0, 0) (a short chamfer centred on
+    it, running along x); main lobe along +/- z (toward zenith)
 
-              V_top  (0, +R)          feed F at this corner
-               /\\
-              /  \\
-             /    \\                   (triangle lies flat at z = base;
-            /      \\                   viewed from above)
-           /        \\
+              V_top                   feed F straddles this corner
+               /\
+              /  \
+             /    \                   (triangle lies flat at z = base;
+            /      \                   viewed from above)
+           /        \
      V_left ---------- V_right
-     (-s/2, -R/2)      (+s/2, -R/2)
 """
 
-import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
+from ... import AntennaBuilder, Drone
 
 
 class Builder(AntennaBuilder):
@@ -94,29 +103,34 @@ class Builder(AntennaBuilder):
         # perimeter is length_factor wavelengths (length_factor = 1 -> a nominal
         # one-wavelength loop).
         side = (wavelength / 3.0) * self.length_factor
-        # Equilateral triangle: circumradius R = side / sqrt(3). Centroid at the
-        # origin, apex toward +y, base edge toward -y, all at z = base.
-        r = side / math.sqrt(3.0)
-        z = self.base
 
-        v_top = (0.0, r, z)
-        v_left = (-side / 2.0, -r / 2.0, z)
-        v_right = (side / 2.0, -r / 2.0, z)
+        # Every vertex is chamfered by the same short one-segment wire, centred
+        # ON the vertex and perpendicular to its bisector; only the apex
+        # chamfer carries the source. Runs of side - gap between chamfers keep
+        # the total perimeter at exactly length_factor wavelengths.
+        gap = 2 * eps
+        run = side - gap
 
-        # Corner feed at the +y apex: a one-segment driven gap that is the first
-        # segment of the v_top -> v_right side, anchored exactly at the corner.
-        feed = 2 * eps
-        ux = (v_right[0] - v_top[0]) / side  # unit vector along v_top -> v_right
-        uy = (v_right[1] - v_top[1]) / side
-        f0 = v_top  # gap start, at the corner
-        f1 = (v_top[0] + feed * ux, v_top[1] + feed * uy, z)  # gap end
+        # Fly the hexagon clockwise (viewed from above) as one pen-down stroke,
+        # with the feed point at the origin and the triangle hanging toward -y.
+        # The drone's default pose faces +x with up = +z -- at the apex that is
+        # exactly the chamfer direction (perpendicular to the bisector), so no
+        # face() is needed: back up half a gap, lay the driven chamfer
+        # straddling the vertex, then alternate -60 deg yaws between runs and
+        # chamfers, staying in the z = base plane throughout.
+        drone = Drone(
+            position=(0.0, 0.0, self.base),
+            nominal_nsegs=self.nominal_nsegs,
+            ref=quarter,
+        )
+        drone.jump(-gap / 2.0)
 
-        tups = []
-        # Driven gap leaving the corner, then close the triangle back to it.
-        tups.append((f0, f1, 1, 1 + 0j))  # one-segment driven gap
-        tups.append((f1, v_right, self.segs_for(side - feed, quarter), None))
-        tups.append((v_right, v_left, self.segs_for(side, quarter), None))
-        tups.append(
-            (v_left, v_top, self.segs_for(side, quarter), None)
-        )  # closes to corner
-        return tups
+        drone.feed(1 + 0j).forward(gap, nsegs=1)  # driven chamfer across apex
+        drone.pay_out()
+        drone.yaw(-60).forward(run)  # -> v_right
+        drone.yaw(-60).forward(gap, nsegs=1)  # passive chamfer across v_right
+        drone.yaw(-60).forward(run)  # -> v_left
+        drone.yaw(-60).forward(gap, nsegs=1)  # passive chamfer across v_left
+        drone.yaw(-60).close()  # final run, home to the apex chamfer
+
+        return drone.wires()
