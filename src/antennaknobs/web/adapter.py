@@ -469,7 +469,7 @@ def _ground_for_engine(req: dict, ground_z: float):
     return "pec"
 
 
-def _make_momwire_engine(req: dict, builder):
+def _make_momwire_engine(req: dict, builder, cancel=None):
     model = req.get("momwire_model", "triangular")
     solver_cls = _MOMWIRE_MODELS.get(model, TriangularSolver)
     wire_radius = float(req.get("wire_radius", 0.0005))
@@ -481,6 +481,7 @@ def _make_momwire_engine(req: dict, builder):
         wire_radius=wire_radius,
         solver_kwargs=solver_kwargs,
         ground=ground,
+        cancel=cancel,
     )
 
 
@@ -999,7 +1000,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         except Exception:
             return None
 
-    def momwire_solve(req: dict) -> dict:
+    def momwire_solve(req: dict, cancel=None) -> dict:
         design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
         meas_freq = float(req.get("measurement_freq_mhz", design_freq))
         builder = _build_builder(cls, req)
@@ -1012,7 +1013,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # into _params and never read — guard on has_design_freq.
         if has_design_freq:
             builder.design_freq = design_freq
-        eng = _make_momwire_engine(req, builder)
+        eng = _make_momwire_engine(req, builder, cancel=cancel)
         t0 = time.perf_counter()
         zs = eng.impedance()
         currents = eng.current_distribution()
