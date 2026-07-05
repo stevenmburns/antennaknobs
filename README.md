@@ -4,10 +4,10 @@
 
 | Name                                                              |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| src/antennaknobs/\_\_init\_\_.py                                  |       15 |        2 |     87% |     66-67 |
+| src/antennaknobs/\_\_init\_\_.py                                  |       15 |        2 |     87% |     68-69 |
 | src/antennaknobs/\_\_main\_\_.py                                  |        0 |        0 |    100% |           |
-| src/antennaknobs/builder.py                                       |      242 |        1 |     99% |       129 |
-| src/antennaknobs/cli.py                                           |      319 |       30 |     91% |155, 174, 212, 224, 239-247, 447, 567-569, 665-679 |
+| src/antennaknobs/builder.py                                       |      254 |        2 |     99% |   67, 154 |
+| src/antennaknobs/cli.py                                           |      325 |       36 |     89% |155, 174, 212, 224, 239-247, 447, 567-580, 680-694 |
 | src/antennaknobs/core.py                                          |        6 |        0 |    100% |           |
 | src/antennaknobs/designs/\_\_init\_\_.py                          |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
@@ -103,13 +103,13 @@
 | src/antennaknobs/network.py                                       |      104 |        6 |     94% |188, 217, 234, 271, 281, 283 |
 | src/antennaknobs/network\_reduce.py                               |      138 |        6 |     96% |128, 193, 205, 245-251 |
 | src/antennaknobs/opt.py                                           |       90 |       14 |     84% |54-55, 57-60, 65-66, 72-76, 148 |
-| src/antennaknobs/serialize.py                                     |       80 |        6 |     92% |32-34, 54, 91, 103 |
+| src/antennaknobs/serialize.py                                     |       83 |        6 |     93% |32-34, 54, 91, 103 |
 | src/antennaknobs/sim.py                                           |        5 |        2 |     60% |       3-4 |
 | src/antennaknobs/sweep.py                                         |      124 |        7 |     94% |   109-120 |
 | src/antennaknobs/transform.py                                     |       42 |        1 |     98% |        62 |
 | src/antennaknobs/user\_designs.py                                 |       61 |        5 |     92% |33, 43, 59, 81, 86 |
 | src/antennaknobs/web/\_\_init\_\_.py                              |        0 |        0 |    100% |           |
-| src/antennaknobs/web/adapter.py                                   |      575 |       65 |     89% |59-60, 137, 233-234, 268, 272, 280, 316, 319, 324-327, 330, 340, 345, 399, 409, 423, 425, 427, 430, 450, 536, 569, 572, 575, 592, 595, 598, 632, 660, 664, 694, 764-765, 784-785, 845-846, 885, 960, 1000-1001, 1209-1211, 1241, 1277-1286, 1383, 1405-1407, 1410, 1415-1416 |
+| src/antennaknobs/web/adapter.py                                   |      580 |       65 |     89% |60-61, 138, 234-235, 269, 273, 281, 317, 320, 325-328, 331, 341, 346, 400, 410, 424, 426, 428, 431, 451, 537, 570, 573, 576, 593, 596, 599, 633, 661, 665, 695, 765-766, 785-786, 846-847, 886, 961, 1001-1002, 1210-1212, 1242, 1296-1305, 1402, 1424-1426, 1429, 1434-1435 |
 | src/antennaknobs/web/examples/\_\_init\_\_.py                     |       11 |        1 |     91% |        24 |
 | src/antennaknobs/web/examples/\_base.py                           |       90 |        0 |    100% |           |
 | src/antennaknobs/web/examples/\_feedline.py                       |       29 |        2 |     93% |     73-74 |
@@ -117,7 +117,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      532 |       77 |     86% |66-68, 182-183, 221-222, 238-239, 322, 357, 376, 523-526, 586, 618, 620, 674, 690, 722, 755, 757-760, 801, 851, 886, 894-908, 919-920, 952, 961-965, 990-1001, 1021, 1024-1025, 1041, 1044-1045, 1061, 1089-1114, 1304, 1352-1353, 1370 |
 | src/antennaknobs/web/user\_designs.py                             |       56 |        6 |     89% |58-59, 83-84, 89-90 |
-| **TOTAL**                                                         | **6018** |  **342** | **94%** |           |
+| **TOTAL**                                                         | **6044** |  **349** | **94%** |           |
 
 
 ## Setup coverage badge
