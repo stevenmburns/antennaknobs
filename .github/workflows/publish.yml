@@ -87,3 +87,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: dist/*
+          # Auto-populate the release body with the merged-PR list since the
+          # previous tag (GitHub's generated notes). Only fills an EMPTY body:
+          # hand-written notes on a pre-created release are preserved, and a
+          # grouped "Highlights" section can be added on top after the fact
+          # with `gh release edit`.
+          generate_release_notes: true
