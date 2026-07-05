@@ -2128,54 +2128,148 @@ canvas {
 }
 
 /* ---- Mobile (phones / small tablets) ----------------------------------------
-   The desktop layout is a fixed two-pane grid (320px control rail + a 1fr
-   output stage) with overflow hidden everywhere. On a narrow phone the 320px
-   rail eats the width, the 1fr stage collapses to a sliver, and the output
-   carousel is clipped with no way to reach it. Below this breakpoint we instead
-   lay the two panes out as near-full-width columns and let `.app` pan
-   horizontally: the controls fill the screen, and you swipe right to a
-   full-size output rectangle. Scroll-snap rests the pan on either pane.
-   Breakpoint ~700px: the two-pane needs ≈320px rail + ≈360px usable output to
-   be comfortable, so only below that do we switch to the pannable layout.
-   We ALSO switch on a short, touch viewport (max-height 500px + a coarse
-   pointer) so a phone in LANDSCAPE — wider than 700px but only ~400px tall,
-   where the two-pane's output stage gets squashed flat — gets the same wide
-   pannable rectangle you swipe across in portrait. Large landscape tablets
-   (height > 500px) keep the roomy two-pane. */
-@media (max-width: 700px),
-       (max-height: 500px) and (pointer: coarse) {
-  .app {
-    /* Controls nearly fill the viewport (capped so a sliver of the stage peeks
-       as a "swipe right" affordance); the stage is a fixed monitor-sized canvas
-       you pan across in BOTH axes. We floor it at 1920x1080 CSS px so the output
-       always renders at a full desktop-monitor size regardless of the phone's
-       own dimensions — in portrait the old 200vw width was < 1920, and in
-       landscape the viewport-height stage (~400px tall) starved the vertical
-       thumbstrip (3 thumbs scaled to the stage height) down to tiny thumbnails.
-       The canvas exceeds the viewport on both axes, so .app scrolls both ways;
-       --mobile-stage-w/-h keep the grid track and the stage min-size in sync. */
-    --mobile-stage-w: max(200vw, 1920px);
-    --mobile-stage-h: max(100%, 1080px);
-    grid-template-columns: min(340px, 86vw) var(--mobile-stage-w);
-    grid-template-rows: var(--mobile-stage-h);
-    overflow-x: auto;
-    overflow-y: auto;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-  }
+   A purpose-built layout replacing the old pan-around-a-1920x1080-canvas: on a
+   phone the knobs and one output view are on screen TOGETHER (portrait stacks
+   them 50/50, landscape puts knobs left), so you can see the effect of a knob
+   while you turn it. The output pane is a 5-screen scroll-snap carousel (the 4
+   chart views + an Info readout screen) with dot indicators.
 
-  .sidebar {
-    scroll-snap-align: start;
-  }
+   Everything is gated on `.app-mobile`, which App.tsx adds exactly when its
+   useIsMobile() hook matches — the hook's media query string mirrors the old
+   breakpoint (max-width 700px for portrait phones; max-height 500px + coarse
+   pointer for landscape phones wider than 700px), so JS and CSS can never
+   disagree. Plain `.app` (desktop) is untouched by everything below. */
+.app-mobile {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+}
 
-  .stage {
-    /* A fixed >=1920x1080 monitor canvas: wide enough for the output carousel's
-       landscape aspect, and tall enough that the vertical thumbstrip renders
-       its 3 thumbnails at full size. You pan across it in both directions. */
-    min-width: var(--mobile-stage-w);
-    min-height: var(--mobile-stage-h);
-    scroll-snap-align: start;
+.app-mobile .mobile-knobs {
+  grid-row: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-mobile .mobile-output {
+  grid-row: 2;
+  position: relative; /* hosts the absolutely-positioned solve overlays */
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (orientation: landscape) {
+  /* Knobs-left / output-right. Only .app-mobile is targeted, so a landscape
+     DESKTOP window (plain .app) never takes these rules. */
+  .app-mobile {
+    grid-template-columns: minmax(0, 44%) 1fr;
+    grid-template-rows: 100%;
   }
+  .app-mobile .mobile-knobs {
+    grid-row: auto;
+    grid-column: 1;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+  .app-mobile .mobile-output {
+    grid-row: auto;
+    grid-column: 2;
+  }
+}
+
+.mobile-carousel {
+  display: flex;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  transition: opacity 0.2s ease; /* same stale dim contract as .carousel-slide */
+}
+
+.mobile-carousel.stale {
+  opacity: 0.5;
+}
+
+.mobile-screen {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always; /* one screen per swipe — no fling-past */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.mobile-screen-info {
+  /* The readout can exceed a ~400px landscape pane (per-feed Z table), so
+     this screen scrolls vertically; y-scroll inside an x-snap carousel
+     coexists fine. */
+  overflow-y: auto;
+  align-items: flex-start;
+  padding: var(--space-7) 0;
+}
+
+.mobile-readout {
+  max-width: min(90%, 320px);
+  margin: 0 auto;
+}
+
+.mobile-dots {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  z-index: 3;
+}
+
+.mobile-dots button {
+  /* ~40px touch target (cf. the coarse-pointer block below); the visible
+     8px dot is the ::before. */
+  padding: 16px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.mobile-dots button::before {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.5;
+}
+
+.mobile-dots button.active::before {
+  background: var(--accent);
+  opacity: 1;
+}
+
+/* The solve overlays are shared with the desktop stage. Most are absolutely
+   positioned and just work inside .mobile-output; .solve-error is a flow
+   child on desktop, so float it over the carousel here. */
+.app-mobile .solve-error {
+  position: absolute;
+  top: var(--space-5);
+  left: var(--space-5);
+  right: var(--space-5);
+  z-index: 5;
+  margin: 0;
+}
+
+/* Defensive: the floating HUD is never rendered in the mobile tree, but if a
+   future refactor moves it inside renderOutput it must not cover a phone
+   chart. */
+.app-mobile .stage-readout {
+  display: none;
 }
 
 /* Coarse pointers (touch): grow the small icon buttons and compact selects

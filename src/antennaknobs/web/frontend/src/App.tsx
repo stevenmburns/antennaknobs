@@ -1577,6 +1577,16 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "smith", label: "Smith" },
 ];
 
+// The mobile output carousel's screens: the 4 chart views plus a dedicated
+// Info screen for the solve readout (which floats as a HUD on desktop but
+// deserves its own page on a phone). "info" stays out of the `View` union on
+// purpose — `view` (and every data effect keyed on it) only ever holds a
+// chart view; the Info screen leaves `view` parked on the last chart.
+const MOBILE_SCREENS: { id: View | "info"; label: string }[] = [
+  ...VIEWS,
+  { id: "info", label: "Info" },
+];
+
 // Antenna-canvas camera projections. Pick two world axes to map to canvas
 // (horizontal, vertical) and project. The hidden axis is the camera ray.
 type Projection = "xy" | "xz" | "yz";
@@ -2452,10 +2462,74 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // Layout branch. Desktop never reads isMobile except as the sizing hooks'
   // reattach key, so no desktop viewport is affected; the key makes both
   // hooks re-measure if the window is resized across the breakpoint.
-  const { isMobile } = useIsMobile();
+  const { isMobile, orientation } = useIsMobile();
   const { ref: slideRef, size: chartSize } = useSlideSize(720, isMobile);
   const thumbStripRef = useRef<HTMLDivElement>(null);
   const thumbSize = useThumbColumnSize(thumbStripRef, 280, isMobile);
+
+  // Mobile output carousel (all hooks unconditional — desktop leaves them
+  // inert). mobileIndex is which of the 5 screens the snap carousel rests on;
+  // `view` stays the source of truth for the 4 chart screens and their data
+  // effects, kept in sync by the scroll handler / reverse-sync effect below.
+  const [mobileIndex, setMobileIndex] = useState(0);
+  const mobileCarouselRef = useRef<HTMLDivElement>(null);
+  const mobileScrollRafRef = useRef<number | null>(null);
+  const { ref: mobRef, size: mobChartSize } = useSlideSize(720, isMobile);
+
+  // Track where a swipe/fling snaps and mirror it into state. rAF-throttled:
+  // scroll events arrive per frame during a fling, one rounding per frame is
+  // plenty. The rounded-index compare inside the setters keeps this from
+  // fighting the programmatic scrolls below.
+  const onMobileCarouselScroll = () => {
+    if (mobileScrollRafRef.current !== null) return;
+    mobileScrollRafRef.current = requestAnimationFrame(() => {
+      mobileScrollRafRef.current = null;
+      const el = mobileCarouselRef.current;
+      if (!el || el.clientWidth === 0) return;
+      const i = Math.round(el.scrollLeft / el.clientWidth);
+      setMobileIndex((prev) => (prev === i ? prev : i));
+      if (i < VIEWS.length) setView(VIEWS[i].id);
+    });
+  };
+
+  // Dot tap: jump to a screen. Info (the last index) is reachable only here
+  // and by swipe — it deliberately leaves `view` on the last chart screen.
+  const goToMobileScreen = (i: number) => {
+    setMobileIndex(i);
+    if (i < VIEWS.length) setView(VIEWS[i].id);
+    const el = mobileCarouselRef.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  };
+
+  // Reverse sync: anything else that sets `view` (the arrow-key cycler) pages
+  // the carousel to match. The DOM scroll position is the ground truth for
+  // "where are we" — comparing rounded indices means we never fight an
+  // in-progress swipe, and parking on Info ignores view changes entirely.
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = mobileCarouselRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const target = VIEWS.findIndex((v) => v.id === view);
+    const current = Math.round(el.scrollLeft / el.clientWidth);
+    if (target < 0 || current >= VIEWS.length || current === target) return;
+    setMobileIndex(target);
+    el.scrollTo({ left: target * el.clientWidth, behavior: "smooth" });
+  }, [view, isMobile]);
+
+  // An orientation flip (or any pane resize) changes the screen width, so
+  // scrollLeft no longer sits on a snap point; re-center the active screen
+  // once the new layout lands (hence the rAF). Skipped when the rounded
+  // position already matches — never fights a drag.
+  useEffect(() => {
+    if (!isMobile) return;
+    const raf = requestAnimationFrame(() => {
+      const el = mobileCarouselRef.current;
+      if (!el || el.clientWidth === 0) return;
+      const i = Math.round(el.scrollLeft / el.clientWidth);
+      if (i !== mobileIndex) el.scrollTo({ left: mobileIndex * el.clientWidth });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isMobile, orientation, mobChartSize, mobileIndex]);
 
   useEffect(() => {
     if (!active) return;
@@ -4548,6 +4622,65 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           />
     </>
   );
+
+  // Mobile: knobs pane + a 5-screen scroll-snap output carousel, instead of
+  // the desktop thumbstrip/HUD stage. A distinct tree (not CSS-hiding the
+  // desktop one) keeps both layouts honest; the shared pieces are exactly the
+  // hoisted consts above. All hooks already ran, so branching here is safe.
+  if (isMobile) {
+    return (
+      <div className="app app-mobile">
+        <aside className="sidebar mobile-knobs">{controls}</aside>
+        <section
+          className="mobile-output"
+          ref={mobRef}
+          aria-label="Antenna output views"
+        >
+          {solveOverlays}
+          <div
+            className={`mobile-carousel${stale ? " stale" : ""}`}
+            ref={mobileCarouselRef}
+            onScroll={onMobileCarouselScroll}
+          >
+            {MOBILE_SCREENS.map((s) => (
+              <div
+                key={s.id}
+                className={`mobile-screen${s.id === "info" ? " mobile-screen-info" : ""}`}
+              >
+                {s.id === "info" ? (
+                  <SolveReadout
+                    className="mobile-readout"
+                    result={result}
+                    rttMs={rttMs}
+                    currentExample={currentExample}
+                    effectiveMultiFeed={effectiveMultiFeed}
+                  />
+                ) : (
+                  renderOutput(s.id as View, mobChartSize, s.id === "antenna")
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mobile-dots" aria-label="Output screens">
+            {MOBILE_SCREENS.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                className={i === mobileIndex ? "active" : ""}
+                aria-label={`Show ${s.label}`}
+                title={s.label}
+                onClick={() => goToMobileScreen(i)}
+              />
+            ))}
+          </div>
+          <div className="status">
+            ws: {status}
+            {stale && <span className="status-busy"> · solving…</span>}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
