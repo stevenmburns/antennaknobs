@@ -136,8 +136,8 @@ tab, and close one with the **✕** (the last remaining tab can't be closed).
   model — e.g. `dipoles.invvee · Triangular N=40 · free space`.
 - Switching to a session **re-solves** it, which is near-instant because the
   server caches recent solves (see [How a knob turn works](#how-a-knob-turn-works)).
-- The light/dark theme is shared across all sessions; everything else is
-  per-session.
+- The light/dark theme and [pinned patterns](#comparing-patterns) are shared
+  across all sessions; everything else is per-session.
 
 Open the same design in two tabs to compare tunings, or load two different
 antennas — then pair it with [pattern pinning](#comparing-patterns) to overlay
@@ -148,18 +148,29 @@ one session's radiation pattern on another's.
 On the **azimuth** and **elevation** pattern views a **📌 Pin pattern** button
 (top-left of the plot) freezes the current radiation pattern as a dimmed,
 dashed **ghost** overlaid on the live one. Pin it, then change knobs — or switch
-to a completely different design — and the live lobe redraws over the pinned
-ghost so you can see the effect directly.
+to a completely different design, or another [session tab](#design-sessions-tabs)
+— and the live lobe redraws over the pinned ghost so you can see the effect
+directly.
 
-- **Pins survive a design switch**, so you can overlay one antenna's pattern on
-  another's — a Yagi's beam against a dipole's figure-8, say — not just two
-  tunings of the same design.
+- **Pins are shared across every design session**: pin in one tab and the
+  ghost (and its table row) is there in all the others, so you can overlay one
+  antenna's pattern on another's — a Yagi's beam against a dipole's figure-8,
+  say — not just two tunings of the same design. A pin is a frozen snapshot:
+  it survives switching designs and even closing the tab that made it.
 - Each pinned trace recomputes for whichever cut (azimuth or elevation) and
   cut-angle you're viewing, so it always shares the live plot's geometry.
 - A **compare table** appears alongside with a row per pattern — peak gain
   (dBi), takeoff angle, front-to-back, and −3 dB azimuth beamwidth — so the
-  overlaid shapes come with the numbers that matter. **clear** removes all
-  pins; the **✕** on a row removes one.
+  overlaid shapes come with the numbers that matter.
+- **Show or hide a pin without losing it**: click a pinned row's colored
+  swatch-and-name in the compare table. The ghost disappears from the plot and
+  the row dims, but its metrics stay readable for the side-by-side numbers;
+  click the name again to bring the ghost back in the same color. Handy when
+  several pins crowd the plot and you want to declutter one at a time.
+- **Removing pins**: the **✕** on a row deletes that pin (everywhere — pins
+  are shared); **clear** above the table removes them all. The **–** button
+  minimizes the table to a compact *n pinned* chip — ghosts stay on the plot —
+  and clicking the chip reopens it.
 
 ## Norm check — is the solve trustworthy?
 
