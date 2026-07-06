@@ -95,7 +95,7 @@
 | src/antennaknobs/drone.py                                         |      128 |        6 |     95% |198, 234-235, 239-240, 251 |
 | src/antennaknobs/engine.py                                        |       43 |        3 |     93% |65, 94, 100 |
 | src/antennaknobs/engines/\_\_init\_\_.py                          |        6 |        2 |     67% |       3-4 |
-| src/antennaknobs/engines/momwire.py                               |      315 |       17 |     95% |36, 75, 341, 606-622 |
+| src/antennaknobs/engines/momwire.py                               |      315 |       17 |     95% |36, 75, 349, 614-630 |
 | src/antennaknobs/engines/pynec.py                                 |      264 |       15 |     94% |128, 141, 161, 168, 182, 201, 281, 404, 406-410, 412, 417 |
 | src/antennaknobs/far\_field.py                                    |      168 |        2 |     99% |    86, 90 |
 | src/antennaknobs/geometry.py                                      |      137 |        4 |     97% |60, 85, 89, 101 |
