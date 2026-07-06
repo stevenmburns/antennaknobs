@@ -1356,8 +1356,8 @@ const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
 // Three abstract solver slots. Each holds one backend choice and its
 // options; the user picks A/B/C with the row of buttons, configures the
 // inhabitants from the per-slot gear menu. Lets the same UI compare
-// e.g. "Triangular @ N=40" against "B-spline @ N=21 with enrichment"
-// without losing either setup.
+// e.g. "B-spline d=2 @ N=21" against "B-spline d=1 @ N=40" without
+// losing either setup.
 type Slot = "A" | "B" | "C";
 const SLOT_ORDER: Slot[] = ["A", "B", "C"];
 
@@ -1366,17 +1366,30 @@ type SlotConfig = {
   opts: BackendOptsMap[Backend];
 };
 
+// Display label for a configured backend: B-spline-family entries carry
+// their spline degree so two b-spline slots (the default A d=2 / B d=1
+// pair) stay distinguishable at a glance.
+function backendDisplayLabel(b: Backend, opts: BackendOptsMap[Backend]): string {
+  return isBSplineFamily(b)
+    ? `${BACKEND_LABEL[b]} d=${(opts as BSplineOpts).degree}`
+    : BACKEND_LABEL[b];
+}
+
 const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
+  // A is the default working solver: B-spline d=2 — most accurate per
+  // unknown, converged at a small odd N (interior knot at the feed), and
+  // its impedance solve honours finite grounds (Triangular, the old
+  // default, folds them to the PEC image).
   A: {
-    backend: "triangular",
-    opts: { ...DEFAULT_BACKEND_OPTS.triangular, nPerWire: 40 },
+    backend: "bspline",
+    opts: { ...DEFAULT_BACKEND_OPTS.bspline, nPerWire: 21 },
   },
+  // B is the cross-check basis: B-spline d=1 needs a larger N to reach
+  // the same answer (slower), which is what makes agreement with A a
+  // meaningful second opinion rather than the same solve twice.
   B: {
     backend: "bspline",
-    opts: {
-      ...DEFAULT_BACKEND_OPTS.bspline,
-      nPerWire: 21,
-    },
+    opts: { ...DEFAULT_BACKEND_OPTS.bspline, degree: 1, nPerWire: 40 },
   },
   C: {
     backend: "pynec",
@@ -4423,7 +4436,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         <div className="field">
           <label>
             <span>solver slot</span>
-            <span>{BACKEND_LABEL[backend]} · N={nPerWire}</span>
+            <span>{backendDisplayLabel(backend, currentOpts)} · N={nPerWire}</span>
           </label>
           <div className="backend-tabs" role="tablist">
             {SLOT_ORDER.map((s) => {
@@ -4433,13 +4446,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   <button
                     role="tab"
                     aria-selected={activeSlot === s}
-                    aria-label={`Solver slot ${s}: ${BACKEND_LABEL[cfg.backend]}, N=${cfg.opts.nPerWire}`}
+                    aria-label={`Solver slot ${s}: ${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${cfg.opts.nPerWire}`}
                     className={`backend-tab-btn ${activeSlot === s ? "active" : ""}`}
-                    title={`${BACKEND_LABEL[cfg.backend]}, N=${cfg.opts.nPerWire}`}
+                    title={`${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${cfg.opts.nPerWire}`}
                     onClick={() => setActiveSlot(s)}
                   >
                     <span className="slot-letter">{s}</span>
-                    <span className="slot-sub">{BACKEND_LABEL[cfg.backend]}</span>
+                    <span className="slot-sub">{backendDisplayLabel(cfg.backend, cfg.opts)}</span>
                   </button>
                   <button
                     className="backend-gear-btn"
