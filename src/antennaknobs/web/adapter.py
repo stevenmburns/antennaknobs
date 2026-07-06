@@ -479,9 +479,9 @@ def _ground_for_engine(req: dict, ground_z: float):
     describing the GROUND; each engine approximates it as best it can.
     "pec" → the PEC image; "fast" and "sommerfeld" → the finite spec, which
     MomwireEngine solves with momwire's reflection-coefficient model on the
-    bspline-family solvers (its best available finite model; Sommerfeld is
-    out of momwire's scope) and folds to the PEC image on triangular /
-    sinusoidal. The response ships the engine's actual eps/sigma so the
+    bspline-family and sinusoidal solvers (its best available finite model;
+    Sommerfeld is out of momwire's scope) and folds to the PEC image on
+    triangular. The response ships the engine's actual eps/sigma so the
     frontend far-field Fresnel uses the real constants either way."""
     model = _requested_ground_model(req)
     if model is None:
@@ -1097,9 +1097,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 else _PEC_GROUND_SIGMA
             ),
             # What the impedance solve actually used, for honest UI wording:
-            # "refl-coef" (bspline-family + finite ground), "pec-image"
-            # (model="pec", or a finite model on a solver without
-            # ground_eps — triangular/sinusoidal), or "free".
+            # "refl-coef" (bspline-family/sinusoidal + finite ground),
+            # "pec-image" (model="pec", or a finite model on a solver
+            # without ground_eps — triangular), or "free".
             "ground_model_applied": (
                 "free"
                 if eng._ground is None

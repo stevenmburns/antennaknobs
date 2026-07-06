@@ -1835,6 +1835,31 @@ def test_momwire_bspline_ground_model_drives_refl_coef_solve():
     assert abs(z_fast - z_pec) > 2.0
 
 
+def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
+    """Since momwire 0.5.0 the sinusoidal solver honours ground_eps too
+    (field-based refl-coef, phase 6), so the web's finite ground models
+    reach its impedance solve instead of folding to the PEC image."""
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "momwire",
+        "momwire_model": "sinusoidal",
+        "measurement_freq_mhz": 28.47,
+        "ground": True,
+    }
+    fin = server.solve(base)  # default ground_model = sommerfeld
+    pec = server.solve({**base, "ground_model": "pec"})
+
+    assert fin["ground_model_applied"] == "refl-coef"
+    assert pec["ground_model_applied"] == "pec-image"
+    assert fin["ground_eps_r"] == 10.0
+    assert fin["ground_sigma"] == 0.002
+    # The finite solve differs measurably from the PEC image solve — the
+    # reactance correction the refl-coef ground exists to deliver.
+    z_fin = complex(fin["z_in_re"], fin["z_in_im"])
+    z_pec = complex(pec["z_in_re"], pec["z_in_im"])
+    assert abs(z_fin - z_pec) > 2.0
+
+
 def test_momwire_triangular_finite_folds_to_pec_solve_but_ships_real_eps():
     """TriangularSolver has no ground_eps: a finite ground model keeps the
     PEC image impedance solve (identical Z to model='pec') while the
