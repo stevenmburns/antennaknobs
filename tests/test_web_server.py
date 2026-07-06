@@ -919,6 +919,9 @@ def test_pynec_ground_on_solves_over_sommerfeld_finite_ground():
     assert dz > 1.0
     # ground off keeps the PEC placeholder constants (unused by the frontend)
     assert free["ground_eps_r"] == pytest.approx(1.0e10)
+    # pynec responses report what the solve used, like the momwire path
+    assert grounded["ground_model_applied"] == "sommerfeld"
+    assert free["ground_model_applied"] == "free"
 
 
 @pynec_required
@@ -938,6 +941,11 @@ def test_pynec_ground_model_selects_pec_fast_or_sommerfeld():
     assert pec["ground_eps_r"] == pytest.approx(1.0e10)
     assert pec["ground_sigma"] == 0.0
     assert fast["ground_eps_r"] == 10.0
+    # ground_model_applied names the model that ran (PyNEC honours the
+    # request directly, so it mirrors ground_model here)
+    assert somm["ground_model_applied"] == "sommerfeld"
+    assert fast["ground_model_applied"] == "refl-coef"
+    assert pec["ground_model_applied"] == "pec-image"
     # The legacy ground_fast boolean and ground_model="fast" are the same solve.
     assert fast_legacy["z_in_re"] == fast["z_in_re"]
     assert fast_legacy["z_in_im"] == fast["z_in_im"]
