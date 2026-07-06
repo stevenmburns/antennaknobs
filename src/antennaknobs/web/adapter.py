@@ -461,14 +461,36 @@ def _build_builder(cls, req: dict):
     return builder
 
 
-def _ground_for_engine(req: dict, ground_z: float):
-    ground_on = bool(req.get("ground", False))
-    if not ground_on:
+def _requested_ground_model(req: dict):
+    """The frontend's three-way ground model when ground is on, else None.
+    The legacy boolean `ground_fast` is honoured when `ground_model` is
+    absent."""
+    if not req.get("ground", False):
         return None
-    # momwire only models a PEC ground in the impedance solve, so ground=True
-    # maps to the PEC image method here. (PyNEC's finite-ground mapping lives
-    # in _pynec_ground_spec.)
-    return "pec"
+    model = req.get("ground_model")
+    if model is None:
+        model = "fast" if req.get("ground_fast", False) else "sommerfeld"
+    return model
+
+
+def _ground_for_engine(req: dict, ground_z: float):
+    """Map the frontend's ground knobs to MomwireEngine's ground spec —
+    same three-way model as `_pynec_ground_spec`, one shared selector
+    describing the GROUND; each engine approximates it as best it can.
+    "pec" → the PEC image; "fast" and "sommerfeld" → the finite spec, which
+    MomwireEngine solves with momwire's reflection-coefficient model on the
+    bspline-family solvers (its best available finite model; Sommerfeld is
+    out of momwire's scope) and folds to the PEC image on triangular /
+    sinusoidal. The response ships the engine's actual eps/sigma so the
+    frontend far-field Fresnel uses the real constants either way."""
+    model = _requested_ground_model(req)
+    if model is None:
+        return None
+    if model == "pec":
+        return "pec"
+    if model == "fast":
+        return ("finite-fast",) + DEFAULT_GROUND[1:]
+    return DEFAULT_GROUND
 
 
 def _pynec_ground_spec(req: dict):
@@ -477,14 +499,10 @@ def _pynec_ground_spec(req: dict):
     "sommerfeld" (default) — Sommerfeld-Norton finite ground with
     DEFAULT_GROUND's eps_r=10, sigma=0.002; "fast" — the same finite ground
     via NEC's reflection-coefficient approximation; "pec" — perfectly
-    conducting ground (the image method momwire uses, for apples-to-apples
-    engine comparison). The legacy boolean `ground_fast` is honoured when
-    `ground_model` is absent. Ground off is free space."""
-    if not req.get("ground", False):
-        return "free"
-    model = req.get("ground_model")
+    conducting ground. Ground off is free space."""
+    model = _requested_ground_model(req)
     if model is None:
-        model = "fast" if req.get("ground_fast", False) else "sommerfeld"
+        return "free"
     if model == "pec":
         return "pec"
     if model == "fast":
@@ -1051,8 +1069,30 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "solve_ms": solve_ms,
             "ground": bool(req.get("ground", False)),
             "height_m": 0.0,
-            "ground_eps_r": _PEC_GROUND_EPS_R,
-            "ground_sigma": _PEC_GROUND_SIGMA,
+            # Ship the eps_r/sigma of the ground the engine actually solved
+            # over, exactly like the PyNEC branch: the frontend's far-field
+            # cut applies PEC image + Fresnel with these, so finite grounds
+            # get their real constants while ground_model="pec" and free
+            # space keep the PEC placeholders (ρ→−1).
+            "ground_eps_r": (
+                eng._ground[1]
+                if isinstance(eng._ground, tuple) and len(eng._ground) == 3
+                else _PEC_GROUND_EPS_R
+            ),
+            "ground_sigma": (
+                eng._ground[2]
+                if isinstance(eng._ground, tuple) and len(eng._ground) == 3
+                else _PEC_GROUND_SIGMA
+            ),
+            # What the impedance solve actually used, for honest UI wording:
+            # "refl-coef" (bspline-family + finite ground), "pec-image"
+            # (model="pec", or a finite model on a solver without
+            # ground_eps — triangular/sinusoidal), or "free".
+            "ground_model_applied": (
+                "free"
+                if eng._ground is None
+                else ("refl-coef" if eng._ground_eps is not None else "pec-image")
+            ),
             "z0_ohms": hints()["target_z0"],
             # Geometry-derived UI hints, folded into the response so user
             # designs (which defer them) get correct values the moment they're

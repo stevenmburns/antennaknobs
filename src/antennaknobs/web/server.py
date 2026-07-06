@@ -267,12 +267,15 @@ def _pattern_integral_norm(out: dict) -> float:
     with spherical Bessels j₀, j₁ — real, smooth, exact. O(N²) pairs, no
     aliasing floor, no grid to size.
 
-    Ground (the web paths are PEC — eps_r is the 1e10 sentinel): image
-    segments (x,y,z) → (x,y,−z) with horizontal moment components flipped
-    reproduce the reflected wave exactly, and the imaged 2N system is
-    mirror-symmetric, so the upper-hemisphere power is half its full-sphere
-    power. The Fresnel coefficients at eps_r = 1e10 differ from the PEC
-    limit only within ~1e-5 of grazing — beyond any displayed precision.
+    Ground: evaluates the PEC-IMAGE functional regardless of the response's
+    ground constants — image segments (x,y,z) → (x,y,−z) with horizontal
+    moment components flipped reproduce the reflected wave exactly, and the
+    imaged 2N system is mirror-symmetric, so the upper-hemisphere power is
+    half its full-sphere power. Valid as a norm only when the response is
+    PEC (eps_r at the 1e10 sentinel, where Fresnel differs from the PEC
+    limit only within ~1e-5 of grazing); finite-ground responses (real
+    εr/σ shipped since the web ground-parity change) must use the grid
+    quadrature instead — `_norm_check` already routes them there.
 
     This is the same discrete functional the old grid integral sampled, so
     the delta against the P_in-based `directivity_norm` isolates the solver

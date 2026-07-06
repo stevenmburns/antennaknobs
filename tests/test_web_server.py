@@ -371,6 +371,12 @@ def test_adaptive_norm_grid_scales_with_size_and_clamps():
 # Designs spanning the electrical-size range, incl. an 80m skyloop run up to
 # 50 MHz (~6λ bbox) — the case where a too-coarse grid falls off the aliasing
 # cliff (~1 dB). Ground on and off (the ground path is a separate integral).
+# The grounded entries pin ground_model="pec": these are solver
+# SELF-CONSISTENCY diagnostics (field-side pattern power vs circuit-side
+# P_in, and closed-form vs grid of the same PEC-image functional). Over a
+# finite ground the two sides legitimately differ by the absorbed power and
+# the closed form doesn't model Fresnel — that path is covered by
+# test_norm_check_finite_ground_uses_grid_method instead.
 _NORM_ACCURACY_REQS = [
     {
         "geometry": "dipoles.invvee",
@@ -385,6 +391,7 @@ _NORM_ACCURACY_REQS = [
         "design_freq_mhz": 28.47,
         "momwire_model": "triangular",
         "ground": True,
+        "ground_model": "pec",
     },
     {
         "geometry": "loops.triangular_skyloop",
@@ -401,6 +408,7 @@ _NORM_ACCURACY_REQS = [
         "momwire_model": "triangular",
         "n_per_wire": 80,
         "ground": True,
+        "ground_model": "pec",
     },
 ]
 
@@ -443,8 +451,10 @@ def test_pattern_integral_closed_form_matches_fine_grid(req):
 
 def test_norm_check_endpoint_reports_power_balance(client: TestClient):
     """/norm_check returns the live circuit-side norm plus the field-side
-    pattern norm (closed form on the PEC web paths); for a converged design
-    the two agree to within 0.05 dB (the overlay sits on the live trace)."""
+    pattern norm (closed form on PEC-ground responses); for a converged
+    design the two agree to within 0.05 dB (the overlay sits on the live
+    trace). Pinned to ground_model="pec": that is the closed-form path,
+    and the only ground where field-vs-circuit balance is physical."""
     server._SOLVE_CACHE.clear()
     req = {
         "geometry": "dipoles.invvee",
@@ -452,6 +462,7 @@ def test_norm_check_endpoint_reports_power_balance(client: TestClient):
         "design_freq_mhz": 28.47,
         "momwire_model": "triangular",
         "ground": True,
+        "ground_model": "pec",
     }
     resp = client.post("/norm_check", json=req).json()
     assert resp["available"] is True
@@ -459,6 +470,27 @@ def test_norm_check_endpoint_reports_power_balance(client: TestClient):
     assert resp["method"] == "closed_form"
     db = 10 * np.log10(resp["directivity_norm"] / resp["pattern_norm"])
     assert abs(db) < 0.05
+
+
+def test_norm_check_finite_ground_uses_grid_method(client: TestClient):
+    """Since the web momwire path ships real finite-ground constants, a
+    grounded solve with a finite model must route /norm_check to the
+    fine-grid Fresnel quadrature (the closed-form image identity is exact
+    only for a perfect reflector). No tight balance assertion: over a lossy
+    ground the field-side integral omits the absorbed power by design."""
+    server._SOLVE_CACHE.clear()
+    req = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "bspline",
+        "ground": True,
+        "ground_model": "fast",
+    }
+    resp = client.post("/norm_check", json=req).json()
+    assert resp["available"] is True
+    assert resp["method"].startswith("grid_")
+    assert resp["pattern_norm"] > 0
 
 
 def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
@@ -1760,3 +1792,72 @@ def test_check_solve_size_unknown_geometry_does_not_falsely_reject(hosted):
     server._check_solve_size(
         {"geometry": "does.not.exist", "n_per_wire": 999999}, use_pynec=False
     )
+
+
+def test_momwire_bspline_ground_model_drives_refl_coef_solve():
+    """Web ground parity: with a B-spline-family solver, both finite ground
+    models map to momwire's reflection-coefficient solve (its single finite
+    model), the response ships the real εr/σ for the frontend Fresnel cut,
+    and ground_model_applied reports what actually ran."""
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "momwire",
+        "momwire_model": "bspline",
+        "measurement_freq_mhz": 28.47,
+        "ground": True,
+    }
+    somm = server.solve(base)  # default ground_model = sommerfeld
+    fast = server.solve({**base, "ground_model": "fast"})
+    pec = server.solve({**base, "ground_model": "pec"})
+
+    assert somm["ground_model_applied"] == "refl-coef"
+    assert fast["ground_model_applied"] == "refl-coef"
+    assert pec["ground_model_applied"] == "pec-image"
+    assert somm["ground_eps_r"] == 10.0
+    assert somm["ground_sigma"] == 0.002
+    assert somm["ground_eps_im"] < 0.0  # derived -σ/(ωε₀)
+    assert pec["ground_eps_r"] == pytest.approx(1.0e10)
+    # "sommerfeld" and "fast" are the same momwire solve (one finite model).
+    assert somm["z_in_re"] == fast["z_in_re"]
+    assert somm["z_in_im"] == fast["z_in_im"]
+    # The finite solve differs measurably from the PEC image solve — the
+    # reactance correction the refl-coef ground exists to deliver.
+    z_fast = complex(fast["z_in_re"], fast["z_in_im"])
+    z_pec = complex(pec["z_in_re"], pec["z_in_im"])
+    assert abs(z_fast - z_pec) > 2.0
+
+
+def test_momwire_triangular_finite_folds_to_pec_solve_but_ships_real_eps():
+    """TriangularSolver has no ground_eps: a finite ground model keeps the
+    PEC image impedance solve (identical Z to model='pec') while the
+    response still ships the real constants so the far-field pattern gets
+    the finite-ground Fresnel treatment."""
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "momwire",
+        "momwire_model": "triangular",
+        "measurement_freq_mhz": 28.47,
+        "ground": True,
+    }
+    fin = server.solve({**base, "ground_model": "fast"})
+    pec = server.solve({**base, "ground_model": "pec"})
+    assert fin["ground_model_applied"] == "pec-image"
+    assert pec["ground_model_applied"] == "pec-image"
+    assert fin["ground_eps_r"] == 10.0
+    assert fin["ground_sigma"] == 0.002
+    assert pec["ground_eps_r"] == pytest.approx(1.0e10)
+    assert fin["z_in_re"] == pec["z_in_re"]
+    assert fin["z_in_im"] == pec["z_in_im"]
+
+
+def test_momwire_ground_off_reports_free_model():
+    resp = server.solve(
+        {
+            "geometry": "dipoles.invvee",
+            "solver": "momwire",
+            "momwire_model": "bspline",
+            "measurement_freq_mhz": 28.47,
+        }
+    )
+    assert resp["ground_model_applied"] == "free"
+    assert resp["ground_eps_r"] == pytest.approx(1.0e10)
