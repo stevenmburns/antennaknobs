@@ -87,6 +87,12 @@
   --plot-nec-rgb: 47, 95, 176;        /* NEC overlay (blueprint blue) */
   --plot-ground-rgb: 150, 116, 70;    /* ground line (brown) */
   --plot-envelope-rgb: 47, 95, 176;   /* |I| envelope (blue) */
+  /* pinned-pattern ghosts: darker inks than the dark theme's pastels — a
+     1px dashed pastel stroke vanishes on the white canvas */
+  --plot-ghost-0-rgb: 52, 150, 66;    /* green */
+  --plot-ghost-1-rgb: 190, 55, 135;   /* pink */
+  --plot-ghost-2-rgb: 115, 85, 205;   /* violet */
+  --plot-ghost-3-rgb: 26, 145, 150;   /* teal */
 
   /* current heatmap ramp: faint where low, bold where high (reads on white) */
   --plot-current-0: 200, 212, 226;
@@ -155,6 +161,10 @@
   --plot-nec-rgb: 110, 220, 255;
   --plot-ground-rgb: 140, 110, 70;
   --plot-envelope-rgb: 118, 208, 255;
+  --plot-ghost-0-rgb: 140, 230, 140;
+  --plot-ghost-1-rgb: 255, 130, 200;
+  --plot-ghost-2-rgb: 180, 160, 255;
+  --plot-ghost-3-rgb: 120, 220, 220;
   --plot-current-0: 40, 64, 96;
   --plot-current-1: 60, 140, 200;
   --plot-current-2: 118, 208, 255;
