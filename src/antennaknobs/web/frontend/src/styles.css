@@ -277,6 +277,14 @@ button:focus-visible,
   position: sticky;
   top: calc(-1 * var(--space-7));
   z-index: 3;
+  /* Never shrink as a .sidebar flex item. The strip is a scroll container
+     (overflow-x below), so its automatic minimum size is ZERO — when the knob
+     list overflows the pane, flex-shrink crushes the strip's content-box to
+     nothing while every other child stops at min-content. The 36px touch
+     buttons then overflow the collapsed .tab pills, whose border renders as a
+     strikethrough across the labels. The pane scrolls; nothing needs to
+     shrink. */
+  flex-shrink: 0;
   display: flex;
   align-items: stretch;
   gap: var(--space-1);
