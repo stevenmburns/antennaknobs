@@ -4995,8 +4995,8 @@ export function App() {
       setPins((ps) => {
         const used = new Set(ps.map((p) => p.colorIdx));
         let colorIdx = 0;
-        while (used.has(colorIdx) && colorIdx < GHOST_COLORS.length) colorIdx++;
-        if (colorIdx >= GHOST_COLORS.length) colorIdx = ps.length % GHOST_COLORS.length;
+        while (used.has(colorIdx) && colorIdx < GHOST_COLOR_COUNT) colorIdx++;
+        if (colorIdx >= GHOST_COLOR_COUNT) colorIdx = ps.length % GHOST_COLOR_COUNT;
         return [...ps, { id, label, result, metrics: null, enabled: true, colorIdx }];
       });
       fetchMetrics(req).then((m) =>
@@ -5666,10 +5666,11 @@ function PatternCompareTable({
       onX: undefined as undefined | (() => void),
     },
     ...pinned.map((p) => {
-      const [r, g, b] = GHOST_COLORS[p.colorIdx % GHOST_COLORS.length];
+      const i = p.colorIdx % GHOST_COLOR_COUNT;
       return {
         key: p.id,
-        bg: `rgba(${r}, ${g}, ${b}, 0.95)`,
+        // CSS var (like the live row) so the swatch rethemes without a render.
+        bg: `rgba(var(--plot-ghost-${i}-rgb, ${GHOST_FALLBACK_RGB[i]}), 0.95)`,
         label: p.label,
         m: p.metrics,
         enabled: p.enabled,
@@ -6126,9 +6127,8 @@ function FarFieldChart({
     // angle sliders just like the live trace.
     for (const gh of ghosts) {
       if (!gh.trace) continue;
-      const [r, g, b] = GHOST_COLORS[gh.colorIdx % GHOST_COLORS.length];
       strokeTrace(gh.trace.dbi, {
-        stroke: `rgba(${r}, ${g}, ${b}, 0.8)`,
+        stroke: `rgba(${ghostRgb(gh.colorIdx)}, 0.8)`,
         width: 1,
         dash: [5, 3],
       });
@@ -6238,14 +6238,27 @@ const FEED_COLORS: [number, number, number][] = [
   [255, 130, 200],  // pink
 ];
 
-// Swatch colors for pinned far-field ghost overlays. Distinct from the live
-// lobe (orange) and the NEC overlay (cyan); they wrap past the 4th pin.
-const GHOST_COLORS: [number, number, number][] = [
-  [140, 230, 140],  // green
-  [255, 130, 200],  // pink
-  [180, 160, 255],  // violet
-  [120, 220, 220],  // teal
+// Swatch colors for pinned far-field ghost overlays, themed via CSS vars —
+// the dark theme's pastels are darker inks in light mode, where a 1px dashed
+// pastel stroke vanishes on the white canvas. Distinct from the live lobe
+// (orange) and the NEC overlay (cyan); they wrap past the 4th pin.
+const GHOST_COLOR_COUNT = 4;
+// Fallbacks match the dark-theme values in styles.css.
+const GHOST_FALLBACK_RGB = [
+  "140, 230, 140", // green
+  "255, 130, 200", // pink
+  "180, 160, 255", // violet
+  "120, 220, 220", // teal
 ];
+// "r, g, b" for a pin's color slot in the current theme, for canvas strokes.
+// (The compare table instead inlines the CSS var so it rethemes live.)
+function ghostRgb(colorIdx: number): string {
+  const i = colorIdx % GHOST_COLOR_COUNT;
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(`--plot-ghost-${i}-rgb`)
+    .trim();
+  return v || GHOST_FALLBACK_RGB[i];
+}
 
 function feedColor(i: number, alpha = 0.85): string {
   const [r, g, b] = FEED_COLORS[i % FEED_COLORS.length];
