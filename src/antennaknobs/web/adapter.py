@@ -493,6 +493,18 @@ def _ground_for_engine(req: dict, ground_z: float):
     return DEFAULT_GROUND
 
 
+def _pynec_ground_applied(ground) -> str:
+    """What PyNEC's impedance solve actually used, from the engine's ground
+    spec — the PyNEC counterpart of the momwire path's ground_model_applied:
+    "sommerfeld" / "refl-coef" for the finite specs, "pec-image", or
+    "free". PyNEC honours every requested model directly, so unlike momwire
+    this never differs from the request; it ships anyway so the frontend
+    readout has one authoritative source across engines."""
+    if isinstance(ground, tuple):
+        return "refl-coef" if ground[0] == "finite-fast" else "sommerfeld"
+    return "pec-image" if ground == "pec" else "free"
+
+
 def _pynec_ground_spec(req: dict):
     """Map the frontend's ground knobs to PyNECEngine's ground spec, matching
     the UI labels. `ground_model` picks the model when ground is on:
@@ -1260,6 +1272,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "ground_sigma": (
                 eng.ground[2] if isinstance(eng.ground, tuple) else _PEC_GROUND_SIGMA
             ),
+            "ground_model_applied": _pynec_ground_applied(eng.ground),
             "z0_ohms": hints()["target_z0"],
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],

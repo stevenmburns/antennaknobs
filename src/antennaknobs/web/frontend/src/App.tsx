@@ -1160,9 +1160,10 @@ type SolveResponse = {
   ground_eps_r?: number;
   ground_sigma?: number;
   ground_eps_im?: number;
-  /** What the impedance solve actually used (momwire responses):
-   *  "refl-coef" | "pec-image" | "free". Informational — the tab summary
-   *  derives the same fact from backend + groundModel state. */
+  /** What the impedance solve actually used. Momwire: "refl-coef" |
+   *  "pec-image" | "free"; PyNEC adds "sommerfeld". Authoritative — the
+   *  readout's ground row shows this rather than re-deriving it from
+   *  backend + groundType state. */
   ground_model_applied?: string;
   k_meas_m_inv?: number;
   // V-specific
@@ -1264,13 +1265,23 @@ function isBSplineFamily(b: Backend): boolean {
   return BSPLINE_FAMILY.includes(b);
 }
 
-// One shared three-way ground model describing the GROUND; each backend
-// approximates it as best it can. PyNEC: Sommerfeld-Norton / the
-// reflection-coefficient approximation / PEC image. Momwire: "sommerfeld"
-// and "fast" both map to its reflection-coefficient solve on the B-spline
-// family (its best available finite model; momwire has no Sommerfeld),
-// while Triangular/Sinusoidal keep the PEC image solve — either way the
-// finite constants (εr=10, σ=0.002) reach the far-field Fresnel cut.
+// The UI separates WHAT the ground is from HOW it's solved. GroundType is
+// the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002) or
+// a perfectly conducting one. It never promises more than the physics —
+// each backend solves it as best it can: PyNEC picks Sommerfeld-Norton or
+// the reflection-coefficient approximation via a PyNEC-only method
+// sub-choice; momwire's B-spline family always solves finite grounds with
+// its reflection-coefficient model (momwire has no Sommerfeld); Triangular/
+// Sinusoidal keep the PEC image solve — either way the finite constants
+// reach the far-field Fresnel cut.
+type GroundType = "finite" | "pec";
+// PyNEC's finite-ground solve method (NEC ITYPE=2 vs ITYPE=0). Only shown
+// — and only meaningful — when backend === "pynec" && groundType === "finite".
+type PynecGroundMethod = "sommerfeld" | "fast";
+// The wire value (`ground_model` on SolveRequest), unchanged for server
+// compatibility: derived from groundType (+ the PyNEC method when it
+// applies); non-PyNEC finite grounds send the canonical "sommerfeld"
+// (momwire folds "sommerfeld" and "fast" to the same solve).
 type GroundModel = "sommerfeld" | "fast" | "pec";
 
 function backendSupportsGround(b: Backend): boolean {
@@ -2346,11 +2357,22 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [designFreq, setDesignFreq] = useState(14.3);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
-  // Ground plane at z = 0 (model per backend; see groundModel).
+  // Ground plane at z = 0 (model per backend; see groundType).
   const [groundEnabled, setGroundEnabled] = useState(false);
-  // Shared ground-model choice — one selector describing the ground, every
-  // backend approximates it (see the GroundModel type note).
-  const [groundModel, setGroundModel] = useState<GroundModel>("sommerfeld");
+  // Shared ground choice — one selector describing the GROUND (finite vs
+  // PEC); every backend solves it as best it can (see the GroundType note).
+  const [groundType, setGroundType] = useState<GroundType>("finite");
+  // PyNEC-only finite-ground method; hidden (and inert) elsewhere, but kept
+  // in state so it survives backend flips during engine comparison.
+  const [pynecGroundMethod, setPynecGroundMethod] =
+    useState<PynecGroundMethod>("sommerfeld");
+  // Wire value derived for the unchanged server protocol (see GroundModel).
+  const groundModel: GroundModel =
+    groundType === "pec"
+      ? "pec"
+      : backend === "pynec"
+        ? pynecGroundMethod
+        : "sommerfeld";
 
   // One-line tab-hover summary: design · solver N=segs · ground model. The
   // wording reflects what the active solver actually runs: PyNEC honours
@@ -4490,47 +4512,85 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             ground plane
           </label>
           {backendSupportsGround(backend) && groundEnabled && (
-            <div role="radiogroup" aria-label="Ground model">
-              {(
-                [
+            <>
+              <div role="radiogroup" aria-label="Ground type">
+                {(
                   [
-                    "sommerfeld",
-                    "Sommerfeld (εr=10, σ=0.002 S/m)",
-                    backend === "pynec"
-                      ? "Sommerfeld-Norton finite ground (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
-                      : isBSplineFamily(backend)
-                        ? "Finite ground, approximated by momwire's reflection-coefficient solve (its best finite model — agrees with Sommerfeld to ~2 Ω above ~0.1λ heights); pattern uses the real εr/σ."
-                        : "Finite ground: this solver only models the PEC image in the impedance solve; the far-field pattern still uses the real εr/σ (Fresnel).",
-                  ],
-                  [
-                    "fast",
-                    "refl-coef (fast)",
-                    backend === "pynec"
-                      ? "Same finite ground via the reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height."
-                      : isBSplineFamily(backend)
-                        ? "Finite ground via momwire's reflection-coefficient solve (NEC gn 0 style; validated within ~2 Ω of NEC over 0.1–0.5λ heights); pattern uses the real εr/σ."
-                        : "Finite ground: this solver only models the PEC image in the impedance solve; the far-field pattern still uses the real εr/σ (Fresnel).",
-                  ],
-                  [
-                    "pec",
-                    "PEC",
-                    backend === "pynec"
-                      ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
-                      : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
-                  ],
-                ] as [GroundModel, string, string][]
-              ).map(([value, label, title]) => (
-                <label key={value} className="link-toggle" title={title}>
-                  <input
-                    type="radio"
-                    name="ground-model"
-                    checked={groundModel === value}
-                    onChange={() => setGroundModel(value)}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
+                    [
+                      "finite",
+                      "finite (εr=10, σ=0.002 S/m)",
+                      backend === "pynec"
+                        ? "Finite ground — pick the solve method below (Sommerfeld-Norton or the reflection-coefficient approximation)."
+                        : isBSplineFamily(backend)
+                          ? "Finite ground, solved with momwire's reflection-coefficient model (its best finite model — within ~2 Ω of Sommerfeld-Norton above ~0.1λ heights); the pattern uses the real εr/σ."
+                          : "Finite ground: this solver only models the PEC image in the impedance solve; the far-field pattern still uses the real εr/σ (Fresnel).",
+                    ],
+                    [
+                      "pec",
+                      "PEC",
+                      backend === "pynec"
+                        ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
+                        : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
+                    ],
+                  ] as [GroundType, string, string][]
+                ).map(([value, label, title]) => (
+                  <label key={value} className="link-toggle" title={title}>
+                    <input
+                      type="radio"
+                      name="ground-type"
+                      checked={groundType === value}
+                      onChange={() => setGroundType(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {groundType === "finite" &&
+                (backend === "pynec" ? (
+                  <div
+                    role="radiogroup"
+                    aria-label="Finite-ground solve method"
+                    style={{ marginLeft: "1.2em" }}
+                  >
+                    {(
+                      [
+                        [
+                          "sommerfeld",
+                          "Sommerfeld",
+                          "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate.",
+                        ],
+                        [
+                          "fast",
+                          "refl-coef (fast)",
+                          "Reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height.",
+                        ],
+                      ] as [PynecGroundMethod, string, string][]
+                    ).map(([value, label, title]) => (
+                      <label key={value} className="link-toggle" title={title}>
+                        <input
+                          type="radio"
+                          name="ground-method"
+                          checked={pynecGroundMethod === value}
+                          onChange={() => setPynecGroundMethod(value)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <em
+                    style={{
+                      color: "var(--muted)",
+                      fontSize: "var(--text-sm)",
+                      marginLeft: "1.2em",
+                    }}
+                  >
+                    {isBSplineFamily(backend)
+                      ? "solved as refl-coef (momwire's finite model)"
+                      : "impedance solve uses the PEC image; pattern uses εr/σ"}
+                  </em>
+                ))}
+            </>
           )}
         </div>
 
@@ -5514,6 +5574,15 @@ function reflectionCoefficient(r: number, x: number, z0: number) {
   return { gRe, gIm, gMag: Math.hypot(gRe, gIm) };
 }
 
+// Display labels for SolveResponse.ground_model_applied — what the
+// impedance solve actually ran, as reported by the server (see the type).
+const GROUND_APPLIED_LABEL: Record<string, string> = {
+  sommerfeld: "Sommerfeld",
+  "refl-coef": "refl-coef",
+  "pec-image": "PEC image",
+  free: "free space",
+};
+
 function formatSwr(r: number, x: number, z0: number): string {
   const { gMag } = reflectionCoefficient(r, x, z0);
   if (gMag >= 0.9999) return "∞";
@@ -5583,6 +5652,18 @@ function SolveReadout({
         <span>solve</span>
         <span className="val">{result ? `${result.solve_ms.toFixed(1)} ms` : "—"}</span>
       </div>
+      {result?.ground && result.ground_model_applied && (
+        <div
+          className="row"
+          title="Ground model the impedance solve actually used, as reported by the solver — may be an approximation of the requested ground."
+        >
+          <span>ground</span>
+          <span className="val">
+            {GROUND_APPLIED_LABEL[result.ground_model_applied] ??
+              result.ground_model_applied}
+          </span>
+        </div>
+      )}
       <div className="row">
         <span>SWR ({(result?.z0_ohms ?? 50).toFixed(0)} Ω)</span>
         <span className="val">
