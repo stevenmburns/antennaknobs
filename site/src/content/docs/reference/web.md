@@ -199,8 +199,17 @@ Beside the checkbox a **Δ** readout gives that gap as one number in decibels �
 a large value means the pattern and its gain figures should not be trusted until
 you refine the mesh. This is exactly NEC's classic **"average gain"** sanity
 check, which most tools make you compute by hand. It's cheap (a closed-form
-integral, evaluated once the knob settles), so it's **on by default** — uncheck
-it to hide the overlay and the readout.
+integral for free space and PEC ground, a small reference-grid quadrature over
+finite ground, either way evaluated once the knob settles), so it's **on by
+default** — uncheck it to hide the overlay and the readout.
+
+**Over a finite ground, Δ is not supposed to be zero.** The pattern integral
+only counts power that leaves upward — what the lossy ground absorbs never
+comes back — so a steady Δ of a dB or so *is the ground-loss reading* (the
+readout says "incl. ground loss" to remind you), exactly like NEC's average-gain
+value over real ground. It's still a mesh check: what should be small is how
+much Δ *moves* as you add segments, and switching the ground to PEC (or off)
+should send it back toward 0 dB.
 
 ## Copying params back to code
 

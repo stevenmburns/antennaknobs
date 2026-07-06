@@ -4808,6 +4808,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 >
                   Δ {normCheck.delta_db >= 0 ? "+" : ""}
                   {normCheck.delta_db.toFixed(3)} dB
+                  {normCheck.method.startsWith("grid_") && " (incl. ground loss)"}
                 </span>
               )}
             </div>
