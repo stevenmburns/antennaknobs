@@ -2399,15 +2399,14 @@ canvas {
   .opt-gear-btn {
     min-width: 36px;
   }
-  /* The session tab strip parks flush with the pane's top edge and its chips
-     are mouse-sized — give the row breathing room and the tabs a ~40px
-     touch target on phones. */
+  /* The session tab strip parks flush with the pane's top edge — give the
+     row breathing room on phones. (A min-height touch-size boost on .tab-btn
+     used to live here too, but it was compensating for the flex-shrink
+     collapse fixed on .tab-strip above — natural-size tabs read better now
+     that they actually render at natural size.) */
   .tab-strip {
     padding-top: var(--space-4);
     padding-bottom: var(--space-4);
-  }
-  .tab-btn {
-    min-height: 36px;
   }
 }
 
