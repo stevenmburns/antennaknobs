@@ -1726,12 +1726,15 @@ type PinsCtx = {
   // used to fetch the compare-table metrics.
   addPin: (label: string, result: SolveResponse, req: SolveRequest) => void;
   removePin: (id: string) => void;
+  // Flip a pin's ghost overlay on/off without losing the snapshot.
+  togglePin: (id: string) => void;
   clearPins: () => void;
 };
 const PinsContext = createContext<PinsCtx>({
   pins: [],
   addPin: () => {},
   removePin: () => {},
+  togglePin: () => {},
   clearPins: () => {},
 });
 
@@ -2402,6 +2405,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     pins: pinnedPatterns,
     addPin,
     removePin,
+    togglePin,
     clearPins,
   } = useContext(PinsContext);
   const [liveMetrics, setLiveMetrics] = useState<PatternMetrics | null>(null);
@@ -4726,6 +4730,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                       liveLabel={`${currentExample?.label ?? geometry} @ ${measFreq.toFixed(2)} MHz`}
                       pinned={pinnedPatterns}
                       onRemove={removePin}
+                      onToggle={togglePin}
                     />
                   </>
                 ))}
@@ -4981,11 +4986,19 @@ export function App() {
   const pinSeq = useRef(0);
 
   // Append the snapshot immediately (the ghost overlay needs no metrics),
-  // then patch the table metrics in when /pattern_metrics answers.
+  // then patch the table metrics in when /pattern_metrics answers. The color
+  // slot is the smallest one no current pin holds, so a freed color is reused
+  // before the palette wraps — and never shifts an existing pin's color.
   const addPin = useCallback(
     (label: string, result: SolveResponse, req: SolveRequest) => {
       const id = `pin-${pinSeq.current++}`;
-      setPins((ps) => [...ps, { id, label, result, metrics: null }]);
+      setPins((ps) => {
+        const used = new Set(ps.map((p) => p.colorIdx));
+        let colorIdx = 0;
+        while (used.has(colorIdx) && colorIdx < GHOST_COLORS.length) colorIdx++;
+        if (colorIdx >= GHOST_COLORS.length) colorIdx = ps.length % GHOST_COLORS.length;
+        return [...ps, { id, label, result, metrics: null, enabled: true, colorIdx }];
+      });
       fetchMetrics(req).then((m) =>
         setPins((ps) => ps.map((p) => (p.id === id ? { ...p, metrics: m } : p))),
       );
@@ -4997,11 +5010,17 @@ export function App() {
     setPins((ps) => ps.filter((p) => p.id !== id));
   }, []);
 
+  const togglePin = useCallback((id: string) => {
+    setPins((ps) =>
+      ps.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p)),
+    );
+  }, []);
+
   const clearPins = useCallback(() => setPins([]), []);
 
   const pinsCtx = useMemo<PinsCtx>(
-    () => ({ pins, addPin, removePin, clearPins }),
-    [pins, addPin, removePin, clearPins],
+    () => ({ pins, addPin, removePin, togglePin, clearPins }),
+    [pins, addPin, removePin, togglePin, clearPins],
   );
 
   return (
@@ -5609,6 +5628,14 @@ type PinnedPattern = {
   label: string;
   result: SolveResponse;
   metrics: PatternMetrics | null;
+  // Whether the ghost overlay is drawn. A disabled pin keeps its table row
+  // (dimmed, metrics still readable) — that's the point of disable vs delete.
+  enabled: boolean;
+  // Fixed GHOST_COLORS slot, assigned at pin time. Stored — not the array
+  // index — because the chart draws a filtered (enabled-only) list while the
+  // table draws all pins; positional colors would desynchronize the two, and
+  // already shifted every later pin's color on delete.
+  colorIdx: number;
 };
 
 function PatternCompareTable({
@@ -5616,11 +5643,13 @@ function PatternCompareTable({
   liveLabel,
   pinned,
   onRemove,
+  onToggle,
 }: {
   live: PatternMetrics | null;
   liveLabel: string;
   pinned: PinnedPattern[];
   onRemove: (id: string) => void;
+  onToggle: (id: string) => void;
 }) {
   const fmt = (v: number | undefined, d: number) =>
     v === undefined || v === null ? "—" : v.toFixed(d);
@@ -5632,15 +5661,19 @@ function PatternCompareTable({
       bg: "rgba(var(--plot-lobe-rgb), 0.95)",
       label: liveLabel,
       m: live,
+      enabled: true,
+      onToggle: undefined as undefined | (() => void),
       onX: undefined as undefined | (() => void),
     },
-    ...pinned.map((p, i) => {
-      const [r, g, b] = GHOST_COLORS[i % GHOST_COLORS.length];
+    ...pinned.map((p) => {
+      const [r, g, b] = GHOST_COLORS[p.colorIdx % GHOST_COLORS.length];
       return {
         key: p.id,
         bg: `rgba(${r}, ${g}, ${b}, 0.95)`,
         label: p.label,
         m: p.metrics,
+        enabled: p.enabled,
+        onToggle: () => onToggle(p.id),
         onX: () => onRemove(p.id),
       };
     }),
@@ -5659,10 +5692,38 @@ function PatternCompareTable({
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr key={row.key}>
+          <tr key={row.key} className={row.enabled ? undefined : "compare-off"}>
             <td className="compare-name">
-              <span className="compare-swatch" style={{ background: row.bg }} />
-              {row.label}
+              {/* The whole swatch+name is the show/hide toggle — a big-enough
+                  touch target where the tiny swatch alone wouldn't be. The
+                  metrics stay readable while hidden; that's disable vs delete. */}
+              {row.onToggle ? (
+                <button
+                  type="button"
+                  className="compare-toggle"
+                  onClick={row.onToggle}
+                  aria-pressed={row.enabled}
+                  title={
+                    row.enabled
+                      ? "Hide this ghost overlay (keeps the pin)"
+                      : "Show this ghost overlay"
+                  }
+                >
+                  <span
+                    className="compare-swatch"
+                    style={{ background: row.bg }}
+                  />
+                  {row.label}
+                </button>
+              ) : (
+                <>
+                  <span
+                    className="compare-swatch"
+                    style={{ background: row.bg }}
+                  />
+                  {row.label}
+                </>
+              )}
             </td>
             <td>{fmt(row.m?.peak_gain_dbi, 1)}</td>
             <td>{row.m ? `${fmt(row.m.takeoff_deg, 0)}°` : "—"}</td>
@@ -5935,9 +5996,13 @@ function FarFieldChart({
     const liveTrace = result
       ? computeCutDbi(result, cut, azElevDeg, elevAzDeg)
       : null;
-    const pinnedTraces = pinned.map((p) =>
-      computeCutDbi(p.result, cut, azElevDeg, elevAzDeg),
-    );
+    // Disabled pins draw no ghost and don't stretch the radial scale.
+    const ghosts = pinned
+      .filter((p) => p.enabled)
+      .map((p) => ({
+        colorIdx: p.colorIdx,
+        trace: computeCutDbi(p.result, cut, azElevDeg, elevAzDeg),
+      }));
 
     // Radial axis: absolute directivity in dBi. Origin is a fixed −20 dBi
     // floor. The outer edge is +10 dBi by default, but expands to fit the peak
@@ -5948,7 +6013,7 @@ function FarFieldChart({
     const DBI_FLOOR = -20;
     const peaks: number[] = [];
     if (liveTrace) peaks.push(liveTrace.peakDbi);
-    for (const t of pinnedTraces) if (t) peaks.push(t.peakDbi);
+    for (const gh of ghosts) if (gh.trace) peaks.push(gh.trace.peakDbi);
     // Norm-check overlay: the norm scales the whole pattern, so switching to
     // the field-side norm shifts every dBi by this constant. null when the
     // check is off or the live result carries no norm to compare against.
@@ -6059,15 +6124,15 @@ function FarFieldChart({
     // Pinned ghosts first (dimmed, dashed), so the live lobe sits on top. Each
     // shares the adaptive radial scale computed above, so it tracks the cut and
     // angle sliders just like the live trace.
-    pinnedTraces.forEach((tr, i) => {
-      if (!tr) return;
-      const [r, g, b] = GHOST_COLORS[i % GHOST_COLORS.length];
-      strokeTrace(tr.dbi, {
+    for (const gh of ghosts) {
+      if (!gh.trace) continue;
+      const [r, g, b] = GHOST_COLORS[gh.colorIdx % GHOST_COLORS.length];
+      strokeTrace(gh.trace.dbi, {
         stroke: `rgba(${r}, ${g}, ${b}, 0.8)`,
         width: 1,
         dash: [5, 3],
       });
-    });
+    }
 
     // Live lobe (filled).
     if (!liveTrace) return;
