@@ -227,23 +227,28 @@ def emit_params_name(builder_spec):
 
 def parse_ground(s):
     """--ground argument:
-    free                      -> None
-    pec                       -> 'pec'
-    finite                    -> default ('finite', 10.0, 0.002)
-    finite:<eps_r>,<sigma>    -> ('finite', eps_r, sigma)
+    free                          -> None
+    pec                           -> 'pec'
+    finite                        -> default ('finite', 10.0, 0.002)
+                                     (Sommerfeld-Norton on PyNEC)
+    finite:<eps_r>,<sigma>        -> ('finite', eps_r, sigma)
+    finite-fast                   -> default ('finite-fast', 10.0, 0.002)
+                                     (reflection-coefficient approximation)
+    finite-fast:<eps_r>,<sigma>   -> ('finite-fast', eps_r, sigma)
     """
     if s is None or s == "free":
         return None
     if s == "pec":
         return "pec"
-    if s == "finite":
-        return ("finite", 10.0, 0.002)
-    if s.startswith("finite:"):
-        try:
-            eps_r, sigma = (float(x) for x in s[len("finite:") :].split(","))
-        except ValueError as e:
-            raise argparse.ArgumentTypeError(f"bad --ground spec {s!r}: {e}") from e
-        return ("finite", eps_r, sigma)
+    for kind in ("finite-fast", "finite"):
+        if s == kind:
+            return (kind, 10.0, 0.002)
+        if s.startswith(kind + ":"):
+            try:
+                eps_r, sigma = (float(x) for x in s[len(kind) + 1 :].split(","))
+            except ValueError as e:
+                raise argparse.ArgumentTypeError(f"bad --ground spec {s!r}: {e}") from e
+            return (kind, eps_r, sigma)
     raise argparse.ArgumentTypeError(f"unrecognised --ground: {s!r}")
 
 
@@ -358,7 +363,9 @@ def cli(arguments=None):
         p.add_argument(
             "--ground",
             default=_GROUND_UNSET,
-            help="Ground model: free | pec | finite | finite:<eps_r>,<sigma> "
+            help="Ground model: free | pec | finite[:<eps_r>,<sigma>] "
+            "(Sommerfeld-Norton on pynec) | finite-fast[:<eps_r>,<sigma>] "
+            "(reflection-coefficient approximation) "
             "(default: engine-specific — finite for pynec, free for momwire).",
         )
 

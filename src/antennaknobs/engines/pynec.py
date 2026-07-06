@@ -39,11 +39,17 @@ class PyNECEngine(SimulationEngine):
     def __init__(self, builder, *, ground=DEFAULT_GROUND):
         """
         ground:
-          None or "free"               — no gn_card (free space)
-          "pec"                        — perfectly conducting ground
-          ("finite", eps_r, sigma)     — Sommerfeld finite ground (default,
-                                         matches the historical hard-coded
-                                         eps_r=10, sigma=0.002)
+          None or "free"                 — no gn_card (free space)
+          "pec"                          — perfectly conducting ground
+          ("finite", eps_r, sigma)       — Sommerfeld-Norton finite ground
+                                           (default, matches the historical
+                                           hard-coded eps_r=10, sigma=0.002)
+          ("finite-fast", eps_r, sigma)  — finite ground via NEC's reflection-
+                                           coefficient approximation. Much
+                                           cheaper than Sommerfeld and within
+                                           ~0.1 dB / a few Ω of it for wires
+                                           ≳0.2λ above ground, but impedance
+                                           drifts by 10+ Ω below ~0.1λ.
         """
         super().__init__(builder)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
@@ -186,9 +192,11 @@ class PyNECEngine(SimulationEngine):
         if g == "pec":
             c.gn_card(1, 0, 0, 0, 0, 0, 0, 0)
             return
-        if isinstance(g, tuple) and len(g) == 3 and g[0] == "finite":
+        if isinstance(g, tuple) and len(g) == 3 and g[0] in ("finite", "finite-fast"):
             _, eps_r, sigma = g
-            c.gn_card(0, 0, eps_r, sigma, 0, 0, 0, 0)
+            # gn_card's first parameter (IPERF): 2 = Sommerfeld-Norton,
+            # 0 = reflection-coefficient approximation.
+            c.gn_card(2 if g[0] == "finite" else 0, 0, eps_r, sigma, 0, 0, 0, 0)
             return
         raise ValueError(f"unrecognised ground spec: {g!r}")
 

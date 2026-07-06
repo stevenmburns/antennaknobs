@@ -56,8 +56,19 @@ def _normalise_ground(ground):
         return None
     if ground == "pec":
         return ("pec",)
-    if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "finite":
-        return ground
+    if (
+        isinstance(ground, tuple)
+        and len(ground) == 3
+        and ground[0]
+        in (
+            "finite",
+            "finite-fast",
+        )
+    ):
+        # "finite-fast" is a PyNECEngine distinction (Sommerfeld-Norton vs the
+        # reflection-coefficient approximation); momwire has a single finite
+        # model, so both fold to it.
+        return ("finite",) + tuple(ground[1:])
     raise ValueError(f"unrecognised ground spec: {ground!r}")
 
 
@@ -92,8 +103,11 @@ class MomwireEngine(SimulationEngine):
                                      coefficients on the reflected component;
                                      impedance solve still uses PEC because
                                      momwire only models PEC ground. Cross-
-                                     validation against PyNEC's gn_card(0,...)
-                                     is approximate.
+                                     validation against PyNEC's finite grounds
+                                     (Sommerfeld gn_card(2,...) or reflection-
+                                     coefficient gn_card(0,...)) is approximate.
+                                     ("finite-fast", eps_r, sigma) is accepted
+                                     as an alias.
         """
         super().__init__(builder)
 
