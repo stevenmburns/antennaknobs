@@ -962,7 +962,18 @@ def _norm_check(req: dict) -> dict:
         method = "closed_form"
     else:
         ref = dict(out)
-        n_theta, n_phi = _fine_norm_grid(45)
+        # Size the reference grid off THIS design's adaptive pick (2x margin,
+        # 45x90 floor — `_fine_norm_grid`'s contract), not the max-size grid:
+        # passing the literal floor here used to force 90x180 on every
+        # finite-ground check (~750 ms on a 6λ skyloop, ~8x the solve
+        # itself). Measured: the adaptive grid already matches 90x180 to
+        # <1e-4 dB on the calibration designs, so the doubled pick keeps a
+        # genuine safety margin at a fraction of the cost.
+        mid, _dr, _i = _moment_segments(out)
+        nt_adapt, _ = _adaptive_norm_grid(
+            float(out["k_meas_m_inv"]), mid.min(axis=0), mid.max(axis=0)
+        )
+        n_theta, n_phi = _fine_norm_grid(nt_adapt)
         _compute_directivity_norm(ref, n_theta=n_theta, n_phi=n_phi)
         pattern_norm = ref["directivity_norm"]
         method = f"grid_{n_theta}x{n_phi}"
