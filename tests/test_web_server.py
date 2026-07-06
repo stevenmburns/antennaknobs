@@ -864,6 +864,32 @@ def test_solve_dispatches_to_pynec_when_requested():
 
 
 @pynec_required
+def test_pynec_ground_on_solves_over_sommerfeld_finite_ground():
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "pynec",
+        "measurement_freq_mhz": 28.47,
+    }
+    free = server.solve(base)
+    grounded = server.solve({**base, "ground": True})
+    # ground=True routes PyNEC to the Sommerfeld finite ground (εr=10,
+    # σ=0.002) rather than silently staying PEC/free, and the response
+    # carries the real constants so the frontend's Fresnel cut matches.
+    assert grounded["ground"] is True
+    assert grounded["ground_eps_r"] == 10.0
+    assert grounded["ground_sigma"] == 0.002
+    assert grounded["ground_eps_im"] < 0.0  # derived -σ/(ωε₀)
+    # the solve actually felt the ground
+    dz = abs(
+        complex(grounded["z_in_re"], grounded["z_in_im"])
+        - complex(free["z_in_re"], free["z_in_im"])
+    )
+    assert dz > 1.0
+    # ground off keeps the PEC placeholder constants (unused by the frontend)
+    assert free["ground_eps_r"] == pytest.approx(1.0e10)
+
+
+@pynec_required
 def test_sweep_endpoint_with_pynec_streams_per_point(client: TestClient):
     freqs = [28.0, 28.47, 29.0]
     r = client.post(
