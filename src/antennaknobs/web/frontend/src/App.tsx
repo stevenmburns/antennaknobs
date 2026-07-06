@@ -3885,12 +3885,16 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                         to reach them there; on desktop it's a convenience
                         duplicate. */}
                     <div className="gear-menu-divider" />
-                    {fullscreen.supported && (
+                    {/* Mobile-layout only: it exists to reclaim the phone's
+                        status/nav bars; on desktop F11 already does this and
+                        the menu entry would be clutter. Also needs element
+                        fullscreen (missing on iPhone Safari). */}
+                    {isMobile && fullscreen.supported && (
                       <>
                         <div className="gear-menu-section">display</div>
                         <label
                           className="gear-menu-check"
-                          title="Take over the whole screen — on a phone this hides the system status and navigation bars. Uncheck (or Esc / back gesture) to exit."
+                          title="Take over the whole screen — hides the system status and navigation bars. Uncheck (or use the back gesture) to exit."
                         >
                           <input
                             type="checkbox"
