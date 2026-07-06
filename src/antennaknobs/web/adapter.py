@@ -473,12 +473,21 @@ def _ground_for_engine(req: dict, ground_z: float):
 
 def _pynec_ground_spec(req: dict):
     """Map the frontend's ground knobs to PyNECEngine's ground spec, matching
-    the UI labels: ground=True gives the Sommerfeld-Norton finite ground with
-    DEFAULT_GROUND's eps_r=10, sigma=0.002; ground_fast=True downgrades to
-    NEC's reflection-coefficient approximation; ground off is free space."""
+    the UI labels. `ground_model` picks the model when ground is on:
+    "sommerfeld" (default) — Sommerfeld-Norton finite ground with
+    DEFAULT_GROUND's eps_r=10, sigma=0.002; "fast" — the same finite ground
+    via NEC's reflection-coefficient approximation; "pec" — perfectly
+    conducting ground (the image method momwire uses, for apples-to-apples
+    engine comparison). The legacy boolean `ground_fast` is honoured when
+    `ground_model` is absent. Ground off is free space."""
     if not req.get("ground", False):
         return "free"
-    if req.get("ground_fast", False):
+    model = req.get("ground_model")
+    if model is None:
+        model = "fast" if req.get("ground_fast", False) else "sommerfeld"
+    if model == "pec":
+        return "pec"
+    if model == "fast":
         return ("finite-fast",) + DEFAULT_GROUND[1:]
     return DEFAULT_GROUND
 
@@ -1200,16 +1209,16 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "solve_ms": solve_ms,
             "ground": bool(req.get("ground", False)),
             "height_m": 0.0,
-            # The engine solved over the Sommerfeld finite ground, so ship its
-            # real eps_r/sigma: the frontend's far-field cut applies PEC image
-            # + Fresnel with these, which tracks NEC's finite-ground rp_card
-            # pattern to ~0.2 dB. (momwire keeps the PEC constants — its
-            # impedance solve genuinely is PEC-image.)
+            # Ship the eps_r/sigma of the ground the engine actually solved
+            # over: the frontend's far-field cut applies PEC image + Fresnel
+            # with these, so finite grounds get their real constants (tracks
+            # NEC's rp_card pattern to ~0.2 dB) while ground_model="pec" and
+            # free space keep the PEC placeholders (ρ→−1).
             "ground_eps_r": (
-                DEFAULT_GROUND[1] if req.get("ground", False) else _PEC_GROUND_EPS_R
+                eng.ground[1] if isinstance(eng.ground, tuple) else _PEC_GROUND_EPS_R
             ),
             "ground_sigma": (
-                DEFAULT_GROUND[2] if req.get("ground", False) else _PEC_GROUND_SIGMA
+                eng.ground[2] if isinstance(eng.ground, tuple) else _PEC_GROUND_SIGMA
             ),
             "z0_ohms": hints()["target_z0"],
             "multi_feed": hints()["multi_feed"],
