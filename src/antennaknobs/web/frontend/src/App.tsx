@@ -2357,8 +2357,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [designFreq, setDesignFreq] = useState(14.3);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
-  // Ground plane at z = 0 (model per backend; see groundType).
-  const [groundEnabled, setGroundEnabled] = useState(false);
+  // Ground plane at z = 0 (model per backend; see groundType). ON by
+  // default: this is an HF wire-antenna workbench, and the over-ground
+  // picture (takeoff angle, ground-lobed elevation pattern, shifted Z)
+  // is the decision-relevant one — free space is the idealization you
+  // opt into. The whole catalog solves grounded (75/75 audit, all
+  // designs above z=0) on the default B-spline refl-coef path.
+  const [groundEnabled, setGroundEnabled] = useState(true);
   // Shared ground choice — one selector describing the GROUND (finite vs
   // PEC); every backend solves it as best it can (see the GroundType note).
   const [groundType, setGroundType] = useState<GroundType>("finite");
@@ -2392,7 +2397,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         : isBSplineFamily(backend)
           ? "reflection-coef ground"
           : "PEC solve · Fresnel pattern";
-  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${BACKEND_LABEL[backend]} N=${nPerWire} · ${groundSummary}`;
+  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
   }, [id, tabSummary, reportSummary]);
