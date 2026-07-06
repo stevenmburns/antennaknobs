@@ -126,8 +126,9 @@ type PinnedPattern = {
 
 ### Phase 3 — build, verify, ship
 
-- `npm run build` in `src/antennaknobs/web/frontend` and commit the rebuilt
-  static bundle (checked in under `web/static/assets/`), as usual.
+- `npm run build` in `src/antennaknobs/web/frontend` (runs `tsc --noEmit`
+  first). The output under `web/static/` is gitignored — built at
+  package/deploy time — so there is no bundle to commit.
 - Manual verify (browser must be a **visible** window — hidden Chrome
   suspends rAF and solves never send):
   1. Tab 1: pin a dipole; open tab 2, pick a yagi → ghost + table row appear

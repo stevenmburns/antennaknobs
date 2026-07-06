@@ -1714,6 +1714,27 @@ const SessionsContext = createContext<SessionsCtx>({
   reportSummary: () => {},
 });
 
+// Pinned far-field patterns, shared across all design sessions: pin in one
+// tab, compare against it in any other. Owned by the shell — a pin is a
+// frozen snapshot (full solve response + fetched metrics) with no live tie to
+// the session that made it, so it survives design switches and tab closes.
+// A separate context from SessionsContext: pin churn (async metrics arrivals)
+// shouldn't invalidate the memoized tab-strip context.
+type PinsCtx = {
+  pins: PinnedPattern[];
+  // Snapshot `result` under `label`; `req` is the request that produced it,
+  // used to fetch the compare-table metrics.
+  addPin: (label: string, result: SolveResponse, req: SolveRequest) => void;
+  removePin: (id: string) => void;
+  clearPins: () => void;
+};
+const PinsContext = createContext<PinsCtx>({
+  pins: [],
+  addPin: () => {},
+  removePin: () => {},
+  clearPins: () => {},
+});
+
 // The session tab strip, atop each session's sidebar. Global state comes from
 // SessionsContext, so every mounted session renders an identical strip. Tabs
 // are labelled "D1", "D2", … to stay compact for many designs; the full
@@ -2373,12 +2394,17 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // NEC's rp_card pattern, fetched on a debounce so we don't fire one per
   // slider tick. Overlaid on the cuts as a comparison line.
   const [pattern, setPattern] = useState<PatternData | null>(null);
-  // Pinned far-field overlays for cross-antenna pattern comparison, plus the
-  // live antenna's metrics for the side-by-side table. A monotonic counter
-  // gives each pin a stable React key.
-  const [pinnedPatterns, setPinnedPatterns] = useState<PinnedPattern[]>([]);
+  // Pinned far-field overlays for cross-antenna pattern comparison — shared
+  // across all sessions through the shell (see PinsContext), so a pattern
+  // pinned in one tab can be compared against in any other. The live
+  // antenna's metrics for the side-by-side table stay per-session.
+  const {
+    pins: pinnedPatterns,
+    addPin,
+    removePin,
+    clearPins,
+  } = useContext(PinsContext);
   const [liveMetrics, setLiveMetrics] = useState<PatternMetrics | null>(null);
-  const pinSeq = useRef(0);
   const [view, setView] = useState<View>("antenna");
   const [cameraProjection, setCameraProjection] = useState<Projection>("xy");
   // When the user switches antennas, reset the camera to that example's
@@ -2948,40 +2974,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const controlsRef = useRef<SolveRequest>(buildRequest());
 
   // --- Pattern compare (pin / ghost overlay) --------------------------------
-  // Fetch the scalar far-field metrics for a request (peak gain, takeoff, F/B,
-  // beamwidths). Returns null when the design can't be evaluated or on error.
-  async function fetchMetrics(req: SolveRequest): Promise<PatternMetrics | null> {
-    try {
-      const resp = await fetch("/pattern_metrics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req),
-      });
-      const data = await resp.json();
-      return data.available ? (data.metrics as PatternMetrics) : null;
-    } catch {
-      return null;
-    }
-  }
-
   // Pin the current pattern: snapshot the solve response (for the ghost trace)
-  // and fetch its metrics (for the table). The snapshot is frozen — it won't
+  // into the shared cross-session pin list. The snapshot is frozen — it won't
   // change as the live knobs move, which is the whole point of comparing.
   function pinCurrentPattern() {
     if (!result) return;
-    const id = `pin-${pinSeq.current++}`;
     const label = `${currentExample?.label ?? geometry} @ ${measFreq.toFixed(2)} MHz`;
-    setPinnedPatterns((ps) => [...ps, { id, label, result, metrics: null }]);
-    const req = controlsRef.current;
-    fetchMetrics(req).then((m) =>
-      setPinnedPatterns((ps) =>
-        ps.map((p) => (p.id === id ? { ...p, metrics: m } : p)),
-      ),
-    );
-  }
-
-  function removePin(id: string) {
-    setPinnedPatterns((ps) => ps.filter((p) => p.id !== id));
+    addPin(label, result, controlsRef.current);
   }
 
   // Keep the live antenna's metrics fresh for the table, but only while a
@@ -4708,7 +4707,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                       <button
                         type="button"
                         className="pin-clear"
-                        onClick={() => setPinnedPatterns([])}
+                        onClick={clearPins}
                         title="Remove all pinned patterns"
                       >
                         clear
@@ -4975,24 +4974,56 @@ export function App() {
     [sessions, activeId, add, close, setActive, summaries, reportSummary],
   );
 
+  // Pinned patterns, shared across sessions. The counter is shell-level so
+  // pin ids stay unique no matter which session mints them; a pin is a frozen
+  // snapshot, so it deliberately outlives the session that created it.
+  const [pins, setPins] = useState<PinnedPattern[]>([]);
+  const pinSeq = useRef(0);
+
+  // Append the snapshot immediately (the ghost overlay needs no metrics),
+  // then patch the table metrics in when /pattern_metrics answers.
+  const addPin = useCallback(
+    (label: string, result: SolveResponse, req: SolveRequest) => {
+      const id = `pin-${pinSeq.current++}`;
+      setPins((ps) => [...ps, { id, label, result, metrics: null }]);
+      fetchMetrics(req).then((m) =>
+        setPins((ps) => ps.map((p) => (p.id === id ? { ...p, metrics: m } : p))),
+      );
+    },
+    [],
+  );
+
+  const removePin = useCallback((id: string) => {
+    setPins((ps) => ps.filter((p) => p.id !== id));
+  }, []);
+
+  const clearPins = useCallback(() => setPins([]), []);
+
+  const pinsCtx = useMemo<PinsCtx>(
+    () => ({ pins, addPin, removePin, clearPins }),
+    [pins, addPin, removePin, clearPins],
+  );
+
   return (
     <ThemeContext.Provider value={theme}>
       <ThemeControlContext.Provider value={applyTheme}>
         <SessionsContext.Provider value={sessionsCtx}>
-          <div className="sessions">
-            {sessions.map((s) => (
-              <div
-                key={s.id}
-                className="session-mount"
-                // Hidden — not unmounted — so an inactive session keeps its
-                // inputs. `hidden` also removes it from the a11y tree and stops
-                // its canvases painting.
-                hidden={s.id !== activeId}
-              >
-                <DesignSession id={s.id} active={s.id === activeId} />
-              </div>
-            ))}
-          </div>
+          <PinsContext.Provider value={pinsCtx}>
+            <div className="sessions">
+              {sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className="session-mount"
+                  // Hidden — not unmounted — so an inactive session keeps its
+                  // inputs. `hidden` also removes it from the a11y tree and stops
+                  // its canvases painting.
+                  hidden={s.id !== activeId}
+                >
+                  <DesignSession id={s.id} active={s.id === activeId} />
+                </div>
+              ))}
+            </div>
+          </PinsContext.Provider>
         </SessionsContext.Provider>
       </ThemeControlContext.Provider>
     </ThemeContext.Provider>
@@ -5551,10 +5582,28 @@ type PatternMetrics = {
   measurement_freq_mhz?: number;
 };
 
+// Fetch the scalar far-field metrics for a request (peak gain, takeoff, F/B,
+// beamwidths). Returns null when the design can't be evaluated or on error.
+async function fetchMetrics(req: SolveRequest): Promise<PatternMetrics | null> {
+  try {
+    const resp = await fetch("/pattern_metrics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    const data = await resp.json();
+    return data.available ? (data.metrics as PatternMetrics) : null;
+  } catch {
+    return null;
+  }
+}
+
 // A pinned far-field snapshot: the full solve response (so its cut traces
 // recompute through the same math as the live one, in whatever cut the user is
-// viewing) plus a label, and the metrics fetched for the table. Pins survive
-// design switches, so you can overlay one antenna's pattern on another's.
+// viewing) plus a label, and the metrics fetched for the table. Pins live in
+// the shell and are shared across sessions (see PinsContext), so they survive
+// design switches and tab closes — you can overlay one antenna's pattern on
+// another's, including a design open in a different tab.
 type PinnedPattern = {
   id: string;
   label: string;
