@@ -1769,6 +1769,32 @@ input[type=checkbox] {
   vertical-align: middle;
   border-radius: 1px;
 }
+/* Swatch+name of a pinned row is a button that shows/hides its ghost overlay.
+   Styled to sit flush in the cell — the swatch itself is far too small a
+   touch target, so the whole name is clickable. */
+.compare-toggle {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  display: block;
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A disabled pin keeps its row (metrics still readable) but reads as off:
+   text dims, swatch fades. The ✕ stays full-strength — deleting a hidden
+   pin is a normal move. */
+.compare-table tr.compare-off td:not(:last-child) {
+  color: var(--muted-2);
+}
+.compare-table tr.compare-off .compare-swatch {
+  opacity: 0.3;
+}
 .compare-x {
   border: none;
   background: none;
