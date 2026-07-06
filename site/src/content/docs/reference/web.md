@@ -145,6 +145,11 @@ one session's radiation pattern on another's.
 
 ## Comparing patterns
 
+The far-field views are calibrated **azimuth and elevation polar cuts** — the
+numbers-first presentation you read gain, takeoff angle, and beamwidth straight
+off. (The solver computes the full sphere on every basis; the cuts are how the
+workbench chooses to show it.)
+
 On the **azimuth** and **elevation** pattern views a **📌 Pin pattern** button
 (top-left of the plot) freezes the current radiation pattern as a dimmed,
 dashed **ghost** overlaid on the live one. Pin it, then change knobs — or switch
