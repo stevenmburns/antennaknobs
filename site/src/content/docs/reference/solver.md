@@ -109,10 +109,12 @@ the limits are env-configurable (see `docs/deploy.md`).
 ### Honest limitations
 
 In the spirit of not overselling: momwire wires are currently PEC (no conductor
-loss); finite-ground impedance uses an approximate image + Fresnel model rather
-than full Sommerfeld (the NEC path covers that case); and the web UI renders
-far-field as polar az/el cuts rather than a full 3D pattern surface (the solver
-produces the full-sphere data — it's a rendering gap, not a solver one).
+loss — the NEC path with `ld_card` covers lossy elements), and finite-ground
+impedance on the triangular/sinusoidal bases folds to the PEC image. The
+B-spline family solves finite grounds with the reflection-coefficient model
+(validated within ~2 Ω of NEC over 0.1–0.5λ heights), and the NEC path offers
+full Sommerfeld–Norton — the reference for very low antennas (below ~0.1λ) —
+so real-ground results cross-check across two independent engines.
 
 <!-- TODO: embed the benchmark plots once generated, and a parity/differentiator
      table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. -->
