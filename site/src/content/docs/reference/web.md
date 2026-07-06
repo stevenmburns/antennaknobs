@@ -130,10 +130,12 @@ The selector describes what the ground **is**, independent of solver:
 
 Each solver then models that ground as well as it can. The momwire B-spline
 family solves finite grounds with its reflection-coefficient model (validated
-within ~2 Ω of NEC over 0.1–0.5λ heights); PyNEC adds a method sub-choice —
+within ~2 Ω of NEC over 0.1–0.5λ heights), and the sinusoidal basis does too
+(within ~0.1 Ω of NEC's reflection-coefficient ground — it shares NEC's
+basis); PyNEC adds a method sub-choice —
 full **Sommerfeld–Norton** (most accurate, slowest; the reference below ~0.1λ)
 vs. the **reflection-coefficient** approximation (~2× faster per solve). The
-triangular/sinusoidal bases fold the impedance solve to the PEC image; the
+triangular basis folds the impedance solve to the PEC image; the
 far-field pattern uses the real εr/σ on every basis. Whatever runs, the solve
 readout's **ground** row reports the model that was actually used, and over a
 finite ground the [norm check](#norm-check--is-the-solve-trustworthy) Δ reads

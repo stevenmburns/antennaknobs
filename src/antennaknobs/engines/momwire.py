@@ -77,10 +77,18 @@ def _normalise_ground(ground):
 
 # Solvers whose impedance solve honours the reflection-coefficient finite
 # ground. BSplineSolver implements it; HMatrixSolver / ArrayBlockSolver
-# subclass it and fall back to the dense path when ground_eps is set
-# (momwire >= 0.4.0). TriangularSolver / SinusoidalSolver only model the
-# PEC image, so finite grounds keep folding to PEC for them.
-_GROUND_EPS_SOLVERS = ("BSplineSolver", "HMatrixSolver", "ArrayBlockSolver")
+# subclass it (dense fallback in momwire 0.4.0, fast-path blocks in 0.4.1);
+# SinusoidalSolver grew its own field-based ground_eps in momwire 0.5.0
+# (phase 6 — matches NEC gn 0 at the solver's own discretization floor,
+# ~0.1 ohm on the validation matrix). TriangularSolver only models the PEC
+# image (retirement-bound, intentionally skipped), so finite grounds keep
+# folding to PEC for it.
+_GROUND_EPS_SOLVERS = (
+    "BSplineSolver",
+    "HMatrixSolver",
+    "ArrayBlockSolver",
+    "SinusoidalSolver",
+)
 
 
 def _solver_supports_ground_eps(solver):
@@ -118,10 +126,10 @@ class MomwireEngine(SimulationEngine):
                                      coefficients on the reflected component.
                                      The impedance solve uses momwire's
                                      reflection-coefficient finite ground
-                                     (NEC gn 0 style, BSplineSolver
-                                     ground_eps) when the solver supports it
-                                     (bspline family); TriangularSolver /
-                                     SinusoidalSolver still fold to the PEC
+                                     (NEC gn 0 style, ground_eps) when the
+                                     solver supports it (bspline family +
+                                     SinusoidalSolver); TriangularSolver
+                                     still folds to the PEC
                                      image. ("finite-fast", eps_r, sigma) is
                                      accepted as an alias; Sommerfeld gn 2 is
                                      approximated by the same model (they
