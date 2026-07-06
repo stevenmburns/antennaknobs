@@ -56,9 +56,10 @@ from antennaknobs.builder import (
 )
 
 try:
-    from antennaknobs.engines.pynec import PyNECEngine
+    from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
 except ImportError:
     PyNECEngine = None
+    DEFAULT_GROUND = ("finite", 10.0, 0.002)
 from antennaknobs.engines.momwire import MomwireEngine
 from momwire import (
     ArrayBlockSolver,
@@ -464,10 +465,22 @@ def _ground_for_engine(req: dict, ground_z: float):
     ground_on = bool(req.get("ground", False))
     if not ground_on:
         return None
-    # Map the frontend's ground knobs to the engine's ground spec. The
-    # momwire frontend currently sends ground=True with an implicit PEC;
-    # finite ground specs can be wired through later via dedicated UI.
+    # momwire only models a PEC ground in the impedance solve, so ground=True
+    # maps to the PEC image method here. (PyNEC's finite-ground mapping lives
+    # in _pynec_ground_spec.)
     return "pec"
+
+
+def _pynec_ground_spec(req: dict):
+    """Map the frontend's ground knobs to PyNECEngine's ground spec, matching
+    the UI labels: ground=True gives the Sommerfeld-Norton finite ground with
+    DEFAULT_GROUND's eps_r=10, sigma=0.002; ground_fast=True downgrades to
+    NEC's reflection-coefficient approximation; ground off is free space."""
+    if not req.get("ground", False):
+        return "free"
+    if req.get("ground_fast", False):
+        return ("finite-fast",) + DEFAULT_GROUND[1:]
+    return DEFAULT_GROUND
 
 
 def _make_momwire_engine(req: dict, builder, cancel=None):
@@ -487,13 +500,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
 
 
 def _make_pynec_engine(req: dict, builder):
-    # PyNECEngine accepts the same ground-spec vocabulary as MomwireEngine
-    # — None / "pec" / ("finite", eps_r, sigma) — but defaults to a
-    # finite ground rather than free space if you pass nothing. Match
-    # MomwireEngine's behaviour: ground off => free space, ground on =>
-    # PEC plane at z=0.
-    ground = _ground_for_engine(req, 0.0) or "free"
-    return PyNECEngine(builder, ground=ground)
+    return PyNECEngine(builder, ground=_pynec_ground_spec(req))
 
 
 # ---------------------------------------------------------------------------
@@ -1147,7 +1154,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_tag": int(feed_tag),
             "n_per_wire": 1,
             "ground": bool(req.get("ground", False)),
-            "ground_fast": False,
+            "ground_fast": bool(req.get("ground_fast", False)),
             "z_offset": 0.0,
             "_engine": eng,
         }
@@ -1193,8 +1200,17 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "solve_ms": solve_ms,
             "ground": bool(req.get("ground", False)),
             "height_m": 0.0,
-            "ground_eps_r": _PEC_GROUND_EPS_R,
-            "ground_sigma": _PEC_GROUND_SIGMA,
+            # The engine solved over the Sommerfeld finite ground, so ship its
+            # real eps_r/sigma: the frontend's far-field cut applies PEC image
+            # + Fresnel with these, which tracks NEC's finite-ground rp_card
+            # pattern to ~0.2 dB. (momwire keeps the PEC constants — its
+            # impedance solve genuinely is PEC-image.)
+            "ground_eps_r": (
+                DEFAULT_GROUND[1] if req.get("ground", False) else _PEC_GROUND_EPS_R
+            ),
+            "ground_sigma": (
+                DEFAULT_GROUND[2] if req.get("ground", False) else _PEC_GROUND_SIGMA
+            ),
             "z0_ohms": hints()["target_z0"],
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],
