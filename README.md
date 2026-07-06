@@ -46,6 +46,10 @@ What you get:
   compare side by side on the same antenna, at once. The defaults are already
   a cross-check: B-spline d=2 (the working solver) vs. B-spline d=1 (same
   physics through an independent basis) vs. PyNEC.
+- **A ground plane** described by what it *is* — finite (εr=10, σ=0.002) or
+  PEC — independent of solver; each backend solves it as best it can (PyNEC
+  additionally offers Sommerfeld-Norton vs. the faster reflection-coefficient
+  method), and the solve readout reports the model that actually ran.
 
 Live updates stay responsive because rapid knob drags are coalesced into one
 solve per round-trip, so the solver is never buried under stale requests.
@@ -101,7 +105,7 @@ point — agreement between independent engines is your confidence check.
 | What | Python binding to the compiled C++ **NEC2** engine | In-house **method-of-moments** engines, pure-Python core with optional C++ accelerators |
 | Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — triangular (tent), sinusoidal, B-spline — plus H-matrix and array-block accelerators built on them |
 | Speed | Very fast single-frequency solves | Fast; C++ accelerators (pybind11) for assembly/quadrature, pure-Python fallback |
-| Ground | Sommerfeld–Norton finite ground (default) | PEC image method; free space by default |
+| Ground | Sommerfeld–Norton finite ground (default) or the faster reflection-coefficient approximation | Reflection-coefficient finite ground on the B-spline family; PEC image on the other bases; free space by default |
 | Install | Prebuilt wheel from the `python-necpp` fork release (OpenBLAS vendored) | C++ accelerator built from the `momwire` submodule |
 | Use it for | The established reference; finite-ground patterns | Basis-flexible cross-validation; geometries where NEC2 reactance fails to converge |
 
