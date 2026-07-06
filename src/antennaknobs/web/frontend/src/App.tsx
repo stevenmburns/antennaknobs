@@ -4727,7 +4727,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               {normCheckEnabled && normCheck && (
                 <span
                   className="overlay-readout"
-                  title={`input-power norm vs pattern-integral norm (${normCheck.method}); 0 dB = perfect power balance`}
+                  title={
+                    normCheck.method.startsWith("grid_")
+                      ? `input-power norm vs pattern-integral norm (${normCheck.method}); over a finite ground Δ includes real ground absorption (NEC average-gain style), so a nonzero value is expected, not solver error`
+                      : `input-power norm vs pattern-integral norm (${normCheck.method}); 0 dB = perfect power balance`
+                  }
                 >
                   Δ {normCheck.delta_db >= 0 ? "+" : ""}
                   {normCheck.delta_db.toFixed(3)} dB
