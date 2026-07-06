@@ -1160,6 +1160,10 @@ type SolveResponse = {
   ground_eps_r?: number;
   ground_sigma?: number;
   ground_eps_im?: number;
+  /** What the impedance solve actually used (momwire responses):
+   *  "refl-coef" | "pec-image" | "free". Informational — the tab summary
+   *  derives the same fact from backend + groundModel state. */
+  ground_model_applied?: string;
   k_meas_m_inv?: number;
   // V-specific
   arm_len_m?: number;
@@ -1260,12 +1264,14 @@ function isBSplineFamily(b: Backend): boolean {
   return BSPLINE_FAMILY.includes(b);
 }
 
-// Every momwire model has the PEC image-method ground; PyNEC picks between
-// Sommerfeld-Norton, the reflection-coefficient approximation, and PEC (the
-// image method, for apples-to-apples comparison against momwire). Kept as an
-// explicit list so future backends without ground support can be excluded by
-// name.
-type PynecGroundModel = "sommerfeld" | "fast" | "pec";
+// One shared three-way ground model describing the GROUND; each backend
+// approximates it as best it can. PyNEC: Sommerfeld-Norton / the
+// reflection-coefficient approximation / PEC image. Momwire: "sommerfeld"
+// and "fast" both map to its reflection-coefficient solve on the B-spline
+// family (its best available finite model; momwire has no Sommerfeld),
+// while Triangular/Sinusoidal keep the PEC image solve — either way the
+// finite constants (εr=10, σ=0.002) reach the far-field Fresnel cut.
+type GroundModel = "sommerfeld" | "fast" | "pec";
 
 function backendSupportsGround(b: Backend): boolean {
   return (
@@ -1431,7 +1437,7 @@ type SolveRequest = {
   wire_radius: number;
   ground: boolean;
   ground_fast: boolean;
-  ground_model?: PynecGroundModel;
+  ground_model?: GroundModel;
   // V
   angle_deg?: number;
   halfdriver_factor?: number;
@@ -2329,23 +2335,28 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [linkMeas, setLinkMeas] = useState(true);
   // Ground plane at z = 0 (model per backend; see groundModel).
   const [groundEnabled, setGroundEnabled] = useState(false);
-  // PyNEC-only ground model choice; momwire always uses the PEC image method.
-  const [groundModel, setGroundModel] = useState<PynecGroundModel>("sommerfeld");
+  // Shared ground-model choice — one selector describing the ground, every
+  // backend approximates it (see the GroundModel type note).
+  const [groundModel, setGroundModel] = useState<GroundModel>("sommerfeld");
 
   // One-line tab-hover summary: design · solver N=segs · ground model. The
-  // ground wording follows the backend family (momwire = PEC image method,
-  // PyNEC = the selected groundModel), and reads "free space" when ground is
-  // off or unsupported by the active solver.
+  // wording reflects what the active solver actually runs: PyNEC honours
+  // the model directly; momwire B-spline-family solves refl-coef for both
+  // finite models; Triangular/Sinusoidal solve the PEC image and only the
+  // far-field pattern sees the finite constants. "free space" when ground
+  // is off or unsupported.
   const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
   const groundSummary = !groundActiveForSummary
     ? "free space"
-    : backend === "pynec"
-      ? groundModel === "fast"
-        ? "reflection-coef ground"
-        : groundModel === "pec"
-          ? "PEC ground"
+    : groundModel === "pec"
+      ? "PEC ground"
+      : backend === "pynec"
+        ? groundModel === "fast"
+          ? "reflection-coef ground"
           : "Sommerfeld ground"
-      : "PEC ground";
+        : isBSplineFamily(backend)
+          ? "reflection-coef ground"
+          : "PEC solve · Fresnel pattern";
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${BACKEND_LABEL[backend]} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
@@ -2674,10 +2685,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const solveRafRef = useRef<number | null>(null); // trailing-edge rAF throttle handle
 
   function buildRequest(): SolveRequest {
-    // Solver-family ground notes: PyNEC uses Sommerfeld-Norton (or the
-    // fast reflection-coefficient approximation) with εr=10, σ=0.002;
-    // momwire's Triangular and B-spline models use the PEC image method.
-    // Sinusoidal is free-space-only — the gear UI grays the toggle for it.
+    // ground_model is shared across backends (εr=10, σ=0.002 for the finite
+    // models): PyNEC honours it directly; momwire's B-spline family solves
+    // the finite models with its reflection-coefficient ground, while
+    // Triangular/Sinusoidal fold them to the PEC image solve (the server
+    // ships the real εr/σ for the pattern either way).
     const groundActive = groundEnabled && backendSupportsGround(backend);
     const base: SolveRequest = {
       geometry,
@@ -4454,11 +4466,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         <div className="field">
           <label
             className="link-toggle"
-            title={
-              backend === "pynec"
-                ? "Ground plane at z=0; pick the NEC ground model below"
-                : "PEC image-method ground (perfect electric conductor)"
-            }
+            title="Ground plane at z=0; pick the ground model below"
           >
             <input
               type="checkbox"
@@ -4466,34 +4474,43 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               disabled={!backendSupportsGround(backend)}
               onChange={(e) => setGroundEnabled(e.target.checked)}
             />
-            ground plane{" "}
-            {backend === "pynec" ? "" : "(PEC, perfect conductor)"}
+            ground plane
           </label>
-          {backend === "pynec" && groundEnabled && (
-            <div role="radiogroup" aria-label="NEC ground model">
+          {backendSupportsGround(backend) && groundEnabled && (
+            <div role="radiogroup" aria-label="Ground model">
               {(
                 [
                   [
                     "sommerfeld",
                     "Sommerfeld (εr=10, σ=0.002 S/m)",
-                    "Sommerfeld-Norton finite ground (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate.",
+                    backend === "pynec"
+                      ? "Sommerfeld-Norton finite ground (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
+                      : isBSplineFamily(backend)
+                        ? "Finite ground, approximated by momwire's reflection-coefficient solve (its best finite model — agrees with Sommerfeld to ~2 Ω above ~0.1λ heights); pattern uses the real εr/σ."
+                        : "Finite ground: this solver only models the PEC image in the impedance solve; the far-field pattern still uses the real εr/σ (Fresnel).",
                   ],
                   [
                     "fast",
                     "refl-coef (fast)",
-                    "Same finite ground via the reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height.",
+                    backend === "pynec"
+                      ? "Same finite ground via the reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height."
+                      : isBSplineFamily(backend)
+                        ? "Finite ground via momwire's reflection-coefficient solve (NEC gn 0 style; validated within ~2 Ω of NEC over 0.1–0.5λ heights); pattern uses the real εr/σ."
+                        : "Finite ground: this solver only models the PEC image in the impedance solve; the far-field pattern still uses the real εr/σ (Fresnel).",
                   ],
                   [
                     "pec",
                     "PEC",
-                    "Perfectly conducting ground (image method, NEC ITYPE=1) — matches the momwire backends' ground model for apples-to-apples engine comparison.",
+                    backend === "pynec"
+                      ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
+                      : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
                   ],
-                ] as [PynecGroundModel, string, string][]
+                ] as [GroundModel, string, string][]
               ).map(([value, label, title]) => (
                 <label key={value} className="link-toggle" title={title}>
                   <input
                     type="radio"
-                    name="pynec-ground-model"
+                    name="ground-model"
                     checked={groundModel === value}
                     onChange={() => setGroundModel(value)}
                   />
