@@ -43,8 +43,9 @@ What you get:
 - **A Smith chart** of input impedance, with optional frequency-sweep and
   convergence overlays.
 - **Three solver slots (A / B / C)** you can point at different backends and
-  compare side by side — e.g. momwire triangular vs. B-spline vs. PyNEC on the
-  same antenna, at once.
+  compare side by side on the same antenna, at once. The defaults are already
+  a cross-check: B-spline d=2 (the working solver) vs. B-spline d=1 (same
+  physics through an independent basis) vs. PyNEC.
 
 Live updates stay responsive because rapid knob drags are coalesced into one
 solve per round-trip, so the solver is never buried under stale requests.
@@ -127,9 +128,10 @@ engine = MomwireEngine(builder, solver=BSplineSolver, solver_kwargs={"degree": 2
 ```
 
 **momwire** lives in its own repository and is vendored here as a git submodule;
-its primary `TriangularSolver` engine converges to NEC accuracy in ~80 segments
-and is validated against the independent B-spline basis. The H-matrix and
-array-block engines are newer and aimed at large arrays. **PyNEC** is an
+its `BSplineSolver` (the web workbench's default) is validated against the
+independent triangular (tent) basis, which converges to NEC accuracy in ~80
+segments. The H-matrix and array-block engines are newer and aimed at large
+arrays. **PyNEC** is an
 *optional* second backend — the `python-necpp` fork, distributed as a
 self-contained wheel (OpenBLAS vendored, so no SWIG/BLAS/autotools toolchain is
 required at install time). It is licensed **GPL-2.0** and installed separately
