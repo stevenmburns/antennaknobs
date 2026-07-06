@@ -58,7 +58,10 @@ def test_export_one_gw_per_wire():
 
 def test_export_ground_cards():
     assert "GN 1" in export_nec(InvVee(_DIPOLE), ground="pec")
-    assert "GN 0" in export_nec(InvVee(_DIPOLE), ground=("finite", 10.0, 0.002))
+    # finite = Sommerfeld-Norton (IPERF 2); finite-fast = reflection-
+    # coefficient approximation (IPERF 0)
+    assert "GN 2" in export_nec(InvVee(_DIPOLE), ground=("finite", 10.0, 0.002))
+    assert "GN 0" in export_nec(InvVee(_DIPOLE), ground=("finite-fast", 10.0, 0.002))
     # free space emits no GN card
     assert "GN " not in export_nec(InvVee(_DIPOLE), ground="free")
 
@@ -114,6 +117,7 @@ def _nec2c_impedances(deck):
         (InvVee(_DIPOLE), "free"),
         (InvVee(_DIPOLE), "pec"),
         (InvVee(_DIPOLE), ("finite", 10.0, 0.002)),
+        (InvVee(_DIPOLE), ("finite-fast", 10.0, 0.002)),
         (Yagi(), "free"),
     ],
 )

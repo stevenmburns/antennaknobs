@@ -44,9 +44,19 @@ def _gn(ground):
         return None
     if ground == "pec":
         return "GN 1 0 0 0 0 0"
-    if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "finite":
+    if (
+        isinstance(ground, tuple)
+        and len(ground) == 3
+        and ground[0]
+        in (
+            "finite",
+            "finite-fast",
+        )
+    ):
         _, eps_r, sigma = ground
-        return f"GN 0 0 0 0 {_num(eps_r)} {_num(sigma)}"
+        # IPERF 2 = Sommerfeld-Norton, 0 = reflection-coefficient approximation.
+        iperf = 2 if ground[0] == "finite" else 0
+        return f"GN {iperf} 0 0 0 {_num(eps_r)} {_num(sigma)}"
     raise ValueError(f"unrecognised ground spec: {ground!r}")
 
 
@@ -62,8 +72,9 @@ def export_nec(
 ):
     """Return a NEC2 card deck (str) for ``builder``.
 
-    ground   : same spec as PyNECEngine — None/"free", "pec", or
-               ("finite", eps_r, sigma).
+    ground   : same spec as PyNECEngine — None/"free", "pec",
+               ("finite", eps_r, sigma) (Sommerfeld-Norton), or
+               ("finite-fast", eps_r, sigma) (reflection-coefficient).
     freq     : design frequency in MHz; defaults to ``builder.freq``.
     df       : FR-card frequency step in MHz (for a sweep).
     npoints  : FR-card frequency count.

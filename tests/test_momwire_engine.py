@@ -541,10 +541,10 @@ def test_momwire_pec_ground_directivity_matches_pynec():
 
 def test_momwire_finite_ground_returns_sane_values():
     """Finite ground in MomwireEngine is PEC-image-plus-Fresnel post-
-    processing; PyNEC's gn_card(0,...) uses a more sophisticated
-    Sommerfeld/Norton model. The two diverge by ~1.5 dBi on a 10m
-    dipole over (eps_r=10, sigma=0.002) ground. Don't claim equality;
-    just sanity-check the output."""
+    processing; PyNEC's ("finite",...) ground uses the more sophisticated
+    Sommerfeld/Norton model (gn_card(2,...)). The two diverge by ~1.5 dBi
+    on a 10m dipole over (eps_r=10, sigma=0.002) ground. Don't claim
+    equality; just sanity-check the output."""
     b = Builder()
     ff = MomwireEngine(b, ground=("finite", 10.0, 0.002)).far_field(
         n_theta=90, n_phi=360, del_theta=1, del_phi=1
