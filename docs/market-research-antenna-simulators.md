@@ -213,20 +213,19 @@ The antenna-simulation market splits into three tiers:
 5. **Open-source** while matching paid-tier modeling features (AN-SOF charges $999+; MMANA-GAL Pro €139).
 
 ### Parity (table-stakes the tool already meets)
-Impedance / SWR / Γ, gain / directivity, far-field 2D patterns, current distribution, frequency sweeps, parameter optimization, Smith chart, 3D geometry view, transmission lines + loads, multi-port networks. These are expected across the whole amateur tier; `antenna_designer` has them.
+Impedance / SWR / Γ, gain / directivity, far-field 2D patterns, current distribution, frequency sweeps, parameter optimization, Smith chart, 3D geometry view, transmission lines + loads, multi-port networks. These are expected across the whole amateur tier; `antenna_designer` has them. On far-field presentation: the solver produces full-sphere `(n_theta, n_phi)` data on every basis, and the UI presents it as calibrated az/el polar cuts — the numbers-first view you can actually read gain and beamwidth off — as its chosen presentation.
 
 ### Gaps worth noting
 - **`.nec` import (round-trip) not yet** — export now exists (`nec_export`: CLI + web download, validated against `nec2c`, and round-tripped through xnec2c), closing the headline interoperability gap. What remains is *reading* external `.nec` decks back in; that's the lower-leverage half (most amateur-tier value is getting designs *out* to existing tools). PyNEC has no deck reader, so import would mean a small `.nec` parser driving the card API.
-- **pysim finite-ground impedance is approximate** (PEC image + Fresnel); only PyNEC does full Sommerfeld. Real-ground HF work (verticals, low dipoles) leans on the PyNEC path.
+- **Finite-ground impedance on the triangular/sinusoidal bases folds to the PEC image** — the B-spline family solves it with momwire's reflection-coefficient model (validated within ~2 Ω of NEC over 0.1–0.5λ heights) and PyNEC offers full Sommerfeld–Norton, so real-ground work cross-checks across two independent engines; below ~0.1λ heights the Sommerfeld path is the reference.
 - **No copper/conductor loss in pysim** (PEC wires); efficiency on lossy elements requires PyNEC + `ld_card`.
-- **3D radiation-pattern rendering** — competitors (4nec2, EZNEC, MMANA, xnec2c) all advertise full 3D pattern *surfaces*. The solver produces full-sphere far-field data (`far_field()` returns `(n_theta, n_phi)` rings for every basis, including HMatrix/ArrayBlock), but the UI renders it as polar az/el cuts rather than a 3D pattern surface — so this is a rendering gap, not a solver gap.
 - **No FEM/FDTD/asymptotic, GPU/MPI, multiphysics, SAR/RCS/EMC, CAD import, auto-adaptive meshing** — Tier-1 features, out of scope for a focused wire-MoM tool, but worth stating explicitly so the positioning is honest.
-- **Remaining solver caveats** (per `NEXT_STEPS.md`): pysim wires are PEC (no conductor loss); finite-ground impedance is approximate; strict `tl_card` PyNEC numerical agreement is unmet on near-decoupled geometries (segment-vs-basis port convention).
+- **Remaining solver caveats** (per `NEXT_STEPS.md`): pysim wires are PEC (no conductor loss); strict `tl_card` PyNEC numerical agreement is unmet on near-decoupled geometries (segment-vs-basis port convention).
 
 ### Suggested positioning statement
 > *An open-source, browser-based wire-antenna MoM simulator for amateur/HF design that uniquely combines multiple basis functions, H-matrix acceleration for large arrays, and a NEC-2 cross-validation engine — delivering paid-tier (AN-SOF/MMANA-Pro) modeling quality for free, with no platform lock-in.*
 
-The clearest roadmap item implied by the gap analysis is now **a 3D far-field pattern surface in the UI** (the solver already produces full-sphere data across all bases) to reach visual parity with 4nec2/EZNEC. The former top item — `.nec` export for ecosystem interoperability — has shipped (`nec_export`, validated against `nec2c`); the smaller follow-on is `.nec` *import* for full round-trip.
+The clearest roadmap item implied by the gap analysis is now **`.nec` import** for full round-trip interoperability. The former top item — `.nec` export — has shipped (`nec_export`, validated against `nec2c`); import is the remaining half, and PyNEC has no deck reader, so it would mean a small `.nec` parser driving the card API.
 
 ---
 

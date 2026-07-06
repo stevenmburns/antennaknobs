@@ -65,8 +65,11 @@ so there is one canonical URL per topic. `.com` links *into* `.dev` for depth.
 - The honest comparison table from the market research (Tier-2/Tier-3 row): method,
   interface, platform, price, license. Lead with the three real differentiators
   (multi-basis, H-matrix, web UI + cross-validation) and **state the gaps too**
-  (approximate finite-ground, no conductor loss yet, polar cuts not 3D surface) —
-  honesty is itself a differentiator vs. the commercial pitches.
+  (no conductor loss yet, `.nec` import still pending) — honesty is itself a
+  differentiator vs. the commercial pitches. Ground is a strength to state
+  positively: finite ground solved two independent ways (momwire refl-coef +
+  PyNEC Sommerfeld) that cross-check within ~2 Ω, and the UI reports the model
+  each solve actually used.
 - Positioning statement verbatim.
 
 ### `/learn` — First antenna in 5 minutes
@@ -152,8 +155,9 @@ point). Grouped by family (dipoles, Yagis, loops, verticals, bowties, multiband)
 - **The benchmark** (the 10-design engine comparison already in the repo) →
   accuracy & performance plots. This is the credibility page for skeptics.
 - The two-engine cross-validation (momwire vs. PyNEC reference).
-- Honest caveats from `NEXT_STEPS.md` (PEC wires, approximate finite ground,
-  polar cuts vs. 3D surface).
+- Honest caveats from `NEXT_STEPS.md` (PEC wires — no conductor loss;
+  triangular/sinusoidal impedance folds finite ground to the PEC image;
+  strict `tl_card` agreement open on near-decoupled geometries).
 
 ### `/docs/web`, `/docs/cli`, `/docs/api`, `/contributing`, `/changelog`
 
