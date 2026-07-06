@@ -1260,9 +1260,13 @@ function isBSplineFamily(b: Backend): boolean {
   return BSPLINE_FAMILY.includes(b);
 }
 
-// Every momwire model has the PEC image-method ground; PyNEC uses its own
-// Sommerfeld / reflection-coefficient ground. Kept as an explicit list so
-// future backends without ground support can be excluded by name.
+// Every momwire model has the PEC image-method ground; PyNEC picks between
+// Sommerfeld-Norton, the reflection-coefficient approximation, and PEC (the
+// image method, for apples-to-apples comparison against momwire). Kept as an
+// explicit list so future backends without ground support can be excluded by
+// name.
+type PynecGroundModel = "sommerfeld" | "fast" | "pec";
+
 function backendSupportsGround(b: Backend): boolean {
   return (
     b === "triangular" ||
@@ -1427,6 +1431,7 @@ type SolveRequest = {
   wire_radius: number;
   ground: boolean;
   ground_fast: boolean;
+  ground_model?: PynecGroundModel;
   // V
   angle_deg?: number;
   halfdriver_factor?: number;
@@ -2322,21 +2327,24 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [designFreq, setDesignFreq] = useState(14.3);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
-  // PEC ground plane (image method at z = 0).
+  // Ground plane at z = 0 (model per backend; see groundModel).
   const [groundEnabled, setGroundEnabled] = useState(false);
-  const [groundFast, setGroundFast] = useState(false);
+  // PyNEC-only ground model choice; momwire always uses the PEC image method.
+  const [groundModel, setGroundModel] = useState<PynecGroundModel>("sommerfeld");
 
   // One-line tab-hover summary: design · solver N=segs · ground model. The
   // ground wording follows the backend family (momwire = PEC image method,
-  // PyNEC = Sommerfeld, or its fast reflection-coefficient approximation), and
-  // reads "free space" when ground is off or unsupported by the active solver.
+  // PyNEC = the selected groundModel), and reads "free space" when ground is
+  // off or unsupported by the active solver.
   const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
   const groundSummary = !groundActiveForSummary
     ? "free space"
     : backend === "pynec"
-      ? groundFast
+      ? groundModel === "fast"
         ? "reflection-coef ground"
-        : "Sommerfeld ground"
+        : groundModel === "pec"
+          ? "PEC ground"
+          : "Sommerfeld ground"
       : "PEC ground";
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${BACKEND_LABEL[backend]} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
@@ -2680,7 +2688,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       measurement_freq_mhz: measFreq,
       wire_radius: wireRadius,
       ground: groundActive,
-      ground_fast: groundActive && groundFast,
+      // ground_fast is the legacy boolean; ground_model is authoritative
+      // server-side when present. Send both so either server version agrees.
+      ground_fast: groundActive && groundModel === "fast",
+      ground_model: groundModel,
     };
     if (backend !== "pynec") {
       base.momwire_model = backend;
@@ -3126,7 +3137,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     geometry, previewReady, backend, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
-    groundEnabled, groundFast,
+    groundEnabled, groundModel,
   ]);
 
   // Antenna switch: drop the previous antenna's results immediately so nothing
@@ -3228,7 +3239,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     geometry, backend, backendOptsKey,
     currentValuesKey,
     designFreq,
-    groundEnabled, groundFast,
+    groundEnabled, groundModel,
     sweepEnabled,
     active,
     // measFreq/linkMeas drive the anchor now (meas_freq policy, or any unlocked
@@ -3265,7 +3276,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     geometry, backend, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
-    groundEnabled, groundFast,
+    groundEnabled, groundModel,
     convergeEnabled,
     active,
   ]);
@@ -3293,7 +3304,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     geometry, backend, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
-    groundEnabled, groundFast,
+    groundEnabled, groundModel,
     normCheckEnabled,
     active,
   ]);
@@ -3316,7 +3327,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     geometry, backend, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
-    groundEnabled, groundFast,
+    groundEnabled, groundModel,
     active,
   ]);
 
@@ -3346,7 +3357,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // A variant can override the policy (e.g. a band-locked variant): prefer
     // the active variant's entry in variant_ui, falling back to the
     // design-level sweep_policy.
-    const slowGround = backend === "pynec" && groundEnabled && !groundFast;
+    const slowGround =
+      backend === "pynec" && groundEnabled && groundModel === "sommerfeld";
     const N = slowGround ? 21 : 41;
     const policy =
       currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
@@ -4444,7 +4456,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             className="link-toggle"
             title={
               backend === "pynec"
-                ? "Sommerfeld-Norton ground (εr=10, σ=0.002 S/m)"
+                ? "Ground plane at z=0; pick the NEC ground model below"
                 : "PEC image-method ground (perfect electric conductor)"
             }
           >
@@ -4455,22 +4467,40 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               onChange={(e) => setGroundEnabled(e.target.checked)}
             />
             ground plane{" "}
-            {backend === "pynec"
-              ? "(εr=10, σ=0.002 S/m)"
-              : "(PEC, perfect conductor)"}
+            {backend === "pynec" ? "" : "(PEC, perfect conductor)"}
           </label>
           {backend === "pynec" && groundEnabled && (
-            <label
-              className="link-toggle"
-              title="Reflection-coefficient approximation (NEC ITYPE=0). ~10x faster per solve than Sommerfeld-Norton; degrades for very-low antennas near the horizon."
-            >
-              <input
-                type="checkbox"
-                checked={groundFast}
-                onChange={(e) => setGroundFast(e.target.checked)}
-              />
-              fast ground (reflection coefficient)
-            </label>
+            <div role="radiogroup" aria-label="NEC ground model">
+              {(
+                [
+                  [
+                    "sommerfeld",
+                    "Sommerfeld (εr=10, σ=0.002 S/m)",
+                    "Sommerfeld-Norton finite ground (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate.",
+                  ],
+                  [
+                    "fast",
+                    "refl-coef (fast)",
+                    "Same finite ground via the reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height.",
+                  ],
+                  [
+                    "pec",
+                    "PEC",
+                    "Perfectly conducting ground (image method, NEC ITYPE=1) — matches the momwire backends' ground model for apples-to-apples engine comparison.",
+                  ],
+                ] as [PynecGroundModel, string, string][]
+              ).map(([value, label, title]) => (
+                <label key={value} className="link-toggle" title={title}>
+                  <input
+                    type="radio"
+                    name="pynec-ground-model"
+                    checked={groundModel === value}
+                    onChange={() => setGroundModel(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
           )}
         </div>
 

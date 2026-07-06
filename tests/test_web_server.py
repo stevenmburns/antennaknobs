@@ -890,6 +890,37 @@ def test_pynec_ground_on_solves_over_sommerfeld_finite_ground():
 
 
 @pynec_required
+def test_pynec_ground_model_selects_pec_fast_or_sommerfeld():
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "pynec",
+        "measurement_freq_mhz": 28.47,
+        "ground": True,
+    }
+    somm = server.solve(base)
+    fast = server.solve({**base, "ground_model": "fast"})
+    fast_legacy = server.solve({**base, "ground_fast": True})
+    pec = server.solve({**base, "ground_model": "pec"})
+    # PEC keeps the placeholder constants (client-side Fresnel ρ→−1); finite
+    # models ship the real ones.
+    assert pec["ground_eps_r"] == pytest.approx(1.0e10)
+    assert pec["ground_sigma"] == 0.0
+    assert fast["ground_eps_r"] == 10.0
+    # The legacy ground_fast boolean and ground_model="fast" are the same solve.
+    assert fast_legacy["z_in_re"] == fast["z_in_re"]
+    assert fast_legacy["z_in_im"] == fast["z_in_im"]
+    # PEC differs measurably from Sommerfeld (~5 Ω on this dipole)...
+    z_pec = complex(pec["z_in_re"], pec["z_in_im"])
+    z_somm = complex(somm["z_in_re"], somm["z_in_im"])
+    assert abs(z_pec - z_somm) > 2.0
+    # ...and lands on momwire's PEC image solve (same physics, different
+    # solver: ~0.9 Ω of basis/segmentation difference measured).
+    momwire_pec = server.solve({**base, "solver": "momwire"})
+    z_mom = complex(momwire_pec["z_in_re"], momwire_pec["z_in_im"])
+    assert abs(z_pec - z_mom) < 3.0
+
+
+@pynec_required
 def test_sweep_endpoint_with_pynec_streams_per_point(client: TestClient):
     freqs = [28.0, 28.47, 29.0]
     r = client.post(
