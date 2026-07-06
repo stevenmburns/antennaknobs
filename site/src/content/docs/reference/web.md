@@ -114,6 +114,31 @@ This applies **only** to the shared hosted instance: a local install is
 **unlocked** (solve as big as your own machine allows). See `docs/deploy.md`.
 :::
 
+## The ground plane
+
+Real antennas hang over real ground, so the workbench starts there: the
+**ground plane** checkbox is **on by default**, with free space one click away.
+The over-ground picture — takeoff angle, the ground-lobed elevation pattern,
+the shifted feed-point impedance — is usually the one your design decisions
+actually depend on.
+
+The selector describes what the ground **is**, independent of solver:
+
+- **finite (εr=10, σ=0.002 S/m)** — "average" real earth, the default; or
+- **PEC** — a perfect reflector, mainly for apples-to-apples engine
+  comparisons.
+
+Each solver then models that ground as well as it can. The momwire B-spline
+family solves finite grounds with its reflection-coefficient model (validated
+within ~2 Ω of NEC over 0.1–0.5λ heights); PyNEC adds a method sub-choice —
+full **Sommerfeld–Norton** (most accurate, slowest; the reference below ~0.1λ)
+vs. the **reflection-coefficient** approximation (~2× faster per solve). The
+triangular/sinusoidal bases fold the impedance solve to the PEC image; the
+far-field pattern uses the real εr/σ on every basis. Whatever runs, the solve
+readout's **ground** row reports the model that was actually used, and over a
+finite ground the [norm check](#norm-check--is-the-solve-trustworthy) Δ reads
+"incl. ground loss" — a steady dB or so there is absorbed power, not error.
+
 ## Convergence sweep
 
 To check that your chosen N is **converged** — i.e. adding more segments no
@@ -133,7 +158,7 @@ tab, and close one with the **✕** (the last remaining tab can't be closed).
 - Sessions are **fully independent**: changing a knob, the solver, or the ground
   model in one leaves every other session exactly as you left it.
 - **Hover a tab** for its summary — design, solver, segment count, and ground
-  model — e.g. `dipoles.invvee · Triangular N=40 · free space`.
+  model — e.g. `dipoles.invvee · B-spline d=2 N=21 · reflection-coef ground`.
 - Switching to a session **re-solves** it, which is near-instant because the
   server caches recent solves (see [How a knob turn works](#how-a-knob-turn-works)).
 - The light/dark theme and [pinned patterns](#comparing-patterns) are shared
