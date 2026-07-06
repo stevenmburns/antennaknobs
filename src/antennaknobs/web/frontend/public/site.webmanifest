@@ -3,7 +3,7 @@
   "short_name": "AntennaKNoBs",
   "description": "Scriptable antenna design with live, knob-driven tuning",
   "start_url": "/",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#f6f8fb",
   "theme_color": "#2563eb",
   "icons": [
