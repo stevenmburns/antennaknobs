@@ -1653,6 +1653,39 @@ function useIsMobile() {
   };
 }
 
+// Document-fullscreen state + toggle for the gear menu's "full screen" check.
+// This is the phone answer to browser chrome: on Android it hides BOTH the
+// system status bar and the nav bar (the manifest's old standalone mode only
+// hid the URL bar, and made Chrome nag to "install the app" besides).
+// `supported` is false where element fullscreen doesn't exist (iPhone
+// Safari), which hides the control. The subscribe pattern mirrors
+// useMediaQuery: fullscreenchange fires on Esc / back-gesture exits too, so
+// the checkbox can never disagree with the actual state.
+function useFullscreen() {
+  const [subscribe, getSnapshot] = useMemo(() => {
+    const sub = (onChange: () => void) => {
+      document.addEventListener("fullscreenchange", onChange);
+      return () => document.removeEventListener("fullscreenchange", onChange);
+    };
+    return [sub, () => document.fullscreenElement != null] as const;
+  }, []);
+  const active = useSyncExternalStore(subscribe, getSnapshot);
+  const toggle = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement
+        .requestFullscreen({ navigationUI: "hide" })
+        .catch(() => {});
+    }
+  }, []);
+  return {
+    active,
+    toggle,
+    supported: typeof document.documentElement.requestFullscreen === "function",
+  };
+}
+
 function useThumbColumnSize(
   stripRef: React.RefObject<HTMLDivElement>,
   maxThumb = 280,
@@ -1922,6 +1955,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [gearMenuOpen, setGearMenuOpen] = useState(false);
   // Transient "Copied ✓" confirmation on the Copy-params menu item.
   const [copiedParams, setCopiedParams] = useState(false);
+  // Document fullscreen (global, like theme) — the gear check is just the
+  // nearest settings surface to reach it from.
+  const fullscreen = useFullscreen();
 
   // Schema-driven parameter controls. Each registered example bundles
   // its parameter schema in web/examples/<name>.py; the backend serves
@@ -3849,6 +3885,22 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                         to reach them there; on desktop it's a convenience
                         duplicate. */}
                     <div className="gear-menu-divider" />
+                    {fullscreen.supported && (
+                      <>
+                        <div className="gear-menu-section">display</div>
+                        <label
+                          className="gear-menu-check"
+                          title="Take over the whole screen — on a phone this hides the system status and navigation bars. Uncheck (or Esc / back gesture) to exit."
+                        >
+                          <input
+                            type="checkbox"
+                            checked={fullscreen.active}
+                            onChange={fullscreen.toggle}
+                          />
+                          full screen
+                        </label>
+                      </>
+                    )}
                     <div className="gear-menu-section">antenna chart</div>
                     <label
                       className="gear-menu-check"

@@ -208,6 +208,11 @@ dialed in — no more transcribing values off the screen by hand.
 The same gear menu also has **Download .nec deck**, which exports the design as
 a NEC-2 card deck for xnec2c / 4nec2 / EZNEC.
 
+It's also where **full screen** lives (under *display*): on a phone it hides
+the system status and navigation bars so the whole screen is workbench —
+uncheck it, press Esc, or use the back gesture to exit. (The control is hidden
+on browsers without full-screen support, e.g. iPhone Safari.)
+
 ## How a knob turn works
 
 A knob change sends one message over the `/ws` WebSocket; the server re-solves in

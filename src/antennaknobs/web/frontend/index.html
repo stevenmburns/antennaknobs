@@ -4,10 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AntennaKNoBs</title>
-    <!-- PWA-lite: `display: standalone` in the manifest lets Android Chrome's
-         "Add to Home screen" launch the workbench full screen, with no URL
-         bar — the fixed-viewport layout never scrolls, so the bar would never
-         auto-hide in a normal tab. No service worker on purpose: the app is
+    <!-- Manifest is `display: browser` ON PURPOSE: standalone made the site
+         "installable", which fired Chrome's automatic install banner and
+         still left Android's status/nav bars up. Add-to-Home-screen now makes
+         a plain shortcut (the icons below keep it pretty), and true full
+         screen — both bars gone — is the gear menu's "full screen" toggle
+         (Fullscreen API) instead. No service worker on purpose: the app is
          useless offline (solves live on the server) and a stale-bundle cache
          is exactly what we don't want after the v0.13.0 incident. -->
     <link rel="manifest" href="/site.webmanifest" />
