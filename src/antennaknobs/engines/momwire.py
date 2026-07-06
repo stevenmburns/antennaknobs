@@ -66,10 +66,25 @@ def _normalise_ground(ground):
         )
     ):
         # "finite-fast" is a PyNECEngine distinction (Sommerfeld-Norton vs the
-        # reflection-coefficient approximation); momwire has a single finite
-        # model, so both fold to it.
+        # reflection-coefficient approximation); momwire's best finite model
+        # is the reflection-coefficient one (BSplineSolver ground_eps), so
+        # both fold to a single spec and, for solvers that support it, both
+        # get the refl-coef solve (Sommerfeld in momwire is out of scope —
+        # see momwire docs/refl-coef-ground-plan.md).
         return ("finite",) + tuple(ground[1:])
     raise ValueError(f"unrecognised ground spec: {ground!r}")
+
+
+# Solvers whose impedance solve honours the reflection-coefficient finite
+# ground. BSplineSolver implements it; HMatrixSolver / ArrayBlockSolver
+# subclass it and fall back to the dense path when ground_eps is set
+# (momwire >= 0.4.0). TriangularSolver / SinusoidalSolver only model the
+# PEC image, so finite grounds keep folding to PEC for them.
+_GROUND_EPS_SOLVERS = ("BSplineSolver", "HMatrixSolver", "ArrayBlockSolver")
+
+
+def _solver_supports_ground_eps(solver):
+    return getattr(solver, "__name__", None) in _GROUND_EPS_SOLVERS
 
 
 class MomwireEngine(SimulationEngine):
@@ -100,14 +115,17 @@ class MomwireEngine(SimulationEngine):
           None or "free"           — no ground (default)
           "pec"                    — PEC plane at z=ground_z (image method)
           ("finite", eps_r, sigma) — far-field uses PEC image + Fresnel
-                                     coefficients on the reflected component;
-                                     impedance solve still uses PEC because
-                                     momwire only models PEC ground. Cross-
-                                     validation against PyNEC's finite grounds
-                                     (Sommerfeld gn_card(2,...) or reflection-
-                                     coefficient gn_card(0,...)) is approximate.
-                                     ("finite-fast", eps_r, sigma) is accepted
-                                     as an alias.
+                                     coefficients on the reflected component.
+                                     The impedance solve uses momwire's
+                                     reflection-coefficient finite ground
+                                     (NEC gn 0 style, BSplineSolver
+                                     ground_eps) when the solver supports it
+                                     (bspline family); TriangularSolver /
+                                     SinusoidalSolver still fold to the PEC
+                                     image. ("finite-fast", eps_r, sigma) is
+                                     accepted as an alias; Sommerfeld gn 2 is
+                                     approximated by the same model (they
+                                     agree to ~2 ohm above ~0.1λ heights).
         """
         super().__init__(builder)
 
@@ -150,6 +168,16 @@ class MomwireEngine(SimulationEngine):
         self._wire_radius = wire_radius
         self._ground = _normalise_ground(ground)
         self._ground_z = ground_z if self._ground is not None else None
+        # Finite ground constants forwarded to the impedance solve when the
+        # solver supports the reflection-coefficient model; None otherwise
+        # (PEC image, today's behavior for triangular/sinusoidal).
+        self._ground_eps = None
+        if (
+            self._ground is not None
+            and self._ground[0] == "finite"
+            and _solver_supports_ground_eps(self._solver)
+        ):
+            self._ground_eps = (float(self._ground[1]), float(self._ground[2]))
 
         # Map TL tags to feed indices for the legacy build_tls() path.
         self._tag_to_feed = {}
@@ -193,6 +221,13 @@ class MomwireEngine(SimulationEngine):
 
         self._reducer = NetworkReducer(net, port_to_idx, next_idx)
 
+    def _ground_solver_kwargs(self):
+        """Extra ground kwargs for solver construction. Only spliced in when
+        set — TriangularSolver / SinusoidalSolver don't accept ground_eps."""
+        if self._ground_eps is None:
+            return {}
+        return {"ground_eps": self._ground_eps}
+
     def _make_solver(self, *, wavelength):
         return self._solver(
             wires=self._polylines,
@@ -203,6 +238,7 @@ class MomwireEngine(SimulationEngine):
             ground_z=self._ground_z,
             junctions=self._junctions or None,
             cancel=self._cancel,
+            **self._ground_solver_kwargs(),
             **self._solver_kwargs,
         )
 
@@ -391,6 +427,7 @@ class MomwireEngine(SimulationEngine):
             ground_z=self._ground_z,
             junctions=self._junctions or None,
             cancel=self._cancel,
+            **self._ground_solver_kwargs(),
             **self._solver_kwargs,
         )
 
