@@ -143,8 +143,10 @@ type ExampleDescriptor = {
   /** Recommended solver backend for this design (e.g. "arrayblock" for grid
    *  arrays). The active slot's backend is seeded from this on selection
    *  unless the user has manually picked a backend. null = keep the UI
-   *  default. */
-  default_backend: Backend | null;
+   *  default. Typed as a plain string because the server may name a backend
+   *  this UI has retired (e.g. "triangular"); run it through
+   *  normalizeBackend before use. */
+  default_backend: string | null;
   /** True when the Builder has a `design_freq` param that scales
    *  geometry (design_freq-sized designs). When false, the design-freq
    *  band-tab row is hidden because dragging it would be a no-op. */
@@ -1226,8 +1228,9 @@ type SolveResponse = {
   /** Recommended solver backend for this design (e.g. "arrayblock" for grid
    *  arrays). Carried on the geometry preview so the frontend can seed the
    *  backend from it and *then* fire the first solve, instead of the descriptor
-   *  racing the preview. Absent / null = no recommendation. */
-  default_backend?: Backend | null;
+   *  racing the preview. Absent / null = no recommendation. Plain string —
+   *  may name a retired backend; normalizeBackend before use. */
+  default_backend?: string | null;
   /** Set when the solve/geometry request failed — e.g. a user design's
    *  build_wires() raised. Carries a short, formatted message (type + file +
    *  line). Mutually exclusive with a normal result payload. */
@@ -1236,8 +1239,9 @@ type SolveResponse = {
 
 // Backend selector — Momwire model variants + PyNEC. Per-backend
 // `model_options` are forwarded to server.py's _make_momwire_sim.
+// "triangular" is retired from the UI (the server still accepts it);
+// see normalizeBackend for how a stale recommendation is mapped.
 type Backend =
-  | "triangular"
   | "sinusoidal"
   | "bspline"
   | "hmatrix"
@@ -1245,7 +1249,6 @@ type Backend =
   | "pynec";
 
 const BACKEND_LABEL: Record<Backend, string> = {
-  triangular: "Triangular",
   sinusoidal: "Sinusoidal",
   bspline: "B-spline",
   hmatrix: "H-matrix (ACA)",
@@ -1264,7 +1267,6 @@ function comboInappropriate(b: Backend, rec: Backend | null): boolean {
 }
 
 const BACKEND_ORDER: Backend[] = [
-  "triangular",
   "sinusoidal",
   "bspline",
   "hmatrix",
@@ -1287,7 +1289,7 @@ function isBSplineFamily(b: Backend): boolean {
 // each backend solves it as best it can: PyNEC and the plain B-spline
 // backend offer a method sub-choice (Sommerfeld-Norton vs the
 // reflection-coefficient approximation); the fast B-spline variants use
-// refl-coef; Triangular/Sinusoidal keep the PEC image solve — either way
+// refl-coef; Sinusoidal keeps the PEC image solve — either way
 // the finite constants reach the far-field Fresnel cut.
 type GroundType = "finite" | "pec";
 // Finite-ground solve method. Meaningful — and shown — where both models
@@ -1308,17 +1310,23 @@ function backendHasGroundMethod(b: Backend): boolean {
 type GroundModel = "sommerfeld" | "fast" | "pec";
 
 function backendSupportsGround(b: Backend): boolean {
-  return (
-    b === "triangular" ||
-    b === "sinusoidal" ||
-    isBSplineFamily(b) ||
-    b === "pynec"
-  );
+  return b === "sinusoidal" || isBSplineFamily(b) || b === "pynec";
+}
+
+// Coerce a server-supplied backend name into something this UI knows.
+// "triangular" was retired from the frontend (the server still accepts
+// it and may still recommend it, e.g. from an older adapter or a saved
+// design hint): map it to "bspline", the default working solver on the
+// same dense path. Anything else unrecognised falls back to null ("no
+// recommendation") so a stale value never reaches state or the wire.
+function normalizeBackend(b: string | null | undefined): Backend | null {
+  if (!b) return null;
+  if (b === "triangular") return "bspline";
+  return (BACKEND_ORDER as string[]).includes(b) ? (b as Backend) : null;
 }
 
 type CommonOpts = { nPerWire: number; wireRadius: number };
 
-type TriangularOpts = CommonOpts & { nQpReg: number; nQpOff: number };
 type SinusoidalOpts = CommonOpts & { nQpConst: number };
 type BSplineOpts = CommonOpts & {
   degree: 1 | 2;
@@ -1352,7 +1360,6 @@ type PyNECOpts = CommonOpts;
 // hmatrix and arrayblock share BSplineOpts (same basis + knobs); the ACA
 // tolerances use the solver defaults.
 type BackendOptsMap = {
-  triangular: TriangularOpts;
   sinusoidal: SinusoidalOpts;
   bspline: BSplineOpts;
   hmatrix: BSplineOpts;
@@ -1376,7 +1383,6 @@ const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
 };
 
 const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
-  triangular: { nPerWire: 30, wireRadius: 0.0005, nQpReg: 4, nQpOff: 4 },
   sinusoidal: { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
   bspline: { ...BSPLINE_DEFAULT_OPTS },
   hmatrix: { ...BSPLINE_DEFAULT_OPTS },
@@ -1412,8 +1418,8 @@ function backendDisplayLabel(b: Backend, opts: BackendOptsMap[Backend]): string 
 const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
   // A is the default working solver: B-spline d=2 — most accurate per
   // unknown, converged at a small odd N (interior knot at the feed), and
-  // its impedance solve honours finite grounds (Triangular, the old
-  // default, folds them to the PEC image).
+  // its impedance solve honours finite grounds (Triangular, the old,
+  // now-retired default, folded them to the PEC image).
   A: {
     backend: "bspline",
     opts: { ...DEFAULT_BACKEND_OPTS.bspline, nPerWire: 21 },
@@ -1437,10 +1443,6 @@ function modelOptionsForRequest(
   backend: Backend,
   opts: BackendOptsMap[Backend],
 ): Record<string, unknown> {
-  if (backend === "triangular") {
-    const o = opts as TriangularOpts;
-    return { n_qp_reg: o.nQpReg, n_qp_off: o.nQpOff };
-  }
   if (backend === "sinusoidal") {
     const o = opts as SinusoidalOpts;
     return { n_qp_const: o.nQpConst };
@@ -1472,7 +1474,6 @@ type SolveRequest = {
   variant?: string;
   solver: "momwire" | "pynec";
   momwire_model?:
-    | "triangular"
     | "sinusoidal"
     | "bspline"
     | "hmatrix"
@@ -1571,7 +1572,7 @@ const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
 
 // Richardson-style extrapolation Z(1/N) → Z(N→∞). Fits Z = a₀ + a₁·h + a₂·h²
 // (h = 1/N) on the last `nLast` points via least squares and returns a₀.
-// Quadratic gives a sane answer for O(1/N) limit (BSpline/Triangular without
+// Quadratic gives a sane answer for O(1/N) limit (BSpline without
 // enrichment) AND O(1/N^p) for p slightly above 1 — basis-cap, enrichment,
 // etc. With ≤2 points we can't fit; return null.
 function richardsonExtrap(
@@ -2432,7 +2433,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // wording reflects what the active solver actually runs: PyNEC and the
   // plain B-spline backend honour the selected method; H-matrix/Array-block
   // solve refl-coef for any finite model (their fast ground paths);
-  // Triangular/Sinusoidal solve the PEC image and only the far-field
+  // Sinusoidal solves the PEC image and only the far-field
   // pattern sees the finite constants. "free space" when ground is off or
   // unsupported.
   const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
@@ -2778,7 +2779,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // ground_model is shared across backends (εr=10, σ=0.002 for the finite
     // models): PyNEC honours it directly; momwire's B-spline family solves
     // the finite models with its reflection-coefficient ground, while
-    // Triangular/Sinusoidal fold them to the PEC image solve (the server
+    // Sinusoidal folds them to the PEC image solve (the server
     // ships the real εr/σ for the pattern either way).
     const groundActive = groundEnabled && backendSupportsGround(backend);
     const base: SolveRequest = {
@@ -3224,8 +3225,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // user hasn't approved it — show a warning instead. The app never switches
     // the solver itself; the user does that in the gear menu, which changes
     // `backend` and re-runs this effect.
-    const rec =
-      preview?.default_backend ?? currentExample?.default_backend ?? null;
+    const rec = normalizeBackend(
+      preview?.default_backend ?? currentExample?.default_backend,
+    );
     if (comboInappropriate(backend, rec) && !approvedComboRef.current) {
       setSolverWarning(true);
       return;
@@ -4703,7 +4705,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             </span>
             <span className="solver-suggest-sub">
               {backend === "arrayblock" || backend === "hmatrix"
-                ? "This accelerator is overkill on a single-element design — a dense solver (e.g. Triangular) is faster here. "
+                ? "This accelerator is overkill on a single-element design — a dense solver (e.g. B-spline) is faster here. "
                 : "This is a large array — a dense solver can be very slow. Array-block is far faster. "}
               Change the solver in the gear menu, solve anyway, or pause to keep
               editing.
@@ -5370,27 +5372,6 @@ function BackendConfigModal({
             step={0.0001}
             onChange={(v) => onPatch({ wireRadius: v })}
           />
-
-          {backend === "triangular" && (
-            <>
-              <NumberField
-                label="n_qp_reg (same-edge GL pts)"
-                value={(opts as TriangularOpts).nQpReg}
-                min={2}
-                max={16}
-                step={1}
-                onChange={(v) => onPatch({ nQpReg: v } as never)}
-              />
-              <NumberField
-                label="n_qp_off (cross-edge GL pts)"
-                value={(opts as TriangularOpts).nQpOff}
-                min={2}
-                max={16}
-                step={1}
-                onChange={(v) => onPatch({ nQpOff: v } as never)}
-              />
-            </>
-          )}
 
           {backend === "sinusoidal" && (
             <NumberField
