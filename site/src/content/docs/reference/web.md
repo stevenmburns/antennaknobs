@@ -132,8 +132,10 @@ Each solver then models that ground as well as it can, with a method
 sub-choice on both engines — full **Sommerfeld/Norton** (most accurate,
 the reference below ~0.1λ heights) vs. the **reflection-coefficient**
 approximation (the default: much faster per solve, and fine above
-~0.1λ; Sommerfeld is opt-in because it costs seconds per solve on the
-B-spline backend). On momwire the plain
+~0.1λ; Sommerfeld is opt-in because its first solve at each frequency
+builds an interpolation grid — so the first sweep takes a few seconds —
+though repeat solves reuse cached grids and run in tens of milliseconds
+since momwire 0.7.0). On momwire the plain
 B-spline solver honours both (true Sommerfeld since momwire 0.6.0,
 validated within ~2.4 Ω of an independent NEC-2 implementation down to
 0.02λ); the accelerated B-spline solvers keep their fast

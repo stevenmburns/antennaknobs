@@ -1268,18 +1268,20 @@ function isBSplineFamily(b: Backend): boolean {
 // The UI separates WHAT the ground is from HOW it's solved. GroundType is
 // the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002) or
 // a perfectly conducting one. It never promises more than the physics —
-// each backend solves it as best it can: PyNEC picks Sommerfeld-Norton or
-// the reflection-coefficient approximation via a PyNEC-only method
-// sub-choice; momwire's B-spline family always solves finite grounds with
-// its reflection-coefficient model (momwire has no Sommerfeld); Triangular/
-// Sinusoidal keep the PEC image solve — either way the finite constants
-// reach the far-field Fresnel cut.
+// each backend solves it as best it can: PyNEC and the plain B-spline
+// backend offer a method sub-choice (Sommerfeld-Norton vs the
+// reflection-coefficient approximation); the fast B-spline variants use
+// refl-coef; Triangular/Sinusoidal keep the PEC image solve — either way
+// the finite constants reach the far-field Fresnel cut.
 type GroundType = "finite" | "pec";
 // Finite-ground solve method. Meaningful — and shown — where both models
 // are real solves: PyNEC (NEC ITYPE=2 vs ITYPE=0) and the plain B-spline
 // backend (true Sommerfeld since momwire 0.6.0 vs refl-coef). "fast" is
-// the default everywhere; Sommerfeld is opt-in because it is much more
-// expensive per solve (and per sweep point).
+// the default everywhere; Sommerfeld is opt-in because it is more
+// expensive: since momwire 0.7.0 the first solve at a new frequency fills
+// an interpolation grid (~0.2-0.5 s on a small box; the first sweep pays
+// that per point), and repeat solves at seen frequencies reuse cached
+// grids (tens of ms).
 type FiniteGroundMethod = "sommerfeld" | "fast";
 function backendHasGroundMethod(b: Backend): boolean {
   return b === "pynec" || b === "bspline";
@@ -3407,10 +3409,14 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     const controller = new AbortController();
     sweepAbortRef.current = controller;
 
-    // Sweep range, log-spaced. Sommerfeld-Norton ground is ~100x slower
-    // per point, so halve the resolution there to keep total sweep time
-    // near free-space cost. Fast (reflection-coefficient) ground and momwire
-    // PEC ground are cheap enough for full resolution.
+    // Sweep range, log-spaced. Sommerfeld ground stays at half resolution:
+    // momwire 0.7.0's C++ fill + grid cache made warm sweeps fast (~30 ms
+    // per point once the per-frequency grids are cached; measured 0.6 s for
+    // 21 points at 2 threads), but the FIRST sweep after enabling it still
+    // fills one grid per point (measured 4.3 s for 21 points at 2 threads;
+    // 41 would be ~9 s) — half resolution halves that cold hit. Fast
+    // (reflection-coefficient) ground and momwire PEC ground are cheap
+    // enough for full resolution.
     //
     // Anchor + span come from the active example's sweep_policy. See
     // SweepPolicy in web/examples/_base.py for the meaning of the fields.
@@ -4581,7 +4587,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                           "Sommerfeld",
                           backend === "pynec"
                             ? "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
-                            : "True Sommerfeld ground (momwire ≥ 0.6.0) — accurate at any height, but seconds per solve; the impedance sweep drops to half resolution to compensate.",
+                            : "True Sommerfeld ground (momwire ≥ 0.6.0) — accurate at any height. First solve at each frequency builds a grid (seconds); repeats are fast. The impedance sweep runs at half resolution.",
                         ],
                       ] as [FiniteGroundMethod, string, string][]
                     ).map(([value, label, title]) => (
