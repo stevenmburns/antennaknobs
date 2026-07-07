@@ -1,18 +1,22 @@
 """MomwireEngine finite-ground mapping (momwire >= 0.4.0 ground_eps;
-SinusoidalSolver support since momwire 0.5.0).
+SinusoidalSolver support since 0.5.0; TRUE Sommerfeld since 0.6.0).
 
-Since the refl-coef ground landed in momwire (docs/refl-coef-ground-plan.md
-there), finite ground specs must reach the impedance solve for solvers that
-support it: ("finite", eps_r, sigma) and ("finite-fast", eps_r, sigma) both
-map to the solver's ground_eps (momwire's single finite model — NEC gn 0
-style reflection-coefficient weighting) on the bspline family and, since
-momwire 0.5.0, SinusoidalSolver; TriangularSolver keeps folding to the PEC
-image.
+Finite ground specs reach the impedance solve for solvers that support
+them, and since momwire 0.6.0 the two specs mean different physics:
+("finite", eps_r, sigma) drives momwire's Sommerfeld ground
+(ground_model="sommerfeld", NEC gn 2 style) on plain BSplineSolver, while
+("finite-fast", eps_r, sigma) — and "finite" on the solvers without a
+sommerfeld model (HMatrix/ArrayBlock keep their refl-coef fast paths,
+SinusoidalSolver is refl-coef only) — maps to the reflection-coefficient
+ground_eps solve (NEC gn 0 style). TriangularSolver keeps folding to the
+PEC image.
 
-The numeric tests cross-check the momwire solves against PyNEC gn 0 — the
-oracle the momwire implementations were validated against (dipole 0.1–0.5λ
-window: bspline max |ΔZ| ≈ 2.45 Ω with a ~1.4 Ω cross-solver floor;
-sinusoidal ≈ 0.11 Ω, at its own ~0.11 Ω floor — same basis as NEC).
+The refl-coef numeric tests cross-check against PyNEC gn 0 (dipole
+0.1–0.5λ window: bspline max |ΔZ| ≈ 2.45 Ω, sinusoidal ≈ 0.11 Ω). The
+Sommerfeld numeric tests gate against nec2c-captured gn 2 literals —
+PyNEC's own gn 2 solve is order-dependent in-process and numerically
+broken below 0.1λ (see momwire scripts/capture_refl_coef_ground_golden.py
+for the controls), so it must never be a live oracle at low heights.
 """
 
 import pytest
@@ -45,6 +49,30 @@ def test_finite_specs_map_to_ground_eps_for_bspline():
             _flat_dipole(_height(0.2)), solver=BSplineSolver, ground=spec
         )
         assert eng._ground_eps == (spec[1], spec[2])
+
+
+def test_ground_model_mapping_per_solver_and_spec():
+    """ "finite" → sommerfeld on plain BSplineSolver only; "finite-fast" →
+    refl-coef everywhere; solvers without a sommerfeld model keep
+    refl-coef for both specs; triangular maps nothing."""
+    from momwire import ArrayBlockSolver, HMatrixSolver
+
+    b = _flat_dipole(_height(0.2))
+
+    def model(solver, spec):
+        return MomwireEngine(b, solver=solver, ground=spec)._ground_model
+
+    assert model(BSplineSolver, ("finite", 10.0, 0.002)) == "sommerfeld"
+    assert model(BSplineSolver, ("finite-fast", 10.0, 0.002)) == "refl-coef"
+    for solver in (HMatrixSolver, ArrayBlockSolver, SinusoidalSolver):
+        assert model(solver, ("finite", 10.0, 0.002)) == "refl-coef"
+        assert model(solver, ("finite-fast", 10.0, 0.002)) == "refl-coef"
+    assert model(TriangularSolver, ("finite", 10.0, 0.002)) is None
+    # and the sommerfeld kwarg only reaches solvers that accept it
+    eng = MomwireEngine(b, solver=BSplineSolver, ground=("finite", 10.0, 0.002))
+    assert eng._ground_solver_kwargs().get("ground_model") == "sommerfeld"
+    eng = MomwireEngine(b, solver=SinusoidalSolver, ground=("finite", 10.0, 0.002))
+    assert "ground_model" not in eng._ground_solver_kwargs()
 
 
 def test_finite_specs_fold_to_pec_for_triangular():
@@ -102,3 +130,31 @@ def test_momwire_sinusoidal_finite_ground_tracks_nec_gn0():
     assert abs(z_mom - z_gn0) < 0.6
     assert abs(z_mom - z_gn0) < abs(z_pec - z_gn0)
     assert abs(z_pec - z_gn0) > 10.0  # the gap being fixed is real
+
+
+# nec2c-captured gn 2 oracles (momwire tests/golden_refl_coef_ground.py,
+# regenerated 2026-07-06 via the nec2c CLI): flat dipole, (10.0, 0.002).
+_GN2_NEC2C = {
+    0.05: 68.002 + 1.551j,
+    0.02: 95.080 + 32.413j,
+}
+
+
+@pytest.mark.parametrize(
+    "frac,gate",
+    [(0.05, 2.5), (0.02, 3.0)],  # measured 1.43 / 2.17 through this engine
+)
+def test_momwire_bspline_sommerfeld_tracks_gn2_at_low_heights(frac, gate):
+    """The point of the 0.6.0 upgrade: below 0.1λ the refl-coef model is
+    tens of ohms from the true (gn 2) ground; the ("finite", ...) spec on
+    BSplineSolver now lands at the cross-solver floor there."""
+    builder = _flat_dipole(_height(frac))
+    gn2 = _GN2_NEC2C[frac]
+    z_somm = MomwireEngine(
+        builder, solver=BSplineSolver, ground=("finite", 10.0, 0.002)
+    ).impedance()[0]
+    z_refl = MomwireEngine(
+        builder, solver=BSplineSolver, ground=("finite-fast", 10.0, 0.002)
+    ).impedance()[0]
+    assert abs(z_somm - gn2) < gate
+    assert abs(z_refl - gn2) > 10.0  # the gap sommerfeld closes is real
