@@ -503,3 +503,51 @@ def test_hidden_override_is_generic():
     ex = _make_example("hidden_demo", _HiddenBuilder, defer_hints=True)
     names = {s.name for s in ex.param_schema}
     assert names == {"shown"}  # `secret` suppressed, others untouched
+
+
+@pytest.mark.parametrize("name", DESIGN_NAMES)
+def test_variant_values_fit_their_effective_slider_ranges(name):
+    """Every variant's param values must sit inside the slider range the
+    frontend will actually show for that variant: the base schema min/max
+    overlaid with the variant's explicit variant_ui["params"] hints. A
+    variant whose value lands outside its slider strands the knob (the
+    invvee flat variants' angle_deg=0 sat below the auto-derived 15.8°
+    minimum until the design authored an explicit range)."""
+    ex = REGISTRY[name]
+    for v in ex.variants:
+        over = (ex.variant_ui.get(v) or {}).get("params", {})
+        vals = ex.variant_values.get(v, {})
+        for spec in ex.param_schema:
+            if getattr(spec, "kind", None) not in ("float", "int"):
+                continue
+            val = vals.get(spec.name, spec.default)
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                continue
+            lo = over.get(spec.name, {}).get("min", spec.min)
+            hi = over.get(spec.name, {}).get("max", spec.max)
+            if lo is not None:
+                assert val >= lo, f"{name}/{v}: {spec.name}={val} below min {lo}"
+            if hi is not None:
+                assert val <= hi, f"{name}/{v}: {spec.name}={val} above max {hi}"
+
+
+def test_invvee_variant_length_factor_ranges():
+    """dipoles.invvee showcases per-variant slider ranges: half-wave
+    window (0.8–1.25) for default/dipole, the same ×0.8–×1.25 window
+    around each long-wire variant's own length. The dipole variant
+    inherits the default window, so it must NOT appear in variant_ui."""
+    ex = REGISTRY["dipoles.invvee"]
+    lf = next(s for s in ex.param_schema if s.name == "length_factor")
+    assert (lf.min, lf.max) == (0.8, 1.25)
+    assert ex.variant_ui["three_halves"]["params"]["length_factor"] == {
+        "min": 2.38,
+        "max": 3.71,
+    }
+    assert ex.variant_ui["classic_edz"]["params"]["length_factor"] == {
+        "min": 2.05,
+        "max": 3.2,
+    }
+    assert "dipole" not in ex.variant_ui
+    # the angle slider covers both the drooping default and the flat variants
+    ang = next(s for s in ex.param_schema if s.name == "angle_deg")
+    assert ang.min == 0.0 and ang.max >= 45.0

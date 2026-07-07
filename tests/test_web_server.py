@@ -268,8 +268,9 @@ def test_examples_carry_sweep_policy_keys(client: TestClient):
 
 def test_variant_ui_only_lists_variants_that_differ(client: TestClient):
     # variant_ui is a per-variant override map; a variant appears only when its
-    # derived hints differ from the design-level value, and every listed
-    # sweep_policy is shaped exactly like the top-level one.
+    # derived hints differ from the design-level value. An entry carries a
+    # sweep_policy (shaped exactly like the top-level one), explicit per-param
+    # presentation overrides under "params", or both — never neither.
     payload = client.get("/examples").json()
     for ex in payload["examples"]:
         vui = ex["variant_ui"]
@@ -277,9 +278,22 @@ def test_variant_ui_only_lists_variants_that_differ(client: TestClient):
         for variant, hints in vui.items():
             assert variant in ex["variants"]
             assert variant != "default"
-            sp = hints["sweep_policy"]
-            assert set(sp) == {"anchor", "lo_factor", "hi_factor", "band_locked"}
-            assert sp != ex["sweep_policy"]  # only differing variants are listed
+            assert set(hints) <= {"sweep_policy", "params"} and hints
+            if "sweep_policy" in hints:
+                sp = hints["sweep_policy"]
+                assert set(sp) == {"anchor", "lo_factor", "hi_factor", "band_locked"}
+                assert sp != ex["sweep_policy"]  # only differing variants listed
+            if "params" in hints:
+                assert hints["params"]  # non-empty map of param -> hint fields
+                for pname, fields in hints["params"].items():
+                    assert fields and set(fields) <= {
+                        "min",
+                        "max",
+                        "step",
+                        "precision",
+                        "unit",
+                        "label",
+                    }, (ex["name"], variant, pname)
 
 
 def test_skyloop_band_locked_variant_flips_only_band_locked(client: TestClient):

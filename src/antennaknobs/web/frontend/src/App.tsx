@@ -162,7 +162,23 @@ type ExampleDescriptor = {
    *  whose derived hints differ from the design-level values appear; look up
    *  the active variant and fall back to the top-level field (e.g.
    *  `sweep_policy`) for any variant not listed. */
-  variant_ui?: { [variant: string]: { sweep_policy?: SweepPolicy } };
+  variant_ui?: {
+    [variant: string]: {
+      sweep_policy?: SweepPolicy;
+      /** Explicit per-param presentation overrides for this variant
+       *  (slider min/max/step, precision, unit, label), overlaid on
+       *  param_schema entries by name. Values come from variant_values,
+       *  never from here. */
+      params?: {
+        [name: string]: Partial<
+          Pick<
+            SchemaParamSpec,
+            "min" | "max" | "step" | "precision" | "unit" | "label"
+          >
+        >;
+      };
+    };
+  };
   /** Grid-level layout for the top-level knob rail. {columns: N} pins the
    *  grid to a fixed column count so per-knob `layout.col` positions are
    *  stable. null = responsive auto-flow packing. */
@@ -2146,6 +2162,23 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const currentVariant =
     variantByGeom[geometry] ?? currentExample?.variants?.[0] ?? "default";
 
+  // param_schema with the active variant's explicit presentation
+  // overrides (variant_ui[variant].params) overlaid per param — e.g.
+  // invvee's long-wire variants carry their own length_factor slider
+  // range. Feeds the knob rail and the per-knob optimiser menu so both
+  // see variant-correct bounds; value seeding stays on the raw schema
+  // (defaults/values are variant_values' job).
+  const currentSchema = useMemo<SchemaItem[]>(() => {
+    if (!currentExample) return [];
+    const over = currentExample.variant_ui?.[currentVariant]?.params;
+    if (!over) return currentExample.param_schema;
+    return currentExample.param_schema.map((item) =>
+      !isGroup(item) && over[item.name]
+        ? { ...item, ...over[item.name] }
+        : item,
+    );
+  }, [currentExample, currentVariant]);
+
   // Switch to a different variant: overlay the variant's per-param
   // values onto the existing slider state for this geometry (keeping
   // schema-derived defaults for any key the variant doesn't supply),
@@ -2896,7 +2929,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   function knobOptFor(name: string): KnobOpt {
     const existing = knobOpt[geometry]?.[name];
     if (existing) return existing;
-    const s = currentExample?.param_schema.find(
+    const s = currentSchema.find(
       (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
     );
     const min = s?.min ?? 0;
@@ -4143,7 +4176,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             }
           >
             <ParamForm
-              schema={currentExample.param_schema}
+              schema={currentSchema}
               values={currentValues}
               onChange={handleUserParamChange}
               // hexbeam_5band's daisy_chain mode emits NEC TL cards;
@@ -4216,7 +4249,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           (() => {
             const name = knobMenu.name;
             const ko = knobOptFor(name);
-            const s = currentExample.param_schema.find(
+            const s = currentSchema.find(
               (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
             );
             const num = (v: number) => (Number.isFinite(v) ? v : 0);

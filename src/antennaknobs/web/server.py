@@ -1249,15 +1249,22 @@ def examples_endpoint():
                 "variants": list(ex.variants),
                 "variant_values": dict(ex.variant_values),
                 "sweep_policy": _sweep_policy_json(ex.sweep_policy),
-                # Per-variant hint overrides; only variants that differ from the
-                # design-level sweep_policy appear here. Frontend falls back to
-                # the top-level `sweep_policy` for any variant not listed.
+                # Per-variant hint overrides; only variants that differ from
+                # the design-level values appear here. `sweep_policy` falls
+                # back to the top-level field; `params` carries explicit
+                # per-param presentation hints (slider min/max/step, precision,
+                # unit, label) the frontend overlays on param_schema for the
+                # active variant.
                 "variant_ui": {
                     v: {
-                        "sweep_policy": _sweep_policy_json(h["sweep_policy"]),
+                        **(
+                            {"sweep_policy": _sweep_policy_json(h["sweep_policy"])}
+                            if "sweep_policy" in h
+                            else {}
+                        ),
+                        **({"params": h["params"]} if "params" in h else {}),
                     }
                     for v, h in ex.variant_ui.items()
-                    if "sweep_policy" in h
                 },
                 "layout": ex.layout,
             }

@@ -15,6 +15,10 @@ class Builder(AntennaBuilder):
             "length_factor": 1.0893,
             "angle_deg": 63.5181,
             "slant_deg": 15.0,
+            # Cover the full variant family (slant0 through slant30 with
+            # headroom): the auto ±50% window around the 15° default
+            # (7.5–22.5°) strands both non-default variants.
+            "ui_params": MappingProxyType({"slant_deg": {"min": 0.0, "max": 45.0}}),
         }
     )
 
