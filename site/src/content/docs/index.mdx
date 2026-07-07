@@ -25,11 +25,13 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.16.0" icon="star">
-  **Real-ground impedance on the sinusoidal solver** — finite grounds now
-  drive its impedance solve instead of folding to a perfect-conductor image,
-  matching NEC's finite-ground model to ~0.1 Ω. And **release notes are now
-  published for every version** of the app and the engine.
+<Card title="New in v0.17.0" icon="star">
+  **True Sommerfeld ground on the B-spline solver** — the exact
+  finite-ground model (NEC's gn 2), accurate at *any* antenna height:
+  validated within ~2.4 Ω of an independent NEC-2 implementation down to
+  0.02 λ, where reflection-coefficient models are tens of ohms off.
+  Opt in from the ground selector's method choice — the fast
+  reflection-coefficient model stays the default.
   [All release notes →](/reference/releases/)
 </Card>
 
