@@ -89,6 +89,7 @@ export default defineConfig({
             { label: "Web workbench", slug: "reference/web" },
             { label: "Drone & Transform API", slug: "reference/drone-transform" },
             { label: "Command line", slug: "reference/cli" },
+            { label: "Release notes", slug: "reference/releases" },
           ],
         },
         {
