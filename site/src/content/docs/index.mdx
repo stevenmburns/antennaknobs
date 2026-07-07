@@ -25,13 +25,14 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.17.0" icon="star">
-  **True Sommerfeld ground on the B-spline solver** — the exact
-  finite-ground model (NEC's gn 2), accurate at *any* antenna height:
-  validated within ~2.4 Ω of an independent NEC-2 implementation down to
-  0.02 λ, where reflection-coefficient models are tens of ohms off.
-  Opt in from the ground selector's method choice — the fast
-  reflection-coefficient model stays the default.
+<Card title="New in v0.18.0" icon="star">
+  **Sommerfeld ground is now interactive.** The exact finite-ground
+  model introduced in v0.17.0 got a C++ engine and a grid cache in
+  momwire 0.7.0: repeat solves reuse cached interpolation grids, so
+  knob-turns respond in tens of milliseconds and impedance sweeps run
+  ~20× faster once warm — same physics, validated within ~2.4 Ω of an
+  independent NEC-2 implementation down to 0.02 λ. Superseded solves
+  now cancel mid-computation too.
   [All release notes →](/reference/releases/)
 </Card>
 
