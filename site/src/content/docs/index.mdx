@@ -22,6 +22,17 @@ hero:
 
 import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
+{/* What's-new box: refresh as part of the release ritual (bump the version,
+    swap the highlights) — a stale "new" box is worse than none. */}
+
+<Card title="New in v0.16.0" icon="star">
+  **Real-ground impedance on the sinusoidal solver** — finite grounds now
+  drive its impedance solve instead of folding to a perfect-conductor image,
+  matching NEC's finite-ground model to ~0.1 Ω. And **release notes are now
+  published for every version** of the app and the engine.
+  [All release notes →](/reference/releases/)
+</Card>
+
 ## The whole pitch, in one line
 
 antennaknobs describes an antenna **as Python code** — a small parametric
