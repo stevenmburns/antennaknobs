@@ -175,7 +175,7 @@ type ExampleDescriptor = {
             SchemaParamSpec,
             "min" | "max" | "step" | "precision" | "unit" | "label"
           >
-        >;
+        > & { hidden?: boolean };
       };
     };
   };
@@ -2172,11 +2172,18 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (!currentExample) return [];
     const over = currentExample.variant_ui?.[currentVariant]?.params;
     if (!over) return currentExample.param_schema;
-    return currentExample.param_schema.map((item) =>
-      !isGroup(item) && over[item.name]
-        ? { ...item, ...over[item.name] }
-        : item,
-    );
+    return currentExample.param_schema
+      .map((item) =>
+        !isGroup(item) && over[item.name]
+          ? { ...item, ...over[item.name] }
+          : item,
+      )
+      .filter(
+        // A variant can hide a base-visible knob (e.g. invvee:dipole's
+        // angle_deg — flat by definition, value pinned at 0 by the
+        // variant). Display-only: the value still rides variant_values.
+        (item) => isGroup(item) || !(item as { hidden?: boolean }).hidden,
+      );
   }, [currentExample, currentVariant]);
 
   // Switch to a different variant: overlay the variant's per-param

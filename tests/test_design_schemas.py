@@ -547,7 +547,9 @@ def test_invvee_variant_length_factor_ranges():
         "min": 2.05,
         "max": 3.2,
     }
-    assert "dipole" not in ex.variant_ui
+    # dipole inherits the default length window but hides the droop knob
+    # (flat by definition; angle_deg=0 still flows via variant_values)
+    assert ex.variant_ui["dipole"]["params"] == {"angle_deg": {"hidden": True}}
     # the angle slider covers both the drooping default and the flat variants
     ang = next(s for s in ex.param_schema if s.name == "angle_deg")
     assert ang.min == 0.0 and ang.max >= 45.0
