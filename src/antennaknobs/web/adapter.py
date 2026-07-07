@@ -955,7 +955,10 @@ def _derive_sweep_policy(ui: dict) -> SweepPolicy:
 # Presentation fields a variant's explicit ui_params may move per-variant
 # (forwarded through variant_ui["params"] and overlaid on the base schema by
 # the frontend). Values/defaults are variant_values' job, never listed here.
-_VARIANT_SPEC_KEYS = ("min", "max", "step", "precision", "unit", "label")
+# `hidden` only HIDES a base-visible knob for that variant (the value still
+# flows through solves via variant_values); it cannot unhide a knob hidden at
+# the design level — those never enter param_schema at all.
+_VARIANT_SPEC_KEYS = ("min", "max", "step", "precision", "unit", "label", "hidden")
 
 
 def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExample:

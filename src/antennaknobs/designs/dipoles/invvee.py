@@ -44,7 +44,15 @@ class Builder(AntennaBuilder):
     # dipoles.invvee.
     # Variants overlay default_params; each states only its length_factor /
     # angle_deg tuning (design_freq / freq / base come from default).
-    dipole_params = MappingProxyType({"length_factor": 0.967, "angle_deg": 0.0})
+    dipole_params = MappingProxyType(
+        {
+            "length_factor": 0.967,
+            "angle_deg": 0.0,
+            # Flat by definition: pin the droop at 0 and hide its knob
+            # (droop exploration belongs to the default inv-vee variant).
+            "ui_params": MappingProxyType({"angle_deg": {"hidden": True}}),
+        }
+    )
 
     # Three-halves dipole: 1.484λ-long flat dipole, tuned to a near-
     # resonant length where Z_in collapses to ~95 Ω (real). Not the

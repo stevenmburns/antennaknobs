@@ -293,6 +293,7 @@ def test_variant_ui_only_lists_variants_that_differ(client: TestClient):
                         "precision",
                         "unit",
                         "label",
+                        "hidden",
                     }, (ex["name"], variant, pname)
 
 
