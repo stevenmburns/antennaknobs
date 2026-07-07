@@ -1275,13 +1275,18 @@ function isBSplineFamily(b: Backend): boolean {
 // Sinusoidal keep the PEC image solve — either way the finite constants
 // reach the far-field Fresnel cut.
 type GroundType = "finite" | "pec";
-// PyNEC's finite-ground solve method (NEC ITYPE=2 vs ITYPE=0). Only shown
-// — and only meaningful — when backend === "pynec" && groundType === "finite".
-type PynecGroundMethod = "sommerfeld" | "fast";
-// The wire value (`ground_model` on SolveRequest), unchanged for server
-// compatibility: derived from groundType (+ the PyNEC method when it
-// applies); non-PyNEC finite grounds send the canonical "sommerfeld"
-// (momwire folds "sommerfeld" and "fast" to the same solve).
+// Finite-ground solve method. Meaningful — and shown — where both models
+// are real solves: PyNEC (NEC ITYPE=2 vs ITYPE=0) and the plain B-spline
+// backend (true Sommerfeld since momwire 0.6.0 vs refl-coef). "fast" is
+// the default everywhere; Sommerfeld is opt-in because it is much more
+// expensive per solve (and per sweep point).
+type FiniteGroundMethod = "sommerfeld" | "fast";
+function backendHasGroundMethod(b: Backend): boolean {
+  return b === "pynec" || b === "bspline";
+}
+// The wire value (`ground_model` on SolveRequest): derived from groundType
+// (+ the method where it applies); other finite-ground backends send
+// "fast" (their single finite model is the refl-coef one anyway).
 type GroundModel = "sommerfeld" | "fast" | "pec";
 
 function backendSupportsGround(b: Backend): boolean {
@@ -2367,30 +2372,33 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // Shared ground choice — one selector describing the GROUND (finite vs
   // PEC); every backend solves it as best it can (see the GroundType note).
   const [groundType, setGroundType] = useState<GroundType>("finite");
-  // PyNEC-only finite-ground method; hidden (and inert) elsewhere, but kept
-  // in state so it survives backend flips during engine comparison.
-  const [pynecGroundMethod, setPynecGroundMethod] =
-    useState<PynecGroundMethod>("sommerfeld");
-  // Wire value derived for the unchanged server protocol (see GroundModel).
+  // Finite-ground method; hidden (and inert) on backends with a single
+  // finite model, but kept in state so it survives backend flips during
+  // engine comparison. Defaults to "fast" — Sommerfeld is opt-in (it costs
+  // seconds per solve on the B-spline backend).
+  const [finiteGroundMethod, setFiniteGroundMethod] =
+    useState<FiniteGroundMethod>("fast");
+  // Wire value derived for the server protocol (see GroundModel).
   const groundModel: GroundModel =
     groundType === "pec"
       ? "pec"
-      : backend === "pynec"
-        ? pynecGroundMethod
-        : "sommerfeld";
+      : backendHasGroundMethod(backend)
+        ? finiteGroundMethod
+        : "fast";
 
   // One-line tab-hover summary: design · solver N=segs · ground model. The
-  // wording reflects what the active solver actually runs: PyNEC honours
-  // the model directly; momwire B-spline-family solves refl-coef for both
-  // finite models; Triangular/Sinusoidal solve the PEC image and only the
-  // far-field pattern sees the finite constants. "free space" when ground
-  // is off or unsupported.
+  // wording reflects what the active solver actually runs: PyNEC and the
+  // plain B-spline backend honour the selected method; H-matrix/Array-block
+  // solve refl-coef for any finite model (their fast ground paths);
+  // Triangular/Sinusoidal solve the PEC image and only the far-field
+  // pattern sees the finite constants. "free space" when ground is off or
+  // unsupported.
   const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
   const groundSummary = !groundActiveForSummary
     ? "free space"
     : groundModel === "pec"
       ? "PEC ground"
-      : backend === "pynec"
+      : backendHasGroundMethod(backend)
         ? groundModel === "fast"
           ? "reflection-coef ground"
           : "Sommerfeld ground"
@@ -3410,7 +3418,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // the active variant's entry in variant_ui, falling back to the
     // design-level sweep_policy.
     const slowGround =
-      backend === "pynec" && groundEnabled && groundModel === "sommerfeld";
+      backendHasGroundMethod(backend) &&
+      groundEnabled &&
+      groundModel === "sommerfeld";
     const N = slowGround ? 21 : 41;
     const policy =
       currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
@@ -4551,7 +4561,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 ))}
               </div>
               {groundType === "finite" &&
-                (backend === "pynec" ? (
+                (backendHasGroundMethod(backend) ? (
                   <div
                     role="radiogroup"
                     aria-label="Finite-ground solve method"
@@ -4560,23 +4570,27 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                     {(
                       [
                         [
-                          "sommerfeld",
-                          "Sommerfeld",
-                          "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate.",
-                        ],
-                        [
                           "fast",
                           "refl-coef (fast)",
-                          "Reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height.",
+                          backend === "pynec"
+                            ? "Reflection-coefficient approximation (NEC ITYPE=0), the default. ~2x faster per solve; impedance degrades below ~0.1λ height."
+                            : "Reflection-coefficient model, the default. Fast; matches Sommerfeld above ~0.1λ heights.",
                         ],
-                      ] as [PynecGroundMethod, string, string][]
+                        [
+                          "sommerfeld",
+                          "Sommerfeld",
+                          backend === "pynec"
+                            ? "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
+                            : "True Sommerfeld ground (momwire ≥ 0.6.0) — accurate at any height, but seconds per solve; the impedance sweep drops to half resolution to compensate.",
+                        ],
+                      ] as [FiniteGroundMethod, string, string][]
                     ).map(([value, label, title]) => (
                       <label key={value} className="link-toggle" title={title}>
                         <input
                           type="radio"
                           name="ground-method"
-                          checked={pynecGroundMethod === value}
-                          onChange={() => setPynecGroundMethod(value)}
+                          checked={finiteGroundMethod === value}
+                          onChange={() => setFiniteGroundMethod(value)}
                         />
                         {label}
                       </label>
@@ -4591,7 +4605,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                     }}
                   >
                     {isBSplineFamily(backend)
-                      ? "solved as refl-coef (momwire's finite model)"
+                      ? "solved as refl-coef (this solver's fast ground path)"
                       : "impedance solve uses the PEC image; pattern uses εr/σ"}
                   </em>
                 ))}
