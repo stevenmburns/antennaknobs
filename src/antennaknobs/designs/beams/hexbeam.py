@@ -11,6 +11,11 @@ class Builder(AntennaBuilder):
             "halfdriver": 2.82,
             "tipspacer_factor": 0.1312,
             "t0_factor": 0.1243,
+            # The opt variant's tip spacer (0.208) sits above the auto ±50%
+            # window around the default (≤0.197).
+            "ui_params": MappingProxyType(
+                {"tipspacer_factor": {"min": 0.065, "max": 0.25}}
+            ),
         }
     )
 

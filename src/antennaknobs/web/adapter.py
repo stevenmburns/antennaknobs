@@ -40,6 +40,7 @@ import importlib
 import math
 import pathlib
 import time
+from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any
 
@@ -951,6 +952,12 @@ def _derive_sweep_policy(ui: dict) -> SweepPolicy:
     return DEFAULT_SWEEP_POLICY
 
 
+# Presentation fields a variant's explicit ui_params may move per-variant
+# (forwarded through variant_ui["params"] and overlaid on the base schema by
+# the frontend). Values/defaults are variant_values' job, never listed here.
+_VARIANT_SPEC_KEYS = ("min", "max", "step", "precision", "unit", "label")
+
+
 def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExample:
     dp = dict(cls.default_params)
     ui = dict(dp.get("ui_params") or {})
@@ -1025,14 +1032,41 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     # (default) value; the frontend falls back to the top-level field otherwise.
     # Extensible per-variant map so more hints can move per-variant later
     # without another /examples contract change.
+    #
+    # Besides sweep_policy, per-param presentation hints (slider min/max/step,
+    # precision, unit, label) forward under "params" — EXPLICIT hints only,
+    # diffed against the default's ui_params. Deliberately NOT a diff of
+    # re-derived schemas: the auto-derivation windows track each variant's
+    # *values* (a flat variant's angle_deg=0 would auto-window to a useless
+    # -1..1), so only hints a variant actually authors move with it. First
+    # user: dipoles.invvee, whose long-wire variants carry their own
+    # length_factor slider ranges.
     variant_ui: dict[str, dict[str, Any]] = {}
     for v in variants:
         if v == "default":
             continue
         v_ui = dict(resolve_variant_params(cls, v).get("ui_params") or {})
+        hints_v: dict[str, Any] = {}
         v_sweep = _derive_sweep_policy(v_ui)
         if v_sweep != sweep_policy:
-            variant_ui[v] = {"sweep_policy": v_sweep}
+            hints_v["sweep_policy"] = v_sweep
+        p_over: dict[str, dict[str, Any]] = {}
+        for pname, hint in v_ui.items():
+            if not isinstance(hint, Mapping):
+                continue
+            base_hint = ui.get(pname)
+            base_hint = base_hint if isinstance(base_hint, Mapping) else {}
+            diff = {
+                k: hint[k]
+                for k in _VARIANT_SPEC_KEYS
+                if k in hint and hint[k] != base_hint.get(k)
+            }
+            if diff:
+                p_over[pname] = diff
+        if p_over:
+            hints_v["params"] = p_over
+        if hints_v:
+            variant_ui[v] = hints_v
 
     def _design_freq_default(req: dict) -> float:
         # The active variant's `freq` is the right fallback when the

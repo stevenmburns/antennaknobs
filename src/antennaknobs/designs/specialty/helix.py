@@ -72,7 +72,7 @@ class Builder(AntennaBuilder):
                     # length_factor); pin it and keep length_factor as the knob.
                     "axial_frac": {"hidden": True},
                     "n_turns": {
-                        "min": 3.0,
+                        "min": 2.0,
                         "max": 9.0,
                         "step": 0.05,
                         "precision": 2,

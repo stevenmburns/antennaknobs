@@ -12,14 +12,24 @@ class Builder(AntennaBuilder):
             "base": 7.0,
             "length_factor": 0.9719,
             "angle_deg": 31.6846,
-            # length_factor span has to cover both the half-wave default
-            # (~0.97) and the EDZ variant (~2.97, encoding a ~1.5λ
-            # element). Auto-derive's ±50% window would clip at ~1.46.
             "ui_params": MappingProxyType(
                 {
+                    # Half-wave tuning window for the default inv-vee and
+                    # the flat dipole variant. The long-wire variants carry
+                    # their own ranges (the same ×0.8–×1.25 window around
+                    # their lengths) in their variant ui_params, forwarded
+                    # per-variant via the /examples variant_ui["params"]
+                    # channel.
                     "length_factor": {
-                        "min": 0.4,
-                        "max": 3.2,
+                        "min": 0.8,
+                        "max": 1.25,
+                    },
+                    # Cover the default 31.7° droop AND the flat (0°)
+                    # variants: the auto ±50% window (15.8–47.5°) strands
+                    # the flat variants' angle below the slider minimum.
+                    "angle_deg": {
+                        "min": 0.0,
+                        "max": 60.0,
                     },
                 }
             ),
@@ -46,7 +56,15 @@ class Builder(AntennaBuilder):
     # length_factor parameterises driver_y as 0.25·λ·length_factor, so
     # this 0.7422·λ driver_y lands at length_factor = 0.7422 / 0.25 =
     # 2.9688 (giving 2 × 0.7422 = 1.4844λ total length).
-    three_halves_params = MappingProxyType({"length_factor": 2.9688, "angle_deg": 0.0})
+    three_halves_params = MappingProxyType(
+        {
+            "length_factor": 2.9688,
+            "angle_deg": 0.0,
+            "ui_params": MappingProxyType(
+                {"length_factor": {"min": 2.38, "max": 3.71}}
+            ),
+        }
+    )
 
     # Classic Extended Double Zepp: 1.28λ total length (driver_y =
     # 0.64λ per leg → length_factor = 0.64 / 0.25 = 2.56). Tuned for
@@ -54,7 +72,13 @@ class Builder(AntennaBuilder):
     # above ~1λ anti-resonance, so the input impedance is high and
     # very reactive (≈ 100 − j600 Ω at the design freq) and a matching
     # network is required.
-    classic_edz_params = MappingProxyType({"length_factor": 2.56, "angle_deg": 0.0})
+    classic_edz_params = MappingProxyType(
+        {
+            "length_factor": 2.56,
+            "angle_deg": 0.0,
+            "ui_params": MappingProxyType({"length_factor": {"min": 2.05, "max": 3.2}}),
+        }
+    )
 
     def build_wires(self):
         eps = 0.05

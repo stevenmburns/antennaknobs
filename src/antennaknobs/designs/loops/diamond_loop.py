@@ -12,6 +12,9 @@ class Builder(AntennaBuilder):
             "base": 7.0,
             "length_factor": 1.0703,
             "angle_deg": 30.8767,
+            # Cover both feed variants: the z100 apex angle (51.5°) sits
+            # above the auto ±50% window around the z200 default (≤46.3°).
+            "ui_params": MappingProxyType({"angle_deg": {"min": 15.0, "max": 60.0}}),
         }
     )
 

@@ -69,7 +69,7 @@ class Builder(AntennaBuilder):
                         "max": 0.03,
                     },
                     "tilt_deg": {"min": 0.0, "max": 45.0, "step": 1.0, "precision": 1},
-                    "term_r": {"min": 200.0, "max": 800.0, "step": 10.0},
+                    "term_r": {"min": 200.0, "max": 1000.0, "step": 10.0},
                 }
             ),
         }
