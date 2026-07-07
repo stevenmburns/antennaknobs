@@ -1,7 +1,15 @@
 # Plan: variants as an overlay on `default_params` (incl. per-variant `ui_params`)
 
-Status: **merge mechanism landed (Option A); per-variant ui derivation still
-open.** Scoped 2026-07-03 out of the triangular-skyloop work, where we wanted a
+Status: **COMPLETE.** Merge mechanism landed 2026-07-03 (Option A); the
+remaining per-variant ui derivation landed 2026-07-08 (PR #266):
+`_make_example` diffs each variant's merged `ui_params` against the
+default's and emits `variant_ui` with per-variant `sweep_policy` and
+explicit per-param presentation hints (`params`: slider min/max/step,
+precision, unit, label, hidden), which the frontend overlays on
+`param_schema` for the active variant. First users: triangular_skyloop's
+band_locked sweep policy; dipoles.invvee's per-variant length_factor
+ranges and the dipole variant's hidden angle_deg knob. Originally scoped
+2026-07-03 out of the triangular-skyloop work, where we wanted a
 "band-locked" *variant* of a design but found the sweep policy is pinned
 per-design, not per-variant.
 
