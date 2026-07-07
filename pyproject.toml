@@ -23,12 +23,14 @@ classifiers = [
 #     same index. The vendored git submodule remains for co-development (install
 #     it editable to override the wheel); a development checkout that does
 #     `pip install -e ./momwire` first satisfies this pin and pip won't refetch.
-#     IMPORTANT: the floor must name the momwire release that actually carries
-#     every momwire API this package uses — dev/CI run the submodule, so ONLY
-#     this pin protects PyPI installs and the Fly image. When code starts using
-#     a new momwire API, bump the floor in the same PR and confirm that version
-#     is on PyPI before tagging a release (v0.13.0 shipped broken because the
-#     cancel API existed only in the submodule while the floor allowed 0.2.3).
+#     IMPORTANT: the pin is EXACT (==), not a floor. Dev/CI run the submodule,
+#     so ONLY this pin protects PyPI installs and the Fly image — and a floor
+#     lets a new momwire release silently change antennaknobs behavior on the
+#     next deploy/install (momwire 0.6.0 nearly shipped a multi-second default
+#     ground solve that way; a floor also let v0.13.0 ship broken against
+#     0.2.3). Every momwire upgrade is a deliberate PR: bump this pin, the
+#     Dockerfile pin, and the submodule together, confirm the version is on
+#     PyPI before tagging a release.
 #   - numpy/scipy math throughout; matplotlib for the draw/sweep/pattern plots;
 #     icecream for the CLI/sweep debug tracing; scikit-rf for Touchstone/network
 #     handling in sweep.
@@ -38,7 +40,7 @@ classifiers = [
 # `pynec-accel` distribution; see README) and must never be declared a
 # dependency of this MIT package.
 dependencies = [
-    "momwire>=0.6.0",
+    "momwire==0.6.0",
     "numpy>=1.21",
     "scipy>=1.7",
     "matplotlib>=3.5",
