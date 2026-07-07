@@ -128,18 +128,21 @@ The selector describes what the ground **is**, independent of solver:
 - **PEC** — a perfect reflector, mainly for apples-to-apples engine
   comparisons.
 
-Each solver then models that ground as well as it can. The momwire B-spline
-family solves finite grounds with its reflection-coefficient model (validated
-within ~2 Ω of NEC over 0.1–0.5λ heights), and the sinusoidal basis does too
-(within ~0.1 Ω of NEC's reflection-coefficient ground — it shares NEC's
-basis); PyNEC adds a method sub-choice —
-full **Sommerfeld–Norton** (most accurate, slowest; the reference below ~0.1λ)
-vs. the **reflection-coefficient** approximation (~2× faster per solve). The
-triangular basis folds the impedance solve to the PEC image; the
-far-field pattern uses the real εr/σ on every basis. Whatever runs, the solve
-readout's **ground** row reports the model that was actually used, and over a
-finite ground the [norm check](#norm-check--is-the-solve-trustworthy) Δ reads
-"incl. ground loss" — a steady dB or so there is absorbed power, not error.
+Each solver then models that ground as well as it can, with a method
+sub-choice on both engines — full **Sommerfeld/Norton** (most accurate,
+the reference below ~0.1λ heights) vs. the **reflection-coefficient**
+approximation (faster per solve; fine above ~0.1λ). On momwire the plain
+B-spline solver honours both (true Sommerfeld since momwire 0.6.0,
+validated within ~2.4 Ω of an independent NEC-2 implementation down to
+0.02λ); the accelerated B-spline solvers keep their fast
+reflection-coefficient paths, the sinusoidal basis is
+reflection-coefficient only (~0.1 Ω of NEC's gn 0 — it shares NEC's
+basis), and the triangular basis folds the impedance solve to the PEC
+image. The far-field pattern uses the real εr/σ on every basis. Whatever
+runs, the solve readout's **ground** row reports the model that was
+actually used, and over a finite ground the
+[norm check](#norm-check--is-the-solve-trustworthy) Δ reads "incl. ground
+loss" — a steady dB or so there is absorbed power, not error.
 
 ## Convergence sweep
 

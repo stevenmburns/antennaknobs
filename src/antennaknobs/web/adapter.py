@@ -477,12 +477,16 @@ def _ground_for_engine(req: dict, ground_z: float):
     """Map the frontend's ground knobs to MomwireEngine's ground spec —
     same three-way model as `_pynec_ground_spec`, one shared selector
     describing the GROUND; each engine approximates it as best it can.
-    "pec" → the PEC image; "fast" and "sommerfeld" → the finite spec, which
-    MomwireEngine solves with momwire's reflection-coefficient model on the
-    bspline-family and sinusoidal solvers (its best available finite model;
-    Sommerfeld is out of momwire's scope) and folds to the PEC image on
-    triangular. The response ships the engine's actual eps/sigma so the
-    frontend far-field Fresnel uses the real constants either way."""
+    "pec" → the PEC image; "sommerfeld" → ("finite", ...), which momwire
+    solves as the TRUE Sommerfeld ground on plain BSplineSolver (momwire
+    >= 0.6.0) and as the reflection-coefficient model on the other
+    ground_eps solvers (hmatrix/arrayblock keep their fast paths,
+    sinusoidal has no sommerfeld model); "fast" → ("finite-fast", ...),
+    the reflection-coefficient model everywhere it exists. Triangular
+    folds any finite spec to the PEC image. The response ships the
+    engine's actual eps/sigma so the frontend far-field Fresnel uses the
+    real constants either way; `ground_model_applied` reports what the
+    impedance solve really used."""
     model = _requested_ground_model(req)
     if model is None:
         return None
@@ -1097,13 +1101,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 else _PEC_GROUND_SIGMA
             ),
             # What the impedance solve actually used, for honest UI wording:
-            # "refl-coef" (bspline-family/sinusoidal + finite ground),
-            # "pec-image" (model="pec", or a finite model on a solver
-            # without ground_eps — triangular), or "free".
+            # "sommerfeld" (BSplineSolver + "finite", momwire >= 0.6.0),
+            # "refl-coef" (the other ground_eps solvers, or any solver with
+            # the "finite-fast" spec), "pec-image" (model="pec", or a finite
+            # model on a solver without ground_eps — triangular), or "free".
             "ground_model_applied": (
-                "free"
-                if eng._ground is None
-                else ("refl-coef" if eng._ground_eps is not None else "pec-image")
+                "free" if eng._ground is None else (eng._ground_model or "pec-image")
             ),
             "z0_ohms": hints()["target_z0"],
             # Geometry-derived UI hints, folded into the response so user

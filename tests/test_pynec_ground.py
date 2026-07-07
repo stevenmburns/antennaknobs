@@ -35,8 +35,16 @@ def test_parse_ground_finite_variants():
         parse_ground("finite-slow")
 
 
-def test_momwire_folds_finite_fast_to_its_single_finite_model():
-    assert _normalise_ground(("finite-fast", 10.0, 0.002)) == ("finite", 10.0, 0.002)
+def test_momwire_preserves_the_finite_variant():
+    """Since momwire 0.6.0 the two finite specs mean different physics
+    (true Sommerfeld vs reflection-coefficient), so normalisation must
+    keep the variant instead of folding to a single model."""
+    assert _normalise_ground(("finite-fast", 10.0, 0.002)) == (
+        "finite-fast",
+        10.0,
+        0.002,
+    )
+    assert _normalise_ground(("finite", 10.0, 0.002)) == ("finite", 10.0, 0.002)
 
 
 def test_sommerfeld_and_reflection_coefficient_diverge_when_low():

@@ -110,14 +110,16 @@ the limits are env-configurable (see `docs/deploy.md`).
 
 In the spirit of not overselling: momwire wires are currently PEC (no conductor
 loss — the NEC path with `ld_card` covers lossy elements), and finite-ground
-impedance on the triangular basis folds to the PEC image. The B-spline family
-solves finite grounds with the reflection-coefficient model (validated within
-~2 Ω of NEC over 0.1–0.5λ heights), the sinusoidal basis solves them with the
-same model applied to total fields (NEC's own formulation — it matches NEC's
-reflection-coefficient ground to ~0.1 Ω, the solvers' mutual discretization
-floor), and the NEC path offers full Sommerfeld–Norton — the reference for
-very low antennas (below ~0.1λ) — so real-ground results cross-check across
-two independent engines.
+impedance on the triangular basis folds to the PEC image. The plain B-spline
+solver solves finite grounds with a true **Sommerfeld/Norton** model
+(momwire ≥ 0.6.0: NEC's exact-image-plus-remainder decomposition, validated
+within ~2.4 Ω of an independent NEC-2 implementation across 0.02–0.5λ
+heights — including the very-low region where reflection-coefficient models
+are tens of ohms off). The accelerated B-spline solvers (H-matrix /
+array-block) and the sinusoidal basis use the reflection-coefficient model
+(~2 Ω and ~0.1 Ω of NEC's gn 0 respectively over 0.1–0.5λ), and the NEC
+path offers its own Sommerfeld–Norton — so real-ground results cross-check
+across two independent engines at every height.
 
 <!-- TODO: embed the benchmark plots once generated, and a parity/differentiator
      table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. -->

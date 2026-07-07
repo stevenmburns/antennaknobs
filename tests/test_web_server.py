@@ -1802,11 +1802,12 @@ def test_check_solve_size_unknown_geometry_does_not_falsely_reject(hosted):
     )
 
 
-def test_momwire_bspline_ground_model_drives_refl_coef_solve():
-    """Web ground parity: with a B-spline-family solver, both finite ground
-    models map to momwire's reflection-coefficient solve (its single finite
-    model), the response ships the real εr/σ for the frontend Fresnel cut,
-    and ground_model_applied reports what actually ran."""
+def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
+    """Web ground parity: with the plain B-spline solver the default
+    "sommerfeld" ground model drives momwire's TRUE Sommerfeld solve
+    (momwire >= 0.6.0), "fast" drives the reflection-coefficient one, the
+    response ships the real εr/σ for the frontend Fresnel cut, and
+    ground_model_applied reports what actually ran."""
     base = {
         "geometry": "dipoles.invvee",
         "solver": "momwire",
@@ -1818,19 +1819,22 @@ def test_momwire_bspline_ground_model_drives_refl_coef_solve():
     fast = server.solve({**base, "ground_model": "fast"})
     pec = server.solve({**base, "ground_model": "pec"})
 
-    assert somm["ground_model_applied"] == "refl-coef"
+    assert somm["ground_model_applied"] == "sommerfeld"
     assert fast["ground_model_applied"] == "refl-coef"
     assert pec["ground_model_applied"] == "pec-image"
     assert somm["ground_eps_r"] == 10.0
     assert somm["ground_sigma"] == 0.002
     assert somm["ground_eps_im"] < 0.0  # derived -σ/(ωε₀)
     assert pec["ground_eps_r"] == pytest.approx(1.0e10)
-    # "sommerfeld" and "fast" are the same momwire solve (one finite model).
-    assert somm["z_in_re"] == fast["z_in_re"]
-    assert somm["z_in_im"] == fast["z_in_im"]
-    # The finite solve differs measurably from the PEC image solve — the
-    # reactance correction the refl-coef ground exists to deliver.
+    # "sommerfeld" and "fast" are now genuinely different solves of the
+    # same physical ground: distinct values, but in agreement at this
+    # comfortable height (they only diverge hard below ~0.1λ).
+    z_somm = complex(somm["z_in_re"], somm["z_in_im"])
     z_fast = complex(fast["z_in_re"], fast["z_in_im"])
+    assert z_somm != z_fast
+    assert abs(z_somm - z_fast) < 5.0
+    # The finite solves differ measurably from the PEC image solve — the
+    # reactance correction the finite grounds exist to deliver.
     z_pec = complex(pec["z_in_re"], pec["z_in_im"])
     assert abs(z_fast - z_pec) > 2.0
 
