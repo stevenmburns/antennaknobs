@@ -896,17 +896,22 @@ def test_solve_dispatches_to_pynec_when_requested():
 
 
 @pynec_required
-def test_pynec_ground_on_solves_over_sommerfeld_finite_ground():
+def test_pynec_ground_on_solves_over_finite_ground():
     base = {
         "geometry": "dipoles.invvee",
         "solver": "pynec",
         "measurement_freq_mhz": 28.47,
     }
     free = server.solve(base)
-    grounded = server.solve({**base, "ground": True})
-    # ground=True routes PyNEC to the Sommerfeld finite ground (εr=10,
-    # σ=0.002) rather than silently staying PEC/free, and the response
-    # carries the real constants so the frontend's Fresnel cut matches.
+    grounded = server.solve({**base, "ground": True, "ground_model": "sommerfeld"})
+    default = server.solve({**base, "ground": True})
+    # Sommerfeld is opt-in (expensive); a bare ground=True defaults to the
+    # reflection-coefficient model.
+    assert default["ground_model_applied"] == "refl-coef"
+    # ground=True + sommerfeld routes PyNEC to the Sommerfeld finite ground
+    # (εr=10, σ=0.002) rather than silently staying PEC/free, and the
+    # response carries the real constants so the frontend's Fresnel cut
+    # matches.
     assert grounded["ground"] is True
     assert grounded["ground_eps_r"] == 10.0
     assert grounded["ground_sigma"] == 0.002
@@ -932,7 +937,7 @@ def test_pynec_ground_model_selects_pec_fast_or_sommerfeld():
         "measurement_freq_mhz": 28.47,
         "ground": True,
     }
-    somm = server.solve(base)
+    somm = server.solve({**base, "ground_model": "sommerfeld"})
     fast = server.solve({**base, "ground_model": "fast"})
     fast_legacy = server.solve({**base, "ground_fast": True})
     pec = server.solve({**base, "ground_model": "pec"})
@@ -1815,12 +1820,16 @@ def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
         "measurement_freq_mhz": 28.47,
         "ground": True,
     }
-    somm = server.solve(base)  # default ground_model = sommerfeld
+    somm = server.solve({**base, "ground_model": "sommerfeld"})
     fast = server.solve({**base, "ground_model": "fast"})
+    default = server.solve(base)
     pec = server.solve({**base, "ground_model": "pec"})
 
     assert somm["ground_model_applied"] == "sommerfeld"
     assert fast["ground_model_applied"] == "refl-coef"
+    # Sommerfeld costs seconds per solve, so it is opt-in: the default is
+    # the reflection-coefficient model.
+    assert default["ground_model_applied"] == "refl-coef"
     assert pec["ground_model_applied"] == "pec-image"
     assert somm["ground_eps_r"] == 10.0
     assert somm["ground_sigma"] == 0.002
@@ -1850,7 +1859,7 @@ def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
         "measurement_freq_mhz": 28.47,
         "ground": True,
     }
-    fin = server.solve(base)  # default ground_model = sommerfeld
+    fin = server.solve(base)  # default ground_model = fast (refl-coef)
     pec = server.solve({**base, "ground_model": "pec"})
 
     assert fin["ground_model_applied"] == "refl-coef"
