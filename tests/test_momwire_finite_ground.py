@@ -4,11 +4,10 @@ SinusoidalSolver support since 0.5.0; TRUE Sommerfeld since 0.6.0).
 Finite ground specs reach the impedance solve for solvers that support
 them, and since momwire 0.6.0 the two specs mean different physics:
 ("finite", eps_r, sigma) drives momwire's Sommerfeld ground
-(ground_model="sommerfeld", NEC gn 2 style) on plain BSplineSolver, while
-("finite-fast", eps_r, sigma) — and "finite" on the solvers without a
-sommerfeld model (HMatrix/ArrayBlock keep their refl-coef fast paths,
-SinusoidalSolver is refl-coef only) — maps to the reflection-coefficient
-ground_eps solve (NEC gn 0 style).
+(ground_model="sommerfeld", NEC gn 2 style) — since momwire 0.8.0 on
+EVERY momwire solver (bspline dense, sinusoidal field-based, the
+hmatrix/arrayblock fast paths) — while ("finite-fast", eps_r, sigma)
+maps to the reflection-coefficient ground_eps solve (NEC gn 0 style).
 
 The refl-coef numeric tests cross-check against PyNEC gn 0 (dipole
 0.1–0.5λ window: bspline max |ΔZ| ≈ 2.45 Ω, sinusoidal ≈ 0.11 Ω). The
@@ -51,9 +50,8 @@ def test_finite_specs_map_to_ground_eps_for_bspline():
 
 
 def test_ground_model_mapping_per_solver_and_spec():
-    """ "finite" → sommerfeld on plain BSplineSolver only; "finite-fast" →
-    refl-coef everywhere; solvers without a sommerfeld model keep
-    refl-coef for both specs."""
+    """ "finite" → sommerfeld on EVERY momwire solver (momwire >= 0.8.0);
+    "finite-fast" → refl-coef everywhere."""
     from momwire import ArrayBlockSolver, HMatrixSolver
 
     b = _flat_dipole(_height(0.2))
@@ -61,16 +59,16 @@ def test_ground_model_mapping_per_solver_and_spec():
     def model(solver, spec):
         return MomwireEngine(b, solver=solver, ground=spec)._ground_model
 
-    assert model(BSplineSolver, ("finite", 10.0, 0.002)) == "sommerfeld"
-    assert model(BSplineSolver, ("finite-fast", 10.0, 0.002)) == "refl-coef"
-    for solver in (HMatrixSolver, ArrayBlockSolver, SinusoidalSolver):
-        assert model(solver, ("finite", 10.0, 0.002)) == "refl-coef"
+    for solver in (BSplineSolver, HMatrixSolver, ArrayBlockSolver, SinusoidalSolver):
+        assert model(solver, ("finite", 10.0, 0.002)) == "sommerfeld"
         assert model(solver, ("finite-fast", 10.0, 0.002)) == "refl-coef"
-    # and the sommerfeld kwarg only reaches solvers that accept it
-    eng = MomwireEngine(b, solver=BSplineSolver, ground=("finite", 10.0, 0.002))
-    assert eng._ground_solver_kwargs().get("ground_model") == "sommerfeld"
-    eng = MomwireEngine(b, solver=SinusoidalSolver, ground=("finite", 10.0, 0.002))
-    assert "ground_model" not in eng._ground_solver_kwargs()
+    # the sommerfeld kwarg reaches every solver (refl-coef stays implicit,
+    # keeping "finite-fast" solves bit-identical to older pins)
+    for solver in (BSplineSolver, SinusoidalSolver):
+        eng = MomwireEngine(b, solver=solver, ground=("finite", 10.0, 0.002))
+        assert eng._ground_solver_kwargs().get("ground_model") == "sommerfeld"
+        eng = MomwireEngine(b, solver=solver, ground=("finite-fast", 10.0, 0.002))
+        assert "ground_model" not in eng._ground_solver_kwargs()
 
 
 def test_finite_specs_map_to_ground_eps_for_sinusoidal():
