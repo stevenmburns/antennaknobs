@@ -31,8 +31,8 @@ python -m antennaknobs list            # arrays.bowtiearray, beams.yagi, loops.d
 ## Patterns
 
 ```bash
-# Far-field pattern of a Yagi, solved with momwire's triangular basis
-python -m antennaknobs pattern --builder beams.yagi --engine momwire:triangular
+# Far-field pattern of a Yagi, solved with momwire's default (B-spline) basis
+python -m antennaknobs pattern --builder beams.yagi --engine momwire
 ```
 
 Useful `pattern` flags: `--fn out.png` (write to a file instead of the screen),
@@ -44,8 +44,7 @@ Useful `pattern` flags: `--fn out.png` (write to a file instead of the screen),
 The `--engine` flag selects the solver:
 
 ```bash
---engine momwire                 # momwire (default), default (triangular) basis
---engine momwire:triangular      # piecewise-linear (tent) basis
+--engine momwire                 # momwire (default), default (B-spline) basis
 --engine momwire:sinusoidal      # NEC-2-style three-term basis
 --engine momwire:bspline         # B-spline Galerkin basis
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration

@@ -153,11 +153,11 @@ parameter.
 <Aside type="note" title="You give a count; the solver picks the parity">
   You might expect the feed to need an **odd** count so a centre-fed wire has a
   true middle segment — and for some solvers it does. But which parity lands the
-  feed cleanly depends on the basis functions: sinusoidal and PyNEC want odd,
-  while the default dense (triangular) solver wants **even**. So `segs_for`
-  deliberately doesn't force a parity — it returns the natural count, and each
-  solver nudges it by at most one to suit its own basis at solve time. You size
-  the mesh; the solver gets the feed right.
+  feed cleanly depends on the basis functions: sinusoidal, PyNEC, and the
+  default B-spline (degree-2) solver want odd, while B-spline degree-1 wants
+  **even**. So `segs_for` deliberately doesn't force a parity — it returns the
+  natural count, and each solver nudges it by at most one to suit its own basis
+  at solve time. You size the mesh; the solver gets the feed right.
 </Aside>
 
 ## 5. Parameterize the length
