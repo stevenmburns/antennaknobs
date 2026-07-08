@@ -57,17 +57,28 @@ def test_builder_nominal_nsegs_scales_per_edge_counts():
     assert min(seg_counts) >= 3  # floor on minor edges holds at small N
 
 
-def test_momwire_triangular_coerces_to_even_parity():
-    """Triangular momwire requires even-segment counts; the engine bumps any
-    odd build_wires() output up to even before the solver sees it."""
+def test_momwire_default_coerces_to_odd_parity():
+    """The default solver (BSplineSolver degree=2) wants odd-segment counts;
+    the engine bumps any even build_wires() output up to odd before the
+    solver sees it."""
     b = BowtieBuilder()
-    b.nominal_nsegs = 21  # odd
-    eng = MomwireEngine(b)  # default solver is TriangularSolver → parity="even"
+    b.nominal_nsegs = 20  # even
+    eng = MomwireEngine(b)  # default BSplineSolver d=2 → parity="odd"
     seg_lists = eng._edge_segments
     all_segs = [n for wire in seg_lists for n in wire]
-    assert all(n % 2 == 0 for n in all_segs), (
-        f"triangular engine left odd segs: {all_segs}"
+    assert all(n % 2 == 1 for n in all_segs), (
+        f"default engine left even segs: {all_segs}"
     )
+
+
+def test_momwire_bspline_d1_coerces_to_even_parity():
+    """BSplineSolver degree=1 (tent basis) wants even-segment counts."""
+    b = BowtieBuilder()
+    b.nominal_nsegs = 21  # odd
+    eng = MomwireEngine(b, solver_kwargs={"degree": 1})
+    seg_lists = eng._edge_segments
+    all_segs = [n for wire in seg_lists for n in wire]
+    assert all(n % 2 == 0 for n in all_segs), f"d=1 engine left odd segs: {all_segs}"
 
 
 def test_pynec_engine_segment_parity_is_odd():

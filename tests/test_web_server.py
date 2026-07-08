@@ -327,7 +327,7 @@ def test_solve_dispatches_to_momwire_for_dipole():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         }
     )
     assert out["solver"] == "momwire"
@@ -350,7 +350,7 @@ def test_solve_always_carries_norm_and_caches():
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
     }
     server._SOLVE_CACHE.clear()
     out = server.solve(req)
@@ -397,31 +397,34 @@ _NORM_ACCURACY_REQS = [
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
         "ground": False,
     },
     {
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
         "ground": True,
         "ground_model": "pec",
     },
+    # n_per_wire=100: the 13-wavelength skyloop needs it for the BSpline
+    # d=2 basis to conserve power under the 0.05 dB gate (0.063 dB at 80,
+    # 0.041 at 100; the retired triangular basis sat under the gate at 80).
     {
         "geometry": "loops.triangular_skyloop",
         "measurement_freq_mhz": 50.0,
         "design_freq_mhz": 3.8,
-        "momwire_model": "triangular",
-        "n_per_wire": 80,
+        "momwire_model": "bspline",
+        "n_per_wire": 100,
         "ground": False,
     },
     {
         "geometry": "loops.triangular_skyloop",
         "measurement_freq_mhz": 50.0,
         "design_freq_mhz": 3.8,
-        "momwire_model": "triangular",
-        "n_per_wire": 80,
+        "momwire_model": "bspline",
+        "n_per_wire": 100,
         "ground": True,
         "ground_model": "pec",
     },
@@ -475,7 +478,7 @@ def test_norm_check_endpoint_reports_power_balance(client: TestClient):
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
         "ground": True,
         "ground_model": "pec",
     }
@@ -516,7 +519,7 @@ def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
         "geometry": "loops.triangular_skyloop",
         "measurement_freq_mhz": 50.0,
         "design_freq_mhz": 3.8,
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
         "n_per_wire": 80,
         "ground": False,
     }
@@ -541,12 +544,10 @@ def test_solve_reports_radiation_efficiency_for_terminated_antenna():
     efficiency multiply), so the norm must still agree with the old
     field-side construction (4π/∮|M_perp|²dΩ)·efficiency — the plotted gain
     of the rhombic did not move in this rework."""
-    term = server.solve({"geometry": "wire.rhombic", "momwire_model": "triangular"})
+    term = server.solve({"geometry": "wire.rhombic", "momwire_model": "bspline"})
     assert 0.1 < term["radiation_efficiency"] < 0.6  # ~0.29: most power in the load
 
-    lossless = server.solve(
-        {"geometry": "broadband.g5rv", "momwire_model": "triangular"}
-    )
+    lossless = server.solve({"geometry": "broadband.g5rv", "momwire_model": "bspline"})
     assert lossless["radiation_efficiency"] == 1.0
 
     # Circuit-side norm ≡ (pattern-integral norm × efficiency), the old
@@ -712,7 +713,7 @@ def test_sweep_endpoint_streams_one_record_per_freq_then_done(client: TestClient
             "geometry": "dipoles.invvee",
             "freqs_mhz": freqs,
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         },
     )
     assert r.status_code == 200
@@ -745,7 +746,7 @@ def test_converge_endpoint_streams_one_record_per_n_then_done(client: TestClient
             "geometry": "dipoles.invvee",
             "n_values": ns,
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         },
     )
     assert r.status_code == 200
@@ -973,11 +974,13 @@ def test_pynec_ground_model_selects_pec_fast_or_sommerfeld():
     z_pec = complex(pec["z_in_re"], pec["z_in_im"])
     z_somm = complex(somm["z_in_re"], somm["z_in_im"])
     assert abs(z_pec - z_somm) > 2.0
-    # ...and lands on momwire's PEC image solve (same physics, different
-    # solver: ~0.9 Ω of basis/segmentation difference measured).
+    # ...and lands near momwire's PEC image solve (same physics, different
+    # solver: ~6.1 Ω measured against the default BSpline d=2 mesh — the
+    # retired triangular basis' even mesh happened to sit ~0.9 Ω away.
+    # A sanity bound, not a convergence claim.
     momwire_pec = server.solve({**base, "solver": "momwire"})
     z_mom = complex(momwire_pec["z_in_re"], momwire_pec["z_in_im"])
-    assert abs(z_pec - z_mom) < 3.0
+    assert abs(z_pec - z_mom) < 8.0
 
 
 @pynec_required
@@ -1069,7 +1072,7 @@ def test_solve_for_multi_feed_geometry_includes_feeds_array():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         }
     )
     assert "feeds" in out
@@ -1089,7 +1092,7 @@ def test_solve_for_single_feed_geometry_omits_feeds_array():
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         }
     )
     assert "feeds" not in out
@@ -1133,7 +1136,7 @@ def test_solve_response_carries_z0_ohms_for_array_design():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         }
     )
     assert out["z0_ohms"] == 100.0
@@ -1176,7 +1179,7 @@ def test_phase_lr_drives_per_feed_voltage_phasor():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
             "phase_lr": 0.0,
         }
     )
@@ -1184,7 +1187,7 @@ def test_phase_lr_drives_per_feed_voltage_phasor():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
             "phase_lr": 90.0,
         }
     )
@@ -1208,7 +1211,7 @@ def test_sweep_endpoint_streams_feeds_z_for_multi_feed_geometry(client: TestClie
         json={
             "geometry": "arrays.bowtiearray1x2",
             "freqs_mhz": [28.4, 28.5],
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         },
     )
     assert r.status_code == 200
@@ -1237,7 +1240,7 @@ def test_ws_endpoint_round_trips_a_solve(client: TestClient):
                 {
                     "geometry": "dipoles.invvee",
                     "measurement_freq_mhz": 28.47,
-                    "momwire_model": "triangular",
+                    "momwire_model": "bspline",
                 }
             )
         )
@@ -1256,7 +1259,7 @@ def test_ws_endpoint_handles_multiple_requests_on_one_socket(client: TestClient)
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         }
     )
     with client.websocket_connect("/ws") as ws:
@@ -1342,7 +1345,7 @@ def test_ws_endpoint_echoes_seq_on_success(client: TestClient):
                 {
                     "geometry": "dipoles.invvee",
                     "measurement_freq_mhz": 28.47,
-                    "momwire_model": "triangular",
+                    "momwire_model": "bspline",
                     "_seq": 7,
                 }
             )
@@ -1476,7 +1479,7 @@ def test_solve_aborted_propagates_uncached(monkeypatch):
     req = {
         "geometry": "dipoles.invvee",
         "solver": "momwire",
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
         "_seq": 7,
     }
     token = momwire.CancelToken()
@@ -1491,7 +1494,7 @@ def test_solve_z_only_returns_primary_z_and_no_feeds_for_dipole():
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         }
     )
     assert isinstance(z, complex)
@@ -1762,7 +1765,7 @@ def test_size_guard_disabled_by_default_local_is_unlocked():
         {
             "geometry": "dipoles.invvee",
             "n_per_wire": server._MAX_BASIS * 100,
-            "momwire_model": "triangular",
+            "momwire_model": "bspline",
         },
         use_pynec=False,
     )
@@ -1771,7 +1774,7 @@ def test_size_guard_disabled_by_default_local_is_unlocked():
 def test_check_solve_size_passes_for_normal_request(hosted):
     # A modest segment count is well under every cap → no rejection.
     server._check_solve_size(
-        {"geometry": "dipoles.invvee", "n_per_wire": 40, "momwire_model": "triangular"},
+        {"geometry": "dipoles.invvee", "n_per_wire": 40, "momwire_model": "bspline"},
         use_pynec=False,
     )
 
@@ -1784,7 +1787,7 @@ def test_check_solve_size_rejects_oversized_dense_but_allows_compressed(hosted):
     req = {
         "geometry": geom,
         "n_per_wire": _n_per_wire_for_basis(geom, target),
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
     }
     basis = REGISTRY[geom].count_basis(req)
     assert server._MAX_BASIS < basis <= server._MAX_BASIS_COMPRESSED, (
@@ -1809,7 +1812,7 @@ def test_solve_rejects_oversized_request_before_filling_matrix(hosted):
                 "geometry": "dipoles.invvee",
                 "n_per_wire": _n_per_wire_for_basis("dipoles.invvee", server._MAX_BASIS)
                 * 2,
-                "momwire_model": "triangular",
+                "momwire_model": "bspline",
             }
         )
 
@@ -1888,27 +1891,19 @@ def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
     assert abs(z_fin - z_pec) > 2.0
 
 
-def test_momwire_triangular_finite_folds_to_pec_solve_but_ships_real_eps():
-    """TriangularSolver has no ground_eps: a finite ground model keeps the
-    PEC image impedance solve (identical Z to model='pec') while the
-    response still ships the real constants so the far-field pattern gets
-    the finite-ground Fresnel treatment."""
+def test_retired_model_name_falls_back_to_bspline():
+    """The triangular solver is retired: a stale client still naming it
+    (or any unknown model) gets the default BSpline solve instead of a
+    500 — same contract as the adapter's _MOMWIRE_MODELS fallback."""
     base = {
         "geometry": "dipoles.invvee",
         "solver": "momwire",
-        "momwire_model": "triangular",
         "measurement_freq_mhz": 28.47,
-        "ground": True,
     }
-    fin = server.solve({**base, "ground_model": "fast"})
-    pec = server.solve({**base, "ground_model": "pec"})
-    assert fin["ground_model_applied"] == "pec-image"
-    assert pec["ground_model_applied"] == "pec-image"
-    assert fin["ground_eps_r"] == 10.0
-    assert fin["ground_sigma"] == 0.002
-    assert pec["ground_eps_r"] == pytest.approx(1.0e10)
-    assert fin["z_in_re"] == pec["z_in_re"]
-    assert fin["z_in_im"] == pec["z_in_im"]
+    stale = server.solve({**base, "momwire_model": "triangular"})
+    bspline = server.solve({**base, "momwire_model": "bspline"})
+    assert stale["z_in_re"] == bspline["z_in_re"]
+    assert stale["z_in_im"] == bspline["z_in_im"]
 
 
 def test_momwire_ground_off_reports_free_model():

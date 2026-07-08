@@ -699,10 +699,10 @@ def test_translator_handles_fandipole_high_degree_junctions():
 def test_momwire_sinusoidal_hentenna_impedance_close_to_pynec():
     """Cross-validation on the hentenna (two tee junctions): momwire's
     Sinusoidal basis agrees with PyNEC's free-space gn_card-disabled
-    solve to within ~10% on R and ~10 Ω on X. Triangular at the same
-    segmentation lands at a different impedance — the two basis
+    solve to within ~10% on R and ~10 Ω on X. The polynomial bases at
+    the same segmentation land at a different impedance — the two basis
     families converge to two different limits (PyNEC and Sinusoidal
-    to one, Triangular and BSpline to another), not to a common point.
+    to one, BSpline to another), not to a common point.
     A cross-engine bound against PyNEC therefore only makes sense for
     Sinusoidal here. Picking a "more correct" pair is out of scope;
     this test is just verifying that the translator's junction/feed
@@ -718,8 +718,8 @@ def test_momwire_sinusoidal_hentenna_impedance_close_to_pynec():
 
 
 def test_momwire_sinusoidal_fandipole_runs():
-    """Fandipole has degree-6 junctions and a 1-segment feed gap. The
-    1-segment feed has zero interior knots so the Triangular tent basis
+    """Fandipole has degree-6 junctions and a 1-segment feed gap. A
+    1-segment feed has zero interior knots, so a knot-based tent basis
     has no feed to land on; Sinusoidal's const-source basis lives on
     segment centres and handles it. Just ensure it runs and produces
     a plausible value, the multi-wire geometry has too many freedoms
@@ -773,10 +773,10 @@ def test_momwire_sinusoidal_delta_loop_close_to_pynec():
     assert abs(z_ps.imag - z_nec.imag) < 5.0
 
 
-def test_momwire_triangular_bowtie_runs():
-    """Triangular handles the bowtie because its feed gap is n_seg=3
-    (interior tent basis available). Verifies the closed-loop path
-    doesn't trip Triangular's feed-basis lookup."""
+def test_momwire_default_bowtie_runs():
+    """The default engine (BSplineSolver d=2) handles the bowtie's
+    closed-loop cut with its n_seg=3 feed gap (interior knot available
+    for the feed)."""
     from antennaknobs.designs.specialty.bowtie import Builder as BT
 
     z = MomwireEngine(BT()).impedance()[0]

@@ -1,11 +1,12 @@
-"""momwire-backed SimulationEngine. Impedance via TriangularSolver;
-far-field/directivity ported from momwire/web/server.py:_compute_directivity_norm.
+"""momwire-backed SimulationEngine. Impedance via a momwire solver class
+(BSplineSolver by default); far-field/directivity ported from
+momwire/web/server.py:_compute_directivity_norm.
 """
 
 from __future__ import annotations
 
 import numpy as np
-from momwire import TriangularSolver
+from momwire import BSplineSolver
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
@@ -15,14 +16,11 @@ from ..network_reduce import NetworkReducer, tl_admittance_2x2
 
 def _parity_for_solver(solver, solver_kwargs):
     """The basis types have fixed parity expectations:
-      - TriangularSolver (tent / linear B-spline) → even (feed straddles 2 segs)
-      - BSplineSolver degree=1 → same as triangular → even
+      - BSplineSolver degree=1 → tent basis, even (feed straddles 2 segs)
       - BSplineSolver degree=2 → quadratic → odd
       - SinusoidalSolver → odd
     Anything else falls through as "any" (no coercion)."""
     name = getattr(solver, "__name__", "")
-    if name == "TriangularSolver":
-        return "even"
     if name == "SinusoidalSolver":
         return "odd"
     if name in ("BSplineSolver", "HMatrixSolver", "ArrayBlockSolver"):
@@ -80,9 +78,8 @@ def _normalise_ground(ground):
 # subclass it (dense fallback in momwire 0.4.0, fast-path blocks in 0.4.1);
 # SinusoidalSolver grew its own field-based ground_eps in momwire 0.5.0
 # (phase 6 — matches NEC gn 0 at the solver's own discretization floor,
-# ~0.1 ohm on the validation matrix). TriangularSolver only models the PEC
-# image (retirement-bound, intentionally skipped), so finite grounds keep
-# folding to PEC for it.
+# ~0.1 ohm on the validation matrix). Every shipping momwire solver is on
+# the list; the guard stays for exotic/user-supplied solver classes.
 _GROUND_EPS_SOLVERS = (
     "BSplineSolver",
     "HMatrixSolver",
@@ -102,7 +99,7 @@ class MomwireEngine(SimulationEngine):
         self,
         builder,
         *,
-        solver=TriangularSolver,
+        solver=BSplineSolver,
         wire_radius=0.0005,
         solver_kwargs=None,
         ground=None,
@@ -111,14 +108,14 @@ class MomwireEngine(SimulationEngine):
     ):
         """
         solver:
-          A momwire solver class — TriangularSolver (default), SinusoidalSolver,
-          or BSplineSolver. Different bases trade speed vs impedance fidelity;
-          on the hentenna sinusoidal is typically closer to PyNEC at modest
-          segmentation than triangular.
+          A momwire solver class — BSplineSolver (default), SinusoidalSolver,
+          or the fast BSpline subclasses (HMatrixSolver, ArrayBlockSolver).
+          Different bases trade speed vs impedance fidelity; on the hentenna
+          sinusoidal is typically closer to PyNEC at modest segmentation.
         solver_kwargs:
           Dict of solver-specific kwargs passed straight to the constructor
-          (e.g. `{"n_qp_reg": 8, "n_qp_off": 8}` for TriangularSolver, or
-          `{"n_qp_const": 16}` for SinusoidalSolver). None = solver defaults.
+          (e.g. `{"degree": 1}` for BSplineSolver, or `{"n_qp_const": 16}`
+          for SinusoidalSolver). None = solver defaults.
         ground:
           None or "free"           — no ground (default)
           "pec"                    — PEC plane at z=ground_z (image method)
@@ -133,8 +130,7 @@ class MomwireEngine(SimulationEngine):
                                      coefficient fast paths (momwire would
                                      gate their sommerfeld to a dense solve),
                                      SinusoidalSolver has only the refl-coef
-                                     model, and TriangularSolver folds to the
-                                     PEC image.
+                                     model.
           ("finite-fast", eps_r, sigma) — the reflection-coefficient model
                                      (NEC gn 0 style, ground_eps) on every
                                      solver that supports it. Matches
@@ -150,8 +146,8 @@ class MomwireEngine(SimulationEngine):
         self._cancel = cancel
         self._solver = solver
         self._solver_kwargs = dict(solver_kwargs) if solver_kwargs else {}
-        # Per-instance parity: triangular wants even, sinusoidal odd,
-        # bspline depends on degree. Set before _coerce_wire_tuples runs.
+        # Per-instance parity: sinusoidal wants odd, bspline depends on
+        # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
 
         # build_wires() must run before build_tls() — some designs populate
@@ -185,7 +181,7 @@ class MomwireEngine(SimulationEngine):
         self._ground_z = ground_z if self._ground is not None else None
         # Finite ground constants forwarded to the impedance solve when the
         # solver supports the reflection-coefficient model; None otherwise
-        # (PEC image, today's behavior for triangular/sinusoidal).
+        # (PEC image).
         self._ground_eps = None
         self._ground_model = None
         if (
@@ -253,7 +249,7 @@ class MomwireEngine(SimulationEngine):
 
     def _ground_solver_kwargs(self):
         """Extra ground kwargs for solver construction. Only spliced in when
-        set — TriangularSolver / SinusoidalSolver don't accept ground_eps."""
+        set (free-space / PEC solves pass no ground_eps)."""
         if self._ground_eps is None:
             return {}
         kw = {"ground_eps": self._ground_eps}

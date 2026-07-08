@@ -11,7 +11,7 @@ from antennaknobs.cli import (
     _GROUND_UNSET,
 )
 from antennaknobs.engines import PyNECEngine, MomwireEngine
-from momwire import TriangularSolver, SinusoidalSolver, BSplineSolver
+from momwire import SinusoidalSolver, BSplineSolver
 
 from conftest import needs_pynec
 
@@ -28,7 +28,6 @@ def test_parse_momwire_default():
 @pytest.mark.parametrize(
     "basis,cls",
     [
-        ("triangular", TriangularSolver),
         ("sinusoidal", SinusoidalSolver),
         ("bspline", BSplineSolver),
     ],
@@ -46,7 +45,7 @@ def test_parse_unknown_engine_raises():
 
 def test_parse_pynec_with_basis_raises():
     with pytest.raises(argparse.ArgumentTypeError):
-        parse_engine_spec("pynec:triangular")
+        parse_engine_spec("pynec:bspline")
 
 
 def test_parse_momwire_unknown_basis_raises():
@@ -74,7 +73,6 @@ def test_make_factory_binds_ground_and_solver():
 
 def test_momwire_bases_keys():
     assert set(MOMWIRE_BASES) == {
-        "triangular",
         "sinusoidal",
         "bspline",
         "hmatrix",
@@ -101,7 +99,7 @@ def test_cli_compare_patterns_single_engine_still_works():
 
 def test_cli_compare_patterns_momwire_basis():
     ant.cli(
-        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:triangular momwire:sinusoidal{O}".split()
+        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bspline momwire:sinusoidal{O}".split()
     )
 
 
@@ -138,7 +136,7 @@ def test_broadcast_mismatch_raises():
 def test_cli_compare_patterns_three_by_three_paired():
     ant.cli(
         f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee specialty.bowtie "
-        f"--engines pynec momwire:triangular momwire:sinusoidal{O}".split()
+        f"--engines pynec momwire:bspline momwire:sinusoidal{O}".split()
     )
 
 
@@ -151,7 +149,7 @@ def test_cli_compare_patterns_three_builders_one_engine():
 def test_cli_compare_patterns_mismatch_rejected():
     with pytest.raises(argparse.ArgumentTypeError):
         ant.cli(
-            f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee --engines pynec momwire:triangular momwire:sinusoidal{O}".split()
+            f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee --engines pynec momwire:bspline momwire:sinusoidal{O}".split()
         )
 
 

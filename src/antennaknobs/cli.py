@@ -15,7 +15,6 @@ from .serialize import builder_params_source
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
 from momwire import (
-    TriangularSolver,
     SinusoidalSolver,
     BSplineSolver,
     HMatrixSolver,
@@ -35,7 +34,6 @@ if PyNECEngine is not None:
     ENGINE_CLASSES["pynec"] = PyNECEngine
 
 MOMWIRE_BASES = {
-    "triangular": TriangularSolver,
     "sinusoidal": SinusoidalSolver,
     "bspline": BSplineSolver,
     "hmatrix": HMatrixSolver,
@@ -274,7 +272,7 @@ def broadcast_pairs(builders, engines):
 def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
-    Forms: "pynec", "momwire", "momwire:triangular|sinusoidal|bspline".
+    Forms: "pynec", "momwire", "momwire:sinusoidal|bspline|hmatrix|arrayblock".
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -347,7 +345,7 @@ def cli(arguments=None):
                 nargs="+",
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
-                '"momwire[:triangular|sinusoidal|bspline]" or "pynec". '
+                '"momwire[:sinusoidal|bspline|hmatrix|arrayblock]" or "pynec". '
                 "Cross-products with --builders.",
             )
         else:
@@ -356,9 +354,10 @@ def cli(arguments=None):
                 type=str,
                 default="momwire",
                 help="Simulation backend: momwire | "
-                "momwire:triangular | momwire:sinusoidal | momwire:bspline | "
-                "pynec (default: momwire). pynec needs the optional pynec-accel "
-                "package; momwire is always available.",
+                "momwire:sinusoidal | momwire:bspline | momwire:hmatrix | "
+                "momwire:arrayblock | pynec (default: momwire). pynec needs "
+                "the optional pynec-accel package; momwire is always "
+                "available.",
             )
         p.add_argument(
             "--ground",

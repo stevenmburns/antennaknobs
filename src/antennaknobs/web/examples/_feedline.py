@@ -7,7 +7,7 @@ jumpers, returning the single driving-point impedance the rig sees at
 the main-feed end. Port 0 is the main-feed connection; ports 1..N-1
 are subsequent stops along the chain; port N-1 is the open end.
 
-Usage from momwire: build Y_sc via `TriangularSolver.compute_y_matrix`,
+Usage from momwire: build Y_sc via `BSplineSolver.compute_y_matrix`,
 invert to get Z_oc, pass to `daisy_chain_z_in`. PyNEC's TL card path
 solves the same problem natively (no Python-side math) — this helper
 is just for the momwire half.
