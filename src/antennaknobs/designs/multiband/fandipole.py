@@ -181,11 +181,11 @@ class Builder(AntennaBuilder):
             )
 
         n_seg0 = self.nominal_nsegs
-        # The feed wire (T → S) needs at least one interior basis
-        # function for momwire's triangular solver; n_seg=1 leaves zero
-        # interior knots and triangular._feed_basis_indices crashes
-        # with "argmin of empty sequence". 3 matches the convention
-        # the rest of the design library uses for short feed wires.
+        # The feed wire (T → S) keeps n_seg=3: some bases need an
+        # interior knot at the feed (n_seg=1 left the retired triangular
+        # solver with zero interior knots and a crash), and 3 matches the
+        # convention the rest of the design library uses for short feed
+        # wires.
         n_seg1 = max(3, self.nominal_nsegs // 7)
 
         tups = []

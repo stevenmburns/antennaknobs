@@ -67,7 +67,6 @@ from momwire import (
     BSplineSolver,
     HMatrixSolver,
     SinusoidalSolver,
-    TriangularSolver,
 )
 
 from .examples import register
@@ -91,7 +90,6 @@ DESIGNS_PKG = "antennaknobs.designs"
 DESIGNS_DIR = pathlib.Path(importlib.import_module(DESIGNS_PKG).__path__[0])
 
 _MOMWIRE_MODELS = {
-    "triangular": TriangularSolver,
     "sinusoidal": SinusoidalSolver,
     "bspline": BSplineSolver,
     # Hierarchical (H-matrix / ACA) accelerator — same B-spline basis as
@@ -485,8 +483,7 @@ def _ground_for_engine(req: dict, ground_z: float):
     >= 0.6.0) and as the reflection-coefficient model on the other
     ground_eps solvers (hmatrix/arrayblock keep their fast paths,
     sinusoidal has no sommerfeld model); "fast" → ("finite-fast", ...),
-    the reflection-coefficient model everywhere it exists. Triangular
-    folds any finite spec to the PEC image. The response ships the
+    the reflection-coefficient model everywhere it exists. The response ships the
     engine's actual eps/sigma so the frontend far-field Fresnel uses the
     real constants either way; `ground_model_applied` reports what the
     impedance solve really used."""
@@ -530,8 +527,10 @@ def _pynec_ground_spec(req: dict):
 
 
 def _make_momwire_engine(req: dict, builder, cancel=None):
-    model = req.get("momwire_model", "triangular")
-    solver_cls = _MOMWIRE_MODELS.get(model, TriangularSolver)
+    # "bspline" is the default and the fallback for unknown/retired model
+    # names (a stale client may still send "triangular").
+    model = req.get("momwire_model", "bspline")
+    solver_cls = _MOMWIRE_MODELS.get(model, BSplineSolver)
     wire_radius = float(req.get("wire_radius", 0.0005))
     ground = _ground_for_engine(req, 0.0)
     solver_kwargs = req.get("model_options") or None
@@ -874,7 +873,7 @@ def _auto_default_view(cls) -> str:
 @lru_cache(maxsize=None)
 def _recommended_backend(cls) -> str | None:
     """Recommend a default solver for the design, or None to let the UI keep
-    its own default (the dense Triangular path).
+    its own default (the dense B-spline path).
 
     Returns "arrayblock" for true grid arrays — multiple electrically separate
     elements with at least one repeated shape — where the element-aware block
@@ -1142,8 +1141,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # What the impedance solve actually used, for honest UI wording:
             # "sommerfeld" (BSplineSolver + "finite", momwire >= 0.6.0),
             # "refl-coef" (the other ground_eps solvers, or any solver with
-            # the "finite-fast" spec), "pec-image" (model="pec", or a finite
-            # model on a solver without ground_eps — triangular), or "free".
+            # the "finite-fast" spec), "pec-image" (model="pec"), or "free".
             "ground_model_applied": (
                 "free" if eng._ground is None else (eng._ground_model or "pec-image")
             ),

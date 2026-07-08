@@ -131,7 +131,7 @@ app.add_middleware(
 )
 
 
-C_LIGHT = 299_792_458.0  # m/s, matches TriangularSolver's eps*mu derivation to ~1e-9
+C_LIGHT = 299_792_458.0  # m/s, matches the momwire solvers' eps*mu derivation to ~1e-9
 _EPS0 = 8.854187817e-12  # F/m
 
 

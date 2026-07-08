@@ -8,8 +8,7 @@ them, and since momwire 0.6.0 the two specs mean different physics:
 ("finite-fast", eps_r, sigma) — and "finite" on the solvers without a
 sommerfeld model (HMatrix/ArrayBlock keep their refl-coef fast paths,
 SinusoidalSolver is refl-coef only) — maps to the reflection-coefficient
-ground_eps solve (NEC gn 0 style). TriangularSolver keeps folding to the
-PEC image.
+ground_eps solve (NEC gn 0 style).
 
 The refl-coef numeric tests cross-check against PyNEC gn 0 (dipole
 0.1–0.5λ window: bspline max |ΔZ| ≈ 2.45 Ω, sinusoidal ≈ 0.11 Ω). The
@@ -23,7 +22,7 @@ import pytest
 
 pytest.importorskip("PyNEC")
 
-from momwire import BSplineSolver, SinusoidalSolver, TriangularSolver  # noqa: E402
+from momwire import BSplineSolver, SinusoidalSolver  # noqa: E402
 
 from antennaknobs import resolve_variant_params  # noqa: E402
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee  # noqa: E402
@@ -54,7 +53,7 @@ def test_finite_specs_map_to_ground_eps_for_bspline():
 def test_ground_model_mapping_per_solver_and_spec():
     """ "finite" → sommerfeld on plain BSplineSolver only; "finite-fast" →
     refl-coef everywhere; solvers without a sommerfeld model keep
-    refl-coef for both specs; triangular maps nothing."""
+    refl-coef for both specs."""
     from momwire import ArrayBlockSolver, HMatrixSolver
 
     b = _flat_dipole(_height(0.2))
@@ -67,19 +66,11 @@ def test_ground_model_mapping_per_solver_and_spec():
     for solver in (HMatrixSolver, ArrayBlockSolver, SinusoidalSolver):
         assert model(solver, ("finite", 10.0, 0.002)) == "refl-coef"
         assert model(solver, ("finite-fast", 10.0, 0.002)) == "refl-coef"
-    assert model(TriangularSolver, ("finite", 10.0, 0.002)) is None
     # and the sommerfeld kwarg only reaches solvers that accept it
     eng = MomwireEngine(b, solver=BSplineSolver, ground=("finite", 10.0, 0.002))
     assert eng._ground_solver_kwargs().get("ground_model") == "sommerfeld"
     eng = MomwireEngine(b, solver=SinusoidalSolver, ground=("finite", 10.0, 0.002))
     assert "ground_model" not in eng._ground_solver_kwargs()
-
-
-def test_finite_specs_fold_to_pec_for_triangular():
-    eng = MomwireEngine(
-        _flat_dipole(_height(0.2)), solver=TriangularSolver, ground=GROUND
-    )
-    assert eng._ground_eps is None
 
 
 def test_finite_specs_map_to_ground_eps_for_sinusoidal():

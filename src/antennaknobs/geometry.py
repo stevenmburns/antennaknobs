@@ -1,6 +1,6 @@
 """Translate the flat (p0, p1, n_seg, excitation) wire list used by
 AntennaBuilder.build_wires() into the polyline + feed-arclength shape
-that momwire's TriangularSolver consumes.
+that momwire's solver classes consume.
 
 The flat list expresses connectivity implicitly: two tuples are part of
 the same electrical wire when they share an endpoint (within `eps`).
@@ -43,8 +43,8 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         edge_segments   : list of list[int] — n_seg per edge per polyline
         feeds           : list of (polyline_idx, arclength, voltage) —
                           one entry per excited tuple, in registration
-                          order. Suitable to pass directly to
-                          TriangularSolver(feeds=...).
+                          order. Suitable to pass directly to a
+                          momwire solver's feeds=... kwarg.
         feed_wire_index : int — polyline holding the first excited
                           segment (back-compat: feeds[0][0])
         feed_arclength  : float — arclength of the first feed
@@ -53,7 +53,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
                           (back-compat: feeds[0][2])
         junctions       : list of list[(wire_idx, "start"|"end")] —
                           shared-node groups, suitable to pass directly
-                          to TriangularSolver(junctions=...). Empty list
+                          to a momwire solver's junctions=... kwarg. Empty list
                           if every component is a simple path.
     """
     if not tups:

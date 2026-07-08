@@ -139,12 +139,12 @@ class AntennaBuilder:
 
         Parity is intentionally NOT forced here. Each solver wants a particular
         segment parity so the feed lands on (or symmetrically across) the
-        center — sinusoidal, B-spline degree-2 and PyNEC want odd; triangular
-        and B-spline degree-1 want even — and every engine coerces each count
-        to its own parity at solve time (`SimulationEngine.coerce_n_seg`).
-        Returning the natural count and letting the solver round is why this is
-        `segs_for`, not the old `odd_nsegs`: baking in odd here would just make
-        a triangular solve bump the count up by one."""
+        center — sinusoidal, B-spline degree-2 and PyNEC want odd; B-spline
+        degree-1 wants even — and every engine coerces each count to its own
+        parity at solve time (`SimulationEngine.coerce_n_seg`). Returning the
+        natural count and letting the solver round is why this is `segs_for`,
+        not the old `odd_nsegs`: baking in odd here would just make an
+        even-parity solve bump the count up by one."""
         return max(3, round(self.nominal_nsegs * length / ref))
 
     def _phasor(self, name):

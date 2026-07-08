@@ -1182,17 +1182,16 @@ def test_parasitic_loop_quad_agrees_across_engines():
     """A parasitic (no-port) closed loop -- the cubical quad's reflector -- is
     now handled on every momwire basis (the geometry translator cuts the loop at
     an arbitrary edge and lets momwire's junction KCL carry the current around
-    it). All four bases agree with the PyNEC reference. This was the single
-    biggest momwire gap; the test that used to assert it RAISED now asserts it
-    SOLVES."""
+    it). Both basis families agree with the PyNEC reference. This was the
+    single biggest momwire gap; the test that used to assert it RAISED now
+    asserts it SOLVES."""
     from antennaknobs.designs.loops.quad import Builder
     from antennaknobs.engines import MomwireEngine
-    from momwire import BSplineSolver, SinusoidalSolver, TriangularSolver
+    from momwire import BSplineSolver, SinusoidalSolver
 
     z_ref = _z(Builder())  # PyNEC reference
     assert z_ref.real > 0.0
     for solver, kw in [
-        (TriangularSolver, {}),
         (SinusoidalSolver, {}),
         (BSplineSolver, {"degree": 2}),
     ]:
@@ -1214,10 +1213,9 @@ def test_terminated_rhombic_is_unidirectional_across_engines():
     the radiation efficiency folds the termination loss into GAIN."""
     from antennaknobs.designs.wire.rhombic import Builder
     from antennaknobs.engines import MomwireEngine
-    from momwire import TriangularSolver
 
     ref = _far_field(Builder())  # PyNEC reference
-    ff = MomwireEngine(Builder(), ground=None, solver=TriangularSolver).far_field(
+    ff = MomwireEngine(Builder(), ground=None).far_field(
         n_theta=90, n_phi=360, del_theta=1, del_phi=1
     )
 
@@ -1266,11 +1264,10 @@ def test_t2fd_broadband_gain_agrees_across_engines():
     several dB high."""
     from antennaknobs.designs.broadband.t2fd import Builder
     from antennaknobs.engines import MomwireEngine
-    from momwire import BSplineSolver, SinusoidalSolver, TriangularSolver
+    from momwire import BSplineSolver, SinusoidalSolver
 
     g_ref = _far_field(Builder()).max_gain  # PyNEC reference
     for solver, kw in [
-        (TriangularSolver, {}),
         (SinusoidalSolver, {}),
         (BSplineSolver, {"degree": 2}),
     ]:
@@ -1297,15 +1294,15 @@ def test_g5rv_ideal_halfwave_line_is_singular_on_every_engine():
 
 def test_bruce_high_z_feed_is_well_conditioned_across_bases():
     """The Bruce feed is high-Z and reactive, but because the tap sits a little
-    off the exact current null the four bases AGREE on it (within a few percent)
+    off the exact current null the bases AGREE on it (within a few percent)
     -- high-Z but NOT ill-conditioned."""
     from antennaknobs.designs.verticals.bruce import Builder
     from antennaknobs.engines import MomwireEngine
-    from momwire import SinusoidalSolver, TriangularSolver
+    from momwire import SinusoidalSolver
 
-    zt = MomwireEngine(Builder(), ground=None, solver=TriangularSolver).impedance()[0]
+    zb = MomwireEngine(Builder(), ground=None).impedance()[0]
     zs = MomwireEngine(Builder(), ground=None, solver=SinusoidalSolver).impedance()[0]
-    assert abs(zt - zs) / abs(zt) < 0.1
+    assert abs(zb - zs) / abs(zb) < 0.1
 
 
 def test_zepp_current_null_end_feed_is_basis_dependent():
@@ -1314,9 +1311,10 @@ def test_zepp_current_null_end_feed_is_basis_dependent():
     across bases but the REACTANCE inherits the basis spread."""
     from antennaknobs.designs.wire.zepp import Builder
     from antennaknobs.engines import MomwireEngine
-    from momwire import TriangularSolver
 
     zp = _z(Builder())  # PyNEC shack
-    zt = MomwireEngine(Builder(), ground=None, solver=TriangularSolver).impedance()[0]
-    assert abs(zp.real - zt.real) < 1.0  # R agrees
-    assert abs(zp.imag - zt.imag) > 4.0  # X inherits the end-null spread
+    zb = MomwireEngine(Builder(), ground=None).impedance()[0]
+    assert abs(zp.real - zb.real) < 1.0  # R agrees
+    # X inherits the end-null spread: ~2.7 ohm for BSpline d=2 vs PyNEC
+    # (the retired triangular basis sat >4), still ~170x the R agreement.
+    assert abs(zp.imag - zb.imag) > 2.0

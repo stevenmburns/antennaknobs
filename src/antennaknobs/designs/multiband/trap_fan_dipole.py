@@ -73,7 +73,7 @@ C_LIGHT_MHZ_M = 299.792458
 # Length factors tuned against MomwireEngine with BSplineSolver(degree=2)
 # at nominal_nsegs=41. After moving to adaptive per-wire segmentation
 # (target_seg_len = max_wire / nominal_nsegs, see build_wires), both Bs2
-# and Triangular stay essentially flat across N=21..81 — drift ≤ 0.22 Ω
+# and the (since retired) Triangular basis stay essentially flat across N=21..81 — drift ≤ 0.22 Ω
 # on every band — and agree with each other to ~1 Ω at the converged
 # limit. Sinusoidal still wanders 2–8 Ω over the same N range (basis-
 # family issue, not segmentation). PyNEC sits ~10 Ω above the momwire
@@ -318,9 +318,9 @@ class Builder(AntennaBuilder):
         # wire; everything else scales proportionally. Trap segments are
         # pinned to 1 (load-port convention — the named port lives on a
         # single basis function). Feed segment is also pinned to 1, which
-        # is fine for the BSpline d=2 basis this design is tuned against;
-        # the triangular basis can't drive a 1-segment feed gap, so this
-        # design is no longer drop-in compatible with TriangularSolver.
+        # is fine for the BSpline d=2 basis this design is tuned against
+        # (the retired triangular basis couldn't drive a 1-segment feed
+        # gap).
         adaptive_lengths = []
         for i, (trap_in, trap_out, tip) in enumerate(spokes):
             adaptive_lengths.append(dist(S, A[i]))
@@ -351,7 +351,7 @@ class Builder(AntennaBuilder):
 
         # Feed wire — named "feed", source supplied by build_network().
         # 1 segment matches the design's BSpline d=2 target; the basis
-        # handles a 1-segment feed cleanly (unlike triangular).
+        # handles a 1-segment feed cleanly.
         tups.append((T, S, 1, None, "feed"))
 
         # Lift to base height.
