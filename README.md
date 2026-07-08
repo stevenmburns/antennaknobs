@@ -369,6 +369,14 @@ git submodule update --init momwire
 pip install --no-build-isolation -e ./momwire
 ```
 
+> The submodule pointer tracks the exact momwire release the pyproject pins.
+> If it ever drifts behind the pin, step 4 below silently replaces your
+> editable momwire with the PyPI wheel (pip resolving `momwire==X`) and edits
+> under `momwire/` stop taking effect — verify with
+> `python -c "import momwire; print(momwire.__file__)"`, which must point into
+> the checkout, and re-run this step after `git submodule update --remote
+> momwire` if it doesn't.
+
 **3b. (Optional) Install PyNEC for cross-validation**
 
 PyNEC is an optional second backend — **GPL-2.0**, installed separately from its
