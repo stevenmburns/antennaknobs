@@ -24,5 +24,7 @@ src/antennaknobs/web/frontend/.vite/
 # Built frontend bundle: produced by `npm run build` (vite outDir) and bundled
 # into the wheel as package data at publish time; never committed to source.
 src/antennaknobs/web/static/
-.claude/
+# Local Claude Code state stays ignored, but project skills are shared.
+.claude/*
+!.claude/skills/
 scripts/sterba_center_driven_pattern.png
