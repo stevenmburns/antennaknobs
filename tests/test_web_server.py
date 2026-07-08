@@ -1891,6 +1891,34 @@ def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
     assert abs(z_fin - z_pec) > 2.0
 
 
+@pytest.mark.parametrize("model", ["sinusoidal", "hmatrix", "arrayblock"])
+def test_momwire_sommerfeld_applies_on_every_solver(model):
+    """Since momwire 0.8.0 the "sommerfeld" ground model drives the TRUE
+    Sommerfeld solve on every momwire backend (sinusoidal field-based,
+    hmatrix/arrayblock on their fast paths), not just plain bspline —
+    the wiring this release exists to deliver. The sommerfeld solve
+    agrees with bspline-sommerfeld at the cross-solver floor and stays
+    a genuinely different solve from refl-coef."""
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "momwire",
+        "measurement_freq_mhz": 28.47,
+        "ground": True,
+    }
+    somm = server.solve({**base, "momwire_model": model, "ground_model": "sommerfeld"})
+    fast = server.solve({**base, "momwire_model": model, "ground_model": "fast"})
+    ref = server.solve(
+        {**base, "momwire_model": "bspline", "ground_model": "sommerfeld"}
+    )
+    assert somm["ground_model_applied"] == "sommerfeld"
+    assert fast["ground_model_applied"] == "refl-coef"
+    z_somm = complex(somm["z_in_re"], somm["z_in_im"])
+    z_fast = complex(fast["z_in_re"], fast["z_in_im"])
+    z_ref = complex(ref["z_in_re"], ref["z_in_im"])
+    assert z_somm != z_fast
+    assert abs(z_somm - z_ref) < 3.0  # cross-solver floor
+
+
 def test_retired_model_name_falls_back_to_bspline():
     """The triangular solver is retired: a stale client still naming it
     (or any unknown model) gets the default BSpline solve instead of a

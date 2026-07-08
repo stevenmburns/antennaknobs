@@ -123,14 +123,11 @@ class MomwireEngine(SimulationEngine):
                                      coefficients on the reflected component.
                                      The impedance solve uses momwire's TRUE
                                      Sommerfeld ground (NEC gn 2 style,
-                                     ground_model="sommerfeld", momwire
-                                     >= 0.6.0) on plain BSplineSolver — the
-                                     accurate-at-any-height model. HMatrix/
-                                     ArrayBlock keep the reflection-
-                                     coefficient fast paths (momwire would
-                                     gate their sommerfeld to a dense solve),
-                                     SinusoidalSolver has only the refl-coef
-                                     model.
+                                     ground_model="sommerfeld") on every
+                                     momwire solver (momwire >= 0.8.0:
+                                     BSpline dense, Sinusoidal field-based,
+                                     HMatrix/ArrayBlock fast paths) — the
+                                     accurate-at-any-height model.
           ("finite-fast", eps_r, sigma) — the reflection-coefficient model
                                      (NEC gn 0 style, ground_eps) on every
                                      solver that supports it. Matches
@@ -190,19 +187,14 @@ class MomwireEngine(SimulationEngine):
             and _solver_supports_ground_eps(self._solver)
         ):
             self._ground_eps = (float(self._ground[1]), float(self._ground[2]))
-            # True Sommerfeld (momwire >= 0.6.0) only on plain BSplineSolver
-            # for the "finite" spec: HMatrix/ArrayBlock would be gated to a
-            # dense solve (a silent perf cliff on the large arrays they
-            # exist for) so they keep their refl-coef fast paths, and
-            # SinusoidalSolver has no sommerfeld model. "finite-fast" is
-            # refl-coef everywhere.
+            # "finite" means true Sommerfeld on EVERY momwire solver since
+            # momwire 0.8.0 (sinusoidal grew the model; HMatrix/ArrayBlock
+            # solve it on their fast paths — C2-scaled image blocks + one
+            # global low-rank remainder — so the old dense-solve cliff that
+            # kept them on refl-coef is gone). "finite-fast" is refl-coef
+            # everywhere.
             self._ground_model = (
-                "sommerfeld"
-                if (
-                    self._ground[0] == "finite"
-                    and getattr(self._solver, "__name__", None) == "BSplineSolver"
-                )
-                else "refl-coef"
+                "sommerfeld" if self._ground[0] == "finite" else "refl-coef"
             )
 
         # Map TL tags to feed indices for the legacy build_tls() path.
@@ -253,8 +245,9 @@ class MomwireEngine(SimulationEngine):
         if self._ground_eps is None:
             return {}
         kw = {"ground_eps": self._ground_eps}
-        # Only BSplineSolver takes ground_model (and refl-coef is its
-        # default); SinusoidalSolver would reject the kwarg.
+        # Every ground_eps solver accepts ground_model since momwire 0.8.0
+        # (refl-coef is the default, so it is only spliced in for
+        # sommerfeld to keep refl-coef solves bit-identical to older pins).
         if self._ground_model == "sommerfeld":
             kw["ground_model"] = "sommerfeld"
         return kw

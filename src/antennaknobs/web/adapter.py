@@ -479,14 +479,13 @@ def _ground_for_engine(req: dict, ground_z: float):
     same three-way model as `_pynec_ground_spec`, one shared selector
     describing the GROUND; each engine approximates it as best it can.
     "pec" → the PEC image; "sommerfeld" → ("finite", ...), which momwire
-    solves as the TRUE Sommerfeld ground on plain BSplineSolver (momwire
-    >= 0.6.0) and as the reflection-coefficient model on the other
-    ground_eps solvers (hmatrix/arrayblock keep their fast paths,
-    sinusoidal has no sommerfeld model); "fast" → ("finite-fast", ...),
-    the reflection-coefficient model everywhere it exists. The response ships the
-    engine's actual eps/sigma so the frontend far-field Fresnel uses the
-    real constants either way; `ground_model_applied` reports what the
-    impedance solve really used."""
+    solves as the TRUE Sommerfeld ground on every solver (momwire >=
+    0.8.0: bspline dense, sinusoidal field-based, hmatrix/arrayblock fast
+    paths); "fast" → ("finite-fast", ...), the reflection-coefficient
+    model everywhere. The response ships the engine's actual eps/sigma so
+    the frontend far-field Fresnel uses the real constants either way;
+    `ground_model_applied` reports what the impedance solve really
+    used."""
     model = _requested_ground_model(req)
     if model is None:
         return None
@@ -1139,9 +1138,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 else _PEC_GROUND_SIGMA
             ),
             # What the impedance solve actually used, for honest UI wording:
-            # "sommerfeld" (BSplineSolver + "finite", momwire >= 0.6.0),
-            # "refl-coef" (the other ground_eps solvers, or any solver with
-            # the "finite-fast" spec), "pec-image" (model="pec"), or "free".
+            # "sommerfeld" (any momwire solver + "finite", momwire >= 0.8.0),
+            # "refl-coef" (the "finite-fast" spec), "pec-image"
+            # (model="pec"), or "free".
             "ground_model_applied": (
                 "free" if eng._ground is None else (eng._ground_model or "pec-image")
             ),
