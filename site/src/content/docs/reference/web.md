@@ -95,7 +95,7 @@ variant just replaced. Re-mark the knobs and turn Optimize back on to resume.
 A **solver selector** offers a few preset slots so you can flip between engines
 without re-entering options — e.g. a fast dense basis, an accelerated array
 engine, and the PyNEC reference. The available engines are the momwire bases
-(**triangular**, **sinusoidal**, **bspline**), the accelerators (**hmatrix**,
+(**sinusoidal**, **bspline**), the accelerators (**hmatrix**,
 **arrayblock**), and the optional **PyNEC** backend — see
 [The solver & accuracy](/reference/solver/) for what each is good at.
 
@@ -128,23 +128,20 @@ The selector describes what the ground **is**, independent of solver:
 - **PEC** — a perfect reflector, mainly for apples-to-apples engine
   comparisons.
 
-Each solver then models that ground as well as it can, with a method
-sub-choice on both engines — full **Sommerfeld/Norton** (most accurate,
-the reference below ~0.1λ heights) vs. the **reflection-coefficient**
-approximation (the default: much faster per solve, and fine above
-~0.1λ; Sommerfeld is opt-in because its first solve at each frequency
-builds an interpolation grid — so the first sweep takes a few seconds —
-though repeat solves reuse cached grids and run in tens of milliseconds
-since momwire 0.7.0). On momwire the plain
-B-spline solver honours both (true Sommerfeld since momwire 0.6.0,
-validated within ~2.4 Ω of an independent NEC-2 implementation down to
-0.02λ); the accelerated B-spline solvers keep their fast
-reflection-coefficient paths, the sinusoidal basis is
-reflection-coefficient only (~0.1 Ω of NEC's gn 0 — it shares NEC's
-basis), and the triangular basis folds the impedance solve to the PEC
-image. The far-field pattern uses the real εr/σ on every basis. Whatever
-runs, the solve readout's **ground** row reports the model that was
-actually used, and over a finite ground the
+Every solver then offers the same method sub-choice — full
+**Sommerfeld/Norton** (most accurate, the reference below ~0.1λ heights)
+vs. the **reflection-coefficient** approximation (the default: much
+faster per solve, and fine above ~0.1λ; Sommerfeld is opt-in because its
+first solve at each frequency builds an interpolation grid — so the
+first sweep takes a few seconds — though repeat solves reuse cached
+grids and run in tens of milliseconds). Since momwire 0.8.0 the choice
+is uniform: every momwire solver honours both models (Sommerfeld
+validated against an independent NEC-2 implementation down to 0.02λ —
+within ~2.4 Ω on the B-spline bases, ~0.1 Ω on the sinusoidal basis, and
+the accelerators solve it on their fast paths), and PyNEC honours both
+natively. The far-field pattern uses the real εr/σ on every basis.
+Whatever runs, the solve readout's **ground** row reports the model that
+was actually used, and over a finite ground the
 [norm check](#norm-check--is-the-solve-trustworthy) Δ reads "incl. ground
 loss" — a steady dB or so there is absorbed power, not error.
 

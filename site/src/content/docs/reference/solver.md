@@ -9,12 +9,11 @@ cross-checking.
 
 ## Basis functions
 
-momwire offers three current-expansion bases in one engine — uncommon among free
-tools, where basis quality is usually a paid feature:
+momwire offers two current-expansion basis families in one engine — uncommon
+among free tools, where basis quality is usually a paid feature:
 
-- **triangular** (piecewise-linear "tent") — the default,
-- **sinusoidal** — a NEC-2-style three-term basis, useful as a cross-validator,
-- **B-spline** — a degree-1/2 Galerkin basis.
+- **B-spline** — a degree-1/2 Galerkin basis, the default (degree 2),
+- **sinusoidal** — a NEC-2-style three-term basis, useful as a cross-validator.
 
 Plus two **accelerated** solvers for large problems:
 
@@ -53,7 +52,7 @@ reach for them on small problems.
   single/few-element designs (often <100 ms), yet blows up on the log-periodic
   (13 s). "Use PyNEC as the reference" holds for small designs, not arrays.
 - **Among dense bases, `sinusoidal` stays fastest** on small/medium single
-  structures; `triangular` is the slowest dense basis.
+  structures.
 
 ## Segments & convergence
 
@@ -109,17 +108,18 @@ the limits are env-configurable (see `docs/deploy.md`).
 ### Honest limitations
 
 In the spirit of not overselling: momwire wires are currently PEC (no conductor
-loss — the NEC path with `ld_card` covers lossy elements), and finite-ground
-impedance on the triangular basis folds to the PEC image. The plain B-spline
-solver solves finite grounds with a true **Sommerfeld/Norton** model
-(momwire ≥ 0.6.0: NEC's exact-image-plus-remainder decomposition, validated
-within ~2.4 Ω of an independent NEC-2 implementation across 0.02–0.5λ
-heights — including the very-low region where reflection-coefficient models
-are tens of ohms off). The accelerated B-spline solvers (H-matrix /
-array-block) and the sinusoidal basis use the reflection-coefficient model
-(~2 Ω and ~0.1 Ω of NEC's gn 0 respectively over 0.1–0.5λ), and the NEC
-path offers its own Sommerfeld–Norton — so real-ground results cross-check
-across two independent engines at every height.
+loss — the NEC path with `ld_card` covers lossy elements). Finite grounds are
+solved with a true **Sommerfeld/Norton** model on every momwire solver
+(momwire ≥ 0.8.0: NEC's exact-image-plus-remainder decomposition; the
+accelerators carry the smooth remainder as one global low-rank term on their
+fast paths). Validation against an independent NEC-2 implementation across
+0.02–0.5λ heights — including the very-low region where
+reflection-coefficient models are tens of ohms off — lands within ~2.4 Ω on
+the B-spline basis and ~0.1 Ω on the sinusoidal basis (which shares NEC's
+basis, making it the sharpest check of the model). The faster
+reflection-coefficient model remains the default and the NEC path offers its
+own Sommerfeld–Norton — so real-ground results cross-check across two
+independent engines at every height.
 
 <!-- TODO: embed the benchmark plots once generated, and a parity/differentiator
      table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. -->

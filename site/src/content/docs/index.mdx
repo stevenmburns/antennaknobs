@@ -25,14 +25,15 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.18.0" icon="star">
-  **Sommerfeld ground is now interactive.** The exact finite-ground
-  model introduced in v0.17.0 got a C++ engine and a grid cache in
-  momwire 0.7.0: repeat solves reuse cached interpolation grids, so
-  knob-turns respond in tens of milliseconds and impedance sweeps run
-  ~20× faster once warm — same physics, validated within ~2.4 Ω of an
-  independent NEC-2 implementation down to 0.02 λ. Superseded solves
-  now cancel mid-computation too.
+<Card title="New in v0.19.0" icon="star">
+  **Sommerfeld ground on every solver.** The exact finite-ground model
+  now runs on all momwire backends (momwire 0.8.0): the sinusoidal
+  basis lands within ~0.1 Ω of an independent NEC-2 implementation —
+  the sharpest validation of the model yet — and the H-matrix /
+  array-block accelerators solve it on their fast paths instead of
+  falling back to a dense solve. The ground selector is now uniform
+  across solvers, and the legacy triangular basis is retired (B-spline
+  is the default).
   [All release notes →](/reference/releases/)
 </Card>
 
@@ -52,8 +53,9 @@ formula calculator or a desktop app you have to install; this is neither.
     Most tools make you hand-place every coordinate.
   </Card>
   <Card title="Multi-basis MoM" icon="seti:python">
-    Triangular, sinusoidal, and B-spline bases in one engine — basis quality
-    that otherwise costs four figures in commercial tools.
+    Sinusoidal and B-spline bases in one engine, cross-validating each
+    other — basis quality that otherwise costs four figures in commercial
+    tools.
   </Card>
   <Card title="Fast on big arrays" icon="rocket">
     H-matrix / ACA acceleration with GMRES, where every free NEC tool is dense
