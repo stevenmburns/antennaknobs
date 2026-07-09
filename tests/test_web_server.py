@@ -1934,6 +1934,53 @@ def test_retired_model_name_falls_back_to_bspline():
     assert stale["z_in_im"] == bspline["z_in_im"]
 
 
+def test_swept_mem_budget_injected_for_bspline_family(monkeypatch):
+    """The deployment sweep-memory budget (ANTENNAKNOBS_SWEPT_MEM_MB, read
+    at adapter import into _SWEPT_MEM_MB) must be injected into the
+    bspline-family solvers' kwargs — overriding any client-sent value —
+    and must NOT be passed to sinusoidal (no batched sweep, no such
+    kwarg). Asserted at the engine-kwargs level so the test doesn't
+    require a momwire version that accepts the kwarg (momwire >= 0.9).
+    """
+    import importlib
+
+    from antennaknobs.web import adapter
+
+    design = importlib.import_module("antennaknobs.designs.dipoles.invvee")
+    req_base = {"measurement_freq_mhz": 28.47}
+    builder = adapter._build_builder(design.Builder, req_base)
+
+    monkeypatch.setattr(adapter, "_SWEPT_MEM_MB", 64)
+    for model in ("bspline", "hmatrix", "arrayblock"):
+        eng = adapter._make_momwire_engine(
+            {**req_base, "momwire_model": model}, builder
+        )
+        assert eng._solver_kwargs.get("swept_mem_mb") == 64, model
+    # Client-sent value loses to the server policy; other options survive.
+    eng = adapter._make_momwire_engine(
+        {
+            **req_base,
+            "momwire_model": "bspline",
+            "model_options": {"swept_mem_mb": 4096, "degree": 1},
+        },
+        builder,
+    )
+    assert eng._solver_kwargs["swept_mem_mb"] == 64
+    assert eng._solver_kwargs["degree"] == 1
+    # Sinusoidal is skipped (kwarg unsupported there).
+    eng = adapter._make_momwire_engine(
+        {**req_base, "momwire_model": "sinusoidal"}, builder
+    )
+    assert "swept_mem_mb" not in (eng._solver_kwargs or {})
+
+    # Unset (local default): nothing injected, momwire default applies.
+    monkeypatch.setattr(adapter, "_SWEPT_MEM_MB", None)
+    eng = adapter._make_momwire_engine(
+        {**req_base, "momwire_model": "bspline"}, builder
+    )
+    assert "swept_mem_mb" not in (eng._solver_kwargs or {})
+
+
 def test_momwire_ground_off_reports_free_model():
     resp = server.solve(
         {

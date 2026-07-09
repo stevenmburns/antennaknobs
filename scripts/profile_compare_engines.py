@@ -3,8 +3,8 @@ range of antenna designs spanning the solver-selection space (single elements,
 beams, multiband dipoles, large single-wire structures, and arrays).
 
 Engines compared:
-  Tri   — momwire TriangularSolver
-  Bs1   — momwire BSplineSolver(degree=1)
+  Bs1   — momwire BSplineSolver(degree=1) (the tent basis; the retired
+          TriangularSolver was the same scheme to roundoff)
   Bs2   — momwire BSplineSolver(degree=2)
   Sin   — momwire SinusoidalSolver
   Arr   — momwire ArrayBlockSolver (element-aware block-low-rank)
@@ -100,7 +100,6 @@ from momwire import (  # noqa: E402
     BSplineSolver,
     HMatrixSolver,
     SinusoidalSolver,
-    TriangularSolver,
 )
 
 
@@ -138,7 +137,6 @@ def solve_pynec(builder_cls, n, f):
 
 
 ENGINES = [
-    ("Tri", make_momwire_solver(TriangularSolver, None)),
     ("Bs1", make_momwire_solver(BSplineSolver, {"degree": 1})),
     ("Bs2", make_momwire_solver(BSplineSolver, {"degree": 2})),
     ("Sin", make_momwire_solver(SinusoidalSolver, None)),
