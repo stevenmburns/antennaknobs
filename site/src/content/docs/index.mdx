@@ -25,15 +25,16 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.19.0" icon="star">
-  **Sommerfeld ground on every solver.** The exact finite-ground model
-  now runs on all momwire backends (momwire 0.8.0): the sinusoidal
-  basis lands within ~0.1 Ω of an independent NEC-2 implementation —
-  the sharpest validation of the model yet — and the H-matrix /
-  array-block accelerators solve it on their fast paths instead of
-  falling back to a dense solve. The ground selector is now uniform
-  across solvers, and the legacy triangular basis is retired (B-spline
-  is the default).
+<Card title="New in v0.20.0" icon="star">
+  **Finite-ground solves got fast.** momwire 0.9.0 moves the Sommerfeld
+  remainder assembly into one fused compiled kernel — finite-ground
+  solves run **14–19× faster** on every solver, tying or beating the
+  NEC-2 reference on most benchmark designs — and a compiled
+  reflection-coefficient fill speeds the sinusoidal basis another
+  4–6×. Frequency sweeps on the default B-spline solver are now
+  k-batched under a tunable memory budget, and the
+  [solver guide](/reference/solver/) carries the full ground-model
+  benchmark (10 designs × 4 grounds × 6 engines).
   [All release notes →](/reference/releases/)
 </Card>
 
