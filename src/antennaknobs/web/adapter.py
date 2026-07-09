@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import importlib
 import math
+import os
 import pathlib
 import time
 from collections.abc import Mapping
@@ -88,6 +89,18 @@ DESIGNS_PKG = "antennaknobs.designs"
 # once installed from a wheel they are separate top-level packages with no `src/`
 # in between. __path__ points at the real location in both layouts.
 DESIGNS_DIR = pathlib.Path(importlib.import_module(DESIGNS_PKG).__path__[0])
+
+# Memory budget (MB) for momwire's batched frequency sweeps, injected into
+# the bspline-family solvers' `swept_mem_mb` kwarg (momwire >= 0.9). None
+# (unset) leaves momwire's default (256 MB) — appropriate for local use;
+# the hosted fly.toml sets ANTENNAKNOBS_SWEPT_MEM_MB=64 so two concurrent
+# worst-case sweeps stay well inside the 2 GB VM. Read at import, like the
+# server's ANTENNAKNOBS_MAX_BASIS caps.
+_SWEPT_MEM_MB = (
+    int(os.environ["ANTENNAKNOBS_SWEPT_MEM_MB"])
+    if os.environ.get("ANTENNAKNOBS_SWEPT_MEM_MB")
+    else None
+)
 
 _MOMWIRE_MODELS = {
     "sinusoidal": SinusoidalSolver,
@@ -533,6 +546,16 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     wire_radius = float(req.get("wire_radius", 0.0005))
     ground = _ground_for_engine(req, 0.0)
     solver_kwargs = req.get("model_options") or None
+    if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
+        # Deployment-owned memory policy (momwire >= 0.9): cap the batched
+        # frequency sweep's transient memory per solve. Server-side value
+        # OVERRIDES any client-sent model_options entry — on the shared
+        # hosted instance the budget bounds concurrent sweeps the same way
+        # the ANTENNAKNOBS_MAX_BASIS caps bound single solves. Sinusoidal
+        # has no batched sweep path and no such kwarg, so it is skipped
+        # (HMatrix/ArrayBlock are BSplineSolver subclasses and inherit it).
+        solver_kwargs = dict(solver_kwargs or {})
+        solver_kwargs["swept_mem_mb"] = _SWEPT_MEM_MB
     return MomwireEngine(
         builder,
         solver=solver_cls,

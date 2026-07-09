@@ -234,7 +234,7 @@ def main():
         "geometry": "loops.triangular_skyloop",
         "variant": "default",
         "solver": "momwire",
-        "momwire_model": "triangular",
+        "momwire_model": "bspline",
         "n_per_wire": 80,
         "design_freq_mhz": 3.8,  # sized for the 80m loop (~1λ)
         "wire_radius": 0.001,
