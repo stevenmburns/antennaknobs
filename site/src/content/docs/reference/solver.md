@@ -26,14 +26,19 @@ Plus two **accelerated** solvers for large problems:
 
 The choice turns on two axes — total problem size, and single-structure vs.
 array geometry. From the [solver-selection
-benchmark](https://github.com/stevenmburns/antennaknobs) (10 designs × 7
-engines):
+benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-06-25-solver-selection-benchmark.md)
+(10 designs × 7 engines, free space) and the [ground-model
+benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-08-ground-model-benchmark.md)
+(the same designs × 4 ground models):
 
 | Antenna class | Use | Why |
 | --- | --- | --- |
 | Single elements, small loops, beams, multiband dipoles | **`sinusoidal`** or **PyNEC** | the dense solve is milliseconds; the accelerators' setup is pure overhead here |
 | Large single-wire structures (rhombic, long-wires, big loops) | **`hmatrix`** (ACA) | sub-quadratic scaling — the only solver that beats PyNEC on `rhombic` at high segmentation |
-| Arrays of identical / few-shape elements (loop/bowtie arrays, LPDA) | **`arrayblock`** | 6–11× faster than PyNEC on large arrays; near-linear scaling |
+| Arrays of identical / few-shape elements (loop/bowtie arrays, LPDA) | **`arrayblock`** | 7–12× faster than PyNEC on large arrays; near-linear scaling |
+
+The same picks hold with a ground plane in play — the ground model changes
+what a solve *costs*, not which solver wins it.
 
 :::caution
 `arrayblock` / `hmatrix` only win at moderate-to-high segment counts on their
@@ -43,16 +48,34 @@ reach for them on small problems.
 
 ### What the numbers show
 
-- **ACA earns its place on `rhombic`** — fastest engine at high segmentation
-  (~3.9 s at N=81), beating PyNEC and every dense basis, scaling ~2×/step where
-  dense solvers go ~5×/step.
-- **ArrayBlock dominates arrays** — `lpda`: ~1.2 s vs PyNEC's **13.4 s** (11×);
-  `bowtiearray2x4`: ~1.9 s vs 11.4 s (6×).
-- **PyNEC is a great fast reference, but not universally fast** — it wins on
-  single/few-element designs (often <100 ms), yet blows up on the log-periodic
-  (13 s). "Use PyNEC as the reference" holds for small designs, not arrays.
+All timings at N=81 segments/wire on a 4-core box with production-matched
+threading; see the benchmark docs for full tables.
+
+- **The ground-cost ladder is consistent everywhere:
+  `free ≈ PEC < reflection-coefficient < Sommerfeld`.** PEC is nearly free
+  (image method, no material solve); the reflection-coefficient ground runs
+  ~1.5–3× a free-space solve on the dense bases; the full Sommerfeld ground
+  ~2–5× — the reason it stays opt-in in the UI.
+- **ACA earns its place on `rhombic`** — fastest engine free-space (~4.0 s,
+  beating PyNEC and every dense basis, scaling ~2×/step where dense solvers go
+  ~5×/step), and under Sommerfeld the low-rank structure survives (the smooth
+  ground remainder rides one compressed term): 9.3 s vs the dense B-spline's
+  18.7 s.
+- **ArrayBlock dominates arrays on every ground** — `lpda` free: ~1.2 s vs
+  PyNEC's **14 s** (12×); Sommerfeld: 2.8 s vs 24 s; `bowtiearray2x4`
+  Sommerfeld: 7.3 s vs 17.3 s.
+- **Against PyNEC, momwire sits within ~2× — or wins — on every
+  ground model × design** (momwire ≥ 0.9.0: a fused Sommerfeld remainder
+  kernel made Sommerfeld solves 14–19× faster, tying or beating PyNEC's native
+  NEC gn 2 on 6 of 10 designs; a compiled reflection-coefficient fill took the
+  sinusoidal basis from 5–9× behind PyNEC to 1.1–1.8×).
+- **PyNEC is a great fast reference, but not universally fast** — it wins
+  Sommerfeld on mid-size single structures (`moxon`: 135 ms vs momwire's best
+  158 ms), yet loses the log-periodic on every ground model (free: 14 s vs
+  ArrayBlock's 1.2 s). "Use PyNEC as the reference" holds for small designs,
+  not arrays.
 - **Among dense bases, `sinusoidal` stays fastest** on small/medium single
-  structures.
+  structures — on every ground model.
 
 ## Segments & convergence
 
