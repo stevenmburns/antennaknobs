@@ -14,6 +14,65 @@ For each design we sweep **solver × ground model × segmentation** and time
 is wired for all four ground models (it takes the identical `ground=` spec), so
 its NEC gn 2 Sommerfeld is the reference the momwire path is validated against.
 
+## Update — 2026-07-09 (Phase 4 Sommerfeld + refl-coef C++ kernels)
+
+The original tables below were captured on **momwire 0.8.0** (the pinned
+release). Two momwire performance efforts have since landed on `main` — ahead
+of the pin, so these numbers are from a dev checkout, not a release:
+
+- **Sommerfeld fused kernel** (`sommerfeld-perf-plan.md` Phase 4): the per-pair
+  remainder assembly (surface interpolation + eqs 143-147 projection + Galerkin
+  quadrature) — ~90 % of a `somm` solve — moved from numpy into one compiled
+  kernel shared by every solver.
+- **Refl-coef Fresnel field-tensor kernel** (`3562cad`): a compiled replacement
+  for the slow field-based `ground_eps` fill that made `Sin·fast` blow up.
+
+Both were validated against the same golden gates and PyNEC references. Full
+matrix re-run: **6h10m → 2h12m**. The two gaps this benchmark originally
+surfaced — Sommerfeld 10-100× and `Sin·fast` 5-9× vs PyNEC — are both closed.
+
+**Sommerfeld, N=81 — 0.8.0 → Phase 4 (ms):**
+
+| design | Bs2 old → new | ×  | best momwire (new) | PyNEC | mw/NEC |
+|---|---|---|---|---|---|
+| invvee | 520 → 31 | 17× | Sin 13 | 37 | **0.4×** |
+| delta_loop | 1080 → 64 | 17× | Sin 28 | 53 | **0.5×** |
+| moxon | 5435 → 305 | 18× | Sin 158 | 135 | 1.2× |
+| yagi | 6954 → 365 | 19× | Sin 200 | 178 | 1.1× |
+| fandipole | 44809 → 2665 | 17× | Sin 1805 | 1361 | 1.3× |
+| trap_fan_dipole | 2504 → 137 | 18× | Sin 65 | 92 | **0.7×** |
+| rhombic | 262541 → 18748 | 14× | ACA 9349 | 7582 | 1.2× |
+| lpda | 95314 → 5226 | 18× | Arr 2798 | 23844 | **0.1×** |
+| delta_looparray_1x4 | 17748 → 916 | 19× | Sin 496 | 441 | 1.1× |
+| bowtiearray2x4 | 500628 → 33762 | 15× | Arr 7322 | 17330 | **0.4×** |
+
+Bs2 is a uniform **14-19×** faster; the best momwire solver **ties or beats
+PyNEC on 6 of 10** designs and is within 1.3× on the rest. The old worst cell
+(`bowtie·somm·Bs2` = 500 s) is now 34 s.
+
+**Refl-coef (`fast`), Sinusoidal, N=81 — before → after `3562cad` (ms):**
+
+| design | Sin before → after | × | PyNEC | Sin/NEC |
+|---|---|---|---|---|
+| invvee | 48 → 11 | 4.4× | 8 | 1.4× |
+| delta_loop | 104 → 17 | 6.1× | 15 | 1.1× |
+| moxon | 589 → 112 | 5.3× | 64 | 1.8× |
+| yagi | 789 → 146 | 5.4× | 97 | 1.5× |
+| fandipole | 5713 → 1220 | 4.7× | 782 | 1.6× |
+| trap_fan_dipole | 240 → 42 | 5.7× | 35 | 1.2× |
+| rhombic | 42092 → 9263 | 4.5× | 5055 | 1.8× |
+| lpda | 12022 → 2961 | 4.1× | 15952 | **0.2×** |
+| delta_looparray_1x4 | 1634 → 369 | 4.4× | 221 | 1.7× |
+| bowtiearray2x4 | 82198 → 19777 | 4.2× | 12457 | 1.6× |
+
+Uniform **~4-6×**; the `Sin·fast` gap to PyNEC collapses from 5-9× to
+**1.1-1.8×** (a constant-factor compiled fill, scaling stays ~quadratic), and
+Sin is again the fastest dense basis on refl-coef. On `lpda` it beats NEC 5×.
+
+**Net:** after both efforts momwire sits within ~2× of PyNEC — or beats it —
+on every ground model × design. The baseline tables below are retained as the
+0.8.0 reference; a fresh full capture will replace them when the work releases.
+
 ## Script
 
 `scripts/profile_ground_models.py` — `.venv/bin/python scripts/profile_ground_models.py 2>/dev/null`.
