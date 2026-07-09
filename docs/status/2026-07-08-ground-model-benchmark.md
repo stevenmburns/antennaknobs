@@ -70,8 +70,11 @@ Uniform **~4-6×**; the `Sin·fast` gap to PyNEC collapses from 5-9× to
 Sin is again the fastest dense basis on refl-coef. On `lpda` it beats NEC 5×.
 
 **Net:** after both efforts momwire sits within ~2× of PyNEC — or beats it —
-on every ground model × design. The baseline tables below are retained as the
-0.8.0 reference; a fresh full capture will replace them when the work releases.
+on every ground model × design. Both kernels shipped in **momwire 0.9.0**
+(adopted by antennaknobs v0.20.0, 2026-07-09); the [current solver-selection
+guide](#solver-selection-guide-finite-ground) below reflects them. The
+Headlines section and full tables further down are the **0.8.0 baseline
+capture**, retained as the before-reference.
 
 ## Script
 
@@ -108,7 +111,12 @@ trap_fan_dipole keep their multiband target sets). Geometry/Z size is fixed by
 hides one-shot jitter. Full run: **~6h10m** wall clock on a 4-physical-core box
 (the array Sommerfeld cells averaged over 4 bands are the long pole).
 
-## Headlines
+## Headlines (0.8.0 baseline)
+
+> **Superseded in part** by the 2026-07-09 update above: the two gaps called
+> out below — the momwire Sommerfeld 10–100× deficit and the `Sin·fast`
+> blow-up — are **closed** as of momwire 0.9.0. The ground-cost ladder and the
+> fast-path structural wins still hold.
 
 - **Ground-cost ladder is consistent everywhere: `free ≈ pec < fast < somm`.**
   Relative to free space at N=81: `pec` ≈ 1.1–1.5×, `fast` ≈ 1.5–3× (dense
@@ -116,7 +124,9 @@ hides one-shot jitter. Full run: **~6h10m** wall clock on a 4-physical-core box
   `pec` is nearly free (image method, no material solve).
 
 - **PyNEC's native NEC gn 2 Sommerfeld is 1–2 orders of magnitude faster than
-  every momwire Sommerfeld path** on 9 of 10 designs. Sommerfeld @ N=81:
+  every momwire Sommerfeld path** on 9 of 10 designs *(closed by Phase 4 —
+  best momwire now ties or beats PyNEC on 6/10; see update)*. Sommerfeld @
+  N=81, 0.8.0:
 
   | design | PyNEC | best momwire | worst (Bs2 dense) |
   |---|---|---|---|
@@ -148,23 +158,37 @@ hides one-shot jitter. Full run: **~6h10m** wall clock on a 4-physical-core box
   geometries.** `bowtiearray2x4` fast N=81 `Sin` = **117 s** — ~5× the
   dense-bspline `fast` cell (24 s) and worse than most of its own Sommerfeld
   neighbours. The field-based `ground_eps` in the sinusoidal solver scales
-  poorly on large arrays; on small/medium designs it stays cheap.
+  poorly on large arrays; on small/medium designs it stays cheap. *(Closed by
+  momwire `3562cad` — 4–6× faster, `bowtiearray2x4` fast now ~20 s; see
+  update.)*
 
 - **Worst cell in the matrix:** `bowtiearray2x4` · somm · Bs2 · N=81 ≈
-  **500 s/solve**. This is why Sommerfeld must stay opt-in in the UI and the
-  fast paths (or PyNEC) are the only viable Sommerfeld engines at scale.
+  **500 s/solve** *(now 34 s post-Phase-4)*. Sommerfeld stays opt-in in the
+  UI, and the fast paths (or PyNEC) remain the right Sommerfeld engines at
+  scale.
 
 ## Solver-selection guide (finite ground)
 
-- **Small/medium single or few-element designs** → PyNEC for Sommerfeld (often
-  <1 s where momwire dense is seconds); dense `Sin` for refl-coef/PEC.
-- **Large single structures** (rhombic, longwire class) → `HMatrixSolver` (ACA)
-  under Sommerfeld among momwire solvers; PyNEC still faster if available.
-- **Arrays** → `ArrayBlockSolver` under any finite ground; it can beat PyNEC
-  on the log-periodic / larger arrays and is the closest momwire gets to PyNEC's
-  Sommerfeld speed on `bowtiearray2x4`.
+Current as of momwire 0.9.0 (post Phase-4 + refl-coef kernels — the update
+tables above). The punchline: **the free-space solver picks carry over to
+every ground model** — the ground changes what a solve costs, not which
+solver wins it.
+
+- **Small/medium single or few-element designs** → dense `Sin` on every
+  ground: it ties or beats PyNEC's native gn 2 on most designs under
+  Sommerfeld (invvee 13 ms vs 37, trap_fan 65 vs 92) and sits within
+  1.1–1.8× on refl-coef.
+- **Large single structures** (rhombic, longwire class) → `HMatrixSolver`
+  (ACA) under Sommerfeld among momwire solvers (9.3 s vs dense Bs2's 18.7 s
+  at N=81); PyNEC (7.6 s) is still marginally ahead if available.
+- **Arrays** → `ArrayBlockSolver` under any finite ground; it now beats PyNEC
+  outright under Sommerfeld on the log-periodic (2.8 s vs 24 s) and
+  `bowtiearray2x4` (7.3 s vs 17.3 s).
 - **PEC** is cheap on every solver — never a reason to avoid a ground plane if
   PEC is an acceptable model.
+
+The pre-0.9.0 version of this guide recommended PyNEC for all small-design
+Sommerfeld work; that was the 10–100× fill gap, since closed.
 
 ## Caveats
 
@@ -180,17 +204,21 @@ hides one-shot jitter. Full run: **~6h10m** wall clock on a 4-physical-core box
 
 ## Follow-ups
 
-- Investigate why momwire's Sommerfeld trails NEC gn 2 by 10–100×: NEC's
-  precomputed interpolation grid vs momwire's per-fill remainder evaluation is
-  the likely gap. A shared/cached Sommerfeld grid across the fill could close it.
-- The `Sinusoidal` refl-coef blow-up on large arrays (`bowtiearray2x4` fast
-  = 117 s) deserves its own profile — the field-based `ground_eps` path looks
-  quadratic where the bspline `refl-coef` stays sub-linear.
-- Web engine auto-selection could extend the 2026-06-25 free-space heuristic
-  with a ground-aware branch: PyNEC for Sommerfeld on non-array designs,
-  ArrayBlock for arrays, HMatrix for large single structures.
+- ~~Investigate why momwire's Sommerfeld trails NEC gn 2 by 10–100×~~ **DONE**
+  (momwire Phase 4, `sommerfeld-perf-plan.md`): the fused remainder-assembly
+  kernel closed it — 14–19× across all designs, momwire ties/beats PyNEC on
+  6/10. Shipped in momwire 0.9.0.
+- ~~The `Sinusoidal` refl-coef blow-up on large arrays deserves its own
+  profile~~ **DONE** (momwire `3562cad`): the field-based `ground_eps` fill
+  was ~30 numpy (M,N) temporaries spilling cache; the compiled Fresnel
+  field-tensor kernel is 4–6× — `bowtiearray2x4` fast now ~20 s. Shipped in
+  momwire 0.9.0.
+- Web engine auto-selection: with the gaps closed, the 2026-06-25 free-space
+  heuristic already picks the right solver under every ground model — a
+  ground-aware branch is no longer needed for correctness of the pick, only
+  if PyNEC-for-mid-size-Sommerfeld (moxon-class, ~1.2× momwire) ever matters.
 
-## Full results
+## Full results (0.8.0 baseline)
 
 Verbatim capture (`.venv/bin/python scripts/profile_ground_models.py 2>/dev/null`).
 Each cell is `mean ms (±half-spread across bands)`.
