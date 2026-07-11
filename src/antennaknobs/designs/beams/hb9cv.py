@@ -28,9 +28,9 @@ crossed TL between the two element centres. That gets the forward gain
 (~6.8 dBi), the endfire direction, and the ~50 ohm inductive feed right, but
 the very deep F/B null Cebik reports (25-45 dB) needs a precise simultaneous
 phase-AND-current-magnitude match that the single-ended ideal line does not
-reach -- it tops out near ~8 dB here. The genuinely deep null wants a true
-2-conductor transposed line (the momwire DiffTL, cf. sterba_difftl) or a fine
-multi-variable optimisation. Treat F/B as "real but shallow" in this model.
+reach -- it tops out near ~8 dB here. The genuinely deep null wants a fine
+multi-variable optimisation (or real, near-field-coupled feedline conductors
+in place of the ideal line). Treat F/B as "real but shallow" in this model.
 """
 
 from ... import AntennaBuilder

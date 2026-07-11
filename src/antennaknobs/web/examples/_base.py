@@ -308,7 +308,7 @@ class AntennaExample:
     pynec_solve: Optional[SolveFn] = None
     # Render the geometry as a NEC2 .nec card deck (str) for the current
     # request (params/variant/freq/ground). None when the design has no
-    # faithful native-NEC representation (TL/DiffTL/virtual-driver networks).
+    # faithful native-NEC representation (TL/virtual-driver networks).
     nec_export: Optional[Callable[[dict], str]] = None
     # Serialise the request's current knob values back to a paste-ready
     # Python `default_params = {...}` (or named-variant) block, so the UI can
