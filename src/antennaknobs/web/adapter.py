@@ -83,6 +83,25 @@ from .examples._base import (
 
 C_LIGHT = 299_792_458.0
 
+# Sentinel impedance for an open-circuited feed on the wire protocol. The
+# network core reports a true open (e.g. a series matchbox capacitor slider
+# at 0 F) as Z = inf (issue #289), but JSON has no Infinity/NaN — json.dumps
+# would emit literals the browser's JSON.parse rejects, killing the whole
+# solve/sweep response. Clamp to this huge-but-finite value instead: |Γ|
+# lands at ~1−1e−7 so the SWR readout shows ∞, the Smith chart pins at the
+# open point, and the R/X readout renders it as "∞ (open)" (the frontend
+# treats ≥1e8 Ω as open).
+Z_OPEN_OHMS = 1.0e9
+
+
+def _json_safe_z(z: complex) -> complex:
+    """Clamp a non-finite impedance to the open-circuit sentinel."""
+    z = complex(z)
+    if math.isfinite(z.real) and math.isfinite(z.imag):
+        return z
+    return complex(Z_OPEN_OHMS, 0.0)
+
+
 DESIGNS_PKG = "antennaknobs.designs"
 # Resolve the designs directory from the installed package, never a path relative
 # to this file: web/ and src/antennaknobs/ are siblings in a source checkout, but
@@ -1126,7 +1145,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             builder.design_freq = design_freq
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         t0 = time.perf_counter()
-        zs = eng.impedance()
+        zs = [_json_safe_z(z) for z in eng.impedance()]
         currents = eng.current_distribution()
         solve_ms = (time.perf_counter() - t0) * 1e3
         feed_wire_idx, feed_knot_idx = _feed_indices(eng, currents)
@@ -1304,7 +1323,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             builder.design_freq = design_freq
         eng = _make_pynec_engine(req, builder)
         t0 = time.perf_counter()
-        zs = eng.impedance()
+        zs = [_json_safe_z(z) for z in eng.impedance()]
         currents = eng.current_distribution()
         solve_ms = (time.perf_counter() - t0) * 1e3
         feed_wire_idx, feed_knot_idx = _pynec_feed_indices(builder, currents)
@@ -1458,6 +1477,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             )
         eng = _make_momwire_engine(req, builder)
         zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)))
+        # Open-circuited points sweep through as inf; clamp for JSON.
+        zs = np.where(np.isfinite(zs), zs, complex(Z_OPEN_OHMS, 0.0))
         # MomwireEngine.impedance_sweep returns (n_freqs, n_feeds).
         primary = zs[:, 0]
         re = primary.real.tolist()

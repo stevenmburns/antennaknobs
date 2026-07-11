@@ -5601,6 +5601,14 @@ const GROUND_APPLIED_LABEL: Record<string, string> = {
   free: "free space",
 };
 
+function formatOhms(v: number): string {
+  // The server clamps an open-circuited feed (e.g. a series matchbox
+  // capacitor slider at 0 pF) to a 1e9 Ω sentinel — JSON has no Infinity.
+  // Anything that large is physically an open, not a number worth printing.
+  if (Math.abs(v) >= 1e8) return "∞ (open)";
+  return `${v.toFixed(2)} Ω`;
+}
+
 function formatSwr(r: number, x: number, z0: number): string {
   const { gMag } = reflectionCoefficient(r, x, z0);
   if (gMag >= 0.9999) return "∞";
@@ -5630,12 +5638,22 @@ function SolveReadout({
     <div className={`readout${className ? " " + className : ""}`}>
       <div className="row">
         <span>R</span>
-        <span className="val">{result ? `${result.z_in_re.toFixed(2)} Ω` : "—"}</span>
+        <span className="val">{result ? formatOhms(result.z_in_re) : "—"}</span>
       </div>
       <div className="row">
         <span>X</span>
-        <span className={result && Math.abs(result.z_in_im) < 2 ? "val val-hot" : "val"}>
-          {result ? `${result.z_in_im.toFixed(2)} Ω` : "—"}
+        <span
+          className={
+            result && Math.abs(result.z_in_im) < 2 && Math.abs(result.z_in_re) < 1e8
+              ? "val val-hot"
+              : "val"
+          }
+        >
+          {result
+            ? Math.abs(result.z_in_re) >= 1e8
+              ? "∞ (open)"
+              : formatOhms(result.z_in_im)
+            : "—"}
         </span>
       </div>
       {currentExample && (

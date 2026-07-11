@@ -343,6 +343,31 @@ def test_solve_dispatches_to_momwire_for_dipole():
     assert out["z_in_re"] > 0
 
 
+def test_solve_open_circuited_feed_is_json_safe():
+    """A matching-network slider at a physical open (T-match series C1 = 0 pF
+    open-circuits the source; the network core reports Z = ∞, issue #289)
+    must stay on the wire protocol: the adapter clamps to the Z_OPEN_OHMS
+    sentinel so json.dumps never emits Infinity/NaN literals that the
+    browser's JSON.parse would reject, and the gain norm degrades to 0 (no
+    excitation, no pattern) instead of dividing by zero."""
+    import json
+
+    from antennaknobs.web.adapter import Z_OPEN_OHMS
+
+    out = server.solve(
+        {
+            "geometry": "verticals.inverted_l_tmatch",
+            "measurement_freq_mhz": 24.9,
+            "design_freq_mhz": 28.57,
+            "series_c1_pF": 0.0,
+        }
+    )
+    assert out["z_in_re"] == Z_OPEN_OHMS and out["z_in_im"] == 0.0
+    json.dumps(out, allow_nan=False)  # raises on any Infinity/NaN leftovers
+    assert out["directivity_norm"] == 0.0
+    assert out["input_power_w"] == 0.0
+
+
 def test_solve_always_carries_norm_and_caches():
     """Every solve carries directivity_norm (it's an O(1) input-power scalar
     now, so there is no superseded-skip) and every solve result is cached."""
