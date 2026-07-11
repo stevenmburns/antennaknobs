@@ -8,6 +8,8 @@ from ..network import (
     PortAtEdge,
     PortVirtual,
     TL,
+    TwoPort,
+    _series_rlc_impedance,
     load_impedance,
 )
 from ..network_reduce import C_LIGHT, NetworkReducer
@@ -35,7 +37,7 @@ class PyNECEngine(SimulationEngine):
     # at a true wire midpoint instead of off-centre.
     segment_parity = "odd"
 
-    def __init__(self, builder, *, ground=DEFAULT_GROUND):
+    def __init__(self, builder, *, ground=DEFAULT_GROUND, native_nt=False):
         """
         ground:
           None or "free"                 — no gn_card (free space)
@@ -49,6 +51,17 @@ class PyNECEngine(SimulationEngine):
                                            ~0.1 dB / a few Ω of it for wires
                                            ≳0.2λ above ground, but impedance
                                            drifts by 10+ Ω below ~0.1λ.
+
+        native_nt: emit TwoPort branches as native NEC2 nt_cards baked into one
+          context and solved simultaneously with the MoM currents, instead of
+          the default shared-NetworkReducer stamp. This is a correctness ORACLE
+          for the reducer's TwoPort composition (analogous to build_tls() ->
+          native tl_card for TL) — it reproduces the far field the reducer
+          composes to within the cross-MoM tolerance. Only valid for all-real-
+          port, TL-free networks that contain a TwoPort (validated at
+          construction); the driving-point impedance it reports differs from the
+          reducer's by the segment-vs-basis port convention (issue #63), so
+          treat it as a pattern reference, not an impedance one.
         """
         super().__init__(builder)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
@@ -67,12 +80,24 @@ class PyNECEngine(SimulationEngine):
         # Source input power 1/2·Re(Σ V·I*) in watts from the same solve; the
         # web gain normaliser is η₀k²/(8π·P_in). None until a solve runs.
         self._excited_p_in = None
+        # Oracle switch: when True, TwoPort branches are emitted as native
+        # NEC2 `nt_card`s baked into one context and solved simultaneously with
+        # the MoM currents — the gold-standard reference for how a lumped
+        # 2-port loads the driving point and shapes the far field, analogous to
+        # the legacy `build_tls()` → native `tl_card` oracle for TL. Only valid
+        # for all-real-port, TL-free networks (nt_card needs real segments);
+        # validated in __init__. Default False routes TwoPort through the
+        # shared NetworkReducer stamp like every other branch.
+        self._native_nt = native_nt
+        if native_nt:
+            self._validate_native_nt()
         # Loads alone are handled natively (ld_card) and accurately by NEC, so
         # only divert to the multiport-Y + NetworkReducer path for what NEC
-        # *can't* do natively: transmission lines (TL) and virtual
-        # drivers. Those skip the baked NEC context entirely — impedance uses
-        # per-port solves and far-field/current build an excitation-resolved
-        # context on demand. Load-only and plain designs keep the native path.
+        # *can't* do natively: transmission lines (TL), virtual drivers, and
+        # lumped 2-ports (TwoPort, unless native_nt emits nt_card). Those skip
+        # the baked NEC context entirely — impedance uses per-port solves and
+        # far-field/current build an excitation-resolved context on demand.
+        # Load-only, native-nt, and plain designs keep the native path.
         self._use_reducer = self._network is not None and self._network_uses_reducer()
         if self._use_reducer:
             self._init_network()
@@ -146,42 +171,93 @@ class PyNECEngine(SimulationEngine):
                 self._network_port_loc[name] = (tag, mid_seg)
 
     def _emit_network_cards(self):
-        """Emit a Load-only network as native NEC2 ld_cards + ex_cards. Called
-        after geometry_complete(). (TL/virtual-driver networks never
-        reach here — they go through the multiport-Y NetworkReducer path.)
+        """Emit a natively-representable network as NEC2 ld_cards / nt_cards +
+        ex_cards. Called after geometry_complete(). (TL/virtual-driver networks
+        never reach here — they go through the multiport-Y NetworkReducer path.)
 
         Load branches become ld_cards (type 0 = series RLC, type 1 = parallel
         RLC) on a single segment; a zero R/L/C means that element is absent,
         matching the Load dataclass's optional fields.
+
+        TwoPort branches become nt_cards (only when the caller opted into the
+        native-nt oracle; otherwise TwoPort takes the reducer path and never
+        reaches here). NEC's nt_card takes the 2×2 short-circuit admittance
+        directly: for a lumped series Z, Y11=Y22=1/Z and Y12=Y21=−1/Z.
         """
         net = self._network
         for br in net.branches:
-            if not isinstance(br, Load):
+            if isinstance(br, Load):
+                self._emit_load_card(br)
+            elif isinstance(br, TwoPort):
+                self._emit_twoport_card(br)
+            else:
                 raise NotImplementedError(
                     f"{type(br).__name__} reached PyNEC's native network path; "
-                    "only Load is handled natively (TL/virtual-driver "
-                    "networks use the NetworkReducer path)"
+                    "only Load (ld_card) and native-nt TwoPort (nt_card) are "
+                    "handled natively — TL/virtual-driver networks use the "
+                    "NetworkReducer path"
                 )
-            port = net.ports[br.port]
-            if not isinstance(port, PortAtEdge):
-                raise ValueError(
-                    f"Load on virtual port {br.port!r}: a Load is a series "
-                    "impedance on an antenna segment, which only PortAtEdge has"
-                )
-            tag, seg = self._network_port_loc[br.port]
-            r = float(br.r) if br.r is not None else 0.0
-            l = float(br.l) if br.l is not None else 0.0
-            c = float(br.c) if br.c is not None else 0.0
-            if r == 0.0 and l == 0.0 and c == 0.0:
-                continue
-            ldtyp = 1 if br.parallel else 0
-            self.c.ld_card(ldtyp, tag, seg, seg, r, l, c)
         for src in net.sources:
             if not isinstance(src, Driven):
                 raise NotImplementedError(f"unknown source type: {src!r}")
             tag, seg = self._network_port_loc[src.port]
             v = complex(src.voltage)
             self.excitation_pairs.append((tag, seg, v))
+
+    def _emit_load_card(self, br):
+        """Series/parallel RLC on a single segment -> ld_card (type 0/1)."""
+        port = self._network.ports[br.port]
+        if not isinstance(port, PortAtEdge):
+            raise ValueError(
+                f"Load on virtual port {br.port!r}: a Load is a series "
+                "impedance on an antenna segment, which only PortAtEdge has"
+            )
+        tag, seg = self._network_port_loc[br.port]
+        r = float(br.r) if br.r is not None else 0.0
+        l = float(br.l) if br.l is not None else 0.0
+        c = float(br.c) if br.c is not None else 0.0
+        if r == 0.0 and l == 0.0 and c == 0.0:
+            return
+        ldtyp = 1 if br.parallel else 0
+        self.c.ld_card(ldtyp, tag, seg, seg, r, l, c)
+
+    def _emit_twoport_card(self, br):
+        """Lumped series R+jωL+1/(jωC) between two real segments -> nt_card.
+
+        NEC's nt_card takes the network's 2×2 short-circuit admittance in
+        siemens: (Y11r, Y11i, Y12r, Y12i, Y22r, Y22i). A series impedance Z
+        has Y11=Y22=1/Z, Y12=Y21=−1/Z. The admittance is frequency dependent,
+        so it is stamped against the design frequency here; sweeps that need
+        per-frequency nt_cards should use the reducer path (this native oracle
+        is a single-frequency reference)."""
+        for name in (br.a, br.b):
+            if not isinstance(self._network.ports[name], PortAtEdge):
+                raise ValueError(
+                    f"native nt_card TwoPort port {name!r} is virtual; nt_card "
+                    "attaches to real segments only"
+                )
+        omega = 2.0 * np.pi * self.builder.freq * 1e6
+        z = _series_rlc_impedance(br.r, br.l, br.c, omega)
+        if abs(z) < 1e-15:
+            raise ValueError(
+                f"TwoPort {br.a!r}-{br.b!r} series impedance ≈ 0 (series-LC "
+                "short); nt_card admittance is singular"
+            )
+        y = 1.0 / z
+        tag_a, seg_a = self._network_port_loc[br.a]
+        tag_b, seg_b = self._network_port_loc[br.b]
+        self.c.nt_card(
+            tag_a,
+            seg_a,
+            tag_b,
+            seg_b,
+            y.real,
+            y.imag,
+            -y.real,
+            -y.imag,
+            y.real,
+            y.imag,
+        )
 
     def _apply_ground_card(self, c=None):
         c = c if c is not None else self.c
@@ -211,12 +287,42 @@ class PyNECEngine(SimulationEngine):
 
     def _network_uses_reducer(self):
         """True iff the network needs the Y-matrix reduction path — i.e. it
-        has a transmission line (TL) or a virtual driver. Load-only networks
-        are handled natively by NEC's ld_card."""
+        has a transmission line (TL), a virtual driver, or a lumped 2-port
+        (TwoPort) that isn't being emitted as a native nt_card. Load-only (and
+        native-nt) networks are handled natively by NEC's ld_card / nt_card."""
         net = self._network
         if any(isinstance(b, TL) for b in net.branches):
             return True
-        return any(isinstance(p, PortVirtual) for p in net.ports.values())
+        if any(isinstance(p, PortVirtual) for p in net.ports.values()):
+            return True
+        # TwoPort goes native only when the oracle switch is on; otherwise it
+        # is a shared-reducer stamp (the general path both engines agree on).
+        if any(isinstance(b, TwoPort) for b in net.branches):
+            return not self._native_nt
+        return False
+
+    def _validate_native_nt(self):
+        """native_nt emits real nt_cards into one baked context, which needs
+        every branch to have a native NEC card (ld_card / nt_card) and every
+        referenced port to be a real segment. Reject TL, virtual ports, and
+        TwoPorts touching a virtual port up front so the oracle can't silently
+        fall through to the reducer and stop being an independent reference."""
+        net = self._network
+        if net is None:
+            raise ValueError("native_nt=True requires a build_network() design")
+        if not any(isinstance(b, TwoPort) for b in net.branches):
+            raise ValueError("native_nt=True but the network has no TwoPort branch")
+        if any(isinstance(b, TL) for b in net.branches):
+            raise ValueError(
+                "native_nt=True cannot emit a TL natively (NEC's tl_card needs "
+                "a real segment on both ends and a virtual driver has none); "
+                "run the default reducer path instead"
+            )
+        if any(isinstance(p, PortVirtual) for p in net.ports.values()):
+            raise ValueError(
+                "native_nt=True requires every port to be a real edge; "
+                "nt_card attaches to real segments, not virtual nodes"
+            )
 
     def _init_network(self):
         """Build the port-index map (real PortAtEdge ports first, virtual
