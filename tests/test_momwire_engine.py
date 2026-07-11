@@ -1268,6 +1268,15 @@ def test_momwire_arrayblock_parity_matches_bspline():
 # --------------------------------------------------------------------------
 
 
+def _sinusoidal(builder):
+    """MomwireEngine on the SinusoidalSolver — NEC2's own basis family, so
+    the reducer-vs-native and cross-engine comparisons carry almost no basis
+    error and isolate the network composition / port convention itself."""
+    from momwire import SinusoidalSolver
+
+    return MomwireEngine(builder, solver=SinusoidalSolver, ground=None)
+
+
 def test_twoport_admittance_stamp_is_series_impedance_2port():
     """twoport_admittance_2x2 is the short-circuit Y of a series impedance:
     (1/Z)·[[1,-1],[-1,1]] with Z = R + jωL + 1/(jωC). Pure-math check, no
@@ -1297,17 +1306,18 @@ def test_twoport_series_lc_short_is_rejected():
 
 
 def test_twoport_cross_engine_impedance_matches():
-    """Both engines reduce the TwoPort through the shared NetworkReducer, so
-    momwire's sinusoidal MoM and PyNEC's must agree on the driving-point
-    impedance to within their inherent cross-formulation tolerance — the same
-    check delta_looparray_network pins for the TL branch."""
+    """Both engines reduce the TwoPort through the shared NetworkReducer, so on
+    a matched basis (momwire's SinusoidalSolver = NEC2's basis family) they must
+    agree on the driving-point impedance to near machine level — the residual is
+    just the two solvers' quadrature, not any composition difference. This is the
+    TwoPort analogue of the delta_looparray_network TL cross-engine check."""
     from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
 
-    z_mom = MomwireEngine(B(), ground=None).impedance()[0]
+    z_mom = _sinusoidal(B()).impedance()[0]
     z_nec = PyNECEngine(B(), ground=None).impedance()[0]
     assert np.isfinite(z_nec.real) and np.isfinite(z_nec.imag), z_nec
     assert z_mom.real > 0 and z_nec.real > 0, (z_mom, z_nec)  # passive: R>0
-    assert abs(z_mom - z_nec) / abs(z_mom) < 0.02, f"mom={z_mom}, nec={z_nec}"
+    assert abs(z_mom - z_nec) / abs(z_mom) < 2e-3, f"mom={z_mom}, nec={z_nec}"
 
 
 def _open_pair_builder():
@@ -1326,11 +1336,14 @@ def test_twoport_open_branch_agrees_across_paths():
     vanishing admittance, so momwire-reducer, pynec-reducer, and pynec native
     nt_card must all land on the same (isolated-dipole) impedance."""
     b = _open_pair_builder()
-    z_mom = MomwireEngine(b(), ground=None).impedance()[0]
+    z_mom = _sinusoidal(b()).impedance()[0]
     z_red = PyNECEngine(b(), ground=None).impedance()[0]
     z_nat = PyNECEngine(b(), ground=None, native_nt=True).impedance()[0]
+    # Same NEC basis on both PyNEC paths -> the #63 convention gap closes when
+    # the branch is open, so reducer == native to near machine level.
     assert abs(z_red - z_nat) / abs(z_nat) < 1e-3, (z_red, z_nat)
-    assert abs(z_mom - z_nat) / abs(z_nat) < 0.02, (z_mom, z_nat)
+    # Matched-basis momwire agrees to the solvers' quadrature difference.
+    assert abs(z_mom - z_nat) / abs(z_nat) < 5e-3, (z_mom, z_nat)
 
 
 @needs_pynec
@@ -1338,10 +1351,17 @@ def test_twoport_reducer_matches_native_nt_card_far_field():
     """The native nt_card oracle bakes the 2x2 admittance into one NEC solve
     (like tl_card for TL); the reducer stamps the same admittance as a circuit
     post-process. They compose the RADIATING currents identically, so the far
-    field must match within the cross-MoM tolerance — even though the driving-
-    point IMPEDANCE differs by the known segment-vs-basis port convention gap
-    (issue #63), the same gap native tl_card has. This is the piece (B) analogue
-    of test_tl_composition's reducer-vs-native tl_card far-field check."""
+    field must match — even though the driving-point IMPEDANCE differs by the
+    known segment-vs-basis port convention gap (issue #63), the same gap native
+    tl_card has. This is the piece (B) analogue of test_tl_composition's
+    reducer-vs-native tl_card far-field check.
+
+    On a MATCHED basis (momwire SinusoidalSolver = NEC's family) the reducer's
+    composed pattern lands right on the native nt_card oracle — the physical
+    proof that the composition is correct. PyNEC's OWN reducer far field is
+    looser: its segment-level port carries the #63 convention offset into the
+    re-excitation voltages, nudging the pattern by a few tenths of a dB (well
+    inside the tolerance the TL check uses cross-engine)."""
     from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
 
     kw = dict(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
@@ -1351,12 +1371,14 @@ def test_twoport_reducer_matches_native_nt_card_far_field():
         rings = np.array(ff.rings)
         return ff.max_gain, rings[89, 0], rings[89, 180]
 
-    g_red, f_red, b_red = pattern(PyNECEngine(B(), ground=None))
     g_nat, f_nat, b_nat = pattern(PyNECEngine(B(), ground=None, native_nt=True))
-    g_mom, f_mom, b_mom = pattern(MomwireEngine(B(), ground=None))
+    g_mom, f_mom, b_mom = pattern(_sinusoidal(B()))
+    g_red, f_red, b_red = pattern(PyNECEngine(B(), ground=None))
+    # Matched-basis reducer sits on the native oracle (composition is correct).
+    assert abs(g_mom - g_nat) < 0.1, (g_mom, g_nat)
+    assert abs(f_mom - f_nat) < 0.1 and abs(b_mom - b_nat) < 0.1
+    # PyNEC's own reducer far field: looser (the #63 re-excitation offset).
     assert abs(g_red - g_nat) < 0.4, (g_red, g_nat)
-    assert abs(g_mom - g_nat) < 0.4, (g_mom, g_nat)
-    assert abs(f_red - f_nat) < 0.4 and abs(b_red - b_nat) < 0.4
 
 
 @needs_pynec
