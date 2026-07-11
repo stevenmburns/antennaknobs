@@ -3,10 +3,9 @@
 A `Network` describes how the antenna's feed-edges (named real ports) and
 purely-logical nodes (virtual ports) hook together via two-port branches.
 Engines consume the network as a post-processing layer on top of the
-multi-port antenna Y matrix: each branch contributes a frequency-dependent
-2×2 admittance stamp into Y at the right port pair, then the system is
-reduced to the driven-port impedance via nodal analysis with passive ports
-floating (I_ext=0).
+multi-port antenna Y matrix: every branch and source stamps into one
+Modified Nodal Analysis system (see `network_reduce`), which is solved for
+the driven-port impedances and the physical port voltages in one shot.
 
 Compared with the legacy `build_tls()` API:
   - No dummy stub wire is required for the driver — virtual ports exist
@@ -88,9 +87,11 @@ class Load:
     NEC2 calls this `ld_card` type 1.
 
     Either way the effect is "lumped impedance in series with the segment":
-    Load modifies a single segment's self-Z (rank-1 update on the MoM
-    matrix). The classic dual-band trap dipole uses Load(parallel=True) at
-    a single segment in each arm — see designs/multiband/trap_dipole.py.
+    in the MNA reduction the load becomes the port's termination branch, a
+    series Z_load between the segment's gap and the common return — the same
+    physics as NEC2's ld_card modifying the segment's self-Z. The classic
+    dual-band trap dipole uses Load(parallel=True) at a single segment in
+    each arm — see designs/multiband/trap_dipole.py.
     """
 
     port: str
@@ -103,25 +104,25 @@ class Load:
 @dataclass(frozen=True)
 class TwoPort:
     """Lumped series R+jωL+1/(jωC) bridging two ports. Any of r/l/c may be
-    None (omitted term). Unlike `Load` — a self-impedance on ONE segment,
-    folded into that segment's MoM Z via Sherman-Morrison — a TwoPort is an
-    explicit 2×2 admittance connecting two DISTINCT ports:
-        Y = (1/Z) · [[1, -1], [-1, 1]],  Z = R + jωL + 1/(jωC).
+    None (omitted term). Unlike `Load` — a series termination on ONE port's
+    current path — a TwoPort is a series element connecting two DISTINCT
+    ports, Z = R + jωL + 1/(jωC).
 
-    Both engines stamp this into the port-Y through the shared
-    `NetworkReducer` (see `network_reduce.twoport_admittance_2x2`), exactly
-    like a TL branch — so it inherits the TL passive-port boundary condition
-    (I_ext=0) with no extra handling. PyNECEngine can instead emit a native
-    NEC2 `nt_card` (construct with ``native_nt=True``), which bakes the 2×2 Y
-    into one context and solves it simultaneously with the MoM currents — the
-    correctness oracle for this stamp, analogous to `tl_card` for TL. The
-    showcase and cross-engine cross-check is
-    `designs/arrays/lumped_coupled_pair.py` (issue #65 piece (B)).
+    Both engines stamp this through the shared `NetworkReducer` as an MNA
+    Group-2 element (the branch current is an explicit unknown, issue #285),
+    so the degenerate values are physics, not errors: Z = 0 — a 0 Ω / 0 H
+    element, an all-omitted branch, or exact series-LC resonance — is an
+    ideal short identifying the two nodes, and C = 0 is an open. PyNECEngine
+    can instead emit a native NEC2 `nt_card` (construct with
+    ``native_nt=True``), which bakes the 2×2 short-circuit admittance
+    Y = (1/Z)·[[1, -1], [-1, 1]] into one context and solves it
+    simultaneously with the MoM currents — the correctness oracle for this
+    stamp, analogous to `tl_card` for TL. The showcase and cross-engine
+    cross-check is `designs/arrays/lumped_coupled_pair.py` (issue #65 piece
+    (B)).
 
-    A series-LC short (Z → 0 at ω₀ = 1/√(LC)) makes the branch a hard wire
-    between the two segments and the stamp singular; both paths raise rather
-    than emit a degenerate short. For the trap-dipole idiom (a segment self-
-    interrupted at resonance) use `Load(parallel=True)`, not TwoPort."""
+    For the trap-dipole idiom (a segment self-interrupted at resonance) use
+    `Load(parallel=True)`, not TwoPort."""
 
     a: str
     b: str
@@ -134,9 +135,11 @@ class TwoPort:
 class Shunt:
     """Lumped R/L/C from a single port to the common reference — a shunt to
     "ground", where ground is the port's own return terminal (a circuit node,
-    not the antenna's earth plane). Stamps a 1-port admittance onto the port's
-    diagonal, ``Y[k,k] += y``: a current ``y·V_k`` drains from the node to the
-    common return, exactly a shunt element across the feed terminals.
+    not the antenna's earth plane): a current drains from the node to the
+    common return, exactly a shunt element across the feed terminals. Since
+    the MNA core (issue #285) a series-mode shunt is a Group-2 element, so
+    Z = 0 (a 0 Ω / 0 H arm or exact series-LC resonance) is a legal hard
+    short of the port to common, and C = 0 an open (no element).
 
     This is the element issue #65 Q2 deferred. With it, `Shunt` + a series
     `TwoPort` express an L-match (and pi / T networks) directly: drive a
@@ -200,9 +203,9 @@ def _parallel_rlc_admittance(r, l, c, omega):
 def load_series_admittance(br, omega):
     """Series-branch admittance y_load = 1/Z_load of a Load branch at ω.
 
-    This is the natural quantity for the Sherman-Morrison port-Y stamp
-    (see network_reduce.NetworkReducer.apply_loads): the stamp coefficient is
-    1/(y_load + Y_kk), which stays finite exactly where Z_load blows up.
+    This is the quantity the MNA termination stamp uses for a parallel-mode
+    Load (see network_reduce.NetworkReducer.apply_branches): it stays finite
+    exactly where Z_load blows up.
 
     Parallel mode: y_load IS the parallel-LC tank admittance,
         y = 1/R + 1/(jωL) + jωC,

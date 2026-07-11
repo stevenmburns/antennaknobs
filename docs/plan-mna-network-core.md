@@ -1,8 +1,27 @@
 # Plan: reformulate `NetworkReducer` as Modified Nodal Analysis (MNA)
 
-Status: **Scoping / spike (2026-07-11).** Tracked by issue #285. Not started —
-this doc is the design scope so the stamp set can be reviewed and confirmed to
-reproduce the existing oracles before committing to the rewrite.
+Status: **Implemented (2026-07-11).** Tracked by issue #285. The MNA core
+landed via the staged migration below: built flag-gated next to the
+admittance reducer, cross-checked to 1e-9 on every branch/BC combination,
+default flipped with the full suite green, then the legacy Sherman-Morrison /
+three-BC code and the `abs(Z) < 1e-15` guards were deleted. Implementation
+notes that refined the plan during bring-up:
+
+- `Driven` + `Load` on a port collapse into ONE Group-2 "termination branch"
+  (EMF in series with Z_L, datum → node); its constitutive row
+  `v_k + Z_L·j = E` is exactly the old Thevenin BC, and `j` is the delivered
+  port current, so `Z = E/j`, the physical gap voltages, and the power
+  bookkeeping all read off a single solve.
+- Each Group-2 element picks the impedance- or admittance-form constitutive
+  row (exact at the short z = 0 and the open y = 0 respectively), so no
+  element value is ever inverted; a parallel-LC trap at exact resonance is
+  now finite in the excited path too (it used to form Z_L = ∞).
+- `resolve_voltages` now reports the PHYSICAL gap voltage at loaded ports
+  (formerly a V = 0 bookkeeping pin), so PyNEC's reducer-path excited
+  context gets the same load-shaped currents momwire's did.
+- `skyloop_lmatch.build_network` stamps its sliders literally; the
+  topology special-casing is gone. Degenerate coverage lives in
+  `tests/test_network_mna.py`.
 
 ## Why
 

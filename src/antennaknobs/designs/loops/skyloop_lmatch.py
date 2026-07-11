@@ -65,34 +65,18 @@ class Builder(TriangularSkyloop):
         return wires
 
     def build_network(self):
-        r"""L-match, built by TOPOLOGY so any arm can go inert:
-
-          * shunt C = 0  -> open shunt: the arm is simply omitted.
-          * series L = 0 -> the series arm is a bare wire, so the input node IS
-            the feed node: no `in` node, drive the feed directly. (A literal
-            0 H series element can't be stamped as a finite admittance — it's a
-            short — so we express "no series element" as topology rather than
-            asking the solver to invert a zero impedance; issue #285 (MNA) is
-            the general fix.)
-
-        With both arms zero the matchbox is fully inert — a pass-through — and
-        the input impedance is just the bare antenna's (Z_in = Z_ant).
-        """
-        series_l = self.series_L_uH * 1e-6
-        shunt_c = self.shunt_C_pF * 1e-12
-
-        ports = {"feed": PortAtEdge("feed")}
-        branches = []
-        if shunt_c:  # shunt arm across the feed (omitted when inert/open)
-            branches.append(Shunt(port="feed", c=shunt_c))
-        if series_l:  # series arm; a zero-L arm is a wire, so `in` == `feed`
-            ports["in"] = PortVirtual("in")
-            branches.append(TwoPort(a="in", b="feed", l=series_l))
-            driven = "in"
-        else:
-            driven = "feed"
+        r"""L-match, stamped LITERALLY at whatever the sliders say: the MNA
+        core (issue #285) handles the degenerate endpoints as physics, not
+        special cases — a 0 H series arm is an ideal wire (Group-2 short
+        identifying `in` with `feed`) and a 0 F shunt arm is an open (no
+        element). With both arms zero the matchbox is fully inert — a
+        pass-through — and the input impedance is just the bare antenna's
+        (Z_in = Z_ant)."""
         return Network(
-            ports=ports,
-            branches=branches,
-            sources=[Driven(port=driven, voltage=1 + 0j)],
+            ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
+            branches=[
+                TwoPort(a="in", b="feed", l=self.series_L_uH * 1e-6),
+                Shunt(port="feed", c=self.shunt_C_pF * 1e-12),
+            ],
+            sources=[Driven(port="in", voltage=1 + 0j)],
         )

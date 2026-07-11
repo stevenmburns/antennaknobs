@@ -1277,34 +1277,6 @@ def _sinusoidal(builder):
     return MomwireEngine(builder, solver=SinusoidalSolver, ground=None)
 
 
-def test_twoport_admittance_stamp_is_series_impedance_2port():
-    """twoport_admittance_2x2 is the short-circuit Y of a series impedance:
-    (1/Z)·[[1,-1],[-1,1]] with Z = R + jωL + 1/(jωC). Pure-math check, no
-    engine."""
-    from antennaknobs.network_reduce import twoport_admittance_2x2
-
-    omega = 2.0 * np.pi * 28e6
-    r, l, c = 30.0, 1e-7, 50e-12
-    z = r + 1j * omega * l + 1.0 / (1j * omega * c)
-    y = twoport_admittance_2x2(r, l, c, omega)
-    inv_z = 1.0 / z
-    assert np.allclose(y, inv_z * np.array([[1, -1], [-1, 1]]))
-    # Rows/cols sum to zero: a floating series element injects no net current.
-    assert np.allclose(y.sum(axis=0), 0) and np.allclose(y.sum(axis=1), 0)
-
-
-def test_twoport_series_lc_short_is_rejected():
-    """A series-LC at resonance is a 0 Ω short (the two segments become one
-    wire); the 2-port admittance is singular, so raise rather than emit inf."""
-    from antennaknobs.network_reduce import twoport_admittance_2x2
-
-    omega = 2.0 * np.pi * 28e6
-    l = 1e-6
-    c = 1.0 / (omega**2 * l)  # series resonance: jωL + 1/(jωC) = 0
-    with pytest.raises(ValueError, match="short"):
-        twoport_admittance_2x2(None, l, c, omega)
-
-
 def test_twoport_cross_engine_impedance_matches():
     """Both engines reduce the TwoPort through the shared NetworkReducer, so on
     a matched basis (momwire's SinusoidalSolver = NEC2's basis family) they must
@@ -1441,32 +1413,6 @@ def test_native_nt_rejects_unemittable_networks():
 # --------------------------------------------------------------------------
 
 
-def test_shunt_admittance_single_elements():
-    """A series-mode single element is the plain reactance admittance: C→jωC,
-    L→1/(jωL). Parallel mode is the tank admittance sum."""
-    from antennaknobs.network_reduce import shunt_admittance
-
-    omega = 2.0 * np.pi * 18.1e6
-    c, l = 57e-12, 1.52e-6
-    assert np.isclose(shunt_admittance(None, None, c, omega), 1j * omega * c)
-    assert np.isclose(shunt_admittance(None, l, None, omega), 1.0 / (1j * omega * l))
-    # Parallel R‖L‖C sums admittances directly.
-    y_par = shunt_admittance(100.0, l, c, omega, parallel=True)
-    assert np.isclose(y_par, 1 / 100.0 + 1 / (1j * omega * l) + 1j * omega * c)
-
-
-def test_shunt_series_lc_short_is_rejected():
-    """A series-LC shunt at resonance is a 0 Ω short to common (infinite
-    admittance); raise rather than emit inf."""
-    from antennaknobs.network_reduce import shunt_admittance
-
-    omega = 2.0 * np.pi * 18.1e6
-    l = 1e-6
-    c = 1.0 / (omega**2 * l)
-    with pytest.raises(ValueError, match="short"):
-        shunt_admittance(None, l, c, omega)
-
-
 def test_shunt_lmatch_matches_circuit_theory():
     """An L-match (series TwoPort in→feed, Shunt across in) must reproduce the
     exact two-element transform 1/(y_shunt + 1/(z_series + Z_ant)) of the bare
@@ -1585,38 +1531,50 @@ def test_pynec_shunt_routes_through_reducer_not_native():
         PyNECEngine(ShuntTwoPort(), ground=None, native_nt=True)
 
 
-def test_zero_capacitor_is_an_open_not_a_crash():
-    """A 0 F capacitor is an open in a series path (infinite reactance): a
-    Shunt with c=0 contributes y=0, a TwoPort with c=0 contributes no coupling.
-    Return the open limit rather than dividing by zero forming 1/(jωC) — this
-    is what lets a matching-network slider reach the inert endpoint."""
-    from antennaknobs.network_reduce import shunt_admittance, twoport_admittance_2x2
+def test_series_short_twoport_is_a_hard_wire_on_the_engine():
+    """A 0 Ω / 0 H series TwoPort is an ideal short between two real segments
+    — the degenerate stamp the old admittance reducer had to reject, now a
+    plain Group-2 element in the MNA core (issue #285). Through the real MoM
+    Y it must give a finite impedance equal to the vanishing-resistance
+    limit."""
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.network import Driven, Network, PortAtEdge, TwoPort
+    from types import MappingProxyType
 
-    omega = 2.0 * np.pi * 18.1e6
-    assert shunt_admittance(None, None, 0.0, omega) == 0
-    assert np.allclose(twoport_admittance_2x2(None, None, 0.0, omega), 0)
+    def make(r=None, l=None):
+        class Pair(AntennaBuilder):
+            default_params = MappingProxyType({"design_freq": 28.0, "freq": 28.0})
 
+            def build_wires(self):
+                return [
+                    ((0, -2.5, 5), (0, 2.5, 5), 21, None, "feed"),
+                    ((1, -2.5, 5), (1, 2.5, 5), 21, None, "feed2"),
+                ]
 
-def test_series_short_raises_clear_message():
-    """A 0 Ω / 0 H series element (or all-omitted branch) is a lossless short,
-    which is not a finite admittance stamp; raise with an actionable message
-    (not the old 'series-LC resonance' wording, and not a bare ZeroDivision)."""
-    from antennaknobs.network_reduce import shunt_admittance, twoport_admittance_2x2
+            def build_network(self):
+                return Network(
+                    ports={"feed": PortAtEdge("feed"), "feed2": PortAtEdge("feed2")},
+                    branches=[TwoPort(a="feed", b="feed2", r=r, l=l)],
+                    sources=[Driven(port="feed")],
+                )
 
-    omega = 2.0 * np.pi * 18.1e6
-    with pytest.raises(ValueError, match="short"):
-        twoport_admittance_2x2(0.0, None, None, omega)  # 0 Ω series
-    with pytest.raises(ValueError, match="short"):
-        shunt_admittance(None, 0.0, None, omega)  # 0 H shunt short-to-common
+        return _sinusoidal(Pair()).impedance()[0]
+
+    z_zero_ohm = make(r=0.0)
+    z_zero_henry = make(l=0.0)
+    z_limit = make(r=1e-9)
+    assert np.isfinite(z_zero_ohm) and np.isfinite(z_zero_henry)
+    assert abs(z_zero_ohm - z_limit) / abs(z_limit) < 1e-6
+    assert abs(z_zero_henry - z_limit) / abs(z_limit) < 1e-6
 
 
 @needs_pynec
 def test_skyloop_matchbox_inert_is_passthrough():
     """Setting both L-match arms to zero makes the matchbox inert: the series
-    arm is a wire (input == feed, driven directly) and the shunt is omitted, so
-    the input impedance is just the bare antenna's. This is delivered by
-    topology (build_network drops/merges zero arms), so it works on today's
-    admittance reducer — a literal 0 H stamp awaits the MNA core (issue #285)."""
+    arm is an ideal wire (a literal 0 H TwoPort) and the shunt a 0 F open, so
+    the input impedance is just the bare antenna's. Since the MNA core
+    (issue #285) these degenerate values are stamped literally —
+    build_network no longer special-cases the topology."""
     from antennaknobs.designs.loops.skyloop_lmatch import Builder as B
     from antennaknobs.network import Driven, Network, PortAtEdge
     from types import MappingProxyType
