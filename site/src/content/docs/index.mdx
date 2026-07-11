@@ -25,17 +25,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.20.0" icon="star">
-  **Finite-ground solves got fast.** momwire 0.9.0 moves the Sommerfeld
-  remainder assembly into one fused compiled kernel — finite-ground
-  solves run **14–19× faster** on every solver, tying or beating the
-  NEC-2 reference on most benchmark designs — and a compiled
-  reflection-coefficient fill speeds the sinusoidal basis another
-  4–6×. Frequency sweeps on the default B-spline solver are now
-  k-batched under a tunable memory budget, and the
-  [solver guide](/reference/solver/) carries the full ground-model
-  benchmark (10 designs × 4 grounds × 6 engines).
-  [All release notes →](/reference/releases/)
+<Card title="New in v0.21.0" icon="star">
+  **Matching networks, solved like SPICE.** The lumped-network core is
+  rebuilt on Modified Nodal Analysis: series `TwoPort` bridges, `Shunt`
+  elements, and ideal shorts (a 0 Ω or 0 H slider endpoint) are all
+  legal stamps, so a matchbox tunes cleanly through its degenerate
+  endpoints — including a fully inert pass-through and an open, which
+  the SWR readout now reports as ∞ instead of breaking. Two new
+  showcase designs ride it: an 80 m skyloop **L-matched** to 50 Ω on
+  17 m, and a 10 m inverted-L **T-matched** onto the 12 m band. Under
+  the hood, the driving-point impedance now agrees with NEC's native
+  network cards to ~5 digits — a long-standing readout gap, run to
+  ground and fixed. [All release notes →](/reference/releases/)
 </Card>
 
 ## The whole pitch, in one line
