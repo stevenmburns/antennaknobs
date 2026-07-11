@@ -242,7 +242,17 @@ def _series_rlc_impedance(r, l, c, omega, ql=None, qc=None):
     Finite component Q (issue #298): `ql` adds the coil's series loss
     R_coil = ωL/Q_L; `qc` adds the capacitor's ESR = 1/(ωC·Q_C). Both are
     frequency-dependent by construction — a fixed `r` cannot express them
-    across a sweep. None (default) = ideal component."""
+    across a sweep. None (default) = ideal component.
+
+    Q is treated as frequency-INDEPENDENT: R = ωL/Q is re-derived at each
+    solve frequency, so across a sweep R grows ∝ f. Physical truth for an
+    air-core HF coil sits between the two expressible models — skin effect
+    gives R ∝ √f (i.e. Q ∝ √f) — so constant Q overestimates loss above
+    the frequency where the quoted Q is true and underestimates below it,
+    while a fixed resistance (use plain `r` = ω_ref·L/Q for that) errs the
+    opposite way. At a single operating frequency, with Q quoted at that
+    frequency, all three agree. A √f reference-frequency model would slot
+    in here if sweep fidelity ever warrants it."""
     z = 0.0 + 0.0j
     if r is not None:
         z += r
