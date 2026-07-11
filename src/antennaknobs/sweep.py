@@ -1,9 +1,12 @@
+import logging
+
 from . import Antenna
 from .core import save_or_show
 from .far_field import get_elevation, get_pattern_rings, plot_patterns
-from icecream import ic
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # NOTE: matplotlib.pyplot and scikit-rf (skrf) are imported lazily inside the
 # plotting functions below, not at module top. Both are import-heavy
@@ -195,7 +198,14 @@ def sweep(
     marker_zs = np.array(marker_zs)
 
     nwidth = zs.shape[1] if npoints > 0 else marker_zs.shape[1]
-    ic(nwidth, npoints, markers, zs.shape, marker_zs.shape)
+    logger.debug(
+        "smith sweep: nwidth=%s npoints=%s markers=%s zs.shape=%s marker_zs.shape=%s",
+        nwidth,
+        npoints,
+        markers,
+        zs.shape,
+        marker_zs.shape,
+    )
 
     if use_smithchart:
         # Lazy import (see the note at the top of the module): only the two

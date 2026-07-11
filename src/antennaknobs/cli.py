@@ -21,11 +21,12 @@ from momwire import (
     ArrayBlockSolver,
 )
 
-from icecream import ic
-
 import argparse
+import logging
 from importlib import import_module
 from types import ModuleType
+
+logger = logging.getLogger(__name__)
 
 ENGINE_CLASSES = {
     "momwire": MomwireEngine,
@@ -52,15 +53,17 @@ def resolve_class(s):
     library with implicit Builder
     """
 
-    ic(s, lst)
+    logger.debug("resolve_class: spec=%r lst=%r", s, lst)
 
     def try_to_resolve(builder_name, module_name):
-        ic(builder_name, module_name)
+        logger.debug(
+            "try_to_resolve: builder_name=%r module_name=%r", builder_name, module_name
+        )
         try:
             module = import_module(module_name)
             try:
                 res = getattr(module, builder_name)
-                ic(res)
+                logger.debug("try_to_resolve: resolved %r", res)
                 return None if isinstance(res, ModuleType) else res
             except AttributeError:
                 return None
@@ -311,6 +314,14 @@ _GROUND_UNSET = object()
 def cli(arguments=None):
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity: -v for INFO, -vv for DEBUG "
+        "(e.g. design-resolution and sweep tracing).",
+    )
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -752,4 +763,6 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     args = parser.parse_args(args=arguments)
+    level = logging.WARNING - 10 * min(args.verbose, 2)
+    logging.basicConfig(level=level, format="%(name)s: %(message)s")
     args.func(args)
