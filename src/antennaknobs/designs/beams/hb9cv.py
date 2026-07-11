@@ -34,7 +34,7 @@ in place of the ideal line). Treat F/B as "real but shallow" in this model.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Network, PortAtEdge, TL
+from ...network import Driven, Network, PortOnWire, TL
 from types import MappingProxyType
 
 
@@ -112,7 +112,7 @@ class Builder(AntennaBuilder):
         wavelength = 299.792458 / self.design_freq
         length = self.phasing_frac * wavelength
         return Network(
-            ports={"rear": PortAtEdge("rear"), "front": PortAtEdge("front")},
+            ports={"rear": PortOnWire("rear"), "front": PortOnWire("front")},
             # Crossed ("half-twist") phasing line between the two driven elements.
             branches=[
                 TL(a="rear", b="front", z0=self.z0, length=length, transposed=True)

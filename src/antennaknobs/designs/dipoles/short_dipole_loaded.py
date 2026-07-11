@@ -12,7 +12,7 @@ dipole at `design_freq` — recompute it if you change `length_factor`.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortAtEdge
+from ...network import Driven, Load, Network, PortOnWire
 
 from types import MappingProxyType
 
@@ -36,7 +36,7 @@ class Builder(AntennaBuilder):
         half_arm = 0.25 * wavelength * self.length_factor
         # Single straight wire spanning the dipole, feed at the centre.
         # No `ev` — the Network supplies the source; `name` marks the
-        # segment for PortAtEdge resolution.
+        # segment for PortOnWire resolution.
         return [
             (
                 (0, -half_arm, 5),
@@ -49,7 +49,7 @@ class Builder(AntennaBuilder):
 
     def build_network(self):
         return Network(
-            ports={"feed": PortAtEdge("feed")},
+            ports={"feed": PortOnWire("feed")},
             branches=[Load(port="feed", l=self.inductance_uH * 1e-6)],
             sources=[Driven(port="feed", voltage=1 + 0j)],
         )

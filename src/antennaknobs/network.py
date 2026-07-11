@@ -26,10 +26,22 @@ from typing import Union
 
 
 @dataclass(frozen=True)
-class PortAtEdge:
-    """Real port at a named edge from `build_wires()`. The named edge's
-    feed segment becomes the port location; momwire places a delta-gap at
-    the edge midpoint to read/inject current there."""
+class PortOnWire:
+    """Real port ON a named wire of the geometry: `name` matches the label
+    a `build_wires()` tuple carries as its 5th element, and the port is a
+    delta gap at that wire's MIDDLE segment (momwire: the arclength
+    midpoint; PyNEC: segment (n_seg+1)//2 — identical placement for odd
+    segment counts, which named port wires should therefore use). A port
+    must interrupt a current path, so it lives in a wire's interior, never
+    at an endpoint — to put a feed "at" some point of a structure, author
+    a short named wire there.
+
+    This is the only port type that touches geometry (contrast
+    `PortVirtual`, a pure circuit node): it becomes one row/column of the
+    antenna's multiport short-circuit Y that the network stamps onto.
+
+    Formerly `PortAtEdge` ("edge" in the wire-graph sense, which read as
+    "wire end"); that name remains as a deprecated alias."""
 
     name: str
 
@@ -43,7 +55,12 @@ class PortVirtual:
     name: str
 
 
-Port = Union[PortAtEdge, PortVirtual]
+# Deprecated alias — the pre-rename class name ("edge" meant a wire-graph
+# edge, i.e. one build_wires() tuple, but read as "wire end"). Kept so any
+# externally-authored design importing it keeps working.
+PortAtEdge = PortOnWire
+
+Port = Union[PortOnWire, PortVirtual]
 
 
 @dataclass(frozen=True)

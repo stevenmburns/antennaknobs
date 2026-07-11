@@ -685,11 +685,11 @@ def test_network_spec_rejects_unknown_port_reference():
         )
 
 
-def test_network_spec_rejects_port_at_edge_with_no_named_edge():
-    """PortAtEdge("loop1") with no `loop1` edge in build_wires() should
+def test_network_spec_rejects_port_on_wire_with_no_named_wire():
+    """PortOnWire("loop1") with no `loop1` edge in build_wires() should
     raise a clear error at engine construction time."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Network, PortAtEdge, PortVirtual, TL
+    from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
     from types import MappingProxyType
 
     class BadBuilder(AntennaBuilder):
@@ -702,14 +702,14 @@ def test_network_spec_rejects_port_at_edge_with_no_named_edge():
         def build_network(self):
             return Network(
                 ports={
-                    "loop1": PortAtEdge("loop1"),  # no matching named edge!
+                    "loop1": PortOnWire("loop1"),  # no matching named edge!
                     "drv": PortVirtual("drv"),
                 },
                 branches=[TL(a="drv", b="loop1", z0=50, length=1.0)],
                 sources=[Driven(port="drv")],
             )
 
-    with pytest.raises(ValueError, match="no edge in build_wires"):
+    with pytest.raises(ValueError, match="no wire in build_wires"):
         MomwireEngine(BadBuilder())
 
 
@@ -745,7 +745,7 @@ def test_pynec_virtual_to_virtual_tl_supported():
     agreeing with MomwireEngine (was a hard ValueError under the old tl_card
     dispatch)."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Network, PortAtEdge, PortVirtual, TL
+    from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
     from types import MappingProxyType
 
     class Builder(AntennaBuilder):
@@ -757,7 +757,7 @@ def test_pynec_virtual_to_virtual_tl_supported():
         def build_network(self):
             return Network(
                 ports={
-                    "feed": PortAtEdge("feed"),
+                    "feed": PortOnWire("feed"),
                     "a": PortVirtual("a"),
                     "b": PortVirtual("b"),
                 },
@@ -780,7 +780,7 @@ def test_pynec_load_branch_resistor_adds_to_impedance():
     exactly R — ld_card type-0 inserts a series R+L+C at the segment. This
     is the cross-engine cross-check for piece (A) on the PyNEC side."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Load, Network, PortAtEdge
+    from antennaknobs.network import Driven, Load, Network, PortOnWire
     from types import MappingProxyType
 
     class Builder(AntennaBuilder):
@@ -796,7 +796,7 @@ def test_pynec_load_branch_resistor_adds_to_impedance():
         def build_network(self):
             branches = [Load(port="feed", r=50.0)] if self._with_load else []
             return Network(
-                ports={"feed": PortAtEdge("feed")},
+                ports={"feed": PortOnWire("feed")},
                 branches=branches,
                 sources=[Driven(port="feed", voltage=1 + 0j)],
             )
@@ -878,7 +878,7 @@ def test_pynec_load_branch_rejects_virtual_port():
         Driven,
         Load,
         Network,
-        PortAtEdge,
+        PortOnWire,
         PortVirtual,
         TL,
     )
@@ -893,7 +893,7 @@ def test_pynec_load_branch_rejects_virtual_port():
         def build_network(self):
             return Network(
                 ports={
-                    "feed": PortAtEdge("feed"),
+                    "feed": PortOnWire("feed"),
                     "drv": PortVirtual("drv"),
                 },
                 branches=[
@@ -909,12 +909,12 @@ def test_pynec_load_branch_rejects_virtual_port():
 
 
 @needs_pynec
-def test_pynec_network_rejects_port_at_edge_with_no_named_edge():
-    """PortAtEdge("loop1") with no `loop1` edge in build_wires() should
+def test_pynec_network_rejects_port_on_wire_with_no_named_wire():
+    """PortOnWire("loop1") with no `loop1` edge in build_wires() should
     raise a clear error at engine construction time — mirror of the
     MomwireEngine check."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Network, PortAtEdge, PortVirtual, TL
+    from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
     from types import MappingProxyType
 
     class Builder(AntennaBuilder):
@@ -926,14 +926,14 @@ def test_pynec_network_rejects_port_at_edge_with_no_named_edge():
         def build_network(self):
             return Network(
                 ports={
-                    "loop1": PortAtEdge("loop1"),
+                    "loop1": PortOnWire("loop1"),
                     "drv": PortVirtual("drv"),
                 },
                 branches=[TL(a="drv", b="loop1", z0=50, length=1.0)],
                 sources=[Driven(port="drv")],
             )
 
-    with pytest.raises(ValueError, match="no edge in build_wires"):
+    with pytest.raises(ValueError, match="no wire in build_wires"):
         PyNECEngine(Builder(), ground=None)
 
 
@@ -1075,7 +1075,7 @@ def _load_dipole_builder(load_branch=None, name_feed=False):
     Load and a Driven on the same port. Otherwise build_network()=None and
     the engine falls through to the plain-feed path."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Network, PortAtEdge
+    from antennaknobs.network import Driven, Network, PortOnWire
     from types import MappingProxyType
 
     class Builder(AntennaBuilder):
@@ -1092,7 +1092,7 @@ def _load_dipole_builder(load_branch=None, name_feed=False):
             if load_branch is None:
                 return None
             return Network(
-                ports={"feed": PortAtEdge("feed")},
+                ports={"feed": PortOnWire("feed")},
                 branches=[load_branch],
                 sources=[Driven(port="feed", voltage=1 + 0j)],
             )
@@ -1148,7 +1148,7 @@ def test_load_branch_rejects_virtual_port():
         Driven,
         Load,
         Network,
-        PortAtEdge,
+        PortOnWire,
         PortVirtual,
         TL,
     )
@@ -1163,7 +1163,7 @@ def test_load_branch_rejects_virtual_port():
         def build_network(self):
             return Network(
                 ports={
-                    "feed": PortAtEdge("feed"),
+                    "feed": PortOnWire("feed"),
                     "drv": PortVirtual("drv"),
                 },
                 branches=[
@@ -1384,7 +1384,7 @@ def test_native_nt_rejects_unemittable_networks():
     from antennaknobs.network import (
         Driven,
         Network,
-        PortAtEdge,
+        PortOnWire,
         PortVirtual,
         TwoPort,
     )
@@ -1400,7 +1400,7 @@ def test_native_nt_rejects_unemittable_networks():
             from antennaknobs.network import Load
 
             return Network(
-                ports={"feed": PortAtEdge("feed")},
+                ports={"feed": PortOnWire("feed")},
                 branches=[Load(port="feed", r=10.0)],
                 sources=[Driven(port="feed")],
             )
@@ -1413,7 +1413,7 @@ def test_native_nt_rejects_unemittable_networks():
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed"), "v": PortVirtual("v")},
+                ports={"feed": PortOnWire("feed"), "v": PortVirtual("v")},
                 branches=[TwoPort(a="feed", b="v", r=10.0)],
                 sources=[Driven(port="feed")],
             )
@@ -1443,7 +1443,7 @@ def test_shunt_lmatch_matches_circuit_theory():
     from antennaknobs.network import (
         Driven,
         Network,
-        PortAtEdge,
+        PortOnWire,
         PortVirtual,
         Shunt,
         TwoPort,
@@ -1464,7 +1464,7 @@ def test_shunt_lmatch_matches_circuit_theory():
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed")}, sources=[Driven(port="feed")]
+                ports={"feed": PortOnWire("feed")}, sources=[Driven(port="feed")]
             )
 
     class LMatch(AntennaBuilder):
@@ -1475,7 +1475,7 @@ def test_shunt_lmatch_matches_circuit_theory():
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
+                ports={"feed": PortOnWire("feed"), "in": PortVirtual("in")},
                 branches=[
                     TwoPort(a="in", b="feed", l=ls),
                     Shunt(port="in", c=cp),
@@ -1509,7 +1509,7 @@ def test_pynec_shunt_routes_through_reducer_not_native():
     """A Shunt has no native NEC card, so PyNECEngine must reduce it (never the
     baked-context native path), and native_nt must reject it up front."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Network, PortAtEdge, Shunt, TwoPort
+    from antennaknobs.network import Driven, Network, PortOnWire, Shunt, TwoPort
     from types import MappingProxyType
 
     class ShuntDipole(AntennaBuilder):
@@ -1520,7 +1520,7 @@ def test_pynec_shunt_routes_through_reducer_not_native():
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed")},
+                ports={"feed": PortOnWire("feed")},
                 branches=[Shunt(port="feed", c=50e-12)],
                 sources=[Driven(port="feed")],
             )
@@ -1540,7 +1540,7 @@ def test_pynec_shunt_routes_through_reducer_not_native():
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed"), "feed2": PortAtEdge("feed2")},
+                ports={"feed": PortOnWire("feed"), "feed2": PortOnWire("feed2")},
                 branches=[
                     TwoPort(a="feed", b="feed2", r=20.0),
                     Shunt(port="feed", c=50e-12),
@@ -1559,7 +1559,7 @@ def test_series_short_twoport_is_a_hard_wire_on_the_engine():
     Y it must give a finite impedance equal to the vanishing-resistance
     limit."""
     from antennaknobs import AntennaBuilder
-    from antennaknobs.network import Driven, Network, PortAtEdge, TwoPort
+    from antennaknobs.network import Driven, Network, PortOnWire, TwoPort
     from types import MappingProxyType
 
     def make(r=None, l=None):
@@ -1574,7 +1574,7 @@ def test_series_short_twoport_is_a_hard_wire_on_the_engine():
 
             def build_network(self):
                 return Network(
-                    ports={"feed": PortAtEdge("feed"), "feed2": PortAtEdge("feed2")},
+                    ports={"feed": PortOnWire("feed"), "feed2": PortOnWire("feed2")},
                     branches=[TwoPort(a="feed", b="feed2", r=r, l=l)],
                     sources=[Driven(port="feed")],
                 )
@@ -1597,7 +1597,7 @@ def test_skyloop_matchbox_inert_is_passthrough():
     (issue #285) these degenerate values are stamped literally —
     build_network no longer special-cases the topology."""
     from antennaknobs.designs.loops.skyloop_lmatch import Builder as B
-    from antennaknobs.network import Driven, Network, PortAtEdge
+    from antennaknobs.network import Driven, Network, PortOnWire
     from types import MappingProxyType
 
     inert = {**B.default_params, "series_L_uH": 0.0, "shunt_C_pF": 0.0}
@@ -1609,7 +1609,7 @@ def test_skyloop_matchbox_inert_is_passthrough():
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed")}, sources=[Driven(port="feed")]
+                ports={"feed": PortOnWire("feed")}, sources=[Driven(port="feed")]
             )
 
     z_ant = _sinusoidal(Bare()).impedance()[0]
@@ -1629,7 +1629,7 @@ def _tmatch_bare(params=None):
     """The T-match design's antenna with the matchbox removed: same
     geometry, source directly on the feed."""
     from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
-    from antennaknobs.network import Driven, Network, PortAtEdge
+    from antennaknobs.network import Driven, Network, PortOnWire
     from types import MappingProxyType
 
     class Bare(B):
@@ -1637,7 +1637,7 @@ def _tmatch_bare(params=None):
 
         def build_network(self):
             return Network(
-                ports={"feed": PortAtEdge("feed")}, sources=[Driven(port="feed")]
+                ports={"feed": PortOnWire("feed")}, sources=[Driven(port="feed")]
             )
 
     return Bare()

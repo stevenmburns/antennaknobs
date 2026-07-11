@@ -45,7 +45,7 @@ Horizontally polarised.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Network, PortAtEdge, TL
+from ...network import Driven, Network, PortOnWire, TL
 from types import MappingProxyType
 
 
@@ -138,7 +138,7 @@ class Builder(AntennaBuilder):
         n = int(self.n_elements)
         z0 = self.z0
 
-        ports = {f"d{k}": PortAtEdge(f"d{k}") for k in range(n)}
+        ports = {f"d{k}": PortOnWire(f"d{k}") for k in range(n)}
         branches = []
         # Crossed feeder section between adjacent element centres. Length =
         # physical boom spacing; transposed=True gives the 180-degree

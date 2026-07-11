@@ -2,7 +2,7 @@
 impedances, on top of a raw multiport antenna admittance matrix.
 
 Both MomwireEngine and PyNECEngine assemble the antenna's short-circuit Y at
-the real (`PortAtEdge`) ports, then hand it here with a port-name -> matrix-
+the real (`PortOnWire`) ports, then hand it here with a port-name -> matrix-
 index map. This module stamps the network branches and sources into one
 Modified Nodal Analysis (MNA) system — the SPICE formulation, issue #285 —
 and solves it once for everything: driven-port impedances, physical port
@@ -35,7 +35,7 @@ from .network import (
     TL,
     Driven,
     Load,
-    PortAtEdge,
+    PortOnWire,
     Shunt,
     TwoPort,
     _parallel_rlc_admittance,
@@ -319,10 +319,10 @@ class NetworkReducer:
                         )
                     )
             elif isinstance(br, Load):
-                if not isinstance(self.network.ports[br.port], PortAtEdge):
+                if not isinstance(self.network.ports[br.port], PortOnWire):
                     raise ValueError(
                         f"Load on virtual port {br.port!r}: a Load is a series "
-                        "impedance on an antenna segment, which only PortAtEdge has"
+                        "impedance on an antenna segment, which only PortOnWire has"
                     )
                 loads_by_node.setdefault(self.port_to_idx[br.port], []).append(br)
             else:

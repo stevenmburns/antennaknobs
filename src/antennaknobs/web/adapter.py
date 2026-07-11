@@ -632,7 +632,7 @@ def _primary_feed(engine):
     network = getattr(engine, "_network", None)
     if network is not None and network.sources:
         # The first Driven source is the primary feed. If it resolves to a
-        # real (PortAtEdge) port, use its position; otherwise (virtual port,
+        # real (PortOnWire) port, use its position; otherwise (virtual port,
         # e.g. delta_looparray_network's "driver"), fall back to feeds[0].
         driven_name = network.sources[0].port
         if driven_name in feed_names:

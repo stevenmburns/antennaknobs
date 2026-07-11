@@ -5,7 +5,7 @@ from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (
     Driven,
     Load,
-    PortAtEdge,
+    PortOnWire,
     PortVirtual,
     Shunt,
     TL,
@@ -120,7 +120,7 @@ class PyNECEngine(SimulationEngine):
 
         # Walk build_wires(): emit `geo.wire` cards, collect ex_card pairs from
         # any tuple with a non-None `ev`, and remember (tag, mid_seg) for every
-        # named edge so the network path can resolve PortAtEdge later.
+        # named edge so the network path can resolve PortOnWire later.
         self.excitation_pairs = []
         self._feed_name_to_loc = {}
         for idx, t in enumerate(self.tups, start=1):
@@ -160,15 +160,15 @@ class PyNECEngine(SimulationEngine):
             self.c.ex_card(0, tag, sub_index, 0, voltage.real, voltage.imag, 0, 0, 0, 0)
 
     def _resolve_network_ports(self):
-        """Resolve every PortAtEdge to its (tag, sub_seg) for native ld_card /
+        """Resolve every PortOnWire to its (tag, sub_seg) for native ld_card /
         ex_card emission. Only reached for Load-only networks; TL and
         virtual-driver networks take the NetworkReducer path instead."""
         for name, port in self._network.ports.items():
-            if isinstance(port, PortAtEdge):
+            if isinstance(port, PortOnWire):
                 if name not in self._feed_name_to_loc:
                     raise ValueError(
-                        f"network port {name!r} is a PortAtEdge but no edge in "
-                        f"build_wires() carries that name; named edges: "
+                        f"network port {name!r} is a PortOnWire but no wire in "
+                        f"build_wires() carries that name; named wires: "
                         f"{sorted(self._feed_name_to_loc)}"
                     )
                 tag, mid_seg, _p0, _p1, _ns = self._feed_name_to_loc[name]
@@ -211,10 +211,10 @@ class PyNECEngine(SimulationEngine):
     def _emit_load_card(self, br):
         """Series/parallel RLC on a single segment -> ld_card (type 0/1)."""
         port = self._network.ports[br.port]
-        if not isinstance(port, PortAtEdge):
+        if not isinstance(port, PortOnWire):
             raise ValueError(
                 f"Load on virtual port {br.port!r}: a Load is a series "
-                "impedance on an antenna segment, which only PortAtEdge has"
+                "impedance on an antenna segment, which only PortOnWire has"
             )
         tag, seg = self._network_port_loc[br.port]
         r = float(br.r) if br.r is not None else 0.0
@@ -235,7 +235,7 @@ class PyNECEngine(SimulationEngine):
         per-frequency nt_cards should use the reducer path (this native oracle
         is a single-frequency reference)."""
         for name in (br.a, br.b):
-            if not isinstance(self._network.ports[name], PortAtEdge):
+            if not isinstance(self._network.ports[name], PortOnWire):
                 raise ValueError(
                     f"native nt_card TwoPort port {name!r} is virtual; nt_card "
                     "attaches to real segments only"
@@ -355,19 +355,19 @@ class PyNECEngine(SimulationEngine):
             )
 
     def _init_network(self):
-        """Build the port-index map (real PortAtEdge ports first, virtual
-        ports after) and the NetworkReducer. Validates that every PortAtEdge
+        """Build the port-index map (real PortOnWire ports first, virtual
+        ports after) and the NetworkReducer. Validates that every PortOnWire
         names an edge in build_wires()."""
         net = self._network
         named = {t[4] for t in self.tups if len(t) >= 5 and t[4] is not None}
         self._real_port_names = [
-            n for n, p in net.ports.items() if isinstance(p, PortAtEdge)
+            n for n, p in net.ports.items() if isinstance(p, PortOnWire)
         ]
         for name in self._real_port_names:
             if name not in named:
                 raise ValueError(
-                    f"network port {name!r} is a PortAtEdge but no edge in "
-                    f"build_wires() carries that name; named edges: {sorted(named)}"
+                    f"network port {name!r} is a PortOnWire but no wire in "
+                    f"build_wires() carries that name; named wires: {sorted(named)}"
                 )
         port_to_idx = {n: i for i, n in enumerate(self._real_port_names)}
         next_idx = len(self._real_port_names)

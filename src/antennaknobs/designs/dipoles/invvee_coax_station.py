@@ -25,7 +25,7 @@ lossy tuner).
 
 from types import MappingProxyType
 
-from ...network import CABLES, TL, Driven, Network, PortAtEdge, PortVirtual
+from ...network import CABLES, TL, Driven, Network, PortOnWire, PortVirtual
 from .invvee import Builder as InvVee
 
 
@@ -60,7 +60,7 @@ class Builder(InvVee):
 
     def build_network(self):
         return Network(
-            ports={"feed": PortAtEdge("feed"), "rig": PortVirtual("rig")},
+            ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
             branches=[
                 TL.from_cable(self.cable, "rig", "feed", self.line_len_m),
             ],

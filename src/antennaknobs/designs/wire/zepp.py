@@ -43,7 +43,7 @@ The tuned feeder is an electrical element (a `TL` branch), not geometry.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Network, PortAtEdge, PortVirtual, TL
+from ...network import Driven, Network, PortOnWire, PortVirtual, TL
 from types import MappingProxyType
 
 
@@ -114,7 +114,7 @@ class Builder(AntennaBuilder):
         stub_len = self.stub_len_frac * wavelength
         return Network(
             ports={
-                "ant": PortAtEdge("ant"),  # high-Z end of the radiator
+                "ant": PortOnWire("ant"),  # high-Z end of the radiator
                 "shack": PortVirtual("shack"),  # bottom of the tuned stub
             },
             branches=[

@@ -30,7 +30,7 @@ reducer computes exactly on top of the extracted antenna Y.
 from types import MappingProxyType
 
 from .triangular_skyloop import Builder as TriangularSkyloop
-from ...network import Driven, Network, PortAtEdge, PortVirtual, Shunt, TwoPort
+from ...network import Driven, Network, PortOnWire, PortVirtual, Shunt, TwoPort
 
 
 class Builder(TriangularSkyloop):
@@ -81,7 +81,7 @@ class Builder(TriangularSkyloop):
         tuner is; 0 keeps the ideal coil."""
         ql = self.coil_q if self.coil_q > 0 else None
         return Network(
-            ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
+            ports={"feed": PortOnWire("feed"), "in": PortVirtual("in")},
             branches=[
                 TwoPort(a="in", b="feed", l=self.series_L_uH * 1e-6, ql=ql),
                 Shunt(port="feed", c=self.shunt_C_pF * 1e-12),

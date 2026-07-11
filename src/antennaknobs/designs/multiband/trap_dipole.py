@@ -26,7 +26,7 @@ tuned independently; defaults are LC-resonant at design_freq.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortAtEdge
+from ...network import Driven, Load, Network, PortOnWire
 
 import math
 from types import MappingProxyType
@@ -124,9 +124,9 @@ class Builder(AntennaBuilder):
         C = self.trap_C_pF * 1e-12
         return Network(
             ports={
-                "feed": PortAtEdge("feed"),
-                "trap_l": PortAtEdge("trap_l"),
-                "trap_r": PortAtEdge("trap_r"),
+                "feed": PortOnWire("feed"),
+                "trap_l": PortOnWire("trap_l"),
+                "trap_r": PortOnWire("trap_r"),
             },
             branches=[
                 # Parallel-LC trap: Z = jωL / (1 − ω²LC); diverges at ω₀

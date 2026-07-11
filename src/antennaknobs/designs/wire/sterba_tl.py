@@ -32,7 +32,7 @@ exactly will raise in `network_reduce.tl_admittance_2x2`; keep lf away from 1.0.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Network, PortAtEdge, TL
+from ...network import Driven, Network, PortOnWire, TL
 from types import MappingProxyType
 
 
@@ -138,15 +138,15 @@ class Builder(AntennaBuilder):
         z0 = self.z0
         length = self._tl_length
 
-        ports = {"feed": PortAtEdge("feed")}
+        ports = {"feed": PortOnWire("feed")}
         branches = []
         # One TL per junction j (1..n_sections-1): connects the right-end
         # port of section j-1 to the left-end port of section j — the
         # half-wave vertical phasing line, now ideal.
         for j in range(1, n_sections):
             a, b = f"p{j}_a", f"p{j}_b"
-            ports[a] = PortAtEdge(a)
-            ports[b] = PortAtEdge(b)
+            ports[a] = PortOnWire(a)
+            ports[b] = PortOnWire(b)
             branches.append(TL(a=a, b=b, z0=z0, length=length))
 
         return Network(
