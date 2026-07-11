@@ -235,7 +235,7 @@ class NetworkReducer:
     :meth:`apply_branches`; virtual ports come after.
     """
 
-    def __init__(self, network, port_to_idx, n_total_ports, formulation="admittance"):
+    def __init__(self, network, port_to_idx, n_total_ports, formulation="mna"):
         # formulation: "admittance" (legacy: bare nodal Y + hand-rolled
         # boundary conditions) or "mna" (Modified Nodal Analysis, issue #285).
         # Both produce the same observable behavior on finite-element
