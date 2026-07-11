@@ -10,7 +10,7 @@ from momwire import BSplineSolver
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
-from ..network import PortAtEdge, PortVirtual
+from ..network import PortOnWire, PortVirtual
 from ..network_reduce import NetworkReducer, tl_admittance_2x2
 
 
@@ -214,18 +214,18 @@ class MomwireEngine(SimulationEngine):
     def _init_network(self):
         """Build the port-index map (real feeds first, virtual ports after)
         and the engine-agnostic NetworkReducer that stamps the branches and
-        reduces to driven-port impedance. Validates that every PortAtEdge
+        reduces to driven-port impedance. Validates that every PortOnWire
         resolves to a translated feed name."""
         net = self._network
         feed_name_to_idx = {n: i for i, n in enumerate(self._feed_names) if n}
 
         port_to_idx = {}
         for name, port in net.ports.items():
-            if isinstance(port, PortAtEdge):
+            if isinstance(port, PortOnWire):
                 if name not in feed_name_to_idx:
                     raise ValueError(
-                        f"network port {name!r} is a PortAtEdge but no edge in "
-                        f"build_wires() carries that name; named edges: "
+                        f"network port {name!r} is a PortOnWire but no wire in "
+                        f"build_wires() carries that name; named wires: "
                         f"{sorted(feed_name_to_idx)}"
                     )
                 port_to_idx[name] = feed_name_to_idx[name]

@@ -22,7 +22,7 @@ cross-check pins first).
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Network, PortAtEdge, TwoPort
+from ...network import Driven, Network, PortOnWire, TwoPort
 
 from types import MappingProxyType
 
@@ -53,15 +53,15 @@ class Builder(AntennaBuilder):
         for x, name in ((0.0, "front"), (-spacing, "rear")):
             # One straight wire per dipole, feed edge at the centre. No `ev` —
             # the Network supplies the source (front) and the coupling terminal
-            # (rear); `name` marks each centre segment for PortAtEdge lookup.
+            # (rear); `name` marks each centre segment for PortOnWire lookup.
             tups.append(((x, -half_arm, z), (x, half_arm, z), 21, None, name))
         return tups
 
     def build_network(self):
         return Network(
             ports={
-                "front": PortAtEdge("front"),
-                "rear": PortAtEdge("rear"),
+                "front": PortOnWire("front"),
+                "rear": PortOnWire("rear"),
             },
             branches=[
                 TwoPort(

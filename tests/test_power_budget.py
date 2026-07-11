@@ -15,7 +15,7 @@ from antennaknobs.network import (
     Driven,
     Load,
     Network,
-    PortAtEdge,
+    PortOnWire,
     PortVirtual,
     Shunt,
     TwoPort,
@@ -31,7 +31,7 @@ def _station_reducer():
     """Rig → lossy coax → lossy L-match → antenna: one of everything."""
     net = Network(
         ports={
-            "ant": PortAtEdge("ant"),
+            "ant": PortOnWire("ant"),
             "tuner": PortVirtual("tuner"),
             "rig": PortVirtual("rig"),
         },
@@ -65,7 +65,7 @@ def test_budget_sums_to_p_in():
 
 def test_lossless_network_reports_unity_and_zero_watts():
     net = Network(
-        ports={"ant": PortAtEdge("ant"), "rig": PortVirtual("rig")},
+        ports={"ant": PortOnWire("ant"), "rig": PortVirtual("rig")},
         branches=[
             TL("rig", "ant", z0=50.0, length=13.0),
             Shunt(port="ant", c=20e-12),
@@ -86,7 +86,7 @@ def test_load_only_efficiency_matches_the_pre_299_accounting():
     """For Load-only networks the termination probe IS the old p_diss sum,
     so the shipped efficiency numbers (T2FD, terminated designs) hold."""
     net = Network(
-        ports={"feed": PortAtEdge("feed"), "term": PortAtEdge("term")},
+        ports={"feed": PortOnWire("feed"), "term": PortOnWire("term")},
         branches=[Load(port="term", r=390.0)],
         sources=[Driven("feed", 1 + 0j)],
     )

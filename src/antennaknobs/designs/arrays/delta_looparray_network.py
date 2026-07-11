@@ -15,7 +15,7 @@ numerical precision; the showcase for the network-spec API in #65.
 """
 
 from ... import AntennaBuilder, Transform, TransformStack
-from ...network import Driven, Network, PortAtEdge, PortVirtual, TL
+from ...network import Driven, Network, PortOnWire, PortVirtual, TL
 
 import math
 from types import MappingProxyType
@@ -86,8 +86,8 @@ class Builder(AntennaBuilder):
         )
         return Network(
             ports={
-                "loop1": PortAtEdge("loop1"),
-                "loop2": PortAtEdge("loop2"),
+                "loop1": PortOnWire("loop1"),
+                "loop2": PortOnWire("loop2"),
                 "driver": PortVirtual("driver"),
             },
             branches=[

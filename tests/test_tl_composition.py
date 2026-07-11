@@ -25,7 +25,7 @@ import pytest
 pytest.importorskip("PyNEC")
 
 from antennaknobs import AntennaBuilder  # noqa: E402
-from antennaknobs.network import Driven, Network, PortAtEdge, TL  # noqa: E402
+from antennaknobs.network import Driven, Network, PortOnWire, TL  # noqa: E402
 from antennaknobs.engines import MomwireEngine, PyNECEngine  # noqa: E402
 from momwire import BSplineSolver  # noqa: E402
 
@@ -58,7 +58,7 @@ class _NetBuilder(AntennaBuilder):
 
     def build_network(self):
         return Network(
-            ports={"rear": PortAtEdge("rear"), "front": PortAtEdge("front")},
+            ports={"rear": PortOnWire("rear"), "front": PortOnWire("front")},
             branches=[TL(a="front", b="rear", z0=Z0, length=LEN, transposed=False)],
             sources=[Driven(port="front", voltage=1 + 0j)],
         )

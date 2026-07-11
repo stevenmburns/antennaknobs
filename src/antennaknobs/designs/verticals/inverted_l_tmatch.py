@@ -40,7 +40,7 @@ source itself.
 from types import MappingProxyType
 
 from .inverted_l import Builder as InvertedL
-from ...network import Driven, Network, PortAtEdge, PortVirtual, Shunt, TwoPort
+from ...network import Driven, Network, PortOnWire, PortVirtual, Shunt, TwoPort
 
 
 class Builder(InvertedL):
@@ -90,7 +90,7 @@ class Builder(InvertedL):
     def build_network(self):
         return Network(
             ports={
-                "feed": PortAtEdge("feed"),
+                "feed": PortOnWire("feed"),
                 "m": PortVirtual("m"),
                 "in": PortVirtual("in"),
             },

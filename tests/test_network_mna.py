@@ -29,7 +29,7 @@ from antennaknobs.network import (
     Driven,
     Load,
     Network,
-    PortAtEdge,
+    PortOnWire,
     PortVirtual,
     Shunt,
     TwoPort,
@@ -52,9 +52,9 @@ def synth_y(n, seed):
 
 
 def reducer(net, n_real):
-    """Build a reducer with the standard port indexing: real PortAtEdge
+    """Build a reducer with the standard port indexing: real PortOnWire
     ports first in declaration order, virtual ports after."""
-    real = [n for n, p in net.ports.items() if isinstance(p, PortAtEdge)]
+    real = [n for n, p in net.ports.items() if isinstance(p, PortOnWire)]
     virt = [n for n, p in net.ports.items() if isinstance(p, PortVirtual)]
     assert len(real) == n_real
     port_to_idx = {n: i for i, n in enumerate(real + virt)}
@@ -86,7 +86,7 @@ def nodal_reference(y_full, driven):
 
 def test_bare_driven_port():
     """One driven port, no branches: Z = 1/Y₀₀ and V = E exactly."""
-    net = Network(ports={"f": PortAtEdge("f")}, sources=[Driven(port="f")])
+    net = Network(ports={"f": PortOnWire("f")}, sources=[Driven(port="f")])
     y = synth_y(1, 0)
     red = reducer(net, 1)
     assert red.driven_impedance(y, WL)[0] == pytest.approx(1.0 / y[0, 0], rel=1e-12)
@@ -99,7 +99,7 @@ def test_bare_driven_port():
 def test_multi_driven_ports():
     """Two simultaneous sources: every port pinned, I = Y·V directly."""
     net = Network(
-        ports={"f1": PortAtEdge("f1"), "f2": PortAtEdge("f2")},
+        ports={"f1": PortOnWire("f1"), "f2": PortOnWire("f2")},
         sources=[Driven(port="f1", voltage=1 + 0j), Driven(port="f2", voltage=0.5j)],
     )
     y = synth_y(2, 1)
@@ -111,7 +111,7 @@ def test_multi_driven_ports():
 def test_zero_volt_source_pins_node():
     """The `Driven(port, 0)` datum trick: a 0 V source is a hard V = 0 pin."""
     net = Network(
-        ports={"f1": PortAtEdge("f1"), "f2": PortAtEdge("f2")},
+        ports={"f1": PortOnWire("f1"), "f2": PortOnWire("f2")},
         sources=[Driven(port="f1"), Driven(port="f2", voltage=0j)],
     )
     y = synth_y(2, 3)
@@ -129,7 +129,7 @@ def test_virtual_driver_with_tl_matches_line_transform():
     Z_in = Z₀ (Z_L + jZ₀ tanθ)/(Z₀ + jZ_L tanθ), efficiency 1 (lossless)."""
     z0, length = 300.0, 0.31 * WL
     net = Network(
-        ports={"f": PortAtEdge("f"), "in": PortVirtual("in")},
+        ports={"f": PortOnWire("f"), "in": PortVirtual("in")},
         branches=[TL(a="in", b="f", z0=z0, length=length)],
         sources=[Driven(port="in")],
     )
@@ -148,8 +148,8 @@ def test_transposed_tl_pair():
     voltage vector against the bare nodal reduction with the same stamps."""
     net = Network(
         ports={
-            "f1": PortAtEdge("f1"),
-            "f2": PortAtEdge("f2"),
+            "f1": PortOnWire("f1"),
+            "f2": PortOnWire("f2"),
             "in": PortVirtual("in"),
         },
         branches=[
@@ -178,7 +178,7 @@ def test_twoport_bridge():
     """Lumped series R+jωL bridging two ports = its 2×2 admittance stamp."""
     r, l = 20.0, 0.4e-6
     net = Network(
-        ports={"f1": PortAtEdge("f1"), "f2": PortAtEdge("f2")},
+        ports={"f1": PortOnWire("f1"), "f2": PortOnWire("f2")},
         branches=[TwoPort(a="f1", b="f2", r=r, l=l)],
         sources=[Driven(port="f1")],
     )
@@ -198,7 +198,7 @@ def test_twoport_open_zero_capacitor():
     """c = 0 F is an open series path: exactly as if the branch weren't
     there (the inert endpoint of a matching-network capacitor slider)."""
     net = Network(
-        ports={"f1": PortAtEdge("f1"), "f2": PortAtEdge("f2")},
+        ports={"f1": PortOnWire("f1"), "f2": PortOnWire("f2")},
         branches=[TwoPort(a="f1", b="f2", c=0.0)],
         sources=[Driven(port="f1")],
     )
@@ -215,7 +215,7 @@ def test_lmatch_matches_two_element_transform(seed):
     two-element transform Z_in = jωL + 1/(jωC + Y_ant)."""
     ls, cp = 0.873e-6, 59.57e-12
     net = Network(
-        ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
+        ports={"feed": PortOnWire("feed"), "in": PortVirtual("in")},
         branches=[
             TwoPort(a="in", b="feed", l=ls),
             Shunt(port="feed", c=cp),
@@ -231,7 +231,7 @@ def test_lmatch_matches_two_element_transform(seed):
 
 def test_parallel_shunt_is_tank_admittance_on_diagonal():
     net = Network(
-        ports={"f": PortAtEdge("f")},
+        ports={"f": PortOnWire("f")},
         branches=[Shunt(port="f", r=1000.0, l=1e-6, c=30e-12, parallel=True)],
         sources=[Driven(port="f")],
     )
@@ -248,7 +248,7 @@ def test_series_load_terminated_port():
     dissipation drives the efficiency readout."""
     r_l = 600.0
     net = Network(
-        ports={"f": PortAtEdge("f"), "term": PortAtEdge("term")},
+        ports={"f": PortOnWire("f"), "term": PortOnWire("term")},
         branches=[Load(port="term", r=r_l)],
         sources=[Driven(port="f")],
     )
@@ -273,7 +273,7 @@ def test_driven_and_loaded_same_port():
     divides accordingly, and only Re(Z_L) burns power."""
     z_l = 5.0 + 1j * OMEGA * 2e-6
     net = Network(
-        ports={"f": PortAtEdge("f")},
+        ports={"f": PortOnWire("f")},
         branches=[Load(port="f", r=5.0, l=2e-6)],
         sources=[Driven(port="f")],
     )
@@ -294,7 +294,7 @@ def test_parallel_trap_load_off_resonance():
     """Parallel-LC trap off resonance: a finite shunt impedance at the port."""
     l, c = 1.5e-6, 30e-12
     net = Network(
-        ports={"f": PortAtEdge("f"), "arm": PortAtEdge("arm")},
+        ports={"f": PortOnWire("f"), "arm": PortOnWire("arm")},
         branches=[Load(port="arm", l=l, c=c, parallel=True)],
         sources=[Driven(port="f")],
     )
@@ -317,10 +317,10 @@ def test_everything_at_once():
     lengths = {"tl1": 0.27 * WL, "tl2": 0.12 * WL}
     net = Network(
         ports={
-            "f1": PortAtEdge("f1"),
-            "f2": PortAtEdge("f2"),
-            "f3": PortAtEdge("f3"),
-            "f4": PortAtEdge("f4"),
+            "f1": PortOnWire("f1"),
+            "f2": PortOnWire("f2"),
+            "f3": PortOnWire("f3"),
+            "f4": PortOnWire("f4"),
             "in": PortVirtual("in"),
             "n1": PortVirtual("n1"),
         },
@@ -359,7 +359,7 @@ def test_everything_at_once():
 
 def test_load_on_virtual_port_rejected():
     net = Network(
-        ports={"f": PortAtEdge("f"), "v": PortVirtual("v")},
+        ports={"f": PortOnWire("f"), "v": PortVirtual("v")},
         branches=[TL(a="f", b="v", z0=50.0, length=0.1 * WL), Load(port="v", r=50.0)],
         sources=[Driven(port="f")],
     )
@@ -374,7 +374,7 @@ def test_load_on_virtual_port_rejected():
 
 def _series_twoport_z(r=None, l=None, c=None):
     net = Network(
-        ports={"f1": PortAtEdge("f1"), "f2": PortAtEdge("f2")},
+        ports={"f1": PortOnWire("f1"), "f2": PortOnWire("f2")},
         branches=[TwoPort(a="f1", b="f2", r=r, l=l, c=c)],
         sources=[Driven(port="f1")],
     )
@@ -401,7 +401,7 @@ def test_ideal_short_twoport_is_finite_and_identifies_nodes(kwargs):
     # Node identification: the shorted pair behaves as one merged node.
     y = synth_y(2, 0)
     merged = np.array([[y[0, 0] + y[0, 1] + y[1, 0] + y[1, 1]]])
-    net = Network(ports={"m": PortAtEdge("m")}, sources=[Driven(port="m")])
+    net = Network(ports={"m": PortOnWire("m")}, sources=[Driven(port="m")])
     z_merged = reducer(net, 1).driven_impedance(merged, WL)[0]
     assert z_short == pytest.approx(z_merged, rel=1e-9)
 
@@ -410,7 +410,7 @@ def test_shunt_ideal_short_pins_port_to_common():
     """A 0 H shunt hard-shorts the port to the common reference: V_k = 0,
     with the (finite) short-circuit current flowing through the branch."""
     net = Network(
-        ports={"f1": PortAtEdge("f1"), "f2": PortAtEdge("f2")},
+        ports={"f1": PortOnWire("f1"), "f2": PortOnWire("f2")},
         branches=[Shunt(port="f2", l=0.0)],
         sources=[Driven(port="f1")],
     )
@@ -430,7 +430,7 @@ def test_inert_lmatchbox_stamped_literally():
     Z_in = Z_ant, with no design-level topology special-casing (the interim
     dodge `skyloop_lmatch.build_network` needed on the admittance reducer)."""
     inert = Network(
-        ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
+        ports={"feed": PortOnWire("feed"), "in": PortVirtual("in")},
         branches=[TwoPort(a="in", b="feed", l=0.0), Shunt(port="feed", c=0.0)],
         sources=[Driven(port="in")],
     )
@@ -447,7 +447,7 @@ def test_open_circuited_source_reports_clean_infinity():
     import warnings
 
     net = Network(
-        ports={"f": PortAtEdge("f"), "in": PortVirtual("in")},
+        ports={"f": PortOnWire("f"), "in": PortVirtual("in")},
         branches=[TwoPort(a="in", b="f", c=0.0)],
         sources=[Driven(port="in")],
     )
@@ -465,7 +465,7 @@ def test_trap_load_at_exact_resonance_is_open():
     l = 1.0e-6
     c = 1.0 / (OMEGA**2 * l)  # resonate the tank exactly at FREQ_MHZ
     net = Network(
-        ports={"f": PortAtEdge("f"), "arm": PortAtEdge("arm")},
+        ports={"f": PortOnWire("f"), "arm": PortOnWire("arm")},
         branches=[Load(port="arm", l=l, c=c, parallel=True)],
         sources=[Driven(port="f")],
     )
@@ -478,3 +478,11 @@ def test_trap_load_at_exact_resonance_is_open():
     # network as having no Load branch at all.
     v_ref, _ = nodal_reference(y, {0: 1 + 0j})
     np.testing.assert_allclose(v, v_ref, rtol=1e-9)
+
+
+def test_port_at_edge_alias_survives():
+    """PortAtEdge is the deprecated pre-rename alias of PortOnWire; any
+    externally-authored design importing it must keep working."""
+    from antennaknobs.network import PortAtEdge, PortOnWire
+
+    assert PortAtEdge is PortOnWire

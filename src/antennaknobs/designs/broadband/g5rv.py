@@ -16,7 +16,7 @@ part everyone argues about.
 
 This fills the "matched-line / impedance-transformer feed" gap and is a
 methodology stress case for the network layer: a single ideal transmission-line
-branch (a real PortAtEdge at the doublet centre, a virtual port at the shack)
+branch (a real PortOnWire at the doublet centre, a virtual port at the shack)
 feeding a NON-resonant, reactive antenna port. The driving-point impedance the
 engines report is the SHACK-side impedance after the line transforms the
 doublet -- a direct test of the network reducer's TL + virtual-port reduction
@@ -35,7 +35,7 @@ The matching line is an electrical element (a network branch), not geometry.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Network, PortAtEdge, PortVirtual, TL
+from ...network import Driven, Network, PortOnWire, PortVirtual, TL
 from types import MappingProxyType
 
 
@@ -114,7 +114,7 @@ class Builder(AntennaBuilder):
         match_len = self.match_len_frac * wavelength
         return Network(
             ports={
-                "feed": PortAtEdge("feed"),  # doublet centre
+                "feed": PortOnWire("feed"),  # doublet centre
                 "shack": PortVirtual("shack"),  # bottom of the matched line
             },
             branches=[

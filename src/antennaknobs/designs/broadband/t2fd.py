@@ -30,7 +30,7 @@ far wire.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortAtEdge
+from ...network import Driven, Load, Network, PortOnWire
 import math
 from types import MappingProxyType
 
@@ -115,7 +115,7 @@ class Builder(AntennaBuilder):
 
     def build_network(self):
         return Network(
-            ports={"feed": PortAtEdge("feed"), "term": PortAtEdge("term")},
+            ports={"feed": PortOnWire("feed"), "term": PortOnWire("term")},
             branches=[Load(port="term", r=self.term_r)],
             sources=[Driven(port="feed", voltage=1 + 0j)],
         )

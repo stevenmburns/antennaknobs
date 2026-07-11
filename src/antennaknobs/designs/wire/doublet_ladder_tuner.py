@@ -29,7 +29,7 @@ current and lower coil loss.
 
 from types import MappingProxyType
 
-from ...network import TL, Driven, Network, PortAtEdge, PortVirtual, Shunt, TwoPort
+from ...network import TL, Driven, Network, PortOnWire, PortVirtual, Shunt, TwoPort
 from ..dipoles.invvee import Builder as InvVee
 
 
@@ -84,7 +84,7 @@ class Builder(InvVee):
     def build_network(self):
         return Network(
             ports={
-                "feed": PortAtEdge("feed"),
+                "feed": PortOnWire("feed"),
                 "li": PortVirtual("li"),  # line input (tuner output)
                 "m": PortVirtual("m"),  # tee midpoint
                 "rig": PortVirtual("rig"),

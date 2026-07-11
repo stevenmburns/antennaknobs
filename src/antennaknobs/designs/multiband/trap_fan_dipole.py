@@ -34,7 +34,7 @@ exactly as NEC2's ld_card type-1 would.
 """
 
 from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortAtEdge
+from ...network import Driven, Load, Network, PortOnWire
 
 import math
 from types import MappingProxyType
@@ -364,7 +364,7 @@ class Builder(AntennaBuilder):
 
     def build_network(self):
         bands = tuple(self.bands)
-        ports = {"feed": PortAtEdge("feed")}
+        ports = {"feed": PortOnWire("feed")}
         branches = []
         for i, b in enumerate(bands):
             L = float(b["trap_L_uH"]) * 1e-6
@@ -376,7 +376,7 @@ class Builder(AntennaBuilder):
             C = 1.0 / (omega0**2 * L)
             for sign in ("p", "n"):
                 name = f"trap_{sign}_b{i}"
-                ports[name] = PortAtEdge(name)
+                ports[name] = PortOnWire(name)
                 branches.append(Load(port=name, l=L, c=C, parallel=True))
         return Network(
             ports=ports,

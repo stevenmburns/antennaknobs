@@ -21,7 +21,7 @@ from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as TMatchBu
 from antennaknobs.network import (
     Driven,
     Network,
-    PortAtEdge,
+    PortOnWire,
     PortVirtual,
     Shunt,
     TwoPort,
@@ -77,7 +77,7 @@ def test_series_matching_coil_loss_adds_directly_to_zin():
 
     def zin(ql):
         net = Network(
-            ports={"ant": PortAtEdge("ant"), "in": PortVirtual("in")},
+            ports={"ant": PortOnWire("ant"), "in": PortVirtual("in")},
             branches=[TwoPort(a="in", b="ant", l=l, ql=ql)],
             sources=[Driven("in", 1 + 0j)],
         )
@@ -94,7 +94,7 @@ def test_lossy_shunt_coil_dissipates_power():
 
     def p_in(ql):
         net = Network(
-            ports={"ant": PortAtEdge("ant")},
+            ports={"ant": PortOnWire("ant")},
             branches=[Shunt(port="ant", l=2.2e-6, ql=ql)],
             sources=[Driven("ant", 1 + 0j)],
         )

@@ -16,7 +16,7 @@ they are pure circuit oracles:
 import numpy as np
 import pytest
 
-from antennaknobs.network import CABLES, TL, Driven, Network, PortAtEdge, PortVirtual
+from antennaknobs.network import CABLES, TL, Driven, Network, PortOnWire, PortVirtual
 from antennaknobs.network_reduce import C_LIGHT, NetworkReducer, tl_admittance_2x2
 
 F_MHZ = 10.0
@@ -27,7 +27,7 @@ FT100 = 30.48  # 100 ft in meters
 def _rig_fed_network(tl):
     """Virtual "rig" port driven through `tl` into the real "ant" port."""
     net = Network(
-        ports={"ant": PortAtEdge("ant"), "rig": PortVirtual("rig")},
+        ports={"ant": PortOnWire("ant"), "rig": PortVirtual("rig")},
         branches=[tl],
         sources=[Driven("rig", 1 + 0j)],
     )
