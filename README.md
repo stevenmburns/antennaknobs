@@ -62,7 +62,7 @@
 | src/antennaknobs/designs/loops/skyloop\_lmatch.py                 |       13 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/triangular\_skyloop.py             |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
-| src/antennaknobs/designs/multiband/fandipole.py                   |       59 |        1 |     98% |       118 |
+| src/antennaknobs/designs/multiband/fandipole.py                   |       59 |        1 |     98% |       120 |
 | src/antennaknobs/designs/multiband/hexbeam\_5band.py              |      103 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_dipole.py                |       31 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       90 |        3 |     97% |237, 298, 304 |
