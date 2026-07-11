@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">23 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">23<span class="text"> run</span></button>
+            <span class="text">12 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">12<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_85c3a7278a3ec302_triangular_skyloop_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 14:21 +0000
+            created at 2026-07-11 15:22 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -147,37 +147,21 @@
     <p class="run"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">        <span class="key">return</span> <span class="nam">wires</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">    <span class="key">def</span> <span class="nam">build_network</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">        <span class="str">r"""L-match, built by TOPOLOGY so any arm can go inert:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t"><span class="str">          * shunt C = 0  -> open shunt: the arm is simply omitted.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t"><span class="str">          * series L = 0 -> the series arm is a bare wire, so the input node IS</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t"><span class="str">            the feed node: no `in` node, drive the feed directly. (A literal</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t"><span class="str">            0 H series element can't be stamped as a finite admittance &#8212; it's a</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t"><span class="str">            short &#8212; so we express "no series element" as topology rather than</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t"><span class="str">            asking the solver to invert a zero impedance; issue #285 (MNA) is</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t"><span class="str">            the general fix.)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t"><span class="str">        With both arms zero the matchbox is fully inert &#8212; a pass-through &#8212; and</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t"><span class="str">        the input impedance is just the bare antenna's (Z_in = Z_ant).</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">        <span class="nam">series_l</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">series_L_uH</span> <span class="op">*</span> <span class="num">1e-6</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="nam">shunt_c</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">shunt_C_pF</span> <span class="op">*</span> <span class="num">1e-12</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">        <span class="nam">ports</span> <span class="op">=</span> <span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">        <span class="nam">branches</span> <span class="op">=</span> <span class="op">[</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">        <span class="key">if</span> <span class="nam">shunt_c</span><span class="op">:</span>  <span class="com"># shunt arm across the feed (omitted when inert/open)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">            <span class="nam">branches</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">Shunt</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">c</span><span class="op">=</span><span class="nam">shunt_c</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">        <span class="key">if</span> <span class="nam">series_l</span><span class="op">:</span>  <span class="com"># series arm; a zero-L arm is a wire, so `in` == `feed`</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">            <span class="nam">ports</span><span class="op">[</span><span class="str">"in"</span><span class="op">]</span> <span class="op">=</span> <span class="nam">PortVirtual</span><span class="op">(</span><span class="str">"in"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">            <span class="nam">branches</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">TwoPort</span><span class="op">(</span><span class="nam">a</span><span class="op">=</span><span class="str">"in"</span><span class="op">,</span> <span class="nam">b</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">l</span><span class="op">=</span><span class="nam">series_l</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">            <span class="nam">driven</span> <span class="op">=</span> <span class="str">"in"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">        <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">            <span class="nam">driven</span> <span class="op">=</span> <span class="str">"feed"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">        <span class="key">return</span> <span class="nam">Network</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="nam">ports</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">            <span class="nam">branches</span><span class="op">=</span><span class="nam">branches</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t">            <span class="nam">sources</span><span class="op">=</span><span class="op">[</span><span class="nam">Driven</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="nam">driven</span><span class="op">,</span> <span class="nam">voltage</span><span class="op">=</span><span class="num">1</span> <span class="op">+</span> <span class="num">0j</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t98" href="#t98">98</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">        <span class="str">r"""L-match, stamped LITERALLY at whatever the sliders say: the MNA</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t"><span class="str">        core (issue #285) handles the degenerate endpoints as physics, not</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t"><span class="str">        special cases &#8212; a 0 H series arm is an ideal wire (Group-2 short</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t"><span class="str">        identifying `in` with `feed`) and a 0 F shunt arm is an open (no</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t"><span class="str">        element). With both arms zero the matchbox is fully inert &#8212; a</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t"><span class="str">        pass-through &#8212; and the input impedance is just the bare antenna's</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t"><span class="str">        (Z_in = Z_ant)."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">        <span class="key">return</span> <span class="nam">Network</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">,</span> <span class="str">"in"</span><span class="op">:</span> <span class="nam">PortVirtual</span><span class="op">(</span><span class="str">"in"</span><span class="op">)</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">            <span class="nam">branches</span><span class="op">=</span><span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">                <span class="nam">TwoPort</span><span class="op">(</span><span class="nam">a</span><span class="op">=</span><span class="str">"in"</span><span class="op">,</span> <span class="nam">b</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">l</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">series_L_uH</span> <span class="op">*</span> <span class="num">1e-6</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">                <span class="nam">Shunt</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">c</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">shunt_C_pF</span> <span class="op">*</span> <span class="num">1e-12</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t">            <span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">            <span class="nam">sources</span><span class="op">=</span><span class="op">[</span><span class="nam">Driven</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="str">"in"</span><span class="op">,</span> <span class="nam">voltage</span><span class="op">=</span><span class="num">1</span> <span class="op">+</span> <span class="num">0j</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -187,7 +171,7 @@
             <a class="nav" href="z_85c3a7278a3ec302_triangular_skyloop_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 14:21 +0000
+            created at 2026-07-11 15:22 +0000
         </p>
     </div>
 </footer>
