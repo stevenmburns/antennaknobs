@@ -1,3 +1,5 @@
+"""Yagi-Uda parasitic beam (driven element + reflector + directors)."""
+
 from ... import AntennaBuilder
 import math
 

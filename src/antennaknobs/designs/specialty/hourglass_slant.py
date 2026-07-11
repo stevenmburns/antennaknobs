@@ -1,3 +1,5 @@
+"""Hourglass loop tilted out of the vertical plane."""
+
 import math
 
 from ... import AntennaBuilder

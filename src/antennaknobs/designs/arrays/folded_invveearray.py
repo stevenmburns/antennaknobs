@@ -1,3 +1,5 @@
+"""2x2 phased stack of folded inverted-vees."""
+
 from ... import Array2x2Builder
 from ..dipoles import folded_invvee
 

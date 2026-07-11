@@ -1,3 +1,5 @@
+"""2x2 phased stack of Yagi beams."""
+
 from ... import Array2x2Builder
 from ..beams import yagi
 

@@ -1,3 +1,5 @@
+"""Two diamond loops crossed and fed in phase quadrature (turnstile)."""
+
 from ... import AntennaBuilder
 import math
 

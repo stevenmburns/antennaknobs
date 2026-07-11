@@ -1,3 +1,5 @@
+"""Moxon rectangle — a 2-element beam with folded-back element tips."""
+
 from ... import AntennaBuilder
 from types import MappingProxyType
 

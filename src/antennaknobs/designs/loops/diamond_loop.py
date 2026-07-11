@@ -1,3 +1,5 @@
+"""Full-wave diamond (square) loop fed at the bottom corner."""
+
 from ... import AntennaBuilder
 import math
 

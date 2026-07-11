@@ -1,3 +1,5 @@
+"""2x2 phased stack of bowtie dipoles."""
+
 from ... import Array2x2Builder
 from ..specialty import bowtie
 

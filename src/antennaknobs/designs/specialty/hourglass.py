@@ -1,3 +1,5 @@
+"""Hourglass loop — a crossed (bowtie-folded) rectangular loop."""
+
 from ... import AntennaBuilder
 from ... import Transform, TransformStack
 

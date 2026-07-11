@@ -1,3 +1,5 @@
+"""Side-by-side delta-loop pair (1x2)."""
+
 from ...builder import Array1x2Builder
 from ..loops import delta_loop
 

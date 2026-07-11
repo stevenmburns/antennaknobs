@@ -1,3 +1,5 @@
+"""1x4 delta-loop row with per-group knobs (inner/outer pairs tuned separately)."""
+
 from ...builder import Array1x4GroupedBuilder
 from ..loops import delta_loop
 

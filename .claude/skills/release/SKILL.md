@@ -39,7 +39,11 @@ direct push. In one commit, `chore: release vX.Y.Z (<theme>)`:
    last release, sweep `site/src/content/docs/` for pages describing the old
    behavior (`solver.md`, `web.md`, `cli.md`, the concepts pages). `site/` is
    NOT touched by feature PRs and is easy to forget — v0.19.0 found six stale
-   pages this way.
+   pages this way. The design catalog (`reference/catalog.md`) is EXCLUDED
+   from this sweep since issue #292: its listings are generated from the
+   design tree (`python scripts/generate_catalog.py`) and the test suite
+   fails if they drift, so design changes force the page in their own PR —
+   never hand-edit the tables.
 4. Build the site (`cd site && npm run build`) — it must pass before the PR.
 
 Merge with `/merge-pr` (rebase, CI green first).

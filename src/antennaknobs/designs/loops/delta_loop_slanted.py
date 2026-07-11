@@ -1,3 +1,5 @@
+"""Delta loop tilted out of the vertical plane by a slant_deg knob."""
+
 from ... import AntennaBuilder
 import math
 
