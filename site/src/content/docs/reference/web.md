@@ -145,6 +145,21 @@ was actually used, and over a finite ground the
 [norm check](#norm-check--is-the-solve-trustworthy) Δ reads "incl. ground
 loss" — a steady dB or so there is absorbed power, not error.
 
+## Power budget
+
+Designs with a lossy feed network — a real coax or ladder-line run, a
+matching network with a finite-Q coil, a terminating resistor — get a
+**power budget** table in the solve readout: one row per network branch
+with the fraction of the source's input power it dissipates, plus an
+**antenna (radiated)** row for what actually reaches the wires. The rows
+come straight from the MNA network solve (each branch current is an
+explicit unknown, so the watts are read off the solution, not modelled
+separately), and the same accounting drives the reported radiation
+efficiency: **every** dissipative branch counts, including resistive
+coupling and matching elements, not just explicit `Load`s. Gain is
+normalised by input power, so network loss already shows up in dBi;
+the budget tells you *where* it went. Lossless networks hide the table.
+
 ## Convergence sweep
 
 To check that your chosen N is **converged** — i.e. adding more segments no

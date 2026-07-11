@@ -1183,6 +1183,12 @@ type SolveResponse = {
    *  readout's ground row shows this rather than re-deriving it from
    *  backend + groundType state. */
   ground_model_applied?: string;
+  /** Per-branch network dissipation from the MNA solve (issue #299):
+   *  one entry per TL / TwoPort / Shunt / Load branch, in watts for the
+   *  canonical 1 V drive. Absent or all-~0 for plain and lossless
+   *  designs; input_power_w is the 100% reference. */
+  power_budget?: { label: string; watts: number }[];
+  input_power_w?: number;
   k_meas_m_inv?: number;
   // V-specific
   arm_len_m?: number;
@@ -5708,6 +5714,38 @@ function SolveReadout({
             : "—"}
         </span>
       </div>
+      {(() => {
+        // Power budget (issue #299): where the input watts go, per network
+        // branch. Hidden unless the network actually dissipates something
+        // (lossless branches report float noise only).
+        const budget = result?.power_budget;
+        const pin = result?.input_power_w;
+        if (!budget || budget.length === 0 || !pin || pin <= 0) return null;
+        const diss = budget.reduce((s, b) => s + b.watts, 0);
+        if (diss < 1e-6 * pin) return null;
+        return (
+          <div
+            className="feeds-table"
+            title="Fraction of the source input power dissipated in each network branch (from the MNA solve); the antenna row is the remainder that reaches the wires."
+          >
+            <div className="feeds-table-header">power budget</div>
+            {budget.map((b, i) => (
+              <div className="row" key={`pb-${i}`}>
+                <span>{b.label}</span>
+                <span className="val">
+                  {((b.watts / pin) * 100).toFixed(1)}%
+                </span>
+              </div>
+            ))}
+            <div className="row" key="pb-ant">
+              <span>antenna (radiated)</span>
+              <span className="val">
+                {(((pin - diss) / pin) * 100).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        );
+      })()}
       <div className="row">
         <span>rtt</span>
         <span className="val">{rttMs != null ? `${rttMs.toFixed(1)} ms` : "—"}</span>

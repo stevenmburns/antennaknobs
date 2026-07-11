@@ -1196,6 +1196,13 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # has resistive loads, e.g. a terminated rhombic / T2FD);
             # current_distribution() above populated it on the engine.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
+            # Per-branch network dissipation [(label, watts)] from the MNA
+            # solve (issue #299); empty for plain / lossless designs. Tiny
+            # negative float noise from reactive stamps is clamped to 0.
+            "power_budget": [
+                {"label": label, "watts": max(0.0, float(w))}
+                for label, w in (getattr(eng, "_excited_power_budget", None) or [])
+            ],
             # Source input power in watts: the server's gain normaliser is
             # η₀k²/(8π·P_in), which is what makes the plot GAIN (load and
             # ground losses live inside P_in, so no efficiency multiply).
@@ -1361,6 +1368,10 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # keeps the far-field plot meaning GAIN. current_distribution()
             # set both from the solved feed/load currents.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
+            "power_budget": [
+                {"label": label, "watts": max(0.0, float(w))}
+                for label, w in (getattr(eng, "_excited_power_budget", None) or [])
+            ],
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
         }
         if hints()["multi_feed"] and len(zs) > 1:

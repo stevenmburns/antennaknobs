@@ -415,15 +415,19 @@ class MomwireEngine(SimulationEngine):
             # and the source input power the far field uses to normalise
             # gain.
             Y = self._compute_y_matrix(wavelength)
-            V_full, self._excited_efficiency, self._excited_p_in = (
-                self._reducer.excited_state(Y, wavelength)
-            )
+            (
+                V_full,
+                self._excited_efficiency,
+                self._excited_p_in,
+                self._excited_power_budget,
+            ) = self._reducer.excited_state(Y, wavelength)
             feeds_resolved = [
                 (w, arc, complex(V_full[i]))
                 for i, (w, arc, _v) in enumerate(self._feeds)
             ]
         elif self._tls:
             self._excited_efficiency = 1.0
+            self._excited_power_budget = []
             Y = self._compute_y_matrix(wavelength)
             Y_total = self._apply_tls(Y, wavelength)
             V, driven = self._resolve_feed_voltages(Y_total)
@@ -439,6 +443,7 @@ class MomwireEngine(SimulationEngine):
             ]
         else:
             self._excited_efficiency = 1.0
+            self._excited_power_budget = []
             # Plain path: no port model here; input_power() derives P_in from
             # the excited solve's driving-point impedance(s) on demand.
             self._excited_p_in = None

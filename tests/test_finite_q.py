@@ -99,7 +99,7 @@ def test_lossy_shunt_coil_dissipates_power():
             sources=[Driven("ant", 1 + 0j)],
         )
         reducer = NetworkReducer(net, {"ant": 0}, 1)
-        _v, _eff, p = reducer.excited_state(np.array([[1.0 / 5000.0]]), WL)
+        _v, _eff, p, *_ = reducer.excited_state(np.array([[1.0 / 5000.0]]), WL)
         return p
 
     assert p_in(50.0) > p_in(None)
