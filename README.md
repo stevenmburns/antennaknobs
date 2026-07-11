@@ -40,6 +40,7 @@
 | src/antennaknobs/designs/dipoles/\_\_init\_\_.py                  |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/dipole\_turnstile.py             |       21 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/folded\_invvee.py                |       35 |        0 |    100% |           |
+| src/antennaknobs/designs/dipoles/folded\_invvee\_balun.py         |       14 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/invvee.py                        |       31 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/invvee\_coax\_station.py         |       14 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/koch\_dipole.py                  |       38 |        0 |    100% |           |
@@ -98,12 +99,12 @@
 | src/antennaknobs/engine.py                                        |       43 |        3 |     93% |65, 94, 100 |
 | src/antennaknobs/engines/\_\_init\_\_.py                          |        6 |        2 |     67% |       3-4 |
 | src/antennaknobs/engines/momwire.py                               |      323 |       17 |     95% |34, 73, 365, 648-664 |
-| src/antennaknobs/engines/pynec.py                                 |      306 |       21 |     93% |156, 169, 198, 206, 215, 239, 246, 280, 328, 337, 351, 407, 525, 549, 551-555, 557, 562 |
+| src/antennaknobs/engines/pynec.py                                 |      306 |       21 |     93% |157, 170, 199, 207, 216, 240, 247, 281, 330, 340, 354, 410, 528, 552, 554-558, 560, 565 |
 | src/antennaknobs/far\_field.py                                    |      168 |        2 |     99% |    86, 90 |
 | src/antennaknobs/geometry.py                                      |      137 |        4 |     97% |60, 85, 89, 101 |
 | src/antennaknobs/nec\_export.py                                   |       53 |       12 |     77% |60, 103-113 |
-| src/antennaknobs/network.py                                       |      131 |        5 |     96% |306, 333, 387, 397, 399 |
-| src/antennaknobs/network\_reduce.py                               |      165 |        3 |     98% |238, 329, 352 |
+| src/antennaknobs/network.py                                       |      139 |        5 |     96% |343, 370, 424, 434, 436 |
+| src/antennaknobs/network\_reduce.py                               |      185 |        3 |     98% |261, 392, 415 |
 | src/antennaknobs/opt.py                                           |       90 |       14 |     84% |54-55, 57-60, 65-66, 72-76, 148 |
 | src/antennaknobs/serialize.py                                     |       83 |        6 |     93% |32-34, 54, 91, 103 |
 | src/antennaknobs/sim.py                                           |        5 |        2 |     60% |       3-4 |
@@ -119,7 +120,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      534 |       67 |     87% |66-68, 238-239, 325, 379, 526-529, 589, 621, 623, 677, 693, 725, 758, 760-763, 804, 854, 889, 897-911, 922-923, 955, 1004-1015, 1035, 1038-1039, 1055, 1058-1059, 1075, 1103-1128, 1325, 1373-1374, 1391 |
 | src/antennaknobs/web/user\_designs.py                             |       56 |        6 |     89% |58-59, 83-84, 89-90 |
-| **TOTAL**                                                         | **6092** |  **342** | **94%** |           |
+| **TOTAL**                                                         | **6134** |  **342** | **94%** |           |
 
 
 ## Setup coverage badge
