@@ -3,7 +3,6 @@ import PyNEC as nec
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (
-    DiffTL,
     Driven,
     Load,
     PortAtEdge,
@@ -70,7 +69,7 @@ class PyNECEngine(SimulationEngine):
         self._excited_p_in = None
         # Loads alone are handled natively (ld_card) and accurately by NEC, so
         # only divert to the multiport-Y + NetworkReducer path for what NEC
-        # *can't* do natively: transmission lines (TL/DiffTL) and virtual
+        # *can't* do natively: transmission lines (TL) and virtual
         # drivers. Those skip the baked NEC context entirely — impedance uses
         # per-port solves and far-field/current build an excitation-resolved
         # context on demand. Load-only and plain designs keep the native path.
@@ -115,7 +114,7 @@ class PyNECEngine(SimulationEngine):
         self.c.geometry_complete(0)
 
         if self._network is not None:
-            # Only Load-only networks reach here; TL/DiffTL/virtual-driver
+            # Only Load-only networks reach here; TL/virtual-driver
             # networks take the NetworkReducer path and never build this
             # context.
             self._resolve_network_ports()
@@ -133,7 +132,7 @@ class PyNECEngine(SimulationEngine):
 
     def _resolve_network_ports(self):
         """Resolve every PortAtEdge to its (tag, sub_seg) for native ld_card /
-        ex_card emission. Only reached for Load-only networks; TL/DiffTL and
+        ex_card emission. Only reached for Load-only networks; TL and
         virtual-driver networks take the NetworkReducer path instead."""
         for name, port in self._network.ports.items():
             if isinstance(port, PortAtEdge):
@@ -148,7 +147,7 @@ class PyNECEngine(SimulationEngine):
 
     def _emit_network_cards(self):
         """Emit a Load-only network as native NEC2 ld_cards + ex_cards. Called
-        after geometry_complete(). (TL/DiffTL/virtual-driver networks never
+        after geometry_complete(). (TL/virtual-driver networks never
         reach here — they go through the multiport-Y NetworkReducer path.)
 
         Load branches become ld_cards (type 0 = series RLC, type 1 = parallel
@@ -160,7 +159,7 @@ class PyNECEngine(SimulationEngine):
             if not isinstance(br, Load):
                 raise NotImplementedError(
                     f"{type(br).__name__} reached PyNEC's native network path; "
-                    "only Load is handled natively (TL/DiffTL/virtual-driver "
+                    "only Load is handled natively (TL/virtual-driver "
                     "networks use the NetworkReducer path)"
                 )
             port = net.ports[br.port]
@@ -212,10 +211,10 @@ class PyNECEngine(SimulationEngine):
 
     def _network_uses_reducer(self):
         """True iff the network needs the Y-matrix reduction path — i.e. it
-        has a transmission line (TL/DiffTL) or a virtual driver. Load-only
-        networks are handled natively by NEC's ld_card."""
+        has a transmission line (TL) or a virtual driver. Load-only networks
+        are handled natively by NEC's ld_card."""
         net = self._network
-        if any(isinstance(b, (TL, DiffTL)) for b in net.branches):
+        if any(isinstance(b, TL) for b in net.branches):
             return True
         return any(isinstance(p, PortVirtual) for p in net.ports.values())
 
@@ -224,15 +223,6 @@ class PyNECEngine(SimulationEngine):
         ports after) and the NetworkReducer. Validates that every PortAtEdge
         names an edge in build_wires()."""
         net = self._network
-        if any(isinstance(b, DiffTL) for b in net.branches):
-            # The multiport-Y + NetworkReducer path *can* express a DiffTL
-            # (NEC2's tl_card cannot), but DiffTL on PyNEC isn't cross-
-            # validated yet — keep it MomwireEngine-only for now.
-            raise NotImplementedError(
-                "DiffTL (4-terminal differential transmission line) on "
-                "PyNECEngine is not enabled; use MomwireEngine for differential "
-                "lines."
-            )
         named = {t[4] for t in self.tups if len(t) >= 5 and t[4] is not None}
         self._real_port_names = [
             n for n, p in net.ports.items() if isinstance(p, PortAtEdge)
@@ -306,7 +296,7 @@ class PyNECEngine(SimulationEngine):
         sets the load reactances. Reactive loads (a loading coil) burn
         nothing and leave efficiency at 1.0.
         """
-        # TL/DiffTL/virtual-driver networks reduce through the shared
+        # TL/virtual-driver networks reduce through the shared
         # reducer; reuse its port-level efficiency and input power.
         if self._network is not None and self._use_reducer:
             Y = self._compute_y_matrix(wavelength)

@@ -74,7 +74,7 @@ broadside curtain).
 | `wire.lazy_h` | Lazy-H, two stacked collinear elements fed in phase |
 | `wire.w8jk` | W8JK flat-top beam, a 2-element all-driven array |
 | `wire.zepp` | End-fed half-wave "Zepp" with a tuned-stub feeder |
-| `wire.sterba` | Sterba curtain (broadside, bidirectional) — plus `sterba_tl`, `sterba_driven`, `sterba_center_driven`, `sterba_difftl` variants |
+| `wire.sterba` | Sterba curtain (broadside, bidirectional) — plus the `sterba_tl` transmission-line-phased variant |
 
 ## Broadband
 

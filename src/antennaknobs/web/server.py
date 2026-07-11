@@ -998,7 +998,7 @@ async def export_nec_endpoint(req: dict):
 
     Reuses the same builder construction as the live solve (params, variant,
     frequency, ground), so the deck matches the antenna on screen. Returns 422
-    for designs with no faithful native-NEC representation (TL/DiffTL/virtual-
+    for designs with no faithful native-NEC representation (TL/virtual-
     driver networks), which the frontend surfaces as a message.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))

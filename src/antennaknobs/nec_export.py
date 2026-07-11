@@ -11,7 +11,7 @@ branches. That makes the emitted deck a faithful text twin of exactly what
 PyNECEngine hands to PyNEC's in-memory card API — so a NEC engine reading the
 deck (``nec2c``) reproduces PyNECEngine's impedance.
 
-Not supported: TL/DiffTL/virtual-driver networks. PyNECEngine solves those by a
+Not supported: TL/virtual-driver networks. PyNECEngine solves those by a
 multiport-Y reduction (a circuit post-process on the field solution), not by
 native NEC ``tl_card``s, so there is no faithful single-deck representation.
 ``export_nec`` raises ``NotImplementedError`` for them.
@@ -84,7 +84,7 @@ def export_nec(
     eng = PyNECEngine(builder, ground=ground)
     if eng._use_reducer:
         raise NotImplementedError(
-            "NEC export of TL/DiffTL/virtual-driver networks is not supported: "
+            "NEC export of TL/virtual-driver networks is not supported: "
             "PyNECEngine solves those by a multiport-Y reduction, not native "
             "NEC cards, so there is no faithful single-deck representation."
         )
