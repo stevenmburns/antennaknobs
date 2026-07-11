@@ -19,6 +19,7 @@ after L. B. Cebik (W4RNL)'s articles.
 | `dipoles.dipole_turnstile` | Crossed dipoles fed in phase quadrature |
 | `dipoles.koch_dipole` | Koch fractal dipole |
 | `dipoles.short_dipole_loaded` | Center-loaded shortened dipole (a Load-branch showcase) |
+| `dipoles.invvee_coax_station` | The inv-vee fed through 100 ft of real coax (cable preset dropdown), referenced to the rig — line loss and the SWR penalty in the power budget |
 
 ## Loops
 
@@ -78,6 +79,7 @@ L-network — series L, shunt C — matched to 50 Ω).
 | `wire.w8jk` | W8JK flat-top beam, a 2-element all-driven array |
 | `wire.zepp` | End-fed half-wave "Zepp" with a tuned-stub feeder |
 | `wire.sterba` | Sterba curtain (broadside, bidirectional) — plus the `sterba_tl` transmission-line-phased variant |
+| `wire.doublet_ladder_tuner` | 88 ft doublet + 100 ft of 600 Ω open-wire line + lossy T-network tuner, referenced to the rig — the classic multiband station, with the tuner-coil cost in the power budget |
 
 ## Broadband
 
