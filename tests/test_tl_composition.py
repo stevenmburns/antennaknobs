@@ -102,6 +102,20 @@ def test_reducer_matches_native_tl_card_same_engine():
     assert abs(b_red - b_nat) < 0.15
 
 
+def test_reducer_matches_native_tl_card_impedance():
+    """The native tl_card driving-point impedance must equal the reducer's —
+    the strict cross-validation dropped back in issue #63, restored by the
+    input-parameters readout fix (issue #283). The TL terminates on the
+    DRIVEN segment here, so a wire-only current readout would be off by ~3×
+    (105+2j vs the true 36−29j): most of the source current leaves through
+    the line, and NEC's ANTENNA INPUT PARAMETERS account for it."""
+    z_red = PyNECEngine(_NetBuilder(), ground=None).impedance()[0]
+    z_nat = PyNECEngine(_TlsBuilder(), ground=None).impedance()[0]
+    # Reducer Y comes from N separate NEC solves vs native's single baked
+    # context; they match to ~1e-5 relative, far below any physical scale.
+    assert abs(z_red - z_nat) / abs(z_nat) < 1e-4, (z_red, z_nat)
+
+
 def test_momwire_reducer_matches_native_tl_card_reference():
     """MomwireEngine's reducer TL far field must match NEC's native tl_card
     reference within a cross-engine MoM tolerance."""

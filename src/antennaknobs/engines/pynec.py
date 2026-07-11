@@ -57,12 +57,14 @@ class PyNECEngine(SimulationEngine):
           context and solved simultaneously with the MoM currents, instead of
           the default shared-NetworkReducer stamp. This is a correctness ORACLE
           for the reducer's TwoPort composition (analogous to build_tls() ->
-          native tl_card for TL) — it reproduces the far field the reducer
-          composes to within the cross-MoM tolerance. Only valid for all-real-
-          port, TL-free networks that contain a TwoPort (validated at
-          construction); the driving-point impedance it reports differs from the
-          reducer's by the segment-vs-basis port convention (issue #63), so
-          treat it as a pattern reference, not an impedance one.
+          native tl_card for TL): it reproduces both the far field and the
+          driving-point impedance the reducer composes. (Impedance is read
+          from NEC's network-corrected ANTENNA INPUT PARAMETERS; the historic
+          "reducer vs native impedance gap" was this engine dividing V by the
+          wire-only structure current — see
+          docs/plan-network-impedance-readout.md, issue #283.) Only valid for
+          all-real-port, TL-free networks that contain a TwoPort (validated
+          at construction).
         """
         super().__init__(builder)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
@@ -418,11 +420,14 @@ class PyNECEngine(SimulationEngine):
             Y = self._compute_y_matrix(wavelength)
             _v, efficiency, p_in = self._reducer.excited_state(Y, wavelength)
             return efficiency, p_in
-        # Native path: read the solved feed (and load) currents.
+        # Native path: source input power from NEC's ANTENNA INPUT
+        # PARAMETERS (index 0 — `sc` always comes from the single-frequency
+        # solve here). NEC's per-source power uses the network-corrected
+        # gap current, so a native_nt / tl_card design normalises gain by
+        # the power the source actually delivers, not just the wire share.
         p_in = 0.0
-        for tag, seg, v in self.excitation_pairs or []:
-            cur = self._port_current(sc, tag, seg)
-            p_in += 0.5 * (complex(v) * np.conj(cur)).real
+        if self.excitation_pairs:
+            p_in = float(sum(self._input_parameters_at(0).get_power()))
         loads = (
             [b for b in self._network.branches if isinstance(b, Load)]
             if self._network is not None
@@ -478,19 +483,31 @@ class PyNECEngine(SimulationEngine):
         self.c.fr_card(0, 1, self.builder.freq, 0)
         self.c.xq_card(0)
 
+    def _input_parameters_at(self, freq_index):
+        """NEC's ANTENNA INPUT PARAMETERS block for one frequency: one row
+        per voltage source, in ex_card order (aligned with
+        `excitation_pairs`; verified by tag below).
+
+        NEC corrects the source-segment current for any network (nt_card /
+        tl_card) attached to the same segment — nec2c's network.c adds the
+        network-port current to the wire current before forming V/I — so
+        these rows are true driving-point quantities. The raw structure
+        current at the segment is only the wire share of the gap current;
+        dividing V by it misreported Z (and source power) whenever a branch
+        terminated on the driven segment. See
+        docs/plan-network-impedance-readout.md (issue #283)."""
+        ipt = self.c.get_input_parameters(freq_index)
+        tags = [int(t) for t in ipt.get_tag()]
+        expected = [tag for tag, _seg, _v in self.excitation_pairs]
+        if tags != expected:
+            raise RuntimeError(
+                f"ANTENNA INPUT PARAMETERS rows (tags {tags}) don't line up "
+                f"with the emitted ex_cards (tags {expected})"
+            )
+        return ipt
+
     def _impedances_at(self, freq_index, sum_currents=False):
-        sc = self.c.get_structure_currents(freq_index)
-
-        indices = []
-        for tag, tag_index, voltage in self.excitation_pairs:
-            matches = [
-                (i, t) for (i, t) in enumerate(sc.get_current_segment_tag()) if t == tag
-            ]
-            index = matches[tag_index - 1][0]
-            indices.append((index, voltage))
-
-        currents = sc.get_current()
-        zs = [voltage / currents[idx] for idx, voltage in indices]
+        zs = [complex(z) for z in self._input_parameters_at(freq_index).get_impedance()]
 
         if sum_currents:
             zs = [1 / sum(1 / z for z in zs)]

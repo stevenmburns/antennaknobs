@@ -6,12 +6,16 @@ from unittest.mock import patch
 from conftest import needs_pynec
 
 
-class FakeSC:
-    def get_current_segment_tag(self):
-        return [1, 1, 2, 3, 3, 3, 4, 4, 4]
+class FakeInputParameters:
+    """Stands in for nec_antenna_input: one row per ex_card, in emission
+    order — V=1 into 0.02 A → 50 Ω at tag 2, V=0.5 into 0.02 A → 25 Ω at
+    tag 4 (the mock_geometry excitation_pairs below)."""
 
-    def get_current(self):
-        return [None, None, 0.02, None, None, None, None, 0.02, None]
+    def get_tag(self):
+        return [2, 4]
+
+    def get_impedance(self):
+        return [50 + 0j, 25 + 0j]
 
 
 class FakePyNEC:
@@ -21,8 +25,8 @@ class FakePyNEC:
     def xq_card(self, *args, **kargs):
         pass
 
-    def get_structure_currents(self, freq_index):
-        return FakeSC()
+    def get_input_parameters(self, freq_index):
+        return FakeInputParameters()
 
 
 def mock_geometry(self):
