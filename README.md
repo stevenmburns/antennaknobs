@@ -357,7 +357,7 @@ cd antennaknobs
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install setuptools numpy scipy pytest matplotlib icecream scikit-rf
+pip install setuptools numpy scipy pytest matplotlib scikit-rf
 ```
 
 **3. Install momwire (the engine)**
@@ -446,7 +446,7 @@ cd antennaknobs
 python3 -m venv .venv
 source .venv/bin/activate         # re-run this in each new shell before using the project
 pip install --upgrade pip setuptools wheel
-pip install numpy scipy pytest matplotlib icecream scikit-rf
+pip install numpy scipy pytest matplotlib scikit-rf
 ```
 
 **3. Install momwire (the engine)** — same as Ubuntu:

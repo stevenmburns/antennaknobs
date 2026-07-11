@@ -1,7 +1,6 @@
 import pytest
 
 from antennaknobs.designs.dipoles.invvee import Builder
-# from icecream import ic
 
 from types import MappingProxyType
 

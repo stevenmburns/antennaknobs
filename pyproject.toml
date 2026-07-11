@@ -32,8 +32,8 @@ classifiers = [
 #     Dockerfile pin, and the submodule together, confirm the version is on
 #     PyPI before tagging a release.
 #   - numpy/scipy math throughout; matplotlib for the draw/sweep/pattern plots;
-#     icecream for the CLI/sweep debug tracing; scikit-rf for Touchstone/network
-#     handling in sweep.
+#     scikit-rf for Touchstone/network handling in sweep. CLI/sweep debug
+#     tracing goes through the stdlib logging module (enable with `-vv`).
 #
 # Deliberately NOT listed: PyNEC — the optional NEC2 backend, GPL-2.0-or-later.
 # It is installed separately from the python-necpp fork's release wheel (the
@@ -44,7 +44,6 @@ dependencies = [
     "numpy>=1.21",
     "scipy>=1.7",
     "matplotlib>=3.5",
-    "icecream>=2.1",
     "scikit-rf>=0.24",
 ]
 

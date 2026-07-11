@@ -35,7 +35,7 @@ momwire dense path), so the full 10×4×3×6 matrix takes a while. Use the
 --designs / --grounds / --engines / --nsegs filters to carve out a subset,
 or --once to time a single in-band point instead of averaging the band set.
 
-The tables print to stdout; momwire/CLI icecream tracing goes to stderr, so
+The tables print to stdout; any library warnings/log output go to stderr, so
 pipe 2>/dev/null (or 2>run.log) for a clean capture:
 
     .venv/bin/python scripts/profile_ground_models.py 2>/dev/null | tee run.txt
