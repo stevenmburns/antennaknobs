@@ -5417,7 +5417,7 @@ function BSplineFields({
         onChange={(v) => onPatch({ nQpPair: v })}
       />
       <div className="field">
-        <label className="link-toggle" title="Replace delta-gap source with cos² bump of width α·h_feed; helps where basis-limited convergence shows on straight-wire feeds.">
+        <label className="link-toggle" title="Replace the delta-gap with a cos² source of width α·h_feed; removes the delta-gap's O(1/N) convergence cap so a straight-wire feed converges at the basis rate.">
           <input
             type="checkbox"
             checked={opts.feedSmoothingFactor != null}
