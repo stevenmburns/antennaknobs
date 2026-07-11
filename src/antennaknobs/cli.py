@@ -374,7 +374,7 @@ def cli(arguments=None):
             "--ground",
             default=_GROUND_UNSET,
             help="Ground model: free | pec | finite[:<eps_r>,<sigma>] "
-            "(Sommerfeld-Norton on pynec) | finite-fast[:<eps_r>,<sigma>] "
+            "(Sommerfeld-Norton, both engines) | finite-fast[:<eps_r>,<sigma>] "
             "(reflection-coefficient approximation) "
             "(default: engine-specific — finite for pynec, free for momwire).",
         )

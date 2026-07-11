@@ -49,9 +49,9 @@ What you get:
 - **A ground plane, on by default** — real antennas hang over real ground, so
   the workbench starts there (free space is one click away). The ground is
   described by what it *is* — finite (εr=10, σ=0.002) or PEC — independent of
-  solver; each backend solves it as best it can (PyNEC additionally offers
-  Sommerfeld-Norton vs. the faster reflection-coefficient method), and the
-  solve readout reports the model that actually ran.
+  solver; both backends offer the true Sommerfeld-Norton solve and the faster
+  reflection-coefficient method, and the solve readout reports the model that
+  actually ran.
 
 Live updates stay responsive because rapid knob drags are coalesced into one
 solve per round-trip, so the solver is never buried under stale requests.
@@ -105,17 +105,16 @@ point — agreement between independent engines is your confidence check.
 | | **PyNEC** | **momwire** |
 |---|---|---|
 | What | Python binding to the compiled C++ **NEC2** engine | In-house **method-of-moments** engines, pure-Python core with optional C++ accelerators |
-| Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — triangular (tent), sinusoidal, B-spline — plus H-matrix and array-block accelerators built on them |
+| Basis | NEC2 thin-wire (pulse/sinusoidal) | Two bases — sinusoidal and B-spline (degree 1–2) — plus H-matrix and array-block accelerators built on them |
 | Speed | Very fast single-frequency solves | Fast; C++ accelerators (pybind11) for assembly/quadrature, pure-Python fallback |
-| Ground | Sommerfeld–Norton finite ground (default) or the faster reflection-coefficient approximation | Reflection-coefficient finite ground on the B-spline family; PEC image on the other bases; the engine API defaults to free space (the web workbench turns ground on) |
+| Ground | Sommerfeld–Norton finite ground (default) or the faster reflection-coefficient approximation | Same two models on every solver (momwire ≥ 0.8.0): true Sommerfeld–Norton or the faster reflection-coefficient approximation; the engine API defaults to free space (the web workbench turns ground on) |
 | Install | Prebuilt wheel from the `python-necpp` fork release (OpenBLAS vendored) | C++ accelerator built from the `momwire` submodule |
-| Use it for | The established reference; finite-ground patterns | Basis-flexible cross-validation; geometries where NEC2 reactance fails to converge |
+| Use it for | The established reference | Basis-flexible cross-validation; geometries where NEC2 reactance fails to converge |
 
 **Selecting an engine** (CLI):
 
 ```bash
---engine momwire                 # momwire (default), default triangular basis
---engine momwire:triangular      # piecewise-linear (tent) basis  — the momwire default
+--engine momwire                 # momwire (default), default B-spline basis
 --engine momwire:sinusoidal      # NEC2-style three-term basis (cross-validator)
 --engine momwire:bspline         # degree-1/2 B-spline Galerkin basis
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
@@ -135,8 +134,8 @@ engine = MomwireEngine(builder, solver=BSplineSolver, solver_kwargs={"degree": 2
 
 **momwire** lives in its own repository and is vendored here as a git submodule;
 its `BSplineSolver` (the web workbench's default) is validated against the
-independent triangular (tent) basis, which converges to NEC accuracy in ~80
-segments. The H-matrix and array-block engines are newer and aimed at large
+independent sinusoidal basis and against PyNEC, converging to NEC accuracy in
+~80 segments. The H-matrix and array-block engines are newer and aimed at large
 arrays. **PyNEC** is an
 *optional* second backend — the `python-necpp` fork, distributed as a
 self-contained wheel (OpenBLAS vendored, so no SWIG/BLAS/autotools toolchain is

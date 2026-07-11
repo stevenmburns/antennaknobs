@@ -143,8 +143,10 @@ tag to roll back, or a fix branch) without cutting a new version.
 ## Latency note
 
 Perceived lag per knob turn ≈ one network round-trip + the server solve time.
-The **solve dominates** (free-space dipole-class solves are ~10–80 ms; real-ground
-Sommerfeld is ~100× slower). A regional Fly machine adds only ~5–40 ms RTT over a
+The **solve dominates** (free-space dipole-class solves are ~10–80 ms; the
+reflection-coefficient ground runs ~1.5–3× that, and full Sommerfeld — once
+~100× — is a few × since momwire 0.9.0's fused kernel; see
+`docs/status/2026-07-08-ground-model-benchmark.md`). A regional Fly machine adds only ~5–40 ms RTT over a
 persistent WebSocket, so typical tuning totals well under the ~100 ms "feels
 instant" threshold. If it ever feels sluggish, the levers are: debounce knob
 events client-side, lean on the existing solve cache, default to the fast ground
