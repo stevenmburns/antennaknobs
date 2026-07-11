@@ -55,6 +55,12 @@ class Builder(InvertedL):
             "series_c1_pF": 20.47,  # source-side series capacitor
             "shunt_l_uH": 0.6458,  # shunt inductor at the tee midpoint
             "series_c2_pF": 254.5,  # antenna-side series capacitor
+            # Coil quality factor (issue #298): adds R = ωL/Q in series with
+            # the tee's shunt inductor. 0 = ideal coil (the historical
+            # behavior); real air-wound coils run ~50–400. A T-network runs
+            # high circulating current through this coil, so its loss is the
+            # classic hidden tuner cost.
+            "coil_q": 0.0,
             "ui_params": MappingProxyType(
                 {
                     # Matched to 50 Ω, so the SWR readout shows ~1:1.
@@ -63,6 +69,7 @@ class Builder(InvertedL):
                     "series_c1_pF": {"min": 5.0, "max": 60.0},
                     "shunt_l_uH": {"min": 0.1, "max": 2.0},
                     "series_c2_pF": {"min": 50.0, "max": 500.0},
+                    "coil_q": {"min": 0.0, "max": 400.0},
                 }
             ),
         }
@@ -89,7 +96,11 @@ class Builder(InvertedL):
             },
             branches=[
                 TwoPort(a="in", b="m", c=self.series_c1_pF * 1e-12),
-                Shunt(port="m", l=self.shunt_l_uH * 1e-6),
+                Shunt(
+                    port="m",
+                    l=self.shunt_l_uH * 1e-6,
+                    ql=self.coil_q if self.coil_q > 0 else None,
+                ),
                 TwoPort(a="m", b="feed", c=self.series_c2_pF * 1e-12),
             ],
             sources=[Driven(port="in", voltage=1 + 0j)],

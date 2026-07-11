@@ -42,11 +42,16 @@ class Builder(TriangularSkyloop):
             # L-match elements, tuned for ~50 Ω at 18.1 MHz on the stock loop.
             "series_L_uH": 0.873,  # series arm, input → feed (TwoPort)
             "shunt_C_pF": 59.57,  # shunt arm, across the feed (Shunt)
+            # Coil quality factor (issue #298): adds R = ωL/Q in series with
+            # the matching inductor. 0 = ideal coil (the historical behavior);
+            # real air-wound coils run ~50–400.
+            "coil_q": 0.0,
             "ui_params": MappingProxyType(
                 {
                     # Matched to 50 Ω, so the SWR readout shows ~1:1.
                     "target_z0": 50.0,
                     "default_view": "xy",
+                    "coil_q": {"min": 0.0, "max": 400.0},
                 }
             ),
         }
@@ -71,11 +76,14 @@ class Builder(TriangularSkyloop):
         identifying `in` with `feed`) and a 0 F shunt arm is an open (no
         element). With both arms zero the matchbox is fully inert — a
         pass-through — and the input impedance is just the bare antenna's
-        (Z_in = Z_ant)."""
+        (Z_in = Z_ant). `coil_q > 0` gives the series inductor a finite Q
+        (R = ωL/Q, issue #298), turning the matchbox lossy the way a real
+        tuner is; 0 keeps the ideal coil."""
+        ql = self.coil_q if self.coil_q > 0 else None
         return Network(
             ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
             branches=[
-                TwoPort(a="in", b="feed", l=self.series_L_uH * 1e-6),
+                TwoPort(a="in", b="feed", l=self.series_L_uH * 1e-6, ql=ql),
                 Shunt(port="feed", c=self.shunt_C_pF * 1e-12),
             ],
             sources=[Driven(port="in", voltage=1 + 0j)],
