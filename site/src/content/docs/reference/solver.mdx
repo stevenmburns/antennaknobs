@@ -3,9 +3,17 @@ title: The solver & accuracy
 description: The momwire MoM engine — its basis functions, accelerated solvers, which one to pick, and how results are cross-validated.
 ---
 
+import { LinkCard } from "@astrojs/starlight/components";
+
 antennaknobs solves antennas with **momwire**, an in-house method-of-moments
 (MoM) engine for wire structures, with an optional NEC-2 backend for
 cross-checking.
+
+<LinkCard
+  title="How the solver actually works →"
+  href="https://momwire.antennaknobs.dev/"
+  description="A method-of-moments primer keyed line-by-line to the momwire source — from a voltage in a gap to H-matrix acceleration, every idea first in 20 lines of Python, then in the production code."
+/>
 
 ## Basis functions
 
@@ -144,5 +152,5 @@ reflection-coefficient model remains the default and the NEC path offers its
 own Sommerfeld–Norton — so real-ground results cross-check across two
 independent engines at every height.
 
-<!-- TODO: embed the benchmark plots once generated, and a parity/differentiator
-     table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. -->
+{/* TODO: embed the benchmark plots once generated, and a parity/differentiator
+     table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. */}
