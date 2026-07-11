@@ -22,7 +22,9 @@ from .network import (
     Driven,
     Load,
     PortAtEdge,
+    Shunt,
     TwoPort,
+    _parallel_rlc_admittance,
     _series_rlc_impedance,
     load_impedance,
     load_series_admittance,
@@ -74,14 +76,51 @@ def twoport_admittance_2x2(r, l, c, omega):
     can pick different element values — callers never depend on the short
     limit (unlike the parallel-LC trap, which the Load path handles).
     """
+    if c == 0:
+        # A 0 F capacitor is an open in the series path (infinite reactance):
+        # the branch carries no current, so it contributes no coupling. Return
+        # the zero stamp rather than forming 1/(jωC) and dividing by zero.
+        return np.zeros((2, 2), dtype=np.complex128)
     z = _series_rlc_impedance(r, l, c, omega)
     if abs(z) < 1e-15:
         raise ValueError(
-            "TwoPort series impedance ≈ 0 (series-LC short at resonance); "
-            "admittance is singular"
+            "TwoPort series impedance ≈ 0 (short circuit): a 0 Ω / 0 H element, "
+            "an all-omitted branch, or series-LC resonance shorts the two ports. "
+            "A lossless short is not a finite admittance stamp — express it as a "
+            "direct connection (drive the shared node) or use a small nonzero "
+            "value. General ideal-short handling is tracked in issue #285 (MNA)."
         )
     y = 1.0 / z
     return y * np.array([[1.0, -1.0], [-1.0, 1.0]], dtype=np.complex128)
+
+
+def shunt_admittance(r, l, c, omega, parallel=False):
+    """Scalar admittance of a lumped R/L/C shunt from a port to the common
+    reference, stamped onto the port diagonal (``Y[k,k] += y``).
+
+    series (default): y = 1/(R + jωL + 1/(jωC)) — single C → jωC, single L →
+        1/(jωL), series LC → shunt trap.
+    parallel:         y = 1/R + 1/(jωL) + jωC — parallel-LC tank, → 0 at
+        resonance (open shunt).
+
+    A series-LC short (Z → 0) is a hard short of the port to common; raise
+    rather than emit inf so the caller can pick different element values."""
+    if parallel:
+        return _parallel_rlc_admittance(r, l, c, omega)
+    if c == 0:
+        # A 0 F shunt capacitor is an open shunt (infinite reactance): no
+        # element, y = 0. The natural "inert" limit of a matching-network
+        # slider — return it rather than dividing by zero forming 1/(jωC).
+        return 0.0 + 0.0j
+    z = _series_rlc_impedance(r, l, c, omega)
+    if abs(z) < 1e-15:
+        raise ValueError(
+            "Shunt series impedance ≈ 0 (short to common): a 0 Ω / 0 H element "
+            "or series-LC resonance shorts the port to the reference. A lossless "
+            "short is not a finite admittance stamp — remove the branch or use a "
+            "small nonzero value. General handling is tracked in issue #285 (MNA)."
+        )
+    return 1.0 / z
 
 
 class NetworkReducer:
@@ -220,6 +259,16 @@ class NetworkReducer:
                 omega = 2.0 * np.pi * C_LIGHT / wavelength
                 y_2p = twoport_admittance_2x2(br.r, br.l, br.c, omega)
                 Y_full[np.ix_([a, b], [a, b])] += y_2p
+            elif isinstance(br, Shunt):
+                # A shunt to common is a 1-port admittance on the node diagonal
+                # — the port's return terminal IS the reference, so no ground
+                # node is needed. Undriven shunt ports keep the floating
+                # (I_ext=0) BC; driven ones (the L-match input) stay pinned.
+                k = self.port_to_idx[br.port]
+                omega = 2.0 * np.pi * C_LIGHT / wavelength
+                Y_full[k, k] += shunt_admittance(
+                    br.r, br.l, br.c, omega, parallel=br.parallel
+                )
             else:
                 raise NotImplementedError(f"branch type {type(br).__name__}")
         return Y_full

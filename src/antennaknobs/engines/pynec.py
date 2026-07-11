@@ -7,6 +7,7 @@ from ..network import (
     Load,
     PortAtEdge,
     PortVirtual,
+    Shunt,
     TL,
     TwoPort,
     _series_rlc_impedance,
@@ -295,6 +296,10 @@ class PyNECEngine(SimulationEngine):
             return True
         if any(isinstance(p, PortVirtual) for p in net.ports.values()):
             return True
+        # A Shunt to common has no native NEC card (there's no 1-port
+        # shunt-to-common primitive); always reduce it.
+        if any(isinstance(b, Shunt) for b in net.branches):
+            return True
         # TwoPort goes native only when the oracle switch is on; otherwise it
         # is a shared-reducer stamp (the general path both engines agree on).
         if any(isinstance(b, TwoPort) for b in net.branches):
@@ -312,6 +317,11 @@ class PyNECEngine(SimulationEngine):
             raise ValueError("native_nt=True requires a build_network() design")
         if not any(isinstance(b, TwoPort) for b in net.branches):
             raise ValueError("native_nt=True but the network has no TwoPort branch")
+        if any(isinstance(b, Shunt) for b in net.branches):
+            raise ValueError(
+                "native_nt=True cannot emit a Shunt natively (no 1-port "
+                "shunt-to-common NEC card); run the default reducer path instead"
+            )
         if any(isinstance(b, TL) for b in net.branches):
             raise ValueError(
                 "native_nt=True cannot emit a TL natively (NEC's tl_card needs "
