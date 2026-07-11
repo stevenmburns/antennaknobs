@@ -56,5 +56,27 @@ Merge with `/merge-pr` (rebase, CI green first).
    (`curl -s https://pypi.org/pypi/antennaknobs/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`)
    and `gh release view vX.Y.Z` lists the expected PRs.
 
+## Announce
+
+Post a release announcement to GitHub Discussions (**Announcements**
+category) once all three pipelines are green — precedent: v0.21.0,
+discussion #293. Write it for users, not from commit subjects: lead with the
+release theme, then the highlights (new capabilities, new designs, notable
+fixes) in prose, each linking where it helps (simulator, docs, the GitHub
+release for full notes). `gh` has no discussion subcommand; use GraphQL:
+
+```bash
+# repositoryId + Announcements categoryId (stable, but re-query if in doubt):
+gh api graphql -f query='query { repository(owner: "stevenmburns", name: "antennaknobs") {
+  id discussionCategories(first: 10) { nodes { id name } } } }'
+
+gh api graphql -f query='
+mutation($repo: ID!, $cat: ID!, $title: String!, $body: String!) {
+  createDiscussion(input: {repositoryId: $repo, categoryId: $cat, title: $title, body: $body}) {
+    discussion { url } } }' \
+  -f repo=<repositoryId> -f cat=<categoryId> \
+  -f title="antennaknobs vX.Y.Z — <theme>" -f body="<markdown>"
+```
+
 For off-cycle docs-page fixes without a release:
 `gh workflow run deploy-docs.yml --ref main`.
