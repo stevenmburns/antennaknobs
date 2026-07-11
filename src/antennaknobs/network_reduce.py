@@ -344,7 +344,16 @@ class NetworkReducer:
         out = []
         for k in self.driven_port_idx:
             col, e = system.terminations[k]
-            out.append(complex(e / j[col]))
+            if j[col] == 0:
+                # Open-circuited source — no current path from the port
+                # (e.g. a matching-network series capacitor slider at 0 F,
+                # which is an open, not an absent element). The physical
+                # driving-point impedance is ∞; report it as a clean real
+                # infinity instead of dividing by zero (numpy would warn
+                # and produce inf+nanj). Issue #289.
+                out.append(complex(float("inf"), 0.0))
+            else:
+                out.append(complex(e / j[col]))
         return out
 
     def driven_impedance(self, Y_real, wavelength):

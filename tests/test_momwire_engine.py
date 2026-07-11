@@ -1687,8 +1687,8 @@ def test_tmatch_degenerate_endpoints():
       capacitor's absent limit is C → ∞, not C → 0), so the input sees
       exactly C1 in series with the shunt L;
     - series C1 = 0 open-circuits the SOURCE itself: the delivered current
-      is exactly zero and Z = E/j is non-finite. Pinned here as the
-      documented behavior of driving an open circuit.
+      is exactly zero and the readout reports a clean Z = ∞ (real infinity,
+      no NaN, no numpy warnings — issue #289).
     """
     from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
 
@@ -1703,6 +1703,9 @@ def test_tmatch_degenerate_endpoints():
     z = _sinusoidal(B(params={**p, "series_c2_pF": 0.0})).impedance()[0]
     assert np.allclose(z, xc1 + xl, rtol=1e-12), (z, xc1 + xl)
 
-    with np.errstate(divide="ignore", invalid="ignore"):
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         z = _sinusoidal(B(params={**p, "series_c1_pF": 0.0})).impedance()[0]
-    assert not np.isfinite(z), z
+    assert np.isinf(z.real) and z.imag == 0.0, z

@@ -439,6 +439,24 @@ def test_inert_lmatchbox_stamped_literally():
     assert z_inert == pytest.approx(1.0 / y[0, 0], rel=1e-12)
 
 
+def test_open_circuited_source_reports_clean_infinity():
+    """A driven port with no current path (its only branch is a 0 F series
+    capacitor = an open) is a physical open circuit: Z = ∞. The readout must
+    return a clean real infinity — no ZeroDivision, no numpy divide-by-zero
+    warning, no NaN imaginary part (issue #289)."""
+    import warnings
+
+    net = Network(
+        ports={"f": PortAtEdge("f"), "in": PortVirtual("in")},
+        branches=[TwoPort(a="in", b="f", c=0.0)],
+        sources=[Driven(port="in")],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        z = reducer(net, 1).driven_impedance(synth_y(1, 0), WL)[0]
+    assert np.isinf(z.real) and z.real > 0 and z.imag == 0.0, z
+
+
 def test_trap_load_at_exact_resonance_is_open():
     """A parallel-LC Load exactly at ω₀ = 1/√(LC) is the intended open
     circuit. The legacy excited path formed Z_L = ∞ there; the MNA
