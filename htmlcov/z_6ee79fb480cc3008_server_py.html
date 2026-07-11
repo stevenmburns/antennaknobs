@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">534 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">464<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">70<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">467<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">67<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_user_designs_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 16:35 +0000
+            created at 2026-07-11 16:50 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -261,8 +261,8 @@
     <p class="pln"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">    <span class="nam">p_in</span> <span class="op">=</span> <span class="nam">float</span><span class="op">(</span><span class="nam">out</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"input_power_w"</span><span class="op">,</span> <span class="num">0.0</span><span class="op">)</span> <span class="key">or</span> <span class="num">0.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">    <span class="key">if</span> <span class="nam">p_in</span> <span class="op">&lt;=</span> <span class="num">0.0</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">        <span class="nam">_compute_directivity_norm</span><span class="op">(</span><span class="nam">out</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">        <span class="key">return</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">        <span class="nam">_compute_directivity_norm</span><span class="op">(</span><span class="nam">out</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">        <span class="key">return</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t">    <span class="nam">k</span> <span class="op">=</span> <span class="nam">float</span><span class="op">(</span><span class="nam">out</span><span class="op">[</span><span class="str">"k_meas_m_inv"</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t185" href="#t185">185</a></span><span class="t">    <span class="nam">out</span><span class="op">[</span><span class="str">"directivity_norm"</span><span class="op">]</span> <span class="op">=</span> <span class="nam">_ETA0</span> <span class="op">*</span> <span class="nam">k</span> <span class="op">*</span> <span class="nam">k</span> <span class="op">/</span> <span class="op">(</span><span class="num">8.0</span> <span class="op">*</span> <span class="nam">np</span><span class="op">.</span><span class="nam">pi</span> <span class="op">*</span> <span class="nam">p_in</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t186" href="#t186">186</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -439,7 +439,7 @@
     <p class="pln"><span class="n"><a id="t357" href="#t357">357</a></span><span class="t">        <span class="com"># Size the grid to the structure's electrical extent. Segment midpoints</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t358" href="#t358">358</a></span><span class="t">        <span class="com"># under-cover the true endpoints by at most half a (sub-&#955;) segment &#8212;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t359" href="#t359">359</a></span><span class="t">        <span class="com"># negligible for the bounding-box diagonal used to pick the resolution.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t360" href="#t360">360</a></span><span class="t">        <span class="nam">n_theta</span><span class="op">,</span> <span class="nam">n_phi</span> <span class="op">=</span> <span class="nam">_adaptive_norm_grid</span><span class="op">(</span><span class="nam">k</span><span class="op">,</span> <span class="nam">mid</span><span class="op">.</span><span class="nam">min</span><span class="op">(</span><span class="nam">axis</span><span class="op">=</span><span class="num">0</span><span class="op">)</span><span class="op">,</span> <span class="nam">mid</span><span class="op">.</span><span class="nam">max</span><span class="op">(</span><span class="nam">axis</span><span class="op">=</span><span class="num">0</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t360" href="#t360">360</a></span><span class="t">        <span class="nam">n_theta</span><span class="op">,</span> <span class="nam">n_phi</span> <span class="op">=</span> <span class="nam">_adaptive_norm_grid</span><span class="op">(</span><span class="nam">k</span><span class="op">,</span> <span class="nam">mid</span><span class="op">.</span><span class="nam">min</span><span class="op">(</span><span class="nam">axis</span><span class="op">=</span><span class="num">0</span><span class="op">)</span><span class="op">,</span> <span class="nam">mid</span><span class="op">.</span><span class="nam">max</span><span class="op">(</span><span class="nam">axis</span><span class="op">=</span><span class="num">0</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t361" href="#t361">361</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t362" href="#t362">362</a></span><span class="t">    <span class="com"># &#952; integration in u = cos &#952;, with the sin &#952; Jacobian (du = &#8722;sin &#952; d&#952;)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t363" href="#t363">363</a></span><span class="t">    <span class="com"># folded into `w_theta` so the radiated-power sum below needs no extra sin &#952;</span>&nbsp;</span><span class="r"></span></p>
@@ -1480,7 +1480,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_user_designs_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 16:35 +0000
+            created at 2026-07-11 16:50 +0000
         </p>
     </div>
 </footer>
