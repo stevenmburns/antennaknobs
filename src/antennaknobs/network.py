@@ -243,14 +243,51 @@ class Shunt:
     qc: float | None = None  # capacitor Q: adds ESR = 1/(omega*C*Q)
 
 
-Branch = Union[TL, Load, TwoPort, Shunt]
+@dataclass(frozen=True)
+class Transformer:
+    """Ideal transformer between two ports, with optional loss — the
+    balun/unun element (issue #301). Each winding spans its port's node to
+    the common datum (the same two-terminal convention every branch uses).
+
+    n is the a:b turns ratio: v_a = n·v_b and i_b = −n·i_a, so the
+    impedance seen at port a is n²·Z_b — a 4:1 balun stepping a ~300 Ω
+    folded-dipole feed down to ~75 Ω line is `Transformer(a=line_side,
+    b=feed, n=0.5)`. n = 1 (with no loss) is an ideal through-connection;
+    n = 0 is rejected at stamp time (it would pin v_a = 0 while
+    open-circuiting b — no physical transformer does that).
+
+    Loss model, deliberately minimal (enough to reproduce a published
+    insertion-loss curve's shape, not a full transformer model):
+      r     — series winding resistance in Ω, referred to side a
+              (constitutive row v_a − n·v_b = r·i_a);
+      lmag  — magnetizing inductance in H, shunted across side a: at low
+              frequency ωL_mag stops dwarfing the source impedance and
+              insertion loss rises, the classic balun low-end rolloff;
+      qlmag — finite Q of the magnetizing branch (core loss), same
+              convention as `ql` elsewhere (issue #298).
+
+    Reducer-only on both engines: there is no native NEC card for an
+    ideal transformer (nt_card could bake a lossy 2×2 but not the ideal
+    ratio), so a Transformer always takes the shared MNA path. Its
+    dissipation (winding + magnetizing) itemizes in the power budget
+    (issue #299)."""
+
+    a: str
+    b: str
+    n: float
+    r: float | None = None
+    lmag: float | None = None
+    qlmag: float | None = None
+
+
+Branch = Union[TL, Load, TwoPort, Shunt, Transformer]
 
 
 def _branch_port_refs(br):
     """Port names a branch references, regardless of branch type."""
-    if hasattr(br, "a"):  # TL, TwoPort
+    if hasattr(br, "a"):  # TL, TwoPort, Transformer
         return (br.a, br.b)
-    return (br.port,)  # Load
+    return (br.port,)  # Load, Shunt
 
 
 def _series_rlc_impedance(r, l, c, omega, ql=None, qc=None):

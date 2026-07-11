@@ -9,6 +9,7 @@ from ..network import (
     PortVirtual,
     Shunt,
     TL,
+    Transformer,
     TwoPort,
     _series_rlc_impedance,
     load_impedance,
@@ -300,8 +301,9 @@ class PyNECEngine(SimulationEngine):
         if any(isinstance(p, PortVirtual) for p in net.ports.values()):
             return True
         # A Shunt to common has no native NEC card (there's no 1-port
-        # shunt-to-common primitive); always reduce it.
-        if any(isinstance(b, Shunt) for b in net.branches):
+        # shunt-to-common primitive); always reduce it. Same for the ideal
+        # Transformer (issue #301): no NEC card expresses the ideal ratio.
+        if any(isinstance(b, (Shunt, Transformer)) for b in net.branches):
             return True
         # A finite-Q Load (issue #298) needs R = ωL/Q re-derived at every
         # frequency; ld_card takes fixed R/L/C baked into one context, which
@@ -328,10 +330,11 @@ class PyNECEngine(SimulationEngine):
             raise ValueError("native_nt=True requires a build_network() design")
         if not any(isinstance(b, TwoPort) for b in net.branches):
             raise ValueError("native_nt=True but the network has no TwoPort branch")
-        if any(isinstance(b, Shunt) for b in net.branches):
+        if any(isinstance(b, (Shunt, Transformer)) for b in net.branches):
             raise ValueError(
-                "native_nt=True cannot emit a Shunt natively (no 1-port "
-                "shunt-to-common NEC card); run the default reducer path instead"
+                "native_nt=True cannot emit a Shunt or Transformer natively "
+                "(no 1-port shunt-to-common NEC card; no card for an ideal "
+                "transformer ratio); run the default reducer path instead"
             )
         if any(isinstance(b, TL) for b in net.branches):
             raise ValueError(
