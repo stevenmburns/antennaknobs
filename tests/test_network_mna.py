@@ -90,7 +90,7 @@ def test_bare_driven_port():
     y = synth_y(1, 0)
     red = reducer(net, 1)
     assert red.driven_impedance(y, WL)[0] == pytest.approx(1.0 / y[0, 0], rel=1e-12)
-    v, eff, p_in = red.excited_state(y, WL)
+    v, eff, p_in, *_ = red.excited_state(y, WL)
     assert v[0] == pytest.approx(1.0)
     assert eff == 1.0
     assert p_in == pytest.approx(0.5 * float(np.real(np.conj(y[0, 0]))), rel=1e-12)
@@ -139,7 +139,7 @@ def test_virtual_driver_with_tl_matches_line_transform():
     z_expect = z0 * (z_l + 1j * z0 * t) / (z0 + 1j * z_l * t)
     red = reducer(net, 1)
     assert red.driven_impedance(y, WL)[0] == pytest.approx(z_expect, rel=1e-9)
-    _v, eff, _p = red.excited_state(y, WL)
+    _v, eff, _p, *_ = red.excited_state(y, WL)
     assert eff == 1.0
 
 
@@ -190,7 +190,7 @@ def test_twoport_bridge():
     assert red.driven_impedance(y, WL)[0] == pytest.approx(
         v_ref[0] / i_ref[0], rel=1e-9
     )
-    v, _eff, _p = red.excited_state(y, WL)
+    v, _eff, _p, *_ = red.excited_state(y, WL)
     np.testing.assert_allclose(v, v_ref, rtol=1e-9)
 
 
@@ -259,7 +259,7 @@ def test_series_load_terminated_port():
     assert red.driven_impedance(y, WL)[0] == pytest.approx(
         v_ref[0] / i_ref[0], rel=1e-9
     )
-    v, eff, p_in = red.excited_state(y, WL)
+    v, eff, p_in, *_ = red.excited_state(y, WL)
     np.testing.assert_allclose(v, v_ref, rtol=1e-9)
     p_in_ref = 0.5 * float(np.real(v_ref[0] * np.conj(i_ref[0])))
     p_diss_ref = 0.5 * r_l * abs(v_ref[1] / r_l) ** 2
@@ -281,7 +281,7 @@ def test_driven_and_loaded_same_port():
     z_ant = 1.0 / y[0, 0]
     red = reducer(net, 1)
     assert red.driven_impedance(y, WL)[0] == pytest.approx(z_l + z_ant, rel=1e-9)
-    v, eff, p_in = red.excited_state(y, WL)
+    v, eff, p_in, *_ = red.excited_state(y, WL)
     i = 1.0 / (z_l + z_ant)
     assert v[0] == pytest.approx(z_ant * i, rel=1e-9)  # physical gap voltage
     assert p_in == pytest.approx(0.5 * float(np.real(np.conj(i))), rel=1e-9)
@@ -306,7 +306,7 @@ def test_parallel_trap_load_off_resonance():
     assert red.driven_impedance(y, WL)[0] == pytest.approx(
         v_ref[0] / i_ref[0], rel=1e-9
     )
-    v, _eff, _p = red.excited_state(y, WL)
+    v, _eff, _p, *_ = red.excited_state(y, WL)
     np.testing.assert_allclose(v, v_ref, rtol=1e-9)
 
 
@@ -353,7 +353,7 @@ def test_everything_at_once():
     red = reducer(net, 4)
     z = red.driven_impedance(y, WL)
     np.testing.assert_allclose(z, v_ref[[4, 1]] / i_ref[[4, 1]], rtol=1e-9)
-    v, _eff, _p = red.excited_state(y, WL)
+    v, _eff, _p, *_ = red.excited_state(y, WL)
     np.testing.assert_allclose(v, v_ref, rtol=1e-9)
 
 
@@ -471,7 +471,7 @@ def test_trap_load_at_exact_resonance_is_open():
     )
     y = synth_y(2, 5)
     red = reducer(net, 2)
-    v, eff, p_in = red.excited_state(y, WL)
+    v, eff, p_in, *_ = red.excited_state(y, WL)
     assert np.all(np.isfinite(v)) and np.isfinite(p_in)
     assert eff == pytest.approx(1.0)  # an open burns nothing
     # Open termination at the arm: the arm port floats (I_ext = 0), the same

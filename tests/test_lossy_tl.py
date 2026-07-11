@@ -46,7 +46,7 @@ def _gamma(tl, wavelength):
 def _powers(reducer, z_ant):
     """(p_in at the rig, power delivered into the antenna resistance)."""
     y_real = np.array([[1.0 / z_ant]], dtype=np.complex128)
-    v, _eff, p_in = reducer.excited_state(y_real, WL)
+    v, _eff, p_in, *_ = reducer.excited_state(y_real, WL)
     p_ant = 0.5 * abs(v[0]) ** 2 * np.real(1.0 / z_ant)
     return p_in, p_ant
 

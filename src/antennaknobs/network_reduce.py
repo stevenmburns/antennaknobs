@@ -153,7 +153,7 @@ class MNASystem:
     impedance is ``emf / j[column]`` read straight off the solution.
     """
 
-    def __init__(self, G, elements, terminations):
+    def __init__(self, G, elements, terminations, probes=None):
         n = G.shape[0]
         m = len(elements)
         A = np.zeros((n + m, n + m), dtype=np.complex128)
@@ -173,7 +173,37 @@ class MNASystem:
         self.A = A
         self.rhs = rhs
         self.terminations = terminations
+        self.elements = elements
+        # (label, kind, payload) probes for the power budget (issue #299):
+        # kind "group1" → payload (node_idx_list, stamped Y block);
+        # kind "group2" → payload element index; kind "termination" →
+        # payload node index (dissipation = the Load part of the branch).
+        self.probes = probes or []
         self._solution = None
+
+    def branch_power(self, label_kind_payload):
+        """Time-average power in watts dissipated in one probed branch of
+        the SOLVED system (issue #299). Group-1 stamps: ½·Re(v†·Y_br·v)
+        over the branch's own stamped block (≈ 0 for a lossless TL, > 0
+        for a lossy one). Group-2 elements: ½·Re((v_a − v_b)·j*), the drop
+        across the element times its explicit branch current — exact in
+        both impedance and admittance form, including shorts and opens.
+        Terminations: ½·Re((E − v_k)·j*), the drop across the Load part
+        (the EMF term is the port's input power, not dissipation)."""
+        v, j = self.solve()
+        label, kind, payload = label_kind_payload
+        if kind == "group1":
+            nodes, y_block = payload
+            vb = v[nodes]
+            return 0.5 * float(np.real(np.conj(vb) @ (y_block @ vb)))
+        if kind == "group2":
+            el = self.elements[payload]
+            va = 0j if el.a is None else v[el.a]
+            vb = 0j if el.b is None else v[el.b]
+            return 0.5 * float(np.real((va - vb) * np.conj(j[payload])))
+        # termination: the Load part of the source/load branch at node k.
+        col, e = self.terminations[payload]
+        return 0.5 * float(np.real((e - v[payload]) * np.conj(j[col])))
 
     def solve(self):
         """Solve once (cached); returns ``(v, j)``."""
@@ -250,10 +280,11 @@ class NetworkReducer:
 
         elements = []
         loads_by_node = {}
+        probes = []
         for br in self.network.branches:
             if isinstance(br, TL):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
-                G[np.ix_([a, b], [a, b])] += tl_admittance_2x2(
+                y_tl = tl_admittance_2x2(
                     br.z0,
                     br.length,
                     wavelength,
@@ -262,18 +293,26 @@ class NetworkReducer:
                     k1=br.k1,
                     k2=br.k2,
                 )
+                G[np.ix_([a, b], [a, b])] += y_tl
+                probes.append((f"TL {br.a}→{br.b}", "group1", ([a, b], y_tl)))
             elif isinstance(br, TwoPort):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
+                probes.append((f"TwoPort {br.a}→{br.b}", "group2", len(elements)))
                 elements.append(
                     _series_group2(a, b, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc)
                 )
             elif isinstance(br, Shunt):
                 k = self.port_to_idx[br.port]
                 if br.parallel:
-                    G[k, k] += _parallel_rlc_admittance(
+                    y_sh = _parallel_rlc_admittance(
                         br.r, br.l, br.c, omega, br.ql, br.qc
                     )
+                    G[k, k] += y_sh
+                    probes.append(
+                        (f"Shunt {br.port}", "group1", ([k], np.array([[y_sh]])))
+                    )
                 else:
+                    probes.append((f"Shunt {br.port}", "group2", len(elements)))
                     elements.append(
                         _series_group2(
                             k, None, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc
@@ -313,8 +352,11 @@ class NetworkReducer:
                 el = _Group2Element(None, k, c_v=0j, c_j=1.0 + 0j, e=0j)
             terminations[k] = (len(elements), e)
             elements.append(el)
+            if loads:
+                names = [br.port for br in loads]
+                probes.append((f"Load {'+'.join(names)}", "termination", k))
 
-        return MNASystem(G, elements, terminations)
+        return MNASystem(G, elements, terminations, probes=probes)
 
     def resolve_voltages(self, system):
         """Return the (n_total,) physical port-voltage vector of the solved
@@ -327,43 +369,57 @@ class NetworkReducer:
         return v.copy()
 
     def excited_state(self, Y_real, wavelength):
-        """Physical port voltages + radiation efficiency for the CURRENT-
-        DISTRIBUTION / far-field solve — the same MNA solve as the
-        impedance path, read out for power bookkeeping.
+        """Physical port voltages + radiation efficiency + per-branch power
+        budget for the CURRENT-DISTRIBUTION / far-field solve — the same
+        MNA solve as the impedance path, read out for power bookkeeping.
 
-        Returns ``(V_full, efficiency, p_in)``:
+        Returns ``(V_full, efficiency, p_in, budget)``:
           V_full      -- (n_total,) port voltages to force in the excited solver
           efficiency  -- P_radiated / P_input = 1 - P_dissipated / P_input, the
                          fraction of input power radiated rather than burned in
-                         resistive loads. A load-free / lossless network
+                         the network. A load-free / lossless network
                          returns 1.0.
           p_in        -- input power 1/2 Re(Σ V_src · I*) in watts, the gain
                          normaliser (gain = 4π·U/P_in); it already includes the
-                         power burned in resistive loads.
+                         power burned in the network.
+          budget      -- list of ``(label, watts)`` per network branch, in
+                         branch order (issue #299): TL and parallel-Shunt
+                         stamps via ½·Re(v†·Y_br·v), TwoPort/series-Shunt
+                         via their explicit branch currents, Loads via the
+                         termination drop. Lossless branches report ~0.
+                         Power delivered to the antenna (radiated + any
+                         wire/ground loss inside the MoM solve) is
+                         p_in − Σ watts.
 
-        The termination branches carry the physical port currents, so both
-        power sums read directly off the solution vector:
+        The termination branches carry the physical port currents, so the
+        source power reads directly off the solution vector:
 
             p_in   = ½ Σ Re(E_k · j_k*)          (E = 0 terms vanish)
-            p_diss = ½ Σ Re((E_k − v_k) · j_k*)  (the drop across the load
-                                                  part is Z_L·j, so this is
-                                                  ½·Re(Z_L)·|j|² without ever
-                                                  forming a trap's ∞)
 
-        Reactive loads (a loading coil) burn nothing, so they leave
-        efficiency at 1.0. Dissipation in resistive TwoPort/Shunt branches
-        is deliberately NOT counted, matching the pre-MNA accounting; it
-        still lowers gain through p_in.
+        Reactive elements burn nothing and report ~0 in the budget.
+        Efficiency counts EVERY dissipative network branch — resistive
+        TwoPort/Shunt elements and lossy TLs included (issue #299; the
+        pre-#299 accounting counted Load terminations only, so designs
+        with resistive coupling/matching branches now report a lower,
+        physically consistent efficiency).
         """
         system = self.apply_branches(Y_real, wavelength)
         v, j = system.solve()
         p_in = 0.0
-        p_diss = 0.0
         for k, (col, e) in system.terminations.items():
             p_in += 0.5 * float(np.real(e * np.conj(j[col])))
-            p_diss += 0.5 * float(np.real((e - v[k]) * np.conj(j[col])))
+        budget = [
+            (label, system.branch_power((label, kind, payload)))
+            for label, kind, payload in system.probes
+        ]
+        p_diss = sum(w for _label, w in budget)
+        # A lossless network's probes read pure float noise (|w| ~ 1e-17·p_in
+        # from the reactive TL stamp); snap that to exactly 1.0 so lossless
+        # designs keep reporting unity efficiency.
+        if p_in > 0.0 and abs(p_diss) <= 1e-9 * p_in:
+            p_diss = 0.0
         efficiency = 1.0 if p_in <= 0.0 else max(0.0, min(1.0, 1.0 - p_diss / p_in))
-        return v.copy(), efficiency, p_in
+        return v.copy(), efficiency, p_in, budget
 
     def impedance_from_y(self, system):
         """Driven-point impedance per Driven source from an `apply_branches`

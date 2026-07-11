@@ -622,10 +622,25 @@ def cli(arguments=None):
     def f(args):
         builder = get_builder(args.builder)
         engine = engine_factory_from_args(args)
+        eng = engine(builder())
         if args.wireframe:
-            pattern3d(engine(builder()), fn=args.fn)
+            pattern3d(eng, fn=args.fn)
         else:
-            pattern(engine(builder()), elevation_angle=args.elevation_angle, fn=args.fn)
+            pattern(eng, elevation_angle=args.elevation_angle, fn=args.fn)
+        # Power budget (issue #299): where the source watts went, from the
+        # excited solve the pattern just ran. Only printed when the design
+        # has a network with something to report.
+        budget = getattr(eng, "_excited_power_budget", None)
+        p_in = getattr(eng, "_excited_p_in", None)
+        if budget and p_in:
+            print(f"input power: {p_in * 1e3:.4g} mW")
+            p_network = 0.0
+            for label, w in budget:
+                w = max(0.0, w)
+                p_network += w
+                print(f"  {label}: {w * 1e3:.4g} mW ({w / p_in:.1%})")
+            p_ant = p_in - p_network
+            print(f"  antenna (radiated): {p_ant * 1e3:.4g} mW ({p_ant / p_in:.1%})")
 
     p.set_defaults(func=f)
 

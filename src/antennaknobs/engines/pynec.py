@@ -80,6 +80,7 @@ class PyNECEngine(SimulationEngine):
         # NEC's own get_gain so engine-switching keeps the pattern meaning
         # the same thing. 1.0 = no resistive loss.
         self._excited_efficiency = 1.0
+        self._excited_power_budget = []
         # Source input power 1/2·Re(Σ V·I*) in watts from the same solve; the
         # web gain normaliser is η₀k²/(8π·P_in). None until a solve runs.
         self._excited_p_in = None
@@ -414,10 +415,11 @@ class PyNECEngine(SimulationEngine):
         return sc.get_current()[matches[seg - 1]]
 
     def _radiation_efficiency(self, sc, wavelength):
-        """Return ``(efficiency, p_in)``: the fraction of source input power
-        radiated rather than burned in explicit resistive Load branches
-        (1.0 when there are none), and the source input power
-        1/2·Re(Σ V·I*) itself in watts (the gain normaliser 4π·U/P_in).
+        """Return ``(efficiency, p_in, budget)``: the fraction of source
+        input power radiated rather than burned in the network (1.0 when it
+        is lossless), the source input power 1/2·Re(Σ V·I*) itself in watts
+        (the gain normaliser 4π·U/P_in), and the per-branch power budget
+        [(label, watts)] (issue #299).
 
         This mirrors MomwireEngine so the web UI normalises the far-field
         cut identically on either engine. The efficiency matches NEC's own
@@ -435,8 +437,8 @@ class PyNECEngine(SimulationEngine):
         # reducer; reuse its port-level efficiency and input power.
         if self._network is not None and self._use_reducer:
             Y = self._compute_y_matrix(wavelength)
-            _v, efficiency, p_in = self._reducer.excited_state(Y, wavelength)
-            return efficiency, p_in
+            _v, efficiency, p_in, budget = self._reducer.excited_state(Y, wavelength)
+            return efficiency, p_in, budget
         # Native path: source input power from NEC's ANTENNA INPUT
         # PARAMETERS (index 0 — `sc` always comes from the single-frequency
         # solve here). NEC's per-source power uses the network-corrected
@@ -451,14 +453,17 @@ class PyNECEngine(SimulationEngine):
             else []
         )
         if not loads or p_in <= 0.0:
-            return 1.0, p_in
+            return 1.0, p_in, []
         omega = 2.0 * np.pi * C_LIGHT / wavelength
         p_diss = 0.0
+        budget = []
         for br in loads:
             tag, seg = self._network_port_loc[br.port]
             cur = self._port_current(sc, tag, seg)
-            p_diss += 0.5 * load_impedance(br, omega).real * abs(cur) ** 2
-        return max(0.0, min(1.0, 1.0 - p_diss / p_in)), p_in
+            w = 0.5 * load_impedance(br, omega).real * abs(cur) ** 2
+            budget.append((f"Load {br.port}", w))
+            p_diss += w
+        return max(0.0, min(1.0, 1.0 - p_diss / p_in)), p_in, budget
 
     def _compute_y_matrix(self, wavelength):
         """Multiport short-circuit Y at the real ports, via one NEC solve per
@@ -578,9 +583,11 @@ class PyNECEngine(SimulationEngine):
             self.c = self._excited_real_context(C_LIGHT / (self.builder.freq * 1e6))
         self._set_freq_and_execute()
         sc = self.c.get_structure_currents(0)
-        self._excited_efficiency, self._excited_p_in = self._radiation_efficiency(
-            sc, C_LIGHT / (self.builder.freq * 1e6)
-        )
+        (
+            self._excited_efficiency,
+            self._excited_p_in,
+            self._excited_power_budget,
+        ) = self._radiation_efficiency(sc, C_LIGHT / (self.builder.freq * 1e6))
         all_tags = list(sc.get_current_segment_tag())
         all_cur = sc.get_current()
 
