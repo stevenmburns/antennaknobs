@@ -34,13 +34,13 @@ The antenna-simulation market splits into three tiers:
 | **Solvers** | Two independent engines: **PyNEC** (NEC-2 via `necpp` wrapper) and **pysim** (pure-Python MoM). pysim offers 3 basis families: **TriangularPySim**, **SinusoidalPySim** (NEC2-style 3-term), **BSplinePySim** (degree 1–2, KCL junctions, ground via images). Large-N accelerator solvers, selectable and integrated into `PysimEngine` (impedance, sweep, current, and far-field all supported): **HMatrixPySim** (ACA + GMRES + near-field preconditioner), **ArrayBlockPySim** (block-low-rank for arrays; integrated via PR 103). C++ pybind11 accelerators (`_accelerators.cpp`, libmvec SIMD sincos) for Z-matrix fill. |
 | **Geometry** | 69+ wire designs: dipoles, inverted-V, Yagis, loops (delta/diamond/horizontal), fan/trap dipoles, Moxon, hexbeam, Sterba, LPDA, hentenna, + 25 Cebik reference designs (bobtail, bruce, G5RV, half-square, J-pole, quad, rhombic, W8JK, Zepp…). Arrays (1×4, 2×2, 2×4, grouped). Junctions (KCL), closed loops (driven / parasitic / terminated two-port), bent wires, multi-feed, port-based networks (TL + lumped R/L/C via `build_network`). |
 | **Outputs** | Impedance Z, Γ, SWR, current distribution (knot positions/currents), far-field directivity/gain (dBi), 2D pattern rings, elevation/azimuth cuts, radiation efficiency (loaded antennas), multi-port short-circuit Y. |
-| **Ground** | Free space; PEC (image method, all pysim bases); finite ground (PyNEC full Sommerfeld; pysim = PEC image + Fresnel on reflected wave — **impedance still PEC, an approximation**). |
+| **Ground** | Free space; PEC (image method, all bases); finite ground — **full Sommerfeld–Norton on both engines** (PyNEC natively; momwire ≥ 0.8.0 on every solver, validated against NEC gn 2), plus a faster reflection-coefficient approximation on both. |
 | **Sweeps / opt** | Frequency sweep (batched swept-k Y-matrix), parameter sweep, gain sweep, pattern sweep, `scipy.optimize` (SLSQP/L-BFGS-B) parameter optimization, cross-engine comparison. |
 | **UI / viz** | React 18 + Vite web frontend: 3D WebGL geometry, current distribution (mag/phase), Smith chart w/ SWR circle, polar patterns (az/el), frequency-sweep plots, live parameter sliders, solver/ground selection. FastAPI backend, WebSocket sweeps. matplotlib for CLI plots. |
 | **I/O** | Designs as Python builder classes; network spec (TL, DiffTL, Load, TwoPort, ports-at-edges). **`.nec` card export** via `nec_export` (CLI `export` subcommand + web gear-menu download; validated against `nec2c`); TL/DiffTL reducer designs excepted. NEC card *import* not yet (PyNEC consumes cards only for cross-validation). matplotlib PNG export. |
 | **Performance** | OpenMP/BLAS threading, libmvec AVX2 sincos, K-independent geometry cache for sweeps, on-demand block eval for H-matrix. H-matrix tested on 100-director Yagi (2142 segments), O(N log N) vs dense O(N²). |
 | **API / CLI** | Python API (`AntennaBuilder`, engines, `sweep*`, `optimize`, `pattern`, `compare_patterns`); CLI subcommands `draw / sweep / optimize / pattern / compare_patterns`; uniform `SimulationEngine` interface. |
-| **Validation / limits** | Cross-validated against PyNEC (≤0.1 dBi directivity on dipole; ~1–3% R on loops and multi-feed arrays). **Genuine open limits:** pysim wires are PEC (no copper loss); pysim finite-ground impedance is approximate (PEC image + Fresnel); `DiffTL` is pysim-only (PyNEC raises `NotImplementedError`); strict `tl_card` numerical agreement with PyNEC is unmet on low-coupling geometries (a segment-vs-basis port-convention difference, not a bug). |
+| **Validation / limits** | Cross-validated against PyNEC (≤0.1 dBi directivity on dipole; ~1–3% R on loops and multi-feed arrays). **Genuine open limits:** pysim wires are PEC (no copper loss); `DiffTL` is pysim-only (PyNEC raises `NotImplementedError`); strict `tl_card` numerical agreement with PyNEC is unmet on low-coupling geometries (a segment-vs-basis port-convention difference, not a bug). |
 | **License / platform** | Open-source Python; cross-platform (web UI = browser-based). |
 
 ---
@@ -176,7 +176,7 @@ The antenna-simulation market splits into three tiers:
 | Smith chart | via AutoEZ | ✓ | – | ✓ | – | – | ✓ |
 | Optimizer | via AutoEZ | ✓ (GA) | ✓ | ✓ (Platinum) | ✓ | – | ✓ (scipy) |
 | `.nec` import/export | ✓ / ✓ | ✓ / ✓ | limited | own | ✓ / ✓ | ✓ / ✓ | **export ✓ / import ✗** |
-| Real/Sommerfeld ground (impedance) | ✓ | ✓ | MININEC | ✓ | ✓ | ✓ | **PyNEC ✓; pysim approx** |
+| Real/Sommerfeld ground (impedance) | ✓ | ✓ | MININEC | ✓ | ✓ | ✓ | **✓ (both engines)** |
 
 ---
 
@@ -217,7 +217,7 @@ Impedance / SWR / Γ, gain / directivity, far-field 2D patterns, current distrib
 
 ### Gaps worth noting
 - **`.nec` import (round-trip) not yet** — export now exists (`nec_export`: CLI + web download, validated against `nec2c`, and round-tripped through xnec2c), closing the headline interoperability gap. What remains is *reading* external `.nec` decks back in; that's the lower-leverage half (most amateur-tier value is getting designs *out* to existing tools). PyNEC has no deck reader, so import would mean a small `.nec` parser driving the card API.
-- **Finite-ground impedance on the triangular basis folds to the PEC image** — the B-spline family solves it with momwire's reflection-coefficient model (validated within ~2 Ω of NEC over 0.1–0.5λ heights), the sinusoidal basis matches NEC's reflection-coefficient ground to ~0.1 Ω (momwire ≥ 0.5.0; shared basis), and PyNEC offers full Sommerfeld–Norton, so real-ground work cross-checks across two independent engines; below ~0.1λ heights the Sommerfeld path is the reference.
+- ~~Finite-ground impedance approximate on the momwire path~~ **closed**: since momwire 0.8.0 every momwire solver (sinusoidal, B-spline, H-matrix, array-block) solves the true Sommerfeld–Norton ground, validated against NEC gn 2; 0.9.0's fused C++ kernel made it competitive with (often faster than) PyNEC's native path (`docs/status/2026-07-08-ground-model-benchmark.md`). The reflection-coefficient model remains as the fast option, so real-ground work cross-checks across two independent engines at full fidelity.
 - **No copper/conductor loss in pysim** (PEC wires); efficiency on lossy elements requires PyNEC + `ld_card`.
 - **No FEM/FDTD/asymptotic, GPU/MPI, multiphysics, SAR/RCS/EMC, CAD import, auto-adaptive meshing** — Tier-1 features, out of scope for a focused wire-MoM tool, but worth stating explicitly so the positioning is honest.
 - **Remaining solver caveats** (per `NEXT_STEPS.md`): pysim wires are PEC (no conductor loss); strict `tl_card` PyNEC numerical agreement is unmet on near-decoupled geometries (segment-vs-basis port convention).
