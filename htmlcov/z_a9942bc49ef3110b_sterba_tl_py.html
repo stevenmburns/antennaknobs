@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_a9942bc49ef3110b_vbeam_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -114,7 +114,7 @@
     <p class="pln"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="key">from</span> <span class="op">...</span> <span class="key">import</span> <span class="nam">AntennaBuilder</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Driven</span><span class="op">,</span> <span class="nam">Network</span><span class="op">,</span> <span class="nam">PortAtEdge</span><span class="op">,</span> <span class="nam">TL</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Driven</span><span class="op">,</span> <span class="nam">Network</span><span class="op">,</span> <span class="nam">PortOnWire</span><span class="op">,</span> <span class="nam">TL</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t"><span class="key">from</span> <span class="nam">types</span> <span class="key">import</span> <span class="nam">MappingProxyType</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -220,15 +220,15 @@
     <p class="run"><span class="n"><a id="t138" href="#t138">138</a></span><span class="t">        <span class="nam">z0</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">z0</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t139" href="#t139">139</a></span><span class="t">        <span class="nam">length</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_tl_length</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t140" href="#t140">140</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t141" href="#t141">141</a></span><span class="t">        <span class="nam">ports</span> <span class="op">=</span> <span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t141" href="#t141">141</a></span><span class="t">        <span class="nam">ports</span> <span class="op">=</span> <span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortOnWire</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t">        <span class="nam">branches</span> <span class="op">=</span> <span class="op">[</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t">        <span class="com"># One TL per junction j (1..n_sections-1): connects the right-end</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t">        <span class="com"># port of section j-1 to the left-end port of section j &#8212; the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">        <span class="com"># half-wave vertical phasing line, now ideal.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">        <span class="key">for</span> <span class="nam">j</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="num">1</span><span class="op">,</span> <span class="nam">n_sections</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t147" href="#t147">147</a></span><span class="t">            <span class="nam">a</span><span class="op">,</span> <span class="nam">b</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">p</span><span class="op">{</span><span class="nam">j</span><span class="op">}</span><span class="fst">_a</span><span class="fst">"</span><span class="op">,</span> <span class="fst">f"</span><span class="fst">p</span><span class="op">{</span><span class="nam">j</span><span class="op">}</span><span class="fst">_b</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t148" href="#t148">148</a></span><span class="t">            <span class="nam">ports</span><span class="op">[</span><span class="nam">a</span><span class="op">]</span> <span class="op">=</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="nam">a</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">            <span class="nam">ports</span><span class="op">[</span><span class="nam">b</span><span class="op">]</span> <span class="op">=</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="nam">b</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t148" href="#t148">148</a></span><span class="t">            <span class="nam">ports</span><span class="op">[</span><span class="nam">a</span><span class="op">]</span> <span class="op">=</span> <span class="nam">PortOnWire</span><span class="op">(</span><span class="nam">a</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">            <span class="nam">ports</span><span class="op">[</span><span class="nam">b</span><span class="op">]</span> <span class="op">=</span> <span class="nam">PortOnWire</span><span class="op">(</span><span class="nam">b</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t150" href="#t150">150</a></span><span class="t">            <span class="nam">branches</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">TL</span><span class="op">(</span><span class="nam">a</span><span class="op">=</span><span class="nam">a</span><span class="op">,</span> <span class="nam">b</span><span class="op">=</span><span class="nam">b</span><span class="op">,</span> <span class="nam">z0</span><span class="op">=</span><span class="nam">z0</span><span class="op">,</span> <span class="nam">length</span><span class="op">=</span><span class="nam">length</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t151" href="#t151">151</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t">        <span class="key">return</span> <span class="nam">Network</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -245,7 +245,7 @@
             <a class="nav" href="z_a9942bc49ef3110b_vbeam_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
     </div>
 </footer>

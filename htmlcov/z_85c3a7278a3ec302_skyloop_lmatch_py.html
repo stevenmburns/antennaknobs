@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_85c3a7278a3ec302_triangular_skyloop_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -112,7 +112,7 @@
     <p class="run"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t"><span class="key">from</span> <span class="nam">types</span> <span class="key">import</span> <span class="nam">MappingProxyType</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">triangular_skyloop</span> <span class="key">import</span> <span class="nam">Builder</span> <span class="key">as</span> <span class="nam">TriangularSkyloop</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Driven</span><span class="op">,</span> <span class="nam">Network</span><span class="op">,</span> <span class="nam">PortAtEdge</span><span class="op">,</span> <span class="nam">PortVirtual</span><span class="op">,</span> <span class="nam">Shunt</span><span class="op">,</span> <span class="nam">TwoPort</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Driven</span><span class="op">,</span> <span class="nam">Network</span><span class="op">,</span> <span class="nam">PortOnWire</span><span class="op">,</span> <span class="nam">PortVirtual</span><span class="op">,</span> <span class="nam">Shunt</span><span class="op">,</span> <span class="nam">TwoPort</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t"><span class="key">class</span> <span class="nam">Builder</span><span class="op">(</span><span class="nam">TriangularSkyloop</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -163,7 +163,7 @@
     <p class="pln"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t"><span class="str">        tuner is; 0 keeps the ideal coil."""</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="nam">ql</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">coil_q</span> <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">coil_q</span> <span class="op">></span> <span class="num">0</span> <span class="key">else</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">        <span class="key">return</span> <span class="nam">Network</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">,</span> <span class="str">"in"</span><span class="op">:</span> <span class="nam">PortVirtual</span><span class="op">(</span><span class="str">"in"</span><span class="op">)</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortOnWire</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">,</span> <span class="str">"in"</span><span class="op">:</span> <span class="nam">PortVirtual</span><span class="op">(</span><span class="str">"in"</span><span class="op">)</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">            <span class="nam">branches</span><span class="op">=</span><span class="op">[</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">                <span class="nam">TwoPort</span><span class="op">(</span><span class="nam">a</span><span class="op">=</span><span class="str">"in"</span><span class="op">,</span> <span class="nam">b</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">l</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">series_L_uH</span> <span class="op">*</span> <span class="num">1e-6</span><span class="op">,</span> <span class="nam">ql</span><span class="op">=</span><span class="nam">ql</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">                <span class="nam">Shunt</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">c</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">shunt_C_pF</span> <span class="op">*</span> <span class="num">1e-12</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -179,7 +179,7 @@
             <a class="nav" href="z_85c3a7278a3ec302_triangular_skyloop_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
     </div>
 </footer>

@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_f7d352a3eb031b64_dipole_turnstile_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -112,7 +112,7 @@
     <p class="pln"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="key">from</span> <span class="op">...</span> <span class="key">import</span> <span class="nam">AntennaBuilder</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Driven</span><span class="op">,</span> <span class="nam">Load</span><span class="op">,</span> <span class="nam">Network</span><span class="op">,</span> <span class="nam">PortAtEdge</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Driven</span><span class="op">,</span> <span class="nam">Load</span><span class="op">,</span> <span class="nam">Network</span><span class="op">,</span> <span class="nam">PortOnWire</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="key">import</span> <span class="nam">math</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="key">from</span> <span class="nam">types</span> <span class="key">import</span> <span class="nam">MappingProxyType</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -197,7 +197,7 @@
     <p class="pln"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">    <span class="key">def</span> <span class="nam">build_network</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">        <span class="key">return</span> <span class="nam">Network</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">,</span> <span class="str">"term"</span><span class="op">:</span> <span class="nam">PortAtEdge</span><span class="op">(</span><span class="str">"term"</span><span class="op">)</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">            <span class="nam">ports</span><span class="op">=</span><span class="op">{</span><span class="str">"feed"</span><span class="op">:</span> <span class="nam">PortOnWire</span><span class="op">(</span><span class="str">"feed"</span><span class="op">)</span><span class="op">,</span> <span class="str">"term"</span><span class="op">:</span> <span class="nam">PortOnWire</span><span class="op">(</span><span class="str">"term"</span><span class="op">)</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">            <span class="nam">branches</span><span class="op">=</span><span class="op">[</span><span class="nam">Load</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="str">"term"</span><span class="op">,</span> <span class="nam">r</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">term_r</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">            <span class="nam">sources</span><span class="op">=</span><span class="op">[</span><span class="nam">Driven</span><span class="op">(</span><span class="nam">port</span><span class="op">=</span><span class="str">"feed"</span><span class="op">,</span> <span class="nam">voltage</span><span class="op">=</span><span class="num">1</span> <span class="op">+</span> <span class="num">0j</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -210,7 +210,7 @@
             <a class="nav" href="z_f7d352a3eb031b64_dipole_turnstile_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
     </div>
 </footer>

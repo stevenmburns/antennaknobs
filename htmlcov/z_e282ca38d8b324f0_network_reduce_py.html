@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_opt_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -84,7 +84,7 @@
     <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="str">impedances, on top of a raw multiport antenna admittance matrix.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">Both MomwireEngine and PyNECEngine assemble the antenna's short-circuit Y at</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">the real (`PortAtEdge`) ports, then hand it here with a port-name -> matrix-</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">the real (`PortOnWire`) ports, then hand it here with a port-name -> matrix-</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">index map. This module stamps the network branches and sources into one</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">Modified Nodal Analysis (MNA) system &#8212; the SPICE formulation, issue #285 &#8212;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">and solves it once for everything: driven-port impedances, physical port</span>&nbsp;</span><span class="r"></span></p>
@@ -117,7 +117,7 @@
     <p class="run run2"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t">    <span class="nam">TL</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">    <span class="nam">Driven</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">    <span class="nam">Load</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">    <span class="nam">PortAtEdge</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">    <span class="nam">PortOnWire</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">    <span class="nam">Shunt</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">    <span class="nam">TwoPort</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">    <span class="nam">_parallel_rlc_admittance</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -401,10 +401,10 @@
     <p class="run run2"><span class="n"><a id="t319" href="#t319">319</a></span><span class="t">                        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t320" href="#t320">320</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t321" href="#t321">321</a></span><span class="t">            <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">br</span><span class="op">,</span> <span class="nam">Load</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t322" href="#t322">322</a></span><span class="t">                <span class="key">if</span> <span class="key">not</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">network</span><span class="op">.</span><span class="nam">ports</span><span class="op">[</span><span class="nam">br</span><span class="op">.</span><span class="nam">port</span><span class="op">]</span><span class="op">,</span> <span class="nam">PortAtEdge</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t322" href="#t322">322</a></span><span class="t">                <span class="key">if</span> <span class="key">not</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">network</span><span class="op">.</span><span class="nam">ports</span><span class="op">[</span><span class="nam">br</span><span class="op">.</span><span class="nam">port</span><span class="op">]</span><span class="op">,</span> <span class="nam">PortOnWire</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t323" href="#t323">323</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t324" href="#t324">324</a></span><span class="t">                        <span class="fst">f"</span><span class="fst">Load on virtual port </span><span class="op">{</span><span class="nam">br</span><span class="op">.</span><span class="nam">port</span><span class="op">!</span><span class="nam">r</span><span class="op">}</span><span class="fst">: a Load is a series </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t325" href="#t325">325</a></span><span class="t">                        <span class="str">"impedance on an antenna segment, which only PortAtEdge has"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t325" href="#t325">325</a></span><span class="t">                        <span class="str">"impedance on an antenna segment, which only PortOnWire has"</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t326" href="#t326">326</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t327" href="#t327">327</a></span><span class="t">                <span class="nam">loads_by_node</span><span class="op">.</span><span class="nam">setdefault</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">port_to_idx</span><span class="op">[</span><span class="nam">br</span><span class="op">.</span><span class="nam">port</span><span class="op">]</span><span class="op">,</span> <span class="op">[</span><span class="op">]</span><span class="op">)</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">br</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t328" href="#t328">328</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -537,7 +537,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_opt_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-11 20:26 +0000
+            created at 2026-07-11 20:55 +0000
         </p>
     </div>
 </footer>
