@@ -302,6 +302,14 @@ class PyNECEngine(SimulationEngine):
         # shunt-to-common primitive); always reduce it.
         if any(isinstance(b, Shunt) for b in net.branches):
             return True
+        # A finite-Q Load (issue #298) needs R = ωL/Q re-derived at every
+        # frequency; ld_card takes fixed R/L/C baked into one context, which
+        # would freeze the loss resistance at the first frequency of a sweep.
+        if any(
+            isinstance(b, Load) and (b.ql is not None or b.qc is not None)
+            for b in net.branches
+        ):
+            return True
         # TwoPort goes native only when the oracle switch is on; otherwise it
         # is a shared-reducer stamp (the general path both engines agree on).
         if any(isinstance(b, TwoPort) for b in net.branches):
@@ -334,6 +342,15 @@ class PyNECEngine(SimulationEngine):
             raise ValueError(
                 "native_nt=True requires every port to be a real edge; "
                 "nt_card attaches to real segments, not virtual nodes"
+            )
+        if any(
+            (isinstance(b, (Load, TwoPort)) and (b.ql is not None or b.qc is not None))
+            for b in net.branches
+        ):
+            raise ValueError(
+                "native_nt=True cannot bake finite-Q components (issue #298): "
+                "R = ωL/Q changes with frequency but ld_card/nt_card values "
+                "are fixed in the context; run the default reducer path instead"
             )
 
     def _init_network(self):

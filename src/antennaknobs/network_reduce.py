@@ -125,16 +125,17 @@ class _Group2Element:
     e: complex
 
 
-def _series_group2(a, b, r, l, c, omega, emf=0j):
+def _series_group2(a, b, r, l, c, omega, emf=0j, ql=None, qc=None):
     """Group-2 stamp of a series R + jωL + 1/(jωC) (+ optional EMF) between
     nodes a and b. A 0 F capacitor is an open in the series path (infinite
     reactance) → admittance form with y = 0 (the branch carries no current).
     Every other value combination has finite z — including the ideal short
     z = 0 (0 Ω, 0 H, all-omitted, or exact series-LC resonance), which the
-    old admittance-only stamps had to raise on."""
+    old admittance-only stamps had to raise on. `ql`/`qc` add the finite-Q
+    component losses (issue #298, see `network._series_rlc_impedance`)."""
     if c is not None and c == 0:
         return _Group2Element(a, b, c_v=0j, c_j=1.0 + 0j, e=0j)
-    z = _series_rlc_impedance(r, l, c, omega)
+    z = _series_rlc_impedance(r, l, c, omega, ql, qc)
     return _Group2Element(a, b, c_v=1.0 + 0j, c_j=z, e=emf)
 
 
@@ -263,13 +264,21 @@ class NetworkReducer:
                 )
             elif isinstance(br, TwoPort):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
-                elements.append(_series_group2(a, b, br.r, br.l, br.c, omega))
+                elements.append(
+                    _series_group2(a, b, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc)
+                )
             elif isinstance(br, Shunt):
                 k = self.port_to_idx[br.port]
                 if br.parallel:
-                    G[k, k] += _parallel_rlc_admittance(br.r, br.l, br.c, omega)
+                    G[k, k] += _parallel_rlc_admittance(
+                        br.r, br.l, br.c, omega, br.ql, br.qc
+                    )
                 else:
-                    elements.append(_series_group2(k, None, br.r, br.l, br.c, omega))
+                    elements.append(
+                        _series_group2(
+                            k, None, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc
+                        )
+                    )
             elif isinstance(br, Load):
                 if not isinstance(self.network.ports[br.port], PortAtEdge):
                     raise ValueError(

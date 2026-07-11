@@ -155,6 +155,8 @@ class Load:
     l: float | None = None
     c: float | None = None
     parallel: bool = False
+    ql: float | None = None  # coil Q: adds series R = omega*L/Q (issue #298)
+    qc: float | None = None  # capacitor Q: adds ESR = 1/(omega*C*Q)
 
 
 @dataclass(frozen=True)
@@ -185,6 +187,8 @@ class TwoPort:
     r: float | None = None
     l: float | None = None
     c: float | None = None
+    ql: float | None = None  # coil Q: adds series R = omega*L/Q (issue #298)
+    qc: float | None = None  # capacitor Q: adds ESR = 1/(omega*C*Q)
 
 
 @dataclass(frozen=True)
@@ -218,6 +222,8 @@ class Shunt:
     l: float | None = None
     c: float | None = None
     parallel: bool = False
+    ql: float | None = None  # coil Q: adds series R = omega*L/Q (issue #298)
+    qc: float | None = None  # capacitor Q: adds ESR = 1/(omega*C*Q)
 
 
 Branch = Union[TL, Load, TwoPort, Shunt]
@@ -230,29 +236,49 @@ def _branch_port_refs(br):
     return (br.port,)  # Load
 
 
-def _series_rlc_impedance(r, l, c, omega):
-    """Series R + jωL + 1/(jωC). Any of r/l/c may be None (omitted term)."""
+def _series_rlc_impedance(r, l, c, omega, ql=None, qc=None):
+    """Series R + jωL + 1/(jωC). Any of r/l/c may be None (omitted term).
+
+    Finite component Q (issue #298): `ql` adds the coil's series loss
+    R_coil = ωL/Q_L; `qc` adds the capacitor's ESR = 1/(ωC·Q_C). Both are
+    frequency-dependent by construction — a fixed `r` cannot express them
+    across a sweep. None (default) = ideal component."""
     z = 0.0 + 0.0j
     if r is not None:
         z += r
     if l is not None:
         z += 1j * omega * l
+        if ql is not None:
+            z += omega * l / ql
     if c is not None:
         z += 1.0 / (1j * omega * c)
+        if qc is not None:
+            z += 1.0 / (omega * c * qc)
     return z
 
 
-def _parallel_rlc_admittance(r, l, c, omega):
+def _parallel_rlc_admittance(r, l, c, omega, ql=None, qc=None):
     """Parallel 1/R + 1/(jωL) + jωC. Any of r/l/c may be None (omitted term).
     Trap dipoles use this: parallel-LC has Y → 0 at ω₀ = 1/√(LC), so the
-    branch opens at the trap's resonant frequency."""
+    branch opens at the trap's resonant frequency.
+
+    Finite Q (issue #298) lossifies each leg: the L leg becomes
+    1/(ωL/Q_L + jωL), the C leg 1/(1/(jωC) + 1/(ωC·Q_C)). A lossy trap no
+    longer opens completely — its resonant impedance tops out at the
+    textbook ≈ Q·ω₀L instead of ∞."""
     y = 0.0 + 0.0j
     if r is not None:
         y += 1.0 / r
     if l is not None:
-        y += 1.0 / (1j * omega * l)
+        zl = 1j * omega * l
+        if ql is not None:
+            zl += omega * l / ql
+        y += 1.0 / zl
     if c is not None:
-        y += 1j * omega * c
+        if qc is not None:
+            y += 1.0 / (1.0 / (1j * omega * c) + 1.0 / (omega * c * qc))
+        else:
+            y += 1j * omega * c
     return y
 
 
@@ -273,8 +299,8 @@ def load_series_admittance(br, omega):
     the series impedance is exactly 0 (series-LC short circuit), which the
     caller treats as "no series element" (the wire is unbroken)."""
     if br.parallel:
-        return _parallel_rlc_admittance(br.r, br.l, br.c, omega)
-    z = _series_rlc_impedance(br.r, br.l, br.c, omega)
+        return _parallel_rlc_admittance(br.r, br.l, br.c, omega, br.ql, br.qc)
+    z = _series_rlc_impedance(br.r, br.l, br.c, omega, br.ql, br.qc)
     if z == 0:
         return complex(float("inf"), 0.0)
     return 1.0 / z
@@ -291,11 +317,11 @@ def load_impedance(br, omega):
     stamp the load into a port-Y matrix should prefer
     `load_series_admittance`, which avoids forming this infinity at all."""
     if br.parallel:
-        y = _parallel_rlc_admittance(br.r, br.l, br.c, omega)
+        y = _parallel_rlc_admittance(br.r, br.l, br.c, omega, br.ql, br.qc)
         if y == 0:
             return complex(float("inf"), 0.0)
         return 1.0 / y
-    return _series_rlc_impedance(br.r, br.l, br.c, omega)
+    return _series_rlc_impedance(br.r, br.l, br.c, omega, br.ql, br.qc)
 
 
 @dataclass(frozen=True)
