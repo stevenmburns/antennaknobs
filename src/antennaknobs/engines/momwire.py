@@ -577,10 +577,22 @@ class MomwireEngine(SimulationEngine):
         # ("finite", eps_r, sigma): polarisation basis at each ray and
         # Fresnel reflection on the image wave.
         _, eps_r, sigma = self._ground
-        s = np.sqrt(rx * rx + ry * ry)
-        s_safe = np.where(s > 1e-12, s, 1.0)
-        h_hat = np.stack([-ry / s_safe, rx / s_safe, np.zeros_like(rx)], axis=-1)
-        v_hat = np.stack([-rx * rz / s_safe, -ry * rz / s_safe, s], axis=-1)
+        # Vertical (TM, in-plane) and horizontal (TE, out-of-plane)
+        # polarisation unit vectors for the reflected ray, written straight
+        # from the azimuth/zenith angles rather than from the horizontal
+        # projection s = sin(theta). Dividing by s degenerates at the zenith
+        # (s -> 0, the plane of incidence is undefined): the old s->1.0 guard
+        # collapsed BOTH vectors to zero there, dropping the reflected wave and
+        # reading ~3 dB low. The phi-limit h_hat=(-sin phi, cos phi, 0),
+        # v_hat=(-cos phi, -sin phi, 0) is exact, unit, orthonormal to rhat,
+        # and recovers the PEC limit (rho_h=-1, rho_v=+1) at theta=0.
+        s = np.sqrt(rx * rx + ry * ry)  # = sin(theta); feeds sin2_ti below
+        cos_p_g = np.broadcast_to(cos_p[None, :], rx.shape)
+        sin_p_g = np.broadcast_to(sin_p[None, :], rx.shape)
+        cos_t_g = np.broadcast_to(cos_t[:, None], rx.shape)
+        sin_t_g = np.broadcast_to(sin_t[:, None], rx.shape)
+        h_hat = np.stack([-sin_p_g, cos_p_g, np.zeros_like(rx)], axis=-1)
+        v_hat = np.stack([-cos_p_g * cos_t_g, -sin_p_g * cos_t_g, sin_t_g], axis=-1)
         M_img_h = np.sum(M_img_perp * h_hat, axis=-1)
         M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
 
