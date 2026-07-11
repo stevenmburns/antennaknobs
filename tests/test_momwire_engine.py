@@ -1277,6 +1277,7 @@ def _sinusoidal(builder):
     return MomwireEngine(builder, solver=SinusoidalSolver, ground=None)
 
 
+@needs_pynec
 def test_twoport_cross_engine_impedance_matches():
     """Both engines reduce the TwoPort through the shared NetworkReducer, so on
     a matched basis (momwire's SinusoidalSolver = NEC2's basis family) they must
@@ -1311,11 +1312,32 @@ def test_twoport_open_branch_agrees_across_paths():
     z_mom = _sinusoidal(b()).impedance()[0]
     z_red = PyNECEngine(b(), ground=None).impedance()[0]
     z_nat = PyNECEngine(b(), ground=None, native_nt=True).impedance()[0]
-    # Same NEC basis on both PyNEC paths -> the #63 convention gap closes when
-    # the branch is open, so reducer == native to near machine level.
+    # Same NEC basis on both PyNEC paths -> reducer == native to near
+    # machine level.
     assert abs(z_red - z_nat) / abs(z_nat) < 1e-3, (z_red, z_nat)
     # Matched-basis momwire agrees to the solvers' quadrature difference.
     assert abs(z_mom - z_nat) / abs(z_nat) < 5e-3, (z_mom, z_nat)
+
+
+@needs_pynec
+def test_twoport_reducer_matches_native_nt_card_impedance():
+    """The native nt_card driving-point impedance must equal the reducer's,
+    including with a strongly-conducting branch on the DRIVEN segment — the
+    case that historically showed a 54% \"convention gap\". That gap was this
+    engine's readout dividing V by the wire-only structure current; NEC's
+    ANTENNA INPUT PARAMETERS include the current leaving through the network
+    port (nec2c network.c), which the readout now uses. See
+    docs/plan-network-impedance-readout.md (issue #283).
+
+    The stock lumped_coupled_pair splits the 1 V source's 13.8 mA into
+    ~8.0 mA up the front wire and ~7.5 mA through the coupling element, so a
+    wire-only readout is off by 35 Ω — this pins driving-point agreement, not
+    just far field."""
+    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
+
+    z_red = PyNECEngine(B(), ground=None).impedance()[0]
+    z_nat = PyNECEngine(B(), ground=None, native_nt=True).impedance()[0]
+    assert abs(z_red - z_nat) / abs(z_nat) < 1e-6, (z_red, z_nat)
 
 
 @needs_pynec
@@ -1323,17 +1345,16 @@ def test_twoport_reducer_matches_native_nt_card_far_field():
     """The native nt_card oracle bakes the 2x2 admittance into one NEC solve
     (like tl_card for TL); the reducer stamps the same admittance as a circuit
     post-process. They compose the RADIATING currents identically, so the far
-    field must match — even though the driving-point IMPEDANCE differs by the
-    known segment-vs-basis port convention gap (issue #63), the same gap native
-    tl_card has. This is the piece (B) analogue of test_tl_composition's
-    reducer-vs-native tl_card far-field check.
+    field must match. This is the piece (B) analogue of test_tl_composition's
+    reducer-vs-native tl_card far-field check (impedance agreement is pinned
+    separately by test_twoport_reducer_matches_native_nt_card_impedance).
 
     On a MATCHED basis (momwire SinusoidalSolver = NEC's family) the reducer's
     composed pattern lands right on the native nt_card oracle — the physical
     proof that the composition is correct. PyNEC's OWN reducer far field is
-    looser: its segment-level port carries the #63 convention offset into the
-    re-excitation voltages, nudging the pattern by a few tenths of a dB (well
-    inside the tolerance the TL check uses cross-engine)."""
+    looser: the re-excitation round-trip through per-port NEC solves nudges
+    the pattern by a few tenths of a dB (well inside the tolerance the TL
+    check uses cross-engine)."""
     from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
 
     kw = dict(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
