@@ -1617,3 +1617,92 @@ def test_skyloop_matchbox_inert_is_passthrough():
     # And it agrees cross-engine (the pass-through is engine-agnostic).
     z_nec = PyNECEngine(B(params=inert), ground=None).impedance()[0]
     assert abs(z_inert - z_nec) / abs(z_inert) < 0.01, (z_inert, z_nec)
+
+
+# --------------------------------------------------------------------------
+# inverted_l_tmatch: T-network (series C, shunt L, series C) on a short
+# reactive vertical — the first design with a pure interior circuit node.
+# --------------------------------------------------------------------------
+
+
+def _tmatch_bare(params=None):
+    """The T-match design's antenna with the matchbox removed: same
+    geometry, source directly on the feed."""
+    from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
+    from antennaknobs.network import Driven, Network, PortAtEdge
+    from types import MappingProxyType
+
+    class Bare(B):
+        default_params = MappingProxyType(params or dict(B.default_params))
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed")}, sources=[Driven(port="feed")]
+            )
+
+    return Bare()
+
+
+def test_tmatch_matches_circuit_theory():
+    """The T-network must reproduce the exact three-element transform
+    Z_in = X_C1 + (X_L ∥ (X_C2 + Z_ant)) of the bare antenna impedance —
+    lumped circuit theory composed on the extracted antenna Y, through a
+    tee midpoint that is a pure interior node (no antenna segment, no TL:
+    the only design whose KCL row has no Group-1 stamp at all)."""
+    from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
+
+    p = B.default_params
+    omega = 2.0 * np.pi * p["freq"] * 1e6
+    xc1 = 1.0 / (1j * omega * p["series_c1_pF"] * 1e-12)
+    xl = 1j * omega * p["shunt_l_uH"] * 1e-6
+    xc2 = 1.0 / (1j * omega * p["series_c2_pF"] * 1e-12)
+
+    z_ant = _sinusoidal(_tmatch_bare()).impedance()[0]
+    z_hand = xc1 + 1.0 / (1.0 / xl + 1.0 / (xc2 + z_ant))
+    z_net = _sinusoidal(B()).impedance()[0]
+    assert np.allclose(z_net, z_hand, rtol=1e-9), (z_net, z_hand)
+
+
+@needs_pynec
+def test_inverted_l_tmatch_matches_50ohm_cross_engine():
+    """The showcase: a 10 m inverted-L worked on 12 m is a short vertical
+    (~10.8 − 121.7j) but the stock T-network brings it to ~50 Ω. Both
+    engines agree (the match is exact circuit theory on the antenna Y)."""
+    from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
+
+    z_mom = _sinusoidal(B()).impedance()[0]
+    z_nec = PyNECEngine(B(), ground=None).impedance()[0]
+    for z in (z_mom, z_nec):
+        assert abs(z.real - 50.0) < 5.0 and abs(z.imag) < 5.0, z  # matched
+    assert abs(z_mom - z_nec) / abs(z_mom) < 0.01, (z_mom, z_nec)
+
+
+def test_tmatch_degenerate_endpoints():
+    """T-network slider endpoints under the MNA core (issue #285):
+
+    - shunt L = 0 hard-shorts the tee midpoint to common (a Group-2 ideal
+      short on a pure interior node — the old admittance reducer raised
+      here), so the input sees exactly C1's reactance;
+    - series C2 = 0 is an OPEN that disconnects the antenna (a series
+      capacitor's absent limit is C → ∞, not C → 0), so the input sees
+      exactly C1 in series with the shunt L;
+    - series C1 = 0 open-circuits the SOURCE itself: the delivered current
+      is exactly zero and Z = E/j is non-finite. Pinned here as the
+      documented behavior of driving an open circuit.
+    """
+    from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
+
+    p = B.default_params
+    omega = 2.0 * np.pi * p["freq"] * 1e6
+    xc1 = 1.0 / (1j * omega * p["series_c1_pF"] * 1e-12)
+    xl = 1j * omega * p["shunt_l_uH"] * 1e-6
+
+    z = _sinusoidal(B(params={**p, "shunt_l_uH": 0.0})).impedance()[0]
+    assert np.allclose(z, xc1, rtol=1e-12), (z, xc1)
+
+    z = _sinusoidal(B(params={**p, "series_c2_pF": 0.0})).impedance()[0]
+    assert np.allclose(z, xc1 + xl, rtol=1e-12), (z, xc1 + xl)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = _sinusoidal(B(params={**p, "series_c1_pF": 0.0})).impedance()[0]
+    assert not np.isfinite(z), z
