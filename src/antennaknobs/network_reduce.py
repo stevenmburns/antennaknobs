@@ -47,13 +47,24 @@ from .network import (
 C_LIGHT = 299_792_458.0
 
 
-def tl_admittance_2x2(z0, length, wavelength, transposed=False):
-    """Lossless ideal-TL nodal admittance between its two terminals.
+FEET_PER_M = 1.0 / 0.3048
+NEPER_PER_DB = 1.0 / (20.0 / np.log(10.0))  # 1/8.6859: dB → nepers
 
-    For electrical length θ = 2π·length/λ:
+
+def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, k2=0.0):
+    """Ideal-TL nodal admittance between its two terminals — lossless or
+    lossy (issue #297).
+
+    For complex propagation γl = (α + jβ)·length with β = 2π/(vf·λ):
+        Y_TL = 1/(Z0 sinh γl) · [[cosh γl, -1], [-1, cosh γl]]
+    which reduces exactly to the classic lossless form
         Y_TL = 1/(j Z0 sin θ) · [[cos θ, -1], [-1, cos θ]]
-    Singular at sin θ = 0 (TL is a half-wavelength multiple); raise
-    rather than return garbage so callers can pick a different length.
+    at α = 0 (sinh jθ = j·sin θ). α comes from the cable-table matched-loss
+    model k1·√f_MHz + k2·f_MHz in dB per 100 ft (see `network.TL`).
+
+    Singular only for an exactly-lossless half-wavelength multiple
+    (sinh γl = 0 requires α = 0); raise rather than return garbage so
+    callers can pick a different length. Any nonzero loss regularizes it.
 
     `transposed=True` models a crossed ("half-twist") line: port B's
     polarity is inverted, which flips the sign of the off-diagonal
@@ -62,16 +73,20 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False):
     ZL-Special). Note it is NOT the same as a negative z0, which would
     (wrongly) negate the diagonal self terms too.
     """
-    theta = 2.0 * np.pi * length / wavelength
-    s, c = np.sin(theta), np.cos(theta)
-    if abs(s) < 1e-12:
+    beta = 2.0 * np.pi / (vf * wavelength)
+    f_mhz = C_LIGHT / wavelength / 1e6
+    loss_db_per_100ft = k1 * np.sqrt(f_mhz) + k2 * f_mhz
+    alpha = loss_db_per_100ft * NEPER_PER_DB * FEET_PER_M / 100.0  # nepers/m
+    gl = (alpha + 1j * beta) * length
+    sh, ch = np.sinh(gl), np.cosh(gl)
+    if abs(sh) < 1e-12:
         raise ValueError(
-            f"TL length {length} is ~kλ/2 at f={C_LIGHT / wavelength / 1e6:.4f} MHz "
-            "(sin βl ≈ 0); admittance is singular"
+            f"lossless TL length {length} is ~k·vf·λ/2 at "
+            f"f={f_mhz:.4f} MHz (sinh γl ≈ 0); admittance is singular"
         )
-    scale = 1.0 / (1j * z0 * s)
+    scale = 1.0 / (z0 * sh)
     off = 1.0 if transposed else -1.0
-    return scale * np.array([[c, off], [off, c]], dtype=np.complex128)
+    return scale * np.array([[ch, off], [off, ch]], dtype=np.complex128)
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +253,13 @@ class NetworkReducer:
             if isinstance(br, TL):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
                 G[np.ix_([a, b], [a, b])] += tl_admittance_2x2(
-                    br.z0, br.length, wavelength, transposed=br.transposed
+                    br.z0,
+                    br.length,
+                    wavelength,
+                    transposed=br.transposed,
+                    vf=br.vf,
+                    k1=br.k1,
+                    k2=br.k2,
                 )
             elif isinstance(br, TwoPort):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]

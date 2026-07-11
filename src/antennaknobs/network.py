@@ -48,19 +48,33 @@ Port = Union[PortAtEdge, PortVirtual]
 
 @dataclass(frozen=True)
 class TL:
-    """Lossless transmission line between two ports.
+    """Transmission line between two ports — lossless by default, lossy when
+    matched-loss coefficients are given (issue #297).
 
     z0:     characteristic impedance in Ω
     length: physical length in meters
 
     The electrical length βl is computed at solve time from the antenna's
-    operating wavelength. Both endpoints can be either real or virtual.
+    operating wavelength and `vf`. Both endpoints can be either real or
+    virtual.
 
     transposed: crossed ("half-twist") line — inverts port B's polarity,
     flipping the sign of the off-diagonal transfer terms. This is the
     phase reversal a transposed-feeder array (LPDA, ZL-Special) needs.
     Prefer it over a negative z0, which would wrongly negate the diagonal
     self terms too.
+
+    vf: velocity factor — phase velocity as a fraction of c, so
+    β = 2π/(vf·λ₀). The default 1.0 preserves the historical behavior
+    (physical length read as free-space electrical length).
+
+    k1, k2: matched-loss coefficients in the cable-table convention,
+        matched loss [dB per 100 ft] = k1·√f_MHz + k2·f_MHz
+    (k1 = conductor/skin-effect term, k2 = dielectric term). α is derived
+    from these at each operating frequency, so sweeps get the loss slope
+    for free, and SWR-dependent additional loss emerges from the circuit
+    solution rather than a formula. Defaults 0.0 → lossless. Use
+    `TL.from_cable()` for real cables.
     """
 
     a: str  # port name
@@ -68,6 +82,48 @@ class TL:
     z0: float
     length: float
     transposed: bool = False
+    vf: float = 1.0
+    k1: float = 0.0
+    k2: float = 0.0
+
+    @classmethod
+    def from_cable(cls, cable, a, b, length, transposed=False):
+        """A `TL` with z0/vf/k1/k2 taken from the `CABLES` catalog entry
+        named `cable` (e.g. ``TL.from_cable("RG-8X", "rig", "feed", 30.48)``)."""
+        if cable not in CABLES:
+            raise KeyError(
+                f"unknown cable {cable!r}; available: {', '.join(sorted(CABLES))}"
+            )
+        c = CABLES[cable]
+        return cls(
+            a=a, b=b, z0=c.z0, length=length, transposed=transposed,
+            vf=c.vf, k1=c.k1, k2=c.k2,
+        )  # fmt: skip
+
+
+@dataclass(frozen=True)
+class Cable:
+    """Catalog entry for a feedline type: characteristic impedance, velocity
+    factor, and matched-loss coefficients (dB/100 ft = k1·√f_MHz + k2·f_MHz)."""
+
+    z0: float
+    vf: float
+    k1: float
+    k2: float
+
+
+# Nominal catalog values assembled from typical published matched-loss tables
+# (dB/100 ft at HF/VHF) — vendor datasheets vary by a few tens of percent
+# between constructions, so treat these as representative, not as any one
+# manufacturer's spec.
+CABLES = {
+    "RG-58": Cable(z0=50.0, vf=0.66, k1=0.40, k2=0.008),
+    "RG-8X": Cable(z0=50.0, vf=0.80, k1=0.27, k2=0.0055),
+    "RG-213": Cable(z0=50.0, vf=0.66, k1=0.18, k2=0.003),
+    "LMR-400": Cable(z0=50.0, vf=0.85, k1=0.122, k2=0.0003),
+    "window-450": Cable(z0=450.0, vf=0.91, k1=0.035, k2=0.0002),
+    "openwire-600": Cable(z0=600.0, vf=0.95, k1=0.02, k2=0.0001),
+}
 
 
 # Reserved for follow-up PR — sketched here so the discriminated-union
