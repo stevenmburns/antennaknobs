@@ -1,3 +1,5 @@
+"""Quarter-wave vertical over ground."""
+
 from ... import AntennaBuilder
 
 import math

@@ -1,3 +1,5 @@
+"""2x2 phased stack of delta loops."""
+
 from ...builder import Array2x2Builder
 from ..loops import delta_loop
 

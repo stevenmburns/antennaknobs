@@ -1,3 +1,5 @@
+"""2x4 phased bowtie curtain — the catalog's largest stack."""
+
 from ... import Array2x4Builder
 from ..specialty import bowtie
 

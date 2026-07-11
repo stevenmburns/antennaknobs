@@ -1,3 +1,5 @@
+"""Hentenna — the Japanese rectangular loop, fed off-center for vertical polarization."""
+
 from ... import AntennaBuilder
 from ... import Transform, TransformStack
 

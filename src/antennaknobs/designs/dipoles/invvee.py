@@ -1,3 +1,5 @@
+"""Inverted-vee dipole — the default quickstart example."""
+
 from ... import AntennaBuilder
 import math
 

@@ -1,3 +1,5 @@
+"""Fan dipole — parallel dipoles off one feed for several bands."""
+
 import logging
 import math
 from types import MappingProxyType

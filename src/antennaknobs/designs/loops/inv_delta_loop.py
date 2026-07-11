@@ -1,3 +1,5 @@
+"""Inverted delta loop — the triangle flipped so the feed edge sits at the top."""
+
 from ... import AntennaBuilder
 import math
 

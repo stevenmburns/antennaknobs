@@ -1,3 +1,5 @@
+"""Four delta loops in a broadside row (1x4)."""
+
 from ...builder import Array1x4Builder
 from ..loops import delta_loop
 

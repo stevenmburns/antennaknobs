@@ -1,3 +1,5 @@
+"""Corner-fed full-wave delta loop; corner coordinates from a closed-form expression for the top corner."""
+
 import math
 from types import MappingProxyType
 

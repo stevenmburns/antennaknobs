@@ -1,3 +1,5 @@
+"""Side-by-side hourglass pair (1x2)."""
+
 from ...builder import Array1x2Builder
 from ..specialty import hourglass
 

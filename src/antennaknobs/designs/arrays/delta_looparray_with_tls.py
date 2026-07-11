@@ -1,3 +1,5 @@
+"""Delta-loop pair phased through explicit transmission lines (legacy build_tls path)."""
+
 from ... import AntennaBuilder
 import math
 

@@ -1,3 +1,5 @@
+"""Hex beam — a W-folded 2-element beam on a hexagonal spreader footprint."""
+
 from ... import AntennaBuilder
 import math
 from types import MappingProxyType
