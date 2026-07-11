@@ -102,17 +102,26 @@ class Load:
 
 @dataclass(frozen=True)
 class TwoPort:
-    """Lumped R+jωL+1/(jωC) between two ports. NEC2's `nt_card` is the
-    direct backing on PyNECEngine. Any of r/l/c may be None (omitted).
+    """Lumped series R+jωL+1/(jωC) bridging two ports. Any of r/l/c may be
+    None (omitted term). Unlike `Load` — a self-impedance on ONE segment,
+    folded into that segment's MoM Z via Sherman-Morrison — a TwoPort is an
+    explicit 2×2 admittance connecting two DISTINCT ports:
+        Y = (1/Z) · [[1, -1], [-1, 1]],  Z = R + jωL + 1/(jωC).
 
-    NOTE: Implementation is sketched on both engines but has not been
-    cross-validated. Use at your own risk; prefer `Load(parallel=True)`
-    for the trap-dipole idiom (series Z on a wire-interior segment, which
-    is what `ld_card` was designed for). See issue #65 piece (B) for the
-    open work — cross-engine sanity tests revealed disagreement when the
-    branch is conducting (R small), suggesting either a BC issue in the
-    momwire reduction or a `nt_card` semantics mismatch we haven't
-    untangled yet."""
+    Both engines stamp this into the port-Y through the shared
+    `NetworkReducer` (see `network_reduce.twoport_admittance_2x2`), exactly
+    like a TL branch — so it inherits the TL passive-port boundary condition
+    (I_ext=0) with no extra handling. PyNECEngine can instead emit a native
+    NEC2 `nt_card` (construct with ``native_nt=True``), which bakes the 2×2 Y
+    into one context and solves it simultaneously with the MoM currents — the
+    correctness oracle for this stamp, analogous to `tl_card` for TL. The
+    showcase and cross-engine cross-check is
+    `designs/arrays/lumped_coupled_pair.py` (issue #65 piece (B)).
+
+    A series-LC short (Z → 0 at ω₀ = 1/√(LC)) makes the branch a hard wire
+    between the two segments and the stamp singular; both paths raise rather
+    than emit a degenerate short. For the trap-dipole idiom (a segment self-
+    interrupted at resonance) use `Load(parallel=True)`, not TwoPort."""
 
     a: str
     b: str

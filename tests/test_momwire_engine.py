@@ -1252,3 +1252,158 @@ def test_momwire_arrayblock_parity_matches_bspline():
         assert _parity_for_solver(ArrayBlockSolver, kw) == _parity_for_solver(
             BSplineSolver, kw
         )
+
+
+# --------------------------------------------------------------------------
+# TwoPort branch — issue #65 piece (B).
+#
+# A lumped series R+jωL+1/(jωC) bridging two distinct feed segments. The
+# reducer stamps (1/Z)·[[1,-1],[-1,1]] into the port-Y exactly like a TL
+# branch, so it inherits the TL passive-port BC (I_ext=0). PyNECEngine can
+# instead emit a native NEC2 nt_card (native_nt=True) as an independent
+# oracle, analogous to build_tls() -> native tl_card for TL: nt_card takes
+# the 2x2 admittance directly, and stamping a TL's own admittance through it
+# reproduces tl_card, so it faithfully composes whatever Y we hand it. The
+# showcase is designs/arrays/lumped_coupled_pair.py.
+# --------------------------------------------------------------------------
+
+
+def test_twoport_admittance_stamp_is_series_impedance_2port():
+    """twoport_admittance_2x2 is the short-circuit Y of a series impedance:
+    (1/Z)·[[1,-1],[-1,1]] with Z = R + jωL + 1/(jωC). Pure-math check, no
+    engine."""
+    from antennaknobs.network_reduce import twoport_admittance_2x2
+
+    omega = 2.0 * np.pi * 28e6
+    r, l, c = 30.0, 1e-7, 50e-12
+    z = r + 1j * omega * l + 1.0 / (1j * omega * c)
+    y = twoport_admittance_2x2(r, l, c, omega)
+    inv_z = 1.0 / z
+    assert np.allclose(y, inv_z * np.array([[1, -1], [-1, 1]]))
+    # Rows/cols sum to zero: a floating series element injects no net current.
+    assert np.allclose(y.sum(axis=0), 0) and np.allclose(y.sum(axis=1), 0)
+
+
+def test_twoport_series_lc_short_is_rejected():
+    """A series-LC at resonance is a 0 Ω short (the two segments become one
+    wire); the 2-port admittance is singular, so raise rather than emit inf."""
+    from antennaknobs.network_reduce import twoport_admittance_2x2
+
+    omega = 2.0 * np.pi * 28e6
+    l = 1e-6
+    c = 1.0 / (omega**2 * l)  # series resonance: jωL + 1/(jωC) = 0
+    with pytest.raises(ValueError, match="singular"):
+        twoport_admittance_2x2(None, l, c, omega)
+
+
+def test_twoport_cross_engine_impedance_matches():
+    """Both engines reduce the TwoPort through the shared NetworkReducer, so
+    momwire's sinusoidal MoM and PyNEC's must agree on the driving-point
+    impedance to within their inherent cross-formulation tolerance — the same
+    check delta_looparray_network pins for the TL branch."""
+    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
+
+    z_mom = MomwireEngine(B(), ground=None).impedance()[0]
+    z_nec = PyNECEngine(B(), ground=None).impedance()[0]
+    assert np.isfinite(z_nec.real) and np.isfinite(z_nec.imag), z_nec
+    assert z_mom.real > 0 and z_nec.real > 0, (z_mom, z_nec)  # passive: R>0
+    assert abs(z_mom - z_nec) / abs(z_mom) < 0.02, f"mom={z_mom}, nec={z_nec}"
+
+
+def _open_pair_builder():
+    """lumped_coupled_pair with a ~open coupling (R = 1 GΩ): the parasite is
+    effectively decoupled, so every path collapses to the isolated driven
+    dipole. The base case that must agree exactly."""
+    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
+
+    params = {**B.default_params, "coupling_r_ohm": 1e9, "coupling_l_uH": 0.0}
+    return lambda: B(params=params)
+
+
+@needs_pynec
+def test_twoport_open_branch_agrees_across_paths():
+    """With the coupling opened (huge R), the reducer stamp contributes a
+    vanishing admittance, so momwire-reducer, pynec-reducer, and pynec native
+    nt_card must all land on the same (isolated-dipole) impedance."""
+    b = _open_pair_builder()
+    z_mom = MomwireEngine(b(), ground=None).impedance()[0]
+    z_red = PyNECEngine(b(), ground=None).impedance()[0]
+    z_nat = PyNECEngine(b(), ground=None, native_nt=True).impedance()[0]
+    assert abs(z_red - z_nat) / abs(z_nat) < 1e-3, (z_red, z_nat)
+    assert abs(z_mom - z_nat) / abs(z_nat) < 0.02, (z_mom, z_nat)
+
+
+@needs_pynec
+def test_twoport_reducer_matches_native_nt_card_far_field():
+    """The native nt_card oracle bakes the 2x2 admittance into one NEC solve
+    (like tl_card for TL); the reducer stamps the same admittance as a circuit
+    post-process. They compose the RADIATING currents identically, so the far
+    field must match within the cross-MoM tolerance — even though the driving-
+    point IMPEDANCE differs by the known segment-vs-basis port convention gap
+    (issue #63), the same gap native tl_card has. This is the piece (B) analogue
+    of test_tl_composition's reducer-vs-native tl_card far-field check."""
+    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder as B
+
+    kw = dict(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
+
+    def pattern(eng):
+        ff = eng.far_field(**kw)
+        rings = np.array(ff.rings)
+        return ff.max_gain, rings[89, 0], rings[89, 180]
+
+    g_red, f_red, b_red = pattern(PyNECEngine(B(), ground=None))
+    g_nat, f_nat, b_nat = pattern(PyNECEngine(B(), ground=None, native_nt=True))
+    g_mom, f_mom, b_mom = pattern(MomwireEngine(B(), ground=None))
+    assert abs(g_red - g_nat) < 0.4, (g_red, g_nat)
+    assert abs(g_mom - g_nat) < 0.4, (g_mom, g_nat)
+    assert abs(f_red - f_nat) < 0.4 and abs(b_red - b_nat) < 0.4
+
+
+@needs_pynec
+def test_native_nt_rejects_unemittable_networks():
+    """native_nt=True can only emit real nt_cards, so it must reject networks
+    it can't back with real cards rather than silently falling through to the
+    reducer and ceasing to be an independent oracle: (a) no TwoPort at all,
+    (b) a virtual port (nt_card attaches to real segments only)."""
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.network import (
+        Driven,
+        Network,
+        PortAtEdge,
+        PortVirtual,
+        TwoPort,
+    )
+    from types import MappingProxyType
+
+    class NoTwoPort(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 28.0, "design_freq": 28.0})
+
+        def build_wires(self):
+            return [((0, -2.5, 5), (0, 2.5, 5), 21, None, "feed")]
+
+        def build_network(self):
+            from antennaknobs.network import Load
+
+            return Network(
+                ports={"feed": PortAtEdge("feed")},
+                branches=[Load(port="feed", r=10.0)],
+                sources=[Driven(port="feed")],
+            )
+
+    class VirtualTwoPort(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 28.0, "design_freq": 28.0})
+
+        def build_wires(self):
+            return [((0, -2.5, 5), (0, 2.5, 5), 21, None, "feed")]
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed"), "v": PortVirtual("v")},
+                branches=[TwoPort(a="feed", b="v", r=10.0)],
+                sources=[Driven(port="feed")],
+            )
+
+    with pytest.raises(ValueError, match="no TwoPort"):
+        PyNECEngine(NoTwoPort(), ground=None, native_nt=True)
+    with pytest.raises(ValueError, match="real edge"):
+        PyNECEngine(VirtualTwoPort(), ground=None, native_nt=True)

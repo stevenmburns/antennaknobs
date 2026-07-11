@@ -23,6 +23,7 @@ from .network import (
     Load,
     PortAtEdge,
     TwoPort,
+    _series_rlc_impedance,
     load_impedance,
     load_series_admittance,
 )
@@ -55,6 +56,32 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False):
     scale = 1.0 / (1j * z0 * s)
     off = 1.0 if transposed else -1.0
     return scale * np.array([[c, off], [off, c]], dtype=np.complex128)
+
+
+def twoport_admittance_2x2(r, l, c, omega):
+    """Nodal admittance of a lumped series R+jωL+1/(jωC) bridging two ports.
+
+    A series impedance Z = R + jωL + 1/(jωC) between terminals a and b has the
+    2×2 short-circuit admittance
+        Y = (1/Z) · [[1, -1], [-1, 1]]
+    — current 1/Z flows a→b under a unit differential, and none into an
+    external short at either node beyond that branch. This is the same shape as
+    NEC2's `nt_card` takes directly (Y11=Y22=1/Z, Y12=Y21=−1/Z), which is why
+    the native-`nt_card` oracle path and this stamp agree by construction.
+
+    A series-LC short (Z → 0 at ω₀ = 1/√(LC)) makes Y singular; the two nodes
+    are then hard-shorted together. Raise rather than emit inf so the caller
+    can pick different element values — callers never depend on the short
+    limit (unlike the parallel-LC trap, which the Load path handles).
+    """
+    z = _series_rlc_impedance(r, l, c, omega)
+    if abs(z) < 1e-15:
+        raise ValueError(
+            "TwoPort series impedance ≈ 0 (series-LC short at resonance); "
+            "admittance is singular"
+        )
+    y = 1.0 / z
+    return y * np.array([[1.0, -1.0], [-1.0, 1.0]], dtype=np.complex128)
 
 
 class NetworkReducer:
@@ -183,10 +210,16 @@ class NetworkReducer:
             elif isinstance(br, Load):
                 continue  # not a line; see apply_loads / excited_state
             elif isinstance(br, TwoPort):
-                raise NotImplementedError(
-                    "TwoPort: sketched but not cross-engine validated. "
-                    "See issue #65 piece (B)."
-                )
+                # A lumped 2-port is an explicit admittance stamp exactly like
+                # a TL — same [[·,·],[·,·]] into Y_full at the (a,b) pair — so
+                # it inherits the TL passive-port BC (I_ext=0, handled in
+                # resolve_voltages / excited_state). No Sherman-Morrison fold
+                # (that is the Load path); the branch never redefines a port
+                # variable, so no V=0 pin is needed.
+                a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
+                omega = 2.0 * np.pi * C_LIGHT / wavelength
+                y_2p = twoport_admittance_2x2(br.r, br.l, br.c, omega)
+                Y_full[np.ix_([a, b], [a, b])] += y_2p
             else:
                 raise NotImplementedError(f"branch type {type(br).__name__}")
         return Y_full
