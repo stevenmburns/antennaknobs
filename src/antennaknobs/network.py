@@ -130,7 +130,38 @@ class TwoPort:
     c: float | None = None
 
 
-Branch = Union[TL, Load, TwoPort]
+@dataclass(frozen=True)
+class Shunt:
+    """Lumped R/L/C from a single port to the common reference — a shunt to
+    "ground", where ground is the port's own return terminal (a circuit node,
+    not the antenna's earth plane). Stamps a 1-port admittance onto the port's
+    diagonal, ``Y[k,k] += y``: a current ``y·V_k`` drains from the node to the
+    common return, exactly a shunt element across the feed terminals.
+
+    This is the element issue #65 Q2 deferred. With it, `Shunt` + a series
+    `TwoPort` express an L-match (and pi / T networks) directly: drive a
+    virtual input node, run a series `TwoPort` to the antenna feed and a
+    `Shunt` across the input, read the input impedance. See
+    `designs/loops/skyloop_lmatch.py`.
+
+    series (default): y = 1/(R + jωL + 1/(jωC)) — a single C gives y=jωC, a
+        single L gives y=1/(jωL); a series LC is a shunt trap.
+    parallel:         y = 1/R + 1/(jωL) + jωC — a parallel-LC tank, y→0 at
+        resonance (an open shunt, i.e. no element).
+    Any of r/l/c may be None (omitted term).
+
+    Both engines stamp this through the shared `NetworkReducer`; there is no
+    native NEC card for a 1-port shunt-to-common, so a `Shunt` always takes the
+    reducer path on PyNECEngine (never the baked-context native path)."""
+
+    port: str
+    r: float | None = None
+    l: float | None = None
+    c: float | None = None
+    parallel: bool = False
+
+
+Branch = Union[TL, Load, TwoPort, Shunt]
 
 
 def _branch_port_refs(br):

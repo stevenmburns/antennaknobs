@@ -1301,7 +1301,7 @@ def test_twoport_series_lc_short_is_rejected():
     omega = 2.0 * np.pi * 28e6
     l = 1e-6
     c = 1.0 / (omega**2 * l)  # series resonance: jωL + 1/(jωC) = 0
-    with pytest.raises(ValueError, match="singular"):
+    with pytest.raises(ValueError, match="short"):
         twoport_admittance_2x2(None, l, c, omega)
 
 
@@ -1429,3 +1429,212 @@ def test_native_nt_rejects_unemittable_networks():
         PyNECEngine(NoTwoPort(), ground=None, native_nt=True)
     with pytest.raises(ValueError, match="real edge"):
         PyNECEngine(VirtualTwoPort(), ground=None, native_nt=True)
+
+
+# --------------------------------------------------------------------------
+# Shunt branch — issue #65 Q2 (shunt-to-common), the L-match enabler.
+#
+# A lumped R/L/C from one port to the common reference: Y[k,k] += y. Combined
+# with a series TwoPort it expresses an L / pi / T matching network. The
+# showcase is designs/loops/skyloop_lmatch.py — an 80 m loop run on 17 m,
+# matched to 50 Ω.
+# --------------------------------------------------------------------------
+
+
+def test_shunt_admittance_single_elements():
+    """A series-mode single element is the plain reactance admittance: C→jωC,
+    L→1/(jωL). Parallel mode is the tank admittance sum."""
+    from antennaknobs.network_reduce import shunt_admittance
+
+    omega = 2.0 * np.pi * 18.1e6
+    c, l = 57e-12, 1.52e-6
+    assert np.isclose(shunt_admittance(None, None, c, omega), 1j * omega * c)
+    assert np.isclose(shunt_admittance(None, l, None, omega), 1.0 / (1j * omega * l))
+    # Parallel R‖L‖C sums admittances directly.
+    y_par = shunt_admittance(100.0, l, c, omega, parallel=True)
+    assert np.isclose(y_par, 1 / 100.0 + 1 / (1j * omega * l) + 1j * omega * c)
+
+
+def test_shunt_series_lc_short_is_rejected():
+    """A series-LC shunt at resonance is a 0 Ω short to common (infinite
+    admittance); raise rather than emit inf."""
+    from antennaknobs.network_reduce import shunt_admittance
+
+    omega = 2.0 * np.pi * 18.1e6
+    l = 1e-6
+    c = 1.0 / (omega**2 * l)
+    with pytest.raises(ValueError, match="short"):
+        shunt_admittance(None, l, c, omega)
+
+
+def test_shunt_lmatch_matches_circuit_theory():
+    """An L-match (series TwoPort in→feed, Shunt across in) must reproduce the
+    exact two-element transform 1/(y_shunt + 1/(z_series + Z_ant)) of the bare
+    antenna impedance — the reducer composes lumped circuit theory on top of
+    the extracted antenna Y."""
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.network import (
+        Driven,
+        Network,
+        PortAtEdge,
+        PortVirtual,
+        Shunt,
+        TwoPort,
+    )
+    from types import MappingProxyType
+
+    wl = 299.792458 / 28.0
+    ls, cp = 0.20e-6, 40e-12
+
+    def wires():
+        return [((0, -0.30 * wl, 7), (0, 0.30 * wl, 7), 41, None, "feed")]
+
+    class Bare(AntennaBuilder):
+        default_params = MappingProxyType({"design_freq": 28.0, "freq": 28.0})
+
+        def build_wires(self):
+            return wires()
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed")}, sources=[Driven(port="feed")]
+            )
+
+    class LMatch(AntennaBuilder):
+        default_params = MappingProxyType({"design_freq": 28.0, "freq": 28.0})
+
+        def build_wires(self):
+            return wires()
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed"), "in": PortVirtual("in")},
+                branches=[
+                    TwoPort(a="in", b="feed", l=ls),
+                    Shunt(port="in", c=cp),
+                ],
+                sources=[Driven(port="in", voltage=1 + 0j)],
+            )
+
+    z_ant = _sinusoidal(Bare()).impedance()[0]
+    omega = 2.0 * np.pi * 28e6
+    z_hand = 1.0 / (1j * omega * cp + 1.0 / (1j * omega * ls + z_ant))
+    z_net = _sinusoidal(LMatch()).impedance()[0]
+    assert np.allclose(z_net, z_hand, rtol=1e-6), (z_net, z_hand)
+
+
+@needs_pynec
+def test_skyloop_lmatch_matches_50ohm_cross_engine():
+    """The showcase: an 80 m triangular skyloop run on 17 m is wildly reactive
+    (~415 + 313j) but the stock L-match brings it to ~50 Ω. Both engines agree
+    (the match is exact circuit theory on the extracted antenna Y)."""
+    from antennaknobs.designs.loops.skyloop_lmatch import Builder as B
+
+    z_mom = _sinusoidal(B()).impedance()[0]
+    z_nec = PyNECEngine(B(), ground=None).impedance()[0]
+    for z in (z_mom, z_nec):
+        assert abs(z.real - 50.0) < 5.0 and abs(z.imag) < 5.0, z  # matched
+    assert abs(z_mom - z_nec) / abs(z_mom) < 0.01, (z_mom, z_nec)
+
+
+@needs_pynec
+def test_pynec_shunt_routes_through_reducer_not_native():
+    """A Shunt has no native NEC card, so PyNECEngine must reduce it (never the
+    baked-context native path), and native_nt must reject it up front."""
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.network import Driven, Network, PortAtEdge, Shunt, TwoPort
+    from types import MappingProxyType
+
+    class ShuntDipole(AntennaBuilder):
+        default_params = MappingProxyType({"design_freq": 28.0, "freq": 28.0})
+
+        def build_wires(self):
+            return [((0, -2.5, 5), (0, 2.5, 5), 21, None, "feed")]
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed")},
+                branches=[Shunt(port="feed", c=50e-12)],
+                sources=[Driven(port="feed")],
+            )
+
+    eng = PyNECEngine(ShuntDipole(), ground=None)
+    assert eng._use_reducer, "Shunt design should take the reducer path"
+    assert np.isfinite(eng.impedance()[0].real)
+
+    class ShuntTwoPort(AntennaBuilder):
+        default_params = MappingProxyType({"design_freq": 28.0, "freq": 28.0})
+
+        def build_wires(self):
+            return [
+                ((0, -2.5, 5), (0, 2.5, 5), 21, None, "feed"),
+                ((1, -2.5, 5), (1, 2.5, 5), 21, None, "feed2"),
+            ]
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed"), "feed2": PortAtEdge("feed2")},
+                branches=[
+                    TwoPort(a="feed", b="feed2", r=20.0),
+                    Shunt(port="feed", c=50e-12),
+                ],
+                sources=[Driven(port="feed")],
+            )
+
+    with pytest.raises(ValueError, match="Shunt"):
+        PyNECEngine(ShuntTwoPort(), ground=None, native_nt=True)
+
+
+def test_zero_capacitor_is_an_open_not_a_crash():
+    """A 0 F capacitor is an open in a series path (infinite reactance): a
+    Shunt with c=0 contributes y=0, a TwoPort with c=0 contributes no coupling.
+    Return the open limit rather than dividing by zero forming 1/(jωC) — this
+    is what lets a matching-network slider reach the inert endpoint."""
+    from antennaknobs.network_reduce import shunt_admittance, twoport_admittance_2x2
+
+    omega = 2.0 * np.pi * 18.1e6
+    assert shunt_admittance(None, None, 0.0, omega) == 0
+    assert np.allclose(twoport_admittance_2x2(None, None, 0.0, omega), 0)
+
+
+def test_series_short_raises_clear_message():
+    """A 0 Ω / 0 H series element (or all-omitted branch) is a lossless short,
+    which is not a finite admittance stamp; raise with an actionable message
+    (not the old 'series-LC resonance' wording, and not a bare ZeroDivision)."""
+    from antennaknobs.network_reduce import shunt_admittance, twoport_admittance_2x2
+
+    omega = 2.0 * np.pi * 18.1e6
+    with pytest.raises(ValueError, match="short"):
+        twoport_admittance_2x2(0.0, None, None, omega)  # 0 Ω series
+    with pytest.raises(ValueError, match="short"):
+        shunt_admittance(None, 0.0, None, omega)  # 0 H shunt short-to-common
+
+
+@needs_pynec
+def test_skyloop_matchbox_inert_is_passthrough():
+    """Setting both L-match arms to zero makes the matchbox inert: the series
+    arm is a wire (input == feed, driven directly) and the shunt is omitted, so
+    the input impedance is just the bare antenna's. This is delivered by
+    topology (build_network drops/merges zero arms), so it works on today's
+    admittance reducer — a literal 0 H stamp awaits the MNA core (issue #285)."""
+    from antennaknobs.designs.loops.skyloop_lmatch import Builder as B
+    from antennaknobs.network import Driven, Network, PortAtEdge
+    from types import MappingProxyType
+
+    inert = {**B.default_params, "series_L_uH": 0.0, "shunt_C_pF": 0.0}
+    z_inert = _sinusoidal(B(params=inert)).impedance()[0]
+
+    # Bare antenna: the same loop with no network branch on the feed.
+    class Bare(B):
+        default_params = MappingProxyType(inert)
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortAtEdge("feed")}, sources=[Driven(port="feed")]
+            )
+
+    z_ant = _sinusoidal(Bare()).impedance()[0]
+    assert abs(z_inert - z_ant) / abs(z_ant) < 1e-9, (z_inert, z_ant)
+    # And it agrees cross-engine (the pass-through is engine-agnostic).
+    z_nec = PyNECEngine(B(params=inert), ground=None).impedance()[0]
+    assert abs(z_inert - z_nec) / abs(z_inert) < 0.01, (z_inert, z_nec)
