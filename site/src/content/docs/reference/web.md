@@ -148,7 +148,8 @@ loss" — a steady dB or so there is absorbed power, not error.
 ## Power budget
 
 Designs with a lossy feed network — a real coax or ladder-line run, a
-matching network with a finite-Q coil, a terminating resistor — get a
+matching network with a finite-Q coil, a lossy balun, a terminating
+resistor — get a
 **power budget** table in the solve readout: one row per network branch
 with the fraction of the source's input power it dissipates, plus an
 **antenna (radiated)** row for what actually reaches the wires. The rows

@@ -20,6 +20,7 @@ after L. B. Cebik (W4RNL)'s articles.
 | `dipoles.koch_dipole` | Koch fractal dipole |
 | `dipoles.short_dipole_loaded` | Center-loaded shortened dipole (a Load-branch showcase) |
 | `dipoles.invvee_coax_station` | The inv-vee fed through 100 ft of real coax (cable preset dropdown), referenced to the rig — line loss and the SWR penalty in the power budget |
+| `dipoles.folded_invvee_balun` | Folded inv-vee (~218 Ω) through a lossy 4:1 balun onto 50 Ω coax — the Transformer-element showcase |
 
 ## Loops
 
