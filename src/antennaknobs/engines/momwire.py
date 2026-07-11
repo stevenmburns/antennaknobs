@@ -409,10 +409,11 @@ class MomwireEngine(SimulationEngine):
         a placeholder V=0) would solve with no excitation — every basis
         coefficient is zero and `compute_impedance`'s V/I returns NaN."""
         if self._network is not None:
-            # excited_state imposes the physical series-load BC (not the V=0
-            # pin the impedance path uses), so resistive loads shape the
-            # current; it also returns the radiation efficiency and the
-            # source input power the far field uses to normalise gain.
+            # excited_state solves the same MNA system as the impedance
+            # path, so resistive loads shape the current through their
+            # physical series BC; it also returns the radiation efficiency
+            # and the source input power the far field uses to normalise
+            # gain.
             Y = self._compute_y_matrix(wavelength)
             V_full, self._excited_efficiency, self._excited_p_in = (
                 self._reducer.excited_state(Y, wavelength)
