@@ -100,8 +100,8 @@
 | src/antennaknobs/far\_field.py                                    |      168 |        2 |     99% |    86, 90 |
 | src/antennaknobs/geometry.py                                      |      137 |        4 |     97% |60, 85, 89, 101 |
 | src/antennaknobs/nec\_export.py                                   |       53 |       12 |     77% |60, 103-113 |
-| src/antennaknobs/network.py                                       |       99 |        4 |     96% |224, 278, 288, 290 |
-| src/antennaknobs/network\_reduce.py                               |      131 |        3 |     98% |192, 260, 283 |
+| src/antennaknobs/network.py                                       |      115 |        4 |     97% |280, 334, 344, 346 |
+| src/antennaknobs/network\_reduce.py                               |      137 |        3 |     98% |207, 281, 304 |
 | src/antennaknobs/opt.py                                           |       90 |       14 |     84% |54-55, 57-60, 65-66, 72-76, 148 |
 | src/antennaknobs/serialize.py                                     |       83 |        6 |     93% |32-34, 54, 91, 103 |
 | src/antennaknobs/sim.py                                           |        5 |        2 |     60% |       3-4 |
@@ -117,7 +117,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      534 |       67 |     87% |66-68, 238-239, 325, 379, 526-529, 589, 621, 623, 677, 693, 725, 758, 760-763, 804, 854, 889, 897-911, 922-923, 955, 1004-1015, 1035, 1038-1039, 1055, 1058-1059, 1075, 1103-1128, 1325, 1373-1374, 1391 |
 | src/antennaknobs/web/user\_designs.py                             |       56 |        6 |     89% |58-59, 83-84, 89-90 |
-| **TOTAL**                                                         | **5975** |  **332** | **94%** |           |
+| **TOTAL**                                                         | **5997** |  **332** | **94%** |           |
 
 
 ## Setup coverage badge
