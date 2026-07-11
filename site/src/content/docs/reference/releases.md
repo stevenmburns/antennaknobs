@@ -29,8 +29,9 @@ hosted simulator has it.
 
 ## How the two versions relate
 
-Each antennaknobs release declares a **minimum momwire version** — the oldest
-engine release carrying every solver API that antennaknobs version uses. A
-`pip install antennaknobs` resolves a compatible engine automatically; if you
-pin momwire yourself, keep it at or above the floor in that release's
-`pyproject.toml`.
+Each antennaknobs release pins an **exact momwire version** — the engine
+release it was tested and deployed against. A `pip install antennaknobs`
+installs that engine automatically, so the pair you run locally is the pair
+running on the hosted simulator. (Earlier releases declared a minimum
+version instead; the exact pin replaced it so a new engine release can't
+silently change solver behavior under an already-published antennaknobs.)

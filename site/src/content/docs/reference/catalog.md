@@ -38,8 +38,10 @@ with a `Drone` (see [Many ways to express geometry](/concepts/authoring/)):
 Other loops: `loops.delta_loop_slanted`, `loops.inv_delta_loop`,
 `loops.horizontal_loop` (full-wave "loop skywire") and its `Drone` twin
 `loops.horizontal_loop_drone`, `loops.diamond_loop` (+ `diamond_loop_turnstile`),
-`loops.quad` (2-element cubical quad beam), and `loops.bisquare` (a two-wavelength
-broadside curtain).
+`loops.quad` (2-element cubical quad beam), `loops.bisquare` (a two-wavelength
+broadside curtain), `loops.triangular_skyloop` (corner-fed full-wave triangle),
+and `loops.skyloop_lmatch` (the 80 m skyloop worked on 17 m through an
+L-network — series L, shunt C — matched to 50 Ω).
 
 ## Beams
 
@@ -57,6 +59,7 @@ broadside curtain).
 | `verticals.vertical` | Quarter-wave vertical |
 | `verticals.raised_vertical` | Elevated vertical |
 | `verticals.inverted_l` | Inverted-L, a bent top-loaded vertical |
+| `verticals.inverted_l_tmatch` | The 10 m inverted-L worked on 12 m through a T-network tuner (series C, shunt L, series C) |
 | `verticals.jpole` | J-pole, end-fed half-wave with a quarter-wave matching stub |
 | `verticals.half_square` | Half-square, a vertically-polarised wire antenna |
 | `verticals.bobtail` | Bobtail curtain, a 3-element vertical broadside array |
@@ -103,7 +106,10 @@ showcase (see [the solver guide](/reference/solver/)):
 `arrays.yagiarray`, `arrays.moxonarray`, `arrays.invveearray`,
 `arrays.folded_invveearray`, `arrays.bowtiearray` (+ `1x2`, `2x4`),
 `arrays.delta_looparray` (+ `1x4`, `1x4_grouped`, `2x2`, `network`, `with_tls`),
-`arrays.hentenna_array`, `arrays.hourglass_array`.
+`arrays.hentenna_array`, `arrays.hourglass_array`, and
+`arrays.lumped_coupled_pair` (a dipole pair steered through a lumped series
+R+jωL bridge between the two feeds — the `TwoPort` network element's
+showcase).
 
 ## Specialty
 
