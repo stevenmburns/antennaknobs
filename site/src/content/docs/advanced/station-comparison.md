@@ -1,0 +1,146 @@
+---
+title: "Coax vs. ladder line: a tale of two stations"
+description: An advanced worked example — model two complete HF stations from the rig to the wire, and read where every watt goes off the power budget.
+---
+
+Every club meeting has the argument. One camp: *a resonant antenna on 50 Ω coax
+is simple and it works*. The other: *put up one non-resonant wire, feed it with
+open-wire line, and let the tuner sort it out — ladder line shrugs off SWR*.
+Both camps are right, and both are paying for something. This example models
+both stations **end to end — rig, feedline, matching, wire** — and reads the
+folklore off the [power budget](/reference/web/#power-budget) as numbers.
+
+Two catalog designs (new in v0.22) carry the comparison:
+
+| | Station A | Station B |
+|---|---|---|
+| Design | `dipoles.invvee_coax_station` | `wire.doublet_ladder_tuner` |
+| Antenna | resonant inverted-V (half-wave at 28.47 MHz) | 88 ft flat doublet — deliberately *non*-resonant |
+| Feedline | 100 ft of RG-8X coax | 100 ft of 600 Ω open-wire line |
+| Matching | none — the antenna itself is the match | T-network tuner with a finite-Q coil |
+
+Both are **modelled from the rig**: the source sits at a virtual *rig* port and
+reaches the wire through the real feed network, so every number the workbench
+reports — impedance, SWR, gain, the power budget — is referenced to the
+transmitter, not the feedpoint. That reference-plane move is the whole trick;
+everything below falls out of it.
+
+## Station A — the resonant antenna on coax
+
+The geometry is the stock `dipoles.invvee`. What changes is the feed: the
+driven gap becomes a named **feed** port, and the excitation moves to the far
+end of a real cable:
+
+```python
+def build_network(self):
+    return Network(
+        ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
+        branches=[
+            TL.from_cable(self.cable, "rig", "feed", self.line_len_m),
+        ],
+        sources=[Driven(port="rig", voltage=1 + 0j)],
+    )
+```
+
+`TL.from_cable` pulls attenuation and velocity factor from the built-in
+`CABLES` catalog, so the line is lossy the way real cable is. Open the design
+in the [workbench](https://app.antennaknobs.dev/) and look at three things:
+
+1. **On resonance, coax at 10 m still isn't cheap.** The V is near 50 Ω, the
+   line runs essentially matched — and the budget still shows roughly the
+   cable's matched loss: **~1.6 dB ≈ 31 % of your power** for 100 ft of RG-8X
+   at 28 MHz, before any mismatch enters the story.
+2. **Drag `freq` off resonance.** The SWR climbs, and the line row of the
+   budget grows past the matched loss — the classic *SWR-multiplied line loss*.
+   Nobody typed that formula in: it emerges from the circuit solve.
+3. **Swap the `cable` preset.** RG-58 vs. LMR-400 is the "should I buy better
+   coax?" question answered in one dropdown. Then pick one of the 450/600 Ω
+   window-line presets and watch the loss nearly vanish even at high SWR —
+   that's the effect Station B is built around.
+
+## Station B — the doublet and the matchbox
+
+The other philosophy: don't chase resonance at all. An 88 ft doublet
+(`design_freq = 5.593 MHz` sizes it; it's resonant nowhere you'd operate it)
+feeds 100 ft of 600 Ω open-wire line into a T-network — series C, shunt L,
+series C — whose inductor has a finite `coil_q`:
+
+```python
+def build_network(self):
+    return Network(
+        ports={
+            "feed": PortOnWire("feed"),
+            "li": PortVirtual("li"),   # line input (tuner output)
+            "m": PortVirtual("m"),     # tee midpoint
+            "rig": PortVirtual("rig"),
+        },
+        branches=[
+            TL.from_cable("openwire-600", "li", "feed", self.line_len_m),
+            TwoPort(a="rig", b="m", c=self.series_c1_pF * 1e-12),
+            Shunt(port="m", l=self.shunt_l_uH * 1e-6,
+                  ql=self.coil_q if self.coil_q > 0 else None),
+            TwoPort(a="m", b="li", c=self.series_c2_pF * 1e-12),
+        ],
+        sources=[Driven(port="rig", voltage=1 + 0j)],
+    )
+```
+
+The stock capacitor and inductor values match ~50 Ω at **7.1 MHz (40 m)**, and
+the budget itemizes the price of the matchbox: with Q = 200, about **4 % in
+the line and 4–5 % in the tuner coil — ~92 % radiated**. That's the ladder-line
+promise kept.
+
+Now make the wire *too short* — retune for **80 m** (`freq = 3.8`,
+`series_c1_pF ≈ 44.6`, `shunt_l_uH ≈ 27.05`, `series_c2_pF ≈ 6865`). SWR at
+the rig is still ≈ 1 — the tuner did its job — but the line's SWR loss and
+the coil loss each climb to **~14 %**. A perfect match at the rig, and more
+than a quarter of the power never leaves the shack wiring. That is the honest
+cost of working an electrically short wire, and no SWR meter will ever show
+it to you.
+
+Two things worth knowing while you drag:
+
+- **T-match solutions aren't unique.** Bigger capacitors with a smaller L
+  generally mean less circulating current and lower coil loss — try finding a
+  second match for the same band and compare budgets. Sweep `coil_q` too
+  (0 = ideal coil) to see how much of the loss is the coil's fault.
+- **The slider endpoints are physics, not bugs.** `series_c1_pF = 0` is a
+  0 pF series capacitor — an open circuit — so the readout reports Z = ∞.
+
+## Put them side by side
+
+The sidebar tabs are independent
+[design sessions](/reference/web/#design-sessions-tabs): load Station A in
+**D1**, Station B in **D2**, and flip between them — each keeps its own knobs,
+frequency, and results, and the two power-budget tables make the comparison
+directly. [Pin a pattern](/reference/web/#comparing-patterns) from one session
+to overlay it on the other.
+
+Note what the comparison *is*: the two stations live on different bands by
+design, so this isn't a same-band shoot-out — it's two feed philosophies, each
+shown at its best and at its breaking point. Station A is unbeatable in
+simplicity and fine on its one band, and quietly donates a third of your
+power to warm coax even there. Station B covers every band with one wire, and
+the budget shows exactly what each extra band costs in line SWR and coil heat.
+
+## What's actually being solved
+
+There is no special-case feedline math anywhere in this page. A design's
+`build_network()` declares **ports** (`PortOnWire` on a wire gap,
+`PortVirtual` for pure circuit nodes), **branches** (`TL`, `TwoPort`, `Shunt`,
+`Transformer`), and **sources** (`Driven`), and the whole thing is solved as
+one MNA circuit coupled to the method-of-moments wire solution. Every branch
+current is an explicit unknown, so the watts in the
+[power budget](/reference/web/#power-budget) are *read off the solution*, and
+gain is normalised by input power — network loss is already in the dBi you see.
+
+## Where to go next
+
+- **`dipoles.folded_invvee_balun`** — the third v0.22 station design: a folded
+  inverted-V through a 4:1 balun (`Transformer`, core loss included).
+- **Roll your own station.** Any builder can add a `build_network()` — take a
+  design you care about from the [catalog](/reference/catalog/), and put *your*
+  actual feedline length and tuner on it.
+- **[The model](/concepts/model/)** and
+  **[write your first design](/concepts/first-builder/)** — if you want to
+  build the antenna itself from scratch first.

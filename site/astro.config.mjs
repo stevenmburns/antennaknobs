@@ -82,6 +82,14 @@ export default defineConfig({
           ],
         },
         {
+          // Advanced worked examples — full-station modelling, multi-design
+          // studies. Grows as more "advanced ideas" pages land.
+          label: "Advanced",
+          items: [
+            { label: "Coax vs. ladder line", slug: "advanced/station-comparison" },
+          ],
+        },
+        {
           label: "Reference",
           items: [
             { label: "Design catalog", slug: "reference/catalog" },
