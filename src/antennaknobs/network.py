@@ -143,6 +143,77 @@ CABLES = {
 }
 
 
+COPPER_CONDUCTIVITY = 5.8e7  # S/m (annealed copper, the IACS reference)
+
+
+@dataclass(frozen=True)
+class WireSpec:
+    """Catalog entry for the antenna wire itself (issue #316): conductor
+    radius and conductivity for skin-effect loss, optional dielectric
+    jacket for the insulated-wire velocity-factor effect, and weight per
+    meter (jacket included) for the how-heavy-is-this-antenna readout.
+
+    `conductivity=None` means PEC (today's idealization with a real
+    radius); `insulation_radius=None` means bare wire. Engines consume
+    this via `Builder.build_wire_material()` — momwire models both
+    effects, PyNEC models conductor loss natively (ld_card type 5) but
+    has no NEC-2 card for insulation and solves the bare wire.
+    """
+
+    radius: float  # conductor radius, m
+    conductivity: float | None = None  # S/m; None = PEC
+    insulation_radius: float | None = None  # jacket outer radius, m
+    insulation_eps_r: float | None = None  # jacket relative permittivity
+    weight_g_per_m: float = 0.0  # conductor + jacket
+
+
+# Nominal catalog values: bare-copper AWG diameters, copper at 5.8e7 S/m,
+# and for the insulated variants a representative PVC hookup-wire jacket
+# (εr ≈ 3.5 at HF, jacket ODs typical of stranded hookup wire — vendor
+# constructions vary, treat as representative). Weights from copper at
+# 8.96 g/cm³ + PVC at 1.4 g/cm³.
+WIRES = {
+    "28-awg": WireSpec(
+        radius=0.160e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=0.72
+    ),
+    "22-awg": WireSpec(
+        radius=0.321e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=2.91
+    ),
+    "18-awg": WireSpec(
+        radius=0.512e-3, conductivity=COPPER_CONDUCTIVITY, weight_g_per_m=7.37
+    ),
+    "28-awg-pvc": WireSpec(
+        radius=0.160e-3,
+        conductivity=COPPER_CONDUCTIVITY,
+        insulation_radius=0.50e-3,
+        insulation_eps_r=3.5,
+        weight_g_per_m=1.71,
+    ),
+    "22-awg-pvc": WireSpec(
+        radius=0.321e-3,
+        conductivity=COPPER_CONDUCTIVITY,
+        insulation_radius=0.80e-3,
+        insulation_eps_r=3.5,
+        weight_g_per_m=5.27,
+    ),
+    "18-awg-pvc": WireSpec(
+        radius=0.512e-3,
+        conductivity=COPPER_CONDUCTIVITY,
+        insulation_radius=1.05e-3,
+        insulation_eps_r=3.5,
+        weight_g_per_m=11.07,
+    ),
+}
+
+
+def wire_from_catalog(name):
+    """The `WIRES` entry for `name`, with the same unknown-key ergonomics
+    as `TL.from_cable`."""
+    if name not in WIRES:
+        raise KeyError(f"unknown wire {name!r}; available: {', '.join(sorted(WIRES))}")
+    return WIRES[name]
+
+
 # Reserved for follow-up PR — sketched here so the discriminated-union
 # pattern is established but not consumed yet by any engine.
 @dataclass(frozen=True)

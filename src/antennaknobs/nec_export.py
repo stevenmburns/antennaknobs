@@ -19,7 +19,7 @@ native NEC ``tl_card``s, so there is no faithful single-deck representation.
 
 from __future__ import annotations
 
-from .engines.pynec import DEFAULT_GROUND, WIRE_RADIUS, PyNECEngine
+from .engines.pynec import DEFAULT_GROUND, WIRE_CONDUCTIVITY, PyNECEngine
 from .network import Load
 
 
@@ -95,7 +95,7 @@ def export_nec(
 
     # --- geometry: one GW per resolved wire tuple, then GE ---
     for tag, t in enumerate(eng.tups, start=1):
-        lines.append(_gw(tag, t[2], t[0], t[1], WIRE_RADIUS))
+        lines.append(_gw(tag, t[2], t[0], t[1], eng._wire_radius))
     lines.append("GE 0")
 
     # --- Load branches -> LD cards (type 0 series / 1 parallel RLC) ---
@@ -111,6 +111,15 @@ def export_nec(
                 continue
             ldtyp = 1 if br.parallel else 0
             lines.append(f"LD {ldtyp} {tag} {seg} {seg} {_num(r)} {_num(l)} {_num(c)}")
+
+    # Wire conductor loss (issue #316): the same global LD 5 the engine
+    # emits — spec conductivity from the design, else the module-level
+    # oracle constant (normally None → card omitted, PEC).
+    sigma = (
+        eng._wire_spec.conductivity if eng._wire_spec is not None else WIRE_CONDUCTIVITY
+    )
+    if sigma is not None:
+        lines.append(f"LD 5 0 0 0 {_num(sigma)} 0. 0.")
 
     # Legacy build_tls() path -> native NEC TL cards. (The build_network() TL
     # path uses the multiport-Y reducer and is rejected above.)

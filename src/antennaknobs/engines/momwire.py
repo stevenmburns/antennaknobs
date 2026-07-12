@@ -5,6 +5,8 @@ momwire/web/server.py:_compute_directivity_norm.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from momwire import BSplineSolver
 
@@ -12,6 +14,8 @@ from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
 from ..network import PortOnWire, PortVirtual
 from ..network_reduce import NetworkReducer, tl_admittance_2x2
+
+_logger = logging.getLogger(__name__)
 
 
 def _parity_for_solver(solver, solver_kwargs):
@@ -90,6 +94,16 @@ _GROUND_EPS_SOLVERS = (
 
 def _solver_supports_ground_eps(solver):
     return getattr(solver, "__name__", None) in _GROUND_EPS_SOLVERS
+
+
+# Distributed wire loading (issue #316 / momwire#131) is a BSpline-family
+# feature; SinusoidalSolver rejects the kwargs (field-based assembly needs
+# its own overlap integrals — momwire defers it loudly).
+_WIRE_LOADING_SOLVERS = ("BSplineSolver", "HMatrixSolver", "ArrayBlockSolver")
+
+
+def _solver_supports_wire_loading(solver):
+    return getattr(solver, "__name__", None) in _WIRE_LOADING_SOLVERS
 
 
 class MomwireEngine(SimulationEngine):
@@ -173,7 +187,39 @@ class MomwireEngine(SimulationEngine):
         self._feeds = translated["feeds"]
         self._feed_names = translated["feed_names"]
         self._junctions = translated["junctions"]
-        self._wire_radius = wire_radius
+        # Wire material (issue #316): a design-declared WireSpec supplies the
+        # conductor radius plus the distributed-loading kwargs. Precedence
+        # for the radius: an explicit non-default `wire_radius` (the web
+        # model-options control) wins; the stock 0.0005 acts as "auto" so a
+        # spec design's skin-effect loss is computed at its real radius.
+        self._wire_spec = builder.build_wire_material()
+        if wire_radius != 0.0005 and wire_radius is not None:
+            self._wire_radius = wire_radius
+        elif self._wire_spec is not None:
+            self._wire_radius = self._wire_spec.radius
+        else:
+            self._wire_radius = 0.0005
+        # Distributed loading rides only the solvers that model it; warn
+        # once (not raise) so a matched-basis sinusoidal comparison of a
+        # lossy design still solves — as the ideal wire, stated plainly.
+        self._loading_kwargs = {}
+        spec = self._wire_spec
+        if spec is not None and (
+            spec.conductivity is not None or spec.insulation_radius is not None
+        ):
+            if _solver_supports_wire_loading(self._solver):
+                if spec.conductivity is not None:
+                    self._loading_kwargs["wire_conductivity"] = spec.conductivity
+                if spec.insulation_radius is not None:
+                    self._loading_kwargs["insulation_radius"] = spec.insulation_radius
+                    self._loading_kwargs["insulation_eps_r"] = spec.insulation_eps_r
+            else:
+                _logger.warning(
+                    "%s doesn't model distributed wire loading; solving the "
+                    "design's %s wire as ideal (PEC, bare)",
+                    getattr(self._solver, "__name__", self._solver),
+                    type(builder).__name__,
+                )
         self._ground = _normalise_ground(ground)
         self._ground_z = ground_z if self._ground is not None else None
         # Finite ground constants forwarded to the impedance solve when the
@@ -262,6 +308,7 @@ class MomwireEngine(SimulationEngine):
             ground_z=self._ground_z,
             junctions=self._junctions or None,
             cancel=self._cancel,
+            **self._loading_kwargs,
             **self._ground_solver_kwargs(),
             **self._solver_kwargs,
         )
@@ -457,6 +504,7 @@ class MomwireEngine(SimulationEngine):
             ground_z=self._ground_z,
             junctions=self._junctions or None,
             cancel=self._cancel,
+            **self._loading_kwargs,
             **self._ground_solver_kwargs(),
             **self._solver_kwargs,
         )
