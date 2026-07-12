@@ -173,8 +173,9 @@ N_SWEEP_PTS = 41
 def _make_engine(builder_cls, solver_cls, nsegs, wire_type):
     b = builder_cls()
     b.nominal_nsegs = nsegs
-    if wire_type is not None:
-        b.wire_type = wire_type
+    # Always assign: None must override a design's own default (pota_invvee
+    # defaults to "22-awg-pvc") so the ideal row is truly ideal.
+    b.wire_type = wire_type
     return MomwireEngine(b, solver=solver_cls)
 
 
@@ -207,6 +208,11 @@ def _fmt_loading(stats, total_s, n_calls):
 
 
 def main():
+    import sys
+
+    # Optional argv substring filters: run only matching case labels.
+    filters = sys.argv[1:]
+    cases = [c for c in CASES if not filters or any(f in c[0] for f in filters)]
     print(
         f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} "
         f"OPENBLAS_NUM_THREADS={os.environ['OPENBLAS_NUM_THREADS']}"
@@ -217,7 +223,7 @@ def main():
         "loading = ms spent in _loading_gram/_apply_loading/_loading_block "
         "(per solve), and its share of wall-clock."
     )
-    for label, builder_cls, solver_cls, nsegs in CASES:
+    for label, builder_cls, solver_cls, nsegs in cases:
         print(f"\n=== {label} [{solver_cls.__name__}] ===")
         hdr = (
             f"{'variant':<6} | {'single':>10} | {'loading':>16} | "
