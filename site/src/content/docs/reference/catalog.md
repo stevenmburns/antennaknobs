@@ -88,6 +88,7 @@ whole shape with a `Drone` — see
 | Design | Notes |
 | --- | --- |
 | `wire.doublet_ladder_tuner` | 88 ft doublet + 100 ft of 600 Ω open-wire line + lossy T-network tuner — the "non-resonant wire and a matchbox" station, modelled from the rig (issue #300) · variants: `classic_edz`, `dipole`, `three_halves` |
+| `wire.efhw_sloper` | End-fed half-wave sloper with a real 49:1 unun — "the POTA antenna, complete" (issue #329) |
 | `wire.lazy_h` | Lazy-H: two stacked collinear elements fed in phase (L. B. Cebik, W4RNL) |
 | `wire.longwire` | Resonant multi-wavelength long-wire (L. B. Cebik, W4RNL) |
 | `wire.rhombic` | Terminated rhombic: a traveling-wave directional long-wire (L. B. Cebik, W4RNL, "Long-Wire Antennas" / "The Terminated Vee-Beam and Rhombic") |

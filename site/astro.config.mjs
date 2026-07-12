@@ -88,6 +88,7 @@ export default defineConfig({
           items: [
             { label: "Coax vs. ladder line", slug: "advanced/station-comparison" },
             { label: "Wire gauge for POTA", slug: "advanced/wire-gauge" },
+            { label: "The end-fed question", slug: "advanced/efhw" },
           ],
         },
         {
