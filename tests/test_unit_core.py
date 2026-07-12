@@ -7,6 +7,7 @@ class MockedPlt:
         self.savefig = MagicMock(return_value=None)
         self.show = MagicMock(return_value=None)
         self.close = MagicMock(return_value=None)
+        self.gcf = MagicMock()
 
 
 def test_save_or_show():
@@ -27,3 +28,7 @@ def test_save_or_show():
     plt.savefig.assert_not_called()
     plt.show.assert_called_with()
     plt.close.assert_called_with()
+
+    # The AntennaKNoBs brand tag is stamped on the figure on every path.
+    text_call = plt.gcf.return_value.text.call_args
+    assert "AntennaKNoBs" in text_call.args[2]

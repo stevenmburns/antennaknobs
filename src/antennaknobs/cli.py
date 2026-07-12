@@ -3,6 +3,7 @@ from functools import partial
 from . import AntennaBuilder, resolve_variant_params
 from . import (
     sweep,
+    sweep_freq,
     sweep_gain,
     sweep_patterns,
     pattern,
@@ -441,6 +442,13 @@ def cli(arguments=None):
         action="store_true",
         help="Plot impedance using a smithchart.",
     )
+    p.add_argument(
+        "--swr",
+        default=False,
+        action="store_true",
+        help="Plot SWR + reflection vs frequency (uses the engine's vectorized "
+        "frequency sweep; only valid with the default --param freq).",
+    )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
         "--markers",
@@ -472,6 +480,22 @@ def cli(arguments=None):
                 elevation_angle=args.elevation_angle,
                 azimuth_f=args.azimuth_f,
                 azimuth_r=args.azimuth_r,
+                engine=engine,
+            )
+        elif args.swr:
+            if args.param != "freq":
+                raise SystemExit(
+                    f"--swr sweeps frequency; it can't be combined with "
+                    f"--param {args.param}"
+                )
+            sweep_freq(
+                builder(),
+                z0=args.z0,
+                rng=args.range,
+                npoints=args.npoints,
+                center=args.center,
+                fraction=args.fraction,
+                fn=args.fn,
                 engine=engine,
             )
         elif args.gain:

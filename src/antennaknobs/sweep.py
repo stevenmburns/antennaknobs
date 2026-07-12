@@ -67,7 +67,7 @@ def gen_xs(default_value, rng, center, fraction, npoints):
 def sweep_freq(
     antenna_builder,
     *,
-    z0=200,
+    z0=50,
     rng=None,
     center=None,
     fraction=None,
