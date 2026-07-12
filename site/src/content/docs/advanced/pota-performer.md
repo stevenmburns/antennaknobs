@@ -82,7 +82,7 @@ efficiency by definition stops at the antenna's terminals-and-metal.
 KJ6ER's own published +0.31 dBi peak is a ~25% radiated fraction,
 stated in dB.
 
-## Is that damning? No — it's the tax everyone pays
+## The tax everyone pays
 
 Ground absorption at these heights is nearly identical for every
 portable vertical. For calibration, the same integration on a 7 m-high
