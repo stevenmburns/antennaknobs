@@ -87,6 +87,7 @@ export default defineConfig({
           label: "Advanced",
           items: [
             { label: "Coax vs. ladder line", slug: "advanced/station-comparison" },
+            { label: "Wire gauge for POTA", slug: "advanced/wire-gauge" },
           ],
         },
         {

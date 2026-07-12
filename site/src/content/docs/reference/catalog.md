@@ -21,6 +21,7 @@ after L. B. Cebik (W4RNL)'s articles.
 | `dipoles.invvee_coax_station` | Inverted-V fed through real coax — the classic "resonant antenna on 50 Ω line" station, modelled from the rig (issue #300) · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.koch_dipole` | Koch fractal dipole (L. B. Cebik, W4RNL -- "fractal antennas") |
 | `dipoles.ocf_dipole` | Off-Center-Fed dipole (Windom): a half-wave fed away from the middle (L. B. Cebik, W4RNL) |
+| `dipoles.pota_invvee` | POTA wire-gauge tradeoff: a 20 m inverted-V where the wire is a knob · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.short_dipole_loaded` | Center-loaded shortened dipole — the Load-branch showcase for issue #65 |
 <!-- catalog:end dipoles -->
 
