@@ -18,6 +18,7 @@ __all__ = [
     "gen_xs",
     "sweep",
     "sweep_freq",
+    "sweep_swr",
     "sweep_gain",
     "sweep_patterns",
     "optimize",
@@ -42,7 +43,15 @@ from .transform import Transform, TransformStack
 from .drone import Drone
 from .sim import Antenna
 from .opt import optimize
-from .sweep import sweep, sweep_freq, sweep_gain, sweep_patterns, resolve_range, gen_xs
+from .sweep import (
+    sweep,
+    sweep_freq,
+    sweep_swr,
+    sweep_gain,
+    sweep_patterns,
+    resolve_range,
+    gen_xs,
+)
 from .far_field import (
     compare_patterns,
     pattern_metrics,

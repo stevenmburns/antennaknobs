@@ -3,7 +3,7 @@ from functools import partial
 from . import AntennaBuilder, resolve_variant_params
 from . import (
     sweep,
-    sweep_freq,
+    sweep_swr,
     sweep_gain,
     sweep_patterns,
     pattern,
@@ -446,8 +446,8 @@ def cli(arguments=None):
         "--swr",
         default=False,
         action="store_true",
-        help="Plot SWR + reflection vs frequency (uses the engine's vectorized "
-        "frequency sweep; only valid with the default --param freq).",
+        help="Plot SWR + reflection magnitude against the swept --param "
+        "(default freq, which uses the engine's fast vectorized sweep).",
     )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
@@ -483,13 +483,9 @@ def cli(arguments=None):
                 engine=engine,
             )
         elif args.swr:
-            if args.param != "freq":
-                raise SystemExit(
-                    f"--swr sweeps frequency; it can't be combined with "
-                    f"--param {args.param}"
-                )
-            sweep_freq(
+            sweep_swr(
                 builder(),
+                args.param,
                 z0=args.z0,
                 rng=args.range,
                 npoints=args.npoints,

@@ -64,8 +64,9 @@ def gen_xs(default_value, rng, center, fraction, npoints):
     return np.linspace(rng[0], rng[1], npoints)
 
 
-def sweep_freq(
+def sweep_swr(
     antenna_builder,
+    nm="freq",
     *,
     z0=50,
     rng=None,
@@ -75,19 +76,26 @@ def sweep_freq(
     fn=None,
     engine=Antenna,
 ):
+    """SWR + reflection magnitude against any swept knob.
+
+    Sweeping `freq` uses the engine's vectorized impedance_sweep (one build,
+    one matrix per frequency); any other knob changes the geometry, so the
+    engine is rebuilt per point like the other parameter sweeps.
+    """
     import matplotlib.pyplot as plt
 
-    rng = resolve_range(antenna_builder.freq, rng, center, fraction)
+    xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
 
-    min_freq = rng[0]
-    max_freq = rng[1]
-    n_freq = npoints - 1
-
-    xs = np.linspace(min_freq, max_freq, n_freq + 1)
-
-    a = engine(antenna_builder)
-    zs = a.impedance_sweep(xs)
-    del a
+    if nm == "freq":
+        a = engine(antenna_builder)
+        zs = a.impedance_sweep(xs)
+        del a
+    else:
+        zs = []
+        for x in xs:
+            setattr(antenna_builder, nm, x)
+            zs.append(engine(antenna_builder).impedance())
+        zs = np.array(zs)
 
     reflection_coefficient = (zs - z0) / (zs + z0)
     rho = np.abs(reflection_coefficient)
@@ -97,7 +105,7 @@ def sweep_freq(
 
     fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
     color = "tab:red"
-    ax0.set_xlabel("frequency (MHz)")
+    ax0.set_xlabel(_param_label(nm))
     ax0.set_ylabel("reflection 10·log₁₀|Γ| (dB)", color=color)
     ax0.tick_params(axis="y", labelcolor=color)
     for i in range(rho_db.shape[1]):
@@ -112,11 +120,16 @@ def sweep_freq(
     for i in range(swr.shape[1]):
         ax1.plot(xs, swr[:, i], color=color, linestyle=_port_style(i), marker="o", ms=3)
 
-    _polish_axes(ax0, title=f"frequency sweep (z0 = {z0:g} Ω)")
+    _polish_axes(ax0, title=f"SWR vs {nm} (z0 = {z0:g} Ω)")
     ax1.spines["top"].set_visible(False)
     fig.tight_layout()
 
     save_or_show(plt, fn)
+
+
+def sweep_freq(antenna_builder, **kwargs):
+    """Backwards-compatible alias: the SWR chart swept over frequency."""
+    sweep_swr(antenna_builder, "freq", **kwargs)
 
 
 def sweep_patterns(
