@@ -35,12 +35,14 @@ per-meter series impedance:
   bare wire cut to the same length. That's the velocity factor behind
   "my cut-to-formula insulated dipole came out long."
 
-Both engines model the conductor loss (the momwire loading and PyNEC's
-native `LD 5` agree on the added resistance to half a percent — a
-cross-engine oracle in the test suite). The insulation effect is
-momwire-only: NEC-2 has no insulated-wire card, so switching engines on
-a PVC wire visibly moves the resonance. That divergence is the lesson,
-not a bug.
+Both engines model both effects. Conductor loss: the momwire loading and
+PyNEC's native `LD 5` card agree on the added resistance to half a
+percent. Insulation: NEC-2 has no insulated-wire card, but the same
+jacket inductance enters as a distributed series load (`LD 2`, henries
+per metre), and the two engines agree on the resonance shift to a few
+percent. Each pairing is a cross-engine oracle in the test suite — two
+independent implementations of the same physics, kept honest against
+each other.
 
 ## The numbers
 

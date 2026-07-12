@@ -3,10 +3,10 @@ import logging
 import numpy as np
 import PyNEC as nec
 
-# Exact round-conductor internal impedance (momwire#131). Private-module
-# import, but antennaknobs pins momwire exactly, so the pair moves in
-# lockstep; promote to a public momwire export at the next API pass.
-from momwire._wire_loading import wire_internal_impedance
+# Exact round-conductor internal impedance + jacket inductance (momwire#131).
+# Private-module import, but antennaknobs pins momwire exactly, so the pair
+# moves in lockstep; promote to public momwire exports at the next API pass.
+from momwire._wire_loading import insulation_inductance, wire_internal_impedance
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (
@@ -84,19 +84,16 @@ class PyNECEngine(SimulationEngine):
         # ld_card type 5 (NEC's native wire-loss model — the momwire#131
         # cross-engine oracle); the module-level WIRE_CONDUCTIVITY constant
         # below stays as the manual all-designs override for oracle runs.
-        # NEC-2 has no insulated-wire card, so a spec's insulation is NOT
-        # modeled here — momwire is the fidelity engine for that (same
-        # engine-divergence precedent as Sommerfeld ground).
+        # A spec's insulation is emitted as a global ld_card type 2
+        # (distributed series R/L/C per metre): the same quasi-static jacket
+        # inductance L' momwire loads, so both engines model the "insulated
+        # wire tunes long" velocity-factor effect. NEC stacks LD cards on a
+        # segment in series, so LD 2 composes with the LD 5 conductor loss
+        # (pinned by the cross-engine vf oracle in test_wire_material.py).
         self._wire_spec = builder.build_wire_material()
         self._wire_radius = (
             self._wire_spec.radius if self._wire_spec is not None else WIRE_RADIUS
         )
-        if self._wire_spec is not None and self._wire_spec.insulation_radius:
-            _logger.warning(
-                "NEC-2 has no insulated-wire card; PyNEC solves %s's wire "
-                "bare (no velocity-factor effect)",
-                type(builder).__name__,
-            )
         # build_tls() is only consulted when there's no Network spec; with a
         # Network, the engine drives ex_card/tl_card calls off the spec instead.
         self.tls = [] if self._network is not None else builder.build_tls()
@@ -186,19 +183,40 @@ class PyNECEngine(SimulationEngine):
             for idx1, seg1, idx2, seg2, impedance, length in self.tls:
                 self.c.tl_card(idx1, seg1, idx2, seg2, impedance, length, 0, 0, 0, 0)
 
-        # Spec conductivity from the design wins; the module constant stays
-        # as the manual all-designs oracle override (see its comment above).
+        self._emit_wire_material_cards(self.c)
+        self._apply_ground_card()
+
+        for tag, sub_index, voltage in self.excitation_pairs:
+            self.c.ex_card(0, tag, sub_index, 0, voltage.real, voltage.imag, 0, 0, 0, 0)
+
+    def _insulation_l_per_m(self):
+        """The spec jacket's distributed series inductance [H/m] (King's
+        quasi-static insulated-antenna limit — the same L' momwire loads),
+        or None for bare/ideal wire."""
+        spec = self._wire_spec
+        if spec is None or not spec.insulation_radius:
+            return None
+        return insulation_inductance(
+            self._wire_radius, spec.insulation_radius, spec.insulation_eps_r
+        )
+
+    def _emit_wire_material_cards(self, c):
+        """Global (all-segments) LD cards for the design's wire material:
+        conductor loss as type 5, insulation as type 2 (distributed series
+        R/L/C per metre — only the H/m slot is used). NEC connects multiple
+        loads on a segment in series, so the two stack. Spec conductivity
+        from the design wins; the module constant stays as the manual
+        all-designs oracle override (see its comment above)."""
         sigma = (
             self._wire_spec.conductivity
             if self._wire_spec is not None
             else WIRE_CONDUCTIVITY
         )
         if sigma is not None:
-            self.c.ld_card(5, 0, 0, 0, sigma, 0.0, 0.0)
-        self._apply_ground_card()
-
-        for tag, sub_index, voltage in self.excitation_pairs:
-            self.c.ex_card(0, tag, sub_index, 0, voltage.real, voltage.imag, 0, 0, 0, 0)
+            c.ld_card(5, 0, 0, 0, sigma, 0.0, 0.0)
+        l_ins = self._insulation_l_per_m()
+        if l_ins is not None:
+            c.ld_card(2, 0, 0, 0, 0.0, l_ins, 0.0)
 
     def _resolve_network_ports(self):
         """Resolve every PortOnWire to its (tag, sub_seg) for native ld_card /
@@ -446,13 +464,7 @@ class PyNECEngine(SimulationEngine):
             if name is not None:
                 loc[name] = (idx, (n_seg + 1) // 2)
         c.geometry_complete(0)
-        sigma = (
-            self._wire_spec.conductivity
-            if self._wire_spec is not None
-            else WIRE_CONDUCTIVITY
-        )
-        if sigma is not None:
-            c.ld_card(5, 0, 0, 0, sigma, 0.0, 0.0)
+        self._emit_wire_material_cards(c)
         self._apply_ground_card(c)
         return c, loc
 

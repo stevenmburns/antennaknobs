@@ -128,15 +128,17 @@ def test_momwire_sinusoidal_drops_loading_keeps_radius(caplog):
 
 
 @needs_pynec
-def test_pynec_ld5_and_radius_from_spec(caplog):
+def test_pynec_ld5_and_radius_from_spec():
     z0 = _z(PyNECEngine(_builder(), ground=None))
     z1 = _z(PyNECEngine(_builder("28-awg"), ground=None))
     assert z1.real > z0.real + 1.0
-    # Insulation: no NEC-2 card — warned, solved as the bare variant.
-    with caplog.at_level("WARNING"):
-        z2 = _z(PyNECEngine(_builder("28-awg-pvc"), ground=None))
-    assert "no insulated-wire card" in caplog.text
-    assert z2 == pytest.approx(z1, rel=1e-12)
+    # Insulation: LD 2 distributed series L' — electrically longer, X
+    # rises (mirrors test_momwire_insulation_shifts_reactance). NEC stacks
+    # LD cards in series, so the LD 5 copper loss must survive alongside:
+    # R stays elevated over the ideal wire.
+    z2 = _z(PyNECEngine(_builder("28-awg-pvc"), ground=None))
+    assert z2.imag > z1.imag + 10.0
+    assert z2.real > z0.real + 1.0
 
 
 @needs_pynec
@@ -149,9 +151,14 @@ def test_nec_export_carries_spec():
     deck = export_nec(_builder("28-awg"), ground=None)
     assert "LD 5 0 0 0  5.800000E+07" in deck
     assert " 1.600000E-04" in deck  # 28 AWG radius on the GW cards
+    assert "LD 2" not in deck  # bare wire: no insulation card
     deck0 = export_nec(_builder(), ground=None)
     assert "LD 5" not in deck0
     assert " 5.000000E-04" in deck0
+    # Insulated variant additionally carries the distributed-L' card.
+    deck2 = export_nec(_builder("28-awg-pvc"), ground=None)
+    assert "LD 5 0 0 0  5.800000E+07" in deck2
+    assert "LD 2 0 0 0 0. " in deck2
 
 
 @needs_pynec
@@ -168,3 +175,21 @@ def test_cross_engine_skin_loss_oracle():
         - _z(PyNECEngine(_builder(), ground=None)).real
     )
     assert dr_momwire == pytest.approx(dr_pynec, rel=0.05)
+
+
+@needs_pynec
+def test_cross_engine_insulation_vf_oracle():
+    """momwire's insulation loading vs NEC's LD 2 distributed inductance
+    on the same free-space invvee: the bare→PVC ΔX from two independent
+    implementations of the same quasi-static jacket L' must agree to a
+    few percent — and it also proves NEC stacks LD 2 with the LD 5
+    conductor loss rather than replacing it."""
+    dx_momwire = (
+        _z(MomwireEngine(_builder("28-awg-pvc"), ground=None)).imag
+        - _z(MomwireEngine(_builder("28-awg"), ground=None)).imag
+    )
+    dx_pynec = (
+        _z(PyNECEngine(_builder("28-awg-pvc"), ground=None)).imag
+        - _z(PyNECEngine(_builder("28-awg"), ground=None)).imag
+    )
+    assert dx_momwire == pytest.approx(dx_pynec, rel=0.05)
