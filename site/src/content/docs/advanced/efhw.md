@@ -12,7 +12,8 @@ argument is usually conducted in folklore because the system is hard to
 reason about piecemeal — every piece interacts.
 
 [`wire.efhw_sloper`](/reference/catalog/) models the whole chain at once:
-~9.5 m of thin wire sloping from a 10 m mast apex down to a feed point at
+~9.5 m of thin wire sloping down at ~63° (the `slope_deg` knob — the
+apex, ≈10 m at the defaults, is derived from it) to a feed point at
 1.5 m, into a step-down unun with a real magnetizing branch and core
 loss, a compensation capacitor, a short counterpoise, and 5 m of RG-58 to
 the rig. Every stage is a knob, and the power budget itemizes each one.
