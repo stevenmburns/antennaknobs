@@ -8,12 +8,28 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# NOTE: matplotlib.pyplot and scikit-rf (skrf) are imported lazily inside the
-# plotting functions below, not at module top. Both are import-heavy
-# (matplotlib ~0.1 s; skrf ~0.8 s, pulling pandas + most of skrf) and only
-# needed when actually drawing — loading them here would tax every
-# `import antennaknobs`, every CLI command, and web startup (which never plots)
-# for a feature most runs never touch.
+# NOTE: matplotlib.pyplot (and the smith_chart helpers built on it) are
+# imported lazily inside the plotting functions below, not at module top.
+# matplotlib is import-heavy (~0.1 s) and only needed when actually drawing —
+# loading it here would tax every `import antennaknobs`, every CLI command,
+# and web startup (which never plots) for a feature most runs never touch.
+
+# Linestyles used to tell multi-port traces apart while keeping the
+# red/blue axis-colour scheme of the twin-axis charts readable.
+_PORT_LINESTYLES = ("-", "--", ":", "-.")
+
+
+def _port_style(i):
+    return _PORT_LINESTYLES[i % len(_PORT_LINESTYLES)]
+
+
+def _polish_axes(ax, title=None):
+    """Shared look-and-feel for the rectangular CLI charts."""
+    ax.grid(True, alpha=0.3, linewidth=0.6)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    if title is not None:
+        ax.set_title(title, fontsize=11)
 
 
 def build_and_get_elevation(antenna_builder, *, engine=Antenna):
@@ -74,21 +90,25 @@ def sweep_freq(
 
     rho_db = np.log10(rho) * 10.0
 
-    fig, ax0 = plt.subplots()
+    fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
     color = "tab:red"
-    ax0.set_xlabel("freq")
-    ax0.set_ylabel("rho_db", color=color)
+    ax0.set_xlabel("frequency (MHz)")
+    ax0.set_ylabel("reflection 10·log₁₀|Γ| (dB)", color=color)
     ax0.tick_params(axis="y", labelcolor=color)
     for i in range(rho_db.shape[1]):
-        ax0.plot(xs, rho_db[:, i], color=color)
+        ax0.plot(
+            xs, rho_db[:, i], color=color, linestyle=_port_style(i), marker="o", ms=3
+        )
 
     color = "tab:blue"
     ax1 = ax0.twinx()
-    ax1.set_ylabel("swr", color=color)
+    ax1.set_ylabel("SWR", color=color)
     ax1.tick_params(axis="y", labelcolor=color)
     for i in range(swr.shape[1]):
-        ax1.plot(xs, swr[:, i], color=color)
+        ax1.plot(xs, swr[:, i], color=color, linestyle=_port_style(i), marker="o", ms=3)
 
+    _polish_axes(ax0, title=f"frequency sweep (z0 = {z0:g} Ω)")
+    ax1.spines["top"].set_visible(False)
     fig.tight_layout()
 
     save_or_show(plt, fn)
@@ -155,12 +175,15 @@ def sweep_gain(
 
     gs = np.array(gs)
 
-    fig, ax0 = plt.subplots()
+    fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
     color = "tab:red"
     ax0.set_xlabel(nm)
-    ax0.set_ylabel("max_gain", color=color)
+    ax0.set_ylabel("max gain (dBi)", color=color)
     ax0.tick_params(axis="y", labelcolor=color)
-    ax0.plot(xs, gs, color=color)
+    ax0.plot(xs, gs, color=color, marker="o", ms=3)
+
+    _polish_axes(ax0, title=f"max gain vs {nm}")
+    fig.tight_layout()
 
     save_or_show(plt, fn)
 
@@ -208,44 +231,52 @@ def sweep(
     )
 
     if use_smithchart:
-        # Lazy import (see the note at the top of the module): only the two
-        # Smith-chart drawing helpers, and only when a chart is actually drawn.
-        from skrf.plotting import plot_smith, smith
+        # Lazy import (see the note at the top of the module): our own
+        # matplotlib renderer — scikit-rf was dropped in #332.
+        from .smith_chart import draw_smith_chart, plot_reflection
 
-        fig, ax0 = plt.subplots()
-        color = "tab:red"
-        smith(draw_labels=True, chart_type="z")
+        fig, ax0 = plt.subplots(figsize=(6.8, 6.8))
+        draw_smith_chart(ax0, z0=z0)
         for i in range(nwidth):
+            color = f"C{i}"
+            label = f"port {i + 1}" if nwidth > 1 else None
             if zs.shape[0] > 0:
-                normalized_zs = zs / z0
-                reflection_coefficients = (normalized_zs - 1) / (normalized_zs + 1)
-                plot_smith(
-                    reflection_coefficients,
-                    color=color,
-                    draw_labels=True,
-                    chart_type="z",
-                )
-
+                gamma = (zs[:, i] - z0) / (zs[:, i] + z0)
+                plot_reflection(ax0, gamma, color=color, linewidth=1.8, label=label)
+                label = None
             if marker_zs.shape[0] > 0:
-                normalized_zs = marker_zs / z0
-                reflection_coefficients = (normalized_zs - 1) / (normalized_zs + 1)
-                plot_smith(
-                    reflection_coefficients,
+                gamma = (marker_zs[:, i] - z0) / (marker_zs[:, i] + z0)
+                plot_reflection(
+                    ax0,
+                    gamma,
                     color=color,
-                    draw_labels=True,
-                    chart_type="z",
                     marker="s",
+                    ms=6,
                     linestyle="None",
+                    label=label,
                 )
+        if nwidth > 1:
+            # Upper left keeps clear of the z0 note in the lower-left corner.
+            ax0.legend(loc="upper left", frameon=False, fontsize=8)
+        ax0.set_title(f"{nm} sweep", fontsize=11)
+        fig.tight_layout()
 
     else:
-        fig, ax0 = plt.subplots()
+        fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
         color = "tab:red"
-        ax0.set_ylabel("z real", color=color)
+        ax0.set_xlabel(nm)
+        ax0.set_ylabel("resistance R (Ω)", color=color)
         ax0.tick_params(axis="y", labelcolor=color)
         for i in range(nwidth):
             if zs.shape[0] > 0:
-                ax0.plot(xs, np.real(zs)[:, i], color=color)
+                ax0.plot(
+                    xs,
+                    np.real(zs)[:, i],
+                    color=color,
+                    linestyle=_port_style(i),
+                    marker="o",
+                    ms=3,
+                )
             if marker_zs.shape[0] > 0:
                 ax0.plot(
                     marker_xs,
@@ -257,11 +288,18 @@ def sweep(
 
         color = "tab:blue"
         ax1 = ax0.twinx()
-        ax1.set_ylabel("z imag", color=color)
+        ax1.set_ylabel("reactance X (Ω)", color=color)
         ax1.tick_params(axis="y", labelcolor=color)
         for i in range(nwidth):
             if zs.shape[0] > 0:
-                ax1.plot(xs, np.imag(zs)[:, i], color=color)
+                ax1.plot(
+                    xs,
+                    np.imag(zs)[:, i],
+                    color=color,
+                    linestyle=_port_style(i),
+                    marker="o",
+                    ms=3,
+                )
             if marker_zs.shape[0] > 0:
                 ax1.plot(
                     marker_xs,
@@ -271,6 +309,8 @@ def sweep(
                     linestyle="None",
                 )
 
+        _polish_axes(ax0, title=f"feedpoint impedance vs {nm}")
+        ax1.spines["top"].set_visible(False)
         fig.tight_layout()
 
     save_or_show(plt, fn)

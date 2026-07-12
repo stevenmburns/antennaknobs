@@ -31,9 +31,10 @@ classifiers = [
 #     0.2.3). Every momwire upgrade is a deliberate PR: bump this pin, the
 #     Dockerfile pin, and the submodule together, confirm the version is on
 #     PyPI before tagging a release.
-#   - numpy/scipy math throughout; matplotlib for the draw/sweep/pattern plots;
-#     scikit-rf for Touchstone/network handling in sweep. CLI/sweep debug
-#     tracing goes through the stdlib logging module (enable with `-vv`).
+#   - numpy/scipy math throughout; matplotlib for the draw/sweep/pattern plots
+#     including the in-house Smith chart (smith_chart.py — scikit-rf was
+#     dropped in #332, it was only ever used to draw that chart). CLI/sweep
+#     debug tracing goes through the stdlib logging module (enable with `-vv`).
 #
 # Deliberately NOT listed: PyNEC — the optional NEC2 backend, GPL-2.0-or-later.
 # It is installed separately from the python-necpp fork's release wheel (the
@@ -44,7 +45,6 @@ dependencies = [
     "numpy>=1.21",
     "scipy>=1.7",
     "matplotlib>=3.5",
-    "scikit-rf>=0.24",
 ]
 
 [project.optional-dependencies]
@@ -63,8 +63,8 @@ dependencies = [
 web = ["fastapi", "uvicorn[standard]", "websockets", "psutil"]
 
 # Test suite: `pip install -e ".[test]"` makes `pytest` reproducible from a
-# clean clone (the runtime deps in [project] cover numpy/scipy/matplotlib/
-# scikit-rf that the solver tests need).
+# clean clone (the runtime deps in [project] cover the numpy/scipy/matplotlib
+# that the solver tests need).
 #   - pytest + coverage run the suite.
 #   - the web-server tests import the FastAPI app and drive it through
 #     Starlette's TestClient, so they need the `web` extra (pulled in via the
