@@ -14,7 +14,7 @@ peak −0.32 dBi @ 20° elevation, −3 dB beamwidth 33°, SWR 1.04 (at
 −0.34 dB (LDG RU-4:1) or −0.24 dB (Palomar Bullet, the "Challenger+" —
 the `plus` variant). The same two efficiency ledgers apply as on the
 PERformer: the structural numbers check out, while the far-field
-radiated fraction over average ground is ~⅓ — see the docs page.
+radiated fraction over average ground is ~¼ — see the docs page.
 
 The unun is a real `Transformer` branch: `lmag_uH`/`qlmag` are NOT
 derived from core datasheets — they are calibrated so the power
