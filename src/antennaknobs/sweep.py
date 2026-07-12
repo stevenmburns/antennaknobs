@@ -23,6 +23,11 @@ def _port_style(i):
     return _PORT_LINESTYLES[i % len(_PORT_LINESTYLES)]
 
 
+def _param_label(nm):
+    """Axis label for a swept knob; only freq has a unit we can know here."""
+    return "freq (MHz)" if nm == "freq" else nm
+
+
 def _polish_axes(ax, title=None):
     """Shared look-and-feel for the rectangular CLI charts."""
     ax.grid(True, alpha=0.3, linewidth=0.6)
@@ -177,7 +182,7 @@ def sweep_gain(
 
     fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
     color = "tab:red"
-    ax0.set_xlabel(nm)
+    ax0.set_xlabel(_param_label(nm))
     ax0.set_ylabel("max gain (dBi)", color=color)
     ax0.tick_params(axis="y", labelcolor=color)
     ax0.plot(xs, gs, color=color, marker="o", ms=3)
@@ -258,13 +263,14 @@ def sweep(
         if nwidth > 1:
             # Upper left keeps clear of the z0 note in the lower-left corner.
             ax0.legend(loc="upper left", frameon=False, fontsize=8)
-        ax0.set_title(f"{nm} sweep", fontsize=11)
+        # Same title as the rectangular branch — the chart form says "Smith".
+        ax0.set_title(f"feedpoint impedance vs {nm}", fontsize=11)
         fig.tight_layout()
 
     else:
         fig, ax0 = plt.subplots(figsize=(7.0, 4.5))
         color = "tab:red"
-        ax0.set_xlabel(nm)
+        ax0.set_xlabel(_param_label(nm))
         ax0.set_ylabel("resistance R (Ω)", color=color)
         ax0.tick_params(axis="y", labelcolor=color)
         for i in range(nwidth):
