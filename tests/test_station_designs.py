@@ -63,7 +63,13 @@ def test_coax_station_swr_penalty_off_resonance():
 
 
 def test_doublet_station_matches_fifty_ohms_with_coil_dominated_loss():
-    eng = _momwire(DoubletStation())
+    """Stock tune targets the workbench default — finite-fast ground AND the
+    B-spline solver — so solve with both. (The 100 ft high-SWR line amplifies
+    basis-level feedpoint differences: the sinusoidal basis lands the rig tens
+    of ohms away, and free space is ~SWR 2.)"""
+    from antennaknobs.engines import MomwireEngine
+
+    eng = MomwireEngine(DoubletStation(), ground=("finite-fast", 10.0, 0.002))
     (z,) = eng.impedance()
     assert abs(z - 50.0) < 1.0  # stock tune lands the rig at ~50 Ω
     fr = _budget_fractions(eng)
