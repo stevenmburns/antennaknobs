@@ -78,6 +78,7 @@ from .examples._base import (
     BandSpec,
     ParamGroupSpec,
     ParamSpec,
+    ResultFieldSpec,
     SweepPolicy,
 )
 
@@ -562,6 +563,26 @@ def _pynec_ground_spec(req: dict):
     if model == "fast":
         return ("finite-fast",) + DEFAULT_GROUND[1:]
     return DEFAULT_GROUND
+
+
+def _wire_material_results(builder) -> dict:
+    """Wire length + weight response fields (issue #318) for designs that
+    declare a wire material: total conductor run from build_wires(), weight
+    from the catalog's grams/meter (jacket included). {} when the design
+    has no material — the fields (and their Info-pane rows) only exist for
+    wire_type designs."""
+    spec = builder.build_wire_material()
+    if spec is None:
+        return {}
+    length = 0.0
+    for t in builder.build_wires():
+        p0 = np.asarray(t[0], dtype=float)
+        p1 = np.asarray(t[1], dtype=float)
+        length += float(np.linalg.norm(p1 - p0))
+    return {
+        "wire_length_m": length,
+        "wire_weight_g": length * spec.weight_g_per_m,
+    }
 
 
 def _make_momwire_engine(req: dict, builder, cancel=None):
@@ -1075,6 +1096,22 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     has_design_freq = "design_freq" in dp
     variants = _discover_variants(cls)
 
+    # Wire-material designs (issue #318): a `wire_type` param means the
+    # solve responses carry wire_length_m / wire_weight_g (see
+    # _wire_material_results) — surface them as Info-pane result rows.
+    # The weight row is the POTA question in one number: how many grams
+    # of wire buy how much bandwidth and how many tenths of a dB.
+    result_schema: tuple = ()
+    if "wire_type" in dp:
+        result_schema = (
+            ResultFieldSpec(
+                field="wire_length_m", label="wire length", precision=1, unit=" m"
+            ),
+            ResultFieldSpec(
+                field="wire_weight_g", label="wire weight", precision=1, unit=" g"
+            ),
+        )
+
     # Per-variant UI hints. A variant's `ui_params` deep-merges over the
     # default's (resolve_variant_params), so a variant can flip a single nested
     # hint (e.g. sweep_policy.band_locked) without restating the subtree. We
@@ -1214,6 +1251,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # η₀k²/(8π·P_in), which is what makes the plot GAIN (load and
             # ground losses live inside P_in, so no efficiency multiply).
             "input_power_w": float(eng.input_power()),
+            **_wire_material_results(builder),
         }
         if hints()["multi_feed"] and len(zs) > 1:
             # Pull per-feed drive voltages off the engine so the frontend
@@ -1380,6 +1418,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 for label, w in (getattr(eng, "_excited_power_budget", None) or [])
             ],
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
+            **_wire_material_results(builder),
         }
         if hints()["multi_feed"] and len(zs) > 1:
             # PyNECEngine.excitation_pairs is [(tag, sub_seg, voltage)];
@@ -1543,6 +1582,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         far_field_metrics=far_field_metrics,
         multi_feed=field_multi_feed,
         param_schema=param_schema,
+        result_schema=result_schema,
         bands=bands,
         meas_freq_range_mhz=tuple(meas_range) if meas_range else None,
         sweep_policy=sweep_policy,
