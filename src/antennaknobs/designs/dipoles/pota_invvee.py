@@ -25,9 +25,9 @@ switching to bare wire moves resonance UP — retune with the length knob
 and note how much shorter the insulated antenna is.
 
 Geometry is the stock `dipoles.invvee` V (same knobs) at 20 m scale.
-PyNEC models the conductor loss but not the jacket (no NEC-2 card), so
-engine-switching on a PVC variant shifts resonance — momwire is the
-fidelity engine there.
+Both engines model the full wire: momwire's distributed loading, and
+PyNEC via its native LD 5 (conductor loss) + LD 2 (jacket inductance,
+issue #328) cards — engine-switching holds the story steady.
 """
 
 from types import MappingProxyType
