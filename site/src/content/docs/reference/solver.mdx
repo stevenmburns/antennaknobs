@@ -138,8 +138,14 @@ the limits are env-configurable (see `docs/deploy.md`).
 
 ### Honest limitations
 
-In the spirit of not overselling: momwire wires are currently PEC (no conductor
-loss — the NEC path with `ld_card` covers lossy elements). Finite grounds are
+In the spirit of not overselling: momwire wires are PEC **by default**; designs
+that declare a wire material (the `WIRES` catalog — see the
+[wire-gauge example](/advanced/wire-gauge/)) get skin-effect conductor loss as
+a distributed series impedance in the solve itself (momwire ≥ 0.10.0, validated
+against NEC's native `LD 5` wire-loss card to ~0.5 %) plus the insulated-wire
+velocity factor, which NEC-2 cannot model at all. The B-spline solver family
+carries the loading; the sinusoidal solver still solves wires as bare PEC and
+says so loudly. Finite grounds are
 solved with a true **Sommerfeld/Norton** model on every momwire solver
 (momwire ≥ 0.8.0: NEC's exact-image-plus-remainder decomposition; the
 accelerators carry the smooth remainder as one global low-rank term on their

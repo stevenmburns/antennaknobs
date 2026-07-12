@@ -161,6 +161,14 @@ coupling and matching elements, not just explicit `Load`s. Gain is
 normalised by input power, so network loss already shows up in dBi;
 the budget tells you *where* it went. Lossless networks hide the table.
 
+Designs that declare a real wire material (a `wire_type` knob over the
+`WIRES` catalog, e.g. [`dipoles.pota_invvee`](/advanced/wire-gauge/))
+additionally get a **wire loss (I²R)** row: the skin-effect power burned
+in the antenna conductor itself, read from the solve's current
+distribution. It counts toward the reported efficiency the same way the
+network rows do, and the Info pane shows the matching **wire length**
+and **wire weight** rows.
+
 ## Convergence sweep
 
 To check that your chosen N is **converged** — i.e. adding more segments no

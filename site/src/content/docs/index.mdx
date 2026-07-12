@@ -25,19 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.22.1" icon="star">
-  **The v0.22 station story, finished.** v0.22.0 made transmission
-  lines lossy the way real cable is, gave matching-network coils a
-  finite **Q**, added a `Transformer` element for baluns and ununs,
-  and put a **power budget** table in the solve readout showing where
-  every watt goes. v0.22.1 completes it: the two station rigs are
-  refit for a same-band **20 m head-to-head** — real matchbox
-  capacitor limits, band-locked sweeps — written up in a new Advanced
-  guide, [the coax-vs-ladder-line folklore, as
-  numbers](/advanced/station-comparison/). Plus a round of workbench
-  polish: knob-menu number fields now clear cleanly, panel enum
-  pulldowns are styled like real controls, and solve/rtt timing sits
-  together at the end of the readout.
+<Card title="New in v0.23.0" icon="star">
+  **The wire itself is now a knob.** Antenna wire stops being an ideal
+  conductor: pick a real gauge from the new **wire catalog** (28/22/18
+  AWG, bare or PVC) and the solve models its **skin-effect loss** —
+  entering the impedance matrix itself, validated against NEC's native
+  wire-loss card to half a percent — plus the **insulated-wire velocity
+  factor** (why a cut-to-formula PVC dipole tunes long), which NEC-2
+  can't model at all. The power budget grows a **wire loss (I²R)** row,
+  and the Info pane reports the antenna's **weight in grams**. A new
+  showcase design and Advanced guide put it to work on the classic
+  portable question: [how thin can you go? — wire gauge for
+  POTA](/advanced/wire-gauge/), where 17 g of #28 wire costs just
+  0.25 dB against #18 — but the jacket moves resonance further than
+  the gauge ever does.
   [All release notes →](/reference/releases/)
 </Card>
 
