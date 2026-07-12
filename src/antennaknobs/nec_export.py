@@ -112,14 +112,18 @@ def export_nec(
             ldtyp = 1 if br.parallel else 0
             lines.append(f"LD {ldtyp} {tag} {seg} {seg} {_num(r)} {_num(l)} {_num(c)}")
 
-    # Wire conductor loss (issue #316): the same global LD 5 the engine
-    # emits — spec conductivity from the design, else the module-level
-    # oracle constant (normally None → card omitted, PEC).
+    # Wire material (issue #316): the same global LD cards the engine
+    # emits — conductor loss as LD 5 (spec conductivity from the design,
+    # else the module-level oracle constant; normally None → card omitted,
+    # PEC) and the insulation jacket's series inductance as LD 2 (H/m).
     sigma = (
         eng._wire_spec.conductivity if eng._wire_spec is not None else WIRE_CONDUCTIVITY
     )
     if sigma is not None:
         lines.append(f"LD 5 0 0 0 {_num(sigma)} 0. 0.")
+    l_ins = eng._insulation_l_per_m()
+    if l_ins is not None:
+        lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
 
     # Legacy build_tls() path -> native NEC TL cards. (The build_network() TL
     # path uses the multiport-Y reducer and is rejected above.)
