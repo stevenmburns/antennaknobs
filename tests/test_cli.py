@@ -88,6 +88,22 @@ def test_cli_compare_patterns():
     ant.cli(f"compare_patterns --builders dipoles.invvee beams.hexbeam{o}".split())
 
 
+def test_cli_swr_sweep():
+    """`sweep --swr` plots SWR vs frequency via the engine's vectorized
+    impedance_sweep; it only makes sense for the freq knob."""
+    dipole = "dipoles.invvee:dipole"
+    ant.cli(
+        f"sweep --swr --npoints 5 --builder {dipole} --engine momwire"
+        f" --ground free --z0=50{o}".split()
+    )
+    with pytest.raises(SystemExit) as exc:
+        ant.cli(
+            f"sweep --swr --param length_factor --builder {dipole}"
+            f" --engine momwire --ground free{o}".split()
+        )
+    assert "--param length_factor" in str(exc.value)
+
+
 def test_cli_engine_flag():
     """--engine momwire selects the momwire backend; --ground forces a
     specific ground model on either engine."""
