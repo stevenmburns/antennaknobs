@@ -103,6 +103,40 @@ spec sheet says "90% efficient" and the same page's pattern plot peaks
 near 0 dBi, both numbers are correct — they are different ledgers. The
 gain plot is the one the ionosphere sees.
 
+## The rest of the trio: Challenger and Dominator
+
+KJ6ER publishes two more antennas in the same family, and both are now
+in the tree: [`verticals.challenger`](/reference/catalog/) (off-center-fed
+halfwave vertical: 25' whip is ~77% of the halfwave, a short ~10% λ
+counterpoise completes it through a 4:1 unun) and
+[`verticals.dominator`](/reference/catalog/) (a true vertical EFHW: the
+whip is the whole halfwave, fed through a 49:1 with a long ~33% λ
+counterpoise). Same duplication exercise, same result — the claims hold:
+
+| Claim (4NEC2, 15M) | Published | antennaknobs |
+|---|---|---|
+| Challenger peak / takeoff / el BW | −0.32 dBi / 20° / 33° | +0.14 dBi / 21° / 34° |
+| Dominator peak / takeoff / el BW | +0.60 dBi / 18° / 27° | +0.34 dBi / 17° / 26° |
+| Takeoff ordering, trio | 18° < 21° < 24° | 17° < 21° < 23° |
+
+The transformers are where these two get interesting, because KJ6ER
+*measures* their insertion losses and itemizes them honestly — and our
+`Transformer` branch puts the same numbers in the power budget: the
+stock 49:1 burns **−0.96 dB (~20% of input power)**, the Challenger's
+4:1 only −0.34 dB, with the "plus" upgrades at −0.40/−0.24 dB
+(`plus` variants; the magnetizing branch is calibrated to the measured
+loss at 15M, not derived from core datasheets). His own comparison
+table shows the paradox: the Dominator has the trio's *highest*
+"structural efficiency" (99.5% — it's just one aluminum tube) and the
+trio's *lossiest* component. Both facts are itemized in our budget
+instead of living in separate ledgers.
+
+And the third ledger says: Challenger radiates 25%, Dominator 25%
+(transformer included), PERformer 29%. Nobody escapes the dirt. What
+actually separates these three antennas — exactly as KJ6ER's "primary
+reach" table frames it — is the takeoff angle, and that claim
+reproduces perfectly.
+
 ## Try it
 
 Open [`verticals.pota_performer`](https://app.antennaknobs.dev/) in the

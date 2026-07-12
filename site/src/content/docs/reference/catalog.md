@@ -72,6 +72,8 @@ whole shape with a `Drone` — see
 | --- | --- |
 | `verticals.bobtail` | Bobtail curtain: a 3-element vertically-polarised broadside array (L. B. Cebik, W4RNL) |
 | `verticals.bruce` | Bruce array: a series-fed vertically-polarised curtain (L. B. Cebik, W4RNL) |
+| `verticals.challenger` | KJ6ER's "Challenger" — off-center-fed halfwave vertical with 4:1 unun · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `plus` |
+| `verticals.dominator` | KJ6ER's "Dominator" — end-fed halfwave vertical with 49:1 transformer · variants: `band10`, `band12`, `band17`, `plus` |
 | `verticals.four_square` | Four-square phased vertical array -- the diagonal-firing quadrature box (L. B. Cebik, W4RNL) |
 | `verticals.half_square` | Half-square: a vertically-polarised wire antenna (L. B. Cebik, W4RNL) |
 | `verticals.inverted_l` | Inverted-L: a bent, top-loaded vertical (L. B. Cebik, W4RNL) |
