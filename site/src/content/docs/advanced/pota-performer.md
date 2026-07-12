@@ -16,14 +16,15 @@ ground-coupled radials.
 the plans' 15M reference geometry, per-band variants straight from the
 whip/radial tables, the 90° directional and 180° omni radial spans, and
 VA3KOT's single-radial simplification. This page is about what happens
-when you check the numbers: **almost every claim duplicates**, and the
-one that needs an asterisk teaches the most useful lesson in portable
+when you check the numbers: **the claims duplicate**, and reading the
+efficiency number in full teaches the most useful lesson in portable
 antenna modeling.
 
 ## The claims duplicate
 
-Three independent engines (and two independent modelers) on the 15M
-configuration, two radials, average ground:
+Four models from three modelers — spanning two genuinely independent
+solver cores, the NEC-2 family and momwire — on the 15M configuration,
+two radials, average ground:
 
 | Model | Peak gain | Takeoff | F/B (90° span) | El. beamwidth |
 |---|---|---|---|---|
@@ -51,12 +52,14 @@ just as the plans say elevating radials should).
 "Over 90% efficient" is a **structural** efficiency: input power that
 isn't burned in conductors and components. We *confirm* it. Solving the
 same geometry with lossless wire and taking the ratio: the stainless
-whip plus radials cost only ~2–3%, structural efficiency ≈ 98% (KJ6ER's
-90.8% additionally carries his −0.12 dB choke and the whip's thin tip
-sections). And the physics behind his 90%-vs-37% comparison is real:
-elevated tuned radials remove the ground-coupled loss *resistance* that
-sits in series with a ground-mounted vertical's feed and eats half its
-power in-circuit.
+whip plus radials cost only ~2–3%, structural efficiency ≈ 98%. KJ6ER's
+90.8% is a few points lower — plausibly the real whip's thin stainless
+tip sections, which our uniform mid-taper radius flatters (his −0.12 dB
+choke is itemized separately in his table, not inside the 90.8%). And
+the physics behind his 90%-vs-37% comparison is real: elevated tuned
+radials remove the ground-coupled loss *resistance* that sits in series
+with a ground-mounted vertical's feed and eats over half its power
+in-circuit.
 
 But there is a second ledger, and it's already visible in the table
 above. **Gain and efficiency are the same measurement.** Gain is power
@@ -126,10 +129,11 @@ stock 49:1 burns **−0.96 dB (~20% of input power)**, the Challenger's
 4:1 only −0.34 dB, with the "plus" upgrades at −0.40/−0.24 dB
 (`plus` variants; the magnetizing branch is calibrated to the measured
 loss at 15M, not derived from core datasheets). His own comparison
-table shows the paradox: the Dominator has the trio's *highest*
-"structural efficiency" (99.5% — it's just one aluminum tube) and the
-trio's *lossiest* component. Both facts are itemized in our budget
-instead of living in separate ledgers.
+table shows the interesting tension — the Dominator has the trio's
+*highest* "structural efficiency" (99.5% — it's just one aluminum tube)
+and the trio's *lossiest* component — and to his credit both rows sit
+side by side on his page 14. Our power budget simply adds them, plus
+the dirt's share, into one delivered-watts number.
 
 And the third ledger says: Challenger radiates 25%, Dominator 25%
 (transformer included), PERformer 29%. Nobody escapes the dirt. What
