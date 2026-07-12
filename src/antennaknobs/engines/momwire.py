@@ -375,10 +375,51 @@ class MomwireEngine(SimulationEngine):
         key = (float(wavelength), v_key)
         cached = getattr(self, "_solved_cache", None)
         if cached is not None and cached[0] == key:
-            return cached[1]
-        z, coeffs = sim.compute_impedance()
-        self._solved_cache = (key, (sim, coeffs, z))
+            sim, coeffs, z = cached[1]
+        else:
+            z, coeffs = sim.compute_impedance()
+            self._solved_cache = (key, (sim, coeffs, z))
+        # _make_excited_solver reset the power bookkeeping either way, so
+        # the wire-loss amendment below is applied exactly once per call.
+        self._amend_wire_loss(sim, coeffs, z)
         return sim, coeffs, z
+
+    def _amend_wire_loss(self, sim, coeffs, z):
+        """Fold ohmic wire loss (momwire#131 distributed loading) into the
+        power bookkeeping (issue #317): a "wire loss (I²R)" budget row and
+        the matching efficiency drop. The loss already lives inside P_in
+        (the loading raised the driving-point R), so gain = 4π·U/P_in needs
+        no change — this keeps the *reported* efficiency and budget rows
+        truthful about where those watts went. Insulation is reactive and
+        contributes nothing; lossless designs are untouched."""
+        self._excited_p_wire = 0.0
+        if not self._loading_kwargs:
+            return
+        p_wire, _per_wire = sim.wire_loss_power(coeffs)
+        if p_wire <= 0.0:
+            return
+        self._excited_p_wire = float(p_wire)
+        self._excited_power_budget = list(self._excited_power_budget) + [
+            ("wire loss (I²R)", float(p_wire))
+        ]
+        p_in = self._excited_p_in
+        if p_in is None:  # plain path records no port-model power
+            p_in = self._p_in_from_excited(sim, z)
+        if p_in > 0.0:
+            self._excited_efficiency = max(
+                0.0, min(1.0, self._excited_efficiency - p_wire / p_in)
+            )
+
+    @staticmethod
+    def _p_in_from_excited(sim, z):
+        """Source input power ½·Σ|V_f|²·Re(Z_f)/|Z_f|² from an excited
+        solve's driving-point impedances (the plain-path formula shared by
+        `input_power` and the wire-loss amendment)."""
+        z_arr = np.atleast_1d(np.asarray(z, dtype=np.complex128))
+        volts = np.array([complex(v) for *_, v in sim.feeds], dtype=np.complex128)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            terms = 0.5 * np.abs(volts) ** 2 * z_arr.real / np.abs(z_arr) ** 2
+        return float(np.sum(terms[np.isfinite(terms)]))
 
     def _raise_if_cancelled(self):
         """Poll the cancel token at an engine-phase boundary (no-op without one).
@@ -527,11 +568,7 @@ class MomwireEngine(SimulationEngine):
         p_in = getattr(self, "_excited_p_in", None)
         if p_in is not None:
             return float(p_in)
-        z_arr = np.atleast_1d(np.asarray(z, dtype=np.complex128))
-        volts = np.array([complex(v) for *_, v in sim.feeds], dtype=np.complex128)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            terms = 0.5 * np.abs(volts) ** 2 * z_arr.real / np.abs(z_arr) ** 2
-        return float(np.sum(terms[np.isfinite(terms)]))
+        return self._p_in_from_excited(sim, z)
 
     def current_distribution(self):
         self._raise_if_cancelled()
