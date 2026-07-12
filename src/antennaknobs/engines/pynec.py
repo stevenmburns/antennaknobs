@@ -3,10 +3,9 @@ import logging
 import numpy as np
 import PyNEC as nec
 
-# Exact round-conductor internal impedance + jacket inductance (momwire#131).
-# Private-module import, but antennaknobs pins momwire exactly, so the pair
-# moves in lockstep; promote to public momwire exports at the next API pass.
-from momwire._wire_loading import insulation_inductance, wire_internal_impedance
+# Exact round-conductor internal impedance + jacket inductance — public
+# momwire exports since 0.11.0 (momwire#133).
+from momwire import insulation_inductance, wire_internal_impedance
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (

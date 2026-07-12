@@ -96,10 +96,17 @@ def _solver_supports_ground_eps(solver):
     return getattr(solver, "__name__", None) in _GROUND_EPS_SOLVERS
 
 
-# Distributed wire loading (issue #316 / momwire#131) is a BSpline-family
-# feature; SinusoidalSolver rejects the kwargs (field-based assembly needs
-# its own overlap integrals — momwire defers it loudly).
-_WIRE_LOADING_SOLVERS = ("BSplineSolver", "HMatrixSolver", "ArrayBlockSolver")
+# Distributed wire loading (issue #316 / momwire#131): every momwire
+# solver models it since momwire 0.11.0 — the BSpline family as a Galerkin
+# overlap, SinusoidalSolver as NEC's impedance boundary condition at the
+# match points (momwire#134). The gate remains as the seam for any future
+# solver that lacks the feature (warn-and-drop, not crash).
+_WIRE_LOADING_SOLVERS = (
+    "BSplineSolver",
+    "HMatrixSolver",
+    "ArrayBlockSolver",
+    "SinusoidalSolver",
+)
 
 
 def _solver_supports_wire_loading(solver):

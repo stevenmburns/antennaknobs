@@ -80,16 +80,15 @@ def test_thicker_wire_recovers_watts():
 
 
 def test_cross_engine_pynec():
-    """Matched-basis cross-check at the transformed rig port (ideal wire:
-    the sinusoidal basis drops the distributed loading). The counterpoise +
-    gap-wire feed keeps the high-Z end well-conditioned — measured 0.03 %
-    between engines, far from the zepp's bare-end-port spread."""
+    """Matched-basis cross-check at the transformed rig port, with the
+    FULL stock wire model on both engines (momwire#134 sinusoidal loading
+    vs NEC LD-5 + LD-2). The counterpoise + gap-wire feed keeps the
+    high-Z end well-conditioned — far from the zepp's bare-end-port
+    spread."""
     pytest.importorskip("antennaknobs.engines.pynec")
     from antennaknobs.engines import PyNECEngine
     from momwire import SinusoidalSolver
 
-    zm = MomwireEngine(
-        _with_params(wire_type=None), ground=None, solver=SinusoidalSolver
-    ).impedance()[0]
-    zn = PyNECEngine(_with_params(wire_type=None), ground=None).impedance()[0]
+    zm = MomwireEngine(Builder(), ground=None, solver=SinusoidalSolver).impedance()[0]
+    zn = PyNECEngine(Builder(), ground=None).impedance()[0]
     assert abs(zm - zn) / abs(zm) < 0.01
