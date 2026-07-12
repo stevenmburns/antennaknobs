@@ -40,7 +40,7 @@ classifiers = [
 # `pynec-accel` distribution; see README) and must never be declared a
 # dependency of this MIT package.
 dependencies = [
-    "momwire==0.9.0",
+    "momwire==0.10.0",
     "numpy>=1.21",
     "scipy>=1.7",
     "matplotlib>=3.5",
