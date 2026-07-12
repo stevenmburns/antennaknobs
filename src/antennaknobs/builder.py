@@ -129,6 +129,21 @@ class AntennaBuilder:
         a dummy stub wire, branches refer to ports by name, etc."""
         return None
 
+    def build_wire_material(self):
+        """Return a `WireSpec` (see `antennaknobs.network.WIRES`) describing
+        the antenna wire's conductor and insulation, or None for the classic
+        idealization (PEC, 0.5 mm radius). Default behavior: a design with a
+        `wire_type` param (usually an enum knob over the WIRES catalog keys)
+        resolves it here; empty string / None / absent = ideal wire. Engines
+        consume the spec for the wire radius, skin-effect loss, and — on
+        solvers that model it — the insulated-wire velocity factor."""
+        wire_type = getattr(self, "wire_type", None)
+        if wire_type:
+            from .network import wire_from_catalog
+
+            return wire_from_catalog(wire_type)
+        return None
+
     def segs_for(self, length, ref):
         """Mesh segment count for a wire of the given `length`.
 

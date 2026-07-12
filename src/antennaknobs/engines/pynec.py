@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import PyNEC as nec
 
@@ -15,6 +17,8 @@ from ..network import (
     load_impedance,
 )
 from ..network_reduce import C_LIGHT, NetworkReducer
+
+_logger = logging.getLogger(__name__)
 
 WIRE_RADIUS = 0.0005
 COPPER_CONDUCTIVITY = 5.8e7
@@ -70,6 +74,24 @@ class PyNECEngine(SimulationEngine):
         super().__init__(builder)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
+        # Wire material (issue #316): radius + conductor loss from the
+        # design's WireSpec. The spec's conductivity is emitted as a global
+        # ld_card type 5 (NEC's native wire-loss model — the momwire#131
+        # cross-engine oracle); the module-level WIRE_CONDUCTIVITY constant
+        # below stays as the manual all-designs override for oracle runs.
+        # NEC-2 has no insulated-wire card, so a spec's insulation is NOT
+        # modeled here — momwire is the fidelity engine for that (same
+        # engine-divergence precedent as Sommerfeld ground).
+        self._wire_spec = builder.build_wire_material()
+        self._wire_radius = (
+            self._wire_spec.radius if self._wire_spec is not None else WIRE_RADIUS
+        )
+        if self._wire_spec is not None and self._wire_spec.insulation_radius:
+            _logger.warning(
+                "NEC-2 has no insulated-wire card; PyNEC solves %s's wire "
+                "bare (no velocity-factor effect)",
+                type(builder).__name__,
+            )
         # build_tls() is only consulted when there's no Network spec; with a
         # Network, the engine drives ex_card/tl_card calls off the spec instead.
         self.tls = [] if self._network is not None else builder.build_tls()
@@ -128,8 +150,14 @@ class PyNECEngine(SimulationEngine):
             p0, p1, n_seg, ev = t[0], t[1], t[2], t[3]
             name = t[4] if len(t) >= 5 else None
             geo.wire(
-                idx, n_seg, p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], 0.0005, 1.0, 1.0
-            )
+                idx,
+                n_seg,
+                p0[0], p0[1], p0[2],
+                p1[0], p1[1], p1[2],
+                self._wire_radius,
+                1.0,
+                1.0,
+            )  # fmt: skip
             mid_seg = (n_seg + 1) // 2
             if name is not None:
                 self._feed_name_to_loc[name] = (idx, mid_seg, p0, p1, n_seg)
@@ -153,8 +181,15 @@ class PyNECEngine(SimulationEngine):
             for idx1, seg1, idx2, seg2, impedance, length in self.tls:
                 self.c.tl_card(idx1, seg1, idx2, seg2, impedance, length, 0, 0, 0, 0)
 
-        if WIRE_CONDUCTIVITY is not None:
-            self.c.ld_card(5, 0, 0, 0, WIRE_CONDUCTIVITY, 0.0, 0.0)
+        # Spec conductivity from the design wins; the module constant stays
+        # as the manual all-designs oracle override (see its comment above).
+        sigma = (
+            self._wire_spec.conductivity
+            if self._wire_spec is not None
+            else WIRE_CONDUCTIVITY
+        )
+        if sigma is not None:
+            self.c.ld_card(5, 0, 0, 0, sigma, 0.0, 0.0)
         self._apply_ground_card()
 
         for tag, sub_index, voltage in self.excitation_pairs:
@@ -399,15 +434,20 @@ class PyNECEngine(SimulationEngine):
                 p1[0],
                 p1[1],
                 p1[2],
-                WIRE_RADIUS,
+                self._wire_radius,
                 1.0,
                 1.0,
             )
             if name is not None:
                 loc[name] = (idx, (n_seg + 1) // 2)
         c.geometry_complete(0)
-        if WIRE_CONDUCTIVITY is not None:
-            c.ld_card(5, 0, 0, 0, WIRE_CONDUCTIVITY, 0.0, 0.0)
+        sigma = (
+            self._wire_spec.conductivity
+            if self._wire_spec is not None
+            else WIRE_CONDUCTIVITY
+        )
+        if sigma is not None:
+            c.ld_card(5, 0, 0, 0, sigma, 0.0, 0.0)
         self._apply_ground_card(c)
         return c, loc
 
