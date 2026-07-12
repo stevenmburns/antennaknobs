@@ -110,16 +110,18 @@ def test_momwire_explicit_radius_overrides_spec():
     assert e_ideal._wire_radius == 0.0005
 
 
-def test_momwire_sinusoidal_drops_loading_keeps_radius(caplog):
-    """SinusoidalSolver can't model the loading: warn, solve with the real
-    radius but ideal metal — NOT a crash, NOT a silent identical solve."""
+def test_momwire_sinusoidal_carries_loading():
+    """SinusoidalSolver models the loading since momwire 0.11.0
+    (momwire#134): the kwargs thread through and the lossy solve shifts R
+    like the BSpline one — no warning, no silent ideal-metal solve."""
     from momwire import SinusoidalSolver
 
-    with caplog.at_level("WARNING"):
-        e = MomwireEngine(_builder("28-awg"), ground=None, solver=SinusoidalSolver)
-    assert "doesn't model distributed wire loading" in caplog.text
-    assert e._loading_kwargs == {}
+    e = MomwireEngine(_builder("28-awg"), ground=None, solver=SinusoidalSolver)
+    assert e._loading_kwargs["wire_conductivity"] == COPPER_CONDUCTIVITY
     assert e._wire_radius == WIRES["28-awg"].radius
+    z0 = _z(MomwireEngine(_builder(), ground=None, solver=SinusoidalSolver))
+    z1 = _z(e)
+    assert z1.real > z0.real + 1.0
 
 
 # ----------------------------------------------------------------------
@@ -193,3 +195,19 @@ def test_cross_engine_insulation_vf_oracle():
         - _z(PyNECEngine(_builder("28-awg"), ground=None)).imag
     )
     assert dx_momwire == pytest.approx(dx_pynec, rel=0.05)
+
+
+@needs_pynec
+def test_matched_basis_lossy_oracle():
+    """The strongest cross-engine pin (momwire#134): SAME basis family
+    (sinusoidal = NEC's) and SAME wire physics on both engines — the
+    absolute lossy-PVC impedance, not just deltas, must agree tightly.
+    Before momwire 0.11.0 this comparison required wire_type=None because
+    the sinusoidal solver dropped the loading."""
+    from momwire import SinusoidalSolver
+
+    z_m = _z(
+        MomwireEngine(_builder("28-awg-pvc"), ground=None, solver=SinusoidalSolver)
+    )
+    z_n = _z(PyNECEngine(_builder("28-awg-pvc"), ground=None))
+    assert abs(z_m - z_n) / abs(z_m) < 0.01
