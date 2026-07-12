@@ -23,7 +23,6 @@ MAJOR_GRID = (0.2, 0.5, 1.0, 2.0, 5.0)
 # Extra unlabelled circles that fill the chart out; drawn thinner and lighter.
 MINOR_GRID = (0.1, 0.3, 1.5, 3.0, 10.0)
 
-_BOUNDARY_COLOR = "0.25"
 _MAJOR_COLOR = "0.60"
 _MINOR_COLOR = "0.82"
 _LABEL_COLOR = "0.35"
@@ -47,7 +46,9 @@ def draw_smith_chart(ax, *, draw_labels=True, z0=None):
     ``z0``, if given, is only annotated in the corner (the grid itself is
     normalized). Returns ``ax`` so callers can chain trace plotting.
     """
-    boundary = _add_circle(ax, (0, 0), 1.0, color=_BOUNDARY_COLOR, lw=1.2, zorder=2)
+    # The rim is the r = 0 grid circle, so it draws at major-grid weight; its
+    # real job here is being the clip path for the constant-x arcs.
+    boundary = _add_circle(ax, (0, 0), 1.0, color=_MAJOR_COLOR, lw=0.7, zorder=2)
     ax.plot([-1, 1], [0, 0], color=_MAJOR_COLOR, lw=0.7, zorder=1)
 
     for values, color, lw in (
