@@ -143,9 +143,12 @@ that declare a wire material (the `WIRES` catalog — see the
 [wire-gauge example](/advanced/wire-gauge/)) get skin-effect conductor loss as
 a distributed series impedance in the solve itself (momwire ≥ 0.10.0, validated
 against NEC's native `LD 5` wire-loss card to ~0.5 %) plus the insulated-wire
-velocity factor, which NEC-2 cannot model at all. The B-spline solver family
-carries the loading; the sinusoidal solver still solves wires as bare PEC and
-says so loudly. Finite grounds are
+velocity factor (mirrored on the NEC engine as an `LD 2` distributed-inductance
+card, agreeing on the resonance shift to ~1 %). Every momwire solver carries
+the loading (momwire ≥ 0.11.0): the B-spline family as a Galerkin overlap, the
+sinusoidal solver through NEC's impedance boundary condition at its match
+points — so matched-basis cross-engine comparisons keep the full wire physics
+on both sides. Finite grounds are
 solved with a true **Sommerfeld/Norton** model on every momwire solver
 (momwire ≥ 0.8.0: NEC's exact-image-plus-remainder decomposition; the
 accelerators carry the smooth remainder as one global low-rank term on their

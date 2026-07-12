@@ -25,20 +25,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.23.0" icon="star">
-  **The wire itself is now a knob.** Antenna wire stops being an ideal
-  conductor: pick a real gauge from the new **wire catalog** (28/22/18
-  AWG, bare or PVC) and the solve models its **skin-effect loss** —
-  entering the impedance matrix itself, validated against NEC's native
-  wire-loss card to half a percent — plus the **insulated-wire velocity
-  factor** (why a cut-to-formula PVC dipole tunes long), which NEC-2
-  can't model at all. The power budget grows a **wire loss (I²R)** row,
-  and the Info pane reports the antenna's **weight in grams**. A new
-  showcase design and Advanced guide put it to work on the classic
-  portable question: [how thin can you go? — wire gauge for
-  POTA](/advanced/wire-gauge/), where 17 g of #28 wire costs just
-  0.25 dB against #18 — but the jacket moves resonance further than
-  the gauge ever does.
+<Card title="New in v0.24.0" icon="star">
+  **The POTA antenna, complete.** The new
+  [`wire.efhw_sloper`](/advanced/efhw/) showcase models the classic
+  end-fed half-wave with nothing idealized: a real **49:1 unun** (ratio
+  dropdown, magnetizing branch with core loss, compensation cap), a
+  **counterpoise that actually matters**, real coax, and real thin wire
+  — and the power budget answers the eternal question *where do the
+  watts go in a 49:1?* (Spoiler: the 28 AWG wire burns six times what
+  the ferrite does.) Under the hood, **every solver now carries the
+  real-wire model**: the sinusoidal (NEC-parity) basis models
+  skin-effect loss and insulation via NEC's own loading scheme
+  (momwire 0.11.0), and the NEC engine gains the insulated-wire
+  velocity factor as a distributed `LD 2` card — the two engines agree
+  on a PVC dipole's resonance shift to ~1 %, with nothing dropped on
+  either side.
   [All release notes →](/reference/releases/)
 </Card>
 
