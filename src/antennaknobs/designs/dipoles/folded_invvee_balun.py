@@ -38,6 +38,10 @@ class Builder(FoldedInvVee):
                     "target_z0": 50.0,
                     "cable": {"enum_options": tuple(sorted(CABLES))},
                     "line_len_m": {"min": 3.0, "max": 100.0, "unit": "m"},
+                    # 100 ft of coax rotates the sweep trace around the
+                    # Smith chart several times over the default ±20/25 %
+                    # window — lock the sweep to the band being measured.
+                    "sweep_policy": {"anchor": "meas_freq", "band_locked": True},
                     "balun_n": {"min": 0.25, "max": 1.0},
                     "lmag_uH": {"min": 1.0, "max": 50.0},
                     "qlmag": {"min": 0.0, "max": 400.0},

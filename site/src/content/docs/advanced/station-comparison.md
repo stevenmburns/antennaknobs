@@ -7,8 +7,9 @@ Every club meeting has the argument. One camp: *a resonant antenna on 50 Ω coax
 is simple and it works*. The other: *put up one non-resonant wire, feed it with
 open-wire line, and let the tuner sort it out — ladder line shrugs off SWR*.
 Both camps are right, and both are paying for something. This example models
-both stations **end to end — rig, feedline, matching, wire** — and reads the
-folklore off the [power budget](/reference/web/#power-budget) as numbers.
+both stations **end to end — rig, feedline, matching, wire** — reads the
+folklore off the [power budget](/reference/web/#power-budget) as numbers, and
+finishes with the two stations head to head on the same band, 20 m.
 
 Two catalog designs (new in v0.22) carry the comparison:
 
@@ -60,10 +61,11 @@ in the [workbench](https://app.antennaknobs.dev/) and look at three things:
 
 ## Station B — the doublet and the matchbox
 
-The other philosophy: don't chase resonance at all. An 88 ft doublet
-(`design_freq = 5.593 MHz` sizes it; it's resonant nowhere you'd operate it)
-feeds 100 ft of 600 Ω open-wire line into a T-network — series C, shunt L,
-series C — whose inductor has a finite `coil_q`:
+The other philosophy: don't chase resonance at all. An 88 ft doublet — a
+40 m quarter-wave per side stretched by `length_factor = 1.269`, resonant
+nowhere you'd operate it — feeds 100 ft of 600 Ω open-wire line into a
+T-network — series C, shunt L, series C — whose inductor has a finite
+`coil_q`:
 
 ```python
 def build_network(self):
@@ -86,42 +88,87 @@ def build_network(self):
 ```
 
 The stock capacitor and inductor values match ~50 Ω at **7.1 MHz (40 m)**, and
-the budget itemizes the price of the matchbox: with Q = 200, about **4 % in
-the line and 4–5 % in the tuner coil — ~92 % radiated**. That's the ladder-line
+the budget itemizes the price of the matchbox: with Q = 200, about **3.5 % in
+the line and 4 % in the tuner coil — ~92 % radiated**. That's the ladder-line
 promise kept.
 
-Now make the wire *too short* — retune for **80 m** (`freq = 3.8`,
-`series_c1_pF ≈ 44.6`, `shunt_l_uH ≈ 27.05`, `series_c2_pF ≈ 6865`). SWR at
-the rig is still ≈ 1 — the tuner did its job — but the line's SWR loss and
-the coil loss each climb to **~14 %**. A perfect match at the rig, and more
-than a quarter of the power never leaves the shack wiring. That is the honest
-cost of working an electrically short wire, and no SWR meter will ever show
-it to you.
+Now make the wire *too short* — retune for **80 m** (pick 80m in the
+measurement-band selector, dial the frequency to 3.8, then
+`series_c1_pF ≈ 38.8`, `shunt_l_uH ≈ 32.6`; `series_c2_pF` stays at 500).
+SWR at the rig is still ≈ 1 — the tuner did its job — but the line's SWR
+loss climbs to **~17 %** and the coil's to **~15 %**. A perfect match at the
+rig, and a third of the power never leaves the shack wiring. That is the
+honest cost of working an electrically short wire, and no SWR meter will
+ever show it to you.
 
 Two things worth knowing while you drag:
 
 - **T-match solutions aren't unique.** Bigger capacitors with a smaller L
   generally mean less circulating current and lower coil loss — try finding a
-  second match for the same band and compare budgets. Sweep `coil_q` too
+  second match for the same band and compare budgets. The capacitor knobs
+  stop at 600 pF, about the largest variable cap a real matchbox offers, so
+  every tune you can dial here is one you could dial on hardware (past
+  ~300 pF the coil-loss curve is nearly flat anyway). Sweep `coil_q` too
   (0 = ideal coil) to see how much of the loss is the coil's fault.
 - **The slider endpoints are physics, not bugs.** `series_c1_pF = 0` is a
   0 pF series capacitor — an open circuit — so the readout reports Z = ∞.
 
-## Put them side by side
+## The head-to-head: both stations on 20 m
 
-The sidebar tabs are independent
-[design sessions](/reference/web/#design-sessions-tabs): load Station A in
-**D1**, Station B in **D2**, and flip between them — each keeps its own knobs,
-frequency, and results, and the two power-budget tables make the comparison
-directly. [Pin a pattern](/reference/web/#comparing-patterns) from one session
-to overlay it on the other.
+Stock, the two designs sit on different bands — the V on 10 m, the doublet
+tuned for 40 m — so their budgets above aren't yet comparable. Put both on
+**20 m** and let them fight fair. Load Station A and Station B in two
+[design sessions](/reference/web/#design-sessions-tabs) (**D1** / **D2**).
+The workbench's frequency controls are band-first, and the two stations use
+them in tellingly different ways:
 
-Note what the comparison *is*: the two stations live on different bands by
-design, so this isn't a same-band shoot-out — it's two feed philosophies, each
-shown at its best and at its breaking point. Station A is unbeatable in
-simplicity and fine on its one band, and quietly donates a third of your
-power to warm coax even there. Station B covers every band with one wire, and
-the budget shows exactly what each extra band costs in line SWR and coil heat.
+- **Station A** — click **20m** in the *design-frequency band row*. The
+  design frequency snaps to 14.300 MHz, the measurement frequency follows,
+  and the V rebuilds itself resonant on the new band. That's the resonant
+  station's whole deal: changing bands means changing the antenna, because
+  the antenna *is* the match.
+- **Station B** — click **20m** in the *measurement-band selector* instead.
+  That moves only the operating frequency (unlinking it from the design
+  frequency automatically); the wire and the line are untouched. Then retune
+  the box: `series_c1_pF = 29.1`, `shunt_l_uH = 2.56` (`series_c2_pF` stays
+  at its 500 pF default). Band-hopping is two tuner knobs.
+
+Same frequency (14.300 MHz), same 100 ft feed run, rig-referenced budgets
+side by side:
+
+| at 14.3 MHz | A — inv-vee + RG-8X | B — doublet + ladder line + tuner |
+|---|---|---|
+| SWR at the rig | 1.4 | 1.0 |
+| SWR on the feedline | ≈ 1.4 | ≈ 11 |
+| feedline loss | 24 % | 9 % |
+| tuner coil loss | — | 6 % |
+| **radiated** | **76 %** | **84 %** |
+
+(Every number on this page is solved the way the workbench solves it by
+default: finite ground — εr = 10, σ = 0.002, reflection-coefficient model —
+with the B-spline d = 2 solver.)
+
+What the table says:
+
+- **Matched loss is a floor.** Station A's coax runs essentially flat —
+  SWR 1.4 — and still eats 24 %, because 100 ft of RG-8X is 1.10 dB at
+  14.3 MHz *matched*. No antenna trimming gets under that line.
+- **The ladder line runs SWR ≈ 11 and shrugs.** The mismatch that multiplies
+  coax loss into disaster (Station A's off-resonance beat, above) costs the
+  open-wire line 9 % — total, matched loss included.
+- **The coil takes its cut — and B still wins.** 6 % in the tuner inductor is
+  the price of the matchbox, and the doublet station radiates eight points
+  more anyway.
+- **The tuner protects the rig, not the watts.** Wreck the match on purpose:
+  drag `shunt_l_uH` from 2.56 to 3.0 and the rig sees SWR 5 — yet radiated
+  power doesn't drop at all (84.3 % → 85.2 %). The watts were already decided
+  out on the line and in the coil; the match just decides whether your
+  transmitter is happy delivering them.
+
+[Pin a pattern](/reference/web/#comparing-patterns) from one session onto the
+other before you leave: both antennas hang at 10 m, but at 14.3 MHz the 88 ft
+doublet is about 1.28 λ long, so its azimuth pattern is starting to break
+into lobes — the budget is only half of what distinguishes two stations.
 
 ## What's actually being solved
 

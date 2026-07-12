@@ -1,7 +1,9 @@
 """Inverted-V fed through real coax — the classic "resonant antenna on
 50 Ω line" station, modelled from the rig (issue #300).
 
-Geometry is the stock `dipoles.invvee` (28.47 MHz half-wave V, ~32° droop).
+Geometry is the stock `dipoles.invvee` (28.47 MHz half-wave V, ~32° droop)
+with the apex raised to 10 m so the station pair (see below) compares at the
+same height.
 What changes is the reference plane: the source moves to a virtual **rig**
 port and reaches the feedpoint through `line_len_m` of a real cable from
 the `CABLES` catalog (`TL.from_cable`, issue #297) — so the impedance, SWR,
@@ -35,12 +37,19 @@ class Builder(InvVee):
             **InvVee.default_params,
             "cable": "RG-8X",
             "line_len_m": 30.48,  # 100 ft
+            # Apex at 10 m, matching wire.doublet_ladder_tuner, so the
+            # station pair compares at the same height.
+            "base": 10.0,
             "ui_params": MappingProxyType(
                 {
                     **InvVee.default_params["ui_params"],
                     "target_z0": 50.0,
                     "cable": {"enum_options": tuple(sorted(CABLES))},
                     "line_len_m": {"min": 3.0, "max": 100.0, "unit": "m"},
+                    # 100 ft of coax rotates the sweep trace around the
+                    # Smith chart several times over the default ±20/25 %
+                    # window — lock the sweep to the band being measured.
+                    "sweep_policy": {"anchor": "meas_freq", "band_locked": True},
                 }
             ),
         }
