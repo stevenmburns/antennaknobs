@@ -4289,41 +4289,31 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   </label>
                   <div className="knob-menu-row">
                     <span>Optimize range</span>
-                    <input
-                      type="number"
-                      step="any"
+                    <KnobMenuNumber
                       value={num(ko.optMin)}
-                      onChange={(e) => set({ optMin: Number(e.target.value) })}
+                      onChange={(v) => set({ optMin: v })}
                     />
-                    <input
-                      type="number"
-                      step="any"
+                    <KnobMenuNumber
                       value={num(ko.optMax)}
-                      onChange={(e) => set({ optMax: Number(e.target.value) })}
+                      onChange={(v) => set({ optMax: v })}
                     />
                   </div>
                   <div className="knob-menu-row">
                     <span>Display range</span>
-                    <input
-                      type="number"
-                      step="any"
+                    <KnobMenuNumber
                       value={num(ko.dispMin)}
-                      onChange={(e) => set({ dispMin: Number(e.target.value) })}
+                      onChange={(v) => set({ dispMin: v })}
                     />
-                    <input
-                      type="number"
-                      step="any"
+                    <KnobMenuNumber
                       value={num(ko.dispMax)}
-                      onChange={(e) => set({ dispMax: Number(e.target.value) })}
+                      onChange={(v) => set({ dispMax: v })}
                     />
                   </div>
                   <div className="knob-menu-row">
                     <span>Turn step</span>
-                    <input
-                      type="number"
-                      step="any"
+                    <KnobMenuNumber
                       value={num(ko.step)}
-                      onChange={(e) => set({ step: Number(e.target.value) })}
+                      onChange={(v) => set({ step: v })}
                     />
                   </div>
                 </div>
@@ -5528,6 +5518,39 @@ function BSplineFields({
         )}
       </div>
     </>
+  );
+}
+
+// Bare numeric input with the same clear-without-snapping-to-0 draft treatment
+// as NumberField (which carries its own label/value chrome and doesn't fit the
+// knob menu's grid rows).
+function KnobMenuNumber({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+  return (
+    <input
+      type="number"
+      step="any"
+      value={draft}
+      onChange={(e) => {
+        const text = e.target.value;
+        setDraft(text); // allow "", partial, or leading-zero input while typing
+        if (text.trim() === "") return; // empty: don't commit (no snap to 0)
+        const v = Number(text);
+        if (!Number.isNaN(v)) onChange(v);
+      }}
+      // Normalize on blur: drop any leading zeros / revert an empty field to
+      // the last committed value.
+      onBlur={() => setDraft(String(value))}
+    />
   );
 }
 
