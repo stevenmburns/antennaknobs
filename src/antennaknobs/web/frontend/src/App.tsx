@@ -5713,10 +5713,6 @@ function SolveReadout({
           {result ? feedMag(result).toExponential(3) : "—"}
         </span>
       </div>
-      <div className="row">
-        <span>solve</span>
-        <span className="val">{result ? `${result.solve_ms.toFixed(1)} ms` : "—"}</span>
-      </div>
       {result?.ground && result.ground_model_applied && (
         <div
           className="row"
@@ -5769,9 +5765,24 @@ function SolveReadout({
           </div>
         );
       })()}
-      <div className="row">
-        <span>rtt</span>
-        <span className="val">{rttMs != null ? `${rttMs.toFixed(1)} ms` : "—"}</span>
+      {/* Engine timing grouped last: solve/rtt describe how fast the answer
+          arrived, not what the antenna is doing, so they sit below the RF
+          readout (and below the power budget when one is shown). The
+          feeds-table wrapper is used only for its dashed separator rule —
+          no header. */}
+      <div className="feeds-table">
+        <div className="row">
+          <span>solve</span>
+          <span className="val">
+            {result ? `${result.solve_ms.toFixed(1)} ms` : "—"}
+          </span>
+        </div>
+        <div className="row">
+          <span>rtt</span>
+          <span className="val">
+            {rttMs != null ? `${rttMs.toFixed(1)} ms` : "—"}
+          </span>
+        </div>
       </div>
     </div>
   );
