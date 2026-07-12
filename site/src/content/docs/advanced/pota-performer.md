@@ -125,8 +125,9 @@ counterpoise). Same duplication exercise, same result — the claims hold:
 The transformers are where these two get interesting, because KJ6ER
 *measures* their insertion losses and itemizes them honestly — and our
 `Transformer` branch puts the same numbers in the power budget: the
-stock 49:1 burns **−0.96 dB (~20% of input power)**, the Challenger's
-4:1 only −0.34 dB, with the "plus" upgrades at −0.40/−0.24 dB
+stock 49:1 burns **−0.96 dB (~20% of input power)** — the same black
+box interrogated in [the end-fed question](/advanced/efhw/) — the
+Challenger's 4:1 only −0.34 dB, with the "plus" upgrades at −0.40/−0.24 dB
 (`plus` variants; the magnetizing branch is calibrated to the measured
 loss at 15M, not derived from core datasheets). His own comparison
 table shows the interesting tension — the Dominator has the trio's
