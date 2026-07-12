@@ -311,12 +311,19 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
         opts = override.pop("enum_options", None)
         if opts is None:
             return None
+        # The frontend renders SchemaEnumOption dicts ({value, label}, plus
+        # free-form extras). Designs with no per-option metadata may pass
+        # bare strings (e.g. the CABLES keys) — normalise those here;
+        # un-normalised strings render as empty <option>s.
         return ParamSpec(
             name=name,
             label=label,
             default=default,
             kind="enum",
-            enum_options=tuple(opts),
+            enum_options=tuple(
+                o if isinstance(o, dict) else {"value": str(o), "label": str(o)}
+                for o in opts
+            ),
             precision=precision,
             unit=unit,
             layout=layout,

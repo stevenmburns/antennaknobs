@@ -252,6 +252,29 @@ def test_examples_serialize_param_groups_with_kind_group(client: TestClient):
     assert {p["name"] for p in g["params"]} == {"freq", "length_factor"}
 
 
+def test_enum_options_always_serialize_as_value_label_dicts(client: TestClient):
+    """The frontend renders enum_options as SchemaEnumOption dicts; designs
+    may declare them as bare strings (the CABLES keys), which the adapter
+    must normalise — un-normalised strings render as empty <option>s (the
+    22px-wide cable dropdown bug)."""
+    payload = client.get("/examples").json()
+    seen_enum = False
+    for ex in payload["examples"]:
+        for p in ex["param_schema"]:
+            if p.get("kind") != "enum":
+                continue
+            seen_enum = True
+            for o in p["enum_options"]:
+                assert isinstance(o, dict) and o.get("value") and o.get("label"), (
+                    f"{ex['name']}.{p['name']}: bad enum option {o!r}"
+                )
+            values = [o["value"] for o in p["enum_options"]]
+            assert p["default"] in values, (
+                f"{ex['name']}.{p['name']}: default {p['default']!r} not in {values}"
+            )
+    assert seen_enum, "no enum params found — did the cable dropdowns vanish?"
+
+
 def test_examples_carry_default_view_in_valid_set(client: TestClient):
     payload = client.get("/examples").json()
     for ex in payload["examples"]:
