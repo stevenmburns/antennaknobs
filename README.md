@@ -88,6 +88,7 @@
 | src/antennaknobs/designs/verticals/vertical.py                    |       24 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/\_\_init\_\_.py                     |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/doublet\_ladder\_tuner.py           |       14 |        0 |    100% |           |
+| src/antennaknobs/designs/wire/efhw\_sloper.py                     |       28 |        1 |     96% |       139 |
 | src/antennaknobs/designs/wire/lazy\_h.py                          |       21 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/longwire.py                         |       20 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/rhombic.py                          |       25 |        0 |    100% |           |
@@ -121,7 +122,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      534 |       67 |     87% |66-68, 238-239, 325, 379, 526-529, 589, 621, 623, 677, 693, 725, 758, 760-763, 804, 854, 889, 897-911, 922-923, 955, 1004-1015, 1035, 1038-1039, 1055, 1058-1059, 1075, 1103-1128, 1325, 1373-1374, 1391 |
 | src/antennaknobs/web/user\_designs.py                             |       56 |        6 |     89% |58-59, 83-84, 89-90 |
-| **TOTAL**                                                         | **6253** |  **343** | **95%** |           |
+| **TOTAL**                                                         | **6281** |  **344** | **95%** |           |
 
 
 ## Setup coverage badge
