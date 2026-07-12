@@ -3,6 +3,11 @@ import logging
 import numpy as np
 import PyNEC as nec
 
+# Exact round-conductor internal impedance (momwire#131). Private-module
+# import, but antennaknobs pins momwire exactly, so the pair moves in
+# lockstep; promote to a public momwire export at the next API pass.
+from momwire._wire_loading import wire_internal_impedance
+
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (
     Driven,
@@ -477,10 +482,16 @@ class PyNECEngine(SimulationEngine):
         nothing and leave efficiency at 1.0.
         """
         # TL/virtual-driver networks reduce through the shared
-        # reducer; reuse its port-level efficiency and input power.
+        # reducer; reuse its port-level efficiency and input power, then
+        # fold in the wire loss (inside NEC's solve, invisible to the
+        # port-level reducer bookkeeping).
         if self._network is not None and self._use_reducer:
             Y = self._compute_y_matrix(wavelength)
             _v, efficiency, p_in, budget = self._reducer.excited_state(Y, wavelength)
+            p_wire = self._wire_loss_from_currents(sc, wavelength)
+            if p_wire > 0.0 and p_in > 0.0:
+                budget = list(budget) + [("wire loss (I²R)", p_wire)]
+                efficiency = max(0.0, min(1.0, efficiency - p_wire / p_in))
             return efficiency, p_in, budget
         # Native path: source input power from NEC's ANTENNA INPUT
         # PARAMETERS (index 0 — `sc` always comes from the single-frequency
@@ -495,8 +506,6 @@ class PyNECEngine(SimulationEngine):
             if self._network is not None
             else []
         )
-        if not loads or p_in <= 0.0:
-            return 1.0, p_in, []
         omega = 2.0 * np.pi * C_LIGHT / wavelength
         p_diss = 0.0
         budget = []
@@ -506,7 +515,42 @@ class PyNECEngine(SimulationEngine):
             w = 0.5 * load_impedance(br, omega).real * abs(cur) ** 2
             budget.append((f"Load {br.port}", w))
             p_diss += w
+        p_wire = self._wire_loss_from_currents(sc, wavelength)
+        if p_wire > 0.0:
+            budget.append(("wire loss (I²R)", p_wire))
+            p_diss += p_wire
+        if not budget or p_in <= 0.0:
+            return 1.0, p_in, []
         return max(0.0, min(1.0, 1.0 - p_diss / p_in)), p_in, budget
+
+    def _wire_loss_from_currents(self, sc, wavelength):
+        """Ohmic wire loss ½·Σ|I_seg|²·R'·l_seg in watts, integrated from
+        the excited structure currents (issue #317). NEC solves the global
+        LD 5 loading internally but exposes no structure-dissipation
+        readout, so re-integrate it from the same segment currents the
+        loss card shaped. R' is the exact solid-round-conductor internal
+        resistance — the same law NEC's zint (Kelvin ber/bei) implements —
+        so this tracks NEC's own accounting to well under a percent."""
+        sigma = (
+            self._wire_spec.conductivity
+            if self._wire_spec is not None
+            else WIRE_CONDUCTIVITY
+        )
+        if sigma is None:
+            return 0.0
+        omega = 2.0 * np.pi * C_LIGHT / wavelength
+        r_per_m = float(
+            np.real(wire_internal_impedance(omega, self._wire_radius, sigma))
+        )
+        all_tags = np.asarray(sc.get_current_segment_tag())
+        all_cur = np.asarray(sc.get_current())
+        p = 0.0
+        for tag_idx, t in enumerate(self.tups, start=1):
+            p0, p1, n_seg = np.asarray(t[0], float), np.asarray(t[1], float), t[2]
+            seg_len = float(np.linalg.norm(p1 - p0)) / n_seg
+            cur = all_cur[all_tags == tag_idx]
+            p += 0.5 * r_per_m * seg_len * float(np.sum(np.abs(cur) ** 2))
+        return p
 
     def _compute_y_matrix(self, wavelength):
         """Multiport short-circuit Y at the real ports, via one NEC solve per
