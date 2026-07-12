@@ -135,6 +135,26 @@ class Builder(AntennaBuilder):
         }
     )
 
+    # 40 m: the same POTA box — unun, comp cap, coax untouched — with twice
+    # the wire. The ~19 m radiator needs a gentler rise: 30° lands the apex
+    # near 11 m (a tall mast or a friendly tree limb), and the counterpoise
+    # scales to ~0.05 λ. length_factor retuned for the stock 28 AWG PVC wire:
+    # rig-side SWR 1.36 at 7.1 MHz. The 100 pF comp cap is a 20 m-flavored
+    # compromise that caps the match here (~200 pF would buy 1.19 — turn the
+    # knob if you'd rebuild the unun), and the longer thin wire burns ~10 %
+    # in I²R (efficiency 84 %) — the gauge tradeoff, amplified. At ~0.26 λ
+    # up the pattern is near-NVIS (takeoff ≈ 78°, essentially omni) — which
+    # is exactly how 40 m POTA actually works: regional skywave, not DX.
+    band40_params = MappingProxyType(
+        {
+            "design_freq": 7.1,
+            "freq": 7.1,
+            "slope_deg": 30.0,
+            "length_factor": 0.8935,
+            "cp_len_m": 2.1,
+        }
+    )
+
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq

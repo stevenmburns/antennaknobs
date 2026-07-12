@@ -77,6 +77,24 @@ not a full transformer characterization — so treat the (mag) row as the
 shape of the loss, and tune `qlmag` against a measurement if you have
 one: Q = 5 doubles the core's share, Q = 20 halves it.
 
+## The 40 m variant
+
+`wire.efhw_sloper:band40` is the same POTA box — unun, comp cap, and
+coax untouched — with twice the wire: ~19 m of 28 AWG PVC retuned to
+put the rig-side SWR minimum at 7.1 MHz (SWR 1.36, and the whole band
+under about 2:1). Two things change with the band, and both are honest
+physics rather than knob-turning:
+
+- **The slope comes down.** A 63° rise would put the apex at ~18 m; the
+  variant's 30° lands it near 11 m — a tall mast or a friendly tree
+  limb. At ~0.26 λ up the pattern is near-NVIS (takeoff ≈ 78°,
+  essentially omnidirectional), which is exactly how 40 m POTA operates:
+  regional skywave, not DX.
+- **The wire loss doubles.** The longer high-current half wave burns
+  ~10 % in I²R (vs ~6 % on 20 m), for 84 % system efficiency. The 100 pF
+  comp cap is a 20 m-flavored compromise, too — ~200 pF would buy
+  SWR 1.19 here, if you'd rather rebuild the unun than accept 1.36.
+
 ## Try it
 
 Open [`wire.efhw_sloper`](https://app.antennaknobs.dev/) in the

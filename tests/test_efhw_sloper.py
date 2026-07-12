@@ -79,6 +79,35 @@ def test_thicker_wire_recovers_watts():
     assert fr18["wire loss (I²R)"] < 0.5 * fr28["wire loss (I²R)"]
 
 
+def test_band40_variant_tune():
+    """wire.efhw_sloper:band40 — same unun box, twice the wire, gentler
+    slope. The retuned length_factor lands the rig under SWR 1.5 at
+    7.1 MHz (measured 1.36; the 100 pF comp cap is the 20 m-flavored
+    compromise that caps the match on this band)."""
+    from antennaknobs import resolve_variant_params
+
+    b = Builder(params=resolve_variant_params(Builder, "band40"))
+    (z,) = MomwireEngine(b, **GROUND).impedance()
+    gamma = abs((z - 50.0) / (z + 50.0))
+    assert (1 + gamma) / (1 - gamma) < 1.5
+
+
+def test_band40_geometry_and_budget():
+    """The 30° rise keeps the ~19 m radiator's apex at a realistic mast
+    height, and the longer thin wire roughly doubles the I²R fraction
+    relative to 20 m (measured 10.0 % vs 6.1 %, efficiency 0.841)."""
+    from antennaknobs import resolve_variant_params
+
+    b = Builder(params=resolve_variant_params(Builder, "band40"))
+    apex = max(max(p0[2], p1[2]) for p0, p1, *_ in b.build_wires())
+    assert 9.0 < apex < 12.0
+
+    eng = MomwireEngine(b, **GROUND)
+    fr = _budget_fractions(eng)
+    assert 0.05 < fr["wire loss (I²R)"] < 0.20
+    assert 0.75 < eng._excited_efficiency < 0.92
+
+
 def test_cross_engine_pynec():
     """Matched-basis cross-check at the transformed rig port, with the
     FULL stock wire model on both engines (momwire#134 sinusoidal loading
