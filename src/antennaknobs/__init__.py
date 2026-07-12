@@ -14,6 +14,7 @@ __all__ = [
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
+    "radiated_fraction",
     "resolve_range",
     "gen_xs",
     "sweep",
@@ -58,6 +59,7 @@ from .far_field import (
     plot_patterns,
     pattern,
     pattern3d,
+    radiated_fraction,
 )
 from .serialize import params_source, builder_params_source
 from .cli import cli

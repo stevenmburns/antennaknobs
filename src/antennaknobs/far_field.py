@@ -162,6 +162,33 @@ def pattern_metrics(ff, *, beamwidth_db=3.0):
     }
 
 
+def radiated_fraction(ff):
+    """Fraction of input power that leaves as far-field radiation.
+
+    Gain is power density per *input* watt, so the average of linear gain
+    over the full sphere is exactly P_radiated / P_input. Over a ground
+    the lower hemisphere contributes nothing, so integrating the upper
+    hemisphere alone is the whole integral; what's missing from 1.0 is
+    conductor/component loss plus ground absorption. This is the honest
+    "where do the watts go" number — distinct from the *structural*
+    efficiency usually quoted for antennas (conductor + component loss
+    only), which ignores the ground's share entirely. A quarter-wave
+    vertical over average earth radiates ~30% by this measure while
+    being ">90% efficient" structurally; both are true, in different
+    ledgers.
+
+    Accuracy note: the integral is a trapezoid over the sampled grid, so
+    patterns with significant energy at the horizon (verticals over PEC
+    ground peak exactly there) lose a few percent to grid clipping;
+    over lossy ground the horizon gain is ~0 and the integral is clean.
+    """
+    g = 10.0 ** (np.asarray(ff.rings, float) / 10.0)
+    th = np.radians(np.asarray(ff.thetas, float))
+    ph = np.radians(np.asarray(ff.phis, float))
+    integ = np.trapezoid(np.trapezoid(g, ph, axis=1) * np.sin(th), th)
+    return float(integ / (4.0 * np.pi))
+
+
 def plot_patterns(
     rings_lst,
     names,
