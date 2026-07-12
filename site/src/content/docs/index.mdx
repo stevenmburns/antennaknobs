@@ -25,18 +25,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.22.0" icon="star">
-  **Model the whole station, not just the antenna.** Transmission lines
-  are now lossy the way real cable is (a preset catalog from RG-58 to
-  600 Ω open wire — SWR-multiplied loss emerges from the circuit solve),
-  matching-network coils take a finite **Q**, and a new
-  `Transformer` element models baluns and ununs, core loss included. A
-  **power budget** table in the solve readout shows where every watt
-  goes — line, tuner coil, balun, load, radiated. Three station designs
-  ride it, referenced to the rig: the inv-vee on 100 ft of real coax,
-  an 88 ft doublet on open-wire line into a lossy T-network tuner, and
-  a folded inv-vee through a 4:1 balun — [the coax-vs-ladder-line
-  folklore, as numbers](/advanced/station-comparison/).
+<Card title="New in v0.22.1" icon="star">
+  **The v0.22 station story, finished.** v0.22.0 made transmission
+  lines lossy the way real cable is, gave matching-network coils a
+  finite **Q**, added a `Transformer` element for baluns and ununs,
+  and put a **power budget** table in the solve readout showing where
+  every watt goes. v0.22.1 completes it: the two station rigs are
+  refit for a same-band **20 m head-to-head** — real matchbox
+  capacitor limits, band-locked sweeps — written up in a new Advanced
+  guide, [the coax-vs-ladder-line folklore, as
+  numbers](/advanced/station-comparison/). Plus a round of workbench
+  polish: knob-menu number fields now clear cleanly, panel enum
+  pulldowns are styled like real controls, and solve/rtt timing sits
+  together at the end of the readout.
   [All release notes →](/reference/releases/)
 </Card>
 
