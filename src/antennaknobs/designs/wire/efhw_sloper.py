@@ -39,19 +39,22 @@ length knob (the insulated-wire velocity factor, same story as
 `dipoles.pota_invvee`).
 
 Geometry is a `Drone` flight in the x–z plane: fly the counterpoise
-horizontally to the feed point at (0, 0, `h_feed`), pitch up by
-`slope_deg`, lay the short named "ant" gap wire (ports live in wire
+horizontally (along −x) to the feed point at (0, 0, `h_feed`), pitch up
+by `slope_deg`, lay the short named "ant" gap wire (ports live in wire
 interiors — the feed needs its own short wire), then the radiator to the
-apex. The slope is a *rise angle*, not an apex height, so every knob
-combination is a valid sloper — the apex simply lands at
-h_feed + length·sin(slope_deg) (≈10 m at the defaults, a typical mast).
+apex, climbing toward −x. The slope is a *rise angle*, not an apex
+height, so every knob combination is a valid sloper — the apex simply
+lands at h_feed + length·sin(slope_deg) (≈10 m at the defaults, a
+typical mast). A sloper fires mostly downhill, off the low feed end —
+the radiator climbs toward −x precisely so the main lobe lands on **+x**
+(the workbench's forward direction).
 
-              apex (derived)
-          \\
-           \\  radiator ≈ λ/2 · length_factor   (wire_type from WIRES)
-            \\   ← slope_deg above horizontal
-    =========F                 z = h_feed
-    counterpoise  F = "ant" port → unun (49:1) → coax → rig
+    apex (derived)
+        /
+       /  radiator ≈ λ/2 · length_factor   (wire_type from WIRES)
+      /   slope_deg above horizontal
+     F=========            z = h_feed        main lobe → +x
+     counterpoise (+x)   F = "ant" port → unun (49:1) → coax → rig
 """
 
 from types import MappingProxyType
@@ -138,13 +141,16 @@ class Builder(AntennaBuilder):
         quarter = 0.25 * wavelength
         length = 0.5 * wavelength * self.length_factor
 
-        # Fly it: counterpoise in to the feed point, pitch up by the rise
-        # angle (Drone pitch is nose-down positive), gap wire, radiator.
+        # Fly it: face −x so the radiator climbs toward −x and the sloper's
+        # downhill main lobe lands on +x; counterpoise in to the feed
+        # point, pitch up by the rise angle (Drone pitch is nose-down
+        # positive), gap wire, radiator.
         d = Drone(
-            (-self.cp_len_m, 0.0, self.h_feed),
+            (self.cp_len_m, 0.0, self.h_feed),
             nominal_nsegs=self.nominal_nsegs,
             ref=quarter,
         )
+        d.face((-1.0, 0.0, 0.0))
         d.pay_out().forward(self.cp_len_m)
         d.pitch(-self.slope_deg)
         d.forward(eps, nsegs=1)
