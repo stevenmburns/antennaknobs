@@ -1045,6 +1045,30 @@ button:focus-visible,
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* enum params (e.g. the station designs' cable pick) render as a native
+   <select> in the panel; match the number-input treatment so any custom
+   pulldown reads as part of the control rail, not a browser default. */
+.field select {
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  padding: var(--space-3) var(--space-4);
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+}
+
+.field select:hover {
+  border-color: var(--border-hover);
+}
+
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 /* rotary knob — opt-in alternative to the range slider (see Knob in App.tsx) */
 .knob {
   width: 54px;
@@ -1306,13 +1330,18 @@ button:focus-visible,
   gap: var(--space-5) var(--space-4);
   justify-items: center;
 }
-.param-grid .field-enum,
 .param-grid .field-bool,
 .param-grid .param-group {
   grid-column: 1 / -1;
   /* The is-knobs grid sets justify-items:center, which would otherwise shrink
      these full-width spanners to their content width (collapsing a band group's
      nested grid to one column). Force them to fill the row. */
+  justify-self: stretch;
+}
+/* Enum selects don't need a whole row — two knob cells is plenty for a
+   cable name, and the neighbouring cell stays free for the next knob. */
+.param-grid .field-enum {
+  grid-column: span 2;
   justify-self: stretch;
 }
 .param-grid.is-knobs .field {
