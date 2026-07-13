@@ -4,11 +4,14 @@
 
 | Name                                                              |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| src/antennaknobs/\_\_init\_\_.py                                  |       15 |        2 |     87% |     79-80 |
+| src/antennaknobs/\_\_init\_\_.py                                  |       16 |        2 |     88% |     82-83 |
 | src/antennaknobs/\_\_main\_\_.py                                  |        0 |        0 |    100% |           |
 | src/antennaknobs/builder.py                                       |      260 |        1 |     99% |       169 |
-| src/antennaknobs/cli.py                                           |      345 |       37 |     89% |157, 176, 214, 226, 251-252, 472, 604-617, 656-666, 735-749 |
+| src/antennaknobs/cli.py                                           |      402 |       40 |     90% |157, 176, 214, 226, 251-252, 472, 604-617, 656-666, 735-749, 813, 894-895 |
 | src/antennaknobs/core.py                                          |       16 |        2 |     88% |     12-13 |
+| src/antennaknobs/design\_data.py                                  |       29 |        1 |     97% |        43 |
+| src/antennaknobs/design\_screen.py                                |       95 |        2 |     98% |  239, 325 |
+| src/antennaknobs/design\_trust.py                                 |       83 |        8 |     90% |73, 97, 124-126, 164-166 |
 | src/antennaknobs/designs/\_\_init\_\_.py                          |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray1x2.py                 |        7 |        0 |    100% |           |
@@ -116,7 +119,7 @@
 | src/antennaknobs/smith\_chart.py                                  |       44 |        0 |    100% |           |
 | src/antennaknobs/sweep.py                                         |      151 |        7 |     95% |   150-161 |
 | src/antennaknobs/transform.py                                     |       42 |        1 |     98% |        62 |
-| src/antennaknobs/user\_designs.py                                 |       61 |        5 |     92% |33, 43, 59, 81, 86 |
+| src/antennaknobs/user\_designs.py                                 |       67 |        5 |     93% |35, 45, 77, 99, 104 |
 | src/antennaknobs/web/\_\_init\_\_.py                              |        0 |        0 |    100% |           |
 | src/antennaknobs/web/adapter.py                                   |      645 |       66 |     90% |62-64, 171, 267-268, 302, 306, 314, 357, 360, 365-368, 371, 381, 386, 440, 450, 464, 466, 468, 471, 491, 658, 691, 694, 697, 714, 717, 720, 754, 782, 786, 816, 886-887, 906-907, 967-968, 1007, 1091, 1174-1175, 1426-1428, 1458, 1512-1521, 1621, 1643-1645, 1648, 1653-1654 |
 | src/antennaknobs/web/examples/\_\_init\_\_.py                     |       11 |        1 |     91% |        24 |
@@ -125,8 +128,8 @@
 | src/antennaknobs/web/optimize.py                                  |       54 |        1 |     98% |        54 |
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      535 |       67 |     87% |66-68, 238-239, 325, 379, 526-529, 589, 621, 623, 677, 693, 725, 758, 760-763, 804, 854, 889, 897-911, 922-923, 965, 1021-1032, 1052, 1055-1056, 1072, 1075-1076, 1092, 1120-1145, 1342, 1390-1391, 1408 |
-| src/antennaknobs/web/user\_designs.py                             |       56 |        6 |     89% |58-59, 83-84, 89-90 |
-| **TOTAL**                                                         | **6460** |  **344** | **95%** |           |
+| src/antennaknobs/web/user\_designs.py                             |       59 |        7 |     88% |59-60, 84-85, 90-91, 128 |
+| **TOTAL**                                                         | **6734** |  **359** | **95%** |           |
 
 
 ## Setup coverage badge
