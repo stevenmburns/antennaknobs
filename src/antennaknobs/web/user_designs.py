@@ -14,6 +14,7 @@ import shutil
 import traceback
 from pathlib import Path
 
+from antennaknobs.design_trust import DesignNotTrustedError
 from antennaknobs.user_designs import (
     USER_NS,
     default_user_dir,
@@ -120,11 +121,32 @@ def refresh() -> list[dict]:
             # surface here.
             cls()
             REGISTRY[name] = adapter._make_example(name, cls, defer_hints=True)
+        except DesignNotTrustedError as exc:
+            # Not an error — the user just hasn't trusted this file to run yet.
+            # Surface it distinctly (with the advisory) so the UI can offer a
+            # trust prompt rather than showing it as a broken design.
+            errors.append(
+                {
+                    "name": name,
+                    "file": str(path),
+                    "trust_required": True,
+                    "message": str(exc),
+                    "advisory": [
+                        {
+                            "severity": f.severity,
+                            "message": f.message,
+                            "line": f.lineno,
+                        }
+                        for f in exc.report.findings
+                    ],
+                }
+            )
         except Exception as exc:  # noqa: BLE001 — surface, don't crash
             errors.append(
                 {
                     "name": name,
                     "file": str(path),
+                    "trust_required": False,
                     "message": _format_error(path, exc),
                 }
             )

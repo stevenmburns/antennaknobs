@@ -11,6 +11,8 @@ __all__ = [
     "merge_params",
     "diff_params",
     "resolve_variant_params",
+    "read_data",
+    "read_json",
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
@@ -40,6 +42,7 @@ from .builder import (
     diff_params,
     resolve_variant_params,
 )
+from .design_data import read_data, read_json
 from .transform import Transform, TransformStack
 from .drone import Drone
 from .sim import Antenna
