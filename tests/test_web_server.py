@@ -2079,9 +2079,7 @@ def test_pattern_metrics_rejects_oversized_request_when_hosted(hosted, client):
     assert "segments / wire" in resp.json()["error"]
 
 
-@pytest.mark.skipif(
-    not server.pynec_backend.HAVE_PYNEC, reason="PyNEC not installed"
-)
+@pytest.mark.skipif(not server.pynec_backend.HAVE_PYNEC, reason="PyNEC not installed")
 def test_pattern_rejects_oversized_request_when_hosted(hosted, client):
     resp = client.post("/pattern", json=_oversized_req(solver="pynec"))
     body = resp.json()
@@ -2189,9 +2187,9 @@ def test_hosted_model_options_filtered_to_whitelist(monkeypatch):
 def test_local_model_options_forward_verbatim():
     from antennaknobs.web import adapter
 
-    assert adapter.sanitize_model_options(
-        {"model_options": {"anything_goes": 1}}
-    ) == {"anything_goes": 1}
+    assert adapter.sanitize_model_options({"model_options": {"anything_goes": 1}}) == {
+        "anything_goes": 1
+    }
     with pytest.raises(ValueError):  # non-dict is a clean error even locally
         adapter.sanitize_model_options({"model_options": "junk"})
 
@@ -2244,7 +2242,9 @@ def test_geometry_rejects_non_finite_knob_value(client):
 
 
 def test_geometry_rejects_non_positive_n_per_wire(client):
-    resp = client.post("/geometry", json={"geometry": "dipoles.invvee", "n_per_wire": 0})
+    resp = client.post(
+        "/geometry", json={"geometry": "dipoles.invvee", "n_per_wire": 0}
+    )
     assert "n_per_wire" in resp.json()["error"]
 
 
@@ -2276,6 +2276,52 @@ def test_positive_finite_helper():
     for bad in (0, -1, float("nan"), float("inf"), None, "abc", [1]):
         with pytest.raises(ValueError, match="x must be"):
             _positive_finite("x", bad)
+
+
+# ---------------------------------------------------------------------------
+# Hosted hardening (issue #348): API docs off when hosted, /converge errors
+# through the shared formatter.
+# ---------------------------------------------------------------------------
+
+
+def test_docs_available_locally(client):
+    # The default (unhosted) app keeps the interactive docs for development.
+    assert server.app.docs_url == "/docs"
+    assert client.get("/openapi.json").status_code == 200
+
+
+def test_docs_disabled_when_hosted_at_import():
+    # docs_url is baked in at FastAPI construction (import time), so the
+    # hosted flag can't be monkeypatched after the fact — check in a fresh
+    # interpreter with the env var set, exactly like the Fly container.
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "from antennaknobs.web import server; "
+        "assert server.app.docs_url is None; "
+        "assert server.app.redoc_url is None; "
+        "assert server.app.openapi_url is None"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        env={**os.environ, "ANTENNAKNOBS_HOSTED": "1"},
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_converge_error_goes_through_solve_error_formatter(hosted, client):
+    # A per-N failure (here the size rejection) streams through
+    # format_solve_error — "TypeName: message", never a raw str(e)/traceback.
+    n = _n_per_wire_for_basis("dipoles.invvee", server._MAX_BASIS) * 2
+    resp = client.post(
+        "/converge", json={"geometry": "dipoles.invvee", "n_values": [n]}
+    )
+    first = json.loads(resp.text.strip().splitlines()[0])
+    assert first["error"].startswith("SolveTooLargeError: ")
 
 
 def test_momwire_bspline_ground_model_drives_sommerfeld_solve():

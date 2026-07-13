@@ -228,9 +228,7 @@ def sanitize_model_options(req: dict) -> dict | None:
     if raw is None:
         return None
     if not isinstance(raw, dict):
-        raise ValueError(
-            "model_options must be an object of solver keyword arguments"
-        )
+        raise ValueError("model_options must be an object of solver keyword arguments")
     if not _HOSTED:
         return dict(raw) or None
     out = {}

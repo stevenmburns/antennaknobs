@@ -63,6 +63,9 @@ earlier), and a previously-allowed file that later changes asks again.
   there to make your decision informed. **Only allow designs from sources you
   trust.** For a single-user machine you can allow everything up front with
   `ANTENNAKNOBS_TRUST_USER_DESIGNS=1`.
+- The local web app has no login and no solve-size limits (those exist only on
+  the shared public instance), so keep it on `localhost` — don't bind it to
+  `0.0.0.0` or expose it to a network you don't fully control.
 
 ### Loading geometry from a data file
 

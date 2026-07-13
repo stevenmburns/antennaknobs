@@ -65,5 +65,7 @@ EXPOSE 8000
 
 # One worker: solves are CPU-bound and run in a threadpool, so extra uvicorn
 # workers would only contend for the same cores. --host 0.0.0.0 to accept the
-# proxy's traffic inside the container.
-CMD ["sh", "-c", "uvicorn antennaknobs.web.server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# proxy's traffic inside the container. --ws-max-size caps a WebSocket frame
+# at 1 MiB (uvicorn's default is 16 MiB): /ws solve requests are a few KB, so
+# this bounds what an abusive client can make the reader json.loads per frame.
+CMD ["sh", "-c", "uvicorn antennaknobs.web.server:app --host 0.0.0.0 --port ${PORT:-8000} --ws-max-size 1048576"]
