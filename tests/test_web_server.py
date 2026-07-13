@@ -618,9 +618,7 @@ def test_norm_check_radiated_fraction_matches_far_field_ledger(
         mod.Builder(params=params), ground=("finite", 10.0, 0.002), ground_z=0.0
     )
     ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
-    assert resp["radiated_fraction"] == pytest.approx(
-        radiated_fraction(ff), abs=0.01
-    )
+    assert resp["radiated_fraction"] == pytest.approx(radiated_fraction(ff), abs=0.01)
 
 
 def test_norm_check_radiated_fraction_pec_and_free_space(client: TestClient):
