@@ -43,7 +43,7 @@ The structure is planar in x = 0.
     A1         A2         A3     z = base   (outer ends open; A2 = open base)
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

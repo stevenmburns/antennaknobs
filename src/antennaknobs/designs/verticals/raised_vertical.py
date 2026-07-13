@@ -1,6 +1,6 @@
 """Elevated quarter-wave vertical, fed above ground."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 
 import math
 from types import MappingProxyType

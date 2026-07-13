@@ -29,7 +29,7 @@ The structure is planar in x = 0.
     A               B     z = base          (open leg ends, voltage nulls)
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

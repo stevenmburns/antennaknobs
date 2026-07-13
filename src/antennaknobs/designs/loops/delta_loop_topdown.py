@@ -26,7 +26,7 @@ perimeter; ``ry`` mirrors the right half across ``y = 0`` for the left, and
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder, Drone
+from antennaknobs import AntennaBuilder, Drone
 
 
 class Builder(AntennaBuilder):

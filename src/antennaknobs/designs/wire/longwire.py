@@ -31,7 +31,7 @@ The structure is a single straight conductor in x = 0, z = base.
   -L/2     centre     +L/2    F: one-segment driven gap at the current max
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

@@ -29,7 +29,7 @@ top edge seats at ``base`` — the feed trailing below, its height emergent.
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder, Drone
+from antennaknobs import AntennaBuilder, Drone
 
 
 class Builder(AntennaBuilder):

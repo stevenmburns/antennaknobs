@@ -1,6 +1,6 @@
 """Crossed dipoles fed in phase quadrature (turnstile)."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 
 from types import MappingProxyType
 

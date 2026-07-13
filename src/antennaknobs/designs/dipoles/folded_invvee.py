@@ -1,6 +1,6 @@
 """Folded inverted-vee — the folded dipole's impedance step-up, with drooped arms."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 
 from types import MappingProxyType

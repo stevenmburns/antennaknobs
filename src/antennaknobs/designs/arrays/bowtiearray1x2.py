@@ -1,7 +1,7 @@
 """Side-by-side bowtie pair (1x2)."""
 
-from ...builder import Array1x2Builder
-from ..specialty import bowtie
+from antennaknobs.builder import Array1x2Builder
+from antennaknobs.designs.specialty import bowtie
 
 from types import MappingProxyType
 

@@ -35,7 +35,7 @@ open-wire line to a tuner. With n_cells = 3 (~2 wl) this model gives, at
 gain falls off quickly below ~0.96 as the half-wave phasing breaks down.
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

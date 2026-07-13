@@ -46,7 +46,7 @@ Geometry, in the framework's (x, y, z) convention:
 
 from types import MappingProxyType
 
-from ... import AntennaBuilder, Drone
+from antennaknobs import AntennaBuilder, Drone
 
 
 class Builder(AntennaBuilder):

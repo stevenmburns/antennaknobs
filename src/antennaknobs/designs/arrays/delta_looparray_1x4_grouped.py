@@ -1,7 +1,7 @@
 """1x4 delta-loop row with per-group knobs (inner/outer pairs tuned separately)."""
 
-from ...builder import Array1x4GroupedBuilder
-from ..loops import delta_loop
+from antennaknobs.builder import Array1x4GroupedBuilder
+from antennaknobs.designs.loops import delta_loop
 
 from types import MappingProxyType
 

@@ -33,7 +33,7 @@ Geometry, in the framework's (x, y, z) convention:
                           beam <--> +/- x   (broadside null off +/- y)
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

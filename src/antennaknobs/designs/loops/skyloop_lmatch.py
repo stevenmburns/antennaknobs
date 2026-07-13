@@ -29,8 +29,15 @@ reducer computes exactly on top of the extracted antenna Y.
 
 from types import MappingProxyType
 
-from .triangular_skyloop import Builder as TriangularSkyloop
-from ...network import Driven, Network, PortOnWire, PortVirtual, Shunt, TwoPort
+from antennaknobs.designs.loops.triangular_skyloop import Builder as TriangularSkyloop
+from antennaknobs.network import (
+    Driven,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    Shunt,
+    TwoPort,
+)
 
 
 class Builder(TriangularSkyloop):

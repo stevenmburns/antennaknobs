@@ -39,8 +39,15 @@ source itself.
 
 from types import MappingProxyType
 
-from .inverted_l import Builder as InvertedL
-from ...network import Driven, Network, PortOnWire, PortVirtual, Shunt, TwoPort
+from antennaknobs.designs.verticals.inverted_l import Builder as InvertedL
+from antennaknobs.network import (
+    Driven,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    Shunt,
+    TwoPort,
+)
 
 
 class Builder(InvertedL):

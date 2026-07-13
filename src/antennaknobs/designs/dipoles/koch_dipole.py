@@ -30,7 +30,7 @@ Geometry, in the framework's (x, y, z) convention:
     ___/  \\__F __/  \\___       F = centre feed at y = 0
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

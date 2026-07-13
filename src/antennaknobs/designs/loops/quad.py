@@ -34,7 +34,7 @@ The loops lie in planes of constant x.
                           beam --> +x
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

@@ -32,8 +32,8 @@ ground" per the plans.
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
-from ...network import (
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import (
     Driven,
     Network,
     PortOnWire,

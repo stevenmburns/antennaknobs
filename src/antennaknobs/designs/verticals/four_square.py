@@ -48,7 +48,7 @@ Geometry, in the framework's (x, y, z) convention:
            (back, reference)
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

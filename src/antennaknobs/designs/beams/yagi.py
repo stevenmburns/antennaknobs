@@ -1,6 +1,6 @@
 """Yagi-Uda parasitic beam (driven element + reflector + directors)."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 
 from types import MappingProxyType

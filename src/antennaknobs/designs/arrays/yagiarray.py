@@ -1,7 +1,7 @@
 """2x2 phased stack of Yagi beams."""
 
-from ... import Array2x2Builder
-from ..beams import yagi
+from antennaknobs import Array2x2Builder
+from antennaknobs.designs.beams import yagi
 
 from types import MappingProxyType
 

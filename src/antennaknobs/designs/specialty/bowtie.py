@@ -1,6 +1,6 @@
 """Bowtie dipole — triangular fan arms for broadened bandwidth."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

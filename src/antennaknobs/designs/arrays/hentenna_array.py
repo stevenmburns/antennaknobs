@@ -1,7 +1,7 @@
 """Side-by-side hentenna pair (1x2)."""
 
-from ...builder import Array1x2Builder
-from ..specialty import hentenna
+from antennaknobs.builder import Array1x2Builder
+from antennaknobs.designs.specialty import hentenna
 
 from types import MappingProxyType
 

@@ -44,8 +44,8 @@ Horizontally polarised.
    back (low freq)                              front (high freq), beam --> +x
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Network, PortOnWire, TL
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Network, PortOnWire, TL
 from types import MappingProxyType
 
 

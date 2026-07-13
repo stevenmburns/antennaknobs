@@ -33,8 +33,16 @@ nearly flat, so the practical ceiling costs only tenths of a percent.
 
 from types import MappingProxyType
 
-from ...network import TL, Driven, Network, PortOnWire, PortVirtual, Shunt, TwoPort
-from ..dipoles.invvee import Builder as InvVee
+from antennaknobs.network import (
+    TL,
+    Driven,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    Shunt,
+    TwoPort,
+)
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
 
 class Builder(InvVee):

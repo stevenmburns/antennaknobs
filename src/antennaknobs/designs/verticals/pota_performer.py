@@ -49,8 +49,8 @@ lands on the workbench's forward direction.
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
-from ...network import WireSpec
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import WireSpec
 
 _IN = 0.0254
 

@@ -32,8 +32,8 @@ issue #328) cards — engine-switching holds the story steady.
 
 from types import MappingProxyType
 
-from ...network import WIRES
-from .invvee import Builder as InvVee
+from antennaknobs.network import WIRES
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
 
 class Builder(InvVee):

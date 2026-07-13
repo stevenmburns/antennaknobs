@@ -11,8 +11,8 @@ natural cross-engine cross-check for the Load branch.
 dipole at `design_freq` — recompute it if you change `length_factor`.
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortOnWire
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Load, Network, PortOnWire
 
 from types import MappingProxyType
 

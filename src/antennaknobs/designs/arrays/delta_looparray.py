@@ -1,7 +1,7 @@
 """Side-by-side delta-loop pair (1x2)."""
 
-from ...builder import Array1x2Builder
-from ..loops import delta_loop
+from antennaknobs.builder import Array1x2Builder
+from antennaknobs.designs.loops import delta_loop
 
 from types import MappingProxyType
 

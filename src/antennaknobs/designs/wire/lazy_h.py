@@ -29,7 +29,7 @@ The structure is planar in x = 0.
                   (F = in-phase centre feed)
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

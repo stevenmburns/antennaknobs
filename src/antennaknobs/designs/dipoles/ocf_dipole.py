@@ -24,7 +24,7 @@ Geometry, in the framework's (x, y, z) convention:
     |<-- ~1/3 -->|<------------- ~2/3 ------------->|
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 
