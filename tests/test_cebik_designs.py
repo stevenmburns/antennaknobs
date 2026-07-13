@@ -1373,6 +1373,89 @@ def test_expanded_lazy_h_harness_topology():
     assert isinstance(src, Driven) and src.port == "junction"
 
 
+# ---------------------------------------------------------------------------
+# OWA Yagi (4-el with the close-in coupled-resonator first director)
+# ---------------------------------------------------------------------------
+
+
+_OWA_BAND = (28.0, 28.5, 29.0)
+
+
+def test_owa_flat_swr_across_the_whole_band():
+    """The defining OWA behaviour: direct 50-ohm feed with SWR < 1.5 held
+    over all of 28.0-29.0 MHz (Cebik's design goal for the family; this
+    model reads 1.10-1.32)."""
+    from antennaknobs.designs.beams.owa_yagi import Builder
+
+    swrs = {
+        f: _swr(_z(Builder(dict(Builder.default_params, freq=f))), 50.0)
+        for f in _OWA_BAND
+    }
+    assert max(swrs.values()) < 1.5, swrs
+
+
+def test_owa_bandwidth_shames_the_generic_yagi():
+    """Same band, same 50-ohm reference: the conventional driver-reflector-
+    directors `beams.yagi` swings past 5:1 at a band edge while the OWA
+    never leaves ~1.3 -- the coupled resonator is worth a >2x band-max
+    margin."""
+    from antennaknobs.designs.beams.owa_yagi import Builder
+    from antennaknobs.designs.beams.yagi import Builder as Yagi
+
+    owa_max = max(
+        _swr(_z(Builder(dict(Builder.default_params, freq=f))), 50.0) for f in _OWA_BAND
+    )
+    yagi_max = max(
+        _swr(_z(Yagi(dict(Yagi.default_params, freq=f))), 50.0) for f in _OWA_BAND
+    )
+    assert owa_max * 2.0 < yagi_max
+
+
+def test_owa_gain_and_front_to_back_hold_across_band():
+    """~8.3-8.7 dBi forward with F/B > 10 dB at both edges and mid-band --
+    the smooth-across-the-band consistency the OWA trades ~0.2 dB of peak
+    gain for."""
+    from antennaknobs.designs.beams.owa_yagi import Builder
+
+    for f in _OWA_BAND:
+        ff = _far_field(Builder(dict(Builder.default_params, freq=f)))
+        rings = np.array(ff.rings)
+        fb = rings[:, 0].max() - rings[:, 180].max()
+        assert ff.max_gain > 8.0, (f, ff.max_gain)
+        assert fb > 10.0, (f, fb)
+
+
+def test_owa_d1_is_the_matching_network():
+    """Delete the close-in first director and the OWA's own match collapses
+    (mid-band SWR ~3.9): the wideband 50-ohm feed lives in that one
+    coupled-resonator element, not in the driver."""
+    from antennaknobs.designs.beams.owa_yagi import Builder
+
+    class NoD1(Builder):
+        TABLE = tuple(t for i, t in enumerate(Builder.TABLE) if i != Builder.D1)
+
+    z = _z(NoD1(dict(NoD1.default_params, freq=28.5)))
+    assert _swr(z, 50.0) > 2.5
+
+
+def test_owa_topology_close_in_first_director():
+    """Four y-parallel elements, one driven; the OWA signature is D1 parked
+    ~0.05 wl from the driver while D2 sits ~0.18 wl further on, with lengths
+    monotone reflector > driver > D1 > D2."""
+    from antennaknobs.designs.beams.owa_yagi import Builder
+
+    b = Builder()
+    feeds = [t for t in b.build_wires() if t[3] is not None]
+    assert len(feeds) == 1
+    halves = [h for h, _ in b.TABLE]
+    poss = [p for _, p in b.TABLE]
+    assert halves[0] > halves[1] > halves[2] > halves[3]
+    assert poss[2] - poss[1] < 0.06  # D1 hugs the driver...
+    assert poss[3] - poss[2] > 0.15  # ...D2 does not
+    # fat elements are part of the published design
+    assert b.build_wire_material().radius > 0.01
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
