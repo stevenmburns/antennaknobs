@@ -18,11 +18,16 @@ A design file must:
    no dots except the `.py` extension, one antenna per file.
 2. **Define a class named exactly `Builder`** that subclasses `AntennaBuilder`.
 3. **Import only** from `antennaknobs` and the Python standard library.
-   Do **not** import other design files — keep each one self-contained.
+   Do **not** import other files in this folder — keep each one
+   self-contained. (Importing an installed built-in as a base class is fine,
+   e.g. `from antennaknobs.designs.dipoles.invvee import Builder as InvVee`.)
 4. Provide a **`default_params`** mapping (use `MappingProxyType(...)`) and a
    **`build_wires(self)`** method.
 
 Start from `TEMPLATE.py` in this folder — copy it, rename it, edit it.
+Every built-in design follows this same contract, so copying a file out of
+the installed package's `antennaknobs/designs/` folders into this one also
+works verbatim as a starting point.
 
 The same file also works from the command line: once `my_dipole.py` is in
 this folder, run e.g. `antennaknobs draw --builder user.my_dipole` (or
