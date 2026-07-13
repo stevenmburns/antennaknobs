@@ -23,7 +23,10 @@ THE RULES (keep it this simple)
   (lowercase_with_underscores.py, no spaces, no dots except ``.py``).
 - Define a class named exactly ``Builder`` that subclasses ``AntennaBuilder``.
 - Stay self-contained: only import from ``antennaknobs`` and the Python
-  standard library. Don't import other antenna files.
+  standard library. Don't import other files in this folder.
+- Every built-in design follows these same rules, so any file from the
+  installed package's ``antennaknobs/designs/`` folders also works here
+  verbatim — copying one in is a great way to start a variation.
 """
 
 from types import MappingProxyType
