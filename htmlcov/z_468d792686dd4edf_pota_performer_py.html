@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Coverage for src/antennaknobs/designs/verticals/pota_performer.py: 100%</title>
+    <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
+    <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
+    <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
+</head>
+<body class="pyfile">
+<header>
+    <div class="content">
+        <h1>
+            <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>designs<span class="sep">/</span>verticals<span class="sep">/</span>pota_performer.py</b>:
+            <span class="pc_cov">100%</span>
+        </h1>
+        <aside id="help_panel_wrapper">
+            <input id="help_panel_state" type="checkbox">
+            <label for="help_panel_state">
+                <img id="keyboard_icon" src="keybd_closed_cb_900cfef5.png" alt="Show/hide keyboard shortcuts">
+            </label>
+            <div id="help_panel">
+                <p class="legend">Shortcuts on this page</p>
+                <div class="keyhelp">
+                    <p>
+                        <kbd>r</kbd>
+                        <kbd>m</kbd>
+                        <kbd>x</kbd>
+                        &nbsp; toggle line displays
+                    </p>
+                    <p>
+                        <kbd>j</kbd>
+                        <kbd>k</kbd>
+                        &nbsp; next/prev highlighted chunk
+                    </p>
+                    <p>
+                        <kbd>0</kbd> &nbsp; (zero) top of page
+                    </p>
+                    <p>
+                        <kbd>1</kbd> &nbsp; (one) first highlighted chunk
+                    </p>
+                    <p>
+                        <kbd>[</kbd>
+                        <kbd>]</kbd>
+                        &nbsp; prev/next file
+                    </p>
+                    <p>
+                        <kbd>u</kbd> &nbsp; up to the index
+                    </p>
+                    <p>
+                        <kbd>?</kbd> &nbsp; show/hide this help
+                    </p>
+                </div>
+            </div>
+        </aside>
+        <h2>
+            <span class="text">31 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">31<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
+            <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
+        </h2>
+        <p class="text">
+            <a id="prevFileLink" class="nav" href="z_468d792686dd4edf_phased_verticals_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
+            <a id="nextFileLink" class="nav" href="z_468d792686dd4edf_raised_vertical_py.html">&#xbb; next</a>
+            &nbsp; &nbsp; &nbsp;
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
+            created at 2026-07-13 00:04 +0000
+        </p>
+        <aside class="hidden">
+            <button type="button" class="button_next_chunk" data-shortcut="j"></button>
+            <button type="button" class="button_prev_chunk" data-shortcut="k"></button>
+            <button type="button" class="button_top_of_page" data-shortcut="0"></button>
+            <button type="button" class="button_first_chunk" data-shortcut="1"></button>
+            <button type="button" class="button_prev_file" data-shortcut="["></button>
+            <button type="button" class="button_next_file" data-shortcut="]"></button>
+            <button type="button" class="button_to_index" data-shortcut="u"></button>
+            <button type="button" class="button_show_hide_help" data-shortcut="?"></button>
+        </aside>
+    </div>
+</header>
+<main id="source">
+    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">"""KJ6ER's "POTA PERformer" &#8212; elevated quarter-wave with tuned radials.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t"><span class="str">A faithful model of a popular published portable design: Greg Mihran</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">KJ6ER's PERformer (Portable, Elevated, Resonant), a one-band-at-a-time</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">quarter-wave vertical for 40M&#8211;6M. A 17' telescoping stainless whip on a</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">tripod/spike puts the feedpoint 52" up; two elevated tuned radials run</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">from the feed down to stakes at 36", giving a small droop angle. With the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">radials 90&#176; apart the antenna is mildly directional toward the radial</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="str">span; 180&#176; apart it is omnidirectional. Plans (free PDF, rev 2025-02):</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">https://www.vhfclub.org/pdf/PERformer%20Antenna%20by%20KJ6ER%20(2025-02).pdf</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">The reason this design is in the tree is the efficiency story. KJ6ER</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str">publishes ">90% efficient" (structural: conductor + component loss &#8212;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">which we CONFIRM: the stainless whip and copper radials burn only a few</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="str">percent, and elevated radials really do remove the ground-coupled loss</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="str">resistance that eats half a ground-mounted vertical's power in-circuit).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="str">But gain and efficiency are one measurement: integrate the published</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="str">pattern and ~70% of the input power is absorbed by real earth in the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="str">near/far field &#8212; his own +0.31 dBi peak-gain plot *is* a ~25% radiated</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="str">fraction, stated in dB (a lossless quarter-wave with this beam shape</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">would show ~+5.5 dBi). Three independent engines agree on the absolute</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="str">level (15M, average ground, two radials 90&#176;):</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="str">    KJ6ER 4NEC2:   +0.31 dBi @ 24&#176;, F/B 3.37, el BW 46&#176;  &#8594; ~24% radiated</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t"><span class="str">    VA3KOT EZNEC:  +1.19 dBi @ 25&#176;, F/B 3.34, el BW 47&#176;  &#8594; ~30%</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t"><span class="str">    momwire:       +1.06 dBi @ 24&#176;, F/B 2.91, el BW 44&#176;  &#8594;  29%</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t"><span class="str">    PyNEC:         +1.02 dBi @ 23&#176;, F/B ~3,   same shape &#8594;  34%</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t"><span class="str">(VA3KOT = John, hamradiooutsidethebox.ca, independent EZNEC build of</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t"><span class="str">this antenna, 2025-05; he also modeled the single-radial config &#8212;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t"><span class="str">`n_radials` reproduces it: slightly more gain and F/B, narrower el/wider</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="str">az coverage.) None of this makes the PERformer a bad antenna &#8212; ground</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="str">absorption at these heights is the same tax on every portable vertical,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="str">so KJ6ER's *relative* claims (elevated beats ground-mounted, the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="str">90&#176;-span directionality) all hold up. See the advanced docs page for the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t"><span class="str">full three-ledger power accounting.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t"><span class="str">Modeling notes: the feed is a short gap wire at the whip base (ports</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t"><span class="str">live in wire interiors); the feedline choke KJ6ER itemizes (&#8722;0.12 dB) is</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t"><span class="str">line hygiene, not modeled. Wire material is stainless (17-7 class,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t"><span class="str">1.35e6 S/m) at the whip's mid-taper radius everywhere &#8212; the real radials</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t"><span class="str">are 18 AWG copper, but wire material is per-design, and stainless</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t"><span class="str">everywhere is the conservative bound (conductor loss ~2&#8211;3% either way).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t"><span class="str">Default configuration is the 15M directional (90&#176; span) setup from the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t"><span class="str">plans' reference tables, radial span bisector on +x so the main lobe</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t"><span class="str">lands on the workbench's forward direction.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t"><span class="key">import</span> <span class="nam">math</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t"><span class="key">from</span> <span class="nam">types</span> <span class="key">import</span> <span class="nam">MappingProxyType</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t"><span class="key">from</span> <span class="op">...</span> <span class="key">import</span> <span class="nam">AntennaBuilder</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t"><span class="key">from</span> <span class="op">...</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">WireSpec</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t"><span class="nam">_IN</span> <span class="op">=</span> <span class="num">0.0254</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t"><span class="com"># Telescoping 17' stainless whip: ~10 mm diameter at the taper midpoint,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t"><span class="com"># 17-7 PH-class conductivity. Used for all wires (see modeling notes).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t"><span class="nam">_STAINLESS</span> <span class="op">=</span> <span class="nam">WireSpec</span><span class="op">(</span><span class="nam">radius</span><span class="op">=</span><span class="num">0.005</span><span class="op">,</span> <span class="nam">conductivity</span><span class="op">=</span><span class="num">1.35e6</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t"><span class="key">class</span> <span class="nam">Builder</span><span class="op">(</span><span class="nam">AntennaBuilder</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">    <span class="nam">default_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">        <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">            <span class="com"># 15M &#8212; the band KJ6ER publishes detailed model claims for.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">            <span class="com"># Whip/radial lengths straight from the plans' per-band table</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">            <span class="com"># (144" / 120"); no retune, the point is duplicating HIS numbers.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">            <span class="str">"freq"</span><span class="op">:</span> <span class="num">21.35</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">            <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="num">144</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">            <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="num">120</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">            <span class="str">"h_feed"</span><span class="op">:</span> <span class="num">52</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t">            <span class="com"># Radial ends clip to fiberglass stakes at 36": droop &#8776; 7.7&#176;.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">            <span class="str">"radial_end_h"</span><span class="op">:</span> <span class="num">36</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">            <span class="com"># 90&#176; span = directional (KJ6ER's field default); 180&#176; = omni.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">            <span class="str">"radial_span_deg"</span><span class="op">:</span> <span class="num">90.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">            <span class="str">"n_radials"</span><span class="op">:</span> <span class="num">2</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">            <span class="str">"ui_params"</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">                <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">                    <span class="str">"target_z0"</span><span class="op">:</span> <span class="num">50.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t">                    <span class="str">"default_view"</span><span class="op">:</span> <span class="str">"xz"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">                    <span class="com"># Max covers band20's 207" = 5.26 m (17' whip + stud).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">                    <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="op">{</span><span class="str">"min"</span><span class="op">:</span> <span class="num">1.0</span><span class="op">,</span> <span class="str">"max"</span><span class="op">:</span> <span class="num">5.3</span><span class="op">,</span> <span class="str">"unit"</span><span class="op">:</span> <span class="str">"m"</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">                    <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="op">{</span><span class="str">"min"</span><span class="op">:</span> <span class="num">0.5</span><span class="op">,</span> <span class="str">"max"</span><span class="op">:</span> <span class="num">5.1</span><span class="op">,</span> <span class="str">"unit"</span><span class="op">:</span> <span class="str">"m"</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">                    <span class="str">"h_feed"</span><span class="op">:</span> <span class="op">{</span><span class="str">"min"</span><span class="op">:</span> <span class="num">0.5</span><span class="op">,</span> <span class="str">"max"</span><span class="op">:</span> <span class="num">2.5</span><span class="op">,</span> <span class="str">"unit"</span><span class="op">:</span> <span class="str">"m"</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">                    <span class="str">"radial_end_h"</span><span class="op">:</span> <span class="op">{</span><span class="str">"min"</span><span class="op">:</span> <span class="num">0.2</span><span class="op">,</span> <span class="str">"max"</span><span class="op">:</span> <span class="num">2.0</span><span class="op">,</span> <span class="str">"unit"</span><span class="op">:</span> <span class="str">"m"</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">                    <span class="str">"radial_span_deg"</span><span class="op">:</span> <span class="op">{</span><span class="str">"min"</span><span class="op">:</span> <span class="num">30.0</span><span class="op">,</span> <span class="str">"max"</span><span class="op">:</span> <span class="num">180.0</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">                    <span class="str">"n_radials"</span><span class="op">:</span> <span class="op">{</span><span class="str">"min"</span><span class="op">:</span> <span class="num">1</span><span class="op">,</span> <span class="str">"max"</span><span class="op">:</span> <span class="num">2</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">                <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">            <span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">        <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">    <span class="com"># Omnidirectional configuration: radials opposite each other.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">    <span class="nam">omni_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span><span class="op">{</span><span class="str">"radial_span_deg"</span><span class="op">:</span> <span class="num">180.0</span><span class="op">}</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">    <span class="com"># VA3KOT's single-radial field simplification (EZNEC: +1.34 dBi,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t">    <span class="com"># F/B 4.6 vs 1.19/3.34 for the pair). The lone radial runs along +x.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t98" href="#t98">98</a></span><span class="t">    <span class="nam">single_radial_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span><span class="op">{</span><span class="str">"n_radials"</span><span class="op">:</span> <span class="num">1</span><span class="op">}</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t99" href="#t99">99</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t100" href="#t100">100</a></span><span class="t">    <span class="com"># Per-band whip/radial lengths from the plans (target freqs + inches).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">    <span class="nam">band20_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">        <span class="op">{</span><span class="str">"freq"</span><span class="op">:</span> <span class="num">14.25</span><span class="op">,</span> <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="num">207</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span> <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="num">198</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">    <span class="nam">band17_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">        <span class="op">{</span><span class="str">"freq"</span><span class="op">:</span> <span class="num">18.14</span><span class="op">,</span> <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="num">165</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span> <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="num">149</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t106" href="#t106">106</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t">    <span class="nam">band12_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t">        <span class="op">{</span><span class="str">"freq"</span><span class="op">:</span> <span class="num">24.94</span><span class="op">,</span> <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="num">126</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span> <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="num">96</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t109" href="#t109">109</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t110" href="#t110">110</a></span><span class="t">    <span class="nam">band10_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t111" href="#t111">111</a></span><span class="t">        <span class="op">{</span><span class="str">"freq"</span><span class="op">:</span> <span class="num">28.40</span><span class="op">,</span> <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="num">113</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span> <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="num">80</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t112" href="#t112">112</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t113" href="#t113">113</a></span><span class="t">    <span class="nam">band6_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t114" href="#t114">114</a></span><span class="t">        <span class="op">{</span><span class="str">"freq"</span><span class="op">:</span> <span class="num">51.00</span><span class="op">,</span> <span class="str">"whip_len_m"</span><span class="op">:</span> <span class="num">64</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">,</span> <span class="str">"radial_len_m"</span><span class="op">:</span> <span class="num">43</span> <span class="op">*</span> <span class="nam">_IN</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">    <span class="key">def</span> <span class="nam">build_wire_material</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">        <span class="key">return</span> <span class="nam">_STAINLESS</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">    <span class="key">def</span> <span class="nam">build_wires</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="nam">eps</span> <span class="op">=</span> <span class="num">0.05</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">        <span class="nam">h</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">h_feed</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">        <span class="com"># Droop angle from the feed down to the staked radial ends.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">        <span class="nam">drop</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span><span class="num">0.0</span><span class="op">,</span> <span class="nam">h</span> <span class="op">-</span> <span class="nam">self</span><span class="op">.</span><span class="nam">radial_end_h</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">        <span class="nam">droop</span> <span class="op">=</span> <span class="nam">math</span><span class="op">.</span><span class="nam">asin</span><span class="op">(</span><span class="nam">min</span><span class="op">(</span><span class="num">1.0</span><span class="op">,</span> <span class="nam">drop</span> <span class="op">/</span> <span class="nam">self</span><span class="op">.</span><span class="nam">radial_len_m</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t127" href="#t127">127</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t">        <span class="nam">tups</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t129" href="#t129">129</a></span><span class="t">            <span class="com"># Gap wire at the whip base carries the port (ev on its one</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t130" href="#t130">130</a></span><span class="t">            <span class="com"># segment); the whip proper stacks on top of it.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t131" href="#t131">131</a></span><span class="t">            <span class="op">(</span><span class="op">(</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="nam">h</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="nam">h</span> <span class="op">+</span> <span class="nam">eps</span><span class="op">)</span><span class="op">,</span> <span class="num">1</span><span class="op">,</span> <span class="num">1</span> <span class="op">+</span> <span class="num">0j</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t132" href="#t132">132</a></span><span class="t">            <span class="op">(</span><span class="op">(</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="nam">h</span> <span class="op">+</span> <span class="nam">eps</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="nam">h</span> <span class="op">+</span> <span class="nam">self</span><span class="op">.</span><span class="nam">whip_len_m</span><span class="op">)</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">nominal_nsegs</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t133" href="#t133">133</a></span><span class="t">        <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t134" href="#t134">134</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t135" href="#t135">135</a></span><span class="t">        <span class="nam">n</span> <span class="op">=</span> <span class="nam">int</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">n_radials</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t136" href="#t136">136</a></span><span class="t">        <span class="com"># Two radials straddle +x by &#177;span/2 so the lobe fires forward;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t137" href="#t137">137</a></span><span class="t">        <span class="com"># a single radial runs along +x itself.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t138" href="#t138">138</a></span><span class="t">        <span class="nam">phis</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t139" href="#t139">139</a></span><span class="t">            <span class="op">[</span><span class="num">0.0</span><span class="op">]</span> <span class="key">if</span> <span class="nam">n</span> <span class="op">==</span> <span class="num">1</span> <span class="key">else</span> <span class="op">[</span><span class="op">-</span><span class="nam">self</span><span class="op">.</span><span class="nam">radial_span_deg</span> <span class="op">/</span> <span class="num">2</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">radial_span_deg</span> <span class="op">/</span> <span class="num">2</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t140" href="#t140">140</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t141" href="#t141">141</a></span><span class="t">        <span class="nam">r_seg</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span><span class="num">5</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">nominal_nsegs</span> <span class="op">//</span> <span class="num">3</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t">        <span class="key">for</span> <span class="nam">phi_deg</span> <span class="key">in</span> <span class="nam">phis</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t">            <span class="nam">p</span> <span class="op">=</span> <span class="nam">math</span><span class="op">.</span><span class="nam">radians</span><span class="op">(</span><span class="nam">phi_deg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t">            <span class="nam">end</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">radial_len_m</span> <span class="op">*</span> <span class="nam">math</span><span class="op">.</span><span class="nam">cos</span><span class="op">(</span><span class="nam">droop</span><span class="op">)</span> <span class="op">*</span> <span class="nam">math</span><span class="op">.</span><span class="nam">cos</span><span class="op">(</span><span class="nam">p</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">radial_len_m</span> <span class="op">*</span> <span class="nam">math</span><span class="op">.</span><span class="nam">cos</span><span class="op">(</span><span class="nam">droop</span><span class="op">)</span> <span class="op">*</span> <span class="nam">math</span><span class="op">.</span><span class="nam">sin</span><span class="op">(</span><span class="nam">p</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t147" href="#t147">147</a></span><span class="t">                <span class="nam">h</span> <span class="op">-</span> <span class="nam">self</span><span class="op">.</span><span class="nam">radial_len_m</span> <span class="op">*</span> <span class="nam">math</span><span class="op">.</span><span class="nam">sin</span><span class="op">(</span><span class="nam">droop</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t148" href="#t148">148</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">            <span class="nam">tups</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="op">(</span><span class="op">(</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="nam">h</span><span class="op">)</span><span class="op">,</span> <span class="nam">end</span><span class="op">,</span> <span class="nam">r_seg</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t150" href="#t150">150</a></span><span class="t">        <span class="key">return</span> <span class="nam">tups</span>&nbsp;</span><span class="r"></span></p>
+</main>
+<footer>
+    <div class="content">
+        <p>
+            <a class="nav" href="z_468d792686dd4edf_phased_verticals_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
+            <a class="nav" href="z_468d792686dd4edf_raised_vertical_py.html">&#xbb; next</a>
+            &nbsp; &nbsp; &nbsp;
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
+            created at 2026-07-13 00:04 +0000
+        </p>
+    </div>
+</footer>
+</body>
+</html>
