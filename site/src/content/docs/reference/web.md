@@ -115,8 +115,10 @@ A solve builds a matrix whose size grows with the total segment count, so the
 hosted instance **rejects** solves that would be too large for the shared box
 (you'll see a message in the error banner telling you to reduce N or pick a
 smaller design — or switch to the array-block / H-matrix engine for big arrays).
-This applies **only** to the shared hosted instance: a local install is
-**unlocked** (solve as big as your own machine allows). See `docs/deploy.md`.
+The same instance also caps sweep lengths and optimizer eval budgets, well
+above anything the UI sends. This applies **only** to the shared hosted
+instance: a local install is **unlocked** (solve as big as your own machine
+allows, sweep as long as you like). See `docs/deploy.md`.
 :::
 
 ## The ground plane
