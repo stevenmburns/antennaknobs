@@ -4,6 +4,8 @@ See web/user_designs.py — local users drop a Builder file in their user dir
 and it registers under `user.<filename>` with no restart.
 """
 
+from pathlib import Path
+
 import pytest
 
 import antennaknobs.web.examples  # noqa: F401 — bootstraps the adapter + REGISTRY
@@ -127,6 +129,39 @@ def test_template_file_is_skipped(userdir):
     (userdir / "TEMPLATE.py").write_text(VALID)
     user_designs.refresh()
     assert "user.TEMPLATE" not in REGISTRY
+
+
+# --- builtin designs are copy-portable (issue #341) -----------------------
+#
+# The advertised authoring workflow is `cp` a builtin design into the user
+# dir and start editing. That only works if design files use absolute
+# imports (relative imports break under the path-based loader, which has no
+# package context). Representative sample: one plain design, one carrying a
+# Network, one deriving from another design.
+
+PORTABLE_BUILTINS = [
+    "dipoles/invvee.py",  # plain AntennaBuilder
+    "dipoles/short_dipole_loaded.py",  # has a Network (Driven + Load)
+    "dipoles/pota_invvee.py",  # derives from another design's Builder
+]
+
+
+@pytest.mark.parametrize("relpath", PORTABLE_BUILTINS)
+def test_builtin_design_copies_verbatim_to_user_dir(relpath, tmp_path, monkeypatch):
+    import shutil
+
+    from antennaknobs import AntennaBuilder
+    from antennaknobs import designs as builtin_designs
+    from antennaknobs import user_designs as core_user_designs
+
+    monkeypatch.setenv("ANTENNAKNOBS_USER_DIR", str(tmp_path))
+    src = Path(builtin_designs.__file__).parent / relpath
+    stem = f"my_{src.stem}"
+    shutil.copy(src, tmp_path / f"{stem}.py")
+
+    cls = core_user_designs.resolve_user_design(stem)
+    assert cls is not None and issubclass(cls, AntennaBuilder)
+    assert cls().build_wires()  # defaults produce geometry
 
 
 def test_scaffold_creates_assets(tmp_path, monkeypatch):
