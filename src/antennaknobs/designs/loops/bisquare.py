@@ -28,7 +28,7 @@ Geometry, in the framework's (x, y, z) convention:
                     F  bottom corner (fed)     z = base
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 import math
 

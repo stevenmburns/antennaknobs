@@ -42,8 +42,8 @@ The tuned feeder is an electrical element (a `TL` branch), not geometry.
     S                                              S = shack feed (virtual port)
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
 from types import MappingProxyType
 
 

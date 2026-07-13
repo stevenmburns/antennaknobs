@@ -19,8 +19,16 @@ it; the geometry knobs are the stock folded-invvee ones.
 
 from types import MappingProxyType
 
-from ...network import CABLES, TL, Driven, Network, PortOnWire, PortVirtual, Transformer
-from .folded_invvee import Builder as FoldedInvVee
+from antennaknobs.network import (
+    CABLES,
+    TL,
+    Driven,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    Transformer,
+)
+from antennaknobs.designs.dipoles.folded_invvee import Builder as FoldedInvVee
 
 
 class Builder(FoldedInvVee):

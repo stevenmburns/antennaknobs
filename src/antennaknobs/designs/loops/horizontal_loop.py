@@ -32,7 +32,7 @@ Geometry, in the framework's (x, y, z) convention:
         x=-h        x=+h
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

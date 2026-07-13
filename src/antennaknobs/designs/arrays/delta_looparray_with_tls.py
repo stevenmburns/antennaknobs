@@ -1,9 +1,9 @@
 """Delta-loop pair phased through explicit transmission lines (legacy build_tls path)."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 
-from ... import Transform, TransformStack
+from antennaknobs import Transform, TransformStack
 
 from types import MappingProxyType
 

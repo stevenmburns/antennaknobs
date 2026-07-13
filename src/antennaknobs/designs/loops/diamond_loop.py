@@ -1,6 +1,6 @@
 """Full-wave diamond (square) loop fed at the bottom corner."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 
 from types import MappingProxyType

@@ -1,9 +1,9 @@
 """Delta loop tilted out of the vertical plane by a slant_deg knob."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 
-from ... import Transform, TransformStack
+from antennaknobs import Transform, TransformStack
 
 from types import MappingProxyType
 

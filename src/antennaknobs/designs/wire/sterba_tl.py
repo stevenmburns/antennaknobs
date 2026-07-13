@@ -31,8 +31,8 @@ Note on the half-wave TL: this engine's nodal TL admittance
 exactly will raise in `network_reduce.tl_admittance_2x2`; keep lf away from 1.0.
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Network, PortOnWire, TL
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Network, PortOnWire, TL
 from types import MappingProxyType
 
 

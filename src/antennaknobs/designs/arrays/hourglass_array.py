@@ -1,7 +1,7 @@
 """Side-by-side hourglass pair (1x2)."""
 
-from ...builder import Array1x2Builder
-from ..specialty import hourglass
+from antennaknobs.builder import Array1x2Builder
+from antennaknobs.designs.specialty import hourglass
 
 from types import MappingProxyType
 

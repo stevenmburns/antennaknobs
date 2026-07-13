@@ -41,7 +41,7 @@ Wire layout (unchanged from the legacy implementation):
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder, Transform, TransformStack
+from antennaknobs import AntennaBuilder, Transform, TransformStack
 
 
 class Builder(AntennaBuilder):

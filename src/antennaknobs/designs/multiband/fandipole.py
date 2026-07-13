@@ -4,7 +4,7 @@ import logging
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 
 logger = logging.getLogger(__name__)
 

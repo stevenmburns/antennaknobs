@@ -59,8 +59,8 @@ the radiator climbs toward −x precisely so the main lobe lands on **+x**
 
 from types import MappingProxyType
 
-from ... import AntennaBuilder, Drone
-from ...network import (
+from antennaknobs import AntennaBuilder, Drone
+from antennaknobs.network import (
     CABLES,
     Driven,
     Network,

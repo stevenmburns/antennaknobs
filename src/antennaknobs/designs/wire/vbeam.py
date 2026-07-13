@@ -30,7 +30,7 @@ Geometry, in the framework's (x, y, z) convention:
               o  (leg end, -y)        beam <--> +/- x (along the bisector)
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 import math
 

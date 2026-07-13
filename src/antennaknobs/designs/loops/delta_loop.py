@@ -3,7 +3,7 @@
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 
 
 class Builder(AntennaBuilder):

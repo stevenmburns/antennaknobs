@@ -1,7 +1,7 @@
 """Four delta loops in a broadside row (1x4)."""
 
-from ...builder import Array1x4Builder
-from ..loops import delta_loop
+from antennaknobs.builder import Array1x4Builder
+from antennaknobs.designs.loops import delta_loop
 
 from types import MappingProxyType
 

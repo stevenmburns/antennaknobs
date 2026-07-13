@@ -30,7 +30,7 @@ Geometry, in the framework's (x, y, z) convention:
         cone:         o  o  o         (downward radial cage)     z < base
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

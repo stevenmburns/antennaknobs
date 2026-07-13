@@ -37,7 +37,7 @@ Geometry, in the framework's (x, y, z) convention:
          F           base feed
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

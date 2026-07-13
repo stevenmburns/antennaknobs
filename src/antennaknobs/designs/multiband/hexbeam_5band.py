@@ -22,7 +22,7 @@ Two feed modes are exposed via daisy_chain:
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 
 C_LIGHT_MHZ_M = 299.792458
 

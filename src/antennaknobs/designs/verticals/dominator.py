@@ -27,8 +27,8 @@ gap-wire + counterpoise conditioning as wire.efhw_sloper.
 import math
 from types import MappingProxyType
 
-from ... import AntennaBuilder
-from ...network import (
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import (
     Driven,
     Network,
     PortOnWire,

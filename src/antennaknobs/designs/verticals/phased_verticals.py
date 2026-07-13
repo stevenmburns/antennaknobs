@@ -34,7 +34,7 @@ Geometry, in the framework's (x, y, z) convention:
         |                   |       cardioid main lobe --> +x
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
 

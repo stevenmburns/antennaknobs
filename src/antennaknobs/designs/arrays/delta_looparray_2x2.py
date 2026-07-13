@@ -1,7 +1,7 @@
 """2x2 phased stack of delta loops."""
 
-from ...builder import Array2x2Builder
-from ..loops import delta_loop
+from antennaknobs.builder import Array2x2Builder
+from antennaknobs.designs.loops import delta_loop
 
 from types import MappingProxyType
 

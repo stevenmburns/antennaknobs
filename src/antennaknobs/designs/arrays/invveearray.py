@@ -1,7 +1,7 @@
 """2x2 phased stack of inverted-vee dipoles."""
 
-from ... import Array2x2Builder
-from ..dipoles import invvee
+from antennaknobs import Array2x2Builder
+from antennaknobs.designs.dipoles import invvee
 
 from types import MappingProxyType
 

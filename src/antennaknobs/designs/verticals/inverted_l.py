@@ -28,7 +28,7 @@ Geometry, in the framework's (x, y, z) convention:
                         \\    |    /     ____/
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

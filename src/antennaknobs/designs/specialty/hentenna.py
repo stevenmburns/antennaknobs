@@ -1,7 +1,7 @@
 """Hentenna — the Japanese rectangular loop, fed off-center for vertical polarization."""
 
-from ... import AntennaBuilder
-from ... import Transform, TransformStack
+from antennaknobs import AntennaBuilder
+from antennaknobs import Transform, TransformStack
 
 from types import MappingProxyType
 

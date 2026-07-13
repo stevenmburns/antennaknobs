@@ -44,7 +44,7 @@ Geometry, in the framework's (x, y, z) convention:
    F  |__|      |__|      |       z = base        (bottom jogs); F = end feed
 """
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 from types import MappingProxyType
 

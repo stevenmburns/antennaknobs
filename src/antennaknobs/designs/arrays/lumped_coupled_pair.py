@@ -21,8 +21,8 @@ opens the branch and recovers the isolated driven dipole (the base case the
 cross-check pins first).
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Network, PortOnWire, TwoPort
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Network, PortOnWire, TwoPort
 
 from types import MappingProxyType
 

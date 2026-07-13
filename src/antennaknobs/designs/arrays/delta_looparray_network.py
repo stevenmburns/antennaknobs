@@ -14,8 +14,8 @@ MomwireEngine produces the same impedance as `delta_looparray_with_tls` to
 numerical precision; the showcase for the network-spec API in #65.
 """
 
-from ... import AntennaBuilder, Transform, TransformStack
-from ...network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs import AntennaBuilder, Transform, TransformStack
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
 
 import math
 from types import MappingProxyType

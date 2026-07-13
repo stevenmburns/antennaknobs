@@ -33,8 +33,8 @@ multi-variable optimisation (or real, near-field-coupled feedline conductors
 in place of the ideal line). Treat F/B as "real but shallow" in this model.
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Network, PortOnWire, TL
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Network, PortOnWire, TL
 from types import MappingProxyType
 
 

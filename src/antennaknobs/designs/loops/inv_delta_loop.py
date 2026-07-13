@@ -1,6 +1,6 @@
 """Inverted delta loop — the triangle flipped so the feed edge sits at the top."""
 
-from ... import AntennaBuilder
+from antennaknobs import AntennaBuilder
 import math
 
 from types import MappingProxyType

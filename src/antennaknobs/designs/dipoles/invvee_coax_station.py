@@ -27,8 +27,8 @@ lossy tuner).
 
 from types import MappingProxyType
 
-from ...network import CABLES, TL, Driven, Network, PortOnWire, PortVirtual
-from .invvee import Builder as InvVee
+from antennaknobs.network import CABLES, TL, Driven, Network, PortOnWire, PortVirtual
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
 
 class Builder(InvVee):

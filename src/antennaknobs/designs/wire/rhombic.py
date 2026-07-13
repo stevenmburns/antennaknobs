@@ -31,8 +31,8 @@ polarised.
               (d, -w)
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortOnWire
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Load, Network, PortOnWire
 import math
 from types import MappingProxyType
 

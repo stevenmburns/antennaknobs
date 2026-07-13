@@ -1,7 +1,7 @@
 """2x2 phased stack of Moxon rectangles."""
 
-from ... import Array2x2Builder
-from ..beams import moxon
+from antennaknobs import Array2x2Builder
+from antennaknobs.designs.beams import moxon
 
 from types import MappingProxyType
 

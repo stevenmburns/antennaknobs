@@ -2,8 +2,8 @@
 
 import math
 
-from ... import AntennaBuilder
-from ... import Transform, TransformStack
+from antennaknobs import AntennaBuilder
+from antennaknobs import Transform, TransformStack
 
 from types import MappingProxyType
 

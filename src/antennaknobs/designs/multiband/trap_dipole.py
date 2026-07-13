@@ -25,8 +25,8 @@ loaded full dipole comes near resonance at 14 MHz. Trap L and C can be
 tuned independently; defaults are LC-resonant at design_freq.
 """
 
-from ... import AntennaBuilder
-from ...network import Driven, Load, Network, PortOnWire
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Load, Network, PortOnWire
 
 import math
 from types import MappingProxyType
