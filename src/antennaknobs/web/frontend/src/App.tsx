@@ -1557,12 +1557,18 @@ type ConvergeData = {
 // from the circuit side (input power); `pattern_norm` recomputes it from the
 // field side (closed-form pattern integral). `delta_db` is the gap between
 // them — the solver's power-balance error (NEC's "average gain" diagnostic),
-// rendered as the offset between the solid and dotted lobes.
+// rendered as the offset between the solid and dotted lobes. Over a finite
+// ground the same ratio, with the structural efficiency folded back out,
+// is the third efficiency ledger: `radiated_fraction` = P_radiated/P_input
+// including real ground absorption (issue #339) — the norm check restated
+// as a percentage.
 type NormCheckData = {
   directivity_norm: number;
   pattern_norm: number;
   method: string;
   delta_db: number;
+  radiated_fraction: number;
+  radiation_efficiency: number;
 };
 
 // Log-spaced segments-per-wire ladder for the convergence sweep. Hentenna's
@@ -3721,6 +3727,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         pattern_norm: data.pattern_norm,
         method: data.method,
         delta_db: delta,
+        radiated_fraction: data.radiated_fraction ?? 0,
+        radiation_efficiency: data.radiation_efficiency ?? 1,
       });
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
@@ -4831,18 +4839,28 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   norm check
                 </label>
               )}
+              {/* Over a finite ground the norm gap IS physics (structural
+                  loss + real ground absorption), so show it in its honest
+                  form — the radiated fraction, same number as the Info-pane
+                  row. Free space / PEC keeps the raw Δ dB, where it is a
+                  pure solver power-balance diagnostic. */}
               {normCheckEnabled && normCheck && (
                 <span
                   className="overlay-readout"
                   title={
                     normCheck.method.startsWith("grid_")
-                      ? `input-power norm vs pattern-integral norm (${normCheck.method}); over a finite ground Δ includes real ground absorption (NEC average-gain style), so a nonzero value is expected, not solver error`
+                      ? `P_radiated/P_input from the pattern-integral norm (${normCheck.method}): the gap between the solid and dotted lobes as a fraction — structural loss plus real ground absorption (Δ ${normCheck.delta_db >= 0 ? "+" : ""}${normCheck.delta_db.toFixed(3)} dB, NEC average-gain style)`
                       : `input-power norm vs pattern-integral norm (${normCheck.method}); 0 dB = perfect power balance`
                   }
                 >
-                  Δ {normCheck.delta_db >= 0 ? "+" : ""}
-                  {normCheck.delta_db.toFixed(3)} dB
-                  {normCheck.method.startsWith("grid_") && " (incl. ground loss)"}
+                  {normCheck.method.startsWith("grid_") ? (
+                    <>radiated {(normCheck.radiated_fraction * 100).toFixed(0)}%</>
+                  ) : (
+                    <>
+                      Δ {normCheck.delta_db >= 0 ? "+" : ""}
+                      {normCheck.delta_db.toFixed(3)} dB
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -5009,6 +5027,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                       rttMs={rttMs}
                       currentExample={currentExample}
                       effectiveMultiFeed={effectiveMultiFeed}
+                      normCheck={normCheck}
+                      normCheckEnabled={normCheckEnabled}
                     />
                     {/* The ws status lives HERE, not floating over the
                         carousel — on a phone the desktop-style absolute
@@ -5103,6 +5123,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             rttMs={rttMs}
             currentExample={currentExample}
             effectiveMultiFeed={effectiveMultiFeed}
+            normCheck={normCheck}
+            normCheckEnabled={normCheckEnabled}
           />
         </div>
         <div className="status">
@@ -5655,12 +5677,16 @@ function SolveReadout({
   rttMs,
   currentExample,
   effectiveMultiFeed,
+  normCheck,
+  normCheckEnabled,
   className = "",
 }: {
   result: SolveResponse | null;
   rttMs: number | null;
   currentExample: ExampleDescriptor | undefined;
   effectiveMultiFeed: boolean;
+  normCheck: NormCheckData | null;
+  normCheckEnabled: boolean;
   className?: string;
 }) {
   return (
@@ -5735,33 +5761,54 @@ function SolveReadout({
       </div>
       {(() => {
         // Power budget (issue #299): where the input watts go, per network
-        // branch. Hidden unless the network actually dissipates something
-        // (lossless branches report float noise only).
+        // branch. Branch rows are hidden unless the network actually
+        // dissipates something (lossless branches report float noise only).
+        // The radiated row (issue #339) is the third efficiency ledger —
+        // P_radiated/P_input INCLUDING far-field ground absorption, derived
+        // from the dwell-triggered norm check — so it renders even for a
+        // lossless design over real ground, greyed to "—" while knobs move.
         const budget = result?.power_budget;
         const pin = result?.input_power_w;
-        if (!budget || budget.length === 0 || !pin || pin <= 0) return null;
-        const diss = budget.reduce((s, b) => s + b.watts, 0);
-        if (diss < 1e-6 * pin) return null;
+        const diss =
+          budget && pin ? budget.reduce((s, b) => s + b.watts, 0) : 0;
+        const showBudget =
+          !!budget && budget.length > 0 && !!pin && pin > 0 &&
+          diss >= 1e-6 * pin;
+        if (!showBudget && !normCheckEnabled) return null;
         return (
-          <div
-            className="feeds-table"
-            title="Fraction of the source input power dissipated in each network branch (from the MNA solve); the antenna row is the remainder that reaches the wires."
-          >
-            <div className="feeds-table-header">power budget</div>
-            {budget.map((b, i) => (
-              <div className="row" key={`pb-${i}`}>
-                <span>{b.label}</span>
-                <span className="val">
-                  {((b.watts / pin) * 100).toFixed(1)}%
+          <div className="feeds-table">
+            {showBudget && pin && (
+              <div title="Fraction of the source input power dissipated in each network branch (from the MNA solve); the antenna row is the remainder that reaches the wires.">
+                <div className="feeds-table-header">power budget</div>
+                {budget.map((b, i) => (
+                  <div className="row" key={`pb-${i}`}>
+                    <span>{b.label}</span>
+                    <span className="val">
+                      {((b.watts / pin) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+                <div className="row" key="pb-ant">
+                  <span>antenna (accepted)</span>
+                  <span className="val">
+                    {(((pin - diss) / pin) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            {normCheckEnabled && (
+              <div
+                className="row"
+                title="P_radiated / P_input from the dwell-triggered pattern integral (the norm check as a percentage): what actually leaves as far-field radiation after network, wire AND real ground absorption. Fills in once the knobs settle; over PEC ground or free space it collapses onto the structural efficiency. See the 'three ledgers' section of the docs."
+              >
+                <span>radiated (incl. ground)</span>
+                <span className={normCheck ? "val" : "val val-pending"}>
+                  {normCheck
+                    ? `${(normCheck.radiated_fraction * 100).toFixed(0)}%`
+                    : "—"}
                 </span>
               </div>
-            ))}
-            <div className="row" key="pb-ant">
-              <span>antenna (radiated)</span>
-              <span className="val">
-                {(((pin - diss) / pin) * 100).toFixed(1)}%
-              </span>
-            </div>
+            )}
           </div>
         );
       })()}
