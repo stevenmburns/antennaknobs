@@ -34,6 +34,56 @@ this folder, run e.g. `antennaknobs draw --builder user.my_dipole` (or
 `sweep`, `pattern`, …). Always address it with the `user.` prefix.
 `antennaknobs list` shows every available design name (yours included).
 
+## Safety: designs run only once you trust them
+
+A design file is a full Python program that runs with your user privileges the
+moment it loads — the whole language is available on purpose, because you need
+it to describe an antenna. Nothing restricts what a design *can* do, so the
+safety model is an explicit trust decision, like VS Code's "do you trust the
+authors of this folder?" or Office's macro prompt: a user design in
+`~/.antennaknobs/designs/` **does not run until you have trusted it.**
+
+Trust is remembered **per file, by its contents** — so a *new* file someone
+gives you always asks first (it isn't covered by trust you granted earlier),
+and a previously-trusted file that later changes asks again.
+
+- **A design you wrote:** trust it and your future edits so live-editing never
+  re-prompts — `antennaknobs trust <name> --edits`.
+- **A design someone sent you:** review it first — `antennaknobs screen path/to/file.py`
+  shows what it does that's unusual (imports, file access, etc.) *without
+  running it*. If you're satisfied, `antennaknobs trust <name>` trusts that
+  exact version; if the file ever changes, you'll be asked again.
+- **Stop trusting one:** `antennaknobs untrust <name>`.
+- The `screen` report is advisory, not a verdict — a flagged design isn't
+  necessarily malicious, and a clean one isn't guaranteed safe (screening can't
+  see through obfuscation or every corner of a big library like numpy). It's
+  there to make your trust decision informed. **Only trust designs from sources
+  you trust.** For a single-user machine you can blanket-trust everything with
+  `ANTENNAKNOBS_TRUST_USER_DESIGNS=1`.
+
+### Loading geometry from a data file
+
+You may want to author geometry as **data** — a JSON or CSV wire list next to
+your design. Prefer the confined helper on `AntennaBuilder` over raw
+`open`/`pathlib`: it needs no extra imports and, unlike raw file access, can't
+be pointed at your private files, so a data-driven design stays safe to share:
+
+```python
+from antennaknobs import AntennaBuilder, read_json
+
+class Builder(AntennaBuilder):
+    def build_wires(self):
+        spec = read_json(self, "my_wires.json")   # file sits next to this .py
+        ...
+```
+
+`read_data(self, name)` returns the file's text; `read_json(self, name)` parses
+it. You pass `self` so the read is confined to *this* design's own folder. Both
+are read-only, size-capped, and reject an absolute path, a `..` that climbs out,
+or a symlink pointing elsewhere. A design shared as `my_design.py` +
+`my_wires.json` is safe for someone to load: the data can only become antenna
+geometry, never leave the machine.
+
 ## `default_params`
 
 Every key becomes a slider in the UI, accessed in `build_wires` as

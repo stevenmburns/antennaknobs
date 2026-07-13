@@ -19,6 +19,8 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+from . import design_screen, design_trust
+
 USER_NS = "user"
 _MODULE_PREFIX = "antennaknobs._user_designs"
 
@@ -50,9 +52,25 @@ def _is_design_file(path: Path) -> bool:
     return not (stem.startswith("_") or stem == "TEMPLATE")
 
 
-def load_builder(path: Path):
+def load_builder(path: Path, *, trust: bool | None = None):
     """Import a single user file by path and return its ``Builder`` class.
-    Re-executes the file on every call, so edits are picked up live."""
+    Re-executes the file on every call, so edits are picked up live.
+
+    A user design runs with full privileges, so it executes only if it is
+    *trusted* (see ``design_trust``): the file's contents are recorded in the
+    trust store, or the blanket ``ANTENNAKNOBS_TRUST_USER_DESIGNS`` env flag is
+    set. An untrusted file raises ``DesignNotTrustedError`` — carrying the
+    advisory screen report so a UI/CLI can show what the design does before the
+    user decides — and is NOT executed. Pass ``trust=True`` to bypass the gate
+    for a file you already vouch for (e.g. programmatic/test use).
+    """
+    if trust is None:
+        trust = design_trust.is_trusted(path)
+    if not trust:
+        # Advisory only: the screen report never blocks on its own, it just
+        # tells the user what they're being asked to trust.
+        report = design_screen.screen_file(path)
+        raise design_trust.DesignNotTrustedError(path, report)
     modname = f"{_MODULE_PREFIX}.{path.stem}"
     spec = importlib.util.spec_from_file_location(modname, path)
     if spec is None or spec.loader is None:

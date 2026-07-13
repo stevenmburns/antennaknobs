@@ -28,6 +28,11 @@ os.environ.setdefault(
     tempfile.mkdtemp(prefix="antennaknobs_userdesigns_test_"),
 )
 
+# Blanket-trust user designs for the suite so tests that load them don't each
+# have to grant trust (the trust gate is exercised specifically in
+# test_design_trust.py, which turns this flag off per-test).
+os.environ.setdefault("ANTENNAKNOBS_TRUST_USER_DESIGNS", "1")
+
 HAS_PYNEC = importlib.util.find_spec("PyNEC") is not None
 
 needs_pynec = pytest.mark.skipif(
