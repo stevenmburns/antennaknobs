@@ -34,6 +34,7 @@
 | src/antennaknobs/designs/beams/hb9cv.py                           |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/hexbeam.py                         |       45 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/moxon.py                           |       33 |        0 |    100% |           |
+| src/antennaknobs/designs/beams/owa\_yagi.py                       |       30 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/yagi.py                            |       39 |        0 |    100% |           |
 | src/antennaknobs/designs/broadband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/broadband/discone.py                     |       26 |        0 |    100% |           |
@@ -131,7 +132,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      612 |       52 |     92% |66-68, 134, 265-266, 352, 406, 553-556, 642, 698, 714, 746, 813, 815-818, 859, 909, 955, 991-992, 1040, 1096-1109, 1129, 1132-1133, 1149, 1158-1159, 1175, 1208, 1211, 1219, 1245-1246, 1444, 1499, 1547-1548, 1566 |
 | src/antennaknobs/web/user\_designs.py                             |       59 |        6 |     90% |59-60, 84-85, 90-91 |
-| **TOTAL**                                                         | **6926** |  **353** | **95%** |           |
+| **TOTAL**                                                         | **6956** |  **353** | **95%** |           |
 
 
 ## Setup coverage badge
