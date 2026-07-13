@@ -1283,6 +1283,96 @@ def test_edz_uses_a_series_tl_and_virtual_shack():
     assert isinstance(src, Driven) and src.port == "shack"
 
 
+# ---------------------------------------------------------------------------
+# Expanded Lazy-H (two stacked EDZs + real phasing harness)
+# ---------------------------------------------------------------------------
+
+
+def test_expanded_lazy_h_gain():
+    """~10.1 dBi free space: the EDZ stretch + 5/8 wl stack (Cebik's 15.1 dBi
+    at 8 deg takeoff adds height-over-ground gain)."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+
+    assert _far_field(Builder()).max_gain > 9.5
+
+
+def test_expanded_lazy_h_beats_standard_lazy_h():
+    """The expansion is worth ~2 dB over the standard 1 wl / 1/2 wl lazy-H --
+    the design's whole reason to exist."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+    from antennaknobs.designs.wire.lazy_h import Builder as LazyH
+
+    g_x = _far_field(Builder()).max_gain
+    g_std = _far_field(LazyH()).max_gain
+    assert g_x - g_std > 1.5
+
+
+def test_expanded_lazy_h_broadside():
+    """One dominant broadside lobe off +/- x; the wire axis stays well down."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+
+    ff = _far_field(Builder())
+    rings = np.array(ff.rings)
+    front = rings[:, 0].max()
+    side = rings[:, 90].max()
+    assert front - side > 7.0
+
+
+def test_expanded_lazy_h_wider_stack_adds_gain():
+    """Through the real harness (leg lengths track the spacing), expanding the
+    stack from the classic 1/2 wl to Cebik's 5/8 wl still pays ~0.7 dB."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+
+    g_wide = _far_field(Builder()).max_gain  # 5/8 wl default
+    g_half = _far_field(
+        Builder(dict(Builder.default_params, spacing_frac=0.5))
+    ).max_gain
+    assert g_wide - g_half > 0.3
+
+
+def test_expanded_lazy_h_multiband_taper():
+    """Fed through a tuner it works far below the design band, with the
+    stacking gain fading as the fixed stack shrinks in wavelengths -- Cebik's
+    band taper (15.1/12.5/9.0 dBi at height -> ~10.1/7.2/4.1 free space)."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+
+    gains = {
+        fr: _far_field(Builder(dict(Builder.default_params, freq=fr))).max_gain
+        for fr in (28.57, 21.1, 14.1)
+    }
+    assert gains[28.57] > gains[21.1] > gains[14.1]
+    assert gains[21.1] > 6.5
+
+
+def test_expanded_lazy_h_junction_is_tuner_territory():
+    """The junction the tuner sees -- two transformed EDZ centres in parallel
+    -- is low-R and strongly reactive, not a coax match (Cebik: open-wire
+    line to a wide-range balanced tuner)."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+
+    z = _z(Builder())
+    assert z.real < 100.0
+    assert abs(z.imag) > 100.0
+
+
+def test_expanded_lazy_h_harness_topology():
+    """Two equal, untransposed TL legs from the element centres to a virtual
+    mid-stack junction, driven at the junction -- equal legs are what impose
+    the in-phase drive (cf. lazy_h's idealized dual sources)."""
+    from antennaknobs.designs.wire.expanded_lazy_h import Builder
+    from antennaknobs.network import TL, Driven, PortVirtual
+
+    net = Builder().build_network()
+    tls = [br for br in net.branches if isinstance(br, TL)]
+    assert len(tls) == 2
+    assert all(not tl.transposed for tl in tls)
+    assert abs(tls[0].length - tls[1].length) < 1e-12  # equal legs
+    assert {tls[0].b, tls[1].b} == {"lo", "hi"}
+    assert isinstance(net.ports["junction"], PortVirtual)
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "junction"
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
