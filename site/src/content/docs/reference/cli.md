@@ -1,12 +1,12 @@
 ---
 title: Command line
-description: Driving antennaknobs from the terminal — list, draw, sweep, pattern, optimize, compare, params, and .nec export.
+description: Driving antennaknobs from the terminal — list, draw, sweep, pattern, optimize, compare, params, .nec export, and allowing user designs.
 ---
 
 antennaknobs has a command-line interface for batch work. The subcommands:
 
 ```text
-python -m antennaknobs {draw,sweep,optimize,pattern,compare_patterns,params,export,list}
+python -m antennaknobs {draw,sweep,optimize,pattern,compare_patterns,params,export,list,screen,allow,disallow}
 ```
 
 | Command | What it does |
@@ -19,6 +19,9 @@ python -m antennaknobs {draw,sweep,optimize,pattern,compare_patterns,params,expo
 | `optimize` | Optimize an antenna's parameters |
 | `params` | Print a design's knob values as paste-ready Python |
 | `export` | Export the design to a NEC-2 `.nec` card deck |
+| `screen` | Show what a design file does that's unusual, without running it |
+| `allow` | Allow a user design to run (it runs code on your machine) |
+| `disallow` | Stop allowing a user design to run |
 
 ## Naming a design
 
@@ -150,3 +153,29 @@ python -m antennaknobs export --builder beams.yagi --fn yagi.nec
 
 The deck is validated against `nec2c`, so designs round-trip into other NEC
 tools.
+
+## Allowing user designs to run
+
+A design file in `~/.antennaknobs/designs/` is a full Python program that runs
+with your user privileges, so it **does not run until you allow it** — like
+VS Code's workspace-trust prompt. The decision is remembered per file, by its
+contents: a new file always asks first, and an allowed file that later changes
+asks again.
+
+```bash
+# A design someone sent you: review it first, then allow that exact version
+python -m antennaknobs screen ~/Downloads/their_design.py
+python -m antennaknobs allow their_design
+
+# A design you author: allow your future edits too, so saves never re-prompt
+python -m antennaknobs allow my_dipole --edits
+
+# Stop allowing one
+python -m antennaknobs disallow their_design
+```
+
+`screen` prints what the file does that's unusual (imports outside the
+antenna-modelling stack, file access, network use) *without running it*. The
+report is advisory — it informs your decision, it isn't a verdict. See
+[Authoring designs with Claude](/concepts/authoring-with-claude/) for the full
+workflow, including the equivalent "needs your OK to run" panel in the web app.

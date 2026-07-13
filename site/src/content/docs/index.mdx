@@ -25,24 +25,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.25.0" icon="star">
-  **Three ledgers of efficiency.** Three new showcase verticals
-  independently duplicate the published claims for KJ6ER's POTA
-  antennas — [`verticals.pota_performer`, `challenger`, and
-  `dominator`](/advanced/pota-performer/) — and the modeling arrives
-  with an honest accounting: "over 90% efficient" and "~30% radiated"
-  are **both true, in different ledgers**, and the difference is the
-  ground absorption nobody's efficiency figure counts. The new
-  `far_field.radiated_fraction` helper reads the third ledger off any
-  pattern, and the workbench now shows it **live**: a dwell-filled
-  **radiated (incl. ground)** row in the
-  [solve readout](/reference/web/#power-budget), derived from the
-  norm check at zero cost to knob dragging. Also new: the CLI draws
-  its **own Smith chart** (scikit-rf dependency dropped), every chart
-  gets a version brand and a style pass, `sweep --swr` plots SWR
-  against *any* knob, and the EFHW sloper gains a
-  [40 m NVIS variant](/advanced/efhw/).
-  [All release notes →](/reference/releases/)
+<Card title="New in v0.26.0" icon="star">
+  **Your designs, safely.** A design file is a full Python program on
+  purpose — so now it **doesn't run until you allow it**, like VS Code's
+  workspace-trust prompt. New files always ask first, edited files ask
+  again, and the web app gets a "designs need your OK to run" panel with
+  a built-in review: `antennaknobs screen` shows what a file does that's
+  unusual *without running it*. New
+  [`allow` / `disallow` / `screen` commands](/reference/cli/#allowing-user-designs-to-run),
+  and a confined `read_json` helper lets a design load wire lists from a
+  data file next to it — without raw file access, so it stays safe to
+  share. Built-in design files are now copy-portable: any catalog `.py`
+  works verbatim as a starting point in your designs folder. The
+  [hosted simulator](https://app.antennaknobs.dev/) also picked up a
+  security hardening pass (request limits and input validation on every
+  solve path). [All release notes →](/reference/releases/)
 </Card>
 
 ## The whole pitch, in one line
