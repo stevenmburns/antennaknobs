@@ -112,9 +112,25 @@ extend-exclude = ["momwire"]
 
 [tool.ruff.lint]
 ignore = ["E741"]
+# TID252 bans relative imports, scoped (via the negated per-file-ignore
+# below) to the design files only. Designs are user-facing exemplars: any
+# builtin must keep working verbatim when copied to ~/.antennaknobs/designs/,
+# where it is loaded by file path with no package context, so relative
+# imports break on the first line. Core modules keep the usual
+# relative-intra-package style.
+extend-select = ["TID252"]
 # Keep "imported but unused" as a warning instead of auto-stripping.
 # Without this, multi-pass edits (add imports first, then add code that
 # uses them) can have the import deleted between edits — by the editor's
 # format-on-save, the project's auto-fix hook, or a pre-commit run —
 # producing a broken next edit. Manual cleanup of unused imports is fine.
 unfixable = ["F401"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# "all" also bans single-dot imports: a copied design must not assume it has
+# sibling modules (the user dir has none).
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+# Relative imports are banned only under designs/ (see extend-select above).
+"!src/antennaknobs/designs/**" = ["TID252"]
