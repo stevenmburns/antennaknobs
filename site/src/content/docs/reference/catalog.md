@@ -62,6 +62,7 @@ whole shape with a `Drone` — see
 | `beams.hb9cv` | ZL-Special / HB9CV: a 2-element all-driven phased beam (L. B. Cebik, W4RNL) |
 | `beams.hexbeam` | Hex beam — a W-folded 2-element beam on a hexagonal spreader footprint · variants: `opt` |
 | `beams.moxon` | Moxon rectangle — a 2-element beam with folded-back element tips · variants: `opt`, `original` |
+| `beams.owa_yagi` | OWA Yagi: 4 elements, whole-band flat 50-ohm feed (NW3Z/WA3FET concept, systematized by L. B. Cebik, W4RNL) |
 | `beams.yagi` | Yagi-Uda parasitic beam (driven element + reflector + directors) |
 <!-- catalog:end beams -->
 
