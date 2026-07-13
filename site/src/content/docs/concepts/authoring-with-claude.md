@@ -50,8 +50,8 @@ and `antennaknobs list` shows it.
    lands in the **"designs that failed to load"** panel, that's a real error —
    the panel shows the file, error, and line number; paste that back to Claude
    and iterate.
-4. **Tune it** with the knobs, the SWR curve, and the impedance readout until the
-   resonance and pattern look right.
+4. **Adjust it** with the knobs, watching the pattern plots and the impedance
+   readout, until the resonance and pattern look right.
 
 ## The contract (what Claude follows)
 
