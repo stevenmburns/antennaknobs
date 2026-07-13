@@ -180,9 +180,9 @@ class DesignNotTrustedError(Exception):
 
     def __str__(self) -> str:
         return (
-            f"{Path(self.path).name}: not trusted to run yet.\n"
+            f"{Path(self.path).name}: not allowed to run yet.\n"
             f"{self.report.summary()}\n"
-            f"Review it, then trust it: `antennaknobs trust "
+            f"Review it, then allow it: `antennaknobs allow "
             f"{Path(self.path).stem}` (add --edits if it's your own file). "
-            f"Only trust designs from sources you trust."
+            f"Only allow designs from sources you trust."
         )

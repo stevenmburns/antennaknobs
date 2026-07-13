@@ -801,7 +801,7 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     def _resolve_design_path(name_or_path):
-        """A `<name|path>` from a trust/screen command → the design file Path,
+        """A `<name|path>` from an allow/screen command → the design file Path,
         or None if it can't be found. Accepts a filesystem path, a `user.<name>`
         design name, or a bare `<name>`."""
         from pathlib import Path
@@ -819,7 +819,7 @@ def cli(arguments=None):
     p = subparsers.add_parser(
         "screen",
         help="Show what a design file does that's unusual, without running it "
-        "(an advisory to inform whether you trust it).",
+        "(an advisory to inform whether to allow it).",
     )
     p.add_argument(
         "path",
@@ -844,8 +844,8 @@ def cli(arguments=None):
             return
         print(report.summary())
         print(
-            "\nThat doesn't mean it's malicious, but review it before you trust "
-            "it. To let it run: `antennaknobs trust <name>` (add --edits if it's "
+            "\nThat doesn't mean it's malicious, but review it before you allow "
+            "it. To let it run: `antennaknobs allow <name>` (add --edits if it's "
             "your own file)."
         )
         raise SystemExit(1)
@@ -853,16 +853,16 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     p = subparsers.add_parser(
-        "trust",
-        help="Trust a user design so it can run (it runs code on your machine).",
+        "allow",
+        help="Allow a user design to run (it runs code on your machine).",
     )
     p.add_argument("name", help="A design name (user.<name> or <name>) or a .py path.")
     p.add_argument(
         "--edits",
         action="store_true",
-        help="Trust this file AND your future edits to it (for a design you "
-        "author). Without this, only the current contents are trusted, and any "
-        "later change re-prompts.",
+        help="Allow this file AND your future edits to it (for a design you "
+        "author). Without this, only the current version is allowed, and any "
+        "later change asks again.",
     )
 
     def f(args):
@@ -872,18 +872,16 @@ def cli(arguments=None):
         if path is None:
             print(f"no such design: {args.name}")
             raise SystemExit(2)
-        # Show the advisory so the trust decision is informed.
+        # Show the advisory so the decision is informed.
         report = design_screen.screen_file(path)
         print(report.summary())
         design_trust.trust(path, mode="always" if args.edits else "pinned")
         scope = "and your future edits" if args.edits else "(this version)"
-        print(f"\ntrusted {path.name} {scope}.")
+        print(f"\nallowed {path.name} {scope}.")
 
     p.set_defaults(func=f)
 
-    p = subparsers.add_parser(
-        "untrust", help="Revoke trust for a user design so it stops running."
-    )
+    p = subparsers.add_parser("disallow", help="Stop allowing a user design to run.")
     p.add_argument("name", help="A design name (user.<name> or <name>) or a .py path.")
 
     def f(args):
@@ -894,9 +892,9 @@ def cli(arguments=None):
             print(f"no such design: {args.name}")
             raise SystemExit(2)
         print(
-            f"untrusted {path.name}."
+            f"no longer allowing {path.name}."
             if design_trust.untrust(path)
-            else f"{path.name} was not trusted."
+            else f"{path.name} was not allowed."
         )
 
     p.set_defaults(func=f)
@@ -910,7 +908,7 @@ def cli(arguments=None):
     try:
         args.func(args)
     except DesignNotTrustedError as exc:
-        # A design the user hasn't trusted yet: show the clean guidance, not a
+        # A design the user hasn't allowed yet: show the clean guidance, not a
         # traceback.
         print(str(exc))
         raise SystemExit(1) from None
