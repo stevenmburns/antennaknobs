@@ -2089,6 +2089,113 @@ def test_pattern_rejects_oversized_request_when_hosted(hosted, client):
     assert "segments / wire" in body["error"]
 
 
+# ---------------------------------------------------------------------------
+# Hosted compute levers (issue #346): list lengths, optimizer eval budget, and
+# solver kwargs are clamped/whitelisted when hosted so an under-cap request
+# can't multiply whole solves without bound.
+# ---------------------------------------------------------------------------
+
+
+def test_sweep_rejects_over_length_freq_list_when_hosted(hosted, client):
+    freqs = [14.0 + i * 1e-4 for i in range(server._MAX_SWEEP_POINTS + 1)]
+    resp = client.post(
+        "/sweep",
+        json={"geometry": "dipoles.invvee", "n_per_wire": 5, "freqs_mhz": freqs},
+    )
+    assert resp.status_code == 413
+    assert "limit" in resp.json()["detail"]
+
+
+def test_converge_rejects_over_length_n_values_when_hosted(hosted, client):
+    n_values = list(range(5, 5 + server._MAX_SWEEP_POINTS + 1))
+    resp = client.post(
+        "/converge",
+        json={"geometry": "dipoles.invvee", "n_values": n_values},
+    )
+    assert resp.status_code == 413
+
+
+def test_optimize_max_evals_clamped_when_hosted(hosted, client, monkeypatch):
+    # A tiny ceiling keeps the test fast while proving the client value can't
+    # override it: the optimizer's own evals stop at the clamp, plus the two
+    # bookend solves (x0 before, best-point after) optimize() always runs.
+    monkeypatch.setattr(server, "_MAX_OPT_EVALS", 3)
+    req = {
+        "geometry": "dipoles.invvee",
+        "n_per_wire": 7,
+        "momwire_model": "bspline",
+        "optimize": {
+            "free": [{"name": "length_factor", "min": 0.95, "max": 1.05}],
+            "objective": "swr",
+            "max_evals": 10**9,
+        },
+    }
+    body = client.post("/optimize", json=req).json()
+    assert "error" not in body
+    assert body["n_evals"] <= 3 + 2
+
+
+def test_optimize_non_numeric_max_evals_is_clean_error(client):
+    req = {
+        "geometry": "dipoles.invvee",
+        "optimize": {
+            "free": [{"name": "length_factor", "min": 0.95, "max": 1.05}],
+            "max_evals": "lots",
+        },
+    }
+    body = client.post("/optimize", json=req).json()
+    assert "max_evals" in body["error"]
+
+
+def test_sweep_non_dict_model_options_is_422(client):
+    resp = client.post(
+        "/sweep",
+        json={
+            "geometry": "dipoles.invvee",
+            "freqs_mhz": [14.0],
+            "model_options": "junk",
+        },
+    )
+    assert resp.status_code == 422
+    assert "model_options" in resp.json()["detail"]
+
+
+def test_hosted_model_options_filtered_to_whitelist(monkeypatch):
+    from antennaknobs.web import adapter
+
+    monkeypatch.setattr(adapter, "_HOSTED", True)
+    out = adapter.sanitize_model_options(
+        {
+            "model_options": {
+                "degree": 1,
+                "use_singular_enrichment": False,
+                # Internal compute-amplification levers: dropped, not forwarded.
+                "aca_leaf_size": 2,
+                "solve_tol": 1e-15,
+                "swept_mem_mb": 10**6,
+            }
+        }
+    )
+    assert out == {"degree": 1, "use_singular_enrichment": False}
+
+    with pytest.raises(ValueError, match="degree"):
+        adapter.sanitize_model_options({"model_options": {"degree": 7}})
+    with pytest.raises(ValueError, match="tikhonov_lambda"):
+        adapter.sanitize_model_options(
+            {"model_options": {"tikhonov_lambda": float("inf")}}
+        )
+
+
+def test_local_model_options_forward_verbatim():
+    from antennaknobs.web import adapter
+
+    assert adapter.sanitize_model_options(
+        {"model_options": {"anything_goes": 1}}
+    ) == {"anything_goes": 1}
+    with pytest.raises(ValueError):  # non-dict is a clean error even locally
+        adapter.sanitize_model_options({"model_options": "junk"})
+
+
 def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
     """Web ground parity: with the plain B-spline solver the default
     "sommerfeld" ground model drives momwire's TRUE Sommerfeld solve
