@@ -2037,6 +2037,58 @@ def test_check_solve_size_unknown_geometry_does_not_falsely_reject(hosted):
     )
 
 
+# ---------------------------------------------------------------------------
+# Size guard on every solve-forming endpoint (issue #345). /ws and /converge
+# always had it; /sweep, /optimize, /pattern_metrics, and /pattern each form
+# the same N×N matrix and must reject an over-cap request instead of
+# attempting the allocation.
+# ---------------------------------------------------------------------------
+
+
+def _oversized_req(**extra) -> dict:
+    n = _n_per_wire_for_basis("dipoles.invvee", server._MAX_BASIS) * 2
+    return {
+        "geometry": "dipoles.invvee",
+        "n_per_wire": n,
+        "momwire_model": "bspline",
+        **extra,
+    }
+
+
+def test_sweep_rejects_oversized_request_when_hosted(hosted, client):
+    resp = client.post("/sweep", json=_oversized_req(freqs_mhz=[14.1]))
+    assert resp.status_code == 413
+    assert "segments / wire" in resp.json()["detail"]
+
+
+def test_optimize_rejects_oversized_request_when_hosted(hosted, client):
+    req = _oversized_req(
+        optimize={
+            "free": [{"name": "length_factor", "min": 0.9, "max": 1.1}],
+            "objective": "swr",
+        }
+    )
+    resp = client.post("/optimize", json=req)
+    assert resp.status_code == 200  # error payload, not an exception
+    assert "segments / wire" in resp.json()["error"]
+
+
+def test_pattern_metrics_rejects_oversized_request_when_hosted(hosted, client):
+    resp = client.post("/pattern_metrics", json=_oversized_req())
+    assert resp.status_code == 200
+    assert "segments / wire" in resp.json()["error"]
+
+
+@pytest.mark.skipif(
+    not server.pynec_backend.HAVE_PYNEC, reason="PyNEC not installed"
+)
+def test_pattern_rejects_oversized_request_when_hosted(hosted, client):
+    resp = client.post("/pattern", json=_oversized_req(solver="pynec"))
+    body = resp.json()
+    assert body["available"] is False
+    assert "segments / wire" in body["error"]
+
+
 def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
     """Web ground parity: with the plain B-spline solver the default
     "sommerfeld" ground model drives momwire's TRUE Sommerfeld solve
