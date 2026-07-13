@@ -140,6 +140,112 @@ _MOMWIRE_MODELS = {
 
 
 # ---------------------------------------------------------------------------
+# model_options sanitisation (issue #346)
+# ---------------------------------------------------------------------------
+
+# Mirrors server.py's _HOSTED master switch: the whitelist below only applies
+# on the shared instance; a local install forwards model_options verbatim.
+_HOSTED = os.environ.get("ANTENNAKNOBS_HOSTED", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+
+def _int_in(lo: int, hi: int):
+    def check(v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or int(v) != v:
+            raise ValueError("must be an integer")
+        n = int(v)
+        if not lo <= n <= hi:
+            raise ValueError(f"must be in [{lo}, {hi}]")
+        return n
+
+    return check
+
+
+def _float_in(lo: float, hi: float, *, allow_none: bool = False):
+    def check(v):
+        if v is None and allow_none:
+            return None
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("must be a number")
+        f = float(v)
+        if not (math.isfinite(f) and lo <= f <= hi):
+            raise ValueError(f"must be a finite number in [{lo}, {hi}]")
+        return f
+
+    return check
+
+
+def _bool_opt(v):
+    if not isinstance(v, bool):
+        raise ValueError("must be a boolean")
+    return v
+
+
+def _enum_opt(*allowed: str):
+    def check(v):
+        if v not in allowed:
+            raise ValueError(f"must be one of {sorted(allowed)}")
+        return v
+
+    return check
+
+
+# The solver kwargs the frontend's gear menus actually send (App.tsx
+# modelOptionsForRequest), each with a sane range. When hosted, model_options
+# is filtered to THESE keys — anything else (ACA leaf sizes, GMRES/solve
+# tolerances, the server-owned swept_mem_mb, arbitrary constructor kwargs) is
+# dropped, so a hand-crafted request can't amplify per-solve CPU beyond what
+# the segment-count cap models.
+_HOSTED_MODEL_OPTIONS = {
+    "degree": _int_in(1, 2),
+    "n_qp_const": _int_in(1, 64),
+    "n_qp_pair": _int_in(1, 64),
+    "n_qp_source": _int_in(1, 64),
+    "n_qp_sing": _int_in(1, 128),
+    "feed_smoothing_factor": _float_in(0.0, 100.0, allow_none=True),
+    "use_singular_enrichment": _bool_opt,
+    "enrichment_variant": _enum_opt("raw", "stable", "tikhonov", "auto"),
+    "tikhonov_lambda": _float_in(0.0, 1e3),
+    "auto_tap_ratio_threshold": _float_in(0.0, 1.0),
+    "enrichment_min_k": _int_in(2, 64),
+}
+
+
+def sanitize_model_options(req: dict) -> dict | None:
+    """Validated solver kwargs from the request's ``model_options``.
+
+    Everywhere: a non-dict value raises a clean ValueError instead of a
+    TypeError deep inside a solver constructor. When hosted, additionally
+    filters to the whitelisted keys above (unknown keys are dropped, not
+    forwarded) and validates each value's type/range. Local instances keep
+    verbatim forwarding — solver experiments stay unlocked.
+    """
+    raw = req.get("model_options")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(
+            "model_options must be an object of solver keyword arguments"
+        )
+    if not _HOSTED:
+        return dict(raw) or None
+    out = {}
+    for k, v in raw.items():
+        check = _HOSTED_MODEL_OPTIONS.get(k)
+        if check is None:
+            continue
+        try:
+            out[k] = check(v)
+        except ValueError as e:
+            raise ValueError(f"model_options.{k} {e}") from None
+    return out or None
+
+
+# ---------------------------------------------------------------------------
 # Schema derivation
 # ---------------------------------------------------------------------------
 
@@ -592,7 +698,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     solver_cls = _MOMWIRE_MODELS.get(model, BSplineSolver)
     wire_radius = float(req.get("wire_radius", 0.0005))
     ground = _ground_for_engine(req, 0.0)
-    solver_kwargs = req.get("model_options") or None
+    solver_kwargs = sanitize_model_options(req)
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
         # Deployment-owned memory policy (momwire >= 0.9): cap the batched
         # frequency sweep's transient memory per solve. Server-side value

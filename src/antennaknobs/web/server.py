@@ -597,6 +597,14 @@ _MAX_BASIS_COMPRESSED = _env_int("ANTENNAKNOBS_MAX_BASIS_COMPRESSED", 9000)
 _MAX_BASIS_PYNEC = _env_int("ANTENNAKNOBS_MAX_BASIS_PYNEC", 7000)
 _COMPRESSED_MODELS = frozenset({"arrayblock", "hmatrix"})
 
+# Hosted compute levers beyond the matrix cap (issue #346): a client-chosen
+# list length or eval budget multiplies whole solves, so even under-cap
+# requests can pin the single vCPU indefinitely. Both limits sit far above
+# what the UI ever sends (41-point sweeps, ≤200 optimizer evals) and are only
+# enforced when hosted; local instances stay unlocked.
+_MAX_SWEEP_POINTS = _env_int("ANTENNAKNOBS_MAX_SWEEP_POINTS", 500)
+_MAX_OPT_EVALS = _env_int("ANTENNAKNOBS_MAX_OPT_EVALS", 500)
+
 
 class SolveTooLargeError(ValueError):
     """A solve request exceeds the hosted live-engine segment-count cap."""
@@ -748,6 +756,23 @@ async def sweep_endpoint(req: dict, request: Request):
         _check_solve_size(req, use_pynec=use_pynec)
     except SolveTooLargeError as e:
         raise HTTPException(status_code=413, detail=str(e)) from e
+    if _HOSTED and len(freqs) > _MAX_SWEEP_POINTS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"A sweep of {len(freqs)} points is over the live limit "
+            f"of {_MAX_SWEEP_POINTS}. Reduce the frequency count.",
+        )
+    # Validate the client's solver kwargs up front: this endpoint streams, so
+    # an error surfacing mid-generator can't become a clean status code.
+    # Imported here (like /optimize's optimizer import): adapter ↔ examples
+    # resolve their import cycle examples-first, so a module-level import
+    # of adapter from server would re-trip it.
+    from .adapter import sanitize_model_options
+
+    try:
+        sanitize_model_options(req)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
     async def gen():
         if not freqs:
@@ -889,6 +914,12 @@ async def converge_endpoint(req: dict, request: Request):
     n_values = [int(n) for n in req.get("n_values", [])]
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     solver_name = "pynec" if use_pynec else "momwire"
+    if _HOSTED and len(n_values) > _MAX_SWEEP_POINTS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"A convergence sweep of {len(n_values)} points is over "
+            f"the live limit of {_MAX_SWEEP_POINTS}. Reduce the N count.",
+        )
 
     async def gen():
         for n in n_values:
@@ -1145,6 +1176,19 @@ async def optimize_endpoint(req: dict):
     objective = opt.get("objective", "swr")
     if objective not in OBJECTIVES:
         return {"error": f"unknown objective {objective!r}"}
+    max_evals = opt.get("max_evals")
+    if max_evals is not None:
+        try:
+            max_evals = int(max_evals)
+        except (TypeError, ValueError):
+            return {"error": f"max_evals must be an integer (got {max_evals!r})"}
+        if max_evals <= 0:
+            max_evals = None
+        elif _HOSTED:
+            # Hard ceiling regardless of the client value: every eval is a
+            # full MoM solve that skips the solve cache, so an unbounded
+            # budget is a sustained-CPU lever (issue #346).
+            max_evals = min(max_evals, _MAX_OPT_EVALS)
 
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
@@ -1163,7 +1207,7 @@ async def optimize_endpoint(req: dict):
             free,
             objective,
             solve_fn=ex.momwire_solve,
-            max_evals=opt.get("max_evals"),
+            max_evals=max_evals,
         )
     except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
         return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
