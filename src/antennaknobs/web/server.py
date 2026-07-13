@@ -89,6 +89,7 @@ os.environ.setdefault("GOMP_SPINCOUNT", "0")
 import asyncio
 import hashlib
 import json
+import math
 import time
 from collections import OrderedDict
 from copy import deepcopy
@@ -744,7 +745,17 @@ async def sweep_endpoint(req: dict, request: Request):
     keeps grinding through all 41 expensive PyNEC ground solves, starving
     the live /ws solves of CPU.
     """
-    freqs = [float(f) for f in req.get("freqs_mhz", [])]
+    try:
+        freqs = [float(f) for f in req.get("freqs_mhz", [])]
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=422, detail="freqs_mhz must be a list of numbers"
+        ) from None
+    if any(not math.isfinite(f) or f <= 0.0 for f in freqs):
+        raise HTTPException(
+            status_code=422,
+            detail="freqs_mhz entries must be positive, finite numbers",
+        )
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     sweep_ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
@@ -911,7 +922,12 @@ async def converge_endpoint(req: dict, request: Request):
     Cancels on client disconnect (slider drag interrupts a stale sweep)
     using the same pattern as /sweep.
     """
-    n_values = [int(n) for n in req.get("n_values", [])]
+    try:
+        n_values = [int(n) for n in req.get("n_values", [])]
+    except (TypeError, ValueError, OverflowError):
+        raise HTTPException(
+            status_code=422, detail="n_values must be a list of integers"
+        ) from None
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     solver_name = "pynec" if use_pynec else "momwire"
     if _HOSTED and len(n_values) > _MAX_SWEEP_POINTS:
@@ -1070,7 +1086,9 @@ async def export_nec_endpoint(req: dict):
         )
     try:
         deck = await run_in_threadpool(ex.nec_export, req)
-    except NotImplementedError as e:
+    except (NotImplementedError, ValueError) as e:
+        # ValueError: request validation (bad freq / radius / n_per_wire) —
+        # a clean 422 rather than a 500 (issue #347).
         raise HTTPException(status_code=422, detail=str(e)) from e
     filename = f"{ex.name.replace('.', '_')}.nec"
     return Response(
