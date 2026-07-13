@@ -17,6 +17,11 @@ The `[web]` extra pulls in `uvicorn[standard]`, which provides the WebSocket
 support the live-solve channel (`/ws`) needs — plain `uvicorn` fails that
 handshake.
 
+A local instance has no login and none of the hosted instance's solve-size
+limits, and it runs any design files you've allowed with your user privileges —
+keep it on the default `127.0.0.1` bind rather than exposing it to a network
+you don't fully control.
+
 ## The hosted instance
 
 A hosted simulator is running at

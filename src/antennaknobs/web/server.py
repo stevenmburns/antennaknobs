@@ -122,7 +122,33 @@ user_designs.refresh()
 _CHUNK_TARGET_MS = 500
 
 
-app = FastAPI(title="momwire interactive")
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        v = int(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return v if v > 0 else default
+
+
+# The master switch for every hosted-only limit in this file (the solve-size
+# caps and request clamps below): enforced only on the shared/hosted instance,
+# which sets ANTENNAKNOBS_HOSTED via fly.toml. Local installs are unlocked.
+_HOSTED = _env_flag("ANTENNAKNOBS_HOSTED")
+
+app = FastAPI(
+    title="momwire interactive",
+    # The hosted instance is public with no auth: don't serve the interactive
+    # API docs / OpenAPI schema there — they enumerate the exact endpoint and
+    # parameter surface an attacker would probe (issue #348). Local installs
+    # keep /docs for development.
+    docs_url=None if _HOSTED else "/docs",
+    redoc_url=None if _HOSTED else "/redoc",
+    openapi_url=None if _HOSTED else "/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -577,22 +603,8 @@ _SOLVE_CACHE_MAX = 100
 # low-rank uses ~0.6× of that — so it's allowed a proportionally higher cap.
 # Caps are about MEMORY, not solve time (PyNEC's ~N³ LU is slow long before it
 # is large; that's a responsiveness concern, deliberately not guarded here).
-# All env-overridable for self-hosting on bigger boxes.
-def _env_flag(name: str) -> bool:
-    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int) -> int:
-    try:
-        v = int(os.environ.get(name, ""))
-    except ValueError:
-        return default
-    return v if v > 0 else default
-
-
-# The master switch: enforce the caps only on the shared/hosted instance.
-_HOSTED = _env_flag("ANTENNAKNOBS_HOSTED")
-
+# All env-overridable for self-hosting on bigger boxes. (_HOSTED and the
+# _env_* helpers live above the FastAPI construction, which also needs them.)
 _MAX_BASIS = _env_int("ANTENNAKNOBS_MAX_BASIS", 7000)  # dense momwire (~800 MB)
 _MAX_BASIS_COMPRESSED = _env_int("ANTENNAKNOBS_MAX_BASIS_COMPRESSED", 9000)
 _MAX_BASIS_PYNEC = _env_int("ANTENNAKNOBS_MAX_BASIS_PYNEC", 7000)
@@ -956,7 +968,10 @@ async def converge_endpoint(req: dict, request: Request):
                     json.dumps(
                         {
                             "n_per_wire": n,
-                            "error": str(e),
+                            # Same formatter as every other endpoint: type +
+                            # message + user-design basename only, never a
+                            # raw path or traceback (issue #348).
+                            "error": user_designs.format_solve_error(e),
                             "solver": solver_name,
                         }
                     )
@@ -1537,9 +1552,10 @@ async def ws_endpoint(ws: WebSocket):
 
 # Serve the built React frontend (web/static, produced by `npm run build` in
 # web/frontend) at "/". Mounted LAST so every API route and FastAPI's own
-# /docs + /openapi.json — all registered above — take precedence; the mount
-# only catches "/", the SPA's assets, and other unclaimed GETs. html=True
-# serves index.html for the root.
+# /docs + /openapi.json (local only — disabled when hosted, see the FastAPI
+# construction) — all registered above — take precedence; the mount only
+# catches "/", the SPA's assets, and other unclaimed GETs. html=True serves
+# index.html for the root.
 #
 # Gated on the directory existing: a source checkout / editable install without
 # a frontend build (the dev workflow, where Vite serves the SPA on :5173 and
