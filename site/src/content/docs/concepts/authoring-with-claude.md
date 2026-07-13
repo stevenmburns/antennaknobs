@@ -41,9 +41,15 @@ and `antennaknobs list` shows it.
    - *"Design a 2-element 20-meter quad loop — driven element plus a reflector."*
    - *"Take my_dipole.py and add an adjustable height-above-ground slider."*
    - *"My design loads but resonates at 32 MHz — shorten it to hit 28.5 MHz."*
-3. **Refresh the web page.** The antenna appears under "Your designs." If it
-   doesn't, the **"designs that failed to load"** panel shows the file, the error,
-   and the line number — paste that back to Claude and iterate.
+3. **Refresh the web page.** A design file is a Python program that runs on your
+   computer, so the first time it appears under **"designs need your OK to
+   run"** — click it to see what it does, then **Allow it to run** (choose
+   **Allow + my edits** for a design you'll keep editing, so it won't ask again
+   each time you save). It then shows under "Your designs." From the command
+   line the same gate is `antennaknobs allow user.my_dipole`. If instead it
+   lands in the **"designs that failed to load"** panel, that's a real error —
+   the panel shows the file, error, and line number; paste that back to Claude
+   and iterate.
 4. **Tune it** with the knobs, the SWR curve, and the impedance readout until the
    resonance and pattern look right.
 

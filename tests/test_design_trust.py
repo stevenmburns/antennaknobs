@@ -48,8 +48,8 @@ def test_untrusted_design_does_not_run(userdir):
     (userdir / "d.py").write_text(CLEAN)
     with pytest.raises(DesignNotTrustedError) as ei:
         user_designs.resolve_user_design("d")
-    # Guidance points at the trust command, not a raw traceback.
-    assert "trust" in str(ei.value)
+    # Guidance points at the `allow` command, not a raw traceback.
+    assert "allow" in str(ei.value)
 
 
 def test_untrusted_error_carries_advisory(userdir):
@@ -151,37 +151,37 @@ def test_bad_mode_rejected(userdir):
         dt.trust(userdir / "d.py", mode="sometimes")
 
 
-# --- trust / untrust CLI -----------------------------------------------------
+# --- allow / disallow CLI ----------------------------------------------------
 
 
-def test_cli_trust_then_load(userdir, capsys):
+def test_cli_allow_then_load(userdir, capsys):
     (userdir / "d.py").write_text(EVIL)
-    ant.cli(["trust", "user.d"])
+    ant.cli(["allow", "user.d"])
     out = capsys.readouterr().out
-    assert "socket" in out  # advisory shown before trusting
-    assert "trusted d.py" in out
+    assert "socket" in out  # advisory shown before allowing
+    assert "allowed d.py" in out
     assert user_designs.resolve_user_design("d") is not None
 
 
-def test_cli_trust_edits_mode(userdir):
+def test_cli_allow_edits_mode(userdir):
     p = userdir / "mine.py"
     p.write_text(CLEAN)
-    ant.cli(["trust", "mine", "--edits"])
+    ant.cli(["allow", "mine", "--edits"])
     assert dt.trust_status(p) == "always"
 
 
-def test_cli_untrust(userdir, capsys):
+def test_cli_disallow(userdir, capsys):
     p = userdir / "d.py"
     p.write_text(CLEAN)
     dt.trust(p)
-    ant.cli(["untrust", "d"])
-    assert "untrusted d.py" in capsys.readouterr().out
+    ant.cli(["disallow", "d"])
+    assert "no longer allowing d.py" in capsys.readouterr().out
     assert dt.trust_status(p) == "none"
 
 
-def test_cli_trust_unknown_design_exits_two(userdir):
+def test_cli_allow_unknown_design_exits_two(userdir):
     with pytest.raises(SystemExit) as ei:
-        ant.cli(["trust", "does_not_exist"])
+        ant.cli(["allow", "does_not_exist"])
     assert ei.value.code == 2
 
 
@@ -190,4 +190,4 @@ def test_cli_draw_untrusted_shows_guidance(userdir, capsys):
     with pytest.raises(SystemExit) as ei:
         ant.cli(["draw", "--builder", "user.d", "--fn", "/dev/null"])
     assert ei.value.code == 1
-    assert "trust" in capsys.readouterr().out
+    assert "allow" in capsys.readouterr().out
