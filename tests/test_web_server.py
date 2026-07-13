@@ -557,6 +557,92 @@ def test_norm_check_finite_ground_uses_grid_method(client: TestClient):
     assert resp["available"] is True
     assert resp["method"].startswith("grid_")
     assert resp["pattern_norm"] > 0
+    # The derived third-ledger number (issue #339) ships alongside, and is
+    # exactly the norm-check ratio with the structural efficiency folded
+    # back out of the field-side norm.
+    assert resp["radiated_fraction"] == pytest.approx(
+        resp["radiation_efficiency"] * resp["directivity_norm"] / resp["pattern_norm"]
+    )
+
+
+@pytest.mark.parametrize(
+    "geometry, req_extra, params_extra, lo, hi",
+    [
+        # KJ6ER's POTA PERformer on 15M: ground absorption dominates —
+        # ~30% radiated while >90% efficient structurally (the ledger
+        # split advanced/pota-performer.md narrates).
+        ("verticals.pota_performer", {}, {}, 0.22, 0.40),
+        # A 7 m invvee on 20 m: higher in wavelengths, ~70% radiated.
+        (
+            "dipoles.invvee",
+            {"measurement_freq_mhz": 14.1, "design_freq_mhz": 14.1},
+            {"design_freq": 14.1, "freq": 14.1},
+            0.60,
+            0.85,
+        ),
+    ],
+)
+def test_norm_check_radiated_fraction_matches_far_field_ledger(
+    client: TestClient, geometry, req_extra, params_extra, lo, hi
+):
+    """/norm_check's derived `radiated_fraction` (issue #339) agrees with the
+    independent `far_field.radiated_fraction` trapezoid integral — the same
+    solve run through MomwireEngine directly, over the web's Sommerfeld
+    average ground — within a point on the calibration pair from the
+    three-ledgers docs. The endpoint derives the number from the norm ratio
+    (no angular grid of its own), so this pins the whole identity chain:
+    gain-per-input-watt averaged over the sphere IS efficiency·dn/pn."""
+    import importlib
+
+    from antennaknobs import radiated_fraction
+    from antennaknobs.engines import MomwireEngine
+
+    server._SOLVE_CACHE.clear()
+    req = {
+        "geometry": geometry,
+        "measurement_freq_mhz": 21.35,
+        "design_freq_mhz": 21.35,
+        "momwire_model": "bspline",
+        "ground": True,
+        "ground_model": "sommerfeld",
+        **req_extra,
+    }
+    resp = client.post("/norm_check", json=req).json()
+    assert resp["available"] is True
+    assert lo < resp["radiated_fraction"] < hi
+
+    mod = importlib.import_module(f"antennaknobs.designs.{geometry}")
+    params = dict(mod.Builder.default_params)
+    params.update(params_extra)
+    eng = MomwireEngine(
+        mod.Builder(params=params), ground=("finite", 10.0, 0.002), ground_z=0.0
+    )
+    ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
+    assert resp["radiated_fraction"] == pytest.approx(
+        radiated_fraction(ff), abs=0.01
+    )
+
+
+def test_norm_check_radiated_fraction_pec_and_free_space(client: TestClient):
+    """Where there is no ground absorption the third ledger collapses onto
+    the structural one: a lossless invvee reads ~100% radiated over PEC
+    (closed form — no integration clipping) and in free space, within the
+    solver's self-consistency gap."""
+    server._SOLVE_CACHE.clear()
+    base = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "bspline",
+    }
+    for ground in (
+        {"ground": True, "ground_model": "pec"},
+        {"ground": False},
+    ):
+        resp = client.post("/norm_check", json={**base, **ground}).json()
+        assert resp["available"] is True
+        assert resp["method"] == "closed_form"
+        assert resp["radiated_fraction"] == pytest.approx(1.0, abs=0.02)
 
 
 def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
