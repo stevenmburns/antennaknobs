@@ -741,6 +741,13 @@ async def sweep_endpoint(req: dict, request: Request):
     sweep_ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     solver_name = "pynec" if use_pynec else "momwire"
+    # Hosted size guard, same as the /ws and /converge paths: reject an
+    # over-cap matrix dimension BEFORE the stream starts, as a clean 413,
+    # instead of attempting the N×N allocation per sweep point.
+    try:
+        _check_solve_size(req, use_pynec=use_pynec)
+    except SolveTooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e)) from e
 
     async def gen():
         if not freqs:
@@ -932,6 +939,12 @@ async def pattern_endpoint(req: dict):
     """NEC's rp_card-computed gain pattern. PyNEC-only."""
     if req.get("solver") != "pynec" or not pynec_backend.HAVE_PYNEC:
         return {"available": False}
+    # rp_card needs a full NEC solve first, so the hosted matrix-size cap
+    # applies here exactly like the /ws solve path.
+    try:
+        _check_solve_size(req, use_pynec=True)
+    except SolveTooLargeError as e:
+        return {"available": False, "error": str(e)}
     return await run_in_threadpool(pynec_backend.pattern, req)
 
 
@@ -1070,6 +1083,12 @@ async def pattern_metrics_endpoint(req: dict):
     ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
     if ex.far_field_metrics is None:
         return {"available": False}
+    # far_field_metrics runs a full momwire solve; apply the hosted matrix-
+    # size cap here like every other solve-forming route.
+    try:
+        _check_solve_size(req, use_pynec=False)
+    except SolveTooLargeError as e:
+        return {"geometry": geometry, "error": str(e)}
     try:
         metrics = await run_in_threadpool(ex.far_field_metrics, req)
     except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
@@ -1130,6 +1149,13 @@ async def optimize_endpoint(req: dict):
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
     base = {k: v for k, v in req.items() if k != "optimize"}
+    # Every optimizer eval is a full momwire solve of the base geometry (the
+    # free knobs never change n_per_wire), so one hosted size check on the
+    # base request covers the whole run.
+    try:
+        _check_solve_size(base, use_pynec=False)
+    except SolveTooLargeError as e:
+        return {"geometry": geometry, "error": str(e)}
     try:
         result = await run_in_threadpool(
             _optimize,
