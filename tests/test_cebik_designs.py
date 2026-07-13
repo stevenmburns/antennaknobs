@@ -1171,6 +1171,119 @@ def test_zepp_series_feeder_cannot_match_to_coax():
 
 
 # ===========================================================================
+# Batch 4 -- second Cebik wave, cross-checked against the cebik.com mirror
+# (antenna2.github.io/cebik): EDZ, expanded lazy-H, OWA Yagi, right-angle
+# delta (issues #354-#357).
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# Extended Double Zepp (1.25 wl doublet + series matching section)
+# ---------------------------------------------------------------------------
+
+
+def _edz_bare():
+    """The EDZ with its centre gap driven directly (matching section removed),
+    to read the raw feedpoint the series section transforms."""
+    from antennaknobs.designs.wire.edz import Builder
+
+    class Bare(Builder):
+        def build_wires(self):
+            return [
+                (t[0], t[1], t[2], 1 + 0j) if len(t) == 5 and t[4] == "feed" else t[:4]
+                for t in super().build_wires()
+            ]
+
+        def build_network(self):
+            return None
+
+    return Bare()
+
+
+def test_edz_gain_over_dipole():
+    """~5.2 dBi free space -- the 2-3 dB broadside gain over a dipole that is
+    the whole point of the 1.25 wl stretch (Cebik)."""
+    from antennaknobs.designs.wire.edz import Builder
+
+    ff = _far_field(Builder())
+    assert 4.5 < ff.max_gain < 5.6
+
+
+def test_edz_broadside_with_end_nulls():
+    """Still a (slightly split) figure-8: broadside off +/- x dominates the
+    wire axis by a wide margin, with the ~50-deg sidelobes only emerging (the
+    sidelobes are also why the margin at this ring is a shade under the
+    half-square's)."""
+    from antennaknobs.designs.wire.edz import Builder
+
+    ff = _far_field(Builder())
+    rings = np.array(ff.rings)
+    row = rings[60]
+    broadside = max(row[0], row[180])
+    end_on = max(row[90], row[270])
+    assert broadside - end_on > 8.0
+
+
+def test_edz_bare_centre_high_r_strongly_capacitive():
+    """The raw 1.25 wl centre: high-R and strongly capacitive (Cebik quotes
+    ~100-140 -j500-600 for typical builds; this wire reads ~150 -j800)."""
+    z = _z(_edz_bare())
+    assert 100.0 < z.real < 220.0
+    assert z.imag < -500.0
+
+
+def test_edz_series_section_lands_on_coax():
+    """The contrast with the zepp: the EDZ centre reflects at |Gamma| ~ 0.84
+    (not ~1), so the 600 ohm series section's low-R crossing sits at ~53 ohm
+    and the shack sees a direct coax match (SWR ~ 1.07)."""
+    from antennaknobs.designs.wire.edz import Builder
+
+    z = _z(Builder())
+    assert 45.0 < z.real < 60.0
+    assert abs(z.imag) < 10.0
+    assert _swr(z, 50.0) < 1.25
+
+
+def test_edz_match_is_narrowband():
+    """The rotation match trades bandwidth: ~600 kHz at 2:1 on 10 m (WB4HFL's
+    measured build), so both band edges blow past 2:1."""
+    from antennaknobs.designs.wire.edz import Builder
+
+    for f in (28.0, 29.1):
+        z = _z(Builder(dict(Builder.default_params, freq=f)))
+        assert _swr(z, 50.0) > 2.0, (f, z)
+
+
+def test_edz_match_line_rotation_tunes_reactance():
+    """Along the series line the resistance stays pinned near the low-R
+    crossing while the reactance sweeps through zero -- rotation around the
+    SWR circle, not a transformer's R-scaling."""
+    from antennaknobs.designs.wire.edz import Builder
+
+    zs = [
+        _z(Builder(dict(Builder.default_params, match_len_frac=m)))
+        for m in (0.144, 0.150, 0.156)
+    ]
+    assert all(45.0 < z.real < 60.0 for z in zs)  # R barely moves
+    assert zs[0].imag < 0.0 < zs[2].imag  # X sweeps through resonance
+
+
+def test_edz_uses_a_series_tl_and_virtual_shack():
+    """One series TL branch from a virtual shack port to the real
+    doublet-centre port, driven at the shack (cf. g5rv/zepp)."""
+    from antennaknobs.designs.wire.edz import Builder
+    from antennaknobs.network import TL, Driven, PortVirtual
+
+    net = Builder().build_network()
+    tls = [br for br in net.branches if isinstance(br, TL)]
+    assert len(tls) == 1 and not tls[0].transposed
+    assert {tls[0].a, tls[0].b} == {"shack", "feed"}
+    assert isinstance(net.ports["shack"], PortVirtual)
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "shack"
+
+
+# ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
 # These lock in WHERE the four momwire solver bases agree with PyNEC and where
