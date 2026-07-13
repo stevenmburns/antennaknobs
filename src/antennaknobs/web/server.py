@@ -949,7 +949,17 @@ def _norm_check(req: dict) -> dict:
     Reuses the settled solve (a cache hit on the dwell request, so no re-solve
     on the common path). Falls back to the fine-grid quadrature when the
     response carries a finite (non-PEC-sentinel) ground — the image identity
-    behind the closed form is exact only for a perfect reflector."""
+    behind the closed form is exact only for a perfect reflector.
+
+    Also derives `radiated_fraction` = P_radiated/P_input, the honest third
+    efficiency ledger (`far_field.radiated_fraction`, issue #339). No extra
+    integral: gain-per-input-watt averaged over the sphere is exactly
+    efficiency · directivity_norm / pattern_norm — the norm-check ratio with
+    the structural efficiency folded back out of the field-side norm. Over a
+    finite ground the shortfall from 1.0 is structural loss plus real ground
+    absorption; over PEC/free space it collapses to ~structural efficiency
+    (times the solver's self-consistency gap, <0.05 dB on converged designs).
+    """
     out = solve(dict(req))
     if "directivity_norm" not in out or out["directivity_norm"] <= 0:
         return {"available": False}
@@ -977,11 +987,18 @@ def _norm_check(req: dict) -> dict:
         _compute_directivity_norm(ref, n_theta=n_theta, n_phi=n_phi)
         pattern_norm = ref["directivity_norm"]
         method = f"grid_{n_theta}x{n_phi}"
+    efficiency = float(out.get("radiation_efficiency", 1.0))
     return {
         "available": pattern_norm > 0,
         "directivity_norm": out["directivity_norm"],
         "pattern_norm": pattern_norm,
         "method": method,
+        "radiation_efficiency": efficiency,
+        "radiated_fraction": (
+            efficiency * out["directivity_norm"] / pattern_norm
+            if pattern_norm > 0
+            else 0.0
+        ),
     }
 
 
