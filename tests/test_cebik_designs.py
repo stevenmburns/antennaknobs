@@ -1456,6 +1456,100 @@ def test_owa_topology_close_in_first_director():
     assert b.build_wire_material().radius > 0.01
 
 
+# ---------------------------------------------------------------------------
+# Right-angle delta (the coax-friendly SCV)
+# ---------------------------------------------------------------------------
+
+
+def test_rad_coax_friendly_near_resonant():
+    """The right-angle proportions' whole point: ~48-51 ohm near-resonant at
+    the quarter-wave-from-apex feed (Cebik: 51 ohm; the equilateral delta's
+    same feed sits at ~120 ohm)."""
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    z = _z(Builder())
+    assert 40.0 < z.real < 60.0
+    assert abs(z.imag) < 15.0
+
+
+def test_rad_gain_matches_cebik():
+    """~3.3-3.6 dBi free space -- mid-pack SCV, above the equilateral's 2.9,
+    below the half-square's 4.6."""
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    ff = _far_field(Builder())
+    assert 3.0 < ff.max_gain < 4.2
+
+
+def test_rad_ranks_below_the_half_square():
+    """Cebik's family ranking holds inside the catalog: the half-square
+    out-gains the RAD by ~1 dB."""
+    from antennaknobs.designs.verticals.half_square import Builder as HalfSquare
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    assert _far_field(HalfSquare()).max_gain > _far_field(Builder()).max_gain + 0.5
+
+
+def test_rad_vertically_polarised_overhead_null():
+    """The SCV signature: the pattern peaks at the horizon and is deeply
+    nulled overhead -- the horizontal members cancel, the vertical runs
+    radiate. (The corner-fed `loops.delta_loop` is the horizontally-dominant
+    opposite.)"""
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    rings = np.array(_far_field(Builder()).rings)
+    horizon = rings[85:].max()
+    zenith = rings[:5].max()
+    assert horizon - zenith > 15.0
+
+
+def test_rad_near_omni_front_to_side():
+    """The delta is the near-omni end of the SCV family: broadside is up on
+    the ends by only a few dB (Cebik: ~3 dB), nothing like the bobtail's
+    ~28 dB broadside discipline."""
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    rings = np.array(_far_field(Builder()).rings)
+    row = rings[60]
+    margin = max(row[0], row[180]) - max(row[90], row[270])
+    assert 1.0 < margin < 8.0
+
+
+def test_rad_length_factor_tunes_reactance():
+    """Reactance climbs monotonically with length_factor through resonance
+    (cf. half_square)."""
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    x_lo = _z(Builder(dict(Builder.default_params, length_factor=0.96))).imag
+    x_mid = _z(Builder(dict(Builder.default_params, length_factor=1.004))).imag
+    x_hi = _z(Builder(dict(Builder.default_params, length_factor=1.05))).imag
+    assert x_lo < x_mid < x_hi
+
+
+def test_rad_is_a_closed_right_angle_delta_one_feed():
+    """Topology: one driven gap on the left sloping side (not on the base),
+    the loop closes, and the side/base proportions make the apex a right
+    angle (side^2 + side^2 ~ diagonal relation: h = w/2)."""
+    from antennaknobs.designs.verticals.right_angle_delta import Builder
+
+    b = Builder()
+    tups = b.build_wires()
+    feeds = [t for t in tups if t[3] is not None]
+    assert len(feeds) == 1
+    zb = b.base
+    # The fed edge slopes: it is off the base wire and off y = 0.
+    assert feeds[0][0][2] > zb + 0.1
+    assert feeds[0][0][1] < 0.0  # on the left (-y) side
+    # Right angle at the apex: apex height equals half the base width.
+    wavelength = 299.792458 / b.design_freq
+    w = b.base_frac * wavelength * b.length_factor
+    apex_h = max(max(t[0][2], t[1][2]) for t in tups) - zb
+    assert abs(apex_h - w / 2) < 0.02 * wavelength
+    # ~1 wl closed perimeter (2 sides + base ~ 1.07 wl).
+    perim = w + 2 * b.side_frac * wavelength * b.length_factor
+    assert 0.95 < perim / wavelength < 1.15
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
