@@ -1579,6 +1579,9 @@ input[type=checkbox] {
 .readout .row {
   display: flex;
   justify-content: space-between;
+  /* Long label + value (e.g. "radiated (incl. ground)" at 100%) must
+     never fuse into one token when they fill the row. */
+  gap: var(--space-2);
 }
 
 .readout .row > span:first-child {
