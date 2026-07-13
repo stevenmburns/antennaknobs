@@ -170,8 +170,8 @@ These wrap an element `Builder`. For a first design, stick to a single
 2. The antenna appears under "Your designs". If it doesn't, look at the
    **"designs that failed to load"** panel — it shows the file, the error
    type, and the line number. Fix and refresh again.
-3. Pick it in the selector and look at the geometry plot, the SWR curve, and
-   the impedance. Adjust `default_params` and `build_wires` until the
+3. Pick it in the selector and look at the geometry plot, the Smith chart, and
+   the impedance readout. Adjust `default_params` and `build_wires` until the
    resonance and pattern look right.
 
 ## Good prompts to give Claude Code
