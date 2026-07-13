@@ -1594,6 +1594,13 @@ input[type=checkbox] {
   font-weight: 600;
 }
 
+/* Dwell-derived values (the radiated-fraction ledger) while a knob is
+   moving: the number is stale the moment anything changes, so it greys
+   to an em-dash until the norm check lands. */
+.readout .val-pending {
+  color: var(--muted);
+}
+
 .feeds-table {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
