@@ -151,5 +151,12 @@ fast-deploy config; walk the band variants (`band20` … `band6`) and
 watch the droop angle steepen as the radials shorten against the fixed
 stake height — exactly the table in the plans.
 
+The third ledger is on screen while you do it: with a finite ground
+selected, the solve readout's **radiated (incl. ground)** row (and the
+**radiated %** readout on the pattern views) fills in whenever the knobs
+settle — ~29% for this antenna, the number this page is about. See
+[the workbench reference](/reference/web/#power-budget) for how it's
+computed.
+
 *Sources: [KJ6ER's PERformer plans (rev 2025-02)](https://www.vhfclub.org/pdf/PERformer%20Antenna%20by%20KJ6ER%20%282025-02%29.pdf);
 [VA3KOT, "Testing and modifying the POTA PERformer antenna" (2025-05)](https://hamradiooutsidethebox.ca/2025/05/28/testing-and-modifying-the-pota-performer-antenna/).*

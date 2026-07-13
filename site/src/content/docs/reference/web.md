@@ -142,8 +142,9 @@ the accelerators solve it on their fast paths), and PyNEC honours both
 natively. The far-field pattern uses the real εr/σ on every basis.
 Whatever runs, the solve readout's **ground** row reports the model that
 was actually used, and over a finite ground the
-[norm check](#norm-check--is-the-solve-trustworthy) Δ reads "incl. ground
-loss" — a steady dB or so there is absorbed power, not error.
+[norm check](#norm-check--is-the-solve-trustworthy) readout becomes a
+**radiated** percentage — the share of your input power that actually
+leaves as sky wave. The rest is absorbed power, not error.
 
 ## Power budget
 
@@ -152,14 +153,28 @@ matching network with a finite-Q coil, a lossy balun, a terminating
 resistor — get a
 **power budget** table in the solve readout: one row per network branch
 with the fraction of the source's input power it dissipates, plus an
-**antenna (radiated)** row for what actually reaches the wires. The rows
+**antenna (accepted)** row for what actually reaches the wires. The rows
 come straight from the MNA network solve (each branch current is an
 explicit unknown, so the watts are read off the solution, not modelled
 separately), and the same accounting drives the reported radiation
 efficiency: **every** dissipative branch counts, including resistive
 coupling and matching elements, not just explicit `Load`s. Gain is
 normalised by input power, so network loss already shows up in dBi;
-the budget tells you *where* it went. Lossless networks hide the table.
+the budget tells you *where* it went. Lossless networks hide the
+branch rows.
+
+Below the budget sits the honest bottom line: a **radiated (incl.
+ground)** row — the fraction of input power that leaves as far-field
+radiation *after* the ground has taken its share, the third of the
+[three efficiency ledgers](/advanced/pota-performer/#the-efficiency-claim-true-in-its-ledger).
+It comes from the dwell-triggered
+[norm check](#norm-check--is-the-solve-trustworthy) pattern integral, so
+it greys to **—** the moment any knob moves and fills in once you settle
+— never costing the live drag path anything. Expect a shock the first
+time: a "95% efficient" portable vertical over average ground radiates
+~30%; a 7 m-high inverted vee on 20 m about 70%. Over PEC ground or free
+space (nothing to absorb) it collapses back onto the structural
+efficiency.
 
 Designs that declare a real wire material (a `wire_type` knob over the
 `WIRES` catalog, e.g. [`dipoles.pota_invvee`](/advanced/wire-gauge/))
@@ -258,13 +273,17 @@ integral for free space and PEC ground, a small reference-grid quadrature over
 finite ground, either way evaluated once the knob settles), so it's **on by
 default** — uncheck it to hide the overlay and the readout.
 
-**Over a finite ground, Δ is not supposed to be zero.** The pattern integral
-only counts power that leaves upward — what the lossy ground absorbs never
-comes back — so a steady Δ of a dB or so *is the ground-loss reading* (the
-readout says "incl. ground loss" to remind you), exactly like NEC's average-gain
-value over real ground. It's still a mesh check: what should be small is how
-much Δ *moves* as you add segments, and switching the ground to PEC (or off)
-should send it back toward 0 dB.
+**Over a finite ground the gap is not supposed to be zero — it's physics**,
+so the readout switches to its honest form: **radiated NN%**, the fraction
+of input power that actually leaves as far-field radiation. The pattern
+integral only counts power that leaves upward — what the lossy ground
+absorbs never comes back — so the shortfall from 100% is structural loss
+plus real ground absorption, exactly like NEC's average-gain value over
+real ground (hover the readout for the raw Δ dB). The same number fills
+the [power budget](#power-budget)'s **radiated (incl. ground)** row, so
+it follows you to every view. It's still a mesh check: what should be
+small is how much the reading *moves* as you add segments, and switching
+the ground to PEC (or off) should send it back toward ~100% (Δ 0 dB).
 
 ## Copying params back to code
 

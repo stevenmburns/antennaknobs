@@ -660,7 +660,10 @@ def cli(arguments=None):
                 p_network += w
                 print(f"  {label}: {w * 1e3:.4g} mW ({w / p_in:.1%})")
             p_ant = p_in - p_network
-            print(f"  antenna (radiated): {p_ant * 1e3:.4g} mW ({p_ant / p_in:.1%})")
+            # "accepted", not "radiated": this is the structural remainder
+            # that reaches the wires — over a real ground the far field gets
+            # less (see far_field.radiated_fraction, the third ledger).
+            print(f"  antenna (accepted): {p_ant * 1e3:.4g} mW ({p_ant / p_in:.1%})")
 
     p.set_defaults(func=f)
 
