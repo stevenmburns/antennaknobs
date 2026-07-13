@@ -187,8 +187,20 @@ type ExampleDescriptor = {
   layout?: { columns?: number | null } | null;
 };
 
-// A user design that failed to load, reported by GET /examples.
-type DesignLoadError = { name: string; file: string; message: string };
+// One advisory finding from the design screener (what a design does that a
+// typical one doesn't), attached to a trust-required entry.
+type DesignAdvisory = { severity: string; message: string; line: number };
+
+// A user design reported by GET /examples that didn't register. Either a real
+// load error (bad Python), or — when `trust_required` — a design that loaded
+// fine but hasn't been trusted to run yet, carrying its screener `advisory`.
+type DesignLoadError = {
+  name: string;
+  file: string;
+  message: string;
+  trust_required?: boolean;
+  advisory?: DesignAdvisory[];
+};
 
 // Design names are `family.design` (e.g. "dipoles.invvee"). The selector
 // groups by that family prefix; this fixes display order + labels and keeps
@@ -611,6 +623,109 @@ function Knob({
             </>
           )}
         </svg>
+      )}
+    </div>
+  );
+}
+
+// Designs that loaded clean but haven't been trusted to run yet. A user design
+// is a Python program that runs with your privileges, so it executes only once
+// you trust it (see design_trust.py). This panel is collapsed to one line by
+// default — click a design to see what it does (the screener advisory) and to
+// trust it. Enforcement happens at scan time (untrusted files are never
+// executed); this is just where you make the decision, per design.
+function AwaitingTrustPanel({
+  designs,
+  busy,
+  onTrust,
+}: {
+  designs: DesignLoadError[];
+  busy: string | null;
+  onTrust: (stem: string, allowEdits: boolean) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [openName, setOpenName] = useState<string | null>(null);
+  const n = designs.length;
+  return (
+    <div className="design-trust-panel">
+      <button
+        className="design-trust-summary"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="design-trust-lock" aria-hidden="true">
+          🔒
+        </span>
+        {n} design{n === 1 ? " needs" : "s need"} your OK to run
+        <span className="design-trust-caret" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
+      </button>
+      {expanded && (
+        <ul className="design-trust-list">
+          {designs.map((d) => {
+            const open = openName === d.name;
+            const isBusy = busy === d.name;
+            return (
+              <li key={d.name} className="design-trust-item">
+                <button
+                  className="design-trust-item-head"
+                  aria-expanded={open}
+                  onClick={() => setOpenName(open ? null : d.name)}
+                >
+                  <code>{d.name}</code>
+                  <span className="design-trust-caret" aria-hidden="true">
+                    {open ? "▾" : "▸"}
+                  </span>
+                </button>
+                {open && (
+                  <div className="design-trust-detail">
+                    {d.advisory && d.advisory.length > 0 ? (
+                      <>
+                        <div className="design-trust-advisory-head">
+                          Heads up — this design does things a normal antenna
+                          design doesn&apos;t. Look before you let it run:
+                        </div>
+                        <ul className="design-trust-advisory">
+                          {d.advisory.map((a, i) => (
+                            <li key={i} className={`sev-${a.severity}`}>
+                              line {a.line}: {a.message}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <div className="design-trust-advisory-head">
+                        Nothing unusual — it only builds antenna geometry.
+                      </div>
+                    )}
+                    <div className="design-trust-actions">
+                      <button
+                        className="design-trust-btn"
+                        disabled={isBusy}
+                        onClick={() => onTrust(d.name, false)}
+                      >
+                        Allow it to run
+                      </button>
+                      <button
+                        className="design-trust-btn is-edits"
+                        disabled={isBusy}
+                        onClick={() => onTrust(d.name, true)}
+                        title="For a design you're writing yourself — won't ask again when you save changes"
+                      >
+                        Allow + my edits
+                      </button>
+                    </div>
+                    <div className="design-trust-note">
+                      A design is a small program that runs on your computer.
+                      Only allow ones from people you trust.
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
@@ -2103,34 +2218,61 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/examples")
-      .then((r) => r.json())
-      .then((j) => {
-        if (cancelled) return;
-        const list: ExampleDescriptor[] = j.examples ?? [];
-        setExamples(list);
-        setExamplesError(null);
-        setLoadErrors(Array.isArray(j.errors) ? j.errors : []);
-        // Walk each example's schema and pre-seed defaults — including
-        // pre-allocated group instance arrays — so the sliders have
-        // something to render against on first show.
-        setParamValues((prev) => {
-          const next = { ...prev };
-          for (const ex of list) {
-            if (next[ex.name]) continue;
-            next[ex.name] = seedDefaults(ex.param_schema);
-          }
-          return next;
-        });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setExamplesError(String(e?.message ?? e));
+  // Load (or reload) the design catalog. Extracted so a trust action can
+  // re-fetch it — trusting a design registers it server-side, and re-fetching
+  // moves it out of the "awaiting trust" list into the selector.
+  const loadExamples = useCallback(async () => {
+    try {
+      const j = await (await fetch("/examples")).json();
+      const list: ExampleDescriptor[] = j.examples ?? [];
+      setExamples(list);
+      setExamplesError(null);
+      setLoadErrors(Array.isArray(j.errors) ? j.errors : []);
+      // Walk each example's schema and pre-seed defaults — including
+      // pre-allocated group instance arrays — so the sliders have
+      // something to render against on first show.
+      setParamValues((prev) => {
+        const next = { ...prev };
+        for (const ex of list) {
+          if (next[ex.name]) continue;
+          next[ex.name] = seedDefaults(ex.param_schema);
+        }
+        return next;
       });
-    return () => { cancelled = true; };
+    } catch (e: unknown) {
+      setExamplesError(String((e as Error)?.message ?? e));
+    }
   }, []);
+
+  useEffect(() => {
+    loadExamples();
+  }, [loadExamples]);
+
+  // Trust a user design from the UI (local-only; the backend refuses when
+  // hosted). `stem` is the design name (e.g. "user.my_dipole"); `allowEdits`
+  // trusts future edits too (path-level, for a design you author).
+  const [trustBusy, setTrustBusy] = useState<string | null>(null);
+  const trustDesign = useCallback(
+    async (stem: string, allowEdits: boolean) => {
+      setTrustBusy(stem);
+      try {
+        const r = await fetch("/trust", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stem, allow_edits: allowEdits }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setExamplesError(`Trust failed: ${j.detail ?? r.status}`);
+          return;
+        }
+        await loadExamples();
+      } finally {
+        setTrustBusy(null);
+      }
+    },
+    [loadExamples],
+  );
 
   // Auto-select a sensible default once /examples resolves, and recover if
   // the current selection disappears (e.g. backend dropped an example).
@@ -4156,23 +4298,40 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             Failed to load /examples: {examplesError}
           </div>
         )}
-        {loadErrors.length > 0 && (
+        {loadErrors.some((e) => e.trust_required) && (
+          <AwaitingTrustPanel
+            designs={loadErrors.filter((e) => e.trust_required)}
+            busy={trustBusy}
+            onTrust={trustDesign}
+          />
+        )}
+        {loadErrors.some((e) => !e.trust_required) && (
           <div className="design-load-errors" role="alert">
-            <div className="design-load-errors-title">
-              {loadErrors.length} design
-              {loadErrors.length === 1 ? "" : "s"} failed to load
-            </div>
-            <ul>
-              {loadErrors.map((err) => (
-                <li key={err.name}>
-                  <code>{err.name}</code> — {err.message}
-                  <span className="design-load-errors-file">{err.file}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="design-load-errors-hint">
-              Fix the file and refresh. See CLAUDE.md in your designs folder.
-            </div>
+            {(() => {
+              const errs = loadErrors.filter((e) => !e.trust_required);
+              return (
+                <>
+                  <div className="design-load-errors-title">
+                    {errs.length} design{errs.length === 1 ? "" : "s"} failed to
+                    load
+                  </div>
+                  <ul>
+                    {errs.map((err) => (
+                      <li key={err.name}>
+                        <code>{err.name}</code> — {err.message}
+                        <span className="design-load-errors-file">
+                          {err.file}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="design-load-errors-hint">
+                    Fix the file and refresh. See CLAUDE.md in your designs
+                    folder.
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 

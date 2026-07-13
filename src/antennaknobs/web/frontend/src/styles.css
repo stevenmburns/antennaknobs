@@ -877,6 +877,114 @@ button:focus-visible,
   font-size: var(--text-xs);
 }
 
+/* Designs awaiting trust — an accent "action needed" panel, distinct from the
+   red load-error panel. Collapsed to one line by default. */
+.design-trust-panel {
+  margin: var(--space-4) 0;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  font-size: var(--text-sm);
+}
+
+.design-trust-summary,
+.design-trust-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.design-trust-caret {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.design-trust-list {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2);
+  list-style: none;
+}
+
+.design-trust-item {
+  border-top: 1px solid var(--accent-border);
+}
+
+.design-trust-item-head {
+  font-weight: 500;
+  padding: var(--space-2) var(--space-2);
+}
+
+.design-trust-item-head code {
+  font-family: var(--font-mono);
+}
+
+.design-trust-detail {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.design-trust-advisory-head {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin-bottom: var(--space-2);
+}
+
+.design-trust-advisory {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.design-trust-advisory .sev-high {
+  color: var(--danger);
+}
+
+.design-trust-advisory .sev-medium {
+  color: var(--muted);
+}
+
+.design-trust-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.design-trust-btn {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.design-trust-btn.is-edits {
+  background: transparent;
+  color: var(--accent);
+}
+
+.design-trust-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.design-trust-note {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 .solve-error {
   display: flex;
   flex-direction: column;

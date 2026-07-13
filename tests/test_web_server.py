@@ -236,6 +236,86 @@ def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
         assert not missing, f"{ex['name']}: missing keys {missing}"
 
 
+# ---------------------------------------------------------------------------
+# /trust + /untrust — in-UI trust for user designs
+# ---------------------------------------------------------------------------
+
+_TRUST_DESIGN = """
+from types import MappingProxyType
+from antennaknobs import AntennaBuilder
+
+class Builder(AntennaBuilder):
+    default_params = MappingProxyType({"freq": 14.0, "half_length": 5.0})
+
+    def build_wires(self):
+        h = self.half_length
+        n = self.nominal_nsegs
+        return [
+            ((0.0, -h, 0.0), (0.0, -0.01, 0.0), n, None),
+            ((0.0, 0.01, 0.0), (0.0, h, 0.0), n, None),
+            ((0.0, -0.01, 0.0), (0.0, 0.01, 0.0), 1, 1 + 0j),
+        ]
+"""
+
+
+@pytest.fixture
+def gated_userdir(client, tmp_path, monkeypatch):
+    """A fresh user dir with the trust gate ACTIVE (blanket-trust off) and the
+    instance treated as local (not hosted). Cleans up REGISTRY after."""
+    monkeypatch.setenv("ANTENNAKNOBS_USER_DIR", str(tmp_path))
+    monkeypatch.delenv("ANTENNAKNOBS_TRUST_USER_DESIGNS", raising=False)
+    monkeypatch.delenv("ANTENNAKNOBS_TRUST_FILE", raising=False)
+    monkeypatch.setattr(server, "_HOSTED", False)
+    yield tmp_path
+    for k in [k for k in REGISTRY if k.startswith("user.")]:
+        del REGISTRY[k]
+
+
+def test_untrusted_design_surfaces_with_advisory(client, gated_userdir):
+    (gated_userdir / "webby.py").write_text(
+        _TRUST_DESIGN.replace(
+            "from antennaknobs import AntennaBuilder",
+            "from antennaknobs import AntennaBuilder\nimport socket",
+        )
+    )
+    errs = {e["name"]: e for e in client.get("/examples").json()["errors"]}
+    assert errs["user.webby"]["trust_required"] is True
+    assert any("socket" in a["message"] for a in errs["user.webby"]["advisory"])
+    assert "user.webby" not in {
+        e["name"] for e in client.get("/examples").json()["examples"]
+    }
+
+
+def test_trust_endpoint_registers_design(client, gated_userdir):
+    (gated_userdir / "webby.py").write_text(_TRUST_DESIGN)
+    r = client.post("/trust", json={"stem": "user.webby"})
+    assert r.status_code == 200 and r.json()["mode"] == "pinned"
+    assert "user.webby" in {
+        e["name"] for e in client.get("/examples").json()["examples"]
+    }
+
+
+def test_trust_edits_mode_and_untrust(client, gated_userdir):
+    from antennaknobs import design_trust
+
+    (gated_userdir / "webby.py").write_text(_TRUST_DESIGN)
+    client.post("/trust", json={"stem": "webby", "allow_edits": True})
+    assert design_trust.trust_status(gated_userdir / "webby.py") == "always"
+    r = client.post("/untrust", json={"stem": "webby"})
+    assert r.status_code == 200 and r.json()["removed"] is True
+    assert design_trust.trust_status(gated_userdir / "webby.py") == "none"
+
+
+def test_trust_unknown_design_404(client, gated_userdir):
+    assert client.post("/trust", json={"stem": "ghost"}).status_code == 404
+
+
+def test_trust_refused_when_hosted(client, monkeypatch):
+    monkeypatch.setattr(server, "_HOSTED", True)
+    assert client.post("/trust", json={"stem": "whatever"}).status_code == 403
+    assert client.post("/untrust", json={"stem": "whatever"}).status_code == 403
+
+
 def test_examples_serialize_param_groups_with_kind_group(client: TestClient):
     # fandipole is the canonical group-bearing geometry — its `bands`
     # ParamGroupSpec must round-trip with kind="group" so the frontend's

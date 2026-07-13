@@ -1290,6 +1290,60 @@ def examples_endpoint():
     return {"examples": out, "errors": load_errors}
 
 
+def _resolve_user_design_path(stem: str):
+    """A ``user.<stem>`` or ``<stem>`` name → the backing user-design file, or
+    None. Trusting is a local, single-user action; the shared hosted instance
+    never runs user code, so the endpoints below refuse when hosted."""
+    from antennaknobs.user_designs import USER_NS, find_design_file
+
+    stem = stem or ""
+    if stem.startswith(f"{USER_NS}."):
+        stem = stem[len(USER_NS) + 1 :]
+    return find_design_file(stem)
+
+
+@app.post("/trust")
+def trust_endpoint(req: dict):
+    """Trust a user design so it will load. `mode` is "pinned" (this exact
+    version, the default) or "always" (this file + future edits, for a design
+    the user authored). Local-only: refused on the hosted instance."""
+    if _HOSTED:
+        raise HTTPException(
+            status_code=403,
+            detail="trusting user designs is disabled on the hosted instance",
+        )
+    from antennaknobs import design_trust
+
+    stem = req.get("stem", "")
+    path = _resolve_user_design_path(stem)
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"no such user design: {stem!r}")
+    mode = "always" if req.get("allow_edits") else "pinned"
+    design_trust.trust(path, mode=mode)
+    # Register it now so the caller can re-fetch /examples and see it live.
+    user_designs.refresh()
+    return {"ok": True, "stem": path.stem, "mode": mode}
+
+
+@app.post("/untrust")
+def untrust_endpoint(req: dict):
+    """Revoke trust for a user design so it stops loading. Local-only."""
+    if _HOSTED:
+        raise HTTPException(
+            status_code=403,
+            detail="trusting user designs is disabled on the hosted instance",
+        )
+    from antennaknobs import design_trust
+
+    stem = req.get("stem", "")
+    path = _resolve_user_design_path(stem)
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"no such user design: {stem!r}")
+    removed = design_trust.untrust(path)
+    user_designs.refresh()
+    return {"ok": True, "stem": path.stem, "removed": removed}
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     # Latest-wins mailbox. A dedicated reader task drains the socket into a
