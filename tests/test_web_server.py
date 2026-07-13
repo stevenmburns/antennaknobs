@@ -2196,6 +2196,88 @@ def test_local_model_options_forward_verbatim():
         adapter.sanitize_model_options({"model_options": "junk"})
 
 
+# ---------------------------------------------------------------------------
+# Numeric input validation at the physics boundary (issue #347). stdlib json
+# accepts NaN/Infinity literals and nothing floored the physics inputs, so a
+# zero/non-finite freq or radius reached the solver as a ZeroDivisionError /
+# NaN matrix. /geometry exercises the same _build_builder + engine path as the
+# solves, without the cost of one.
+# ---------------------------------------------------------------------------
+
+
+def _post_raw(client, path: str, payload: dict):
+    # stdlib json.dumps emits bare NaN/Infinity literals (allow_nan=True is
+    # the default) — the exact wire form the attack uses; httpx's json= kwarg
+    # refuses to serialize them.
+    return client.post(
+        path,
+        content=json.dumps(payload),
+        headers={"content-type": "application/json"},
+    )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("design_freq_mhz", 0),
+        ("design_freq_mhz", float("nan")),
+        ("measurement_freq_mhz", float("inf")),
+        ("wire_radius", 0),
+        ("wire_radius", -0.001),
+    ],
+)
+def test_geometry_rejects_bad_physics_scalar(client, field, value):
+    resp = _post_raw(client, "/geometry", {"geometry": "dipoles.invvee", field: value})
+    assert resp.status_code == 200  # error payload for the UI banner, not a 500
+    body = resp.json()
+    assert field in body["error"]
+    assert "positive, finite" in body["error"]
+
+
+def test_geometry_rejects_non_finite_knob_value(client):
+    resp = _post_raw(
+        client,
+        "/geometry",
+        {"geometry": "dipoles.invvee", "length_factor": float("nan")},
+    )
+    assert "length_factor" in resp.json()["error"]
+
+
+def test_geometry_rejects_non_positive_n_per_wire(client):
+    resp = client.post("/geometry", json={"geometry": "dipoles.invvee", "n_per_wire": 0})
+    assert "n_per_wire" in resp.json()["error"]
+
+
+def test_sweep_rejects_non_finite_freqs(client):
+    resp = _post_raw(
+        client,
+        "/sweep",
+        {"geometry": "dipoles.invvee", "freqs_mhz": [14.0, float("nan")]},
+    )
+    assert resp.status_code == 422
+    resp = client.post(
+        "/sweep", json={"geometry": "dipoles.invvee", "freqs_mhz": ["abc"]}
+    )
+    assert resp.status_code == 422
+
+
+def test_converge_rejects_non_numeric_n_values(client):
+    resp = client.post(
+        "/converge", json={"geometry": "dipoles.invvee", "n_values": ["abc"]}
+    )
+    assert resp.status_code == 422
+
+
+def test_positive_finite_helper():
+    from antennaknobs.web.adapter import _positive_finite
+
+    assert _positive_finite("x", 14.1) == 14.1
+    assert _positive_finite("x", "14.1") == 14.1  # numeric strings are fine
+    for bad in (0, -1, float("nan"), float("inf"), None, "abc", [1]):
+        with pytest.raises(ValueError, match="x must be"):
+            _positive_finite("x", bad)
+
+
 def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
     """Web ground parity: with the plain B-spline solver the default
     "sommerfeld" ground model drives momwire's TRUE Sommerfeld solve

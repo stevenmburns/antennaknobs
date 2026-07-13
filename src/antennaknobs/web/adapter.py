@@ -245,6 +245,24 @@ def sanitize_model_options(req: dict) -> dict | None:
     return out or None
 
 
+def _positive_finite(name: str, value) -> float:
+    """Validate a client-supplied physics scalar: a number, finite, > 0.
+
+    Client JSON reaches the solvers unvalidated and stdlib json.loads accepts
+    NaN/Infinity literals, so this is the physics boundary's input check
+    (issue #347): a zero frequency divides C_LIGHT by zero, a zero wire
+    radius makes the MoM log-kernel singular, and non-finite values poison
+    the matrices with an opaque solver error.
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a number (got {value!r})") from None
+    if not math.isfinite(v) or v <= 0.0:
+        raise ValueError(f"{name} must be a positive, finite number (got {value!r})")
+    return v
+
+
 # ---------------------------------------------------------------------------
 # Schema derivation
 # ---------------------------------------------------------------------------
@@ -595,6 +613,16 @@ def _build_builder(cls, req: dict):
             base[k] = _rehydrate_param(base[k], req[k])
         elif k in nested:
             base[k] = _rehydrate_param(base[k], nested[k])
+    # The defaults are all finite, so this only fires on a client-sent value —
+    # stdlib json accepts NaN/Infinity literals and a non-finite knob would
+    # otherwise surface as an opaque solver error (issue #347).
+    for k, v in base.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ValueError(f"parameter {k!r} must be finite (got {v!r})")
+        if isinstance(v, complex) and not (
+            math.isfinite(v.real) and math.isfinite(v.imag)
+        ):
+            raise ValueError(f"parameter {k!r} must be finite (got {v!r})")
     builder = cls(params=base)
     # n_per_wire drives the per-Builder nominal_nsegs (the convergence
     # sweep at /converge overrides this value per N). Each generator
@@ -602,7 +630,15 @@ def _build_builder(cls, req: dict):
     # fixed (feed gaps). See AntennaBuilder.FRAMEWORK_PARAMS.
     n_per_wire = req.get("n_per_wire")
     if n_per_wire is not None:
-        builder.nominal_nsegs = int(n_per_wire)
+        try:
+            n = int(n_per_wire)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(
+                f"n_per_wire must be an integer (got {n_per_wire!r})"
+            ) from None
+        if n < 1:
+            raise ValueError(f"n_per_wire must be >= 1 (got {n})")
+        builder.nominal_nsegs = n
     return builder
 
 
@@ -696,7 +732,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     # names (a stale client may still send "triangular").
     model = req.get("momwire_model", "bspline")
     solver_cls = _MOMWIRE_MODELS.get(model, BSplineSolver)
-    wire_radius = float(req.get("wire_radius", 0.0005))
+    wire_radius = _positive_finite("wire_radius", req.get("wire_radius", 0.0005))
     ground = _ground_for_engine(req, 0.0)
     solver_kwargs = sanitize_model_options(req)
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
@@ -1269,6 +1305,19 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         vp = _variant_params(cls, req.get("variant"))
         return float(vp.get("freq", 14.0))
 
+    def _req_freqs(req: dict) -> tuple[float, float]:
+        # One validated (design_freq, meas_freq) pair for every solve-forming
+        # closure below — the request values are client JSON and must be
+        # positive and finite before they reach a wavelength division or the
+        # MoM kernel (issue #347).
+        design_freq = _positive_finite(
+            "design_freq_mhz", req.get("design_freq_mhz", _design_freq_default(req))
+        )
+        meas_freq = _positive_finite(
+            "measurement_freq_mhz", req.get("measurement_freq_mhz", design_freq)
+        )
+        return design_freq, meas_freq
+
     def count_basis(req: dict):
         """Total wire segments (≈ MoM basis functions, the N×N matrix dim) the
         request would build. Geometry-only (cheap) — runs build_wires but no
@@ -1281,8 +1330,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             return None
 
     def momwire_solve(req: dict, cancel=None) -> dict:
-        design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
-        meas_freq = float(req.get("measurement_freq_mhz", design_freq))
+        design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         # For design_freq-sized designs the geometry computes from
@@ -1385,8 +1433,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # waiting tens of seconds for the MoM solve. Mirrors momwire_solve's
         # builder setup but returns zero currents and omits impedance / far
         # field (the live solve fills those in).
-        design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
-        meas_freq = float(req.get("measurement_freq_mhz", design_freq))
+        design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         if has_design_freq:
@@ -1437,8 +1484,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         #   _engine      — keep the PyNECEngine alive so the
         #                  underlying nec_context isn't released
         #                  before rp_card runs
-        design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
-        meas_freq = float(req.get("measurement_freq_mhz", design_freq))
+        design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         if has_design_freq:
@@ -1473,8 +1519,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # shape is identical so the frontend renders the result the
         # same way; the `solver` field gets stamped to "pynec" by
         # server.solve()'s outer wrapper.
-        design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
-        meas_freq = float(req.get("measurement_freq_mhz", design_freq))
+        design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         if has_design_freq:
@@ -1599,8 +1644,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # the client-derived lobe on screen), then summarises the full grid.
         from antennaknobs.far_field import pattern_metrics
 
-        design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
-        meas_freq = float(req.get("measurement_freq_mhz", design_freq))
+        design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         if has_design_freq:
@@ -1617,8 +1661,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # downloaded deck matches the antenna the user is viewing.
         from antennaknobs.nec_export import export_nec as _export_nec
 
-        design_freq = float(req.get("design_freq_mhz", _design_freq_default(req)))
-        meas_freq = float(req.get("measurement_freq_mhz", design_freq))
+        design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         if has_design_freq:
@@ -1635,9 +1678,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # design_freq so the sweep sees the same antenna the live
         # solve sees. See momwire_solve for the rationale.
         if has_design_freq:
-            builder.design_freq = float(
-                req.get("design_freq_mhz", _design_freq_default(req))
-            )
+            builder.design_freq = _req_freqs(req)[0]
         eng = _make_momwire_engine(req, builder)
         zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)))
         # Open-circuited points sweep through as inf; clamp for JSON.
