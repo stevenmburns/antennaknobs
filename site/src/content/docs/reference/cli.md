@@ -39,6 +39,25 @@ Useful `pattern` flags: `--fn out.png` (write to a file instead of the screen),
 `--ground free|pec|finite|finite:<eps_r>,<sigma>`, `--wireframe`, and
 `--elevation_angle`.
 
+## Sweeps
+
+`sweep` plots impedance against measurement frequency by default; `--param
+<knob>` sweeps any named knob instead. Add `--swr` to plot the curve as SWR
+(against a 50 Ω reference by default, `--z0` to change it):
+
+```bash
+# SWR across the band
+python -m antennaknobs sweep --builder dipoles.invvee --swr
+# how SWR responds to the droop angle, at a fixed frequency
+python -m antennaknobs sweep --builder dipoles.invvee --swr --param angle_deg
+```
+
+Frequency sweeps use the vectorized impedance sweep (one geometry, many
+frequencies), so they are much faster than scripting one solve per point.
+Note that knob sweeps in **free space** can be perfectly flat by design —
+translation-invariant knobs like a height `base` only matter over a ground
+(`--ground finite`).
+
 ## Choosing an engine
 
 The `--engine` flag selects the solver:

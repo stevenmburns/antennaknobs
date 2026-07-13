@@ -25,21 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.24.0" icon="star">
-  **The POTA antenna, complete.** The new
-  [`wire.efhw_sloper`](/advanced/efhw/) showcase models the classic
-  end-fed half-wave with nothing idealized: a real **49:1 unun** (ratio
-  dropdown, magnetizing branch with core loss, compensation cap), a
-  **counterpoise that actually matters**, real coax, and real thin wire
-  — and the power budget answers the eternal question *where do the
-  watts go in a 49:1?* (Spoiler: the 28 AWG wire burns six times what
-  the ferrite does.) Under the hood, **every solver now carries the
-  real-wire model**: the sinusoidal (NEC-parity) basis models
-  skin-effect loss and insulation via NEC's own loading scheme
-  (momwire 0.11.0), and the NEC engine gains the insulated-wire
-  velocity factor as a distributed `LD 2` card — the two engines agree
-  on a PVC dipole's resonance shift to ~1 %, with nothing dropped on
-  either side.
+<Card title="New in v0.25.0" icon="star">
+  **Three ledgers of efficiency.** Three new showcase verticals
+  independently duplicate the published claims for KJ6ER's POTA
+  antennas — [`verticals.pota_performer`, `challenger`, and
+  `dominator`](/advanced/pota-performer/) — and the modeling arrives
+  with an honest accounting: "over 90% efficient" and "~30% radiated"
+  are **both true, in different ledgers**, and the difference is the
+  ground absorption nobody's efficiency figure counts. The new
+  `far_field.radiated_fraction` helper reads the third ledger off any
+  pattern, and the workbench now shows it **live**: a dwell-filled
+  **radiated (incl. ground)** row in the
+  [solve readout](/reference/web/#power-budget), derived from the
+  norm check at zero cost to knob dragging. Also new: the CLI draws
+  its **own Smith chart** (scikit-rf dependency dropped), every chart
+  gets a version brand and a style pass, `sweep --swr` plots SWR
+  against *any* knob, and the EFHW sloper gains a
+  [40 m NVIS variant](/advanced/efhw/).
   [All release notes →](/reference/releases/)
 </Card>
 
