@@ -153,6 +153,13 @@ was actually used, and over a finite ground the
 **radiated** percentage — the share of your input power that actually
 leaves as sky wave. The rest is absorbed power, not error.
 
+A wire that ends at exactly z = 0 **connects to the ground plane** — the
+return path a design like `wire.terminated_longwire` (fed and terminated
+against ground through its vertical legs) depends on. NEC-2 makes that
+connection physical over **PEC** ground only (finite-ground contact is a
+NEC-4 feature), so solve ground-connected designs with PEC selected;
+elevated designs are unaffected.
+
 ## Power budget
 
 Designs with a lossy feed network — a real coax or ladder-line run, a
