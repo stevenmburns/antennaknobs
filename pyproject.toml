@@ -60,7 +60,11 @@ dependencies = [
 #   - psutil powers _physical_cpu_count() in antennaknobs.web.server — portable across
 #     Windows/macOS/Linux. Falls back to os.cpu_count() if missing, which
 #     misfires on chips without HT (pins to half the actual cores).
-web = ["fastapi", "uvicorn[standard]", "websockets", "psutil"]
+#   - threadpoolctl sizes the BLAS/OpenMP pools at runtime in
+#     antennaknobs.web.server — env vars are snapshotted by each library at
+#     import time, which happens (via antennaknobs/__init__) before server.py
+#     can set them (issue #377).
+web = ["fastapi", "uvicorn[standard]", "websockets", "psutil", "threadpoolctl"]
 
 # Test suite: `pip install -e ".[test]"` makes `pytest` reproducible from a
 # clean clone (the runtime deps in [project] cover the numpy/scipy/matplotlib

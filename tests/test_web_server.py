@@ -45,6 +45,32 @@ def test_physical_cpu_count_is_positive():
     assert server._physical_cpu_count() >= 1
 
 
+def test_thread_pools_sized_to_physical_cores():
+    """Importing the server must actually resize the BLAS/OpenMP pools.
+
+    Regression test for issue #377: env vars set in server.py never took
+    effect because antennaknobs/__init__ imports numpy (and friends) before
+    server.py's module body runs, so every pool had already snapshotted the
+    env. The runtime threadpoolctl call is immune to import order — assert
+    the pools really report the configured size, whatever machine this runs
+    on (env overrides included, mirroring server.py's own logic).
+    """
+    import os
+
+    from threadpoolctl import threadpool_info
+
+    expected = {
+        "blas": int(os.environ.get("OPENBLAS_NUM_THREADS", server._NPROC)),
+        "openmp": int(os.environ.get("OMP_NUM_THREADS", server._NPROC)),
+    }
+    pools = threadpool_info()
+    assert pools, "no BLAS/OpenMP pools found — did the solver stack change?"
+    for pool in pools:
+        want = expected.get(pool["user_api"])
+        if want is not None:
+            assert pool["num_threads"] == want, pool["filepath"]
+
+
 def test_polyline_knots_dedup_shared_corners():
     poly = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]])
     knots = server._polyline_knots(poly, [2, 3])

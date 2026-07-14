@@ -71,6 +71,12 @@ uvicorn antennaknobs.web.server:app      # open http://127.0.0.1:8000
 The backend serves the UI at `/` and the JSON/`/ws` API on the same origin;
 `/docs` is the interactive API explorer.
 
+Optional, multi-core boxes: prefix the command with
+`OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0` to park idle solver threads between
+solves (~15% lower knob-drag latency). These are read once at process start,
+so they only work as launch env — everything else about threading the server
+configures itself.
+
 **Development (two terminals, hot-reload).** When editing the frontend, run the
 Vite dev server alongside the backend so you get HMR:
 

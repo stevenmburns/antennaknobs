@@ -9,38 +9,36 @@ The response shape is uniform across geometries — each wire is a sequence of
 knots with per-knot complex currents and the feed lives on one of the wires —
 so the frontend draws every geometry the same way.
 
-Run: uvicorn antennaknobs.web.server:app --reload
-(needs uvicorn[standard] — /ws is a WebSocket upgrade.)
+Run: OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 uvicorn antennaknobs.web.server:app --reload
+(needs uvicorn[standard] — /ws is a WebSocket upgrade. The env prefix parks
+idle OMP workers between solves — see the thread-policy block below; the
+server works without it at ~15% higher interactive-solve latency.)
 """
 
 from __future__ import annotations
 
-# Configure BLAS/OpenMP thread counts BEFORE numpy/scipy/PyNEC import — each
-# library snapshots the env at its own import time and ignores later changes.
-#
-# OPENBLAS_NUM_THREADS=1: numpy/scipy bring their own OpenBLAS thread pool
-#   that sits idle most of the request lifetime but contends with PyNEC's
-#   MKL/OpenBLAS-LAPACKE pool for cores. vtune confirmed this was costing
-#   ~8% wall time at NP=4 on the gather-scatter fill.
-#
-# OMP_NUM_THREADS / MKL_NUM_THREADS: with the gather-scatter matrix fill
-#   (see PR #21) the per-source parallel-for inside cmset() and MKL/OpenBLAS'
-#   zgetrf both want available cores. Default to the physical-core count
-#   (not logical / HT count) — see _physical_cpu_count(); the FP-vector-
-#   saturated quadrature inner loops gain nothing from HT siblings and
-#   actually slow down ~15% from execution-unit contention on KBL-class
-#   chips. An operator can override via the env to share with other
-#   workloads on the same host.
-#
-# Older comment explaining why we used to pin everything to 1: the interactive
-# workload is many small solves (≤ 250×250 dense complex matrices), and on
-# the pre-gather-scatter code path thread orchestration costs dwarfed the
-# per-call work — a 2-director live solve went from 220 ms (8 threads) to
-# 67 ms (1 thread) on an 8-core box. That regression is no longer reproducible
-# with the current build: matrix fill itself parallelizes, the OMP team is
-# spawned once per cmset(), and OpenBLAS contention is removed by the
-# OPENBLAS_NUM_THREADS=1 pin above.
+import asyncio
+import hashlib
+import json
+import math
 import os
+import time
+from collections import OrderedDict
+from copy import deepcopy
+from pathlib import Path
+
+import momwire
+import numpy as np
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.websockets import WebSocketState
+from threadpoolctl import threadpool_limits
+
+from . import pynec_backend, user_designs
+from .examples import REGISTRY as EXAMPLES
 
 
 def _physical_cpu_count() -> int:
@@ -68,44 +66,50 @@ def _physical_cpu_count() -> int:
     return max(1, os.cpu_count() or 1)
 
 
-_NPROC = str(_physical_cpu_count())
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-os.environ.setdefault("OMP_NUM_THREADS", _NPROC)
-os.environ.setdefault("MKL_NUM_THREADS", _NPROC)
-# Between OMP parallel regions the workers default to busy-spinning on the
-# team barrier (GOMP_SPINCOUNT ~300k, ~80 ms on KBL). Each momwire solve runs
-# only ~1 ms of C++ kernel then ~10–20 ms of Python serial work (basis-coef
-# build, sparse matmul, LU solve); the workers spin through all of that
-# Python time on every solve. On the N=21 hentenna width-sweep harness
-# (`scripts/vtune_hentenna_width_sweep.py`) VTune attributed ~63% of sin's
-# CPU and ~32% of pynec's CPU to `libgomp` barrier-wait under this default.
-# Make workers park immediately so the spin time goes away — wall-clock
-# drops ~4× on both solvers at N=21 (sin 78 → 19 ms/step, pynec 67 → 9 ms).
-os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
-os.environ.setdefault("GOMP_SPINCOUNT", "0")
-
-# ruff: noqa: E402 — imports below must follow the env-var setup above so
-# OpenBLAS picks up the thread count at its own import time.
-import asyncio
-import hashlib
-import json
-import math
-import time
-from collections import OrderedDict
-from copy import deepcopy
-from pathlib import Path
-
-import momwire
-import numpy as np
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.concurrency import run_in_threadpool
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.websockets import WebSocketState
-
-from . import pynec_backend, user_designs
-from .examples import REGISTRY as EXAMPLES
+# BLAS/OpenMP thread policy — applied at RUNTIME via threadpoolctl, not env.
+#
+# This block used to set OPENBLAS_NUM_THREADS / OMP_NUM_THREADS etc. before
+# the heavy imports, but that never worked in a served process: importing
+# `antennaknobs.web.server` executes `antennaknobs/__init__` first, which
+# already pulls in numpy/scipy/PyNEC/libgomp — every pool snapshots the env
+# before this module's body runs (issue #377 post-mortem; small solves were
+# 5–7× slower than the config intended). threadpoolctl talks to the already-
+# loaded pools directly, so it is immune to import order.
+#
+# The whole stack is OpenBLAS: numpy, scipy, and PyNEC each bundle their own
+# copy (numpy.libs / scipy.libs / pynec_accel.libs — inspect with
+# threadpoolctl.threadpool_info()); nothing links MKL. A solve has two
+# core-hungry phases that run sequentially, so both get the physical-core
+# count without oversubscribing:
+#   - matrix fill: the per-source OMP parallel-for inside cmset() (libgomp,
+#     see PR #21), and
+#   - LU factorization: scipy zgesv (momwire) / LAPACKE zgetrf (pynec_accel),
+#     both OpenBLAS-backed — the dominant O(N³) phase of large solves.
+#
+# Physical cores, not 1 and not the logical count:
+#   - An older OPENBLAS_NUM_THREADS=1 pin predates PyNEC bundling OpenBLAS
+#     (its factorization stayed parallel via MKL back then); with the current
+#     stack it would serialize the LU phase of every big solve — the pin vs
+#     NPROC is 2.3× on pynec (12.8 → 5.5 s) and 1.6× on bspline (7.3 →
+#     4.6 s) at ~4000 basis on a 4C/8T box (issue #377).
+#   - The FP-vector-saturated quadrature inner loops gain nothing from HT
+#     siblings and lose ~15% to execution-unit contention on KBL-class
+#     chips — see _physical_cpu_count().
+#
+# Operators can still override per-pool via the usual env vars (honored by
+# the libraries at load AND respected here). Two knobs remain env-only —
+# libgomp reads them once at load, before any Python code can run, so they
+# must be set in the launch environment (the Dockerfile CMD does; for local
+# runs see the docstring): OMP_WAIT_POLICY=PASSIVE + GOMP_SPINCOUNT=0 park
+# idle OMP workers instead of busy-spinning through each solve's Python
+# phases (~13–20% off small-solve latency, hentenna N=21).
+_NPROC = _physical_cpu_count()
+threadpool_limits(
+    limits={
+        "blas": int(os.environ.get("OPENBLAS_NUM_THREADS", _NPROC)),
+        "openmp": int(os.environ.get("OMP_NUM_THREADS", _NPROC)),
+    }
+)
 
 # Scaffold the user-design folder (TEMPLATE.py + CLAUDE.md on first run) and
 # load any existing user designs into the registry at startup. They are also
