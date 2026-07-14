@@ -1551,6 +1551,148 @@ def test_rad_is_a_closed_right_angle_delta_one_feed():
 
 
 # ===========================================================================
+# Batch 5 -- tier-2 Cebik follow-ons (issues #362-#366), from the
+# cebik.com mirror (antenna2.github.io/cebik).
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# Rectangle "magnetic slot" SCV (1 wl loop flattened wide + QW transformer)
+# ---------------------------------------------------------------------------
+
+
+def _rectangle_bare():
+    """The rectangle with its side gap driven directly (matching section
+    removed), to read the raw very-low-R feedpoint the transformer steps up."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+
+    class Bare(Builder):
+        def build_wires(self):
+            return [
+                (t[0], t[1], t[2], 1 + 0j) if len(t) == 5 and t[4] == "feed" else t[:4]
+                for t in super().build_wires()
+            ]
+
+        def build_network(self):
+            return None
+
+    return Bare()
+
+
+def test_rectangle_bare_feed_is_low_z_near_resonant():
+    """The flattened loop's mid-side feed on a short vertical side: very low
+    R, near-resonant (Cebik: ~15 ohm; the price of the squashed proportions)."""
+    z = _z(_rectangle_bare())
+    assert 8.0 < z.real < 25.0
+    assert abs(z.imag) < 15.0
+
+
+def test_rectangle_qw_section_steps_up_to_coax():
+    """The quarter-wave low-Z section (two paralleled 50-ohm coaxes ~ 25 ohm)
+    steps the ~15 ohm feed up to near-coax at the shack (cf. wire.edz's
+    series-line rotation -- this one is the R-scaling transformer instead)."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+
+    z = _z(Builder())
+    assert _swr(z, 50.0) < 1.45
+    assert abs(z.imag) < 15.0
+
+
+def test_rectangle_gain_matches_cebik():
+    """Top of the SCV family album (Cebik: 4.4 dBi free space, second only
+    to the half-square's 4.6). This model reads ~5.1 -- it runs the whole
+    family a few tenths hot (its half-square reads 4.9 vs Cebik's 4.6, its
+    delta 3.6 vs 3.3)."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+
+    ff = _far_field(Builder())
+    assert 4.4 < ff.max_gain < 5.6
+
+
+def test_rectangle_family_ranking():
+    """Cebik's family ranking, as robust as the model spread allows: the
+    rectangle and half-square are the family's top pair within a fraction of
+    a dB of each other (Cebik has the half-square 0.2 dB ahead; this model
+    reads the rectangle 0.2 ahead), and both clear the right-angle delta by
+    over a dB."""
+    from antennaknobs.designs.verticals.half_square import Builder as HalfSquare
+    from antennaknobs.designs.verticals.rectangle import Builder
+    from antennaknobs.designs.verticals.right_angle_delta import Builder as RAD
+
+    g_rect = _far_field(Builder()).max_gain
+    assert abs(g_rect - _far_field(HalfSquare()).max_gain) < 0.6
+    assert g_rect > _far_field(RAD()).max_gain + 1.0
+
+
+def test_rectangle_vertically_polarised_overhead_null():
+    """The SCV signature: pattern peaks at the horizon, deep null overhead --
+    the long horizontal wires cancel, the short vertical sides radiate."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+
+    rings = np.array(_far_field(Builder()).rings)
+    horizon = rings[85:].max()
+    zenith = rings[:5].max()
+    assert horizon - zenith > 15.0
+
+
+def test_rectangle_broadside_with_end_nulls():
+    """Two in-phase verticals ~0.4 wl apart: bidirectional broadside off
+    +/- x with clear end-on rejection (like the half-square, unlike the
+    near-omni delta)."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+
+    rings = np.array(_far_field(Builder()).rings)
+    row = rings[60]
+    broadside = max(row[0], row[180])
+    end_on = max(row[90], row[270])
+    assert broadside - end_on > 6.0
+
+
+def test_rectangle_is_a_wide_closed_loop_fed_mid_short_side():
+    """Topology: a closed 1 wl rectangle much wider than tall (Cebik's 56' x
+    12.8' proportions, aspect > 3.5), with the single port gap centred on one
+    short VERTICAL side -- the current maximum that makes it an SCV."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+
+    b = Builder()
+    tups = b.build_wires()
+    ports = [t for t in tups if len(t) == 5 and t[4] == "feed"]
+    assert len(ports) == 1
+    (p,) = ports
+    # The port edge is vertical (spans z, constant y) and sits mid-side.
+    assert abs(p[0][1] - p[1][1]) < 1e-9
+    assert abs(p[0][2] - p[1][2]) > 0.0
+    wavelength = 299.792458 / b.design_freq
+    w = b.horiz_frac * wavelength * b.length_factor
+    v = b.vert_frac * wavelength * b.length_factor
+    assert w / v > 3.5
+    mid = b.base + v / 2
+    assert abs((p[0][2] + p[1][2]) / 2 - mid) < 0.05
+    # ~1 wl closed perimeter.
+    assert 0.9 < 2 * (w + v) / wavelength < 1.1
+
+
+def test_rectangle_uses_a_quarter_wave_tl_and_virtual_shack():
+    """One low-Z TL branch, a quarter wave long at the design frequency, from
+    a virtual shack port to the real mid-side port, driven at the shack
+    (the transformer counterpart of wire.edz's rotation line)."""
+    from antennaknobs.designs.verticals.rectangle import Builder
+    from antennaknobs.network import TL, Driven, PortVirtual
+
+    b = Builder()
+    net = b.build_network()
+    tls = [br for br in net.branches if isinstance(br, TL)]
+    assert len(tls) == 1 and not tls[0].transposed
+    assert {tls[0].a, tls[0].b} == {"shack", "feed"}
+    assert tls[0].z0 < 40.0  # a low-Z line: sqrt(15 * 50) ~ 27 ohm territory
+    wavelength = 299.792458 / b.design_freq
+    assert abs(tls[0].length - wavelength / 4) < 0.02 * wavelength
+    assert isinstance(net.ports["shack"], PortVirtual)
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "shack"
+
+
+# ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
 # These lock in WHERE the four momwire solver bases agree with PyNEC and where
