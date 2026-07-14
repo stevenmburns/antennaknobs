@@ -97,6 +97,7 @@ export default defineConfig({
           items: [
             { label: "Design catalog", slug: "reference/catalog" },
             { label: "The solver & accuracy", slug: "reference/solver" },
+            { label: "Loading NEC decks", slug: "reference/nec-import" },
             { label: "Web workbench", slug: "reference/web" },
             { label: "Drone & Transform API", slug: "reference/drone-transform" },
             { label: "Command line", slug: "reference/cli" },
