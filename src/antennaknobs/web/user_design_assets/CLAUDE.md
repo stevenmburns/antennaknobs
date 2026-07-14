@@ -90,6 +90,39 @@ or a symlink pointing elsewhere. A design shared as `my_design.py` +
 `my_wires.json` is safe for someone to load: the data can only become antenna
 geometry, never leave the machine.
 
+### Loading a NEC card deck (`.nec`)
+
+`read_nec(self, name)` loads a **NEC2 card deck** — the format xnec2c, 4nec2,
+EZNEC, and antenna-handbook listings all speak — with the same folder
+confinement as `read_json`. It returns a parsed deck whose `.wire_tuples()`
+is ready to return from `build_wires`:
+
+```python
+from antennaknobs import AntennaBuilder, WireSpec, read_nec
+
+class Builder(AntennaBuilder):
+    def build_wires(self):
+        return read_nec(self, "my_yagi.nec").wire_tuples()
+
+    def build_wire_material(self):
+        # keep the deck's element radius — the default 0.5 mm idealization
+        # would shift the reactance badly on thick VHF elements
+        return WireSpec(radius=read_nec(self, "my_yagi.nec").dominant_radius())
+```
+
+Wires (GW/GA arcs/GH helices) and the geometry transforms (GM, GX, GR, GS —
+including xnec2c's tag-range GS) are honoured, and the deck's EX voltage
+sources become the feed(s) on the exact segments the deck drives. Cards that
+configure a NEC *run* rather than the geometry — GN ground, LD loading, TL
+transmission lines, RP/NE output requests — are ignored (listed in
+`deck.ignored`): the app applies its own ground and sweep settings, so expect
+readouts to differ from the deck's published results when it relied on those.
+Patch antennas (SP/SM) and tapered wires (GC) raise a clear error. The deck's
+FR card is exposed as `deck.freq_mhz = (lo, hi)` — use it to seed `freq` and
+`ui_params["meas_freq_range"]` so the design tunes on the deck's own band
+(see the 40m-trap note above, and `nec_2m_yagi.py` in this folder if present
+for a worked example).
+
 ## `default_params`
 
 Every key becomes a slider in the UI, accessed in `build_wires` as
