@@ -2101,6 +2101,138 @@ def test_pdy_topology_phased_driver_cell():
     assert 0.003 < b.build_wire_material().radius < 0.008
 
 
+# ---------------------------------------------------------------------------
+# Tri-Moxon switched vertical array (10-10 News No. 51)
+# ---------------------------------------------------------------------------
+#
+# Cebik's published numbers are over real ground (the 11 deg takeoff IS the
+# ground), so unlike the rest of the batch these run over average earth.
+
+
+_TM_GROUND = ("finite", 13.0, 0.005)
+
+
+def _tm(**over):
+    from antennaknobs.designs.verticals.tri_moxon import Builder
+
+    return Builder(dict(Builder.default_params, **over) if over else None)
+
+
+def _tm_solo():
+    """Element 1 alone (neighbours and their parked feedlines deleted): the
+    reference that shows how little the parked rectangles disturb."""
+    from antennaknobs.designs.verticals.tri_moxon import Builder
+    from antennaknobs.network import Driven, Network, PortOnWire
+
+    class Solo(Builder):
+        def build_wires(self):
+            return self._element(1)
+
+        def build_network(self):
+            return Network(
+                ports={"feed_1": PortOnWire("feed_1")},
+                branches=[],
+                sources=[Driven(port="feed_1", voltage=1 + 0j)],
+            )
+
+    return Solo()
+
+
+def test_tri_moxon_sector_performance():
+    """Cebik's headline per-sector numbers over ground: ~6.6 dBi at the
+    11 deg takeoff with F/B ~13 dB -- '2-element Yagi range' from three
+    fixed wire rectangles and a coax switch."""
+    ff = _far_field(_tm(), ground=_TM_GROUND)
+    rings = np.array(ff.rings)
+    ti = int(np.unravel_index(int(np.argmax(rings)), rings.shape)[0])
+    assert 5.9 < ff.max_gain < 7.5
+    assert 90 - ti < 16  # low takeoff (Cebik: 11 deg)
+    fb = rings[ti, 0] - rings[ti, 180]
+    assert fb > 10.0
+
+
+def test_tri_moxon_swr_holds_across_the_band():
+    """Cebik's Fig. 4: under 1.7:1 on 50-ohm coax across all of 28-29 MHz
+    with the dip near the 28.35 design frequency."""
+    swrs = {
+        f: _swr(_z(_tm(freq=f), ground=_TM_GROUND), 50.0) for f in (28.0, 28.35, 29.0)
+    }
+    assert max(swrs.values()) < 1.8, swrs
+    assert swrs[28.35] < 1.35, swrs
+
+
+def test_tri_moxon_sector_is_a_wide_slice_of_horizon():
+    """Each rectangle covers ~125 degrees of azimuth (Cebik's Fig. 2), so
+    three switched sectors blanket the horizon with only shallow overlap
+    dips."""
+    rings = np.array(_far_field(_tm(), ground=_TM_GROUND).rings)
+    ti = int(np.unravel_index(int(np.argmax(rings)), rings.shape)[0])
+    row = rings[ti]
+    within3 = np.sum(row > row.max() - 3.0)
+    assert 100 < within3 < 160, within3
+
+
+def test_tri_moxon_parked_neighbours_cost_little():
+    """The design's premise: each Moxon's own F/B protects the others, so
+    with the two idle rectangles parked (feedpoints open through their
+    shorted quarter-wave lines) the active sector loses only a whisker
+    against the same rectangle flying solo."""
+    ff_solo = _far_field(_tm_solo(), ground=_TM_GROUND)
+    ff_full = _far_field(_tm(), ground=_TM_GROUND)
+    assert abs(ff_solo.max_gain - ff_full.max_gain) < 0.7
+
+
+def test_tri_moxon_direction_switch_rotates_the_beam():
+    """The rotator replacement: driving element 2 instead of element 1
+    swings the same beam 120 degrees around the horizon (exposed as the
+    `dir2`/`dir3` variants)."""
+    from antennaknobs import resolve_variant_params
+    from antennaknobs.designs.verticals.tri_moxon import Builder
+
+    ff1 = _far_field(_tm(), ground=_TM_GROUND)
+    ff2 = _far_field(
+        Builder(resolve_variant_params(Builder, "dir2")), ground=_TM_GROUND
+    )
+    r1, r2 = np.array(ff1.rings), np.array(ff2.rings)
+    t1, p1 = np.unravel_index(int(np.argmax(r1)), r1.shape)
+    t2, p2 = np.unravel_index(int(np.argmax(r2)), r2.shape)
+    assert abs(ff1.max_gain - ff2.max_gain) < 0.3
+    assert min(abs(p2 - p1 - 120), abs(p2 - p1 - 120 + 360)) < 15
+
+
+def test_tri_moxon_idle_feedlines_are_shorted_quarter_waves():
+    """Cebik's switching detail, modelled literally: the two idle drivers
+    each hang on a quarter-wave 50-ohm line shorted at the switch end (a TL
+    to a virtual stub port hard-shorted by a Shunt), which presents the
+    open circuit at the parked feedpoint that 'modeling shows' works best.
+    Geometry: three AWG-14 wire rectangles 120 degrees apart, reflectors
+    48 inches off the post, Cebik's A/E proportions."""
+    from antennaknobs.network import Driven, PortVirtual, Shunt, TL
+
+    b = _tm()
+    net = b.build_network()
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "feed_1"
+    tls = [br for br in net.branches if isinstance(br, TL)]
+    shorts = [br for br in net.branches if isinstance(br, Shunt)]
+    assert len(tls) == 2 and len(shorts) == 2
+    wavelength = 299.792458 / b.design_freq
+    for tl in tls:
+        assert abs(tl.length - wavelength / 4) < 0.02 * wavelength
+        assert abs(tl.z0 - 50.0) < 1e-9 and not tl.transposed
+        assert isinstance(net.ports[tl.b], PortVirtual)
+    assert {s.port for s in shorts} == {tl.b for tl in tls}
+    assert all(s.r == 0.0 for s in shorts)
+    # Geometry: 3 feed gaps, element verticals A ~ 0.364 wl tall, driver
+    # radius = post spacing + E, thin AWG-14 wire.
+    tups = b.build_wires()
+    names = {t[4] for t in tups if len(t) == 5 and t[4]}
+    assert names == {"feed_1", "feed_2", "feed_3"}
+    assert abs(b.a_frac - 0.364) < 0.01
+    assert abs(b.e_frac - 0.1329) < 0.005
+    assert b.build_wire_material().radius < 0.001
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #

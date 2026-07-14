@@ -87,6 +87,7 @@ whole shape with a `Drone` — see
 | `verticals.raised_vertical` | Elevated quarter-wave vertical, fed above ground |
 | `verticals.rectangle` | Rectangle "magnetic slot" SCV: a flattened 1 wl loop (L. B. Cebik, W4RNL) |
 | `verticals.right_angle_delta` | Right-Angle Delta: the coax-friendly SCV delta (L. B. Cebik, W4RNL) |
+| `verticals.tri_moxon` | Tri-Moxon switched vertical array (L. B. Cebik, W4RNL, 10-10 News #51) · variants: `dir2`, `dir3` |
 | `verticals.vertical` | Quarter-wave vertical over ground |
 <!-- catalog:end verticals -->
 
