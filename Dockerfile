@@ -68,4 +68,11 @@ EXPOSE 8000
 # proxy's traffic inside the container. --ws-max-size caps a WebSocket frame
 # at 1 MiB (uvicorn's default is 16 MiB): /ws solve requests are a few KB, so
 # this bounds what an abusive client can make the reader json.loads per frame.
-CMD ["sh", "-c", "uvicorn antennaknobs.web.server:app --host 0.0.0.0 --port ${PORT:-8000} --ws-max-size 1048576"]
+#
+# OMP_WAIT_POLICY/GOMP_SPINCOUNT park idle OMP workers between solves instead
+# of busy-spinning through each solve's Python phases. libgomp reads these
+# once at load — before any Python code runs — so they must live here in the
+# launch env, not in server.py (see its thread-policy block / issue #377).
+# Thread COUNTS by contrast are set at runtime by server.py via threadpoolctl.
+# Moot on a 1-vCPU machine (no OMP team to park) but correct if the VM grows.
+CMD ["sh", "-c", "OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 uvicorn antennaknobs.web.server:app --host 0.0.0.0 --port ${PORT:-8000} --ws-max-size 1048576"]

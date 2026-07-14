@@ -56,9 +56,8 @@ def _physical_cpu_count() -> int:
 
 
 _NPROC = str(_physical_cpu_count())
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_NUM_THREADS", _NPROC)
-os.environ.setdefault("MKL_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 

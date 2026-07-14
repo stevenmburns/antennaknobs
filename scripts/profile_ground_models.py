@@ -45,8 +45,11 @@ from __future__ import annotations
 
 # Mirror the UI backend's threading setup (web/server.py) BEFORE numpy/scipy/
 # PyNEC import — each library snapshots the env at its own import time. Keep
-# this in sync with web/server.py: physical-core count for OMP/MKL, OpenBLAS
-# pinned to 1, OMP workers parked between regions.
+# this in sync with web/server.py's thread policy: physical-core count for
+# both OMP and OpenBLAS (fill and LU are sequential phases), OMP workers
+# parked between regions. Env vars work here because they are set before the
+# first numpy/scipy/PyNEC import — the server itself must use threadpoolctl
+# at runtime instead (see issue #377).
 import os
 
 
@@ -75,9 +78,8 @@ def _physical_cpu_count() -> int:
 
 
 _NPROC = str(_physical_cpu_count())
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_NUM_THREADS", _NPROC)
-os.environ.setdefault("MKL_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
@@ -288,7 +290,6 @@ def main():
 
     print(
         f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} "
-        f"MKL_NUM_THREADS={os.environ['MKL_NUM_THREADS']} "
         f"OPENBLAS_NUM_THREADS={os.environ['OPENBLAS_NUM_THREADS']} "
         f"OMP_WAIT_POLICY={os.environ['OMP_WAIT_POLICY']} "
         f"GOMP_SPINCOUNT={os.environ['GOMP_SPINCOUNT']}"
