@@ -102,6 +102,7 @@ whole shape with a `Drone` — see
 | `wire.rhombic` | Terminated rhombic: a traveling-wave directional long-wire (L. B. Cebik, W4RNL, "Long-Wire Antennas" / "The Terminated Vee-Beam and Rhombic") |
 | `wire.sterba` | Sterba curtain: a broadside, bidirectional, horizontally-polarised curtain array (E. J. Sterba, Bell Labs, 1930s) |
 | `wire.sterba_tl` | Sterba curtain, transmission-line sister design of `sterba.py` |
+| `wire.terminated_longwire` | Terminated end-fed long-wire: the directional single wire (L. B. Cebik, W4RNL, "Long-Wire Antennas", Part 2) |
 | `wire.vbeam` | Resonant V-beam: two long wires splayed into a V (L. B. Cebik, W4RNL) |
 | `wire.w8jk` | W8JK flat-top beam: a 2-element all-driven 180-degree array (L. B. Cebik, W4RNL, after John Kraus W8JK) |
 | `wire.zepp` | End-fed half-wave "Zepp" with a tuned-stub feeder (L. B. Cebik, W4RNL) |

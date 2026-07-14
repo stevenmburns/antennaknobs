@@ -64,3 +64,46 @@ def test_sommerfeld_and_reflection_coefficient_diverge_when_low():
     # and neither finite model is the PEC image in disguise
     assert abs(z_somm - z_pec) > 5.0
     assert abs(z_fast - z_pec) > 5.0
+
+
+class _GroundedMonopole:
+    """Minimal grounded quarter-wave monopole: bottom end at exactly z=0."""
+
+    def __new__(cls):
+        from types import MappingProxyType
+
+        from antennaknobs import AntennaBuilder
+
+        class Mono(AntennaBuilder):
+            default_params = MappingProxyType({"freq": 28.57, "design_freq": 28.57})
+
+            def build_wires(self):
+                h = 0.25 * 299.792458 / 28.57
+                return [
+                    ((0.0, 0.0, 0.0), (0.0, 0.0, 0.3), 1, 1 + 0j),
+                    ((0.0, 0.0, 0.3), (0.0, 0.0, h), 15, None),
+                ]
+
+        return Mono()
+
+
+def test_ge_flag_connects_z0_wire_ends_to_pec_ground():
+    """A wire ending at exactly z=0 over a ground plane must be CONNECTED to
+    it (NEC GE flag 1: touching segments' currents interpolate onto their
+    images). A bottom-fed grounded quarter-wave then reads the textbook
+    monopole ~36 +j21; with the old unconditional GE flag 0 the same feed
+    saw an insulated free end and thousands of ohms capacitive."""
+    z = PyNECEngine(_GroundedMonopole(), ground="pec").impedance()[0]
+    assert 25.0 < z.real < 55.0
+    assert -20.0 < z.imag < 60.0
+
+
+def test_ge_flag_stays_zero_when_nothing_touches_ground():
+    """Elevated geometry keeps GE flag 0 (no behaviour change for the whole
+    existing catalog), and free space never sets it even with a z=0 end."""
+    eng = PyNECEngine(_flat_dipole(10.0), ground="pec")
+    assert eng._ge_flag() == 0
+    eng_free = PyNECEngine(_GroundedMonopole(), ground=None)
+    assert eng_free._ge_flag() == 0
+    eng_gnd = PyNECEngine(_GroundedMonopole(), ground="pec")
+    assert eng_gnd._ge_flag() == 1

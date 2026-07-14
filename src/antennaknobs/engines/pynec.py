@@ -138,6 +138,18 @@ class PyNECEngine(SimulationEngine):
         if c is not None:
             del self.c
 
+    def _ge_flag(self):
+        """NEC GE-card ground-plane flag: 1 when a ground card will be
+        emitted AND some wire endpoint touches z=0, so NEC interpolates the
+        touching segments' currents onto their images (a real ground
+        connection — e.g. a terminated long-wire's legs). 0 otherwise; with
+        flag 0 a z=0 wire end is a free end, silently insulated from the
+        ground plane."""
+        if self.ground in (None, "free"):
+            return 0
+        touches = any(t[0][2] == 0.0 or t[1][2] == 0.0 for t in self.tups)
+        return 1 if touches else 0
+
     def _build_geometry(self):
         self.c = nec.nec_context()
         geo = self.c.get_geometry()
@@ -170,7 +182,7 @@ class PyNECEngine(SimulationEngine):
 
         self._network_port_loc = {}
 
-        self.c.geometry_complete(0)
+        self.c.geometry_complete(self._ge_flag())
 
         if self._network is not None:
             # Only Load-only networks reach here; TL/virtual-driver
@@ -462,7 +474,7 @@ class PyNECEngine(SimulationEngine):
             )
             if name is not None:
                 loc[name] = (idx, (n_seg + 1) // 2)
-        c.geometry_complete(0)
+        c.geometry_complete(self._ge_flag())
         self._emit_wire_material_cards(c)
         self._apply_ground_card(c)
         return c, loc

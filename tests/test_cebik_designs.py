@@ -1692,6 +1692,138 @@ def test_rectangle_uses_a_quarter_wave_tl_and_virtual_shack():
     assert isinstance(src, Driven) and src.port == "shack"
 
 
+# ---------------------------------------------------------------------------
+# Terminated end-fed long-wire (traveling wave against ground)
+# ---------------------------------------------------------------------------
+#
+# The catalog's first ground-CONNECTED design: both vertical legs end at
+# z=0 and NEC joins them to the ground image (the PyNECEngine GE-flag
+# support this design introduced; see test_pynec_ground.py). All numbers
+# run over PEC ground -- NEC-2's Sommerfeld ground does not support wire
+# contact (that is a NEC-4 feature), which the design docstring flags.
+
+
+def _tlw(**over):
+    from antennaknobs.designs.wire.terminated_longwire import Builder
+
+    return Builder(dict(Builder.default_params, **over) if over else None)
+
+
+def _tlw_unterminated():
+    """The terminating resistor deleted (far leg still grounded): the wave
+    reflects, the standing-wave pattern returns -- Cebik's comparison case."""
+    from antennaknobs.designs.wire.terminated_longwire import Builder
+    from antennaknobs.network import Driven, Network, PortOnWire
+
+    class Unterminated(Builder):
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire("feed")},
+                branches=[],
+                sources=[Driven(port="feed", voltage=1 + 0j)],
+            )
+
+    return Unterminated()
+
+
+def _fb(ff):
+    """Front-to-back at the strongest elevation ring, forward = +x."""
+    rings = np.array(ff.rings)
+    ti = int(np.argmax(rings[:, 0]))
+    return rings[ti, 0] - rings[ti, 180], ti
+
+
+def test_tlw_unidirectional_toward_the_termination():
+    """The traveling-wave signature: one main lobe off the TERMINATED end
+    (+x), F/B well into the teens (Cebik's 10 wl model: 20.3 dB over
+    average ground)."""
+    ff = _far_field(_tlw(), ground="pec")
+    fb, _ = _fb(ff)
+    assert fb > 12.0
+    rings = np.array(ff.rings)
+    ti, pi = np.unravel_index(int(np.argmax(rings)), rings.shape)
+    assert min(pi, 360 - pi) < 25  # global peak looks down +x
+
+
+def test_tlw_gain_and_low_takeoff():
+    """Cebik's 10 wl model: 10.47 dBi at 11 deg takeoff over average
+    ground; over PEC the image is lossless so this model reads a couple dB
+    hotter, still at a low DX angle."""
+    ff = _far_field(_tlw(), ground="pec")
+    assert 10.0 < ff.max_gain < 14.5
+    rings = np.array(ff.rings)
+    ti = int(np.unravel_index(int(np.argmax(rings)), rings.shape)[0])
+    assert ti > 70  # peak within ~20 deg of the horizon
+
+
+def test_tlw_terminator_burns_a_quarter_not_half():
+    """Cebik's headline correction to the folklore: the termination eats
+    ~25% of the power, not 50%. The engine's load-loss accounting (the
+    rhombic/momwire load-BC machinery) reads it directly."""
+    eng = PyNECEngine(_tlw(), ground="pec")
+    eng.current_distribution()
+    assert 0.60 < eng._excited_efficiency < 0.85
+
+
+def test_tlw_feed_impedance_tracks_the_line():
+    """The feedpoint sits near the termination value across a wide band
+    (Cebik: 544 +87j, SWR(600) = 1.20 at the design length; and 'extreme
+    frequency-changing agility' without rematching)."""
+    z = _z(_tlw(), ground="pec")
+    assert _swr(z, 600.0) < 1.6
+    for f in (28.57 * 0.8, 28.57 * 1.25):
+        zf = _z(_tlw(freq=f), ground="pec")
+        assert _swr(zf, 600.0) < 2.0, (f, zf)
+
+
+def test_tlw_termination_costs_gain_buys_direction():
+    """Delete the resistor and the reflected wave restores the standing-wave
+    bidirectional pattern: more gain (Cebik: +3.5 dB over average ground,
+    13.96 vs 10.47 at 10 wl; this PEC model with the far leg still grounded
+    reads +1.5) while the front-to-back collapses to nothing."""
+    g_term = _far_field(_tlw(), ground="pec").max_gain
+    ff_open = _far_field(_tlw_unterminated(), ground="pec")
+    fb_open, _ = _fb(ff_open)
+    assert 1.0 < ff_open.max_gain - g_term < 5.5
+    assert fb_open < 6.0
+
+
+def test_tlw_longer_is_stronger():
+    """Cebik's length ladder: gain climbs with wire length (7.1 dBi at 3 wl
+    -> 10.5 at 10 wl over ground) while the pattern stays unidirectional."""
+    gains = {}
+    for lw in (3.0, 7.0, 10.0):
+        ff = _far_field(_tlw(length_frac=lw), ground="pec")
+        gains[lw] = ff.max_gain
+        fb, _ = _fb(ff)
+        assert fb > 10.0, (lw, fb)
+    assert gains[3.0] < gains[7.0] < gains[10.0]
+
+
+def test_tlw_topology_grounded_legs():
+    """Both vertical legs touch z=0 (the ground connection the GE flag
+    makes real), the single driven edge sits at the bottom of the near leg,
+    and the far leg bottom carries the ~800 ohm Load (Cebik's working value
+    for RL = 138*log10(4h/d))."""
+    from antennaknobs.network import Load
+
+    b = _tlw()
+    tups = b.build_wires()
+    grounded = [t for t in tups if t[0][2] == 0.0 or t[1][2] == 0.0]
+    assert len(grounded) == 2
+    names = {t[4] for t in tups if len(t) == 5 and t[4]}
+    assert names == {"feed", "term"}
+    net = b.build_network()
+    (load,) = [br for br in net.branches if isinstance(br, Load)]
+    assert load.port == "term" and load.r == b.term_r
+    # ~10 wl of horizontal run at ~1 wl height.
+    wavelength = 299.792458 / b.design_freq
+    xs = [p[0] for t in tups for p in (t[0], t[1])]
+    assert abs((max(xs) - min(xs)) / wavelength - b.length_frac) < 0.2
+    zs = {p[2] for t in tups for p in (t[0], t[1])}
+    assert abs(max(zs) / wavelength - 1.0) < 0.15
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
