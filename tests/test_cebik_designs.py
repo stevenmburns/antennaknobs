@@ -1979,6 +1979,128 @@ def test_moxon_turnstile_network_topology():
     assert {g[4] for g in gaps} == {"feed_a", "feed_b"}
 
 
+# ---------------------------------------------------------------------------
+# 40 m wide-band phased-driver wire Yagi (the OWA's 40 m counterpart)
+# ---------------------------------------------------------------------------
+
+
+_PDY_BAND = (7.0, 7.15, 7.3)
+
+
+def test_pdy_flat_swr_across_the_whole_band():
+    """The design goal: all of 7.0-7.3 MHz under 50-ohm SWR 1.5 with no
+    traps or loading (Cebik's wire version: 1.42 / 1.11 / 1.48)."""
+    from antennaknobs.designs.beams.phased_driver_yagi import Builder
+
+    swrs = {
+        f: _swr(_z(Builder(dict(Builder.default_params, freq=f))), 50.0)
+        for f in _PDY_BAND
+    }
+    assert max(swrs.values()) < 1.6, swrs
+
+
+def test_pdy_bandwidth_shames_the_conventional_wire_yagi():
+    """Cebik's Part 1 premise: a conventional 2-el driver-reflector wire
+    Yagi covers only ~2/3 of 40 m -- same band, same 50-ohm reference, the
+    conventional cell blows far past the phased cell's band-max SWR."""
+    from antennaknobs.designs.beams.phased_driver_yagi import Builder
+    from antennaknobs.designs.beams.yagi import Builder as Yagi
+
+    pdy_max = max(
+        _swr(_z(Builder(dict(Builder.default_params, freq=f))), 50.0) for f in _PDY_BAND
+    )
+    yagi_max = max(
+        _swr(
+            _z(Yagi(dict(Yagi.default_params, design_freq=7.15, freq=f))),
+            50.0,
+        )
+        for f in _PDY_BAND
+    )
+    assert pdy_max * 2.0 < yagi_max
+
+
+def test_pdy_gain_and_front_to_back_across_band():
+    """Cebik's Table 3: gain CLIMBS across the band (5.92 -> 6.97 dBi; this
+    model reads ~1 dB over his numbers throughout, 6.8 -> 8.0) with the
+    in-plane front-to-back holding 12.9-15.5 dB (this model: 12.1-15.1,
+    peaking mid-band exactly as published). The F/B is measured in the
+    beam plane -- the free-space pattern also has a genuine overhead lobe
+    that a max-over-theta comparison would misread as a rear lobe."""
+    from antennaknobs.designs.beams.phased_driver_yagi import Builder
+
+    gains = {}
+    for f in _PDY_BAND:
+        ff = _far_field(Builder(dict(Builder.default_params, freq=f)))
+        rings = np.array(ff.rings)
+        fb = rings[89, 0] - rings[89, 180]
+        gains[f] = ff.max_gain
+        assert ff.max_gain > 6.3, (f, ff.max_gain)
+        assert fb > 11.0, (f, fb)
+    assert gains[7.0] < gains[7.3]
+
+
+def test_pdy_half_twist_is_the_point():
+    """Un-twist the 250-ohm phase line (transposed=False) and the phased
+    cell breaks outright: the feedpoint leaves the band (SWR ~20 mid-band)
+    and the front-to-back collapses -- the single half twist IS the
+    design. (The reducer's transposed TL matches NEC's native crossed-line
+    tl_card, z0 < 0, on this exact geometry -- verified while building.)"""
+    import dataclasses
+
+    from antennaknobs.designs.beams.phased_driver_yagi import Builder
+    from antennaknobs.network import TL
+
+    class Untwisted(Builder):
+        def build_network(self):
+            net = super().build_network()
+            net.branches[:] = [
+                dataclasses.replace(br, transposed=False) if isinstance(br, TL) else br
+                for br in net.branches
+            ]
+            return net
+
+    b = Untwisted(dict(Untwisted.default_params, freq=7.15))
+    assert _swr(_z(b), 50.0) > 5.0
+    rings = np.array(
+        _far_field(Untwisted(dict(Untwisted.default_params, freq=7.15))).rings
+    )
+    assert rings[89, 0] - rings[89, 180] < 5.0
+
+
+def test_pdy_topology_phased_driver_cell():
+    """Three y-parallel thin-wire elements: rear driver (longest) at x=0,
+    forward driver ~0.056 wl ahead carrying the single feed, director
+    ~0.16 wl out; one TRANSPOSED 250-ohm line joins the drivers (Cebik's
+    'single half twist' of ladder line)."""
+    from antennaknobs.designs.beams.phased_driver_yagi import Builder
+    from antennaknobs.network import TL, Driven
+
+    b = Builder()
+    tups = b.build_wires()
+    names = {t[4]: t for t in tups if len(t) == 5 and t[4]}
+    assert set(names) == {"feed", "rear"}
+    wavelength = 299.792458 / b.design_freq
+    halves = [h for h, _ in b.TABLE]
+    poss = [p for _, p in b.TABLE]
+    assert halves[0] > halves[1] > halves[2]  # rear > forward > director
+    assert poss[0] == 0.0
+    assert 0.04 < poss[1] < 0.07  # the drivers hug each other...
+    assert poss[2] - poss[1] > 0.08  # ...the director does not
+    # feed sits on the FORWARD driver, the phase line runs rear <- feed
+    assert abs(names["feed"][0][0] - poss[1] * wavelength) < 0.01
+    assert abs(names["rear"][0][0]) < 0.01
+    net = b.build_network()
+    (tl,) = [br for br in net.branches if isinstance(br, TL)]
+    assert tl.transposed and abs(tl.z0 - 250.0) < 1e-9
+    assert {tl.a, tl.b} == {"feed", "rear"}
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "feed"
+    # The wire elements are #12 LADDER LINE (a two-conductor cage), so the
+    # model wire is its ~5 mm equivalent radius -- much fatter than a bare
+    # #12 (1 mm) yet nothing like the tubing version's taper schedule.
+    assert 0.003 < b.build_wire_material().radius < 0.008
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
