@@ -1824,6 +1824,161 @@ def test_tlw_topology_grounded_legs():
     assert abs(max(zs) / wavelength - 1.0) < 0.15
 
 
+# ---------------------------------------------------------------------------
+# Moxon turnstile (two up-firing Moxons + a REAL quadrature phasing line)
+# ---------------------------------------------------------------------------
+
+
+def _moxon_turnstile_single_element():
+    """Element A alone, driven directly at its gap: the reference the
+    turnstile halves (junction R) and smooths (azimuth dome) against."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+    from antennaknobs.network import Driven, Network, PortOnWire
+
+    class Single(Builder):
+        def build_wires(self):
+            return self._element("a")
+
+        def build_network(self):
+            return Network(
+                ports={"feed_a": PortOnWire("feed_a")},
+                branches=[],
+                sources=[Driven(port="feed_a", voltage=1 + 0j)],
+            )
+
+    return Single()
+
+
+def _moxon_turnstile_junction():
+    """The transformer bypassed (driven right at element A's gap, phaseline
+    kept): reads the raw ~25 ohm turnstile junction."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+    from antennaknobs.network import TL, Driven, Network, PortOnWire
+
+    class Junction(Builder):
+        def build_network(self):
+            net = super().build_network()
+            (phase,) = [
+                br
+                for br in net.branches
+                if isinstance(br, TL) and {br.a, br.b} == {"feed_a", "feed_b"}
+            ]
+            return Network(
+                ports={
+                    "feed_a": PortOnWire("feed_a"),
+                    "feed_b": PortOnWire("feed_b"),
+                },
+                branches=[phase],
+                sources=[Driven(port="feed_a", voltage=1 + 0j)],
+            )
+
+    return Junction()
+
+
+def test_moxon_turnstile_element_is_a_resonant_coax_moxon():
+    """Each element is Cebik's resonant coax-class Moxon (his VHF tube
+    build: 50 ohm; this thin-wire HF cousin reads ~62). The number matters
+    because the phaseline z0 must EQUAL it -- the harness tracks 62."""
+    z = _z(_moxon_turnstile_single_element())
+    assert 40.0 < z.real < 70.0
+    assert abs(z.imag) < 10.0
+
+
+def test_moxon_turnstile_junction_halves_the_element():
+    """Turnstile arithmetic: through the matched quarter-wave phaseline the
+    two elements land in parallel, so the junction reads ~half the element R
+    (Cebik: 50 -> 25 ohm)."""
+    z = _z(_moxon_turnstile_junction())
+    assert 18.0 < z.real < 33.0
+    assert abs(z.imag) < 12.0
+
+
+def test_moxon_turnstile_transformer_restores_coax():
+    """The 35 ohm quarter-wave section steps the 25 ohm junction back up to
+    the main feedline (Cebik: 49 ohm on RG-83, or paralleled 70 ohm lines)."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+
+    z = _z(Builder())
+    assert _swr(z, 50.0) < 1.35
+    assert abs(z.imag) < 12.0
+
+
+def test_moxon_turnstile_quadrature_currents():
+    """Cebik's central lesson from the QEX notes: turnstile quality is a
+    CURRENT condition -- equal magnitudes, 90 deg apart -- and a matched-z0
+    quarter-wave phaseline is what enforces it (his model: ratio 0.976 at
+    89.98 deg). Read the two driven-gap currents from the real solve."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+
+    b = Builder()
+    eng = PyNECEngine(b, ground=None)
+    cur = eng.current_distribution()
+    feed_idx = [
+        i for i, t in enumerate(b.build_wires()) if len(t) == 5 and t[4] is not None
+    ]
+    ia, ib = (cur[i].knot_currents[1] for i in feed_idx)
+    ratio = abs(ib) / abs(ia)
+    phase = np.angle(ib / ia, deg=True)
+    assert 0.75 < ratio < 1.25
+    assert 75.0 < abs(phase) < 105.0
+
+
+def test_moxon_turnstile_zenith_dome():
+    """Fired straight up for fixed satellite work: the pattern peaks at the
+    zenith and the quadrature pair smooths the mid-elevation ring into a
+    dome -- azimuth ripple within ~2 dB where the single Moxon alone swings
+    far more (its beam is a beam)."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+
+    rings = np.array(_far_field(Builder()).rings)
+    assert rings[:5].max() > rings.max() - 1.0  # peak is overhead
+    ring45 = rings[45]
+    assert ring45.max() - ring45.min() < 2.0
+    single45 = np.array(_far_field(_moxon_turnstile_single_element()).rings)[45]
+    assert single45.max() - single45.min() > 2.0 * (ring45.max() - ring45.min())
+
+
+def test_moxon_turnstile_gain_accounting():
+    """Each element gets half the power, but at the zenith the two fields
+    are ORTHOGONAL polarisations, so their powers add back: the TOTAL-field
+    gain matches the single element's boresight (~5.6 dBi here). Cebik's
+    famous ~3 dB turnstile penalty is what a polarisation-MATCHED (linear or
+    single-CP-sense) receiver sees of it -- not a hole in the total-power
+    pattern this engine plots."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+
+    g_single = _far_field(_moxon_turnstile_single_element()).max_gain
+    g_turn = _far_field(Builder()).max_gain
+    assert g_single > 5.0
+    assert abs(g_single - g_turn) < 0.5
+
+
+def test_moxon_turnstile_network_topology():
+    """One quarter-wave phaseline at the ELEMENT impedance between the two
+    driver gaps plus one quarter-wave low-Z transformer from a virtual shack
+    to element A, driven at the shack -- Cebik's Fig. 12 feed exactly."""
+    from antennaknobs.designs.beams.moxon_turnstile import Builder
+    from antennaknobs.network import TL, Driven, PortVirtual
+
+    b = Builder()
+    net = b.build_network()
+    tls = [br for br in net.branches if isinstance(br, TL)]
+    assert len(tls) == 2 and not any(tl.transposed for tl in tls)
+    wavelength = 299.792458 / b.design_freq
+    (phase,) = [tl for tl in tls if {tl.a, tl.b} == {"feed_a", "feed_b"}]
+    (match,) = [tl for tl in tls if {tl.a, tl.b} == {"shack", "feed_a"}]
+    assert abs(phase.length - wavelength / 4) < 0.02 * wavelength
+    assert abs(match.length - wavelength / 4) < 0.02 * wavelength
+    assert match.z0 < phase.z0  # ~35 vs ~50: the step-down transformer
+    assert isinstance(net.ports["shack"], PortVirtual)
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "shack"
+    # Two crossed elements: the two driver gaps run perpendicular.
+    tups = b.build_wires()
+    gaps = [t for t in tups if len(t) == 5 and t[4] is not None]
+    assert {g[4] for g in gaps} == {"feed_a", "feed_b"}
+
+
 # ===========================================================================
 # Methodology / cross-engine findings (momwire vs the PyNEC reference)
 #
