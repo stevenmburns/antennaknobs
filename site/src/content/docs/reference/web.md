@@ -301,7 +301,9 @@ named variant). Drop it straight into a design file to bake in whatever you
 dialed in — no more transcribing values off the screen by hand.
 
 The same gear menu also has **Download .nec deck**, which exports the design as
-a NEC-2 card deck for xnec2c / 4nec2 / EZNEC.
+a NEC-2 card deck for xnec2c / 4nec2 / EZNEC. The reverse — bringing a `.nec`
+deck someone published *into* the workbench — is
+[Loading NEC decks](/reference/nec-import/).
 
 On phones, the gear menu also has a **full screen** check (under *display*):
 it hides the system status and navigation bars so the whole screen is

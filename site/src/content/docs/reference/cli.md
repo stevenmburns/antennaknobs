@@ -152,7 +152,8 @@ python -m antennaknobs export --builder beams.yagi --fn yagi.nec
 ```
 
 The deck is validated against `nec2c`, so designs round-trip into other NEC
-tools.
+tools. The reverse direction — loading an existing `.nec` deck as a design —
+is [`parse_nec` / `read_nec`](/reference/nec-import/).
 
 ## Allowing user designs to run
 
