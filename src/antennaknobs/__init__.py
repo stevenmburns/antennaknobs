@@ -13,6 +13,8 @@ __all__ = [
     "resolve_variant_params",
     "read_data",
     "read_json",
+    "read_nec",
+    "WireSpec",
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
@@ -43,6 +45,8 @@ from .builder import (
     resolve_variant_params,
 )
 from .design_data import read_data, read_json
+from .nec_import import read_nec
+from .network import WireSpec
 from .transform import Transform, TransformStack
 from .drone import Drone
 from .sim import Antenna
