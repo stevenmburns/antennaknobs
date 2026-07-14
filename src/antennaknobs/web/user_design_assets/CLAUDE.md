@@ -94,8 +94,21 @@ geometry, never leave the machine.
 
 `read_nec(self, name)` loads a **NEC2 card deck** — the format xnec2c, 4nec2,
 EZNEC, and antenna-handbook listings all speak — with the same folder
-confinement as `read_json`. It returns a parsed deck whose `.wire_tuples()`
-is ready to return from `build_wires`:
+confinement as `read_json`.
+
+**Set expectations with the user first: a NEC deck is frozen geometry, not a
+parameterized design.** Coordinates are just numbers, so an imported deck
+cannot offer the per-dimension knobs, `design_freq` band scaling, or
+meaningful optimization that make native designs nice — the only knobs worth
+adding to a deck stub are the measurement `freq`, a `height` lift (published
+decks are usually drawn at z = 0, which would sit *in* the ground plane),
+and a whole-geometry `scale` (a blunt uniform stretch, but enough to pull a
+slightly-off deck onto frequency). Treat the import as a *viewer* for a
+published deck; if the user wants to actually tune dimensions, port the
+design to a native `AntennaBuilder`, using the deck as the source of
+dimensions.
+
+The parsed deck's `.wire_tuples()` is ready to return from `build_wires`:
 
 ```python
 from antennaknobs import AntennaBuilder, WireSpec, read_nec
