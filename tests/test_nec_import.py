@@ -384,3 +384,229 @@ def test_smoke_parse_xnec2c_examples():
     for must_parse in ("2m_yagi.nec", "20m_quad.nec", "40m-moxon.nec"):
         assert must_parse in parsed
     assert len(parsed) >= 40, (len(parsed), rejected)
+
+
+# ---------------------------------------------------------------------------
+# network=True — LD/TL/NT translation into build_network branches (issue #385)
+# ---------------------------------------------------------------------------
+
+from antennaknobs.nec_import import NecLoad, NecNT, NecTL  # noqa: E402
+from antennaknobs.network import TL, Load, Shunt  # noqa: E402
+
+
+def _branch_ports(br):
+    return (br.a, br.b) if hasattr(br, "a") else (br.port,)
+
+
+def _dipole7(*cards):
+    """A 7-segment dipole fed at its middle segment, plus extra cards."""
+    return (
+        "GW 1 7 0 -3.5 10 0 3.5 10 0.001\nGE\nEX 0 1 4 0 1 0\n"
+        + "".join(c + "\n" for c in cards)
+        + "EN\n"
+    )
+
+
+def test_network_mode_translates_single_segment_ld():
+    deck = parse_nec(_dipole7("LD 0 1 2 2 5.0 2e-6 0"), network=True)
+    assert deck.loads == (
+        NecLoad(wire=0, seg=2, r=5.0, l=2e-6, c=None, parallel=False),
+    )
+    assert "LD" not in deck.ignored and deck.ignored_detail == ()
+
+    net = deck.network()
+    assert net.branches == [Load(port="load1", r=5.0, l=2e-6, c=None, parallel=False)]
+    assert [(s.port, s.voltage) for s in net.sources] == [("feed", 1 + 0j)]
+    assert set(net.ports) == {"feed", "load1"}
+
+    # The loaded segment becomes its own named 1-segment wire on the deck's
+    # exact boundaries; the feed keeps the whole wire? No — two marks on one
+    # wire force a split, and the fed segment gets its own named piece too.
+    tups = deck.wire_tuples()
+    named = {t[4]: t for t in tups if len(t) == 5}
+    assert set(named) == {"feed", "load1"}
+    assert named["load1"][2] == 1 and named["feed"][2] == 1
+    assert all(t[3] is None for t in tups)  # no legacy ex markers
+    assert sum(t[2] for t in tups) == 7  # segmentation preserved
+
+
+def test_ld_parallel_and_zero_legs():
+    deck = parse_nec(_dipole7("LD 1 1 2 2 0 3.3e-6 4.7e-12"), network=True)
+    (ld,) = deck.loads
+    assert ld.parallel is True
+    assert ld.r is None and ld.l == 3.3e-6 and ld.c == 4.7e-12
+    # An all-zero lumped load is a no-op, not an ignored card.
+    deck = parse_nec(_dipole7("LD 0 1 2 2 0 0 0"), network=True)
+    assert deck.loads == () and "LD" not in deck.ignored
+
+
+def test_ld_range_expands_per_segment_up_to_cap():
+    deck = parse_nec(_dipole7("LD 0 1 2 4 1.0 0 0"), network=True)
+    assert [(ld.wire, ld.seg) for ld in deck.loads] == [(0, 2), (0, 3), (0, 4)]
+    assert all(ld.r == 1.0 for ld in deck.loads)
+    # seg 4 is the fed segment: the load shares the feed's port there.
+    net = deck.network()
+    assert sorted(br.port for br in net.branches) == ["feed", "load1", "load2"]
+
+    # A whole-tag range (12 segments > the 8-segment cap) is refused.
+    wide = "GW 1 12 0 -3 10 0 3 10 0.001\nGE\nEX 0 1 6 0 1 0\nLD 0 1 0 0 1.0 0 0\nEN\n"
+    deck = parse_nec(wide, network=True)
+    assert deck.loads == ()
+    assert "LD" in deck.ignored
+    assert any("12 segments" in why for _m, why in deck.ignored_detail)
+
+
+def test_ld4_pure_resistance_translates_reactance_does_not():
+    deck = parse_nec(_dipole7("LD 4 1 2 2 50.0 0 0"), network=True)
+    assert deck.loads == (
+        NecLoad(wire=0, seg=2, r=50.0, l=None, c=None, parallel=False),
+    )
+    deck = parse_nec(_dipole7("LD 4 1 2 2 50.0 25.0 0"), network=True)
+    assert deck.loads == () and "LD" in deck.ignored
+    assert any("type 4" in why for _m, why in deck.ignored_detail)
+    # The reason surfaces in the UI note (composes with #373).
+    assert "type 4" in deck.skipped_note()
+
+
+def test_ld5_whole_structure_becomes_conductivity():
+    deck = parse_nec(_dipole7("LD 5 0 0 0 3.7e7 0 0"), network=True)
+    assert deck.conductivity == 3.7e7
+    assert "LD" not in deck.ignored
+    # Ranged conductivity can't map to the single whole-antenna WireSpec.
+    deck = parse_nec(_dipole7("LD 5 1 2 4 3.7e7 0 0"), network=True)
+    assert deck.conductivity is None and "LD" in deck.ignored
+
+
+def test_ld_minus_one_nullifies_previous_loads():
+    deck = parse_nec(
+        _dipole7("LD 0 1 2 2 5.0 0 0", "LD -1 0 0 0 0 0 0", "LD 0 1 3 3 7.0 0 0"),
+        network=True,
+    )
+    assert deck.loads == (
+        NecLoad(wire=0, seg=3, r=7.0, l=None, c=None, parallel=False),
+    )
+
+
+def test_ld_distributed_and_duplicate_are_ignored_with_reasons():
+    deck = parse_nec(_dipole7("LD 2 1 2 2 1.0 1e-6 0"), network=True)
+    assert deck.loads == () and any(
+        "per-metre" in why for _m, why in deck.ignored_detail
+    )
+    deck = parse_nec(_dipole7("LD 0 1 2 2 5.0 0 0", "LD 0 1 2 2 7.0 0 0"), network=True)
+    assert len(deck.loads) == 1 and deck.loads[0].r == 5.0
+    assert any("not merged" in why for _m, why in deck.ignored_detail)
+
+
+TWO_VERTICALS = """\
+GW 1 3 0 0 0 0 0 3 0.001
+GW 2 3 2 0 0 2 0 3 0.001
+GE
+EX 0 1 2 0 1 0
+{tl}
+EN
+"""
+
+
+def test_tl_translates_z0_length_and_crossed_polarity():
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 300 1.5 0 0 0 0"), network=True
+    )
+    assert deck.tls == (
+        NecTL(
+            wire_a=0, seg_a=2, wire_b=1, seg_b=2, z0=300.0, length=1.5,
+            transposed=False, shunt_r_a=None, shunt_r_b=None,
+        ),
+    )  # fmt: skip
+    net = deck.network()
+    (br,) = net.branches
+    assert br == TL(a="feed", b="tl1b", z0=300.0, length=1.5, transposed=False)
+    # Both connection points are middle segments of odd wires: whole wires
+    # get named, nothing splits.
+    tups = deck.wire_tuples()
+    assert {t[4] for t in tups if len(t) == 5} == {"feed", "tl1b"}
+    assert all(t[2] == 3 for t in tups)
+
+    # Negative z0 is NEC's crossed line — |z0| plus transposed polarity.
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 -73 1.5 0 0 0 0"), network=True
+    )
+    assert deck.tls[0].z0 == 73.0 and deck.tls[0].transposed is True
+
+
+def test_tl_zero_length_is_port_separation():
+    deck = parse_nec(TWO_VERTICALS.format(tl="TL 1 2 2 2 300 0 0 0 0 0"), network=True)
+    # Segment midpoints sit at (0,0,1.5) and (2,0,1.5) — 2 m apart.
+    assert deck.tls[0].length == pytest.approx(2.0)
+
+
+def test_tl_end_conductance_becomes_shunt_susceptance_does_not():
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 1000.0 0"), network=True
+    )
+    (tl,) = deck.tls
+    assert tl.shunt_r_a is None and tl.shunt_r_b == pytest.approx(1e-3)
+    net = deck.network()
+    assert Shunt(port="tl1b", r=1e-3) in net.branches
+
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0.02 0 0"), network=True
+    )
+    assert deck.tls == () and "TL" in deck.ignored
+    assert any("susceptance" in why for _m, why in deck.ignored_detail)
+
+
+def test_nt_real_y_decomposes_into_resistive_pi():
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="NT 1 2 2 2 0.02 0 -0.01 0 0.015 0"), network=True
+    )
+    assert deck.nts == (
+        NecNT(
+            wire_a=0, seg_a=2, wire_b=1, seg_b=2,
+            series_r=pytest.approx(100.0),
+            shunt_r_a=pytest.approx(100.0),   # 1/(Y11+Y12) = 1/0.01
+            shunt_r_b=pytest.approx(200.0),   # 1/(Y22+Y12) = 1/0.005
+        ),
+    )  # fmt: skip
+    net = deck.network()
+    by_kind = {(type(br).__name__,) + _branch_ports(br): br.r for br in net.branches}
+    assert by_kind == {
+        ("TwoPort", "feed", "nt1b"): pytest.approx(100.0),
+        ("Shunt", "feed"): pytest.approx(100.0),
+        ("Shunt", "nt1b"): pytest.approx(200.0),
+    }
+
+
+def test_nt_susceptance_is_ignored_and_nt_minus_one_clears():
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="NT 1 2 2 2 0.02 0.01 -0.01 0 0.015 0"),
+        network=True,
+    )
+    assert deck.nts == () and "NT" in deck.ignored
+    # NT -1 cancels all previous network AND transmission-line data.
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 0 0\nNT -1 0 0 0 0 0 0 0 0 0"),
+        network=True,
+    )
+    assert deck.tls == () and deck.nts == ()
+
+
+def test_ld_on_a_tl_segment_is_not_composed():
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 0 0\nLD 0 2 2 2 0 1e-6 0"),
+        network=True,
+    )
+    assert deck.tls != () and deck.loads == ()
+    assert any("TL/NT connection" in why for _m, why in deck.ignored_detail)
+
+
+def test_network_requires_network_mode_and_default_mode_is_unchanged():
+    text = _dipole7("LD 0 1 2 2 5.0 0 0")
+    deck = parse_nec(text)  # default: no translation
+    assert deck.network_mode is False
+    assert deck.loads == () and deck.ignored == ("LD",)
+    # Legacy tuples still carry the ex marker and no names.
+    tups = deck.wire_tuples()
+    assert all(len(t) == 4 for t in tups)
+    assert sum(1 for t in tups if t[3] is not None) == 1
+    with pytest.raises(ValueError, match="network=True"):
+        deck.network()

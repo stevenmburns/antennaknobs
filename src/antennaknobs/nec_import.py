@@ -15,10 +15,24 @@ never increments, and ``GS`` supports xnec2c's tag-range extension. Only the
 
 A NEC deck also carries run configuration that antennaknobs manages itself —
 ground (GN/GD), loading (LD), networks and transmission lines (TL/NT), sweep
-and output requests (FR/RP/NE/NH/XQ/...). Those cards are recorded in
-``NecDeck.ignored`` (and FR in ``NecDeck.freq_mhz``) rather than translated,
-so a caller can tell the user what the deck asked for that the app decides
-differently.
+and output requests (FR/RP/NE/NH/XQ/...). By default those cards are recorded
+in ``NecDeck.ignored`` (and FR in ``NecDeck.freq_mhz``) rather than
+translated, so a caller can tell the user what the deck asked for that the
+app decides differently.
+
+With ``network=True``, the LD/TL/NT cards that antennaknobs' port-network
+system can express exactly are translated instead of ignored (issue #385):
+lumped LD loads become ``Load`` branches on named 1-segment wires, LD 5 wire
+conductivity surfaces as ``NecDeck.conductivity`` (feed it to ``WireSpec``),
+TL cards become ``TL`` branches (crossed lines, zero-length = port
+separation, conductance-only end shunts), and an NT card with an all-real Y
+matrix becomes its exact resistive pi (``TwoPort`` + ``Shunt``). What cannot
+be expressed exactly — frequency-independent reactance (LD 4 with X≠0,
+susceptance in TL/NT admittances), distributed RLC (LD 2/3), range-limited
+conductivity — stays in ``ignored`` with a per-card reason in
+``ignored_detail``. ``wire_tuples()`` then emits *named* wires (no legacy
+``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
+return from ``build_wires`` / ``build_network``.
 
 Excitation: only voltage sources (EX type 0 and 5) can drive an antenna in
 antennaknobs; plane-wave and current-source excitations raise. The engine
@@ -31,10 +45,21 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import cached_property
 
+from . import network as _net
 from .design_data import read_data
 
-__all__ = ["NecDeck", "NecFeed", "NecWire", "parse_nec", "read_nec"]
+__all__ = [
+    "NecDeck",
+    "NecFeed",
+    "NecLoad",
+    "NecNT",
+    "NecTL",
+    "NecWire",
+    "parse_nec",
+    "read_nec",
+]
 
 _DEG = math.pi / 180.0
 
@@ -92,6 +117,63 @@ class NecFeed:
 
 
 @dataclass(frozen=True)
+class NecLoad:
+    """One translated lumped LD element (``network=True``): an R/L/C in
+    series with 1-based segment ``seg`` of ``deck.wires[wire]`` — exactly
+    NEC's per-segment ld_card semantics, so a multi-segment LD range appears
+    as one ``NecLoad`` per segment. ``parallel`` distinguishes LD type 1
+    (parallel RLC, the trap idiom) from type 0/4 (series). Legs the card
+    left at zero are ``None`` (omitted), matching ``network.Load``."""
+
+    wire: int
+    seg: int
+    r: float | None
+    l: float | None  # noqa: E741 — matches network.Load's field name
+    c: float | None
+    parallel: bool
+
+
+@dataclass(frozen=True)
+class NecTL:
+    """One translated TL card (``network=True``), resolved onto its two
+    segments. ``z0`` is positive — a negative card z0 (NEC's crossed line)
+    becomes ``transposed=True``, matching the ``network.TL`` convention.
+    ``length`` is resolved: the card's length, or the straight-line distance
+    between the segment midpoints when the card says 0 (NEC semantics).
+    ``shunt_r_*`` carry conductance-only end admittances as 1/G resistances
+    (a card with susceptance in an end admittance is not translated)."""
+
+    wire_a: int
+    seg_a: int
+    wire_b: int
+    seg_b: int
+    z0: float
+    length: float
+    transposed: bool
+    shunt_r_a: float | None
+    shunt_r_b: float | None
+
+
+@dataclass(frozen=True)
+class NecNT:
+    """One translated NT card (``network=True``): an all-real Y matrix,
+    decomposed into its exact resistive pi — a series resistance between the
+    ports (from −Y12) plus a shunt resistance at each port (Y11+Y12,
+    Y22+Y12). Real Y-parameters are frequency-independent, so the pi is
+    exact at every frequency; an NT with susceptance anywhere is not
+    translated (that needs a general YMatrix branch — future work).
+    ``None`` legs are absent elements."""
+
+    wire_a: int
+    seg_a: int
+    wire_b: int
+    seg_b: int
+    series_r: float | None
+    shunt_r_a: float | None
+    shunt_r_b: float | None
+
+
+@dataclass(frozen=True)
 class NecDeck:
     """A parsed NEC deck: final wire list, resolved feeds, and the run
     configuration the deck asked for (kept for reporting, not applied)."""
@@ -102,6 +184,15 @@ class NecDeck:
     ground: bool  # deck requested a ground plane (GE flag or GN card)
     comments: tuple[str, ...]  # CM card text
     ignored: tuple[str, ...]  # run-config card mnemonics seen but not applied
+    # network=True translation results (all empty in the default mode):
+    loads: tuple[NecLoad, ...] = ()
+    tls: tuple[NecTL, ...] = ()
+    nts: tuple[NecNT, ...] = ()
+    conductivity: float | None = None  # whole-structure LD 5, S/m
+    # (mnemonic, reason) per card instance that network mode still could not
+    # translate — skipped_note() prefers these over the generic descriptions.
+    ignored_detail: tuple[tuple[str, str], ...] = ()
+    network_mode: bool = False  # parsed with network=True
 
     def dominant_radius(self) -> float:
         """The deck's wire radius, length-weighted where wires differ.
@@ -131,10 +222,19 @@ class NecDeck:
         """
         parts = []
         if self.ignored:
-            cards = ", ".join(
-                f"{m} ({_IGNORED_CARDS[m]})" if m in _IGNORED_CARDS else m
-                for m in self.ignored
-            )
+            why: dict[str, list[str]] = {}
+            for m, reason in self.ignored_detail:
+                if reason not in why.setdefault(m, []):
+                    why[m].append(reason)
+
+            def describe(m: str) -> str:
+                if m in why:
+                    return f"{m} ({'; '.join(why[m])})"
+                if m in _IGNORED_CARDS:
+                    return f"{m} ({_IGNORED_CARDS[m]})"
+                return m
+
+            cards = ", ".join(describe(m) for m in self.ignored)
             parts.append(f"deck cards not applied: {cards}")
         if self.ground:
             parts.append("the deck models a ground plane")
@@ -147,38 +247,86 @@ class NecDeck:
             + " — the app's own ground/loading/sweep settings are used instead."
         )
 
-    def wire_tuples(self):
-        """The deck as ``build_wires()`` tuples: ``(p1, p2, n_seg, ex)``.
+    @cached_property
+    def _port_plan(self) -> dict[tuple[int, int], str]:
+        """(wire index, 1-based local segment) → port name, for every
+        segment the network attaches to (network mode). Feeds claim names
+        first — a single feed is ``"feed"``, matching the catalog
+        convention — and later attachments to an already-claimed segment
+        share its port: an LD on the fed segment becomes a ``Load`` and a
+        ``Driven`` on one port (the Group-2 termination branch), a TL
+        chain's shared element gets one port per segment however many
+        lines land there."""
+        plan: dict[tuple[int, int], str] = {}
+        single = len(self.feeds) == 1
+        for k, f in enumerate(self.feeds, 1):
+            key = (f.wire, f.seg)
+            if key in plan:
+                raise ValueError(
+                    f"NEC deck drives segment {f.seg} of wire {f.wire + 1} "
+                    f"with more than one EX card"
+                )
+            plan[key] = "feed" if single else f"feed{k}"
+        for k, ld in enumerate(self.loads, 1):
+            plan.setdefault((ld.wire, ld.seg), f"load{k}")
+        for k, tl in enumerate(self.tls, 1):
+            plan.setdefault((tl.wire_a, tl.seg_a), f"tl{k}a")
+            plan.setdefault((tl.wire_b, tl.seg_b), f"tl{k}b")
+        for k, nt in enumerate(self.nts, 1):
+            plan.setdefault((nt.wire_a, nt.seg_a), f"nt{k}a")
+            plan.setdefault((nt.wire_b, nt.seg_b), f"nt{k}b")
+        return plan
 
-        A wire whose fed segment is not its middle segment is split into
-        colinear pieces on the deck's segment boundaries, so the feed lands on
-        a 1-segment wire the engine drives at its centre — same geometry, same
-        segmentation, same feed point as the original deck.
+    def wire_tuples(self):
+        """The deck as ``build_wires()`` tuples.
+
+        Default mode: ``(p1, p2, n_seg, ex)`` with the deck's EX voltages as
+        legacy ``ex`` markers. Network mode (``network=True``): every segment
+        the network attaches to — feeds, loads, TL/NT connections — becomes a
+        *named* wire instead, ``(p1, p2, n_seg, None, name)``, and no tuple
+        carries ``ex`` (the drive comes from ``network()``'s ``Driven``
+        sources).
+
+        Either way, a wire whose marked segment is not its middle segment is
+        split into colinear pieces on the deck's exact segment boundaries, so
+        the port/feed lands on a 1-segment wire whose middle segment IS the
+        marked segment — same geometry, same segmentation, same attachment
+        point as the original deck. A wire whose only mark sits at the middle
+        segment of an odd count stays whole (the delta gap already lands
+        there).
         """
         if not self.feeds:
             raise ValueError(
                 "NEC deck has no voltage-source EX card — nothing drives the antenna"
             )
-        by_wire: dict[int, list[NecFeed]] = {}
-        for f in self.feeds:
-            by_wire.setdefault(f.wire, []).append(f)
+        # (wire index) → {segment: (ex voltage | None, port name | None)}
+        marks: dict[int, dict[int, tuple[complex | None, str | None]]] = {}
+        if self.network_mode:
+            for (wi, seg), pname in self._port_plan.items():
+                marks.setdefault(wi, {})[seg] = (None, pname)
+        else:
+            for f in self.feeds:
+                per = marks.setdefault(f.wire, {})
+                if f.seg in per:
+                    raise ValueError(
+                        f"NEC deck drives segment {f.seg} of wire {f.wire + 1} "
+                        f"with more than one EX card"
+                    )
+                per[f.seg] = (f.voltage, None)
 
         tups = []
         for i, w in enumerate(self.wires):
-            fs = sorted(by_wire.get(i, ()), key=lambda f: f.seg)
-            if not fs:
+            ms = sorted(marks.get(i, {}).items())
+            if not ms:
                 tups.append((w.p1, w.p2, w.n_seg, None))
                 continue
-            if len({f.seg for f in fs}) != len(fs):
-                raise ValueError(
-                    f"NEC deck drives segment {fs[0].seg} of wire {i + 1} "
-                    f"with more than one EX card"
-                )
             n = w.n_seg
-            if len(fs) == 1 and n % 2 == 1 and fs[0].seg == (n + 1) // 2:
-                # Fed at the wire's middle segment — the engine's native feed
-                # position; keep the wire whole.
-                tups.append((w.p1, w.p2, n, fs[0].voltage))
+            if len(ms) == 1 and n % 2 == 1 and ms[0][0] == (n + 1) // 2:
+                # Marked at the wire's middle segment — the engine's native
+                # attachment position; keep the wire whole.
+                ex, pname = ms[0][1]
+                whole = (w.p1, w.p2, n, ex)
+                tups.append(whole + (pname,) if pname else whole)
                 continue
 
             def point(k, w=w, n=n):
@@ -189,21 +337,73 @@ class NecDeck:
                 return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2))
 
             prev = 0
-            for f in fs:
-                if f.seg - 1 > prev:
-                    tups.append((point(prev), point(f.seg - 1), f.seg - 1 - prev, None))
-                tups.append((point(f.seg - 1), point(f.seg), 1, f.voltage))
-                prev = f.seg
+            for seg, (ex, pname) in ms:
+                if seg - 1 > prev:
+                    tups.append((point(prev), point(seg - 1), seg - 1 - prev, None))
+                piece = (point(seg - 1), point(seg), 1, ex)
+                tups.append(piece + (pname,) if pname else piece)
+                prev = seg
             if prev < n:
                 tups.append((point(prev), point(n), n - prev, None))
         return tups
 
+    def network(self):
+        """The deck's translated LD/TL/NT cards as a ``network.Network``,
+        with ports on the named wires ``wire_tuples()`` emits and one
+        ``Driven`` per EX card — ready to return from ``build_network()``.
+        A deck with no translatable cards still gets its ``Driven`` feeds,
+        so a network-mode stub can always define ``build_network``. Only
+        available when the deck was parsed with ``network=True``."""
+        if not self.network_mode:
+            raise ValueError(
+                "deck was not parsed for network translation — call "
+                "parse_nec/read_nec with network=True"
+            )
+        plan = self._port_plan
+        ports = {pname: _net.PortOnWire(pname) for pname in plan.values()}
+        branches: list = []
+        for ld in self.loads:
+            branches.append(
+                _net.Load(
+                    port=plan[(ld.wire, ld.seg)],
+                    r=ld.r,
+                    l=ld.l,
+                    c=ld.c,
+                    parallel=ld.parallel,
+                )
+            )
+        for tl in self.tls:
+            a = plan[(tl.wire_a, tl.seg_a)]
+            b = plan[(tl.wire_b, tl.seg_b)]
+            branches.append(
+                _net.TL(a=a, b=b, z0=tl.z0, length=tl.length, transposed=tl.transposed)
+            )
+            if tl.shunt_r_a is not None:
+                branches.append(_net.Shunt(port=a, r=tl.shunt_r_a))
+            if tl.shunt_r_b is not None:
+                branches.append(_net.Shunt(port=b, r=tl.shunt_r_b))
+        for nt in self.nts:
+            a = plan[(nt.wire_a, nt.seg_a)]
+            b = plan[(nt.wire_b, nt.seg_b)]
+            if nt.series_r is not None:
+                branches.append(_net.TwoPort(a=a, b=b, r=nt.series_r))
+            if nt.shunt_r_a is not None:
+                branches.append(_net.Shunt(port=a, r=nt.shunt_r_a))
+            if nt.shunt_r_b is not None:
+                branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
+        sources = [
+            _net.Driven(port=plan[(f.wire, f.seg)], voltage=f.voltage)
+            for f in self.feeds
+        ]
+        return _net.Network(ports=ports, branches=branches, sources=sources)
 
-def read_nec(builder, name: str) -> NecDeck:
+
+def read_nec(builder, name: str, *, network: bool = False) -> NecDeck:
     """``read_data`` followed by ``parse_nec`` — load a NEC card deck that
     ships next to ``builder``'s design, with the same folder confinement as
-    ``read_json``."""
-    return parse_nec(read_data(builder, name), name=name)
+    ``read_json``. ``network=True`` translates the deck's expressible
+    LD/TL/NT cards into ``deck.network()`` (see the module docstring)."""
+    return parse_nec(read_data(builder, name), name=name, network=network)
 
 
 def _float(token: str, where: str) -> float:
@@ -445,8 +645,190 @@ def _locate_segment(wires, tag, seg, card):
     )
 
 
-def parse_nec(text: str, *, name: str = "NEC deck") -> NecDeck:
+# How many segments an LD 0/1/4 range may cover before the importer refuses
+# to expand it into per-segment Load branches: each expanded segment becomes
+# its own named 1-segment wire + MoM port + MNA row, so a wide range (which
+# usually means "the whole element" — really distributed loading) would
+# shred the mesh for no fidelity gain.
+_LD_EXPAND_MAX = 8
+
+
+def _seg_mid(w, seg: int):
+    """Midpoint of 1-based local segment ``seg`` of a parse-time wire
+    ``[tag, n_seg, p1, p2, radius]`` — NEC's connection point for a
+    zero-length TL's straight-line-distance rule."""
+    t = (seg - 0.5) / w[1]
+    return [a + (b - a) * t for a, b in zip(w[2], w[3])]
+
+
+def _segment_range(wires, tag, sf, st, card):
+    """All (wire index, local segment) pairs an LD card's range covers:
+    NEC's tag/range addressing — tag 0 + range 0 is the whole structure,
+    tag 0 + a range is absolute segment numbers, a tag with range 0 is
+    every segment of that tag, and a tag with a range is local segment
+    numbers within the tag."""
+    if tag == 0 and sf == 0:
+        return [(i, s) for i, w in enumerate(wires) for s in range(1, w[1] + 1)]
+    if sf == 0:
+        pairs = [
+            (i, s)
+            for i, w in enumerate(wires)
+            if w[0] == tag
+            for s in range(1, w[1] + 1)
+        ]
+        if not pairs:
+            raise card.error(f"no wire has tag {tag}")
+        return pairs
+    st = max(st, sf)
+    return [_locate_segment(wires, tag, s, card) for s in range(sf, st + 1)]
+
+
+def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
+    """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
+    plus (mnemonic, reason) detail for every card instance that stays
+    unmodelled. TL/NT resolve first so loads can refuse to co-locate with a
+    connection point — our ``Load`` is the port's termination branch, which
+    would sit in *parallel* with a TL/NT attached to the same port, not in
+    series inside the segment the way NEC composes them."""
+    detail: list[tuple[str, str]] = []
+    skipped: set[str] = set()
+
+    def skip(mnemonic: str, reason: str) -> None:
+        skipped.add(mnemonic)
+        if (mnemonic, reason) not in detail:
+            detail.append((mnemonic, reason))
+
+    tls: list[NecTL] = []
+    for card in tls_raw:
+        wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
+        wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
+        if card.f(7) != 0.0 or card.f(9) != 0.0:
+            skip(
+                "TL",
+                "an end admittance has susceptance — NEC's constant B is "
+                "frequency-independent, which R/L/C cannot express",
+            )
+            continue
+        z0 = card.f(4)
+        if z0 == 0.0:
+            raise card.error("characteristic impedance must be nonzero")
+        length = card.f(5)
+        if length == 0.0:
+            # NEC: zero length means the straight-line distance between
+            # the connection points.
+            length = math.dist(_seg_mid(wires[wa], sa), _seg_mid(wires[wb], sb))
+        ga, gb = card.f(6), card.f(8)
+        tls.append(
+            NecTL(
+                wire_a=wa,
+                seg_a=sa,
+                wire_b=wb,
+                seg_b=sb,
+                z0=abs(z0),
+                length=length,
+                transposed=z0 < 0.0,
+                shunt_r_a=1.0 / ga if ga else None,
+                shunt_r_b=1.0 / gb if gb else None,
+            )
+        )
+
+    nts: list[NecNT] = []
+    for card in nts_raw:
+        wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
+        wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
+        if any(card.f(k) != 0.0 for k in (5, 7, 9)):
+            skip(
+                "NT",
+                "Y-parameters have susceptance — needs a general Y-matrix "
+                "branch, which only a real (resistive) Y avoids",
+            )
+            continue
+        y11, y12, y22 = card.f(4), card.f(6), card.f(8)
+        if y11 == y12 == y22 == 0.0:
+            skip("NT", "all-zero Y-parameters")
+            continue
+        # Exact resistive pi: series −Y12 between the ports, shunts
+        # Y11+Y12 / Y22+Y12 at each. Real Y is frequency-independent, so
+        # this holds at every frequency.
+        ys, ya, yb = -y12, y11 + y12, y22 + y12
+        nts.append(
+            NecNT(
+                wire_a=wa,
+                seg_a=sa,
+                wire_b=wb,
+                seg_b=sb,
+                series_r=1.0 / ys if ys else None,
+                shunt_r_a=1.0 / ya if ya else None,
+                shunt_r_b=1.0 / yb if yb else None,
+            )
+        )
+
+    connected = {(t.wire_a, t.seg_a) for t in tls} | {(t.wire_b, t.seg_b) for t in tls}
+    connected |= {(t.wire_a, t.seg_a) for t in nts} | {(t.wire_b, t.seg_b) for t in nts}
+
+    loads: list[NecLoad] = []
+    loaded: set[tuple[int, int]] = set()
+    conductivity: float | None = None
+    for card in lds_raw:
+        ldtyp = card.i(0)
+        tag, sf, st = card.i(1), card.i(2), card.i(3)
+        if ldtyp in (0, 1, 4):
+            if ldtyp == 4 and card.f(5) != 0.0:
+                skip(
+                    "LD",
+                    "type 4 fixed reactance is frequency-independent — "
+                    "not representable with R/L/C",
+                )
+                continue
+            pairs = _segment_range(wires, tag, sf, st, card)
+            if len(pairs) > _LD_EXPAND_MAX:
+                skip(
+                    "LD",
+                    f"range spans {len(pairs)} segments — the importer "
+                    f"expands at most {_LD_EXPAND_MAX} into per-segment loads",
+                )
+                continue
+            r = card.f(4) or None
+            le = None if ldtyp == 4 else (card.f(5) or None)
+            c = None if ldtyp == 4 else (card.f(6) or None)
+            if r is None and le is None and c is None:
+                continue  # zero-valued load — a no-op
+            for pair in pairs:
+                if pair in connected:
+                    skip(
+                        "LD",
+                        "load on a segment with a TL/NT connection — the "
+                        "series-inside-the-segment composition is not modelled",
+                    )
+                    continue
+                if pair in loaded:
+                    skip("LD", "a second load on one segment is not merged")
+                    continue
+                loaded.add(pair)
+                loads.append(NecLoad(pair[0], pair[1], r, le, c, ldtyp == 1))
+        elif ldtyp in (2, 3):
+            skip("LD", f"type {ldtyp} distributed per-metre loading is not translated")
+        elif ldtyp == 5:
+            if tag == 0 and sf == 0:
+                conductivity = card.f(4)
+            else:
+                skip(
+                    "LD",
+                    "type 5 conductivity on a tag/segment range — the "
+                    "engines take one whole-antenna conductivity",
+                )
+        else:
+            skip("LD", f"type {ldtyp} is not recognised")
+
+    return tuple(loads), tuple(tls), tuple(nts), conductivity, detail, skipped
+
+
+def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> NecDeck:
     """Parse the text of a NEC2 card deck into a :class:`NecDeck`.
+
+    ``network=True`` additionally translates the deck's expressible LD/TL/NT
+    cards into ``deck.network()`` branches instead of recording them in
+    ``ignored`` — see the module docstring for exactly what translates.
 
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
@@ -456,6 +838,9 @@ def parse_nec(text: str, *, name: str = "NEC deck") -> NecDeck:
     comments: list[str] = []
     ignored: set[str] = set()
     feeds_raw: list[tuple[int, int, complex, str]] = []
+    lds_raw: list[_Card] = []
+    tls_raw: list[_Card] = []
+    nts_raw: list[_Card] = []
     freq_mhz: tuple[float, float] | None = None
     ground = False
     in_comments = True
@@ -505,6 +890,27 @@ def parse_nec(text: str, *, name: str = "NEC deck") -> NecDeck:
             ground = True
             ignored.add(mnemonic)
             continue
+        if network and mnemonic in ("LD", "TL", "NT"):
+            # Collected raw and translated after the loop, once the wire
+            # list is final (their tag/segment addressing resolves against
+            # the transformed geometry, exactly like EX).
+            card = _Card(mnemonic, tokens[1:], where)
+            if mnemonic == "LD":
+                if card.i(0) == -1:
+                    lds_raw.clear()  # NEC: nullify all previous loads
+                else:
+                    lds_raw.append(card)
+            elif mnemonic == "TL":
+                tls_raw.append(card)
+            else:
+                if card.i(0) == -1:
+                    # NEC: an NT with I1 = -1 cancels all previous
+                    # network AND transmission-line data.
+                    nts_raw.clear()
+                    tls_raw.clear()
+                else:
+                    nts_raw.append(card)
+            continue
         if mnemonic in _IGNORED_CARDS:
             ignored.add(mnemonic)
             continue
@@ -551,6 +957,17 @@ def parse_nec(text: str, *, name: str = "NEC deck") -> NecDeck:
         idx, local = _locate_segment(wires, tag, seg, card)
         feeds.append(NecFeed(idx, local, voltage))
 
+    loads: tuple[NecLoad, ...] = ()
+    tls: tuple[NecTL, ...] = ()
+    nts: tuple[NecNT, ...] = ()
+    conductivity: float | None = None
+    detail: list[tuple[str, str]] = []
+    if network:
+        loads, tls, nts, conductivity, detail, skipped = _translate_network_cards(
+            wires, lds_raw, tls_raw, nts_raw
+        )
+        ignored |= skipped
+
     return NecDeck(
         wires=tuple(
             NecWire(tag, ns, tuple(p1), tuple(p2), rad)
@@ -561,4 +978,10 @@ def parse_nec(text: str, *, name: str = "NEC deck") -> NecDeck:
         ground=ground,
         comments=tuple(comments),
         ignored=tuple(sorted(ignored)),
+        loads=loads,
+        tls=tls,
+        nts=nts,
+        conductivity=conductivity,
+        ignored_detail=tuple(detail),
+        network_mode=network,
     )
