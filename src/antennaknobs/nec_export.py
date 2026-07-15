@@ -93,9 +93,10 @@ def export_nec(
     title = title or f"{type(builder).__module__}.{type(builder).__qualname__}"
     lines = [f"CM {title}", "CM exported by antennaknobs.nec_export", "CE"]
 
-    # --- geometry: one GW per resolved wire tuple, then GE ---
+    # --- geometry: one GW per resolved wire tuple, then GE. GW carries a
+    # radius natively, so a per-wire spec (issue #388) exports faithfully ---
     for tag, t in enumerate(eng.tups, start=1):
-        lines.append(_gw(tag, t[2], t[0], t[1], eng._wire_radius))
+        lines.append(_gw(tag, t[2], t[0], t[1], eng._radius_for(t)))
     lines.append("GE 0")
 
     # --- Load branches -> LD cards (type 0 series / 1 parallel RLC) ---

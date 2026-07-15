@@ -8,6 +8,7 @@ import PyNEC as nec
 from momwire import insulation_inductance, wire_internal_impedance
 
 from ..engine import FarField, SimulationEngine, WireCurrents
+from ..network import as_wire
 from ..network import (
     Driven,
     Load,
@@ -167,7 +168,7 @@ class PyNECEngine(SimulationEngine):
                 n_seg,
                 p0[0], p0[1], p0[2],
                 p1[0], p1[1], p1[2],
-                self._wire_radius,
+                self._radius_for(t),
                 1.0,
                 1.0,
             )  # fmt: skip
@@ -200,24 +201,51 @@ class PyNECEngine(SimulationEngine):
         for tag, sub_index, voltage in self.excitation_pairs:
             self.c.ex_card(0, tag, sub_index, 0, voltage.real, voltage.imag, 0, 0, 0, 0)
 
-    def _insulation_l_per_m(self):
+    def _radius_for(self, t):
+        """Wire-card radius for one build_wires() entry: its own spec's
+        radius when it carries one (issue #388 — NEC takes a radius per GW
+        card natively), else the whole-antenna default."""
+        spec = as_wire(t).spec
+        return spec.radius if spec is not None else self._wire_radius
+
+    def _insulation_l_per_m(self, spec=None, radius=None):
         """The spec jacket's distributed series inductance [H/m] (King's
         quasi-static insulated-antenna limit — the same L' momwire loads),
-        or None for bare/ideal wire."""
-        spec = self._wire_spec
+        or None for bare/ideal wire. With no arguments, the design default;
+        per-wire callers pass that wire's spec and conductor radius."""
+        if spec is None:
+            spec = self._wire_spec
+        if radius is None:
+            radius = self._wire_radius
         if spec is None or not spec.insulation_radius:
             return None
         return insulation_inductance(
-            self._wire_radius, spec.insulation_radius, spec.insulation_eps_r
+            radius, spec.insulation_radius, spec.insulation_eps_r
         )
 
     def _emit_wire_material_cards(self, c):
-        """Global (all-segments) LD cards for the design's wire material:
-        conductor loss as type 5, insulation as type 2 (distributed series
-        R/L/C per metre — only the H/m slot is used). NEC connects multiple
-        loads on a segment in series, so the two stack. Spec conductivity
-        from the design wins; the module constant stays as the manual
-        all-designs oracle override (see its comment above)."""
+        """LD cards for the design's wire material: conductor loss as type
+        5, insulation as type 2 (distributed series R/L/C per metre — only
+        the H/m slot is used). NEC connects multiple loads on a segment in
+        series, so the two stack — which is exactly why the per-wire and
+        global paths are exclusive: a global card plus a per-tag card would
+        double the loss on that wire.
+
+        With no per-wire specs (issue #388), one global all-segments card
+        per effect, exactly as before. When any wire carries its own spec,
+        every wire gets per-tag cards from its effective spec (its own, or
+        the design default for spec-less wires)."""
+        if any(as_wire(t).spec is not None for t in self.tups):
+            for tag, t in enumerate(self.tups, start=1):
+                w = as_wire(t)
+                eff = w.spec if w.spec is not None else self._wire_spec
+                sigma = eff.conductivity if eff is not None else WIRE_CONDUCTIVITY
+                if sigma is not None:
+                    c.ld_card(5, tag, 0, 0, sigma, 0.0, 0.0)
+                l_ins = self._insulation_l_per_m(eff, self._radius_for(t))
+                if l_ins is not None:
+                    c.ld_card(2, tag, 0, 0, 0.0, l_ins, 0.0)
+            return
         sigma = (
             self._wire_spec.conductivity
             if self._wire_spec is not None
@@ -468,7 +496,7 @@ class PyNECEngine(SimulationEngine):
                 p1[0],
                 p1[1],
                 p1[2],
-                self._wire_radius,
+                self._radius_for(t),
                 1.0,
                 1.0,
             )
