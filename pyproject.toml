@@ -108,6 +108,14 @@ markers = [
     # many designs without inflating PR feedback. Deselect with
     # `-m "not antenna_computation_check"`.
     "antenna_computation_check: solves a named design as part of broad per-design catalog coverage (run on main, not per-PR)",
+    # Benchmark-class validations (thousands-of-segment solves, ~GBs of peak
+    # RSS, >>5 s) — NOT unit tests, and NEVER run in CI: one OOM-killed the
+    # GitHub runner on top of the catalog lane's accumulated RSS ('runner
+    # received a shutdown signal', twice at the same test). The suite-wide
+    # rule is that an individual test finishes in ~2 s, 5 s worst case;
+    # anything heavier goes here and is run manually after nec-import or
+    # engine changes: `python -m pytest -m heavy_mesh`.
+    "heavy_mesh: benchmark-sized solve, excluded from CI; run manually",
 ]
 
 [tool.ruff]
