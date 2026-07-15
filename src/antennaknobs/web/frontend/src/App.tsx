@@ -6138,6 +6138,7 @@ function ViewPanel({
           showEnvelope={showingPreview ? false : showEnvelope}
           showWireLabels={showWireLabels}
           showFeedNames={showFeedNames}
+          interactive={fill}
         />
       </div>
     );
@@ -7319,6 +7320,12 @@ function SmithChart({
   return <canvas ref={canvasRef} className="smith" />;
 }
 
+// Viewport zoom ceiling. The motivating case (elt_whip, #384) hides 6.35 mm
+// of cage detail inside a 2.44 m extent — a 1:384 scale gap — so the ceiling
+// leaves an order of magnitude of headroom past "inspect the finest catalog
+// detail at canvas size".
+const VIEWPORT_ZOOM_MAX = 10000;
+
 function CurrentCanvas({
   result,
   projection,
@@ -7326,6 +7333,7 @@ function CurrentCanvas({
   showEnvelope,
   showWireLabels,
   showFeedNames,
+  interactive = false,
 }: {
   result: SolveResponse | null;
   projection: Projection;
@@ -7333,9 +7341,35 @@ function CurrentCanvas({
   showEnvelope: boolean;
   showWireLabels: boolean;
   showFeedNames: boolean;
+  // Zoom/pan navigation — main stage only; thumbnails stay inert buttons.
+  interactive?: boolean;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Viewport navigation (map-style: cursor-anchored wheel/pinch zoom, drag
+  // pan, double-click/tap or the Fit button to re-fit — survey in PR #384).
+  // zoom=1, pan=0 IS the auto-fit view, so the fit framing keeps tracking
+  // knob drags and re-solves; zoom composes on top as a pure multiplier.
+  // Lives in a ref (mutated at pointer-event rate, drawn via rAF) with a
+  // React mirror of the zoom level for the HUD chip / touch-action gate.
+  const vpRef = useRef({ zoom: 1, panX: 0, panY: 0 });
+  const [vpZoom, setVpZoom] = useState(1);
+  const redrawRef = useRef<() => void>(() => {});
+  const resetViewport = () => {
+    vpRef.current = { zoom: 1, panX: 0, panY: 0 };
+    setVpZoom(1);
+  };
+
+  // Switching projection re-fits: pan/zoom are anchored in the projected
+  // plane, so a viewport aimed at (say) a feed region in Top view points at
+  // nothing meaningful in Side view. Same for switching designs.
+  const geometryName = result?.geometry ?? "";
+  useEffect(() => {
+    resetViewport();
+    // The main draw effect below also depends on `projection` (and re-runs
+    // on any new result), so the re-fit paints without an explicit redraw.
+  }, [projection, geometryName]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -7431,9 +7465,15 @@ function CurrentCanvas({
       const vC = (vEffMin + vEffMax) / 2;
       const cx = w / 2;
       const cy = h / 2;
+      // Compose the user viewport on top of the fit framing. Only geometry
+      // goes through `zscale`; pixel-sized glyphs (strokes, labels, envelope
+      // amplitude, feed dot) stay on `s`, so zooming magnifies the antenna
+      // without ballooning its annotations.
+      const vp = vpRef.current;
+      const zscale = scale * vp.zoom;
       const project = (p: [number, number, number]) => ({
-        x: cx + (p[horizAxis] - hC) * scale,
-        y: cy + (vC - p[vertAxis]) * scale, // higher vert value = higher on screen
+        x: cx + (p[horizAxis] - hC) * zscale + vp.panX,
+        y: cy + (vC - p[vertAxis]) * zscale + vp.panY, // higher vert value = higher on screen
       });
 
       // Ground reference line at world z=0, drawn only on side projections
@@ -7442,7 +7482,7 @@ function CurrentCanvas({
       // ground" guessing game from the side view. vC was adjusted above to
       // keep this on-canvas, so no bounds check needed here.
       if (result.ground && vertAxis === 2) {
-        const groundY = cy + vC * scale;
+        const groundY = cy + vC * zscale + vp.panY;
         ctx!.strokeStyle = `rgba(${PC.groundRgb}, 0.55)`;
         ctx!.lineWidth = 1;
         ctx!.setLineDash([6, 4]);
@@ -7565,8 +7605,20 @@ function CurrentCanvas({
         }
       }
 
-      // λ/4 scale bar, centered horizontally under the antenna.
-      const barLenPx = (lambdaDesign / 4) * scale;
+      // Scale bar, centered horizontally under the antenna. At fit zoom it
+      // is the familiar λ/4 bar; once zoomed, λ/4 no longer fits on screen,
+      // so it becomes a map-style bar: a nice round length (1/2/5 × 10^k m)
+      // near a quarter of the canvas width, always true to `zscale`.
+      let barWorld = lambdaDesign / 4;
+      let barLabel = `λ/4 = ${(lambdaDesign / 4).toFixed(2)} m`;
+      if (vp.zoom !== 1) {
+        const target = (0.25 * w) / zscale;
+        const pow = Math.pow(10, Math.floor(Math.log10(target)));
+        const mant = target / pow;
+        barWorld = (mant >= 5 ? 5 : mant >= 2 ? 2 : 1) * pow;
+        barLabel = formatMetres(barWorld);
+      }
+      const barLenPx = barWorld * zscale;
       const barX0 = (w - barLenPx) / 2;
       const barY = h - 24 * s;
       ctx!.strokeStyle = PC.label;
@@ -7581,7 +7633,6 @@ function CurrentCanvas({
       ctx!.stroke();
       ctx!.fillStyle = PC.labelBright;
       ctx!.font = `${labelFontPx}px ui-monospace, monospace`;
-      const barLabel = `λ/4 = ${(lambdaDesign / 4).toFixed(2)} m`;
       const labelW = ctx!.measureText(barLabel).width;
       ctx!.fillText(barLabel, (w - labelW) / 2, barY - 8 * s);
     }
@@ -7589,10 +7640,185 @@ function CurrentCanvas({
     onResize();
     const obs = new ResizeObserver(onResize);
     obs.observe(canvas);
-    return () => obs.disconnect();
-  }, [result, projection, showHeatmap, showEnvelope, showWireLabels, showFeedNames, theme]);
+    redrawRef.current = draw;
+    if (!interactive) return () => obs.disconnect();
 
-  return <canvas ref={canvasRef} />;
+    // ---- viewport navigation ------------------------------------------
+    // Draws coalesce to one per frame: pointer/wheel events mutate vpRef
+    // and schedule a rAF repaint.
+    let raf = 0;
+    const scheduleDraw = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        draw();
+      });
+    };
+
+    // Zoom by `factor` keeping the canvas point (ax, ay) fixed — the world
+    // point under the cursor/pinch centre stays under it. Zooming all the
+    // way back out lands exactly on the fit view (pan snaps to 0).
+    const applyZoom = (factor: number, ax: number, ay: number) => {
+      const v = vpRef.current;
+      const z = Math.min(VIEWPORT_ZOOM_MAX, Math.max(1, v.zoom * factor));
+      const f = z / v.zoom;
+      const cx = canvas.clientWidth / 2;
+      const cy = canvas.clientHeight / 2;
+      v.panX = ax - cx - (ax - cx - v.panX) * f;
+      v.panY = ay - cy - (ay - cy - v.panY) * f;
+      v.zoom = z;
+      if (z === 1) {
+        v.panX = 0;
+        v.panY = 0;
+      }
+      setVpZoom(z);
+      scheduleDraw();
+    };
+
+    // Wheel zoom, ~1.2× per detent, exponential so trackpads feel smooth.
+    // Native non-passive listener for the same reason as the VFO dial:
+    // React's onWheel can't preventDefault the page scroll.
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line-mode → px
+      applyZoom(Math.exp(-dy * 0.002), e.clientX - rect.left, e.clientY - rect.top);
+    };
+
+    // Pointer state: one pointer drags (pan — only when zoomed, so at fit a
+    // touch drag stays with the mobile carousel swipe), two pinch-zoom.
+    const pointers = new Map<number, { x: number; y: number; downX: number; downY: number }>();
+    let moved = false;
+    let lastTap = { t: 0, x: 0, y: 0 };
+    const posOf = (e: PointerEvent) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0 && e.button !== 1) return;
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Capture is best-effort: a drag that leaves the canvas just ends.
+      }
+      const p = posOf(e);
+      pointers.set(e.pointerId, { ...p, downX: p.x, downY: p.y });
+      moved = false;
+      if (e.pointerType === "mouse") e.preventDefault(); // middle-click autoscroll
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      const prev = pointers.get(e.pointerId);
+      if (!prev) return;
+      const p = posOf(e);
+      if (Math.hypot(p.x - prev.downX, p.y - prev.downY) > 4) moved = true;
+      if (pointers.size === 2) {
+        // Pinch: translate by the midpoint delta, zoom by the distance
+        // ratio about the new midpoint.
+        const other = [...pointers.entries()].find(([id]) => id !== e.pointerId)![1];
+        const oldMid = { x: (prev.x + other.x) / 2, y: (prev.y + other.y) / 2 };
+        const oldDist = Math.hypot(prev.x - other.x, prev.y - other.y) || 1;
+        const newMid = { x: (p.x + other.x) / 2, y: (p.y + other.y) / 2 };
+        const newDist = Math.hypot(p.x - other.x, p.y - other.y) || 1;
+        const v = vpRef.current;
+        v.panX += newMid.x - oldMid.x;
+        v.panY += newMid.y - oldMid.y;
+        applyZoom(newDist / oldDist, newMid.x, newMid.y);
+      } else if (pointers.size === 1 && vpRef.current.zoom > 1) {
+        const v = vpRef.current;
+        v.panX += p.x - prev.x;
+        v.panY += p.y - prev.y;
+        scheduleDraw();
+      }
+      pointers.set(e.pointerId, { ...prev, x: p.x, y: p.y });
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      const had = pointers.delete(e.pointerId);
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        // Never captured (see above) — nothing to release.
+      }
+      if (!had || moved || e.type === "pointercancel") return;
+      // Clean tap/click: double within 350 ms & 30 px re-fits.
+      const now = performance.now();
+      const p = posOf(e);
+      if (now - lastTap.t < 350 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 30) {
+        resetViewport();
+        scheduleDraw();
+        lastTap = { t: 0, x: 0, y: 0 };
+      } else {
+        lastTap = { t: now, x: p.x, y: p.y };
+      }
+    };
+
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      obs.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [result, projection, showHeatmap, showEnvelope, showWireLabels, showFeedNames, theme, interactive]);
+
+  const zoomed = vpZoom > 1.001;
+  return (
+    <div className="canvas-viewport">
+      <canvas
+        ref={canvasRef}
+        style={
+          interactive
+            ? {
+                // At fit, touch drags belong to the page (mobile carousel
+                // swipe); pinch is never a browser gesture here, so a
+                // two-finger zoom always reaches us. Once zoomed, the canvas
+                // owns all touches for panning until re-fit.
+                touchAction: zoomed ? "none" : "pan-x pan-y",
+                cursor: zoomed ? "grab" : "zoom-in",
+              }
+            : undefined
+        }
+      />
+      {interactive && (
+        <div className="viewport-hud">
+          {zoomed && (
+            <span className="viewport-zoom">
+              {vpZoom >= 10 ? Math.round(vpZoom) : vpZoom.toFixed(1)}×
+            </span>
+          )}
+          <button
+            className="viewport-fit"
+            disabled={!zoomed}
+            onClick={() => {
+              resetViewport();
+              redrawRef.current();
+            }}
+            title="Zoom to fit (or double-click the canvas)"
+          >
+            Fit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Nice-number lengths for the zoomed scale bar: pick the readable unit and
+// trim float dust (5×10⁻³ m × 1000 → "5 mm", not "5.000000000000001 mm").
+function formatMetres(v: number): string {
+  const fmt = (x: number, unit: string) => `${parseFloat(x.toPrecision(2))} ${unit}`;
+  if (v >= 1) return fmt(v, "m");
+  if (v >= 0.01) return fmt(v * 100, "cm");
+  return fmt(v * 1000, "mm");
 }
 
 function drawArmEnvelope(
