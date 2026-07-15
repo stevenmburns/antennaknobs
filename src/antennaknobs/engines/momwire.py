@@ -192,27 +192,103 @@ class MomwireEngine(SimulationEngine):
         translated = flat_wires_to_polylines(tups)
         self._polylines = translated["polylines"]
         self._edge_segments = translated["edge_segments"]
+        self._polyline_specs = translated["polyline_specs"]
         self._feeds = translated["feeds"]
         self._feed_names = translated["feed_names"]
         self._junctions = translated["junctions"]
-        # Wire material (issue #316): a design-declared WireSpec supplies the
-        # conductor radius plus the distributed-loading kwargs. Precedence
-        # for the radius: an explicit non-default `wire_radius` (the web
-        # model-options control) wins; the stock 0.0005 acts as "auto" so a
-        # spec design's skin-effect loss is computed at its real radius.
+        # Wire material (issues #316/#388): a design-declared WireSpec
+        # supplies the default conductor radius plus the distributed-loading
+        # kwargs; per-wire specs on individual Wire entries override it wire
+        # by wire. Precedence for the default radius: an explicit non-default
+        # `wire_radius` (the web model-options control) wins over
+        # build_wire_material(); the stock 0.0005 acts as "auto" so a spec
+        # design's skin-effect loss is computed at its real radius. An
+        # explicit per-wire spec beats both — the web override only moves
+        # the default.
         self._wire_spec = builder.build_wire_material()
         if wire_radius != 0.0005 and wire_radius is not None:
-            self._wire_radius = wire_radius
+            default_radius = wire_radius
         elif self._wire_spec is not None:
-            self._wire_radius = self._wire_spec.radius
+            default_radius = self._wire_spec.radius
         else:
-            self._wire_radius = 0.0005
+            default_radius = 0.0005
+        specs = self._polyline_specs
+        if any(s is not None for s in specs):
+            # The solver kernels take ONE radius until momwire grows
+            # per-wire radius arrays (the #388 companion issue): a uniform
+            # per-wire radius is honored exactly; mixed radii collapse to
+            # the length-dominant one, stated plainly.
+            radii = [s.radius if s is not None else default_radius for s in specs]
+            if len(set(radii)) == 1:
+                self._wire_radius = radii[0]
+            else:
+                length_by_r: dict[float, float] = {}
+                for r, pl in zip(radii, self._polylines):
+                    ln = float(np.linalg.norm(np.diff(pl, axis=0), axis=1).sum())
+                    length_by_r[r] = length_by_r.get(r, 0.0) + ln
+                self._wire_radius = max(length_by_r.items(), key=lambda kv: kv[1])[0]
+                _logger.warning(
+                    "momwire solvers take a single wire radius until the "
+                    "per-wire radius kernels land; approximating %s's mixed "
+                    "per-wire radii with the length-dominant %.4g m",
+                    type(builder).__name__,
+                    self._wire_radius,
+                )
+        else:
+            self._wire_radius = default_radius
         # Distributed loading rides only the solvers that model it; warn
         # once (not raise) so a matched-basis sinusoidal comparison of a
         # lossy design still solves — as the ideal wire, stated plainly.
         self._loading_kwargs = {}
         spec = self._wire_spec
-        if spec is not None and (
+        if any(s is not None for s in specs):
+            # Per-wire loading (issue #388): one entry per polyline, NaN
+            # switching the effect off for that wire (momwire's
+            # normalize_per_wire convention). A wire without its own spec
+            # inherits the design default. NOTE: skin loss for per-wire
+            # conductivity is still computed at the single global radius
+            # above — the per-wire radius kernels lift that too.
+            eff = [s if s is not None else spec for s in specs]
+            nan = float("nan")
+            cond = np.array(
+                [
+                    e.conductivity
+                    if e is not None and e.conductivity is not None
+                    else nan
+                    for e in eff
+                ]
+            )
+            ins_r = np.array(
+                [
+                    e.insulation_radius
+                    if e is not None and e.insulation_radius is not None
+                    else nan
+                    for e in eff
+                ]
+            )
+            ins_eps = np.array(
+                [
+                    e.insulation_eps_r
+                    if e is not None and e.insulation_radius is not None
+                    else nan
+                    for e in eff
+                ]
+            )
+            wants_loading = bool(np.isfinite(cond).any() or np.isfinite(ins_r).any())
+            if wants_loading and _solver_supports_wire_loading(self._solver):
+                if np.isfinite(cond).any():
+                    self._loading_kwargs["wire_conductivity"] = cond
+                if np.isfinite(ins_r).any():
+                    self._loading_kwargs["insulation_radius"] = ins_r
+                    self._loading_kwargs["insulation_eps_r"] = ins_eps
+            elif wants_loading:
+                _logger.warning(
+                    "%s doesn't model distributed wire loading; solving the "
+                    "design's %s wire as ideal (PEC, bare)",
+                    getattr(self._solver, "__name__", self._solver),
+                    type(builder).__name__,
+                )
+        elif spec is not None and (
             spec.conductivity is not None or spec.insulation_radius is not None
         ):
             if _solver_supports_wire_loading(self._solver):
