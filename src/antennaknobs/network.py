@@ -22,7 +22,7 @@ as tiny stub wires at sensible locations.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
+from typing import NamedTuple, Union
 
 
 @dataclass(frozen=True)
@@ -212,6 +212,44 @@ def wire_from_catalog(name):
     if name not in WIRES:
         raise KeyError(f"unknown wire {name!r}; available: {', '.join(sorted(WIRES))}")
     return WIRES[name]
+
+
+class Wire(NamedTuple):
+    """One ``build_wires()`` entry, named (issue #388). A drop-in superset
+    of the plain-tuple contract: a ``Wire`` IS a tuple, so indexing,
+    unpacking, and the ``t[4]``-style name access keep working, and designs
+    may freely mix plain 4/5-tuples and ``Wire`` entries in one list.
+
+    ``spec=None`` means "the design default": engines fall back to
+    ``build_wire_material()``. Precedence, defined once: an explicit
+    per-wire ``spec`` wins; the web ``wire_radius`` override only moves
+    the default. Transforms, array placement, and scale knobs never scale
+    a ``spec`` — it describes the physical wire stock the antenna is
+    built from, not the geometry.
+    """
+
+    p0: tuple
+    p1: tuple
+    n_seg: int
+    ex: complex | None = None
+    name: str | None = None
+    spec: WireSpec | None = None
+
+
+def as_wire(t) -> Wire:
+    """Normalize one ``build_wires()`` entry — plain 4/5/6-tuple or
+    ``Wire`` — to a ``Wire``. This is the single choke point for
+    tuple-shape discrimination: consumers should call this instead of
+    inspecting ``len(t)``, because a ``Wire``'s defaults make its ``len()``
+    always 6, which an arity check misreads."""
+    if isinstance(t, Wire):
+        return t
+    if not 4 <= len(t) <= 6:
+        raise ValueError(
+            "build_wires() entry must have 4-6 fields "
+            f"(p0, p1, n_seg, ex[, name[, spec]]), got {len(t)}"
+        )
+    return Wire(*t)
 
 
 # Reserved for follow-up PR — sketched here so the discriminated-union

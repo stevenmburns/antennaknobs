@@ -12,7 +12,7 @@ from momwire import BSplineSolver
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
-from ..network import PortOnWire, PortVirtual
+from ..network import PortOnWire, PortVirtual, as_wire
 from ..network_reduce import NetworkReducer, tl_admittance_2x2
 
 _logger = logging.getLogger(__name__)
@@ -183,9 +183,10 @@ class MomwireEngine(SimulationEngine):
             for tag1, _seg1, tag2, _seg2, _z0, _length in self._tls:
                 for tag in (tag1, tag2):
                     t = tups[tag - 1]
-                    p0, p1, n_seg, ev = t[0], t[1], t[2], t[3]
-                    if ev is None:
-                        tups[tag - 1] = (p0, p1, n_seg, 0 + 0j)
+                    if t[3] is None:
+                        # Preserve any name/spec fields while nullifying the
+                        # feed (as_wire keeps them; only ex changes).
+                        tups[tag - 1] = as_wire(t)._replace(ex=0 + 0j)
                         augmented_tags.add(tag)
 
         translated = flat_wires_to_polylines(tups)

@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 
 from .core import save_or_show
+from .network import Wire, as_wire
 import numpy as np
 
 # matplotlib (pyplot + the mplot3d Line3DCollection) is imported lazily inside
@@ -192,6 +193,27 @@ class AntennaBuilder:
         save_or_show(plt, fn)
 
 
+def _shift_entry(t, yoff, zoff, new_ex):
+    """Translate one ``build_wires()`` entry by (0, yoff, zoff) for array
+    placement, replacing a non-None excitation with ``new_ex(old_ex)``
+    (each array builder has its own replace-vs-multiply phasor convention,
+    so the policy comes in as a callable). Preserves the entry's shape:
+    plain 4/5-tuples stay plain, ``Wire`` entries keep ``name`` and
+    ``spec`` untouched — per-wire specs ride through array placement and
+    are never scaled (issue #388: a spec is physical wire stock, not
+    geometry)."""
+    w = as_wire(t)
+    (x0, y0, z0), (x1, y1, z1) = w.p0, w.p1
+    moved = w._replace(
+        p0=(x0, y0 + yoff, z0 + zoff),
+        p1=(x1, y1 + yoff, z1 + zoff),
+        ex=new_ex(w.ex) if w.ex is not None else w.ex,
+    )
+    if isinstance(t, Wire) or len(t) == 6:
+        return moved
+    return tuple(moved)[: len(t)]
+
+
 class Array2x2Builder(AntennaBuilder):
     def __init__(self, element_builder, params=None):
         self.__dict__["element_builder"] = element_builder
@@ -242,17 +264,11 @@ class Array2x2Builder(AntennaBuilder):
                 (self.del_z, tups_top, 1),
                 (-self.del_z, tups_bot, phasor_tb),
             ):
-                for (x0, y0, z0), (x1, y1, z1), ns, ex in tups:
-                    new_tups.extend(
-                        [
-                            (
-                                (x0, y0 + yoff, z0 + zoff),
-                                (x1, y1 + yoff, z1 + zoff),
-                                ns,
-                                ph0 * ph1 if ex is not None else ex,
-                            )
-                        ]
-                    )
+                # 2x2 convention: the element's drive is REPLACED by the
+                # array phasor (unit magnitude), not multiplied.
+                new_tups.extend(
+                    _shift_entry(t, yoff, zoff, lambda ex, p=ph0 * ph1: p) for t in tups
+                )
 
         return new_tups
 
@@ -326,15 +342,8 @@ class Array2x4Builder(AntennaBuilder):
             for zoff, tups in pairs:
                 ph_tb = 1 if zoff > 0 else phasor_tb
                 new_tups.extend(
-                    [
-                        (
-                            (x0, y0 + yoff, z0 + zoff),
-                            (x1, y1 + yoff, z1 + zoff),
-                            ns,
-                            ph_lr * ph_tb * ex if ex is not None else ex,
-                        )
-                        for ((x0, y0, z0), (x1, y1, z1), ns, ex) in tups
-                    ]
+                    _shift_entry(t, yoff, zoff, lambda ex, p=ph_lr * ph_tb: p * ex)
+                    for t in tups
                 )
 
         return new_tups
@@ -397,15 +406,8 @@ class Array1x4Builder(AntennaBuilder):
         ):
             for zoff, tups in pairs:
                 new_tups.extend(
-                    [
-                        (
-                            (x0, y0 + yoff, z0 + zoff),
-                            (x1, y1 + yoff, z1 + zoff),
-                            ns,
-                            ph_lr * ex if ex is not None else ex,
-                        )
-                        for ((x0, y0, z0), (x1, y1, z1), ns, ex) in tups
-                    ]
+                    _shift_entry(t, yoff, zoff, lambda ex, p=ph_lr: p * ex)
+                    for t in tups
                 )
 
         return new_tups
@@ -468,15 +470,8 @@ class Array1x4GroupedBuilder(AntennaBuilder):
         ):
             for zoff, tups in pairs:
                 new_tups.extend(
-                    [
-                        (
-                            (x0, y0 + yoff, z0 + zoff),
-                            (x1, y1 + yoff, z1 + zoff),
-                            ns,
-                            ph_lr * ex if ex is not None else ex,
-                        )
-                        for ((x0, y0, z0), (x1, y1, z1), ns, ex) in tups
-                    ]
+                    _shift_entry(t, yoff, zoff, lambda ex, p=ph_lr: p * ex)
+                    for t in tups
                 )
 
         return new_tups
@@ -533,14 +528,10 @@ class Array1x2Builder(AntennaBuilder):
         # shifted the whole array — inert in free space — now removed.)
         new_tups = []
         for yoff, ph0 in ((-self.del_y, 1), (self.del_y, phasor_lr)):
-            for (x0, y0, z0), (x1, y1, z1), ns, ex in tups_top:
-                new_tups.append(
-                    (
-                        (x0, y0 + yoff, z0),
-                        (x1, y1 + yoff, z1),
-                        ns,
-                        ph0 if ex is not None else ex,
-                    )
-                )
+            # 1x2 convention: like the 2x2, the drive is REPLACED by the
+            # array phasor. No z offset (see the comment above).
+            new_tups.extend(
+                _shift_entry(t, yoff, 0.0, lambda ex, p=ph0: p) for t in tups_top
+            )
 
         return new_tups

@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .network import as_wire
+
 
 def _round_point(p, eps):
     # Quantize endpoints onto an eps-spaced grid so 1e-14 floating-point
@@ -71,24 +73,23 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
             nodes.append(np.asarray(p, dtype=float))
         return node_of[key]
 
-    # Names are an optional 5th tuple field. None (or absent) means
-    # "unnamed"; otherwise a string identifying this edge as a network
-    # port in `build_network()`.
+    # Names are an optional 5th field, per-wire specs an optional 6th
+    # (issue #388); entries may be plain 4/5-tuples or `Wire` named tuples,
+    # normalized here at the single choke point.
     tup_names = []
+    tup_specs = []
     for i, t in enumerate(tups):
-        if len(t) == 4:
-            p0, p1, n_seg, ev = t
-            name = None
-        elif len(t) == 5:
-            p0, p1, n_seg, ev, name = t
-        else:
-            raise ValueError(f"tuple {i}: expected 4- or 5-tuple, got {len(t)}")
+        try:
+            p0, p1, n_seg, ev, name, spec = as_wire(t)
+        except ValueError as e:
+            raise ValueError(f"tuple {i}: {e}") from None
         a = node_id(p0)
         b = node_id(p1)
         if a == b:
             raise ValueError(f"tuple {i}: degenerate edge (p0==p1 within eps)")
         edges.append((a, b, int(n_seg), ev, i))
         tup_names.append(name)
+        tup_specs.append(spec)
 
     # adj[nid] = list of (other_node, edge_index), in registration order.
     adj = [[] for _ in nodes]
@@ -105,10 +106,26 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
     # polyline and starts another. Walk every edge out of every boundary
     # node, threading through degree-2 nodes until the next boundary.
     is_boundary = [len(a) != 2 for a in adj]
+
+    # A wire-spec change is a polyline boundary too (issue #388): momwire
+    # consumes one spec per wire, so a degree-2 node whose two edges carry
+    # different specs must end one polyline and start another. The node is
+    # then registered as a 2-entry junction below — exactly like a cycle
+    # cut — so KCL still carries the current through it.
+    for nid, neigh in enumerate(adj):
+        if not is_boundary[nid]:
+            e0, e1 = neigh[0][1], neigh[1][1]
+            if tup_specs[edges[e0][4]] != tup_specs[edges[e1][4]]:
+                is_boundary[nid] = True
+
     edge_seen = [False] * len(edges)
 
     polylines = []
     edge_segments = []
+    # One spec per polyline: uniform by construction, since a spec change
+    # at a degree-2 node was marked as a boundary above and any other
+    # meeting point is a junction (a boundary already).
+    polyline_specs = []
     # junction_ends[node_id] -> list of (polyline_index, "start"|"end").
     # Filled as we walk; only meaningful for degree>=3 nodes, but we
     # collect it for all boundary nodes and filter later.
@@ -151,6 +168,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
             polyline_idx = len(polylines)
             polylines.append(np.stack([nodes[n] for n in path_nodes], axis=0))
             edge_segments.append([edges[e][2] for e in path_edges])
+            polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
             for k, e in enumerate(path_edges):
                 edge_to_polyline[edges[e][4]] = (polyline_idx, k)
             junction_ends[path_nodes[0]].append((polyline_idx, "start"))
@@ -205,6 +223,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         cut_pl_idx = len(polylines)
         polylines.append(np.stack([nodes[cut_a], nodes[cut_b]], axis=0))
         edge_segments.append([cut_n_seg])
+        polyline_specs.append(tup_specs[cut_tup_idx])
         edge_to_polyline[cut_tup_idx] = (cut_pl_idx, 0)
 
         # Polyline 1 (long way): walk B → ... → A via the remaining edges.
@@ -232,6 +251,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         loop_pl_idx = len(polylines)
         polylines.append(np.stack([nodes[n] for n in path_nodes], axis=0))
         edge_segments.append([edges[e][2] for e in path_edges])
+        polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
         for k, e in enumerate(path_edges):
             edge_to_polyline[edges[e][4]] = (loop_pl_idx, k)
 
@@ -280,6 +300,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
     return {
         "polylines": polylines,
         "edge_segments": edge_segments,
+        "polyline_specs": polyline_specs,
         "feeds": feeds,
         "feed_names": feed_names,
         # Back-compat scalars — first feed.
