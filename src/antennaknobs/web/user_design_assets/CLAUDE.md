@@ -108,31 +108,46 @@ published deck; if the user wants to actually tune dimensions, port the
 design to a native `AntennaBuilder`, using the deck as the source of
 dimensions.
 
-The parsed deck's `.wire_tuples()` is ready to return from `build_wires`:
+Import with `network=True` — it makes the deck's `.wire_tuples()` ready to
+return from `build_wires` AND translates the deck's LD loading, TL
+transmission lines, and (resistive) NT networks into the app's own
+`build_network` branches, so the deck's matching/phasing actually acts:
 
 ```python
 from antennaknobs import AntennaBuilder, WireSpec, read_nec
 
 class Builder(AntennaBuilder):
     def build_wires(self):
-        return read_nec(self, "my_yagi.nec").wire_tuples()
+        return read_nec(self, "my_yagi.nec", network=True).wire_tuples()
+
+    def build_network(self):
+        # the deck's EX drive + its translated LD/TL/NT cards
+        return read_nec(self, "my_yagi.nec", network=True).network()
 
     def build_wire_material(self):
         # keep the deck's element radius — the default 0.5 mm idealization
-        # would shift the reactance badly on thick VHF elements
-        return WireSpec(radius=read_nec(self, "my_yagi.nec").dominant_radius())
+        # would shift the reactance badly on thick VHF elements — and its
+        # LD 5 wire conductivity when the deck declares one
+        deck = read_nec(self, "my_yagi.nec", network=True)
+        return WireSpec(radius=deck.dominant_radius(),
+                        conductivity=deck.conductivity)
 ```
 
 Wires (GW/GA arcs/GH helices) and the geometry transforms (GM, GX, GR, GS —
-including xnec2c's tag-range GS) are honoured, and the deck's EX voltage
-sources become the feed(s) on the exact segments the deck drives. Cards that
-configure a NEC *run* rather than the geometry — GN ground, LD loading, TL
-transmission lines, RP/NE output requests — are ignored (listed in
-`deck.ignored`): the app applies its own ground and sweep settings, so expect
-readouts to differ from the deck's published results when it relied on those.
-Tell the user about it in the UI: `deck.skipped_note()` renders that list
-(plus the deck's ground request) as one informational sentence — put it under
-`ui_params["notes"]` and the app shows it beneath the antenna selector.
+including xnec2c's tag-range GS) are honoured, the deck's EX voltage sources
+drive the exact segments the deck drives, and wires that cross other wires
+at segment boundaries are split there so the crossing conducts (NEC connects
+segment ends regardless of wire grouping). Lumped LD 0/1 loads, pure-R LD 4,
+whole-structure LD 5 conductivity, TL cards (crossed lines, zero-length =
+port separation, conductance end shunts), and all-real-Y NT cards translate
+exactly; what can't be expressed (frequency-independent reactance, LD 2/3
+distributed loading) is listed in `deck.ignored` with a per-card reason in
+`deck.ignored_detail`. Ground (GN/GE) and output requests (RP/NE/...) are
+always the app's own settings — expect readouts to differ from published
+results that relied on those. Tell the user about it in the UI:
+`deck.skipped_note()` renders the not-applied record (plus the deck's ground
+request) as one informational sentence — put it under `ui_params["notes"]`
+and the app shows it beneath the antenna selector.
 Patch antennas (SP/SM) and tapered wires (GC) raise a clear error. The deck's
 FR card is exposed as `deck.freq_mhz = (lo, hi)` — use it to seed `freq` and
 `ui_params["meas_freq_range"]` so the design tunes on the deck's own band.
@@ -141,7 +156,7 @@ Do the seeding once at import time in a module-level helper, not per build
 
 ```python
 def _seed_defaults_from_deck(cls):
-    deck = read_nec(cls(), WIRES_FILE)
+    deck = read_nec(cls(), WIRES_FILE, network=True)
     params = dict(cls.default_params)
     ui = dict(params.get("ui_params", ()))
     if deck.freq_mhz:
