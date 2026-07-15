@@ -333,9 +333,8 @@ class NecDeck:
         radius — no ``dominant_radius()`` compromise — and its effective
         conductivity (a ranged LD 5 over the whole wire, else the deck's
         whole-structure LD 5). PyNEC honors both per wire; momwire honors
-        both too since momwire#147 (BSplineSolver and SinusoidalSolver;
-        the H-matrix family still approximates mixed radii with the
-        length-dominant one until its block fills are ported). With
+        both too since momwire#147 (complete in momwire 0.13.0 across all
+        four solver bases, the H-matrix family included). With
         ``specs=True`` a ``build_wire_material()`` fallback is unnecessary
         (every wire carries its spec) — though a design may still define
         one for the weight readout of spec-less wires it adds itself.
