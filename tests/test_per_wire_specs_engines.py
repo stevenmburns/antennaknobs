@@ -3,9 +3,8 @@
 PyNEC honors per-wire radius natively (one radius per GW card) and emits
 per-tag LD cards for per-wire conductivity/insulation. momwire honors
 per-wire conductivity/insulation through its per-wire loading arrays, and
-— since momwire#147 — per-wire radius arrays on BSplineSolver and
-SinusoidalSolver (the H-matrix family still collapses mixed radii to the
-length-dominant one with a warning until its block fills are ported).
+— since momwire#147 (complete in momwire 0.13.0) — per-wire radius arrays
+on all four solver bases, including the H-matrix family's block fills.
 
 The bit-identical guard: a design whose per-wire specs all equal the old
 whole-antenna spec must produce identical results to the global-spec path.
@@ -138,18 +137,21 @@ def test_momwire_bspline_mixed_radius_honored():
     assert abs(z_mixed - z_fat) > 5.0
 
 
-def test_momwire_hmatrix_mixed_radius_still_warns_and_collapses(caplog):
-    """The H-matrix family's block fills still take one radius: mixed radii
-    keep the loud length-dominant collapse until momwire#147's remaining
-    increment lands."""
+def test_momwire_hmatrix_mixed_radius_honored(caplog):
+    """The H-matrix family's block fills take per-wire radii since momwire
+    0.13.0 — mixed radii pass through as an array (no length-dominant
+    collapse, no warning) and the solve agrees with the dense BSpline
+    build (same Galerkin formulation, ACA-compressed)."""
     from momwire.hmatrix import HMatrixSolver
 
     thin, fat = WireSpec(radius=0.5e-3), WireSpec(radius=8e-3)
     with caplog.at_level(logging.WARNING):
         eng = MomwireEngine(_dipole_builder(fat, thin, thin), solver=HMatrixSolver)
-    assert any("length-dominant" in r.message for r in caplog.records)
-    # Arms have equal length; the feed edge tips the thin total over.
-    assert eng._wire_radius == pytest.approx(0.5e-3)
+    assert not any("length-dominant" in r.message for r in caplog.records)
+    assert sorted(eng._wire_radius) == pytest.approx([0.5e-3, 8e-3])
+    z_h = _z(MomwireEngine, _dipole_builder(fat, thin, thin), solver=HMatrixSolver)
+    z_d = _z(MomwireEngine, _dipole_builder(fat, thin, thin))
+    assert abs(z_h - z_d) / abs(z_d) < 1e-3
 
 
 def test_per_wire_spec_beats_web_radius_override():

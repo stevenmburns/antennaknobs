@@ -113,22 +113,6 @@ def _solver_supports_wire_loading(solver):
     return getattr(solver, "__name__", None) in _WIRE_LOADING_SOLVERS
 
 
-# Per-wire radius arrays (issue #388 / momwire#147, momwire >= 0.13):
-# SinusoidalSolver validates against PyNEC directly (it reproduces NEC's
-# per-segment radius conventions); the BSpline dense family applies the
-# same observer-surface convention. The H-matrix family's block fills
-# still take one radius — mixed radii there collapse to the
-# length-dominant one with a warning (warn-and-degrade, not crash).
-_PER_WIRE_RADIUS_SOLVERS = (
-    "BSplineSolver",
-    "SinusoidalSolver",
-)
-
-
-def _solver_supports_per_wire_radius(solver):
-    return getattr(solver, "__name__", None) in _PER_WIRE_RADIUS_SOLVERS
-
-
 class MomwireEngine(SimulationEngine):
     supports_far_field = True
 
@@ -230,34 +214,17 @@ class MomwireEngine(SimulationEngine):
             default_radius = 0.0005
         specs = self._polyline_specs
         if any(s is not None for s in specs):
-            # Per-wire radii (momwire#147, landed for BSplineSolver and
-            # SinusoidalSolver): one entry per polyline, passed straight
+            # Per-wire radii (momwire#147, momwire >= 0.13.0 — all four
+            # solver bases): one entry per polyline, passed straight
             # through as momwire's wire_radius array. A uniform list is
             # collapsed to the scalar (momwire does the same internally;
             # keeping the engine's readouts scalar preserves the
-            # pre-#147 API surface for uniform designs). Solvers whose
-            # kernels still take one radius (the H-matrix family) keep
-            # the length-dominant collapse, stated plainly.
+            # pre-#147 API surface for uniform designs).
             radii = [s.radius if s is not None else default_radius for s in specs]
             if len(set(radii)) == 1:
                 self._wire_radius = radii[0]
-            elif _solver_supports_per_wire_radius(self._solver):
-                self._wire_radius = radii
             else:
-                length_by_r: dict[float, float] = {}
-                for r, pl in zip(radii, self._polylines):
-                    ln = float(np.linalg.norm(np.diff(pl, axis=0), axis=1).sum())
-                    length_by_r[r] = length_by_r.get(r, 0.0) + ln
-                self._wire_radius = max(length_by_r.items(), key=lambda kv: kv[1])[0]
-                _logger.warning(
-                    "%s takes a single wire radius until its per-wire "
-                    "radius block fills land (momwire#147); approximating "
-                    "%s's mixed per-wire radii with the length-dominant "
-                    "%.4g m",
-                    getattr(self._solver, "__name__", self._solver),
-                    type(builder).__name__,
-                    self._wire_radius,
-                )
+                self._wire_radius = radii
         else:
             self._wire_radius = default_radius
         # Distributed loading rides only the solvers that model it; warn
