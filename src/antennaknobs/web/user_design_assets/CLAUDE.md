@@ -130,11 +130,30 @@ configure a NEC *run* rather than the geometry — GN ground, LD loading, TL
 transmission lines, RP/NE output requests — are ignored (listed in
 `deck.ignored`): the app applies its own ground and sweep settings, so expect
 readouts to differ from the deck's published results when it relied on those.
+Tell the user about it in the UI: `deck.skipped_note()` renders that list
+(plus the deck's ground request) as one informational sentence — put it under
+`ui_params["notes"]` and the app shows it beneath the antenna selector.
 Patch antennas (SP/SM) and tapered wires (GC) raise a clear error. The deck's
 FR card is exposed as `deck.freq_mhz = (lo, hi)` — use it to seed `freq` and
-`ui_params["meas_freq_range"]` so the design tunes on the deck's own band
-(see the 40m-trap note above, and `nec_2m_yagi.py` in this folder if present
-for a worked example).
+`ui_params["meas_freq_range"]` so the design tunes on the deck's own band.
+Do the seeding once at import time in a module-level helper, not per build
+(see `nec_2m_yagi.py` in this folder if present for a worked example):
+
+```python
+def _seed_defaults_from_deck(cls):
+    deck = read_nec(cls(), WIRES_FILE)
+    params = dict(cls.default_params)
+    ui = dict(params.get("ui_params", ()))
+    if deck.freq_mhz:
+        lo, hi = deck.freq_mhz
+        params["freq"] = round(0.5 * (lo + hi), 3)
+        ui["meas_freq_range"] = (lo, hi)
+    note = deck.skipped_note()
+    if note:
+        ui["notes"] = note
+    params["ui_params"] = MappingProxyType(ui)
+    cls.default_params = MappingProxyType(params)
+```
 
 ## `default_params`
 

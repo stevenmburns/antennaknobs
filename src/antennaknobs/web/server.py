@@ -1390,6 +1390,7 @@ def examples_endpoint():
                     }
                     for v, h in ex.variant_ui.items()
                 },
+                "notes": ex.notes,
                 "layout": ex.layout,
             }
         )

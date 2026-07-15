@@ -14,6 +14,10 @@ Reserved keys inside `ui_params`:
   bands            : tuple[BandSpec] — band tabs (default HF amateur set)
   sweep_policy     : (anchor, lo_factor, hi_factor)
   multi_feed       : bool — declare multi-feed response shape
+  notes            : str — informational note shown under the antenna
+                     selector (deck-backed designs fill it from
+                     NecDeck.skipped_note() to list the cards the import
+                     recorded but did not apply)
   layout           : dict {columns: int} — pin the knob grid to a fixed
                      column count so per-param `layout` col positions are
                      stable (default: responsive auto-flow packing)
@@ -1217,6 +1221,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     view_override = _ui_scalar(dp, "default_view", None)
     z0_override = _ui_scalar(dp, "target_z0", None)
     multi_feed_override = _ui_scalar(dp, "multi_feed", None)
+    notes = _ui_scalar(dp, "notes", None)
 
     _hints: dict[str, Any] = {}
 
@@ -1770,6 +1775,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             for v in variants
         },
         variant_ui=variant_ui,
+        notes=str(notes) if notes else None,
         layout=grid_layout,
     )
 

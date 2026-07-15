@@ -256,6 +256,7 @@ def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
         "variant_values",
         "sweep_policy",
         "variant_ui",
+        "notes",
     }
     for ex in payload["examples"]:
         missing = required - set(ex.keys())
@@ -1071,6 +1072,39 @@ def test_examples_carry_default_backend(client: TestClient):
     # so a Yagi (and a plain dipole) keep the dense default.
     assert by_name["beams.yagi"]["default_backend"] is None
     assert by_name["dipoles.invvee"]["default_backend"] is None
+
+
+def test_examples_carry_notes(client: TestClient):
+    # `notes` is the informational design note (issue #373): a deck-backed
+    # design fills it from NecDeck.skipped_note() via the reserved
+    # ui_params["notes"] key; no built-in design is deck-backed, so every
+    # example in the catalog ships it null (the frontend renders nothing).
+    payload = client.get("/examples").json()
+    for e in payload["examples"]:
+        assert "notes" in e
+        assert e["notes"] is None
+
+    # The adapter forwards the reserved key verbatim to the example.
+    from types import MappingProxyType
+
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.web.adapter import _make_example
+
+    class Noted(AntennaBuilder):
+        default_params = MappingProxyType(
+            {
+                "freq": 14.0,
+                "ui_params": MappingProxyType(
+                    {"notes": "Deck cards not applied: LD (loading)"}
+                ),
+            }
+        )
+
+        def build_wires(self):
+            return [((0.0, -5.0, 10.0), (0.0, 5.0, 10.0), 15, 1.0)]
+
+    ex = _make_example("noted", Noted, defer_hints=True)
+    assert ex.notes == "Deck cards not applied: LD (loading)"
 
 
 def test_deferred_design_view_is_null_then_arrives_with_preview():

@@ -396,6 +396,12 @@ class AntennaExample:
     # for any variant absent here. Kept as an open map so more ui hints can
     # move per-variant later without another /examples contract change.
     variant_ui: dict = field(default_factory=dict)
+    # Optional informational note rendered under the antenna selector —
+    # e.g. a deck-backed design listing the NEC cards the import recorded
+    # but did not apply (NecDeck.skipped_note()). Purely informational,
+    # never a warning; None (the norm) renders nothing. Authored under the
+    # reserved ui_params["notes"] key.
+    notes: Optional[str] = None
     # Optional grid-level layout config for the top-level knob rail.
     # Recognised key today: {"columns": int} — pins the param grid to a
     # fixed column count so per-ParamSpec.layout col positions land

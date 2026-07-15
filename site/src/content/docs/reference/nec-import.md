@@ -155,6 +155,13 @@ Expect readouts to differ from a deck's published numbers when those numbers
 relied on its ground, loading, or feedline cards — until you model those with
 antennaknobs' own `Load`/`TL` network branches.
 
+`deck.skipped_note()` turns that record into one human-readable sentence
+("Deck cards not applied: LD (loading), RP (radiation-pattern request); the
+deck models a ground plane — …"), or `None` when the deck carries nothing the
+workbench overrides. Deck-backed design stubs put it under
+`ui_params["notes"]` and the workbench shows it beneath the antenna selector,
+so the mismatch is explained right where the deck is viewed.
+
 Decks the wire-model genuinely cannot represent are rejected with a clear
 error rather than silently approximated: surface patches (`SP`/`SM`), tapered
 wires (`GC`), Green's-function files (`GF`), 4nec2 symbolic variables (`SY`),
@@ -180,6 +187,6 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `comments` | The `CM` header text, line by line |
 | `ignored` | Mnemonics of run-configuration cards seen but not applied |
 
-plus the two methods the quick start uses: `wire_tuples()` (the deck as
-`build_wires()` tuples; raises if no voltage source drives the antenna) and
-`dominant_radius()`.
+plus three methods: `wire_tuples()` (the deck as `build_wires()` tuples;
+raises if no voltage source drives the antenna), `dominant_radius()`, and
+`skipped_note()` (the not-applied record as one informational sentence).
