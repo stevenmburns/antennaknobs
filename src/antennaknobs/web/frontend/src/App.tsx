@@ -1804,11 +1804,27 @@ const MOBILE_SCREENS: { id: View | "info"; label: string }[] = [
 
 // Antenna-canvas camera projections. Pick two world axes to map to canvas
 // (horizontal, vertical) and project. The hidden axis is the camera ray.
-type Projection = "xy" | "xz" | "yz";
-const PROJECTIONS: { id: Projection; label: string; horizAxis: 0|1|2; vertAxis: 0|1|2 }[] = [
-  { id: "xy", label: "Top (xy)",   horizAxis: 0, vertAxis: 1 },
-  { id: "xz", label: "Front (xz)", horizAxis: 0, vertAxis: 2 },
-  { id: "yz", label: "Side (yz)",  horizAxis: 1, vertAxis: 2 },
+type Projection = "xy" | "xz" | "yz" | "iso";
+type Vec3 = readonly [number, number, number];
+// Each projection is an orthonormal screen basis: `h` maps to canvas-right,
+// `v` to canvas-up, and the camera ray (toward the viewer) is h×v. The three
+// axis-aligned views keep their original semantics (h/v pick world axes);
+// "iso" is the classic isometric from the (+1,+1,+1) corner — x recedes to
+// the lower-left, y to the lower-right, z stays up — so ground-plane layout
+// and vertical structure are readable in one view.
+const ISO_S2 = Math.SQRT1_2; // 1/√2
+const ISO_S6 = 1 / Math.sqrt(6);
+const PROJECTIONS: { id: Projection; label: string; h: Vec3; v: Vec3 }[] = [
+  { id: "xy", label: "Top (xy)",   h: [1, 0, 0], v: [0, 1, 0] },
+  { id: "xz", label: "Front (xz)", h: [1, 0, 0], v: [0, 0, 1] },
+  { id: "yz", label: "Side (yz)",  h: [0, 1, 0], v: [0, 0, 1] },
+  { id: "iso", label: "Iso", h: [-ISO_S2, ISO_S2, 0], v: [-ISO_S6, -ISO_S6, 2 * ISO_S6] },
+];
+const dot3 = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
 ];
 
 // `reattachKey`: the measuring effect early-returns while the ref is detached,
@@ -7361,15 +7377,27 @@ function CurrentCanvas({
     setVpZoom(1);
   };
 
-  // Switching projection re-fits: pan/zoom are anchored in the projected
-  // plane, so a viewport aimed at (say) a feed region in Top view points at
-  // nothing meaningful in Side view. Same for switching designs.
+  // The fit frame of the last completed draw (projection + fit centre/scale).
+  // A projection switch carries the viewport over through it — see draw() —
+  // instead of resetting, so a feature under 400× inspection stays under
+  // inspection when the view turns. Cleared on design switch: the previous
+  // design's frame means nothing for the new geometry.
+  const frameRef = useRef<{
+    projection: Projection;
+    hC: number;
+    vC: number;
+    scale: number;
+  } | null>(null);
+
+  // Switching DESIGNS re-fits: the viewport was aimed at the old geometry.
+  // (Projection switches within a design carry the viewport — see draw().)
   const geometryName = result?.geometry ?? "";
   useEffect(() => {
     resetViewport();
-    // The main draw effect below also depends on `projection` (and re-runs
-    // on any new result), so the re-fit paints without an explicit redraw.
-  }, [projection, geometryName]);
+    frameRef.current = null;
+    // The main draw effect below re-runs on any new result, so the re-fit
+    // paints without an explicit redraw.
+  }, [geometryName]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -7418,31 +7446,45 @@ function CurrentCanvas({
       const barReserveBottom = 40 * s;
       const FILL = 0.85;
 
-      // Camera projection: pick the two world axes to map to canvas
-      // (horizontal, vertical). The hidden axis is the camera ray. App.tsx
-      // sets a per-geometry default (V/fan_dipole → "yz" side, Yagi/moxon/
-      // hexbeam → "xy" top) but the user can override via the projection
-      // toggle in the stage.
+      // Camera projection: an orthonormal screen basis (see PROJECTIONS) —
+      // world point p lands at canvas (h·p, v·p); the camera ray is h×v.
+      // App.tsx sets a per-geometry default (V/fan_dipole → "yz" side,
+      // Yagi/moxon/hexbeam → "xy" top) but the user can override via the
+      // projection toggle in the stage.
       const projSpec = PROJECTIONS.find((p) => p.id === projection)!;
-      const horizAxis = projSpec.horizAxis;
-      const vertAxis = projSpec.vertAxis;
+      const hVec = projSpec.h;
+      const vVec = projSpec.v;
+      // True for the two elevation views (screen-up IS world z), which gates
+      // the ground reference line below; the isometric's tilted up-vector
+      // draws no line (z=0 doesn't project to a horizontal line there).
+      const upIsZ = vVec[0] === 0 && vVec[1] === 0 && vVec[2] === 1;
       let hMin = Infinity, hMax = -Infinity;
       let vMin = Infinity, vMax = -Infinity;
+      // Axis-aligned world bbox too — the projection-switch carry-over needs
+      // a depth estimate along the old camera ray (see below).
+      const bbMin = [Infinity, Infinity, Infinity];
+      const bbMax = [-Infinity, -Infinity, -Infinity];
       for (const wire of result.wires) {
         for (const p of wire.knot_positions) {
-          if (p[horizAxis] < hMin) hMin = p[horizAxis];
-          if (p[horizAxis] > hMax) hMax = p[horizAxis];
-          if (p[vertAxis] < vMin) vMin = p[vertAxis];
-          if (p[vertAxis] > vMax) vMax = p[vertAxis];
+          const ph = dot3(hVec, p);
+          const pv = dot3(vVec, p);
+          if (ph < hMin) hMin = ph;
+          if (ph > hMax) hMax = ph;
+          if (pv < vMin) vMin = pv;
+          if (pv > vMax) vMax = pv;
+          for (let a = 0; a < 3; a++) {
+            if (p[a] < bbMin[a]) bbMin[a] = p[a];
+            if (p[a] > bbMax[a]) bbMax[a] = p[a];
+          }
         }
       }
 
-      // When ground is enabled and the vertical projection axis is z, expand
-      // the visible vertical range to include z=0 so the ground reference
-      // line lands inside the canvas. Without this, antennas sitting well
-      // above the plane push the ground line off-screen.
+      // When ground is enabled and screen-up is world z, expand the visible
+      // vertical range to include z=0 so the ground reference line lands
+      // inside the canvas. Without this, antennas sitting well above the
+      // plane push the ground line off-screen.
       let vEffMin = vMin, vEffMax = vMax;
-      if (result.ground && vertAxis === 2) {
+      if (result.ground && upIsZ) {
         vEffMin = Math.min(vMin, 0);
         vEffMax = Math.max(vMax, 0);
       }
@@ -7465,23 +7507,82 @@ function CurrentCanvas({
       const vC = (vEffMin + vEffMax) / 2;
       const cx = w / 2;
       const cy = h / 2;
+      const vp = vpRef.current;
+
+      // Projection switch with an active zoom: carry the viewport over
+      // instead of resetting. Reconstruct the world point at the old canvas
+      // centre — its two screen coordinates from the old frame, its depth
+      // along the old camera ray from the geometry point nearest that
+      // centre ray (the wire actually under inspection; the bbox centre
+      // would misplace anything off-centre in depth, e.g. an apex feed) —
+      // then aim the new frame at that point, preserving the absolute px/m
+      // scale so the feature keeps its on-screen size (each view has its
+      // own fit scale, so the relative zoom factor is rescaled). If the
+      // carried zoom clamps to 1, it degrades to a plain fit. Design
+      // switches still hard-reset (frameRef is cleared by the effect above).
+      const frame = frameRef.current;
+      if (frame && frame.projection !== projection && vp.zoom > 1) {
+        const old = PROJECTIONS.find((p) => p.id === frame.projection)!;
+        const oldZscale = frame.scale * vp.zoom;
+        const hCtr = frame.hC - vp.panX / oldZscale;
+        const vCtr = frame.vC + vp.panY / oldZscale;
+        const n = cross3(old.h, old.v);
+        let depth = dot3(n, [
+          (bbMin[0] + bbMax[0]) / 2,
+          (bbMin[1] + bbMax[1]) / 2,
+          (bbMin[2] + bbMax[2]) / 2,
+        ]);
+        let best = Infinity;
+        for (const wire of result.wires) {
+          for (const p of wire.knot_positions) {
+            const dh = dot3(old.h, p) - hCtr;
+            const dv = dot3(old.v, p) - vCtr;
+            const d2 = dh * dh + dv * dv;
+            if (d2 < best) {
+              best = d2;
+              depth = dot3(n, p);
+            }
+          }
+        }
+        const P: Vec3 = [
+          old.h[0] * hCtr + old.v[0] * vCtr + n[0] * depth,
+          old.h[1] * hCtr + old.v[1] * vCtr + n[1] * depth,
+          old.h[2] * hCtr + old.v[2] * vCtr + n[2] * depth,
+        ];
+        const zoomNew = Math.min(
+          VIEWPORT_ZOOM_MAX,
+          Math.max(1, (vp.zoom * frame.scale) / scale),
+        );
+        vp.zoom = zoomNew;
+        if (zoomNew > 1) {
+          const zs = scale * zoomNew;
+          vp.panX = (hC - dot3(hVec, P)) * zs;
+          vp.panY = (dot3(vVec, P) - vC) * zs;
+        } else {
+          vp.panX = 0;
+          vp.panY = 0;
+        }
+        setVpZoom(zoomNew);
+      }
+      frameRef.current = { projection, hC, vC, scale };
+
       // Compose the user viewport on top of the fit framing. Only geometry
       // goes through `zscale`; pixel-sized glyphs (strokes, labels, envelope
       // amplitude, feed dot) stay on `s`, so zooming magnifies the antenna
       // without ballooning its annotations.
-      const vp = vpRef.current;
       const zscale = scale * vp.zoom;
       const project = (p: [number, number, number]) => ({
-        x: cx + (p[horizAxis] - hC) * zscale + vp.panX,
-        y: cy + (vC - p[vertAxis]) * zscale + vp.panY, // higher vert value = higher on screen
+        x: cx + (dot3(hVec, p) - hC) * zscale + vp.panX,
+        y: cy + (vC - dot3(vVec, p)) * zscale + vp.panY, // higher vert value = higher on screen
       });
 
-      // Ground reference line at world z=0, drawn only on side projections
-      // (vertAxis === 2) when the backend has ground enabled. Cosmetic — the
-      // math is correct regardless; this just removes the "where is the
-      // ground" guessing game from the side view. vC was adjusted above to
-      // keep this on-canvas, so no bounds check needed here.
-      if (result.ground && vertAxis === 2) {
+      // Ground reference line at world z=0, drawn only on the elevation
+      // views (screen-up is world z) when the backend has ground enabled.
+      // Cosmetic — the math is correct regardless; this just removes the
+      // "where is the ground" guessing game from the side view. vC was
+      // adjusted above to keep this on-canvas, so no bounds check needed
+      // here.
+      if (result.ground && upIsZ) {
         const groundY = cy + vC * zscale + vp.panY;
         ctx!.strokeStyle = `rgba(${PC.groundRgb}, 0.55)`;
         ctx!.lineWidth = 1;

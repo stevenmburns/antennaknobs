@@ -61,9 +61,10 @@ Every turn re-solves and redraws live (when **Live** is on — see below).
 ## The antenna viewer
 
 The Antenna view draws the wires (with the current heat-map and standing-wave
-envelope overlays) in one of three orthographic projections — **Top (xy)**,
-**Front (xz)**, **Side (yz)** — switched by the buttons in the top-right
-overlay.
+envelope overlays) in one of four projections — **Top (xy)**, **Front (xz)**,
+**Side (yz)**, and an isometric **Iso** (the classic corner view: x and y
+recede left and right, z stays up) — switched by the buttons in the top-right
+overlay. The ground reference line appears on the two elevation views.
 
 The view auto-fits the whole antenna, and you can navigate from there,
 map-style:
@@ -77,9 +78,15 @@ map-style:
   the canvas owns the gesture until you re-fit.
 - **Re-fit** — double-click / double-tap, the **Fit** button in the
   bottom-right HUD (next to the live zoom readout), or just zoom all the way
-  back out. Switching projection or design also re-fits — the viewport is
-  anchored in the projected plane, so it wouldn't point anywhere meaningful
-  in another one.
+  back out. Switching design also re-fits — the old viewport means nothing
+  for a new geometry.
+- **Turning the view keeps your place** — switching projection carries the
+  zoomed viewport over: the world point at the centre of the canvas stays
+  centred (its depth along the old camera ray taken from the geometry's
+  midpoint), at the same on-screen magnification. Zoom into a feed region in
+  Front view and flip to Side or Iso to see the same region from the other
+  angle. Fit is one double-click away whenever the carried view isn't what
+  you wanted.
 
 The scale bar under the antenna reads **λ/4** at fit zoom; once zoomed it
 switches to a round metric length (1/2/5 × 10ᵏ m — like a map's) sized to
