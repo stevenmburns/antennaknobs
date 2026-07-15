@@ -9,12 +9,17 @@ the translation (segment addressing, splitting, port naming), not the
 physics, which the network system's own tests already pin (e.g.
 ``test_tl_composition.py`` against NEC's native ``tl_card``).
 
-The whip acceptance test then closes the loop on the real benchmark deck:
-importing ``whip_antenna_8ft_groundplane.nec`` must reproduce the network
-``verticals.elt_whip`` models by hand (90 nH / 3 pF posts) and its matched
-free-space impedance — the deck the whole #383 arc was built around, now
-translated automatically. Full-size PyNEC solve, so it runs in the
-main-only catalog lane like every per-design computation check.
+The whip tests then close the loop on the real benchmark deck
+(``whip_antenna_8ft_groundplane.nec``, the deck the whole #383 arc was
+built around): the TRANSLATION test (parse-only, fast) pins that its LD
+cards become exactly the 90 nH / 3 pF post loads ``verticals.elt_whip``
+models by hand; the full-size two-engine impedance validation is marked
+``heavy_mesh`` and NEVER runs in CI — a 4392-segment solve is a benchmark,
+not a unit test (~12 s, ~2.2 GB; it OOM-killed the GitHub runner on top of
+the catalog lane's accumulated RSS). Run it manually after nec-import or
+engine changes::
+
+    python -m pytest -m heavy_mesh
 """
 
 from pathlib import Path
@@ -139,35 +144,43 @@ def test_imported_tl_matches_hand_built_line():
     assert z_imported == pytest.approx(z_hand, rel=1e-9)
 
 
-@pytest.mark.antenna_computation_check
-def test_whip_deck_import_reproduces_elt_whip_match():
-    """The #385 acceptance oracle: importing the W8IO benchmark deck with
-    network=True must reproduce what verticals.elt_whip hand-models — the
-    90 nH / 3 pF post loads — and land in the same matched free-space
-    impedance window its catalog test pins (raw ~1.4+33.5j transformed to
-    ~63+8j at 406 MHz). Exercises the whole chain: LD translation, port
-    naming, AND the junction shattering that connects the matching straps
-    to the whip (they cross it mid-wire — without the cuts the network
-    floats on a stub and the match is garbage, and PyNEC refuses the
-    geometry outright as a wire intersection). Measured 2026-07-15:
-    momwire sinusoidal 63.09+8.09j, PyNEC 63.02+8.06j."""
-    pytest.importorskip("PyNEC")
-    from antennaknobs.engines import PyNECEngine
-    from momwire import SinusoidalSolver
-
+def _whip_deck():
     text = Path(__file__).parent / "data" / "whip_antenna_8ft_groundplane.nec"
-    deck = parse_nec(text.read_text(), name=text.name, network=True)
+    return parse_nec(text.read_text(), name=text.name, network=True)
 
-    # The deck's two LD cards translate to exactly elt_whip's network.
-    net = deck.network()
+
+def test_whip_deck_network_translation():
+    """The #385 acceptance oracle, translation half (parse-only, fast):
+    the W8IO benchmark deck's two LD cards translate to exactly what
+    verticals.elt_whip hand-models — a 90 nH series load on one grounded
+    post and 3 pF on the other — with one feed and nothing left
+    unmodelled but the RP output request."""
+    net = _whip_deck().network()
     by_port = {br.port: br for br in net.branches}
     assert set(by_port) == {"load1", "load2"}
     assert by_port["load1"].l == pytest.approx(90e-9) and by_port["load1"].c is None
     assert by_port["load2"].c == pytest.approx(3e-12) and by_port["load2"].l is None
     assert [s.port for s in net.sources] == ["feed"]
-    assert deck.ignored == ("RP",)  # nothing else left unmodelled
+    assert _whip_deck().ignored == ("RP",)
 
-    b = _deck_builder(deck, freq=406.0)
+
+@pytest.mark.heavy_mesh
+def test_whip_deck_full_size_benchmark():
+    """The #385 acceptance oracle, physics half — NOT a unit test and never
+    run in CI (see module docstring; `python -m pytest -m heavy_mesh`).
+    The imported deck must land in the matched free-space impedance window
+    the elt_whip catalog test pins (raw ~1.4+33.5j transformed to ~63+8j
+    at 406 MHz), on both engines. Exercises the junction shattering that
+    connects the matching straps to the whip (they cross it mid-wire —
+    without the cuts the network floats on a stub and the match is
+    garbage, and PyNEC refuses the geometry outright as a wire
+    intersection). Measured 2026-07-15: momwire sinusoidal 63.09+8.09j,
+    PyNEC 63.02+8.06j."""
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines import PyNECEngine
+    from momwire import SinusoidalSolver
+
+    b = _deck_builder(_whip_deck(), freq=406.0)
     z_nec = PyNECEngine(b, ground=None).impedance()[0]
     z_mom = MomwireEngine(b, solver=SinusoidalSolver, ground=None).impedance()[0]
     for z in (z_nec, z_mom):
