@@ -40,15 +40,23 @@ class Builder(AntennaBuilder):
     })
 
     def build_wires(self):
-        deck = read_nec(self, WIRES_FILE)
+        deck = read_nec(self, WIRES_FILE, network=True)
         s, h = self.scale, self.height
-        return [((p1[0]*s, p1[1]*s, p1[2]*s + h),
-                 (p2[0]*s, p2[1]*s, p2[2]*s + h), n, ex)
-                for p1, p2, n, ex in deck.wire_tuples()]
+        lift = lambda p: (p[0] * s, p[1] * s, p[2] * s + h)
+        # Tuples are (p1, p2, n, ex) or (p1, p2, n, ex, name) — the named
+        # ones carry the deck's feed and network attachment points.
+        return [(lift(t[0]), lift(t[1]), *t[2:]) for t in deck.wire_tuples()]
+
+    def build_network(self):
+        # The deck's EX drive plus its translated LD/TL/NT cards (see below).
+        return read_nec(self, WIRES_FILE, network=True).network()
 
     def build_wire_material(self):
-        # Keep the deck's element radius — don't skip this (see below).
-        return WireSpec(radius=read_nec(self, WIRES_FILE).dominant_radius() * self.scale)
+        # Keep the deck's element radius — don't skip this (see below) —
+        # and its LD 5 wire conductivity when the deck declares one.
+        deck = read_nec(self, WIRES_FILE, network=True)
+        return WireSpec(radius=deck.dominant_radius() * self.scale,
+                        conductivity=deck.conductivity)
 ```
 
 `read_nec(self, name)` has the same folder confinement as `read_json`: it can
@@ -91,22 +99,26 @@ do this to itself at the bottom of the file — copy this block verbatim:
 def _seed_defaults_from_deck(cls):
     """Follow the deck's FR card: default `freq` to the sweep centre and set
     the measurement window to the sweep, so the design tunes on its own band.
+    Also surface the run-config cards the import recorded but didn't apply
+    (deck.skipped_note()) as the UI's informational design note.
     Errors are swallowed here so they surface in build_wires instead of
     killing the import."""
     try:
-        freq_mhz = read_nec(cls(), WIRES_FILE).freq_mhz
+        deck = read_nec(cls(), WIRES_FILE, network=True)
     except Exception:
         return
-    if not freq_mhz:
-        return
-    lo, hi = freq_mhz
-    mid = 0.5 * (lo + hi)
-    if lo >= hi:
-        lo, hi = 0.9 * mid, 1.1 * mid
     params = dict(cls.default_params)
-    params["freq"] = round(mid, 3)
     ui = dict(params.get("ui_params", ()))
-    ui["meas_freq_range"] = (lo, hi)
+    if deck.freq_mhz:
+        lo, hi = deck.freq_mhz
+        mid = 0.5 * (lo + hi)
+        if lo >= hi:
+            lo, hi = 0.9 * mid, 1.1 * mid
+        params["freq"] = round(mid, 3)
+        ui["meas_freq_range"] = (lo, hi)
+    note = deck.skipped_note()
+    if note:
+        ui["notes"] = note
     params["ui_params"] = MappingProxyType(ui)
     cls.default_params = MappingProxyType(params)
 
@@ -141,6 +153,45 @@ wire on the deck's own segment boundaries, putting the feed on a 1-segment
 wire of its own — same geometry, same segmentation, same feed point — so
 off-center-fed designs import correctly.
 
+Wires are also split wherever another wire's segment endpoint touches them
+mid-wire. NEC connects *segments* whose ends coincide — the grouping into GW
+cards is irrelevant to it — so a deck may run one wire straight through
+another and rely on the crossing carrying current (the W8IO whip benchmark's
+matching straps cross the whip axis exactly this way). antennaknobs'
+engines junction wires at wire ends, so the import shatters such wires at the
+shared boundary: same segments, same boundaries, and the crossing becomes the
+real junction NEC's connection rule implies.
+
+## Loading, feedlines, and networks (`network=True`)
+
+`read_nec(self, name, network=True)` additionally translates the deck's
+`LD`/`TL`/`NT` cards into the workbench's own port-network branches
+(`antennaknobs.network`: `Load`, `TL`, `TwoPort`, `Shunt` — the same system
+the trap dipole and station designs use), wherever it can express them
+*exactly*:
+
+| Card | Translation |
+| --- | --- |
+| `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (expanded up to 8 segments), on a named 1-segment wire split out of the host wire |
+| `LD` type 4 with X = 0 (pure resistance) | `Load(r=…)` |
+| `LD` type 5 over the whole structure (wire conductivity) | `deck.conductivity` — feed it to `WireSpec` in `build_wire_material` |
+| `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)` |
+| `NT` with an all-real Y matrix | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
+
+`deck.wire_tuples()` then emits *named* wires at every attachment point (no
+legacy `ex` markers) and `deck.network()` returns the matching `Network` —
+the deck's `EX` cards become its `Driven` sources — ready to return from
+`build_wires` / `build_network` as in the quick start above. A deck with no
+network cards still works identically: `network()` is then just the drive.
+
+What cannot be translated exactly stays out, with a per-card reason in
+`deck.ignored_detail` (rendered by `skipped_note()`): frequency-independent
+reactance (`LD` 4 with X ≠ 0, susceptance in `TL`/`NT` admittances — NEC's
+constant-B convention has no R/L/C equivalent), distributed per-metre RLC
+(`LD` 2/3), range-limited conductivity, and an `LD` landing on a segment
+that also has a `TL`/`NT` connection (NEC composes those in series inside
+the segment, which the port model doesn't express).
+
 ## What is *not* applied
 
 A deck also carries run configuration, which the workbench manages itself.
@@ -148,12 +199,12 @@ Those cards are recorded in `deck.ignored` rather than translated:
 
 - `GN`/`GD` ground and the `GE` ground flag — the workbench applies **its own
   ground model** (`deck.ground` tells you the deck wanted one)
-- `LD` loading, `TL`/`NT` feedlines and networks
+- `LD` loading, `TL`/`NT` feedlines and networks — unless imported with
+  `network=True` as above
 - `FR` sweeps (harvested into `deck.freq_mhz`), `RP`/`NE`/`NH`/`XQ` output requests
 
 Expect readouts to differ from a deck's published numbers when those numbers
-relied on its ground, loading, or feedline cards — until you model those with
-antennaknobs' own `Load`/`TL` network branches.
+relied on its ground or on cards the translation could not express.
 
 `deck.skipped_note()` turns that record into one human-readable sentence
 ("Deck cards not applied: LD (loading), RP (radiation-pattern request); the
@@ -186,7 +237,12 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `ground` | `True` if the deck requested a ground plane (`GE` flag or a `GN` card) |
 | `comments` | The `CM` header text, line by line |
 | `ignored` | Mnemonics of run-configuration cards seen but not applied |
+| `loads`, `tls`, `nts` | The translated LD/TL/NT records (`network=True` only) |
+| `conductivity` | Whole-structure `LD` 5 wire conductivity in S/m, or `None` |
+| `ignored_detail` | `(mnemonic, reason)` per card `network=True` still could not translate |
 
-plus three methods: `wire_tuples()` (the deck as `build_wires()` tuples;
-raises if no voltage source drives the antenna), `dominant_radius()`, and
-`skipped_note()` (the not-applied record as one informational sentence).
+plus four methods: `wire_tuples()` (the deck as `build_wires()` tuples;
+raises if no voltage source drives the antenna), `network()` (the translated
+cards + `EX` drives as a `Network`, `network=True` only),
+`dominant_radius()`, and `skipped_note()` (the not-applied record as one
+informational sentence, reasons included).
