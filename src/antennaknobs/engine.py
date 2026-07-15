@@ -4,6 +4,8 @@ from typing import ClassVar, Literal, NamedTuple
 
 import numpy as np
 
+from .network import Wire, as_wire
+
 _logger = logging.getLogger(__name__)
 
 SegmentParity = Literal["odd", "even", "any"]
@@ -66,22 +68,26 @@ class SimulationEngine(ABC):
         seen = set()
         out = []
         for t in tups:
-            p0, p1, n_seg, ev = t[0], t[1], t[2], t[3]
-            name = t[4] if len(t) >= 5 else None
-            n_new = self.coerce_n_seg(n_seg, parity)
-            if n_new != n_seg and (n_seg, n_new) not in seen:
-                seen.add((n_seg, n_new))
+            w = as_wire(t)
+            n_new = self.coerce_n_seg(w.n_seg, parity)
+            if n_new != w.n_seg and (w.n_seg, n_new) not in seen:
+                seen.add((w.n_seg, n_new))
                 _logger.info(
                     "%s bumped n_seg=%d → %d for %s parity",
                     type(self).__name__,
-                    n_seg,
+                    w.n_seg,
                     n_new,
                     parity,
                 )
-            if name is None:
-                out.append((p0, p1, n_new, ev))
+            # Preserve the entry's original shape: plain tuples stay plain
+            # (so tests and shape-sensitive callers see what they passed),
+            # Wire entries keep name and spec.
+            if isinstance(t, Wire) or len(t) == 6:
+                out.append(w._replace(n_seg=n_new))
+            elif len(t) == 5:
+                out.append((w.p0, w.p1, n_new, w.ex, w.name))
             else:
-                out.append((p0, p1, n_new, ev, name))
+                out.append((w.p0, w.p1, n_new, w.ex))
         return out
 
     @abstractmethod
