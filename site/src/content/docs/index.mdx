@@ -25,22 +25,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.27.0" icon="star">
-  **Nine Cebik designs, and bring your own NEC decks.** The
-  [catalog](/reference/catalog/) grows by nine antennas modelled from
-  L. B. Cebik (W4RNL)'s articles — the Extended Double Zepp and expanded
-  lazy-H, the OWA Yagi and its 40 m counterpart (a phased-driver wire
-  Yagi holding the whole band under SWR 1.5 through one half-twisted
-  line), two more self-contained verticals (the "magnetic slot" rectangle
-  and right-angle delta), a satellite Moxon turnstile fed through a real
-  quadrature harness, the Tri-Moxon switched vertical array (three fixed
-  beams, a coax switch instead of a rotator), and a terminated end-fed
-  long-wire — the catalog's first design whose wires **connect to
-  ground**. And [`read_nec`](/reference/nec-import/) now imports a NEC2
-  card deck — the format xnec2c, 4nec2, EZNEC, and decades of handbooks
-  speak — as a viewable, solvable design, honouring the deck's geometry
-  transforms and feeds and matching an independent `nec2c` solve to
-  0.011 Ω. [All release notes →](/reference/releases/)
+<Card title="New in v0.27.1" icon="star">
+  **Big decks won't sink your machine.** A benchmark-grade NEC import — a
+  4,671-segment whip on a 96-inch ground-plane grid — used to exhaust the
+  memory of a 15 GB workstation on the dense solver and crash outright on
+  the compressed ones. The bundled momwire 0.12.0 hardens every engine in
+  the family: chunked dense assembly, fixed H-matrix compression on
+  junction-heavy meshes, and a graceful array-solver fallback bring the
+  whole [solver line-up](/reference/solver/) through that deck in at most
+  4.6 GB. The web backend also now sizes its solver thread pools
+  correctly at runtime — large-deck factorizations run up to 2.2× faster
+  on multi-core machines, with knob-drag latency untouched.
+  [All release notes →](/reference/releases/)
 </Card>
 
 ## The whole pitch, in one line
