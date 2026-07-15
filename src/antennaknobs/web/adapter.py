@@ -1269,6 +1269,32 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
 
     param_schema = _derive_schema(dp)
     has_design_freq = "design_freq" in dp
+
+    # A native freq outside every band tab would strand the frontend's
+    # design-switch snap on its bands[0] fallback — 160 m for the default
+    # HF set — framing a 406 MHz whip for a 95 m wavelength and dragging
+    # measFreq along with it (issue #390). Synthesize a band covering the
+    # native freq instead: the window comes from ui_params
+    # ["meas_freq_range"] when it brackets the freq (deck imports seed it
+    # from the FR card), else ±1.5%. Fixed-geometry designs (no
+    # design_freq param) get JUST the synthetic band — the tabs can't
+    # retune them, so the HF list is dead weight; retunable designs keep
+    # their list with the synthetic band appended. An explicit bands=()
+    # override still suppresses the row entirely.
+    native_freq = float(dp["freq"]) if "freq" in dp else None
+    if (
+        bands
+        and native_freq is not None
+        and not any(b.min_mhz <= native_freq <= b.max_mhz for b in bands)
+    ):
+        if meas_range and float(meas_range[0]) <= native_freq <= float(meas_range[1]):
+            lo, hi = float(meas_range[0]), float(meas_range[1])
+        else:
+            lo, hi = 0.985 * native_freq, 1.015 * native_freq
+        label = f"{native_freq:g} MHz"
+        synth = BandSpec(label, label, native_freq, lo, hi)
+        bands = (synth,) if not has_design_freq else (*bands, synth)
+
     variants = _discover_variants(cls)
 
     # Wire-material designs (issue #318): a `wire_type` param means the

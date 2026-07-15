@@ -308,6 +308,31 @@ function seedDefaults(
 // `linked_to_design_freq`. Fan_dipole's first band's freq is the
 // canonical example: when it changes, the global design frequency
 // should follow.
+// The design-switch band snap, as a pure function of the example descriptor:
+// the band containing the design's native freq (else the first band — which
+// the adapter's synthetic-band rule keeps from being a wrong-by-decades 160 m
+// fallback, issue #390) and the frequency to park designFreq on. Shared by
+// the snap effect on currentExample AND the antenna-switch preview fetch,
+// which fires in the same commit and would otherwise race the snapped state
+// by one render, fetching its preview with the PREVIOUS design's freqs.
+function snapForExample(
+  ex: ExampleDescriptor | undefined,
+): { bandKey: string; freq: number } | null {
+  if (!ex || ex.bands.length === 0) return null;
+  const d = ex.default_freq_mhz;
+  const containing =
+    d != null ? ex.bands.find((b) => d >= b.min_mhz && d <= b.max_mhz) : null;
+  const target = containing ?? ex.bands[0];
+  // Use the design's native freq when the band contains it; otherwise the
+  // band's own default. This avoids the small designFreq drift that would
+  // happen if we always snapped to band.freq_mhz (e.g. dipole's 28.57 →
+  // 10m band's 28.470).
+  return {
+    bandKey: target.key,
+    freq: containing && d != null ? d : target.freq_mhz,
+  };
+}
+
 function findLinkedDesignFreq(
   schema: SchemaItem[],
   values: ParamValueBag,
@@ -2382,7 +2407,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     });
     if (typeof vv.freq === "number") {
       setDesignFreq(vv.freq);
-      if (linkMeas) setMeasFreq(vv.freq);
+      // Fixed-geometry designs re-anchor unconditionally: their lock is
+      // inert (measLockable), so only the variant freq is meaningful.
+      if (linkMeas || !currentExample.has_design_freq) setMeasFreq(vv.freq);
     }
   }
   // Stable, primitive-only signature of the active antenna's params for
@@ -2563,6 +2590,16 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [designFreq, setDesignFreq] = useState(14.3);
   const [measFreq, setMeasFreq] = useState(14.3);
   const [linkMeas, setLinkMeas] = useState(true);
+  // The meas↔design lock only means something when the design HAS a design
+  // frequency to follow. Fixed-geometry designs (hand-tuned metres, imported
+  // NEC decks) hide the design-freq row, so honouring the lock would chain
+  // the dial to an invisible, meaningless value — a 406 MHz whip stuck
+  // measuring at whatever the previous design left behind (issue #390). For
+  // those the lock is inert and hidden, and the dial is always live; the
+  // user's global linkMeas preference survives untouched for the next
+  // design_freq-scaled design.
+  const measLockable = currentExample?.has_design_freq ?? true;
+  const measLocked = linkMeas && measLockable;
   // Ground plane at z = 0 (model per backend; see groundType). ON by
   // default: this is an HF wire-antenna workbench, and the over-ground
   // picture (takeoff angle, ground-lobed elevation pattern, shifted Z)
@@ -3237,26 +3274,19 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // DEFAULT_HF_BANDS list, so a sticky band key (e.g. "10m" from the
     // previous 28 MHz design) would otherwise survive a switch into a
     // 14 MHz design and keep the slider parked on the wrong band.
-    const designFreqDefault = currentExample.default_freq_mhz;
-    const containing =
-      designFreqDefault !== null
-        ? currentBands.find(
-            (b) =>
-              designFreqDefault >= b.min_mhz && designFreqDefault <= b.max_mhz,
-          )
-        : null;
-    const target = containing ?? currentBands[0];
-    // Use the design's native freq when the band contains it; otherwise
-    // fall back to the band's own default. This avoids the small
-    // designFreq drift that would happen if we always snapped to
-    // band.freq_mhz (e.g. dipole's 28.57 → 10m band's 28.470).
-    const snapFreq =
-      containing && designFreqDefault !== null
-        ? designFreqDefault
-        : target.freq_mhz;
-    setBand(target.key);
-    setDesignFreq(snapFreq);
-    if (linkMeas) setMeasFreq(snapFreq);
+    // (The containing-band / native-freq logic lives in snapForExample,
+    // shared with the antenna-switch preview fetch — see there.)
+    const snap = snapForExample(currentExample)!;
+    setBand(snap.bandKey);
+    setDesignFreq(snap.freq);
+    // Re-anchor the dial too: always when locked, and also for
+    // fixed-geometry designs — their lock is inert (see measLockable), so
+    // a measFreq left over from the previous design would strand the
+    // measurement outside this design's window entirely.
+    if (linkMeas || !currentExample.has_design_freq) {
+      setMeasFreq(snap.freq);
+      setMeasBand(snap.bandKey);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExample]);
 
@@ -3276,7 +3306,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   function selectMeasBand(nextKey: string) {
     const nb = currentBands.find((b) => b.key === nextKey);
     if (!nb) return;
-    if (linkMeas) setLinkMeas(false);
+    // Only a *live* lock needs breaking; an inert one (fixed-geometry
+    // design) is the user's global preference — leave it for the next
+    // design_freq-scaled design.
+    if (measLocked) setLinkMeas(false);
     setMeasBand(nextKey);
     setMeasFreq(nb.freq_mhz);
   }
@@ -3440,6 +3473,21 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // right antenna even if `geometry` changed by the time the fetch resolves.
     const forGeometry = geometry;
     const req = buildRequest();
+    // The band-snap effect (on currentExample, above) runs in this same
+    // commit, but its setDesignFreq/setMeasFreq only land NEXT render —
+    // while this preview goes out NOW and is keyed on `geometry`, so
+    // nothing refetches it once the snap lands. Left alone it frames the
+    // canvas for the PREVIOUS design's wavelength until a real solve
+    // replaces it — or indefinitely, when the solve is withheld (solver
+    // gate) or Live is off (issue #390). Bake the snapped freqs into this
+    // request instead of reading the one-render-stale state.
+    const snap = snapForExample(currentExample);
+    if (snap) {
+      req.design_freq_mhz = snap.freq;
+      if (linkMeas || !currentExample!.has_design_freq) {
+        req.measurement_freq_mhz = snap.freq;
+      }
+    }
     previewSigRef.current = JSON.stringify(req);
     fetch("/geometry", {
       method: "POST",
@@ -3514,9 +3562,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     groundEnabled, groundModel,
     sweepEnabled,
     active,
-    // measFreq/linkMeas drive the anchor now (meas_freq policy, or any unlocked
-    // design), so a meas-band change or dial turn re-runs the sweep.
-    measFreq, linkMeas,
+    // measFreq/measLocked drive the anchor now (meas_freq policy, or any
+    // unlocked design — incl. fixed-geometry designs whose lock is inert),
+    // so a meas-band change or dial turn re-runs the sweep.
+    measFreq, measLocked,
     // A variant can override sweep_policy (variant_ui) without changing any
     // param — e.g. a band-locked variant. currentValuesKey wouldn't move then,
     // so depend on currentVariant directly to re-run the sweep on switch.
@@ -3648,7 +3697,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // design band. Locked single-resonance designs keep sweeping design_freq
     // (where measFreq == designFreq anyway).
     const sweepAnchor =
-      !linkMeas || policy?.anchor === "meas_freq" ? measFreq : designFreq;
+      !measLocked || policy?.anchor === "meas_freq" ? measFreq : designFreq;
     // Band-locked sweep: when the active band contains the anchor,
     // snap the sweep range to that band's [min_mhz, max_mhz] so the
     // trace stays inside the band the user is tuning instead of
@@ -4523,7 +4572,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             lock pinned to the dial's lower-right corner ("lock to design freq"
             disables the dial). */}
         <h2 className="group-label">measurement freq</h2>
-        <div className={`field vfo-field${linkMeas ? " is-locked" : ""}`}>
+        <div className={`field vfo-field${measLocked ? " is-locked" : ""}`}>
           <div className="vfo-top">
             {currentBands.length > 0 && (
               <BandDropdown
@@ -4531,12 +4580,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 // Locked: mirror the design band (measFreq tracks designFreq).
                 // Unlocked: the persistent selection, stable as the dial roams.
                 value={
-                  linkMeas
+                  measLocked
                     ? bandContaining(measFreq) ?? currentBands[0].key
                     : measBand || currentBands[0].key
                 }
                 onSelect={selectMeasBand}
-                disabled={linkMeas}
+                disabled={measLocked}
                 ariaLabel="measurement band"
               />
             )}
@@ -4673,25 +4722,29 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 unit=" MHz"
                 label="measurement frequency"
                 onChange={setMeasFreq}
-                disabled={linkMeas}
+                disabled={measLocked}
               />
-              <button
-                type="button"
-                className="vfo-lock"
-                aria-pressed={linkMeas}
-                aria-label="Lock measurement frequency to the design frequency"
-                title={
-                  linkMeas
-                    ? "Locked to the design frequency — the dial is fixed. Click to unlock and tune freely."
-                    : "Lock the measurement frequency to the design frequency."
-                }
-                onClick={() => toggleLink(!linkMeas)}
-              >
-                <svg className="lock-glyph" viewBox="0 0 16 16" aria-hidden="true">
-                  <rect x="3.5" y="7.2" width="9" height="6.3" rx="1.3" />
-                  <path className="shackle" d="M5.3 7.2V5a2.7 2.7 0 0 1 5.4 0v2.2" />
-                </svg>
-              </button>
+              {/* No design frequency → nothing to lock to; the button would
+                  only re-disable the one meaningful control (issue #390). */}
+              {measLockable && (
+                <button
+                  type="button"
+                  className="vfo-lock"
+                  aria-pressed={linkMeas}
+                  aria-label="Lock measurement frequency to the design frequency"
+                  title={
+                    linkMeas
+                      ? "Locked to the design frequency — the dial is fixed. Click to unlock and tune freely."
+                      : "Lock the measurement frequency to the design frequency."
+                  }
+                  onClick={() => toggleLink(!linkMeas)}
+                >
+                  <svg className="lock-glyph" viewBox="0 0 16 16" aria-hidden="true">
+                    <rect x="3.5" y="7.2" width="9" height="6.3" rx="1.3" />
+                    <path className="shackle" d="M5.3 7.2V5a2.7 2.7 0 0 1 5.4 0v2.2" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         </div>
