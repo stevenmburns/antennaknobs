@@ -277,6 +277,44 @@ class NecDeck:
             plan.setdefault((nt.wire_b, nt.seg_b), f"nt{k}b")
         return plan
 
+    @cached_property
+    def _junction_cuts(self) -> dict[int, frozenset[int]]:
+        """wire index → interior segment boundaries (1..n_seg−1) where some
+        OTHER wire has a segment endpoint.
+
+        NEC connects *segments* whose ends coincide — the grouping into GW
+        wires is irrelevant to it — so a deck may run one long wire straight
+        through another and rely on the crossing carrying current (the W8IO
+        whip's matching straps cross the whip axis mid-wire). antennaknobs'
+        engines junction wires at wire ENDS only, so ``wire_tuples()`` must
+        shatter wires at these boundaries to reproduce the deck's electrical
+        graph. The split is lossless: same segments, same boundaries, and
+        the KCL junction at the shared node is exactly NEC's connection.
+        """
+        eps = 1e-9
+
+        def key(p):
+            return tuple(round(c / eps) for c in p)
+
+        def boundary(w, k):
+            # Must match wire_tuples' point() bitwise so the shattered
+            # pieces land exactly on the detected nodes.
+            t = k / w.n_seg
+            return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2))
+
+        owners: dict[tuple, set[int]] = {}
+        for i, w in enumerate(self.wires):
+            for k in range(w.n_seg + 1):
+                owners.setdefault(key(boundary(w, k)), set()).add(i)
+        cuts: dict[int, frozenset[int]] = {}
+        for i, w in enumerate(self.wires):
+            shared = {
+                k for k in range(1, w.n_seg) if len(owners[key(boundary(w, k))]) > 1
+            }
+            if shared:
+                cuts[i] = frozenset(shared)
+        return cuts
+
     def wire_tuples(self):
         """The deck as ``build_wires()`` tuples.
 
@@ -287,13 +325,16 @@ class NecDeck:
         carries ``ex`` (the drive comes from ``network()``'s ``Driven``
         sources).
 
-        Either way, a wire whose marked segment is not its middle segment is
-        split into colinear pieces on the deck's exact segment boundaries, so
-        the port/feed lands on a 1-segment wire whose middle segment IS the
-        marked segment — same geometry, same segmentation, same attachment
-        point as the original deck. A wire whose only mark sits at the middle
-        segment of an odd count stays whole (the delta gap already lands
-        there).
+        Wires are split into colinear pieces on the deck's exact segment
+        boundaries in two situations: a marked (fed / port) segment that is
+        not the wire's middle segment gets isolated on its own 1-segment
+        wire so the delta gap lands exactly where the deck put it, and any
+        boundary another wire touches is cut so the crossing becomes a
+        wire-end junction (``_junction_cuts`` — NEC connects segment ends
+        regardless of wire grouping; the engines junction wire ends only).
+        Same geometry, same segmentation, same electrical graph as a NEC
+        run of the original deck. A wire with no cuts whose only mark sits
+        at the middle segment of an odd count stays whole.
         """
         if not self.feeds:
             raise ValueError(
@@ -316,18 +357,20 @@ class NecDeck:
 
         tups = []
         for i, w in enumerate(self.wires):
-            ms = sorted(marks.get(i, {}).items())
-            if not ms:
-                tups.append((w.p1, w.p2, w.n_seg, None))
-                continue
+            per = marks.get(i, {})
+            cutset = self._junction_cuts.get(i, frozenset())
             n = w.n_seg
-            if len(ms) == 1 and n % 2 == 1 and ms[0][0] == (n + 1) // 2:
-                # Marked at the wire's middle segment — the engine's native
-                # attachment position; keep the wire whole.
-                ex, pname = ms[0][1]
-                whole = (w.p1, w.p2, n, ex)
-                tups.append(whole + (pname,) if pname else whole)
+            if not per and not cutset:
+                tups.append((w.p1, w.p2, n, None))
                 continue
+            if not cutset and len(per) == 1 and n % 2 == 1:
+                (seg, (ex, pname)) = next(iter(per.items()))
+                if seg == (n + 1) // 2:
+                    # Marked at the wire's middle segment — the engine's
+                    # native attachment position; keep the wire whole.
+                    whole = (w.p1, w.p2, n, ex)
+                    tups.append(whole + (pname,) if pname else whole)
+                    continue
 
             def point(k, w=w, n=n):
                 """Endpoint after ``k`` of the wire's ``n`` segments. The same
@@ -336,15 +379,23 @@ class NecDeck:
                 t = k / n
                 return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2))
 
+            # Cut at every junction boundary, and around every marked
+            # segment so it sits alone on a 1-segment piece.
+            bounds = set(cutset)
+            for seg in per:
+                bounds.update((seg - 1, seg))
+            bounds -= {0, n}
             prev = 0
-            for seg, (ex, pname) in ms:
-                if seg - 1 > prev:
-                    tups.append((point(prev), point(seg - 1), seg - 1 - prev, None))
-                piece = (point(seg - 1), point(seg), 1, ex)
-                tups.append(piece + (pname,) if pname else piece)
-                prev = seg
-            if prev < n:
-                tups.append((point(prev), point(n), n - prev, None))
+            for b in [*sorted(bounds), n]:
+                count = b - prev
+                mark = per.get(b) if count == 1 else None
+                if mark is not None:
+                    ex, pname = mark
+                    piece = (point(prev), point(b), 1, ex)
+                    tups.append(piece + (pname,) if pname else piece)
+                else:
+                    tups.append((point(prev), point(b), count, None))
+                prev = b
         return tups
 
     def network(self):
