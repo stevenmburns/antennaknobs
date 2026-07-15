@@ -2,10 +2,10 @@
 
 PyNEC honors per-wire radius natively (one radius per GW card) and emits
 per-tag LD cards for per-wire conductivity/insulation. momwire honors
-per-wire conductivity/insulation through its per-wire loading arrays; the
-radius is still a single scalar until the per-wire radius kernels land
-(companion momwire issue), so a uniform per-wire radius is honored exactly
-and mixed radii collapse to the length-dominant one with a warning.
+per-wire conductivity/insulation through its per-wire loading arrays, and
+— since momwire#147 — per-wire radius arrays on BSplineSolver and
+SinusoidalSolver (the H-matrix family still collapses mixed radii to the
+length-dominant one with a warning until its block fills are ported).
 
 The bit-identical guard: a design whose per-wire specs all equal the old
 whole-antenna spec must produce identical results to the global-spec path.
@@ -81,12 +81,72 @@ def test_pynec_honors_mixed_per_wire_radius():
     assert lo < z_mixed.imag < hi
 
 
-def test_momwire_mixed_radius_warns_and_uses_dominant(caplog):
-    """Until the per-wire radius kernels land, momwire collapses mixed radii
-    to the length-dominant one — loudly."""
+def test_momwire_mixed_radius_passes_per_wire_array(caplog):
+    """With the momwire#147 kernels landed, mixed radii reach the solver as
+    a per-wire list — no dominant-collapse, no warning."""
     thin, fat = WireSpec(radius=0.5e-3), WireSpec(radius=8e-3)
     with caplog.at_level(logging.WARNING):
         eng = MomwireEngine(_dipole_builder(fat, thin, thin))
+    assert not any("length-dominant" in r.message for r in caplog.records)
+    # flat_wires_to_polylines merges the spec-uniform thin feed edge with
+    # the thin right arm: two polylines, one radius each.
+    assert sorted(eng._wire_radius) == pytest.approx([0.5e-3, 8e-3])
+
+
+def test_momwire_sinusoidal_mixed_radius_shift_matches_pynec():
+    """Cross-engine agreement on the mixed-radius EFFECT: the shift
+    z_mixed − z_uniform_thin agrees with PyNEC to ~2 Ω (measured 1.7 Ω;
+    fattening one arm moves Z by ~18 Ω here, so the shift is well
+    resolved). The shift — not absolute Z — is compared because this
+    tiny-feed-edge geometry carries a pre-existing ~8 Ω cross-engine
+    reactance offset from the differing feed models, present for uniform
+    radii too. SinusoidalSolver is the parity solver: it implements NEC's
+    basis and tracks PyNEC through mixed-radius solves (momwire's
+    test_per_wire_radius.py pins the direct absolute parity on clean
+    geometries); the resistance, which the feed-model offset barely
+    touches, is also asserted absolutely."""
+    from momwire.sinusoidal import SinusoidalSolver
+
+    thin, fat = WireSpec(radius=0.5e-3), WireSpec(radius=8e-3)
+    kw = {"solver": SinusoidalSolver}
+    z_thin_nec = _z(PyNECEngine, _dipole_builder(default=thin))
+    z_mix_nec = _z(PyNECEngine, _dipole_builder(fat, thin, thin))
+    z_thin_mw = _z(MomwireEngine, _dipole_builder(default=thin), **kw)
+    z_mix_mw = _z(MomwireEngine, _dipole_builder(fat, thin, thin), **kw)
+    shift_nec = z_mix_nec - z_thin_nec
+    shift_mw = z_mix_mw - z_thin_mw
+    assert abs(shift_nec) > 10.0  # the effect being tracked is large...
+    assert abs(shift_mw - shift_nec) < 3.0  # ...and matched
+    assert z_mix_mw.real == pytest.approx(z_mix_nec.real, abs=1.5)
+
+
+def test_momwire_bspline_mixed_radius_honored():
+    """The default (BSpline) engine feeds mixed radii to its kernels: Z
+    moves well off both uniform-radius answers instead of silently equaling
+    the dominant-radius solve. (Cross-engine absolute parity at an IN-LINE
+    radius step is deliberately not asserted for the Galerkin basis: NEC-2
+    itself is non-convergent at radius steps and the two formulations
+    disagree there — see momwire docs/sinusoidal_basis_design.md
+    "Per-wire radius". Junction-type mixed-radius geometries, e.g. fat
+    vertical + thin radials, are pinned against PyNEC in momwire's own
+    suite.)"""
+    thin, fat = WireSpec(radius=0.5e-3), WireSpec(radius=8e-3)
+    z_thin = _z(MomwireEngine, _dipole_builder(default=thin))
+    z_fat = _z(MomwireEngine, _dipole_builder(default=fat))
+    z_mixed = _z(MomwireEngine, _dipole_builder(fat, thin, thin))
+    assert abs(z_mixed - z_thin) > 5.0
+    assert abs(z_mixed - z_fat) > 5.0
+
+
+def test_momwire_hmatrix_mixed_radius_still_warns_and_collapses(caplog):
+    """The H-matrix family's block fills still take one radius: mixed radii
+    keep the loud length-dominant collapse until momwire#147's remaining
+    increment lands."""
+    from momwire.hmatrix import HMatrixSolver
+
+    thin, fat = WireSpec(radius=0.5e-3), WireSpec(radius=8e-3)
+    with caplog.at_level(logging.WARNING):
+        eng = MomwireEngine(_dipole_builder(fat, thin, thin), solver=HMatrixSolver)
     assert any("length-dominant" in r.message for r in caplog.records)
     # Arms have equal length; the feed edge tips the thin total over.
     assert eng._wire_radius == pytest.approx(0.5e-3)

@@ -75,6 +75,17 @@ the companion-issue PR and then a version-bump hookup here.
    carries its true 0.889 mm radius (PyNEC remeasured: bare 1.49+33.6j,
    matched 59.2+8.5j — inside the calibrated windows).
 4. **Phase 3 (follow-up)**: momwire per-wire radius kernels across all four
-   solver bases + C++ accelerators (companion issue); the PyNEC-vs-momwire
-   mixed-radius parity oracle lands with the kernels, and the momwire
-   engine's dominant-radius collapse is then replaced by the real arrays.
+   solver bases + C++ accelerators (companion issue momwire#147); the
+   PyNEC-vs-momwire mixed-radius parity oracle lands with the kernels, and
+   the momwire engine's dominant-radius collapse is then replaced by the
+   real arrays. *Landed 2026-07-15 for SinusoidalSolver + the BSpline dense
+   family (momwire PR #148): the engine passes per-wire radius arrays to
+   those solvers; the H-matrix family keeps the collapse until its block
+   fills are ported. Two validation findings: (a) the kernel convention is
+   the OBSERVER wire's radius (necpp EFLD's `ai = segment_radius[i]`) — the
+   source-radius convention this note originally proposed was refuted by
+   the oracle; (b) NEC-2 is non-convergent at IN-LINE radius steps (the
+   classic stepped-radius deficiency), so cross-engine parity there is
+   asserted via SinusoidalSolver (which tracks NEC) and via mixed-radius
+   junctions for the Galerkin family — see momwire
+   docs/sinusoidal_basis_design.md "Per-wire radius".*

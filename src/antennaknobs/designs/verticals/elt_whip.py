@@ -51,10 +51,11 @@ Constraints worth knowing:
     omit that element.
   * The upper whip carries its own per-wire spec (issue #388) with the
     deck's true 0.035" = 0.889 mm radius (``whip_upper_radius``); everything
-    else uses ``wire_radius`` (the deck's 0.254 mm). PyNEC honors both;
-    momwire approximates the pair with the length-dominant radius (the
-    grid dominates, so it solves at 0.254 mm — exactly the old whole-antenna
-    compromise) until its per-wire radius kernels land.
+    else uses ``wire_radius`` (the deck's 0.254 mm). PyNEC honors both, and
+    momwire's default (BSpline) and sinusoidal solvers honor both since
+    momwire#147 — the whip solves at its true radius. (The H-matrix family
+    still collapses to the length-dominant 0.254 mm with a warning until
+    its block fills are ported.)
 """
 
 import math

@@ -113,6 +113,22 @@ def _solver_supports_wire_loading(solver):
     return getattr(solver, "__name__", None) in _WIRE_LOADING_SOLVERS
 
 
+# Per-wire radius arrays (issue #388 / momwire#147, momwire >= 0.13):
+# SinusoidalSolver validates against PyNEC directly (it reproduces NEC's
+# per-segment radius conventions); the BSpline dense family applies the
+# same observer-surface convention. The H-matrix family's block fills
+# still take one radius — mixed radii there collapse to the
+# length-dominant one with a warning (warn-and-degrade, not crash).
+_PER_WIRE_RADIUS_SOLVERS = (
+    "BSplineSolver",
+    "SinusoidalSolver",
+)
+
+
+def _solver_supports_per_wire_radius(solver):
+    return getattr(solver, "__name__", None) in _PER_WIRE_RADIUS_SOLVERS
+
+
 class MomwireEngine(SimulationEngine):
     supports_far_field = True
 
@@ -214,13 +230,19 @@ class MomwireEngine(SimulationEngine):
             default_radius = 0.0005
         specs = self._polyline_specs
         if any(s is not None for s in specs):
-            # The solver kernels take ONE radius until momwire grows
-            # per-wire radius arrays (the #388 companion issue): a uniform
-            # per-wire radius is honored exactly; mixed radii collapse to
-            # the length-dominant one, stated plainly.
+            # Per-wire radii (momwire#147, landed for BSplineSolver and
+            # SinusoidalSolver): one entry per polyline, passed straight
+            # through as momwire's wire_radius array. A uniform list is
+            # collapsed to the scalar (momwire does the same internally;
+            # keeping the engine's readouts scalar preserves the
+            # pre-#147 API surface for uniform designs). Solvers whose
+            # kernels still take one radius (the H-matrix family) keep
+            # the length-dominant collapse, stated plainly.
             radii = [s.radius if s is not None else default_radius for s in specs]
             if len(set(radii)) == 1:
                 self._wire_radius = radii[0]
+            elif _solver_supports_per_wire_radius(self._solver):
+                self._wire_radius = radii
             else:
                 length_by_r: dict[float, float] = {}
                 for r, pl in zip(radii, self._polylines):
@@ -228,9 +250,11 @@ class MomwireEngine(SimulationEngine):
                     length_by_r[r] = length_by_r.get(r, 0.0) + ln
                 self._wire_radius = max(length_by_r.items(), key=lambda kv: kv[1])[0]
                 _logger.warning(
-                    "momwire solvers take a single wire radius until the "
-                    "per-wire radius kernels land; approximating %s's mixed "
-                    "per-wire radii with the length-dominant %.4g m",
+                    "%s takes a single wire radius until its per-wire "
+                    "radius block fills land (momwire#147); approximating "
+                    "%s's mixed per-wire radii with the length-dominant "
+                    "%.4g m",
+                    getattr(self._solver, "__name__", self._solver),
                     type(builder).__name__,
                     self._wire_radius,
                 )
@@ -245,9 +269,9 @@ class MomwireEngine(SimulationEngine):
             # Per-wire loading (issue #388): one entry per polyline, NaN
             # switching the effect off for that wire (momwire's
             # normalize_per_wire convention). A wire without its own spec
-            # inherits the design default. NOTE: skin loss for per-wire
-            # conductivity is still computed at the single global radius
-            # above — the per-wire radius kernels lift that too.
+            # inherits the design default. Skin loss is evaluated at each
+            # wire's own radius since momwire#147 (the solver receives
+            # the same per-wire radius array as the kernels).
             eff = [s if s is not None else spec for s in specs]
             nan = float("nan")
             cond = np.array(

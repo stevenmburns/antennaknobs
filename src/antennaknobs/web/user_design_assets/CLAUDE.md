@@ -239,8 +239,8 @@ Wire(start, end, n_segments, feed, spec=TUBE)      # this wire is the fat tube
 
 A wire without a `spec` uses `build_wire_material()` (or the 0.5 mm ideal).
 PyNEC honors per-wire radius and loss exactly; momwire honors per-wire
-loss/insulation and approximates *mixed* radii with the length-dominant one
-until its per-wire radius kernels land. Specs describe physical wire stock —
+loss/insulation and — on its default (BSpline) and sinusoidal solvers —
+per-wire radius too (momwire#147). Specs describe physical wire stock —
 scale knobs and transforms move geometry, never specs.
 
 **Tuning on a band — use `design_freq` (strongly recommended).** To place an
