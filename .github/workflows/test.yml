@@ -90,7 +90,12 @@ jobs:
       # `antennaknobs.web` subpackage (pip install -e . above), so it no longer
       # depends on the repo root being on sys.path the way the old top-level
       # `web/` package did.
-      run: python -m pytest -m "not antenna_computation_check and not heavy_mesh" tests/
+      # --durations surfaces the slowest tests each run; the conftest
+      # time-budget guardrail (issue #393) additionally flags any unmarked
+      # test over the 5 s ceiling. Set ANTENNAKNOBS_ENFORCE_TIME_BUDGET=1
+      # here to turn that into a hard failure once the CI numbers are
+      # calibrated.
+      run: python -m pytest -m "not antenna_computation_check and not heavy_mesh" --durations=15 tests/
 
     - name: Full suite + coverage (push to main only)
       # The complete suite, including the per-design solver catalogs, with
@@ -101,7 +106,7 @@ jobs:
       # accumulated RSS). They run manually: `python -m pytest -m heavy_mesh`
       # after nec-import or engine changes.
       if: github.event_name == 'push'
-      run: coverage run --source=src/ -m pytest -m "not heavy_mesh" tests/
+      run: coverage run --source=src/ -m pytest -m "not heavy_mesh" --durations=15 tests/
 
     - name: Coverage comment
       if: github.event_name == 'push'
