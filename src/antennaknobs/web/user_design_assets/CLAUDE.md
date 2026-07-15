@@ -114,24 +114,25 @@ transmission lines, and (resistive) NT networks into the app's own
 `build_network` branches, so the deck's matching/phasing actually acts:
 
 ```python
-from antennaknobs import AntennaBuilder, WireSpec, read_nec
+from antennaknobs import AntennaBuilder, read_nec
 
 class Builder(AntennaBuilder):
     def build_wires(self):
-        return read_nec(self, "my_yagi.nec", network=True).wire_tuples()
+        # specs=True: every wire keeps ITS OWN radius from the deck's GW
+        # card (and its LD 5 conductivity), so a mixed-radius deck — a fat
+        # driven element with thin radials — solves faithfully. No
+        # build_wire_material() needed; each wire carries its spec.
+        return read_nec(self, "my_yagi.nec", network=True).wire_tuples(specs=True)
 
     def build_network(self):
         # the deck's EX drive + its translated LD/TL/NT cards
         return read_nec(self, "my_yagi.nec", network=True).network()
-
-    def build_wire_material(self):
-        # keep the deck's element radius — the default 0.5 mm idealization
-        # would shift the reactance badly on thick VHF elements — and its
-        # LD 5 wire conductivity when the deck declares one
-        deck = read_nec(self, "my_yagi.nec", network=True)
-        return WireSpec(radius=deck.dominant_radius(),
-                        conductivity=deck.conductivity)
 ```
+
+(Without `specs=True` you get plain tuples and one whole-antenna wire
+material: pair `wire_tuples()` with a `build_wire_material()` returning
+`WireSpec(radius=deck.dominant_radius(), conductivity=deck.conductivity)` —
+the pre-#388 recipe, still fully supported.)
 
 Wires (GW/GA arcs/GH helices) and the geometry transforms (GM, GX, GR, GS —
 including xnec2c's tag-range GS) are honoured, the deck's EX voltage sources
@@ -220,6 +221,27 @@ Return a list of straight wire segments. Each entry is:
 small `eps` (e.g. 0.01 m) apart, with the radiator arms running outward from
 those two points. Wires connect where they share an endpoint, so the arms and
 the feed segment must share their centre points exactly. See `TEMPLATE.py`.
+
+**Per-wire sizes (optional).** A design that mixes conductors — a fat
+aluminium element with thin wire radials — can give any entry its own
+`WireSpec` by returning a `Wire` named tuple instead of a plain tuple; the
+two mix freely in one list:
+
+```python
+from antennaknobs import AntennaBuilder, Wire, WireSpec
+
+TUBE = WireSpec(radius=6e-3)                       # 12 mm boom element
+WIRE = WireSpec(radius=1e-3, conductivity=5.8e7)   # copper radial
+
+(start, end, n_segments, feed)                     # plain tuple: design default
+Wire(start, end, n_segments, feed, spec=TUBE)      # this wire is the fat tube
+```
+
+A wire without a `spec` uses `build_wire_material()` (or the 0.5 mm ideal).
+PyNEC honors per-wire radius and loss exactly; momwire honors per-wire
+loss/insulation and approximates *mixed* radii with the length-dominant one
+until its per-wire radius kernels land. Specs describe physical wire stock —
+scale knobs and transforms move geometry, never specs.
 
 **Tuning on a band — use `design_freq` (strongly recommended).** To place an
 antenna on a band *and be able to tune it there*, add a `design_freq` param

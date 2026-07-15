@@ -58,14 +58,23 @@ monopole + thin radials, (c) the W8IO whip benchmark deck.
 
 ## Rollout
 
-1. **Phase 1 (this PR)**: `Wire` + `as_wire`, translate-layer specs,
-   coercion/array passthrough — no engine behavior change; existing designs
-   bit-identical.
+This PR lands phases 1, 2, and 4; the momwire kernels (phase 3) follow as
+the companion-issue PR and then a version-bump hookup here.
+
+1. **Phase 1**: `Wire` + `as_wire`, translate-layer specs, coercion/array
+   passthrough — no engine behavior change; existing designs bit-identical.
 2. **Phase 2**: PyNEC per-wire radius (native GW card) + per-tag LD 5
-   conductivity; momwire per-polyline conductivity/insulation via the
-   existing `_wire_loading` arrays; radius still scalar.
-3. **Phase 3**: momwire per-wire radius kernels (companion issue), oracle
-   tests land with the kernels.
-4. **Phase 4**: `nec_import` uses true per-wire radii (no more
-   `dominant_radius()` compromise) and translates ranged LD 5; per-wire
-   length/weight readouts; docs + `elt_whip` showcase.
+   conductivity/insulation cards; momwire per-polyline conductivity/
+   insulation via the existing `_wire_loading` arrays; radius still scalar
+   (uniform per-wire radii honored exactly, mixed collapse to the
+   length-dominant with a warning).
+3. **Phase 4**: `wire_tuples(specs=True)` imports decks with true per-wire
+   radii (no `dominant_radius()` compromise; plain `wire_tuples()`
+   unchanged), ranged whole-wire LD 5 becomes per-wire conductivity,
+   per-wire length/weight readouts, docs, and the `elt_whip` upper whip
+   carries its true 0.889 mm radius (PyNEC remeasured: bare 1.49+33.6j,
+   matched 59.2+8.5j — inside the calibrated windows).
+4. **Phase 3 (follow-up)**: momwire per-wire radius kernels across all four
+   solver bases + C++ accelerators (companion issue); the PyNEC-vs-momwire
+   mixed-radius parity oracle lands with the kernels, and the momwire
+   engine's dominant-radius collapse is then replaced by the real arrays.

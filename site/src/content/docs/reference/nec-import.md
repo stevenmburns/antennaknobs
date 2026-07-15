@@ -27,7 +27,7 @@ Drop the deck next to a small design stub in `~/.antennaknobs/designs/`:
 ```python
 # my_yagi.py — my_yagi.nec sits next to it
 from types import MappingProxyType
-from antennaknobs import AntennaBuilder, WireSpec, read_nec
+from antennaknobs import AntennaBuilder, read_nec
 
 WIRES_FILE = "my_yagi.nec"
 
@@ -43,20 +43,18 @@ class Builder(AntennaBuilder):
         deck = read_nec(self, WIRES_FILE, network=True)
         s, h = self.scale, self.height
         lift = lambda p: (p[0] * s, p[1] * s, p[2] * s + h)
-        # Tuples are (p1, p2, n, ex) or (p1, p2, n, ex, name) — the named
-        # ones carry the deck's feed and network attachment points.
-        return [(lift(t[0]), lift(t[1]), *t[2:]) for t in deck.wire_tuples()]
+        # specs=True: `Wire` entries, each carrying ITS OWN radius from the
+        # deck's GW card (and LD 5 conductivity) — a fat driven element
+        # with thin radials solves faithfully, wire by wire. The named
+        # entries carry the deck's feed and network attachment points.
+        return [
+            w._replace(p0=lift(w.p0), p1=lift(w.p1))
+            for w in deck.wire_tuples(specs=True)
+        ]
 
     def build_network(self):
         # The deck's EX drive plus its translated LD/TL/NT cards (see below).
         return read_nec(self, WIRES_FILE, network=True).network()
-
-    def build_wire_material(self):
-        # Keep the deck's element radius — don't skip this (see below) —
-        # and its LD 5 wire conductivity when the deck declares one.
-        deck = read_nec(self, WIRES_FILE, network=True)
-        return WireSpec(radius=deck.dominant_radius() * self.scale,
-                        conductivity=deck.conductivity)
 ```
 
 `read_nec(self, name)` has the same folder confinement as `read_json`: it can
@@ -80,13 +78,22 @@ meaningful for the optimizer to hold onto — those need dimensions expressed
 as parameters, which is exactly what porting the deck to a native
 `AntennaBuilder` gives you.
 
-And one method is not optional: **`build_wire_material`**. The solvers
-default to an idealized 0.5 mm wire; a real deck's 5 mm Yagi elements have
-very different reactance. `deck.dominant_radius()` returns the deck's radius
-(length-weighted when wires differ) — feeding it to `WireSpec` is what makes
-the import faithful. On the xnec2c 2 m Yagi example deck, the imported
-geometry matches the independent `nec2c` solver to **0.011 Ω** *with* the
-deck's radius, and misses by **35 Ω** without it.
+And the radius is not optional. The solvers default to an idealized 0.5 mm
+wire; a real deck's 5 mm Yagi elements have very different reactance. On the
+xnec2c 2 m Yagi example deck, the imported geometry matches the independent
+`nec2c` solver to **0.011 Ω** *with* the deck's radius, and misses by
+**35 Ω** without it. `wire_tuples(specs=True)` (above) handles this per
+wire: every emitted `Wire` carries a `WireSpec` with that GW card's own
+radius, so even a mixed-radius deck keeps its reactance. (The pre-#388
+recipe — plain `wire_tuples()` plus a `build_wire_material()` returning
+`WireSpec(radius=deck.dominant_radius(), conductivity=deck.conductivity)` —
+still works, approximating mixed radii with the length-dominant one.)
+
+Two caveats on per-wire radii: the PyNEC engine honors them exactly (NEC
+takes a radius per wire natively); momwire approximates *mixed* radii with
+the length-dominant one until its per-wire radius kernels land. And the
+`scale` knob stretches geometry only — specs describe physical wire stock
+and are never scaled.
 
 ## Following the deck's band
 
@@ -174,7 +181,8 @@ the trap dipole and station designs use), wherever it can express them
 | --- | --- |
 | `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (expanded up to 8 segments), on a named 1-segment wire split out of the host wire |
 | `LD` type 4 with X = 0 (pure resistance) | `Load(r=…)` |
-| `LD` type 5 over the whole structure (wire conductivity) | `deck.conductivity` — feed it to `WireSpec` in `build_wire_material` |
+| `LD` type 5 over the whole structure (wire conductivity) | `deck.conductivity`, baked into every `wire_tuples(specs=True)` spec (or feed it to `WireSpec` in `build_wire_material`) |
+| `LD` type 5 on a tag/range covering whole wires | Per-wire conductivity (`deck.wire_conductivity`), baked into those wires' `specs=True` specs — a ranged card wins over the whole-structure one |
 | `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)` |
 | `NT` with an all-real Y matrix | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
 
@@ -188,7 +196,8 @@ What cannot be translated exactly stays out, with a per-card reason in
 `deck.ignored_detail` (rendered by `skipped_note()`): frequency-independent
 reactance (`LD` 4 with X ≠ 0, susceptance in `TL`/`NT` admittances — NEC's
 constant-B convention has no R/L/C equivalent), distributed per-metre RLC
-(`LD` 2/3), range-limited conductivity, and an `LD` landing on a segment
+(`LD` 2/3), an `LD` 5 range covering only *part* of a wire's segments
+(per-wire specs cover whole wires only), and an `LD` landing on a segment
 that also has a `TL`/`NT` connection (NEC composes those in series inside
 the segment, which the port model doesn't express).
 

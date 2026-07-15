@@ -14,13 +14,16 @@ import math
 
 import pytest
 
-from antennaknobs import merge_params
+from antennaknobs import as_wire, merge_params
 from antennaknobs.designs.verticals.elt_whip import Builder
 
 
 def _wire(w):
-    """Normalize a build_wires tuple: (p0, p1, nseg, ex, name-or-None)."""
-    return (*w, None) if len(w) == 4 else w
+    """Normalize a build_wires entry: (p0, p1, nseg, ex, name-or-None).
+    Entries may be plain tuples or Wire named tuples (the upper whip
+    carries a per-wire spec since #388)."""
+    t = as_wire(w)
+    return (t.p0, t.p1, t.n_seg, t.ex, t.name)
 
 
 def test_default_build_reproduces_deck_counts():
@@ -93,10 +96,12 @@ def test_free_space_impedance_matches_benchmark():
 
     With the posts' elements zeroed the feed must reproduce the raw
     benchmark impedance every engine agreed on in the 2026-07-14 run
-    (Z ≈ 1.38 + 33.5j free space); with the deck's LD values the network
-    transforms that to a ~50 Ω-class match (measured 63.0 + 8.1j). A
-    geometry or network-stamping regression moves either far outside its
-    window."""
+    (Z ≈ 1.38 + 33.5j free space at one whole-antenna radius; 1.49 + 33.6j
+    remeasured 2026-07-15 with the upper whip's true 0.889 mm per-wire
+    radius, #388); with the deck's LD values the network transforms that
+    to a ~50 Ω-class match (63.0 + 8.1j single-radius, 59.2 + 8.5j
+    per-wire). A geometry or network-stamping regression moves either far
+    outside its window."""
     pytest.importorskip("PyNEC")
     from antennaknobs.engines import PyNECEngine
 

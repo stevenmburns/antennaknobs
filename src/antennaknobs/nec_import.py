@@ -189,6 +189,9 @@ class NecDeck:
     tls: tuple[NecTL, ...] = ()
     nts: tuple[NecNT, ...] = ()
     conductivity: float | None = None  # whole-structure LD 5, S/m
+    # Ranged LD 5 (issue #388): (wire index, S/m) for every wire an LD 5
+    # card covers in full. Baked into wire_tuples(specs=True) specs.
+    wire_conductivity: tuple[tuple[int, float], ...] = ()
     # (mnemonic, reason) per card instance that network mode still could not
     # translate — skipped_note() prefers these over the generic descriptions.
     ignored_detail: tuple[tuple[str, str], ...] = ()
@@ -315,7 +318,7 @@ class NecDeck:
                 cuts[i] = frozenset(shared)
         return cuts
 
-    def wire_tuples(self):
+    def wire_tuples(self, specs: bool = False):
         """The deck as ``build_wires()`` tuples.
 
         Default mode: ``(p1, p2, n_seg, ex)`` with the deck's EX voltages as
@@ -324,6 +327,17 @@ class NecDeck:
         *named* wire instead, ``(p1, p2, n_seg, None, name)``, and no tuple
         carries ``ex`` (the drive comes from ``network()``'s ``Driven``
         sources).
+
+        ``specs=True`` (issue #388) emits ``Wire`` named tuples instead,
+        each carrying a per-wire ``WireSpec`` with the deck wire's OWN
+        radius — no ``dominant_radius()`` compromise — and its effective
+        conductivity (a ranged LD 5 over the whole wire, else the deck's
+        whole-structure LD 5). PyNEC honors both per wire; momwire honors
+        the conductivity and approximates mixed radii with the
+        length-dominant one until its per-wire radius kernels land. With
+        ``specs=True`` a ``build_wire_material()`` fallback is unnecessary
+        (every wire carries its spec) — though a design may still define
+        one for the weight readout of spec-less wires it adds itself.
 
         Wires are split into colinear pieces on the deck's exact segment
         boundaries in two situations: a marked (fed / port) segment that is
@@ -355,21 +369,46 @@ class NecDeck:
                     )
                 per[f.seg] = (f.voltage, None)
 
+        sigma_by_wire = dict(self.wire_conductivity)
+
+        def spec_for(i, w):
+            """Per-wire spec (issue #388): the deck wire's own radius, with
+            its effective conductivity baked in — a ranged LD 5 on this wire
+            wins over the whole-structure one. Baking is required: engines
+            treat an explicit spec as complete (no field-level fallback to
+            build_wire_material), so leaving conductivity None would turn a
+            copper deck into PEC wire by wire."""
+            if not specs:
+                return None
+            return _net.WireSpec(
+                radius=w.radius,
+                conductivity=sigma_by_wire.get(i, self.conductivity),
+            )
+
         tups = []
+
+        def emit(p0, p1, n, ex, pname=None, spec=None):
+            if spec is not None:
+                tups.append(_net.Wire(p0, p1, n, ex, pname, spec))
+            elif pname:
+                tups.append((p0, p1, n, ex, pname))
+            else:
+                tups.append((p0, p1, n, ex))
+
         for i, w in enumerate(self.wires):
             per = marks.get(i, {})
             cutset = self._junction_cuts.get(i, frozenset())
             n = w.n_seg
+            spec = spec_for(i, w)
             if not per and not cutset:
-                tups.append((w.p1, w.p2, n, None))
+                emit(w.p1, w.p2, n, None, spec=spec)
                 continue
             if not cutset and len(per) == 1 and n % 2 == 1:
                 (seg, (ex, pname)) = next(iter(per.items()))
                 if seg == (n + 1) // 2:
                     # Marked at the wire's middle segment — the engine's
                     # native attachment position; keep the wire whole.
-                    whole = (w.p1, w.p2, n, ex)
-                    tups.append(whole + (pname,) if pname else whole)
+                    emit(w.p1, w.p2, n, ex, pname, spec)
                     continue
 
             def point(k, w=w, n=n):
@@ -391,10 +430,9 @@ class NecDeck:
                 mark = per.get(b) if count == 1 else None
                 if mark is not None:
                     ex, pname = mark
-                    piece = (point(prev), point(b), 1, ex)
-                    tups.append(piece + (pname,) if pname else piece)
+                    emit(point(prev), point(b), 1, ex, pname, spec)
                 else:
-                    tups.append((point(prev), point(b), count, None))
+                    emit(point(prev), point(b), count, None, spec=spec)
                 prev = b
         return tups
 
@@ -820,6 +858,7 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
     loads: list[NecLoad] = []
     loaded: set[tuple[int, int]] = set()
     conductivity: float | None = None
+    wire_conductivity: dict[int, float] = {}
     for card in lds_raw:
         ldtyp = card.i(0)
         tag, sf, st = card.i(1), card.i(2), card.i(3)
@@ -863,15 +902,38 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
             if tag == 0 and sf == 0:
                 conductivity = card.f(4)
             else:
-                skip(
-                    "LD",
-                    "type 5 conductivity on a tag/segment range — the "
-                    "engines take one whole-antenna conductivity",
-                )
+                # Ranged conductivity (issue #388): whole wires can carry
+                # their own WireSpec conductivity, so a range that covers
+                # each touched wire in full translates per wire (NEC's
+                # last-card-wins per segment becomes last-wins per wire).
+                pairs = _segment_range(wires, tag, sf, st, card)
+                by_wire: dict[int, set[int]] = {}
+                for wi, s in pairs:
+                    by_wire.setdefault(wi, set()).add(s)
+                if all(
+                    segs == set(range(1, wires[wi][1] + 1))
+                    for wi, segs in by_wire.items()
+                ):
+                    for wi in by_wire:
+                        wire_conductivity[wi] = card.f(4)
+                else:
+                    skip(
+                        "LD",
+                        "type 5 conductivity on a partial-wire segment "
+                        "range — per-wire specs cover whole wires only",
+                    )
         else:
             skip("LD", f"type {ldtyp} is not recognised")
 
-    return tuple(loads), tuple(tls), tuple(nts), conductivity, detail, skipped
+    return (
+        tuple(loads),
+        tuple(tls),
+        tuple(nts),
+        conductivity,
+        tuple(sorted(wire_conductivity.items())),
+        detail,
+        skipped,
+    )
 
 
 def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> NecDeck:
@@ -1012,11 +1074,18 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
     tls: tuple[NecTL, ...] = ()
     nts: tuple[NecNT, ...] = ()
     conductivity: float | None = None
+    wire_conductivity: tuple[tuple[int, float], ...] = ()
     detail: list[tuple[str, str]] = []
     if network:
-        loads, tls, nts, conductivity, detail, skipped = _translate_network_cards(
-            wires, lds_raw, tls_raw, nts_raw
-        )
+        (
+            loads,
+            tls,
+            nts,
+            conductivity,
+            wire_conductivity,
+            detail,
+            skipped,
+        ) = _translate_network_cards(wires, lds_raw, tls_raw, nts_raw)
         ignored |= skipped
 
     return NecDeck(
@@ -1033,6 +1102,7 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
         tls=tls,
         nts=nts,
         conductivity=conductivity,
+        wire_conductivity=wire_conductivity,
         ignored_detail=tuple(detail),
         network_mode=network,
     )
