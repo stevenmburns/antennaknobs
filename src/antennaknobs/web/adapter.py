@@ -60,6 +60,7 @@ from antennaknobs.builder import (
     diff_params,
     resolve_variant_params,
 )
+from antennaknobs.network import as_wire
 
 try:
     from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
@@ -712,20 +713,28 @@ def _pynec_ground_spec(req: dict):
 def _wire_material_results(builder) -> dict:
     """Wire length + weight response fields (issue #318) for designs that
     declare a wire material: total conductor run from build_wires(), weight
-    from the catalog's grams/meter (jacket included). {} when the design
-    has no material — the fields (and their Info-pane rows) only exist for
-    wire_type designs."""
-    spec = builder.build_wire_material()
-    if spec is None:
+    from the catalog's grams/meter (jacket included). Per-wire specs
+    (issue #388) sum wire by wire — a wire's own spec wins, spec-less wires
+    fall back to the design default. {} when the design declares no
+    material anywhere — the fields (and their Info-pane rows) only exist
+    for designs with a wire material."""
+    default = builder.build_wire_material()
+    tups = list(builder.build_wires())
+    specs = [as_wire(t).spec for t in tups]
+    if default is None and not any(s is not None for s in specs):
         return {}
-    length = 0.0
-    for t in builder.build_wires():
+    length = weight = 0.0
+    for t, s in zip(tups, specs):
         p0 = np.asarray(t[0], dtype=float)
         p1 = np.asarray(t[1], dtype=float)
-        length += float(np.linalg.norm(p1 - p0))
+        ln = float(np.linalg.norm(p1 - p0))
+        length += ln
+        eff = s if s is not None else default
+        if eff is not None:
+            weight += ln * eff.weight_g_per_m
     return {
         "wire_length_m": length,
-        "wire_weight_g": length * spec.weight_g_per_m,
+        "wire_weight_g": weight,
     }
 
 

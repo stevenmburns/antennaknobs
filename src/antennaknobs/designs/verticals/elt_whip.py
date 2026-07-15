@@ -49,15 +49,18 @@ Constraints worth knowing:
     post and ``post_c_pf`` (deck: 3 pF) in series with the second — the
     cage's two grounded legs are the matching network. Set a knob to 0 to
     omit that element.
-  * Remaining deviation: engines take a single wire radius (default: the
-    deck's length-dominant 0.254 mm; the upper whip's 0.889 mm is
-    approximated).
+  * The upper whip carries its own per-wire spec (issue #388) with the
+    deck's true 0.035" = 0.889 mm radius (``whip_upper_radius``); everything
+    else uses ``wire_radius`` (the deck's 0.254 mm). PyNEC honors both;
+    momwire approximates the pair with the length-dominant radius (the
+    grid dominates, so it solves at 0.254 mm — exactly the old whole-antenna
+    compromise) until its per-wire radius kernels land.
 """
 
 import math
 from types import MappingProxyType
 
-from antennaknobs import AntennaBuilder, WireSpec
+from antennaknobs import AntennaBuilder, Wire, WireSpec
 from antennaknobs.network import Driven, Load, Network, PortOnWire
 
 # Half-extent of each ground-grid column, in cells: column i (x = i * pitch)
@@ -132,6 +135,9 @@ class Builder(AntennaBuilder):
             "grid_pitch": 0.0508,
             "fine_pitch": 0.0254,
             "wire_radius": 0.000254,
+            # The thick top whip section's own radius (deck: 0.035");
+            # rides as a per-wire spec on just that wire (issue #388).
+            "whip_upper_radius": 0.000889,
             "ui_params": MappingProxyType(
                 {
                     "default_view": "xz",
@@ -194,10 +200,16 @@ class Builder(AntennaBuilder):
             (0.0, 0.0, l1 + h),
             max(1, round((l1 - base) / spacing)),
         )
-        add(
-            (0.0, 0.0, l1 + h),
-            (0.0, 0.0, l1 + self.whip_upper_len + h),
-            max(1, round(self.whip_upper_segs)),
+        # The thick top section keeps the deck's own 0.035" radius as a
+        # per-wire spec; every other wire falls back to `wire_radius` via
+        # build_wire_material (issue #388).
+        wires.append(
+            Wire(
+                (0.0, 0.0, l1 + h),
+                (0.0, 0.0, l1 + self.whip_upper_len + h),
+                max(1, round(self.whip_upper_segs)),
+                spec=WireSpec(radius=self.whip_upper_radius),
+            )
         )
 
         # --- cage: verticals in ring-to-ring pieces, a polygon per ring ---
