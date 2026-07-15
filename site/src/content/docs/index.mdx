@@ -25,17 +25,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.27.1" icon="star">
-  **Big decks won't sink your machine.** A benchmark-grade NEC import — a
-  4,671-segment whip on a 96-inch ground-plane grid — used to exhaust the
-  memory of a 15 GB workstation on the dense solver and crash outright on
-  the compressed ones. The bundled momwire 0.12.0 hardens every engine in
-  the family: chunked dense assembly, fixed H-matrix compression on
-  junction-heavy meshes, and a graceful array-solver fallback bring the
-  whole [solver line-up](/reference/solver/) through that deck in at most
-  4.6 GB. The web backend also now sizes its solver thread pools
-  correctly at runtime — large-deck factorizations run up to 2.2× faster
-  on multi-core machines, with knob-drag latency untouched.
+<Card title="New in v0.28.0" icon="star">
+  **Every wire can now be its own wire.** Real antennas mix conductors — a
+  fat tubing element with thin radials, a copper radiator on a steel
+  whip — and per-wire `WireSpec`s let a design (or an
+  [imported NEC deck](/reference/nec-import/)) give each wire its own
+  radius, conductivity, and insulation instead of one whole-antenna
+  compromise. The bundled momwire 0.13.0 honors mixed radii across **all
+  four solver bases**, validated against NEC-2 to a fraction of an ohm on
+  a 4,392-segment mixed-radius whip benchmark. NEC imports got smarter
+  too: `LD`/`TL`/`NT` cards translate into the design's matching network,
+  wires shatter cleanly where other wires tap into them mid-span, and
+  anything skipped is stated right in the workbench. Plus: zoom, pan, and
+  an isometric view in the antenna viewer.
   [All release notes →](/reference/releases/)
 </Card>
 

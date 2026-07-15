@@ -89,12 +89,11 @@ recipe — plain `wire_tuples()` plus a `build_wire_material()` returning
 `WireSpec(radius=deck.dominant_radius(), conductivity=deck.conductivity)` —
 still works, approximating mixed radii with the length-dominant one.)
 
-Two caveats on per-wire radii: both engines honor them — PyNEC natively
-(NEC takes a radius per wire), momwire on its default (BSpline) and
-sinusoidal solvers since momwire#147, with only the opt-in H-matrix
-solver family still approximating *mixed* radii by the length-dominant
-one. And the `scale` knob stretches geometry only — specs describe
-physical wire stock and are never scaled.
+Two notes on per-wire radii: both engines honor them fully — PyNEC
+natively (NEC takes a radius per wire), and every momwire solver since
+momwire 0.13.0, the compressed H-matrix family included. And the `scale`
+knob stretches geometry only — specs describe physical wire stock and
+are never scaled.
 
 ## Following the deck's band
 
