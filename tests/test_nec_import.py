@@ -610,3 +610,30 @@ def test_network_requires_network_mode_and_default_mode_is_unchanged():
     assert sum(1 for t in tups if t[3] is not None) == 1
     with pytest.raises(ValueError, match="network=True"):
         deck.network()
+
+
+def test_crossing_wires_shatter_into_wire_end_junctions():
+    """NEC connects SEGMENTS whose ends coincide — wire grouping is
+    irrelevant — so a deck may run one wire straight through another and
+    rely on the crossing carrying current (the W8IO whip's matching straps
+    do). The engines junction wire ENDS only, so the import must cut both
+    wires at the shared boundary; without the cut the whip benchmark's
+    matching network floats and the matched impedance is garbage."""
+    deck = parse_nec(
+        "GW 1 4 0 0 -2 0 0 2 0.001\n"  # vertical through the origin
+        "GW 2 2 0 -1 0 0 1 0 0.001\n"  # horizontal through the origin
+        "GE\nEX 0 1 1 0 1 0\nEN\n"
+    )
+    tups = deck.wire_tuples()
+    # Vertical: fed segment 1 isolated + cut at the origin boundary → 3
+    # pieces; horizontal: cut at the origin → 2 pieces. Segments preserved.
+    assert [t[2] for t in tups] == [1, 1, 2, 1, 1]
+    assert sum(t[2] for t in tups) == 6
+    # Four wire ENDS now meet at the origin — a real junction.
+    ends_at_origin = sum(1 for t in tups for e in (t[0], t[1]) if e == (0.0, 0.0, 0.0))
+    assert ends_at_origin == 4
+    # Non-touching parallel wires are left alone.
+    deck = parse_nec(
+        "GW 1 3 0 0 0 0 0 3 0.001\nGW 2 3 1 0 0 1 0 3 0.001\nGE\nEX 0 1 2 0 1 0\nEN\n"
+    )
+    assert len(deck.wire_tuples()) == 2
