@@ -1107,6 +1107,66 @@ def test_examples_carry_notes(client: TestClient):
     assert ex.notes == "Deck cards not applied: LD (loading)"
 
 
+def test_out_of_band_freq_synthesizes_band():
+    """Issue #390: a design whose native `freq` lands outside every band tab
+    must ship a band covering it — otherwise the frontend's design-switch
+    snap falls back to bands[0] (160 m for the default HF set), framing a
+    406 MHz whip for a 95 m wavelength and dragging measFreq along."""
+    from types import MappingProxyType
+
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.web.adapter import DEFAULT_HF_BANDS, _make_example
+
+    class Uhf(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 406.0})
+
+        def build_wires(self):
+            return [((0.0, 0.0, 1.0), (0.0, 0.0, 1.6), 15, 1.0)]
+
+    # Fixed geometry (no design_freq): ONLY the synthetic band — the HF
+    # tabs can't retune it, and keeping them would offer the trap back.
+    (b,) = _make_example("uhf", Uhf, defer_hints=True).bands
+    assert b.key == "406 MHz" and b.freq_mhz == 406.0
+    assert b.min_mhz == pytest.approx(0.985 * 406.0)
+    assert b.max_mhz == pytest.approx(1.015 * 406.0)
+
+    class UhfWindow(Uhf):
+        default_params = MappingProxyType(
+            {
+                "freq": 406.0,
+                "ui_params": MappingProxyType({"meas_freq_range": (400.0, 412.0)}),
+            }
+        )
+
+    # A deck-seeded measurement window that brackets the freq becomes the
+    # band window (FR-card fidelity), instead of the generic ±1.5%.
+    (b,) = _make_example("uhfw", UhfWindow, defer_hints=True).bands
+    assert (b.min_mhz, b.max_mhz) == (400.0, 412.0)
+
+    class UhfScaled(Uhf):
+        default_params = MappingProxyType({"freq": 406.0, "design_freq": 406.0})
+
+    # Retunable designs keep their list with the synthetic band appended,
+    # so the HF tabs stay available for design_freq scaling.
+    scaled = _make_example("uhfs", UhfScaled, defer_hints=True)
+    assert scaled.bands[:-1] == DEFAULT_HF_BANDS
+    assert scaled.bands[-1].freq_mhz == 406.0
+
+    class Hf(Uhf):
+        default_params = MappingProxyType({"freq": 14.1})
+
+    # In-band designs are byte-identical: no synthetic band.
+    assert _make_example("hf", Hf, defer_hints=True).bands == DEFAULT_HF_BANDS
+
+    class Suppressed(Uhf):
+        default_params = MappingProxyType(
+            {"freq": 406.0, "ui_params": MappingProxyType({"bands": ()})}
+        )
+
+    # An explicit empty override still suppresses the band row entirely.
+    assert _make_example("sup", Suppressed, defer_hints=True).bands == ()
+
+
 def test_deferred_design_view_is_null_then_arrives_with_preview():
     # Regression: a deferred (user) design with no default_view override must
     # report default_view=None in the schema — NOT a hardcoded "xy" that makes
