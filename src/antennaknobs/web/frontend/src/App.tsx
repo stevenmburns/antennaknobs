@@ -1378,12 +1378,16 @@ const BACKEND_LABEL: Record<Backend, string> = {
 };
 
 // A design/solver combo is "inappropriate" when the solver is a poor fit: a
-// dense solver (or PyNEC) on a large array is very slow, and an accelerator
-// (array-block / H-matrix) on a single-element design is pure overhead. `rec` is
-// the server's recommended backend ("arrayblock" for grid arrays, else null).
+// dense solver (or PyNEC) on a large array is very slow, an accelerator
+// (array-block / H-matrix) on a single-element design is pure overhead, and
+// on a benchmark-class mesh (thousands of segments) every b-spline-family
+// solver is minutes per solve where sinusoidal (or PyNEC) is seconds. `rec`
+// is the server's recommended backend ("arrayblock" for grid arrays,
+// "sinusoidal" for huge meshes, else null).
 function comboInappropriate(b: Backend, rec: Backend | null): boolean {
   const accel = b === "arrayblock" || b === "hmatrix";
   if (rec === "arrayblock") return !accel; // an array wants an accelerator
+  if (rec === "sinusoidal") return b !== "sinusoidal" && b !== "pynec";
   return accel; // everything else doesn't need one
 }
 
@@ -2636,6 +2640,24 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // `result` the moment the real solve lands; only consulted while result is
   // null (i.e. right after an antenna switch).
   const [preview, setPreview] = useState<SolveResponse | null>(null);
+  // The server's per-design solver recommendation ("arrayblock" for grid
+  // arrays, "sinusoidal" for benchmark-sized meshes, null otherwise) — used
+  // by the withhold gate and to pick the right warning copy.
+  const recommendedBackend = normalizeBackend(
+    preview?.default_backend ?? currentExample?.default_backend,
+  );
+  // True while the live solve is being withheld by the solver-mismatch gate.
+  // The batch endpoints (sweep / converge / norm-check) defer on this exactly
+  // like they defer on solvePending(): they are batches of the same solves
+  // the gate is protecting the machine from (a dense sweep on a benchmark
+  // mesh is 41 multi-GiB solves). Reads the approval ref, so "Solve anyway"
+  // unblocks their 200 ms re-poll without any effect re-run.
+  function solveWithheld(): boolean {
+    return (
+      comboInappropriate(backend, recommendedBackend) &&
+      !approvedComboRef.current
+    );
+  }
   // Set when the selected design fails to solve/build — most often a user
   // design whose build_wires() raises. Geometry errors are deferred to
   // selection now (the builder isn't run at registration), so this banner is
@@ -3367,10 +3389,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // user hasn't approved it — show a warning instead. The app never switches
     // the solver itself; the user does that in the gear menu, which changes
     // `backend` and re-runs this effect.
-    const rec = normalizeBackend(
-      preview?.default_backend ?? currentExample?.default_backend,
-    );
-    if (comboInappropriate(backend, rec) && !approvedComboRef.current) {
+    if (
+      comboInappropriate(backend, recommendedBackend) &&
+      !approvedComboRef.current
+    ) {
       setSolverWarning(true);
       return;
     }
@@ -3584,7 +3606,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // pain that motivated this on large arrays. Re-poll until the main solve is
     // idle, then proceed; the input-change effect cancels this timer on the
     // next change, so rapid edits still debounce.
-    if (solvePending()) {
+    if (solvePending() || solveWithheld()) {
       sweepTimerRef.current = window.setTimeout(runSweep, 200);
       return;
     }
@@ -3720,7 +3742,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // Same as runSweep: defer the converge ladder (another batch of solves)
     // until the live solve has returned, so it never competes with the solve
     // that draws the heatmap.
-    if (solvePending()) {
+    if (solvePending() || solveWithheld()) {
       convergeTimerRef.current = window.setTimeout(runConverge, 200);
       return;
     }
@@ -3841,7 +3863,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // Defer until the live solve has returned, like the sweeps — the pattern
     // norm reuses that settled solve (a server cache hit), so running before
     // it lands would miss the cache and re-solve.
-    if (solvePending()) {
+    if (solvePending() || solveWithheld()) {
       normCheckTimerRef.current = window.setTimeout(runNormCheck, 200);
       return;
     }
@@ -4838,9 +4860,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               {BACKEND_LABEL[backend]} is a poor match for this design
             </span>
             <span className="solver-suggest-sub">
-              {backend === "arrayblock" || backend === "hmatrix"
-                ? "This accelerator is overkill on a single-element design — a dense solver (e.g. B-spline) is faster here. "
-                : "This is a large array — a dense solver can be very slow. Array-block is far faster. "}
+              {recommendedBackend === "sinusoidal"
+                ? "This mesh is benchmark-sized — B-spline-family solvers take minutes per solve here (and concurrent solves can exhaust memory). The sinusoidal solver or PyNEC answers in seconds. "
+                : backend === "arrayblock" || backend === "hmatrix"
+                  ? "This accelerator is overkill on a single-element design — a dense solver (e.g. B-spline) is faster here. "
+                  : "This is a large array — a dense solver can be very slow. Array-block is far faster. "}
               Change the solver in the gear menu, solve anyway, or pause to keep
               editing.
             </span>

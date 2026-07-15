@@ -1079,6 +1079,13 @@ def _auto_default_view(cls) -> str:
     return "".join(sorted(s[0] for s in spans[:2]))
 
 
+# Above this estimated b-spline basis count, a dense (or compressed) b-spline
+# solve is minutes-per-knob-drag and the UI recommends the sinusoidal solver
+# instead. Dense at 3,000 bases is a ~140 MB Z and ~10 s on a 4-core dev box —
+# already past interactive; the whip benchmark sits at ~12,700.
+_SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
+
+
 @lru_cache(maxsize=None)
 def _recommended_backend(cls) -> str | None:
     """Recommend a default solver for the design, or None to let the UI keep
@@ -1089,8 +1096,18 @@ def _recommended_backend(cls) -> str | None:
     solver is dramatically faster than the dense default (e.g. bowtiearray2x4:
     ~1 s vs ~8 s). Single-element designs, and multi-element designs whose
     elements are all distinct (Yagi-style), keep the dense default so their
-    basis/results are unchanged. Detection is geometry-only (no solve) and any
-    failure falls back to None.
+    basis/results are unchanged.
+
+    Returns "sinusoidal" for benchmark-class meshes — thousands of explicit
+    segments in one connected structure (e.g. verticals.elt_whip: 4,392
+    segments in 4,067 junction-split pieces ⇒ ~12,700 b-spline bases) —
+    where every b-spline-family solver takes minutes per solve and a few
+    concurrent requests (live solve + sweep + norm-check) can exhaust a
+    development machine's memory, while the sinusoidal solver answers in
+    seconds. The frontend withholds the solve and warns when the selected
+    solver conflicts with this recommendation (`comboInappropriate`).
+
+    Detection is geometry-only (no solve) and any failure falls back to None.
 
     Memoised per design class: it already runs only once per design at registry
     build (the result is baked into the immutable `AntennaExample`, which the
@@ -1102,6 +1119,19 @@ def _recommended_backend(cls) -> str | None:
         from momwire.array_block import _wire_to_element
 
         builder = _build_builder(cls, {})
+        # B-spline basis estimate without meshing: explicit segments plus
+        # degree (2) boundary bases per wire piece — the junction-split
+        # inflation exactly (issue momwire#138: those extra bases are the
+        # physics of junction current discontinuities, not overhead).
+        # Designs that defer segmentation to the app (nseg None) raise on
+        # int() and fall through to the array detection below.
+        try:
+            wires = builder.build_wires()
+            est_basis = sum(int(w[2]) for w in wires) + 2 * len(wires)
+            if est_basis > _SINUSOIDAL_RECOMMEND_MIN_BASIS:
+                return "sinusoidal"
+        except Exception:
+            pass
         eng = _make_momwire_engine({}, builder)
         polylines = [np.asarray(p, dtype=float) for p in eng._polylines]
     except Exception:

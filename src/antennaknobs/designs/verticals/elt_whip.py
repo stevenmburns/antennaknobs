@@ -136,6 +136,12 @@ class Builder(AntennaBuilder):
                 {
                     "default_view": "xz",
                     "meas_freq_range": (400.0, 412.0),
+                    # 406 MHz sits outside every HF amateur band; without a
+                    # containing band the UI's design-switch snap would drag
+                    # design_freq down to the first HF band (160 m!). One
+                    # custom band covering the deck's FR sweep keeps the
+                    # tabs honest: (key, label, freq, min, max).
+                    "bands": (("406", "406 MHz", 406.0, 400.0, 412.0),),
                     # integer knobs, not continuous lengths
                     "whip_upper_segs": {"min": 4, "max": 56, "step": 1},
                     "num_cage_wires": {"min": 4, "max": 24, "step": 1},

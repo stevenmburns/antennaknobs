@@ -1053,14 +1053,16 @@ def test_geometry_endpoint_returns_wires_without_solving(client: TestClient):
 
 def test_examples_carry_default_backend(client: TestClient):
     # Every example exposes default_backend (str | null). Grid arrays recommend
-    # the array-block accelerator; single-element designs keep the UI default
-    # (null) so their basis/results are unchanged.
+    # the array-block accelerator; benchmark-sized meshes recommend the
+    # sinusoidal solver (see _SINUSOIDAL_RECOMMEND_MIN_BASIS); other designs
+    # keep the UI default (null) so their basis/results are unchanged.
     payload = client.get("/examples").json()
     by_name = {e["name"]: e for e in payload["examples"]}
     for e in payload["examples"]:
         assert "default_backend" in e
-        assert e["default_backend"] in (None, "arrayblock")
+        assert e["default_backend"] in (None, "arrayblock", "sinusoidal")
     assert by_name["arrays.bowtiearray2x4"]["default_backend"] == "arrayblock"
+    assert by_name["verticals.elt_whip"]["default_backend"] == "sinusoidal"
     # A plain single-element design keeps the default.
     assert by_name["specialty.bowtie"]["default_backend"] is None
     # Regression: a Yagi is NOT a grid array — its equal-length directors used
