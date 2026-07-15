@@ -110,3 +110,20 @@ def test_free_space_impedance_matches_benchmark():
     z = PyNECEngine(Builder(), ground=None).impedance()[0]
     assert 50.0 < z.real < 75.0
     assert abs(z.imag) < 20.0
+
+
+def test_example_recommends_sinusoidal_and_declares_406_band():
+    """The /examples payload must steer the UI: benchmark-sized mesh ⇒
+    default_backend "sinusoidal" (the withhold-warning gate keys on it), and
+    a custom 406 MHz band so the design-switch snap can't drag design_freq
+    down to 160 m (406 sits outside every HF band)."""
+    import antennaknobs.web.examples  # noqa: F401 — primes the adapter
+
+    from antennaknobs.web.examples import REGISTRY
+
+    ex = REGISTRY["verticals.elt_whip"]
+    assert ex.default_backend == "sinusoidal"
+    assert [(b.key, b.freq_mhz, b.min_mhz, b.max_mhz) for b in ex.bands] == [
+        ("406", 406.0, 400.0, 412.0)
+    ]
+    assert ex.meas_freq_range_mhz == (400.0, 412.0)
