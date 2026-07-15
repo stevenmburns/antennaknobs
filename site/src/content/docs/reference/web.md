@@ -58,6 +58,35 @@ VFO dial; the rest are smaller). Three ways to change one:
 
 Every turn re-solves and redraws live (when **Live** is on — see below).
 
+## The antenna viewer
+
+The Antenna view draws the wires (with the current heat-map and standing-wave
+envelope overlays) in one of three orthographic projections — **Top (xy)**,
+**Front (xz)**, **Side (yz)** — switched by the buttons in the top-right
+overlay.
+
+The view auto-fits the whole antenna, and you can navigate from there,
+map-style:
+
+- **Zoom** — scroll wheel (desktop) or pinch (touch), anchored at the cursor
+  or pinch centre, up to 10 000×. Fine construction detail — a cage of wires
+  millimetres apart on an antenna metres across, typical of imported NEC
+  decks — is inspectable without touching any knob.
+- **Pan** — drag, once zoomed in. At fit zoom a touch drag stays with the
+  page (on a phone that's the swipe between output screens); after a pinch
+  the canvas owns the gesture until you re-fit.
+- **Re-fit** — double-click / double-tap, the **Fit** button in the
+  bottom-right HUD (next to the live zoom readout), or just zoom all the way
+  back out. Switching projection or design also re-fits — the viewport is
+  anchored in the projected plane, so it wouldn't point anywhere meaningful
+  in another one.
+
+The scale bar under the antenna reads **λ/4** at fit zoom; once zoomed it
+switches to a round metric length (1/2/5 × 10ᵏ m — like a map's) sized to
+about a quarter of the canvas, so it stays readable and true at any
+magnification. Zooming magnifies geometry only: wire strokes, labels, the
+feed dot, and the envelope amplitude keep their size.
+
 ## Live & paused solving
 
 A **Live** toggle sits next to the frequency dial. It looks **depressed when on**
