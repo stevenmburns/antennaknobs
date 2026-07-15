@@ -51,7 +51,9 @@ needs_pynec = pytest.mark.skipif(
 # default (a loud terminal section); set ANTENNAKNOBS_ENFORCE_TIME_BUDGET=1 to
 # also fail the run. Kept opt-in for hard-fail because absolute call times
 # drift with hardware — CI can enable it once the numbers are calibrated.
-TIME_BUDGET_CEILING_S = float(os.environ.get("ANTENNAKNOBS_TIME_BUDGET_CEILING_S", "5.0"))
+TIME_BUDGET_CEILING_S = float(
+    os.environ.get("ANTENNAKNOBS_TIME_BUDGET_CEILING_S", "5.0")
+)
 _TIME_BUDGET_EXEMPT_MARKERS = ("antenna_computation_check", "heavy_mesh")
 _time_budget_offenders: list[tuple[str, float]] = []
 
