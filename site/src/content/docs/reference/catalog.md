@@ -77,6 +77,7 @@ whole shape with a `Drone` — see
 | `verticals.bruce` | Bruce array: a series-fed vertically-polarised curtain (L. B. Cebik, W4RNL) |
 | `verticals.challenger` | KJ6ER's "Challenger" — off-center-fed halfwave vertical with 4:1 unun · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `plus` |
 | `verticals.dominator` | KJ6ER's "Dominator" — end-fed halfwave vertical with 49:1 transformer · variants: `band10`, `band12`, `band17`, `plus` |
+| `verticals.elt_whip` | Parametric rebuild of the ELT whip on a 96-inch rounded ground-plane grid — the heavier of the two classic NEC performance benchmarks (``whip_antenna_8ft_groundplane.nec`` from the W8IO NEC benchmarks page, http://www.w8io.com/nec-benchmarks.htm): 434 deck wires, ~4,400 segments |
 | `verticals.four_square` | Four-square phased vertical array -- the diagonal-firing quadrature box (L. B. Cebik, W4RNL) |
 | `verticals.half_square` | Half-square: a vertically-polarised wire antenna (L. B. Cebik, W4RNL) |
 | `verticals.inverted_l` | Inverted-L: a bent, top-loaded vertical (L. B. Cebik, W4RNL) |
