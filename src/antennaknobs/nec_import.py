@@ -120,6 +120,33 @@ class NecDeck:
             length_by_radius[w.radius] = length_by_radius.get(w.radius, 0.0) + ln
         return max(length_by_radius.items(), key=lambda kv: kv[1])[0]
 
+    def skipped_note(self) -> str | None:
+        """One human-readable sentence naming the run configuration the deck
+        asked for that the app decides itself: the ``ignored`` cards with
+        their descriptions, plus the deck's ground request (which can come
+        from the GE flag alone, with no GN card). Deck-backed design stubs
+        put this under ``ui_params["notes"]`` so the web UI can tell the
+        user why readouts may differ from the deck's published numbers.
+        None when the deck carries nothing the app overrides.
+        """
+        parts = []
+        if self.ignored:
+            cards = ", ".join(
+                f"{m} ({_IGNORED_CARDS[m]})" if m in _IGNORED_CARDS else m
+                for m in self.ignored
+            )
+            parts.append(f"deck cards not applied: {cards}")
+        if self.ground:
+            parts.append("the deck models a ground plane")
+        if not parts:
+            return None
+        body = "; ".join(parts)
+        return (
+            body[0].upper()
+            + body[1:]
+            + " — the app's own ground/loading/sweep settings are used instead."
+        )
+
     def wire_tuples(self):
         """The deck as ``build_wires()`` tuples: ``(p1, p2, n_seg, ex)``.
 

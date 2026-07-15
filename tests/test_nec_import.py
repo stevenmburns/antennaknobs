@@ -206,6 +206,37 @@ def test_run_config_cards_are_recorded_not_applied():
     assert deck.ignored == ("GN", "LD", "TL")
 
 
+def test_skipped_note_renders_ignored_cards_and_ground():
+    deck = parse_nec(
+        "GW 1 3 0 -1 1  0 1 1  0.001\n"
+        "GE 1\n"
+        "GN 2 0 0 0 13.0 0.005\n"
+        "LD 5 0 0 0 3.7E+07\n"
+        "EX 0 1 2 0 1 0\nEN\n"
+    )
+    note = deck.skipped_note()
+    # Descriptions come from _IGNORED_CARDS (the single source of truth),
+    # the ground request is called out, and mnemonic case survives.
+    assert note == (
+        "Deck cards not applied: GN (ground parameters), LD (loading); "
+        "the deck models a ground plane — the app's own ground/loading/sweep "
+        "settings are used instead."
+    )
+
+
+def test_skipped_note_ground_flag_only_and_clean_deck():
+    # GE 1 alone (no GN card): ground is requested but nothing is in
+    # `ignored`, so only the ground clause renders.
+    flag_only = parse_nec("GW 1 3 0 0 1  1 0 1  0.001\nGE 1\nEX 0 1 2 0 1 0\nEN\n")
+    assert flag_only.ignored == ()
+    note = flag_only.skipped_note()
+    assert note is not None and note.startswith("The deck models a ground plane")
+
+    # Free-space deck with no run-config cards: nothing to report.
+    clean = parse_nec("GW 1 3 0 0 1  1 0 1  0.001\nGE\nEX 0 1 2 0 1 0\nEN\n")
+    assert clean.skipped_note() is None
+
+
 def test_multiple_feeds_and_complex_voltage():
     deck = parse_nec(
         "GW 1 3 0 0 1  1 0 1  0.001\n"

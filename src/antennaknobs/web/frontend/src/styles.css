@@ -825,6 +825,15 @@ button:focus-visible,
   margin: calc(-1 * var(--space-2)) 0 var(--space-4);
 }
 
+/* Informational design note (e.g. NEC cards a deck import didn't apply) —
+   deliberately muted, not a warning: it explains, it doesn't alarm. */
+.design-note {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+}
+
 .examples-error {
   margin: var(--space-4) 0;
   padding: var(--space-4) var(--space-5);
