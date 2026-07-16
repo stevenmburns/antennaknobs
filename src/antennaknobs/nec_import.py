@@ -79,7 +79,6 @@ _IGNORED_CARDS = {
     "PT": "current print control",
     "PQ": "charge print control",
     "KH": "interaction limit",
-    "EK": "extended thin-wire kernel",
     "CP": "coupling request",
     "PL": "plot request",
     "WG": "NGF write request",
@@ -196,6 +195,12 @@ class NecDeck:
     # translate — skipped_note() prefers these over the generic descriptions.
     ignored_detail: tuple[tuple[str, str], ...] = ()
     network_mode: bool = False  # parsed with network=True
+    # Deck asked for NEC's extended thin-wire kernel (EK card, #414). Applied
+    # by the PyNEC engine (`extended_thin_wire_kernel=True`) so fat-wire
+    # decks compare kernel-for-kernel against nec2c; momwire's kernels are
+    # its own formulation, so this is reference fidelity, not a momwire knob.
+    # Deck-level: True if any EK card other than `EK -1` (off) appears.
+    extended_kernel: bool = False
 
     def dominant_radius(self) -> float:
         """The deck's wire radius, length-weighted where wires differ.
@@ -956,6 +961,7 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
     nts_raw: list[_Card] = []
     freq_mhz: tuple[float, float] | None = None
     ground = False
+    extended_kernel = False
     in_comments = True
 
     geometry = {
@@ -1023,6 +1029,14 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
                     tls_raw.clear()
                 else:
                     nts_raw.append(card)
+            continue
+        if mnemonic == "EK":
+            # Extended thin-wire kernel (#414): honored (via PyNEC), not
+            # ignored. `EK -1` switches back to the standard kernel; any
+            # other form turns it on. NEC scopes EK to subsequent geometry;
+            # decks in the wild use it globally, so one deck-level flag.
+            card = _Card(mnemonic, tokens[1:], where)
+            extended_kernel = card.i(0) != -1
             continue
         if mnemonic in _IGNORED_CARDS:
             ignored.add(mnemonic)
@@ -1105,4 +1119,5 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
         wire_conductivity=wire_conductivity,
         ignored_detail=tuple(detail),
         network_mode=network,
+        extended_kernel=extended_kernel,
     )
