@@ -30,6 +30,22 @@ export default defineConfig({
       "/": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
+        // Propagate client aborts upstream. http-proxy does NOT reliably
+        // destroy its backend request when the browser goes away mid-stream
+        // (closed tab during an NDJSON sweep): the upstream socket lingers,
+        // the backend's request.is_disconnected() stays false, and a
+        // benchmark-mesh sweep grinds on for tens of minutes against a dead
+        // client (found in the #382 acceptance pass — five zombie proxied
+        // streams kept a whip sweep+converge+norm-check burning after the
+        // tab closed). Production doesn't route through this proxy; only
+        // the dev loop needs the hand-off.
+        configure(proxy) {
+          proxy.on("proxyReq", (proxyReq, req, res) => {
+            res.on("close", () => {
+              if (!res.writableFinished) proxyReq.destroy();
+            });
+          });
+        },
         bypass(req) {
           const url = req.url || "";
           // Only GETs can be Vite-owned; any other method is an API call.
