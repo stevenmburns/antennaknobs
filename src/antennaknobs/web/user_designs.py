@@ -75,7 +75,14 @@ def format_solve_error(exc: BaseException) -> str:
     error surfaces here rather than in the load panel. Point at the deepest
     frame inside a user-design folder when the failure came from someone's own
     file (the common case); otherwise fall back to just type + message.
+
+    Exceptions that crossed the threadpool have had their frame chain shed
+    (see server._shed — a fat traceback pins the solver's arrays in the
+    worker thread for good) and carry the message pre-formatted instead.
     """
+    pre = getattr(exc, "_formatted_solve_error", None)
+    if pre is not None:
+        return pre
     tb = traceback.extract_tb(exc.__traceback__)
     dirs: list[str] = []
     for d in user_design_dirs():
