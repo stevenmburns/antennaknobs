@@ -25,19 +25,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.28.0" icon="star">
-  **Every wire can now be its own wire.** Real antennas mix conductors — a
-  fat tubing element with thin radials, a copper radiator on a steel
-  whip — and per-wire `WireSpec`s let a design (or an
-  [imported NEC deck](/reference/nec-import/)) give each wire its own
-  radius, conductivity, and insulation instead of one whole-antenna
-  compromise. The bundled momwire 0.13.0 honors mixed radii across **all
-  four solver bases**, validated against NEC-2 to a fraction of an ohm on
-  a 4,392-segment mixed-radius whip benchmark. NEC imports got smarter
-  too: `LD`/`TL`/`NT` cards translate into the design's matching network,
-  wires shatter cleanly where other wires tap into them mid-span, and
-  anything skipped is stated right in the workbench. Plus: zoom, pan, and
-  an isometric view in the antenna viewer.
+<Card title="New in v0.29.0" icon="star">
+  **One solver at a time.** The workbench now schedules every computation a
+  tab asks for — the live solve, frequency sweeps, convergence ladders,
+  pattern checks — through a single per-session lane on the server, live
+  solve first. Dragging a knob instantly preempts stale background work at
+  the solver's next checkpoint instead of competing with it for cores, so
+  benchmark-sized designs (try the 4,400-segment
+  [ELT whip](/reference/catalog/)) stay responsive while their sweeps grind.
+  Closing the tab now stops the computation, a solve that fails no longer
+  pins its memory for the life of the server, and one cost model decides
+  up front what's safe to run. Under the hood it's four invariants replacing
+  a pile of client-side timing heuristics — the workbench just feels
+  steadier under heavy designs.
   [All release notes →](/reference/releases/)
 </Card>
 
