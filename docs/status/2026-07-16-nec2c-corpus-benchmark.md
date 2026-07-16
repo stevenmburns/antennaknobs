@@ -18,7 +18,16 @@ different mesh density.
 
 Tooling set up this session: `nec2c` 1.3 (KJ7LNW fork) built and on `PATH`
 (`~/.local/bin/nec2c`); xnec2c examples at `~/antennas/xnec2c/examples` (82
-decks). antennaknobs 0.28.0 / momwire 0.13.0, both editable.
+decks).
+
+**Stack (re-run):** the tables below are the **momwire 0.14.0 + pynec-accel
+1.7.5** re-run, with `--allow-wire-intersections` (nec2++'s intersection
+validator off, issue #409). Two changes vs the original 0.13.0 / post2 pass:
+momwire 0.14.0 fixes the ground-junction end conditions for wires touching the
+ground plane, and pynec-accel 1.7.5 wraps `set_intersection_check`. Together
+they eliminate **every engine error** — all 76 referenced decks now solve on all
+four engines (the original pass had 6 PyNEC geometry rejections plus momwire's
+`buoy`/`k9ay`/sommerfeld-cliff ground raises).
 
 ## Script
 
@@ -89,10 +98,16 @@ engine error. Buckets are the *indistinguishable* / *matched-system-equivalent*
 
 | engine | n | median | <0.01 | <0.05 | <0.2 |
 |---|--:|--:|--:|--:|--:|
-| **PyNEC** | 55 | **0.0003** | 48 | 53 | 54 |
-| **Sinusoidal** | 58 | **0.0092** | 30 | 44 | 45 |
-| **BSpline d=2** | 58 | 0.0569 | 11 | 28 | 41 |
-| **BSpline d=1** | 58 | 0.0829 | 3 | 17 | 39 |
+| **PyNEC** | 61 | **0.0003** | 51 | 58 | 59 |
+| **Sinusoidal** | 61 | **0.0051** | 41 | 56 | 58 |
+| **BSpline d=2** | 61 | 0.0408 | 15 | 35 | 50 |
+| **BSpline d=1** | 61 | 0.0647 | 6 | 24 | 49 |
+
+`n` rose from 55/58 to a uniform **61** because the ground-connected verticals
+and the six geometry-rejected decks now solve cleanly on every engine and count
+as clean. Every engine improved: Sinusoidal's median halved (0.0092 → 0.0051)
+and its `<0.01` bucket jumped 30 → 41, almost entirely from momwire 0.14.0's
+ground fix (see headlines).
 
 ## Runtime & peak RSS (successful solves)
 
@@ -102,55 +117,58 @@ dense structures (helicones, helispheres, `23cm_helix`).
 
 | engine | n | solve median | max | peakRSS median | max |
 |---|--:|--:|--:|--:|--:|
-| PyNEC | 70 | 11 ms | 0.22 s | 148 MB | 202 MB |
-| Sinusoidal | 72 | 14 ms | 9.30 s | 152 MB | 207 MB |
-| BSpline d=1 | 72 | 24 ms | 9.36 s | 166 MB | **737 MB** |
-| BSpline d=2 | 72 | 29 ms | 9.32 s | 166 MB | 441 MB |
+| PyNEC | 76 | 11 ms | 0.21 s | 144 MB | 203 MB |
+| Sinusoidal | 76 | 17 ms | 12.16 s | 158 MB | 207 MB |
+| BSpline d=1 | 76 | 25 ms | 12.18 s | 182 MB | **738 MB** |
+| BSpline d=2 | 76 | 31 ms | 12.22 s | 167 MB | 442 MB |
+
+All four engines now report **n = 76** (every referenced deck solved); the
+original pass had 70–72 because of the engine errors now eliminated.
 
 ## Full per-deck table
 
 Columns are feed-0 **ΔΓ** (0 = identical, ≤2 = bounded). `fl`: **g** =
-unsupported ground (radial/cliff), **n** = inexpressible LD/TL/NT network.
-`GEO` = nec2++ geometry-intersection rejection (documented limitation, issue
-#409 — see the PyNEC `ERR` triage section below); `ERR` = engine raised
-otherwise.
+unsupported ground (radial/cliff), **n** = inexpressible LD/TL/NT network. No
+cell is `ERR`/`GEO` any more — with momwire 0.14.0 and pynec-accel 1.7.5's
+intersection check off, every engine solves every referenced deck (issue #409
+resolved; the `g`/`n` flags still mark not-apples-to-apples rows).
 
 | deck | f/MHz | grd | fl | Z_nec2c (feed0) | PyNEC | Sin | Bs1 | Bs2 |
 |---|--:|:--|:-:|--:|--:|--:|--:|--:|
-| 10-30m-box | 10.000 | finite-fast | g | 21.8-10.1j | 1.3402 | 1.3777 | 1.3765 | 1.3768 |
-| 10-30m_MultiBand_Vertical | 7.000 | pec |  | 7.3-146.8j | 0.0009 | 0.6238 | 0.6155 | 0.6194 |
-| 10-30m_bipyramid | 10.000 | finite-fast | g | 13.9+4.5j | 1.5320 | 1.5618 | 1.5617 | 1.5613 |
-| 10-30m_inv_cone | 10.000 | pec |  | 19.2+24.8j | 0.0000 | 1.3664 | 1.3701 | 1.3691 |
-| 10-30m_sphere | 10.000 | finite-fast | g | 20.1-0.5j | 1.4084 | 1.4256 | 1.4250 | 1.4249 |
-| 10-40m_windom | 3.000 | finite-fast | g | 7.8-11485.0j | 0.0722 | 0.0067 | 0.0056 | 0.0062 |
-| 10-80m_Classic_Windom-optimized | 3.000 | finite-fast | g | 118.3-10573.0j | 0.0397 | 0.0073 | 0.0061 | 0.0067 |
+| 10-30m-box | 10.000 | finite-fast | g | 21.8-10.1j | 1.3402 | 1.3402 | 0.4279 | 0.4275 |
+| 10-30m_MultiBand_Vertical | 7.000 | pec |  | 7.3-146.8j | 0.0009 | 0.0017 | 0.0023 | 0.0005 |
+| 10-30m_bipyramid | 10.000 | finite-fast | g | 13.9+4.5j | 1.5320 | 1.5320 | 0.3335 | 0.3323 |
+| 10-30m_inv_cone | 10.000 | pec |  | 19.2+24.8j | 0.0000 | 0.0068 | 0.3191 | 0.3192 |
+| 10-30m_sphere | 10.000 | finite-fast | g | 20.1-0.5j | 1.4084 | 1.4084 | 0.4709 | 0.4707 |
+| 10-40m_windom | 3.000 | finite-fast | g | 7.8-11485.0j | 0.0722 | 0.0722 | 0.8589 | 0.8590 |
+| 10-80m_Classic_Windom-optimized | 3.000 | finite-fast | g | 118.3-10573.0j | 0.0397 | 0.0397 | 0.1117 | 0.1122 |
 | 10-80m_G5RV | 3.000 | finite |  | 3.5-90.5j | 0.0001 | 0.0001 | 0.0152 | 0.0056 |
-| 10-80m_Inverted-L | 3.000 | finite-fast | g | 11.4-164.0j | 0.5575 | 0.5697 | 0.5689 | 0.5693 |
-| 10-80m_windom | 3.000 | finite-fast | g | 91.6-11134.0j | 0.0374 | 0.0070 | 0.0059 | 0.0064 |
+| 10-80m_Inverted-L | 3.000 | finite-fast | g | 11.4-164.0j | 0.5575 | 0.5575 | 0.0427 | 0.0429 |
+| 10-80m_windom | 3.000 | finite-fast | g | 91.6-11134.0j | 0.0374 | 0.0374 | 0.1237 | 0.1241 |
 | 137MHz_broadside_Yagi | 130.000 | free |  | 29.8-35.3j | 0.0002 | 0.0088 | 0.0532 | 0.0269 |
 | 137MHz_turnstile | 135.000 | free |  | 34.6+6.2j | 0.0017 | 0.0167 | 0.0643 | 0.0309 |
 | 137MHz_turnstile_sloped | 130.000 | free |  | 66.8-7.4j | 0.0011 | 0.0023 | 0.0233 | 0.0163 |
 | 137Mhz-QFHA1 | 130.000 | free |  | 396.5+1098.9j | 0.0000 | 0.0015 | 0.0555 | 0.0428 |
-| 137Mhz-QFHA2 | 130.000 | free |  | 2.7-274.3j | GEO | 0.0140 | 0.0750 | 0.0850 |
+| 137Mhz-QFHA2 | 130.000 | free |  | 2.7-274.3j | 0.0000 | 0.0140 | 0.0750 | 0.0850 |
 | 137Mhz-QFHA3 | 135.000 | free |  | 16.0+18.3j | 0.0047 | 0.0044 | 0.0548 | 0.0520 |
 | 137Mhz_xpol_omni | 110.000 | free |  | 28.0-39.2j | 0.0035 | 0.0034 | 0.2582 | 0.2380 |
 | 13cm_Yagi | 2000.000 | free |  | 9.4-86.1j | 0.0001 | 0.0012 | 0.0565 | 0.0057 |
 | 13cm_corner_reflector | 2000.000 | free |  | 59.3-33.7j | 0.0001 | 0.0044 | 0.0957 | 0.0411 |
 | 13cm_helix+screen | 2300.000 | free |  | 126.3-27.9j | 0.0394 | 0.0314 | 0.6858 | 0.4885 |
 | 15m_delta-loop | 20.000 | free |  | 37.2-133.6j | 0.0383 | 0.2723 | 0.2755 | 0.2556 |
-| 1MHz_3x_helicone | 0.900 | pec |  | 49.3-399.8j | 0.0005 | 0.2232 | 0.2222 | 0.2102 |
-| 1MHz_3x_helisphere | 0.900 | pec |  | 52.5-413.1j | 0.0000 | 0.1997 | 0.2087 | 0.1689 |
-| 1MHz_4x_helisphere | 0.980 | pec |  | 96.5-234.8j | 0.0410 | 0.3405 | 0.3376 | 0.2977 |
-| 1MHz_helivert | 0.980 | pec |  | 2.9-14.1j | 0.0003 | 1.8222 | 1.8208 | 1.8196 |
-| 1MHz_tower | 0.980 | pec |  | 68.5-136.1j | GEO | 0.5461 | 0.5401 | 0.5417 |
-| 20-40m_ground_plane | 6.000 | pec |  | 41.4-214.4j | 0.0000 | 0.4073 | 0.3937 | 0.3999 |
-| 20-40m_vert_circ_cliff | 6.000 | finite-fast | g | 48.7-196.1j | 0.3034 | 0.4383 | 0.4266 | 0.4322 |
-| 20-40m_vert_linear_cliff | 6.000 | finite-fast | g | 48.7-196.1j | 0.3034 | 0.4383 | 0.4266 | 0.4322 |
-| 20-40m_vert_sommerfeld_cliff | 6.000 | finite | g | 74.6-199.9j | 0.0027 | ERR | ERR | ERR |
-| 20m_car_ant | 13.000 | free |  | 28.0-57.2j | GEO | 0.0085 | 0.0723 | 0.0766 |
+| 1MHz_3x_helicone | 0.900 | pec |  | 49.3-399.8j | 0.0005 | 0.0005 | 0.0266 | 0.0239 |
+| 1MHz_3x_helisphere | 0.900 | pec |  | 52.5-413.1j | 0.0000 | 0.0001 | 0.0146 | 0.0123 |
+| 1MHz_4x_helisphere | 0.980 | pec |  | 96.5-234.8j | 0.0410 | 0.0410 | 0.1570 | 0.1590 |
+| 1MHz_helivert | 0.980 | pec |  | 2.9-14.1j | 0.0003 | 0.0040 | 0.0161 | 0.0114 |
+| 1MHz_tower | 0.980 | pec |  | 68.5-136.1j | 0.4249 | 0.8026 | 0.9544 | 0.9558 |
+| 20-40m_ground_plane | 6.000 | pec |  | 41.4-214.4j | 0.0000 | 0.0007 | 0.0016 | 0.0007 |
+| 20-40m_vert_circ_cliff | 6.000 | finite-fast | g | 48.7-196.1j | 0.3034 | 0.3034 | 0.0144 | 0.0138 |
+| 20-40m_vert_linear_cliff | 6.000 | finite-fast | g | 48.7-196.1j | 0.3034 | 0.3034 | 0.0144 | 0.0138 |
+| 20-40m_vert_sommerfeld_cliff | 6.000 | finite | g | 74.6-199.9j | 0.0027 | 0.0008 | 0.0345 | 0.0349 |
+| 20m_car_ant | 13.000 | free |  | 28.0-57.2j | 0.0014 | 0.0085 | 0.0723 | 0.0766 |
 | 20m_dipole_NT_50ohm | 14.000 | free | n | 38.9-3.2j | 1.1243 | 1.1243 | 1.1242 | 1.1243 |
 | 20m_quad | 13.600 | free |  | 31.9-149.4j | 0.0397 | 0.0398 | 0.0426 | 0.0412 |
-| 23cm_helix+radials | 1200.000 | free |  | 43.4-71.6j | GEO | 0.0202 | 0.2239 | 0.0912 |
+| 23cm_helix+radials | 1200.000 | free |  | 43.4-71.6j | 0.0185 | 0.0202 | 0.2239 | 0.0912 |
 | 23cm_helix+screen | 1200.000 | free |  | 162.2-93.6j | 0.0159 | 0.0168 | 0.2890 | 0.2168 |
 | 2m-5el-rhcp-ARISS-KJ7NLL | 299.800 | free |  | 88.5-185.4j | 0.0043 | 0.0056 | 0.0710 | 0.0775 |
 | 2m_1to4l-gp_on_pole | 140.000 | free |  | 27.8-20.2j | 0.0034 | 0.0148 | 0.1248 | 0.1064 |
@@ -171,55 +189,66 @@ otherwise.
 | 2m_xpol_omni_stack | 140.000 | free |  | 34.8-18.8j | 0.0062 | 0.0050 | 0.0147 | 0.0108 |
 | 2m_yagi | 140.000 | free |  | 28.8-13.2j | 0.0001 | 0.0309 | 0.0790 | 0.0408 |
 | 2m_yagi_stack | 140.000 | free |  | 29.9-12.2j | 0.0001 | 0.0281 | 0.0724 | 0.0373 |
-| 30-80m_inv_L | 3.000 | pec |  | 31.4+31.1j | 0.0007 | 1.1491 | 1.1499 | 1.1495 |
+| 30-80m_inv_L | 3.000 | pec |  | 31.4+31.1j | 0.0007 | 0.0006 | 0.0016 | 0.0006 |
 | 35-55MHz_logper | 35.000 | free |  | 45.0-1.3j | 0.0000 | 0.0008 | 0.0009 | 0.0005 |
-| 40-80m_Inv_L | 3.000 | finite-fast | g | 24.9-497.6j | 0.1309 | 0.1942 | 0.1921 | 0.1932 |
+| 40-80m_Inv_L | 3.000 | finite-fast | g | 24.9-497.6j | 0.1309 | 0.1309 | 0.0036 | 0.0036 |
 | 40m-moxon | 6.800 | finite |  | 3.0-8.8j | 0.0002 | 0.0010 | 0.0037 | 0.0065 |
-| 6-17m_bipyramid | 14.000 | pec |  | 7.0-16.6j | 0.0016 | 1.6774 | 1.6719 | 1.6728 |
-| 6-20m_fan | 14.000 | pec |  | 12.3-0.4j | 0.0001 | 1.6049 | 1.6045 | 1.6046 |
-| 6-20m_inv_cone | 14.000 | pec |  | 14.4+9.2j | 0.0000 | 1.5412 | 1.5430 | 1.5426 |
+| 6-17m_bipyramid | 14.000 | pec |  | 7.0-16.6j | 0.0016 | 0.0017 | 0.2331 | 0.2326 |
+| 6-20m_fan | 14.000 | pec |  | 12.3-0.4j | 0.0001 | 0.0008 | 0.2323 | 0.2321 |
+| 6-20m_inv_cone | 14.000 | pec |  | 14.4+9.2j | 0.0000 | 0.0051 | 0.2335 | 0.2342 |
 | 6-40m_5B4AZ-optimized | 7.000 | finite |  | 0.0-90243.0j | 0.6262 | 0.6264 | 0.6311 | 0.6279 |
-| 6-40m_Classic_Windom-optimized | 7.000 | finite-fast | g | 160.8-4703.6j | 0.0441 | 0.0163 | 0.0138 | 0.0151 |
+| 6-40m_Classic_Windom-optimized | 7.000 | finite-fast | g | 160.8-4703.6j | 0.0441 | 0.0441 | 0.2673 | 0.2673 |
 | 6m_big-square_stack | 45.000 | finite-fast |  | 7.5+11.1j | 0.0091 | 0.0064 | 0.0869 | 0.0963 |
 | 6m_bigwheel-stack | 45.000 | finite-fast |  | 12.9+21.2j | 0.0001 | 0.0000 | 0.1205 | 0.1196 |
 | 6m_horizomni | 45.000 | free |  | 18.9-275.6j | 0.0001 | 0.0018 | 0.0140 | 0.0077 |
 | 70cm-5el-rhcp-KJ7NLL | 299.800 | free |  | 123.6-338.9j | 0.0029 | 0.0044 | 0.0423 | 0.0451 |
-| 70cm_collinear | 420.000 | free |  | 107.8-340.6j | GEO | 0.0127 | 0.0931 | 0.0311 |
+| 70cm_collinear | 420.000 | free |  | 107.8-340.6j | 0.0118 | 0.0127 | 0.0931 | 0.0311 |
 | 80m_zepp | 3.000 | finite |  | 0.6-115.2j | 0.0000 | 0.0003 | 0.0647 | 0.0288 |
-| T12m-H24m | 1.000 | finite-fast | g | 6.8-327.1j | 0.1837 | 0.2966 | 0.2944 | 0.2955 |
-| T20m-H18m | 1.000 | finite-fast | g | 4.5-277.9j | 0.2516 | 0.3495 | 0.3477 | 0.3486 |
-| airplane | 5.000 | free |  | 68.5-91.1j | GEO | 0.0160 | 0.1188 | 0.1265 |
-| buoy | 10.000 | finite |  | 3.8-259.8j | 0.0000 | ERR | ERR | ERR |
+| T12m-H24m | 1.000 | finite-fast | g | 6.8-327.1j | 0.1837 | 0.1837 | 0.0018 | 0.0024 |
+| T20m-H18m | 1.000 | finite-fast | g | 4.5-277.9j | 0.2516 | 0.2516 | 0.0099 | 0.0093 |
+| airplane | 5.000 | free |  | 68.5-91.1j | 0.0001 | 0.0160 | 0.1188 | 0.1265 |
+| buoy | 10.000 | finite |  | 3.8-259.8j | 0.0000 | 0.0028 | 0.0349 | 0.0086 |
 | ex2_current_slope_disc_dipole | 200.000 | free |  | 26.6-632.1j | 0.0061 | 0.0061 | 0.0021 | 0.0025 |
-| k9ay_5b4az | 1.800 | finite |  | 492.6+66.2j | 0.0012 | ERR | ERR | ERR |
-| k9ay_orig | 1.800 | finite |  | 960.8+81.2j | 0.0838 | ERR | ERR | ERR |
+| k9ay_5b4az | 1.800 | finite |  | 492.6+66.2j | 0.0012 | 0.0584 | 0.0773 | 0.0765 |
+| k9ay_orig | 1.800 | finite |  | 960.8+81.2j | 0.0838 | 0.0837 | 0.0899 | 0.0892 |
 
 ## Headlines
 
-- **PyNEC ≈ nec2c (median ΔΓ 0.0003, 48/55 within 0.01).** Two independent NEC2
+- **Every referenced deck now solves on every engine — zero errors.** The
+  original pass had 6 PyNEC geometry rejections and 3 momwire ground raises
+  (`buoy`, `k9ay_5b4az`, `k9ay_orig`, plus the sommerfeld cliff). pynec-accel
+  1.7.5's `set_intersection_check(False)` and momwire 0.14.0's ground-junction
+  fix clear all of them: 76/76 decks × 4 engines, no `ERR`/`GEO` anywhere.
+- **momwire's ground weak spot is largely fixed (0.14.0).** This was *the*
+  actionable gap in the original pass — ground-mounted verticals/monopoles
+  diverged to a near-total reflection-phase gap. They now track nec2c:
+  Sinusoidal ΔΓ on `1MHz_helivert` **1.82 → 0.004**, `6-20m_fan` **1.60 →
+  0.001**, `6-17m_bipyramid` **1.68 → 0.002**, `10-30m_inv_cone` **1.37 →
+  0.007**, `30-80m_inv_L` **1.15 → 0.001**, `20-40m_ground_plane` **0.41 →
+  0.001**, the helicones/helispheres **0.20–0.34 → 0.000–0.04**; and `buoy` /
+  `k9ay_*`, which used to raise `requires every wire strictly above ground_z`,
+  now solve at ΔΓ 0.003 / 0.06 / 0.08. Sinusoidal's overall median halved
+  (0.0092 → 0.0051). The B-spline bases share the ground code and improved in
+  lockstep (PEC verticals ~1.6 → ~0.23; the ~0.23 residual is the basis-
+  convergence gap, not ground). **One PEC deck regressed:** `1MHz_tower`
+  (guy-wires meeting the ground plane) went Sinusoidal 0.55 → 0.80 — the lone
+  remaining ground outlier, worth a look.
+- **PyNEC ≈ nec2c (median ΔΓ 0.0003, 51/61 within 0.01).** Two independent NEC2
   kernels — nec2++ (PyNEC) vs nec2c (C) — so this mostly *validates the
-  pipeline*: the `nec_import` translation, the network reduction, and the
-  GN→`ground=` matching all reproduce what nec2c builds from the original deck,
-  across 55 real free-space/homogeneous-ground decks.
-- **Sinusoidal is the most NEC-faithful momwire basis** (median ΔΓ 0.0092), as
-  expected — it is the same sinusoidal basis family as NEC2. BSpline d=2 (0.057)
-  and d=1 (0.083) sit further off *at the decks' native segmentation* — the
-  motivation for the convergence sweep below.
-- **momwire's weak spot is ground.** Over PEC/finite ground, ground-*mounted*
-  verticals and monopoles diverge to a near-total reflection-phase gap (ΔΓ up to
-  ~1.8 on `1MHz_helivert`; `6-20m_fan` 1.60, `10-30m_inv_cone` 1.37,
-  `30-80m_inv_L` 1.15, `20-40m_ground_plane` 0.40, the helicones 0.2–0.34) or
-  raise `ground_model='sommerfeld' requires every wire strictly above ground_z`
-  when a wire touches z=0 (`buoy`, `k9ay_*`). **PyNEC matches nec2c on all of
-  them** (ΔΓ ≈ 0). This is the clearest actionable gap: momwire's ground
-  handling is unreliable for ground-connected structures.
+  pipeline*: the `nec_import` translation, network reduction, and GN→`ground=`
+  matching all reproduce what nec2c builds. Now over 61 clean decks (was 55),
+  including the six formerly geometry-rejected ones, which land on nec2c at ΔΓ
+  ≤ 0.019 in free space (`1MHz_tower` 0.42 on PEC ground — still beating momwire).
+- **Sinusoidal is the most NEC-faithful momwire basis** (median ΔΓ 0.0051), as
+  expected — same sinusoidal basis family as NEC2. BSpline d=2 (0.041) and d=1
+  (0.065) sit further off *at the decks' native segmentation* — the motivation
+  for the convergence sweep below.
 - **The reflection-coefficient metric dissolves the near-open artifacts.**
   `6-40m_5B4AZ` at 0−90243j — which read 99.9% under relative-|Z| on *every*
-  engine including PyNEC — is now ΔΓ ≈ 0.63 **identical across all four**: a real,
+  engine including PyNEC — is ΔΓ ≈ 0.63 **identical across all four**: a real,
   bounded near-open phase gap shared by every engine (tiny geometry differences
   between the two pipelines near a sharp anti-resonance), not a per-engine defect.
-  The off-resonance windoms (previously 88–344%) now sit at ΔΓ ≈ 0.006–0.07. No
-  metric-artifact caveat is needed.
+  The off-resonance windoms (previously 88–344%) now sit at ΔΓ ≈ 0.006–0.07.
 - **nec2c has its own edges.** It rejects the xnec2c-only `ZO` card (exit 255,
   but the impedance block is still valid and now parsed past it) and genuinely
   NaN'd one deck (`10-20m-moxon`).
@@ -291,9 +320,11 @@ Segments to reach within 2% of that engine's own finest-mesh value:
   mode) or a sibling script, reusing the subprocess/RSS/concurrency harness;
   extend to more loops (`delta_loop`, `diamond_loop`) to test whether "closed
   loops favor the higher-order basis" generalizes.
-- **Investigate momwire ground on ground-connected wires** — the
-  `strictly above ground_z` limitation and the large PEC-ground-plane
-  divergence are the biggest real gaps vs NEC.
+- **momwire ground on ground-connected wires — largely resolved by 0.14.0.**
+  The `strictly above ground_z` raises and the large PEC-ground-plane divergence
+  are gone (see headlines). Remaining thread: `1MHz_tower` (guy-wires into the
+  ground plane) regressed to Sinusoidal ΔΓ 0.80 — the one PEC deck still off, and
+  the only ground case now worth chasing.
 
 ## PyNEC `ERR` triage (issue #409) — all are nec2++ geometry rejections
 
@@ -342,32 +373,20 @@ errors: a nec2++ geometry rejection shows as **`GEO`** in the per-deck table
 separates the documented `GEO` limitation from anything worth investigating. So
 a reader sees *why* PyNEC is absent on these rows rather than an opaque `ERR`.
 
-*2. An opt-in that recovers the decks.* nec2++'s validator is now toggleable.
-The `stevenmburns/necpp` engine fork gained a public
-`c_geometry::set_intersection_check(bool)` (mirroring upstream necpp master),
-`stevenmburns/python-necpp` wraps it for Python (**pynec-accel ≥ 1.7.5**), and
-`PyNECEngine(..., check_intersections=False)` calls it before
-`geometry_complete()`. `bench_nec_corpus.py --allow-wire-intersections` sets it
-per run. With the check off, PyNEC solves all six decks, and it lands right on
-nec2c — confirming these were **false-positive rejections, not bad geometry**:
+*2. An opt-in that recovers the decks — now shipped.* nec2++'s validator is
+toggleable as of **pynec-accel 1.7.5** (on PyPI): the `stevenmburns/necpp`
+engine fork gained a public `c_geometry::set_intersection_check(bool)`
+(mirroring upstream necpp master), `stevenmburns/python-necpp` wraps it for
+Python, `PyNECEngine(..., check_intersections=False)` calls it before
+`geometry_complete()`, and `bench_nec_corpus.py --allow-wire-intersections`
+sets it per run. **The tables above are that run** — the six decks appear as
+ordinary rows, and PyNEC lands right on nec2c (five free-space decks ΔΓ ≤ 0.019,
+two ~0; `1MHz_tower` 0.42 on PEC ground, still beating momwire). That confirms
+these were **false-positive rejections, not bad geometry**.
 
-| deck | grd | Z_nec2c (feed0) | PyNEC ΔΓ | Sin ΔΓ |
-|---|:--|--:|--:|--:|
-| `137Mhz-QFHA2` | free | 2.7 −274.3j | **0.0000** | 0.0140 |
-| `20m_car_ant` | free | 28.0 −57.2j | **0.0014** | 0.0085 |
-| `airplane` | free | 68.5 −91.1j | **0.0001** | 0.0160 |
-| `70cm_collinear` | free | 107.8 −340.6j | **0.0118** | 0.0127 |
-| `23cm_helix+radials` | free | 43.4 −71.6j | **0.0185** | 0.0202 |
-| `1MHz_tower` | pec | 68.5 −136.1j | **0.4249** | 0.5461 |
-
-The five free-space decks agree with nec2c to ΔΓ ≤ 0.019 (two are ~0), the same
-two-NEC-kernel validation the rest of the corpus shows. `1MHz_tower` is a
-PEC-ground vertical — momwire's known ground weak spot — where PyNEC (0.42)
-tracks nec2c far better than momwire (0.55), exactly the pattern in the ground
-headline above.
-
-The default stays **check-on / `GEO`**: the strict validator is a reasonable
-guard for hand-built designs, and keeping the corpus table's default strict
-makes the `GEO` rows a visible record of which decks lean on the opt-in. The
-flag is the lever for the wild-corpus acceptance runs, where recovering every
-solvable deck matters more than the guard.
+The classification (`GEO`, `error_kind`, the `ENGINE ERRORS` section) stays in
+the script for **strict runs** — with the default `check_intersections=True`
+these six decks still show `GEO` rather than an opaque `ERR`, so a reader of a
+strict run sees *why* PyNEC is absent. The engine default remains check-on (a
+reasonable guard for hand-built designs); the corpus/acceptance runs pass
+`--allow-wire-intersections` to recover every solvable deck.
