@@ -67,3 +67,13 @@ jobs:
           done
           echo "::error::flyctl deploy failed after 3 attempts"
           exit 1
+
+      # A green deploy does not prove the fleet converged: flyd can revert a
+      # machine's update seconds after flyctl declares it healthy, leaving the
+      # edge load-balancing between app versions (issue #403 — it took three
+      # "successful" releases to notice). Verify what is actually running.
+      - name: Verify fleet convergence
+        if: steps.token.outputs.skip != 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_SIMULATOR }}
+        run: scripts/verify_fly_fleet.sh antennaknobs https://app.antennaknobs.dev

@@ -43,3 +43,11 @@ jobs:
         run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_DOCS }}
+
+      # Same convergence check as the simulator deploy (issue #403): a machine
+      # can silently revert to its old image after a "successful" deploy.
+      - name: Verify fleet convergence
+        if: steps.token.outputs.skip != 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_DOCS }}
+        run: scripts/verify_fly_fleet.sh antennaknobs-docs https://antennaknobs.dev

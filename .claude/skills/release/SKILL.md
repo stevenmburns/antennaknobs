@@ -59,6 +59,16 @@ Merge with `/merge-pr` (rebase, CI green first).
 3. Verify: PyPI serves X.Y.Z
    (`curl -s https://pypi.org/pypi/antennaknobs/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`)
    and `gh release view vX.Y.Z` lists the expected PRs.
+4. Both deploy workflows end with a **Verify fleet convergence** step
+   (issue #403): every Fly machine must actually be running the image just
+   released — flyd can silently revert a machine seconds after a "healthy"
+   deploy, leaving the edge serving two app versions (this shipped three
+   green-but-skewed releases before it was caught). If that step fails,
+   the named machine is stuck on an old image: replace it
+   (`flyctl machine clone <good-id> -a <app>` then
+   `flyctl machine destroy <stuck-id> -a <app> --force`) and re-run the
+   workflow. `scripts/verify_fly_fleet.sh <app> <url>` runs the same check
+   from a dev box.
 
 ## Announce
 
