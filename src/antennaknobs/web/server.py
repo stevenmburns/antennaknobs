@@ -737,6 +737,32 @@ def _canonical_solve_key(req: dict) -> str:
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
 
+def _shed(fn, *args, **kwargs):
+    """Threadpool shim for every solve-shaped dispatch: format the error
+    while the traceback still exists, then drop the frame chain before the
+    exception crosses the thread boundary.
+
+    An exception that propagates through anyio's worker threads is retained
+    (traceback, frames, and every array those frames reference) for the
+    life of the process — gc.collect() doesn't release it and neither does
+    reusing the pool. One failed benchmark-mesh solve pinned 5.9 GiB that
+    way in the #382 acceptance pass, after which even a 330 MB sinusoidal
+    solve couldn't allocate. Shedding the frames costs the debug traceback
+    in the server log; the user-facing message (which needs the traceback
+    for the user-design file hint) is pre-formatted here and carried on the
+    exception for format_solve_error to find.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except BaseException as exc:
+        if not isinstance(exc, momwire.SolveAborted):
+            exc._formatted_solve_error = user_designs.format_solve_error(exc)
+        exc.__traceback__ = None
+        exc.__context__ = None
+        exc.__cause__ = None
+        raise exc
+
+
 def _solve_uncached(req: dict, cancel=None) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
@@ -849,7 +875,7 @@ async def sweep_endpoint(req: dict, request: Request):
                     async with _LANES.turn(session, "sweep", lane_gen) as token:
                         if is_multifeed:
                             primary, feeds_z = await run_in_threadpool(
-                                pynec_backend._sweep_at_multifeed, req, f
+                                _shed, pynec_backend._sweep_at_multifeed, req, f
                             )
                             record = {
                                 "freq_mhz": f,
@@ -860,7 +886,9 @@ async def sweep_endpoint(req: dict, request: Request):
                                 "solver": solver_name,
                             }
                         else:
-                            z = await run_in_threadpool(pynec_backend._sweep_at, req, f)
+                            z = await run_in_threadpool(
+                                _shed, pynec_backend._sweep_at, req, f
+                            )
                             record = {
                                 "freq_mhz": f,
                                 "z_re": float(z.real),
@@ -919,7 +947,7 @@ async def sweep_endpoint(req: dict, request: Request):
                     async with _LANES.turn(session, "sweep", lane_gen) as token:
                         async with cancel_on_disconnect(request, token):
                             sweep_result = await run_in_threadpool(
-                                sweep_fn, req, chunk, cancel=token
+                                _shed, sweep_fn, req, chunk, cancel=token
                             )
                 except (Superseded, momwire.SolveAborted):
                     return
@@ -1045,7 +1073,7 @@ async def converge_endpoint(req: dict, request: Request):
                 async with _LANES.turn(session, "converge", lane_gen) as token:
                     async with cancel_on_disconnect(request, token):
                         z, feeds_z = await run_in_threadpool(
-                            _solve_z_only, req_n, cancel=token
+                            _shed, _solve_z_only, req_n, cancel=token
                         )
             except (Superseded, momwire.SolveAborted):
                 return
@@ -1101,7 +1129,7 @@ async def pattern_endpoint(req: dict):
         # PyNEC-only, so the token is a start gate: a queued pattern that a
         # knob drag overtook dies here instead of grinding a stale solve.
         async with _LANES.turn(session, "pattern", lane_gen):
-            return await run_in_threadpool(pynec_backend.pattern, req)
+            return await run_in_threadpool(_shed, pynec_backend.pattern, req)
     except Superseded:
         return {"available": False}
 
@@ -1186,7 +1214,7 @@ async def norm_check_endpoint(req: dict, request: Request):
         # miss path is a full solve, hence the turn + disconnect watcher.
         async with _LANES.turn(session, "norm_check", lane_gen) as token:
             async with cancel_on_disconnect(request, token):
-                return await run_in_threadpool(_norm_check, req, cancel=token)
+                return await run_in_threadpool(_shed, _norm_check, req, cancel=token)
     except (Superseded, momwire.SolveAborted):
         return {"available": False}
     except Exception as exc:  # noqa: BLE001 — the miss path is a full solve
@@ -1275,7 +1303,7 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
         async with _LANES.turn(session, "pattern_metrics") as token:
             async with cancel_on_disconnect(request, token):
                 metrics = await run_in_threadpool(
-                    ex.far_field_metrics, req, cancel=token
+                    _shed, ex.far_field_metrics, req, cancel=token
                 )
     except (Superseded, momwire.SolveAborted):
         return {"geometry": geometry, "available": False}
@@ -1359,6 +1387,7 @@ async def optimize_endpoint(req: dict):
         return {"geometry": geometry, "error": str(e)}
     try:
         result = await run_in_threadpool(
+            _shed,
             _optimize,
             base,
             free,
@@ -1650,7 +1679,9 @@ async def ws_endpoint(ws: WebSocket):
                     # to trip; the mailbox check above covers that stretch.)
                     current["token"] = token
                     try:
-                        result = await run_in_threadpool(solve, req, cancel=token)
+                        result = await run_in_threadpool(
+                            _shed, solve, req, cancel=token
+                        )
                     finally:
                         current["token"] = None
             except (Superseded, momwire.SolveAborted):
