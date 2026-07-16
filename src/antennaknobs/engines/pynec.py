@@ -48,7 +48,14 @@ class PyNECEngine(SimulationEngine):
     # at a true wire midpoint instead of off-centre.
     segment_parity = "odd"
 
-    def __init__(self, builder, *, ground=DEFAULT_GROUND, native_nt=False):
+    def __init__(
+        self,
+        builder,
+        *,
+        ground=DEFAULT_GROUND,
+        native_nt=False,
+        check_intersections=True,
+    ):
         """
         ground:
           None or "free"                 — no gn_card (free space)
@@ -75,8 +82,21 @@ class PyNECEngine(SimulationEngine):
           docs/plan-network-impedance-readout.md, issue #283.) Only valid for
           all-real-port, TL-free networks that contain a TwoPort (validated
           at construction).
+
+        check_intersections: when False, disable nec2++'s fatal wire/segment
+          intersection validator before geometry_complete(). nec2++ rejects a
+          deck whose wires pass within a radius-sum of one another (a
+          mid-segment crossing, or a segment midpoint landing on a neighbouring
+          wire) — a check the NEC-2 kernel and nec2c do not perform, so real
+          decks with closely-spaced / touching / crossing wires (car-body
+          grids, collinear feed stubs, dense airframe meshes) raise on geometry
+          NEC-2 solves fine (antennaknobs issue #409). Default True keeps the
+          validator on; passing False matches nec2c/momwire permissiveness.
+          Requires pynec-accel >=1.7.5 (the wrapped set_intersection_check
+          knob); older wheels silently keep the check on with a warning.
         """
         super().__init__(builder)
+        self._check_intersections = check_intersections
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
         # Wire material (issue #316): radius + conductor loss from the
@@ -151,9 +171,28 @@ class PyNECEngine(SimulationEngine):
         touches = any(t[0][2] == 0.0 or t[1][2] == 0.0 for t in self.tups)
         return 1 if touches else 0
 
+    def _apply_intersection_policy(self, geo):
+        """Turn off nec2++'s wire/segment intersection validator when the
+        caller asked for it (check_intersections=False). Guarded with getattr
+        so an older pynec-accel wheel (pre-1.7.5, without the wrapped knob)
+        degrades to a warning + the default strict behaviour instead of an
+        AttributeError."""
+        if self._check_intersections:
+            return
+        setter = getattr(geo, "set_intersection_check", None)
+        if setter is None:
+            _logger.warning(
+                "check_intersections=False requested but this PyNEC build has "
+                "no set_intersection_check (needs pynec-accel >=1.7.5); the "
+                "nec2++ intersection validator stays on."
+            )
+            return
+        setter(False)
+
     def _build_geometry(self):
         self.c = nec.nec_context()
         geo = self.c.get_geometry()
+        self._apply_intersection_policy(geo)
 
         # Walk build_wires(): emit `geo.wire` cards, collect ex_card pairs from
         # any tuple with a non-None `ev`, and remember (tag, mid_seg) for every
@@ -483,6 +522,7 @@ class PyNECEngine(SimulationEngine):
         (context, {edge_name: (tag, mid_seg)})."""
         c = nec.nec_context()
         geo = c.get_geometry()
+        self._apply_intersection_policy(geo)
         loc = {}
         for idx, t in enumerate(self.tups, start=1):
             p0, p1, n_seg = t[0], t[1], t[2]
