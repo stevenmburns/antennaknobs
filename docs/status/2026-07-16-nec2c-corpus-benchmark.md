@@ -111,7 +111,9 @@ dense structures (helicones, helispheres, `23cm_helix`).
 
 Columns are feed-0 **ΔΓ** (0 = identical, ≤2 = bounded). `fl`: **g** =
 unsupported ground (radial/cliff), **n** = inexpressible LD/TL/NT network.
-`ERR` = engine raised.
+`GEO` = nec2++ geometry-intersection rejection (documented limitation, issue
+#409 — see the PyNEC `ERR` triage section below); `ERR` = engine raised
+otherwise.
 
 | deck | f/MHz | grd | fl | Z_nec2c (feed0) | PyNEC | Sin | Bs1 | Bs2 |
 |---|--:|:--|:-:|--:|--:|--:|--:|--:|
@@ -129,7 +131,7 @@ unsupported ground (radial/cliff), **n** = inexpressible LD/TL/NT network.
 | 137MHz_turnstile | 135.000 | free |  | 34.6+6.2j | 0.0017 | 0.0167 | 0.0643 | 0.0309 |
 | 137MHz_turnstile_sloped | 130.000 | free |  | 66.8-7.4j | 0.0011 | 0.0023 | 0.0233 | 0.0163 |
 | 137Mhz-QFHA1 | 130.000 | free |  | 396.5+1098.9j | 0.0000 | 0.0015 | 0.0555 | 0.0428 |
-| 137Mhz-QFHA2 | 130.000 | free |  | 2.7-274.3j | ERR | 0.0140 | 0.0750 | 0.0850 |
+| 137Mhz-QFHA2 | 130.000 | free |  | 2.7-274.3j | GEO | 0.0140 | 0.0750 | 0.0850 |
 | 137Mhz-QFHA3 | 135.000 | free |  | 16.0+18.3j | 0.0047 | 0.0044 | 0.0548 | 0.0520 |
 | 137Mhz_xpol_omni | 110.000 | free |  | 28.0-39.2j | 0.0035 | 0.0034 | 0.2582 | 0.2380 |
 | 13cm_Yagi | 2000.000 | free |  | 9.4-86.1j | 0.0001 | 0.0012 | 0.0565 | 0.0057 |
@@ -140,15 +142,15 @@ unsupported ground (radial/cliff), **n** = inexpressible LD/TL/NT network.
 | 1MHz_3x_helisphere | 0.900 | pec |  | 52.5-413.1j | 0.0000 | 0.1997 | 0.2087 | 0.1689 |
 | 1MHz_4x_helisphere | 0.980 | pec |  | 96.5-234.8j | 0.0410 | 0.3405 | 0.3376 | 0.2977 |
 | 1MHz_helivert | 0.980 | pec |  | 2.9-14.1j | 0.0003 | 1.8222 | 1.8208 | 1.8196 |
-| 1MHz_tower | 0.980 | pec |  | 68.5-136.1j | ERR | 0.5461 | 0.5401 | 0.5417 |
+| 1MHz_tower | 0.980 | pec |  | 68.5-136.1j | GEO | 0.5461 | 0.5401 | 0.5417 |
 | 20-40m_ground_plane | 6.000 | pec |  | 41.4-214.4j | 0.0000 | 0.4073 | 0.3937 | 0.3999 |
 | 20-40m_vert_circ_cliff | 6.000 | finite-fast | g | 48.7-196.1j | 0.3034 | 0.4383 | 0.4266 | 0.4322 |
 | 20-40m_vert_linear_cliff | 6.000 | finite-fast | g | 48.7-196.1j | 0.3034 | 0.4383 | 0.4266 | 0.4322 |
 | 20-40m_vert_sommerfeld_cliff | 6.000 | finite | g | 74.6-199.9j | 0.0027 | ERR | ERR | ERR |
-| 20m_car_ant | 13.000 | free |  | 28.0-57.2j | ERR | 0.0085 | 0.0723 | 0.0766 |
+| 20m_car_ant | 13.000 | free |  | 28.0-57.2j | GEO | 0.0085 | 0.0723 | 0.0766 |
 | 20m_dipole_NT_50ohm | 14.000 | free | n | 38.9-3.2j | 1.1243 | 1.1243 | 1.1242 | 1.1243 |
 | 20m_quad | 13.600 | free |  | 31.9-149.4j | 0.0397 | 0.0398 | 0.0426 | 0.0412 |
-| 23cm_helix+radials | 1200.000 | free |  | 43.4-71.6j | ERR | 0.0202 | 0.2239 | 0.0912 |
+| 23cm_helix+radials | 1200.000 | free |  | 43.4-71.6j | GEO | 0.0202 | 0.2239 | 0.0912 |
 | 23cm_helix+screen | 1200.000 | free |  | 162.2-93.6j | 0.0159 | 0.0168 | 0.2890 | 0.2168 |
 | 2m-5el-rhcp-ARISS-KJ7NLL | 299.800 | free |  | 88.5-185.4j | 0.0043 | 0.0056 | 0.0710 | 0.0775 |
 | 2m_1to4l-gp_on_pole | 140.000 | free |  | 27.8-20.2j | 0.0034 | 0.0148 | 0.1248 | 0.1064 |
@@ -182,11 +184,11 @@ unsupported ground (radial/cliff), **n** = inexpressible LD/TL/NT network.
 | 6m_bigwheel-stack | 45.000 | finite-fast |  | 12.9+21.2j | 0.0001 | 0.0000 | 0.1205 | 0.1196 |
 | 6m_horizomni | 45.000 | free |  | 18.9-275.6j | 0.0001 | 0.0018 | 0.0140 | 0.0077 |
 | 70cm-5el-rhcp-KJ7NLL | 299.800 | free |  | 123.6-338.9j | 0.0029 | 0.0044 | 0.0423 | 0.0451 |
-| 70cm_collinear | 420.000 | free |  | 107.8-340.6j | ERR | 0.0127 | 0.0931 | 0.0311 |
+| 70cm_collinear | 420.000 | free |  | 107.8-340.6j | GEO | 0.0127 | 0.0931 | 0.0311 |
 | 80m_zepp | 3.000 | finite |  | 0.6-115.2j | 0.0000 | 0.0003 | 0.0647 | 0.0288 |
 | T12m-H24m | 1.000 | finite-fast | g | 6.8-327.1j | 0.1837 | 0.2966 | 0.2944 | 0.2955 |
 | T20m-H18m | 1.000 | finite-fast | g | 4.5-277.9j | 0.2516 | 0.3495 | 0.3477 | 0.3486 |
-| airplane | 5.000 | free |  | 68.5-91.1j | ERR | 0.0160 | 0.1188 | 0.1265 |
+| airplane | 5.000 | free |  | 68.5-91.1j | GEO | 0.0160 | 0.1188 | 0.1265 |
 | buoy | 10.000 | finite |  | 3.8-259.8j | 0.0000 | ERR | ERR | ERR |
 | ex2_current_slope_disc_dipole | 200.000 | free |  | 26.6-632.1j | 0.0061 | 0.0061 | 0.0021 | 0.0025 |
 | k9ay_5b4az | 1.800 | finite |  | 492.6+66.2j | 0.0012 | ERR | ERR | ERR |
@@ -292,5 +294,53 @@ Segments to reach within 2% of that engine's own finest-mesh value:
 - **Investigate momwire ground on ground-connected wires** — the
   `strictly above ground_z` limitation and the large PEC-ground-plane
   divergence are the biggest real gaps vs NEC.
-- A handful of PyNEC `ERR` decks (`20m_car_ant`, `70cm_collinear`, `airplane`,
-  `137Mhz-QFHA2`, `1MHz_tower`) warrant a look — momwire solved them.
+## PyNEC `ERR` triage (issue #409) — all are nec2++ geometry rejections
+
+The decks PyNEC raised on — the five in the issue (`20m_car_ant`,
+`70cm_collinear`, `airplane`, `137Mhz-QFHA2`, `1MHz_tower`) plus a sixth the
+classifier surfaced (`23cm_helix+radials`, below) — are **one root cause, not
+several bugs**: nec2++
+(the PyNEC kernel) runs a geometry validator inside `geometry_complete()` /
+`geo.wire()` that fatally rejects wires passing within a radius-sum of each
+other. The NEC-2 Fortran kernel and its faithful C port `nec2c` only *warn*
+about this, and momwire's MoM does no such pre-check — so `nec2c` solves every
+original deck and all three momwire solvers solve every translation. **The
+translated geometry is sound; this is a genuine kernel-wrapper limitation, not
+a `nec_import`/`engines/pynec.py` bug.**
+
+The captured exceptions split the one cause into two nec2++ messages:
+
+| deck | nec2++ message | condition |
+|---|---|---|
+| `20m_car_ant` | `WIRE #3 INTERSECTS WIRE #40` | car-body grid: non-connected wires cross within a radius-sum |
+| `1MHz_tower` | `WIRE #1 INTERSECTS WIRE #19` | tower/guy attachment crossing |
+| `137Mhz-QFHA2` | `WIRE #16 INTERSECTS WIRE #18` | quadrifilar-helix crossover |
+| `70cm_collinear` | `FIRST SEGMENT MIDPOINT OF WIRE #6 INTERSECTS WIRE #1` | short feed-stub segment lands inside the connecting wire's radius |
+| `airplane` | `FIRST SEGMENT MIDPOINT OF WIRE #117 INTERSECTS WIRE #116` | dense fuselage/wing grid, junction segment inside neighbour |
+
+Because the classifier keys off the nec2++ message rather than a deck
+allow-list, it also caught a **sixth** deck the original triage list missed —
+`23cm_helix+radials` (`FIRST SEGMENT MIDPOINT OF WIRE #2 INTERSECTS WIRE #1`,
+helix feed meeting the radial screen) — same root cause, same `GEO`
+classification.
+
+A geometry sweep (segment-to-segment distance vs sum-of-radii, excluding
+shared endpoints) confirms every deck carries wires closer than that threshold
+— crossing pairs (`20m_car_ant` 333, `airplane` 23, `1MHz_tower`/`137Mhz-QFHA2`
+1–2) and shared-endpoint-too-close pairs where a junction segment sits inside
+the neighbour's radius (14–761 per deck). These are real thick-/touching-wire
+conditions the thin-wire kernel's separation assumption is uneasy about; nec2++
+made the warning fatal, NEC-2/nec2c did not. There is no PyNEC-level toggle to
+relax it (the check is compiled into `_PyNEC`).
+
+**Resolution: document + skip cleanly, no wrapper fix.** `bench_nec_corpus.py`
+now classifies engine errors — a nec2++ geometry rejection shows as **`GEO`**
+in the per-deck table (vs `ERR` for a genuine solve crash), the JSON row carries
+an `error_kind` (`"geo"`/`"err"`), and the report prints an `ENGINE ERRORS`
+section that separates the documented `GEO` limitation from anything worth
+investigating. The accuracy rollup already excluded error rows, so the numbers
+are unchanged; the difference is that a reader now sees *why* PyNEC is absent on
+these rows rather than an opaque `ERR`. Perturbing the geometry to satisfy
+nec2++ (nudging crossings apart, merging short junction segments) is out of
+scope — it would change the impedance being compared and defeat the
+apples-to-apples pipeline.

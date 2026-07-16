@@ -388,6 +388,34 @@ def run_engine(engine, deck_path, freq, ground, timeout):
 
 
 # --------------------------------------------------------------------------
+# engine-error classification (issue #409)
+# --------------------------------------------------------------------------
+# nec2++ (the PyNEC kernel) runs a geometry validator in geometry_complete() /
+# geo.wire() that the NEC-2 Fortran kernel and its faithful C port nec2c only
+# *warn* about: it fatally rejects a deck whose wires pass within a
+# radius-sum of each other, either crossing (WIRE #X INTERSECTS WIRE #Y) or
+# meeting at a junction where a short segment's midpoint lands inside the
+# connecting wire (FIRST SEGMENT MIDPOINT OF WIRE #X INTERSECTS WIRE #Y). The
+# translated geometry is sound — nec2c and all three momwire solvers accept the
+# same wires — so these are a genuine kernel-wrapper limitation, not a
+# translation/wrapper bug. Classify them as `geo` so the report distinguishes
+# "engine rejected the geometry" from an actual solve crash.
+_GEO_REJECT_RE = re.compile(r"GEOMETRY DATA ERROR|INTERSECTS WIRE", re.IGNORECASE)
+
+
+def engine_error_kind(res):
+    """Classify an engine result's error into ``None`` (no error), ``"geo"``
+    (nec2++ geometry-intersection rejection — a documented kernel limitation,
+    issue #409), or ``"err"`` (any other failure)."""
+    if res is None:
+        return "err"
+    err = res.get("error")
+    if not err:
+        return None
+    return "geo" if _GEO_REJECT_RE.search(err) else "err"
+
+
+# --------------------------------------------------------------------------
 # comparison + reporting
 # --------------------------------------------------------------------------
 def _z(pair):
@@ -462,12 +490,19 @@ def bench_deck(deck_path: Path, engines, timeout, run_with_ground=True):
         res = run_engine(e, deck_path, freq, eng_ground, timeout)
         if res.get("error") is None and "z" in res:
             res["cmp"] = compare(res["z"], ref["z"])
+        else:
+            # Persist the classification (geo-reject vs other) into the JSON so
+            # a reader doesn't have to re-grep tracebacks (issue #409).
+            res["error_kind"] = engine_error_kind(res)
         row["engines"][e] = res
     return row
 
 
 def fmt_dg(res):
-    if res is None or res.get("error"):
+    kind = engine_error_kind(res)
+    if kind == "geo":
+        return "GEO"  # nec2++ geometry-intersection rejection (issue #409)
+    if kind == "err":
         return "ERR"
     cmp = res.get("cmp") or []
     if not cmp:
@@ -561,6 +596,33 @@ def print_report(rows, engines):
         for r in errs:
             why = r.get("error") or r["nec2c"].get("error")
             print(f"  {r['deck']:<40} {why}")
+
+    # per-engine errors on decks that DID get a nec2c reference, split by kind:
+    # GEO = nec2++ geometry-intersection rejection (documented limitation,
+    # issue #409); ERR = any other engine failure worth investigating.
+    eng_errs = [
+        (r["deck"], e, kind, r["engines"][e].get("error"))
+        for r in ok
+        for e in engines
+        if (kind := engine_error_kind(r["engines"].get(e)))
+    ]
+    if eng_errs:
+        geo = [x for x in eng_errs if x[2] == "geo"]
+        other = [x for x in eng_errs if x[2] == "err"]
+        print("\n" + "=" * 72)
+        print(f"ENGINE ERRORS ON REFERENCED DECKS ({len(eng_errs)})")
+        print("=" * 72)
+        if geo:
+            print(
+                f"GEO — nec2++ geometry-intersection rejection ({len(geo)}); "
+                "genuine kernel limitation, nec2c & momwire accept the geometry:"
+            )
+            for deck, e, _k, why in geo:
+                print(f"  {deck:<28} {ENGINE_LABEL[e]:<12} {(why or '')[:70]}")
+        if other:
+            print(f"ERR — other engine failures ({len(other)}):")
+            for deck, e, _k, why in other:
+                print(f"  {deck:<28} {ENGINE_LABEL[e]:<12} {(why or '')[:70]}")
 
 
 # --------------------------------------------------------------------------
