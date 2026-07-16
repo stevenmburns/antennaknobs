@@ -646,6 +646,136 @@ def print_report(rows, engines):
 
 
 # --------------------------------------------------------------------------
+_NUM_RE = None
+
+
+def _normalize_reason(msg: str) -> str:
+    """Collapse per-deck specifics (numbers, quoted names) so one cause
+    groups into one census line: 'line 42: GW card: tag 17 ...' and
+    'line 7: GW card: tag 3 ...' are the same bug."""
+    global _NUM_RE
+    import re
+
+    if _NUM_RE is None:
+        _NUM_RE = (
+            re.compile(r"[-+]?\d+\.?\d*(?:[eE][-+]?\d+)?"),
+            re.compile(r"'[^']*'"),
+        )
+    num_re, quote_re = _NUM_RE
+    # Drop the "<deckname>, line N:" prefix — the grouping key is the cause,
+    # not which deck tripped it.
+    if ": " in msg:
+        head, tail = msg.split(": ", 1)
+        if "line" in head or head.endswith((".nec", ".NEC", ".inp")):
+            msg = tail
+    out = quote_re.sub("'…'", msg)
+    out = num_re.sub("#", out)
+    return out[:160]
+
+
+def parse_census(decks, corpus, out_path):
+    """Importer acceptance census (issue #410): parse every content-unique
+    deck with network=True (the app's path), falling back to network=False
+    exactly like load_deck does. No solves. A ValueError is a *designed*
+    rejection (the importer said why); any other exception is a parser
+    crash — a bug by definition on wild input."""
+    import hashlib
+    from collections import Counter, defaultdict
+
+    from antennaknobs.nec_import import parse_nec
+
+    seen: dict[str, Path] = {}
+    dup_count = 0
+    results = []
+    skipped_hist: Counter = Counter()
+    reject_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    crash_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    n_clean = n_skipcards = n_fallback = 0
+    slowest = (0.0, None)
+
+    for p in decks:
+        raw = p.read_bytes()
+        h = hashlib.md5(raw).hexdigest()
+        if h in seen:
+            dup_count += 1
+            continue
+        seen[h] = p
+        rel = str(p.relative_to(corpus))
+        text = raw.decode("utf-8", errors="replace")
+        rec = {"deck": rel}
+        t0 = time.perf_counter()
+        try:
+            deck = parse_nec(text, name=p.name, network=True)
+            rec["status"] = "ok"
+            rec["ignored"] = list(deck.ignored)
+            if deck.ignored:
+                n_skipcards += 1
+                skipped_hist.update(set(deck.ignored))
+            else:
+                n_clean += 1
+        except ValueError as first:
+            try:
+                deck = parse_nec(text, name=p.name, network=False)
+                rec["status"] = "net-fallback"
+                rec["reason"] = str(first)
+                n_fallback += 1
+                skipped_hist.update(set(deck.ignored))
+            except ValueError as e:
+                rec["status"] = "rejected"
+                rec["reason"] = str(e)
+                reject_groups[("ValueError", _normalize_reason(str(e)))].append(rel)
+            except Exception as e:  # noqa: BLE001 — census must survive anything
+                rec["status"] = "crash"
+                rec["reason"] = f"{type(e).__name__}: {e}"
+                crash_groups[(type(e).__name__, _normalize_reason(str(e)))].append(rel)
+        except Exception as e:  # noqa: BLE001
+            rec["status"] = "crash"
+            rec["reason"] = f"{type(e).__name__}: {e}"
+            crash_groups[(type(e).__name__, _normalize_reason(str(e)))].append(rel)
+        dt = time.perf_counter() - t0
+        if dt > slowest[0]:
+            slowest = (dt, rel)
+        rec["parse_s"] = round(dt, 4)
+        results.append(rec)
+
+    n = len(results)
+    n_rej = sum(len(v) for v in reject_groups.values())
+    n_crash = sum(len(v) for v in crash_groups.values())
+    print(f"\ncorpus: {corpus}")
+    print(f"files: {len(decks)}  unique: {n}  (content dups skipped: {dup_count})")
+    print(
+        f"parsed clean: {n_clean}   with skipped cards: {n_skipcards}   "
+        f"network-mode fallback: {n_fallback}   rejected: {n_rej}   "
+        f"CRASHES: {n_crash}"
+    )
+    print(f"slowest parse: {slowest[0]:.2f}s  {slowest[1]}")
+
+    if skipped_hist:
+        print("\nSKIPPED-CARD HISTOGRAM (decks containing the card)")
+        for card, cnt in skipped_hist.most_common():
+            print(f"  {card:4s} {cnt:5d}")
+
+    def _show(title, groups):
+        if not groups:
+            return
+        print(f"\n{title} ({sum(len(v) for v in groups.values())} decks)")
+        for (cls, reason), files in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+            print(f"  {len(files):5d}  {cls}: {reason}")
+            print(f"         e.g. {files[0]}")
+
+    _show("DESIGNED REJECTIONS (grouped)", reject_groups)
+    _show("PARSER CRASHES — bugs by definition (grouped)", crash_groups)
+
+    if out_path:
+        out_path.write_text(
+            json.dumps(
+                {"corpus": str(corpus), "n_files": len(decks), "decks": results},
+                indent=1,
+            )
+        )
+        print(f"\nfull census -> {out_path}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -686,6 +816,14 @@ def main(argv=None):
     ap.add_argument(
         "--out", type=Path, default=None, help="write full results JSON here"
     )
+    ap.add_argument(
+        "--parse-only",
+        action="store_true",
+        help="importer acceptance census (issue #410): run nec_import over "
+        "every deck in the corpus (recursive, content-deduped) with NO "
+        "solves — classify parsed-clean / cards-skipped / designed "
+        "rejection / parser crash, and print the histograms",
+    )
     args = ap.parse_args(argv)
 
     if args.worker:
@@ -696,7 +834,13 @@ def main(argv=None):
     corpus = args.corpus
     if not corpus.is_dir():
         sys.exit(f"corpus not found: {corpus}")
-    decks = sorted(corpus.glob("*.nec"))
+    # Recursive + .inp so wild corpora (nec-wild trees) work; flat corpora
+    # like the xnec2c examples dir see identical behaviour.
+    decks = sorted(
+        p
+        for p in corpus.rglob("*")
+        if p.is_file() and p.suffix.lower() in (".nec", ".inp")
+    )
     if args.decks:
         want = {d.replace(".nec", "") for d in args.decks}
         decks = [p for p in decks if p.stem in want or p.name in args.decks]
@@ -704,6 +848,10 @@ def main(argv=None):
         decks = decks[: args.limit]
     if not decks:
         sys.exit("no decks selected")
+
+    if args.parse_only:
+        parse_census(decks, corpus, args.out)
+        return
 
     cores = physical_cpu_count()
     print(f"corpus: {corpus}")
