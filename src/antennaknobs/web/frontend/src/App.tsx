@@ -1668,6 +1668,16 @@ type SolveRequest = {
   /** Monotonic per-tab sequence number for the latest-wins /ws protocol. The
    *  server echoes it back and keeps only the freshest queued request. */
   _seq?: number;
+  /** Solve-lane session id (issue #382): one per workbench tab, minted at
+   *  mount. The server serializes all of a session's solve-producing work
+   *  (live solve, sweeps, converge, norm-check, pattern) on one lane. */
+  _session?: string;
+  /** Batch-request generation: the value of the `_seq` counter when the batch
+   *  was issued, so a newer knob drag (higher live `_seq`) supersedes it. */
+  _gen?: number;
+  /** Set when the user clicked through the poor-match gate ("Solve anyway");
+   *  the server refuses warned batches without it. */
+  _approved?: boolean;
 };
 
 type SweepData = {
@@ -2545,8 +2555,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const backendTouchedRef = useRef(false);
   // True once the user clicked "Solve anyway" for the current design+solver
   // combo, so re-solves (knob drags) don't re-warn. Reset whenever the design or
-  // solver changes (see the reset effect below).
+  // solver changes (see the reset effect below). Mirrored into state so the
+  // sweep/converge/norm-check effects re-fire on approval (issue #382 replaced
+  // their 200 ms re-poll loops with plain effect dependencies); the ref stays
+  // for the imperative reads in the solve path.
   const approvedComboRef = useRef(false);
+  const [comboApproved, setComboApproved] = useState(false);
   // Shown when the current design+solver is a poor match — a dense solver on a
   // large array (slow), or an accelerator on a single element (overkill). The
   // solve is withheld until the user clicks "Solve anyway" or changes the solver
@@ -2704,11 +2718,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     preview?.default_backend ?? currentExample?.default_backend,
   );
   // True while the live solve is being withheld by the solver-mismatch gate.
-  // The batch endpoints (sweep / converge / norm-check) defer on this exactly
-  // like they defer on solvePending(): they are batches of the same solves
-  // the gate is protecting the machine from (a dense sweep on a benchmark
-  // mesh is 41 multi-GiB solves). Reads the approval ref, so "Solve anyway"
-  // unblocks their 200 ms re-poll without any effect re-run.
+  // The batch runners (sweep / converge / norm-check) decline to fire on
+  // this: they are batches of the same solves the gate is protecting the
+  // machine from (a dense sweep on a benchmark mesh is 41 multi-GiB solves).
+  // Their effects depend on `comboApproved`, so "Solve anyway" re-fires them;
+  // the server's cost model refuses warned batches without the approval flag
+  // anyway (issue #382) — this gate is UX, not the enforcement.
   function solveWithheld(): boolean {
     return (
       comboInappropriate(backend, recommendedBackend) &&
@@ -2800,6 +2815,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // "Solve anyway": approve this combo so re-solves don't re-warn, then solve.
   function solveAnyway() {
     approvedComboRef.current = true;
+    setComboApproved(true);
     setSolverWarning(false);
     controlsRef.current = buildRequest();
     requestSolve();
@@ -2810,6 +2826,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // so clicking Live to resume continues the simulation rather than re-warning.
   function pauseSimulation() {
     approvedComboRef.current = true;
+    setComboApproved(true);
     setSolverWarning(false);
     setAutoSim(false);
   }
@@ -2990,6 +3007,15 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // refs so they survive StrictMode/HMR socket teardown — the counter must
   // never rewind below what's already been received.
   const seqRef = useRef(0); // last _seq assigned (monotonic, never reset)
+  // Solve-lane session id (issue #382): one per workbench tab (A/B compare
+  // tabs are separate App instances, hence separate sessions). The server
+  // keys its single-lane scheduler on this — everything this tab asks for
+  // runs one-at-a-time server-side, live solve first.
+  const sessionIdRef = useRef<string>(
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `s-${Math.random().toString(36).slice(2)}`,
+  );
   const lastSentSeqRef = useRef(0); // highest _seq put on the wire
   const lastReceivedSeqRef = useRef(0); // highest _seq received or implicitly acked
   const canceledThroughSeqRef = useRef(0); // drop rendering for _seq <= this
@@ -3004,6 +3030,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // ships the real εr/σ for the pattern either way).
     const groundActive = groundEnabled && backendSupportsGround(backend);
     const base: SolveRequest = {
+      _session: sessionIdRef.current,
       geometry,
       variant: currentVariant,
       solver: backend === "pynec" ? "pynec" : "momwire",
@@ -3383,6 +3410,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // stale approval. Defined before the solve effect so it runs first.
   useEffect(() => {
     approvedComboRef.current = false;
+    setComboApproved(false);
   }, [geometry, backend, backendOptsKey]);
 
   useEffect(() => {
@@ -3563,9 +3591,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (!sweepEnabled || !active) {
       return;
     }
-    // runSweep itself waits for the live solve to finish before it starts
-    // (see its guard), so the dwell effectively begins once the heatmap solve
-    // has returned rather than competing with it.
+    // The 500 ms dwell only debounces network churn; ordering against the
+    // live solve is the server lane's job now (live outranks sweeps).
     sweepTimerRef.current = window.setTimeout(runSweep, 500);
     return () => {
       if (sweepTimerRef.current) window.clearTimeout(sweepTimerRef.current);
@@ -3586,6 +3613,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // param — e.g. a band-locked variant. currentValuesKey wouldn't move then,
     // so depend on currentVariant directly to re-run the sweep on switch.
     currentVariant,
+    // The poor-match gate: while it withholds, runSweep declines to issue the
+    // batch; approving ("Solve anyway") or a new recommendation re-fires this
+    // effect (issue #382 — replaces the old 200 ms re-poll loop).
+    comboApproved, recommendedBackend,
   ]);
 
   // Debounced convergence sweep over segments-per-wire. Independent of the
@@ -3603,7 +3634,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (!convergeEnabled || !active) {
       return;
     }
-    // Like the sweep, runConverge waits for the live solve before starting.
+    // Debounce only; the server lane orders it behind the live solve.
     convergeTimerRef.current = window.setTimeout(runConverge, 500);
     return () => {
       if (convergeTimerRef.current) window.clearTimeout(convergeTimerRef.current);
@@ -3616,13 +3647,15 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     groundEnabled, groundModel,
     convergeEnabled,
     active,
+    // Poor-match gate (see the sweep effect).
+    comboApproved, recommendedBackend,
   ]);
 
   // Debounced far-field norm consistency check. Same shape as the converge
   // sweep: re-runs on any antenna/param change (which invalidates the norm),
-  // gated by its own overlay checkbox, and defers until the live solve lands
-  // so it reuses that solve's server-cached currents rather than forcing a
-  // re-solve.
+  // gated by its own overlay checkbox. The server lane runs it after the
+  // live solve (priority ordering), so it lands on that solve's cached
+  // currents rather than forcing a re-solve.
   useEffect(() => {
     normCheckAbortRef.current?.abort();
     if (normCheckTimerRef.current) {
@@ -3644,6 +3677,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     groundEnabled, groundModel,
     normCheckEnabled,
     active,
+    // Poor-match gate (see the sweep effect).
+    comboApproved, recommendedBackend,
   ]);
 
   // Debounced NEC pattern fetch. PyNEC only — for momwire there's no rp_card
@@ -3669,16 +3704,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   ]);
 
   async function runSweep() {
-    // Hold off until the live /ws solve (the one that fills in the heatmap,
-    // impedance, and far field) has returned. Its 41 background freq solves
-    // would otherwise share CPU with it and stretch the time-to-heatmap — the
-    // pain that motivated this on large arrays. Re-poll until the main solve is
-    // idle, then proceed; the input-change effect cancels this timer on the
-    // next change, so rapid edits still debounce.
-    if (solvePending() || solveWithheld()) {
-      sweepTimerRef.current = window.setTimeout(runSweep, 200);
-      return;
-    }
+    // No competition with the live solve to time around anymore: the server's
+    // per-session solve lane (issue #382) runs everything one-at-a-time with
+    // the live solve first, so this just sends. While the poor-match gate is
+    // withholding, don't issue batches of the very solves it's blocking — the
+    // effect re-fires on approval (comboApproved is a dependency).
+    if (solveWithheld()) return;
     sweepTimerRef.current = null;
     sweepAbortRef.current?.abort();
     const controller = new AbortController();
@@ -3737,7 +3768,15 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       Math.exp(Math.log(fLo) + (i / (N - 1)) * (Math.log(fHi) - Math.log(fLo))),
     );
 
-    const body = { ...buildRequest(), freqs_mhz: freqs };
+    const body = {
+      ...buildRequest(),
+      freqs_mhz: freqs,
+      // Lane metadata (issue #382): issued-at generation (a newer knob drag
+      // supersedes this batch server-side) + the gate's approval, which the
+      // server requires for a warned batch (poor-match combo backstop).
+      _gen: seqRef.current,
+      _approved: approvedComboRef.current,
+    };
     setSweepRunning(true);
     const acc: SweepData = {
       freqs_mhz: [],
@@ -3808,13 +3847,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   }
 
   async function runConverge() {
-    // Same as runSweep: defer the converge ladder (another batch of solves)
-    // until the live solve has returned, so it never competes with the solve
-    // that draws the heatmap.
-    if (solvePending() || solveWithheld()) {
-      convergeTimerRef.current = window.setTimeout(runConverge, 200);
-      return;
-    }
+    // Same as runSweep: the server lane serializes and prioritizes; only the
+    // poor-match gate holds this back (effect re-fires on approval).
+    if (solveWithheld()) return;
     convergeTimerRef.current = null;
     convergeAbortRef.current?.abort();
     const controller = new AbortController();
@@ -3823,7 +3858,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // The active slot's nPerWire is irrelevant during a converge sweep —
     // n_values overrides it on the server. We strip `n_per_wire` from the
     // request anyway to make that explicit.
-    const body = { ...buildRequest(), n_values: CONVERGE_N_VALUES };
+    const body = {
+      ...buildRequest(),
+      n_values: CONVERGE_N_VALUES,
+      _gen: seqRef.current,
+      _approved: approvedComboRef.current,
+    };
     setConvergeRunning(true);
     const acc: ConvergeData = {
       n_values: [],
@@ -3929,13 +3969,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   }
 
   async function runNormCheck() {
-    // Defer until the live solve has returned, like the sweeps — the pattern
-    // norm reuses that settled solve (a server cache hit), so running before
-    // it lands would miss the cache and re-solve.
-    if (solvePending() || solveWithheld()) {
-      normCheckTimerRef.current = window.setTimeout(runNormCheck, 200);
-      return;
-    }
+    // The pattern norm reuses the settled live solve (a server cache hit):
+    // the lane's live-first priority guarantees that ordering now, no
+    // client-side timing needed. Only the poor-match gate holds this back.
+    if (solveWithheld()) return;
     normCheckTimerRef.current = null;
     normCheckAbortRef.current?.abort();
     const controller = new AbortController();
@@ -3944,7 +3981,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       const resp = await fetch("/norm_check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequest()),
+        body: JSON.stringify({
+          ...buildRequest(),
+          _gen: seqRef.current,
+          _approved: approvedComboRef.current,
+        }),
         signal: controller.signal,
       });
       if (!resp.ok) throw new Error(`norm check failed: ${resp.status}`);
@@ -3981,7 +4022,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       const resp = await fetch("/pattern", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequest()),
+        body: JSON.stringify({ ...buildRequest(), _gen: seqRef.current }),
         signal: controller.signal,
       });
       if (!resp.ok) throw new Error(`pattern failed: ${resp.status}`);
@@ -3997,17 +4038,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     } finally {
       if (patternAbortRef.current === controller) patternAbortRef.current = null;
     }
-  }
-
-  // True while a live /ws solve is outstanding — a request scheduled by the rAF
-  // throttle but not yet sent, or sent and not yet acked by an equal/higher
-  // `_seq`. Sweep/converge hold off on this so their batches of background
-  // solves don't compete with the live solve that draws the heatmap.
-  function solvePending(): boolean {
-    return (
-      solveRafRef.current !== null ||
-      lastSentSeqRef.current > lastReceivedSeqRef.current
-    );
   }
 
   // Mirror the seq counters into `solving` state so the UI can react. Called
