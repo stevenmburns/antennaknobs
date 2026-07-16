@@ -3807,6 +3807,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           if (!line) continue;
           const pt = JSON.parse(line);
           if (pt.done) continue;
+          // A failed point/chunk ends the stream with {error} instead of
+          // tearing the connection down (e.g. an approved poor-match combo
+          // whose dense fill can't allocate). Keep whatever points landed.
+          if (pt.error) {
+            console.error("sweep error", pt.error);
+            continue;
+          }
           acc.freqs_mhz.push(pt.freq_mhz);
           acc.z_re.push(pt.z_re);
           acc.z_im.push(pt.z_im);
