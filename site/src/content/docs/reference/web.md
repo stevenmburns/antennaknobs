@@ -163,6 +163,22 @@ instance: a local install is **unlocked** (solve as big as your own machine
 allows, sweep as long as you like). See `docs/deploy.md`.
 :::
 
+### One solve at a time
+
+Everything a workbench tab computes — the live solve, the frequency sweep,
+the convergence ladder, the norm check, the NEC pattern — runs through a
+single **per-session solve lane** on the server, one computation at a time,
+with the live solve always first in line. You'll notice it as steadiness on
+heavy designs: background sweeps never compete with the solve that's drawing
+the heatmap, and a knob turn preempts stale background work at the solver's
+next internal checkpoint (milliseconds to one sweep point, not the rest of
+the batch). Abandoning the tab mid-sweep stops the computation the same way.
+
+When the selected solver is a **poor match** for the design (a dense engine
+on a benchmark-class mesh), the workbench warns and withholds the solve; the
+server holds background batches to the same answer, so a sweep of
+minutes-per-point solves only runs once you've clicked **Solve anyway**.
+
 ## The ground plane
 
 Real antennas hang over real ground, so the workbench starts there: the
