@@ -37,8 +37,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
 
+from . import cost as _cost
 from . import pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
+from .lane import LaneRegistry, Superseded, cancel_on_disconnect
 
 
 def _physical_cpu_count() -> int:
@@ -609,62 +611,59 @@ _SOLVE_CACHE_MAX = 100
 # is large; that's a responsiveness concern, deliberately not guarded here).
 # All env-overridable for self-hosting on bigger boxes. (_HOSTED and the
 # _env_* helpers live above the FastAPI construction, which also needs them.)
-_MAX_BASIS = _env_int("ANTENNAKNOBS_MAX_BASIS", 7000)  # dense momwire (~800 MB)
-_MAX_BASIS_COMPRESSED = _env_int("ANTENNAKNOBS_MAX_BASIS_COMPRESSED", 9000)
-_MAX_BASIS_PYNEC = _env_int("ANTENNAKNOBS_MAX_BASIS_PYNEC", 7000)
-_COMPRESSED_MODELS = frozenset({"arrayblock", "hmatrix"})
-
-# Hosted compute levers beyond the matrix cap (issue #346): a client-chosen
-# list length or eval budget multiplies whole solves, so even under-cap
-# requests can pin the single vCPU indefinitely. Both limits sit far above
-# what the UI ever sends (41-point sweeps, ≤200 optimizer evals) and are only
-# enforced when hosted; local instances stay unlocked.
-_MAX_SWEEP_POINTS = _env_int("ANTENNAKNOBS_MAX_SWEEP_POINTS", 500)
-_MAX_OPT_EVALS = _env_int("ANTENNAKNOBS_MAX_OPT_EVALS", 500)
+# Caps live in the shared cost model (web/cost.py, issue #382) so admission
+# is one mapping for every job kind; re-exported here because tests and ops
+# docs address them as server._MAX_*.
+_MAX_BASIS = _cost.MAX_BASIS
+_MAX_BASIS_COMPRESSED = _cost.MAX_BASIS_COMPRESSED
+_MAX_BASIS_PYNEC = _cost.MAX_BASIS_PYNEC
+_COMPRESSED_MODELS = _cost.COMPRESSED_MODELS
+_MAX_SWEEP_POINTS = _cost.MAX_SWEEP_POINTS
+_MAX_OPT_EVALS = _cost.MAX_OPT_EVALS
 
 
 class SolveTooLargeError(ValueError):
     """A solve request exceeds the hosted live-engine segment-count cap."""
 
 
+def _admit(req: dict, *, kind: str, use_pynec: bool, points: int = 1):
+    """The shared cost-model verdict for this request (issue #382)."""
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    return _cost.admit(
+        req,
+        kind=kind,
+        use_pynec=use_pynec,
+        hosted=_HOSTED,
+        example=EXAMPLES.get(geometry),
+        points=points,
+    )
+
+
 def _check_solve_size(req: dict, *, use_pynec: bool) -> None:
     """Reject a solve whose matrix would be too large for the hosted live engine.
 
     No-op unless running hosted (ANTENNAKNOBS_HOSTED) — local instances are
-    unlocked. Best-effort: counts segments via the geometry-only ``count_basis``
-    hook (cheap — no solve). If the count can't be determined (geometry won't
-    build), return and let the normal solve path surface the real error.
+    unlocked. Thin wrapper over the shared cost model's "refuse" verdict;
+    if the size can't be estimated (geometry won't build), the normal solve
+    path surfaces the real error.
     """
-    if not _HOSTED:
-        return
-    geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry)
-    if ex is None or ex.count_basis is None:
-        return
-    n = ex.count_basis(req)
-    if n is None:
-        return
-    if use_pynec:
-        cap, engine, compressed = _MAX_BASIS_PYNEC, "PyNEC", False
-    elif req.get("momwire_model") in _COMPRESSED_MODELS:
-        cap = _MAX_BASIS_COMPRESSED
-        engine, compressed = str(req.get("momwire_model")), True
-    else:
-        cap, engine, compressed = _MAX_BASIS, "momwire", False
-    if n > cap:
-        # Dense momwire and PyNEC both form the full N×N matrix; point users at
-        # the compressed engines (which don't) for big arrays.
-        hint = (
-            ""
-            if compressed
-            else " — or switch to the array-block / H-matrix engine, which "
-            "handles larger arrays without a dense matrix"
-        )
-        raise SolveTooLargeError(
-            f"This solve needs ~{n} wire segments, over the live {engine} "
-            f"limit of {cap}. Reduce 'segments / wire (N)' or pick a smaller "
-            f"design{hint}."
-        )
+    adm = _admit(req, kind="live", use_pynec=use_pynec)
+    if adm.verdict == "refuse":
+        raise SolveTooLargeError(adm.reason)
+
+
+def _refuse_or_withhold(adm, req: dict) -> None:
+    """Map a batch admission verdict to its HTTP error (no-op on "run").
+
+    "refuse" → 413 (too large for the hosted box, as before). "warn" → 403
+    unless the request carries ``_approved: true`` — the server-side backstop
+    for the frontend's "Solve anyway" gate: a batch of poor-match solves on a
+    benchmark mesh no longer relies on the client politely holding it back.
+    """
+    if adm.verdict == "refuse":
+        raise HTTPException(status_code=413, detail=adm.reason)
+    if adm.verdict == "warn" and not req.get("_approved"):
+        raise HTTPException(status_code=403, detail=adm.reason)
 
 
 # Request fields that are pure metadata and never change the physics. Pop
@@ -680,8 +679,40 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         # not shred the cache hit rate (a scrub back to an earlier value should
         # still hit even though its _seq is higher).
         "_seq",
+        # Solve-lane metadata (issue #382): session identity, batch-request
+        # generation, and the "Solve anyway" approval flag. All scheduling,
+        # zero physics — a norm-check must hit the live solve's cache entry.
+        "_session",
+        "_gen",
+        "_approved",
     }
 )
+
+# Per-session solve lanes (issue #382): every solve-producing compute — the
+# live /ws solve, each /sweep chunk, each /converge point, /norm_check,
+# /pattern, /pattern_metrics — takes a turn on its session's lane, so no two
+# ever run concurrently for one client. /optimize stays outside for now: its
+# evals are cache-skipping and bounded by _MAX_OPT_EVALS, and one whole-run
+# turn would starve live solves — taking a turn per eval is the follow-up.
+_LANES = LaneRegistry()
+
+
+def _lane_key(req: dict) -> tuple[str | None, int | None]:
+    """(session, generation) for the solve lane, tolerating absent/junk values.
+
+    The session id is minted client-side (one per workbench tab); the
+    generation is the client's monotonic solve counter — `_seq` on live /ws
+    requests, `_gen` on batch POSTs (same counter, so a knob drag's live
+    solve supersedes the batches issued for the previous state).
+    """
+    session = req.get("_session")
+    if not isinstance(session, str) or not session:
+        session = None
+    gen = req.get("_gen", req.get("_seq"))
+    if isinstance(gen, bool) or not isinstance(gen, int):
+        gen = None
+    return session, gen
+
 
 # Quantisation grid for floats in the cache key. Slider grids in the UI
 # are coarser than 1e-6, so this still lets back-and-forth scrubs land on
@@ -776,19 +807,14 @@ async def sweep_endpoint(req: dict, request: Request):
     sweep_ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     solver_name = "pynec" if use_pynec else "momwire"
-    # Hosted size guard, same as the /ws and /converge paths: reject an
-    # over-cap matrix dimension BEFORE the stream starts, as a clean 413,
-    # instead of attempting the N×N allocation per sweep point.
-    try:
-        _check_solve_size(req, use_pynec=use_pynec)
-    except SolveTooLargeError as e:
-        raise HTTPException(status_code=413, detail=str(e)) from e
-    if _HOSTED and len(freqs) > _MAX_SWEEP_POINTS:
-        raise HTTPException(
-            status_code=413,
-            detail=f"A sweep of {len(freqs)} points is over the live limit "
-            f"of {_MAX_SWEEP_POINTS}. Reduce the frequency count.",
-        )
+    # Admission by cost (issue #382), before the stream starts: over-cap
+    # matrix or point count → clean 413 (as before); a dense-family batch on
+    # a benchmark-class mesh → 403 unless the request carries the client
+    # gate's "Solve anyway" approval.
+    _refuse_or_withhold(
+        _admit(req, kind="sweep", use_pynec=use_pynec, points=len(freqs)), req
+    )
+    session, lane_gen = _lane_key(req)
     # Validate the client's solver kwargs up front: this endpoint streams, so
     # an error surfacing mid-generator can't become a clean status code.
     # Imported here (like /optimize's optimizer import): adapter ↔ examples
@@ -815,27 +841,38 @@ async def sweep_endpoint(req: dict, request: Request):
             for f in freqs:
                 if await request.is_disconnected():
                     return
-                if is_multifeed:
-                    primary, feeds_z = await run_in_threadpool(
-                        pynec_backend._sweep_at_multifeed, req, f
-                    )
-                    record = {
-                        "freq_mhz": f,
-                        "z_re": float(primary.real),
-                        "z_im": float(primary.imag),
-                        "feeds_z_re": [float(z_.real) for z_ in feeds_z],
-                        "feeds_z_im": [float(z_.imag) for z_ in feeds_z],
-                        "solver": solver_name,
-                    }
-                else:
-                    z = await run_in_threadpool(pynec_backend._sweep_at, req, f)
-                    record = {
-                        "freq_mhz": f,
-                        "z_re": float(z.real),
-                        "z_im": float(z.imag),
-                        "solver": solver_name,
-                    }
+                try:
+                    # One lane turn per point: a queued live solve gets the
+                    # lane at the next point boundary. PyNEC has no mid-solve
+                    # abort, so a supersession trips the token but the point
+                    # runs out; the post-turn check stops the stream there.
+                    async with _LANES.turn(session, "sweep", lane_gen) as token:
+                        if is_multifeed:
+                            primary, feeds_z = await run_in_threadpool(
+                                pynec_backend._sweep_at_multifeed, req, f
+                            )
+                            record = {
+                                "freq_mhz": f,
+                                "z_re": float(primary.real),
+                                "z_im": float(primary.imag),
+                                "feeds_z_re": [float(z_.real) for z_ in feeds_z],
+                                "feeds_z_im": [float(z_.imag) for z_ in feeds_z],
+                                "solver": solver_name,
+                            }
+                        else:
+                            z = await run_in_threadpool(pynec_backend._sweep_at, req, f)
+                            record = {
+                                "freq_mhz": f,
+                                "z_re": float(z.real),
+                                "z_im": float(z.imag),
+                                "solver": solver_name,
+                            }
+                        superseded_mid_point = token.cancelled
+                except Superseded:
+                    return
                 yield json.dumps(record) + "\n"
+                if superseded_mid_point:
+                    return
         else:
             # momwire's batched sweep is ~10x faster per-call than per-point,
             # but a 5-band fan dipole sweep at n_per_wire=21, 41 freqs takes
@@ -863,7 +900,18 @@ async def sweep_endpoint(req: dict, request: Request):
                     return
                 chunk = freqs[start : start + chunk_size]
                 t0 = time.perf_counter()
-                sweep_result = await run_in_threadpool(sweep_fn, req, chunk)
+                try:
+                    # One lane turn per chunk; the token reaches the solver's
+                    # checkpoints, so a knob drag (newer generation) or a
+                    # dropped connection (the watcher) aborts THIS chunk in
+                    # ~ms instead of after minutes on a benchmark mesh.
+                    async with _LANES.turn(session, "sweep", lane_gen) as token:
+                        async with cancel_on_disconnect(request, token):
+                            sweep_result = await run_in_threadpool(
+                                sweep_fn, req, chunk, cancel=token
+                            )
+                except (Superseded, momwire.SolveAborted):
+                    return
                 # Multi-feed sweeps (bowtie array) return a 4-tuple with
                 # per-feed Z appended. Everything else stays on the
                 # original 2-tuple shape; the legacy z_re / z_im fields
@@ -899,7 +947,7 @@ async def sweep_endpoint(req: dict, request: Request):
     return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
-def _solve_z_only(req: dict) -> tuple[complex, list[complex] | None]:
+def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None]:
     """Run the geometry-specific solver and return only the input impedance.
 
     Returns (primary_z, feeds_z) where feeds_z is the per-feed Z list for
@@ -910,10 +958,13 @@ def _solve_z_only(req: dict) -> tuple[complex, list[complex] | None]:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     if use_pynec:
+        # Start-gate only: PyNEC's native solve has no mid-solve abort.
+        if cancel is not None:
+            cancel.raise_if_cancelled()
         res = pynec_backend.solve(req)
     else:
         ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
-        res = ex.momwire_solve(req)
+        res = ex.momwire_solve(req, cancel=cancel)
     primary = complex(res["z_in_re"], res["z_in_im"])
     feeds_list = res.get("feeds")
     feeds_z: list[complex] | None = (
@@ -946,12 +997,14 @@ async def converge_endpoint(req: dict, request: Request):
         ) from None
     use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
     solver_name = "pynec" if use_pynec else "momwire"
-    if _HOSTED and len(n_values) > _MAX_SWEEP_POINTS:
-        raise HTTPException(
-            status_code=413,
-            detail=f"A convergence sweep of {len(n_values)} points is over "
-            f"the live limit of {_MAX_SWEEP_POINTS}. Reduce the N count.",
-        )
+    # Admission by cost (issue #382): point-count refuse (413) and the
+    # poor-match warn (403 without approval). The per-N matrix-size refuse
+    # stays inside the loop — est_basis moves with N.
+    _refuse_or_withhold(
+        _admit(req, kind="converge", use_pynec=use_pynec, points=len(n_values)),
+        req,
+    )
+    session, lane_gen = _lane_key(req)
 
     async def gen():
         for n in n_values:
@@ -963,7 +1016,14 @@ async def converge_endpoint(req: dict, request: Request):
                 # Reject N values past the size cap (the convergence sweep is
                 # exactly where someone pushes N high); surfaced per-N below.
                 _check_solve_size(req_n, use_pynec=use_pynec)
-                z, feeds_z = await run_in_threadpool(_solve_z_only, req_n)
+                # One lane turn per point (see /sweep).
+                async with _LANES.turn(session, "converge", lane_gen) as token:
+                    async with cancel_on_disconnect(request, token):
+                        z, feeds_z = await run_in_threadpool(
+                            _solve_z_only, req_n, cancel=token
+                        )
+            except (Superseded, momwire.SolveAborted):
+                return
             except Exception as e:
                 # One-off solver failures (e.g. degenerate geometry at very
                 # small N) or a size rejection shouldn't abort the whole sweep —
@@ -1011,10 +1071,17 @@ async def pattern_endpoint(req: dict):
         _check_solve_size(req, use_pynec=True)
     except SolveTooLargeError as e:
         return {"available": False, "error": str(e)}
-    return await run_in_threadpool(pynec_backend.pattern, req)
+    session, lane_gen = _lane_key(req)
+    try:
+        # PyNEC-only, so the token is a start gate: a queued pattern that a
+        # knob drag overtook dies here instead of grinding a stale solve.
+        async with _LANES.turn(session, "pattern", lane_gen):
+            return await run_in_threadpool(pynec_backend.pattern, req)
+    except Superseded:
+        return {"available": False}
 
 
-def _norm_check(req: dict) -> dict:
+def _norm_check(req: dict, cancel=None) -> dict:
     """Consistency check for the far-field normalisation, dwell-triggered.
 
     The live `directivity_norm` comes from the circuit side (η₀k²/8π·P_in);
@@ -1039,7 +1106,7 @@ def _norm_check(req: dict) -> dict:
     absorption; over PEC/free space it collapses to ~structural efficiency
     (times the solver's self-consistency gap, <0.05 dB on converged designs).
     """
-    out = solve(dict(req))
+    out = solve(dict(req), cancel=cancel)
     if "directivity_norm" not in out or out["directivity_norm"] <= 0:
         return {"available": False}
     ground_on = bool(out.get("ground", False))
@@ -1082,10 +1149,21 @@ def _norm_check(req: dict) -> dict:
 
 
 @app.post("/norm_check")
-async def norm_check_endpoint(req: dict):
+async def norm_check_endpoint(req: dict, request: Request):
     """Field-side vs circuit-side gain-norm consistency check for the
     far-field overlay (dwell-triggered). See `_norm_check`."""
-    return await run_in_threadpool(_norm_check, req)
+    use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
+    _refuse_or_withhold(_admit(req, kind="norm_check", use_pynec=use_pynec), req)
+    session, lane_gen = _lane_key(req)
+    try:
+        # The common path is a cache hit on the settled live solve (the lane
+        # runs the live turn first, so the cache is warm by our turn); the
+        # miss path is a full solve, hence the turn + disconnect watcher.
+        async with _LANES.turn(session, "norm_check", lane_gen) as token:
+            async with cancel_on_disconnect(request, token):
+                return await run_in_threadpool(_norm_check, req, cancel=token)
+    except (Superseded, momwire.SolveAborted):
+        return {"available": False}
 
 
 @app.post("/export_nec")
@@ -1139,7 +1217,7 @@ async def params_source_endpoint(req: dict):
 
 
 @app.post("/pattern_metrics")
-async def pattern_metrics_endpoint(req: dict):
+async def pattern_metrics_endpoint(req: dict, request: Request):
     """Scalar far-field metrics for the current antenna, for the compare table.
 
     Reuses the same builder + momwire engine as the live solve, so the metrics
@@ -1157,8 +1235,19 @@ async def pattern_metrics_endpoint(req: dict):
         _check_solve_size(req, use_pynec=False)
     except SolveTooLargeError as e:
         return {"geometry": geometry, "error": str(e)}
+    # Lane turn with NO generation: compare-table rows describe *other*
+    # designs at their defaults, so a knob drag on the live design must not
+    # supersede them — they still serialize with everything else and stop
+    # when their client goes away.
+    session, _ = _lane_key(req)
     try:
-        metrics = await run_in_threadpool(ex.far_field_metrics, req)
+        async with _LANES.turn(session, "pattern_metrics") as token:
+            async with cancel_on_disconnect(request, token):
+                metrics = await run_in_threadpool(
+                    ex.far_field_metrics, req, cancel=token
+                )
+    except (Superseded, momwire.SolveAborted):
+        return {"geometry": geometry, "available": False}
     except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
         return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
     return {"geometry": geometry, "available": True, "metrics": metrics}
@@ -1483,6 +1572,12 @@ async def ws_endpoint(ws: WebSocket):
                 token = current["token"]
                 if token is not None:
                     token.cancel()  # preempt the now-superseded in-flight solve
+                # Newer user state also preempts the session's OLDER batch
+                # work (a running sweep chunk, queued converge points) right
+                # now — the solver loop won't admit this request's turn until
+                # the lane frees, and waiting for that would leave a stale
+                # benchmark-mesh chunk grinding for minutes (issue #382).
+                _LANES.advance(*_lane_key(req))
                 newer.set()
         except WebSocketDisconnect:
             pass
@@ -1503,19 +1598,37 @@ async def ws_endpoint(ws: WebSocket):
             if not mailbox:
                 continue
             req = mailbox.pop()
-            # Publish the token BEFORE dispatch: a reader that fires in the gap
-            # cancels a not-yet-started solve, which then raises SolveAborted at
-            # its first checkpoint — no lost-wakeup window.
-            token = momwire.CancelToken()
-            current["token"] = token
+            session, lane_gen = _lane_key(req)
             try:
-                result = await run_in_threadpool(solve, req, cancel=token)
-            except momwire.SolveAborted:
-                # Superseded (or disconnected) mid-solve: a newer request already
-                # tripped our token. Send nothing — the superseding response will
-                # carry a higher _seq and the client renders monotonically. This
-                # catch MUST precede the generic handler, which would otherwise
-                # ship the abort to the client as a solve-error banner.
+                # The lane turn (issue #382) serializes this solve against the
+                # session's batch work — and outranks it, so at most one chunk
+                # stands between a knob drag and its heatmap. Entering with
+                # this request's generation cancels any older running batch
+                # chunk at its next solver checkpoint.
+                async with _LANES.turn(session, "live", lane_gen) as token:
+                    if closed.is_set():
+                        return
+                    if mailbox:
+                        # Superseded while we waited for the lane: solving this
+                        # request would be wasted work — loop for the newer one.
+                        continue
+                    # Publish the token BEFORE dispatch: a reader that fires in
+                    # the gap cancels a not-yet-started solve, which then raises
+                    # SolveAborted at its first checkpoint — no lost-wakeup
+                    # window. (While we *waited* for the lane there was no token
+                    # to trip; the mailbox check above covers that stretch.)
+                    current["token"] = token
+                    try:
+                        result = await run_in_threadpool(solve, req, cancel=token)
+                    finally:
+                        current["token"] = None
+            except (Superseded, momwire.SolveAborted):
+                # Superseded (or disconnected) mid-solve or mid-wait: a newer
+                # request already overtook this one. Send nothing — the
+                # superseding response will carry a higher _seq and the client
+                # renders monotonically. This catch MUST precede the generic
+                # handler, which would otherwise ship the abort to the client
+                # as a solve-error banner.
                 continue
             except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
                 # A solve that raises must not tear down the socket (that drops
@@ -1525,8 +1638,6 @@ async def ws_endpoint(ws: WebSocket):
                     "geometry": req.get("geometry"),
                     "error": user_designs.format_solve_error(exc),
                 }
-            finally:
-                current["token"] = None
             # Echo the sequence number on EVERY response, error path included —
             # the client keys ordering, RTT accounting, and solving-state off it,
             # and a stuck request would leave `solving` true forever if any path
