@@ -12,8 +12,12 @@ For every deck in the xnec2c examples corpus this script:
        sin    — MomwireEngine(SinusoidalSolver)
        bs1    — MomwireEngine(BSplineSolver, degree=1)   (tent basis)
        bs2    — MomwireEngine(BSplineSolver, degree=2)   (quadratic)
-  4. Compares each engine's impedance to nec2c and records solve wall-time and
-     peak RSS.
+  4. Scores each engine against nec2c by reflection-coefficient distance
+     ΔΓ = |Γ_eng − Γ_nec2c| with Γ = (Z − 50)/(Z + 50), and records solve
+     wall-time and peak RSS. ΔΓ is bounded on [0, 2], so decks whose |Z| passes
+     near a zero/pole (near-open / near-short) stay comparable instead of
+     blowing a relative-|Z| ratio up to 100s of % (issue #407). The raw complex
+     impedances remain in the JSON, so relative-|Z| is still derivable.
 
 Ground matching (issue: nec_import discards GN -> only a bool). To keep the
 comparison apples-to-apples, the GN/GD cards are parsed here and mapped to the
@@ -68,6 +72,7 @@ import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 XNEC2C_EXAMPLES = Path.home() / "antennas" / "xnec2c" / "examples"
+Z0 = 50.0  # system impedance for the reflection-coefficient metric (issue #407)
 ENGINE_KEYS = ("pynec", "sin", "bs1", "bs2")
 ENGINE_LABEL = {
     "pynec": "PyNEC",
@@ -389,14 +394,32 @@ def _z(pair):
     return complex(pair[0], pair[1])
 
 
+def _gamma(z):
+    """Reflection coefficient Γ = (Z − Z₀)/(Z + Z₀) at the system impedance Z₀.
+    For any passive antenna R ≥ 0 so Z + Z₀ has real part ≥ Z₀ > 0 — never
+    singular — and |Γ| ≤ 1, so the |Γ_eng − Γ_ref| distance is bounded on
+    [0, 2]. That is why it replaces relative-|Z| error (issue #407): a
+    near-open/near-short deck lands both engines at |Γ| ≈ 1 and the distance
+    measures only the (small) phase disagreement, instead of a tiny absolute
+    shift near a zero/pole of Z blowing the ratio up to 100s of %."""
+    return (z - Z0) / (z + Z0)
+
+
 def compare(engine_z, ref_z):
-    """Per-feed |Δ| and rel-% between engine and nec2c, aligned by index."""
+    """Per-feed reflection-coefficient distance ``dgamma`` = |Γ_eng − Γ_ref|
+    (Z₀ = 50 Ω) and the raw |ΔZ| ``abs``, aligned by index. The complex
+    impedances stay in the JSON (``engine`` here, ``nec2c.z`` on the row), so
+    the old relative-|Z| metric remains derivable."""
     out = []
     for i in range(min(len(engine_z), len(ref_z))):
         ze, zr = _z(engine_z[i]), _z(ref_z[i])
-        dabs = abs(ze - zr)
-        drel = dabs / abs(zr) if abs(zr) > 0 else float("inf")
-        out.append({"engine": [ze.real, ze.imag], "abs": dabs, "rel": drel})
+        out.append(
+            {
+                "engine": [ze.real, ze.imag],
+                "abs": abs(ze - zr),
+                "dgamma": abs(_gamma(ze) - _gamma(zr)),
+            }
+        )
     return out
 
 
@@ -443,21 +466,23 @@ def bench_deck(deck_path: Path, engines, timeout, run_with_ground=True):
     return row
 
 
-def fmt_rel(res):
+def fmt_dg(res):
     if res is None or res.get("error"):
         return "ERR"
     cmp = res.get("cmp") or []
     if not cmp:
         return "n/a"
-    r = cmp[0]["rel"]  # feed 0
-    return f"{100 * r:6.1f}%" if r != float("inf") else "  inf"
+    return f"{cmp[0]['dgamma']:.4f}"  # feed 0
 
 
 def print_report(rows, engines):
     ok = [r for r in rows if not r.get("error") and not r.get("nec2c", {}).get("error")]
 
     print("\n" + "=" * 104)
-    print("IMPEDANCE vs nec2c  (feed 0; rel = |Z_eng - Z_nec2c| / |Z_nec2c|)")
+    print(
+        "REFLECTION-COEFFICIENT ERROR vs nec2c  "
+        "(feed 0; ΔΓ = |Γ_eng − Γ_nec2c|, Γ = (Z−50)/(Z+50))"
+    )
     print(
         "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT network"
     )
@@ -473,7 +498,7 @@ def print_report(rows, engines):
         flags = ("g" if not r.get("ground_supported", True) else "") + (
             "n" if r.get("partial_net") else ""
         )
-        cells = " ".join(f"{fmt_rel(r['engines'].get(e)):>11}" for e in engines)
+        cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
             f"{r['deck']:<34} {r.get('freq', 0):>8.3f} {r.get('ground') or 'free':>5} "
             f"{flags:>3} {z0.real:>8.1f}{z0.imag:>+8.1f}j  {cells}"
@@ -504,28 +529,27 @@ def print_report(rows, engines):
     # rollups
     print("\n" + "=" * 72)
     print(
-        "AGREEMENT ROLLUP  (feed-0 rel error; clean decks: supported ground, "
+        "AGREEMENT ROLLUP  (feed-0 ΔΓ; clean decks: supported ground, "
         "fully-expressed network)"
     )
     print("=" * 72)
     for e in engines:
-        rels = [
-            r["engines"][e]["cmp"][0]["rel"]
+        dgs = [
+            r["engines"][e]["cmp"][0]["dgamma"]
             for r in ok
             if r.get("ground_supported", True)
             and not r.get("partial_net")
             and not r["engines"].get(e, {}).get("error")
-            and (r["engines"][e].get("cmp"))
-            and r["engines"][e]["cmp"][0]["rel"] != float("inf")
+            and r["engines"][e].get("cmp")
         ]
-        if not rels:
+        if not dgs:
             print(f"{ENGINE_LABEL[e]:<12} no data")
             continue
-        rels.sort()
-        within = lambda t: sum(1 for x in rels if x <= t)  # noqa: E731
+        dgs.sort()
+        within = lambda t: sum(1 for x in dgs if x <= t)  # noqa: E731
         print(
-            f"{ENGINE_LABEL[e]:<12} n={len(rels):>3}  median={100 * statistics.median(rels):5.1f}%  "
-            f"<1%:{within(0.01):>3}  <5%:{within(0.05):>3}  <20%:{within(0.20):>3}"
+            f"{ENGINE_LABEL[e]:<12} n={len(dgs):>3}  median={statistics.median(dgs):.4f}  "
+            f"<0.01:{within(0.01):>3}  <0.05:{within(0.05):>3}  <0.2:{within(0.20):>3}"
         )
 
     # failures
