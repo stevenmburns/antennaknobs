@@ -1706,7 +1706,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             wrap="mappingproxy" if req.get("wrap") == "mappingproxy" else "dict",
         )
 
-    def far_field_metrics(req: dict) -> dict:
+    def far_field_metrics(req: dict, cancel=None) -> dict:
         # Scalar metrics for the pattern-compare table. Uses the same builder
         # setup as momwire_solve and the momwire engine (so the numbers match
         # the client-derived lobe on screen), then summarises the full grid.
@@ -1717,7 +1717,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
-        eng = _make_momwire_engine(req, builder)
+        eng = _make_momwire_engine(req, builder, cancel=cancel)
         ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
         metrics = pattern_metrics(ff)
         metrics["measurement_freq_mhz"] = meas_freq
@@ -1737,7 +1737,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         ground = _ground_for_engine(req, 0.0) or "free"
         return _export_nec(builder, ground=ground, freq=meas_freq)
 
-    def momwire_sweep(req: dict, freqs_mhz: list[float]):
+    def momwire_sweep(req: dict, freqs_mhz: list[float], cancel=None):
         builder = _build_builder(cls, req)
         # MomwireEngine reads builder.freq only for the initial wavelength
         # passed to _make_solver — impedance_sweep overrides k per point.
@@ -1747,7 +1747,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # solve sees. See momwire_solve for the rationale.
         if has_design_freq:
             builder.design_freq = _req_freqs(req)[0]
-        eng = _make_momwire_engine(req, builder)
+        eng = _make_momwire_engine(req, builder, cancel=cancel)
         zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)))
         # Open-circuited points sweep through as inf; clamp for JSON.
         zs = np.where(np.isfinite(zs), zs, complex(Z_OPEN_OHMS, 0.0))
