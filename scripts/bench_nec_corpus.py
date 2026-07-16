@@ -319,9 +319,17 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
         # Baseline resident memory after imports + parse, before the solve.
         base_rss = psutil.Process().memory_info().rss
 
+        # Opt-in (issue #409): disable nec2++'s wire/segment intersection
+        # validator so decks with closely-spaced / crossing wires that NEC-2
+        # and momwire accept aren't rejected. Env-passed to keep the --worker
+        # argv arity fixed at 4.
+        allow_intersections = os.environ.get("PYNEC_ALLOW_INTERSECTIONS") == "1"
+
         t0 = time.perf_counter()
         if engine == "pynec":
-            eng = PyNECEngine(builder, ground=ground)
+            eng = PyNECEngine(
+                builder, ground=ground, check_intersections=not allow_intersections
+            )
         elif engine == "sin":
             eng = MomwireEngine(builder, solver=SinusoidalSolver, ground=ground)
         elif engine == "bs1":
@@ -362,8 +370,11 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
     print(json.dumps(result))
 
 
-def run_engine(engine, deck_path, freq, ground, timeout):
+def run_engine(engine, deck_path, freq, ground, timeout, allow_intersections=False):
     """Dispatch a worker subprocess for one (deck, engine); parse its JSON."""
+    env = dict(os.environ)
+    if allow_intersections:
+        env["PYNEC_ALLOW_INTERSECTIONS"] = "1"
     proc = subprocess.run(
         [
             sys.executable,
@@ -377,6 +388,7 @@ def run_engine(engine, deck_path, freq, ground, timeout):
         capture_output=True,
         text=True,
         timeout=None if timeout is None else timeout + 15,
+        env=env,
     )
     if proc.returncode != 0 and not proc.stdout.strip():
         tail = (proc.stderr or "").strip()[-200:]
@@ -451,7 +463,9 @@ def compare(engine_z, ref_z):
     return out
 
 
-def bench_deck(deck_path: Path, engines, timeout, run_with_ground=True):
+def bench_deck(
+    deck_path: Path, engines, timeout, run_with_ground=True, allow_intersections=False
+):
     name = deck_path.stem
     row = {"deck": name, "error": None}
     text = deck_path.read_text()
@@ -487,7 +501,7 @@ def bench_deck(deck_path: Path, engines, timeout, run_with_ground=True):
     eng_ground = ground if run_with_ground else "free"
     row["engines"] = {}
     for e in engines:
-        res = run_engine(e, deck_path, freq, eng_ground, timeout)
+        res = run_engine(e, deck_path, freq, eng_ground, timeout, allow_intersections)
         if res.get("error") is None and "z" in res:
             res["cmp"] = compare(res["z"], ref["z"])
         else:
@@ -657,6 +671,13 @@ def main(argv=None):
         help="run engines free-space regardless of the deck's GN",
     )
     ap.add_argument(
+        "--allow-wire-intersections",
+        action="store_true",
+        help="disable nec2++'s wire/segment intersection validator so PyNEC "
+        "accepts closely-spaced / crossing wires NEC-2 and momwire solve "
+        "(issue #409; needs pynec-accel >=1.7.5)",
+    )
+    ap.add_argument(
         "--out", type=Path, default=None, help="write full results JSON here"
     )
     args = ap.parse_args(argv)
@@ -694,7 +715,11 @@ def main(argv=None):
         print(f"[{i}/{len(decks)}] {deck.stem} ...", flush=True)
         rows.append(
             bench_deck(
-                deck, args.engines, args.timeout, run_with_ground=not args.free_space
+                deck,
+                args.engines,
+                args.timeout,
+                run_with_ground=not args.free_space,
+                allow_intersections=args.allow_wire_intersections,
             )
         )
 

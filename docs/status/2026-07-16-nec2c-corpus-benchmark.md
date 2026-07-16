@@ -294,6 +294,7 @@ Segments to reach within 2% of that engine's own finest-mesh value:
 - **Investigate momwire ground on ground-connected wires** — the
   `strictly above ground_z` limitation and the large PEC-ground-plane
   divergence are the biggest real gaps vs NEC.
+
 ## PyNEC `ERR` triage (issue #409) — all are nec2++ geometry rejections
 
 The decks PyNEC raised on — the five in the issue (`20m_car_ant`,
@@ -330,17 +331,43 @@ shared endpoints) confirms every deck carries wires closer than that threshold
 1–2) and shared-endpoint-too-close pairs where a junction segment sits inside
 the neighbour's radius (14–761 per deck). These are real thick-/touching-wire
 conditions the thin-wire kernel's separation assumption is uneasy about; nec2++
-made the warning fatal, NEC-2/nec2c did not. There is no PyNEC-level toggle to
-relax it (the check is compiled into `_PyNEC`).
+made the warning fatal, NEC-2/nec2c did not.
 
-**Resolution: document + skip cleanly, no wrapper fix.** `bench_nec_corpus.py`
-now classifies engine errors — a nec2++ geometry rejection shows as **`GEO`**
-in the per-deck table (vs `ERR` for a genuine solve crash), the JSON row carries
-an `error_kind` (`"geo"`/`"err"`), and the report prints an `ENGINE ERRORS`
-section that separates the documented `GEO` limitation from anything worth
-investigating. The accuracy rollup already excluded error rows, so the numbers
-are unchanged; the difference is that a reader now sees *why* PyNEC is absent on
-these rows rather than an opaque `ERR`. Perturbing the geometry to satisfy
-nec2++ (nudging crossings apart, merging short junction segments) is out of
-scope — it would change the impedance being compared and defeat the
-apples-to-apples pipeline.
+**Resolution — two layers.**
+
+*1. Clean classification (default).* `bench_nec_corpus.py` classifies engine
+errors: a nec2++ geometry rejection shows as **`GEO`** in the per-deck table
+(vs `ERR` for a genuine solve crash), the JSON row carries an `error_kind`
+(`"geo"`/`"err"`), and the report prints an `ENGINE ERRORS` section that
+separates the documented `GEO` limitation from anything worth investigating. So
+a reader sees *why* PyNEC is absent on these rows rather than an opaque `ERR`.
+
+*2. An opt-in that recovers the decks.* nec2++'s validator is now toggleable.
+The `stevenmburns/necpp` engine fork gained a public
+`c_geometry::set_intersection_check(bool)` (mirroring upstream necpp master),
+`stevenmburns/python-necpp` wraps it for Python (**pynec-accel ≥ 1.7.5**), and
+`PyNECEngine(..., check_intersections=False)` calls it before
+`geometry_complete()`. `bench_nec_corpus.py --allow-wire-intersections` sets it
+per run. With the check off, PyNEC solves all six decks, and it lands right on
+nec2c — confirming these were **false-positive rejections, not bad geometry**:
+
+| deck | grd | Z_nec2c (feed0) | PyNEC ΔΓ | Sin ΔΓ |
+|---|:--|--:|--:|--:|
+| `137Mhz-QFHA2` | free | 2.7 −274.3j | **0.0000** | 0.0140 |
+| `20m_car_ant` | free | 28.0 −57.2j | **0.0014** | 0.0085 |
+| `airplane` | free | 68.5 −91.1j | **0.0001** | 0.0160 |
+| `70cm_collinear` | free | 107.8 −340.6j | **0.0118** | 0.0127 |
+| `23cm_helix+radials` | free | 43.4 −71.6j | **0.0185** | 0.0202 |
+| `1MHz_tower` | pec | 68.5 −136.1j | **0.4249** | 0.5461 |
+
+The five free-space decks agree with nec2c to ΔΓ ≤ 0.019 (two are ~0), the same
+two-NEC-kernel validation the rest of the corpus shows. `1MHz_tower` is a
+PEC-ground vertical — momwire's known ground weak spot — where PyNEC (0.42)
+tracks nec2c far better than momwire (0.55), exactly the pattern in the ground
+headline above.
+
+The default stays **check-on / `GEO`**: the strict validator is a reasonable
+guard for hand-built designs, and keeping the corpus table's default strict
+makes the `GEO` rows a visible record of which decks lean on the opt-in. The
+flag is the lever for the wild-corpus acceptance runs, where recovering every
+solvable deck matters more than the guard.
