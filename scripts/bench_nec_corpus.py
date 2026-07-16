@@ -328,7 +328,13 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
         t0 = time.perf_counter()
         if engine == "pynec":
             eng = PyNECEngine(
-                builder, ground=ground, check_intersections=not allow_intersections
+                builder,
+                ground=ground,
+                check_intersections=not allow_intersections,
+                # Deck asked for NEC's extended thin-wire kernel (EK):
+                # honour it so fat-wire decks compare kernel-for-kernel
+                # against nec2c, which applies EK (#414).
+                extended_thin_wire_kernel=deck.extended_kernel,
             )
         elif engine == "sin":
             eng = MomwireEngine(builder, solver=SinusoidalSolver, ground=ground)

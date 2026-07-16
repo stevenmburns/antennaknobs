@@ -55,6 +55,7 @@ class PyNECEngine(SimulationEngine):
         ground=DEFAULT_GROUND,
         native_nt=False,
         check_intersections=True,
+        extended_thin_wire_kernel=False,
     ):
         """
         ground:
@@ -94,9 +95,19 @@ class PyNECEngine(SimulationEngine):
           validator on; passing False matches nec2c/momwire permissiveness.
           Requires pynec-accel >=1.7.5 (the wrapped set_intersection_check
           knob); older wheels silently keep the check on with a warning.
+
+        extended_thin_wire_kernel: apply NEC's EK card (the extended
+          thin-wire kernel) to the whole structure. Matters for fat wires —
+          radius comparable to segment length (a/h ≳ 0.01) — where the
+          standard thin-wire kernel's reactance drifts by ohms; NEC decks
+          carrying an EK card (`NecDeck.extended_kernel`) should set this so
+          the comparison against nec2c is kernel-for-kernel (issue #414,
+          found via the momwire#156 `1MHz_tower` analysis, where near-
+          resonant loads amplified the kernel difference ~10×).
         """
         super().__init__(builder)
         self._check_intersections = check_intersections
+        self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
         # Wire material (issue #316): radius + conductor loss from the
@@ -189,6 +200,13 @@ class PyNECEngine(SimulationEngine):
             return
         setter(False)
 
+    def _apply_extended_kernel(self, c):
+        """Emit NEC's EK card (extended thin-wire kernel) when requested.
+        Standard PyNEC API; call after geometry_complete like the other
+        program-control cards."""
+        if self._extended_thin_wire_kernel:
+            c.set_extended_thin_wire_kernel(True)
+
     def _build_geometry(self):
         self.c = nec.nec_context()
         geo = self.c.get_geometry()
@@ -223,6 +241,7 @@ class PyNECEngine(SimulationEngine):
         self._network_port_loc = {}
 
         self.c.geometry_complete(self._ge_flag())
+        self._apply_extended_kernel(self.c)
 
         if self._network is not None:
             # Only Load-only networks reach here; TL/virtual-driver
@@ -543,6 +562,7 @@ class PyNECEngine(SimulationEngine):
             if name is not None:
                 loc[name] = (idx, (n_seg + 1) // 2)
         c.geometry_complete(self._ge_flag())
+        self._apply_extended_kernel(c)
         self._emit_wire_material_cards(c)
         self._apply_ground_card(c)
         return c, loc
