@@ -870,6 +870,17 @@ async def sweep_endpoint(req: dict, request: Request):
                         superseded_mid_point = token.cancelled
                 except Superseded:
                     return
+                except Exception as exc:  # noqa: BLE001 — solver can fail per point
+                    yield (
+                        json.dumps(
+                            {
+                                "error": user_designs.format_solve_error(exc),
+                                "solver": solver_name,
+                            }
+                        )
+                        + "\n"
+                    )
+                    return
                 yield json.dumps(record) + "\n"
                 if superseded_mid_point:
                     return
@@ -911,6 +922,20 @@ async def sweep_endpoint(req: dict, request: Request):
                                 sweep_fn, req, chunk, cancel=token
                             )
                 except (Superseded, momwire.SolveAborted):
+                    return
+                except Exception as exc:  # noqa: BLE001 — a chunk can fail honestly
+                    # e.g. an approved poor-match combo whose dense fill can't
+                    # allocate: end the stream with the cause instead of
+                    # tearing the NDJSON connection down mid-line.
+                    yield (
+                        json.dumps(
+                            {
+                                "error": user_designs.format_solve_error(exc),
+                                "solver": solver_name,
+                            }
+                        )
+                        + "\n"
+                    )
                     return
                 # Multi-feed sweeps (bowtie array) return a 4-tuple with
                 # per-feed Z appended. Everything else stays on the
@@ -1164,6 +1189,12 @@ async def norm_check_endpoint(req: dict, request: Request):
                 return await run_in_threadpool(_norm_check, req, cancel=token)
     except (Superseded, momwire.SolveAborted):
         return {"available": False}
+    except Exception as exc:  # noqa: BLE001 — the miss path is a full solve
+        # An approved poor-match solve can fail honestly (e.g. the whip's
+        # B-spline J tensor is a 3 GiB allocation): report it like every
+        # other solve endpoint instead of a 500 (found in the #382
+        # acceptance pass under ulimit -v).
+        return {"available": False, "error": user_designs.format_solve_error(exc)}
 
 
 @app.post("/export_nec")
