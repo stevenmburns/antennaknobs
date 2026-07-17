@@ -129,7 +129,9 @@ def test_undefined_symbol_is_clean_rejection():
 
 
 def test_bad_sy_expression_is_clean_rejection():
-    with pytest.raises(ValueError, match="SY"):
+    # `import` is just an undefined symbol to the Pratt parser — Python
+    # keywords have no special status in 4nec2's grammar (#424).
+    with pytest.raises(ValueError, match="SY|undefined symbol"):
         parse_nec(_deck(["SY h=import os"]), name="t")
 
 

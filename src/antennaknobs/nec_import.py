@@ -44,6 +44,7 @@ deck's exact segment boundaries and put the feed on its own 1-segment wire.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -562,87 +563,191 @@ _SY_CONSTANTS = {
 }
 
 
-_SY_IDENT = None
+_SY_UNITS = frozenset(
+    ("mm", "cm", "dm", "m", "in", "ft", "pf", "nf", "uf", "nh", "uh", "mh")
+)
+_SY_MAX_LEN = 512
+_SY_MAX_TOKENS = 128
+_SY_MAX_DEPTH = 32
+# number | identifier | operator/paren. Numbers cover 1, 2.5, 3., .5, 1e-3;
+# "1..5" tokenizes as two adjacent numbers and fails in the parser.
+_SY_TOKEN = re.compile(
+    r"\s*(?:"
+    r"(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)"
+    r"|([A-Za-z_]\w*)"
+    r"|([()+\-*/^%])"
+    r")"
+)
+
+# Binding powers (precedence climbing). 4nec2's expression language follows
+# the BASIC convention: ^ is right-associative and binds tighter than unary
+# minus (-2^2 = -(2^2) = -4; Excel is the famous outlier). Unary sits
+# between * and ^ so -2*3 = (-2)*3 but -2^2 = -(2^2).
+_SY_BP = {
+    "+": (10, 11),
+    "-": (10, 11),
+    "*": (20, 21),
+    "/": (20, 21),
+    "%": (20, 21),
+    "^": (40, 39),
+}
+_SY_UNARY_BP = 30
 
 
 def _eval_sy_expr(expr: str, syms: dict, where: str) -> float:
-    """Evaluate one 4nec2 expression against the symbol table."""
-    import ast
-    import re
+    """Evaluate one 4nec2 expression with a dedicated precedence-climbing
+    (Pratt) parser (#424) — the grammar is exactly 4nec2's, not Python's:
+    no CPython parser in the path, explicit size/depth caps, and a hard
+    contract: every failure is a ValueError, every success a finite float.
+    """
+    text = expr.strip()
 
-    global _SY_IDENT
-    if _SY_IDENT is None:
-        # An identifier not glued to a preceding digit/dot (so the exponent
-        # in `1e3` / `.5E-2` is never mistaken for a symbol).
-        _SY_IDENT = re.compile(r"(?<![\w.])[A-Za-z_]\w*")
+    def err(msg: str) -> ValueError:
+        return ValueError(f"{where}: SY expression {expr!r}: {msg}")
 
-    # Mangle every identifier before ast.parse: 4nec2 names are
-    # case-insensitive and may be Python keywords (`lambda` is the most
-    # idiomatic antenna symbol there is), which would be a SyntaxError.
-    src = expr.strip().replace("^", "**")
-    # Juxtaposed units — `135 ft`, `1.5 mm`, `61ft` — are implicit
-    # multiplication, but ONLY for the predefined unit names (anything
-    # wider would turn typos into silent products). Glued forms are safe
-    # from exponent confusion: `1e3` stays a number because `e` is not a
-    # unit name.
-    src = re.sub(
-        r"([0-9.])\s*(mm|cm|dm|mh|nh|uh|pf|nf|uf|in|ft|m)\b",
-        r"\1*\2",
-        src,
-        flags=re.IGNORECASE,
-    )
-    src = _SY_IDENT.sub(lambda m: f"_v_{m.group(0).lower()}", src)
-    try:
-        tree = ast.parse(src, mode="eval")
-    except SyntaxError:
-        raise ValueError(f"{where}: SY expression {expr!r} is not valid") from None
+    if not text:
+        raise err("empty")
+    if len(text) > _SY_MAX_LEN:
+        raise err(f"longer than {_SY_MAX_LEN} characters")
 
-    def walk(node):
-        if isinstance(node, ast.Expression):
-            return walk(node.body)
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            return float(node.value)
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
-            v = walk(node.operand)
-            return -v if isinstance(node.op, ast.USub) else v
-        if isinstance(node, ast.BinOp) and isinstance(
-            node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod)
-        ):
-            a, b = walk(node.left), walk(node.right)
-            if isinstance(node.op, ast.Add):
-                return a + b
-            if isinstance(node.op, ast.Sub):
-                return a - b
-            if isinstance(node.op, ast.Mult):
-                return a * b
-            if isinstance(node.op, ast.Div):
-                return a / b
-            if isinstance(node.op, ast.Mod):
-                return math.fmod(a, b)
-            return a**b
-        if isinstance(node, ast.Name):
-            key = node.id.removeprefix("_v_")
-            if key in syms:
-                return syms[key]
-            if key in _SY_CONSTANTS:
-                return _SY_CONSTANTS[key]
-            raise ValueError(f"{where}: undefined symbol {key!r}")
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and not node.keywords
-            and len(node.args) == 1
-        ):
-            fn = _SY_FUNCS.get(node.func.id.removeprefix("_v_"))
-            if fn is not None:
-                return float(fn(walk(node.args[0])))
-            raise ValueError(
-                f"{where}: unknown function "
-                f"{node.func.id.removeprefix('_v_')!r} in SY expression"
-            )
-        raise ValueError(f"{where}: SY expression {expr!r} is not valid")
+    # ---- tokenize -------------------------------------------------------
+    tokens: list[tuple[str, object]] = []
+    pos = 0
+    while pos < len(text):
+        m = _SY_TOKEN.match(text, pos)
+        if m is None or m.end() == m.start():
+            rest = text[pos:].lstrip()
+            if not rest:
+                break
+            raise err(f"unexpected character {rest[0]!r}")
+        pos = m.end()
+        num, ident, op = m.group(1), m.group(2), m.group(3)
+        if num is not None:
+            v = float(num)
+            if not math.isfinite(v):
+                raise err(f"non-finite number literal {num!r}")
+            tokens.append(("num", v))
+        elif ident is not None:
+            tokens.append(("ident", ident.lower()))
+        else:
+            tokens.append(("op", op))
+        if len(tokens) > _SY_MAX_TOKENS:
+            raise err(f"more than {_SY_MAX_TOKENS} tokens")
+    if not tokens:
+        raise err("empty")
 
-    return float(walk(tree))
+    # ---- parse + evaluate in one pass ------------------------------------
+    idx = 0
+
+    def peek():
+        return tokens[idx] if idx < len(tokens) else (None, None)
+
+    def take():
+        nonlocal idx
+        t = tokens[idx]
+        idx += 1
+        return t
+
+    def finite(v: float, what: str) -> float:
+        if not math.isfinite(v):
+            raise err(f"{what} is not finite")
+        return v
+
+    def lookup(name: str) -> float:
+        if name in syms:
+            return syms[name]
+        if name in _SY_CONSTANTS:
+            return _SY_CONSTANTS[name]
+        raise ValueError(f"{where}: undefined symbol {name!r}")
+
+    def primary(depth: int) -> float:
+        kind, val = peek()
+        if kind == "num":
+            take()
+            v = float(val)
+            # juxtaposed/glued unit product: `135 ft`, `61ft`, `36.6pF`
+            k2, v2 = peek()
+            if k2 == "ident" and v2 in _SY_UNITS:
+                nxt = tokens[idx + 1] if idx + 1 < len(tokens) else (None, None)
+                if nxt != ("op", "("):
+                    take()
+                    v *= lookup(v2)
+            return v
+        if kind == "ident":
+            take()
+            k2, _v2 = peek()
+            if k2 == "op" and tokens[idx][1] == "(":
+                fn = _SY_FUNCS.get(val)
+                if fn is None:
+                    raise err(f"unknown function {val!r}")
+                take()  # (
+                arg = climb(0, depth + 1)
+                k3, v3 = peek()
+                if (k3, v3) != ("op", ")"):
+                    raise err(f"expected ')' after {val}(...)")
+                take()
+                try:
+                    return finite(float(fn(arg)), f"{val}(...)")
+                except (ArithmeticError, ValueError) as e:
+                    if isinstance(e, ValueError) and str(e).startswith(where):
+                        raise
+                    raise err(f"{val}({arg:g}) failed: {e}") from None
+            return lookup(val)
+        if kind == "op" and val == "(":
+            take()
+            v = climb(0, depth + 1)
+            k2, v2 = peek()
+            if (k2, v2) != ("op", ")"):
+                raise err("unbalanced parenthesis")
+            take()
+            return v
+        if kind == "op" and val in ("-", "+"):
+            take()
+            v = climb(_SY_UNARY_BP, depth + 1)
+            return -v if val == "-" else v
+        if kind is None:
+            raise err("ends unexpectedly")
+        raise err(f"unexpected {val!r}")
+
+    def apply(op: str, a: float, b: float) -> float:
+        try:
+            if op == "+":
+                r = a + b
+            elif op == "-":
+                r = a - b
+            elif op == "*":
+                r = a * b
+            elif op == "/":
+                r = a / b
+            elif op == "%":
+                r = math.fmod(a, b)
+                if b == 0.0:
+                    raise ZeroDivisionError("modulo by zero")
+            else:
+                r = a**b
+        except (ArithmeticError, ValueError) as e:
+            raise err(f"'{a:g} {op} {b:g}' failed: {e}") from None
+        return finite(r, f"'{a:g} {op} {b:g}'")
+
+    def climb(min_bp: int, depth: int) -> float:
+        if depth > _SY_MAX_DEPTH:
+            raise err(f"nested deeper than {_SY_MAX_DEPTH}")
+        lhs = primary(depth)
+        while True:
+            kind, val = peek()
+            if kind != "op" or val not in _SY_BP:
+                return lhs
+            lbp, rbp = _SY_BP[val]
+            if lbp < min_bp:
+                return lhs
+            take()
+            rhs = climb(rbp, depth + 1)
+            lhs = apply(val, lhs, rhs)
+
+    result = climb(0, 0)
+    if idx != len(tokens):
+        raise err(f"unexpected {tokens[idx][1]!r} after a complete expression")
+    return finite(float(result), "result")
 
 
 def _define_sy(rest: str, syms: dict, where: str) -> None:
