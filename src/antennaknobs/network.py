@@ -389,11 +389,53 @@ class Transformer:
     qlmag: float | None = None
 
 
-Branch = Union[TL, Load, TwoPort, Shunt, Transformer]
+@dataclass(frozen=True)
+class Admittance:
+    """A fixed, frequency-INDEPENDENT complex admittance branch (issue #416) —
+    the general primitive a reactive NT card, a reactive TL end-shunt, and a
+    fixed-jX (LD 4) load reduce to. Unlike Load/TwoPort/Shunt, whose reactance
+    scales with ω, this short-circuit admittance matrix is stamped verbatim at
+    every frequency.
+
+    ``ports`` names the port(s) the branch spans and ``y`` is the matching
+    admittance matrix in siemens (``len(ports) × len(ports)``, indexed to
+    ``ports``):
+
+    - 1-port ``ports=(p,)``, ``y=((yval,),)`` — a fixed ``y`` from the port
+      node to the datum, the fixed-admittance sibling of ``Shunt`` (a reactive
+      TL end-shunt, or a fixed-Z load folded as ``y = 1/Z``).
+    - 2-port ``ports=(a, b)``, ``y=((y11, y12), (y21, y22))`` — the full 2×2
+      short-circuit admittance, exactly NEC's NT-card Y (reciprocal decks give
+      ``y21 = y12``, but a general matrix is accepted).
+
+    Both engines stamp it through the shared ``NetworkReducer`` as a Group-1
+    node-admittance block (no ω scaling, no auxiliary current), so it composes
+    with every other branch and itemises in the power budget. There is no
+    native NEC card for a 1-port shunt-to-common and PyNEC's ``nt_card`` maps
+    the 2-port, but the default path on both engines is the reducer (like
+    ``Shunt`` / ``Transformer``)."""
+
+    ports: tuple[str, ...]
+    y: tuple[tuple[complex, ...], ...]
+
+    def __post_init__(self):
+        n = len(self.ports)
+        if n == 0:
+            raise ValueError("Admittance needs at least one port")
+        if len(self.y) != n or any(len(row) != n for row in self.y):
+            raise ValueError(
+                f"Admittance y must be {n}×{n} to match ports {self.ports}; "
+                f"got {len(self.y)}×{len(self.y[0]) if self.y else 0}"
+            )
+
+
+Branch = Union[TL, Load, TwoPort, Shunt, Transformer, Admittance]
 
 
 def _branch_port_refs(br):
     """Port names a branch references, regardless of branch type."""
+    if isinstance(br, Admittance):
+        return tuple(br.ports)
     if hasattr(br, "a"):  # TL, TwoPort, Transformer
         return (br.a, br.b)
     return (br.port,)  # Load, Shunt

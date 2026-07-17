@@ -33,6 +33,7 @@ import numpy as np
 
 from .network import (
     TL,
+    Admittance,
     Driven,
     Load,
     PortOnWire,
@@ -318,6 +319,16 @@ class NetworkReducer:
                 )
                 G[np.ix_([a, b], [a, b])] += y_tl
                 probes.append((f"TL {br.a}→{br.b}", "group1", ([a, b], y_tl)))
+            elif isinstance(br, Admittance):
+                # Fixed complex Y stamped verbatim — no ω scaling, no auxiliary
+                # current (issue #416). A pure node-admittance block, exactly
+                # like TL's 2×2 and the parallel Shunt's 1×1.
+                idxs = [self.port_to_idx[p] for p in br.ports]
+                yb = np.array(br.y, dtype=np.complex128)
+                G[np.ix_(idxs, idxs)] += yb
+                probes.append(
+                    (f"Admittance {'→'.join(br.ports)}", "group1", (idxs, yb))
+                )
             elif isinstance(br, TwoPort):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
                 probes.append((f"TwoPort {br.a}→{br.b}", "group2", len(elements)))
