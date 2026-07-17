@@ -28,3 +28,4 @@ src/antennaknobs/web/static/
 .claude/*
 !.claude/skills/
 scripts/sterba_center_driven_pattern.png
+bench_out/

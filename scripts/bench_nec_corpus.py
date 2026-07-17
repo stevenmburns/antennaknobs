@@ -45,6 +45,16 @@ Usage:
     python scripts/bench_nec_corpus.py --decks 40m-moxon 20m_quad
     python scripts/bench_nec_corpus.py --engines pynec bs2
     python scripts/bench_nec_corpus.py --out results.json --timeout 300
+
+Wild-corpus sweeps (issue #410) additionally want hard resource bounds and
+restartability:
+    python scripts/bench_nec_corpus.py --corpus ~/antennas/nec-wild \\
+        --timeout 300 --mem-limit-gb 8 --out wild.jsonl
+--mem-limit-gb applies RLIMIT_AS to every solve subprocess AND the nec2c
+reference run, so one pathological deck can't OOM the machine. A ``.jsonl``
+--out is written incrementally (one row per line as each deck finishes) and
+is a resume point: re-running with the same --out skips decks already done.
+Solve mode content-dedupes the corpus by md5 exactly like --parse-only.
 """
 
 from __future__ import annotations
@@ -108,6 +118,17 @@ def apply_server_thread_policy() -> int:
     # server, whose module-level call limits every subsequent solve.
     threadpool_limits(limits={"blas": n, "openmp": n})
     return n
+
+
+def _rlimit_preexec(mem_bytes: int):
+    """preexec_fn capping a child's virtual address space (RLIMIT_AS — the
+    same bound as ``ulimit -v``). Allocation past the cap raises MemoryError
+    in Python workers / fails malloc in nec2c instead of OOMing the host."""
+
+    def fn():
+        resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
+
+    return fn
 
 
 # --------------------------------------------------------------------------
@@ -210,7 +231,7 @@ def parse_ground(deck_text: str):
 _FREQ_RE = re.compile(r"FREQUENCY\s*:\s*([0-9.Ee+-]+)\s*MHz", re.IGNORECASE)
 
 
-def run_nec2c(deck_path: Path, timeout: float):
+def run_nec2c(deck_path: Path, timeout: float, mem_bytes: int | None = None):
     """Run the original deck through nec2c; return the first-frequency result:
     ``{"freq": MHz, "z": [[re, im], ...], "runtime_s": s, "error": str|None}``.
     Short temp paths sidestep nec2c's fixed filename buffer."""
@@ -225,16 +246,18 @@ def run_nec2c(deck_path: Path, timeout: float):
         # solve, and it writes its real diagnostics into the output FILE, not
         # stderr. So don't gate on the exit code — read the output and classify.
         try:
-            subprocess.run(
+            proc = subprocess.run(
                 ["nec2c", "-i", str(nec), "-o", str(out)],
                 capture_output=True,
                 timeout=timeout,
+                preexec_fn=_rlimit_preexec(mem_bytes) if mem_bytes else None,
             )
         except subprocess.TimeoutExpired:
             return {"error": f"nec2c timeout >{timeout:.0f}s"}
         runtime = time.perf_counter() - t0
         if not out.exists():
-            return {"error": "nec2c produced no output"}
+            tail = (proc.stderr or b"").decode(errors="replace").strip()[-120:]
+            return {"error": f"nec2c produced no output (rc={proc.returncode}) {tail}"}
         text = out.read_text()
         lines = text.splitlines()
 
@@ -376,29 +399,49 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
     print(json.dumps(result))
 
 
-def run_engine(engine, deck_path, freq, ground, timeout, allow_intersections=False):
+def run_engine(
+    engine,
+    deck_path,
+    freq,
+    ground,
+    timeout,
+    allow_intersections=False,
+    mem_bytes=None,
+):
     """Dispatch a worker subprocess for one (deck, engine); parse its JSON."""
     env = dict(os.environ)
     if allow_intersections:
         env["PYNEC_ALLOW_INTERSECTIONS"] = "1"
-    proc = subprocess.run(
-        [
-            sys.executable,
-            __file__,
-            "--worker",
-            engine,
-            str(deck_path),
-            repr(float(freq)),
-            json.dumps(ground),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=None if timeout is None else timeout + 15,
-        env=env,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                __file__,
+                "--worker",
+                engine,
+                str(deck_path),
+                repr(float(freq)),
+                json.dumps(ground),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=None if timeout is None else timeout + 15,
+            env=env,
+            preexec_fn=_rlimit_preexec(mem_bytes) if mem_bytes else None,
+        )
+    except subprocess.TimeoutExpired:
+        # Wild decks WILL hit the wall-clock cap; that is a result, not a
+        # sweep-stopper (the pre-#410 code let this propagate and killed
+        # the whole run on the first slow deck).
+        return {"error": f"solve timeout >{timeout:.0f}s"}
     if proc.returncode != 0 and not proc.stdout.strip():
         tail = (proc.stderr or "").strip()[-200:]
-        return {"error": f"worker exited {proc.returncode}: {tail}"}
+        note = (
+            " (mem-limit set, likely OOM abort)"
+            if mem_bytes and proc.returncode < 0
+            else ""
+        )
+        return {"error": f"worker exited {proc.returncode}{note}: {tail}"}
     try:
         return json.loads(proc.stdout.strip().splitlines()[-1])
     except (json.JSONDecodeError, IndexError):
@@ -419,18 +462,36 @@ def run_engine(engine, deck_path, freq, ground, timeout, allow_intersections=Fal
 # translation/wrapper bug. Classify them as `geo` so the report distinguishes
 # "engine rejected the geometry" from an actual solve crash.
 _GEO_REJECT_RE = re.compile(r"GEOMETRY DATA ERROR|INTERSECTS WIRE", re.IGNORECASE)
+# RLIMIT_AS trips surface as MemoryError / numpy "Unable to allocate" in the
+# worker, OpenBLAS's "Memory allocation still failed" (exits 1 before Python
+# can catch anything), std::bad_alloc out of the C++ kernels, or (rarely) an
+# abort/SIGSEGV when C code doesn't check malloc — a negative returncode with
+# the limit on.
+_MEM_RE = re.compile(
+    r"MemoryError|bad_alloc|Unable to allocate|Cannot allocate|Out of memory"
+    r"|Memory allocation|likely OOM abort",
+    re.IGNORECASE,
+)
+_TIMEOUT_RE = re.compile(r"solve timeout")
 
 
 def engine_error_kind(res):
-    """Classify an engine result's error into ``None`` (no error), ``"geo"``
-    (nec2++ geometry-intersection rejection — a documented kernel limitation,
-    issue #409), or ``"err"`` (any other failure)."""
+    """Classify an engine result's error: ``None`` (no error), ``"geo"``
+    (nec2++ geometry-intersection rejection — documented kernel limitation,
+    issue #409), ``"mem"`` (hit the --mem-limit-gb cap), ``"timeout"`` (hit
+    the --timeout wall-clock cap), or ``"err"`` (any other failure)."""
     if res is None:
         return "err"
     err = res.get("error")
     if not err:
         return None
-    return "geo" if _GEO_REJECT_RE.search(err) else "err"
+    if _GEO_REJECT_RE.search(err):
+        return "geo"
+    if _TIMEOUT_RE.search(err):
+        return "timeout"
+    if _MEM_RE.search(err):
+        return "mem"
+    return "err"
 
 
 # --------------------------------------------------------------------------
@@ -470,10 +531,17 @@ def compare(engine_z, ref_z):
 
 
 def bench_deck(
-    deck_path: Path, engines, timeout, run_with_ground=True, allow_intersections=False
+    deck_path: Path,
+    engines,
+    timeout,
+    run_with_ground=True,
+    allow_intersections=False,
+    mem_bytes=None,
+    rel_name=None,
 ):
-    name = deck_path.stem
-    row = {"deck": name, "error": None}
+    # rel_name (corpus-relative path) disambiguates wild trees where the same
+    # stem appears under several sources.
+    row = {"deck": rel_name or deck_path.stem, "error": None}
     text = deck_path.read_text()
     try:
         deck, _net, ignored_net = load_deck(text, deck_path.name)
@@ -497,17 +565,22 @@ def bench_deck(
         partial_net_detail=[c for c, _ in ignored_net][:4],
     )
 
-    ref = run_nec2c(deck_path, timeout)
+    ref = run_nec2c(deck_path, timeout, mem_bytes)
     row["nec2c"] = ref
     if ref.get("error"):
         return row
     freq = ref["freq"]
+    if freq is None:
+        row["error"] = "nec2c gave impedance but no parseable FREQUENCY line"
+        return row
     row["freq"] = freq
 
     eng_ground = ground if run_with_ground else "free"
     row["engines"] = {}
     for e in engines:
-        res = run_engine(e, deck_path, freq, eng_ground, timeout, allow_intersections)
+        res = run_engine(
+            e, deck_path, freq, eng_ground, timeout, allow_intersections, mem_bytes
+        )
         if res.get("error") is None and "z" in res:
             res["cmp"] = compare(res["z"], ref["z"])
         else:
@@ -522,6 +595,10 @@ def fmt_dg(res):
     kind = engine_error_kind(res)
     if kind == "geo":
         return "GEO"  # nec2++ geometry-intersection rejection (issue #409)
+    if kind == "mem":
+        return "MEM"  # hit --mem-limit-gb
+    if kind == "timeout":
+        return "TIME"  # hit --timeout
     if kind == "err":
         return "ERR"
     cmp = res.get("cmp") or []
@@ -628,6 +705,8 @@ def print_report(rows, engines):
     ]
     if eng_errs:
         geo = [x for x in eng_errs if x[2] == "geo"]
+        mem = [x for x in eng_errs if x[2] == "mem"]
+        tmo = [x for x in eng_errs if x[2] == "timeout"]
         other = [x for x in eng_errs if x[2] == "err"]
         print("\n" + "=" * 72)
         print(f"ENGINE ERRORS ON REFERENCED DECKS ({len(eng_errs)})")
@@ -638,6 +717,14 @@ def print_report(rows, engines):
                 "genuine kernel limitation, nec2c & momwire accept the geometry:"
             )
             for deck, e, _k, why in geo:
+                print(f"  {deck:<28} {ENGINE_LABEL[e]:<12} {(why or '')[:70]}")
+        if mem:
+            print(f"MEM — hit the memory cap ({len(mem)}):")
+            for deck, e, _k, why in mem:
+                print(f"  {deck:<28} {ENGINE_LABEL[e]:<12} {(why or '')[:70]}")
+        if tmo:
+            print(f"TIME — hit the wall-clock cap ({len(tmo)}):")
+            for deck, e, _k, why in tmo:
                 print(f"  {deck:<28} {ENGINE_LABEL[e]:<12} {(why or '')[:70]}")
         if other:
             print(f"ERR — other engine failures ({len(other)}):")
@@ -776,6 +863,35 @@ def parse_census(decks, corpus, out_path):
         print(f"\nfull census -> {out_path}")
 
 
+def nec2c_fingerprint():
+    """Identify the nec2c build the sweep scores against (census caveat:
+    vanilla 1.3.1 and the KJ7LNW fork disagree on some decks — results are
+    only comparable against the same binary)."""
+    import hashlib
+
+    path = shutil.which("nec2c")
+    if not path:
+        return {"path": None}
+    ver = subprocess.run(["nec2c", "-v"], capture_output=True, text=True).stdout.strip()
+    md5 = hashlib.md5(Path(path).read_bytes()).hexdigest()
+    return {"path": path, "version": ver, "md5": md5}
+
+
+def dedupe_decks(decks):
+    """Content-dedupe (md5, first path wins) — same rule as --parse-only;
+    the wild corpus has ~860 exact duplicates across source mirrors."""
+    import hashlib
+
+    seen: set[str] = set()
+    unique = []
+    for p in decks:
+        h = hashlib.md5(p.read_bytes()).hexdigest()
+        if h not in seen:
+            seen.add(h)
+            unique.append(p)
+    return unique, len(decks) - len(unique)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -802,6 +918,14 @@ def main(argv=None):
         help="per-solve / per-nec2c wall-clock cap (s)",
     )
     ap.add_argument(
+        "--mem-limit-gb",
+        type=float,
+        default=None,
+        help="RLIMIT_AS cap (GB) applied to every solve subprocess and the "
+        "nec2c reference run — one pathological wild deck can't OOM the host "
+        "(issue #410)",
+    )
+    ap.add_argument(
         "--free-space",
         action="store_true",
         help="run engines free-space regardless of the deck's GN",
@@ -814,7 +938,13 @@ def main(argv=None):
         "(issue #409; needs pynec-accel >=1.7.5)",
     )
     ap.add_argument(
-        "--out", type=Path, default=None, help="write full results JSON here"
+        "--out",
+        type=Path,
+        default=None,
+        help="write full results here. A .json path is written once at the "
+        "end; a .jsonl path is written incrementally (one row per deck as it "
+        "finishes) and doubles as a resume point — re-running with the same "
+        "--out skips decks already recorded",
     )
     ap.add_argument(
         "--parse-only",
@@ -853,33 +983,81 @@ def main(argv=None):
         parse_census(decks, corpus, args.out)
         return
 
+    decks, n_dups = dedupe_decks(decks)
+    mem_bytes = int(args.mem_limit_gb * 2**30) if args.mem_limit_gb else None
+
     cores = physical_cpu_count()
+    nec2c_id = nec2c_fingerprint()
     print(f"corpus: {corpus}")
-    print(f"decks: {len(decks)}   engines: {', '.join(args.engines)}")
+    print(
+        f"decks: {len(decks)} (content dups skipped: {n_dups})   "
+        f"engines: {', '.join(args.engines)}"
+    )
+    print(
+        f"bounds: timeout={args.timeout:.0f}s/solve   "
+        f"mem={args.mem_limit_gb or 'unlimited'}"
+        + ("GB (RLIMIT_AS)" if args.mem_limit_gb else "")
+    )
+    print(
+        f"nec2c reference: {nec2c_id.get('version')} at {nec2c_id.get('path')} "
+        f"md5={nec2c_id.get('md5')}"
+    )
     print(
         f"concurrency (mirrors web/server.py): BLAS={cores} OpenMP={cores} "
         f"OMP_WAIT_POLICY={os.environ['OMP_WAIT_POLICY']} "
         f"GOMP_SPINCOUNT={os.environ['GOMP_SPINCOUNT']}   (serial dispatch)"
     )
-    if shutil.which("nec2c") is None:
+    if nec2c_id.get("path") is None:
         sys.exit("nec2c not on PATH — build it and symlink into ~/.local/bin")
 
-    rows = []
+    # Incremental JSONL mode: resume by skipping decks already recorded.
+    jsonl = args.out if args.out and args.out.suffix == ".jsonl" else None
+    done: dict[str, dict] = {}
+    if jsonl and jsonl.exists():
+        for line in jsonl.read_text().splitlines():
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # torn final line from a killed run
+            if "_meta" not in rec:
+                done[rec["deck"]] = rec
+        print(f"resume: {len(done)} decks already in {jsonl}, skipping those")
+    elif jsonl:
+        meta = {
+            "_meta": {
+                "corpus": str(corpus),
+                "engines": list(args.engines),
+                "timeout_s": args.timeout,
+                "mem_limit_gb": args.mem_limit_gb,
+                "nec2c": nec2c_id,
+                "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        }
+        jsonl.write_text(json.dumps(meta) + "\n")
+
+    rows = list(done.values())
     for i, deck in enumerate(decks, 1):
-        print(f"[{i}/{len(decks)}] {deck.stem} ...", flush=True)
-        rows.append(
-            bench_deck(
-                deck,
-                args.engines,
-                args.timeout,
-                run_with_ground=not args.free_space,
-                allow_intersections=args.allow_wire_intersections,
-            )
+        rel = str(deck.relative_to(corpus))
+        if rel in done:
+            continue
+        print(f"[{i}/{len(decks)}] {rel} ...", flush=True)
+        row = bench_deck(
+            deck,
+            args.engines,
+            args.timeout,
+            run_with_ground=not args.free_space,
+            allow_intersections=args.allow_wire_intersections,
+            mem_bytes=mem_bytes,
+            rel_name=rel,
         )
+        rows.append(row)
+        if jsonl:
+            with jsonl.open("a") as f:
+                f.write(json.dumps(row) + "\n")
 
     print_report(rows, args.engines)
 
-    if args.out:
+    if args.out and not jsonl:
         args.out.write_text(json.dumps(rows, indent=2))
         print(f"\nfull results -> {args.out}")
 
