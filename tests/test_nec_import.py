@@ -456,16 +456,22 @@ def test_ld_range_expands_per_segment_up_to_cap():
     assert any("12 segments" in why for _m, why in deck.ignored_detail)
 
 
-def test_ld4_pure_resistance_translates_reactance_does_not():
+def test_ld4_resistance_and_reactance_both_translate():
+    # Pure resistance -> a plain series Load(r=R).
     deck = parse_nec(_dipole7("LD 4 1 2 2 50.0 0 0"), network=True)
     assert deck.loads == (
         NecLoad(wire=0, seg=2, r=50.0, l=None, c=None, parallel=False),
     )
+    # Reactance (X != 0) -> a fixed complex-Z series Load (issue #422), no
+    # longer dropped.
     deck = parse_nec(_dipole7("LD 4 1 2 2 50.0 25.0 0"), network=True)
-    assert deck.loads == () and "LD" in deck.ignored
-    assert any("type 4" in why for _m, why in deck.ignored_detail)
-    # The reason surfaces in the UI note (composes with #373).
-    assert "type 4" in deck.skipped_note()
+    (ld,) = deck.loads
+    assert ld.z == complex(50.0, 25.0)
+    assert ld.r is None and ld.l is None and ld.c is None
+    assert "LD" not in deck.ignored
+    assert not any(m == "LD" for m, _ in deck.ignored_detail)
+    (br,) = deck.network().branches
+    assert isinstance(br, Load) and br.z == complex(50.0, 25.0)
 
 
 def test_ld5_whole_structure_becomes_conductivity():

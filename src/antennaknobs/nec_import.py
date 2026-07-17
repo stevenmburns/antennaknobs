@@ -26,12 +26,13 @@ lumped LD loads become ``Load`` branches on named 1-segment wires, LD 5 wire
 conductivity surfaces as ``NecDeck.conductivity`` (feed it to ``WireSpec``),
 TL cards become ``TL`` branches (crossed lines, zero-length = port
 separation, end shunts — a conductance as a ``Shunt``, a reactive G+jB as a
-fixed 1-port ``Admittance``, issue #423), and an NT card becomes its exact
+fixed 1-port ``Admittance``, issue #423), an NT card becomes its exact
 resistive pi when the Y matrix is all-real (``TwoPort`` + ``Shunt``) or a
-2-port ``Admittance`` when it carries susceptance. What cannot be expressed
-exactly — frequency-independent series reactance (LD 4 with X≠0), distributed
-RLC (LD 2/3), range-limited conductivity — stays in ``ignored`` with a
-per-card reason in ``ignored_detail``. ``wire_tuples()`` then emits *named* wires (no legacy
+2-port ``Admittance`` when it carries susceptance, and an LD 4 reactive load
+(fixed R+jX) becomes a fixed-complex-Z ``Load`` (issue #422). What cannot be
+expressed exactly — distributed RLC (LD 2/3), range-limited conductivity —
+stays in ``ignored`` with a per-card reason in ``ignored_detail``.
+``wire_tuples()`` then emits *named* wires (no legacy
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
 return from ``build_wires`` / ``build_network``.
 
@@ -123,7 +124,11 @@ class NecLoad:
     NEC's per-segment ld_card semantics, so a multi-segment LD range appears
     as one ``NecLoad`` per segment. ``parallel`` distinguishes LD type 1
     (parallel RLC, the trap idiom) from type 0/4 (series). Legs the card
-    left at zero are ``None`` (omitted), matching ``network.Load``."""
+    left at zero are ``None`` (omitted), matching ``network.Load``.
+
+    ``z`` carries an LD type 4 reactive load as a fixed complex impedance
+    R + jX (issue #422); it is mutually exclusive with r/l/c, and a
+    conductance-only type 4 (X = 0) stays a plain ``r`` instead."""
 
     wire: int
     seg: int
@@ -131,6 +136,7 @@ class NecLoad:
     l: float | None  # noqa: E741 — matches network.Load's field name
     c: float | None
     parallel: bool
+    z: complex | None = None
 
 
 @dataclass(frozen=True)
@@ -521,6 +527,7 @@ class NecDeck:
                     l=ld.l,
                     c=ld.c,
                     parallel=ld.parallel,
+                    z=ld.z,
                 )
             )
         for tl in self.tls:
@@ -1378,13 +1385,6 @@ def _translate_network_cards(
         ldtyp = card.i(0)
         tag, sf, st = card.i(1), card.i(2), card.i(3)
         if ldtyp in (0, 1, 4):
-            if ldtyp == 4 and card.f(5) != 0.0:
-                skip(
-                    "LD",
-                    "type 4 fixed reactance is frequency-independent — "
-                    "not representable with R/L/C",
-                )
-                continue
             pairs = _segment_range(wires, tag, sf, st, card)
             if len(pairs) > _LD_EXPAND_MAX:
                 skip(
@@ -1393,10 +1393,21 @@ def _translate_network_cards(
                     f"expands at most {_LD_EXPAND_MAX} into per-segment loads",
                 )
                 continue
-            r = card.f(4) or None
-            le = None if ldtyp == 4 else (card.f(5) or None)
-            c = None if ldtyp == 4 else (card.f(6) or None)
-            if r is None and le is None and c is None:
+            z = None
+            if ldtyp == 4:
+                # Type 4: a fixed series impedance R + jX (F1=R, F2=X). A pure
+                # resistance stays a plain Load(r=R); a reactive one (X != 0,
+                # issue #422) becomes a fixed complex-Z Load.
+                r, x = card.f(4), card.f(5)
+                if x != 0.0:
+                    z, r, le, c = complex(r, x), None, None, None
+                else:
+                    r, le, c = (r or None), None, None
+            else:
+                r = card.f(4) or None
+                le = card.f(5) or None
+                c = card.f(6) or None
+            if r is None and le is None and c is None and z is None:
                 continue  # zero-valued load — a no-op
             for pair in pairs:
                 if pair in connected:
@@ -1410,7 +1421,7 @@ def _translate_network_cards(
                     skip("LD", "a second load on one segment is not merged")
                     continue
                 loaded.add(pair)
-                loads.append(NecLoad(pair[0], pair[1], r, le, c, ldtyp == 1))
+                loads.append(NecLoad(pair[0], pair[1], r, le, c, ldtyp == 1, z=z))
         elif ldtyp in (2, 3):
             skip("LD", f"type {ldtyp} distributed per-metre loading is not translated")
         elif ldtyp == 5:
