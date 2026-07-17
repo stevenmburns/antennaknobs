@@ -90,7 +90,6 @@ _UNSUPPORTED_CARDS = {
     "SP": "a surface patch (SP)",
     "SM": "a multiple-patch surface (SM)",
     "GF": "a numerical Green's function file (GF)",
-    "SY": "symbolic variables (SY, a 4nec2 extension)",
 }
 
 
@@ -511,13 +510,181 @@ def _float(token: str, where: str) -> float:
             raise ValueError(f"{where}: bad number {token!r}") from None
 
 
+# ---------------------------------------------------------------------------
+# SY symbolic variables (4nec2 extension, issue #417)
+# ---------------------------------------------------------------------------
+# 4nec2's expression language is BASIC-flavored: `^` is power, trig works in
+# DEGREES (the corpus is full of `sin(360*x)`), `sqr` is square root, `atn`
+# arctangent (returning degrees), `int` truncates. Names are matched
+# case-insensitively. Evaluation is a whitelisted ast walk — no eval().
+_SY_FUNCS = {
+    "sin": lambda x: math.sin(math.radians(x)),
+    "cos": lambda x: math.cos(math.radians(x)),
+    "tan": lambda x: math.tan(math.radians(x)),
+    "atn": lambda x: math.degrees(math.atan(x)),
+    "atan": lambda x: math.degrees(math.atan(x)),
+    "sqr": math.sqrt,
+    "sqrt": math.sqrt,
+    "abs": abs,
+    "int": lambda x: float(int(x)),
+    "log": math.log,
+    "exp": math.exp,
+}
+_SY_CONSTANTS = {
+    "pi": math.pi,
+    # 4nec2 predefined unit-scale symbols (`SY r = 1.5 * mm`): factors to
+    # metres. A deck's own SY definition of the same name wins (the symbol
+    # table is consulted before these constants).
+    "mm": 1e-3,
+    "cm": 1e-2,
+    "dm": 0.1,
+    "m": 1.0,
+    "in": 0.0254,
+    "ft": 0.3048,
+    # electrical component suffixes (`SY C=36.6pF`, `SY L=0.5uH`)
+    "pf": 1e-12,
+    "nf": 1e-9,
+    "uf": 1e-6,
+    "nh": 1e-9,
+    "uh": 1e-6,
+    "mh": 1e-3,
+}
+
+
+_SY_IDENT = None
+
+
+def _eval_sy_expr(expr: str, syms: dict, where: str) -> float:
+    """Evaluate one 4nec2 expression against the symbol table."""
+    import ast
+    import re
+
+    global _SY_IDENT
+    if _SY_IDENT is None:
+        # An identifier not glued to a preceding digit/dot (so the exponent
+        # in `1e3` / `.5E-2` is never mistaken for a symbol).
+        _SY_IDENT = re.compile(r"(?<![\w.])[A-Za-z_]\w*")
+
+    # Mangle every identifier before ast.parse: 4nec2 names are
+    # case-insensitive and may be Python keywords (`lambda` is the most
+    # idiomatic antenna symbol there is), which would be a SyntaxError.
+    src = expr.strip().replace("^", "**")
+    # Juxtaposed units — `135 ft`, `1.5 mm`, `61ft` — are implicit
+    # multiplication, but ONLY for the predefined unit names (anything
+    # wider would turn typos into silent products). Glued forms are safe
+    # from exponent confusion: `1e3` stays a number because `e` is not a
+    # unit name.
+    src = re.sub(
+        r"([0-9.])\s*(mm|cm|dm|mh|nh|uh|pf|nf|uf|in|ft|m)\b",
+        r"\1*\2",
+        src,
+        flags=re.IGNORECASE,
+    )
+    src = _SY_IDENT.sub(lambda m: f"_v_{m.group(0).lower()}", src)
+    try:
+        tree = ast.parse(src, mode="eval")
+    except SyntaxError:
+        raise ValueError(f"{where}: SY expression {expr!r} is not valid") from None
+
+    def walk(node):
+        if isinstance(node, ast.Expression):
+            return walk(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            v = walk(node.operand)
+            return -v if isinstance(node.op, ast.USub) else v
+        if isinstance(node, ast.BinOp) and isinstance(
+            node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod)
+        ):
+            a, b = walk(node.left), walk(node.right)
+            if isinstance(node.op, ast.Add):
+                return a + b
+            if isinstance(node.op, ast.Sub):
+                return a - b
+            if isinstance(node.op, ast.Mult):
+                return a * b
+            if isinstance(node.op, ast.Div):
+                return a / b
+            if isinstance(node.op, ast.Mod):
+                return math.fmod(a, b)
+            return a**b
+        if isinstance(node, ast.Name):
+            key = node.id.removeprefix("_v_")
+            if key in syms:
+                return syms[key]
+            if key in _SY_CONSTANTS:
+                return _SY_CONSTANTS[key]
+            raise ValueError(f"{where}: undefined symbol {key!r}")
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and not node.keywords
+            and len(node.args) == 1
+        ):
+            fn = _SY_FUNCS.get(node.func.id.removeprefix("_v_"))
+            if fn is not None:
+                return float(fn(walk(node.args[0])))
+            raise ValueError(
+                f"{where}: unknown function "
+                f"{node.func.id.removeprefix('_v_')!r} in SY expression"
+            )
+        raise ValueError(f"{where}: SY expression {expr!r} is not valid")
+
+    return float(walk(tree))
+
+
+def _define_sy(rest: str, syms: dict, where: str) -> None:
+    """Apply one SY card: ``name=expr[, name=expr...]['comment]``."""
+    body = rest.split("'", 1)[0].strip()  # 4nec2 trailing comment
+    if not body:
+        raise ValueError(f"{where}: SY card without an assignment")
+    # Split on top-level commas only (function args never contain commas in
+    # the 4nec2 single-argument vocabulary, but stay paren-aware anyway).
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(body):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(body[start:i])
+            start = i + 1
+    parts.append(body[start:])
+    for part in parts:
+        if "=" not in part:
+            raise ValueError(f"{where}: SY assignment {part.strip()!r} has no '='")
+        name, expr = part.split("=", 1)
+        name = name.strip()
+        if not name.isidentifier():
+            raise ValueError(f"{where}: SY name {name!r} is not a valid symbol")
+        syms[name.lower()] = _eval_sy_expr(expr, syms, where)
+
+
+def _value(token: str, where: str, syms: dict | None) -> float:
+    """A card field: a plain number, or (when the deck defined SY symbols
+    or the token contains a letter) a 4nec2 expression."""
+    try:
+        return _float(token, where)
+    except ValueError:
+        if syms is not None and any(c.isalpha() or c in "()*/+-^" for c in token):
+            return _eval_sy_expr(token, syms, where)
+        raise
+
+
 class _Card:
     """One card line: mnemonic + zero-padded numeric field access."""
 
-    def __init__(self, mnemonic: str, tokens: list[str], where: str):
+    def __init__(
+        self,
+        mnemonic: str,
+        tokens: list[str],
+        where: str,
+        syms: dict | None = None,
+    ):
         self.mnemonic = mnemonic
         self.where = where
-        self.vals = [_float(t, where) for t in tokens]
+        self.vals = [_value(t, where, syms) for t in tokens]
 
     def f(self, k: int) -> float:
         return self.vals[k] if k < len(self.vals) else 0.0
@@ -962,6 +1129,7 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
     freq_mhz: tuple[float, float] | None = None
     ground = False
     extended_kernel = False
+    syms: dict[str, float] = {}  # SY symbol table (#417)
     in_comments = True
 
     geometry = {
@@ -1000,6 +1168,12 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
 
         if mnemonic == "EN":
             break
+        if mnemonic == "SY":
+            # 4nec2 symbolic variables (#417): bind name=expr (possibly
+            # several per card, possibly with a trailing ' comment) into the
+            # symbol table consulted by every later card field.
+            _define_sy(stripped[2:], syms, where)
+            continue
         if mnemonic in _UNSUPPORTED_CARDS:
             raise ValueError(
                 f"{where}: this deck uses {_UNSUPPORTED_CARDS[mnemonic]}, "
@@ -1013,7 +1187,7 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
             # Collected raw and translated after the loop, once the wire
             # list is final (their tag/segment addressing resolves against
             # the transformed geometry, exactly like EX).
-            card = _Card(mnemonic, tokens[1:], where)
+            card = _Card(mnemonic, tokens[1:], where, syms)
             if mnemonic == "LD":
                 if card.i(0) == -1:
                     lds_raw.clear()  # NEC: nullify all previous loads
@@ -1035,14 +1209,14 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
             # ignored. `EK -1` switches back to the standard kernel; any
             # other form turns it on. NEC scopes EK to subsequent geometry;
             # decks in the wild use it globally, so one deck-level flag.
-            card = _Card(mnemonic, tokens[1:], where)
+            card = _Card(mnemonic, tokens[1:], where, syms)
             extended_kernel = card.i(0) != -1
             continue
         if mnemonic in _IGNORED_CARDS:
             ignored.add(mnemonic)
             continue
 
-        card = _Card(mnemonic, tokens[1:], where)
+        card = _Card(mnemonic, tokens[1:], where, syms)
 
         if mnemonic in geometry:
             geometry[mnemonic](card, wires)
