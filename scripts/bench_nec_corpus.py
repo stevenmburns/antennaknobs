@@ -495,6 +495,11 @@ def bench_deck(
         ground_note=note,
         partial_net=bool(ignored_net),
         partial_net_detail=[c for c, _ in ignored_net][:4],
+        # Remote TL-anchor wires the importer replaced with PortVirtual
+        # terminations (issue #427): the deck solves on momwire engines
+        # instead of hanging (momwire#157), at a residual that matches nec2c
+        # better than meshing the tiny remote wire would. Labeled, not hidden.
+        virtualized_anchors=list(deck.virtual_anchor_tags()),
     )
 
     ref = run_nec2c(deck_path, timeout)
@@ -539,7 +544,8 @@ def print_report(rows, engines):
         "(feed 0; ΔΓ = |Γ_eng − Γ_nec2c|, Γ = (Z−50)/(Z+50))"
     )
     print(
-        "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT network"
+        "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT "
+        "network, v = remote TL-anchor wire(s) virtualized (#427)"
     )
     print("=" * 104)
     hdr = (
@@ -550,8 +556,10 @@ def print_report(rows, engines):
     print("-" * len(hdr))
     for r in ok:
         z0 = _z(r["nec2c"]["z"][0])
-        flags = ("g" if not r.get("ground_supported", True) else "") + (
-            "n" if r.get("partial_net") else ""
+        flags = (
+            ("g" if not r.get("ground_supported", True) else "")
+            + ("n" if r.get("partial_net") else "")
+            + ("v" if r.get("virtualized_anchors") else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
@@ -585,7 +593,7 @@ def print_report(rows, engines):
     print("\n" + "=" * 72)
     print(
         "AGREEMENT ROLLUP  (feed-0 ΔΓ; clean decks: supported ground, "
-        "fully-expressed network)"
+        "fully-expressed network, no virtualized anchors)"
     )
     print("=" * 72)
     for e in engines:
@@ -594,6 +602,7 @@ def print_report(rows, engines):
             for r in ok
             if r.get("ground_supported", True)
             and not r.get("partial_net")
+            and not r.get("virtualized_anchors")
             and not r["engines"].get(e, {}).get("error")
             and r["engines"][e].get("cmp")
         ]

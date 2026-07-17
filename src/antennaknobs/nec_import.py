@@ -140,7 +140,18 @@ class NecTL:
     ``length`` is resolved: the card's length, or the straight-line distance
     between the segment midpoints when the card says 0 (NEC semantics).
     ``shunt_r_*`` carry conductance-only end admittances as 1/G resistances
-    (a card with susceptance in an end admittance is not translated)."""
+    (a card with susceptance on a *real* end admittance is not translated).
+
+    ``virtual_a`` / ``virtual_b`` mark an end that lands on a virtualized
+    remote TL-anchor wire (issue #427): that segment carries no geometry, so
+    ``network()`` terminates the line on a ``PortVirtual`` circuit node
+    instead of a ``PortOnWire``, and the anchor wire is dropped from
+    ``wire_tuples()``. A virtual end may carry susceptance — its full complex
+    end admittance is kept in ``shunt_y_a`` / ``shunt_y_b`` and stamped as a
+    1-port ``Admittance`` on the virtual node (the shorted-stub variant); a
+    zero ``shunt_y`` leaves the node an ideal open (the open-stub variant).
+    The ``shunt_r_*`` / ``shunt_y_*`` fields are mutually exclusive per end:
+    a real end uses ``shunt_r``, a virtual end uses ``shunt_y``."""
 
     wire_a: int
     seg_a: int
@@ -151,6 +162,10 @@ class NecTL:
     transposed: bool
     shunt_r_a: float | None
     shunt_r_b: float | None
+    virtual_a: bool = False
+    virtual_b: bool = False
+    shunt_y_a: complex | None = None
+    shunt_y_b: complex | None = None
 
 
 @dataclass(frozen=True)
@@ -207,6 +222,18 @@ class NecDeck:
     # its own formulation, so this is reference fidelity, not a momwire knob.
     # Deck-level: True if any EK card other than `EK -1` (off) appears.
     extended_kernel: bool = False
+    # Wire indices (into ``wires``) detected as remote TL-anchor wires and
+    # virtualized (issue #427): a 1-segment wire parked ≫λ away, referenced
+    # only as a TL far-end termination. They are dropped from wire_tuples()
+    # and their TL end becomes a PortVirtual in network(). Empty unless
+    # parsed with network=True and virtualize_anchors=True.
+    virtual_anchors: frozenset[int] = frozenset()
+
+    def virtual_anchor_tags(self) -> tuple[int, ...]:
+        """The NEC tags of the wires virtualized as TL anchors (issue #427),
+        in wire order — for honest benchmark/UI labeling of decks whose
+        remote anchor geometry the app replaced with a circuit termination."""
+        return tuple(self.wires[i].tag for i in sorted(self.virtual_anchors))
 
     def dominant_radius(self) -> float:
         """The deck's wire radius, length-weighted where wires differ.
@@ -252,6 +279,14 @@ class NecDeck:
             parts.append(f"deck cards not applied: {cards}")
         if self.ground:
             parts.append("the deck models a ground plane")
+        if self.virtual_anchors:
+            tags = ", ".join(str(t) for t in self.virtual_anchor_tags())
+            n = len(self.virtual_anchors)
+            parts.append(
+                f"{n} remote TL-anchor wire{'s' if n > 1 else ''} "
+                f"(tag{'s' if n > 1 else ''} {tags}) modeled as ideal virtual "
+                f"terminations"
+            )
         if not parts:
             return None
         body = "; ".join(parts)
@@ -407,6 +442,10 @@ class NecDeck:
                 tups.append((p0, p1, n, ex))
 
         for i, w in enumerate(self.wires):
+            if i in self.virtual_anchors:
+                # Remote TL-anchor wire (issue #427): no geometry — its TL end
+                # is a PortVirtual in network(), so emit nothing here.
+                continue
             per = marks.get(i, {})
             cutset = self._junction_cuts.get(i, frozenset())
             n = w.n_seg
@@ -460,7 +499,16 @@ class NecDeck:
                 "parse_nec/read_nec with network=True"
             )
         plan = self._port_plan
-        ports = {pname: _net.PortOnWire(pname) for pname in plan.values()}
+        # A port on a virtualized anchor wire (issue #427) is a pure circuit
+        # node (PortVirtual), no geometry; every other port is on a real wire.
+        ports = {
+            pname: (
+                _net.PortVirtual(pname)
+                if wi in self.virtual_anchors
+                else _net.PortOnWire(pname)
+            )
+            for (wi, _seg), pname in plan.items()
+        }
         branches: list = []
         for ld in self.loads:
             branches.append(
@@ -482,6 +530,13 @@ class NecDeck:
                 branches.append(_net.Shunt(port=a, r=tl.shunt_r_a))
             if tl.shunt_r_b is not None:
                 branches.append(_net.Shunt(port=b, r=tl.shunt_r_b))
+            # Virtual-anchor far-end admittance (issue #427): the full complex
+            # end Y as a fixed 1-port Admittance on the virtual node. Absent
+            # (None) leaves the node an ideal open — the open-stub variant.
+            if tl.shunt_y_a is not None:
+                branches.append(_net.Admittance(ports=(a,), y=((tl.shunt_y_a,),)))
+            if tl.shunt_y_b is not None:
+                branches.append(_net.Admittance(ports=(b,), y=((tl.shunt_y_b,),)))
         for nt in self.nts:
             a = plan[(nt.wire_a, nt.seg_a)]
             b = plan[(nt.wire_b, nt.seg_b)]
@@ -503,12 +558,20 @@ class NecDeck:
         return _net.Network(ports=ports, branches=branches, sources=sources)
 
 
-def read_nec(builder, name: str, *, network: bool = False) -> NecDeck:
+def read_nec(
+    builder, name: str, *, network: bool = False, virtualize_anchors: bool = True
+) -> NecDeck:
     """``read_data`` followed by ``parse_nec`` — load a NEC card deck that
     ships next to ``builder``'s design, with the same folder confinement as
     ``read_json``. ``network=True`` translates the deck's expressible
-    LD/TL/NT cards into ``deck.network()`` (see the module docstring)."""
-    return parse_nec(read_data(builder, name), name=name, network=network)
+    LD/TL/NT cards into ``deck.network()`` (see the module docstring);
+    ``virtualize_anchors`` forwards to ``parse_nec`` (issue #427)."""
+    return parse_nec(
+        read_data(builder, name),
+        name=name,
+        network=network,
+        virtualize_anchors=virtualize_anchors,
+    )
 
 
 def _float(token: str, where: str) -> float:
@@ -1069,7 +1132,113 @@ def _segment_range(wires, tag, sf, st, card):
     return [_locate_segment(wires, tag, s, card) for s in range(sf, st + 1)]
 
 
-def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
+# Clearance, in wavelengths, beyond which a 1-segment TL-terminated wire is
+# treated as an electrically irrelevant remote anchor (issue #427). The
+# corpus family parks anchors ~100–500 λ away; NEC's own thin-wire coupling is
+# long dead by 10 λ, so a wire this far from everything else is there only to
+# give a TL card a far-end segment. Kept conservative so nothing intentional
+# (a real end-loaded stub a fraction of a wavelength away) is ever swallowed.
+_ANCHOR_CLEARANCE_LAMBDA = 10.0
+_C_MPS = 299_792_458.0  # speed of light, for wavelength = c / f
+
+
+def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
+    """Wire indices that are remote TL-anchor wires (issue #427).
+
+    A wire qualifies (all must hold) when it is a 1-segment wire referenced
+    ONLY as a TL endpoint — not driven (EX), not carrying a lumped/distributed
+    LD, not an NT endpoint, not sharing a node with any other wire — and sits
+    a clearance of more than ``_ANCHOR_CLEARANCE_LAMBDA`` wavelengths (and far
+    more than its own extent) from the rest of the structure. Such a wire is a
+    NEC modeling artifact: it exists to terminate a ``TL`` card and is designed
+    to be electrically irrelevant, so ``network()`` replaces it with a
+    ``PortVirtual`` termination and ``wire_tuples()`` drops it.
+
+    Needs a frequency to measure clearance in wavelengths: with no FR card
+    (``freq_mhz is None``) nothing is virtualized — the safe default is to
+    model the deck exactly as written.
+    """
+    if freq_mhz is None or len(wires) < 2:
+        return set()
+    # Largest wavelength in the sweep (lowest frequency) — the most
+    # conservative clearance threshold.
+    lam = _C_MPS / (min(freq_mhz) * 1e6)
+
+    def loc(card, a, b):
+        return _locate_segment(wires, card.i(a), card.i(b), card)[0]
+
+    tl_refs: set[int] = set()
+    for card in tls_raw:
+        tl_refs.add(loc(card, 0, 1))
+        tl_refs.add(loc(card, 2, 3))
+    if not tl_refs:
+        return set()
+
+    # Wires the network otherwise uses electrically — never anchors.
+    excluded: set[int] = {f.wire for f in feeds}
+    for card in nts_raw:
+        excluded.add(loc(card, 0, 1))
+        excluded.add(loc(card, 2, 3))
+    for card in lds_raw:
+        if card.i(0) == 5:
+            continue  # LD 5 is a material conductivity, not an element
+        tag, sf, st = card.i(1), card.i(2), card.i(3)
+        if tag == 0 and sf == 0:
+            continue  # whole-structure load — does not single out a wire
+        for wi, _ in _segment_range(wires, tag, sf, st, card):
+            excluded.add(wi)
+
+    # Node-coincidence over every wire's segment boundaries: an anchor touches
+    # nothing, so any shared node disqualifies it (same key() as wire_tuples).
+    eps = 1e-9
+
+    def key(p):
+        return tuple(round(c / eps) for c in p)
+
+    def boundary(w, k):
+        t = k / w[1]
+        return tuple(a + (b - a) * t for a, b in zip(w[2], w[3]))
+
+    owners: dict[tuple, set[int]] = {}
+    for i, w in enumerate(wires):
+        for k in range(w[1] + 1):
+            owners.setdefault(key(boundary(w, k)), set()).add(i)
+
+    def junctioned(i):
+        w = wires[i]
+        return any(len(owners[key(boundary(w, k))]) > 1 for k in range(w[1] + 1))
+
+    def clearance(i):
+        """Nearest endpoint-to-endpoint distance from wire ``i`` to any other
+        wire — a lower bound on true separation, ample at ≫10 λ scales."""
+        wi = wires[i]
+        pts_i = (wi[2], wi[3])
+        best = math.inf
+        for j, wj in enumerate(wires):
+            if j == i:
+                continue
+            for pj in (wj[2], wj[3]):
+                for pi in pts_i:
+                    d = math.dist(pi, pj)
+                    if d < best:
+                        best = d
+        return best
+
+    anchors: set[int] = set()
+    for i in tl_refs:
+        w = wires[i]
+        if w[1] != 1 or i in excluded or junctioned(i):
+            continue
+        extent = math.dist(w[2], w[3])
+        clr = clearance(i)
+        if clr > _ANCHOR_CLEARANCE_LAMBDA * lam and clr > 100.0 * extent:
+            anchors.add(i)
+    return anchors
+
+
+def _translate_network_cards(
+    wires, lds_raw, tls_raw, nts_raw, feeds, freq_mhz, virtualize_anchors
+):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
     unmodelled. TL/NT resolve first so loads can refuse to co-locate with a
@@ -1084,11 +1253,25 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
         if (mnemonic, reason) not in detail:
             detail.append((mnemonic, reason))
 
+    anchors = (
+        _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz)
+        if virtualize_anchors
+        else set()
+    )
+    virtualized: set[int] = set()  # anchors actually replaced by a virtual end
+
     tls: list[NecTL] = []
     for card in tls_raw:
         wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
         wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
-        if card.f(7) != 0.0 or card.f(9) != 0.0:
+        va, vb = wa in anchors, wb in anchors
+        # End admittances (G+jB). Susceptance on a *real* end can't be
+        # expressed as R/L/C, so it still sinks the TL; a *virtual* end
+        # (remote anchor, issue #427) carries its full complex Y to a 1-port
+        # Admittance on the virtual node, so susceptance there is fine.
+        ya = complex(card.f(6), card.f(7))
+        yb = complex(card.f(8), card.f(9))
+        if (not va and ya.imag != 0.0) or (not vb and yb.imag != 0.0):
             skip(
                 "TL",
                 "an end admittance has susceptance — NEC's constant B is "
@@ -1103,7 +1286,6 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
             # NEC: zero length means the straight-line distance between
             # the connection points.
             length = math.dist(_seg_mid(wires[wa], sa), _seg_mid(wires[wb], sb))
-        ga, gb = card.f(6), card.f(8)
         tls.append(
             NecTL(
                 wire_a=wa,
@@ -1113,10 +1295,18 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
                 z0=abs(z0),
                 length=length,
                 transposed=z0 < 0.0,
-                shunt_r_a=1.0 / ga if ga else None,
-                shunt_r_b=1.0 / gb if gb else None,
+                shunt_r_a=None if va else (1.0 / ya.real if ya.real else None),
+                shunt_r_b=None if vb else (1.0 / yb.real if yb.real else None),
+                virtual_a=va,
+                virtual_b=vb,
+                shunt_y_a=(ya if ya != 0 else None) if va else None,
+                shunt_y_b=(yb if yb != 0 else None) if vb else None,
             )
         )
+        if va:
+            virtualized.add(wa)
+        if vb:
+            virtualized.add(wb)
 
     nts: list[NecNT] = []
     for card in nts_raw:
@@ -1240,15 +1430,29 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
         tuple(sorted(wire_conductivity.items())),
         detail,
         skipped,
+        frozenset(virtualized),
     )
 
 
-def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> NecDeck:
+def parse_nec(
+    text: str,
+    *,
+    name: str = "NEC deck",
+    network: bool = False,
+    virtualize_anchors: bool = True,
+) -> NecDeck:
     """Parse the text of a NEC2 card deck into a :class:`NecDeck`.
 
     ``network=True`` additionally translates the deck's expressible LD/TL/NT
     cards into ``deck.network()`` branches instead of recording them in
     ``ignored`` — see the module docstring for exactly what translates.
+
+    ``virtualize_anchors`` (network mode only, default on) replaces a remote
+    1-segment TL-anchor wire with a ``PortVirtual`` termination (issue #427):
+    a wire ≫10 λ from everything else, referenced only to give a TL card a
+    far-end segment, is dropped from ``wire_tuples()`` and its TL end becomes
+    a pure circuit node — an ideal open, or a 1-port ``Admittance`` for a
+    shorted-stub far-Y. Set it ``False`` to model such wires as real geometry.
 
     Raises ``ValueError`` (with ``name`` and the line number) on cards that
     are malformed or describe things antennaknobs cannot model — patches,
@@ -1416,6 +1620,7 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
     conductivity: float | None = None
     wire_conductivity: tuple[tuple[int, float], ...] = ()
     detail: list[tuple[str, str]] = []
+    virtual_anchors: frozenset[int] = frozenset()
     if network:
         (
             loads,
@@ -1425,7 +1630,10 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
             wire_conductivity,
             detail,
             skipped,
-        ) = _translate_network_cards(wires, lds_raw, tls_raw, nts_raw)
+            virtual_anchors,
+        ) = _translate_network_cards(
+            wires, lds_raw, tls_raw, nts_raw, feeds, freq_mhz, virtualize_anchors
+        )
         ignored |= skipped
 
     return NecDeck(
@@ -1446,4 +1654,5 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
         ignored_detail=tuple(detail),
         network_mode=network,
         extended_kernel=extended_kernel,
+        virtual_anchors=virtual_anchors,
     )
