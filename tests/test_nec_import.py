@@ -576,12 +576,21 @@ def test_nt_real_y_decomposes_into_resistive_pi():
     }
 
 
-def test_nt_susceptance_is_ignored_and_nt_minus_one_clears():
+def test_nt_susceptance_becomes_admittance_and_nt_minus_one_clears():
+    # An NT with susceptance is now translated to a general complex-Y branch
+    # (issue #416), carrying the full 2x2 short-circuit Y (Y21 = Y12), not
+    # ignored.
+    from antennaknobs.network import Admittance
+
     deck = parse_nec(
         TWO_VERTICALS.format(tl="NT 1 2 2 2 0.02 0.01 -0.01 0 0.015 0"),
         network=True,
     )
-    assert deck.nts == () and "NT" in deck.ignored
+    assert "NT" not in deck.ignored
+    (nt,) = deck.nts
+    assert nt.y == ((0.02 + 0.01j, -0.01 + 0j), (-0.01 + 0j, 0.015 + 0j))
+    (adm,) = [b for b in deck.network().branches if isinstance(b, Admittance)]
+    assert adm.ports == ("feed", "nt1b")
     # NT -1 cancels all previous network AND transmission-line data.
     deck = parse_nec(
         TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 0 0\nNT -1 0 0 0 0 0 0 0 0 0"),

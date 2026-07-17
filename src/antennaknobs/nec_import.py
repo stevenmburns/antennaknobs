@@ -156,21 +156,27 @@ class NecTL:
 
 @dataclass(frozen=True)
 class NecNT:
-    """One translated NT card (``network=True``): an all-real Y matrix,
-    decomposed into its exact resistive pi — a series resistance between the
-    ports (from −Y12) plus a shunt resistance at each port (Y11+Y12,
-    Y22+Y12). Real Y-parameters are frequency-independent, so the pi is
-    exact at every frequency; an NT with susceptance anywhere is not
-    translated (that needs a general YMatrix branch — future work).
-    ``None`` legs are absent elements."""
+    """One translated NT card (``network=True``).
+
+    All-real Y matrix: decomposed into its exact resistive pi — a series
+    resistance between the ports (from −Y12) plus a shunt resistance at each
+    port (Y11+Y12, Y22+Y12); real Y-parameters are frequency-independent so the
+    pi is exact at every frequency. ``series_r`` / ``shunt_r_*`` carry it and
+    ``y`` is ``None``.
+
+    Y matrix with susceptance anywhere: no resistive pi exists, so the full 2×2
+    complex short-circuit admittance is kept in ``y`` (issue #416) and the
+    resistive-pi fields are ``None``. ``network()`` emits it as a general
+    ``Admittance`` branch. ``None`` pi legs are absent elements."""
 
     wire_a: int
     seg_a: int
     wire_b: int
     seg_b: int
-    series_r: float | None
-    shunt_r_a: float | None
-    shunt_r_b: float | None
+    series_r: float | None = None
+    shunt_r_a: float | None = None
+    shunt_r_b: float | None = None
+    y: tuple[tuple[complex, complex], tuple[complex, complex]] | None = None
 
 
 @dataclass(frozen=True)
@@ -474,6 +480,11 @@ class NecDeck:
         for nt in self.nts:
             a = plan[(nt.wire_a, nt.seg_a)]
             b = plan[(nt.wire_b, nt.seg_b)]
+            if nt.y is not None:
+                # Complex Y (susceptance present): the full 2×2 as one general
+                # Admittance branch (issue #416).
+                branches.append(_net.Admittance(ports=(a, b), y=nt.y))
+                continue
             if nt.series_r is not None:
                 branches.append(_net.TwoPort(a=a, b=b, r=nt.series_r))
             if nt.shunt_r_a is not None:
@@ -825,21 +836,31 @@ def _translate_network_cards(wires, lds_raw, tls_raw, nts_raw):
     for card in nts_raw:
         wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
         wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
-        if any(card.f(k) != 0.0 for k in (5, 7, 9)):
-            skip(
-                "NT",
-                "Y-parameters have susceptance — needs a general Y-matrix "
-                "branch, which only a real (resistive) Y avoids",
-            )
-            continue
-        y11, y12, y22 = card.f(4), card.f(6), card.f(8)
+        # NEC's NT card is reciprocal: it gives Y11, Y12, Y22 (real+imag each)
+        # and Y21 = Y12.
+        y11 = complex(card.f(4), card.f(5))
+        y12 = complex(card.f(6), card.f(7))
+        y22 = complex(card.f(8), card.f(9))
         if y11 == y12 == y22 == 0.0:
             skip("NT", "all-zero Y-parameters")
             continue
-        # Exact resistive pi: series −Y12 between the ports, shunts
-        # Y11+Y12 / Y22+Y12 at each. Real Y is frequency-independent, so
-        # this holds at every frequency.
-        ys, ya, yb = -y12, y11 + y12, y22 + y12
+        if card.f(5) or card.f(7) or card.f(9):
+            # Susceptance anywhere: no resistive pi. Keep the full complex Y —
+            # network() emits it as a general Admittance branch (issue #416).
+            nts.append(
+                NecNT(
+                    wire_a=wa,
+                    seg_a=sa,
+                    wire_b=wb,
+                    seg_b=sb,
+                    y=((y11, y12), (y12, y22)),
+                )
+            )
+            continue
+        # All-real Y → exact resistive pi: series −Y12 between the ports,
+        # shunts Y11+Y12 / Y22+Y12 at each. Real Y is frequency-independent,
+        # so this holds at every frequency.
+        ys, ya, yb = -y12.real, y11.real + y12.real, y22.real + y12.real
         nts.append(
             NecNT(
                 wire_a=wa,
