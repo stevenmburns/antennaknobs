@@ -239,6 +239,21 @@ def test_examples_are_sorted_by_label(client: TestClient):
     assert labels == sorted(labels)
 
 
+def test_capabilities_reports_pynec_availability(client: TestClient, monkeypatch):
+    """The frontend gates the PyNEC backend option on this flag (#429): when
+    pynec-accel is absent the UI must not offer PyNEC, so the /ws solve does
+    not silently fall back to momwire. Mirrors pynec_backend.HAVE_PYNEC."""
+    from antennaknobs.web import pynec_backend
+
+    payload = client.get("/capabilities").json()
+    assert payload["have_pynec"] == pynec_backend.HAVE_PYNEC
+
+    monkeypatch.setattr(pynec_backend, "HAVE_PYNEC", False)
+    assert client.get("/capabilities").json()["have_pynec"] is False
+    monkeypatch.setattr(pynec_backend, "HAVE_PYNEC", True)
+    assert client.get("/capabilities").json()["have_pynec"] is True
+
+
 def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
     payload = client.get("/examples").json()
     required = {
