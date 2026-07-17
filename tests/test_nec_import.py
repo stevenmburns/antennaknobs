@@ -391,7 +391,7 @@ def test_smoke_parse_xnec2c_examples():
 # ---------------------------------------------------------------------------
 
 from antennaknobs.nec_import import NecLoad, NecNT, NecTL  # noqa: E402
-from antennaknobs.network import TL, Load, Shunt  # noqa: E402
+from antennaknobs.network import TL, Admittance, Load, Shunt  # noqa: E402
 
 
 def _branch_ports(br):
@@ -539,20 +539,39 @@ def test_tl_zero_length_is_port_separation():
     assert deck.tls[0].length == pytest.approx(2.0)
 
 
-def test_tl_end_conductance_becomes_shunt_susceptance_does_not():
+def test_tl_end_conductance_becomes_shunt_reactance_becomes_admittance():
+    # Conductance-only end -> Shunt(r=1/G), unchanged.
     deck = parse_nec(
         TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 1000.0 0"), network=True
     )
     (tl,) = deck.tls
     assert tl.shunt_r_a is None and tl.shunt_r_b == pytest.approx(1e-3)
+    assert tl.shunt_y_a is None and tl.shunt_y_b is None
     net = deck.network()
     assert Shunt(port="tl1b", r=1e-3) in net.branches
 
+    # Reactive end shunt (B != 0) -> fixed 1-port Admittance, exact at every
+    # frequency (issue #423). The TL is no longer dropped, and carries no
+    # ignored/susceptance note.
     deck = parse_nec(
-        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0.02 0 0"), network=True
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 0 0.02"), network=True
     )
-    assert deck.tls == () and "TL" in deck.ignored
-    assert any("susceptance" in why for _m, why in deck.ignored_detail)
+    (tl,) = deck.tls
+    assert tl.shunt_r_b is None and tl.shunt_y_b == complex(0.0, 0.02)
+    assert "TL" not in deck.ignored
+    assert not any(m == "TL" for m, _ in deck.ignored_detail)
+    net = deck.network()
+    assert Admittance(ports=("tl1b",), y=((complex(0.0, 0.02),),)) in net.branches
+
+    # Mixed G + jB -> a single complex Admittance (not Shunt + Admittance).
+    deck = parse_nec(
+        TWO_VERTICALS.format(tl="TL 1 2 2 2 73 1.5 0 0 1000.0 0.02"), network=True
+    )
+    (tl,) = deck.tls
+    assert tl.shunt_r_b is None and tl.shunt_y_b == complex(1000.0, 0.02)
+    net = deck.network()
+    assert Admittance(ports=("tl1b",), y=((complex(1000.0, 0.02),),)) in net.branches
+    assert not any(isinstance(b, Shunt) and b.port == "tl1b" for b in net.branches)
 
 
 def test_nt_real_y_decomposes_into_resistive_pi():
@@ -580,7 +599,6 @@ def test_nt_susceptance_becomes_admittance_and_nt_minus_one_clears():
     # An NT with susceptance is now translated to a general complex-Y branch
     # (issue #416), carrying the full 2x2 short-circuit Y (Y21 = Y12), not
     # ignored.
-    from antennaknobs.network import Admittance
 
     deck = parse_nec(
         TWO_VERTICALS.format(tl="NT 1 2 2 2 0.02 0.01 -0.01 0 0.015 0"),

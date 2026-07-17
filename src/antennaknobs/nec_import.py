@@ -25,12 +25,13 @@ system can express exactly are translated instead of ignored (issue #385):
 lumped LD loads become ``Load`` branches on named 1-segment wires, LD 5 wire
 conductivity surfaces as ``NecDeck.conductivity`` (feed it to ``WireSpec``),
 TL cards become ``TL`` branches (crossed lines, zero-length = port
-separation, conductance-only end shunts), and an NT card with an all-real Y
-matrix becomes its exact resistive pi (``TwoPort`` + ``Shunt``). What cannot
-be expressed exactly — frequency-independent reactance (LD 4 with X≠0,
-susceptance in TL/NT admittances), distributed RLC (LD 2/3), range-limited
-conductivity — stays in ``ignored`` with a per-card reason in
-``ignored_detail``. ``wire_tuples()`` then emits *named* wires (no legacy
+separation, end shunts — a conductance as a ``Shunt``, a reactive G+jB as a
+fixed 1-port ``Admittance``, issue #423), and an NT card becomes its exact
+resistive pi when the Y matrix is all-real (``TwoPort`` + ``Shunt``) or a
+2-port ``Admittance`` when it carries susceptance. What cannot be expressed
+exactly — frequency-independent series reactance (LD 4 with X≠0), distributed
+RLC (LD 2/3), range-limited conductivity — stays in ``ignored`` with a
+per-card reason in ``ignored_detail``. ``wire_tuples()`` then emits *named* wires (no legacy
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
 return from ``build_wires`` / ``build_network``.
 
@@ -139,17 +140,19 @@ class NecTL:
     becomes ``transposed=True``, matching the ``network.TL`` convention.
     ``length`` is resolved: the card's length, or the straight-line distance
     between the segment midpoints when the card says 0 (NEC semantics).
-    ``shunt_r_*`` carry conductance-only end admittances as 1/G resistances
-    (a card with susceptance on a *real* end admittance is not translated).
+    ``shunt_r_*`` carry conductance-only end admittances as 1/G resistances;
+    a reactive end (susceptance ≠ 0, issue #423) is kept as a complex
+    ``shunt_y_*`` and stamped as a fixed 1-port ``Admittance`` instead — see
+    ``_end_shunt``.
 
     ``virtual_a`` / ``virtual_b`` mark an end that lands on a virtualized
     remote TL-anchor wire (issue #427): that segment carries no geometry, so
     ``network()`` terminates the line on a ``PortVirtual`` circuit node
     instead of a ``PortOnWire``, and the anchor wire is dropped from
-    ``wire_tuples()``. A virtual end may carry susceptance — its full complex
-    end admittance is kept in ``shunt_y_a`` / ``shunt_y_b`` and stamped as a
-    1-port ``Admittance`` on the virtual node (the shorted-stub variant); a
-    zero ``shunt_y`` leaves the node an ideal open (the open-stub variant).
+    ``wire_tuples()``. A virtual end's full complex end admittance is kept in
+    ``shunt_y_a`` / ``shunt_y_b`` and stamped as a 1-port ``Admittance`` on the
+    virtual node (the shorted-stub variant); a zero ``shunt_y`` leaves the node
+    an ideal open (the open-stub variant).
     The ``shunt_r_*`` / ``shunt_y_*`` fields are mutually exclusive per end:
     a real end uses ``shunt_r``, a virtual end uses ``shunt_y``."""
 
@@ -1110,6 +1113,28 @@ def _seg_mid(w, seg: int):
     return [a + (b - a) * t for a, b in zip(w[2], w[3])]
 
 
+def _end_shunt(y: complex, virtual: bool) -> tuple[float | None, complex | None]:
+    """Translate one TL end admittance ``y = G + jB`` into a ``(shunt_r,
+    shunt_y)`` pair for ``NecTL`` — at most one is non-None:
+
+    - conductance-only (``B == 0``, real end) → ``shunt_r = 1/G`` (a
+      frequency-dependent ``Shunt`` in ``network()``);
+    - reactive (``B != 0``, issue #423) or any virtual-node termination
+      (remote TL anchor, issue #427) → ``shunt_y = y``, a fixed 1-port
+      ``Admittance`` carrying the full complex Y, exact at every frequency;
+    - a zero end is an open (both ``None``).
+
+    A reactive end is no longer dropped: NEC's constant ``B`` is
+    frequency-independent, which is exactly what the fixed ``Admittance``
+    primitive (issue #416) expresses.
+    """
+    if y == 0:
+        return None, None
+    if y.imag != 0.0 or virtual:
+        return None, y
+    return 1.0 / y.real, None
+
+
 def _segment_range(wires, tag, sf, st, card):
     """All (wire index, local segment) pairs an LD card's range covers:
     NEC's tag/range addressing — tag 0 + range 0 is the whole structure,
@@ -1265,19 +1290,12 @@ def _translate_network_cards(
         wa, sa = _locate_segment(wires, card.i(0), card.i(1), card)
         wb, sb = _locate_segment(wires, card.i(2), card.i(3), card)
         va, vb = wa in anchors, wb in anchors
-        # End admittances (G+jB). Susceptance on a *real* end can't be
-        # expressed as R/L/C, so it still sinks the TL; a *virtual* end
-        # (remote anchor, issue #427) carries its full complex Y to a 1-port
-        # Admittance on the virtual node, so susceptance there is fine.
-        ya = complex(card.f(6), card.f(7))
-        yb = complex(card.f(8), card.f(9))
-        if (not va and ya.imag != 0.0) or (not vb and yb.imag != 0.0):
-            skip(
-                "TL",
-                "an end admittance has susceptance — NEC's constant B is "
-                "frequency-independent, which R/L/C cannot express",
-            )
-            continue
+        # End admittances G+jB: a conductance-only end becomes a Shunt(1/G),
+        # a reactive one (#423) or a virtual-node termination (#427) a fixed
+        # 1-port Admittance. See _end_shunt — susceptance is expressible now,
+        # so a reactive end no longer sinks the whole TL.
+        shunt_r_a, shunt_y_a = _end_shunt(complex(card.f(6), card.f(7)), va)
+        shunt_r_b, shunt_y_b = _end_shunt(complex(card.f(8), card.f(9)), vb)
         z0 = card.f(4)
         if z0 == 0.0:
             raise card.error("characteristic impedance must be nonzero")
@@ -1295,12 +1313,12 @@ def _translate_network_cards(
                 z0=abs(z0),
                 length=length,
                 transposed=z0 < 0.0,
-                shunt_r_a=None if va else (1.0 / ya.real if ya.real else None),
-                shunt_r_b=None if vb else (1.0 / yb.real if yb.real else None),
+                shunt_r_a=shunt_r_a,
+                shunt_r_b=shunt_r_b,
                 virtual_a=va,
                 virtual_b=vb,
-                shunt_y_a=(ya if ya != 0 else None) if va else None,
-                shunt_y_b=(yb if yb != 0 else None) if vb else None,
+                shunt_y_a=shunt_y_a,
+                shunt_y_b=shunt_y_b,
             )
         )
         if va:

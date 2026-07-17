@@ -29,7 +29,7 @@ import pytest
 from antennaknobs import AntennaBuilder, WireSpec
 from antennaknobs.engines import MomwireEngine
 from antennaknobs.nec_import import parse_nec
-from antennaknobs.network import Driven, Load, Network, PortOnWire, TL
+from antennaknobs.network import Admittance, Driven, Load, Network, PortOnWire, TL
 from momwire import BSplineSolver
 
 FREQ = 14.1
@@ -133,6 +133,50 @@ def test_imported_tl_matches_hand_built_line():
             return Network(
                 ports={"feed": PortOnWire("feed"), "far": PortOnWire("far")},
                 branches=[TL(a="feed", b="far", z0=300.0, length=5.5, transposed=True)],
+                sources=[Driven(port="feed", voltage=1 + 0j)],
+            )
+
+        def build_wire_material(self):
+            return WireSpec(radius=0.001)
+
+    z_imported = _momwire_z(_deck_builder(deck, radius=0.001))
+    z_hand = _momwire_z(Hand())
+    assert z_imported == pytest.approx(z_hand, rel=1e-9)
+
+
+def test_imported_reactive_tl_end_shunt_matches_hand_built_admittance():
+    # A 300 Ohm line to a rear vertical, its far end terminated by a reactive
+    # shunt G + jB (issue #423): B != 0 is no longer dropped — it becomes a
+    # fixed 1-port Admittance at that port, exact at every frequency.
+    deck = parse_nec(
+        "GW 1 3 0 0 10 0 0 13 0.001\n"
+        "GW 2 3 4 0 10 4 0 13 0.001\n"
+        "GE\n"
+        "EX 0 1 2 0 1 0\n"
+        "TL 1 2 2 2 300 5.5 0 0 0.002 0.01\n"
+        "EN\n",
+        network=True,
+    )
+    assert "TL" not in deck.ignored  # translated, not dropped
+
+    y_end = complex(0.002, 0.01)
+
+    class Hand(AntennaBuilder):
+        default_params = {"freq": FREQ}
+
+        def build_wires(self):
+            return [
+                ((0.0, 0.0, 10.0), (0.0, 0.0, 13.0), 3, None, "feed"),
+                ((4.0, 0.0, 10.0), (4.0, 0.0, 13.0), 3, None, "far"),
+            ]
+
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire("feed"), "far": PortOnWire("far")},
+                branches=[
+                    TL(a="feed", b="far", z0=300.0, length=5.5),
+                    Admittance(ports=("far",), y=((y_end,),)),
+                ],
                 sources=[Driven(port="feed", voltage=1 + 0j)],
             )
 
