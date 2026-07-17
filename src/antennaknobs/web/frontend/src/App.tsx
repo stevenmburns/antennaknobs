@@ -1428,6 +1428,27 @@ const BACKEND_ORDER: Backend[] = [
   "pynec",
 ];
 
+// PyNEC needs the optional pynec-accel package, so the server reports whether
+// it is installed (`have_pynec` in /examples). When it is not, the UI must not
+// offer it — otherwise the /ws solve silently falls back to momwire (#429).
+// `sinusoidal` is the fallback: it is the momwire basis closest to NEC (the
+// same sinusoidal current expansion), so a default panel or a coerced saved
+// slot still solves the same physics without PyNEC.
+const PYNEC_FALLBACK_BACKEND: Backend = "sinusoidal";
+
+// Backends selectable given the server's capabilities: drops PyNEC when
+// pynec-accel is absent.
+function selectableBackends(havePynec: boolean): Backend[] {
+  return havePynec ? BACKEND_ORDER : BACKEND_ORDER.filter((b) => b !== "pynec");
+}
+
+// Map an unavailable PyNEC selection to the fallback; leave everything else
+// untouched. Applied wherever a backend can arrive from outside the gated
+// picker — default slots, a saved/URL slot, a server recommendation.
+function resolveBackend(b: Backend, havePynec: boolean): Backend {
+  return b === "pynec" && !havePynec ? PYNEC_FALLBACK_BACKEND : b;
+}
+
 // hmatrix (hierarchical H-matrix / ACA) and arrayblock (element-aware block
 // solver for arrays) are accelerators built on the same B-spline basis as
 // bspline; they share its options and request shape, and fall back to the
@@ -1586,6 +1607,24 @@ const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
     opts: { ...DEFAULT_BACKEND_OPTS.pynec },
   },
 };
+
+// Resolve a slot config against server capabilities (#429): if it names PyNEC
+// and pynec-accel is absent, swap to the fallback backend with that backend's
+// default kwargs, preserving the geometry-sizing (segments/wire, radius) the
+// same way a manual backend swap does. Slot C defaults to PyNEC, so this is
+// what keeps the default panel sensible on a server without it.
+function resolveSlotConfig(cfg: SlotConfig, havePynec: boolean): SlotConfig {
+  const backend = resolveBackend(cfg.backend, havePynec);
+  if (backend === cfg.backend) return cfg;
+  return {
+    backend,
+    opts: {
+      ...DEFAULT_BACKEND_OPTS[backend],
+      nPerWire: cfg.opts.nPerWire,
+      wireRadius: cfg.opts.wireRadius,
+    } as BackendOptsMap[Backend],
+  };
+}
 
 // Translates the camelCase frontend options into the snake_case kwargs the
 // server forwards to each Momwire model class constructor.
@@ -2210,6 +2249,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // repeat-count down and back up preserves the values.
   const [examples, setExamples] = useState<ExampleDescriptor[]>([]);
   const [examplesError, setExamplesError] = useState<string | null>(null);
+  // Whether the server has the optional pynec-accel package (#429). Reported
+  // by /examples on mount; gates the PyNEC backend option. Defaults true so
+  // the common (installed) case never flashes the option off before the fetch
+  // resolves; a false reply then hides it and remaps any PyNEC slot.
+  const [havePynec, setHavePynec] = useState<boolean>(true);
   // User designs that failed to load (bad Python, no Builder, geometry error).
   // Surfaced from /examples so the author / Claude can see and fix them.
   const [loadErrors, setLoadErrors] = useState<DesignLoadError[]>([]);
@@ -2306,6 +2350,25 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   useEffect(() => {
     loadExamples();
   }, [loadExamples]);
+
+  // Backend capabilities (#429), fetched once on mount — server-static, so
+  // unlike the design catalog it is not re-fetched on trust actions. A failed
+  // fetch or an older server without the route leaves havePynec at its `true`
+  // default (prior behavior). Gates the PyNEC backend option.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const c = await (await fetch("/capabilities")).json();
+        if (!cancelled) setHavePynec(c.have_pynec !== false);
+      } catch {
+        /* keep the default; PyNEC stays offered */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Trust a user design from the UI (local-only; the backend refuses when
   // hosted). `stem` is the design name (e.g. "user.my_dipole"); `allowEdits`
@@ -2604,8 +2667,30 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     });
   }
   function resetSlot(slot: Slot) {
-    setSlots((prev) => ({ ...prev, [slot]: DEFAULT_SLOTS[slot] }));
+    setSlots((prev) => ({
+      ...prev,
+      [slot]: resolveSlotConfig(DEFAULT_SLOTS[slot], havePynec),
+    }));
   }
+  // When the server reports no pynec-accel (#429), remap any slot still on
+  // PyNEC — the default slot C, or a saved/URL slot — to the fallback backend,
+  // so the panel never holds a backend the picker no longer offers (which the
+  // /ws solve would silently run as momwire).
+  useEffect(() => {
+    if (havePynec) return;
+    setSlots((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const s of Object.keys(prev) as Slot[]) {
+        const resolved = resolveSlotConfig(prev[s], havePynec);
+        if (resolved !== prev[s]) {
+          next[s] = resolved;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [havePynec]);
   // band/designFreq/measFreq seed to placeholders; the auto-select
   // effect below picks the first band of the active example and
   // overwrites them once /examples resolves.
@@ -2714,9 +2799,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // The server's per-design solver recommendation ("arrayblock" for grid
   // arrays, "sinusoidal" for benchmark-sized meshes, null otherwise) — used
   // by the withhold gate and to pick the right warning copy.
-  const recommendedBackend = normalizeBackend(
-    preview?.default_backend ?? currentExample?.default_backend,
-  );
+  const recommendedBackend = (() => {
+    const rec = normalizeBackend(
+      preview?.default_backend ?? currentExample?.default_backend,
+    );
+    // Never surface a PyNEC recommendation the server can't honor (#429).
+    return rec ? resolveBackend(rec, havePynec) : null;
+  })();
   // True while the live solve is being withheld by the solver-mismatch gate.
   // The batch runners (sweep / converge / norm-check) decline to fire on
   // this: they are batches of the same solves the gate is protecting the
@@ -4934,6 +5023,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           <BackendConfigModal
             slot={gearOpen}
             backend={slots[gearOpen].backend}
+            backends={selectableBackends(havePynec)}
             opts={slots[gearOpen].opts}
             onChangeBackend={(b) => {
               backendTouchedRef.current = true;
@@ -5585,6 +5675,7 @@ export function App() {
 type BackendConfigProps = {
   slot: Slot;
   backend: Backend;
+  backends: Backend[];
   opts: BackendOptsMap[Backend];
   onChangeBackend: (b: Backend) => void;
   onPatch: (patch: Partial<BackendOptsMap[Backend]>) => void;
@@ -5595,6 +5686,7 @@ type BackendConfigProps = {
 function BackendConfigModal({
   slot,
   backend,
+  backends,
   opts,
   onChangeBackend,
   onPatch,
@@ -5629,7 +5721,7 @@ function BackendConfigModal({
               <span>{BACKEND_LABEL[backend]}</span>
             </label>
             <div className="geometry-tabs" role="tablist">
-              {BACKEND_ORDER.map((b) => (
+              {backends.map((b) => (
                 <button
                   key={b}
                   role="tab"

@@ -1547,6 +1547,20 @@ def examples_endpoint():
     return {"examples": out, "errors": load_errors}
 
 
+@app.get("/capabilities")
+def capabilities_endpoint():
+    """Backend feature availability the frontend reads once on mount.
+
+    Kept separate from /examples (the design catalog, re-fetched on every
+    trust action) since capabilities are server-static. Currently just
+    `have_pynec`: PyNEC is an optional backend (needs the pynec-accel
+    package), and when it's absent the UI must not offer it — otherwise the
+    /ws solve silently falls back to momwire (#429). New capability flags
+    (mesh-size caps, engine list, version) belong here too.
+    """
+    return {"have_pynec": pynec_backend.HAVE_PYNEC}
+
+
 def _resolve_user_design_path(stem: str):
     """A ``user.<stem>`` or ``<stem>`` name → the backing user-design file, or
     None. Trusting is a local, single-user action; the shared hosted instance
