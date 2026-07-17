@@ -274,6 +274,13 @@ class Load:
     physics as NEC2's ld_card modifying the segment's self-Z. The classic
     dual-band trap dipole uses Load(parallel=True) at a single segment in
     each arm — see designs/multiband/trap_dipole.py.
+
+    `z` sets a FIXED, frequency-independent series impedance R + jX directly
+    (NEC2 `ld_card` type 4, issue #422): unlike the R/L/C legs whose reactance
+    scales with ω, `z` is used verbatim at every frequency. It is mutually
+    exclusive with r/l/c/parallel/ql/qc — a load is either the RLC form or the
+    fixed-Z form, never both. The reactive counterpart to `Admittance` for the
+    *series* (in-the-current-path) case, where a shunt would be wrong.
     """
 
     port: str
@@ -283,6 +290,18 @@ class Load:
     parallel: bool = False
     ql: float | None = None  # coil Q: adds series R = omega*L/Q (issue #298)
     qc: float | None = None  # capacitor Q: adds ESR = 1/(omega*C*Q)
+    z: complex | None = None  # fixed R+jX series impedance (ld_card 4, #422)
+
+    def __post_init__(self):
+        if self.z is not None and any(
+            v not in (None, False)
+            for v in (self.r, self.l, self.c, self.parallel, self.ql, self.qc)
+        ):
+            raise ValueError(
+                "Load.z (fixed complex impedance) is mutually exclusive with "
+                "the r/l/c/parallel/ql/qc legs — a load is either the RLC form "
+                "or the fixed-Z form"
+            )
 
 
 @dataclass(frozen=True)
@@ -513,6 +532,9 @@ def load_series_admittance(br, omega):
     Series mode: y_load = 1/(R + jωL + 1/(jωC)); returns complex inf when
     the series impedance is exactly 0 (series-LC short circuit), which the
     caller treats as "no series element" (the wire is unbroken)."""
+    if br.z is not None:
+        # Fixed R+jX (issue #422): admittance 1/z, inf at z = 0 (a short).
+        return complex(float("inf"), 0.0) if br.z == 0 else 1.0 / complex(br.z)
     if br.parallel:
         return _parallel_rlc_admittance(br.r, br.l, br.c, omega, br.ql, br.qc)
     z = _series_rlc_impedance(br.r, br.l, br.c, omega, br.ql, br.qc)
@@ -531,6 +553,8 @@ def load_impedance(br, omega):
     Z→∞ is the physically-intended open circuit of a trap. Consumers that
     stamp the load into a port-Y matrix should prefer
     `load_series_admittance`, which avoids forming this infinity at all."""
+    if br.z is not None:
+        return complex(br.z)  # fixed R+jX, frequency-independent (issue #422)
     if br.parallel:
         y = _parallel_rlc_admittance(br.r, br.l, br.c, omega, br.ql, br.qc)
         if y == 0:

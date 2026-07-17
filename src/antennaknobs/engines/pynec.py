@@ -366,7 +366,8 @@ class PyNECEngine(SimulationEngine):
             self.excitation_pairs.append((tag, seg, v))
 
     def _emit_load_card(self, br):
-        """Series/parallel RLC on a single segment -> ld_card (type 0/1)."""
+        """Series/parallel RLC on a single segment -> ld_card (type 0/1); a
+        fixed R+jX impedance -> ld_card type 4 (issue #422)."""
         port = self._network.ports[br.port]
         if not isinstance(port, PortOnWire):
             raise ValueError(
@@ -374,6 +375,13 @@ class PyNECEngine(SimulationEngine):
                 "impedance on an antenna segment, which only PortOnWire has"
             )
         tag, seg = self._network_port_loc[br.port]
+        if br.z is not None:
+            # Type 4: fixed series impedance, F1 = R (ohms), F2 = X (ohms).
+            z = complex(br.z)
+            if z == 0:
+                return
+            self.c.ld_card(4, tag, seg, seg, z.real, z.imag, 0.0)
+            return
         r = float(br.r) if br.r is not None else 0.0
         l = float(br.l) if br.l is not None else 0.0
         c = float(br.c) if br.c is not None else 0.0
