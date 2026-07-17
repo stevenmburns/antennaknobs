@@ -673,8 +673,17 @@ def _define_sy(rest: str, syms: dict, where: str) -> None:
 
 
 def _value(token: str, where: str, syms: dict | None) -> float:
-    """A card field: a plain number, or (when the deck defined SY symbols
+    """A card field: a plain number, 4nec2's ``#nn`` AWG wire-gauge
+    shorthand (a radius, in metres), or (when the deck defined SY symbols
     or the token contains a letter) a 4nec2 expression."""
+    if token.startswith("#"):
+        # AWG gauge n -> diameter 0.127 mm * 92^((36-n)/39); field is a
+        # radius. 4nec2 writes `#14`-style GW radius fields (#418).
+        try:
+            gauge = int(token[1:])
+        except ValueError:
+            raise ValueError(f"{where}: bad wire gauge {token!r}") from None
+        return 0.5 * 0.127e-3 * 92.0 ** ((36.0 - gauge) / 39.0)
     try:
         return _float(token, where)
     except ValueError:
@@ -1151,7 +1160,6 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
     ground = False
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
-    in_comments = True
 
     geometry = {
         "GW": _gw,
@@ -1168,24 +1176,42 @@ def parse_nec(text: str, *, name: str = "NEC deck", network: bool = False) -> Ne
         if not stripped:
             continue
         where = f"{name}, line {line_no}"
+        # 4nec2 comment convention (#418): a leading ' comments out the
+        # whole line (including commented-out cards, `'GW ...`); anywhere
+        # else ' starts an end-of-line comment. CM/CE lines are exempt —
+        # their free text legitimately contains apostrophes.
+        if stripped.startswith("'"):
+            continue
+        if stripped[:2].upper() == "CM":
+            # NEC identifies cards by the first two columns, so a glued
+            # "CMtext..." is a comment too (wild decks write "cmRP ..." to
+            # comment out cards). Tolerated after CE as well (#418).
+            comments.append(stripped[2:].strip())
+            continue
+        if stripped[:2].upper() != "CE":
+            stripped = stripped.split("'", 1)[0].rstrip()
+            if not stripped:
+                continue
         # Cards are free-format in practice: mnemonic, then numbers separated
         # by spaces and/or commas.
         tokens = stripped.replace(",", " ").split()
+        # Fused mnemonics (#418): ARRL-era decks glue the mnemonic to the
+        # first field ("GW1,8,...", "GE1", "EX5,1,..."). Split when two
+        # alphabetic characters run straight into a number.
+        if (
+            len(tokens[0]) > 2
+            and tokens[0][:2].isalpha()
+            and tokens[0][2] in "0123456789.+-"
+        ):
+            tokens = [tokens[0][:2], tokens[0][2:], *tokens[1:]]
         mnemonic = tokens[0].upper()
         if len(mnemonic) != 2 or not mnemonic.isalpha():
             raise ValueError(
                 f"{where}: expected a NEC card mnemonic, got {tokens[0]!r}"
             )
 
-        if mnemonic == "CM":
-            if not in_comments:
-                raise ValueError(f"{where}: CM card after the CE end-of-comments card")
-            comments.append(stripped[2:].strip())
-            continue
         if mnemonic == "CE":
-            in_comments = False
             continue
-        in_comments = False
 
         if mnemonic == "EN":
             break

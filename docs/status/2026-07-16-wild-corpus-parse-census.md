@@ -71,6 +71,22 @@ it is honored since #414.
 3. GC/GH tapered-radius support (22 decks) — natural extension of the
    per-wire WireSpec machinery; lower value per effort.
 
+## Addendum (same day): after #417 + #418
+
+The two filed unlocks landed hours later and beat their projections:
+
+| pass | rejected | parse rate |
+|---|--:|--:|
+| initial census | 1,082 | 65% |
+| + #417 SY symbolic variables | 657 | 79% |
+| + #418 tolerant tokenizer (quote comments, fused mnemonics, glued CM, `#AWG`) | **260** | **91.7%** |
+
+Still zero crashes on every pass. The remaining 260 are dominated by
+genuinely-unsupported physics (current-source EX 63, plane-wave EX 45,
+SP/SM/GF patches, unrecognised NEC-4-era cards) plus a ~57-deck residue of
+mnemonic junk and exotic SY forms — census them again after the next
+importer change, not before.
+
 ## Caveats
 
 - Parse ≠ solve: this census says the geometry translates, not that engines
