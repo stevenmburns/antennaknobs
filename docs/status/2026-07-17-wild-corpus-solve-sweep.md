@@ -170,6 +170,40 @@ Still open from the family: the relaxed "electrically tiny" anchor gate
 (review on #428 — an economy, no longer a blocker) and
 `Driven`-on-`PortVirtual` for remote-source decks.
 
+## Addendum 2 (2026-07-18): z₀ sensitivity of the ΔΓ metric
+
+The scoring uses a fixed Z₀ = 50 Ω for both engine and reference Γ. That
+can never *create* disagreement (Γ is injective in Z: ΔΓ = 0 iff the
+impedances match, for any z₀), but it can *mask* it: sensitivity goes as
+2z₀/|Z + z₀|², so a deck with |Z| ≫ 50 Ω compresses a large absolute Z
+error into a small ΔΓ. Exposure in this corpus: median |Z_ref| = 59 Ω
+(mostly near-matched designs, where 50 Ω is most sensitive), but 142
+scored decks sit above 500 Ω and 31 above 5 kΩ.
+
+Since both complex impedances are kept in the jsonl, re-scoring at a
+per-deck matched z₀ = |Z_ref| is pure post-processing. Clean decks:
+
+| engine | median @50 Ω | median @matched | p90 @50 Ω | p90 @matched | moved > 0.05 |
+|---|--:|--:|--:|--:|--:|
+| PyNEC | 0.0002 | 0.0003 | 0.008 | 0.011 | 19 |
+| Sinusoidal | 0.0045 | 0.0060 | 0.033 | 0.043 | 54 |
+| BSpline d=2 | 0.0074 | 0.0106 | 0.109 | 0.169 | 160 |
+| BSpline d=1 | 0.0225 | 0.0325 | 0.151 | 0.245 | 207 |
+
+Conclusions:
+
+- The import-validation headline (PyNEC ≈ nec2c) is z₀-robust. Exactly
+  **one** deck is hidden at 50 Ω — fine at ΔΓ 0.006, but 0.28 at matched
+  z₀: `arrl/cebik-models/Phased-Arrays/7-2xhalfwldr+6parguy-sngnd.nec`
+  (|Z_ref| = 6.3 kΩ). It joins the outlier-triage errand, making that
+  list **18 decks**.
+- The momwire ranking is flattered by the 50 Ω choice: the BSpline tails
+  are ~1.6× worse at matched z₀, because the high-|Z| decks where their
+  mesh-convergence error is largest are exactly the ones a 50 Ω metric
+  down-weights.
+- If ΔΓ ever backs an acceptance *gate*, score it at matched z₀ (or dual
+  50 Ω + matched) — the rescore is free.
+
 ## Appendix: the 38 momwire-timeout decks
 
 All `arrl/cebik-models/` unless noted:
