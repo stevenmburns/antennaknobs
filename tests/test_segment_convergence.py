@@ -57,28 +57,33 @@ def test_builder_nominal_nsegs_scales_per_edge_counts():
     assert min(seg_counts) >= 3  # floor on minor edges holds at small N
 
 
-def test_momwire_default_coerces_to_odd_parity():
-    """The default solver (BSplineSolver degree=2) wants odd-segment counts;
-    the engine bumps any even build_wires() output up to odd before the
-    solver sees it."""
-    b = BowtieBuilder()
-    b.nominal_nsegs = 20  # even
-    eng = MomwireEngine(b)  # default BSplineSolver d=2 → parity="odd"
-    seg_lists = eng._edge_segments
-    all_segs = [n for wire in seg_lists for n in wire]
-    assert all(n % 2 == 1 for n in all_segs), (
-        f"default engine left even segs: {all_segs}"
-    )
+# Parity coercion lands an engine attachment on a wire's middle segment, so it
+# applies to the FED wire only; unfed wires keep their exact segment count
+# (issue #450 — coercing unfed, tightly-coupled wires like capacity hats shifts
+# their modelled coupling enough to flip the impedance sign). These check the
+# per-solver parity is right AND that the fed/unfed split is honoured.
+_P0, _P1 = (0, 0, 0.0), (0, 0, 1.0)
 
 
-def test_momwire_bspline_d1_coerces_to_even_parity():
-    """BSplineSolver degree=1 (tent basis) wants even-segment counts."""
-    b = BowtieBuilder()
-    b.nominal_nsegs = 21  # odd
-    eng = MomwireEngine(b, solver_kwargs={"degree": 1})
-    seg_lists = eng._edge_segments
-    all_segs = [n for wire in seg_lists for n in wire]
-    assert all(n % 2 == 0 for n in all_segs), f"d=1 engine left odd segs: {all_segs}"
+def test_momwire_default_coerces_fed_odd_preserves_unfed():
+    """The default solver (BSplineSolver degree=2) wants odd so the feed lands
+    on a segment midpoint. The fed even wire is bumped to odd; an unfed even
+    wire is preserved (issue #450)."""
+    eng = MomwireEngine(BowtieBuilder())  # default BSplineSolver d=2
+    assert eng.segment_parity == "odd"
+    out = eng._coerce_wire_tuples([(_P0, _P1, 4, None), (_P0, _P1, 4, 1 + 0j, "feed")])
+    assert out[0][2] == 4  # unfed even wire preserved
+    assert out[1][2] == 5  # fed even wire bumped to odd
+
+
+def test_momwire_bspline_d1_coerces_fed_even_preserves_unfed():
+    """BSplineSolver degree=1 (tent basis) wants even. Fed odd wire → even;
+    unfed odd wire preserved."""
+    eng = MomwireEngine(BowtieBuilder(), solver_kwargs={"degree": 1})
+    assert eng.segment_parity == "even"
+    out = eng._coerce_wire_tuples([(_P0, _P1, 5, None), (_P0, _P1, 5, 1 + 0j, "feed")])
+    assert out[0][2] == 5  # unfed odd wire preserved
+    assert out[1][2] == 6  # fed odd wire bumped to even
 
 
 def test_pynec_engine_segment_parity_is_odd():
@@ -86,17 +91,16 @@ def test_pynec_engine_segment_parity_is_odd():
     assert PyNECEngine.segment_parity == "odd"
 
 
-def test_momwire_sinusoidal_uses_odd_parity():
+def test_momwire_sinusoidal_coerces_fed_odd_preserves_unfed():
     from momwire import SinusoidalSolver
 
-    b = InvVeeBuilder()
-    b.nominal_nsegs = 20  # even, will get bumped to 21 by sinusoidal
-    eng = MomwireEngine(b, solver=SinusoidalSolver)
+    eng = MomwireEngine(InvVeeBuilder(), solver=SinusoidalSolver)
     assert eng.segment_parity == "odd"
-    all_segs = [n for wire in eng._edge_segments for n in wire]
-    assert all(n % 2 == 1 for n in all_segs), (
-        f"sinusoidal engine left even segs: {all_segs}"
+    out = eng._coerce_wire_tuples(
+        [(_P0, _P1, 20, None), (_P0, _P1, 20, 1 + 0j, "feed")]
     )
+    assert out[0][2] == 20  # unfed even wire preserved (would have been 21)
+    assert out[1][2] == 21  # fed even wire bumped to odd
 
 
 def test_nominal_nsegs_changes_solver_geometry():
