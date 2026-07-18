@@ -135,6 +135,41 @@ list is derivable from the JSON (`dgamma > 0.2`, clean flags).
 3. momwire#157 kernel hardening (benefits genuinely large structures).
 4. Triage the 17-deck outlier residue as its own errand.
 
+## Addendum (2026-07-18): the anchor family is fully resolved
+
+Both fixes landed the next day — PR #428 (anchor virtualization, merged
+with the `n_seg == 1` gate) and momwire `57a8b22` ("cap grid r1_max to
+bound far-pair fill", momwire#157; repro went >60 s → 4.27 s with the
+impedance matching the anchor-free control exactly). The 38 timeout rows
+were deleted from the jsonl and the family re-run via the resume path on
+the fixed stack:
+
+**38/38 decks now solve and score — zero timeouts, zero failures.**
+11 decks virtualized their anchors (`v` flag); the rest — including the
+K8UR 16-segment source racks at 16 km — solve as real geometry through
+the capped Sommerfeld kernel.
+
+| engine | n | median ΔΓ | p90 | max |
+|---|--:|--:|--:|--:|
+| PyNEC | 38 | 0.0003 | 0.0035 | 0.115 |
+| Sinusoidal | 38 | 0.0008 | 0.0167 | 0.017 |
+| BSpline d=2 | 38 | 0.0053 | 0.0185 | 0.021 |
+| BSpline d=1 | 38 | 0.0115 | 0.0331 | 0.052 |
+
+The family agrees with nec2c *better* than the corpus at large (these
+are electrically small HF arrays — friendly geometry once the kernel
+stops brute-forcing 100 λ+ pair integrals). Wall-clock for the whole
+family: ~25 min (was ~9.5 h of bounded timeouts); slowest deck
+5r4-2x4elphased-K8UR at 506 s summed across the four engines, each
+within the 300 s cap. `bench_out/wild-solve-2026-07-17.jsonl` is updated
+in place (pre-fix rows preserved in `*.pre157`); headline tables above
+describe the original bounded run and deliberately still exclude
+`v`-flagged decks from the clean rollup.
+
+Still open from the family: the relaxed "electrically tiny" anchor gate
+(review on #428 — an economy, no longer a blocker) and
+`Driven`-on-`PortVirtual` for remote-source decks.
+
 ## Appendix: the 38 momwire-timeout decks
 
 All `arrl/cebik-models/` unless noted:
