@@ -59,6 +59,16 @@ def test_detector_ignores_config_between_multi_run_executes():
     assert dead_trailing_config(mnems) == []
 
 
+def test_trailing_kh_is_not_flagged_or_hoisted():
+    """KH stays dead on both sides: our evaluator ignores it, and hoisting
+    xnec2c's trailing `KH 0` would set nec2c's interaction-approximation
+    range to zero and wreck the reference solve (barry.nec)."""
+    kh_deck = ZEPP_MINI.replace("TL 1 1 2 1 450 0\nGN 2 0 0 0 12 0.005\n", "KH 0\n")
+    assert not has_dead_trailing_config(kh_deck)
+    order = [ln.split()[0] for ln in reference_deck(kh_deck, "t").splitlines()]
+    assert order.index("KH") > order.index("RP")
+
+
 def test_reference_deck_hoists_before_first_execute():
     prepared = reference_deck(ZEPP_MINI, "zepp-mini").splitlines()
     order = [ln.split()[0] for ln in prepared]

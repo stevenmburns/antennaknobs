@@ -567,7 +567,14 @@ EX6_R_BIG = 2.0e4
 # XQ/RP execute request — so any that appear after the deck's LAST
 # execute request are dead cards. Whole-deck GUI parsers (xnec2c, 4nec2,
 # our importer) apply them regardless of position (issue #449).
-_RUN_CONFIG_CARDS = frozenset(("LD", "TL", "NT", "GN", "GD", "EX", "FR", "EK", "KH"))
+#
+# KH is deliberately NOT here: it's the one program-control card our
+# evaluator ignores outright (NecDeck.ignored), so hoisting it can only
+# make the reference diverge — and a trailing `KH 0` (xnec2c writes one)
+# would set nec2c's interaction-approximation range to zero and wreck
+# the solve (barry.nec: 2.81+71.9j → 0.0+43.5j). Left in place it stays
+# dead on both sides.
+_RUN_CONFIG_CARDS = frozenset(("LD", "TL", "NT", "GN", "GD", "EX", "FR", "EK"))
 
 
 def dead_trailing_config(mnemonics) -> list[int]:
