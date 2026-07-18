@@ -62,6 +62,7 @@ __all__ = [
     "NecWire",
     "parse_nec",
     "read_nec",
+    "resolve_sy",
 ]
 
 _DEG = math.pi / 180.0
@@ -582,6 +583,112 @@ def read_nec(
         network=network,
         virtualize_anchors=virtualize_anchors,
     )
+
+
+# nec2c-readable plain number. Deliberately stricter than Python's float()
+# (which also takes "nan", "inf" and digit underscores) and excludes Fortran
+# D exponents, so anything unusual is routed through evaluation + reformat.
+_PLAIN_NUM_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\Z")
+
+
+def _format_field(v: float) -> str:
+    """Shortest exact decimal for a resolved card field; integral values are
+    written without a decimal point so integer-read fields stay clean."""
+    if v == int(v) and abs(v) < 1e15:
+        return str(int(v))
+    return repr(v)
+
+
+def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
+    """Resolve a 4nec2-dialect deck into plain NEC-2 card text (issue #439).
+
+    Evaluates every ``SY`` symbol (#417, #424 grammar) in deck order and
+    substitutes each card field that is not already a plain number —
+    symbolic expressions, ``#nn`` AWG gauges, Fortran D exponents — with
+    its numeric value, so the deck becomes readable by reference engines
+    that know nothing of the dialect (vanilla nec2c). Purely lexical: no
+    modelling restrictions apply, and cards ``parse_nec`` would refuse
+    (SP, GF, plane-wave EX, ...) pass through with their fields resolved.
+
+    Tolerant-tokenizer forms nec2c cannot read (#418) are normalized too:
+    ``'`` comment lines and end-of-line comments are dropped, fused
+    mnemonics (``GW1,8,...``) are split, and comma separators become
+    spaces. ``SY`` cards are consumed, not emitted. Comment cards keep
+    their leading position (a ``CE`` is inserted before the first real
+    card if the deck never wrote one); glued mid-deck comments
+    (``cmRP ...`` commented-out cards) are dropped. Text after ``EN`` is
+    dropped. Numbers already plain are kept byte-for-byte.
+
+    Raises ``ValueError`` (with ``name`` and the line number) on a
+    malformed card mnemonic or ``SY`` definition. A card *field* that
+    fails to evaluate is kept verbatim instead (filename fields on
+    GN/WG/GF cards look like expressions but aren't).
+    """
+    syms: dict[str, float] = {}
+    out: list[str] = []
+    in_comments = True
+    wrote_comment = False
+    for line_no, raw in enumerate(text.splitlines(), 1):
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        where = f"{name}, line {line_no}"
+        if stripped.startswith("'"):
+            continue
+        head = stripped[:2].upper()
+        if head == "CM":
+            if in_comments:
+                rest = stripped[2:].strip()
+                out.append(f"CM {rest}" if rest else "CM")
+                wrote_comment = True
+            continue
+        if head == "CE":
+            if in_comments:
+                rest = stripped[2:].strip()
+                out.append(f"CE {rest}" if rest else "CE")
+                in_comments = False
+            continue
+        stripped = stripped.split("'", 1)[0].rstrip()
+        if not stripped:
+            continue
+        tokens = stripped.replace(",", " ").split()
+        if (
+            len(tokens[0]) > 2
+            and tokens[0][:2].isalpha()
+            and tokens[0][2] in "0123456789.+-"
+        ):
+            tokens = [tokens[0][:2], tokens[0][2:], *tokens[1:]]
+        mnemonic = tokens[0].upper()
+        if len(mnemonic) != 2 or not mnemonic.isalpha():
+            raise ValueError(
+                f"{where}: expected a NEC card mnemonic, got {tokens[0]!r}"
+            )
+        if mnemonic == "SY":
+            _define_sy(stripped[2:], syms, where)
+            continue
+        if in_comments:
+            if wrote_comment:
+                out.append("CE")
+            in_comments = False
+        fields = []
+        for tok in tokens[1:]:
+            if _PLAIN_NUM_RE.fullmatch(tok):
+                fields.append(tok)
+                continue
+            try:
+                fields.append(_format_field(_value(tok, where, syms)))
+            except ValueError:
+                # Not everything lettered is an expression: GN/WG/GF cards
+                # carry *filename* fields ("WG radials-vg"). Keep the token
+                # verbatim — the reference engine sees the most faithful
+                # text, and a genuinely undefined symbol in a numeric field
+                # surfaces as that engine's own card error, not a silent
+                # substitution.
+                fields.append(tok)
+        out.append(" ".join([mnemonic, *fields]))
+        if mnemonic == "EN":
+            break
+    return "\n".join(out) + "\n"
 
 
 def _float(token: str, where: str) -> float:
