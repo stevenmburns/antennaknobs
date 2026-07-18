@@ -584,9 +584,7 @@ def reference_deck(text: str, name: str) -> str:
             tag, seg = toks[2], toks[3] if len(toks) > 3 else "0"
             i_re = float(toks[5]) if len(toks) > 5 else 0.0
             i_im = float(toks[6]) if len(toks) > 6 else 0.0
-            out.append(
-                f"EX 0 {tag} {seg} 0 {i_re * EX6_R_BIG!r} {i_im * EX6_R_BIG!r}"
-            )
+            out.append(f"EX 0 {tag} {seg} 0 {i_re * EX6_R_BIG!r} {i_im * EX6_R_BIG!r}")
             # The series R_BIG lands as an LD 4, but hoisted BEFORE the
             # first EX card (below): nec2c resets its voltage-source list
             # when a matrix-affecting card (LD) follows an EX, so an
