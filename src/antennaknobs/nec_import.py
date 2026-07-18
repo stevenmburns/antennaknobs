@@ -110,12 +110,16 @@ class NecWire:
 
 @dataclass(frozen=True)
 class NecFeed:
-    """A voltage-source EX card resolved onto a wire: 1-based segment ``seg``
-    of ``deck.wires[wire]`` is driven with ``voltage``."""
+    """A source EX card resolved onto a wire: 1-based segment ``seg`` of
+    ``deck.wires[wire]`` is driven with ``voltage`` volts — or, when
+    ``current`` is True (4nec2's EX 6, issue #442), that complex value is
+    the forced current in amps and the feed becomes a ``DrivenCurrent``
+    in ``deck.network()``."""
 
     wire: int
     seg: int
     voltage: complex
+    current: bool = False
 
 
 @dataclass(frozen=True)
@@ -563,7 +567,9 @@ class NecDeck:
             if nt.shunt_r_b is not None:
                 branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
         sources = [
-            _net.Driven(port=plan[(f.wire, f.seg)], voltage=f.voltage)
+            _net.DrivenCurrent(port=plan[(f.wire, f.seg)], current=f.voltage)
+            if f.current
+            else _net.Driven(port=plan[(f.wire, f.seg)], voltage=f.voltage)
             for f in self.feeds
         ]
         return _net.Network(ports=ports, branches=branches, sources=sources)
@@ -1730,13 +1736,32 @@ def parse_nec(
                     f"{where}: EX card asks for plane-wave excitation, which "
                     f"is a scattering run, not a driven antenna"
                 )
-            if ex_type not in (0, 5):
+            if ex_type == 6:
+                # 4nec2's current-source excitation (issue #442) — the
+                # phased-array idiom (element drive RATIOS in amps). Only
+                # the network path can express it: it becomes a
+                # DrivenCurrent through the shared MNA reducer. NEC-2
+                # proper has no type 6 (nec2c misparses it as a plane
+                # wave), so there is no native path to fall back on.
+                if not network:
+                    raise ValueError(
+                        f"{where}: EX type 6 is 4nec2's current-source "
+                        f"excitation, which needs the network path — "
+                        f"parse with network=True"
+                    )
+            elif ex_type not in (0, 5):
                 raise ValueError(
                     f"{where}: EX excitation type {ex_type} is not a voltage "
                     f"source; antennaknobs can only drive voltage feeds"
                 )
             feeds_raw.append(
-                (card.i(1), card.i(2), complex(card.f(4), card.f(5)), where)
+                (
+                    card.i(1),
+                    card.i(2),
+                    complex(card.f(4), card.f(5)),
+                    ex_type == 6,
+                    where,
+                )
             )
         else:
             raise ValueError(f"{where}: unrecognised NEC card {mnemonic!r}")
@@ -1745,10 +1770,10 @@ def parse_nec(
         raise ValueError(f"{name}: deck defines no wires")
 
     feeds = []
-    for tag, seg, voltage, where in feeds_raw:
+    for tag, seg, voltage, current, where in feeds_raw:
         card = _Card("EX", [], where)
         idx, local = _locate_segment(wires, tag, seg, card)
-        feeds.append(NecFeed(idx, local, voltage))
+        feeds.append(NecFeed(idx, local, voltage, current))
 
     loads: tuple[NecLoad, ...] = ()
     tls: tuple[NecTL, ...] = ()
