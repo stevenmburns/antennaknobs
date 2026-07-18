@@ -1382,7 +1382,14 @@ def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
 
 
 def _translate_network_cards(
-    wires, lds_raw, tls_raw, nts_raw, feeds, freq_mhz, virtualize_anchors
+    wires,
+    lds_raw,
+    tls_raw,
+    nts_raw,
+    feeds,
+    freq_mhz,
+    virtualize_anchors,
+    fr_first_mhz=None,
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -1497,7 +1504,7 @@ def _translate_network_cards(
     for card in lds_raw:
         ldtyp = card.i(0)
         tag, sf, st = card.i(1), card.i(2), card.i(3)
-        if ldtyp in (0, 1, 4):
+        if ldtyp in (0, 1, 4, 6):
             pairs = _segment_range(wires, tag, sf, st, card)
             if len(pairs) > _LD_EXPAND_MAX:
                 skip(
@@ -1516,6 +1523,22 @@ def _translate_network_cards(
                     z, r, le, c = complex(r, x), None, None, None
                 else:
                     r, le, c = (r or None), None, None
+            elif ldtyp == 6:
+                # 4nec2's LC-trap extension (issue #444): F1 is the coil's
+                # UNLOADED Q (0 → 100, the documented default), F2/F3 = L/C.
+                # 4nec2 converts it internally to a parallel RLC whose loss
+                # resistance is evaluated at the initial FR card's frequency:
+                # R_p = Q·ωL. Same conversion here, so all engines and the
+                # nec2c reference (reference_deck does the text-level twin)
+                # solve the physics 4nec2 would hand its own engine.
+                le = card.f(5) or None
+                c = card.f(6) or None
+                if le is None:
+                    skip("LD", "type 6 LC-trap without inductance")
+                    continue
+                q = card.f(4) or 100.0
+                omega = 2.0 * math.pi * (fr_first_mhz or 299.8) * 1e6
+                r = q * omega * le
             else:
                 r = card.f(4) or None
                 le = card.f(5) or None
@@ -1534,7 +1557,7 @@ def _translate_network_cards(
                     skip("LD", "a second load on one segment is not merged")
                     continue
                 loaded.add(pair)
-                loads.append(NecLoad(pair[0], pair[1], r, le, c, ldtyp == 1, z=z))
+                loads.append(NecLoad(pair[0], pair[1], r, le, c, ldtyp in (1, 6), z=z))
         elif ldtyp in (2, 3):
             skip("LD", f"type {ldtyp} distributed per-metre loading is not translated")
         elif ldtyp == 5:
@@ -1608,6 +1631,7 @@ def parse_nec(
     tls_raw: list[_Card] = []
     nts_raw: list[_Card] = []
     freq_mhz: tuple[float, float] | None = None
+    fr_first_mhz: float | None = None
     ground = False
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
@@ -1729,6 +1753,10 @@ def parse_nec(
                 else:  # multiplicative sweep
                     end = start * step ** (nfrq - 1) if step > 0 else start
                 freq_mhz = (min(start, end), max(start, end))
+                # The raw F1 of the initial FR card, pre min/max
+                # normalization — 4nec2 evaluates LD 6 trap loss at
+                # exactly this frequency (issue #444).
+                fr_first_mhz = start
         elif mnemonic == "EX":
             ex_type = card.i(0)
             if ex_type in (1, 2, 3):
@@ -1793,7 +1821,14 @@ def parse_nec(
             skipped,
             virtual_anchors,
         ) = _translate_network_cards(
-            wires, lds_raw, tls_raw, nts_raw, feeds, freq_mhz, virtualize_anchors
+            wires,
+            lds_raw,
+            tls_raw,
+            nts_raw,
+            feeds,
+            freq_mhz,
+            virtualize_anchors,
+            fr_first_mhz,
         )
         ignored |= skipped
 
