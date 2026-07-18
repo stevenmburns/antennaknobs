@@ -240,7 +240,7 @@ def run_nec2c(deck_path: Path, timeout: float, mem_bytes: int | None = None):
     with tempfile.TemporaryDirectory(prefix="nec_") as d:
         nec = Path(d) / "d.nec"
         out = Path(d) / "d.out"
-        nec.write_text(deck_path.read_text())
+        nec.write_bytes(deck_path.read_bytes())
         t0 = time.perf_counter()
         # nec2c returns non-zero (255) both on a faulty card AND after a NaN
         # solve, and it writes its real diagnostics into the output FILE, not
@@ -258,7 +258,10 @@ def run_nec2c(deck_path: Path, timeout: float, mem_bytes: int | None = None):
         if not out.exists():
             tail = (proc.stderr or b"").decode(errors="replace").strip()[-120:]
             return {"error": f"nec2c produced no output (rc={proc.returncode}) {tail}"}
-        text = out.read_text()
+        # errors="replace": nec2c can emit raw non-UTF-8 bytes into its own
+        # output on some wild decks (seen: 0xff mid-file) — a garbled char in
+        # a diagnostic must not kill the sweep.
+        text = out.read_text(errors="replace")
         lines = text.splitlines()
 
     freq = None
@@ -319,7 +322,7 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
             ground = tuple(ground)
 
         deck, net, _ignored = load_deck(
-            Path(deck_path).read_text(), Path(deck_path).name
+            Path(deck_path).read_text(errors="replace"), Path(deck_path).name
         )
         tups = deck.wire_tuples(specs=True)
 
@@ -542,7 +545,7 @@ def bench_deck(
     # rel_name (corpus-relative path) disambiguates wild trees where the same
     # stem appears under several sources.
     row = {"deck": rel_name or deck_path.stem, "error": None}
-    text = deck_path.read_text()
+    text = deck_path.read_text(errors="replace")
     try:
         deck, _net, ignored_net = load_deck(text, deck_path.name)
     except Exception as e:  # noqa: BLE001
@@ -1041,15 +1044,19 @@ def main(argv=None):
         if rel in done:
             continue
         print(f"[{i}/{len(decks)}] {rel} ...", flush=True)
-        row = bench_deck(
-            deck,
-            args.engines,
-            args.timeout,
-            run_with_ground=not args.free_space,
-            allow_intersections=args.allow_wire_intersections,
-            mem_bytes=mem_bytes,
-            rel_name=rel,
-        )
+        try:
+            row = bench_deck(
+                deck,
+                args.engines,
+                args.timeout,
+                run_with_ground=not args.free_space,
+                allow_intersections=args.allow_wire_intersections,
+                mem_bytes=mem_bytes,
+                rel_name=rel,
+            )
+        except Exception as e:  # noqa: BLE001 — a 20 h sweep must survive any
+            # single deck (first bite: nec2c emitting raw 0xff into its output)
+            row = {"deck": rel, "error": f"sweep-level: {type(e).__name__}: {e}"}
         rows.append(row)
         if jsonl:
             with jsonl.open("a") as f:
