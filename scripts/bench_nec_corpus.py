@@ -231,16 +231,26 @@ def parse_ground(deck_text: str):
 _FREQ_RE = re.compile(r"FREQUENCY\s*:\s*([0-9.Ee+-]+)\s*MHz", re.IGNORECASE)
 
 
-def run_nec2c(deck_path: Path, timeout: float, mem_bytes: int | None = None):
+def run_nec2c(
+    deck_path: Path,
+    timeout: float,
+    mem_bytes: int | None = None,
+    deck_text: str | None = None,
+):
     """Run the original deck through nec2c; return the first-frequency result:
     ``{"freq": MHz, "z": [[re, im], ...], "runtime_s": s, "error": str|None}``.
-    Short temp paths sidestep nec2c's fixed filename buffer."""
+    Short temp paths sidestep nec2c's fixed filename buffer. ``deck_text``
+    substitutes prepared text (the resolved-reference retry, issue #439) for
+    the file's own bytes."""
     if shutil.which("nec2c") is None:
         return {"error": "nec2c not on PATH"}
     with tempfile.TemporaryDirectory(prefix="nec_") as d:
         nec = Path(d) / "d.nec"
         out = Path(d) / "d.out"
-        nec.write_bytes(deck_path.read_bytes())
+        if deck_text is None:
+            nec.write_bytes(deck_path.read_bytes())
+        else:
+            nec.write_text(deck_text)
         t0 = time.perf_counter()
         # nec2c returns non-zero (255) both on a faulty card AND after a NaN
         # solve, and it writes its real diagnostics into the output FILE, not
@@ -533,6 +543,41 @@ def compare(engine_z, ref_z):
     return out
 
 
+def reference_deck(text: str, name: str) -> str:
+    """Deck text prepared for the nec2c *reference* run (issue #439).
+
+    ``resolve_sy`` materializes the 4nec2 dialect nec2c cannot read (SY
+    symbols, ``'`` comments, ``#AWG`` gauges, fused mnemonics). On top of
+    that, two run-request quirks 4nec2 project decks leave to the GUI:
+
+    - an ``FR`` card with NFRQ = 0 gets the NEC-2 spec's "one assumed"
+      default (``parse_nec`` applies the same normalization);
+    - a deck with no ``XQ``/``RP`` execute request gets an ``XQ`` appended
+      before ``EN``, otherwise nec2c parses everything and computes nothing
+      ("no ANTENNA INPUT PARAMETERS block").
+
+    Raises ``ValueError`` like ``resolve_sy`` on undecipherable decks.
+    """
+    from antennaknobs.nec_import import resolve_sy
+
+    lines = resolve_sy(text, name=name).splitlines()
+    out, has_exec = [], False
+    for ln in lines:
+        toks = ln.split()
+        if toks[0] == "FR" and len(toks) > 2 and float(toks[2]) == 0:
+            toks[2] = "1"
+            ln = " ".join(toks)
+        if toks[0] in ("XQ", "RP"):
+            has_exec = True
+        out.append(ln)
+    if not has_exec:
+        if out and out[-1] == "EN":
+            out.insert(-1, "XQ")
+        else:
+            out += ["XQ", "EN"]
+    return "\n".join(out) + "\n"
+
+
 def bench_deck(
     deck_path: Path,
     engines,
@@ -574,6 +619,21 @@ def bench_deck(
     )
 
     ref = run_nec2c(deck_path, timeout, mem_bytes)
+    if ref.get("error"):
+        # Resolved-reference retry (issue #439): the deck parses for *us*,
+        # so a failed reference run may just be dialect (SY symbols, no
+        # XQ/RP request). Retry nec2c on the prepared text; a success is
+        # labeled, never silently swapped in.
+        try:
+            prepared = reference_deck(text, deck_path.name)
+        except ValueError:
+            prepared = None
+        if prepared is not None:
+            retry = run_nec2c(deck_path, timeout, mem_bytes, deck_text=prepared)
+            if not retry.get("error"):
+                retry["resolved_deck"] = True
+                retry["original_error"] = ref["error"]
+                ref = retry
     row["nec2c"] = ref
     if ref.get("error"):
         return row
@@ -625,11 +685,12 @@ def print_report(rows, engines):
     )
     print(
         "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT "
-        "network, v = remote TL-anchor wire(s) virtualized (#427)"
+        "network, v = remote TL-anchor wire(s) virtualized (#427),"
+        " r = reference from resolved deck (#439)"
     )
     print("=" * 104)
     hdr = (
-        f"{'deck':<34} {'f/MHz':>8} {'grd':>5} {'fl':>3} {'Z_nec2c (feed0)':>19}  "
+        f"{'deck':<34} {'f/MHz':>8} {'grd':>5} {'fl':>4} {'Z_nec2c (feed0)':>19}  "
         + " ".join(f"{ENGINE_LABEL[e]:>11}" for e in engines)
     )
     print(hdr)
@@ -640,11 +701,12 @@ def print_report(rows, engines):
             ("g" if not r.get("ground_supported", True) else "")
             + ("n" if r.get("partial_net") else "")
             + ("v" if r.get("virtualized_anchors") else "")
+            + ("r" if r.get("nec2c", {}).get("resolved_deck") else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
             f"{r['deck']:<34} {r.get('freq', 0):>8.3f} {r.get('ground') or 'free':>5} "
-            f"{flags:>3} {z0.real:>8.1f}{z0.imag:>+8.1f}j  {cells}"
+            f"{flags:>4} {z0.real:>8.1f}{z0.imag:>+8.1f}j  {cells}"
         )
 
     # runtime + RSS summary per engine (over solves that succeeded)
@@ -673,7 +735,7 @@ def print_report(rows, engines):
     print("\n" + "=" * 72)
     print(
         "AGREEMENT ROLLUP  (feed-0 ΔΓ; clean decks: supported ground, "
-        "fully-expressed network, no virtualized anchors)"
+        "fully-expressed network, no virtualized anchors, verbatim reference)"
     )
     print("=" * 72)
     for e in engines:
@@ -683,6 +745,10 @@ def print_report(rows, engines):
             if r.get("ground_supported", True)
             and not r.get("partial_net")
             and not r.get("virtualized_anchors")
+            # r-flagged decks (reference from our own resolved text, #439)
+            # are a labeled cohort, not the clean baseline: the resolution
+            # and the engines share the SY evaluator, so its bugs cancel
+            and not r["nec2c"].get("resolved_deck")
             and not r["engines"].get(e, {}).get("error")
             and r["engines"][e].get("cmp")
         ]
