@@ -567,19 +567,48 @@ def reference_deck(text: str, name: str) -> str:
       plane wave) becomes the classic emulation — ``EX 0`` with
       V = I·``EX6_R_BIG`` behind an ``LD 4`` series ``EX6_R_BIG`` on the
       driven segment. The caller must subtract ``EX6_R_BIG`` from nec2c's
-      reported impedance at that feed (``bench_deck`` does).
+      reported impedance at that feed (``bench_deck`` does);
+    - an ``LD 6`` LC-trap (issue #444; 4nec2 dialect, nec2c aborts with
+      IMPROPER LOAD TYPE) becomes the parallel RLC 4nec2 itself converts
+      it to: ``LD 1 tag sf st R_p L C`` with R_p = Q·ωL at the initial
+      FR card's frequency (F1 is the coil's unloaded Q, 0 → 100). Same
+      conversion as ``nec_import``'s, so engines and reference agree on
+      the physics.
 
     Raises ``ValueError`` like ``resolve_sy`` on undecipherable decks.
     """
     from antennaknobs.nec_import import resolve_sy
 
     lines = resolve_sy(text, name=name).splitlines()
+    # 4nec2 evaluates LD 6 trap loss at the INITIAL FR card's F1 (issue
+    # #444) — which may appear after the LD card, so pre-scan for it.
+    fr_first_mhz = 299.8  # NEC's no-FR default
+    for ln in lines:
+        toks = ln.split()
+        if toks[0] == "FR" and len(toks) > 5:
+            try:
+                fr_first_mhz = float(toks[5]) or fr_first_mhz
+            except ValueError:
+                pass
+            break
     out, has_exec, ex6_lds = [], False, []
     for ln in lines:
         toks = ln.split()
         if toks[0] == "FR" and len(toks) > 2 and float(toks[2]) == 0:
             toks[2] = "1"
             ln = " ".join(toks)
+        if toks[0] == "LD" and len(toks) > 1 and int(float(toks[1])) == 6:
+            tag = toks[2] if len(toks) > 2 else "0"
+            sf = toks[3] if len(toks) > 3 else "0"
+            st = toks[4] if len(toks) > 4 else "0"
+            q = (float(toks[5]) if len(toks) > 5 else 0.0) or 100.0
+            le = float(toks[6]) if len(toks) > 6 else 0.0
+            c = float(toks[7]) if len(toks) > 7 else 0.0
+            if le == 0.0:
+                continue  # trap without inductance — the importer drops it too
+            r_p = q * 2.0 * math.pi * fr_first_mhz * 1e6 * le
+            out.append(f"LD 1 {tag} {sf} {st} {r_p!r} {le!r} {c!r}")
+            continue
         if toks[0] == "EX" and len(toks) > 1 and int(float(toks[1])) == 6:
             tag, seg = toks[2], toks[3] if len(toks) > 3 else "0"
             i_re = float(toks[5]) if len(toks) > 5 else 0.0
