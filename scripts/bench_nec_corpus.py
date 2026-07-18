@@ -584,11 +584,22 @@ def reference_deck(text: str, name: str) -> str:
       it to: ``LD 1 tag sf st R_p L C`` with R_p = Q·ωL at the initial
       FR card's frequency (F1 is the coil's unloaded Q, 0 → 100). Same
       conversion as ``nec_import``'s, so engines and reference agree on
-      the physics.
+      the physics;
+    - an ``LD 7`` insulated-wire load (issue #447; 4nec2 dialect, nec2c
+      aborts too — F1 = jacket εr, F2 = jacket outer radius in metres)
+      becomes the ``LD 2`` distributed-series-L′ emulation PR #326
+      validated against the WireSpec insulation model (~1% vf oracle):
+      L′ = ``insulation_inductance(a, b, εr)`` per covered tag, with the
+      conductor radius ``a`` taken from the parsed deck's wires (so GS
+      scaling and geometry transforms are honoured). A whole-structure
+      card expands to one ``LD 2`` per tag (radii differ per tag); a
+      jacket that doesn't clear its conductor is dropped — the importer
+      leaves that wire bare too.
 
     Raises ``ValueError`` like ``resolve_sy`` on undecipherable decks.
     """
-    from antennaknobs.nec_import import resolve_sy
+    from antennaknobs.nec_import import parse_nec, resolve_sy
+    from momwire import insulation_inductance
 
     lines = resolve_sy(text, name=name).splitlines()
     # 4nec2 evaluates LD 6 trap loss at the INITIAL FR card's F1 (issue
@@ -602,6 +613,26 @@ def reference_deck(text: str, name: str) -> str:
             except ValueError:
                 pass
             break
+    tag_radius: dict[int, float] | None = None
+
+    def tag_radii() -> dict[int, float]:
+        """NEC tag → conductor radius, computed lazily on the first LD 7.
+        Preferred source is the fully parsed deck (post-GS/transform radii);
+        a deck ``parse_nec`` refuses falls back to a raw GW-card scan."""
+        nonlocal tag_radius
+        if tag_radius is not None:
+            return tag_radius
+        tag_radius = {}
+        try:
+            for w in parse_nec(text, name=name).wires:
+                tag_radius.setdefault(w.tag, w.radius)
+        except Exception:  # noqa: BLE001 — fall back to the textual scan
+            for gw in lines:
+                gtoks = gw.split()
+                if gtoks and gtoks[0] == "GW" and len(gtoks) > 8:
+                    tag_radius.setdefault(int(float(gtoks[1])), float(gtoks[8]))
+        return tag_radius
+
     out, has_exec, ex6_lds = [], False, []
     for ln in lines:
         toks = ln.split()
@@ -619,6 +650,30 @@ def reference_deck(text: str, name: str) -> str:
                 continue  # trap without inductance — the importer drops it too
             r_p = q * 2.0 * math.pi * fr_first_mhz * 1e6 * le
             out.append(f"LD 1 {tag} {sf} {st} {r_p!r} {le!r} {c!r}")
+            continue
+        if toks[0] == "LD" and len(toks) > 1 and int(float(toks[1])) == 7:
+            tag = int(float(toks[2])) if len(toks) > 2 else 0
+            sf = toks[3] if len(toks) > 3 else "0"
+            st = toks[4] if len(toks) > 4 else "0"
+            eps_r = float(toks[5]) if len(toks) > 5 else 0.0
+            b = float(toks[6]) if len(toks) > 6 else 0.0
+            if b <= 0.0 or eps_r <= 1.0:
+                continue  # no jacket / vacuum jacket — the importer drops it too
+            if tag == 0 and float(sf) == 0:
+                targets, sf, st = sorted(tag_radii()), "0", "0"
+            else:
+                targets = [tag]
+            if not all(t in tag_radii() for t in targets):
+                # A tag with no known radius: keep the card verbatim so
+                # nec2c aborts honestly instead of solving wrong physics.
+                out.append(ln)
+                continue
+            for t in targets:
+                a = tag_radii()[t]
+                if b <= a:
+                    continue  # jacket inside the conductor — importer leaves it bare
+                l_ins = float(insulation_inductance(a, b, eps_r))
+                out.append(f"LD 2 {t} {sf} {st} 0 {l_ins!r} 0")
             continue
         if toks[0] == "EX" and len(toks) > 1 and int(float(toks[1])) == 6:
             tag, seg = toks[2], toks[3] if len(toks) > 3 else "0"
