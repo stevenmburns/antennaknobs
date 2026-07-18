@@ -543,33 +543,62 @@ def compare(engine_z, ref_z):
     return out
 
 
+# Series resistance for the EX 6 current-source emulation (issue #442):
+# EX 6 becomes EX 0 with V = I·R_BIG behind an LD 4 series R_BIG, and the
+# bench subtracts R_BIG back out of nec2c's reported impedance. The value
+# balances the two error terms: forcing error ~ |Z_gap|/R_BIG against
+# recovery error ~ R_BIG·1e-5 from nec2c's 5-significant-digit print.
+EX6_R_BIG = 2.0e4
+
+
 def reference_deck(text: str, name: str) -> str:
     """Deck text prepared for the nec2c *reference* run (issue #439).
 
     ``resolve_sy`` materializes the 4nec2 dialect nec2c cannot read (SY
     symbols, ``'`` comments, ``#AWG`` gauges, fused mnemonics). On top of
-    that, two run-request quirks 4nec2 project decks leave to the GUI:
+    that, run-request and excitation quirks vanilla nec2c cannot handle:
 
     - an ``FR`` card with NFRQ = 0 gets the NEC-2 spec's "one assumed"
       default (``parse_nec`` applies the same normalization);
     - a deck with no ``XQ``/``RP`` execute request gets an ``XQ`` appended
       before ``EN``, otherwise nec2c parses everything and computes nothing
-      ("no ANTENNA INPUT PARAMETERS block").
+      ("no ANTENNA INPUT PARAMETERS block");
+    - an ``EX 6`` current source (issue #442; nec2c misparses type 6 as a
+      plane wave) becomes the classic emulation — ``EX 0`` with
+      V = I·``EX6_R_BIG`` behind an ``LD 4`` series ``EX6_R_BIG`` on the
+      driven segment. The caller must subtract ``EX6_R_BIG`` from nec2c's
+      reported impedance at that feed (``bench_deck`` does).
 
     Raises ``ValueError`` like ``resolve_sy`` on undecipherable decks.
     """
     from antennaknobs.nec_import import resolve_sy
 
     lines = resolve_sy(text, name=name).splitlines()
-    out, has_exec = [], False
+    out, has_exec, ex6_lds = [], False, []
     for ln in lines:
         toks = ln.split()
         if toks[0] == "FR" and len(toks) > 2 and float(toks[2]) == 0:
             toks[2] = "1"
             ln = " ".join(toks)
+        if toks[0] == "EX" and len(toks) > 1 and int(float(toks[1])) == 6:
+            tag, seg = toks[2], toks[3] if len(toks) > 3 else "0"
+            i_re = float(toks[5]) if len(toks) > 5 else 0.0
+            i_im = float(toks[6]) if len(toks) > 6 else 0.0
+            out.append(
+                f"EX 0 {tag} {seg} 0 {i_re * EX6_R_BIG!r} {i_im * EX6_R_BIG!r}"
+            )
+            # The series R_BIG lands as an LD 4, but hoisted BEFORE the
+            # first EX card (below): nec2c resets its voltage-source list
+            # when a matrix-affecting card (LD) follows an EX, so an
+            # interleaved EX/LD/EX/LD deck keeps only the last source.
+            ex6_lds.append(f"LD 4 {tag} {seg} {seg} {EX6_R_BIG!r} 0")
+            continue
         if toks[0] in ("XQ", "RP"):
             has_exec = True
         out.append(ln)
+    if ex6_lds:
+        first_ex = next(i for i, ln in enumerate(out) if ln.split()[0] == "EX")
+        out[first_ex:first_ex] = ex6_lds
     if not has_exec:
         if out and out[-1] == "EN":
             out.insert(-1, "XQ")
@@ -618,12 +647,19 @@ def bench_deck(
         virtualized_anchors=list(deck.virtual_anchor_tags()),
     )
 
-    ref = run_nec2c(deck_path, timeout, mem_bytes)
-    if ref.get("error"):
+    # EX 6 decks (issue #442) NEVER use the original-deck reference: nec2c
+    # misparses type 6 as a plane wave, so a mixed EX 0 + EX 6 deck could
+    # "succeed" with silently wrong physics. They go straight to the
+    # prepared (emulated) reference.
+    ex6_feeds = [f.current for f in deck.feeds]
+    ref = None
+    if not any(ex6_feeds):
+        ref = run_nec2c(deck_path, timeout, mem_bytes)
+    if ref is None or ref.get("error"):
         # Resolved-reference retry (issue #439): the deck parses for *us*,
         # so a failed reference run may just be dialect (SY symbols, no
-        # XQ/RP request). Retry nec2c on the prepared text; a success is
-        # labeled, never silently swapped in.
+        # XQ/RP request, EX 6). Retry nec2c on the prepared text; a success
+        # is labeled, never silently swapped in.
         try:
             prepared = reference_deck(text, deck_path.name)
         except ValueError:
@@ -632,8 +668,22 @@ def bench_deck(
             retry = run_nec2c(deck_path, timeout, mem_bytes, deck_text=prepared)
             if not retry.get("error"):
                 retry["resolved_deck"] = True
-                retry["original_error"] = ref["error"]
+                if ref is not None:
+                    retry["original_error"] = ref["error"]
+                if any(ex6_feeds):
+                    # Undo the current-source emulation: nec2c reported
+                    # Z_gap + R_BIG at each EX 6 feed (row order follows
+                    # EX-card order, same as deck.feeds).
+                    retry["ex6_emulated"] = True
+                    if len(retry.get("z") or []) >= len(ex6_feeds):
+                        for i, is_cur in enumerate(ex6_feeds):
+                            if is_cur:
+                                retry["z"][i][0] -= EX6_R_BIG
                 ref = retry
+            elif ref is None:
+                ref = retry  # EX 6 path: report the prepared run's error
+        if ref is None:
+            ref = {"error": "EX 6 deck; reference preparation failed"}
     row["nec2c"] = ref
     if ref.get("error"):
         return row
