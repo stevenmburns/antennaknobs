@@ -212,8 +212,19 @@ def parse_ground(deck_text: str):
         spec = ("finite-fast", eps, sig)
     elif iperf == 2:
         spec = ("finite", eps, sig)
+    elif iperf == 3:
+        # 4nec2/EZNEC "MiniNec-style" ground (70 wild decks): currents and
+        # impedance are solved over a PERFECT ground; the eps/sig on the
+        # card only shape the far field. For the impedance comparison the
+        # faithful mapping is therefore pec — and nec2c happens to agree
+        # bit-for-bit, landing type 3 in its perfect-ground branch
+        # (verified on TopCap75: GN 3 and GN 1 give identical Z, while the
+        # old "free" mapping made the deck a fake dG=1.59 outlier).
+        spec = "pec"
     else:
-        return ("free", True, f"unknown IPERF={iperf}")
+        # Genuinely unknown type: solve free-space but FLAG it — silently
+        # counting it as clean made mis-scored decks look like engine error.
+        return ("free", False, f"unknown IPERF={iperf}")
 
     reasons = []
     if nradl > 0:
