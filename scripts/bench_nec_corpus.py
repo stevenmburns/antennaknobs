@@ -562,6 +562,49 @@ def compare(engine_z, ref_z):
 EX6_R_BIG = 2.0e4
 
 
+# Program-control cards that configure a NEC-2 run (as opposed to
+# requesting execution). In batch NEC-2 these take effect at the NEXT
+# XQ/RP execute request — so any that appear after the deck's LAST
+# execute request are dead cards. Whole-deck GUI parsers (xnec2c, 4nec2,
+# our importer) apply them regardless of position (issue #449).
+_RUN_CONFIG_CARDS = frozenset(("LD", "TL", "NT", "GN", "GD", "EX", "FR", "EK", "KH"))
+
+
+def dead_trailing_config(mnemonics) -> list[int]:
+    """Indexes of run-config cards after the last XQ/RP execute request.
+
+    ``mnemonics`` is the deck's card-mnemonic sequence (upper-case, one
+    per card line). Nonempty result = the deck's batch-NEC-2 run differs
+    from its whole-deck-parser intent (issue #449): nec2c executed before
+    reading those cards, so its output silently lacks them — the zepp-80m
+    'TL translation artifact' was exactly this, a reference that solved a
+    disconnected feeder stub with no ground.
+    """
+    execs = [i for i, m in enumerate(mnemonics) if m in ("XQ", "RP")]
+    if not execs:
+        return []
+    return [
+        i
+        for i in range(execs[-1] + 1, len(mnemonics))
+        if mnemonics[i] in _RUN_CONFIG_CARDS
+    ]
+
+
+def has_dead_trailing_config(text: str) -> bool:
+    """Raw-text variant of ``dead_trailing_config`` for gating the
+    original-deck reference run (tolerant of the 4nec2 dialect: only
+    plausible two-letter mnemonics count, stops at EN)."""
+    mnems = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        m = s[:2].upper()
+        if len(s) >= 2 and m.isalpha():
+            mnems.append(m)
+            if m == "EN":
+                break
+    return bool(dead_trailing_config(mnems))
+
+
 def reference_deck(text: str, name: str) -> str:
     """Deck text prepared for the nec2c *reference* run (issue #439).
 
@@ -594,7 +637,14 @@ def reference_deck(text: str, name: str) -> str:
       scaling and geometry transforms are honoured). A whole-structure
       card expands to one ``LD 2`` per tag (radii differ per tag); a
       jacket that doesn't clear its conductor is dropped — the importer
-      leaves that wire bare too.
+      leaves that wire bare too;
+    - run-config cards after the deck's LAST execute request (issue #449
+      — dead in batch NEC-2, which executes at XQ/RP before reading
+      them) are hoisted to just before the FIRST execute request, so the
+      reference solves the configuration the deck's whole-deck-parser
+      author intended (xnec2c saves TL/GN after RP; 31 wild decks carry
+      a trailing GN alone — their unhoisted references silently ran
+      free space).
 
     Raises ``ValueError`` like ``resolve_sy`` on undecipherable decks.
     """
@@ -602,6 +652,12 @@ def reference_deck(text: str, name: str) -> str:
     from momwire import insulation_inductance
 
     lines = resolve_sy(text, name=name).splitlines()
+    dead = dead_trailing_config([ln.split()[0] for ln in lines])
+    if dead:
+        hoisted = [lines[i] for i in dead]
+        lines = [ln for i, ln in enumerate(lines) if i not in set(dead)]
+        first = next(i for i, ln in enumerate(lines) if ln.split()[0] in ("XQ", "RP"))
+        lines[first:first] = hoisted
     # 4nec2 evaluates LD 6 trap loss at the INITIAL FR card's F1 (issue
     # #444) — which may appear after the LD card, so pre-scan for it.
     fr_first_mhz = 299.8  # NEC's no-FR default
@@ -748,11 +804,14 @@ def bench_deck(
 
     # EX 6 decks (issue #442) NEVER use the original-deck reference: nec2c
     # misparses type 6 as a plane wave, so a mixed EX 0 + EX 6 deck could
-    # "succeed" with silently wrong physics. They go straight to the
-    # prepared (emulated) reference.
+    # "succeed" with silently wrong physics. Same for decks with run-config
+    # cards trailing the last execute request (issue #449): batch nec2c
+    # executes BEFORE reading them, so the original run silently drops a
+    # TL, ground, or load the deck intends. Both go straight to the
+    # prepared (emulated / hoisted) reference.
     ex6_feeds = [f.current for f in deck.feeds]
     ref = None
-    if not any(ex6_feeds):
+    if not any(ex6_feeds) and not has_dead_trailing_config(text):
         ref = run_nec2c(deck_path, timeout, mem_bytes)
     if ref is None or ref.get("error"):
         # Resolved-reference retry (issue #439): the deck parses for *us*,
