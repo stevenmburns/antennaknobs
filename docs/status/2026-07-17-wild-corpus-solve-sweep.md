@@ -223,3 +223,104 @@ Verticals: 10-3elwireparasitic-sngnd, 10-hsbeam-12, 3r6-hsbeam-reverible-12,
 3r9-3elYagi-14, 5r4-moxrect-reversible-12-AA2NN, 7-2eldelta-12-K4TX,
 7-3elYagi-14, 7-moxrect-reversible-12-AA2NN ·
 opensource: sokyrad/unsorted/10m efhw narrow rect 28.4mhz.nec
+
+## Addendum 3 (2026-07-18): the dialect-rescue arc — 853 decks gain references
+
+The census's biggest bucket — 1,011 decks with no nec2c reference — was
+mostly *dialect*, not physics. Four changes landed in one day
+(PRs #441, #443, #445, #446; issues #439, #442, #444):
+
+1. **`resolve_sy`** (nec_import): SY symbols, `#AWG` gauges, quote
+   comments, fused mnemonics → plain NEC-2 text, round-trip
+   parse-identical on all parseable decks. The bench retries the nec2c
+   reference on prepared text whenever the original run fails, plus two
+   run-request quirks 4nec2 leaves to its GUI: an appended `XQ` (project
+   decks carry no execute request) and the FR NFRQ=0 → 1 spec default.
+2. **EX 6 current sources** (network + import + bench): MNA
+   `DrivenCurrent` termination; nec2c misparses type 6 as a plane wave,
+   so the reference uses the voltage-behind-R_BIG emulation with R_BIG
+   subtracted back out. 61 of the 63 blocked decks now score.
+3. **LD 6 LC-traps**: F1 is the coil's unloaded Q (0 → 100), converted
+   to parallel RLC with R_p = Q·ωL at the initial FR frequency — the
+   formula confirmed by 4nec2's own converted-load table on MultiTrap
+   (whose FR sits far off trap resonance, the discriminating case).
+4. **GN 3 = MiniNec-style ground → pec**: nec2c lands type 3 in its PEC
+   branch bit-for-bit; the bench had been solving those 70 decks in free
+   space *and counting them clean* — TopCap75's headline ΔΓ 1.59 was
+   this artifact (0.09 over pec). Unknown IPERF now flags unclean.
+
+### Final census (content-unique corpus, all references pinned nec2c 1.3.1)
+
+| outcome | decks | was |
+|---|--:|--:|
+| scored, verbatim reference | 1,875 | 1,875 |
+| scored, resolved/prepared reference (`r` flag) | **853** | 0 |
+| parse-rejected (plane wave, patches, GF, taper, ...) | 197 | 260 |
+| no reference (no EX, LD 7 insulation (#447), exotic) | 221 | 1,011 |
+| **total scored** | **2,728 (87%)** | 1,875 (60%) |
+
+### Agreement, by cohort (clean flags: supported ground, full network, no `v`)
+
+Verbatim-reference cohort (unchanged baseline):
+
+| engine | n | median | p90 | ≤0.01 | ≤0.05 | ≤0.2 |
+|---|--:|--:|--:|--:|--:|--:|
+| PyNEC | 1,684 | 0.0002 | 0.0085 | 90% | 96% | 98% |
+| Sinusoidal | 1,733 | 0.0046 | 0.0341 | 65% | 92% | 97% |
+| BSpline d=2 | 1,736 | 0.0090 | 0.1360 | 51% | 78% | 92% |
+| BSpline d=1 | 1,736 | 0.0259 | 0.2201 | 23% | 68% | 88% |
+
+Resolved-reference cohort (`r`; separated because resolution and engines
+share the SY evaluator — independently validated, see below):
+
+| engine | n | median | p90 | ≤0.01 | ≤0.05 | ≤0.2 |
+|---|--:|--:|--:|--:|--:|--:|
+| PyNEC | 782 | 0.0003 | 0.0126 | 84% | 92% | 95% |
+| Sinusoidal | 837 | 0.0005 | 0.0371 | 58% | 87% | 93% |
+| BSpline d=2 | 832 | 0.0512 | 0.1436 | 26% | 54% | 76% |
+| BSpline d=1 | 833 | 0.0531 | 0.1584 | 11% | 45% | 74% |
+
+The r-cohort's PyNEC agreement matching the verbatim cohort is itself
+evidence the resolution is faithful. The BSpline medians degrade because
+the SY population is dominated by electrically small VHF/UHF loops,
+helices and meander dipoles (g1ojs) — the known basis-convergence class
+(#436), not a resolution artifact. Families: EX 6 emulated 61 scored
+(PyNEC median 0.0042), LD 6 traps 24, GN 3 grounds 42.
+
+### Independent cross-validation (4nec2 on Windows, native)
+
+A from-scratch reimplementation of 4nec2's SY evaluator (built against
+4nec2's own Symbols.txt, not our code) matched our resolved geometry on
+all 11 stratified spot-check decks to ≤4.2e-4 relative — and the diff is
+discriminating: radians-trig or log10 variants blow errors to 190–1200%.
+The LD 6 → LD 1 conversion reproduces 4nec2's GUI impedances headless to
+<0.1%. And 4nec2's Fortran-lineage engine adjudicated all six triaged
+outliers **in nec2c's favor**, reclassifying them:
+
+| deck | verdict → issue |
+|---|---|
+| TopCap75 | bench GN 3 mapping (fixed, PR #446) |
+| 10/7-dpl-spiralhats | import-geometry suspect, both engines agree wrong (#450) |
+| salt_ground | engine gap at extreme ground (εr 81, σ 5) |
+| ch-11/11-4, 7-2xhalfwldr | PyNEC/nec2++ real part ~7–8× off on high-|Z| feeds (#448) |
+| zepp-80m | shared TL translation is the artifact — both true NEC-2s agree on −41 kΩ (#449) |
+
+Post-arc outlier census (PyNEC ΔΓ > 0.2, clean flags, both cohorts):
+51 decks, the largest identifiable classes being the TL-semantics family
+(#449 — 4SQTL, CardTL, DipTL, Coax, zepp, ZLTROM) and the
+parasitic-vertical/spiral-hat geometry family (#450).
+
+### Incidents
+
+- Two sweep processes briefly raced on the results file (one launched
+  outside the session), producing 617 adjacent duplicate rows — deduped
+  keeping the best row per deck. Content-duplicate corpus paths can also
+  re-record under their alias when reruns interleave (21 alias rows
+  dropped in the final numbers). Lesson: one writer per jsonl, enforced
+  by checking `pgrep` before every launch, and analyze content-deduped.
+- The GN 3 bug class existed because unknown ground types passed as
+  *clean* comparisons. Anything unknown must degrade loudly.
+
+Follow-ups filed: LD 7 insulation (82 decks, #447), PyNEC high-|Z|
+divergence (#448), TL-semantics family (#449), spiral-hat geometry
+(#450). This closes #439, #442 and #444.
