@@ -479,6 +479,11 @@ class PyNECEngine(SimulationEngine):
             for b in net.branches
         ):
             return True
+        # A current source (DrivenCurrent, issue #442) has no native NEC
+        # excitation — nec2++ EX cards drive voltages only — so any network
+        # with a non-voltage source takes the reducer path.
+        if any(not isinstance(s, Driven) for s in net.sources):
+            return True
         # TwoPort goes native only when the oracle switch is on; otherwise it
         # is a shared-reducer stamp (the general path both engines agree on).
         if any(isinstance(b, TwoPort) for b in net.branches):

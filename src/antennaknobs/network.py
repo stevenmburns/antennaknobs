@@ -573,7 +573,28 @@ class Driven:
     voltage: complex = 1 + 0j
 
 
-Source = Driven
+@dataclass(frozen=True)
+class DrivenCurrent:
+    """Ideal current source applied at a port — ``current`` amps forced
+    into the port node from the common return (4nec2's ``EX 6``
+    excitation, issue #442). The phased-array idiom: element drive
+    RATIOS are what the designer specifies, and only a current source
+    holds them regardless of the mutual coupling (K6STI-style feeds).
+
+    Stamped by the shared ``NetworkReducer`` as a Group-2 forced-current
+    branch, so it works identically on every engine that supplies a
+    multiport Y. Series ``Load`` branches on the same port drop voltage
+    inside the source loop without changing the forced current — exactly
+    NEC's LD-in-segment semantics — and the reported driving-point
+    impedance includes them, like the voltage case. May be freely mixed
+    with ``Driven`` sources on *other* ports; a voltage and a current
+    source on the SAME port is a contradiction and raises."""
+
+    port: str
+    current: complex = 1 + 0j
+
+
+Source = Union[Driven, DrivenCurrent]
 
 
 @dataclass
