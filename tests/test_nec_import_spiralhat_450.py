@@ -14,13 +14,21 @@ nec2c reference (run on the original deck): 25.02 − 64.50j.
 
 from __future__ import annotations
 
+from collections import Counter
+
 import pytest
 
 from antennaknobs import AntennaBuilder, WireSpec
 from antennaknobs.nec_import import parse_nec
+from antennaknobs.network import as_wire
 
-pytest.importorskip("PyNEC")
-from antennaknobs.engines.pynec import PyNECEngine  # noqa: E402
+# The bug lived in the shared coercion path and hit BOTH engines, so the
+# regression pins momwire too and stays alive where PyNEC is absent — momwire is
+# the core engine, PyNEC only skips its own test.
+from antennaknobs.engines.momwire import MomwireEngine  # noqa: E402
+from momwire import SinusoidalSolver  # noqa: E402
+
+_GROUND = ("finite", 13.0, 0.005)
 
 # The 10 MHz spiral-hat vertical dipole (Cebik). Fed at the base segment of a
 # fat central mast (tag 12), with square capacity hats above and below built
@@ -78,24 +86,46 @@ def _import_builder(deck):
     return B()
 
 
-def test_spiralhat_import_matches_nec2c_reactance_sign():
-    """The imported vertical must land near nec2c's 25.0 − 64.5j — capacitive
-    (X < 0), not the pre-fix inductive 33.9 + 116j."""
-    deck = parse_nec(_SPIRALHAT_10, name="spiralhat10", network=True)
-    z = PyNECEngine(_import_builder(deck), ground=("finite", 13.0, 0.005)).impedance()[
-        0
-    ]
+def _assert_near_nec2c(z):
+    """nec2c on the original deck: 25.02 − 64.50j (capacitive)."""
     assert z.imag < 0, f"reactance sign flipped (issue #450): Z={z:.2f}"
     assert z.real == pytest.approx(25.0, abs=2.0), f"R off nec2c: Z={z:.2f}"
     assert z.imag == pytest.approx(-64.5, abs=3.0), f"X off nec2c: Z={z:.2f}"
 
 
-def test_spiralhat_hat_wires_keep_even_segment_count():
-    """The even-segment hat wires (unfed) survive import+coercion unchanged —
-    the fix is preserving their count, not re-meshing them (issue #450)."""
+def test_spiralhat_import_momwire_sinusoidal_matches_nec2c():
+    """momwire (Sinusoidal basis) on the imported deck tracks nec2c — pins the
+    momwire half of the shared-coercion fix, and keeps the regression alive
+    without PyNEC (issue #450)."""
     deck = parse_nec(_SPIRALHAT_10, name="spiralhat10", network=True)
-    eng = PyNECEngine(_import_builder(deck), ground=("finite", 13.0, 0.005))
-    # Hat wires were authored with 2 or 4 segments; none should have been
-    # bumped to an odd count. The only odd-forced wire is the 1-seg fed base.
-    counts = sorted({t[2] for t in eng.tups})
-    assert 4 in counts and 2 in counts, f"hat segment counts altered: {counts}"
+    eng = MomwireEngine(_import_builder(deck), solver=SinusoidalSolver, ground=_GROUND)
+    _assert_near_nec2c(eng.impedance()[0])
+
+
+def test_spiralhat_import_pynec_matches_nec2c():
+    """PyNEC (NEC-2 kernel) on the imported deck tracks nec2c — the other half
+    of the shared-coercion fix (issue #450)."""
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    deck = parse_nec(_SPIRALHAT_10, name="spiralhat10", network=True)
+    _assert_near_nec2c(
+        PyNECEngine(_import_builder(deck), ground=_GROUND).impedance()[0]
+    )
+
+
+def test_spiralhat_wires_keep_authored_segment_counts():
+    """The unfed hat wires (authored 2, 4) and the unfed mast remainder (20)
+    survive import+coercion unchanged; only the 1-seg fed base is odd-forced
+    (already odd). Asserting the EXACT count multiset — not mere membership —
+    so a partial bump (a 4 sneaking to 5) is caught (issue #450)."""
+    deck = parse_nec(_SPIRALHAT_10, name="spiralhat10", network=True)
+    eng = MomwireEngine(_import_builder(deck), solver=SinusoidalSolver, ground=_GROUND)
+    counts = Counter(
+        as_wire(t).n_seg for t in eng._coerce_wire_tuples(deck.wire_tuples())
+    )
+    # 6×2-seg + 16×4-seg hat wires, the 20-seg mast remainder, the 1-seg fed
+    # base = 24 wires. No wire bumped to an odd 3 / 5 / 21.
+    assert counts == {1: 1, 2: 6, 4: 16, 20: 1}, (
+        f"segment counts altered: {dict(counts)}"
+    )
