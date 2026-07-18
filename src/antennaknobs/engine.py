@@ -80,6 +80,12 @@ class SimulationEngine(ABC):
             # flip on the spiral-hat verticals (issue #450). Preserve unmarked
             # wires' n_seg verbatim; NEC-2 and every momwire basis accept any
             # per-edge count (the count only has to be valid, i.e. ≥ 1).
+            # Catalog consequence: a native design whose ``segs_for`` lands an
+            # EVEN count on an unfed wire now keeps it (was silently bumped to
+            # odd), so its impedance shifts a hair under the odd-parity engines,
+            # and a knob move can flip an unfed wire's parity mid-sweep — a
+            # ~0.01 Ω wobble, not a bug. Measured design deltas: 0.00 Ω for
+            # PyNEC/Sinusoidal/BSpline-d2, 0.05 Ω for the d=1 tent basis.
             marked = w.ex is not None or w.name is not None
             n_new = self.coerce_n_seg(w.n_seg, parity) if marked else max(1, w.n_seg)
             if n_new != w.n_seg and (w.n_seg, n_new) not in seen:
