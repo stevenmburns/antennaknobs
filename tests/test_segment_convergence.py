@@ -115,3 +115,53 @@ def test_nominal_nsegs_changes_solver_geometry():
         return sum(sum(w) for w in eng._edge_segments)
 
     assert total_segs(11) < total_segs(21) < total_segs(41)
+
+
+# ------------------------------------------------- segs_for clip (issue #457)
+
+
+def test_segs_for_scales_proportionally_and_clips_at_one():
+    """The count tracks length/ref so segment length stays roughly constant;
+    the old floor of 3 over-meshed short wires (segment length could fall
+    below a fat wire's radius). Clip is 1 — a wire always gets a mesh."""
+    b = BowtieBuilder()
+    assert b.nominal_nsegs == 21
+    ref = 10.0
+    assert b.segs_for(ref, ref) == 21  # reference length → nominal
+    assert b.segs_for(0.5 * ref, ref) == 10  # proportional, no parity forcing
+    assert b.segs_for(0.05 * ref, ref) == 1  # was 3 pre-#457
+    assert b.segs_for(0.0, ref) == 1  # degenerate stays a valid mesh
+
+
+def test_short_unfed_edges_solve_consistently_across_engines():
+    """Validity oracle for 1- and 2-segment unfed edges (issue #457): with
+    the floor gone (and #450 no longer re-bumping unfed wires), every basis
+    must handle a 1-seg and a 2-seg edge. A dipole with two short unmarked
+    stubs must land all four engines on the same driving-point impedance."""
+    from types import MappingProxyType
+
+    from momwire import BSplineSolver, SinusoidalSolver
+
+    from antennaknobs import AntennaBuilder
+
+    class B(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 14.0})
+
+        def build_wires(self):
+            return [
+                ((0, 0, 10.0), (0, 0, 20.0), 21, 1 + 0j),
+                ((0, 0, 20.0), (0.4, 0, 20.0), 1, None),  # 1-seg stub
+                ((0, 0, 10.0), (0.8, 0, 10.0), 2, None),  # 2-seg stub
+            ]
+
+    z_ref = PyNECEngine(B(), ground=None).impedance()[0]
+    engines = {
+        "sin": MomwireEngine(B(), solver=SinusoidalSolver, ground=None),
+        "bs1": MomwireEngine(B(), solver_kwargs={"degree": 1}, ground=None),
+        "bs2": MomwireEngine(B(), solver=BSplineSolver, ground=None),
+    }
+    for name, eng in engines.items():
+        z = eng.impedance()[0]
+        assert abs(z - z_ref) / abs(z_ref) < 0.05, (
+            f"{name} diverged on short unfed edges: {z:.2f} vs PyNEC {z_ref:.2f}"
+        )

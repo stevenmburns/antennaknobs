@@ -151,7 +151,13 @@ class AntennaBuilder:
         Scales `self.nominal_nsegs` (the segment count for a reference-length
         wire) by `length / ref`, so longer wires get proportionally more
         segments and the segment length stays roughly constant. `ref` is
-        usually a quarter-wavelength; the count is floored at 3.
+        usually a quarter-wavelength; the count is clipped at 1 (issue #457
+        — the old floor of 3 defeated the constant-segment-length goal on
+        short wires, and on short *fat* wires could push the segment length
+        below the wire radius, outside thin-wire-kernel validity). A fed
+        wire's count is still parity-coerced at solve time, so the delta
+        gap always has a middle segment to land on; since issue #450 an
+        unfed wire keeps this count verbatim.
 
         Parity is intentionally NOT forced here. Each solver wants a particular
         segment parity so the feed lands on (or symmetrically across) the
@@ -161,7 +167,7 @@ class AntennaBuilder:
         natural count and letting the solver round is why this is `segs_for`,
         not the old `odd_nsegs`: baking in odd here would just make an
         even-parity solve bump the count up by one."""
-        return max(3, round(self.nominal_nsegs * length / ref))
+        return max(1, round(self.nominal_nsegs * length / ref))
 
     def _phasor(self, name):
         """Unit phasor exp(j·phase) for a degrees-valued phase param (e.g.
