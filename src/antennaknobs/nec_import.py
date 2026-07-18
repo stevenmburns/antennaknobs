@@ -28,9 +28,11 @@ TL cards become ``TL`` branches (crossed lines, zero-length = port
 separation, end shunts — a conductance as a ``Shunt``, a reactive G+jB as a
 fixed 1-port ``Admittance``, issue #423), an NT card becomes its exact
 resistive pi when the Y matrix is all-real (``TwoPort`` + ``Shunt``) or a
-2-port ``Admittance`` when it carries susceptance, and an LD 4 reactive load
-(fixed R+jX) becomes a fixed-complex-Z ``Load`` (issue #422). What cannot be
-expressed exactly — distributed RLC (LD 2/3), range-limited conductivity —
+2-port ``Admittance`` when it carries susceptance, an LD 4 reactive load
+(fixed R+jX) becomes a fixed-complex-Z ``Load`` (issue #422), and 4nec2's
+LD 7 wire insulation becomes per-wire ``WireSpec`` jackets via
+``wire_insulation`` (issue #447). What cannot be expressed exactly —
+distributed RLC (LD 2/3), partial-wire conductivity or insulation ranges —
 stays in ``ignored`` with a per-card reason in ``ignored_detail``.
 ``wire_tuples()`` then emits *named* wires (no legacy
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
@@ -226,6 +228,11 @@ class NecDeck:
     # Ranged LD 5 (issue #388): (wire index, S/m) for every wire an LD 5
     # card covers in full. Baked into wire_tuples(specs=True) specs.
     wire_conductivity: tuple[tuple[int, float], ...] = ()
+    # LD 7 wire insulation (issue #447, 4nec2 dialect): (wire index,
+    # (jacket outer radius m, jacket relative permittivity)) for every
+    # wire an LD 7 card covers in full — a whole-structure card covers
+    # them all. Baked into wire_tuples(specs=True) specs.
+    wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
     # (mnemonic, reason) per card instance that network mode still could not
     # translate — skipped_note() prefers these over the generic descriptions.
     ignored_detail: tuple[tuple[str, str], ...] = ()
@@ -390,9 +397,10 @@ class NecDeck:
 
         ``specs=True`` (issue #388) emits ``Wire`` named tuples instead,
         each carrying a per-wire ``WireSpec`` with the deck wire's OWN
-        radius — no ``dominant_radius()`` compromise — and its effective
+        radius — no ``dominant_radius()`` compromise — its effective
         conductivity (a ranged LD 5 over the whole wire, else the deck's
-        whole-structure LD 5). PyNEC honors both per wire; momwire honors
+        whole-structure LD 5), and its LD 7 insulation jacket when the
+        deck carries one (issue #447). PyNEC honors both per wire; momwire honors
         both too since momwire#147 (complete in momwire 0.13.0 across all
         four solver bases, the H-matrix family included). With
         ``specs=True`` a ``build_wire_material()`` fallback is unnecessary
@@ -430,19 +438,25 @@ class NecDeck:
                 per[f.seg] = (f.voltage, None)
 
         sigma_by_wire = dict(self.wire_conductivity)
+        ins_by_wire = dict(self.wire_insulation)
 
         def spec_for(i, w):
             """Per-wire spec (issue #388): the deck wire's own radius, with
             its effective conductivity baked in — a ranged LD 5 on this wire
-            wins over the whole-structure one. Baking is required: engines
-            treat an explicit spec as complete (no field-level fallback to
-            build_wire_material), so leaving conductivity None would turn a
-            copper deck into PEC wire by wire."""
+            wins over the whole-structure one — and its LD 7 insulation
+            jacket (issue #447), when one covers the wire. Baking is
+            required: engines treat an explicit spec as complete (no
+            field-level fallback to build_wire_material), so leaving
+            conductivity None would turn a copper deck into PEC wire by
+            wire."""
             if not specs:
                 return None
+            ins = ins_by_wire.get(i)
             return _net.WireSpec(
                 radius=w.radius,
                 conductivity=sigma_by_wire.get(i, self.conductivity),
+                insulation_radius=ins[0] if ins else None,
+                insulation_eps_r=ins[1] if ins else None,
             )
 
         tups = []
@@ -1501,6 +1515,7 @@ def _translate_network_cards(
     loaded: set[tuple[int, int]] = set()
     conductivity: float | None = None
     wire_conductivity: dict[int, float] = {}
+    wire_insulation: dict[int, tuple[float, float]] = {}
     for card in lds_raw:
         ldtyp = card.i(0)
         tag, sf, st = card.i(1), card.i(2), card.i(3)
@@ -1584,6 +1599,43 @@ def _translate_network_cards(
                         "type 5 conductivity on a partial-wire segment "
                         "range — per-wire specs cover whole wires only",
                     )
+        elif ldtyp == 7:
+            # 4nec2's insulated-wire extension (issue #447; NEC proper has
+            # no such type — nec2c aborts with IMPROPER LOAD TYPE): F1 is
+            # the jacket's relative permittivity, F2 its outer radius in
+            # metres (either may be an SY expression, e.g. `w1/2`).
+            # WireSpec carries exactly this dielectric-jacket model (the
+            # lossy-wire arc), so a range that covers each touched wire in
+            # full translates per wire like the ranged LD 5 conductivity —
+            # last card wins per wire.
+            eps_r, b = card.f(4), card.f(5)
+            if b <= 0.0 or eps_r <= 1.0:
+                continue  # no jacket, or a vacuum one — electrically a no-op
+            pairs = _segment_range(wires, tag, sf, st, card)
+            by_wire = {}
+            for wi, s in pairs:
+                by_wire.setdefault(wi, set()).add(s)
+            if not all(
+                segs == set(range(1, wires[wi][1] + 1)) for wi, segs in by_wire.items()
+            ):
+                skip(
+                    "LD",
+                    "type 7 insulation on a partial-wire segment "
+                    "range — per-wire specs cover whole wires only",
+                )
+                continue
+            for wi in by_wire:
+                if b <= wires[wi][4]:
+                    # A jacket that doesn't clear the conductor is a deck
+                    # bug; the engines would reject the spec outright, so
+                    # leave the wire bare and say why.
+                    skip(
+                        "LD",
+                        "type 7 insulation whose outer radius does not "
+                        "exceed the wire's conductor radius",
+                    )
+                    continue
+                wire_insulation[wi] = (b, eps_r)
         else:
             skip("LD", f"type {ldtyp} is not recognised")
 
@@ -1593,6 +1645,7 @@ def _translate_network_cards(
         tuple(nts),
         conductivity,
         tuple(sorted(wire_conductivity.items())),
+        tuple(sorted(wire_insulation.items())),
         detail,
         skipped,
         frozenset(virtualized),
@@ -1808,6 +1861,7 @@ def parse_nec(
     nts: tuple[NecNT, ...] = ()
     conductivity: float | None = None
     wire_conductivity: tuple[tuple[int, float], ...] = ()
+    wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
     detail: list[tuple[str, str]] = []
     virtual_anchors: frozenset[int] = frozenset()
     if network:
@@ -1817,6 +1871,7 @@ def parse_nec(
             nts,
             conductivity,
             wire_conductivity,
+            wire_insulation,
             detail,
             skipped,
             virtual_anchors,
@@ -1847,6 +1902,7 @@ def parse_nec(
         nts=nts,
         conductivity=conductivity,
         wire_conductivity=wire_conductivity,
+        wire_insulation=wire_insulation,
         ignored_detail=tuple(detail),
         network_mode=network,
         extended_kernel=extended_kernel,
