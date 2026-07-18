@@ -313,13 +313,17 @@ Segments to reach within 2% of that engine's own finest-mesh value:
 
 ## Follow-ups
 
-- **Anchor the quad convergence** with a very-fine PyNEC mesh (N≈201) and/or
-  nec2c on a matched-dimension quad deck, to settle whether Bs2 converges *faster
-  to the same answer* or to a *different* one.
-- **Formalize the convergence sweep** into `bench_nec_corpus.py` (a `--converge`
-  mode) or a sibling script, reusing the subprocess/RSS/concurrency harness;
-  extend to more loops (`delta_loop`, `diamond_loop`) to test whether "closed
-  loops favor the higher-order basis" generalizes.
+- **Anchor the quad convergence** — ✅ **resolved** (issue #408, see
+  `2026-07-18-quad-convergence-anchor.md`). With `scripts/bench_converge.py
+  --anchor-nec2c` to N=201: the B-splines were right (~130 Ω is the true value)
+  and NEC's climb to 138.8 Ω was a **feed-modeling artifact** of `quad.py`'s
+  fixed 1-segment feed gap, *not* a basis-value disagreement. Refining the feed
+  collapses all five methods onto 130 Ω from the coarsest mesh. The "closed
+  loops favour the higher-order basis" hypothesis **does not generalise** —
+  `delta_loop` and `diamond_loop` converge to a single value on every engine.
+- **Formalize the convergence sweep** — ✅ **done**: `scripts/bench_converge.py`,
+  a sibling reusing the subprocess/RSS/concurrency harness, with a nec2c value
+  anchor and the extra loops (`delta_loop`, `diamond_loop`).
 - **momwire ground on ground-connected wires — largely resolved by 0.14.0.**
   The `strictly above ground_z` raises and the large PEC-ground-plane divergence
   are gone (see headlines). Remaining thread: `1MHz_tower` (guy-wires into the
