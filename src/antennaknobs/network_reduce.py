@@ -35,6 +35,7 @@ from .network import (
     TL,
     Admittance,
     Driven,
+    DrivenCurrent,
     Load,
     PortOnWire,
     Shunt,
@@ -164,11 +165,13 @@ class MNASystem:
     ``j`` — Group-2 branch currents. ``i_ext`` is zero at every node (all
     external injections enter through Group-2 source branches).
 
-    ``terminations`` maps a port node index → ``(column, emf)`` for the
-    per-port source/load termination branch (see
+    ``terminations`` maps a port node index → ``(column, value, kind,
+    z_chain)`` for the per-port source/load termination branch (see
     ``NetworkReducer.apply_branches``); its current ``j[column]`` is the
-    current the termination delivers INTO the node, so a driven port's
-    impedance is ``emf / j[column]`` read straight off the solution.
+    current the termination delivers INTO the node. Kind "v": value is
+    the EMF and the driven impedance is ``emf / j[column]``; kind "i"
+    (forced current, issue #442): value is the forced amps and the
+    impedance is ``v_k / j[column] + z_chain``.
     """
 
     def __init__(self, G, elements, terminations, probes=None):
@@ -207,7 +210,9 @@ class MNASystem:
         across the element times its explicit branch current — exact in
         both impedance and admittance form, including shorts and opens.
         Terminations: ½·Re((E − v_k)·j*), the drop across the Load part
-        (the EMF term is the port's input power, not dissipation)."""
+        (the EMF term is the port's input power, not dissipation); a
+        forced-current termination's loads dissipate ½·Re(z_chain)·|j|²
+        instead — the drop across the chain at the forced current."""
         v, j = self.solve()
         label, kind, payload = label_kind_payload
         if kind == "group1":
@@ -226,7 +231,9 @@ class MNASystem:
             i_a, i_b = el.ka * j[payload], el.kb * j[payload]
             return 0.5 * float(np.real(va * np.conj(i_a) - vb * np.conj(i_b)))
         # termination: the Load part of the source/load branch at node k.
-        col, e = self.terminations[payload]
+        col, e, tkind, z_chain = self.terminations[payload]
+        if tkind == "i":
+            return 0.5 * float(np.real(z_chain)) * float(abs(j[col])) ** 2
         return 0.5 * float(np.real((e - v[payload]) * np.conj(j[col])))
 
     def solve(self):
@@ -254,14 +261,24 @@ class NetworkReducer:
         self.port_to_idx = port_to_idx
         self.n_total_ports = n_total_ports
 
-        # 0-based driven port indices and their applied voltages.
+        # 0-based driven port indices, with per-source kind: "v" for a
+        # Driven voltage source (value = EMF), "i" for a DrivenCurrent
+        # forced-current source (value = amps into the node, issue #442).
         self.driven_port_idx = []
-        self.driven_voltages = []
+        self.driven_voltages = []  # voltage sources only (legacy view)
+        self._source_kinds = []
+        self._source_values = []
         for src in network.sources:
-            if not isinstance(src, Driven):
+            if isinstance(src, Driven):
+                kind, value = "v", complex(src.voltage)
+                self.driven_voltages.append(value)
+            elif isinstance(src, DrivenCurrent):
+                kind, value = "i", complex(src.current)
+            else:
                 raise NotImplementedError(f"unknown source type: {src!r}")
             self.driven_port_idx.append(port_to_idx[src.port])
-            self.driven_voltages.append(complex(src.voltage))
+            self._source_kinds.append(kind)
+            self._source_values.append(value)
 
     @property
     def n_driven(self):
@@ -404,13 +421,49 @@ class NetworkReducer:
 
         # Per-port termination branches. A port may carry BOTH a source and
         # a series load (the centre-loaded driven short dipole); they chain
-        # into one branch: datum —EMF—Z_L→ node.
-        emf = dict(zip(self.driven_port_idx, self.driven_voltages))
+        # into one branch: datum —EMF—Z_L→ node. Termination tuples are
+        # (column, source value, kind, z_chain): kind "v" is the Thevenin
+        # branch below, kind "i" a forced-current branch (issue #442).
+        emf, forced = {}, {}
+        for k, kind, val in zip(
+            self.driven_port_idx, self._source_kinds, self._source_values
+        ):
+            if kind == "v":
+                emf[k] = val
+            else:
+                # Parallel current sources into one node sum (KCL).
+                forced[k] = forced.get(k, 0j) + val
+        clash = set(emf) & set(forced)
+        if clash:
+            raise ValueError(
+                "a voltage source and a current source share port node(s) "
+                f"{sorted(clash)}: an ideal voltage source across an ideal "
+                "current source is contradictory — drive the port one way"
+            )
         terminations = {}
-        for k in sorted(set(emf) | set(loads_by_node)):
-            e = emf.get(k, 0j)
+        for k in sorted(set(emf) | set(forced) | set(loads_by_node)):
             loads = loads_by_node.get(k, [])
             zs = [load_impedance(br, omega) for br in loads]
+            if k in forced:
+                # Forced-current termination (DrivenCurrent, issue #442):
+                # constitutive row j = I, independent of any series loads —
+                # they drop voltage inside the source loop without altering
+                # the current, exactly NEC's LD-in-driven-segment physics.
+                if not all(np.isfinite(z) for z in zs):
+                    raise ValueError(
+                        f"current source at port node {k} drives an open "
+                        "load chain (parallel-LC trap at resonance): forcing "
+                        "a current through an open is unphysical"
+                    )
+                terminations[k] = (len(elements), forced[k], "i", sum(zs, 0j))
+                elements.append(
+                    _Group2Element(None, k, c_v=0j, c_j=1.0 + 0j, e=forced[k])
+                )
+                if loads:
+                    names = [br.port for br in loads]
+                    probes.append((f"Load {'+'.join(names)}", "termination", k))
+                continue
+            e = emf.get(k, 0j)
             if len(loads) == 1 and loads[0].parallel:
                 # Parallel-LC trap: the tank admittance is the finite
                 # quantity (→ 0 at resonance, the intended open circuit);
@@ -424,7 +477,7 @@ class NetworkReducer:
             else:
                 # A chain containing an at-resonance trap is an open.
                 el = _Group2Element(None, k, c_v=0j, c_j=1.0 + 0j, e=0j)
-            terminations[k] = (len(elements), e)
+            terminations[k] = (len(elements), e, "v", 0j)
             elements.append(el)
             if loads:
                 names = [br.port for br in loads]
@@ -434,9 +487,11 @@ class NetworkReducer:
 
     def resolve_voltages(self, system):
         """Return the (n_total,) physical port-voltage vector of the solved
-        network: driven ports at their applied voltages, loaded ports at the
-        gap voltage V_k = V_src − Z_L·I_k (the load shapes the current the
-        way NEC2's ld_card does), every other port floating with I_ext = 0.
+        network: voltage-driven ports at their applied voltages, current-
+        driven ports at whatever gap voltage the forced current produced,
+        loaded ports at the gap voltage V_k = V_src − Z_L·I_k (the load
+        shapes the current the way NEC2's ld_card does), every other port
+        floating with I_ext = 0.
         These are the voltages the excited far-field/current solver forces
         at the real feeds."""
         v, _j = system.solve()
@@ -480,8 +535,14 @@ class NetworkReducer:
         system = self.apply_branches(Y_real, wavelength)
         v, j = system.solve()
         p_in = 0.0
-        for k, (col, e) in system.terminations.items():
-            p_in += 0.5 * float(np.real(e * np.conj(j[col])))
+        for k, (col, e, tkind, z_chain) in system.terminations.items():
+            if tkind == "i":
+                # Current source: its terminal voltage sits behind the load
+                # chain, v_src = v_k + z_chain·j; p = ½·Re(v_src·j*).
+                v_src = v[k] + z_chain * j[col]
+                p_in += 0.5 * float(np.real(v_src * np.conj(j[col])))
+            else:
+                p_in += 0.5 * float(np.real(e * np.conj(j[col])))
         budget = [
             (label, system.branch_power((label, kind, payload)))
             for label, kind, payload in system.probes
@@ -500,10 +561,20 @@ class NetworkReducer:
         result: Z = E / j_term, the termination EMF over its delivered
         current — read straight off the solution vector, no Y·V
         post-multiply."""
-        _v, j = system.solve()
+        v, j = system.solve()
         out = []
-        for k in self.driven_port_idx:
-            col, e = system.terminations[k]
+        for k, kind in zip(self.driven_port_idx, self._source_kinds):
+            col, e, _tkind, z_chain = system.terminations[k]
+            if kind == "i":
+                # Forced-current port (issue #442): the source impedance is
+                # the gap voltage over the forced current, plus the series
+                # load chain it drives through — mirroring how the voltage
+                # form's E/j includes its series loads.
+                if j[col] == 0:
+                    out.append(complex(float("inf"), 0.0))
+                else:
+                    out.append(complex(v[k] / j[col] + z_chain))
+                continue
             if j[col] == 0:
                 # Open-circuited source — no current path from the port
                 # (e.g. a matching-network series capacitor slider at 0 F,

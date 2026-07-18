@@ -99,7 +99,7 @@ def test_load_only_efficiency_matches_the_pre_299_accounting():
     # terminations with E=0 at the loaded port.
     system = reducer.apply_branches(y, WL)
     v2, j2 = system.solve()
-    col, e = system.terminations[1]
+    col, e, _kind, _z_chain = system.terminations[1]
     old = 0.5 * float(np.real((e - v2[1]) * np.conj(j2[col])))
     np.testing.assert_allclose(w, old, rtol=1e-12)
     np.testing.assert_allclose(eff, 1.0 - old / p_in, rtol=1e-12)
