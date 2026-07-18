@@ -624,13 +624,19 @@ def reference_deck(text: str, name: str) -> str:
             return tag_radius
         tag_radius = {}
         try:
-            for w in parse_nec(text, name=name).wires:
-                tag_radius.setdefault(w.tag, w.radius)
+            # network=True so EX 6 current-source decks parse too (the
+            # default mode refuses them; issue #442).
+            wires = parse_nec(text, name=name, network=True).wires
+            found = ((w.tag, w.radius) for w in wires)
         except Exception:  # noqa: BLE001 — fall back to the textual scan
-            for gw in lines:
-                gtoks = gw.split()
-                if gtoks and gtoks[0] == "GW" and len(gtoks) > 8:
-                    tag_radius.setdefault(int(float(gtoks[1])), float(gtoks[8]))
+            found = (
+                (int(float(gtoks[1])), float(gtoks[9]))
+                for gtoks in (gw.split() for gw in lines)
+                if gtoks and gtoks[0] == "GW" and len(gtoks) > 9
+            )
+        for t, a in found:
+            if a > 0.0:  # radius 0 = tapered-wire GC prelude — no emulation
+                tag_radius.setdefault(t, a)
         return tag_radius
 
     out, has_exec, ex6_lds = [], False, []
