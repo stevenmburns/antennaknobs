@@ -69,7 +69,19 @@ class SimulationEngine(ABC):
         out = []
         for t in tups:
             w = as_wire(t)
-            n_new = self.coerce_n_seg(w.n_seg, parity)
+            # Parity coercion exists to land an engine attachment on a wire's
+            # middle segment: a feed's delta gap (odd parity) or an even-parity
+            # solver's midpoint. Only wires that HOST an attachment — a legacy
+            # EX (``ex``) or a named network port (``name``: feed/load/TL/NT) —
+            # need it. Coercing an UNMARKED wire's segment count is gratuitous,
+            # and for a deck whose author chose an exact mesh (nec_import) on a
+            # tightly-coupled structure like a capacity hat it changes the
+            # modeled coupling enough to corrupt the impedance — reactance sign
+            # flip on the spiral-hat verticals (issue #450). Preserve unmarked
+            # wires' n_seg verbatim; NEC-2 and every momwire basis accept any
+            # per-edge count (the count only has to be valid, i.e. ≥ 1).
+            marked = w.ex is not None or w.name is not None
+            n_new = self.coerce_n_seg(w.n_seg, parity) if marked else max(1, w.n_seg)
             if n_new != w.n_seg and (w.n_seg, n_new) not in seen:
                 seen.add((w.n_seg, n_new))
                 _logger.info(

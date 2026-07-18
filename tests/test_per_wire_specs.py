@@ -163,15 +163,20 @@ def test_coerce_preserves_shape_and_spec():
     p0, p1 = (0, 0, 0.0), (0, 0, 1.0)
     out = eng._coerce_wire_tuples(
         [
-            (p0, p1, 4, None),
-            (p0, p1, 4, 1 + 0j, "feed"),
-            Wire(p0, p1, 4, None, spec=THICK),
+            (p0, p1, 4, None),  # unmarked plain 4-tuple
+            (p0, p1, 4, 1 + 0j, "feed"),  # marked (ex + name)
+            Wire(p0, p1, 4, None, spec=THICK),  # unmarked Wire
+            Wire(p0, p1, 4, 2 + 0j, "feed2", THICK),  # marked Wire
         ]
     )
-    assert out[0] == (p0, p1, 5, None) and type(out[0]) is tuple
+    # Only marked wires (a feed EX or a named network port) are coerced to the
+    # engine's parity, so the attachment lands on the middle segment; an
+    # unmarked wire keeps its exact segment count (issue #450). Shape and spec
+    # are preserved either way: a plain tuple stays plain, a Wire stays a Wire.
+    assert out[0] == (p0, p1, 4, None) and type(out[0]) is tuple
     assert out[1] == (p0, p1, 5, 1 + 0j, "feed") and type(out[1]) is tuple
-    assert isinstance(out[2], Wire)
-    assert out[2].n_seg == 5 and out[2].spec is THICK
+    assert isinstance(out[2], Wire) and out[2].n_seg == 4 and out[2].spec is THICK
+    assert isinstance(out[3], Wire) and out[3].n_seg == 5 and out[3].spec is THICK
 
 
 # --------------------------------------------------------- array builders
