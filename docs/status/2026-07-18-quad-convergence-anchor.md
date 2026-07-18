@@ -130,6 +130,80 @@ but modest ~2–3× rate edge — and on `delta_loop` NEC even *overshoots* to
 mesh dependence near a fed loop edge is a numerical transient, not a march
 toward a different answer.
 
+## Full convergence rollup (feed 0, free space)
+
+The per-mesh curves behind the summary above — every N × every engine + the
+nec2c anchor, `R + jX` in Ω. Regenerate with:
+
+```
+python scripts/bench_converge.py \
+  --designs loops.delta_loop loops.diamond_loop beams.yagi \
+  --nseg-ladder 7 11 15 21 31 45 61 85 121 161 201 --anchor-nec2c
+```
+
+(The quad's own full curve — both the buggy-feed climb and the corrected-feed
+collapse — is in the two tables above.) PyNEC / Sinusoidal / nec2c trace the
+same curve on every design; the B-spline columns reach the converged value from
+a coarser mesh on the two loops and in lockstep with the rest on the yagi.
+
+#### delta_loop (triangle)
+
+| N | Σseg | PyNEC | Sinusoidal | BSpline d=1 | BSpline d=2 | nec2c |
+|--:|--:|--:|--:|--:|--:|--:|
+| 7 | 24 | 103.9 +41.4j | 103.9 +41.5j | 109.0 +38.1j | 110.6 +42.8j | 103.9 +41.4j |
+| 11 | 36 | 107.5 +42.7j | 107.5 +42.7j | 110.0 +41.1j | 110.6 +43.1j | 107.5 +42.6j |
+| 15 | 48 | 109.2 +43.4j | 109.2 +43.4j | 110.3 +42.2j | 110.6 +43.2j | 109.2 +43.3j |
+| 21 | 66 | 110.5 +43.9j | 110.5 +43.9j | 110.5 +42.8j | 110.6 +43.4j | 110.5 +43.8j |
+| 31 | 97 | 111.1 +44.0j | 111.1 +44.0j | 110.6 +43.1j | 110.6 +43.4j | 111.1 +43.9j |
+| 45 | 141 | 111.2 +43.9j | 111.2 +43.9j | 110.7 +43.3j | 110.7 +43.5j | 111.2 +43.9j |
+| 61 | 191 | 111.1 +43.8j | 111.1 +43.8j | 110.7 +43.4j | 110.7 +43.5j | 111.0 +43.8j |
+| 85 | 267 | 110.9 +43.7j | 110.9 +43.7j | 110.7 +43.4j | 110.7 +43.5j | 110.9 +43.7j |
+| 121 | 380 | 110.7 +43.6j | 110.7 +43.7j | 110.7 +43.5j | 110.7 +43.5j | 110.7 +43.6j |
+| 161 | 506 | 110.6 +43.6j | 110.6 +43.5j | 110.7 +43.5j | 110.7 +43.5j | 110.6 +43.5j |
+| 201 | 631 | 110.5 +43.5j | 110.5 +43.7j | 110.8 +43.5j | 110.7 +43.5j | 110.5 +43.5j |
+
+Note NEC overshoots to 111.2 Ω at N=45 then settles *back* to 110.5 — the
+B-splines never leave ~110.6.
+
+#### diamond_loop (single square loop, 4 corners)
+
+| N | Σseg | PyNEC | Sinusoidal | BSpline d=1 | BSpline d=2 | nec2c |
+|--:|--:|--:|--:|--:|--:|--:|
+| 7 | 31 | 202.2 +54.3j | 202.2 +54.4j | 219.3 +54.8j | 220.6 +57.5j | 202.2 +54.3j |
+| 11 | 47 | 209.7 +56.2j | 209.7 +56.2j | 220.3 +56.6j | 220.7 +57.9j | 209.7 +56.2j |
+| 15 | 63 | 213.7 +57.2j | 213.7 +57.2j | 220.6 +57.3j | 220.7 +58.2j | 213.7 +57.2j |
+| 21 | 87 | 216.8 +58.0j | 216.8 +58.0j | 220.8 +57.7j | 220.7 +58.4j | 216.8 +58.0j |
+| 31 | 128 | 218.9 +58.3j | 218.9 +58.3j | 220.9 +57.9j | 220.8 +58.3j | 218.9 +58.2j |
+| 45 | 186 | 220.0 +58.4j | 220.1 +58.5j | 221.0 +58.1j | 220.9 +58.3j | 220.0 +58.4j |
+| 61 | 252 | 220.5 +58.5j | 220.5 +58.5j | 221.0 +58.1j | 220.9 +58.3j | 220.5 +58.4j |
+| 85 | 352 | 220.8 +58.4j | 220.8 +58.5j | 221.0 +58.1j | 221.0 +58.3j | 220.7 +58.4j |
+| 121 | 501 | 220.9 +58.4j | 220.9 +58.4j | 221.1 +58.1j | 221.0 +58.3j | 220.8 +58.3j |
+| 161 | 667 | 220.9 +58.3j | 220.9 +58.3j | 221.1 +58.1j | 221.0 +58.3j | 220.9 +58.3j |
+| 201 | 832 | 220.9 +58.3j | 220.9 +58.6j | 221.1 +58.1j | 221.0 +58.3j | 220.9 +58.2j |
+
+The cleanest case for the higher-order basis: Bs2 is at 220.6 (0.2% off its
+finest) at **N=7** while the NEC family needs **N=21** to get within 2%.
+
+#### beams.yagi (open linear control)
+
+| N | Σseg | PyNEC | Sinusoidal | BSpline d=1 | BSpline d=2 | nec2c |
+|--:|--:|--:|--:|--:|--:|--:|
+| 7 | 59 | 31.3 -34.4j | 31.2 -34.6j | 33.2 -40.1j | 34.2 -37.7j | 31.3 -34.5j |
+| 11 | 91 | 32.6 -35.2j | 32.5 -35.3j | 33.8 -38.5j | 34.3 -37.1j | 32.6 -35.2j |
+| 15 | 123 | 33.3 -35.5j | 33.2 -35.7j | 34.0 -37.8j | 34.4 -36.8j | 33.3 -35.6j |
+| 21 | 171 | 33.8 -35.8j | 33.8 -36.0j | 34.2 -37.3j | 34.5 -36.6j | 33.8 -35.9j |
+| 31 | 252 | 34.2 -36.0j | 34.1 -36.1j | 34.3 -36.9j | 34.5 -36.4j | 34.2 -36.0j |
+| 45 | 366 | 34.4 -36.0j | 34.4 -36.1j | 34.4 -36.6j | 34.6 -36.2j | 34.4 -36.0j |
+| 61 | 496 | 34.5 -36.0j | 34.5 -36.1j | 34.5 -36.4j | 34.6 -36.1j | 34.5 -36.0j |
+| 85 | 692 | 34.6 -35.9j | 34.6 -36.0j | 34.5 -36.3j | 34.6 -36.0j | 34.6 -35.9j |
+| 121 | 985 | 34.6 -35.8j | 34.6 -36.0j | 34.6 -36.1j | 34.6 -35.9j | 34.6 -35.9j |
+| 161 | 1311 | 34.7 -35.8j | 34.6 -36.0j | 34.6 -36.1j | 34.6 -35.9j | 34.7 -35.8j |
+| 201 | 1636 | 34.7 -35.8j | 34.6 -35.6j | 34.6 -36.0j | 34.7 -35.8j | 34.7 -35.8j |
+
+On the open linear yagi every basis converges at the same rate (N≥21) — the
+B-spline loop advantage does not carry over, which is why #436 keeps any mesh
+change geometry-aware rather than global.
+
 ## Consequences
 
 - **The corpus rollup's B-spline "loop error" is largely a red herring for the
