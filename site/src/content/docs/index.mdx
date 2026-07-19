@@ -25,19 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.29.0" icon="star">
-  **One solver at a time.** The workbench now schedules every computation a
-  tab asks for — the live solve, frequency sweeps, convergence ladders,
-  pattern checks — through a single per-session lane on the server, live
-  solve first. Dragging a knob instantly preempts stale background work at
-  the solver's next checkpoint instead of competing with it for cores, so
-  benchmark-sized designs (try the 4,400-segment
-  [ELT whip](/reference/catalog/)) stay responsive while their sweeps grind.
-  Closing the tab now stops the computation, a solve that fails no longer
-  pins its memory for the life of the server, and one cost model decides
-  up front what's safe to run. Under the hood it's four invariants replacing
-  a pile of client-side timing heuristics — the workbench just feels
-  steadier under heavy designs.
+<Card title="New in v0.30.0" icon="star">
+  **Bring your `.nec` files.** The deck importer now reads the NEC that's
+  actually out there — 4nec2's symbolic `SY` variables and expressions,
+  `#14`-style wire gauges, current-source feeds (`EX 6`), LC-traps
+  (`LD 6`), insulated-wire loads (`LD 7` → per-wire jackets the solvers
+  model), reactive loads and line terminations, and the extended thin-wire
+  kernel (`EK`) — validated against **3,146 real-world decks** collected
+  from ARRL course material, 4nec2's model library, and the wider web,
+  with 87% now scoring against reference NEC-2 and the median PyNEC deck
+  agreeing to a reflection-coefficient distance of 0.0001. Meshing got
+  principled to match: the segment counts you (or your deck) ask for are
+  the counts that solve — parity nudges touch only fed wires, short
+  bridges mesh proportionally instead of being over-segmented, and feed
+  gaps refine with the convergence slider, so designs like the
+  [quad](/reference/catalog/) and j-pole now converge flat where they
+  used to drift. Ground-connected verticals also solve correctly on the
+  in-house engines (momwire 0.14.0's ground-junction end conditions).
   [All release notes →](/reference/releases/)
 </Card>
 

@@ -180,11 +180,15 @@ the trap dipole and station designs use), wherever it can express them
 | Card | Translation |
 | --- | --- |
 | `LD` type 0/1 (lumped series/parallel RLC) | A `Load` per segment in the card's range (expanded up to 8 segments), on a named 1-segment wire split out of the host wire |
-| `LD` type 4 with X = 0 (pure resistance) | `Load(r=…)` |
+| `LD` type 4 (fixed impedance) | `Load(r=…)` when X = 0; a fixed complex-Z `Load` when reactive |
 | `LD` type 5 over the whole structure (wire conductivity) | `deck.conductivity`, baked into every `wire_tuples(specs=True)` spec (or feed it to `WireSpec` in `build_wire_material`) |
 | `LD` type 5 on a tag/range covering whole wires | Per-wire conductivity (`deck.wire_conductivity`), baked into those wires' `specs=True` specs — a ranged card wins over the whole-structure one |
-| `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)` |
+| `LD` type 6 (4nec2 LC-trap) | The parallel RLC 4nec2 itself converts it to: `R_p = Q·ωL` at the deck's first `FR` frequency (F1 is the coil's unloaded Q, 0 → 100) |
+| `LD` type 7 (4nec2 wire insulation) | Per-wire dielectric jackets (`deck.wire_insulation` → `WireSpec.insulation_radius/eps_r`) for wires the card covers in full — the solvers model the insulated-wire velocity factor |
+| `EX` type 6 (4nec2 current source) | A `DrivenCurrent` source — the forced complex current drives the network exactly as 4nec2 would |
+| `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)`, reactive ones a fixed 1-port `Admittance` |
 | `NT` with an all-real Y matrix | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
+| `NT` with susceptance | The full 2×2 complex Y as an `Admittance` branch |
 
 `deck.wire_tuples()` then emits *named* wires at every attachment point (no
 legacy `ex` markers) and `deck.network()` returns the matching `Network` —
@@ -193,10 +197,8 @@ the deck's `EX` cards become its `Driven` sources — ready to return from
 network cards still works identically: `network()` is then just the drive.
 
 What cannot be translated exactly stays out, with a per-card reason in
-`deck.ignored_detail` (rendered by `skipped_note()`): frequency-independent
-reactance (`LD` 4 with X ≠ 0, susceptance in `TL`/`NT` admittances — NEC's
-constant-B convention has no R/L/C equivalent), distributed per-metre RLC
-(`LD` 2/3), an `LD` 5 range covering only *part* of a wire's segments
+`deck.ignored_detail` (rendered by `skipped_note()`): distributed per-metre
+RLC (`LD` 2/3), an `LD` 5/7 range covering only *part* of a wire's segments
 (per-wire specs cover whole wires only), and an `LD` landing on a segment
 that also has a `TL`/`NT` connection (NEC composes those in series inside
 the segment, which the port model doesn't express).
@@ -224,8 +226,22 @@ so the mismatch is explained right where the deck is viewed.
 
 Decks the wire-model genuinely cannot represent are rejected with a clear
 error rather than silently approximated: surface patches (`SP`/`SM`), tapered
-wires (`GC`), Green's-function files (`GF`), 4nec2 symbolic variables (`SY`),
-and plane-wave or current-source excitation (only voltage feeds exist here).
+wires (`GC`), Green's-function files (`GF`), and plane-wave excitation.
+
+## The 4nec2 dialect
+
+Real-world decks are mostly written *for 4nec2*, and the importer reads that
+dialect natively: `SY` symbolic variables with full expressions (BASIC-style
+— trig in degrees, `^` power, unit suffixes like `1.5*mm` or `36.6pF`),
+`'`-comments, fused mnemonics (`GW1,8,…`), and `#14`-style AWG wire-gauge
+radii. A deck's `EK` card (extended thin-wire kernel) is honoured by the
+PyNEC engine so fat-wire decks solve kernel-for-kernel with NEC. A remote
+1-segment wire parked hundreds of wavelengths away purely to terminate a
+`TL` card is recognised and replaced by a virtual circuit node (the deck
+solves in seconds instead of meshing an electrically irrelevant wire; the
+substitution is named in `skipped_note()`). This dialect support was
+validated against a 3,146-deck corpus of published models — ARRL course
+material, 4nec2's own library, and the wider web.
 
 ## Programmatic use
 
@@ -241,7 +257,7 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `NecDeck` field | Meaning |
 | --- | --- |
 | `wires` | `tuple[NecWire, ...]` — every straight wire after all transforms (`tag`, `n_seg`, `p1`, `p2`, `radius`) |
-| `feeds` | `tuple[NecFeed, ...]` — each `EX` voltage source resolved onto a wire (`wire` index, 1-based `seg`, complex `voltage`) |
+| `feeds` | `tuple[NecFeed, ...]` — each `EX` source resolved onto a wire (`wire` index, 1-based `seg`, complex `voltage`; `current=True` marks a 4nec2 `EX 6` forced current) |
 | `freq_mhz` | The `FR` card's sweep range as `(lo, hi)` MHz, or `None` |
 | `ground` | `True` if the deck requested a ground plane (`GE` flag or a `GN` card) |
 | `comments` | The `CM` header text, line by line |
