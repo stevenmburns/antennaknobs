@@ -9,8 +9,10 @@ as-shipped default mesh (`nominal_nsegs=21`), under **four ground models**
 clean `getrusage` peak RSS, BLAS+OpenMP pinned to the physical core count
 (mirrors `web/server.py`), an `RLIMIT_AS` cap so a runaway solve fails clean.
 
-**~1448 solves, all succeed** (only `verticals.elt_whip` — the intentional
-4392-seg W8IO stress design — is guard-skipped on the finite grounds).
+**~1456 solves, all succeed.** The main sweep guard-skipped the finite grounds
+for `verticals.elt_whip` (the intentional 4392-seg W8IO stress design); a
+follow-up run with the guard lifted filled in those 8 cells — see
+[The elt_whip finite-ground ceiling](#the-elt_whip-finite-ground-ceiling).
 
 Headline findings:
 
@@ -24,22 +26,33 @@ Headline findings:
 - **On Sommerfeld, momwire is ~13× slower than PyNEC** across all three momwire
   bases (median ~470–490 ms vs PyNEC's 36 ms). NEC's gn 2 interpolation-table
   Sommerfeld crushes momwire's dense Sommerfeld path. **PyNEC stays interactive
-  on Sommerfeld (median 36 ms); momwire does not (0/90 designs under 100 ms,
-  median ~490 ms, up to ~6 s on the biggest meshes).**
+  on Sommerfeld (median 36 ms); momwire does not (0/91 designs under 100 ms,
+  median ~490 ms, up to ~86 s on the 4392-seg stress design).**
 - **PyNEC's speed lead inverts on networked/large designs** regardless of
   ground: e.g. `broadband.lpda` is the one design where PyNEC's *Sommerfeld* is
   slower than momwire's (1589 ms vs ~1200 ms) — its many wires hit PyNEC's
   multiport-Y reducer. Free-space `lpda`: PyNEC 741 ms vs Sinusoidal 72 ms.
 - **Memory:** floor ~91 MB (import baseline) dominates everything except the big
   meshes. `pec` costs momwire ~30 % more memory than free (image method). The
-  finite grounds' peak RSS stays modest (≤ 0.7 GB) because `elt_whip` is
-  guard-skipped there; on `free`/`pec` it lifts BSpline d=2 to **10.7 / 13.7 GB**
-  — the one real memory-scaling flag, and the reason for the `--mem-gb` cap.
+  real memory-scaling flag is momwire's higher-order bases on a large structure:
+  `elt_whip` BSpline d=2 climbs from **10.7 GB (free)** to **14.0 GB (fast)** to
+  **18.5 GB (Sommerfeld)**. PyNEC stays flat at **422 MB on every ground** — ~40×
+  leaner — because NEC stores one N×N matrix plus interpolation tables and
+  nothing else. This is why the `--mem-gb` cap exists.
 
 **Practical takeaway:** for the web UI, `fast`-finite ground is the sweet spot
 for interactive iteration on any engine; **Sommerfeld should route to PyNEC**,
 where it stays sub-100 ms for the vast majority of designs, rather than momwire's
 dense path that puts every solve in the 0.5–6 s range.
+
+## Companion files (this folder)
+
+- [`2026-07-19-catalog-perf-benchmark.csv`](./2026-07-19-catalog-perf-benchmark.csv)
+  — the full tidy dataset (364 rows: 91 designs × 4 ground models), one solve
+  per engine per row. Import into any spreadsheet to sort/pivot.
+- [`2026-07-19-catalog-perf-benchmark.html`](./2026-07-19-catalog-perf-benchmark.html)
+  — a self-contained interactive dashboard (ground toggle, sortable table,
+  family filter, latency color-coding). Open it in a browser; no dependencies.
 
 ## Method
 
@@ -54,8 +67,10 @@ subprocess: `OMP_WAIT_POLICY=PASSIVE`, `GOMP_SPINCOUNT=0`, BLAS/OpenMP =
 physical cores, serial dispatch, 24 GB `RLIMIT_AS` per solve. Wall-clock is
 `perf_counter()` around `engine.impedance()` (geometry build included, imports
 excluded); peak RSS is `ru_maxrss` for the whole worker (so it **includes** the
-~91 MB import baseline). Finite-ground solves are skipped for designs with
-Σseg > 2000 (only `elt_whip`), logged not hidden.
+~91 MB import baseline). The main sweep skips finite-ground solves for designs
+with Σseg > 2000 (only `elt_whip`), logged not hidden; a follow-up run
+(`--max-seg-finite 0 --mem-gb 27`) measured those directly and their numbers are
+merged into the tables below.
 
 Scope: default variant per design, each at its own default frequency and mesh.
 
@@ -71,17 +86,18 @@ Scope: default variant per design, each at its own default frequency and mesh.
 | pec | Sinusoidal | 91 | 6.7 ms | 8153 ms | 91 MB | 2889 MB |
 | pec | BSpline d=1 | 91 | 10.8 ms | 25313 ms | 91 MB | 6457 MB |
 | pec | BSpline d=2 | 91 | 13.7 ms | 67542 ms | 91 MB | 13702 MB |
-| fast | PyNEC | 90 | 5.2 ms | 939 ms | 91 MB | 128 MB |
-| fast | Sinusoidal | 90 | 7.6 ms | 633 ms | 91 MB | 478 MB |
-| fast | BSpline d=1 | 90 | 12.3 ms | 841 ms | 91 MB | 483 MB |
-| fast | BSpline d=2 | 90 | 15.2 ms | 1081 ms | 91 MB | 628 MB |
-| somm | PyNEC | 90 | 35.9 ms | 1589 ms | 91 MB | 128 MB |
-| somm | Sinusoidal | 90 | 469.6 ms | 5419 ms | 92 MB | 626 MB |
-| somm | BSpline d=1 | 90 | 480.8 ms | 5854 ms | 91 MB | 558 MB |
-| somm | BSpline d=2 | 90 | 490.0 ms | 6158 ms | 92 MB | 722 MB |
+| fast | PyNEC | 91 | 5.2 ms | 4386 ms | 91 MB | 422 MB |
+| fast | Sinusoidal | 91 | 7.6 ms | 10796 ms | 91 MB | 3668 MB |
+| fast | BSpline d=1 | 91 | 12.4 ms | 30118 ms | 91 MB | 6769 MB |
+| fast | BSpline d=2 | 91 | 15.4 ms | 72653 ms | 91 MB | 14012 MB |
+| somm | PyNEC | 91 | 36.0 ms | 7246 ms | 91 MB | 422 MB |
+| somm | Sinusoidal | 91 | 473.8 ms | 16407 ms | 92 MB | 5665 MB |
+| somm | BSpline d=1 | 91 | 481.6 ms | 38023 ms | 91 MB | 9863 MB |
+| somm | BSpline d=2 | 91 | 493.3 ms | 86045 ms | 92 MB | 18504 MB |
 
-<sub>`free`/`pec` max cells are `verticals.elt_whip` (guard-skipped on the finite
-grounds — hence n=90 and the far lower finite-ground RSS max).</sub>
+<sub>Every max cell (all grounds) is `verticals.elt_whip`. Its finite-ground rows
+come from the follow-up run; medians are unmoved by the one outlier, but the
+max and RSS-max columns for `fast`/`somm` now reflect it.</sub>
 
 ### Ground-model cost multiplier (median solve ÷ free-space median)
 
@@ -90,18 +106,20 @@ grounds — hence n=90 and the far lower finite-ground RSS max).</sub>
 | free | 1.0× | 1.0× | 1.0× | 1.0× |
 | pec | 1.2× | 1.2× | 1.2× | 1.3× |
 | fast | 1.4× | 1.3× | 1.3× | 1.4× |
-| **somm** | **9.4×** | **82.7×** | **51.3×** | **45.4×** |
+| **somm** | **9.4×** | **83.4×** | **51.4×** | **45.7×** |
 
 On Sommerfeld, momwire is **~13× slower than PyNEC** (470–490 ms vs 36 ms) on
 every basis.
 
 ## Sommerfeld per-design cost (slowest 15; solve ms, max peak RSS MB)
 
-`elt_whip` is guard-skipped here. Note `broadband.lpda` — the sole design where
-PyNEC's Sommerfeld is the *slowest* engine (network reducer overhead).
+Note `broadband.lpda` — the sole design where PyNEC's Sommerfeld is the
+*slowest* engine (network reducer overhead). `elt_whip` (from the follow-up run)
+now tops the list.
 
 | design | Σseg | PyNEC | Sinusoidal | BSpline d=1 | BSpline d=2 | RSS |
 |---|---|---|---|---|---|---|
+| `verticals.elt_whip` | 4392 | 7245.8 | 16406.9 | 38022.6 | 86045.2 | 18504 |
 | `wire.terminated_longwire` | 1006 | 390.4 | 5418.9 | 5854.2 | 6157.5 | 718 |
 | `wire.rhombic` | 1010 | 329.3 | 3353.1 | 3604.0 | 3811.9 | 722 |
 | `arrays.bowtiearray2x4` | 1360 | 653.3 | 2256.1 | 2686.1 | 3125.1 | 674 |
@@ -116,7 +134,27 @@ PyNEC's Sommerfeld is the *slowest* engine (network reducer overhead).
 | `arrays.delta_looparray_1x4` | 256 | 53.3 | 908.5 | 922.7 | 957.5 | 117 |
 | `wire.lazy_h` | 170 | 38.6 | 883.4 | 891.1 | 897.4 | 102 |
 | `wire.sterba_tl` | 99 | 281.5 | 873.8 | 881.3 | 882.5 | 98 |
-| `multiband.hexbeam_5band` | 750 | 298.4 | 506.2 | 733.6 | 851.2 | 267 |
+
+### The elt_whip finite-ground ceiling
+
+The main sweep guard-skipped `verticals.elt_whip` (4392 seg) on the finite
+grounds out of caution — its free-space BSpline d=2 solve already used 10.7 GB.
+A follow-up run (`--max-seg-finite 0 --mem-gb 27`) measured it directly and
+**nothing hit the wall**:
+
+| ground | PyNEC | Sinusoidal | BSpline d=1 | BSpline d=2 |
+|---|---|---|---|---|
+| fast | 4.4 s / 422 MB | 10.8 s / 3.7 GB | 30.1 s / 6.8 GB | 72.7 s / 14.0 GB |
+| somm | 7.2 s / 422 MB | 16.4 s / 5.7 GB | 38.0 s / 9.9 GB | 86.0 s / 18.5 GB |
+
+Takeaways: (1) it was never a machine limit — the heaviest solve (Sommerfeld
+BSpline d=2) peaked at **18.5 GB**, under even the main sweep's 24 GB cap; the
+`Σseg > 2000` guard tripped first. (2) The real ceiling is **momwire memory on
+higher-order bases** — BSpline d=2 needs 14–18.5 GB here, which fits a 31 GB box
+but would OOM a 16 GB laptop. (3) **PyNEC is flat at 422 MB on every ground**
+(~40× leaner), and its Sommerfeld is only ~1.6× its fast-finite time — so for
+large structures on finite ground, PyNEC is the memory-safe choice by a wide
+margin.
 
 ## Free-space per-design table (baseline)
 
@@ -225,6 +263,9 @@ python scripts/bench_catalog.py                          # all designs+grounds
 python scripts/bench_catalog.py --grounds free fast somm
 python scripts/bench_catalog.py --engines sin bs2 --grounds free somm
 python scripts/bench_catalog.py --designs loops.quad beams.yagi
+# the elt_whip finite-ground follow-up (guard lifted, higher mem cap):
+python scripts/bench_catalog.py --designs verticals.elt_whip \
+    --grounds fast somm --max-seg-finite 0 --mem-gb 27
 ```
 
 Numbers above were taken on the development machine (BLAS=OpenMP=4, 31 GB RAM).
