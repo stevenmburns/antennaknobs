@@ -102,7 +102,7 @@ class Builder(AntennaBuilder):
             C1 = (0.0, eps, z)
             return [
                 (L, C0, self.segs_for(half - eps, quarter), None, None),
-                (C0, C1, 1, None, name),
+                (C0, C1, self.segs_for(2 * eps, quarter), None, name),
                 (C1, R, self.segs_for(half - eps, quarter), None, None),
             ]
 

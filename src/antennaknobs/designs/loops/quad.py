@@ -76,8 +76,6 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        eps = 0.05
-
         wavelength = 299.792458 / self.design_freq
         quarter = 0.25 * wavelength
 
@@ -87,8 +85,12 @@ class Builder(AntennaBuilder):
 
         def square_loop(x, side, fed):
             """A square loop in the plane of constant x, bottom wire at
-            z = base. If `fed`, a one-segment driven gap sits at the centre
-            of the bottom wire (horizontal polarisation)."""
+            z = base. If `fed`, the whole bottom wire is the driven edge —
+            the engine feeds its centre segment, so the feed segment
+            refines with the mesh (issue #435: the old fixed 0.1 m
+            one-segment gap did not, and the NEC-family delta-gap
+            impedance drifted ~20% up the convergence ladder while the
+            B-spline bases sat at the converged ~130 Ω)."""
             half = side / 2
             z0, z1 = self.base, self.base + side
             BL = (x, -half, z0)
@@ -98,12 +100,7 @@ class Builder(AntennaBuilder):
             ns = self.segs_for(side, quarter)
             wires = []
             if fed:
-                # bottom wire: BL -> (-eps) -> [feed] -> (+eps) -> BR
-                C0 = (x, -eps, z0)
-                C1 = (x, eps, z0)
-                wires.append((BL, C0, self.segs_for(half - eps, quarter), None))
-                wires.append((C0, C1, 1, 1 + 0j))
-                wires.append((C1, BR, self.segs_for(half - eps, quarter), None))
+                wires.append((BL, BR, ns, 1 + 0j))
             else:
                 wires.append((BL, BR, ns, None))
             # remaining three sides (passive for both loops)

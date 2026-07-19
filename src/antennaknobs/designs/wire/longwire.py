@@ -33,6 +33,7 @@ The structure is a single straight conductor in x = 0, z = base.
 
 from antennaknobs import AntennaBuilder
 from types import MappingProxyType
+import math
 
 
 class Builder(AntennaBuilder):
@@ -95,7 +96,9 @@ class Builder(AntennaBuilder):
         # Left half (end -> -eps), passive.
         tups.append((left_end, gap_m, self.segs_for(half - eps, quarter), None))
         # Driven feed gap across the centre.
-        tups.append((gap_m, gap_p, 1, 1 + 0j))
+        tups.append(
+            (gap_m, gap_p, self.segs_for(math.dist(gap_m, gap_p), quarter), 1 + 0j)
+        )
         # Right half (+eps -> end), passive.
         tups.append((gap_p, right_end, self.segs_for(half - eps, quarter), None))
 

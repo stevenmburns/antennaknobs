@@ -173,7 +173,7 @@ class Builder(AntennaBuilder):
         d.face((-1.0, 0.0, 0.0))
         d.pay_out().forward(self.cp_len_m)
         d.pitch(-self.slope_deg)
-        d.forward(eps, nsegs=1)
+        d.forward(eps)
         d.forward(length - eps)
         wires = d.wires()
         # The short gap edge becomes the named "ant" port wire: the port

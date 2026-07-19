@@ -31,6 +31,7 @@ The structure is planar in x = 0.
 
 from antennaknobs import AntennaBuilder
 from types import MappingProxyType
+import math
 
 
 class Builder(AntennaBuilder):
@@ -82,7 +83,7 @@ class Builder(AntennaBuilder):
             C1 = (0.0, eps, z)
             return [
                 (L, C0, self.segs_for(half - eps, quarter), None),
-                (C0, C1, 1, 1 + 0j),
+                (C0, C1, self.segs_for(math.dist(C0, C1), quarter), 1 + 0j),
                 (C1, R, self.segs_for(half - eps, quarter), None),
             ]
 

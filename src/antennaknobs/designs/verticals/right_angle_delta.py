@@ -116,7 +116,7 @@ class Builder(AntennaBuilder):
         return [
             # Left side: apex -> feed edge -> base corner (driven mid-side).
             (T, F0, self.segs_for(d, quarter), None),
-            (F0, F1, 1, 1 + 0j),
+            (F0, F1, self.segs_for(pe, quarter), 1 + 0j),
             (F1, A, self.segs_for(s - d, quarter), None),
             # Horizontal base and right side close the delta.
             (A, B, self.segs_for(w, quarter), None),

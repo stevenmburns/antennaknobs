@@ -140,7 +140,14 @@ class Builder(AntennaBuilder):
                         None,
                     )
                 )
-                tups.append(((0.0, ya, zf), (0.0, ya, zf + 2 * eps), 1, 1 + 0j))
+                tups.append(
+                    (
+                        (0.0, ya, zf),
+                        (0.0, ya, zf + 2 * eps),
+                        self.segs_for(2 * eps, quarter),
+                        1 + 0j,
+                    )
+                )
                 tups.append(
                     (
                         (0.0, ya, zf + 2 * eps),

@@ -96,7 +96,7 @@ class Builder(AntennaBuilder):
         # Left leg (bottom -> just below corner), passive.
         tups.append((A, F, self.segs_for(vert - feed, quarter), None))
         # Feed segment at the corner, driven.
-        tups.append((F, C, 1, 1 + 0j))
+        tups.append((F, C, self.segs_for(feed, quarter), 1 + 0j))
         # Top wire, passive.
         tups.append((C, D, self.segs_for(horiz, quarter), None))
         # Right leg (corner -> bottom), passive.

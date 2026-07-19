@@ -1,5 +1,7 @@
 """Moxon rectangle — a 2-element beam with folded-back element tips."""
 
+import math
+
 from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
@@ -87,7 +89,10 @@ class Builder(AntennaBuilder):
         D = rx(A)
         E, F, G, H, T = ry(D), ry(C), ry(B), ry(A), ry(S)
 
-        n_seg0, n_seg1 = self.nominal_nsegs, 1
+        n_seg0 = self.nominal_nsegs
+        # Feed gap T->S refines with the mesh (issue #435); the driver arm
+        # S->A is the reference-length wire that carries n_seg0.
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
 
         tups = []
         tups.extend(build_path([S, A, B], n_seg0, None))

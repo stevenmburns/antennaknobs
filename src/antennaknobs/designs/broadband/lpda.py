@@ -129,7 +129,7 @@ class Builder(AntennaBuilder):
             arm = self.segs_for(h - eps, quarter)
             # left arm, named centre gap (a feeder port), right arm
             tups.append((L, C0, arm, None, None))
-            tups.append((C0, C1, 1, None, f"d{k}"))
+            tups.append((C0, C1, self.segs_for(2 * eps, quarter), None, f"d{k}"))
             tups.append((C1, R, arm, None, None))
         return tups
 

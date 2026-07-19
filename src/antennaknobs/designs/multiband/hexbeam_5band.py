@@ -294,7 +294,14 @@ class Builder(AntennaBuilder):
         # Tip segments stay short; floor at 1 matches single-band hexbeam
         # (designs/hexbeam.py:66 leaves the tip count at 1 too).
         n_seg_tip = max(1, self.nominal_nsegs // 21)
-        n_seg_feed = 1  # the T->S feed gap is always one segment
+        # T->S feed gap refines with the mesh (issue #435). |T - S| =
+        # 2*_FEED_GAP*sin30 = _FEED_GAP for every band, so one shared count
+        # against the design_freq quarter-wave keeps all five feeds equal
+        # (1 segment at the default mesh). Stored for build_tls, which
+        # attaches jumpers to the feed wires' middle segment.
+        wavelength0 = C_LIGHT_MHZ_M / self.design_freq
+        n_seg_feed = self.segs_for(_FEED_GAP, 0.25 * wavelength0)
+        self._n_seg_feed = n_seg_feed
 
         tups = []
         # build_wires() emits, per band, six edges from the driver hex,
@@ -370,9 +377,9 @@ class Builder(AntennaBuilder):
         if not hasattr(self, "_feed_wire_indices"):
             self.build_wires()
         feeds = self._feed_wire_indices
-        # Feed wire has n_seg_feed=1 segment, so the centre segment is
-        # always 1.
-        seg = 1
+        # Jumpers land on the middle segment of the n_seg_feed-segment
+        # feed wires (1 when the count is 1, i.e. at the default mesh).
+        seg = (self._n_seg_feed + 1) // 2
         tls = []
         for i in range(len(feeds) - 1):
             tls.append((feeds[i], seg, feeds[i + 1], seg, 50.0, self.z_spacing))

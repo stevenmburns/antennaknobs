@@ -113,7 +113,13 @@ class Builder(AntennaBuilder):
         droop = math.asin(min(1.0, max(0.0, h - self.cp_end_h) / self.cp_len_m))
 
         return [
-            ((0, 0, h), (0, 0, h + eps), 1, None, "ant"),
+            (
+                (0, 0, h),
+                (0, 0, h + eps),
+                self.segs_for(eps, self.whip_len_m),
+                None,
+                "ant",
+            ),
             ((0, 0, h + eps), (0, 0, h + self.whip_len_m), self.nominal_nsegs, None),
             (
                 (0, 0, h),

@@ -119,7 +119,11 @@ class Builder(AntennaBuilder):
             )
         )
 
-        # Feed: a one-segment driven gap bridging the two legs at the tap.
-        tups.append(((0.0, 0.0, z_tap), (gap, 0.0, z_tap), 1, 1 + 0j))
+        # Feed: a driven bridge between the two legs at the tap, meshed
+        # proportionally like every other edge so the delta gap refines
+        # with the mesh (issue #435).
+        tups.append(
+            ((0.0, 0.0, z_tap), (gap, 0.0, z_tap), self.segs_for(gap, quarter), 1 + 0j)
+        )
 
         return tups

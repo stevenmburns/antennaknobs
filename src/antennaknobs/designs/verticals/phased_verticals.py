@@ -95,7 +95,7 @@ class Builder(AntennaBuilder):
             C1 = (x, 0.0, zc + eps)
             return [
                 (B, C0, self.segs_for(half - eps, quarter), None),
-                (C0, C1, 1, voltage),
+                (C0, C1, self.segs_for(2 * eps, quarter), voltage),
                 (C1, T, self.segs_for(half - eps, quarter), None),
             ]
 

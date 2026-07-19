@@ -101,15 +101,24 @@ class Builder(AntennaBuilder):
         GT = (L, 0.0, 0.0)  # terminated-leg ground end
 
         leg = self.segs_for(h - pe, quarter)
+        # Feed/termination edges mesh at catalog density like everything
+        # else (issue #435) — 2 segments at the default mesh.
+        # Feed/term edges stay PINNED at one segment, deliberately exempt
+        # from the issue-#435 refine-with-the-mesh rule: the feed here is
+        # near-open (|Z| ≈ 5 kΩ), where the delta-gap readout diverges as
+        # the gap segment shrinks — refining turns a flat ladder
+        # (~960−5240j) into a 20%+ drift that never settles. A fixed gap
+        # is the mesh-stable model of this feed.
+        pe_seg = 1
         return [
             # Near leg: driven edge at the ground end, then up to the run.
-            (G0, F1, 1, None, "feed"),
+            (G0, F1, pe_seg, None, "feed"),
             (F1, A, leg, None, None),
             # The long horizontal run.
             (A, B, self.segs_for(L, quarter), None, None),
             # Far leg down to the termination edge at the ground end.
             (B, T1, leg, None, None),
-            (T1, GT, 1, None, "term"),
+            (T1, GT, pe_seg, None, "term"),
         ]
 
     def build_network(self):
