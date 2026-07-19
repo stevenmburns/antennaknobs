@@ -27,13 +27,13 @@
 | src/antennaknobs/designs/arrays/hentenna\_array.py                |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/hourglass\_array.py               |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/invveearray.py                    |        8 |        0 |    100% |           |
-| src/antennaknobs/designs/arrays/lumped\_coupled\_pair.py          |       16 |        0 |    100% |           |
+| src/antennaknobs/designs/arrays/lumped\_coupled\_pair.py          |       17 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/moxonarray.py                     |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/yagiarray.py                      |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/\_\_init\_\_.py                    |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/hb9cv.py                           |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/hexbeam.py                         |       45 |        0 |    100% |           |
-| src/antennaknobs/designs/beams/moxon.py                           |       33 |        0 |    100% |           |
+| src/antennaknobs/designs/beams/moxon.py                           |       35 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/moxon\_turnstile.py                |       32 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/owa\_yagi.py                       |       30 |        0 |    100% |           |
 | src/antennaknobs/designs/beams/phased\_driver\_yagi.py            |       38 |        0 |    100% |           |
@@ -50,7 +50,7 @@
 | src/antennaknobs/designs/dipoles/invvee.py                        |       31 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/invvee\_coax\_station.py         |       14 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/koch\_dipole.py                  |       38 |        0 |    100% |           |
-| src/antennaknobs/designs/dipoles/ocf\_dipole.py                   |       24 |        0 |    100% |           |
+| src/antennaknobs/designs/dipoles/ocf\_dipole.py                   |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/pota\_invvee.py                  |        5 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/short\_dipole\_loaded.py         |       11 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/\_\_init\_\_.py                    |        0 |        0 |    100% |           |
@@ -65,15 +65,15 @@
 | src/antennaknobs/designs/loops/horizontal\_loop.py                |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/horizontal\_loop\_drone.py         |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/inv\_delta\_loop.py                |       31 |        0 |    100% |           |
-| src/antennaknobs/designs/loops/quad.py                            |       35 |        0 |    100% |           |
+| src/antennaknobs/designs/loops/quad.py                            |       30 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/skyloop\_lmatch.py                 |       13 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/triangular\_skyloop.py             |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/fandipole.py                   |       59 |        1 |     98% |       120 |
-| src/antennaknobs/designs/multiband/hexbeam\_5band.py              |      103 |        0 |    100% |           |
+| src/antennaknobs/designs/multiband/hexbeam\_5band.py              |      105 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_dipole.py                |       31 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       90 |        3 |     97% |237, 298, 304 |
-| src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       71 |       12 |     83% |   218-230 |
+| src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       71 |       12 |     83% |   221-233 |
 | src/antennaknobs/designs/specialty/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/bowtie.py                      |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/helix.py                       |       36 |        0 |    100% |           |
@@ -104,17 +104,17 @@
 | src/antennaknobs/designs/wire/edz.py                              |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/efhw\_sloper.py                     |       29 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/expanded\_lazy\_h.py                |       26 |        0 |    100% |           |
-| src/antennaknobs/designs/wire/lazy\_h.py                          |       21 |        0 |    100% |           |
-| src/antennaknobs/designs/wire/longwire.py                         |       20 |        0 |    100% |           |
+| src/antennaknobs/designs/wire/lazy\_h.py                          |       22 |        0 |    100% |           |
+| src/antennaknobs/designs/wire/longwire.py                         |       21 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/rhombic.py                          |       25 |        0 |    100% |           |
-| src/antennaknobs/designs/wire/sterba.py                           |       57 |        1 |     98% |       163 |
-| src/antennaknobs/designs/wire/sterba\_tl.py                       |       62 |        1 |     98% |       107 |
-| src/antennaknobs/designs/wire/terminated\_longwire.py             |       21 |        0 |    100% |           |
+| src/antennaknobs/designs/wire/sterba.py                           |       56 |        1 |     98% |       161 |
+| src/antennaknobs/designs/wire/sterba\_tl.py                       |       62 |        1 |     98% |       113 |
+| src/antennaknobs/designs/wire/terminated\_longwire.py             |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/vbeam.py                            |       24 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/w8jk.py                             |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/zepp.py                             |       16 |        0 |    100% |           |
-| src/antennaknobs/drone.py                                         |      128 |        4 |     97% |198, 239-240, 251 |
-| src/antennaknobs/engine.py                                        |       46 |        3 |     93% |67, 118, 124 |
+| src/antennaknobs/drone.py                                         |      128 |        4 |     97% |199, 240-241, 252 |
+| src/antennaknobs/engine.py                                        |       46 |        3 |     93% |69, 120, 126 |
 | src/antennaknobs/engines/\_\_init\_\_.py                          |        6 |        2 |     67% |       3-4 |
 | src/antennaknobs/engines/momwire.py                               |      383 |       19 |     95% |38, 77, 276, 292, 528, 808-824 |
 | src/antennaknobs/engines/pynec.py                                 |      392 |       28 |     93% |194-202, 306, 326, 355, 363, 373, 382, 404, 411, 445, 501, 511, 525, 620-621, 739, 763, 765-769, 771, 776 |
@@ -142,7 +142,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      673 |       77 |     89% |66-68, 136-140, 271-272, 358, 412, 559-562, 733, 775, 807, 869, 877-880, 899-911, 914, 939, 954-967, 1015-1017, 1065, 1079, 1108-1109, 1133-1134, 1164, 1218-1225, 1237-1250, 1270, 1273-1274, 1290, 1308-1311, 1327, 1360, 1363, 1371, 1398-1399, 1612, 1673, 1684, 1688, 1739-1740, 1758 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **8618** |  **443** | **95%** |           |
+| **TOTAL**                                                         | **8621** |  **443** | **95%** |           |
 
 
 ## Setup coverage badge

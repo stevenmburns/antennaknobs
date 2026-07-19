@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_87289bdf695d7a7f_twoband_fan_dipole_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-19 00:26 +0000
+            created at 2026-07-19 01:52 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -399,10 +399,10 @@
     <p class="pln"><span class="n"><a id="t317" href="#t317">317</a></span><span class="t">        <span class="com"># the antenna. nominal_nsegs sets the count for the longest such</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t318" href="#t318">318</a></span><span class="t">        <span class="com"># wire; everything else scales proportionally. Trap segments are</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t319" href="#t319">319</a></span><span class="t">        <span class="com"># pinned to 1 (load-port convention &#8212; the named port lives on a</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t320" href="#t320">320</a></span><span class="t">        <span class="com"># single basis function). Feed segment is also pinned to 1, which</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t321" href="#t321">321</a></span><span class="t">        <span class="com"># is fine for the BSpline d=2 basis this design is tuned against</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t322" href="#t322">322</a></span><span class="t">        <span class="com"># (the retired triangular basis couldn't drive a 1-segment feed</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t323" href="#t323">323</a></span><span class="t">        <span class="com"># gap).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t320" href="#t320">320</a></span><span class="t">        <span class="com"># single basis function). The feed bridge meshes via n_for like</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t321" href="#t321">321</a></span><span class="t">        <span class="com"># the rest (1 segment at the default mesh, which is fine for the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t322" href="#t322">322</a></span><span class="t">        <span class="com"># BSpline d=2 basis this design is tuned against; the retired</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t323" href="#t323">323</a></span><span class="t">        <span class="com"># triangular basis couldn't drive a 1-segment feed gap).</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t324" href="#t324">324</a></span><span class="t">        <span class="nam">adaptive_lengths</span> <span class="op">=</span> <span class="op">[</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t325" href="#t325">325</a></span><span class="t">        <span class="key">for</span> <span class="nam">i</span><span class="op">,</span> <span class="op">(</span><span class="nam">trap_in</span><span class="op">,</span> <span class="nam">trap_out</span><span class="op">,</span> <span class="nam">tip</span><span class="op">)</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">spokes</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t326" href="#t326">326</a></span><span class="t">            <span class="nam">adaptive_lengths</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">dist</span><span class="op">(</span><span class="nam">S</span><span class="op">,</span> <span class="nam">A</span><span class="op">[</span><span class="nam">i</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -432,9 +432,9 @@
     <p class="run"><span class="n"><a id="t350" href="#t350">350</a></span><span class="t">            <span class="nam">tups</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="op">(</span><span class="nam">tout_y</span><span class="op">,</span> <span class="nam">tip_y</span><span class="op">,</span> <span class="nam">n_for</span><span class="op">(</span><span class="nam">dist</span><span class="op">(</span><span class="nam">tout_y</span><span class="op">,</span> <span class="nam">tip_y</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t351" href="#t351">351</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t352" href="#t352">352</a></span><span class="t">        <span class="com"># Feed wire &#8212; named "feed", source supplied by build_network().</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t353" href="#t353">353</a></span><span class="t">        <span class="com"># 1 segment matches the design's BSpline d=2 target; the basis</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t354" href="#t354">354</a></span><span class="t">        <span class="com"># handles a 1-segment feed cleanly.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t355" href="#t355">355</a></span><span class="t">        <span class="nam">tups</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="op">(</span><span class="nam">T</span><span class="op">,</span> <span class="nam">S</span><span class="op">,</span> <span class="num">1</span><span class="op">,</span> <span class="key">None</span><span class="op">,</span> <span class="str">"feed"</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t353" href="#t353">353</a></span><span class="t">        <span class="com"># Meshed via n_for like the rest (1 segment at the default mesh);</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t354" href="#t354">354</a></span><span class="t">        <span class="com"># the BSpline d=2 basis handles a 1-segment feed cleanly.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t355" href="#t355">355</a></span><span class="t">        <span class="nam">tups</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="op">(</span><span class="nam">T</span><span class="op">,</span> <span class="nam">S</span><span class="op">,</span> <span class="nam">n_for</span><span class="op">(</span><span class="nam">dist</span><span class="op">(</span><span class="nam">T</span><span class="op">,</span> <span class="nam">S</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="key">None</span><span class="op">,</span> <span class="str">"feed"</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t356" href="#t356">356</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t357" href="#t357">357</a></span><span class="t">        <span class="com"># Lift to base height.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t358" href="#t358">358</a></span><span class="t">        <span class="nam">zoff</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span>&nbsp;</span><span class="r"></span></p>
@@ -474,7 +474,7 @@
             <a class="nav" href="z_87289bdf695d7a7f_twoband_fan_dipole_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-19 00:26 +0000
+            created at 2026-07-19 01:52 +0000
         </p>
     </div>
 </footer>
