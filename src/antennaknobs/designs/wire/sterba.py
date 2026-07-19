@@ -135,15 +135,13 @@ class Builder(AntennaBuilder):
         loop = A + B
         N = len(loop)
 
-        n0 = self.nominal_nsegs
-
         tups = []
         feed_count = 0
         for k in range(N):
             p0 = loop[k]
             p1 = loop[(k + 1) % N]
             seg_len = math.dist(p0, p1)
-            nseg = max(1, round(n0 * seg_len / h))
+            nseg = self.segs_for(seg_len, h)
 
             is_horizontal = abs(p0[2] - p1[2]) < 1e-9
             at_bottom = abs(p0[2] - bot) < 1e-9 and abs(p1[2] - bot) < 1e-9

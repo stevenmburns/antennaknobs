@@ -50,11 +50,12 @@ class Builder(AntennaBuilder):
         spacing = self.spacing_factor * wavelength
         z = self.base
         tups = []
+        n_seg = self.segs_for(2 * half_arm, 0.25 * wavelength)
         for x, name in ((0.0, "front"), (-spacing, "rear")):
             # One straight wire per dipole, feed edge at the centre. No `ev` —
             # the Network supplies the source (front) and the coupling terminal
             # (rear); `name` marks each centre segment for PortOnWire lookup.
-            tups.append(((x, -half_arm, z), (x, half_arm, z), 21, None, name))
+            tups.append(((x, -half_arm, z), (x, half_arm, z), n_seg, None, name))
         return tups
 
     def build_network(self):
