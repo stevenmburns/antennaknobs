@@ -38,10 +38,11 @@ stays in ``ignored`` with a per-card reason in ``ignored_detail``.
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
 return from ``build_wires`` / ``build_network``.
 
-Excitation: only voltage sources (EX type 0 and 5) can drive an antenna in
-antennaknobs; plane-wave and current-source excitations raise. The engine
-feeds a wire tuple at its middle segment, so ``NecDeck.wire_tuples`` splits a
-wire whose EX segment is off-centre into colinear pieces that preserve the
+Excitation: voltage sources (EX type 0 and 5) drive an antenna in any mode,
+and 4nec2's EX type 6 current source (issue #442) drives it in network mode
+as a ``DrivenCurrent``; plane-wave excitations raise. The engine feeds a
+wire tuple at its middle segment, so ``NecDeck.wire_tuples`` splits a wire
+whose EX segment is off-centre into colinear pieces that preserve the
 deck's exact segment boundaries and put the feed on its own 1-segment wire.
 """
 
