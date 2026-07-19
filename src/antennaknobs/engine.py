@@ -36,8 +36,10 @@ class WireCurrents(NamedTuple):
 class SimulationEngine(ABC):
     supports_far_field: ClassVar[bool] = False
     # Engines that demand a specific basis parity override this. The
-    # geometry loader bumps any incoming n_seg up to the next valid value
-    # (we never bump down — n=0 is invalid). "any" disables coercion.
+    # geometry loader bumps a FED or NAMED wire's n_seg up to the next
+    # valid value so the attachment lands on a middle segment (we never
+    # bump down — n=0 is invalid); unmarked wires keep their exact count
+    # (issue #450). "any" disables coercion.
     segment_parity: ClassVar[SegmentParity] = "any"
 
     def __init__(self, builder):

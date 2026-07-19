@@ -96,10 +96,12 @@ trig:
 ### Auto-segmentation
 
 When `forward()` / `close()` / `line_to()` aren't given an explicit `nsegs`, the
-drone picks `max(3, round(nominal_nsegs · |length| / ref))`. It does **not**
+drone picks `max(1, round(nominal_nsegs · |length| / ref))` — the same formula
+as `segs_for`, short moves included. It does **not**
 force a parity — each solver wants a different one (odd for sinusoidal /
 B-spline degree-2 / PyNEC, even for B-spline degree-1) so the feed lands
-cleanly, and the engine coerces every count to its own parity at solve time.
+cleanly, and the engine coerces the fed wire's count to its own parity at solve
+time; unfed wires keep their exact count.
 
 ### Example — a vertical delta loop
 

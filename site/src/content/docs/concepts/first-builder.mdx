@@ -143,8 +143,13 @@ one reference length) by `length / ref`, so a wire twice as long gets twice the
 segments and segment length stays constant:
 
 ```text
-n = max(3, round(nominal_nsegs · length / ref))
+n = max(1, round(nominal_nsegs · length / ref))
 ```
+
+The clip at 1 matters for *short* wires: a feed bridge or stub a few
+centimetres long gets exactly one segment instead of being over-meshed —
+segment length stays roughly constant across the whole antenna, which is
+the point.
 
 Our 10 m wire is about two quarter-waves long, so it now meshes into **39**
 segments instead of 21 — finer, and it will *track* the length once we make it a
@@ -156,8 +161,10 @@ parameter.
   feed cleanly depends on the basis functions: sinusoidal, PyNEC, and the
   default B-spline (degree-2) solver want odd, while B-spline degree-1 wants
   **even**. So `segs_for` deliberately doesn't force a parity — it returns the
-  natural count, and each solver nudges it by at most one to suit its own basis
-  at solve time. You size the mesh; the solver gets the feed right.
+  natural count, and each solver nudges the **fed** wire's count by at most one
+  to suit its own basis at solve time. Wires without a feed or named port keep
+  exactly the count you give them, so a deliberately meshed (or imported)
+  geometry is preserved. You size the mesh; the solver gets the feed right.
 </Aside>
 
 ## 5. Parameterize the length
