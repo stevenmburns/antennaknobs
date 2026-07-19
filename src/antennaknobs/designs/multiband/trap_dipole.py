@@ -96,26 +96,38 @@ class Builder(AntennaBuilder):
         def p(x):
             return (x, 0.0, z)
 
-        # Target ~40 MoM segments per wavelength on the radiating arms.
-        seg_len = wavelength / 40
-        n_outer = max(1, int(round(outer / seg_len)))
+        # Catalog-norm meshing: nominal_nsegs per quarter-wave via segs_for,
+        # so the convergence slider reaches this design like every other.
+        quarter = 0.25 * wavelength
+        n_outer = self.segs_for(outer, quarter)
         # Single continuous inner wire spanning −X_inner → +X_inner so the
         # named "feed" middle segment lands exactly at the geometric centre
         # (x = 0). Splitting the inner span at the origin would put `feed`
         # on the middle of *one half*, offsetting the feed point by
         # X_inner/2 — a real asymmetry that broke the symmetric design.
-        # Engine parity coercion bumps to odd/even as needed; we just pick a
-        # plausible segment count.
-        n_inner = max(21, int(round(2 * inner_arm / seg_len)))
+        # Engine parity coercion bumps to odd/even as needed.
+        n_inner = self.segs_for(2 * inner_arm, quarter)
 
         return [
             # Left arm, outer → trap.
             (p(x_outer_tip_l), p(x_trap_outer_l), n_outer, None),
-            (p(x_trap_outer_l), p(x_trap_inner_l), 1, None, "trap_l"),
+            (
+                p(x_trap_outer_l),
+                p(x_trap_inner_l),
+                self.segs_for(trap_seg, quarter),
+                None,
+                "trap_l",
+            ),
             # Inner span — one wire, feed at middle = origin.
             (p(x_trap_inner_l), p(x_trap_inner_r), n_inner, None, "feed"),
             # Right arm, trap → outer.
-            (p(x_trap_inner_r), p(x_trap_outer_r), 1, None, "trap_r"),
+            (
+                p(x_trap_inner_r),
+                p(x_trap_outer_r),
+                self.segs_for(trap_seg, quarter),
+                None,
+                "trap_r",
+            ),
             (p(x_trap_outer_r), p(x_outer_tip_r), n_outer, None),
         ]
 

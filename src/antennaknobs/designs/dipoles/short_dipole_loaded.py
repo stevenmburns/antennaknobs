@@ -41,7 +41,7 @@ class Builder(AntennaBuilder):
             (
                 (0, -half_arm, 5),
                 (0, half_arm, 5),
-                21,
+                self.segs_for(2 * half_arm, 0.25 * wavelength),
                 None,
                 "feed",
             )
