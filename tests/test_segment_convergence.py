@@ -47,14 +47,17 @@ def test_builder_default_nominal_nsegs():
 
 def test_builder_nominal_nsegs_scales_per_edge_counts():
     """The hardcoded n_seg literals are now expressions in nominal_nsegs.
-    Verifies major edges scale 1:1 while minor edges keep their floor."""
+    Major edges scale 1:1; minor edges mesh proportionally to their length
+    via segs_for (issue #457 — no more ad-hoc max(3, nominal // 7) floor),
+    so a short bridge stays a valid ≥1-segment mesh at any N."""
     b = BowtieBuilder()
     b.nominal_nsegs = 41
     seg_counts = sorted({t[2] for t in b.build_wires()})
     assert 41 in seg_counts  # major radiator scaled with N
+    assert min(seg_counts) >= 1
     b.nominal_nsegs = 7
-    seg_counts = sorted({t[2] for t in b.build_wires()})
-    assert min(seg_counts) >= 3  # floor on minor edges holds at small N
+    small = sorted({t[2] for t in b.build_wires()})
+    assert 7 in small and min(small) == 1  # bridge is proportional, clipped at 1
 
 
 # Parity coercion lands an engine attachment on a wire's middle segment, so it

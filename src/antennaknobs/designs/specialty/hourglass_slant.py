@@ -37,7 +37,6 @@ class Builder(AntennaBuilder):
         slant_sin = math.sin(slant_radians)
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         r"""
     Add an invvee like slant, 0 degrees is horizontal
@@ -78,6 +77,8 @@ class Builder(AntennaBuilder):
         )
 
         C, D, T, E = ry(A), ry(B), ry(S), ry(F)
+
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(B, A))
 
         st = TransformStack()
         st.push(Transform.translate(0, 0, b - AA[2]))

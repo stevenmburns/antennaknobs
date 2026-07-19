@@ -183,12 +183,11 @@ class Builder(AntennaBuilder):
             )
 
         n_seg0 = self.nominal_nsegs
-        # The feed wire (T → S) keeps n_seg=3: some bases need an
-        # interior knot at the feed (n_seg=1 left the retired triangular
-        # solver with zero interior knots and a crash), and 3 matches the
-        # convention the rest of the design library uses for short feed
-        # wires.
-        n_seg1 = max(3, self.nominal_nsegs // 7)
+        # Feed wire (T → S) meshed at the segment density of the longest
+        # n_seg0 arm (the reference wire).
+        n_seg1 = self.segs_for(
+            math.dist(T, S), max(math.dist(a, bb) for a, bb in zip(A, B))
+        )
 
         tups = []
         for i in range(n_bands):

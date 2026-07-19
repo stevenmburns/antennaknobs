@@ -2,6 +2,7 @@
 
 from antennaknobs import AntennaBuilder
 from antennaknobs import Transform, TransformStack
+import math
 
 from types import MappingProxyType
 
@@ -40,7 +41,6 @@ class Builder(AntennaBuilder):
             return p[0], -p[1], p[2]
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         """
  C----------------------------A
@@ -74,6 +74,8 @@ class Builder(AntennaBuilder):
 
         C, D, T = ry(A), ry(B), ry(S)
         E = ry(F)
+
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(B, A))
 
         st = TransformStack()
         st.push(Transform.translate(0, 0, b))

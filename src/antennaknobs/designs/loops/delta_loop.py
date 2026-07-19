@@ -42,7 +42,6 @@ class Builder(AntennaBuilder):
             return p[0], -p[1], p[2]
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         d = driver
         # y of the top corner (half the top-edge width), in closed form from the
@@ -64,6 +63,8 @@ class Builder(AntennaBuilder):
         A = (0, y, b)
 
         B, T = ry(A), ry(S)
+
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
 
         tups = []
 

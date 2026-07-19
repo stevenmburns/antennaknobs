@@ -24,7 +24,9 @@ class Builder(AntennaBuilder):
         z = half * math.sin(theta)
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
+        n_seg1 = self.segs_for(
+            math.dist((-eps, eps), (eps, eps)), math.dist((-y, z), (-eps, eps))
+        )
 
         tups = []
         tups.extend([((-y, 0), (-y, z), n_seg0, None)])

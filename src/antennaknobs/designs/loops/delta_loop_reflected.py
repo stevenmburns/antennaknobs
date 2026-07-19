@@ -65,7 +65,6 @@ class Builder(AntennaBuilder):
         wavelength = 299.792458 / self.design_freq
         target = self.length_factor * wavelength
         n0 = self.nominal_nsegs
-        n1 = max(3, self.nominal_nsegs // 7)
 
         def ry(p):
             return (p[0], -p[1], p[2])
@@ -85,6 +84,7 @@ class Builder(AntennaBuilder):
                 .position
             )
             B, T = ry(A), ry(S)
+            n1 = self.segs_for(math.dist(T, S), math.dist(S, A))
             return build_path([S, A, B, T], n0, None) + build_path([T, S], n1, 1 + 0j)
 
         def total(side):

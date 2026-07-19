@@ -26,7 +26,9 @@ class Builder(AntennaBuilder):
         z = self.length
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
+        n_seg1 = self.segs_for(
+            math.dist((0, 0, 0), (0, 0, eps)), math.dist((0, 0, eps), (0, 0, z))
+        )
         n_seg_radials = 5
         n_radials = 3
         # Radials run the full self.length (not a quarter-wave): self.length is
