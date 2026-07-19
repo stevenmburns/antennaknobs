@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+</style>
+<title>Catalog Solver Benchmark</title>
+<style>
+  :root {
+    --bg: #0e1418; --panel: #161d23; --panel-2: #1c252c; --line: #263038;
+    --ink: #e2eaed; --ink-dim: #8b9aa3; --ink-faint: #5f6f78;
+    --accent: #3fd0c9; --accent-dim: #2a8f8a;
+    --good: #5fbf7f; --ok: #7f8f99; --warn: #e0b13c; --crit: #e2603f;
+    --good-bg: rgba(95,191,127,.14); --ok-bg: rgba(127,143,153,.10);
+    --warn-bg: rgba(224,177,60,.16); --crit-bg: rgba(226,96,63,.18);
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 30px rgba(0,0,0,.35);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f1ea; --panel: #fbfaf6; --panel-2: #f0eee5; --line: #ddd8c9;
+      --ink: #232a2c; --ink-dim: #5c6a6c; --ink-faint: #8a938f;
+      --accent: #157f79; --accent-dim: #4bb0a9;
+      --good: #2f8f52; --ok: #6b7a76; --warn: #a8781a; --crit: #c1492a;
+      --good-bg: rgba(47,143,82,.12); --ok-bg: rgba(107,122,118,.08);
+      --warn-bg: rgba(168,120,26,.14); --crit-bg: rgba(193,73,42,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 22px rgba(60,55,40,.10);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1418; --panel: #161d23; --panel-2: #1c252c; --line: #263038;
+    --ink: #e2eaed; --ink-dim: #8b9aa3; --ink-faint: #5f6f78;
+    --accent: #3fd0c9; --accent-dim: #2a8f8a;
+    --good: #5fbf7f; --ok: #7f8f99; --warn: #e0b13c; --crit: #e2603f;
+    --good-bg: rgba(95,191,127,.14); --ok-bg: rgba(127,143,153,.10);
+    --warn-bg: rgba(224,177,60,.16); --crit-bg: rgba(226,96,63,.18);
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 30px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f3f1ea; --panel: #fbfaf6; --panel-2: #f0eee5; --line: #ddd8c9;
+    --ink: #232a2c; --ink-dim: #5c6a6c; --ink-faint: #8a938f;
+    --accent: #157f79; --accent-dim: #4bb0a9;
+    --good: #2f8f52; --ok: #6b7a76; --warn: #a8781a; --crit: #c1492a;
+    --good-bg: rgba(47,143,82,.12); --ok-bg: rgba(107,122,118,.08);
+    --warn-bg: rgba(168,120,26,.14); --crit-bg: rgba(193,73,42,.14);
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 22px rgba(60,55,40,.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: clamp(20px, 4vw, 52px) clamp(16px, 3vw, 32px) 72px; }
+
+  /* ---- header ---- */
+  header { border-bottom: 1px solid var(--line); padding-bottom: 26px; margin-bottom: 30px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(26px, 4.4vw, 42px); line-height: 1.05; margin: 0 0 12px;
+    font-weight: 620; letter-spacing: -.02em; text-wrap: balance;
+  }
+  .lede { color: var(--ink-dim); max-width: 62ch; font-size: 15px; margin: 0; }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; min-width: 96px; box-shadow: var(--shadow);
+  }
+  .stat .n { font-family: var(--mono); font-size: 21px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .1em; margin-top: 3px; }
+  .stat.ok .n { color: var(--good); }
+
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 13px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .16em;
+    color: var(--ink-dim); font-weight: 600; margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px;
+  }
+  h2 .num { color: var(--accent); }
+  .sub { color: var(--ink-faint); font-size: 13px; margin: 0 0 18px; max-width: 68ch; }
+
+  /* ---- rollup heatmap ---- */
+  .heat-scroll { overflow-x: auto; }
+  table.heat { border-collapse: separate; border-spacing: 6px; }
+  table.heat th {
+    font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--ink-dim);
+    text-transform: uppercase; letter-spacing: .08em; text-align: center; padding: 4px 6px;
+  }
+  table.heat th.rowh { text-align: right; padding-right: 12px; min-width: 54px; }
+  .hc {
+    border-radius: 8px; padding: 9px 12px; text-align: center; min-width: 92px;
+    border: 1px solid var(--line); background: var(--panel);
+  }
+  .hc .hm { font-family: var(--mono); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .hc .hx { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; }
+  .grd-label { font-family: var(--mono); font-size: 12px; color: var(--ink); text-align: right; padding-right: 12px; white-space: nowrap; }
+  .grd-label small { display: block; color: var(--ink-faint); font-size: 10px; letter-spacing: .02em; }
+
+  /* latency severity tints (shared by heatmap + table) */
+  .sev-good { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 30%, var(--line)); }
+  .sev-good .hm, .sev-good.n { color: var(--good); }
+  .sev-ok   { background: var(--ok-bg); }
+  .sev-warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 32%, var(--line)); }
+  .sev-warn .hm { color: var(--warn); }
+  .sev-crit { background: var(--crit-bg); border-color: color-mix(in srgb, var(--crit) 38%, var(--line)); }
+  .sev-crit .hm { color: var(--crit); }
+
+  .cliff {
+    margin-top: 18px; background: var(--panel); border: 1px solid var(--line);
+    border-left: 3px solid var(--crit); border-radius: 10px; padding: 14px 18px;
+    font-size: 14px; color: var(--ink-dim); box-shadow: var(--shadow);
+  }
+  .cliff b { color: var(--ink); }
+  .cliff .big { font-family: var(--mono); color: var(--crit); font-weight: 600; }
+
+  /* ---- controls ---- */
+  .controls { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center; margin-bottom: 16px; }
+  .seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; }
+  .seg button {
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: .03em; color: var(--ink-dim);
+    background: transparent; border: 0; padding: 6px 13px; border-radius: 7px; cursor: pointer; transition: color .12s, background .12s;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--seg-on-ink, #06110f); font-weight: 600; }
+  @media (prefers-color-scheme: light) { :root { --seg-on-ink: #f6fbfa; } }
+  :root[data-theme="light"] { --seg-on-ink: #f6fbfa; }
+  :root[data-theme="dark"] { --seg-on-ink: #06110f; }
+  .ctl-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); margin-right: 2px; }
+  select, input[type="search"] {
+    font-family: var(--mono); font-size: 13px; color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px;
+  }
+  input[type="search"] { min-width: 170px; }
+  select:focus-visible, input:focus-visible, .seg button:focus-visible, th button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .ground-note { font-size: 12.5px; color: var(--ink-faint); margin: 0 0 14px; font-family: var(--mono); }
+  .mobile-only { display: none; }
+  @media (max-width: 720px) { .mobile-only { display: inline-block; } }
+
+  /* ---- main table ---- */
+  /* overflow-y: hidden keeps this a HORIZONTAL-only scroller, so vertical
+     swipes pass through to the page body instead of getting trapped here. */
+  .tbl-scroll {
+    overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain; touch-action: pan-x;
+    border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  }
+  /* touch-action: pan-x — a horizontal scroller must NOT swallow vertical
+     swipes; they belong to the page. Fixes crawling scroll on Android Chrome. */
+  .heat-scroll { -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  table.data { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  table.data thead th {
+    position: sticky; top: 0; z-index: 2; background: var(--panel-2);
+    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--ink-dim); text-align: right; padding: 0;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  /* A sticky header repainting over 91 rows makes touch scroll crawl on phones.
+     Drop the stickiness on coarse pointers / narrow screens — the header is a
+     short scroll away and normal body scrolling stays buttery. */
+  @media (hover: none), (max-width: 720px) {
+    table.data thead th { position: static; }
+  }
+  table.data thead th button {
+    all: unset; cursor: pointer; padding: 11px 14px; width: 100%; box-sizing: border-box;
+    display: block; text-align: inherit; color: inherit;
+  }
+  table.data thead th.lft, table.data td.lft { text-align: left; }
+  table.data thead th button:hover { color: var(--ink); }
+  th .arr { color: var(--accent); font-size: 10px; }
+  table.data tbody td { padding: 9px 14px; text-align: right; font-family: var(--mono); font-size: 13px; border-bottom: 1px solid var(--line); }
+  table.data tbody tr:last-child td { border-bottom: 0; }
+  table.data tbody tr:hover td { background: var(--panel); }
+  td.design { text-align: left; font-family: var(--sans); font-size: 13.5px; color: var(--ink); }
+  td.design .fam { color: var(--ink-faint); font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
+  td.seg { color: var(--ink-dim); }
+  td.ms { color: var(--ink); }
+  td.rss { color: var(--ink-dim); }
+  td.skip { color: var(--ink-faint); font-style: italic; }
+  tr.stress td.design .name { color: var(--crit); font-weight: 600; }
+  tr.stress td.design .badge {
+    font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--crit); border: 1px solid color-mix(in srgb, var(--crit) 40%, var(--line));
+    border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+  }
+  .ms-cell { display: inline-block; min-width: 62px; padding: 3px 8px; border-radius: 6px; text-align: right; }
+
+  /* ---- mobile card layout (no horizontal scroller = no trapped swipes) ---- */
+  .cards { display: none; }
+  @media (max-width: 720px) {
+    .tbl-scroll { display: none; }
+    .cards { display: grid; gap: 10px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+      padding: 12px 14px 13px;
+    }
+    .card.stress { border-color: color-mix(in srgb, var(--crit) 45%, var(--line)); }
+    .card-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .card-hd .name { font-size: 15px; font-weight: 600; color: var(--ink); }
+    .card.stress .card-hd .name { color: var(--crit); }
+    .card-hd .meta { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); text-align: right; white-space: nowrap; }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .ce { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+          background: var(--panel-2); border-radius: 7px; padding: 6px 9px; }
+    .ce .cl { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
+    .ce .cv { font-family: var(--mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+              padding: 1px 7px; border-radius: 5px; }
+    .ce .cv.skip { font-weight: 400; font-style: italic; color: var(--ink-faint); background: transparent; }
+    .card-ft { margin-top: 9px; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+  }
+
+  footer { margin-top: 46px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 12.5px; }
+  footer code { font-family: var(--mono); color: var(--ink-dim); background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0 0; font-family: var(--mono); font-size: 11.5px; color: var(--ink-dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--line); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">antennaknobs · momwire · 2026-07-19</p>
+    <h1>Catalog Solver Benchmark</h1>
+    <p class="lede">Every built-in antenna design solved on all four engines at its default mesh, across four ground models &mdash; the per-tick cost the interactive UI pays. <b>Free, PEC, and fast-finite ground stay interactive on every engine; Sommerfeld is a cliff, and it belongs to PyNEC.</b></p>
+    <div class="stats">
+      <div class="stat"><div class="n">91</div><div class="l">designs</div></div>
+      <div class="stat"><div class="n">4</div><div class="l">engines</div></div>
+      <div class="stat"><div class="n">4</div><div class="l">grounds</div></div>
+      <div class="stat"><div class="n" id="stat-solves">&mdash;</div><div class="l">solves</div></div>
+      <div class="stat ok"><div class="n">100%</div><div class="l">passing</div></div>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="num">01</span> Median solve, ground &times; engine</h2>
+    <p class="sub">Each cell is the median <code style="font-family:var(--mono)">impedance()</code> wall-clock across the 90&ndash;91 designs, tinted by latency. Read down a column to watch Sommerfeld detonate.</p>
+    <div class="heat-scroll">
+      <table class="heat" id="heat"></table>
+    </div>
+    <div class="cliff" id="cliff"></div>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span> Per-design detail</h2>
+    <p class="sub">Solve wall-clock in milliseconds per engine, for the selected ground model. <code style="font-family:var(--mono)">RSS</code> is peak resident memory (max across engines; ~91&nbsp;MB floor is the import baseline). Sort any column; filter by family.</p>
+    <div class="controls">
+      <span class="ctl-label">Ground</span>
+      <div class="seg" id="ground-seg" role="group" aria-label="Ground model"></div>
+      <span class="ctl-label">Family</span>
+      <select id="fam-filter" aria-label="Filter by family"></select>
+      <select id="sort-mobile" class="mobile-only" aria-label="Sort designs"></select>
+      <input type="search" id="search" placeholder="filter designs…" aria-label="Filter designs by name" />
+    </div>
+    <p class="ground-note" id="ground-note"></p>
+    <div class="tbl-scroll">
+      <table class="data" id="tbl">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="legend">
+      <span><i class="swatch sev-good"></i> &lt; 16 ms</span>
+      <span><i class="swatch sev-ok"></i> 16&ndash;100 ms</span>
+      <span><i class="swatch sev-warn"></i> 0.1&ndash;1 s</span>
+      <span><i class="swatch sev-crit"></i> &gt; 1 s</span>
+      <span style="color:var(--ink-faint)">skip = finite-ground &Sigma;seg guard</span>
+    </div>
+  </section>
+
+  <footer>
+    Reproduce with <code>python scripts/bench_catalog.py --out catalog_perf_grounds.json</code>.
+    One fresh interpreter per solve (clean peak&nbsp;RSS), BLAS/OpenMP pinned to physical cores, 24&nbsp;GB per-solve cap.
+    <code>verticals.elt_whip</code> (4392&nbsp;seg W8IO stress design) is guard-skipped on the finite grounds.
+    Absolute times drift with hardware; the engine and ground <em>ratios</em> are the portable finding.
+  </footer>
+</div>
+
+<script>
+const DATA = [{"d":"arrays.bowtiearray","fam":"arrays","name":"bowtiearray","seg":680,"g":{"free":{"pynec":{"ms":63.5,"mb":103},"sin":{"ms":74.4,"mb":137},"bs1":{"ms":121.8,"mb":134},"bs2":{"ms":136.9,"mb":172}},"pec":{"pynec":{"ms":87.1,"mb":103},"sin":{"ms":100.2,"mb":159},"bs1":{"ms":176.4,"mb":154},"bs2":{"ms":239.2,"mb":185}},"fast":{"pynec":{"ms":96.6,"mb":103},"sin":{"ms":151.2,"mb":189},"bs1":{"ms":241.2,"mb":184},"bs2":{"ms":326.2,"mb":223}},"somm":{"pynec":{"ms":193.6,"mb":103},"sin":{"ms":925.0,"mb":228},"bs1":{"ms":1065.2,"mb":209},"bs2":{"ms":1210.7,"mb":238}}}},{"d":"arrays.bowtiearray1x2","fam":"arrays","name":"bowtiearray1x2","seg":340,"g":{"free":{"pynec":{"ms":18.2,"mb":95},"sin":{"ms":20.1,"mb":103},"bs1":{"ms":30.0,"mb":103},"bs2":{"ms":39.6,"mb":111}},"pec":{"pynec":{"ms":21.2,"mb":94},"sin":{"ms":28.2,"mb":110},"bs1":{"ms":46.2,"mb":110},"bs2":{"ms":58.3,"mb":119}},"fast":{"pynec":{"ms":25.9,"mb":95},"sin":{"ms":38.4,"mb":116},"bs1":{"ms":57.0,"mb":118},"bs2":{"ms":70.1,"mb":127}},"somm":{"pynec":{"ms":65.6,"mb":95},"sin":{"ms":529.6,"mb":130},"bs1":{"ms":557.1,"mb":121},"bs2":{"ms":588.2,"mb":132}}}},{"d":"arrays.bowtiearray2x4","fam":"arrays","name":"bowtiearray2x4","seg":1360,"g":{"free":{"pynec":{"ms":221.5,"mb":128},"sin":{"ms":357.4,"mb":271},"bs1":{"ms":374.3,"mb":258},"bs2":{"ms":480.1,"mb":406}},"pec":{"pynec":{"ms":298.4,"mb":128},"sin":{"ms":434.7,"mb":360},"bs1":{"ms":563.2,"mb":318},"bs2":{"ms":813.8,"mb":465}},"fast":{"pynec":{"ms":327.7,"mb":128},"sin":{"ms":633.2,"mb":478},"bs1":{"ms":840.9,"mb":483},"bs2":{"ms":1081.3,"mb":628}},"somm":{"pynec":{"ms":653.3,"mb":128},"sin":{"ms":2256.1,"mb":626},"bs1":{"ms":2686.1,"mb":558},"bs2":{"ms":3125.1,"mb":674}}}},{"d":"arrays.delta_looparray","fam":"arrays","name":"delta_looparray","seg":128,"g":{"free":{"pynec":{"ms":3.5,"mb":92},"sin":{"ms":5.6,"mb":94},"bs1":{"ms":9.4,"mb":95},"bs2":{"ms":12.7,"mb":95}},"pec":{"pynec":{"ms":4.2,"mb":92},"sin":{"ms":6.5,"mb":95},"bs1":{"ms":11.3,"mb":95},"bs2":{"ms":15.2,"mb":97}},"fast":{"pynec":{"ms":5.3,"mb":92},"sin":{"ms":8.0,"mb":95},"bs1":{"ms":13.5,"mb":97},"bs2":{"ms":16.5,"mb":98}},"somm":{"pynec":{"ms":34.0,"mb":92},"sin":{"ms":473.8,"mb":97},"bs1":{"ms":480.0,"mb":98},"bs2":{"ms":486.8,"mb":99}}}},{"d":"arrays.delta_looparray_1x4","fam":"arrays","name":"delta_looparray_1x4","seg":256,"g":{"free":{"pynec":{"ms":9.7,"mb":93},"sin":{"ms":13.0,"mb":98},"bs1":{"ms":21.8,"mb":98},"bs2":{"ms":28.5,"mb":103}},"pec":{"pynec":{"ms":12.0,"mb":93},"sin":{"ms":17.0,"mb":102},"bs1":{"ms":26.5,"mb":104},"bs2":{"ms":41.0,"mb":109}},"fast":{"pynec":{"ms":15.1,"mb":93},"sin":{"ms":22.8,"mb":105},"bs1":{"ms":36.9,"mb":109},"bs2":{"ms":48.6,"mb":114}},"somm":{"pynec":{"ms":53.3,"mb":93},"sin":{"ms":908.5,"mb":114},"bs1":{"ms":922.7,"mb":113},"bs2":{"ms":957.5,"mb":117}}}},{"d":"arrays.delta_looparray_1x4_grouped","fam":"arrays","name":"delta_looparray_1x4_grouped","seg":256,"g":{"free":{"pynec":{"ms":10.4,"mb":93},"sin":{"ms":13.1,"mb":98},"bs1":{"ms":21.5,"mb":98},"bs2":{"ms":27.6,"mb":103}},"pec":{"pynec":{"ms":13.9,"mb":93},"sin":{"ms":18.0,"mb":103},"bs1":{"ms":26.8,"mb":103},"bs2":{"ms":39.8,"mb":109}},"fast":{"pynec":{"ms":14.1,"mb":93},"sin":{"ms":23.5,"mb":105},"bs1":{"ms":36.7,"mb":109},"bs2":{"ms":48.4,"mb":114}},"somm":{"pynec":{"ms":52.7,"mb":93},"sin":{"ms":674.4,"mb":114},"bs1":{"ms":692.4,"mb":113},"bs2":{"ms":712.6,"mb":117}}}},{"d":"arrays.delta_looparray_2x2","fam":"arrays","name":"delta_looparray_2x2","seg":256,"g":{"free":{"pynec":{"ms":10.8,"mb":93},"sin":{"ms":12.3,"mb":98},"bs1":{"ms":20.5,"mb":98},"bs2":{"ms":28.0,"mb":103}},"pec":{"pynec":{"ms":13.1,"mb":93},"sin":{"ms":17.0,"mb":102},"bs1":{"ms":27.8,"mb":104},"bs2":{"ms":40.6,"mb":108}},"fast":{"pynec":{"ms":14.8,"mb":93},"sin":{"ms":22.8,"mb":105},"bs1":{"ms":35.4,"mb":109},"bs2":{"ms":49.3,"mb":114}},"somm":{"pynec":{"ms":50.4,"mb":93},"sin":{"ms":1220.0,"mb":114},"bs1":{"ms":1238.6,"mb":113},"bs2":{"ms":1252.2,"mb":117}}}},{"d":"arrays.delta_looparray_network","fam":"arrays","name":"delta_looparray_network","seg":128,"g":{"free":{"pynec":{"ms":9.2,"mb":92},"sin":{"ms":6.4,"mb":95},"bs1":{"ms":8.9,"mb":96},"bs2":{"ms":10.6,"mb":97}},"pec":{"pynec":{"ms":12.9,"mb":92},"sin":{"ms":7.6,"mb":96},"bs1":{"ms":10.4,"mb":97},"bs2":{"ms":14.3,"mb":100}},"fast":{"pynec":{"ms":10.6,"mb":92},"sin":{"ms":8.9,"mb":98},"bs1":{"ms":13.0,"mb":98},"bs2":{"ms":16.1,"mb":101}},"somm":{"pynec":{"ms":87.3,"mb":92},"sin":{"ms":475.2,"mb":97},"bs1":{"ms":481.6,"mb":98},"bs2":{"ms":486.0,"mb":102}}}},{"d":"arrays.delta_looparray_with_tls","fam":"arrays","name":"delta_looparray_with_tls","seg":129,"g":{"free":{"pynec":{"ms":4.4,"mb":92},"sin":{"ms":6.4,"mb":96},"bs1":{"ms":9.7,"mb":96},"bs2":{"ms":10.8,"mb":97}},"pec":{"pynec":{"ms":5.2,"mb":92},"sin":{"ms":8.0,"mb":97},"bs1":{"ms":10.8,"mb":97},"bs2":{"ms":14.2,"mb":100}},"fast":{"pynec":{"ms":5.6,"mb":92},"sin":{"ms":8.8,"mb":98},"bs1":{"ms":13.5,"mb":99},"bs2":{"ms":16.3,"mb":101}},"somm":{"pynec":{"ms":34.6,"mb":92},"sin":{"ms":474.7,"mb":98},"bs1":{"ms":482.8,"mb":98},"bs2":{"ms":500.5,"mb":102}}}},{"d":"arrays.folded_invveearray","fam":"arrays","name":"folded_invveearray","seg":432,"g":{"free":{"pynec":{"ms":29.5,"mb":97},"sin":{"ms":29.1,"mb":109},"bs1":{"ms":58.2,"mb":108},"bs2":{"ms":83.8,"mb":123}},"pec":{"pynec":{"ms":34.6,"mb":97},"sin":{"ms":45.2,"mb":122},"bs1":{"ms":93.5,"mb":118},"bs2":{"ms":124.5,"mb":133}},"fast":{"pynec":{"ms":39.8,"mb":97},"sin":{"ms":59.3,"mb":131},"bs1":{"ms":108.4,"mb":133},"bs2":{"ms":152.0,"mb":146}},"somm":{"pynec":{"ms":100.7,"mb":97},"sin":{"ms":565.5,"mb":152},"bs1":{"ms":645.3,"mb":139},"bs2":{"ms":690.7,"mb":156}}}},{"d":"arrays.hentenna_array","fam":"arrays","name":"hentenna_array","seg":338,"g":{"free":{"pynec":{"ms":19.1,"mb":95},"sin":{"ms":20.2,"mb":103},"bs1":{"ms":29.4,"mb":102},"bs2":{"ms":39.1,"mb":111}},"pec":{"pynec":{"ms":22.9,"mb":95},"sin":{"ms":27.9,"mb":110},"bs1":{"ms":42.6,"mb":109},"bs2":{"ms":65.4,"mb":119}},"fast":{"pynec":{"ms":25.8,"mb":95},"sin":{"ms":35.9,"mb":116},"bs1":{"ms":54.2,"mb":118},"bs2":{"ms":70.9,"mb":127}},"somm":{"pynec":{"ms":65.5,"mb":94},"sin":{"ms":703.7,"mb":130},"bs1":{"ms":724.5,"mb":126},"bs2":{"ms":746.3,"mb":132}}}},{"d":"arrays.hourglass_array","fam":"arrays","name":"hourglass_array","seg":338,"g":{"free":{"pynec":{"ms":16.8,"mb":94},"sin":{"ms":18.4,"mb":103},"bs1":{"ms":29.7,"mb":102},"bs2":{"ms":38.8,"mb":112}},"pec":{"pynec":{"ms":23.1,"mb":94},"sin":{"ms":27.8,"mb":110},"bs1":{"ms":38.8,"mb":110},"bs2":{"ms":58.0,"mb":118}},"fast":{"pynec":{"ms":23.5,"mb":95},"sin":{"ms":37.5,"mb":116},"bs1":{"ms":56.9,"mb":118},"bs2":{"ms":72.6,"mb":127}},"somm":{"pynec":{"ms":66.9,"mb":95},"sin":{"ms":699.2,"mb":130},"bs1":{"ms":728.1,"mb":126},"bs2":{"ms":750.5,"mb":132}}}},{"d":"arrays.invveearray","fam":"arrays","name":"invveearray","seg":172,"g":{"free":{"pynec":{"ms":5.1,"mb":92},"sin":{"ms":7.8,"mb":94},"bs1":{"ms":12.2,"mb":94},"bs2":{"ms":15.2,"mb":96}},"pec":{"pynec":{"ms":6.6,"mb":93},"sin":{"ms":9.6,"mb":96},"bs1":{"ms":14.9,"mb":96},"bs2":{"ms":19.7,"mb":99}},"fast":{"pynec":{"ms":8.1,"mb":92},"sin":{"ms":11.7,"mb":98},"bs1":{"ms":19.1,"mb":99},"bs2":{"ms":22.9,"mb":102}},"somm":{"pynec":{"ms":40.6,"mb":92},"sin":{"ms":480.2,"mb":101},"bs1":{"ms":490.0,"mb":101},"bs2":{"ms":495.9,"mb":103}}}},{"d":"arrays.lumped_coupled_pair","fam":"arrays","name":"lumped_coupled_pair","seg":80,"g":{"free":{"pynec":{"ms":3.5,"mb":92},"sin":{"ms":3.8,"mb":94},"bs1":{"ms":5.1,"mb":92},"bs2":{"ms":6.3,"mb":94}},"pec":{"pynec":{"ms":4.0,"mb":92},"sin":{"ms":4.3,"mb":94},"bs1":{"ms":5.9,"mb":93},"bs2":{"ms":7.5,"mb":94}},"fast":{"pynec":{"ms":4.3,"mb":92},"sin":{"ms":4.8,"mb":94},"bs1":{"ms":6.9,"mb":94},"bs2":{"ms":8.3,"mb":94}},"somm":{"pynec":{"ms":60.1,"mb":91},"sin":{"ms":354.2,"mb":94},"bs1":{"ms":356.6,"mb":96},"bs2":{"ms":359.2,"mb":96}}}},{"d":"arrays.moxonarray","fam":"arrays","name":"moxonarray","seg":592,"g":{"free":{"pynec":{"ms":51.5,"mb":100},"sin":{"ms":52.1,"mb":126},"bs1":{"ms":91.3,"mb":123},"bs2":{"ms":113.3,"mb":151}},"pec":{"pynec":{"ms":65.6,"mb":100},"sin":{"ms":76.1,"mb":142},"bs1":{"ms":141.3,"mb":138},"bs2":{"ms":204.5,"mb":162}},"fast":{"pynec":{"ms":68.1,"mb":100},"sin":{"ms":113.6,"mb":165},"bs1":{"ms":190.5,"mb":164},"bs2":{"ms":252.2,"mb":193}},"somm":{"pynec":{"ms":150.5,"mb":101},"sin":{"ms":840.7,"mb":201},"bs1":{"ms":952.5,"mb":184},"bs2":{"ms":1061.4,"mb":201}}}},{"d":"arrays.yagiarray","fam":"arrays","name":"yagiarray","seg":676,"g":{"free":{"pynec":{"ms":66.5,"mb":103},"sin":{"ms":75.5,"mb":136},"bs1":{"ms":104.7,"mb":132},"bs2":{"ms":145.9,"mb":168}},"pec":{"pynec":{"ms":87.3,"mb":103},"sin":{"ms":101.5,"mb":158},"bs1":{"ms":174.5,"mb":152},"bs2":{"ms":249.1,"mb":182}},"fast":{"pynec":{"ms":91.2,"mb":103},"sin":{"ms":144.0,"mb":188},"bs1":{"ms":239.2,"mb":185},"bs2":{"ms":326.8,"mb":224}},"somm":{"pynec":{"ms":201.5,"mb":103},"sin":{"ms":884.0,"mb":227},"bs1":{"ms":1039.7,"mb":211},"bs2":{"ms":1165.9,"mb":234}}}},{"d":"beams.hb9cv","fam":"beams","name":"hb9cv","seg":84,"g":{"free":{"pynec":{"ms":3.7,"mb":91},"sin":{"ms":4.0,"mb":93},"bs1":{"ms":5.9,"mb":93},"bs2":{"ms":6.4,"mb":93}},"pec":{"pynec":{"ms":4.2,"mb":92},"sin":{"ms":4.6,"mb":92},"bs1":{"ms":6.9,"mb":94},"bs2":{"ms":7.8,"mb":94}},"fast":{"pynec":{"ms":4.5,"mb":92},"sin":{"ms":5.2,"mb":93},"bs1":{"ms":7.6,"mb":94},"bs2":{"ms":9.0,"mb":94}},"somm":{"pynec":{"ms":60.3,"mb":91},"sin":{"ms":355.3,"mb":94},"bs1":{"ms":358.6,"mb":96},"bs2":{"ms":360.8,"mb":97}}}},{"d":"beams.hexbeam","fam":"beams","name":"hexbeam","seg":158,"g":{"free":{"pynec":{"ms":4.3,"mb":92},"sin":{"ms":6.4,"mb":96},"bs1":{"ms":9.7,"mb":93},"bs2":{"ms":12.8,"mb":95}},"pec":{"pynec":{"ms":5.9,"mb":92},"sin":{"ms":8.0,"mb":97},"bs1":{"ms":12.1,"mb":95},"bs2":{"ms":16.0,"mb":98}},"fast":{"pynec":{"ms":5.7,"mb":92},"sin":{"ms":11.3,"mb":96},"bs1":{"ms":15.8,"mb":97},"bs2":{"ms":20.0,"mb":99}},"somm":{"pynec":{"ms":36.0,"mb":92},"sin":{"ms":363.8,"mb":99},"bs1":{"ms":372.2,"mb":97},"bs2":{"ms":377.7,"mb":101}}}},{"d":"beams.moxon","fam":"beams","name":"moxon","seg":148,"g":{"free":{"pynec":{"ms":3.9,"mb":92},"sin":{"ms":5.7,"mb":95},"bs1":{"ms":9.1,"mb":93},"bs2":{"ms":11.9,"mb":95}},"pec":{"pynec":{"ms":4.6,"mb":92},"sin":{"ms":7.2,"mb":96},"bs1":{"ms":11.9,"mb":95},"bs2":{"ms":14.6,"mb":97}},"fast":{"pynec":{"ms":5.1,"mb":92},"sin":{"ms":8.7,"mb":96},"bs1":{"ms":15.3,"mb":97},"bs2":{"ms":17.4,"mb":99}},"somm":{"pynec":{"ms":35.8,"mb":92},"sin":{"ms":362.3,"mb":99},"bs1":{"ms":370.1,"mb":97},"bs2":{"ms":374.6,"mb":100}}}},{"d":"beams.moxon_turnstile","fam":"beams","name":"moxon_turnstile","seg":296,"g":{"free":{"pynec":{"ms":32.7,"mb":94},"sin":{"ms":18.7,"mb":102},"bs1":{"ms":20.6,"mb":104},"bs2":{"ms":28.4,"mb":111}},"pec":{"pynec":{"ms":36.2,"mb":94},"sin":{"ms":24.2,"mb":105},"bs1":{"ms":28.9,"mb":110},"bs2":{"ms":40.8,"mb":124}},"fast":{"pynec":{"ms":41.7,"mb":94},"sin":{"ms":32.3,"mb":110},"bs1":{"ms":42.5,"mb":115},"bs2":{"ms":54.8,"mb":130}},"somm":{"pynec":{"ms":125.0,"mb":94},"sin":{"ms":522.2,"mb":121},"bs1":{"ms":537.0,"mb":127},"bs2":{"ms":552.3,"mb":146}}}},{"d":"beams.owa_yagi","fam":"beams","name":"owa_yagi","seg":158,"g":{"free":{"pynec":{"ms":5.2,"mb":92},"sin":{"ms":6.3,"mb":95},"bs1":{"ms":10.4,"mb":94},"bs2":{"ms":13.4,"mb":95}},"pec":{"pynec":{"ms":5.3,"mb":92},"sin":{"ms":7.8,"mb":96},"bs1":{"ms":12.6,"mb":95},"bs2":{"ms":16.7,"mb":97}},"fast":{"pynec":{"ms":5.9,"mb":92},"sin":{"ms":9.6,"mb":96},"bs1":{"ms":15.9,"mb":98},"bs2":{"ms":20.3,"mb":99}},"somm":{"pynec":{"ms":37.1,"mb":92},"sin":{"ms":651.5,"mb":99},"bs1":{"ms":660.6,"mb":99},"bs2":{"ms":664.2,"mb":102}}}},{"d":"beams.phased_driver_yagi","fam":"beams","name":"phased_driver_yagi","seg":119,"g":{"free":{"pynec":{"ms":6.9,"mb":91},"sin":{"ms":5.1,"mb":94},"bs1":{"ms":7.8,"mb":94},"bs2":{"ms":9.6,"mb":95}},"pec":{"pynec":{"ms":11.0,"mb":92},"sin":{"ms":6.2,"mb":95},"bs1":{"ms":9.6,"mb":96},"bs2":{"ms":11.4,"mb":98}},"fast":{"pynec":{"ms":10.6,"mb":91},"sin":{"ms":7.9,"mb":95},"bs1":{"ms":11.4,"mb":95},"bs2":{"ms":13.4,"mb":99}},"somm":{"pynec":{"ms":74.9,"mb":92},"sin":{"ms":201.9,"mb":96},"bs1":{"ms":207.9,"mb":97},"bs2":{"ms":216.7,"mb":100}}}},{"d":"beams.yagi","fam":"beams","name":"yagi","seg":169,"g":{"free":{"pynec":{"ms":4.9,"mb":92},"sin":{"ms":6.7,"mb":95},"bs1":{"ms":10.7,"mb":94},"bs2":{"ms":13.8,"mb":96}},"pec":{"pynec":{"ms":6.7,"mb":92},"sin":{"ms":8.9,"mb":96},"bs1":{"ms":13.3,"mb":96},"bs2":{"ms":18.7,"mb":98}},"fast":{"pynec":{"ms":6.6,"mb":92},"sin":{"ms":11.0,"mb":97},"bs1":{"ms":17.2,"mb":98},"bs2":{"ms":21.5,"mb":101}},"somm":{"pynec":{"ms":37.3,"mb":92},"sin":{"ms":366.6,"mb":100},"bs1":{"ms":375.7,"mb":101},"bs2":{"ms":380.6,"mb":102}}}},{"d":"broadband.discone","fam":"broadband","name":"discone","seg":373,"g":{"free":{"pynec":{"ms":20.9,"mb":96},"sin":{"ms":22.8,"mb":105},"bs1":{"ms":37.6,"mb":104},"bs2":{"ms":49.0,"mb":115}},"pec":{"pynec":{"ms":25.7,"mb":96},"sin":{"ms":34.7,"mb":112},"bs1":{"ms":58.1,"mb":112},"bs2":{"ms":77.3,"mb":123}},"fast":{"pynec":{"ms":29.2,"mb":96},"sin":{"ms":50.2,"mb":120},"bs1":{"ms":70.2,"mb":122},"bs2":{"ms":107.5,"mb":134}},"somm":{"pynec":{"ms":77.6,"mb":96},"sin":{"ms":427.3,"mb":138},"bs1":{"ms":464.1,"mb":131},"bs2":{"ms":498.4,"mb":139}}}},{"d":"broadband.g5rv","fam":"broadband","name":"g5rv","seg":127,"g":{"free":{"pynec":{"ms":3.8,"mb":92},"sin":{"ms":5.2,"mb":94},"bs1":{"ms":8.3,"mb":94},"bs2":{"ms":10.3,"mb":96}},"pec":{"pynec":{"ms":5.0,"mb":92},"sin":{"ms":6.3,"mb":94},"bs1":{"ms":10.0,"mb":97},"bs2":{"ms":13.1,"mb":99}},"fast":{"pynec":{"ms":4.7,"mb":92},"sin":{"ms":7.6,"mb":95},"bs1":{"ms":12.0,"mb":97},"bs2":{"ms":15.4,"mb":100}},"somm":{"pynec":{"ms":34.4,"mb":92},"sin":{"ms":647.7,"mb":97},"bs1":{"ms":654.5,"mb":98},"bs2":{"ms":665.5,"mb":102}}}},{"d":"broadband.lpda","fam":"broadband","name":"lpda","seg":618,"g":{"free":{"pynec":{"ms":617.0,"mb":101},"sin":{"ms":79.2,"mb":128},"bs1":{"ms":78.9,"mb":141},"bs2":{"ms":107.4,"mb":171}},"pec":{"pynec":{"ms":776.2,"mb":101},"sin":{"ms":104.2,"mb":148},"bs1":{"ms":121.3,"mb":169},"bs2":{"ms":173.9,"mb":229}},"fast":{"pynec":{"ms":939.4,"mb":101},"sin":{"ms":137.4,"mb":171},"bs1":{"ms":180.4,"mb":198},"bs2":{"ms":236.8,"mb":257}},"somm":{"pynec":{"ms":1588.5,"mb":101},"sin":{"ms":1108.6,"mb":209},"bs1":{"ms":1203.1,"mb":246},"bs2":{"ms":1290.5,"mb":327}}}},{"d":"broadband.t2fd","fam":"broadband","name":"t2fd","seg":104,"g":{"free":{"pynec":{"ms":2.7,"mb":91},"sin":{"ms":4.9,"mb":93},"bs1":{"ms":7.4,"mb":94},"bs2":{"ms":8.3,"mb":95}},"pec":{"pynec":{"ms":3.1,"mb":91},"sin":{"ms":5.8,"mb":94},"bs1":{"ms":8.8,"mb":95},"bs2":{"ms":10.3,"mb":97}},"fast":{"pynec":{"ms":3.9,"mb":91},"sin":{"ms":6.4,"mb":94},"bs1":{"ms":9.6,"mb":96},"bs2":{"ms":11.5,"mb":97}},"somm":{"pynec":{"ms":31.8,"mb":91},"sin":{"ms":646.6,"mb":97},"bs1":{"ms":652.2,"mb":98},"bs2":{"ms":653.6,"mb":100}}}},{"d":"dipoles.dipole_turnstile","fam":"dipoles","name":"dipole_turnstile","seg":86,"g":{"free":{"pynec":{"ms":1.9,"mb":92},"sin":{"ms":3.6,"mb":92},"bs1":{"ms":6.1,"mb":92},"bs2":{"ms":7.0,"mb":92}},"pec":{"pynec":{"ms":2.2,"mb":92},"sin":{"ms":4.1,"mb":92},"bs1":{"ms":7.0,"mb":92},"bs2":{"ms":8.2,"mb":93}},"fast":{"pynec":{"ms":2.4,"mb":92},"sin":{"ms":4.8,"mb":93},"bs1":{"ms":8.1,"mb":93},"bs2":{"ms":9.1,"mb":93}},"somm":{"pynec":{"ms":30.4,"mb":91},"sin":{"ms":368.8,"mb":92},"bs1":{"ms":358.5,"mb":93},"bs2":{"ms":359.7,"mb":94}}}},{"d":"dipoles.folded_invvee","fam":"dipoles","name":"folded_invvee","seg":108,"g":{"free":{"pynec":{"ms":3.1,"mb":91},"sin":{"ms":4.4,"mb":92},"bs1":{"ms":7.6,"mb":93},"bs2":{"ms":9.0,"mb":94}},"pec":{"pynec":{"ms":3.0,"mb":91},"sin":{"ms":5.4,"mb":94},"bs1":{"ms":8.8,"mb":94},"bs2":{"ms":11.0,"mb":95}},"fast":{"pynec":{"ms":3.8,"mb":92},"sin":{"ms":6.2,"mb":94},"bs1":{"ms":10.2,"mb":95},"bs2":{"ms":12.5,"mb":95}},"somm":{"pynec":{"ms":32.0,"mb":91},"sin":{"ms":356.2,"mb":95},"bs1":{"ms":362.1,"mb":97},"bs2":{"ms":364.8,"mb":97}}}},{"d":"dipoles.folded_invvee_balun","fam":"dipoles","name":"folded_invvee_balun","seg":108,"g":{"free":{"pynec":{"ms":3.6,"mb":92},"sin":{"ms":4.8,"mb":93},"bs1":{"ms":7.5,"mb":94},"bs2":{"ms":8.3,"mb":95}},"pec":{"pynec":{"ms":3.5,"mb":92},"sin":{"ms":5.7,"mb":94},"bs1":{"ms":8.5,"mb":95},"bs2":{"ms":10.1,"mb":97}},"fast":{"pynec":{"ms":4.3,"mb":92},"sin":{"ms":6.7,"mb":94},"bs1":{"ms":10.4,"mb":96},"bs2":{"ms":12.2,"mb":98}},"somm":{"pynec":{"ms":33.2,"mb":92},"sin":{"ms":356.8,"mb":96},"bs1":{"ms":361.9,"mb":98},"bs2":{"ms":364.0,"mb":100}}}},{"d":"dipoles.invvee","fam":"dipoles","name":"invvee","seg":43,"g":{"free":{"pynec":{"ms":1.0,"mb":91},"sin":{"ms":2.2,"mb":92},"bs1":{"ms":3.8,"mb":91},"bs2":{"ms":4.3,"mb":92}},"pec":{"pynec":{"ms":1.0,"mb":91},"sin":{"ms":2.5,"mb":92},"bs1":{"ms":4.3,"mb":91},"bs2":{"ms":4.6,"mb":92}},"fast":{"pynec":{"ms":1.1,"mb":91},"sin":{"ms":2.7,"mb":91},"bs1":{"ms":4.5,"mb":91},"bs2":{"ms":5.0,"mb":92}},"somm":{"pynec":{"ms":28.4,"mb":91},"sin":{"ms":351.3,"mb":92},"bs1":{"ms":352.6,"mb":91},"bs2":{"ms":352.8,"mb":92}}}},{"d":"dipoles.invvee_coax_station","fam":"dipoles","name":"invvee_coax_station","seg":43,"g":{"free":{"pynec":{"ms":1.3,"mb":91},"sin":{"ms":2.6,"mb":91},"bs1":{"ms":3.8,"mb":91},"bs2":{"ms":4.0,"mb":92}},"pec":{"pynec":{"ms":1.3,"mb":91},"sin":{"ms":2.9,"mb":92},"bs1":{"ms":4.1,"mb":92},"bs2":{"ms":4.5,"mb":93}},"fast":{"pynec":{"ms":1.4,"mb":91},"sin":{"ms":3.1,"mb":92},"bs1":{"ms":4.3,"mb":92},"bs2":{"ms":4.6,"mb":92}},"somm":{"pynec":{"ms":28.4,"mb":91},"sin":{"ms":465.5,"mb":92},"bs1":{"ms":468.4,"mb":94},"bs2":{"ms":467.9,"mb":94}}}},{"d":"dipoles.koch_dipole","fam":"dipoles","name":"koch_dipole","seg":65,"g":{"free":{"pynec":{"ms":1.5,"mb":91},"sin":{"ms":4.2,"mb":92},"bs1":{"ms":9.4,"mb":91},"bs2":{"ms":10.3,"mb":91}},"pec":{"pynec":{"ms":1.9,"mb":91},"sin":{"ms":4.6,"mb":91},"bs1":{"ms":10.6,"mb":93},"bs2":{"ms":10.7,"mb":93}},"fast":{"pynec":{"ms":2.0,"mb":91},"sin":{"ms":5.1,"mb":92},"bs1":{"ms":11.1,"mb":92},"bs2":{"ms":12.1,"mb":92}},"somm":{"pynec":{"ms":29.7,"mb":91},"sin":{"ms":281.5,"mb":93},"bs1":{"ms":293.1,"mb":93},"bs2":{"ms":287.7,"mb":93}}}},{"d":"dipoles.ocf_dipole","fam":"dipoles","name":"ocf_dipole","seg":41,"g":{"free":{"pynec":{"ms":0.9,"mb":91},"sin":{"ms":2.1,"mb":91},"bs1":{"ms":3.9,"mb":91},"bs2":{"ms":4.3,"mb":92}},"pec":{"pynec":{"ms":1.0,"mb":91},"sin":{"ms":2.6,"mb":91},"bs1":{"ms":4.3,"mb":91},"bs2":{"ms":4.8,"mb":92}},"fast":{"pynec":{"ms":1.0,"mb":91},"sin":{"ms":2.6,"mb":92},"bs1":{"ms":4.5,"mb":91},"bs2":{"ms":5.1,"mb":91}},"somm":{"pynec":{"ms":28.3,"mb":91},"sin":{"ms":350.6,"mb":92},"bs1":{"ms":353.5,"mb":91},"bs2":{"ms":352.9,"mb":92}}}},{"d":"dipoles.pota_invvee","fam":"dipoles","name":"pota_invvee","seg":43,"g":{"free":{"pynec":{"ms":1.0,"mb":91},"sin":{"ms":2.5,"mb":92},"bs1":{"ms":4.9,"mb":93},"bs2":{"ms":5.4,"mb":92}},"pec":{"pynec":{"ms":1.2,"mb":91},"sin":{"ms":2.8,"mb":92},"bs1":{"ms":5.5,"mb":93},"bs2":{"ms":6.0,"mb":92}},"fast":{"pynec":{"ms":1.3,"mb":91},"sin":{"ms":3.0,"mb":92},"bs1":{"ms":5.7,"mb":93},"bs2":{"ms":6.0,"mb":92}},"somm":{"pynec":{"ms":28.6,"mb":91},"sin":{"ms":166.1,"mb":92},"bs1":{"ms":168.8,"mb":92},"bs2":{"ms":169.3,"mb":92}}}},{"d":"dipoles.short_dipole_loaded","fam":"dipoles","name":"short_dipole_loaded","seg":21,"g":{"free":{"pynec":{"ms":0.8,"mb":91},"sin":{"ms":2.1,"mb":92},"bs1":{"ms":2.8,"mb":92},"bs2":{"ms":2.8,"mb":91}},"pec":{"pynec":{"ms":0.9,"mb":91},"sin":{"ms":2.3,"mb":93},"bs1":{"ms":3.0,"mb":91},"bs2":{"ms":3.2,"mb":91}},"fast":{"pynec":{"ms":0.9,"mb":91},"sin":{"ms":2.3,"mb":93},"bs1":{"ms":3.1,"mb":91},"bs2":{"ms":3.4,"mb":93}},"somm":{"pynec":{"ms":27.9,"mb":91},"sin":{"ms":207.0,"mb":92},"bs1":{"ms":208.0,"mb":91},"bs2":{"ms":208.9,"mb":93}}}},{"d":"loops.bisquare","fam":"loops","name":"bisquare","seg":184,"g":{"free":{"pynec":{"ms":6.6,"mb":92},"sin":{"ms":7.7,"mb":94},"bs1":{"ms":13.1,"mb":98},"bs2":{"ms":17.9,"mb":99}},"pec":{"pynec":{"ms":7.0,"mb":92},"sin":{"ms":9.6,"mb":97},"bs1":{"ms":15.5,"mb":100},"bs2":{"ms":22.4,"mb":102}},"fast":{"pynec":{"ms":8.8,"mb":92},"sin":{"ms":12.8,"mb":98},"bs1":{"ms":20.2,"mb":101},"bs2":{"ms":26.5,"mb":104}},"somm":{"pynec":{"ms":40.2,"mb":92},"sin":{"ms":657.6,"mb":102},"bs1":{"ms":667.5,"mb":103},"bs2":{"ms":677.3,"mb":105}}}},{"d":"loops.delta_loop","fam":"loops","name":"delta_loop","seg":64,"g":{"free":{"pynec":{"ms":1.4,"mb":91},"sin":{"ms":3.0,"mb":91},"bs1":{"ms":5.0,"mb":93},"bs2":{"ms":5.8,"mb":92}},"pec":{"pynec":{"ms":1.7,"mb":91},"sin":{"ms":3.4,"mb":92},"bs1":{"ms":5.8,"mb":92},"bs2":{"ms":6.7,"mb":94}},"fast":{"pynec":{"ms":1.8,"mb":91},"sin":{"ms":3.8,"mb":92},"bs1":{"ms":6.2,"mb":93},"bs2":{"ms":7.4,"mb":94}},"somm":{"pynec":{"ms":30.1,"mb":91},"sin":{"ms":352.5,"mb":92},"bs1":{"ms":356.6,"mb":92},"bs2":{"ms":361.9,"mb":92}}}},{"d":"loops.delta_loop_flyby","fam":"loops","name":"delta_loop_flyby","seg":64,"g":{"free":{"pynec":{"ms":2.4,"mb":91},"sin":{"ms":4.0,"mb":92},"bs1":{"ms":6.1,"mb":92},"bs2":{"ms":6.8,"mb":92}},"pec":{"pynec":{"ms":2.7,"mb":91},"sin":{"ms":4.4,"mb":92},"bs1":{"ms":6.7,"mb":92},"bs2":{"ms":7.6,"mb":92}},"fast":{"pynec":{"ms":2.8,"mb":91},"sin":{"ms":5.0,"mb":93},"bs1":{"ms":7.1,"mb":93},"bs2":{"ms":8.3,"mb":93}},"somm":{"pynec":{"ms":30.7,"mb":91},"sin":{"ms":353.7,"mb":94},"bs1":{"ms":357.1,"mb":93},"bs2":{"ms":357.8,"mb":92}}}},{"d":"loops.delta_loop_reflected","fam":"loops","name":"delta_loop_reflected","seg":64,"g":{"free":{"pynec":{"ms":2.0,"mb":91},"sin":{"ms":3.7,"mb":92},"bs1":{"ms":5.9,"mb":93},"bs2":{"ms":7.0,"mb":92}},"pec":{"pynec":{"ms":2.4,"mb":91},"sin":{"ms":4.2,"mb":92},"bs1":{"ms":6.2,"mb":92},"bs2":{"ms":7.4,"mb":92}},"fast":{"pynec":{"ms":2.5,"mb":91},"sin":{"ms":4.5,"mb":93},"bs1":{"ms":6.8,"mb":93},"bs2":{"ms":8.1,"mb":93}},"somm":{"pynec":{"ms":30.9,"mb":91},"sin":{"ms":352.9,"mb":94},"bs1":{"ms":355.4,"mb":93},"bs2":{"ms":358.4,"mb":93}}}},{"d":"loops.delta_loop_slanted","fam":"loops","name":"delta_loop_slanted","seg":128,"g":{"free":{"pynec":{"ms":3.7,"mb":92},"sin":{"ms":5.7,"mb":94},"bs1":{"ms":9.3,"mb":95},"bs2":{"ms":12.0,"mb":95}},"pec":{"pynec":{"ms":4.7,"mb":92},"sin":{"ms":6.7,"mb":95},"bs1":{"ms":11.0,"mb":96},"bs2":{"ms":14.0,"mb":97}},"fast":{"pynec":{"ms":5.2,"mb":92},"sin":{"ms":7.6,"mb":95},"bs1":{"ms":13.5,"mb":97},"bs2":{"ms":16.4,"mb":99}},"somm":{"pynec":{"ms":36.4,"mb":92},"sin":{"ms":359.5,"mb":97},"bs1":{"ms":366.4,"mb":98},"bs2":{"ms":370.3,"mb":100}}}},{"d":"loops.delta_loop_topdown","fam":"loops","name":"delta_loop_topdown","seg":64,"g":{"free":{"pynec":{"ms":2.2,"mb":91},"sin":{"ms":3.8,"mb":92},"bs1":{"ms":6.2,"mb":93},"bs2":{"ms":6.7,"mb":92}},"pec":{"pynec":{"ms":2.6,"mb":91},"sin":{"ms":4.3,"mb":92},"bs1":{"ms":6.4,"mb":92},"bs2":{"ms":7.6,"mb":91}},"fast":{"pynec":{"ms":2.7,"mb":91},"sin":{"ms":4.6,"mb":93},"bs1":{"ms":7.0,"mb":94},"bs2":{"ms":8.1,"mb":94}},"somm":{"pynec":{"ms":30.4,"mb":91},"sin":{"ms":353.5,"mb":92},"bs1":{"ms":356.2,"mb":94},"bs2":{"ms":356.7,"mb":92}}}},{"d":"loops.diamond_loop","fam":"loops","name":"diamond_loop","seg":85,"g":{"free":{"pynec":{"ms":1.9,"mb":91},"sin":{"ms":3.4,"mb":91},"bs1":{"ms":6.1,"mb":92},"bs2":{"ms":7.3,"mb":94}},"pec":{"pynec":{"ms":2.3,"mb":91},"sin":{"ms":4.1,"mb":92},"bs1":{"ms":6.9,"mb":92},"bs2":{"ms":8.5,"mb":93}},"fast":{"pynec":{"ms":2.5,"mb":91},"sin":{"ms":4.6,"mb":93},"bs1":{"ms":7.9,"mb":93},"bs2":{"ms":9.1,"mb":93}},"somm":{"pynec":{"ms":30.9,"mb":91},"sin":{"ms":353.6,"mb":93},"bs1":{"ms":358.9,"mb":94},"bs2":{"ms":360.6,"mb":95}}}},{"d":"loops.diamond_loop_turnstile","fam":"loops","name":"diamond_loop_turnstile","seg":170,"g":{"free":{"pynec":{"ms":5.8,"mb":92},"sin":{"ms":6.9,"mb":94},"bs1":{"ms":11.7,"mb":96},"bs2":{"ms":15.4,"mb":97}},"pec":{"pynec":{"ms":8.1,"mb":92},"sin":{"ms":9.4,"mb":96},"bs1":{"ms":14.9,"mb":98},"bs2":{"ms":19.9,"mb":101}},"fast":{"pynec":{"ms":8.0,"mb":93},"sin":{"ms":11.6,"mb":98},"bs1":{"ms":20.2,"mb":100},"bs2":{"ms":23.6,"mb":103}},"somm":{"pynec":{"ms":43.2,"mb":92},"sin":{"ms":365.8,"mb":101},"bs1":{"ms":376.0,"mb":103},"bs2":{"ms":383.6,"mb":105}}}},{"d":"loops.horizontal_loop","fam":"loops","name":"horizontal_loop","seg":89,"g":{"free":{"pynec":{"ms":1.9,"mb":91},"sin":{"ms":3.7,"mb":92},"bs1":{"ms":6.6,"mb":93},"bs2":{"ms":7.7,"mb":94}},"pec":{"pynec":{"ms":2.6,"mb":92},"sin":{"ms":4.2,"mb":93},"bs1":{"ms":7.5,"mb":93},"bs2":{"ms":8.7,"mb":93}},"fast":{"pynec":{"ms":2.8,"mb":92},"sin":{"ms":4.9,"mb":93},"bs1":{"ms":8.3,"mb":93},"bs2":{"ms":9.8,"mb":95}},"somm":{"pynec":{"ms":31.3,"mb":91},"sin":{"ms":283.2,"mb":93},"bs1":{"ms":285.8,"mb":93},"bs2":{"ms":288.4,"mb":95}}}},{"d":"loops.horizontal_loop_drone","fam":"loops","name":"horizontal_loop_drone","seg":85,"g":{"free":{"pynec":{"ms":2.0,"mb":92},"sin":{"ms":3.6,"mb":92},"bs1":{"ms":6.1,"mb":92},"bs2":{"ms":7.3,"mb":94}},"pec":{"pynec":{"ms":2.7,"mb":92},"sin":{"ms":4.3,"mb":92},"bs1":{"ms":6.9,"mb":92},"bs2":{"ms":8.3,"mb":94}},"fast":{"pynec":{"ms":2.9,"mb":92},"sin":{"ms":5.0,"mb":94},"bs1":{"ms":8.2,"mb":93},"bs2":{"ms":9.5,"mb":94}},"somm":{"pynec":{"ms":31.2,"mb":92},"sin":{"ms":282.1,"mb":93},"bs1":{"ms":291.3,"mb":94},"bs2":{"ms":286.9,"mb":94}}}},{"d":"loops.inv_delta_loop","fam":"loops","name":"inv_delta_loop","seg":64,"g":{"free":{"pynec":{"ms":1.4,"mb":91},"sin":{"ms":3.0,"mb":91},"bs1":{"ms":5.0,"mb":93},"bs2":{"ms":5.8,"mb":92}},"pec":{"pynec":{"ms":1.8,"mb":91},"sin":{"ms":3.5,"mb":92},"bs1":{"ms":5.6,"mb":93},"bs2":{"ms":6.6,"mb":94}},"fast":{"pynec":{"ms":1.9,"mb":91},"sin":{"ms":3.9,"mb":92},"bs1":{"ms":6.3,"mb":93},"bs2":{"ms":7.2,"mb":93}},"somm":{"pynec":{"ms":30.0,"mb":91},"sin":{"ms":352.7,"mb":92},"bs1":{"ms":355.5,"mb":92},"bs2":{"ms":356.3,"mb":92}}}},{"d":"loops.quad","fam":"loops","name":"quad","seg":172,"g":{"free":{"pynec":{"ms":5.0,"mb":93},"sin":{"ms":6.9,"mb":95},"bs1":{"ms":11.6,"mb":97},"bs2":{"ms":14.7,"mb":97}},"pec":{"pynec":{"ms":5.9,"mb":92},"sin":{"ms":9.3,"mb":96},"bs1":{"ms":13.8,"mb":99},"bs2":{"ms":19.6,"mb":101}},"fast":{"pynec":{"ms":6.6,"mb":92},"sin":{"ms":11.3,"mb":98},"bs1":{"ms":18.5,"mb":101},"bs2":{"ms":23.2,"mb":104}},"somm":{"pynec":{"ms":37.6,"mb":92},"sin":{"ms":480.1,"mb":101},"bs1":{"ms":489.5,"mb":99},"bs2":{"ms":496.9,"mb":105}}}},{"d":"loops.skyloop_lmatch","fam":"loops","name":"skyloop_lmatch","seg":90,"g":{"free":{"pynec":{"ms":2.4,"mb":92},"sin":{"ms":4.1,"mb":93},"bs1":{"ms":6.3,"mb":94},"bs2":{"ms":7.4,"mb":95}},"pec":{"pynec":{"ms":2.7,"mb":92},"sin":{"ms":5.0,"mb":93},"bs1":{"ms":7.3,"mb":94},"bs2":{"ms":10.2,"mb":95}},"fast":{"pynec":{"ms":2.9,"mb":92},"sin":{"ms":5.6,"mb":94},"bs1":{"ms":8.7,"mb":95},"bs2":{"ms":9.6,"mb":97}},"somm":{"pynec":{"ms":30.9,"mb":92},"sin":{"ms":828.8,"mb":95},"bs1":{"ms":832.6,"mb":97},"bs2":{"ms":834.5,"mb":97}}}},{"d":"loops.triangular_skyloop","fam":"loops","name":"triangular_skyloop","seg":90,"g":{"free":{"pynec":{"ms":2.3,"mb":92},"sin":{"ms":3.9,"mb":93},"bs1":{"ms":6.9,"mb":93},"bs2":{"ms":8.2,"mb":94}},"pec":{"pynec":{"ms":3.0,"mb":92},"sin":{"ms":4.6,"mb":92},"bs1":{"ms":7.8,"mb":93},"bs2":{"ms":9.1,"mb":93}},"fast":{"pynec":{"ms":3.2,"mb":92},"sin":{"ms":5.3,"mb":93},"bs1":{"ms":8.8,"mb":93},"bs2":{"ms":10.4,"mb":95}},"somm":{"pynec":{"ms":30.9,"mb":91},"sin":{"ms":822.6,"mb":94},"bs1":{"ms":825.4,"mb":95},"bs2":{"ms":826.4,"mb":95}}}},{"d":"multiband.fandipole","fam":"multiband","name":"fandipole","seg":421,"g":{"free":{"pynec":{"ms":25.2,"mb":97},"sin":{"ms":27.6,"mb":108},"bs1":{"ms":50.7,"mb":107},"bs2":{"ms":72.8,"mb":121}},"pec":{"pynec":{"ms":37.5,"mb":97},"sin":{"ms":41.6,"mb":118},"bs1":{"ms":79.3,"mb":116},"bs2":{"ms":113.5,"mb":130}},"fast":{"pynec":{"ms":35.4,"mb":96},"sin":{"ms":58.5,"mb":129},"bs1":{"ms":103.9,"mb":129},"bs2":{"ms":135.8,"mb":144}},"somm":{"pynec":{"ms":90.0,"mb":97},"sin":{"ms":446.3,"mb":151},"bs1":{"ms":520.0,"mb":140},"bs2":{"ms":557.7,"mb":151}}}},{"d":"multiband.hexbeam_5band","fam":"multiband","name":"hexbeam_5band","seg":750,"g":{"free":{"pynec":{"ms":81.0,"mb":105},"sin":{"ms":92.0,"mb":146},"bs1":{"ms":133.4,"mb":142},"bs2":{"ms":181.0,"mb":186}},"pec":{"pynec":{"ms":130.1,"mb":105},"sin":{"ms":127.5,"mb":173},"bs1":{"ms":214.5,"mb":159},"bs2":{"ms":293.0,"mb":204}},"fast":{"pynec":{"ms":133.1,"mb":105},"sin":{"ms":182.9,"mb":209},"bs1":{"ms":306.6,"mb":210},"bs2":{"ms":392.7,"mb":254}},"somm":{"pynec":{"ms":298.4,"mb":105},"sin":{"ms":506.2,"mb":254},"bs1":{"ms":733.6,"mb":233},"bs2":{"ms":851.2,"mb":267}}}},{"d":"multiband.trap_dipole","fam":"multiband","name":"trap_dipole","seg":64,"g":{"free":{"pynec":{"ms":1.6,"mb":92},"sin":{"ms":3.6,"mb":92},"bs1":{"ms":5.3,"mb":92},"bs2":{"ms":5.8,"mb":93}},"pec":{"pynec":{"ms":2.0,"mb":92},"sin":{"ms":4.1,"mb":92},"bs1":{"ms":5.8,"mb":94},"bs2":{"ms":6.7,"mb":94}},"fast":{"pynec":{"ms":2.0,"mb":92},"sin":{"ms":4.4,"mb":92},"bs1":{"ms":6.5,"mb":93},"bs2":{"ms":7.2,"mb":94}},"somm":{"pynec":{"ms":29.8,"mb":92},"sin":{"ms":279.5,"mb":94},"bs1":{"ms":282.1,"mb":94},"bs2":{"ms":291.9,"mb":94}}}},{"d":"multiband.trap_fan_dipole","fam":"multiband","name":"trap_fan_dipole","seg":103,"g":{"free":{"pynec":{"ms":3.3,"mb":92},"sin":{"ms":5.7,"mb":94},"bs1":{"ms":9.7,"mb":93},"bs2":{"ms":11.0,"mb":94}},"pec":{"pynec":{"ms":3.1,"mb":92},"sin":{"ms":6.7,"mb":94},"bs1":{"ms":11.5,"mb":95},"bs2":{"ms":13.7,"mb":97}},"fast":{"pynec":{"ms":3.9,"mb":92},"sin":{"ms":7.5,"mb":94},"bs1":{"ms":12.2,"mb":95},"bs2":{"ms":15.1,"mb":97}},"somm":{"pynec":{"ms":32.1,"mb":92},"sin":{"ms":357.7,"mb":97},"bs1":{"ms":364.2,"mb":97},"bs2":{"ms":366.0,"mb":99}}}},{"d":"multiband.twoband_fan_dipole","fam":"multiband","name":"twoband_fan_dipole","seg":105,"g":{"free":{"pynec":{"ms":2.7,"mb":92},"sin":{"ms":4.4,"mb":93},"bs1":{"ms":8.2,"mb":93},"bs2":{"ms":9.8,"mb":93}},"pec":{"pynec":{"ms":3.0,"mb":92},"sin":{"ms":5.3,"mb":94},"bs1":{"ms":9.3,"mb":94},"bs2":{"ms":11.6,"mb":95}},"fast":{"pynec":{"ms":3.7,"mb":92},"sin":{"ms":6.2,"mb":93},"bs1":{"ms":11.2,"mb":95},"bs2":{"ms":13.2,"mb":96}},"somm":{"pynec":{"ms":32.4,"mb":92},"sin":{"ms":356.6,"mb":95},"bs1":{"ms":363.5,"mb":97},"bs2":{"ms":365.9,"mb":97}}}},{"d":"specialty.bowtie","fam":"specialty","name":"bowtie","seg":170,"g":{"free":{"pynec":{"ms":5.9,"mb":92},"sin":{"ms":7.1,"mb":94},"bs1":{"ms":11.6,"mb":95},"bs2":{"ms":14.2,"mb":96}},"pec":{"pynec":{"ms":5.8,"mb":93},"sin":{"ms":9.2,"mb":97},"bs1":{"ms":14.8,"mb":97},"bs2":{"ms":19.0,"mb":99}},"fast":{"pynec":{"ms":6.5,"mb":92},"sin":{"ms":11.1,"mb":97},"bs1":{"ms":18.3,"mb":100},"bs2":{"ms":22.9,"mb":102}},"somm":{"pynec":{"ms":38.2,"mb":92},"sin":{"ms":479.5,"mb":101},"bs1":{"ms":487.9,"mb":102},"bs2":{"ms":494.6,"mb":103}}}},{"d":"specialty.helix","fam":"specialty","name":"helix","seg":53,"g":{"free":{"pynec":{"ms":1.3,"mb":92},"sin":{"ms":3.8,"mb":92},"bs1":{"ms":11.1,"mb":92},"bs2":{"ms":12.1,"mb":93}},"pec":{"pynec":{"ms":1.5,"mb":92},"sin":{"ms":4.4,"mb":92},"bs1":{"ms":11.4,"mb":92},"bs2":{"ms":11.7,"mb":93}},"fast":{"pynec":{"ms":1.5,"mb":92},"sin":{"ms":4.6,"mb":92},"bs1":{"ms":12.2,"mb":92},"bs2":{"ms":13.6,"mb":93}},"somm":{"pynec":{"ms":29.2,"mb":92},"sin":{"ms":353.5,"mb":92},"bs1":{"ms":360.2,"mb":93},"bs2":{"ms":361.6,"mb":92}}}},{"d":"specialty.hentenna","fam":"specialty","name":"hentenna","seg":169,"g":{"free":{"pynec":{"ms":5.1,"mb":92},"sin":{"ms":7.1,"mb":95},"bs1":{"ms":11.7,"mb":96},"bs2":{"ms":14.2,"mb":96}},"pec":{"pynec":{"ms":6.6,"mb":93},"sin":{"ms":9.2,"mb":97},"bs1":{"ms":13.6,"mb":97},"bs2":{"ms":19.1,"mb":100}},"fast":{"pynec":{"ms":8.2,"mb":93},"sin":{"ms":11.3,"mb":98},"bs1":{"ms":17.6,"mb":100},"bs2":{"ms":22.7,"mb":102}},"somm":{"pynec":{"ms":38.8,"mb":93},"sin":{"ms":480.0,"mb":101},"bs1":{"ms":489.0,"mb":102},"bs2":{"ms":494.0,"mb":103}}}},{"d":"specialty.hentenna_slant","fam":"specialty","name":"hentenna_slant","seg":211,"g":{"free":{"pynec":{"ms":7.2,"mb":93},"sin":{"ms":9.1,"mb":97},"bs1":{"ms":14.6,"mb":97},"bs2":{"ms":19.8,"mb":99}},"pec":{"pynec":{"ms":10.1,"mb":93},"sin":{"ms":12.6,"mb":99},"bs1":{"ms":18.1,"mb":100},"bs2":{"ms":26.4,"mb":104}},"fast":{"pynec":{"ms":12.2,"mb":93},"sin":{"ms":16.3,"mb":101},"bs1":{"ms":24.2,"mb":104},"bs2":{"ms":32.8,"mb":107}},"somm":{"pynec":{"ms":46.6,"mb":93},"sin":{"ms":487.8,"mb":106},"bs1":{"ms":499.3,"mb":102},"bs2":{"ms":509.5,"mb":109}}}},{"d":"specialty.hourglass","fam":"specialty","name":"hourglass","seg":169,"g":{"free":{"pynec":{"ms":5.3,"mb":93},"sin":{"ms":7.3,"mb":94},"bs1":{"ms":10.9,"mb":96},"bs2":{"ms":14.2,"mb":96}},"pec":{"pynec":{"ms":7.0,"mb":92},"sin":{"ms":9.5,"mb":96},"bs1":{"ms":13.9,"mb":97},"bs2":{"ms":19.0,"mb":99}},"fast":{"pynec":{"ms":8.5,"mb":93},"sin":{"ms":10.9,"mb":97},"bs1":{"ms":18.0,"mb":100},"bs2":{"ms":22.4,"mb":102}},"somm":{"pynec":{"ms":40.3,"mb":93},"sin":{"ms":479.9,"mb":101},"bs1":{"ms":492.8,"mb":102},"bs2":{"ms":495.3,"mb":103}}}},{"d":"specialty.hourglass_slant","fam":"specialty","name":"hourglass_slant","seg":211,"g":{"free":{"pynec":{"ms":8.5,"mb":93},"sin":{"ms":9.6,"mb":96},"bs1":{"ms":14.9,"mb":97},"bs2":{"ms":18.9,"mb":99}},"pec":{"pynec":{"ms":11.7,"mb":93},"sin":{"ms":15.3,"mb":99},"bs1":{"ms":19.2,"mb":100},"bs2":{"ms":26.8,"mb":104}},"fast":{"pynec":{"ms":12.0,"mb":93},"sin":{"ms":16.2,"mb":101},"bs1":{"ms":23.9,"mb":104},"bs2":{"ms":33.3,"mb":107}},"somm":{"pynec":{"ms":48.6,"mb":93},"sin":{"ms":492.7,"mb":107},"bs1":{"ms":500.3,"mb":103},"bs2":{"ms":508.4,"mb":110}}}},{"d":"verticals.bobtail","fam":"verticals","name":"bobtail","seg":151,"g":{"free":{"pynec":{"ms":5.1,"mb":92},"sin":{"ms":5.8,"mb":95},"bs1":{"ms":10.3,"mb":95},"bs2":{"ms":13.3,"mb":97}},"pec":{"pynec":{"ms":5.6,"mb":92},"sin":{"ms":7.3,"mb":96},"bs1":{"ms":12.1,"mb":96},"bs2":{"ms":19.8,"mb":99}},"fast":{"pynec":{"ms":6.9,"mb":92},"sin":{"ms":8.9,"mb":97},"bs1":{"ms":15.7,"mb":98},"bs2":{"ms":19.5,"mb":100}},"somm":{"pynec":{"ms":38.2,"mb":92},"sin":{"ms":362.4,"mb":99},"bs1":{"ms":370.2,"mb":100},"bs2":{"ms":375.6,"mb":102}}}},{"d":"verticals.bruce","fam":"verticals","name":"bruce","seg":189,"g":{"free":{"pynec":{"ms":6.8,"mb":92},"sin":{"ms":8.2,"mb":94},"bs1":{"ms":12.7,"mb":94},"bs2":{"ms":16.2,"mb":97}},"pec":{"pynec":{"ms":9.1,"mb":92},"sin":{"ms":10.6,"mb":97},"bs1":{"ms":15.6,"mb":97},"bs2":{"ms":22.2,"mb":99}},"fast":{"pynec":{"ms":9.9,"mb":92},"sin":{"ms":12.9,"mb":99},"bs1":{"ms":20.4,"mb":99},"bs2":{"ms":26.4,"mb":102}},"somm":{"pynec":{"ms":42.4,"mb":92},"sin":{"ms":483.9,"mb":103},"bs1":{"ms":492.3,"mb":103},"bs2":{"ms":500.2,"mb":104}}}},{"d":"verticals.challenger","fam":"verticals","name":"challenger","seg":29,"g":{"free":{"pynec":{"ms":1.1,"mb":92},"sin":{"ms":2.4,"mb":92},"bs1":{"ms":4.3,"mb":92},"bs2":{"ms":4.2,"mb":93}},"pec":{"pynec":{"ms":1.2,"mb":92},"sin":{"ms":2.9,"mb":92},"bs1":{"ms":4.3,"mb":92},"bs2":{"ms":4.6,"mb":92}},"fast":{"pynec":{"ms":1.2,"mb":92},"sin":{"ms":2.7,"mb":92},"bs1":{"ms":4.6,"mb":92},"bs2":{"ms":5.0,"mb":92}},"somm":{"pynec":{"ms":28.4,"mb":92},"sin":{"ms":205.1,"mb":92},"bs1":{"ms":208.0,"mb":92},"bs2":{"ms":207.1,"mb":94}}}},{"d":"verticals.dominator","fam":"verticals","name":"dominator","seg":32,"g":{"free":{"pynec":{"ms":1.2,"mb":92},"sin":{"ms":2.4,"mb":92},"bs1":{"ms":4.0,"mb":92},"bs2":{"ms":4.5,"mb":92}},"pec":{"pynec":{"ms":1.2,"mb":92},"sin":{"ms":2.6,"mb":92},"bs1":{"ms":4.4,"mb":93},"bs2":{"ms":4.8,"mb":92}},"fast":{"pynec":{"ms":1.3,"mb":92},"sin":{"ms":2.8,"mb":92},"bs1":{"ms":4.8,"mb":93},"bs2":{"ms":5.1,"mb":92}},"somm":{"pynec":{"ms":29.8,"mb":92},"sin":{"ms":273.0,"mb":93},"bs1":{"ms":274.2,"mb":92},"bs2":{"ms":275.3,"mb":92}}}},{"d":"verticals.elt_whip","fam":"verticals","name":"elt_whip","seg":4392,"g":{"free":{"pynec":{"ms":3172.4,"mb":422},"sin":{"ms":6471.4,"mb":1958},"bs1":{"ms":22182.2,"mb":5051},"bs2":{"ms":58133.5,"mb":10738}},"pec":{"pynec":{"ms":3968.2,"mb":422},"sin":{"ms":8153.4,"mb":2889},"bs1":{"ms":25312.7,"mb":6457},"bs2":{"ms":67542.3,"mb":13702}},"fast":{"pynec":{"ms":4385.6,"mb":422},"sin":{"ms":10795.8,"mb":3668},"bs1":{"ms":30118.0,"mb":6769},"bs2":{"ms":72652.6,"mb":14012}},"somm":{"pynec":{"ms":7245.8,"mb":422},"sin":{"ms":16406.9,"mb":5665},"bs1":{"ms":38022.6,"mb":9863},"bs2":{"ms":86045.2,"mb":18504}}}},{"d":"verticals.four_square","fam":"verticals","name":"four_square","seg":164,"g":{"free":{"pynec":{"ms":4.8,"mb":93},"sin":{"ms":7.3,"mb":94},"bs1":{"ms":11.6,"mb":94},"bs2":{"ms":14.4,"mb":95}},"pec":{"pynec":{"ms":6.4,"mb":93},"sin":{"ms":9.0,"mb":96},"bs1":{"ms":13.9,"mb":96},"bs2":{"ms":18.3,"mb":98}},"fast":{"pynec":{"ms":7.0,"mb":93},"sin":{"ms":10.5,"mb":97},"bs1":{"ms":18.3,"mb":98},"bs2":{"ms":21.7,"mb":101}},"somm":{"pynec":{"ms":37.6,"mb":93},"sin":{"ms":479.4,"mb":100},"bs1":{"ms":488.9,"mb":100},"bs2":{"ms":493.3,"mb":102}}}},{"d":"verticals.half_square","fam":"verticals","name":"half_square","seg":86,"g":{"free":{"pynec":{"ms":1.9,"mb":93},"sin":{"ms":3.5,"mb":93},"bs1":{"ms":5.7,"mb":93},"bs2":{"ms":6.8,"mb":94}},"pec":{"pynec":{"ms":2.4,"mb":93},"sin":{"ms":4.0,"mb":93},"bs1":{"ms":6.4,"mb":93},"bs2":{"ms":7.8,"mb":94}},"fast":{"pynec":{"ms":2.6,"mb":93},"sin":{"ms":4.6,"mb":93},"bs1":{"ms":7.3,"mb":93},"bs2":{"ms":8.9,"mb":94}},"somm":{"pynec":{"ms":31.1,"mb":93},"sin":{"ms":281.4,"mb":93},"bs1":{"ms":284.7,"mb":94},"bs2":{"ms":286.0,"mb":94}}}},{"d":"verticals.inverted_l","fam":"verticals","name":"inverted_l","seg":42,"g":{"free":{"pynec":{"ms":1.0,"mb":93},"sin":{"ms":2.5,"mb":93},"bs1":{"ms":5.4,"mb":93},"bs2":{"ms":5.9,"mb":93}},"pec":{"pynec":{"ms":1.1,"mb":93},"sin":{"ms":2.9,"mb":93},"bs1":{"ms":5.9,"mb":93},"bs2":{"ms":6.6,"mb":93}},"fast":{"pynec":{"ms":1.2,"mb":93},"sin":{"ms":3.1,"mb":93},"bs1":{"ms":6.2,"mb":93},"bs2":{"ms":6.8,"mb":93}},"somm":{"pynec":{"ms":28.5,"mb":93},"sin":{"ms":352.0,"mb":93},"bs1":{"ms":355.1,"mb":93},"bs2":{"ms":354.8,"mb":93}}}},{"d":"verticals.inverted_l_tmatch","fam":"verticals","name":"inverted_l_tmatch","seg":42,"g":{"free":{"pynec":{"ms":1.3,"mb":93},"sin":{"ms":2.8,"mb":93},"bs1":{"ms":5.4,"mb":93},"bs2":{"ms":5.6,"mb":93}},"pec":{"pynec":{"ms":1.5,"mb":93},"sin":{"ms":3.4,"mb":93},"bs1":{"ms":5.8,"mb":93},"bs2":{"ms":6.4,"mb":93}},"fast":{"pynec":{"ms":1.5,"mb":93},"sin":{"ms":3.5,"mb":93},"bs1":{"ms":6.3,"mb":93},"bs2":{"ms":6.5,"mb":93}},"somm":{"pynec":{"ms":29.4,"mb":93},"sin":{"ms":280.1,"mb":93},"bs1":{"ms":284.3,"mb":93},"bs2":{"ms":284.5,"mb":93}}}},{"d":"verticals.jpole","fam":"verticals","name":"jpole","seg":86,"g":{"free":{"pynec":{"ms":2.0,"mb":93},"sin":{"ms":3.8,"mb":93},"bs1":{"ms":7.2,"mb":93},"bs2":{"ms":8.4,"mb":94}},"pec":{"pynec":{"ms":2.4,"mb":93},"sin":{"ms":4.3,"mb":93},"bs1":{"ms":8.0,"mb":93},"bs2":{"ms":9.8,"mb":94}},"fast":{"pynec":{"ms":2.6,"mb":93},"sin":{"ms":5.0,"mb":93},"bs1":{"ms":9.8,"mb":93},"bs2":{"ms":10.8,"mb":94}},"somm":{"pynec":{"ms":30.6,"mb":93},"sin":{"ms":658.8,"mb":93},"bs1":{"ms":646.9,"mb":94},"bs2":{"ms":649.9,"mb":95}}}},{"d":"verticals.phased_verticals","fam":"verticals","name":"phased_verticals","seg":86,"g":{"free":{"pynec":{"ms":1.8,"mb":93},"sin":{"ms":3.6,"mb":93},"bs1":{"ms":6.0,"mb":93},"bs2":{"ms":7.0,"mb":93}},"pec":{"pynec":{"ms":2.1,"mb":93},"sin":{"ms":4.2,"mb":93},"bs1":{"ms":7.1,"mb":93},"bs2":{"ms":8.3,"mb":93}},"fast":{"pynec":{"ms":2.3,"mb":93},"sin":{"ms":4.7,"mb":94},"bs1":{"ms":8.1,"mb":93},"bs2":{"ms":9.4,"mb":93}},"somm":{"pynec":{"ms":30.6,"mb":93},"sin":{"ms":641.5,"mb":93},"bs1":{"ms":648.1,"mb":94},"bs2":{"ms":650.7,"mb":94}}}},{"d":"verticals.pota_performer","fam":"verticals","name":"pota_performer","seg":36,"g":{"free":{"pynec":{"ms":1.0,"mb":93},"sin":{"ms":2.5,"mb":93},"bs1":{"ms":5.5,"mb":93},"bs2":{"ms":5.8,"mb":93}},"pec":{"pynec":{"ms":1.1,"mb":93},"sin":{"ms":2.8,"mb":93},"bs1":{"ms":5.7,"mb":93},"bs2":{"ms":6.1,"mb":93}},"fast":{"pynec":{"ms":1.2,"mb":93},"sin":{"ms":3.0,"mb":93},"bs1":{"ms":6.0,"mb":93},"bs2":{"ms":6.6,"mb":93}},"somm":{"pynec":{"ms":28.4,"mb":93},"sin":{"ms":167.1,"mb":93},"bs1":{"ms":170.7,"mb":93},"bs2":{"ms":170.6,"mb":93}}}},{"d":"verticals.raised_vertical","fam":"verticals","name":"raised_vertical","seg":64,"g":{"free":{"pynec":{"ms":1.3,"mb":93},"sin":{"ms":3.1,"mb":93},"bs1":{"ms":5.1,"mb":93},"bs2":{"ms":5.9,"mb":93}},"pec":{"pynec":{"ms":1.8,"mb":93},"sin":{"ms":3.6,"mb":93},"bs1":{"ms":5.7,"mb":93},"bs2":{"ms":7.1,"mb":93}},"fast":{"pynec":{"ms":1.8,"mb":93},"sin":{"ms":3.9,"mb":93},"bs1":{"ms":6.3,"mb":93},"bs2":{"ms":7.5,"mb":93}},"somm":{"pynec":{"ms":29.4,"mb":93},"sin":{"ms":167.4,"mb":93},"bs1":{"ms":170.4,"mb":93},"bs2":{"ms":171.8,"mb":93}}}},{"d":"verticals.rectangle","fam":"verticals","name":"rectangle","seg":87,"g":{"free":{"pynec":{"ms":2.3,"mb":93},"sin":{"ms":3.8,"mb":93},"bs1":{"ms":6.0,"mb":94},"bs2":{"ms":7.3,"mb":94}},"pec":{"pynec":{"ms":3.0,"mb":93},"sin":{"ms":4.7,"mb":93},"bs1":{"ms":7.0,"mb":94},"bs2":{"ms":8.4,"mb":95}},"fast":{"pynec":{"ms":3.2,"mb":93},"sin":{"ms":5.2,"mb":93},"bs1":{"ms":7.9,"mb":95},"bs2":{"ms":9.4,"mb":96}},"somm":{"pynec":{"ms":31.9,"mb":93},"sin":{"ms":213.2,"mb":95},"bs1":{"ms":215.5,"mb":95},"bs2":{"ms":217.3,"mb":96}}}},{"d":"verticals.right_angle_delta","fam":"verticals","name":"right_angle_delta","seg":90,"g":{"free":{"pynec":{"ms":2.0,"mb":93},"sin":{"ms":3.6,"mb":93},"bs1":{"ms":6.8,"mb":93},"bs2":{"ms":7.5,"mb":93}},"pec":{"pynec":{"ms":3.5,"mb":93},"sin":{"ms":4.3,"mb":93},"bs1":{"ms":7.4,"mb":94},"bs2":{"ms":8.9,"mb":95}},"fast":{"pynec":{"ms":3.5,"mb":93},"sin":{"ms":4.9,"mb":93},"bs1":{"ms":8.4,"mb":94},"bs2":{"ms":9.9,"mb":95}},"somm":{"pynec":{"ms":32.0,"mb":93},"sin":{"ms":281.9,"mb":93},"bs1":{"ms":286.5,"mb":94},"bs2":{"ms":288.0,"mb":95}}}},{"d":"verticals.tri_moxon","fam":"verticals","name":"tri_moxon","seg":252,"g":{"free":{"pynec":{"ms":33.5,"mb":95},"sin":{"ms":15.2,"mb":101},"bs1":{"ms":18.8,"mb":102},"bs2":{"ms":24.8,"mb":107}},"pec":{"pynec":{"ms":42.9,"mb":95},"sin":{"ms":19.5,"mb":102},"bs1":{"ms":24.7,"mb":106},"bs2":{"ms":34.4,"mb":116}},"fast":{"pynec":{"ms":49.3,"mb":95},"sin":{"ms":27.8,"mb":105},"bs1":{"ms":38.8,"mb":110},"bs2":{"ms":44.0,"mb":121}},"somm":{"pynec":{"ms":176.9,"mb":95},"sin":{"ms":676.0,"mb":112},"bs1":{"ms":694.2,"mb":117},"bs2":{"ms":708.6,"mb":131}}}},{"d":"verticals.vertical","fam":"verticals","name":"vertical","seg":37,"g":{"free":{"pynec":{"ms":1.0,"mb":95},"sin":{"ms":2.3,"mb":95},"bs1":{"ms":4.8,"mb":95},"bs2":{"ms":5.4,"mb":95}},"pec":{"pynec":{"ms":1.1,"mb":95},"sin":{"ms":2.6,"mb":95},"bs1":{"ms":5.2,"mb":95},"bs2":{"ms":5.7,"mb":95}},"fast":{"pynec":{"ms":1.1,"mb":95},"sin":{"ms":2.7,"mb":95},"bs1":{"ms":5.4,"mb":95},"bs2":{"ms":6.1,"mb":95}},"somm":{"pynec":{"ms":28.5,"mb":95},"sin":{"ms":150.3,"mb":95},"bs1":{"ms":153.3,"mb":95},"bs2":{"ms":153.7,"mb":95}}}},{"d":"wire.doublet_ladder_tuner","fam":"wire","name":"doublet_ladder_tuner","seg":43,"g":{"free":{"pynec":{"ms":1.4,"mb":95},"sin":{"ms":2.6,"mb":95},"bs1":{"ms":3.6,"mb":95},"bs2":{"ms":4.0,"mb":95}},"pec":{"pynec":{"ms":1.6,"mb":95},"sin":{"ms":2.8,"mb":95},"bs1":{"ms":4.2,"mb":95},"bs2":{"ms":4.6,"mb":95}},"fast":{"pynec":{"ms":1.6,"mb":95},"sin":{"ms":3.3,"mb":95},"bs1":{"ms":4.3,"mb":95},"bs2":{"ms":4.9,"mb":95}},"somm":{"pynec":{"ms":28.1,"mb":95},"sin":{"ms":156.1,"mb":95},"bs1":{"ms":157.7,"mb":95},"bs2":{"ms":158.2,"mb":95}}}},{"d":"wire.edz","fam":"wire","name":"edz","seg":105,"g":{"free":{"pynec":{"ms":3.5,"mb":95},"sin":{"ms":4.5,"mb":95},"bs1":{"ms":7.1,"mb":95},"bs2":{"ms":8.0,"mb":95}},"pec":{"pynec":{"ms":3.4,"mb":95},"sin":{"ms":5.3,"mb":95},"bs1":{"ms":8.0,"mb":95},"bs2":{"ms":10.1,"mb":97}},"fast":{"pynec":{"ms":4.1,"mb":95},"sin":{"ms":6.1,"mb":95},"bs1":{"ms":9.2,"mb":95},"bs2":{"ms":11.6,"mb":98}},"somm":{"pynec":{"ms":32.1,"mb":95},"sin":{"ms":646.0,"mb":96},"bs1":{"ms":652.1,"mb":96},"bs2":{"ms":653.1,"mb":99}}}},{"d":"wire.efhw_sloper","fam":"wire","name":"efhw_sloper","seg":42,"g":{"free":{"pynec":{"ms":1.6,"mb":95},"sin":{"ms":3.0,"mb":95},"bs1":{"ms":5.2,"mb":95},"bs2":{"ms":5.5,"mb":95}},"pec":{"pynec":{"ms":1.8,"mb":95},"sin":{"ms":3.2,"mb":95},"bs1":{"ms":5.4,"mb":95},"bs2":{"ms":6.0,"mb":95}},"fast":{"pynec":{"ms":1.8,"mb":95},"sin":{"ms":3.6,"mb":95},"bs1":{"ms":5.9,"mb":95},"bs2":{"ms":6.2,"mb":95}},"somm":{"pynec":{"ms":29.2,"mb":95},"sin":{"ms":210.1,"mb":95},"bs1":{"ms":203.7,"mb":95},"bs2":{"ms":204.2,"mb":95}}}},{"d":"wire.expanded_lazy_h","fam":"wire","name":"expanded_lazy_h","seg":210,"g":{"free":{"pynec":{"ms":16.5,"mb":95},"sin":{"ms":11.0,"mb":98},"bs1":{"ms":14.9,"mb":100},"bs2":{"ms":19.4,"mb":103}},"pec":{"pynec":{"ms":22.4,"mb":95},"sin":{"ms":13.8,"mb":100},"bs1":{"ms":17.9,"mb":103},"bs2":{"ms":28.6,"mb":110}},"fast":{"pynec":{"ms":22.9,"mb":95},"sin":{"ms":17.2,"mb":102},"bs1":{"ms":24.7,"mb":105},"bs2":{"ms":32.0,"mb":112}},"somm":{"pynec":{"ms":92.6,"mb":95},"sin":{"ms":1207.4,"mb":106},"bs1":{"ms":1230.4,"mb":109},"bs2":{"ms":1231.9,"mb":119}}}},{"d":"wire.lazy_h","fam":"wire","name":"lazy_h","seg":170,"g":{"free":{"pynec":{"ms":5.2,"mb":95},"sin":{"ms":7.0,"mb":95},"bs1":{"ms":10.7,"mb":95},"bs2":{"ms":14.7,"mb":97}},"pec":{"pynec":{"ms":6.1,"mb":95},"sin":{"ms":8.7,"mb":96},"bs1":{"ms":14.1,"mb":96},"bs2":{"ms":18.5,"mb":98}},"fast":{"pynec":{"ms":7.6,"mb":95},"sin":{"ms":10.9,"mb":97},"bs1":{"ms":17.6,"mb":99},"bs2":{"ms":21.8,"mb":101}},"somm":{"pynec":{"ms":38.6,"mb":95},"sin":{"ms":883.4,"mb":101},"bs1":{"ms":891.1,"mb":101},"bs2":{"ms":897.4,"mb":102}}}},{"d":"wire.longwire","fam":"wire","name":"longwire","seg":293,"g":{"free":{"pynec":{"ms":13.1,"mb":95},"sin":{"ms":13.5,"mb":100},"bs1":{"ms":31.1,"mb":110},"bs2":{"ms":45.6,"mb":121}},"pec":{"pynec":{"ms":15.6,"mb":95},"sin":{"ms":18.9,"mb":104},"bs1":{"ms":39.1,"mb":110},"bs2":{"ms":61.8,"mb":121}},"fast":{"pynec":{"ms":17.8,"mb":95},"sin":{"ms":26.8,"mb":110},"bs1":{"ms":47.6,"mb":110},"bs2":{"ms":70.5,"mb":121}},"somm":{"pynec":{"ms":57.4,"mb":95},"sin":{"ms":1226.4,"mb":121},"bs1":{"ms":1257.1,"mb":114},"bs2":{"ms":1278.8,"mb":122}}}},{"d":"wire.rhombic","fam":"wire","name":"rhombic","seg":1010,"g":{"free":{"pynec":{"ms":108.6,"mb":114},"sin":{"ms":197.1,"mb":190},"bs1":{"ms":233.1,"mb":229},"bs2":{"ms":323.6,"mb":324}},"pec":{"pynec":{"ms":136.2,"mb":114},"sin":{"ms":271.7,"mb":239},"bs1":{"ms":347.4,"mb":311},"bs2":{"ms":522.9,"mb":483}},"fast":{"pynec":{"ms":153.7,"mb":113},"sin":{"ms":345.6,"mb":305},"bs1":{"ms":511.3,"mb":371},"bs2":{"ms":648.5,"mb":533}},"somm":{"pynec":{"ms":329.3,"mb":114},"sin":{"ms":3353.1,"mb":386},"bs1":{"ms":3604.0,"mb":494},"bs2":{"ms":3811.9,"mb":722}}}},{"d":"wire.sterba","fam":"wire","name":"sterba","seg":378,"g":{"free":{"pynec":{"ms":20.5,"mb":96},"sin":{"ms":22.1,"mb":105},"bs1":{"ms":33.1,"mb":104},"bs2":{"ms":46.0,"mb":115}},"pec":{"pynec":{"ms":24.9,"mb":96},"sin":{"ms":35.0,"mb":115},"bs1":{"ms":48.8,"mb":113},"bs2":{"ms":71.7,"mb":124}},"fast":{"pynec":{"ms":28.2,"mb":96},"sin":{"ms":44.6,"mb":122},"bs1":{"ms":67.2,"mb":123},"bs2":{"ms":87.5,"mb":134}},"somm":{"pynec":{"ms":75.5,"mb":96},"sin":{"ms":1261.4,"mb":140},"bs1":{"ms":1294.9,"mb":128},"bs2":{"ms":1323.9,"mb":140}}}},{"d":"wire.sterba_tl","fam":"wire","name":"sterba_tl","seg":99,"g":{"free":{"pynec":{"ms":20.6,"mb":95},"sin":{"ms":6.1,"mb":95},"bs1":{"ms":9.7,"mb":95},"bs2":{"ms":10.2,"mb":95}},"pec":{"pynec":{"ms":22.6,"mb":95},"sin":{"ms":6.8,"mb":95},"bs1":{"ms":10.8,"mb":95},"bs2":{"ms":11.8,"mb":96}},"fast":{"pynec":{"ms":24.6,"mb":95},"sin":{"ms":7.6,"mb":95},"bs1":{"ms":12.4,"mb":95},"bs2":{"ms":13.3,"mb":96}},"somm":{"pynec":{"ms":281.5,"mb":95},"sin":{"ms":873.8,"mb":96},"bs1":{"ms":881.3,"mb":97},"bs2":{"ms":882.5,"mb":98}}}},{"d":"wire.terminated_longwire","fam":"wire","name":"terminated_longwire","seg":1006,"g":{"free":{"pynec":{"ms":103.1,"mb":113},"sin":{"ms":200.6,"mb":190},"bs1":{"ms":413.9,"mb":454},"bs2":{"ms":554.8,"mb":562}},"pec":{"pynec":{"ms":138.0,"mb":113},"sin":{"ms":262.3,"mb":238},"bs1":{"ms":514.5,"mb":454},"bs2":{"ms":707.6,"mb":562}},"fast":{"pynec":{"ms":159.1,"mb":113},"sin":{"ms":353.7,"mb":303},"bs1":{"ms":672.3,"mb":453},"bs2":{"ms":872.2,"mb":562}},"somm":{"pynec":{"ms":390.4,"mb":113},"sin":{"ms":5418.9,"mb":384},"bs1":{"ms":5854.2,"mb":491},"bs2":{"ms":6157.5,"mb":718}}}},{"d":"wire.vbeam","fam":"wire","name":"vbeam","seg":169,"g":{"free":{"pynec":{"ms":5.4,"mb":95},"sin":{"ms":6.8,"mb":95},"bs1":{"ms":13.3,"mb":99},"bs2":{"ms":18.2,"mb":102}},"pec":{"pynec":{"ms":6.9,"mb":95},"sin":{"ms":8.6,"mb":96},"bs1":{"ms":14.9,"mb":98},"bs2":{"ms":21.5,"mb":102}},"fast":{"pynec":{"ms":7.7,"mb":95},"sin":{"ms":11.0,"mb":97},"bs1":{"ms":18.8,"mb":99},"bs2":{"ms":25.3,"mb":102}},"somm":{"pynec":{"ms":38.3,"mb":95},"sin":{"ms":487.6,"mb":101},"bs1":{"ms":490.5,"mb":99},"bs2":{"ms":497.4,"mb":102}}}},{"d":"wire.w8jk","fam":"wire","name":"w8jk","seg":106,"g":{"free":{"pynec":{"ms":3.1,"mb":95},"sin":{"ms":4.3,"mb":95},"bs1":{"ms":7.2,"mb":95},"bs2":{"ms":8.6,"mb":95}},"pec":{"pynec":{"ms":3.5,"mb":95},"sin":{"ms":4.9,"mb":95},"bs1":{"ms":8.1,"mb":95},"bs2":{"ms":10.1,"mb":95}},"fast":{"pynec":{"ms":3.8,"mb":95},"sin":{"ms":6.8,"mb":95},"bs1":{"ms":10.1,"mb":95},"bs2":{"ms":12.1,"mb":96}},"somm":{"pynec":{"ms":32.2,"mb":95},"sin":{"ms":361.8,"mb":96},"bs1":{"ms":362.9,"mb":96},"bs2":{"ms":372.1,"mb":97}}}},{"d":"wire.zepp","fam":"wire","name":"zepp","seg":41,"g":{"free":{"pynec":{"ms":1.2,"mb":95},"sin":{"ms":2.4,"mb":95},"bs1":{"ms":3.7,"mb":95},"bs2":{"ms":4.3,"mb":95}},"pec":{"pynec":{"ms":1.3,"mb":95},"sin":{"ms":2.7,"mb":95},"bs1":{"ms":3.9,"mb":95},"bs2":{"ms":4.5,"mb":95}},"fast":{"pynec":{"ms":1.4,"mb":95},"sin":{"ms":3.0,"mb":95},"bs1":{"ms":4.3,"mb":95},"bs2":{"ms":4.9,"mb":95}},"somm":{"pynec":{"ms":28.6,"mb":95},"sin":{"ms":640.9,"mb":95},"bs1":{"ms":640.7,"mb":95},"bs2":{"ms":644.2,"mb":95}}}}];
+const ENG = [["pynec","PyNEC"],["sin","Sinusoidal"],["bs1","BSpline d=1"],["bs2","BSpline d=2"]];
+const GROUNDS = [
+  ["free","Free space","no ground"],
+  ["pec","PEC","image method"],
+  ["fast","Fast finite","refl-coef / gn 0"],
+  ["somm","Sommerfeld","Norton / gn 2"],
+];
+const median = a => { const s=[...a].sort((x,y)=>x-y); const n=s.length; return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):null; };
+const sev = ms => ms==null?"":ms<16?"sev-good":ms<100?"sev-ok":ms<1000?"sev-warn":"sev-crit";
+const fmtMs = ms => ms>=1000 ? (ms/1000).toFixed(ms>=10000?0:2)+" s" : ms.toFixed(1);
+
+let solves=0;
+for(const r of DATA) for(const [g] of GROUNDS) for(const [e] of ENG){ const c=r.g[g][e]; if(c&&!c.err) solves++; }
+document.getElementById("stat-solves").textContent = solves.toLocaleString();
+
+// ---- heatmap ----
+const heatMedian = {};
+for(const [g] of GROUNDS){ heatMedian[g]={};
+  for(const [e] of ENG){ const v=DATA.map(r=>r.g[g][e]).filter(c=>c&&!c.err).map(c=>c.ms); heatMedian[g][e]=median(v); } }
+const freeMed = Object.fromEntries(ENG.map(([e])=>[e, heatMedian.free[e]]));
+const heat = document.getElementById("heat");
+let hh = "<thead><tr><th class='rowh'></th>";
+for(const [,lab] of ENG) hh += `<th>${lab}</th>`;
+hh += "</tr></thead><tbody>";
+for(const [g,lab,desc] of GROUNDS){
+  hh += `<tr><td class="grd-label">${lab}<small>${desc}</small></td>`;
+  for(const [e] of ENG){ const m=heatMedian[g][e]; const mult=m/freeMed[e];
+    hh += `<td class="hc ${sev(m)}"><div class="hm">${fmtMs(m)}</div><div class="hx">${mult>=1.15?mult.toFixed(1)+"× free":"—"}</div></td>`; }
+  hh += "</tr>";
+}
+heat.innerHTML = hh + "</tbody>";
+
+// ---- cliff callout ----
+const sommMom = median(["sin","bs1","bs2"].flatMap(e=>DATA.map(r=>r.g.somm[e]).filter(c=>c&&!c.err).map(c=>c.ms)));
+const sommPy = heatMedian.somm.pynec;
+document.getElementById("cliff").innerHTML =
+  `<b>The Sommerfeld cliff.</b> Fast-finite ground costs only ~1.4&times; free space, but exact Sommerfeld runs
+   <span class="big">${(sommMom/sommPy).toFixed(0)}&times;</span> slower on momwire than on PyNEC
+   (median <b>${Math.round(sommMom)} ms</b> vs <b>${Math.round(sommPy)} ms</b>). NEC's gn&nbsp;2 interpolation tables keep PyNEC
+   interactive; momwire's dense path puts <b>every</b> design in the 0.5&ndash;6&nbsp;s range. Route Sommerfeld solves to PyNEC.`;
+
+// ---- controls ----
+let curGround="free", sortKey="pynec", sortDir=-1, curFam="all", curSearch="";
+const seg = document.getElementById("ground-seg");
+seg.innerHTML = GROUNDS.map(([g,lab])=>`<button data-g="${g}" aria-pressed="${g===curGround}">${lab}</button>`).join("");
+seg.addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b) return;
+  curGround=b.dataset.g; [...seg.children].forEach(c=>c.setAttribute("aria-pressed", c.dataset.g===curGround));
+  render(); });
+
+const famSel = document.getElementById("fam-filter");
+const fams = [...new Set(DATA.map(r=>r.fam))].sort();
+famSel.innerHTML = `<option value="all">all families</option>` + fams.map(f=>`<option value="${f}">${f}</option>`).join("");
+famSel.addEventListener("change", ()=>{ curFam=famSel.value; render(); });
+document.getElementById("search").addEventListener("input", e=>{ curSearch=e.target.value.toLowerCase().trim(); render(); });
+
+// mobile sort control (the desktop path sorts via table-header buttons, hidden
+// on phones). value = "key:dir".
+const sortSel = document.getElementById("sort-mobile");
+const SORTS = [
+  ["name:1","Design A–Z"], ["seg:1","Σseg ↑"], ["seg:-1","Σseg ↓"],
+  ["pynec:-1","PyNEC slowest"], ["sin:-1","Sinusoidal slowest"],
+  ["bs1:-1","BSpline d=1 slowest"], ["bs2:-1","BSpline d=2 slowest"],
+];
+sortSel.innerHTML = SORTS.map(([v,l])=>`<option value="${v}">sort: ${l}</option>`).join("");
+sortSel.value = "pynec:-1";
+sortSel.addEventListener("change", ()=>{ const [k,d]=sortSel.value.split(":"); sortKey=k; sortDir=+d; render(); });
+
+const NOTES = {
+  free:"Free space — no ground plane; the cheapest solve and the baseline all multipliers reference.",
+  pec:"Perfectly conducting ground — image method, no material solve; ~1.2× free (momwire pays ~30% more memory).",
+  fast:"Fast finite ground — reflection-coefficient approximation (NEC gn 0); ~1.4× free, still fully interactive.",
+  somm:"Sommerfeld–Norton finite ground (NEC gn 2) — exact and expensive. elt_whip guard-skipped; momwire ~13× slower than PyNEC.",
+};
+
+// ---- table ----
+const COLS = [
+  {k:"name", lab:"Design", cls:"lft", get:r=>r.name},
+  {k:"seg",  lab:"Σseg", get:r=>r.seg},
+  ...ENG.map(([e,lab])=>({k:e, lab, eng:true, get:r=>{const c=r.g[curGround][e]; return c&&!c.err?c.ms:(c&&c.err?Infinity:null);}})),
+  {k:"rss",  lab:"RSS MB", get:r=>{ let m=0; for(const [e] of ENG){const c=r.g[curGround][e]; if(c&&!c.err) m=Math.max(m,c.mb);} return m||null; }},
+];
+
+function render(){
+  // header
+  const thead=document.getElementById("thead");
+  thead.innerHTML = "<tr>" + COLS.map(col=>{
+    const active = col.k===sortKey;
+    const arr = active ? (sortDir>0?" ▲":" ▼") : "";
+    return `<th class="${col.cls||''}"><button data-k="${col.k}">${col.lab}<span class="arr">${arr}</span></button></th>`;
+  }).join("") + "</tr>";
+  thead.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.k; if(k===sortKey) sortDir*=-1; else { sortKey=k; sortDir = (k==="name"||k==="fam")?1:1; }
+    render();
+  }));
+
+  // rows
+  let rows = DATA.filter(r=> (curFam==="all"||r.fam===curFam) && (!curSearch || r.d.toLowerCase().includes(curSearch)));
+  const col = COLS.find(c=>c.k===sortKey);
+  rows.sort((a,b)=>{
+    let va=col.get(a), vb=col.get(b);
+    if(typeof va==="string") return va.localeCompare(vb)*sortDir;
+    if(va==null) va = sortDir>0?Infinity:-Infinity;
+    if(vb==null) vb = sortDir>0?Infinity:-Infinity;
+    return (va-vb)*sortDir;
+  });
+
+  const tbody=document.getElementById("tbody");
+  tbody.innerHTML = rows.map(r=>{
+    const stress = r.d==="verticals.elt_whip";
+    let tds = `<td class="design ${stress?'':''}"><span class="name">${r.name}</span>${stress?'<span class="badge">stress</span>':''}<div class="fam">${r.fam}</div></td>`;
+    tds += `<td class="seg">${r.seg}</td>`;
+    for(const [e] of ENG){
+      const c=r.g[curGround][e];
+      if(c&&!c.err) tds += `<td class="ms"><span class="ms-cell ${sev(c.ms)}">${fmtMs(c.ms)}</span></td>`;
+      else if(c&&c.err) tds += `<td class="skip">${c.err}</td>`;
+      else tds += `<td class="skip">—</td>`;
+    }
+    let mrss=0; for(const [e] of ENG){const c=r.g[curGround][e]; if(c&&!c.err) mrss=Math.max(mrss,c.mb);}
+    tds += `<td class="rss">${mrss||"—"}</td>`;
+    return `<tr class="${stress?'stress':''}">${tds}</tr>`;
+  }).join("");
+
+  // mobile cards — same data, no horizontal scroller (CSS shows these < 720px)
+  const cards=document.getElementById("cards");
+  cards.innerHTML = rows.map(r=>{
+    const stress = r.d==="verticals.elt_whip";
+    let cells="";
+    let mrss=0;
+    for(const [e,lab] of ENG){
+      const c=r.g[curGround][e];
+      let cv;
+      if(c&&!c.err){ cv=`<span class="cv ${sev(c.ms)}">${fmtMs(c.ms)}</span>`; mrss=Math.max(mrss,c.mb); }
+      else cv=`<span class="cv skip">${c&&c.err?c.err:"—"}</span>`;
+      cells += `<div class="ce"><span class="cl">${lab}</span>${cv}</div>`;
+    }
+    return `<div class="card ${stress?'stress':''}">
+      <div class="card-hd"><span class="name">${r.name}${stress?' ·stress':''}</span>
+        <span class="meta">${r.fam} · Σseg ${r.seg}</span></div>
+      <div class="card-grid">${cells}</div>
+      <div class="card-ft">peak RSS ${mrss?mrss+" MB":"—"}</div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("ground-note").textContent = NOTES[curGround];
+}
+render();
+</script>
+
+</body>
+</html>
