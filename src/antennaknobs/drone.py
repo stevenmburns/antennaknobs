@@ -96,10 +96,11 @@ class Drone:
 
     # -- segmentation ---------------------------------------------------
     def _seg(self, length):
-        # Parity is the solver's job — every engine coerces each count to its
-        # basis' required parity at solve time — so we don't force odd here
-        # (matching AntennaBuilder.segs_for).
-        return max(3, round(self.nominal_nsegs * abs(length) / self.ref))
+        # Parity is the solver's job — the engine coerces a fed or named
+        # wire's count to its basis' required parity at solve time — so we
+        # don't force odd here (matching AntennaBuilder.segs_for, clip at 1
+        # included: issue #457).
+        return max(1, round(self.nominal_nsegs * abs(length) / self.ref))
 
     def _emit(self, p0, p1, nsegs):
         if self._pen is not None:
