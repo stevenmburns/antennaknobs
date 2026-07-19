@@ -37,7 +37,6 @@ class Builder(AntennaBuilder):
             return p[0], -p[1], p[2]
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         """
                     
@@ -70,6 +69,9 @@ class Builder(AntennaBuilder):
 
         D, T, C, t = ry(A), ry(S), ry(B), ry(s)
 
+        n_seg1 = self.segs_for(math.dist(A, B), math.dist(S, A))
+        n_seg2 = self.segs_for(math.dist(T, S), math.dist(S, A))
+
         tups = []
 
         tups.extend(build_path([S, A], n_seg0, None))
@@ -79,6 +81,6 @@ class Builder(AntennaBuilder):
         tups.extend(build_path([t, C], n_seg0, None))
         tups.extend(build_path([C, D], n_seg1, None))
         tups.extend(build_path([D, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg1, 1 + 0j))
+        tups.extend(build_path([T, S], n_seg2, 1 + 0j))
 
         return tups

@@ -44,7 +44,6 @@ class Builder(AntennaBuilder):
             return p[0], -p[1], p[2]
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         # y of the top corner (half the top-edge width), in closed form.
         y = (cos_theta * (driver - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
@@ -64,6 +63,8 @@ class Builder(AntennaBuilder):
         A = (0, y, b)
 
         B, T = ry(A), ry(S)
+
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
 
         st = TransformStack()
         st.push(Transform.translate(0, 0, b))
@@ -102,7 +103,7 @@ class Builder(AntennaBuilder):
 
         for (idx, (p0, p1, nsegs, ev)), tl_length in zip(feedpoints[:2], tl_lengths):
             self.tls.append(
-                (idx, (n_seg1 + 1) // 2, len(tups), (n_seg1 + 1) // 2, 100, tl_length)
+                (idx, (nsegs + 1) // 2, len(tups), (n_seg1 + 1) // 2, 100, tl_length)
             )
             tups[idx - 1] = (p0, p1, nsegs, None)
 

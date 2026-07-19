@@ -307,8 +307,9 @@ def test_delta_loop_reflected_uses_build_path_topology():
     assert len(ws) == 4
     driven = [e for e in ws if e[3] is not None]
     assert len(driven) == 1 and driven[0][3] == 1 + 0j
-    # The feed uses the original delta_loop n_seg1 = max(3, nominal // 7).
-    assert driven[0][2] == max(3, DeltaLoopReflected().nominal_nsegs // 7)
+    # The feed bridge meshes proportionally to its length via segs_for
+    # (issue #457): a 0.1 m bridge against a metres-long slant is 1 segment.
+    assert driven[0][2] == 1
 
     # Built with the feed at z = 0, then lifted so the top seats at `base`.
     top_z = max(p[2] for e in ws for p in (e[0], e[1]))

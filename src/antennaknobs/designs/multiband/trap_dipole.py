@@ -98,7 +98,7 @@ class Builder(AntennaBuilder):
 
         # Target ~40 MoM segments per wavelength on the radiating arms.
         seg_len = wavelength / 40
-        n_outer = max(3, int(round(outer / seg_len)))
+        n_outer = max(1, int(round(outer / seg_len)))
         # Single continuous inner wire spanning −X_inner → +X_inner so the
         # named "feed" middle segment lands exactly at the geometric centre
         # (x = 0). Splitting the inner span at the origin would put `feed`

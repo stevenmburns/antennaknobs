@@ -1,6 +1,7 @@
 """Crossed dipoles fed in phase quadrature (turnstile)."""
 
 from antennaknobs import AntennaBuilder
+import math
 
 from types import MappingProxyType
 
@@ -28,7 +29,6 @@ class Builder(AntennaBuilder):
         x = 0.5 * length
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         # Two crossed half-wave dipoles, lower along x at z=base and upper
         # along y at z=base+gap_z. The 1+0j / 0+1j drive is the 90° turnstile
@@ -36,6 +36,10 @@ class Builder(AntennaBuilder):
         tups = []
 
         z_lo = self.base
+        n_seg1 = self.segs_for(
+            math.dist((-eps, 0, z_lo), (eps, 0, z_lo)),
+            math.dist((-x, 0, z_lo), (-eps, 0, z_lo)),
+        )
         tups.extend([((-x, 0, z_lo), (-eps, 0, z_lo), n_seg0, None)])
         tups.extend([((eps, 0, z_lo), (x, 0, z_lo), n_seg0, None)])
         tups.extend([((-eps, 0, z_lo), (eps, 0, z_lo), n_seg1, 1 + 0j)])

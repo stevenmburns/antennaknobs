@@ -39,7 +39,6 @@ class Builder(AntennaBuilder):
             return -p[0], p[1], p[2]
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         d = driver
         # Apex height, solved from the constraint that the total wire perimeter
@@ -70,6 +69,8 @@ class Builder(AntennaBuilder):
         A = (0, h, b - tan_theta * h)
         S = (0, eps, b - (2 * h - eps) * tan_theta)
         C, T = ry(A), ry(S)
+
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(A, B))
 
         tups = []
 

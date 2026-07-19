@@ -60,7 +60,6 @@ class Builder(AntennaBuilder):
         quarter = 0.25 * wavelength
         target = self.length_factor * wavelength
         n0 = self.nominal_nsegs
-        n1 = max(3, self.nominal_nsegs // 7)
 
         def ry(p):
             return (p[0], -p[1], p[2])
@@ -79,6 +78,7 @@ class Builder(AntennaBuilder):
             drone.yaw(180.0 + self.angle_deg)  # turn down onto the slant
             S = drone.forward_to_plane((0.0, 1.0, 0.0, eps)).position
             B, T = ry(A), ry(S)
+            n1 = self.segs_for(math.dist(T, S), math.dist(A, B))
 
             # build_path stitches the four corners into the perimeter and feed
             # gap -- the same helper delta_loop and delta_loop_reflected use. No

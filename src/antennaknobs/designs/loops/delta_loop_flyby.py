@@ -62,7 +62,6 @@ class Builder(AntennaBuilder):
         quarter = 0.25 * wavelength
         target = self.length_factor * wavelength
         n_body = self.nominal_nsegs
-        n_feed = max(3, self.nominal_nsegs // 7)
 
         def geometry(side):
             # Fly the whole loop with the feed at z = 0 -- the top height is
@@ -83,6 +82,7 @@ class Builder(AntennaBuilder):
             drone.forward_through_plane((0.0, 1.0, 0.0, 0.0), nsegs=n_body)
             drone.yaw(180.0 - self.angle_deg)  # exterior angle at B
             drone.forward(side, nsegs=n_body)  # B -> T  (left slant, given length)
+            n_feed = self.segs_for(math.dist(drone.position, S), side)
             drone.feed(1 + 0j)
             drone.close(nsegs=n_feed)  # T -> S  (driven feed gap, fly home)
             return drone.wires()

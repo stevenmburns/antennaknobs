@@ -52,7 +52,6 @@ class Builder(AntennaBuilder):
             return p[0], -p[1], p[2]
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = max(3, self.nominal_nsegs // 7)
 
         d = driver
         h = (cos_theta * (d - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
@@ -81,6 +80,8 @@ class Builder(AntennaBuilder):
         SS, AA, BB, TT = st.hit(S), st.hit(A), st.hit(B), st.hit(T)
 
         SSS, AAA, BBB, TTT = ry(SS), ry(AA), ry(BB), ry(TT)
+
+        n_seg1 = self.segs_for(math.dist(TT, SS), math.dist(SS, AA))
 
         tups = []
 
