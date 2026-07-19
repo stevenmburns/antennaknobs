@@ -90,7 +90,14 @@ class Builder(AntennaBuilder):
 
         tups = []
         # Driven gap across the apex between the two legs' inner ends.
-        tups.append((inner_m, inner_p, 1, 1 + 0j))
+        tups.append(
+            (
+                inner_m,
+                inner_p,
+                self.segs_for(math.dist(inner_m, inner_p), quarter),
+                1 + 0j,
+            )
+        )
         tups.append((inner_p, end_p, arm, None))  # +y leg
         tups.append((inner_m, end_m, arm, None))  # -y leg
         return tups

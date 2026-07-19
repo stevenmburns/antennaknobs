@@ -123,7 +123,7 @@ class Builder(AntennaBuilder):
         return [
             # Left short side: bottom corner -> feed edge -> top corner.
             (A, F0, leg, None, None),
-            (F0, F1, 1, None, "feed"),
+            (F0, F1, self.segs_for(pe, quarter), None, "feed"),
             (F1, D, leg, None, None),
             # Top, right side, and bottom close the loop.
             (D, C, self.segs_for(w, quarter), None, None),

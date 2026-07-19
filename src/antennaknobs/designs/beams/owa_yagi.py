@@ -110,7 +110,9 @@ class Builder(AntennaBuilder):
                 # Driver: one-segment centre gap carries the direct feed.
                 arm = self.segs_for(half - eps, quarter)
                 tups.append(((x, -half, b), (x, -eps, b), arm, None))
-                tups.append(((x, -eps, b), (x, eps, b), 1, 1 + 0j))
+                tups.append(
+                    ((x, -eps, b), (x, eps, b), self.segs_for(2 * eps, quarter), 1 + 0j)
+                )
                 tups.append(((x, eps, b), (x, half, b), arm, None))
             else:
                 ns = self.segs_for(2 * half, quarter)

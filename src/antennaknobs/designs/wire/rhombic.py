@@ -97,14 +97,14 @@ class Builder(AntennaBuilder):
 
         return [
             # feed gap at the rear apex (driven via build_network)
-            (FU, FL, 1, None, "feed"),
+            (FU, FL, self.segs_for(2 * eps, quarter), None, "feed"),
             # four legs
             (FU, SU, leg, None, None),  # rear upper
             (FL, SD, leg, None, None),  # rear lower
             (SU, TU, leg, None, None),  # front upper
             (SD, TL, leg, None, None),  # front lower
             # termination gap at the far apex (resistor via build_network)
-            (TU, TL, 1, None, "term"),
+            (TU, TL, self.segs_for(2 * eps, quarter), None, "term"),
         ]
 
     def build_network(self):

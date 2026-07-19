@@ -128,7 +128,7 @@ class Builder(AntennaBuilder):
         tups = [
             # Gap wire at the whip base carries the port (ev on its one
             # segment); the whip proper stacks on top of it.
-            ((0, 0, h), (0, 0, h + eps), 1, 1 + 0j),
+            ((0, 0, h), (0, 0, h + eps), self.segs_for(eps, self.whip_len_m), 1 + 0j),
             ((0, 0, h + eps), (0, 0, h + self.whip_len_m), self.nominal_nsegs, None),
         ]
 

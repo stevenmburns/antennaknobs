@@ -125,7 +125,7 @@ class Builder(AntennaBuilder):
         )
         drone.jump(-gap / 2.0)
 
-        drone.feed(1 + 0j).forward(gap, nsegs=1)  # driven chamfer across apex
+        drone.feed(1 + 0j).forward(gap)  # driven chamfer across apex
         drone.pay_out()
         drone.yaw(-60).forward(run)  # -> v_right
         drone.yaw(-60).forward(gap, nsegs=1)  # passive chamfer across v_right

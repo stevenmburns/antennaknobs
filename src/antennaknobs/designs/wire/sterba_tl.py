@@ -102,6 +102,12 @@ class Builder(AntennaBuilder):
 
         def edge(ya, yb_, z, name):
             seg_len = abs(yb_ - ya)
+            # Named TL-port edges stay PINNED at 3 segments, deliberately
+            # exempt from the issue-#435 refine-with-the-mesh rule: with 3
+            # the convergence ladder is flat (72.9−16.5j from N=41 up),
+            # while segs_for-refined ports drift away and never settle —
+            # the TL attachment wants a mesh-stable port segment, not a
+            # shrinking one.
             ns = 3 if name is not None else max(5, round(n0 * seg_len / h))
             if name is not None and ns % 2 == 0:
                 ns += 1

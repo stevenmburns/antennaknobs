@@ -123,7 +123,7 @@ class Builder(AntennaBuilder):
             # the rear one takes the far end of the phase line.
             name = "feed" if i == self.FWD else "rear"
             tups.append((L, C0, arm, None, None))
-            tups.append((C0, C1, 1, None, name))
+            tups.append((C0, C1, self.segs_for(2 * eps, quarter), None, name))
             tups.append((C1, R, arm, None, None))
         return tups
 

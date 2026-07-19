@@ -317,10 +317,10 @@ class Builder(AntennaBuilder):
         # the antenna. nominal_nsegs sets the count for the longest such
         # wire; everything else scales proportionally. Trap segments are
         # pinned to 1 (load-port convention — the named port lives on a
-        # single basis function). Feed segment is also pinned to 1, which
-        # is fine for the BSpline d=2 basis this design is tuned against
-        # (the retired triangular basis couldn't drive a 1-segment feed
-        # gap).
+        # single basis function). The feed bridge meshes via n_for like
+        # the rest (1 segment at the default mesh, which is fine for the
+        # BSpline d=2 basis this design is tuned against; the retired
+        # triangular basis couldn't drive a 1-segment feed gap).
         adaptive_lengths = []
         for i, (trap_in, trap_out, tip) in enumerate(spokes):
             adaptive_lengths.append(dist(S, A[i]))
@@ -350,9 +350,9 @@ class Builder(AntennaBuilder):
             tups.append((tout_y, tip_y, n_for(dist(tout_y, tip_y)), None))
 
         # Feed wire — named "feed", source supplied by build_network().
-        # 1 segment matches the design's BSpline d=2 target; the basis
-        # handles a 1-segment feed cleanly.
-        tups.append((T, S, 1, None, "feed"))
+        # Meshed via n_for like the rest (1 segment at the default mesh);
+        # the BSpline d=2 basis handles a 1-segment feed cleanly.
+        tups.append((T, S, n_for(dist(T, S)), None, "feed"))
 
         # Lift to base height.
         zoff = self.base

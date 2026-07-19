@@ -95,7 +95,14 @@ class Builder(AntennaBuilder):
         tups = []
         # Feed: a one-segment driven gap between the disc centre and the cone
         # apex (the coax point of a discone).
-        tups.append(((0.0, 0.0, z_disc), (0.0, 0.0, z_apex), 1, 1 + 0j))
+        tups.append(
+            (
+                (0.0, 0.0, z_disc),
+                (0.0, 0.0, z_apex),
+                self.segs_for(2 * eps, quarter),
+                1 + 0j,
+            )
+        )
 
         for i in range(m):
             phi = 2 * math.pi / m * i

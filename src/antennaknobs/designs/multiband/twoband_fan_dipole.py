@@ -174,7 +174,6 @@ class Builder(AntennaBuilder):
         S = (0, eps, 0)
         T = ry(S)
         n_seg0 = self.nominal_nsegs
-        n_seg1 = 1
 
         # Per band: a junction point G a distance `s` out (band 0 to +x, band 1
         # to -x) and the drooping tip beyond it.
@@ -187,6 +186,10 @@ class Builder(AntennaBuilder):
             tip = (sign * x_t + G[0], y_t + G[1], -z_t)
             junctions.append(G)
             tips.append(tip)
+
+        # Feed gap T->S refines with the mesh (issue #435); band 0's arm
+        # (junction -> tip) is the reference-length wire carrying n_seg0.
+        n_seg1 = self.segs_for(math.dist(T, S), math.dist(junctions[0], tips[0]))
 
         # Emit in the original order: +y junctions, +y arms, -y junctions,
         # -y arms, then the feed gap — so the wire list is unchanged for the

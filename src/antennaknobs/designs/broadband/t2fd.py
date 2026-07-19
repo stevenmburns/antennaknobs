@@ -102,11 +102,11 @@ class Builder(AntennaBuilder):
         return [
             # near (feed) wire: left arm, feed gap, right arm
             (nL, nF0, arm, None, None),
-            (nF0, nF1, 1, None, "feed"),
+            (nF0, nF1, self.segs_for(2 * eps, quarter), None, "feed"),
             (nF1, nR, arm, None, None),
             # far (termination) wire: left arm, load gap, right arm
             (fL, fT0, arm, None, None),
-            (fT0, fT1, 1, None, "term"),
+            (fT0, fT1, self.segs_for(2 * eps, quarter), None, "term"),
             (fT1, fR, arm, None, None),
             # end shorts joining the two wires
             (nL, fL, short, None, None),

@@ -76,6 +76,6 @@ class Builder(AntennaBuilder):
         drone.yaw(90).forward(side)  # B -> C
         drone.yaw(90).forward(side)  # C -> D
         drone.yaw(90).forward(side - inset)  # D -> just short of corner A
-        drone.feed(1 + 0j).close(nsegs=1)  # diagonal feed across A, fly home
+        drone.feed(1 + 0j).close()  # diagonal feed across A, fly home
 
         return drone.wires()

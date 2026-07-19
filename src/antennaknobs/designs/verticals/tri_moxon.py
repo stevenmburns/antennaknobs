@@ -149,7 +149,13 @@ class Builder(AntennaBuilder):
             # Driver: vertical in two halves around the mid-height feed gap,
             # plus its tails back toward the reflector (gap C left open).
             (at(r_drv, zb), at(r_drv, zm - pe / 2), half_drv, None, None),
-            (at(r_drv, zm - pe / 2), at(r_drv, zm + pe / 2), 1, None, f"feed_{k}"),
+            (
+                at(r_drv, zm - pe / 2),
+                at(r_drv, zm + pe / 2),
+                self.segs_for(pe, quarter),
+                None,
+                f"feed_{k}",
+            ),
             (at(r_drv, zm + pe / 2), at(r_drv, zt), half_drv, None, None),
             (at(r_drv, zt), at(r_drv - b, zt), tail_b, None, None),
             (at(r_drv, zb), at(r_drv - b, zb), tail_b, None, None),

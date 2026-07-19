@@ -98,7 +98,9 @@ class Builder(AntennaBuilder):
 
         tups = []
         # Centre feed: a one-segment driven gap along y at the origin.
-        tups.append(((0.0, -eps, z), (0.0, eps, z), 1, 1 + 0j))
+        tups.append(
+            ((0.0, -eps, z), (0.0, eps, z), self.segs_for(2 * eps, quarter), 1 + 0j)
+        )
 
         # Right arm: Koch curve from the feed edge (y=+eps) out to the tip,
         # built in the (y, z) plane then emitted as straight chords.

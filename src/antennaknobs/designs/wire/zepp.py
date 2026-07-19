@@ -100,7 +100,7 @@ class Builder(AntennaBuilder):
         # antinode), then the half-wave radiator running out to y=+length.
         # No direct voltage source -- the tuned stub drives this port.
         return [
-            ((0.0, 0.0, z), (0.0, eps, z), 1, None, "ant"),
+            ((0.0, 0.0, z), (0.0, eps, z), self.segs_for(eps, quarter), None, "ant"),
             (
                 (0.0, eps, z),
                 (0.0, length, z),

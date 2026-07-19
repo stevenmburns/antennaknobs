@@ -105,7 +105,7 @@ class Builder(AntennaBuilder):
         # port the matched line connects to (no direct voltage source here).
         return [
             (L, C0, arm, None, None),
-            (C0, C1, 1, None, "feed"),
+            (C0, C1, self.segs_for(2 * eps, quarter), None, "feed"),
             (C1, R, arm, None, None),
         ]
 

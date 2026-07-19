@@ -90,7 +90,9 @@ class Builder(AntennaBuilder):
         F = (0.0, feed * u, self.base + feed * u)
 
         tups = []
-        tups.append((Bc, F, 1, 1 + 0j))  # one-segment driven gap at the corner
+        tups.append(
+            (Bc, F, self.segs_for(feed, quarter), 1 + 0j)
+        )  # driven gap at the corner (length `feed` along the side)
         tups.append((F, Rc, self.segs_for(side - feed, quarter), None))
         tups.append((Rc, Tc, ns, None))  # upper-right side
         tups.append((Tc, Lc, ns, None))  # upper-left side

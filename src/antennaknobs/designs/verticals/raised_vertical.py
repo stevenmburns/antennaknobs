@@ -23,7 +23,9 @@ class Builder(AntennaBuilder):
         z = self.length
 
         n_seg0 = self.nominal_nsegs
-        n_seg1 = 1
+        # Driven gap at the riser foot refines with the mesh (issue #435);
+        # the riser above it (length z - eps) carries n_seg0.
+        n_seg1 = self.segs_for(eps, z - eps)
 
         tups = []
         tups.extend([((0, 0, 0), (0, 0, eps), n_seg1, 1 + 0j)])

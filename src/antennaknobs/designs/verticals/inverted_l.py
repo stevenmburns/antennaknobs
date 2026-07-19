@@ -79,7 +79,9 @@ class Builder(AntennaBuilder):
         tups = []
         # Base feed: a one-segment driven gap at the foot of the riser, against
         # the radial counterpoise (cf. designs/vertical.py).
-        tups.append(((0.0, 0.0, z), (0.0, 0.0, z + eps), 1, 1 + 0j))
+        tups.append(
+            ((0.0, 0.0, z), (0.0, 0.0, z + eps), self.segs_for(eps, quarter), 1 + 0j)
+        )
         # Vertical riser, then the horizontal top section.
         tups.append(
             (

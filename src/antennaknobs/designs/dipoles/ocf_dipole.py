@@ -26,6 +26,7 @@ Geometry, in the framework's (x, y, z) convention:
 
 from antennaknobs import AntennaBuilder
 from types import MappingProxyType
+import math
 
 
 class Builder(AntennaBuilder):
@@ -86,7 +87,9 @@ class Builder(AntennaBuilder):
         tups.append(
             (L, F0, self.segs_for(left_arm, quarter), None)
         )  # short arm (to -y end)
-        tups.append((F0, F1, 1, 1 + 0j))  # off-centre feed
+        tups.append(
+            (F0, F1, self.segs_for(math.dist(F0, F1), quarter), 1 + 0j)
+        )  # off-centre feed
         tups.append(
             (F1, R, self.segs_for(right_arm, quarter), None)
         )  # long arm (to +y end)

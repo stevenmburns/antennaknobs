@@ -147,7 +147,14 @@ class Builder(AntennaBuilder):
                 None,
             )
         )
-        tups.append(((0.0, 0.0, zf + feed), (0.0, 0.0, zf), 1, 1 + 0j))
+        tups.append(
+            (
+                (0.0, 0.0, zf + feed),
+                (0.0, 0.0, zf),
+                self.segs_for(feed, quarter),
+                1 + 0j,
+            )
+        )
         tups.append(
             (
                 (0.0, 0.0, zf),
