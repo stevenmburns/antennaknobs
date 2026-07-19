@@ -769,6 +769,27 @@ def reference_deck(text: str, name: str) -> str:
     return "\n".join(out) + "\n"
 
 
+def feeds_sharing_tl_nt(deck) -> list[int]:
+    """Indices of ``deck.feeds`` whose driven segment also anchors a ``TL``
+    or ``NT`` endpoint (issue #456).
+
+    The EX 6 current-source emulation (issue #442) drives ``V = I·R_BIG``
+    behind an ``LD 4`` series ``R_BIG`` and the caller recovers the load by
+    subtracting ``R_BIG`` from nec2c's reported feed impedance — valid only
+    when that series R lands *inside* the readout. When a transmission line
+    (or NT two-port) is anchored on the same segment, it carries the feed
+    current and nec2c's reported V/I is already the true driving-point
+    impedance (the R_BIG term does not appear — verified constant across
+    R_BIG = 1e3…1e6 on DipTL/CardTL/4SQTL). Subtracting there manufactures
+    a ~−R_BIG resistance; the caller must skip it on these feeds.
+    """
+    anchored = set()
+    for c in (*deck.tls, *deck.nts):
+        anchored.add((c.wire_a, c.seg_a))
+        anchored.add((c.wire_b, c.seg_b))
+    return [i for i, f in enumerate(deck.feeds) if (f.wire, f.seg) in anchored]
+
+
 def bench_deck(
     deck_path: Path,
     engines,
@@ -838,11 +859,17 @@ def bench_deck(
                 if any(ex6_feeds):
                     # Undo the current-source emulation: nec2c reported
                     # Z_gap + R_BIG at each EX 6 feed (row order follows
-                    # EX-card order, same as deck.feeds).
+                    # EX-card order, same as deck.feeds) — EXCEPT on a feed
+                    # whose segment also anchors a TL/NT, where the readout is
+                    # already the true impedance and the subtraction must be
+                    # skipped (issue #456).
                     retry["ex6_emulated"] = True
+                    tl_shared = set(feeds_sharing_tl_nt(deck))
+                    if tl_shared:
+                        retry["ex6_tl_shared"] = sorted(tl_shared)
                     if len(retry.get("z") or []) >= len(ex6_feeds):
                         for i, is_cur in enumerate(ex6_feeds):
-                            if is_cur:
+                            if is_cur and i not in tl_shared:
                                 retry["z"][i][0] -= EX6_R_BIG
                 ref = retry
             elif ref is None:
@@ -901,7 +928,8 @@ def print_report(rows, engines):
     print(
         "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT "
         "network, v = remote TL-anchor wire(s) virtualized (#427),"
-        " r = reference from resolved deck (#439)"
+        " r = reference from resolved deck (#439),"
+        " t = EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456)"
     )
     print("=" * 104)
     hdr = (
@@ -917,6 +945,7 @@ def print_report(rows, engines):
             + ("n" if r.get("partial_net") else "")
             + ("v" if r.get("virtualized_anchors") else "")
             + ("r" if r.get("nec2c", {}).get("resolved_deck") else "")
+            + ("t" if r.get("nec2c", {}).get("ex6_tl_shared") else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
