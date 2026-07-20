@@ -61,8 +61,13 @@ import bench_catalog as cat  # noqa: E402
 import bench_converge as cvg  # noqa: E402
 import bench_nec_corpus as bnc  # noqa: E402
 
-ENGINES = ("pynec", "sin", "bs2")
-ENGINE_LABEL = {"pynec": "PyNEC", "sin": "Sinusoidal", "bs2": "BSpline d=2"}
+ENGINES = ("pynec", "sin", "bs1", "bs2")
+ENGINE_LABEL = {
+    "pynec": "PyNEC",
+    "sin": "Sinusoidal",
+    "bs1": "BSpline d=1",
+    "bs2": "BSpline d=2",
+}
 
 N_SWEEP = 21
 SPAN_FRAC = 0.015  # +-1.5% band around the default frequency
@@ -87,9 +92,10 @@ def _solve_once(cls, engine, ground, freq=None):
         eng = PyNECEngine(b, ground=ground)
     elif engine == "sin":
         eng = MomwireEngine(b, solver=SinusoidalSolver, ground=ground)
-    else:  # bs2
+    else:  # bs1 / bs2
+        degree = 1 if engine == "bs1" else 2
         eng = MomwireEngine(
-            b, solver=BSplineSolver, solver_kwargs={"degree": 2}, ground=ground
+            b, solver=BSplineSolver, solver_kwargs={"degree": degree}, ground=ground
         )
     eng.impedance()
 
