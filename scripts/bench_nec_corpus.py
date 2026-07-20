@@ -81,6 +81,8 @@ import tempfile  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+import numpy as np  # noqa: E402
+
 XNEC2C_EXAMPLES = Path.home() / "antennas" / "xnec2c" / "examples"
 Z0 = 50.0  # system impedance for the reflection-coefficient metric (issue #407)
 ENGINE_KEYS = ("pynec", "sin", "bs1", "bs2")
@@ -612,7 +614,7 @@ def has_dead_trailing_config(text: str) -> bool:
     return bool(dead_trailing_config(mnems))
 
 
-def reference_deck(text: str, name: str) -> str:
+def reference_deck(text: str, name: str, ex6: str = "rbig") -> str:
     """Deck text prepared for the nec2c *reference* run (issue #439).
 
     ``resolve_sy`` materializes the 4nec2 dialect nec2c cannot read (SY
@@ -745,6 +747,11 @@ def reference_deck(text: str, name: str) -> str:
                 out.append(f"LD 2 {t} {sf} {st} 0 {l_ins!r} 0")
             continue
         if toks[0] == "EX" and len(toks) > 1 and int(float(toks[1])) == 6:
+            if ex6 == "drop":
+                # The superposition reference (issue #463) supplies its own
+                # voltage-drive excitation, so strip the deck's EX 6 cards and
+                # emit no R_BIG emulation.
+                continue
             tag, seg = toks[2], toks[3] if len(toks) > 3 else "0"
             i_re = float(toks[5]) if len(toks) > 5 else 0.0
             i_im = float(toks[6]) if len(toks) > 6 else 0.0
@@ -767,6 +774,137 @@ def reference_deck(text: str, name: str) -> str:
         else:
             out += ["XQ", "EN"]
     return "\n".join(out) + "\n"
+
+
+def _nec2c_source_currents(deck_text: str, timeout: float, mem_bytes=None):
+    """Run nec2c on prepared text and return each source's complex current in
+    EX-card order (the ANTENNA INPUT PARAMETERS ``CURRENT`` column), plus the
+    frequency: ``{"freq": MHz, "currents": [complex, ...], "error": str|None}``.
+    A sibling of ``run_nec2c`` that reads current instead of impedance — the
+    superposition reference (issue #463) drives voltages and measures currents.
+    """
+    if shutil.which("nec2c") is None:
+        return {"error": "nec2c not on PATH"}
+    with tempfile.TemporaryDirectory(prefix="nec_") as d:
+        nec = Path(d) / "d.nec"
+        out = Path(d) / "d.out"
+        nec.write_text(deck_text)
+        try:
+            subprocess.run(
+                ["nec2c", "-i", str(nec), "-o", str(out)],
+                capture_output=True,
+                timeout=timeout,
+                preexec_fn=_rlimit_preexec(mem_bytes) if mem_bytes else None,
+            )
+        except subprocess.TimeoutExpired:
+            return {"error": f"nec2c timeout >{timeout:.0f}s"}
+        if not out.exists():
+            return {"error": "nec2c produced no output"}
+        lines = out.read_text(errors="replace").splitlines()
+    freq = None
+    for i, ln in enumerate(lines):
+        m = _FREQ_RE.search(ln)
+        if m:
+            freq = float(m.group(1))
+        if "ANTENNA INPUT PARAMETERS" in ln:
+            cur = []
+            j = i + 3  # header + units row, then data rows
+            while j < len(lines) and lines[j].strip():
+                toks = lines[j].split()
+                if len(toks) >= 6:
+                    try:
+                        cur.append(complex(float(toks[4]), float(toks[5])))
+                    except ValueError:
+                        return {"error": "nec2c current parse failed"}
+                j += 1
+            if cur:
+                return {"freq": freq, "currents": cur, "error": None}
+    return {"error": "no ANTENNA INPUT PARAMETERS block"}
+
+
+def superposition_reference(text: str, name: str, timeout: float, mem_bytes=None):
+    """Multi-source EX 6 reference via nec2c Y-matrix superposition (issue #463).
+
+    nec2c has no port current source, and the single-R_BIG emulation (issue
+    #442) cannot force N simultaneous port currents at once — on phased
+    active-feed decks (e.g. 3vertical.nec) the reported per-feed V/I comes out
+    R_BIG-invariant and wrong, so the R_BIG subtraction manufactures a huge
+    negative resistance. Recover the physics with native voltage drives
+    instead: for each of the N solves, excite every port with an all-nonzero,
+    linearly independent set of gap voltages and read every port's current,
+    giving the port admittance matrix ``Y = I_mat · V_mat⁻¹``; invert to the
+    impedance matrix Z, then compose the driving-point impedances the deck's
+    current excitation produces — ``V = Z·I``, ``Z_i = V_i / I_i``. All-nonzero
+    voltages sidestep NEC's "an all-zero EX defaults to 1 V" quirk; the linear
+    solve is exact for any invertible drive pattern.
+
+    Returns a ``run_nec2c``-shaped dict (``z`` per feed in EX-card order,
+    ``superposition``/``resolved_deck`` flags set) or an error dict; ``None`` if
+    the deck has fewer than two EX 6 sources (not this path's job).
+    """
+    from antennaknobs.nec_import import resolve_sy
+
+    try:
+        resolved = resolve_sy(text, name=name).splitlines()
+    except ValueError as e:
+        return {"error": f"superposition resolve_sy: {e}"}
+    ports, currents = [], []
+    for ln in resolved:
+        toks = ln.split()
+        if toks and toks[0] == "EX" and len(toks) > 1 and int(float(toks[1])) == 6:
+            ports.append((toks[2], toks[3] if len(toks) > 3 else "0"))
+            i_re = float(toks[5]) if len(toks) > 5 else 0.0
+            i_im = float(toks[6]) if len(toks) > 6 else 0.0
+            currents.append(complex(i_re, i_im))
+    n = len(ports)
+    if n < 2:
+        return None
+    i_exc = np.array(currents)
+    if np.any(i_exc == 0):
+        return {"error": "superposition: a feed has zero drive current"}
+    try:
+        base = reference_deck(text, name, ex6="drop").splitlines()
+    except ValueError as e:
+        return {"error": f"superposition reference_deck: {e}"}
+    exec_i = next(
+        (
+            k
+            for k, ln in enumerate(base)
+            if ln.split()[:1] and ln.split()[0] in ("XQ", "RP")
+        ),
+        len(base),
+    )
+    # Drive matrix: 1 on the diagonal, 0.5 off — all nonzero (dodges the zero-EX
+    # quirk) and well conditioned (det = (0.5n + 0.5)·0.5^(n-1) > 0) at any n.
+    v_mat = np.full((n, n), 0.5) + np.eye(n) * 0.5
+    i_mat = np.zeros((n, n), dtype=complex)
+    freq = None
+    for j in range(n):
+        ex = [
+            f"EX 0 {ports[k][0]} {ports[k][1]} 0 {float(v_mat[k, j])!r} 0"
+            for k in range(n)
+        ]
+        deck_j = "\n".join(base[:exec_i] + ex + base[exec_i:]) + "\n"
+        res = _nec2c_source_currents(deck_j, timeout, mem_bytes)
+        if res.get("error"):
+            return {"error": f"superposition solve {j}: {res['error']}"}
+        cur = res["currents"]
+        if len(cur) != n:
+            return {"error": f"superposition solve {j}: {len(cur)} sources, want {n}"}
+        i_mat[:, j] = cur
+        freq = res["freq"]
+    try:
+        z = np.linalg.inv(i_mat @ np.linalg.inv(v_mat))
+    except np.linalg.LinAlgError as e:
+        return {"error": f"superposition: singular matrix ({e})"}
+    z_dp = (z @ i_exc) / i_exc
+    return {
+        "freq": freq,
+        "z": [[zz.real, zz.imag] for zz in z_dp],
+        "error": None,
+        "superposition": True,
+        "resolved_deck": True,
+    }
 
 
 def feeds_sharing_tl_nt(deck) -> list[int]:
@@ -841,6 +979,16 @@ def bench_deck(
     ref = None
     if not any(ex6_feeds) and not has_dead_trailing_config(text):
         ref = run_nec2c(deck_path, timeout, mem_bytes)
+    # Multi-source, all-current EX 6 decks (issue #463): one R_BIG solve can't
+    # force N simultaneous port currents, so the per-feed subtraction breaks
+    # (feed 0 keeps a −R_BIG residue). Build the reference by Y-matrix
+    # superposition — N native voltage solves compose the true driving-point
+    # impedances. Falls through to the R_BIG path if it can't run (e.g. no
+    # nec2c) so behaviour is never worse than before.
+    if (ref is None or ref.get("error")) and sum(ex6_feeds) >= 2 and all(ex6_feeds):
+        sup = superposition_reference(text, deck_path.name, timeout, mem_bytes)
+        if sup is not None and not sup.get("error"):
+            ref = sup
     if ref is None or ref.get("error"):
         # Resolved-reference retry (issue #439): the deck parses for *us*,
         # so a failed reference run may just be dialect (SY symbols, no
@@ -929,7 +1077,8 @@ def print_report(rows, engines):
         "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT "
         "network, v = remote TL-anchor wire(s) virtualized (#427),"
         " r = reference from resolved deck (#439),"
-        " t = EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456)"
+        " t = EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456),"
+        " s = multi-source EX 6 reference via Y-matrix superposition (#463)"
     )
     print("=" * 104)
     hdr = (
@@ -946,6 +1095,7 @@ def print_report(rows, engines):
             + ("v" if r.get("virtualized_anchors") else "")
             + ("r" if r.get("nec2c", {}).get("resolved_deck") else "")
             + ("t" if r.get("nec2c", {}).get("ex6_tl_shared") else "")
+            + ("s" if r.get("nec2c", {}).get("superposition") else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
