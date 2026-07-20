@@ -823,24 +823,32 @@ def _nec2c_source_currents(deck_text: str, timeout: float, mem_bytes=None):
 
 
 def superposition_reference(text: str, name: str, timeout: float, mem_bytes=None):
-    """Multi-source EX 6 reference via nec2c Y-matrix superposition (issue #463).
+    """EX 6 current-source reference via nec2c Y-matrix superposition (#463, #464).
 
     nec2c has no port current source, and the single-R_BIG emulation (issue
     #442) cannot force N simultaneous port currents at once — on phased
     active-feed decks (e.g. 3vertical.nec) the reported per-feed V/I comes out
     R_BIG-invariant and wrong, so the R_BIG subtraction manufactures a huge
-    negative resistance. Recover the physics with native voltage drives
-    instead: for each of the N solves, excite every port with an all-nonzero,
-    linearly independent set of gap voltages and read every port's current,
-    giving the port admittance matrix ``Y = I_mat · V_mat⁻¹``; invert to the
-    impedance matrix Z, then compose the driving-point impedances the deck's
-    current excitation produces — ``V = Z·I``, ``Z_i = V_i / I_i``. All-nonzero
-    voltages sidestep NEC's "an all-zero EX defaults to 1 V" quirk; the linear
-    solve is exact for any invertible drive pattern.
+    negative resistance. It also breaks for a *single* EX 6 source whose segment
+    also anchors a TL/NT (issue #464): the network port bypasses the series
+    ``LD 4 R_BIG`` (a 20 kΩ load carrying 200+ A), so the raw readout is a NEC
+    LD-plus-network composition artifact, not the driving-point impedance — and
+    #456's "trust the R_BIG-invariant readout" skip trusts the wrong number.
+
+    Recover the physics with native voltage drives instead: for each of the N
+    solves, excite every port with an all-nonzero, linearly independent set of
+    gap voltages and read every port's current, giving the port admittance
+    matrix ``Y = I_mat · V_mat⁻¹``; invert to the impedance matrix Z, then
+    compose the driving-point impedances the deck's current excitation produces
+    — ``V = Z·I``, ``Z_i = V_i / I_i``. All-nonzero voltages sidestep NEC's "an
+    all-zero EX defaults to 1 V" quirk; the linear solve is exact for any
+    invertible drive pattern. The N = 1 case degenerates to one 1 V solve whose
+    ``Z = V/I`` is exactly the (source-type-independent) driving-point
+    impedance — correct whether or not the segment carries a TL.
 
     Returns a ``run_nec2c``-shaped dict (``z`` per feed in EX-card order,
     ``superposition``/``resolved_deck`` flags set) or an error dict; ``None`` if
-    the deck has fewer than two EX 6 sources (not this path's job).
+    the deck has no EX 6 sources (not this path's job).
     """
     from antennaknobs.nec_import import resolve_sy
 
@@ -857,7 +865,7 @@ def superposition_reference(text: str, name: str, timeout: float, mem_bytes=None
             i_im = float(toks[6]) if len(toks) > 6 else 0.0
             currents.append(complex(i_re, i_im))
     n = len(ports)
-    if n < 2:
+    if n < 1:
         return None
     i_exc = np.array(currents)
     if np.any(i_exc == 0):
@@ -979,13 +987,16 @@ def bench_deck(
     ref = None
     if not any(ex6_feeds) and not has_dead_trailing_config(text):
         ref = run_nec2c(deck_path, timeout, mem_bytes)
-    # Multi-source, all-current EX 6 decks (issue #463): one R_BIG solve can't
-    # force N simultaneous port currents, so the per-feed subtraction breaks
-    # (feed 0 keeps a −R_BIG residue). Build the reference by Y-matrix
-    # superposition — N native voltage solves compose the true driving-point
-    # impedances. Falls through to the R_BIG path if it can't run (e.g. no
-    # nec2c) so behaviour is never worse than before.
-    if (ref is None or ref.get("error")) and sum(ex6_feeds) >= 2 and all(ex6_feeds):
+    # All-current EX 6 decks (issues #463, #464): the R_BIG emulation can't
+    # force the port current cleanly whenever a network shares the driven
+    # segment — one solve can't hold N simultaneous currents (#463), and even a
+    # single source's series R_BIG is bypassed by a co-located TL/NT so the raw
+    # readout is a composition artifact (#464). Build the reference by Y-matrix
+    # superposition instead — native voltage solves compose the true
+    # driving-point impedances, correct for N ≥ 1 with or without a TL. Falls
+    # through to the R_BIG path if it can't run (e.g. no nec2c) so behaviour is
+    # never worse than before.
+    if (ref is None or ref.get("error")) and sum(ex6_feeds) >= 1 and all(ex6_feeds):
         sup = superposition_reference(text, deck_path.name, timeout, mem_bytes)
         if sup is not None and not sup.get("error"):
             ref = sup
@@ -1077,8 +1088,8 @@ def print_report(rows, engines):
         "  flags: g = unsupported ground (radials/cliff), n = inexpressible LD/TL/NT "
         "network, v = remote TL-anchor wire(s) virtualized (#427),"
         " r = reference from resolved deck (#439),"
-        " t = EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456),"
-        " s = multi-source EX 6 reference via Y-matrix superposition (#463)"
+        " t = mixed EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456),"
+        " s = EX 6 current-source reference via Y-matrix superposition (#463, #464)"
     )
     print("=" * 104)
     hdr = (

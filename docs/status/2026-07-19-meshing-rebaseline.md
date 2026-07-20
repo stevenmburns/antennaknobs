@@ -94,6 +94,21 @@ outlier bar. Three HFActiveFeed decks remain, in two distinct classes:
   source sharing its port with a TL is the suspect (the same shared-port
   situation the reference-side fix just repaired, one layer down).
 
+  **Resolved (#464) — the diagnosis above was wrong; the bug was the
+  reference, not the engine.** A driving-point impedance is source-type
+  independent (V/I at a port is the same whether you force V or I), and
+  nec2c's *own* 1 V voltage drive with the TL intact reports 34.9 + 45.1j
+  for BRDZPR10 — matching our engines (33.2 + 44.6j), not the 88.5 − 11.6j
+  R_BIG readout. The "R_BIG-invariant ⟹ trustworthy" assumption behind
+  #456's skip is false: when the driven segment is also a TL/NT port, NEC
+  *bypasses* the series `LD 4 R_BIG` (a 20 kΩ load carrying 222 A at
+  R_BIG = 2e4), so the raw readout is a NEC LD-plus-network composition
+  artifact, not an impedance. The fix routes single-source EX 6 decks
+  through the #463 Y-matrix superposition path (native voltage drives, TL
+  intact), which for N = 1 degenerates to one 1 V solve. Both decks now
+  land at ΔΓ ≤ 0.0015. Corrected references: **BRDZPR10 34.9 + 45.1j**,
+  **ZLTROM10 33.6 + 28.6j**.
+
 ## Catalog re-baseline
 
 The catalog A/B was done PR-by-PR rather than as a separate sweep — every
