@@ -89,6 +89,24 @@ def test_shrunken_knobs_build():
         assert math.dist(p0, p1) > 1e-9
 
 
+def test_coarse_variant_thins_only_the_ground_plane():
+    """The `coarse` variant coarsens the passive ground screen to just inside
+    the λ/10 rule of thumb — 17 cells across the 48" plane (pitch ≈ λ/10.3 at
+    406 MHz, the coarsest integer count under the limit) — and leaves the active
+    feed/cage sleeve at full resolution: markedly fewer segments than the
+    deck-verbatim default, an unchanged cage, and every wire well-formed."""
+    coarse = Builder(merge_params(Builder.default_params, Builder.coarse_params))
+    assert round(coarse.plane_radius / coarse.grid_pitch) == 17
+    assert coarse.num_cage_wires == Builder.default_params["num_cage_wires"]
+
+    full_segs = sum(_wire(w)[2] for w in Builder().build_wires())
+    coarse_segs = sum(_wire(w)[2] for w in coarse.build_wires())
+    assert coarse_segs == 2472  # 4392 (deck) thinned by the coarser screen
+    assert coarse_segs < 0.7 * full_segs
+    for p0, p1, _nseg, _ex, _name in map(_wire, coarse.build_wires()):
+        assert math.dist(p0, p1) > 1e-9
+
+
 @pytest.mark.antenna_computation_check
 def test_free_space_impedance_matches_benchmark():
     """Full-size PyNEC solves at the deck's 406 MHz centre.

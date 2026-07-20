@@ -149,9 +149,11 @@ class Builder(AntennaBuilder):
             # leaving that post a plain wire.
             "post_l_nh": 90.0,
             "post_c_pf": 3.0,
-            # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh). The
-            # fine centre mesh runs at half the grid pitch (fixed 2× subdivision),
-            # so fine_pitch is derived from grid_pitch, not a knob.
+            # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh) — the
+            # default reproduces the deck verbatim. The fine centre mesh is always
+            # half the grid pitch (fixed 2× subdivision), so fine_pitch is derived
+            # from grid_pitch, not a knob. The `coarse` variant runs a coarser
+            # ground screen for a lighter solve (see its note).
             "plane_radius": 1.2192,
             "grid_pitch": 0.0508,
             "wire_radius": 0.000254,
@@ -178,6 +180,17 @@ class Builder(AntennaBuilder):
             ),
         }
     )
+
+    # Coarser ground screen held just inside the λ/10 wire-grid-as-conductor
+    # rule of thumb: 17 cells across the 48" plane → 71.7 mm pitch ≈ λ/10.3 at
+    # 406 MHz (the default's 50.8 mm is λ/14.5; a full 2× coarsening would reach
+    # λ/7.3 and detune the match). ~1.8× fewer segments (4392 → 2472) — and since
+    # the dense MoM is O(n²) memory / O(n³) time, roughly 3× less memory and ~5×
+    # faster — while the screen still acts as a conductor, so the matched
+    # impedance stays in spec (≈ 57 + 14j vs the default's 60 + 8.5j) and the
+    # bare radiator is unchanged (≈ 1.6 + 33j). Only the passive ground plane is
+    # coarsened; the active feed/cage sleeve keeps its full resolution.
+    coarse_params = MappingProxyType({"grid_pitch": 1.2192 / 17})
 
     def build_wires(self):
         h = self.height
