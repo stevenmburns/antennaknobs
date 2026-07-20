@@ -936,6 +936,24 @@ def feeds_sharing_tl_nt(deck) -> list[int]:
     return [i for i, f in enumerate(deck.feeds) if (f.wire, f.seg) in anchored]
 
 
+def _has_near_ground_ungrounded_wire(deck, freq_mhz: float) -> bool:
+    """The geometry class where nec2++/PyNEC's gn 2 Sommerfeld is known-
+    unreliable (issue #448): near-ground conductor that is not a plain
+    grounded vertical. Delegates to the engine's own risk predicate
+    (`engines.pynec._somm_low_wire_risk` — the same one behind the
+    RuntimeWarning PyNECEngine emits at solve time) so the flag and the
+    warning can never drift apart."""
+    try:
+        from antennaknobs.engines.pynec import _somm_low_wire_risk
+    except ImportError:  # PyNEC absent: no pynec rows to annotate anyway
+        return False
+    try:
+        tups = deck.wire_tuples(specs=True)
+    except Exception:  # noqa: BLE001 — a flag, never a crash
+        return False
+    return bool(_somm_low_wire_risk(tups, 299.792458 / freq_mhz))
+
+
 def bench_deck(
     deck_path: Path,
     engines,
@@ -1044,6 +1062,18 @@ def bench_deck(
         return row
     row["freq"] = freq
 
+    # nec2++/PyNEC's Sommerfeld (gn 2) is known-unreliable when a conductor
+    # sits within 0.1 wavelength of the ground plane without touching it
+    # (issue #448; calibrated on this corpus — all 19 decks where PyNEC broke
+    # against an agreeing nec2c+momwire pair are in this class). A large
+    # pynec dgamma on a flagged deck is the known engine defect, not an
+    # import/translation signal.
+    row["pynec_somm_suspect"] = (
+        isinstance(ground, tuple)
+        and ground[0] == "finite"
+        and _has_near_ground_ungrounded_wire(deck, freq)
+    )
+
     eng_ground = ground if run_with_ground else "free"
     row["engines"] = {}
     for e in engines:
@@ -1089,7 +1119,8 @@ def print_report(rows, engines):
         "network, v = remote TL-anchor wire(s) virtualized (#427),"
         " r = reference from resolved deck (#439),"
         " t = mixed EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456),"
-        " s = EX 6 current-source reference via Y-matrix superposition (#463, #464)"
+        " s = EX 6 current-source reference via Y-matrix superposition (#463, #464),"
+        " p = gn 2 + near-ground ungrounded wire: pynec known-unreliable (#448)"
     )
     print("=" * 104)
     hdr = (
@@ -1107,6 +1138,7 @@ def print_report(rows, engines):
             + ("r" if r.get("nec2c", {}).get("resolved_deck") else "")
             + ("t" if r.get("nec2c", {}).get("ex6_tl_shared") else "")
             + ("s" if r.get("nec2c", {}).get("superposition") else "")
+            + ("p" if r.get("pynec_somm_suspect") else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(

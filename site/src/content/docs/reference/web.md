@@ -205,7 +205,11 @@ is uniform: every momwire solver honours both models (Sommerfeld
 validated against an independent NEC-2 implementation down to 0.02λ —
 within ~2.4 Ω on the B-spline bases, ~0.1 Ω on the sinusoidal basis, and
 the accelerators solve it on their fast paths), and PyNEC honours both
-natively. The far-field pattern uses the real εr/σ on every basis.
+natively — with one caveat: PyNEC's (nec2++'s) Sommerfeld solve is
+known-unreliable for conductors within 0.1λ of the ground that don't
+touch it (low radials, half-squares, slopers — the engine warns; use a
+momwire engine as the reference in that configuration). The far-field
+pattern uses the real εr/σ on every basis.
 Whatever runs, the solve readout's **ground** row reports the model that
 was actually used, and over a finite ground the
 [norm check](#norm-check--is-the-solve-trustworthy) readout becomes a
