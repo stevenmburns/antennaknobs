@@ -107,3 +107,79 @@ def test_ge_flag_stays_zero_when_nothing_touches_ground():
     assert eng_free._ge_flag() == 0
     eng_gnd = PyNECEngine(_GroundedMonopole(), ground="pec")
     assert eng_gnd._ge_flag() == 1
+
+
+# ---------------------------------------------------------------------------
+# gn 2 near-ground defect warning (issue #448)
+# ---------------------------------------------------------------------------
+#
+# nec2++'s Sommerfeld solve is known-unreliable for near-ground conductors
+# that aren't plain grounded verticals (measured against nec2c/nec2dxs/
+# momwire agreement on the wild corpus). The engine warns on the calibrated
+# risk predicate; these tests pin when it fires and — as importantly — when
+# it must not.
+
+_GN2 = ("finite", 10.0, 0.002)
+
+
+def _warns_gn2(builder, ground):
+    import warnings as _w
+
+    with _w.catch_warnings(record=True) as rec:
+        _w.simplefilter("always")
+        PyNECEngine(builder, ground=ground).impedance()
+    return sum(
+        1
+        for x in rec
+        if issubclass(x.category, RuntimeWarning) and "gn 2" in str(x.message)
+    )
+
+
+def test_somm_low_horizontal_wire_warns_once():
+    """A flat dipole at 0.03 wavelength over gn 2 is squarely in the broken
+    class (the golden capture's own minimal repro); one warning per engine
+    instance even across repeated solves."""
+    import warnings as _w
+
+    eng = PyNECEngine(_flat_dipole(0.3), ground=_GN2)
+    with _w.catch_warnings(record=True) as rec:
+        _w.simplefilter("always")
+        eng.impedance()
+        eng.impedance()
+    hits = [x for x in rec if "gn 2" in str(x.message)]
+    assert len(hits) == 1
+    assert "#448" in str(hits[0].message)
+
+
+def test_somm_low_hanging_open_end_warns():
+    """Half-square/bobtail/sloper class: a vertical whose open end hangs
+    near the plane without touching it (connectivity path of the risk
+    predicate — no horizontal wire anywhere near the ground)."""
+    from types import MappingProxyType
+
+    from antennaknobs import AntennaBuilder
+
+    class HalfSquareish(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 28.57})
+
+        def build_wires(self):
+            lam = 299.792458 / 28.57
+            top = 0.3 * lam
+            return [
+                ((0.0, 0.0, 0.3), (0.0, 0.0, top), 15, 1 + 0j),  # hangs at 0.3 m
+                ((0.0, 0.0, top), (0.0, 0.5 * lam, top), 21, None),
+                ((0.0, 0.5 * lam, top), (0.0, 0.5 * lam, 0.3), 15, None),
+            ]
+
+    assert _warns_gn2(HalfSquareish(), _GN2) == 1
+
+
+def test_somm_warning_exemptions():
+    """No warning for: elevated structure on gn 2; the same low structure on
+    the reflection-coefficient ground (gn 0 stays faithful); and a plain
+    ground-connected vertical — even split into wires with an interior
+    joint below 0.1 wavelength (the connectivity analysis, not a naive
+    endpoint-height test, is what exempts it)."""
+    assert _warns_gn2(_flat_dipole(4.0), _GN2) == 0
+    assert _warns_gn2(_flat_dipole(0.3), ("finite-fast", 10.0, 0.002)) == 0
+    assert _warns_gn2(_GroundedMonopole(), _GN2) == 0

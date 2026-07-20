@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 import numpy as np
 import PyNEC as nec
@@ -42,6 +43,58 @@ WIRE_CONDUCTIVITY = None
 DEFAULT_GROUND = ("finite", 10.0, 0.002)  # (kind, dielectric, conductivity)
 
 
+def _somm_low_wire_risk(tups, wavelength):
+    """Geometry classes where nec2++'s gn 2 Sommerfeld is known-unreliable
+    (issue #448): near-ground conductor that is not a plain grounded
+    vertical. True when either
+
+      (a) some wire endpoint sits in (0, 0.1λ) on a connected component
+          with no z = 0 point (low radial fields at small height, hanging
+          open ends of half-squares / bobtails / slopers), or
+      (b) some wire runs horizontally (> 0.05λ horizontal extent) with
+          both endpoints below 0.1λ (beverages and other low runs, which
+          break even when their ends ARE grounded).
+
+    Ground-connected verticals — including ones split into several wires
+    with interior joints below 0.1λ — are exempt via the connectivity
+    analysis in (a); they are the empirically clean class. Calibrated on
+    the wild corpus (2026-07-20): the union covers 19/19 decks where
+    PyNEC's gn 2 broke against an agreeing nec2c+momwire pair.
+    """
+    lo, hi = 1e-6 * wavelength, 0.1 * wavelength
+
+    # (b) low horizontal run
+    for tup in tups:
+        p1, p2 = tup[0], tup[1]
+        horiz = float(np.hypot(p2[0] - p1[0], p2[1] - p1[1]))
+        if horiz > 0.05 * wavelength and max(float(p1[2]), float(p2[2])) < hi:
+            return True
+
+    # (a) near-ground endpoint on an ungrounded component: union-find over
+    # (rounded) endpoint coordinates.
+    pts: dict = {}
+
+    def pid(pt):
+        key = (round(float(pt[0]), 6), round(float(pt[1]), 6), round(float(pt[2]), 6))
+        return pts.setdefault(key, len(pts))
+
+    edges = [(pid(t[0]), pid(t[1])) for t in tups]
+    parent = list(range(len(pts)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    grounded = {find(i) for key, i in pts.items() if key[2] <= lo}
+    return any(lo < key[2] < hi and find(i) not in grounded for key, i in pts.items())
+
+
 class PyNECEngine(SimulationEngine):
     supports_far_field = True
     # NEC's source placement uses (n_seg+1)//2, which lands on the centre
@@ -64,7 +117,13 @@ class PyNECEngine(SimulationEngine):
           "pec"                          — perfectly conducting ground
           ("finite", eps_r, sigma)       — Sommerfeld-Norton finite ground
                                            (default, matches the historical
-                                           hard-coded eps_r=10, sigma=0.002)
+                                           hard-coded eps_r=10, sigma=0.002).
+                                           CAVEAT (#448): nec2++'s gn 2 is
+                                           known-unreliable for conductors
+                                           within 0.1λ of the plane that
+                                           don't touch it — the engine warns
+                                           and momwire/nec2c should be
+                                           trusted there.
           ("finite-fast", eps_r, sigma)  — finite ground via NEC's reflection-
                                            coefficient approximation. Much
                                            cheaper than Sommerfeld and within
@@ -130,6 +189,8 @@ class PyNECEngine(SimulationEngine):
         # Network, the engine drives ex_card/tl_card calls off the spec instead.
         self.tls = [] if self._network is not None else builder.build_tls()
         self.ground = ground
+        # One warning per instance for the gn 2 near-ground defect (#448).
+        self._somm_lowz_warned = False
         self.excitation_pairs = None
         # Fraction of input power radiated; set by current_distribution() when
         # the design carries resistive loads (e.g. a terminated rhombic). The
@@ -715,7 +776,49 @@ class PyNECEngine(SimulationEngine):
             c.ex_card(0, tag, seg, 0, v.real, v.imag, 0, 0, 0, 0)
         return c
 
+    def _warn_if_somm_low_wires(self, wavelength):
+        """nec2++'s Sommerfeld (gn 2) solve is known-unreliable for conductors
+        that run NEAR the ground plane (issue #448).
+
+        Measured (momwire's golden-capture controls, 2026-07-06, and the
+        wild-corpus triage, 2026-07-20): on identical geometry PyNEC's gn 2
+        agrees with nec2c/nec2dxs/momwire to well under 1% for structure
+        0.1λ and higher, and for plain ground-connected verticals (the
+        z = 0 junction NEC handles specially) — but low radial fields,
+        low-hanging open ends (half-squares, bobtails, slopers), and long
+        low horizontal runs (beverages) put the solve in an erratic
+        regime: reflection-coefficient (gn 0) results on the same deck
+        stay faithful while gn 2 lands ~7–8× off in the real part (e.g.
+        9.5 − 70.9j vs the three-way-agreed 32.1 − 3.5j on a 300 MHz
+        monopole with radials at 0.002λ). The risk predicate below —
+        a near-ground endpoint on a component not connected to z = 0, OR
+        any low horizontal run — covers all 19 wild-corpus decks where
+        PyNEC broke against an agreeing nec2c+momwire pair, and exempts
+        plain grounded verticals. The defect is erratic, so a clean
+        result on a flagged geometry is luck, not health: trust momwire
+        or nec2c there. Warns once per engine instance.
+        """
+        if self._somm_lowz_warned or not (
+            isinstance(self.ground, tuple) and self.ground[0] == "finite"
+        ):
+            return
+        if _somm_low_wire_risk(self.tups, wavelength):
+            self._somm_lowz_warned = True
+            warnings.warn(
+                "PyNEC/nec2++'s Sommerfeld ground (gn 2) is known-"
+                "unreliable for conductors running within 0.1 wavelength "
+                "of the ground plane (low radials, low open ends, low "
+                "horizontal runs — antennaknobs #448): results in this "
+                "configuration are erratic even when they look plausible. "
+                "Use a momwire engine (or nec2c) as the reference here, or "
+                "the 'finite-fast' reflection-coefficient ground for "
+                "comparisons.",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+
     def _set_freq_and_execute(self):
+        self._warn_if_somm_low_wires(C_LIGHT / (self.builder.freq * 1e6))
         self.c.fr_card(0, 1, self.builder.freq, 0)
         self.c.xq_card(0)
 
@@ -753,6 +856,7 @@ class PyNECEngine(SimulationEngine):
     def impedance(self, sum_currents=False):
         if self._use_reducer:
             wl = C_LIGHT / (self.builder.freq * 1e6)
+            self._warn_if_somm_low_wires(wl)
             return self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
         self._set_freq_and_execute()
         return self._impedances_at(0, sum_currents=sum_currents)
@@ -761,6 +865,8 @@ class PyNECEngine(SimulationEngine):
         freqs = np.asarray(freqs, dtype=float)
         if freqs.ndim != 1 or freqs.size == 0:
             raise ValueError("freqs must be a 1-D non-empty array")
+        # Shortest wavelength in the sweep flags the most wires — check once.
+        self._warn_if_somm_low_wires(C_LIGHT / (float(freqs.max()) * 1e6))
         if self._use_reducer:
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for k, f in enumerate(freqs):
