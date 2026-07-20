@@ -63,7 +63,12 @@ threading; see the benchmark docs for full tables.
   `free ≈ PEC < reflection-coefficient < Sommerfeld`.** PEC is nearly free
   (image method, no material solve); the reflection-coefficient ground runs
   ~1.5–3× a free-space solve on the dense bases; the full Sommerfeld ground
-  ~2–5× — the reason it stays opt-in in the UI.
+  ~2–5×. Since momwire 0.15.0 that Sommerfeld premium is mostly the *first*
+  solve of a session: the interpolation-grid fill grows linearly with
+  antenna size (not quadratically) and is reused across a band's
+  frequencies, so warm sweep ticks on the momwire bases undercut even
+  PyNEC's per-tick steady state on 86/90 catalog designs — see the
+  [session benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-19-somm-session-benchmark.md).
 - **ACA earns its place on `rhombic`** — fastest engine free-space (~4.0 s,
   beating PyNEC and every dense basis, scaling ~2×/step where dense solvers go
   ~5×/step), and under Sommerfeld the low-rank structure survives (the smooth

@@ -196,10 +196,11 @@ The selector describes what the ground **is**, independent of solver:
 Every solver then offers the same method sub-choice — full
 **Sommerfeld/Norton** (most accurate, the reference below ~0.1λ heights)
 vs. the **reflection-coefficient** approximation (the default: much
-faster per solve, and fine above ~0.1λ; Sommerfeld is opt-in because its
-first solve at each frequency builds an interpolation grid — so the
-first sweep takes a few seconds — though repeat solves reuse cached
-grids and run in tens of milliseconds). Since momwire 0.8.0 the choice
+faster per solve, and fine above ~0.1λ; Sommerfeld's first solve of a
+session builds an interpolation grid, but since momwire 0.15.0 that grid
+is reused across a band's frequencies — a sweep pays a few fills on its
+first pass, then every repeat sweep and knob-drag tick runs warm in tens
+of milliseconds). Since momwire 0.8.0 the choice
 is uniform: every momwire solver honours both models (Sommerfeld
 validated against an independent NEC-2 implementation down to 0.02λ —
 within ~2.4 Ω on the B-spline bases, ~0.1 Ω on the sinusoidal basis, and
