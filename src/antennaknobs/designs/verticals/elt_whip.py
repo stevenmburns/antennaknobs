@@ -12,15 +12,22 @@ paths and segment boundaries reproduce the deck to well under 0.1 mm
 truncated literal .216506). The structure:
 
   * **Whip** — a thin lower section (fed on its bottom segment, exactly where
-    the deck's EX card drives it) and a thicker upper section.
+    the deck's EX card drives it) and a thicker upper section, whose segment
+    count scales with ``nominal_nsegs`` via ``segs_for`` (28 at the default
+    mesh, matching the deck; see ``_WHIP_UPPER_REF``).
   * **Cage/sleeve** — a ring of ``num_cage_wires`` verticals at
     ``cage_radius`` around the lower whip, tied by a polygon ring every
-    ``cage_ring_spacing``, bonded to the whip by ``num_spokes`` spokes at
-    ``cage_base`` and to the ground mesh by ``num_posts`` grounded posts.
+    ``cage_ring_spacing``, bonded to the whip by ``num_spokes`` spokes one
+    ring-spacing up and to the ground mesh by ``num_posts`` grounded posts.
   * **Ground plane** — a wire grid at ``grid_pitch``, trimmed to a rounded
     outline of radius ``plane_radius``, with the central row/column and the
-    centre 2x2 cells re-meshed at ``fine_pitch``, and the feed row split
+    centre 2x2 cells re-meshed at half the grid pitch, and the feed row split
     at the post feet (at ``cage_radius``-length segments, as in the deck).
+
+Three quantities the deck fixes are derived rather than exposed as knobs:
+the cage's bottom-ring height (= ``cage_ring_spacing``), the fine-mesh pitch
+(= ``grid_pitch`` / 2), and the upper-whip segment count (from
+``nominal_nsegs``). Reparameterized 2026-07-20.
 
 Every mesh crossing is emitted as a wire *endpoint* junction (unit cell
 edges), so the geometry survives the engines' odd-parity re-segmentation —
@@ -63,6 +70,15 @@ from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Wire, WireSpec
 from antennaknobs.network import Driven, Load, Network, PortOnWire
+
+# Reference length for the thick upper whip's segment count. The deck meshes its
+# 15.75" (0.40005 m) top section into 28 segments; dividing that length by the
+# default nominal_nsegs (21) and multiplying back gives a fixed reference so
+# ``segs_for(whip_upper_len, _WHIP_UPPER_REF)`` reproduces the deck's 28 segments
+# at the default mesh and refines proportionally under a convergence sweep. It is
+# a constant, NOT the live ``whip_upper_len`` — that is what lets ``segs_for``
+# track the wire's length rather than pin the count.
+_WHIP_UPPER_REF = 0.40005 * 21 / 28  # ≈ 0.30004 m
 
 # Half-extent of each ground-grid column, in cells: column i (x = i * pitch)
 # runs to y = +/-extent * pitch. Sampled from the source deck's hand-drawn
@@ -113,14 +129,16 @@ class Builder(AntennaBuilder):
         {
             "freq": 406.0,  # MHz — deck FR sweep centre (400-412)
             "height": 1.0,  # metres above the app's ground plane
-            # Whip (deck: 7" thin fed section + 15.75" thick top section)
+            # Whip (deck: 7" thin fed section + 15.75" thick top section). The
+            # upper section's segment count derives from nominal_nsegs via
+            # segs_for (28 at the default mesh); see _WHIP_UPPER_REF.
             "whip_lower_len": 0.1778,
             "whip_upper_len": 0.40005,
-            "whip_upper_segs": 28,
             # Cage/sleeve around the lower whip (deck: 12 wires at 0.25",
-            # rings every 0.5", 2 grounded posts, 4 spokes at z = 0.5")
+            # rings every 0.5", 2 grounded posts, 4 spokes at z = 0.5"). The
+            # cage's bottom ring (and the feed segment) sits one ring-spacing up,
+            # so cage_base is derived from cage_ring_spacing, not a knob.
             "cage_radius": 0.00635,
-            "cage_base": 0.0127,
             "cage_ring_spacing": 0.0127,
             "num_cage_wires": 12,
             "num_posts": 2,
@@ -131,10 +149,11 @@ class Builder(AntennaBuilder):
             # leaving that post a plain wire.
             "post_l_nh": 90.0,
             "post_c_pf": 3.0,
-            # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh)
+            # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh). The
+            # fine centre mesh runs at half the grid pitch (fixed 2× subdivision),
+            # so fine_pitch is derived from grid_pitch, not a knob.
             "plane_radius": 1.2192,
             "grid_pitch": 0.0508,
-            "fine_pitch": 0.0254,
             "wire_radius": 0.000254,
             # The thick top whip section's own radius (deck: 0.035");
             # rides as a per-wire spec on just that wire (issue #388).
@@ -150,7 +169,6 @@ class Builder(AntennaBuilder):
                     # tabs honest: (key, label, freq, min, max).
                     "bands": (("406", "406 MHz", 406.0, 400.0, 412.0),),
                     # integer knobs, not continuous lengths
-                    "whip_upper_segs": {"min": 4, "max": 56, "step": 1},
                     "num_cage_wires": {"min": 4, "max": 24, "step": 1},
                     "num_posts": {"min": 0, "max": 4, "step": 1},
                     "num_spokes": {"min": 0, "max": 12, "step": 1},
@@ -165,10 +183,10 @@ class Builder(AntennaBuilder):
         h = self.height
         pitch = self.grid_pitch
         n = max(2, round(self.plane_radius / pitch))  # plane radius, in cells
-        s = max(1, round(pitch / self.fine_pitch))  # fine cells per cell
+        s = 2  # fine cells per coarse cell — fine mesh at grid_pitch / 2
         r = max(1e-6, self.cage_radius)
-        base = self.cage_base
         spacing = self.cage_ring_spacing
+        base = spacing  # cage bottom ring / feed segment: one ring-spacing up
         l1 = self.whip_lower_len
         m_cage = max(3, round(self.num_cage_wires))
         n_posts = max(0, round(self.num_posts))
@@ -208,7 +226,7 @@ class Builder(AntennaBuilder):
             Wire(
                 (0.0, 0.0, l1 + h),
                 (0.0, 0.0, l1 + self.whip_upper_len + h),
-                max(1, round(self.whip_upper_segs)),
+                self.segs_for(self.whip_upper_len, _WHIP_UPPER_REF),
                 spec=WireSpec(radius=self.whip_upper_radius),
             )
         )
