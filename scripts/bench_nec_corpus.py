@@ -915,6 +915,219 @@ def superposition_reference(text: str, name: str, timeout: float, mem_bytes=None
     }
 
 
+def _nec2c_network_tables(deck_text: str, timeout: float, mem_bytes=None):
+    """Run nec2c on prepared text and return the first frequency's network
+    readout: ``{"freq": MHz, "struct": {(tag, abs_seg): (V, I, Z)},
+    "aip": {(tag, abs_seg): (V, I, Z)}, "error": str|None}``.
+
+    ``struct`` is the STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS
+    table (printed only when NT/TL cards are present), ``aip`` the ANTENNA
+    INPUT PARAMETERS table. Both key on (tag number, ABSOLUTE segment number)
+    — that is what nec2c prints in its SEG column, not the within-tag rank an
+    EX card uses. Values are complex (voltage, current, impedance) columns.
+    Parsing stops after the first ANTENNA INPUT PARAMETERS block with data so
+    a multi-frequency FR sweep reads like ``run_nec2c``: first frequency only.
+    """
+    if shutil.which("nec2c") is None:
+        return {"error": "nec2c not on PATH"}
+    with tempfile.TemporaryDirectory(prefix="nec_") as d:
+        nec = Path(d) / "d.nec"
+        out = Path(d) / "d.out"
+        nec.write_text(deck_text)
+        try:
+            subprocess.run(
+                ["nec2c", "-i", str(nec), "-o", str(out)],
+                capture_output=True,
+                timeout=timeout,
+                preexec_fn=_rlimit_preexec(mem_bytes) if mem_bytes else None,
+            )
+        except subprocess.TimeoutExpired:
+            return {"error": f"nec2c timeout >{timeout:.0f}s"}
+        if not out.exists():
+            return {"error": "nec2c produced no output"}
+        lines = out.read_text(errors="replace").splitlines()
+
+    def read_rows(i, rows):
+        j = i + 3  # header + units row, then data rows
+        while j < len(lines) and lines[j].strip():
+            toks = lines[j].split()
+            if len(toks) >= 8:
+                try:
+                    tag, seg = int(toks[0]), int(toks[1])
+                    vals = [float(t) for t in toks[2:8]]
+                except ValueError:
+                    j += 1
+                    continue
+                if not all(math.isfinite(v) for v in vals):
+                    return False
+                rows[(tag, seg)] = (
+                    complex(vals[0], vals[1]),
+                    complex(vals[2], vals[3]),
+                    complex(vals[4], vals[5]),
+                )
+            j += 1
+        return True
+
+    freq, struct, aip = None, {}, {}
+    for i, ln in enumerate(lines):
+        m = _FREQ_RE.search(ln)
+        if m:
+            freq = float(m.group(1))
+        if "STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS" in ln:
+            if not read_rows(i, struct):
+                return {"error": "nec2c network solve returned NaN"}
+        elif "ANTENNA INPUT PARAMETERS" in ln:
+            if not read_rows(i, aip):
+                return {"error": "nec2c solve returned NaN"}
+            if aip:
+                return {"freq": freq, "struct": struct, "aip": aip, "error": None}
+    return {"error": "no ANTENNA INPUT PARAMETERS block"}
+
+
+def gyrator_reference(text: str, name: str, deck, timeout: float, mem_bytes=None):
+    """EX 6 current-source reference via 4nec2's NT-gyrator emulation (#475).
+
+    This is byte-for-byte how the authoring tool itself runs an ``EX 6`` deck
+    on a stock NEC-2 kernel (verified against 4nec2/NEC-2D on the #463 decks,
+    agreement <0.2%): per current source, append
+
+    1. a phantom 1-segment wire parked far above the structure (4nec2 uses
+       Z ≈ 9901+n m; here 10x the structure extent + 200 wavelengths);
+    2. an ``NT`` gyrator tying phantom -> real feed segment with Y11=Y22=0,
+       Y12=Y21=j, which forces current -j*V_phantom into the real segment
+       independent of what it is loaded with;
+    3. an ``EX 0`` voltage source V = j*I_req on the phantom, so the delivered
+       current is exactly the requested phasor.
+
+    Unlike the R_BIG emulation (#442) there is nothing to subtract, and unlike
+    the Y-matrix superposition (#463) there is no N-solve linear recovery: the
+    deck's own TL/NT cards compose natively with the gyrators in ONE nec2c
+    solve, and mixed EX 0 + EX 6 decks work too (the voltage cards stay put).
+
+    The readout gotcha: with a gyrator, ANTENNA INPUT PARAMETERS reports the
+    phantom port (nonsense values), and at a feed segment shared with a TL the
+    STRUCTURE EXCITATION DATA row's IMPEDANCE column is V/I_wire — the wire
+    current EXCLUDES what the co-located network carries away, so that column
+    is wrong exactly where it matters. The row's VOLTAGE column is the true
+    port voltage though, and the gyrator forces the port current exactly, so
+    the driving-point impedance is read as Z_i = V_row / I_req,i. Voltage
+    (EX 0) feeds of a mixed deck read their ANTENNA INPUT PARAMETERS row
+    verbatim (nec2c's impedance there already includes network current).
+
+    Returns a ``run_nec2c``-shaped dict (``z`` per feed in EX-card order,
+    ``gyrator``/``resolved_deck`` flags set) or an error dict; ``None`` if the
+    deck has no EX 6 sources (not this path's job).
+    """
+    feeds = deck.feeds
+    if not any(f.current for f in feeds):
+        return None
+    if any(f.current and f.voltage == 0 for f in feeds):
+        return {"error": "gyrator: a feed has zero drive current"}
+    try:
+        base = reference_deck(text, name, ex6="drop").splitlines()
+    except ValueError as e:
+        return {"error": f"gyrator reference_deck: {e}"}
+
+    # Wavelength from the first FR card (same pre-scan as reference_deck).
+    fr_first_mhz = 299.8
+    for ln in base:
+        toks = ln.split()
+        if toks[0] == "FR" and len(toks) > 5:
+            try:
+                fr_first_mhz = float(toks[5]) or fr_first_mhz
+            except ValueError:
+                pass
+            break
+    lam = 299.792458 / fr_first_mhz
+
+    # nec2c numbers segments in wire-definition order; the EX card's
+    # within-tag rank was already resolved to (wire, seg) by the importer,
+    # so the absolute segment number is a cumulative count away.
+    seg_base, acc = [], 0
+    for w in deck.wires:
+        seg_base.append(acc)
+        acc += w.n_seg
+
+    def abs_seg(f):
+        return seg_base[f.wire] + f.seg
+
+    maxtag = max(w.tag for w in deck.wires)
+    maxc = max(abs(c) for w in deck.wires for p in (w.p1, w.p2) for c in p)
+    # Far enough that phantom<->structure coupling is negligible (the phantom
+    # carries ~|Y_phantom*V_port| ~ 1e-4 A per volt), high rather than lateral
+    # so a Sommerfeld ground stays comfortable. Phantom wires only exist in
+    # this nec2c deck — engines never see them (cf. the momwire #157 cap).
+    zbase = 10.0 * maxc + 200.0 * lam
+    plen = lam / 50.0
+    prad = plen / 200.0
+
+    ge_i = next((i for i, ln in enumerate(base) if ln.split()[0] == "GE"), None)
+    if ge_i is None:
+        return {"error": "gyrator: deck has no GE card"}
+    exec_i = next(k for k, ln in enumerate(base) if ln.split()[0] in ("XQ", "RP"))
+
+    gws, nts, exs = [], [], []
+    cur_feeds = [f for f in feeds if f.current]
+    for j, f in enumerate(cur_feeds):
+        ptag = maxtag + 1 + j
+        x0 = j * 10.0 * plen
+        gws.append(f"GW {ptag} 1 {x0!r} 0 {zbase!r} {x0 + plen!r} 0 {zbase!r} {prad!r}")
+        # Port 2 as tag 0 + absolute segment number (NEC's tag-0 convention)
+        # — sidesteps recomputing the within-tag rank.
+        nts.append(f"NT {ptag} 1 0 {abs_seg(f)} 0 0 0 1 0 0")
+        v = 1j * f.voltage  # delivered current at port 2 is -j * V_src
+        exs.append(f"EX 0 {ptag} 1 0 {v.real!r} {v.imag!r}")
+
+    # NEC-2 requires all NT/TL cards of one network configuration to be
+    # contiguous — a network card read after any non-network card DESTROYS
+    # the previous network data (this silently dropped DipTL's TL until the
+    # gyrator NTs were spliced adjacent to it). ALL EX cards go last, just
+    # before the execute request: nec2c also drops voltage sources that
+    # precede an FR or NT card (the same reset family as reference_deck's
+    # LD-after-EX hoist), so a mixed deck's own EX 0 cards are re-emitted
+    # there in original order rather than left in place.
+    last_net = max(
+        (k for k, ln in enumerate(base) if ln.split()[0] in ("TL", "NT")),
+        default=None,
+    )
+    nt_at = last_net + 1 if last_net is not None else exec_i
+    ex_deck = [ln for ln in base[:exec_i] if ln.split()[0] == "EX"]
+    mid = [ln for ln in base[ge_i:nt_at] if ln.split()[0] != "EX"]
+    tail = [ln for ln in base[nt_at:exec_i] if ln.split()[0] != "EX"]
+    out = base[:ge_i] + gws + mid + nts + tail + ex_deck + exs + base[exec_i:]
+    res = _nec2c_network_tables("\n".join(out) + "\n", timeout, mem_bytes)
+    if res.get("error"):
+        return {"error": f"gyrator: {res['error']}"}
+
+    z_out = []
+    for f in feeds:
+        key = (deck.wires[f.wire].tag, abs_seg(f))
+        if f.current:
+            row = res["struct"].get(key)
+            if row is None:
+                return {
+                    "error": f"gyrator: no network-connection row for "
+                    f"tag {key[0]} seg {key[1]}"
+                }
+            z = row[0] / f.voltage  # V_port / I_forced
+        else:
+            row = res["aip"].get(key)
+            if row is None:
+                return {
+                    "error": f"gyrator: no input-parameters row for "
+                    f"tag {key[0]} seg {key[1]}"
+                }
+            z = row[2]
+        z_out.append([z.real, z.imag])
+    return {
+        "freq": res["freq"],
+        "z": z_out,
+        "error": None,
+        "gyrator": True,
+        "resolved_deck": True,
+    }
+
+
 def feeds_sharing_tl_nt(deck) -> list[int]:
     """Indices of ``deck.feeds`` whose driven segment also anchors a ``TL``
     or ``NT`` endpoint (issue #456).
@@ -1005,15 +1218,24 @@ def bench_deck(
     ref = None
     if not any(ex6_feeds) and not has_dead_trailing_config(text):
         ref = run_nec2c(deck_path, timeout, mem_bytes)
+    # EX 6 decks route to the NT-gyrator emulation first (#475): 4nec2's own
+    # way of running a current source on a NEC-2 kernel — one solve, composes
+    # natively with the deck's TL/NT cards, handles mixed EX 0 + EX 6 decks,
+    # and cross-validated against both 4nec2 itself and the superposition
+    # reference (<0.2%). Falls through to superposition, then R_BIG, so
+    # behaviour is never worse than before.
+    if (ref is None or ref.get("error")) and any(ex6_feeds):
+        gyr = gyrator_reference(text, deck_path.name, deck, timeout, mem_bytes)
+        if gyr is not None and not gyr.get("error"):
+            ref = gyr
     # All-current EX 6 decks (issues #463, #464): the R_BIG emulation can't
     # force the port current cleanly whenever a network shares the driven
     # segment — one solve can't hold N simultaneous currents (#463), and even a
     # single source's series R_BIG is bypassed by a co-located TL/NT so the raw
-    # readout is a composition artifact (#464). Build the reference by Y-matrix
-    # superposition instead — native voltage solves compose the true
-    # driving-point impedances, correct for N ≥ 1 with or without a TL. Falls
-    # through to the R_BIG path if it can't run (e.g. no nec2c) so behaviour is
-    # never worse than before.
+    # readout is a composition artifact (#464). Y-matrix superposition —
+    # native voltage solves composing the true driving-point impedances,
+    # correct for N ≥ 1 with or without a TL — remains the fallback when the
+    # gyrator path can't run.
     if (ref is None or ref.get("error")) and sum(ex6_feeds) >= 1 and all(ex6_feeds):
         sup = superposition_reference(text, deck_path.name, timeout, mem_bytes)
         if sup is not None and not sup.get("error"):
@@ -1119,6 +1341,7 @@ def print_report(rows, engines):
         "network, v = remote TL-anchor wire(s) virtualized (#427),"
         " r = reference from resolved deck (#439),"
         " t = mixed EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456),"
+        " y = EX 6 current-source reference via NT-gyrator emulation (#475),"
         " s = EX 6 current-source reference via Y-matrix superposition (#463, #464),"
         " p = gn 2 + near-ground ungrounded wire: pynec known-unreliable (#448)"
     )
@@ -1137,6 +1360,7 @@ def print_report(rows, engines):
             + ("v" if r.get("virtualized_anchors") else "")
             + ("r" if r.get("nec2c", {}).get("resolved_deck") else "")
             + ("t" if r.get("nec2c", {}).get("ex6_tl_shared") else "")
+            + ("y" if r.get("nec2c", {}).get("gyrator") else "")
             + ("s" if r.get("nec2c", {}).get("superposition") else "")
             + ("p" if r.get("pynec_somm_suspect") else "")
         )
