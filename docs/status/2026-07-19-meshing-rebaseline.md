@@ -109,6 +109,36 @@ outlier bar. Three HFActiveFeed decks remain, in two distinct classes:
   land at ΔΓ ≤ 0.0015. Corrected references: **BRDZPR10 34.9 + 45.1j**,
   **ZLTROM10 33.6 + 28.6j**.
 
+### Addendum (2026-07-20): NT-gyrator reference lands, family fully clears (#475)
+
+The 4nec2 cross-check on #463 revealed how the authoring tool itself runs
+`EX 6` on a stock NEC-2 kernel: a phantom wire + `EX 0` + `NT` gyrator
+(Y12 = Y21 = j) forcing the requested current phasor into the real
+segment. That emulation is now the bench's **primary** EX 6 reference
+(superposition and R_BIG remain as fallbacks) — one nec2c solve, native
+TL/NT composition, mixed EX 0 + EX 6 support, readout
+Z = V_row / I_req from the STRUCTURE EXCITATION DATA table. It agrees
+with 4nec2/NEC-2D to all printed digits on 3vertical/2phased and with the
+superposition route to < 0.2 % everywhere both run.
+
+All 15 family rows (the 13 above + 2phased ×2) were re-run in place
+(backup: `wild-solve-2026-07-18-post455.jsonl.pre475` — the `t` flag is
+retired from live rows; they now carry `y`):
+
+| deck | reference (old → gyrator) | worst engine ΔΓ |
+|---|--:|--:|
+| BRDZPR10 | 88.5−11.6j → 34.9+45.1j | 0.0046 (was 0.58 lockstep) |
+| ZLTROM10 | 217.2+15.8j → 33.6+28.6j | 0.0105 (was 0.78 lockstep) |
+| LOGPERTL | 157.6−43.3j → 122.8−60.3j | 0.0073 (was 0.10) |
+| G3TXQ hexbeam | 54.2+6.6j → 44.4−9.9j | 0.0379 (was 0.19) |
+| 3vertical | −18972+258j → 119.2+165.2j | 0.0025 (was 0.43) |
+| the 8 already-clean + 2phased | unchanged (≤ 0.2 %) | ≤ 0.05 |
+
+Every deck in the class is now within the outlier bar on every engine
+(EDZ_TL's bs1 0.178 residue is pre-existing engine fidelity, not
+reference). #464's "engines lockstep-wrong" verdict is fully overturned:
+the engines were right; the reference was the artifact.
+
 ## Catalog re-baseline
 
 The catalog A/B was done PR-by-PR rather than as a separate sweep — every
