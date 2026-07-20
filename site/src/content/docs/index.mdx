@@ -25,23 +25,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.30.0" icon="star">
-  **Bring your `.nec` files.** The deck importer now reads the NEC that's
-  actually out there — 4nec2's symbolic `SY` variables and expressions,
-  `#14`-style wire gauges, current-source feeds (`EX 6`), LC-traps
-  (`LD 6`), insulated-wire loads (`LD 7` → per-wire jackets the solvers
-  model), reactive loads and line terminations, and the extended thin-wire
-  kernel (`EK`) — validated against **3,146 real-world decks** collected
-  from ARRL course material, 4nec2's model library, and the wider web,
-  with 87% now scoring against reference NEC-2 and the median PyNEC deck
-  agreeing to a reflection-coefficient distance of 0.0001. Meshing got
-  principled to match: the segment counts you (or your deck) ask for are
-  the counts that solve — parity nudges touch only fed wires, short
-  bridges mesh proportionally instead of being over-segmented, and feed
-  gaps refine with the convergence slider, so designs like the
-  [quad](/reference/catalog/) and j-pole now converge flat where they
-  used to drift. Ground-connected verticals also solve correctly on the
-  in-house engines (momwire 0.14.0's ground-junction end conditions).
+<Card title="New in v0.31.0" icon="star">
+  **Sommerfeld ground, session-fast.** The most accurate ground model used
+  to be the one you saved for final checks — every solve paid seconds to
+  tabulate its interpolation grid. momwire 0.15.0 restructures that grid:
+  the fill now grows linearly with antenna size instead of quadratically,
+  and one tabulation is reused across a whole band's frequencies. The
+  first solve of a session still pays once; after that, band sweeps and
+  frequency-knob drags run warm at **10–40 ms per tick on the in-house
+  bases — faster than the NEC-2 reference's own steady state on 86 of 90
+  catalog designs**. Big-antenna cold solves dropped too (the
+  1000-segment terminated long-wire: 6.2 s → 3.1 s), and the whole
+  before/after is measured in the repo's session benchmark.
   [All release notes →](/reference/releases/)
 </Card>
 
