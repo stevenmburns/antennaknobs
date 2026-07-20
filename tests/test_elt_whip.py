@@ -77,7 +77,6 @@ def test_shrunken_knobs_build():
             {
                 "plane_radius": 0.6,
                 "grid_pitch": 0.1016,
-                "fine_pitch": 0.0508,
                 "num_cage_wires": 8,
                 "num_posts": 2,
                 "num_spokes": 4,
