@@ -86,7 +86,7 @@
 | src/antennaknobs/designs/verticals/bruce.py                       |       36 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                  |       24 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                   |       23 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/elt\_whip.py                   |      112 |        2 |     98% |   294-295 |
+| src/antennaknobs/designs/verticals/elt\_whip.py                   |      114 |        2 |     98% |   325-326 |
 | src/antennaknobs/designs/verticals/four\_square.py                |       26 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/half\_square.py                |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/inverted\_l.py                 |       25 |        0 |    100% |           |
@@ -142,7 +142,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      673 |       77 |     89% |66-68, 136-140, 271-272, 358, 412, 559-562, 733, 775, 807, 869, 877-880, 899-911, 914, 939, 954-967, 1015-1017, 1065, 1079, 1108-1109, 1133-1134, 1164, 1218-1225, 1237-1250, 1270, 1273-1274, 1290, 1308-1311, 1327, 1360, 1363, 1371, 1398-1399, 1612, 1673, 1684, 1688, 1739-1740, 1758 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **8656** |  **443** | **95%** |           |
+| **TOTAL**                                                         | **8658** |  **443** | **95%** |           |
 
 
 ## Setup coverage badge
