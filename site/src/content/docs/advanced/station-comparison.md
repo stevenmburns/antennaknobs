@@ -173,10 +173,13 @@ into lobes — the budget is only half of what distinguishes two stations.
 ## What's actually being solved
 
 There is no special-case feedline math anywhere in this page. A design's
-`build_network()` declares **ports** (`PortOnWire` on a wire gap,
-`PortVirtual` for pure circuit nodes), **branches** (`TL`, `TwoPort`, `Shunt`,
-`Transformer`), and **sources** (`Driven`), and the whole thing is solved as
-one MNA circuit coupled to the method-of-moments wire solution. Every branch
+`build_network()` declares **ports** (`PortOnWire` on a wire gap — with
+`distributed=True` when the port should span the named wire's whole fixed
+extent as a mesh-stable finite gap, the right model for TL attachment
+points — and `PortVirtual` for pure circuit nodes), **branches** (`TL`,
+`TwoPort`, `Shunt`, `Transformer`), and **sources** (`Driven`), and the
+whole thing is solved as one MNA circuit coupled to the method-of-moments
+wire solution. Every branch
 current is an explicit unknown, so the watts in the
 [power budget](/reference/web/#power-budget) are *read off the solution*, and
 gain is normalised by input power — network loss is already in the dBi you see.

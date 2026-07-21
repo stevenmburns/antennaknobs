@@ -41,7 +41,7 @@ benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/20
 
 | Antenna class | Use | Why |
 | --- | --- | --- |
-| Single elements, small loops, beams, multiband dipoles | **`sinusoidal`** or **PyNEC** | the dense solve is milliseconds; the accelerators' setup is pure overhead here |
+| Single elements, small loops, beams, multiband dipoles | **`bspline` d=2** (the default), with **`sinusoidal`** / **PyNEC** as cross-checks | all three solve in milliseconds here; d=2 converges at far coarser meshes (see below), the others confirm the answer |
 | Large single-wire structures (rhombic, long-wires, big loops) | **`hmatrix`** (ACA) | sub-quadratic scaling — the only solver that beats PyNEC on `rhombic` at high segmentation |
 | Arrays of identical / few-shape elements (loop/bowtie arrays, LPDA) | **`arrayblock`** | 7–12× faster than PyNEC on large arrays; near-linear scaling |
 
@@ -87,8 +87,17 @@ threading; see the benchmark docs for full tables.
   158 ms), yet loses the log-periodic on every ground model (free: 14 s vs
   ArrayBlock's 1.2 s). "Use PyNEC as the reference" holds for small designs,
   not arrays.
-- **Among dense bases, `sinusoidal` stays fastest** on small/medium single
-  structures — on every ground model.
+- **Among dense bases, `sinusoidal` stays fastest at a FIXED segment
+  count** on small/medium single structures — on every ground model. But
+  the fair comparison is at fixed *accuracy*, and there the
+  [basis-convergence census](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-20-basis-convergence-census.md)
+  (91 designs, meshes N=7–641) flipped the verdict: **B-spline d=2 is
+  already within 2 % of the converged answer at N=15–21 on 80 % of
+  scorable designs**, where the sinusoidal basis needs 3–15× more
+  segments to arrive at the same value — which is why d=2 at N=15 is the
+  workbench's default solve. On port-fed, junction-heavy, and
+  closely-spaced-wire geometry the gap is largest; details and how to
+  check your own design: [How many segments?](/advanced/convergence/)
 
 ## Segments & convergence
 
