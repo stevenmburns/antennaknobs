@@ -1567,7 +1567,7 @@ const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
 // Three abstract solver slots. Each holds one backend choice and its
 // options; the user picks A/B/C with the row of buttons, configures the
 // inhabitants from the per-slot gear menu. Lets the same UI compare
-// e.g. "B-spline d=2 @ N=21" against "B-spline d=1 @ N=40" without
+// e.g. "B-spline d=2 @ N=15" against "B-spline d=1 @ N=20" without
 // losing either setup.
 type Slot = "A" | "B" | "C";
 const SLOT_ORDER: Slot[] = ["A", "B", "C"];
@@ -1590,17 +1590,24 @@ const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
   // A is the default working solver: B-spline d=2 — most accurate per
   // unknown, converged at a small odd N (interior knot at the feed), and
   // its impedance solve honours finite grounds (Triangular, the old,
-  // now-retired default, folded them to the PEC image).
+  // now-retired default, folded them to the PEC image). N=15 per the
+  // basis-convergence census (docs/status/2026-07-20): within 2% of the
+  // basis-agreed limit on 50/66 scorable designs (N=21 buys only 3 more,
+  // all within 2.3%), patterns within 0.05 dB of the fine-mesh reference,
+  // ~35% faster ticks. Odd parity keeps the feed's interior knot.
   A: {
     backend: "bspline",
-    opts: { ...DEFAULT_BACKEND_OPTS.bspline, nPerWire: 21 },
+    opts: { ...DEFAULT_BACKEND_OPTS.bspline, nPerWire: 15 },
   },
   // B is the cross-check basis: B-spline d=1 needs a larger N to reach
   // the same answer (slower), which is what makes agreement with A a
-  // meaningful second opinion rather than the same solve twice.
+  // meaningful second opinion rather than the same solve twice. N=20
+  // trades cross-check tightness for speed (within 2% of the limit on
+  // 45/66 vs 55/66 at the old N=40 — disagreement with A beyond a couple
+  // of percent warrants raising N before suspecting the design).
   B: {
     backend: "bspline",
-    opts: { ...DEFAULT_BACKEND_OPTS.bspline, degree: 1, nPerWire: 40 },
+    opts: { ...DEFAULT_BACKEND_OPTS.bspline, degree: 1, nPerWire: 20 },
   },
   C: {
     backend: "pynec",
