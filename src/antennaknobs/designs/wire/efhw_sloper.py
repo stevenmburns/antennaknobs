@@ -63,14 +63,14 @@ from antennaknobs import AntennaBuilder, Drone
 from antennaknobs.network import (
     CABLES,
     Driven,
+    Instance,
     Network,
     PortOnWire,
     PortVirtual,
-    Shunt,
     TL,
-    Transformer,
     WIRES,
 )
+from antennaknobs.station import unun
 
 # unun_ratio dropdown → transformer turns ratio (feed side : rig side).
 # Impedance steps down by turns²: 49:1, 64:1, 225:4 (= 56.25:1).
@@ -184,26 +184,26 @@ class Builder(AntennaBuilder):
         return wires
 
     def build_network(self):
-        turns = UNUN_TURNS[self.unun_ratio]
-        branches = [
-            # Step-down unun: rig side "pri" sees Z_feed / turns².
-            Transformer(
-                a="pri",
-                b="ant",
-                n=1.0 / turns,
-                lmag=self.lmag_uH * 1e-6,
-                qlmag=self.qlmag if self.qlmag > 0 else None,
-            ),
-        ]
-        if self.comp_c_pF > 0:
-            branches.append(Shunt(port="pri", c=self.comp_c_pF * 1e-12))
-        branches.append(TL.from_cable(self.cable, "rig", "pri", self.line_len_m))
         return Network(
             ports={
                 "ant": PortOnWire("ant"),
-                "pri": PortVirtual("pri"),
+                "pri": PortVirtual("pri"),  # unun line-side terminals
                 "rig": PortVirtual("rig"),
             },
-            branches=branches,
+            branches=[
+                # Step-down unun: the line side "pri" sees Z_feed / turns².
+                Instance(
+                    "unun",
+                    unun(
+                        turns=UNUN_TURNS[self.unun_ratio],
+                        lmag_H=self.lmag_uH * 1e-6,
+                        qlmag=self.qlmag if self.qlmag > 0 else None,
+                        comp_c_F=self.comp_c_pF * 1e-12 if self.comp_c_pF > 0 else None,
+                    ),
+                    line="pri",
+                    ant="ant",
+                ),
+                TL.from_cable(self.cable, "rig", "pri", self.line_len_m),
+            ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )

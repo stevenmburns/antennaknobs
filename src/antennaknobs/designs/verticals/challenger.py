@@ -35,12 +35,13 @@ from types import MappingProxyType
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import (
     Driven,
+    Instance,
     Network,
     PortOnWire,
     PortVirtual,
-    Transformer,
     WireSpec,
 )
+from antennaknobs.station import unun
 
 _IN = 0.0254
 
@@ -139,13 +140,16 @@ class Builder(AntennaBuilder):
         return Network(
             ports={"ant": PortOnWire("ant"), "rig": PortVirtual("rig")},
             branches=[
-                Transformer(
-                    a="rig",
-                    b="ant",
-                    n=1.0 / self.turns,
-                    lmag=self.lmag_uH * 1e-6,
-                    qlmag=self.qlmag if self.qlmag > 0 else None,
-                )
+                Instance(
+                    "unun",
+                    unun(
+                        turns=self.turns,
+                        lmag_H=self.lmag_uH * 1e-6,
+                        qlmag=self.qlmag if self.qlmag > 0 else None,
+                    ),
+                    line="rig",
+                    ant="ant",
+                ),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )

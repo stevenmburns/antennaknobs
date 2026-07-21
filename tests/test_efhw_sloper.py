@@ -61,9 +61,9 @@ def test_budget_itemizes_unun_line_and_wire():
     cap burn nothing; efficiency in the measured-EFHW range."""
     eng = MomwireEngine(Builder(), **GROUND)
     fr = _budget_fractions(eng)
-    assert fr["Transformer pri→ant"] < 1e-9  # no winding R by default
-    assert fr["Shunt pri"] < 1e-9  # ideal comp cap
-    assert 0.002 < fr["Transformer pri→ant (mag)"] < 0.05  # core loss
+    assert fr["unun: Transformer pri→ant"] < 1e-9  # no winding R by default
+    assert fr["unun: Shunt pri"] < 1e-9  # ideal comp cap
+    assert 0.002 < fr["unun: Transformer pri→ant (mag)"] < 0.05  # core loss
     assert 0.02 < fr["TL rig→pri"] < 0.15  # 5 m RG-58
     assert 0.02 < fr["wire loss (I²R)"] < 0.15  # 28 AWG half wave
     assert 0.80 < eng._excited_efficiency < 0.95  # measured 0.873

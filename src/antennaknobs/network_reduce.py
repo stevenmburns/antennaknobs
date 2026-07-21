@@ -322,7 +322,16 @@ class NetworkReducer:
         elements = []
         loads_by_node = {}
         probes = []
-        for br in self.network.branches:
+        # Instance paths (issue #489): branch_paths aligns with branches
+        # ("" for top-level). Budget labels get a "tuner1: " prefix and the
+        # instance's own namespace stripped from its port names, so a
+        # composite's rows group under its instance name.
+        branch_paths = getattr(self.network, "branch_paths", None) or [""] * len(
+            self.network.branches
+        )
+        for br, _bpath in zip(self.network.branches, branch_paths):
+            _short = lambda n, p=_bpath: n[len(p) :] if p and n.startswith(p) else n  # noqa: E731
+            lab = lambda s, p=_bpath: f"{p[:-1]}: {s}" if p else s  # noqa: E731
             if isinstance(br, TL):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
                 y_tl = tl_admittance_2x2(
@@ -335,7 +344,9 @@ class NetworkReducer:
                     k2=br.k2,
                 )
                 G[np.ix_([a, b], [a, b])] += y_tl
-                probes.append((f"TL {br.a}→{br.b}", "group1", ([a, b], y_tl)))
+                probes.append(
+                    (lab(f"TL {_short(br.a)}→{_short(br.b)}"), "group1", ([a, b], y_tl))
+                )
             elif isinstance(br, Admittance):
                 # Fixed complex Y stamped verbatim — no ω scaling, no auxiliary
                 # current (issue #416). A pure node-admittance block, exactly
@@ -344,11 +355,21 @@ class NetworkReducer:
                 yb = np.array(br.y, dtype=np.complex128)
                 G[np.ix_(idxs, idxs)] += yb
                 probes.append(
-                    (f"Admittance {'→'.join(br.ports)}", "group1", (idxs, yb))
+                    (
+                        lab(f"Admittance {'→'.join(map(_short, br.ports))}"),
+                        "group1",
+                        (idxs, yb),
+                    )
                 )
             elif isinstance(br, TwoPort):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
-                probes.append((f"TwoPort {br.a}→{br.b}", "group2", len(elements)))
+                probes.append(
+                    (
+                        lab(f"TwoPort {_short(br.a)}→{_short(br.b)}"),
+                        "group2",
+                        len(elements),
+                    )
+                )
                 elements.append(
                     _series_group2(a, b, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc)
                 )
@@ -360,10 +381,16 @@ class NetworkReducer:
                     )
                     G[k, k] += y_sh
                     probes.append(
-                        (f"Shunt {br.port}", "group1", ([k], np.array([[y_sh]])))
+                        (
+                            lab(f"Shunt {_short(br.port)}"),
+                            "group1",
+                            ([k], np.array([[y_sh]])),
+                        )
                     )
                 else:
-                    probes.append((f"Shunt {br.port}", "group2", len(elements)))
+                    probes.append(
+                        (lab(f"Shunt {_short(br.port)}"), "group2", len(elements))
+                    )
                     elements.append(
                         _series_group2(
                             k, None, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc
@@ -382,7 +409,13 @@ class NetworkReducer:
                 # Ideal ratio + winding R referred to side a: the auxiliary
                 # current j is i_a (into winding A); KCL carries j out of a
                 # and n·j into b; constitutive row v_a − n·v_b − r_w·j = 0.
-                probes.append((f"Transformer {br.a}→{br.b}", "group2", len(elements)))
+                probes.append(
+                    (
+                        lab(f"Transformer {_short(br.a)}→{_short(br.b)}"),
+                        "group2",
+                        len(elements),
+                    )
+                )
                 elements.append(
                     _Group2Element(
                         a,
@@ -404,7 +437,7 @@ class NetworkReducer:
                     G[a, a] += y_mag
                     probes.append(
                         (
-                            f"Transformer {br.a}→{br.b} (mag)",
+                            lab(f"Transformer {_short(br.a)}→{_short(br.b)} (mag)"),
                             "group1",
                             ([a], np.array([[y_mag]])),
                         )

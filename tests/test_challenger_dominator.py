@@ -49,7 +49,7 @@ def _mag_loss_db(builder):
     eng = MomwireEngine(builder, **WORKBENCH)
     eng.current_distribution()
     budget = dict(eng._excited_power_budget)
-    frac = max(0.0, budget["Transformer rig→ant (mag)"]) / eng._excited_p_in
+    frac = max(0.0, budget["unun: Transformer rig→ant (mag)"]) / eng._excited_p_in
     return -10.0 * np.log10(1.0 - frac)
 
 

@@ -17,6 +17,8 @@ __all__ = [
     "WireSpec",
     "Wire",
     "as_wire",
+    "Composite",
+    "Instance",
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
@@ -48,7 +50,7 @@ from .builder import (
 )
 from .design_data import read_data, read_json
 from .nec_import import read_nec
-from .network import Wire, WireSpec, as_wire
+from .network import Composite, Instance, Wire, WireSpec, as_wire
 from .transform import Transform, TransformStack
 from .drone import Drone
 from .sim import Antenna

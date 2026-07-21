@@ -21,7 +21,7 @@ as tiny stub wires at sensible locations.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import NamedTuple, Union
 
 
@@ -476,6 +476,173 @@ def _branch_port_refs(br):
     return (br.port,)  # Load, Shunt
 
 
+def _rewrite_branch(br, ren):
+    """Copy of ``br`` with every port reference passed through ``ren``."""
+    if isinstance(br, Admittance):
+        return replace(br, ports=tuple(ren(p) for p in br.ports))
+    if hasattr(br, "a"):  # TL, TwoPort, Transformer
+        return replace(br, a=ren(br.a), b=ren(br.b))
+    return replace(br, port=ren(br.port))
+
+
+# ---------------------------------------------------------------------------
+# Composite components (issue #489): reusable sub-networks with hierarchy
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Composite:
+    """A reusable sub-network template: a formal port interface plus a body
+    of branches (and, optionally, nested :class:`Instance` s) that reference
+    either those formal ports or private internal nodes.
+
+    Design record: issue #489. The model follows the convergent shape of
+    the HCL survey there ("generators are code, modules are data", Hdl21):
+    a Composite is plain data; *factory functions* like
+    ``station.t_network_tuner(...)`` are the parameter mechanism, so there
+    is no template registry and no formal-parameter machinery — Python
+    call arguments are the parameter list.
+
+    - ``ports`` are the formal external ports. At instantiation each formal
+      is bound to a name in the parent's namespace (`Instance` kwargs — the
+      Verilog named port map).
+    - Any other name a body branch references is an internal node, private
+      to the instance: expansion namespaces it as ``"<instance>.<name>"``
+      and declares it as a `PortVirtual` automatically. Internals cannot be
+      referenced from outside (boundary hygiene — the ROHD lesson).
+    - ``aliases`` merge two of the composite's own names into one electrical
+      node (union-find at expansion). This is how a body connects a formal
+      directly to another formal (a pass-through such as ``station.bypass()``)
+      or surfaces one internal node under several formal names — cases a
+      branch body cannot express (see the #489 aliasing note). SPICE's
+      0 V-source idiom is deliberately NOT the mechanism: aliasing is a
+      naming fact, not an element.
+    - Bodies contain only branches and nested instances. Sources (`Driven`)
+      and geometry ports live at the top level of the design's `Network`.
+    """
+
+    ports: tuple[str, ...]
+    branches: tuple = ()
+    aliases: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self):
+        if len(set(self.ports)) != len(self.ports):
+            raise ValueError(f"duplicate formal port in {self.ports!r}")
+        for item in self.branches:
+            if not isinstance(item, (*Branch.__args__, Instance)):
+                raise ValueError(
+                    f"Composite bodies hold branches or Instances, got {item!r}"
+                    " (sources and geometry ports belong in the Network)"
+                )
+
+
+class Instance:
+    """One instantiation of a :class:`Composite` inside a `Network` (or
+    inside another Composite): ``Instance("tuner1", t_network_tuner(...),
+    rig="rig", out="li")``.
+
+    - ``name`` becomes the namespace prefix for the composite's internal
+      nodes (``"tuner1.m"``) and the power-budget attribution path.
+    - Keyword arguments are the formal/actual port map: every formal port
+      of the composite must be bound to a port name in the parent's
+      namespace (binding one actual to several formals is legal and simply
+      fuses them). Missing or extra formals raise immediately.
+    """
+
+    def __init__(self, name: str, of: Composite, **portmap: str):
+        if not name or "." in name:
+            raise ValueError(
+                f"instance name {name!r} must be non-empty and contain no '.'"
+                " (dots are the namespace separator)"
+            )
+        formals, bound = set(of.ports), set(portmap)
+        if formals != bound:
+            missing, extra = formals - bound, bound - formals
+            raise ValueError(
+                f"instance {name!r} port map mismatch:"
+                + (f" missing formals {sorted(missing)}" if missing else "")
+                + (f" unknown formals {sorted(extra)}" if extra else "")
+                + f"; composite ports are {of.ports!r}"
+            )
+        self.name = name
+        self.of = of
+        self.portmap = dict(portmap)
+
+
+def _expand_instance(inst, formal_to_final, prefix, flat, paths, aliases, internals):
+    """Recursively flatten ``inst`` into ``flat``/``paths``, collecting alias
+    pairs and auto-created internal node names. ``formal_to_final`` maps the
+    composite's formals to FINAL (fully resolved) names; ``prefix`` is the
+    instance path ("tuner1." / "sta.tuner1.")."""
+
+    def resolve(n):
+        if n in formal_to_final:
+            return formal_to_final[n]
+        final = prefix + n
+        internals.add(final)
+        return final
+
+    for item in inst.of.branches:
+        if isinstance(item, Instance):
+            child_map = {f: resolve(a) for f, a in item.portmap.items()}
+            _expand_instance(
+                item, child_map, prefix + item.name + ".",
+                flat, paths, aliases, internals,
+            )  # fmt: skip
+        else:
+            flat.append(_rewrite_branch(item, resolve))
+            paths.append(prefix)
+    for a, b in inst.of.aliases:
+        aliases.append((resolve(a), resolve(b)))
+
+
+def _resolve_aliases(pairs, ports):
+    """Union-find over alias ``pairs``; returns a rename map name → canonical.
+
+    Canonical preference (deterministic): a real `PortOnWire` name beats any
+    virtual (its name is welded to geometry and must never be rewritten),
+    then top-level names beat instance-internal ones (fewer dots), then the
+    shorter / lexicographically-smaller name. Merging two real ports is an
+    error — two distinct geometry locations cannot be fused by naming."""
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in pairs:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    classes = {}
+    for n in parent:
+        classes.setdefault(find(n), []).append(n)
+
+    rename = {}
+    for members in classes.values():
+        real = [n for n in members if isinstance(ports.get(n), PortOnWire)]
+        if len(real) > 1:
+            raise ValueError(
+                f"aliases merge distinct geometry ports {sorted(real)} — "
+                "two real feed locations cannot be fused by naming"
+            )
+        canon = min(
+            members,
+            key=lambda n: (
+                0 if n in real else 1,
+                n.count("."),
+                len(n),
+                n,
+            ),
+        )
+        for n in members:
+            if n != canon:
+                rename[n] = canon
+    return rename
+
+
 def _series_rlc_impedance(r, l, c, omega, ql=None, qc=None):
     """Series R + jωL + 1/(jωC). Any of r/l/c may be None (omitted term).
 
@@ -618,7 +785,15 @@ class Network:
     """Complete network spec returned by `build_network()`.
 
     ports:    dict mapping name → Port (real or virtual)
-    branches: list of Branch (TL / Load / TwoPort)
+    branches: list of Branch (TL / Load / TwoPort / …) — may also contain
+              `Instance` items (issue #489), which are flattened in
+              ``__post_init__``: internal nodes become auto-declared
+              `PortVirtual` s named "<instance>.<node>", composite aliases
+              are resolved by node merging, and each flattened branch's
+              instance path lands in ``branch_paths`` (same order as
+              ``branches``; "" for top-level branches) for power-budget
+              attribution. Engines and reducers only ever see plain
+              branches.
     sources:  list of Source (currently just Driven)
 
     The engine's job: assemble the antenna Y matrix at the real ports,
@@ -629,8 +804,12 @@ class Network:
     ports: dict[str, Port]
     branches: list[Branch] = field(default_factory=list)
     sources: list[Source] = field(default_factory=list)
+    branch_paths: list[str] = field(default_factory=list)
 
     def __post_init__(self):
+        if self.branch_paths:
+            raise ValueError("branch_paths is derived — do not pass it")
+        self._expand_instances()
         for name, port in self.ports.items():
             if port.name != name:
                 raise ValueError(
@@ -646,3 +825,52 @@ class Network:
                 raise ValueError(f"source {src!r} references unknown port")
         if not self.sources:
             raise ValueError("Network has no driven sources")
+
+    def _expand_instances(self):
+        """Flatten `Instance` items (issue #489): namespace internals,
+        resolve aliases, stamp per-branch instance paths."""
+        flat, paths, alias_pairs, internals = [], [], [], set()
+        for item in self.branches:
+            if isinstance(item, Instance):
+                for actual in item.portmap.values():
+                    if actual not in self.ports:
+                        raise ValueError(
+                            f"instance {item.name!r} binds to unknown port "
+                            f"{actual!r} — actuals must be declared Network "
+                            "ports"
+                        )
+                _expand_instance(
+                    item, dict(item.portmap), item.name + ".",
+                    flat, paths, alias_pairs, internals,
+                )  # fmt: skip
+            else:
+                flat.append(item)
+                paths.append("")
+        self.branches = flat
+        self.branch_paths = paths
+        for n in sorted(internals):
+            if n in self.ports:
+                raise ValueError(f"internal node {n!r} collides with a port")
+            self.ports[n] = PortVirtual(n)
+        if not alias_pairs:
+            return
+        rename = _resolve_aliases(alias_pairs, self.ports)
+        if not rename:
+            return
+        ren = lambda n: rename.get(n, n)  # noqa: E731
+        self.branches = [_rewrite_branch(br, ren) for br in self.branches]
+        self.ports = {n: p for n, p in self.ports.items() if n not in rename}
+        merged_sources = []
+        for src in self.sources:
+            src = replace(src, port=ren(src.port))
+            for prev in merged_sources:
+                if prev.port == src.port:
+                    if prev != src:
+                        raise ValueError(
+                            f"aliasing merged conflicting sources on port "
+                            f"{src.port!r}: {prev!r} vs {src!r}"
+                        )
+                    break
+            else:
+                merged_sources.append(src)
+        self.sources = merged_sources

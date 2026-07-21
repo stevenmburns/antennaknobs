@@ -73,9 +73,9 @@ def test_doublet_station_matches_fifty_ohms_with_coil_dominated_loss():
     (z,) = eng.impedance()
     assert abs(z - 50.0) < 1.0  # stock tune lands the rig at ~50 Ω
     fr = _budget_fractions(eng)
-    coil = fr["Shunt m"]
+    coil = fr["tuner: Shunt m"]
     line = fr["TL li→feed"]
-    caps = fr["TwoPort rig→m"] + fr["TwoPort m→li"]
+    caps = fr["tuner: TwoPort rig→m"] + fr["tuner: TwoPort m→li"]
     # The coil is the tuner's loss; the (ideal) caps burn nothing.
     assert coil > 0.02
     assert caps < 1e-6
@@ -85,12 +85,12 @@ def test_doublet_station_matches_fifty_ohms_with_coil_dominated_loss():
 
 
 def test_doublet_coil_loss_scales_with_q():
-    frac_q200 = _budget_fractions(_momwire(DoubletStation()))["Shunt m"]
+    frac_q200 = _budget_fractions(_momwire(DoubletStation()))["tuner: Shunt m"]
     frac_q100 = _budget_fractions(_momwire(_with_params(DoubletStation, coil_q=100.0)))[
-        "Shunt m"
+        "tuner: Shunt m"
     ]
     frac_ideal = _budget_fractions(_momwire(_with_params(DoubletStation, coil_q=0.0)))[
-        "Shunt m"
+        "tuner: Shunt m"
     ]
     assert frac_ideal < 1e-9
     # Halving Q ~doubles the coil's share (the match shifts slightly, so

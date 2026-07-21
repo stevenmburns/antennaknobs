@@ -23,11 +23,12 @@ from antennaknobs.network import (
     CABLES,
     TL,
     Driven,
+    Instance,
     Network,
     PortOnWire,
     PortVirtual,
-    Transformer,
 )
+from antennaknobs.station import balun
 from antennaknobs.designs.dipoles.folded_invvee import Builder as FoldedInvVee
 
 
@@ -78,12 +79,15 @@ class Builder(FoldedInvVee):
             },
             branches=[
                 TL.from_cable(self.cable, "rig", "bal", self.line_len_m),
-                Transformer(
-                    a="bal",
-                    b="feed",
-                    n=self.balun_n,
-                    lmag=self.lmag_uH * 1e-6,
-                    qlmag=self.qlmag if self.qlmag > 0 else None,
+                Instance(
+                    "balun",
+                    balun(
+                        n=self.balun_n,
+                        lmag_H=self.lmag_uH * 1e-6,
+                        qlmag=self.qlmag if self.qlmag > 0 else None,
+                    ),
+                    line="bal",
+                    ant="feed",
                 ),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],

@@ -32,12 +32,12 @@ from types import MappingProxyType
 from antennaknobs.designs.loops.triangular_skyloop import Builder as TriangularSkyloop
 from antennaknobs.network import (
     Driven,
+    Instance,
     Network,
     PortOnWire,
     PortVirtual,
-    Shunt,
-    TwoPort,
 )
+from antennaknobs.station import l_network_tuner
 
 
 class Builder(TriangularSkyloop):
@@ -86,12 +86,19 @@ class Builder(TriangularSkyloop):
         (Z_in = Z_ant). `coil_q > 0` gives the series inductor a finite Q
         (R = ωL/Q, issue #298), turning the matchbox lossy the way a real
         tuner is; 0 keeps the ideal coil."""
-        ql = self.coil_q if self.coil_q > 0 else None
         return Network(
             ports={"feed": PortOnWire("feed"), "in": PortVirtual("in")},
             branches=[
-                TwoPort(a="in", b="feed", l=self.series_L_uH * 1e-6, ql=ql),
-                Shunt(port="feed", c=self.shunt_C_pF * 1e-12),
+                Instance(
+                    "match",
+                    l_network_tuner(
+                        series_l_H=self.series_L_uH * 1e-6,
+                        shunt_c_F=self.shunt_C_pF * 1e-12,
+                        ql=self.coil_q if self.coil_q > 0 else None,
+                    ),
+                    rig="in",
+                    out="feed",
+                ),
             ],
             sources=[Driven(port="in", voltage=1 + 0j)],
         )

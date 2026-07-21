@@ -36,12 +36,12 @@ from types import MappingProxyType
 from antennaknobs.network import (
     TL,
     Driven,
+    Instance,
     Network,
     PortOnWire,
     PortVirtual,
-    Shunt,
-    TwoPort,
 )
+from antennaknobs.station import t_network_tuner
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
 
@@ -120,18 +120,23 @@ class Builder(InvVee):
             ports={
                 "feed": PortOnWire("feed"),
                 "li": PortVirtual("li"),  # line input (tuner output)
-                "m": PortVirtual("m"),  # tee midpoint
                 "rig": PortVirtual("rig"),
             },
             branches=[
                 TL.from_cable("openwire-600", "li", "feed", self.line_len_m),
-                TwoPort(a="rig", b="m", c=self.series_c1_pF * 1e-12),
-                Shunt(
-                    port="m",
-                    l=self.shunt_l_uH * 1e-6,
-                    ql=self.coil_q if self.coil_q > 0 else None,
+                # T-network tuner box; its tee midpoint is the instance's
+                # own internal node ("tuner.m" after expansion).
+                Instance(
+                    "tuner",
+                    t_network_tuner(
+                        c1_F=self.series_c1_pF * 1e-12,
+                        c2_F=self.series_c2_pF * 1e-12,
+                        l_H=self.shunt_l_uH * 1e-6,
+                        ql=self.coil_q if self.coil_q > 0 else None,
+                    ),
+                    rig="rig",
+                    out="li",
                 ),
-                TwoPort(a="m", b="li", c=self.series_c2_pF * 1e-12),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )

@@ -119,8 +119,8 @@ def test_folded_invvee_balun_showcase():
     fr = {
         label: max(0.0, w) / eng._excited_p_in for label, w in eng._excited_power_budget
     }
-    assert fr["Transformer bal→feed"] < 1e-9  # ideal ratio burns nothing
-    assert 0.0 < fr["Transformer bal→feed (mag)"] < 0.01  # tiny at 28 MHz
+    assert fr["balun: Transformer bal→feed"] < 1e-9  # ideal ratio burns nothing
+    assert 0.0 < fr["balun: Transformer bal→feed (mag)"] < 0.01  # tiny at 28 MHz
     assert fr["TL rig→bal"] > 0.25  # RG-8X at 10 m, the familiar ~31%
 
     pynec = pytest.importorskip("antennaknobs.engines.pynec")
