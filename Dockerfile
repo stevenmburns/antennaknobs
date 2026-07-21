@@ -53,7 +53,7 @@ COPY --from=frontend /app/src/antennaknobs/web/static ./src/antennaknobs/web/sta
 # install below sees its requirement already satisfied, then the package with the
 # web extra. All from PyPI (the default index).
 RUN pip install --upgrade pip \
- && pip install "momwire==0.15.0" \
+ && pip install "momwire==0.16.0" \
  && pip install -e ".[web]"
 
 # Optional NEC2 solver (PyNEC) — not a dependency of antennaknobs, installed in
