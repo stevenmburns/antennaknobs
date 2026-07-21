@@ -266,8 +266,10 @@ and **wire weight** rows.
 To check that your chosen N is **converged** — i.e. adding more segments no
 longer moves the impedance — run a **convergence sweep**. It re-solves the
 current antenna across a range of N values and plots the resulting feed-point
-impedance, so you can see where the curve flattens out. Details and how to read
-it: [Segments & convergence](/reference/solver/#segments--convergence).
+impedance, so you can see where the curve flattens out. Basics:
+[Segments & convergence](/reference/solver/#segments--convergence); the full
+method (ladders, cross-basis validation with a second solver slot, and what a
+non-settling curve is telling you): [How many segments?](/advanced/convergence/).
 
 ## Design sessions (tabs)
 
