@@ -89,8 +89,8 @@ def build_network(self):
 
 The stock capacitor and inductor values match ~50 Ω at **7.1 MHz (40 m)**, and
 the budget itemizes the price of the matchbox: with Q = 200, about **3.5 % in
-the line and 4 % in the tuner coil — ~92 % radiated**. That's the ladder-line
-promise kept.
+the line and 4 % in the tuner coil — **~92 % accepted by the antenna**. That's
+the ladder-line promise kept.
 
 Now make the wire *too short* — retune for **80 m** (pick 80m in the
 measurement-band selector, dial the frequency to 3.8, then
@@ -142,11 +142,14 @@ side by side:
 | SWR on the feedline | ≈ 1.4 | ≈ 11 |
 | feedline loss | 24 % | 9 % |
 | tuner coil loss | — | 6 % |
-| **radiated** | **76 %** | **84 %** |
+| **antenna (accepted)** | **76 %** | **84 %** |
 
 (Every number on this page is solved the way the workbench solves it by
 default: finite ground — εr = 10, σ = 0.002, reflection-coefficient model —
-with the B-spline d = 2 solver.)
+with the B-spline d = 2 solver. The budget rows are the *network* ledger:
+the fraction of rig power that survives to the antenna terminals. Wire I²R
+and the ground's absorption come out of what's left — for that accounting,
+see [Three ledgers of efficiency](/advanced/pota-performer/#the-efficiency-claim-true-in-its-ledger).)
 
 What the table says:
 
@@ -157,10 +160,10 @@ What the table says:
   coax loss into disaster (Station A's off-resonance beat, above) costs the
   open-wire line 9 % — total, matched loss included.
 - **The coil takes its cut — and B still wins.** 6 % in the tuner inductor is
-  the price of the matchbox, and the doublet station radiates eight points
-  more anyway.
+  the price of the matchbox, and the doublet station delivers eight points
+  more to the antenna anyway.
 - **The tuner protects the rig, not the watts.** Wreck the match on purpose:
-  drag `shunt_l_uH` from 2.56 to 3.0 and the rig sees SWR 5 — yet radiated
+  drag `shunt_l_uH` from 2.56 to 3.0 and the rig sees SWR 5 — yet accepted
   power doesn't drop at all (84.3 % → 85.2 %). The watts were already decided
   out on the line and in the coil; the match just decides whether your
   transmitter is happy delivering them.

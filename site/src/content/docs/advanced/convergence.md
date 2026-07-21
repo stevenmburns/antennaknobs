@@ -108,7 +108,10 @@ such geometry past segment ≈ spacing (the gap between the parallel
 wires, not the wire radius); prefer the d=2 basis, which was immune in
 every measured case
 ([issue #484](https://github.com/stevenmburns/antennaknobs/issues/484)
-tracks the mechanism).
+tracks the mechanism). Notably, the failure is not a visible oscillation
+— the current stays smooth — but the folded element's near-λ/4 shorted-stub
+mode sits at an antiresonance pole that amplifies a small feed-zone
+coupling error into a wildly wrong reactance.
 
 ## Feeds and ports deserve their own paragraph
 
