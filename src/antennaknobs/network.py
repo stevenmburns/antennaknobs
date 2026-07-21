@@ -40,10 +40,26 @@ class PortOnWire:
     `PortVirtual`, a pure circuit node): it becomes one row/column of the
     antenna's multiport short-circuit Y that the network stamps onto.
 
+    ``distributed=True`` makes the port a FINITE gap spanning the whole
+    named wire instead of a delta gap on one segment: the excitation is a
+    constant field over the wire's fixed physical length (one sub-feed per
+    segment, voltages split by length), and the port row of Y is the
+    length-weighted contraction of the sub-feed rows. A delta gap's
+    readout moves whenever mesh refinement subdivides the port wire (the
+    gap narrows with the segment — issue #477's port-drift class:
+    sterba_tl's pinned ports, zepp's jump when its port wire first
+    subdivides); the finite gap's width is set by geometry, not by the
+    mesh, so the port impedance is mesh-stable by construction and the
+    port wire may refine like every other wire. The value it converges to
+    is the finite-gap answer for THAT physical width — for the short port
+    stubs this models, within a couple percent of the delta-gap limit,
+    and (unlike the pinned delta gap) basis-independent.
+
     Formerly `PortAtEdge` ("edge" in the wire-graph sense, which read as
     "wire end"); that name remains as a deprecated alias."""
 
     name: str
+    distributed: bool = False
 
 
 @dataclass(frozen=True)

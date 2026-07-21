@@ -102,15 +102,18 @@ class Builder(AntennaBuilder):
 
         def edge(ya, yb_, z, name):
             seg_len = abs(yb_ - ya)
-            # Named TL-port edges stay PINNED at 3 segments, deliberately
-            # exempt from the issue-#435 refine-with-the-mesh rule: with 3
-            # the convergence ladder is flat (72.9−16.5j from N=41 up),
-            # while segs_for-refined ports drift away and never settle —
-            # the TL attachment wants a mesh-stable port segment, not a
-            # shrinking one.
-            ns = 3 if name is not None else max(5, round(n0 * seg_len / h))
-            if name is not None and ns % 2 == 0:
-                ns += 1
+            # Named TL-port edges refine like every other wire: the
+            # distributed ports in build_network() span the edge's fixed
+            # physical extent, so the port model no longer narrows as the
+            # mesh refines (issue #477). This retired the old 3-segment
+            # pin, whose flat ladder was flat at a basis-DEPENDENT value
+            # (sin 72.96−16.59j vs bs2 72.64−14.89j); the finite-gap port
+            # is flat at the value the bases agree on.
+            ns = (
+                max(1, round(n0 * seg_len / h))
+                if name is not None
+                else max(5, round(n0 * seg_len / h))
+            )
             tups.append(((0.0, ya, z), (0.0, yb_, z), ns, None, name))
 
         for i in range(n_sections):
@@ -144,15 +147,18 @@ class Builder(AntennaBuilder):
         z0 = self.z0
         length = self._tl_length
 
-        ports = {"feed": PortOnWire("feed")}
+        # Every port is a distributed (finite-gap) port over its short named
+        # edge (issue #477): mesh-stable by construction, so the edges can
+        # refine and the ladder is flat at the basis-agreed value.
+        ports = {"feed": PortOnWire("feed", distributed=True)}
         branches = []
         # One TL per junction j (1..n_sections-1): connects the right-end
         # port of section j-1 to the left-end port of section j — the
         # half-wave vertical phasing line, now ideal.
         for j in range(1, n_sections):
             a, b = f"p{j}_a", f"p{j}_b"
-            ports[a] = PortOnWire(a)
-            ports[b] = PortOnWire(b)
+            ports[a] = PortOnWire(a, distributed=True)
+            ports[b] = PortOnWire(b, distributed=True)
             branches.append(TL(a=a, b=b, z0=z0, length=length))
 
         return Network(

@@ -525,6 +525,11 @@ class PyNECEngine(SimulationEngine):
             return True
         if any(isinstance(p, PortVirtual) for p in net.ports.values()):
             return True
+        # A distributed (finite-gap) port spans every segment of its named
+        # wire (issue #477); there is no native single-EX equivalent, so it
+        # always reduces (the Y contraction lives on that path).
+        if any(isinstance(p, PortOnWire) and p.distributed for p in net.ports.values()):
+            return True
         # A Shunt to common has no native NEC card (there's no 1-port
         # shunt-to-common primitive); always reduce it. Same for the ideal
         # Transformer (issue #301): no NEC card expresses the ideal ratio, and
@@ -611,6 +616,26 @@ class PyNECEngine(SimulationEngine):
                 port_to_idx[name] = next_idx
                 next_idx += 1
         self._reducer = NetworkReducer(net, port_to_idx, next_idx)
+
+        # Per-port drive points (issue #477): a delta-gap port drives its
+        # wire's middle segment with the full port voltage; a distributed
+        # (finite-gap) port drives EVERY segment of its named wire with the
+        # length-split voltage V/S (constant field over the wire's fixed
+        # physical extent) and reads the weighted current Σ wᵢIᵢ — the
+        # bilinear dual, so the port row of Y is the congruence-contracted
+        # sub-feed block and port power is preserved. Mirrors
+        # MomwireEngine's expansion so cross-engine rows mean the same
+        # thing. Weights per (1-based sub-segment): [(seg, w)].
+        name_to_tup = {t[4]: t for t in self.tups if len(t) >= 5 and t[4] is not None}
+        self._port_drive_points = {}
+        for name in self._real_port_names:
+            n_seg = int(name_to_tup[name][2])
+            if net.ports[name].distributed:
+                self._port_drive_points[name] = [
+                    (s, 1.0 / n_seg) for s in range(1, n_seg + 1)
+                ]
+            else:
+                self._port_drive_points[name] = [((n_seg + 1) // 2, 1.0)]
 
     def _make_real_context(self):
         """A fresh nec_context with only the real build_wires() geometry, wire
@@ -752,13 +777,18 @@ class PyNECEngine(SimulationEngine):
         Y = np.zeros((n, n), dtype=np.complex128)
         for j, drv in enumerate(names):
             c, loc = self._make_real_context()
-            tag, seg = loc[drv]
-            c.ex_card(0, tag, seg, 0, 1.0, 0.0, 0, 0, 0, 0)
+            tag = loc[drv][0]
+            for seg, w in self._port_drive_points[drv]:
+                c.ex_card(0, tag, seg, 0, w, 0.0, 0, 0, 0, 0)
             c.fr_card(0, 1, freq, 0)
             c.xq_card(0)
             sc = c.get_structure_currents(0)
             for i, name in enumerate(names):
-                Y[i, j] = self._port_current(sc, *loc[name])
+                tag_i = loc[name][0]
+                Y[i, j] = sum(
+                    w * self._port_current(sc, tag_i, seg)
+                    for seg, w in self._port_drive_points[name]
+                )
             del c
         return Y
 
@@ -771,9 +801,10 @@ class PyNECEngine(SimulationEngine):
         V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wavelength))
         c, loc = self._make_real_context()
         for i, name in enumerate(self._real_port_names):
-            tag, seg = loc[name]
+            tag = loc[name][0]
             v = complex(V[i])
-            c.ex_card(0, tag, seg, 0, v.real, v.imag, 0, 0, 0, 0)
+            for seg, w in self._port_drive_points[name]:
+                c.ex_card(0, tag, seg, 0, (w * v).real, (w * v).imag, 0, 0, 0, 0)
         return c
 
     def _warn_if_somm_low_wires(self, wavelength):

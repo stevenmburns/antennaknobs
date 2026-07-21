@@ -84,9 +84,10 @@ def export_nec(
     eng = PyNECEngine(builder, ground=ground)
     if eng._use_reducer:
         raise NotImplementedError(
-            "NEC export of TL/virtual-driver networks is not supported: "
-            "PyNECEngine solves those by a multiport-Y reduction, not native "
-            "NEC cards, so there is no faithful single-deck representation."
+            "NEC export of TL/virtual-driver networks (and distributed "
+            "finite-gap ports, issue #477) is not supported: PyNECEngine "
+            "solves those by a multiport-Y reduction, not native NEC cards, "
+            "so there is no faithful single-deck representation."
         )
     freq = builder.freq if freq is None else float(freq)
 
