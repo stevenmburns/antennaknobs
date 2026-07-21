@@ -25,18 +25,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.31.0" icon="star">
-  **Sommerfeld ground, session-fast.** The most accurate ground model used
-  to be the one you saved for final checks — every solve paid seconds to
-  tabulate its interpolation grid. momwire 0.15.0 restructures that grid:
-  the fill now grows linearly with antenna size instead of quadratically,
-  and one tabulation is reused across a whole band's frequencies. The
-  first solve of a session still pays once; after that, band sweeps and
-  frequency-knob drags run warm at **10–40 ms per tick on the in-house
-  bases — faster than the NEC-2 reference's own steady state on 86 of 90
-  catalog designs**. Big-antenna cold solves dropped too (the
-  1000-segment terminated long-wire: 6.2 s → 3.1 s), and the whole
-  before/after is measured in the repo's session benchmark.
+<Card title="New in v0.32.0" icon="star">
+  **Convergence you can trust.** A catalog-wide convergence census (91
+  designs, meshes from N=7 to 641) reshaped how antennaknobs solves: the
+  default B-spline d=2 basis turns out to be converged at meshes the
+  NEC-style bases need 3–15× more segments to reach, so the **default
+  solve dropped to N=15 — ~35 % faster live ticks, census-validated to
+  the same answers**. Designs the census caught converging wrongly are
+  fixed (refining radials, mesh-stable **distributed ports** for
+  TL-attachment feeds — the Sterba curtain's nine pinned ports now refine
+  freely and land on one basis-agreed value), and the method itself is
+  written up in a new advanced guide:
+  [How many segments?](/advanced/convergence/)
   [All release notes →](/reference/releases/)
 </Card>
 
