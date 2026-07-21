@@ -51,7 +51,7 @@ the numbers below are the dropdown flipped with everything else constant
 (2:1 SWR window from the band-locked sweep; weight for the full ~10 m of
 wire; loss relative to a perfect conductor):
 
-| wire | weight | 2:1 SWR window | radiated power |
+| wire | weight | 2:1 SWR window | gain vs lossless wire |
 |---|---|---|---|
 | 28 AWG PVC | **17 g** | 550 kHz | −0.36 dB (92 %) |
 | 22 AWG PVC | 53 g | 605 kHz | −0.18 dB (96 %) |

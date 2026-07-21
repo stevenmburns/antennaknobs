@@ -47,7 +47,18 @@ At the stock operating point the budget reads (fractions of input power):
 | unun core loss (magnetizing branch) | ~0.6 % |
 | 5 m RG-58 | ~6.0 % |
 | wire loss (I²R), 28 AWG PVC | ~6.1 % |
-| **radiated** | **~87 %** |
+| **structural efficiency** | **~87 %** |
+
+One label deserves care: that ~87 % is **structural efficiency** — the
+input power not burned in components and conductors — and it is the
+number this page's knobs can move. It is *not* the fraction that leaves
+as sky wave: this sloper runs steep and low, and over average ground
+the dirt takes its share of what the structure delivers. The pattern
+integral puts **radiated (incl. ground) at ~32 %** for the stock 20 m
+setup (~39 % for the 40 m variant below — the flatter 30° slope gives
+back more from the dirt's ledger than its extra wire loss costs). Both
+numbers are true, in different ledgers — the accounting is the subject
+of [Three ledgers of efficiency](/advanced/pota-performer/#the-efficiency-claim-true-in-its-ledger).
 
 Three readings worth taking home:
 
@@ -56,7 +67,7 @@ Three readings worth taking home:
    magnetizing Q; the innocent-looking 28 AWG wire burns six times that,
    because the half-wave's current maximum lives in the middle of the
    thin wire. Flip `wire_type` to 18 AWG PVC and the wire row drops to
-   ~1.9 % (efficiency 91 %) — the same gauge story as
+   ~1.9 % (structural efficiency 91 %) — the same gauge story as
    [wire gauge for POTA](/advanced/wire-gauge/), amplified by the
    end-fed's current distribution. The whole antenna still weighs 18 g
    in 28 AWG.
@@ -71,7 +82,7 @@ Three readings worth taking home:
    and the budget shows what it costs.
 
 The unun defaults (`lmag_uH` = 8, `qlmag` = 10) put the core in the
-85–90 % system-efficiency range measured for FT240-43-class 49:1 builds.
+85–90 % efficiency range bench-measured for FT240-43-class 49:1 builds.
 The model is deliberately minimal — a magnetizing branch with finite Q,
 not a full transformer characterization — so treat the (mag) row as the
 shape of the loss, and tune `qlmag` against a measurement if you have
@@ -91,7 +102,7 @@ physics rather than knob-turning:
   essentially omnidirectional), which is exactly how 40 m POTA operates:
   regional skywave, not DX.
 - **The wire loss doubles.** The longer high-current half wave burns
-  ~10 % in I²R (vs ~6 % on 20 m), for 84 % system efficiency. The 100 pF
+  ~10 % in I²R (vs ~6 % on 20 m), for 84 % structural efficiency. The 100 pF
   comp cap is a 20 m-flavored compromise, too — ~200 pF would buy
   SWR 1.19 here, if you'd rather rebuild the unun than accept 1.36.
 
