@@ -72,7 +72,12 @@ class Builder(AntennaBuilder):
         horiz = self.horiz_frac * wavelength * self.length_factor
         z = self.base
 
-        n_seg_radials = 5
+        # Radials refine with the mesh like every other wire (issue #477; the
+        # old hard-coded 5 left 0.5 m radial segments meeting millimetre riser
+        # segments at the feed junction on fine meshes — a graded-junction
+        # ratio the pulse/sinusoidal bases handle badly, so PyNEC/sin diverged
+        # up the convergence ladder while BSpline d=2 stayed flat).
+        n_seg_radials = self.segs_for(quarter, quarter)
         n_radials = 4
         radial_len = quarter  # quarter-wave radials, like a ground-plane vert
 
