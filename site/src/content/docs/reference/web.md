@@ -233,7 +233,10 @@ with the fraction of the source's input power it dissipates, plus an
 **antenna (accepted)** row for what actually reaches the wires. The rows
 come straight from the MNA network solve (each branch current is an
 explicit unknown, so the watts are read off the solution, not modelled
-separately), and the same accounting drives the reported radiation
+separately — see [Station modelling](/concepts/station-modelling/) for
+the network vocabulary; rows from a station *box* are grouped under its
+instance name, e.g. `tuner: Shunt m`), and the same accounting drives
+the reported radiation
 efficiency: **every** dissipative branch counts, including resistive
 coupling and matching elements, not just explicit `Load`s. Gain is
 normalised by input power, so network loss already shows up in dBi;
