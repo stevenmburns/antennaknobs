@@ -14,7 +14,8 @@ the transmitter.
 Stock values match ~50 Ω at 7.1 MHz (40 m) over the workbench-default
 finite-fast ground (εr=10, σ=0.002): the readout shows SWR ≈ 1 while the
 budget itemizes where the watts actually go — with Q = 200 about 3.5 % in
-the line and 4 % in the tuner coil, ~92 % radiated. Retune for 80 m
+the line and 4 % in the tuner coil, ~92 % accepted by the antenna. Retune
+for 80 m
 (3.8 MHz: C1 ≈ 38.8 pF, L ≈ 32.6 µH, C2 stays at 500 pF) and the same
 doublet is electrically short: the line's SWR loss climbs to ~17 % and the
 coil to ~15 % — a third of the power never leaves the shack — the honest
@@ -129,9 +130,9 @@ class Builder(InvVee):
                 Instance(
                     "tuner",
                     t_network_tuner(
-                        c1_F=self.series_c1_pF * 1e-12,
-                        c2_F=self.series_c2_pF * 1e-12,
-                        l_H=self.shunt_l_uH * 1e-6,
+                        c1_pF=self.series_c1_pF,
+                        c2_pF=self.series_c2_pF,
+                        l_uH=self.shunt_l_uH,
                         ql=self.coil_q if self.coil_q > 0 else None,
                     ),
                     rig="rig",
