@@ -10,7 +10,7 @@ formal/actual port map:
     from antennaknobs.station import t_network_tuner, bypass
 
     branches = [
-        Instance("tuner", t_network_tuner(c1_F=..., c2_F=..., l_H=...),
+        Instance("tuner", t_network_tuner(c1_pF=..., c2_pF=..., l_uH=...),
                  rig="rig", out="li"),
         TL.from_cable("openwire-600", "li", "feed", 20.0),
     ]
@@ -19,9 +19,9 @@ Swapping a box for `bypass()` (same two-port interface, wires straight
 through) turns any "with/without the matchbox" comparison into a one-line
 change.
 
-Units are SI throughout (farads, henries, ohms) — matching the branch
-classes, NOT the pF/µH conventions design knobs use; convert at the call
-site where the knob's unit is visible.
+Units are radio-work units — picofarads and microhenries, matching the
+design-knob conventions (`series_c1_pF`, `lmag_uH`, …) — converted to the
+branch classes' SI at construction. Ohms and Q are dimensionless-as-usual.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def bypass() -> Composite:
 
 
 def t_network_tuner(
-    c1_F: float, c2_F: float, l_H: float, ql: float | None = None
+    c1_pF: float, c2_pF: float, l_uH: float, ql: float | None = None
 ) -> Composite:
     """The classic T-network ("high-pass tee") antenna tuner: series C1
     from ``rig`` to an internal tee midpoint, shunt L to common at the
@@ -50,15 +50,15 @@ def t_network_tuner(
     return Composite(
         ports=("rig", "out"),
         branches=(
-            TwoPort(a="rig", b="m", c=c1_F),
-            Shunt(port="m", l=l_H, ql=ql),
-            TwoPort(a="m", b="out", c=c2_F),
+            TwoPort(a="rig", b="m", c=c1_pF * 1e-12),
+            Shunt(port="m", l=l_uH * 1e-6, ql=ql),
+            TwoPort(a="m", b="out", c=c2_pF * 1e-12),
         ),
     )
 
 
 def l_network_tuner(
-    series_l_H: float, shunt_c_F: float, ql: float | None = None
+    series_l_uH: float, shunt_c_pF: float, ql: float | None = None
 ) -> Composite:
     """L-match: series L from ``rig`` to ``out``, shunt C across ``out``
     (the load side — the arrangement that steps a higher load R down to
@@ -69,42 +69,44 @@ def l_network_tuner(
     return Composite(
         ports=("rig", "out"),
         branches=(
-            TwoPort(a="rig", b="out", l=series_l_H, ql=ql),
-            Shunt(port="out", c=shunt_c_F),
+            TwoPort(a="rig", b="out", l=series_l_uH * 1e-6, ql=ql),
+            Shunt(port="out", c=shunt_c_pF * 1e-12),
         ),
     )
 
 
 def unun(
     turns: float,
-    lmag_H: float | None = None,
+    lmag_uH: float | None = None,
     qlmag: float | None = None,
-    comp_c_F: float | None = None,
+    comp_c_pF: float | None = None,
 ) -> Composite:
     """Step-down unun (the EFHW / OCF box): an ideal ``turns``:1
     transformer — the ``line`` side sees Z_ant/turns² — with the minimal
-    loss model of `Transformer` (magnetizing inductance ``lmag_H`` shunted
+    loss model of `Transformer` (magnetizing inductance ``lmag_uH`` shunted
     across the line side, finite-Q core loss ``qlmag``), plus the optional
-    compensation capacitor ``comp_c_F`` across the line-side terminals
+    compensation capacitor ``comp_c_pF`` across the line-side terminals
     that commercial 49:1 builds carry. Formals: ``line`` (rig/feedline
     side), ``ant`` (high-Z antenna side)."""
+    lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
     branches: tuple = (
-        Transformer(a="line", b="ant", n=1.0 / turns, lmag=lmag_H, qlmag=qlmag),
+        Transformer(a="line", b="ant", n=1.0 / turns, lmag=lmag, qlmag=qlmag),
     )
-    if comp_c_F:
-        branches += (Shunt(port="line", c=comp_c_F),)
+    if comp_c_pF:
+        branches += (Shunt(port="line", c=comp_c_pF * 1e-12),)
     return Composite(ports=("line", "ant"), branches=branches)
 
 
 def balun(
-    n: float, lmag_H: float | None = None, qlmag: float | None = None
+    n: float, lmag_uH: float | None = None, qlmag: float | None = None
 ) -> Composite:
     """Balun as an ideal ``a:b`` ratio transformer with the minimal loss
     model (magnetizing branch on the ``line`` side): ``n`` is the
     line:antenna voltage ratio, so a 4:1 impedance balun stepping a
     ~300 Ω feed down to ~75 Ω line is ``balun(n=0.5)`` — same convention
     as `Transformer` itself. Formals: ``line``, ``ant``."""
+    lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
     return Composite(
         ports=("line", "ant"),
-        branches=(Transformer(a="line", b="ant", n=n, lmag=lmag_H, qlmag=qlmag),),
+        branches=(Transformer(a="line", b="ant", n=n, lmag=lmag, qlmag=qlmag),),
     )

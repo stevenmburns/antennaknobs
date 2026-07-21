@@ -196,9 +196,9 @@ class Builder(AntennaBuilder):
                     "unun",
                     unun(
                         turns=UNUN_TURNS[self.unun_ratio],
-                        lmag_H=self.lmag_uH * 1e-6,
+                        lmag_uH=self.lmag_uH,
                         qlmag=self.qlmag if self.qlmag > 0 else None,
-                        comp_c_F=self.comp_c_pF * 1e-12 if self.comp_c_pF > 0 else None,
+                        comp_c_pF=self.comp_c_pF if self.comp_c_pF > 0 else None,
                     ),
                     line="pri",
                     ant="ant",

@@ -41,7 +41,7 @@ def test_expansion_namespaces_internals_and_stamps_paths():
         branches=[
             Instance(
                 "tuner",
-                t_network_tuner(c1_F=30e-12, c2_F=500e-12, l_H=2.5e-6, ql=200),
+                t_network_tuner(c1_pF=30, c2_pF=500, l_uH=2.5, ql=200),
                 rig="rig",
                 out="li",
             ),
@@ -64,7 +64,7 @@ def test_nested_instances_compose_paths():
     box = Composite(
         ports=("rig", "ant"),
         branches=(
-            Instance("un", unun(7.0, lmag_H=8e-6), line="mid", ant="ant"),
+            Instance("un", unun(7.0, lmag_uH=8), line="mid", ant="ant"),
             TL(a="rig", b="mid", z0=50, length=5.0),
         ),
     )

@@ -92,8 +92,8 @@ class Builder(TriangularSkyloop):
                 Instance(
                     "match",
                     l_network_tuner(
-                        series_l_H=self.series_L_uH * 1e-6,
-                        shunt_c_F=self.shunt_C_pF * 1e-12,
+                        series_l_uH=self.series_L_uH,
+                        shunt_c_pF=self.shunt_C_pF,
                         ql=self.coil_q if self.coil_q > 0 else None,
                     ),
                     rig="in",

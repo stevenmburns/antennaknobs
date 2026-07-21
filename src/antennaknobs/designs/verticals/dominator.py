@@ -142,7 +142,7 @@ class Builder(AntennaBuilder):
                     "unun",
                     unun(
                         turns=XFMR_TURNS[self.xfmr_ratio],
-                        lmag_H=self.lmag_uH * 1e-6,
+                        lmag_uH=self.lmag_uH,
                         qlmag=self.qlmag if self.qlmag > 0 else None,
                     ),
                     line="rig",

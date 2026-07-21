@@ -83,7 +83,7 @@ class Builder(FoldedInvVee):
                     "balun",
                     balun(
                         n=self.balun_n,
-                        lmag_H=self.lmag_uH * 1e-6,
+                        lmag_uH=self.lmag_uH,
                         qlmag=self.qlmag if self.qlmag > 0 else None,
                     ),
                     line="bal",
