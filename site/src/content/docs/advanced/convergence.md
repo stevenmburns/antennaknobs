@@ -93,15 +93,22 @@ default fixes this class; expect a slow drift of a few percent, read the
 admittance if you need a well-conditioned number, and treat the last
 percent as physical uncertainty rather than solver error.
 
-**4. Refinement past the geometry's own scale.** On closely-spaced
-parallel wires — folded elements, fan dipoles, meander rails — the
-thin-wire method breaks when the segment length drops **below the wire
-spacing**. This one is vicious because coarse meshes agree beautifully
-and then refinement makes the answer *worse*: a folded inverted-V in the
-census read 223−30j identically on both bases at N=21…61, then the
-sinusoidal basis went to 280−**1188**j at N=321 while bs2 never moved.
-Response: don't refine such geometry past segment ≈ spacing; prefer the
-d=2 basis, which was immune in every measured case.
+**4. Refinement past the geometry's own scale.** Closely-spaced
+parallel wires — folded elements, fan dipoles, meander rails — are a
+documented soft spot for thin-wire codes: the NEC-2 manual requires
+aligned segments there and concedes the regime was never extensively
+tested, and the classic modeling guidance (Cebik) is to keep segment
+length *equal to* the conductor-to-conductor spacing. Our convergence
+census puts a sharper edge on it: refinement is the danger direction.
+Coarse meshes agree beautifully and then refinement makes the answer
+*worse*: a folded inverted-V in the census read 223−30j identically on
+both bases at N=21…61, then the sinusoidal basis went to
+280−**1188**j at N=321 while bs2 never moved. Response: don't refine
+such geometry past segment ≈ spacing (the gap between the parallel
+wires, not the wire radius); prefer the d=2 basis, which was immune in
+every measured case
+([issue #484](https://github.com/stevenmburns/antennaknobs/issues/484)
+tracks the mechanism).
 
 ## Feeds and ports deserve their own paragraph
 
@@ -138,7 +145,8 @@ the physics doesn't:
    - both crawling in lockstep at high |Z| → class 3, physics — accept
      the band, don't chase it;
    - agreement at coarse N that *breaks* at fine N on parallel-wire
-     geometry → class 4 — back N off to segment ≈ spacing and stay
+     geometry → class 4 — back N off to segment ≈ wire-to-wire
+     spacing and stay
      there.
 4. Report the value both bases agree on, at the coarsest mesh past the
    plateau — that is the defensible number, and the cheapest one.
