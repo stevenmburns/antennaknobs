@@ -114,7 +114,10 @@ class Builder(AntennaBuilder):
         stub_len = self.stub_len_frac * wavelength
         return Network(
             ports={
-                "ant": PortOnWire("ant"),  # high-Z end of the radiator
+                # high-Z end of the radiator; distributed = the port is the
+                # named wire's fixed physical extent, so the readout no
+                # longer jumps when the mesh subdivides it (issue #477)
+                "ant": PortOnWire("ant", distributed=True),
                 "shack": PortVirtual("shack"),  # bottom of the tuned stub
             },
             branches=[

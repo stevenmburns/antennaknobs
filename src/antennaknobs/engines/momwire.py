@@ -195,7 +195,13 @@ class MomwireEngine(SimulationEngine):
         self._polyline_specs = translated["polyline_specs"]
         self._feeds = translated["feeds"]
         self._feed_names = translated["feed_names"]
+        self._feed_edges = translated["feed_edges"]
         self._junctions = translated["junctions"]
+        # Distributed-port expansion (issue #477): None until _init_network
+        # finds a PortOnWire(distributed=True); every other path treats the
+        # feed list 1:1.
+        self._feed_W = None
+        self._exp_feed_pos = None
         # Wire material (issues #316/#388): a design-declared WireSpec
         # supplies the default conductor radius plus the distributed-loading
         # kwargs; per-wire specs on individual Wire entries override it wire
@@ -360,6 +366,77 @@ class MomwireEngine(SimulationEngine):
 
         self._reducer = NetworkReducer(net, port_to_idx, next_idx)
 
+        # Finite-gap (distributed) ports — issue #477. A distributed port
+        # is realised as one delta-gap sub-feed per SEGMENT of its named
+        # wire, voltages split by length (constant E over the wire's fixed
+        # physical extent), and the antenna Y contracted back to port
+        # granularity by congruence: Y_port = Wᵀ·Y_sub·W, with W's column
+        # for a port holding the length weights h_i/L (uniform segments →
+        # 1/S). The weighted current readout Σ wᵢ·Iᵢ is the bilinear dual
+        # of the voltage split, so port power Σ V*·I is preserved and the
+        # reducer sees an ordinary port row. Everything downstream —
+        # reducer, sweeps, excited state — keeps feed-granularity code
+        # untouched; only the solver feed list and the Y contraction know.
+        dist_idx = {
+            i
+            for i, n in enumerate(self._feed_names)
+            if n
+            and isinstance(net.ports.get(n), PortOnWire)
+            and net.ports[n].distributed
+        }
+        if dist_idx:
+            self._build_feed_expansion(dist_idx)
+
+    def _build_feed_expansion(self, dist_idx):
+        """Expanded solver-feed positions + the (n_sub × n_feeds) weight
+        matrix W for distributed ports. Non-distributed feeds keep a single
+        sub-feed with weight 1 (W's column is a unit vector), so the
+        contraction is exact for every port kind."""
+        pos, cols = [], []
+        for k, ((pl, arc, _v), (epl, eidx)) in enumerate(
+            zip(self._feeds, self._feed_edges)
+        ):
+            if k in dist_idx:
+                poly = self._polylines[epl]
+                lens = np.linalg.norm(np.diff(poly, axis=0), axis=1)
+                arc0 = float(lens[:eidx].sum())
+                length = float(lens[eidx])
+                n_sub = int(self._edge_segments[epl][eidx])
+                for i in range(n_sub):
+                    pos.append((epl, arc0 + (i + 0.5) * length / n_sub))
+                    cols.append((k, 1.0 / n_sub))
+            else:
+                pos.append((pl, arc))
+                cols.append((k, 1.0))
+        W = np.zeros((len(pos), len(self._feeds)))
+        for row, (k, w) in enumerate(cols):
+            W[row, k] = w
+        self._exp_feed_pos = pos
+        self._feed_W = W
+
+    def _solver_feeds(self, voltages=None):
+        """The feed list handed to momwire solvers: per-feed (wire, arc, V),
+        expanded to sub-feeds with length-split voltages when distributed
+        ports exist. ``voltages`` (per ORIGINAL feed, in feed order)
+        defaults to the translated feed voltages."""
+        if voltages is None:
+            voltages = [v for *_, v in self._feeds]
+        if self._feed_W is None:
+            return [(w, a, complex(v)) for (w, a, _v), v in zip(self._feeds, voltages)]
+        v_exp = self._feed_W @ np.asarray(voltages, dtype=np.complex128)
+        return [(w, a, complex(v)) for (w, a), v in zip(self._exp_feed_pos, v_exp)]
+
+    def _contract_y(self, Y):
+        """Contract a solver Y (sub-feed granularity) to port granularity;
+        identity when no distributed ports exist. Works on one matrix or a
+        swept (n_k, n, n) stack."""
+        if self._feed_W is None:
+            return Y
+        W = self._feed_W
+        if Y.ndim == 3:
+            return np.einsum("ia,kij,jb->kab", W, Y, W)
+        return W.T @ Y @ W
+
     def _ground_solver_kwargs(self):
         """Extra ground kwargs for solver construction. Only spliced in when
         set (free-space / PEC solves pass no ground_eps)."""
@@ -377,7 +454,7 @@ class MomwireEngine(SimulationEngine):
         return self._solver(
             wires=self._polylines,
             n_per_edge_per_wire=self._edge_segments,
-            feeds=self._feeds,
+            feeds=self._solver_feeds(),
             wavelength=wavelength,
             wire_radius=self._wire_radius,
             ground_z=self._ground_z,
@@ -430,10 +507,14 @@ class MomwireEngine(SimulationEngine):
         """Multi-port short-circuit Y at the configured feeds. Builds one
         solver with the full feed list and calls momwire's compute_y_matrix,
         which since the junction-aware-y-matrix PR handles closed-loop /
-        tee-junction antennas correctly (one LU + N back-subs per Y)."""
-        return np.asarray(
-            self._make_solver(wavelength=wavelength).compute_y_matrix(),
-            dtype=np.complex128,
+        tee-junction antennas correctly (one LU + N back-subs per Y).
+        Distributed ports solve at sub-feed granularity and contract back
+        to one row/column per port (issue #477)."""
+        return self._contract_y(
+            np.asarray(
+                self._make_solver(wavelength=wavelength).compute_y_matrix(),
+                dtype=np.complex128,
+            )
         )
 
     def _solved_excited(self, wavelength):
@@ -529,9 +610,9 @@ class MomwireEngine(SimulationEngine):
         s = self._make_solver(wavelength=self._wavelength_for(freqs[0]))
         k_array = 2.0 * np.pi * freqs * 1e6 / C_LIGHT
         if self._network is not None:
-            Y_swept = np.asarray(
-                s.compute_y_matrix_swept(k_array), dtype=np.complex128
-            )  # (n_k, n_real, n_real)
+            Y_swept = self._contract_y(
+                np.asarray(s.compute_y_matrix_swept(k_array), dtype=np.complex128)
+            )  # (n_k, n_real, n_real) at port granularity
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for ki, freq in enumerate(freqs):
                 Y_total = self._reducer.apply_branches(
@@ -584,10 +665,9 @@ class MomwireEngine(SimulationEngine):
                 self._excited_p_in,
                 self._excited_power_budget,
             ) = self._reducer.excited_state(Y, wavelength)
-            feeds_resolved = [
-                (w, arc, complex(V_full[i]))
-                for i, (w, arc, _v) in enumerate(self._feeds)
-            ]
+            feeds_resolved = self._solver_feeds(
+                [complex(V_full[i]) for i in range(len(self._feeds))]
+            )
         elif self._tls:
             self._excited_efficiency = 1.0
             self._excited_power_budget = []

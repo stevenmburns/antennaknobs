@@ -278,6 +278,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
     # placeholder, voltage gets set later by `build_network()`).
     feeds = []
     feed_names = []
+    feed_edges = []
     for tup_index, edge in enumerate(edges):
         voltage = edge[3]
         name = tup_names[tup_index]
@@ -293,6 +294,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
             (feed_pl, feed_arclength, complex(voltage if voltage is not None else 0))
         )
         feed_names.append(name)
+        feed_edges.append((feed_pl, feed_edge_idx))
 
     if not feeds:
         raise ValueError("no excitation found in wire list")
@@ -303,6 +305,9 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         "polyline_specs": polyline_specs,
         "feeds": feeds,
         "feed_names": feed_names,
+        # Which (polyline, edge) each feed sits on — a distributed port
+        # (issue #477) needs the whole edge's extent, not just its midpoint.
+        "feed_edges": feed_edges,
         # Back-compat scalars — first feed.
         "feed_wire_index": feeds[0][0],
         "feed_arclength": feeds[0][1],
