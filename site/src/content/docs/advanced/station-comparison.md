@@ -9,7 +9,9 @@ open-wire line, and let the tuner sort it out — ladder line shrugs off SWR*.
 Both camps are right, and both are paying for something. This example models
 both stations **end to end — rig, feedline, matching, wire** — reads the
 folklore off the [power budget](/reference/web/#power-budget) as numbers, and
-finishes with the two stations head to head on the same band, 20 m.
+finishes with the two stations head to head on the same band, 20 m. (New to
+the network layer? The vocabulary — ports, branches, boxes — is introduced
+in [Station modelling](/concepts/station-modelling/).)
 
 Two catalog designs (new in v0.22) carry the comparison:
 

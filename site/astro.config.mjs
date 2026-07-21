@@ -75,6 +75,7 @@ export default defineConfig({
             { label: "The model", slug: "concepts/model" },
             { label: "Write your first design", slug: "concepts/first-builder" },
             { label: "Many ways to express geometry", slug: "concepts/authoring" },
+            { label: "Station modelling", slug: "concepts/station-modelling" },
             {
               label: "Writing designs with Claude Code",
               slug: "concepts/authoring-with-claude",
