@@ -280,7 +280,7 @@ tab, and close one with the **✕** (the last remaining tab can't be closed).
 - Sessions are **fully independent**: changing a knob, the solver, or the ground
   model in one leaves every other session exactly as you left it.
 - **Hover a tab** for its summary — design, solver, segment count, and ground
-  model — e.g. `dipoles.invvee · B-spline d=2 N=21 · reflection-coef ground`.
+  model — e.g. `dipoles.invvee · B-spline d=2 N=15 · reflection-coef ground`.
 - Switching to a session **re-solves** it, which is near-instant because the
   server caches recent solves (see [How a knob turn works](#how-a-knob-turn-works)).
 - The light/dark theme and [pinned patterns](#comparing-patterns) are shared
