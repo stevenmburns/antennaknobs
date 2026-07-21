@@ -29,7 +29,10 @@ class Builder(AntennaBuilder):
         n_seg1 = self.segs_for(
             math.dist((0, 0, 0), (0, 0, eps)), math.dist((0, 0, eps), (0, 0, z))
         )
-        n_seg_radials = 5
+        # Radials refine with the mesh (issue #477): hard-coding the count let
+        # coarse radial segments meet fine riser segments at the feed junction
+        # on refined meshes, dragging PyNEC/sin off BSpline's converged value.
+        n_seg_radials = self.segs_for(self.length, self.length)
         n_radials = 3
         # Radials run the full self.length (not a quarter-wave): self.length is
         # already the ~quarter-wave radiator length, so the radials match the
