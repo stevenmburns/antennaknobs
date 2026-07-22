@@ -64,6 +64,26 @@ docker build -t antennaknobs-nec2 . && docker run --rm -p 8000:8000 antennaknobs
 (`compose.yaml` carries this as a commented-out alternate service —
 uncomment and `docker compose up` builds it for you.)
 
+## Developing antennaknobs itself with Docker
+
+There's a second image for that: **`stevenmburns/antennaknobs-dev`** —
+the full dev toolchain (Python 3.12, the C++ compiler momwire's
+accelerator needs, Node 22 for the Vite frontend) with **no sources**.
+Mount your checkout and follow the README's dev flow inside it:
+
+```bash
+git clone --recurse-submodules https://github.com/stevenmburns/antennaknobs
+docker run -it --rm -v "$PWD/antennaknobs:/work" -w /work   -p 8000:8000 -p 5173:5173 stevenmburns/antennaknobs-dev
+# inside: python -m venv .venv && . .venv/bin/activate
+#         pip install -e ./momwire        # compiles the C++ accelerator
+#         pip install -e ".[web]"
+#         (cd src/antennaknobs/web/frontend && npm ci)
+#         ... then uvicorn on 8000, vite dev on 5173 (README "Running it")
+```
+
+Built from [`Dockerfile.dev`](Dockerfile.dev); published manually and
+rarely (the toolchain is stable), not on every release.
+
 ## Good to know
 
 - **The container runs unlocked**, exactly like a local install: no
