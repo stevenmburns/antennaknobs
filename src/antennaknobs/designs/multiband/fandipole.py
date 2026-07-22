@@ -185,14 +185,22 @@ class Builder(AntennaBuilder):
         n_seg0 = self.nominal_nsegs
         # Feed wire (T → S) meshed at the segment density of the longest
         # n_seg0 arm (the reference wire).
-        n_seg1 = self.segs_for(
-            math.dist(T, S), max(math.dist(a, bb) for a, bb in zip(A, B))
-        )
+        ref_arm = max(math.dist(a, bb) for a, bb in zip(A, B))
+        n_seg1 = self.segs_for(math.dist(T, S), ref_arm)
 
         tups = []
         for i in range(n_bands):
-            tups.extend(build_path([S, A[i], B[i]], n_seg0, None))
-            tups.extend(build_path([T, Ay[i], By[i]], n_seg0, None))
+            # The short risers (S→A / T→Ay, ~0.2 m) mesh at the reference
+            # arm's density, NOT the full nominal count: n_seg0 on them
+            # drives fine-mesh segment length near the wire radius (N=321:
+            # 0.65 mm segs = 1.3a) — the reduced-kernel Δ/a floor, which
+            # wrecked the sin/pynec fine-mesh reactance (issue #484).
+            n_riser = self.segs_for(math.dist(S, A[i]), ref_arm)
+            tups.extend(build_path([S, A[i]], n_riser, None))
+            tups.extend(build_path([A[i], B[i]], n_seg0, None))
+            n_riser_y = self.segs_for(math.dist(T, Ay[i]), ref_arm)
+            tups.extend(build_path([T, Ay[i]], n_riser_y, None))
+            tups.extend(build_path([Ay[i], By[i]], n_seg0, None))
         tups.append((T, S, n_seg1, 1 + 0j))
 
         return [
