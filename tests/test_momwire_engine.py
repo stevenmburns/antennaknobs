@@ -1651,16 +1651,18 @@ def _tmatch_bare(params=None):
 
 def test_tmatch_matches_circuit_theory():
     """The T-network must reproduce the exact three-element transform
-    Z_in = X_C1 + (X_L ∥ (X_C2 + Z_ant)) of the bare antenna impedance —
+    Z_in = X_C1 + (Z_L ∥ (X_C2 + Z_ant)) of the bare antenna impedance —
     lumped circuit theory composed on the extracted antenna Y, through a
     tee midpoint that is a pure interior node (no antenna segment, no TL:
-    the only design whose KCL row has no Group-1 stamp at all)."""
+    the only design whose KCL row has no Group-1 stamp at all). The stock
+    coil has finite Q, so Z_L carries its ESR ωL/Q (issue #298)."""
     from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
 
     p = B.default_params
     omega = 2.0 * np.pi * p["freq"] * 1e6
     xc1 = 1.0 / (1j * omega * p["series_c1_pF"] * 1e-12)
-    xl = 1j * omega * p["shunt_l_uH"] * 1e-6
+    l = p["shunt_l_uH"] * 1e-6
+    xl = omega * l / p["coil_q"] + 1j * omega * l
     xc2 = 1.0 / (1j * omega * p["series_c2_pF"] * 1e-12)
 
     z_ant = _sinusoidal(_tmatch_bare()).impedance()[0]
@@ -1701,7 +1703,8 @@ def test_tmatch_degenerate_endpoints():
     p = B.default_params
     omega = 2.0 * np.pi * p["freq"] * 1e6
     xc1 = 1.0 / (1j * omega * p["series_c1_pF"] * 1e-12)
-    xl = 1j * omega * p["shunt_l_uH"] * 1e-6
+    l = p["shunt_l_uH"] * 1e-6
+    xl = omega * l / p["coil_q"] + 1j * omega * l  # stock coil ESR included
 
     z = _sinusoidal(B(params={**p, "shunt_l_uH": 0.0})).impedance()[0]
     assert np.allclose(z, xc1, rtol=1e-12), (z, xc1)
