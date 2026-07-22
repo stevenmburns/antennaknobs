@@ -122,6 +122,6 @@ where you reconcile it.
 
 Open [`wire.doublet_ladder_tuner`](https://app.antennaknobs.dev/) —
 an 88 ft doublet, 100 ft of open-wire line, and a lossy T-network,
-referenced to the rig. Watch the power budget's `tuner:` rows as you
-drag the capacitor knobs: the SWR meter and the watts tell different
-stories, and this page is the vocabulary for reading both.
+referenced to the rig. Watch the tuner's rows in the power budget as
+you drag the capacitor knobs: the SWR meter and the watts tell
+different stories, and this page is the vocabulary for reading both.
