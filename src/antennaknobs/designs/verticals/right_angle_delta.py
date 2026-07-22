@@ -1,4 +1,4 @@
-"""Right-Angle Delta: the coax-friendly SCV delta (L. B. Cebik, W4RNL).
+r"""Right-Angle Delta: the coax-friendly SCV delta (L. B. Cebik, W4RNL).
 
 From Cebik's "SCVs: A Family Album" -- the same self-contained-vertical
 family as the catalog's `half_square`, `bobtail`, and `bruce`: closed or
