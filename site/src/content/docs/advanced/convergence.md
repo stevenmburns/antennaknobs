@@ -93,25 +93,44 @@ default fixes this class; expect a slow drift of a few percent, read the
 admittance if you need a well-conditioned number, and treat the last
 percent as physical uncertainty rather than solver error.
 
-**4. Refinement past the geometry's own scale.** Closely-spaced
-parallel wires — folded elements, fan dipoles, meander rails — are a
-documented soft spot for thin-wire codes: the NEC-2 manual requires
-aligned segments there and concedes the regime was never extensively
-tested, and the classic modeling guidance (Cebik) is to keep segment
-length *equal to* the conductor-to-conductor spacing. Our convergence
-census puts a sharper edge on it: refinement is the danger direction.
-Coarse meshes agree beautifully and then refinement makes the answer
-*worse*: a folded inverted-V in the census read 223−30j identically on
-both bases at N=21…61, then the sinusoidal basis went to
-280−**1188**j at N=321 while bs2 never moved. Response: don't refine
-such geometry past segment ≈ spacing (the gap between the parallel
-wires, not the wire radius); prefer the d=2 basis, which was immune in
-every measured case
-([issue #484](https://github.com/stevenmburns/antennaknobs/issues/484)
-tracks the mechanism). Notably, the failure is not a visible oscillation
-— the current stays smooth — but the folded element's near-λ/4 shorted-stub
-mode sits at an antiresonance pole that amplifies a small feed-zone
-coupling error into a wildly wrong reactance.
+**4. A wire's segments approaching its own radius (Δ/a).** The oldest
+rule in thin-wire MoM is also the one that produced the census's most
+spectacular failure. The thin-wire kernel needs each segment to stay
+long compared to the wire's *radius*: the NEC-2 guideline is Δ/a > 8
+for ~1 % accuracy, "reasonable solutions" down to about 2 — and below
+about 1 the discretized equation is genuinely ill-posed on the
+point-matched sinusoidal/pulse family (sin, PyNEC, nec2c — errors here
+are *correlated* across all three). In practice nobody violates this by
+choosing N too large globally; it happens when a **builder gives a
+short wire a long wire's segment count**. The census's folded
+inverted-V read 223−30j identically on both bases at N=21…61, then the
+sinusoidal basis went to 280−**1188**j at N=321 — and the cause was a
+10 cm link wire silently carrying the full per-wire count, its segments
+down to 0.6× the wire radius. With that one wire meshed proportionally
+the sinusoidal ladder is dead flat at 223−30j through N=641. Two
+amplifiers made the disguise convincing: the folded element's near-λ/4
+shorted-stub mode sits at an antiresonance pole that turns a small
+localized error into a wildly wrong reactance (with no visible
+oscillation — the current stays smooth), and coarse meshes agree
+beautifully because the coarse mesh itself keeps every wire above the
+Δ/a floor. Response: when a ladder breaks at fine N, **check per-wire
+Δ/a first** — in your own builders, derive short-wire counts with
+`segs_for` rather than reusing the nominal count (the catalog is now
+linted for exactly this). The d=2 basis is immune — a Galerkin method
+regularizes the reduced-kernel ill-posedness — which is also why a flat
+bs2 next to an exploding sin curve is the tell.
+
+One genuine residue remains after the Δ/a accounting
+([issue #484](https://github.com/stevenmburns/antennaknobs/issues/484)):
+**multi-wire fan feeds** — several dipole pairs converging on one feed
+wire — where the sinusoidal basis drifts slowly and monotonically at
+fine mesh while bs2 holds flat, with every wire comfortably above the
+Δ/a floor. The traditional close-parallel-wire lore (the NEC-2 manual's
+aligned-segments requirement, Cebik's segment-length ≈ wire-spacing
+practice) points at this regime, but our census hasn't confirmed a
+threshold law. Until the mechanism is pinned down, treat fine-mesh
+sin/pynec drift on fan geometry as suspect and trust the flat d=2
+value.
 
 ## Feeds and ports deserve their own paragraph
 
@@ -147,9 +166,10 @@ the physics doesn't:
      pinned-coarse wires meeting refined ones (class 2);
    - both crawling in lockstep at high |Z| → class 3, physics — accept
      the band, don't chase it;
-   - agreement at coarse N that *breaks* at fine N on parallel-wire
-     geometry → class 4 — back N off to segment ≈ wire-to-wire
-     spacing and stay
-     there.
+   - agreement at coarse N that *breaks* or drifts at fine N while the
+     other slot stays flat → class 4 — check per-wire Δ/a first (a
+     short wire carrying a long wire's segment count is the classic
+     cause; fix the density, don't just back N off), and on fan-feed
+     geometry with healthy Δ/a, trust the flat d=2 value (#484).
 4. Report the value both bases agree on, at the coarsest mesh past the
    plateau — that is the defensible number, and the cheapest one.
