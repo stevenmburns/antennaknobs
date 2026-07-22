@@ -5,8 +5,19 @@ description: Install antennaknobs and solve your first antenna in a few lines of
 
 ## Install
 
-`antennaknobs` and its engine `momwire` are published to PyPI with prebuilt
-wheels — a plain install needs no compiler:
+The fastest path needs nothing but Docker — the published image serves the
+full workbench (new in v0.34):
+
+```bash
+docker run --rm -p 8000:8000 stevenmburns/antennaknobs:latest
+# -> http://localhost:8000
+```
+
+(See [DOCKER.md](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)
+for compose, mounting your own designs, and the optional NEC2 engine.)
+
+Prefer a Python install? `antennaknobs` and its engine `momwire` are
+published to PyPI with prebuilt wheels — a plain install needs no compiler:
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
