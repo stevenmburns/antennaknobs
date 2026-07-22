@@ -60,15 +60,18 @@ match fall apart. Three things to look at:
    notch is sharp (loaded Q ≈ 13). That's the real-world "retune every
    50 kHz" behavior of tuners on short antennas, reproduced from first
    principles.
-3. **The touchiness.** Out of the box the workbench reads SWR ≈ 1.4
-   rather than a flat 1.0, and that gap is itself the lesson: the stock
-   values are tuned against the test suite's reference solve, and the
-   workbench's default solver disagrees with that reference about the
-   bare antenna by only a few percent — which the ~2 kΩ virtual-resistance
-   ride magnifies into several ohms at the input. A high-Q match
-   amplifies *every* small difference, in models and in hardware alike.
-   Nudge `series_c1_pF` and `shunt_l_uH` a hair and you can walk it back
-   to 1.0 — which is precisely what you'd do at the bench.
+3. **The touchiness.** The stock values land SWR ≈ 1.0 in the workbench,
+   but they only *stay* there because they were tuned against the exact
+   solve the workbench runs. Solve the same stock design on a different
+   basis (the test suite's sinusoidal reference, say) and the bare
+   antenna moves by only a few percent — which the ~2 kΩ
+   virtual-resistance ride magnifies to SWR ≈ 1.4 at the input. A high-Q
+   match amplifies *every* small difference, in models and in hardware
+   alike: it's the same reason the physical version of this tuner needs
+   re-dipping when the feedline is re-routed or the ground dries out.
+   Nudge `series_c1_pF` a hair off stock and watch how fast the notch
+   walks away — then walk it back, which is precisely the bench
+   experience.
 
 ## The easy case: a big loop and an L-network
 
