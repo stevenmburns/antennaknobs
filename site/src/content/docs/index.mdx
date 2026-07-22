@@ -25,18 +25,16 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.32.0" icon="star">
-  **Convergence you can trust.** A catalog-wide convergence census (91
-  designs, meshes from N=7 to 641) reshaped how antennaknobs solves: the
-  default B-spline d=2 basis turns out to be converged at meshes the
-  NEC-style bases need 3–15× more segments to reach, so the **default
-  solve dropped to N=15 — ~35 % faster live ticks, census-validated to
-  the same answers**. Designs the census caught converging wrongly are
-  fixed (refining radials, mesh-stable **distributed ports** for
-  TL-attachment feeds — the Sterba curtain's nine pinned ports now refine
-  freely and land on one basis-agreed value), and the method itself is
-  written up in a new advanced guide:
-  [How many segments?](/advanced/convergence/)
+<Card title="New in v0.33.0" icon="star">
+  **Model the whole station.** Feedline, transformer, and tuner now
+  compose as **reusable station boxes**: instantiate a
+  `t_network_tuner`, an `unun`, or a published *calibrated preset* (the
+  KJ6ER measured boxes) with one line, swap any box for `bypass()` to
+  A/B a station with and without it, and read the power budget with the
+  box's losses grouped under its name. The vocabulary — ports, branches,
+  boxes, and the three efficiency ledgers — has a new concepts guide:
+  [Station modelling](/concepts/station-modelling/), and user designs
+  get the same contract in their scaffolded docs.
   [All release notes →](/reference/releases/)
 </Card>
 

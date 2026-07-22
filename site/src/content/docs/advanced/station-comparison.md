@@ -74,20 +74,32 @@ def build_network(self):
     return Network(
         ports={
             "feed": PortOnWire("feed"),
-            "li": PortVirtual("li"),   # line input (tuner output)
-            "m": PortVirtual("m"),     # tee midpoint
+            "li": PortVirtual("li"),  # line input (tuner output)
             "rig": PortVirtual("rig"),
         },
         branches=[
             TL.from_cable("openwire-600", "li", "feed", self.line_len_m),
-            TwoPort(a="rig", b="m", c=self.series_c1_pF * 1e-12),
-            Shunt(port="m", l=self.shunt_l_uH * 1e-6,
-                  ql=self.coil_q if self.coil_q > 0 else None),
-            TwoPort(a="m", b="li", c=self.series_c2_pF * 1e-12),
+            Instance(
+                "tuner",
+                t_network_tuner(
+                    c1_pF=self.series_c1_pF,
+                    c2_pF=self.series_c2_pF,
+                    l_uH=self.shunt_l_uH,
+                    ql=self.coil_q if self.coil_q > 0 else None,
+                ),
+                rig="rig",
+                out="li",
+            ),
         ],
         sources=[Driven(port="rig", voltage=1 + 0j)],
     )
 ```
+
+The tuner is one **station box** (`antennaknobs.station.t_network_tuner`,
+new in v0.33): its tee midpoint is the instance's own internal node, its
+loss rows group under `tuner:` in the budget, and swapping the whole box
+for `bypass()` models the same station without a tuner — see
+[Station modelling](/concepts/station-modelling/).
 
 The stock capacitor and inductor values match ~50 Ω at **7.1 MHz (40 m)**, and
 the budget itemizes the price of the matchbox: with Q = 200, about **3.5 % in
