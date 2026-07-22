@@ -25,7 +25,7 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.35.0" icon="star">
+<Card title="New in v0.35.1" icon="star">
   **Cut for one band, worked on another.** Off-band designs — a 10 m
   inverted-L worked on 12 m through a T-network, an 80 m skyloop run on
   17 m — now open the way they're meant to be seen: geometry on the band
@@ -39,6 +39,9 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   [Docker workbench](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)
   sees them without re-allowing. New study:
   [Cut for one band, worked on another](/advanced/off-band/).
+  (v0.35.1 completes the portable-trust story: allow-decisions recorded
+  *before* v0.35.0 now also carry across a mount point or machine move —
+  the first cut only migrated them in-place.)
   [All release notes →](/reference/releases/)
 </Card>
 
