@@ -402,16 +402,25 @@ def test_ft240_preset_pins_efhw_stock_values():
 
 def test_budget_rows_apply_display_renames():
     """ui_params["budget_labels"] retitles rows at the presentation
-    boundary — exact match, unmatched rows pass through, negatives clamp."""
+    boundary — exact match, unmatched rows pass through, negatives clamp.
+    Rows carry the instance ``path`` recovered from the structural label's
+    prefix (matched against the network's real instance paths only); rows
+    resolved to a path drop the prefix from the display label unless a
+    rename already retitled them."""
     # examples first: entering the package via adapter alone trips the
     # adapter↔examples import cycle (examples calls register_all mid-import)
     import antennaknobs.web.examples  # noqa: F401
 
     from antennaknobs.web.adapter import _budget_rows
 
+    class Net:
+        branch_paths = ["unun.", "unun.", ""]
+
     class Eng:
+        _network = Net()
         _excited_power_budget = [
             ("unun: Shunt pri", 0.25),
+            ("unun: Transformer pri→ant", 0.05),
             ("TL rig→pri", -1e-18),
         ]
 
@@ -422,11 +431,38 @@ def test_budget_rows_apply_display_renames():
         pass
 
     assert _budget_rows(Eng(), WithLabels()) == [
-        {"label": "unun comp cap", "watts": 0.25},
-        {"label": "TL rig→pri", "watts": 0.0},
+        # renamed: the design's display name wins verbatim
+        {"label": "unun comp cap", "watts": 0.25, "path": "unun"},
+        # unrenamed instance row: prefix stripped, path carries the group
+        {"label": "Transformer pri→ant", "watts": 0.05, "path": "unun"},
+        {"label": "TL rig→pri", "watts": 0.0, "path": ""},
     ]
     assert [r["label"] for r in _budget_rows(Eng(), Bare())] == [
-        "unun: Shunt pri",
+        "Shunt pri",
+        "Transformer pri→ant",
+        "TL rig→pri",
+    ]
+
+    # No network on the engine (older engines, wire-loss extra rows):
+    # nothing to match against, labels pass through whole.
+    class EngNoNet:
+        _excited_power_budget = [("unun: Shunt pri", 0.25)]
+
+    assert _budget_rows(EngNoNet(), Bare()) == [
+        {"label": "unun: Shunt pri", "watts": 0.25, "path": ""}
+    ]
+
+    # The server's _build_builder STRIPS ui_params from the instance's
+    # params, so the labels must come from the class's default_params
+    # fallback — this exact path silently dropped every rename before.
+    class ServerStyleBuilder:
+        default_params = {
+            "ui_params": {"budget_labels": {"unun: Shunt pri": "unun comp cap"}}
+        }
+
+    assert [r["label"] for r in _budget_rows(Eng(), ServerStyleBuilder())] == [
+        "unun comp cap",
+        "Transformer pri→ant",
         "TL rig→pri",
     ]
 

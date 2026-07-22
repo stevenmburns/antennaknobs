@@ -1735,6 +1735,12 @@ input[type=checkbox] {
   margin-bottom: var(--space-1);
 }
 
+/* Power-budget instance group header (issue #489 hierarchy): names the
+   composite instance whose indented rows follow. */
+.pb-group {
+  color: var(--muted);
+}
+
 .smith,
 .farfield {
   display: block;
