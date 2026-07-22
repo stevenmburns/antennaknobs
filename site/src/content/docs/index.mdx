@@ -25,16 +25,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.33.0" icon="star">
-  **Model the whole station.** Feedline, transformer, and tuner now
-  compose as **reusable station boxes**: instantiate a
-  `t_network_tuner`, an `unun`, or a published *calibrated preset* (the
-  KJ6ER measured boxes) with one line, swap any box for `bypass()` to
-  A/B a station with and without it, and read the power budget with the
-  box's losses grouped under its name. The vocabulary — ports, branches,
-  boxes, and the three efficiency ledgers — has a new concepts guide:
-  [Station modelling](/concepts/station-modelling/), and user designs
-  get the same contract in their scaffolded docs.
+<Card title="New in v0.34.0" icon="star">
+  **Docker, VHF, and honest meshes.** The workbench now ships as a
+  **Docker image** — `docker run -p 8000:8000
+  stevenmburns/antennaknobs` and you're solving, no Python setup
+  ([how-to](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)).
+  The band tabs reach **2 m and 70 cm**, with a first VHF-native
+  design: Cebik's 6-element 2 m OWA yagi, band-flat at SWR ≤ 1.2
+  across all of 144–148 MHz. And the mesh-integrity arc behind issue
+  #484 landed: a catalog-wide **Δ/a lint** (no wire may refine below
+  the thin-wire floor), per-design refinement headroom, two builder
+  density defects fixed, and the
+  [convergence guide](/advanced/convergence/) rewritten around what
+  the data actually showed.
   [All release notes →](/reference/releases/)
 </Card>
 
