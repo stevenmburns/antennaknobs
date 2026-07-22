@@ -28,6 +28,20 @@ and are loaded by import, not from the user directory.
 The store is a small JSON file (``.trust.json`` in the user design dir, or
 ``$ANTENNAKNOBS_TRUST_FILE``). The env flag ``ANTENNAKNOBS_TRUST_USER_DESIGNS=1``
 is a blanket "trust everything" escape hatch for CI/dev/single-user boxes.
+
+Records are keyed by the design's path **relative to the store's own
+directory** (``"foo.py"``), not its absolute path. The store lives inside the
+design folder, so a relative key means "this file in my own directory" — the
+same identity, but portable: mount the folder into a Docker container at
+``/root/.antennaknobs/designs`` (compose.yaml does) or move it to another
+machine and trust travels with it, where absolute keys silently matched
+nothing. This is NOT folder-level trust — records are still per-file and
+``pinned`` mode still checks the content hash. (``always`` mode was already a
+name-not-content grant, and anyone who can forge the relative key could
+already edit ``.trust.json`` itself — store integrity is assumed either way.)
+Legacy absolute keys are migrated to relative on load; a design outside the
+store's directory (``$ANTENNAKNOBS_TRUST_FILE`` pointing elsewhere) still
+keys by absolute path.
 """
 
 from __future__ import annotations
@@ -51,7 +65,9 @@ __all__ = [
     "store_path",
 ]
 
-_STORE_VERSION = 1
+# v2: design keys are store-dir-relative (portable); v1 keyed absolute paths.
+# The loader migrates v1 keys transparently and never gates on the version.
+_STORE_VERSION = 2
 
 
 def trust_all_enabled() -> bool:
@@ -83,8 +99,38 @@ def content_hash(path: Path) -> str:
 
 
 def _resolved_key(path: Path) -> str:
-    """The store key for a design: its resolved absolute path as a string."""
-    return str(Path(path).resolve())
+    """The store key for a design: its path relative to the store's own
+    directory when it lives there (portable across mount points — see the
+    module docstring), else its resolved absolute path."""
+    resolved = Path(path).resolve()
+    try:
+        return str(resolved.relative_to(store_path().resolve().parent))
+    except ValueError:
+        return str(resolved)
+
+
+def _migrate_keys(designs: dict) -> dict:
+    """Rewrite legacy absolute keys that point inside the store's directory
+    to the relative form (pre-portability stores; a folder that has been
+    mounted at several paths may carry SEVERAL absolute spellings of the
+    same file). On collision an ``always`` record wins over ``pinned`` —
+    both were explicit user grants, and ``always`` is the broader one the
+    user has stated for the file."""
+    store_dir = store_path().resolve().parent
+    migrated: dict = {}
+    for key, rec in designs.items():
+        p = Path(key)
+        if p.is_absolute():
+            try:
+                key = str(p.resolve().relative_to(store_dir))
+            except ValueError:
+                pass  # genuinely outside the store dir: absolute is correct
+        prev = migrated.get(key)
+        if prev is None or (
+            prev.get("mode") == "pinned" and rec.get("mode") == "always"
+        ):
+            migrated[key] = rec
+    return migrated
 
 
 def _load_store() -> dict:
@@ -95,6 +141,7 @@ def _load_store() -> dict:
         return {"version": _STORE_VERSION, "designs": {}}
     if not isinstance(data, dict) or "designs" not in data:
         return {"version": _STORE_VERSION, "designs": {}}
+    data["designs"] = _migrate_keys(data["designs"])
     return data
 
 
