@@ -25,7 +25,7 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.34.0" icon="star">
+<Card title="New in v0.34.1" icon="star">
   **Docker, VHF, and honest meshes.** The workbench now ships as a
   **Docker image** — `docker run -p 8000:8000
   stevenmburns/antennaknobs` and you're solving, no Python setup
@@ -38,6 +38,9 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   density defects fixed, and the
   [convergence guide](/advanced/convergence/) rewritten around what
   the data actually showed.
+  (v0.34.1 patches two VHF-workbench rough edges the new bands exposed:
+  the unlocked measurement-frequency dial no longer snaps to a stale
+  60 MHz ceiling, and the lock icon now visibly opens when unlocked.)
   [All release notes →](/reference/releases/)
 </Card>
 
