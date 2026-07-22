@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-22 04:55 +0000
+            created at 2026-07-22 14:48 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -93,7 +93,7 @@
     <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">  default_view     : "xy" | "yz" | "xz"  &#8212; initial 2D projection</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">  target_z0        : float &#8212; reference impedance for SWR (default 50)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str">  meas_freq_range  : (lo, hi)  &#8212; measurement-freq slider span override</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">  bands            : tuple[BandSpec] &#8212; band tabs (default HF amateur set)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">  bands            : tuple[BandSpec] &#8212; band tabs (default amateur set, 160m&#8211;70cm)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="str">  sweep_policy     : (anchor, lo_factor, hi_factor)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="str">  multi_feed       : bool &#8212; declare multi-feed response shape</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="str">  notes            : str &#8212; informational note shown under the antenna</span>&nbsp;</span><span class="r"></span></p>
@@ -168,7 +168,7 @@
     <p class="pln"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">examples</span> <span class="key">import</span> <span class="nam">register</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">examples</span><span class="op">.</span><span class="nam">_base</span> <span class="key">import</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">    <span class="nam">DEFAULT_HF_BANDS</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">    <span class="nam">DEFAULT_AMATEUR_BANDS</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">    <span class="nam">DEFAULT_SWEEP_POLICY</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">    <span class="nam">AntennaExample</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">    <span class="nam">BandSpec</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -1381,7 +1381,7 @@
     <p class="run"><span class="n"><a id="t1299" href="#t1299">1299</a></span><span class="t">    <span class="key">if</span> <span class="nam">bands_override</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1300" href="#t1300">1300</a></span><span class="t">        <span class="nam">bands</span> <span class="op">=</span> <span class="nam">tuple</span><span class="op">(</span><span class="nam">BandSpec</span><span class="op">(</span><span class="op">*</span><span class="nam">b</span><span class="op">)</span> <span class="key">for</span> <span class="nam">b</span> <span class="key">in</span> <span class="nam">bands_override</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1301" href="#t1301">1301</a></span><span class="t">    <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1302" href="#t1302">1302</a></span><span class="t">        <span class="nam">bands</span> <span class="op">=</span> <span class="nam">DEFAULT_HF_BANDS</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1302" href="#t1302">1302</a></span><span class="t">        <span class="nam">bands</span> <span class="op">=</span> <span class="nam">DEFAULT_AMATEUR_BANDS</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1303" href="#t1303">1303</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1304" href="#t1304">1304</a></span><span class="t">    <span class="nam">param_schema</span> <span class="op">=</span> <span class="nam">_derive_schema</span><span class="op">(</span><span class="nam">dp</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1305" href="#t1305">1305</a></span><span class="t">    <span class="nam">has_design_freq</span> <span class="op">=</span> <span class="str">"design_freq"</span> <span class="key">in</span> <span class="nam">dp</span>&nbsp;</span><span class="r"></span></p>
@@ -1979,7 +1979,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-22 04:55 +0000
+            created at 2026-07-22 14:48 +0000
         </p>
     </div>
 </footer>
