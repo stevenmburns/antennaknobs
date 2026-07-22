@@ -25,22 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.34.1" icon="star">
-  **Docker, VHF, and honest meshes.** The workbench now ships as a
-  **Docker image** — `docker run -p 8000:8000
-  stevenmburns/antennaknobs` and you're solving, no Python setup
-  ([how-to](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)).
-  The band tabs reach **2 m and 70 cm**, with a first VHF-native
-  design: Cebik's 6-element 2 m OWA yagi, band-flat at SWR ≤ 1.2
-  across all of 144–148 MHz. And the mesh-integrity arc behind issue
-  #484 landed: a catalog-wide **Δ/a lint** (no wire may refine below
-  the thin-wire floor), per-design refinement headroom, two builder
-  density defects fixed, and the
-  [convergence guide](/advanced/convergence/) rewritten around what
-  the data actually showed.
-  (v0.34.1 patches two VHF-workbench rough edges the new bands exposed:
-  the unlocked measurement-frequency dial no longer snaps to a stale
-  60 MHz ceiling, and the lock icon now visibly opens when unlocked.)
+<Card title="New in v0.35.0" icon="star">
+  **Cut for one band, worked on another.** Off-band designs — a 10 m
+  inverted-L worked on 12 m through a T-network, an 80 m skyloop run on
+  17 m — now open the way they're meant to be seen: geometry on the band
+  they're cut for, the dial on the band they're worked, the tuner already
+  doing its job (a frequency-snap bug used to silently re-size them).
+  Both matchbox designs ship **real Q = 200 coils**, so the power budget
+  shows the true tuner cost — ~9 % of your watts burned in the T-match's
+  coil vs ~1 % in the L-match — and budget rows now **group indented
+  under their station box**. Trust decisions for your own designs travel
+  with the folder now, so the
+  [Docker workbench](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)
+  sees them without re-allowing. New study:
+  [Cut for one band, worked on another](/advanced/off-band/).
   [All release notes →](/reference/releases/)
 </Card>
 
