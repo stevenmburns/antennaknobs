@@ -161,7 +161,10 @@ A design file in `~/.antennaknobs/designs/` is a full Python program that runs
 with your user privileges, so it **does not run until you allow it** — like
 VS Code's workspace-trust prompt. The decision is remembered per file, by its
 contents: a new file always asks first, and an allowed file that later changes
-asks again.
+asks again. Decisions live in `.trust.json` inside the design folder and are
+keyed relative to it, so they travel with the folder — mount it into the
+[Docker container](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)
+or move it to a new machine and your allowed designs stay allowed.
 
 ```bash
 # A design someone sent you: review it first, then allow that exact version

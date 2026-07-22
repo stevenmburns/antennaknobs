@@ -39,7 +39,12 @@ is the runbook.
 ## Driving a knob
 
 Each parameter in a design is a knob (the big one is the measurement-frequency
-VFO dial; the rest are smaller). Three ways to change one:
+VFO dial; the rest are smaller). The dial is normally locked to the design
+frequency; **off-band designs** — an antenna cut for one band and worked on
+another through a tuner (see
+[Cut for one band, worked on another](/advanced/off-band/)) — open with the
+lock open and the dial already parked on their operating band. Three ways to
+change a knob:
 
 - **Drag** — press on the knob and move the mouse **vertically** (up to
   increase, down to decrease). Horizontal motion is ignored, so a natural hand
@@ -234,9 +239,10 @@ with the fraction of the source's input power it dissipates, plus an
 come straight from the MNA network solve (each branch current is an
 explicit unknown, so the watts are read off the solution, not modelled
 separately — see [Station modelling](/concepts/station-modelling/) for
-the network vocabulary; rows from a station *box* are grouped under its
-instance name, e.g. `tuner: Shunt m`, and a design may retitle rows for
-display via `ui_params["budget_labels"]`), and the same accounting drives
+the network vocabulary). Rows from a station *box* are grouped under a
+header naming its instance and indented beneath it — one indent step per
+nesting level — and a design may retitle rows for display via
+`ui_params["budget_labels"]`. The same accounting drives
 the reported radiation
 efficiency: **every** dissipative branch counts, including resistive
 coupling and matching elements, not just explicit `Load`s. Gain is
