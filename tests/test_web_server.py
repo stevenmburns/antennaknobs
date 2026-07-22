@@ -1130,7 +1130,7 @@ def test_out_of_band_freq_synthesizes_band():
     from types import MappingProxyType
 
     from antennaknobs import AntennaBuilder
-    from antennaknobs.web.adapter import DEFAULT_HF_BANDS, _make_example
+    from antennaknobs.web.adapter import DEFAULT_AMATEUR_BANDS, _make_example
 
     class Uhf(AntennaBuilder):
         default_params = MappingProxyType({"freq": 406.0})
@@ -1164,14 +1164,14 @@ def test_out_of_band_freq_synthesizes_band():
     # Retunable designs keep their list with the synthetic band appended,
     # so the HF tabs stay available for design_freq scaling.
     scaled = _make_example("uhfs", UhfScaled, defer_hints=True)
-    assert scaled.bands[:-1] == DEFAULT_HF_BANDS
+    assert scaled.bands[:-1] == DEFAULT_AMATEUR_BANDS
     assert scaled.bands[-1].freq_mhz == 406.0
 
     class Hf(Uhf):
         default_params = MappingProxyType({"freq": 14.1})
 
     # In-band designs are byte-identical: no synthetic band.
-    assert _make_example("hf", Hf, defer_hints=True).bands == DEFAULT_HF_BANDS
+    assert _make_example("hf", Hf, defer_hints=True).bands == DEFAULT_AMATEUR_BANDS
 
     class Suppressed(Uhf):
         default_params = MappingProxyType(
