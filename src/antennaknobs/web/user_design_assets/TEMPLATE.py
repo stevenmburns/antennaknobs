@@ -27,6 +27,18 @@ THE RULES (keep it this simple)
 - Every built-in design follows these same rules, so any file from the
   installed package's ``antennaknobs/designs/`` folders also works here
   verbatim — copying one in is a great way to start a variation.
+
+GOING FURTHER: THE WHOLE STATION
+--------------------------------
+A design can also model its feed system — coax, a balun/unun, a tuner —
+by adding an optional ``build_network(self)`` method: the wire that was
+driven below instead gets a NAME (a 5th tuple element, with the drive set
+to ``None``), and the network drives it through real feedline and matchbox
+components, re-referencing SWR and the power budget to the rig. See the
+"build_network" section of CLAUDE.md in this folder for the contract and
+the pre-built boxes in ``antennaknobs.station``; built-in examples:
+``dipoles.invvee_coax_station`` (just coax), ``wire.efhw_sloper``
+(49:1 unun + coax).
 """
 
 from types import MappingProxyType

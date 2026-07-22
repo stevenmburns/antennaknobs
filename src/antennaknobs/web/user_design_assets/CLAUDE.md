@@ -215,7 +215,10 @@ Return a list of straight wire segments. Each entry is:
 - `n_segments` — how finely to subdivide that wire. Use `self.nominal_nsegs`
   for the main radiator; fewer for short stubs (`max(1, self.nominal_nsegs // 7)`).
 - `feed` — `1 + 0j` on the **single** segment the transmitter drives, `None`
-  everywhere else. Exactly one segment in the whole antenna is the feed.
+  everywhere else. Exactly one segment in the whole antenna is the feed —
+  unless the design models its feed system with `build_network` (see that
+  section below), in which case the drive moves into the network and the
+  feed wire is *named* instead.
 
 **Feed convention:** put the feed on a tiny segment between two points a
 small `eps` (e.g. 0.01 m) apart, with the radiator arms running outward from
@@ -261,6 +264,95 @@ prefer `design_freq`. If you must keep fixed dimensions, instead widen the
 measurement slider to the target band by adding
 `"meas_freq_range": (low_mhz, high_mhz)` to `ui_params` (e.g. `(6.5, 8.0)` for
 40m).
+
+## `build_network(self)` — feedline, transformer, tuner (optional)
+
+Without this method, the design is driven directly at its `build_wires`
+feed segment. Adding `build_network` models the rest of the station — a
+coax or ladder-line run, a balun/unun, a matchbox — as a circuit solved
+*together with* the antenna, and re-references every readout (impedance,
+SWR, gain, the power budget) to wherever the source sits. The concepts
+are explained on the docs site under **Station modelling**.
+
+Two changes, always together:
+
+1. In `build_wires`, the driven segment **loses its inline drive** and
+   instead *names* its wire with a 5-element tuple:
+   `(start, end, n_segments, None, "feed")`. The name declares a port;
+   which port is driven is now the network's business (so the "exactly
+   one feed segment" rule above applies only to network-less designs).
+2. Add `build_network` returning a `Network` — three fields, always:
+
+```python
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+
+    def build_network(self):
+        return Network(
+            ports={
+                "feed": PortOnWire("feed"),  # the named wire from build_wires
+                "rig": PortVirtual("rig"),   # circuit-only node: the rig end
+            },
+            branches=[
+                TL.from_cable("RG-8X", "rig", "feed", 20.0),  # 20 m of coax
+            ],
+            sources=[Driven(port="rig", voltage=1 + 0j)],
+        )
+```
+
+- `ports` declares **every** name a branch or source references.
+  `PortOnWire` must match a named wire (the port is a gap at that wire's
+  middle segment — give the feed its own short wire, as in
+  `TEMPLATE.py`); `PortVirtual` is a node with no geometry. Driving a
+  virtual `rig` node is what makes the readouts rig-referenced.
+- `branches` come from `antennaknobs.network`: `TL` / `TL.from_cable`
+  (the `CABLES` catalog: `"RG-58"`, `"RG-8X"`, `"window-450"`,
+  `"openwire-600"`, …), `Load` (series R/L/C in a wire — a trap, a
+  terminating resistor), `TwoPort`, `Shunt`, `Transformer`. Reactive
+  elements take a finite Q (`ql`, `qc`, `qlmag`) — that is where real
+  boxes burn power, and the app itemizes it in the power budget.
+- `sources` is usually one `Driven`.
+
+**Prefer the pre-built boxes** in `antennaknobs.station` over raw
+branches for the common cases — a tuner or transformer is one
+`Instance`, parameterized in radio units (pF / µH), with keyword
+arguments mapping the box's formal ports to your port names:
+
+```python
+from antennaknobs.network import Driven, Instance, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.station import unun
+
+    def build_network(self):
+        return Network(
+            ports={
+                "ant": PortOnWire("ant"),
+                "pri": PortVirtual("pri"),   # unun's line-side terminals
+                "rig": PortVirtual("rig"),
+            },
+            branches=[
+                Instance(
+                    "unun",
+                    unun(turns=7.0, lmag_uH=8.0, qlmag=10.0),  # a 49:1
+                    line="pri",  # formal → actual port map
+                    ant="ant",
+                ),
+                TL.from_cable("RG-58", "rig", "pri", 5.0),
+            ],
+            sources=[Driven(port="rig", voltage=1 + 0j)],
+        )
+```
+
+The stdlib: `t_network_tuner(c1_pF, c2_pF, l_uH, ql)`,
+`l_network_tuner(series_l_uH, shunt_c_pF, ql)`, `unun(turns, lmag_uH,
+qlmag, comp_c_pF)`, `balun(n, lmag_uH, qlmag)`, and `bypass()` — a
+pass-through with a box's two-port interface, so swapping a tuner for
+`bypass()` answers "what is this box buying me?" in a one-line change.
+A box's internals are private (the T-network's midpoint is `tuner.m`,
+auto-declared), and its loss rows group under the instance name in the
+power budget.
+
+Built-in designs to copy from: `dipoles.invvee_coax_station` (just
+coax — the minimal case), `wire.efhw_sloper` (unun + comp cap + coax),
+`wire.doublet_ladder_tuner` (ladder line + T-network tuner).
 
 ## Arrays of identical elements (advanced)
 
