@@ -35,6 +35,29 @@ The source (`Driven(port="rig")`) goes wherever your measurement plane
 is. Put it at the antenna feed and you're modelling the antenna; put it
 at the far end of the feedline and you're modelling the station.
 
+The whole contract in one place — the simplest station in the catalog
+(`dipoles.invvee_coax_station`, a resonant inverted vee on a real coax
+run) returns exactly this:
+
+```python
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+
+def build_network(self):
+    return Network(
+        ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
+        branches=[
+            TL.from_cable(self.cable, "rig", "feed", self.line_len_m),
+        ],
+        sources=[Driven(port="rig", voltage=1 + 0j)],
+    )
+```
+
+Three fields, always: **ports** (every name a branch or source may
+reference), **branches**, **sources**. The one geometry-side
+obligation: a `PortOnWire` name must match a *named wire* in
+`build_wires()` — a short wire tagged `"feed"` whose middle segment
+becomes the port's gap.
+
 ## Branches: the circuit vocabulary
 
 Between ports run **branches**, each a physical element with a minimal,
