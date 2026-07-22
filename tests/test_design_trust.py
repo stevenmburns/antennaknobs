@@ -151,6 +151,78 @@ def test_bad_mode_rejected(userdir):
         dt.trust(userdir / "d.py", mode="sometimes")
 
 
+# --- portable (store-dir-relative) keys --------------------------------------
+
+
+def test_store_keys_are_relative(userdir):
+    """New records key on the design's name relative to the store's own dir,
+    not its absolute path — that's what makes trust portable."""
+    import json
+
+    p = userdir / "d.py"
+    p.write_text(CLEAN)
+    dt.trust(p)
+    designs = json.loads(dt.store_path().read_text())["designs"]
+    assert list(designs) == ["d.py"]
+
+
+def test_trust_survives_folder_relocation(userdir, tmp_path_factory, monkeypatch):
+    """The Docker-mount scenario: the whole design folder (store included)
+    appears at a different absolute path — a compose volume at
+    /root/.antennaknobs/designs, a moved home dir. Trust must travel."""
+    import shutil
+
+    p = userdir / "d.py"
+    p.write_text(CLEAN)
+    dt.trust(p, mode="pinned")
+    assert dt.is_trusted(p)
+
+    moved = tmp_path_factory.mktemp("container-mount") / "designs"
+    shutil.copytree(userdir, moved)
+    monkeypatch.setenv("ANTENNAKNOBS_USER_DIR", str(moved))
+    assert dt.is_trusted(moved / "d.py")
+    assert dt.trust_status(moved / "d.py") == "pinned"
+
+
+def test_legacy_absolute_keys_migrate(userdir):
+    """A v1 store (absolute-path keys) still answers lookups, and the first
+    write rewrites it to relative keys."""
+    import json
+
+    p = userdir / "d.py"
+    p.write_text(CLEAN)
+    dt.store_path().write_text(
+        json.dumps({"version": 1, "designs": {str(p.resolve()): {"mode": "always"}}})
+    )
+    assert dt.is_trusted(p)
+    (userdir / "e.py").write_text(CLEAN)
+    dt.trust(userdir / "e.py")  # any write persists the migrated keys
+    designs = json.loads(dt.store_path().read_text())["designs"]
+    assert set(designs) == {"d.py", "e.py"}
+
+
+def test_migration_collision_prefers_always(userdir):
+    """A folder that lived at several mount points can carry several key
+    spellings of the same file; on migration the broader 'always' grant
+    wins over 'pinned'."""
+    import json
+
+    p = userdir / "d.py"
+    p.write_text(CLEAN)
+    dt.store_path().write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "designs": {
+                    str(p.resolve()): {"mode": "pinned", "sha256": "stale-hash"},
+                    "d.py": {"mode": "always"},
+                },
+            }
+        )
+    )
+    assert dt.trust_status(p) == "always"
+
+
 # --- allow / disallow CLI ----------------------------------------------------
 
 
