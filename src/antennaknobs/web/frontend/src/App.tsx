@@ -3396,6 +3396,18 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const measBandAnchor =
     currentBands.find((b) => b.key === measBand)?.freq_mhz ?? designFreq;
 
+  // Ceiling for anchor-derived frequency windows (the unlocked meas-freq
+  // VFO and un-band-locked sweeps). Historically a hardcoded 60 MHz — an
+  // HF-era bound that survived the 2m/70cm band additions (#497) and
+  // then INVERTED the VFO range on VHF designs (anchor 146: min 116.8 >
+  // max 60, so touching the knob clamped it to 60 MHz). Derive it from
+  // the design's own band table instead, keeping 60 as the floor so
+  // bandless/HF-only designs behave exactly as before.
+  const freqWindowCeiling = Math.max(
+    60,
+    ...currentBands.map((b) => b.max_mhz * 1.25),
+  );
+
   // When the active example changes (or first loads), snap band /
   // designFreq / measFreq to the band whose [min, max] window contains
   // the design's native freq (from the schema's freq ParamSpec). If
@@ -3858,7 +3870,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       fHi = bandLocked.max_mhz;
     } else {
       fLo = Math.max(0.5, sweepAnchor * (policy?.lo_factor ?? 0.8));
-      fHi = Math.min(60, sweepAnchor * (policy?.hi_factor ?? 1.25));
+      fHi = Math.min(freqWindowCeiling, sweepAnchor * (policy?.hi_factor ?? 1.25));
     }
     const freqs = Array.from({ length: N }, (_, i) =>
       Math.exp(Math.log(fLo) + (i / (N - 1)) * (Math.log(fHi) - Math.log(fLo))),
@@ -4864,7 +4876,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 max={
                   currentExample?.meas_freq_range_mhz
                     ? currentExample.meas_freq_range_mhz[1]
-                    : Math.min(60, measBandAnchor * 1.25)
+                    : Math.min(freqWindowCeiling, measBandAnchor * 1.25)
                 }
                 step={0.005}
                 precision={3}
