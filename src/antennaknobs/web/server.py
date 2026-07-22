@@ -1516,7 +1516,8 @@ def examples_endpoint():
                     else None
                 ),
                 "default_view": ex.default_view,
-                "default_freq_mhz": ex.default_freq_mhz,
+                "default_freq": ex.default_freq,
+                "default_design_freq": ex.default_design_freq,
                 "default_backend": ex.default_backend,
                 "has_design_freq": ex.has_design_freq,
                 "variants": list(ex.variants),

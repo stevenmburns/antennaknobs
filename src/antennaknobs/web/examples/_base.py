@@ -372,7 +372,14 @@ class AntennaExample:
     # first loads, without exposing it as a redundant schema slider.
     # None means "no preferred freq" — frontend falls back to bands[0]
     # or its built-in default.
-    default_freq_mhz: Optional[float] = None
+    default_freq: Optional[float] = None
+    # The design's STOCK design_freq, when it has one. Almost always equal
+    # to default_freq; they differ for off-band designs (a 10 m antenna
+    # deliberately worked on 12 m, e.g. inverted_l_tmatch), where the
+    # design-switch snap must park designFreq here and only the measurement
+    # dial on default_freq — snapping both to default_freq would
+    # silently RESIZE the geometry and destroy the design's premise.
+    default_design_freq: Optional[float] = None
     # True when the Builder has a `design_freq` parameter that scales
     # geometry (design_freq-sized designs). The frontend uses this to show
     # or hide the design-freq band-tab row: hand-tuned absolute

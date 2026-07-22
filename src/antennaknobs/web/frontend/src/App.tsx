@@ -139,7 +139,8 @@ type ExampleDescriptor = {
   default_view: Projection | null;
   /** The freq this antenna is naturally designed for. Used by the
    *  band-snap-on-example-change effect; null = no preferred freq. */
-  default_freq_mhz: number | null;
+  default_freq: number | null;
+  default_design_freq: number | null;
   /** Recommended solver backend for this design (e.g. "arrayblock" for grid
    *  arrays). The active slot's backend is seeded from this on selection
    *  unless the user has manually picked a backend. null = keep the UI
@@ -317,19 +318,40 @@ function seedDefaults(
 // by one render, fetching its preview with the PREVIOUS design's freqs.
 function snapForExample(
   ex: ExampleDescriptor | undefined,
-): { bandKey: string; freq: number } | null {
+): {
+  bandKey: string;
+  freq: number;
+  measBandKey: string;
+  measFreq: number;
+  offBand: boolean;
+} | null {
   if (!ex || ex.bands.length === 0) return null;
-  const d = ex.default_freq_mhz;
-  const containing =
-    d != null ? ex.bands.find((b) => d >= b.min_mhz && d <= b.max_mhz) : null;
-  const target = containing ?? ex.bands[0];
-  // Use the design's native freq when the band contains it; otherwise the
-  // band's own default. This avoids the small designFreq drift that would
-  // happen if we always snapped to band.freq_mhz (e.g. dipole's 28.57 →
-  // 10m band's 28.470).
+  // The measurement dial parks on the design's native operating freq;
+  // designFreq parks on its STOCK design_freq. They're almost always the
+  // same value, but off-band designs (a 10 m antenna deliberately worked
+  // on 12 m through a tuner, e.g. inverted_l_tmatch) differ — snapping
+  // designFreq to the operating freq would silently RESIZE the geometry
+  // and destroy the design's premise.
+  const m = ex.default_freq;
+  const d = ex.default_design_freq ?? m;
+  const findBand = (f: number | null) =>
+    f != null ? ex.bands.find((b) => f >= b.min_mhz && f <= b.max_mhz) : null;
+  // Use the exact freq when a band contains it; otherwise the band's own
+  // default. This avoids the small designFreq drift that would happen if
+  // we always snapped to band.freq_mhz (e.g. dipole's 28.57 → 10m band's
+  // 28.470).
+  const dBand = findBand(d);
+  const dTarget = dBand ?? ex.bands[0];
+  const designFreq = dBand && d != null ? d : dTarget.freq_mhz;
+  const mBand = findBand(m);
+  const mTarget = mBand ?? dTarget;
+  const measFreq = mBand && m != null ? m : mTarget.freq_mhz;
   return {
-    bandKey: target.key,
-    freq: containing && d != null ? d : target.freq_mhz,
+    bandKey: dTarget.key,
+    freq: designFreq,
+    measBandKey: mTarget.key,
+    measFreq,
+    offBand: measFreq !== designFreq,
   };
 }
 
@@ -2502,10 +2524,20 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       return { ...prev, [geometry]: base };
     });
     if (typeof vv.freq === "number") {
-      setDesignFreq(vv.freq);
-      // Fixed-geometry designs re-anchor unconditionally: their lock is
-      // inert (measLockable), so only the variant freq is meaningful.
-      if (linkMeas || !currentExample.has_design_freq) setMeasFreq(vv.freq);
+      // A variant's stock design_freq wins when it carries one — freq is
+      // the OPERATING freq, and off-band variants keep the two apart
+      // (see snapForExample).
+      const vd =
+        typeof vv.design_freq === "number" ? vv.design_freq : vv.freq;
+      setDesignFreq(vd);
+      if (vd !== vv.freq) {
+        setLinkMeas(false);
+        setMeasFreq(vv.freq);
+      } else if (linkMeas || !currentExample.has_design_freq) {
+        // Fixed-geometry designs re-anchor unconditionally: their lock is
+        // inert (measLockable), so only the variant freq is meaningful.
+        setMeasFreq(vv.freq);
+      }
     }
   }
   // Stable, primitive-only signature of the active antenna's params for
@@ -3430,13 +3462,21 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     const snap = snapForExample(currentExample)!;
     setBand(snap.bandKey);
     setDesignFreq(snap.freq);
-    // Re-anchor the dial too: always when locked, and also for
-    // fixed-geometry designs — their lock is inert (see measLockable), so
-    // a measFreq left over from the previous design would strand the
-    // measurement outside this design's window entirely.
-    if (linkMeas || !currentExample.has_design_freq) {
-      setMeasFreq(snap.freq);
-      setMeasBand(snap.bandKey);
+    // Off-band designs open with the measurement dial deliberately away
+    // from the design freq (that's the design's premise), so the
+    // follow-design lock must disengage or it would immediately drag the
+    // dial back.
+    if (snap.offBand) {
+      setLinkMeas(false);
+      setMeasFreq(snap.measFreq);
+      setMeasBand(snap.measBandKey);
+    } else if (linkMeas || !currentExample.has_design_freq) {
+      // Re-anchor the dial too: always when locked, and also for
+      // fixed-geometry designs — their lock is inert (see measLockable),
+      // so a measFreq left over from the previous design would strand the
+      // measurement outside this design's window entirely.
+      setMeasFreq(snap.measFreq);
+      setMeasBand(snap.measBandKey);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExample]);
@@ -3636,8 +3676,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     const snap = snapForExample(currentExample);
     if (snap) {
       req.design_freq_mhz = snap.freq;
-      if (linkMeas || !currentExample!.has_design_freq) {
-        req.measurement_freq_mhz = snap.freq;
+      if (snap.offBand || linkMeas || !currentExample!.has_design_freq) {
+        req.measurement_freq_mhz = snap.measFreq;
       }
     }
     previewSigRef.current = JSON.stringify(req);

@@ -566,18 +566,14 @@ def _budget_rows(eng, builder):
     )
     rows = []
     for label, w in getattr(eng, "_excited_power_budget", None) or []:
-        path = next(
-            (p for p in instance_paths if label.startswith(p + ": ")), ""
-        )
+        path = next((p for p in instance_paths if label.startswith(p + ": ")), "")
         if label in relabel:
             display = relabel[label]
         elif path:
             display = label[len(path) + 2 :]
         else:
             display = label
-        rows.append(
-            {"label": display, "watts": max(0.0, float(w)), "path": path}
-        )
+        rows.append({"label": display, "watts": max(0.0, float(w)), "path": path})
     return rows
 
 
@@ -1852,7 +1848,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         meas_freq_range_mhz=tuple(meas_range) if meas_range else None,
         sweep_policy=sweep_policy,
         default_view=field_default_view,
-        default_freq_mhz=float(dp["freq"]) if "freq" in dp else None,
+        default_freq=float(dp["freq"]) if "freq" in dp else None,
+        default_design_freq=(float(dp["design_freq"]) if has_design_freq else None),
         has_design_freq=has_design_freq,
         variants=variants,
         variant_values={
