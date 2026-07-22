@@ -1331,7 +1331,7 @@ type SolveResponse = {
    *  one entry per TL / TwoPort / Shunt / Load branch, in watts for the
    *  canonical 1 V drive. Absent or all-~0 for plain and lossless
    *  designs; input_power_w is the 100% reference. */
-  power_budget?: { label: string; watts: number }[];
+  power_budget?: { label: string; watts: number; path?: string }[];
   input_power_w?: number;
   k_meas_m_inv?: number;
   // V-specific
@@ -6197,14 +6197,38 @@ function SolveReadout({
             {showBudget && pin && (
               <div title="Fraction of the source input power dissipated in each network branch (from the MNA solve); the antenna row is the remainder that reaches the wires.">
                 <div className="feeds-table-header">power budget</div>
-                {budget.map((b, i) => (
-                  <div className="row" key={`pb-${i}`}>
-                    <span>{b.label}</span>
-                    <span className="val">
-                      {((b.watts / pin) * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                ))}
+                {budget.map((b, i) => {
+                  // Hierarchical rows (issue #489): rows carry the instance
+                  // path of the composite they came from. Start a group
+                  // header whenever the path changes, and indent members
+                  // one step per hierarchy level ("sta.tuner" = depth 2).
+                  const path = b.path ?? "";
+                  const prev = i > 0 ? budget[i - 1].path ?? "" : "";
+                  const depth = path ? path.split(".").length : 0;
+                  return (
+                    <Fragment key={`pb-${i}`}>
+                      {path && path !== prev && (
+                        <div
+                          className="row pb-group"
+                          style={{ paddingLeft: `${(depth - 1) * 12}px` }}
+                        >
+                          <span>{path}</span>
+                        </div>
+                      )}
+                      <div
+                        className="row"
+                        style={
+                          depth ? { paddingLeft: `${depth * 12}px` } : undefined
+                        }
+                      >
+                        <span>{b.label}</span>
+                        <span className="val">
+                          {((b.watts / pin) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </Fragment>
+                  );
+                })}
                 <div className="row" key="pb-ant">
                   <span>antenna (accepted)</span>
                   <span className="val">

@@ -539,15 +539,46 @@ def _budget_rows(eng, builder):
     optional ``ui_params["budget_labels"]`` display renames (issue #489).
     Structural labels stay authoritative everywhere else (tests pin them);
     this rename happens only at the presentation boundary. Tiny negative
-    float noise from reactive stamps is clamped to 0."""
-    try:
-        relabel = dict((builder.ui_params or {}).get("budget_labels") or {})
-    except Exception:
-        relabel = {}
-    return [
-        {"label": relabel.get(label, label), "watts": max(0.0, float(w))}
-        for label, w in (getattr(eng, "_excited_power_budget", None) or [])
-    ]
+    float noise from reactive stamps is clamped to 0.
+
+    Each row carries the instance ``path`` its branch came from ("" for
+    top-level rows) so the UI can group and indent a composite's rows
+    under its instance name. The path is recovered from the structural
+    label's "<path>: " prefix — matched against the network's actual
+    instance paths (``branch_paths``), never guessed from the colon alone —
+    and rows resolved to a path drop that prefix from the display label
+    (the group header already names the instance). Renames are keyed on
+    the full structural label and win verbatim."""
+    # The solve path builds the Builder with the reserved ui_params key
+    # STRIPPED from its params (_build_builder), so the instance attribute
+    # usually doesn't exist — fall back to the design class's declared
+    # defaults. (The old `builder.ui_params` attribute read silently
+    # returned nothing in the server path and the renames never applied.)
+    ui = getattr(builder, "ui_params", None)
+    if ui is None:
+        ui = (getattr(type(builder), "default_params", None) or {}).get("ui_params")
+    relabel = dict((ui or {}).get("budget_labels") or {})
+    net = getattr(eng, "_network", None)
+    instance_paths = sorted(
+        {p[:-1] for p in (getattr(net, "branch_paths", None) or []) if p},
+        key=len,
+        reverse=True,  # longest first: "sta.tuner" must beat "sta"
+    )
+    rows = []
+    for label, w in getattr(eng, "_excited_power_budget", None) or []:
+        path = next(
+            (p for p in instance_paths if label.startswith(p + ": ")), ""
+        )
+        if label in relabel:
+            display = relabel[label]
+        elif path:
+            display = label[len(path) + 2 :]
+        else:
+            display = label
+        rows.append(
+            {"label": display, "watts": max(0.0, float(w)), "path": path}
+        )
+    return rows
 
 
 def _derive_schema(default_params: dict) -> tuple:
