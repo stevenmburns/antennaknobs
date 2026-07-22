@@ -1,78 +1,68 @@
-"""Catalog-wide Δ/a lint (issue #484): no builder may mesh a wire so
-densely that fine-mesh refinement drives segment length under ~2× the
-wire radius — the reduced-kernel thin-wire floor (NEC-2 guideline: Δ/a > 8
-for <1 % error, "reasonable solutions" down to ~2; below ~1 the discretized
-equation is ill-posed and the sin/pulse/pynec family produces garbage).
+"""Catalog-wide Δ/a headroom lint (issue #484): every design must be able
+to SCALE to the census top rung (N=641) without any wire's segment length
+falling under ~2× its radius — the reduced-kernel thin-wire floor (NEC-2
+guideline: Δ/a > 8 for <1 % error, "reasonable solutions" down to ~2;
+below ~1 the discretized equation is ill-posed and the sin/pulse/pynec
+family produces garbage).
 
-The folded_invvee family shipped exactly this defect: a 0.1 m link carrying
-the full nominal count hit Δ/a = 0.62 at N=321, and the folded element's
-stub antiresonance amplified the localized error into a wildly wrong
-impedance (280−1188j vs the true 223−30j) that LOOKED like a convergence
-class of its own — see the #484 mechanism comments. Geometry-only check
-(no solves), so it sweeps every catalog design cheaply.
+The check computes each design's actual headroom N_max by bisection over
+geometry-only builds (scripts/bench_delta_a_headroom.py) — the folded
+family shipped exactly this defect class: a 0.1 m link carrying the full
+nominal count hit Δ/a = 0.62 at N=321 and the folded element's stub
+antiresonance amplified the localized breakdown into 280−1188j (vs the
+true 223−30j). See the #484 mechanism comments.
+
+Fat-conductor designs (tube whips, fat elements) legitimately cap early —
+their measured headroom is recorded below so a *regression* (a builder
+change shrinking it further) still fails, without demanding physics they
+cannot deliver.
 """
 
-import math
+import sys
+from pathlib import Path
 
 import pytest
 
-from antennaknobs.cli import list_builtin_designs
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import bench_delta_a_headroom as hd  # noqa: E402
 
-# The refinement rung the #484 breakdowns surfaced at — well past any
-# default, deep enough to expose density defects on short wires.
-N_FINE = 321
-FLOOR = 2.0
-DEFAULT_RADIUS = 0.0005
+from antennaknobs.cli import list_builtin_designs  # noqa: E402
 
-# Audited exceptions (design name -> why it is allowed under the floor).
-EXEMPT = {
-    # W8IO measurement-fidelity whip: deliberately deck-faithful dense mesh
-    # on a fat tube; audited in #435, solve quality tracked against the
-    # published deck. Δ/a ≈ 1.05 at N=321.
-    "verticals.elt_whip": "deck-faithful dense mesh on fat tube (#435 audit)",
-    # Fat-element OWA yagi: long tube element whose builder doubles the
-    # driven element's count; falls to Δ/a ≈ 0.65 at N=321. Latent —
-    # tracked in #484's audit comment; needs its own meshing decision.
-    "beams.owa_yagi": "fat tube element, tracked in #484 audit",
+CENSUS_TOP_RUNG = 641
+
+# Fat/short-conductor designs whose radius bounds refinement before the
+# census top rung — physics, not builder defects. Values are the measured
+# headroom (2026-07-22, floor 2.0) rounded DOWN a little so ordinary
+# geometry jitter doesn't flap the test; a real regression (density
+# defect reintroduced) craters headroom by ~an order of magnitude and
+# fails regardless. Rebalance deliberately if a design's conductors
+# change.
+FAT_CONDUCTOR_HEADROOM = {
+    "beams.owa_yagi": 85,  # measured 92 — fat tube driven element
+    "verticals.elt_whip": 155,  # measured 169 — deck-faithful whip (#435)
+    "verticals.pota_performer": 330,  # measured 360 — stainless whip
+    "verticals.challenger": 380,  # measured 413 — aluminum tube
+    "arrays.moxonarray": 515,  # measured 561 — fat moxon elements
+    "beams.moxon": 515,  # measured 563
+    "verticals.dominator": 525,  # measured 571 — one aluminum tube
+    "specialty.hourglass": 545,  # measured 593 — short crossing rails
 }
 
 
-def _min_delta_a(builder_cls):
-    b = builder_cls()
-    b.nominal_nsegs = N_FINE
-    try:
-        mat = b.build_wire_material()
-        default_r = getattr(mat, "radius", DEFAULT_RADIUS) or DEFAULT_RADIUS
-    except Exception:
-        default_r = DEFAULT_RADIUS
-    worst = math.inf
-    worst_wire = None
-    for i, w in enumerate(b.build_wires()):
-        p0, p1, ns = w[0], w[1], w[2]
-        spec = getattr(w, "spec", None)
-        r = getattr(spec, "radius", None) or default_r
-        length = math.dist(p0, p1)
-        if ns <= 0 or length == 0:
-            continue
-        ratio = (length / ns) / r
-        if ratio < worst:
-            worst, worst_wire = ratio, i
-    return worst, worst_wire
-
-
 @pytest.mark.parametrize("name", sorted(list_builtin_designs()))
-def test_no_wire_under_delta_a_floor_at_fine_mesh(name):
+def test_design_scales_to_census_top_rung(name):
     import importlib
 
     mod = importlib.import_module(f"antennaknobs.designs.{name}")
-    worst, wire = _min_delta_a(mod.Builder)
-    if name in EXEMPT:
-        pytest.skip(f"exempt: {EXEMPT[name]} (measured Δ/a = {worst:.2f})")
-    assert worst >= FLOOR, (
-        f"{name} wire {wire} hits Δ/a = {worst:.2f} at N={N_FINE} — under "
-        f"the thin-wire floor ({FLOOR}). Give short wires proportional "
-        "density via segs_for (issue #484); do not carry the full nominal "
-        "count on a wire much shorter than the reference arm."
+    target = FAT_CONDUCTOR_HEADROOM.get(name, CENSUS_TOP_RUNG)
+    got = hd.n_max(mod.Builder)
+    assert got >= target, (
+        f"{name} Δ/a headroom is N_max={got}, below its floor {target}: "
+        f"some wire's segment length falls under {hd.FLOOR}× its radius "
+        "before that mesh. If a short wire carries a long wire's segment "
+        "count, derive it with segs_for (issue #484); if the design's "
+        "conductors legitimately got fatter, update "
+        "FAT_CONDUCTOR_HEADROOM deliberately."
     )
 
 
