@@ -108,10 +108,10 @@ def test_lossy_shunt_coil_dissipates_power():
 def test_tuner_designs_expose_the_coil_q_knob():
     # coil_q = 0 is the ideal-coil sentinel: the branch carries ql=None
     # (bit-identical to the pre-#298 build); coil_q > 0 lands verbatim in
-    # the branch's ql. Stock defaults differ per design: the L-match ships
-    # ideal (0), the T-match ships a real Q=200 coil.
+    # the branch's ql. Both tuner designs ship a real Q=200 coil stock —
+    # an ideal matchbox dissipates nothing and hides the power budget.
     for builder_cls, lossy_branch, stock_ql in [
-        (LMatchBuilder, TwoPort, None),
+        (LMatchBuilder, TwoPort, 200.0),
         (TMatchBuilder, Shunt, 200.0),
     ]:
         net = builder_cls().build_network()

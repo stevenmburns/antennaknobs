@@ -22,9 +22,12 @@ retune `series_L_uH` / `shunt_C_pF` for other bands or a different loop.
 
 `Shunt` — a lumped R/L/C from a single port to the common reference — is the
 element issue #65 deferred as Q2. A matching network was the motivating use
-case; this design is it. A lossless matching network doesn't touch the
-radiation pattern, so the showcase is the impedance/SWR transform, which the
-reducer computes exactly on top of the extracted antenna Y.
+case; this design is it. The showcase is the impedance/SWR transform, which
+the reducer computes exactly on top of the extracted antenna Y. The stock
+coil has Q = 200 (`coil_q = 0` recovers the ideal one); unlike the
+inverted-L's high-Q tee this match runs modest circulating current, so the
+coil burns only ~1 % of the input power — visible in the power-budget
+readout rather than dominating it.
 """
 
 from types import MappingProxyType
@@ -46,19 +49,32 @@ class Builder(TriangularSkyloop):
             **TriangularSkyloop.default_params,
             # Loop is cut for 80 m (inherited design_freq) but operated on 17 m.
             "freq": 18.1,
-            # L-match elements, tuned for ~50 Ω at 18.1 MHz on the stock loop.
-            "series_L_uH": 0.873,  # series arm, input → feed (TwoPort)
-            "shunt_C_pF": 59.57,  # shunt arm, across the feed (Shunt)
+            # L-match elements, tuned for ~50 Ω at 18.1 MHz on the stock
+            # loop WITH the stock Q=200 coil (the ESR barely moves this
+            # match — the loop's feed R needs no big virtual-resistance
+            # ride, unlike inverted_l_tmatch's tee).
+            "series_L_uH": 0.870,  # series arm, input → feed (TwoPort)
+            "shunt_C_pF": 60.01,  # shunt arm, across the feed (Shunt)
             # Coil quality factor (issue #298): adds R = ωL/Q in series with
-            # the matching inductor. 0 = ideal coil (the historical behavior);
-            # real air-wound coils run ~50–400.
-            "coil_q": 0.0,
+            # the matching inductor. Real air-wound coils run ~50–400;
+            # default 200 matches the other tuner designs (0 = ideal coil
+            # is still reachable, but a lossless matchbox hides the whole
+            # power-budget readout).
+            "coil_q": 200.0,
             "ui_params": MappingProxyType(
                 {
                     # Matched to 50 Ω, so the SWR readout shows ~1:1.
                     "target_z0": 50.0,
                     "default_view": "xy",
                     "coil_q": {"min": 0.0, "max": 400.0},
+                    # Display names for the power-budget rows (issue #489).
+                    # Keys are the STRUCTURAL labels the solver emits —
+                    # keep in sync with the "match" instance in
+                    # build_network below.
+                    "budget_labels": {
+                        "match: TwoPort in→feed": "series coil",
+                        "match: Shunt feed": "shunt cap",
+                    },
                 }
             ),
         }
