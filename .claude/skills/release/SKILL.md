@@ -51,11 +51,16 @@ Merge with `/merge-pr` (rebase, CI green first).
 ## Tag and verify
 
 1. On the merged main: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-2. The tag fires THREE pipelines — watch all of them to completion:
+2. The tag fires FOUR pipelines — watch all of them to completion:
    - `publish` → PyPI (Trusted Publishing) + auto-created GitHub release
      (generated notes from PR titles; do NOT `gh release create` manually)
    - `Deploy simulator to Fly.io`
    - `Deploy docs site to Fly.io`
+   - `Publish Docker image` → docker.io `<DOCKERHUB_USERNAME>/antennaknobs`
+     tagged `<version>` + `latest` (momwire-only: built with
+     INCLUDE_PYNEC=0 — pynec-accel is GPL-wrapping and stays an opt-in
+     user layer; the Fly image keeps the default INCLUDE_PYNEC=1).
+     Needs the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repo secrets.
 3. Verify: PyPI serves X.Y.Z
    (`curl -s https://pypi.org/pypi/antennaknobs/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`)
    and `gh release view vX.Y.Z` lists the expected PRs.
