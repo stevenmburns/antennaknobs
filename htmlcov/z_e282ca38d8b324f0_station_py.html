@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">17 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">17<span class="text"> run</span></button>
+            <span class="text">25 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">25<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_sweep_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-22 00:31 +0000
+            created at 2026-07-22 01:15 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -192,6 +192,47 @@
     <p class="run run2"><span class="n"><a id="t110" href="#t110">110</a></span><span class="t">        <span class="nam">ports</span><span class="op">=</span><span class="op">(</span><span class="str">"line"</span><span class="op">,</span> <span class="str">"ant"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t111" href="#t111">111</a></span><span class="t">        <span class="nam">branches</span><span class="op">=</span><span class="op">(</span><span class="nam">Transformer</span><span class="op">(</span><span class="nam">a</span><span class="op">=</span><span class="str">"line"</span><span class="op">,</span> <span class="nam">b</span><span class="op">=</span><span class="str">"ant"</span><span class="op">,</span> <span class="nam">n</span><span class="op">=</span><span class="nam">n</span><span class="op">,</span> <span class="nam">lmag</span><span class="op">=</span><span class="nam">lmag</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="nam">qlmag</span><span class="op">)</span><span class="op">,</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t112" href="#t112">112</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t113" href="#t113">113</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t114" href="#t114">114</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t"><span class="com"># ---------------------------------------------------------------------------</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t"><span class="com"># Calibrated presets &#8212; measured boxes as named values (issue #489).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t"><span class="com">#</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t"><span class="com"># Each preset wraps a factory above with parameters CALIBRATED to a published</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t"><span class="com"># measurement rather than derived from core datasheets (the `Transformer`</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t"><span class="com"># loss model's intended use). The catalog designs that source these numbers</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t"><span class="com"># keep their own knobs (so users can re-tune them); the presets are the same</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t"><span class="com"># stock values as importable, reusable components for station authors &#8212;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t"><span class="com"># tests pin preset == design-stock so the two cannot drift apart.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t"><span class="com"># ---------------------------------------------------------------------------</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t"><span class="key">def</span> <span class="nam">kj6er_unun_4_1</span><span class="op">(</span><span class="nam">plus</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Composite</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">    <span class="str">"""KJ6ER Challenger's 4:1 unun (2:1 turns), calibrated to his measured</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t127" href="#t127">127</a></span><span class="t"><span class="str">    insertion loss at 21.35 MHz: stock build &#8722;0.34 dB; ``plus=True`` is the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t"><span class="str">    upgraded build at &#8722;0.24 dB. Source: the Challenger plans' measured</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t129" href="#t129">129</a></span><span class="t"><span class="str">    table (see ``verticals.challenger``)."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t130" href="#t130">130</a></span><span class="t">    <span class="key">return</span> <span class="nam">unun</span><span class="op">(</span><span class="nam">turns</span><span class="op">=</span><span class="num">2.0</span><span class="op">,</span> <span class="nam">lmag_uH</span><span class="op">=</span><span class="num">1.75</span> <span class="key">if</span> <span class="nam">plus</span> <span class="key">else</span> <span class="num">1.22</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="num">3.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t131" href="#t131">131</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t132" href="#t132">132</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t133" href="#t133">133</a></span><span class="t"><span class="key">def</span> <span class="nam">kj6er_unun_49_1</span><span class="op">(</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Composite</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t134" href="#t134">134</a></span><span class="t">    <span class="str">"""KJ6ER Dominator's stock 49:1 unun (7:1 turns), calibrated to the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t135" href="#t135">135</a></span><span class="t"><span class="str">    measured &#8722;0.96 dB at 21.35 MHz &#8212; the loss figure interrogated in the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t136" href="#t136">136</a></span><span class="t"><span class="str">    docs' end-fed pages (see ``verticals.dominator``)."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t137" href="#t137">137</a></span><span class="t">    <span class="key">return</span> <span class="nam">unun</span><span class="op">(</span><span class="nam">turns</span><span class="op">=</span><span class="num">7.0</span><span class="op">,</span> <span class="nam">lmag_uH</span><span class="op">=</span><span class="num">0.33</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="num">3.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t138" href="#t138">138</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t139" href="#t139">139</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t140" href="#t140">140</a></span><span class="t"><span class="key">def</span> <span class="nam">kj6er_unun_56_1</span><span class="op">(</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Composite</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t141" href="#t141">141</a></span><span class="t">    <span class="str">"""The Dominator-plus 56:1 unun (7.5:1 turns, MyAntennas-class build),</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t"><span class="str">    calibrated to the measured &#8722;0.40 dB at 21.35 MHz (see</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t"><span class="str">    ``verticals.dominator``'s ``plus`` variant)."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t">    <span class="key">return</span> <span class="nam">unun</span><span class="op">(</span><span class="nam">turns</span><span class="op">=</span><span class="num">7.5</span><span class="op">,</span> <span class="nam">lmag_uH</span><span class="op">=</span><span class="num">0.74</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="num">3.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t147" href="#t147">147</a></span><span class="t"><span class="key">def</span> <span class="nam">ft240_43_unun_49_1</span><span class="op">(</span><span class="nam">comp_c_pF</span><span class="op">:</span> <span class="nam">float</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="num">100.0</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Composite</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t148" href="#t148">148</a></span><span class="t">    <span class="str">"""The generic FT240-43-class 49:1 EFHW unun (7:1 turns, ~3 primary</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t"><span class="str">    turns &#8594; 8 &#181;H magnetizing, core Q &#8776; 10), landing in the 85&#8211;90 %</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t150" href="#t150">150</a></span><span class="t"><span class="str">    efficiency range bench-measured for such builds, with the customary</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t151" href="#t151">151</a></span><span class="t"><span class="str">    100 pF compensation capacitor across the primary (pass ``None`` to</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t"><span class="str">    omit it). The stock box of ``wire.efhw_sloper``."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t153" href="#t153">153</a></span><span class="t">    <span class="key">return</span> <span class="nam">unun</span><span class="op">(</span><span class="nam">turns</span><span class="op">=</span><span class="num">7.0</span><span class="op">,</span> <span class="nam">lmag_uH</span><span class="op">=</span><span class="num">8.0</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="num">10.0</span><span class="op">,</span> <span class="nam">comp_c_pF</span><span class="op">=</span><span class="nam">comp_c_pF</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -201,7 +242,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_sweep_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-22 00:31 +0000
+            created at 2026-07-22 01:15 +0000
         </p>
     </div>
 </footer>
