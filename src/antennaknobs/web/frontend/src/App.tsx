@@ -4902,7 +4902,17 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 >
                   <svg className="lock-glyph" viewBox="0 0 16 16" aria-hidden="true">
                     <rect x="3.5" y="7.2" width="9" height="6.3" rx="1.3" />
-                    <path className="shackle" d="M5.3 7.2V5a2.7 2.7 0 0 1 5.4 0v2.2" />
+                    {/* Shackle opens when unlocked (right leg lifts clear of
+                        the body) so the state reads from shape, not just the
+                        muted-vs-accent color. */}
+                    <path
+                      className="shackle"
+                      d={
+                        linkMeas
+                          ? "M5.3 7.2V5a2.7 2.7 0 0 1 5.4 0v2.2"
+                          : "M5.3 7.2V5a2.7 2.7 0 0 1 5.4 0v0.6"
+                      }
+                    />
                   </svg>
                 </button>
               )}
