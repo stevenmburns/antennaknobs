@@ -1,0 +1,35 @@
+# Development environment for antennaknobs itself: the full toolchain,
+# no sources. Mount your checkout and work inside it —
+#
+#   git clone --recurse-submodules https://github.com/stevenmburns/antennaknobs
+#   docker run -it --rm -v "$PWD/antennaknobs:/work" -w /work \
+#     -p 8000:8000 -p 5173:5173 stevenmburns/antennaknobs-dev
+#
+# then the README's dev flow verbatim: python -m venv .venv, pip install -e
+# ./momwire (compiles the C++ accelerator — the toolchain here is why this
+# image exists), pip install -e ".[web]", npm ci + npm run dev in the
+# frontend, uvicorn on 8000 / vite on 5173.
+#
+# Published ONCE (and re-pushed only when the toolchain moves) via the
+# manual `Publish dev Docker image` workflow — it is not part of the
+# per-release pipeline. See DOCKER.md.
+
+# python:<v>-bookworm (non-slim) is buildpack-deps based: gcc/g++/make/git
+# already present, which covers momwire's pybind11 + OpenMP build.
+FROM python:3.12-bookworm
+
+# Node 22 for the Vite 8 frontend dev server: copy the official binaries
+# rather than apt (bookworm's nodejs is far too old).
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && node --version && npm --version && g++ --version | head -1
+
+ENV PYTHONUNBUFFERED=1
+WORKDIR /work
+
+# 8000: uvicorn backend; 5173: vite dev server.
+EXPOSE 8000 5173
+
+CMD ["bash"]
