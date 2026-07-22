@@ -124,7 +124,18 @@ def _migrate_keys(designs: dict) -> dict:
             try:
                 key = str(p.resolve().relative_to(store_dir))
             except ValueError:
-                pass  # genuinely outside the store dir: absolute is correct
+                # The key points outside the store dir. Two cases:
+                # - The folder has been RELOCATED since the record was
+                #   written (a Docker volume at /root/..., a moved home
+                #   dir): the recorded path no longer exists in this
+                #   environment, but a file with that name sits next to
+                #   the store. The default store always lived alongside
+                #   its designs, so treat the record as this folder's own.
+                # - A custom $ANTENNAKNOBS_TRUST_FILE store legitimately
+                #   records out-of-dir designs: those paths still exist
+                #   here, so the guard leaves them keyed absolute.
+                if not p.exists() and (store_dir / p.name).is_file():
+                    key = p.name
         prev = migrated.get(key)
         if prev is None or (
             prev.get("mode") == "pinned" and rec.get("mode") == "always"

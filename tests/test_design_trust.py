@@ -201,6 +201,43 @@ def test_legacy_absolute_keys_migrate(userdir):
     assert set(designs) == {"d.py", "e.py"}
 
 
+def test_legacy_keys_survive_folder_relocation(userdir):
+    """THE Docker case, v0.35.0's actual gap: a v1 store with absolute keys
+    from the OLD location, and the folder now mounted somewhere else. The
+    recorded path doesn't exist here; the file sits next to the store —
+    the record must migrate by name and keep answering."""
+    import json
+
+    p = userdir / "d.py"
+    p.write_text(CLEAN)
+    old_home_key = "/nonexistent/old-home/.antennaknobs/designs/d.py"
+    dt.store_path().write_text(
+        json.dumps({"version": 1, "designs": {old_home_key: {"mode": "always"}}})
+    )
+    assert dt.is_trusted(p)
+    assert dt.trust_status(p) == "always"
+
+
+def test_out_of_dir_records_stay_absolute(userdir, tmp_path_factory, monkeypatch):
+    """A custom $ANTENNAKNOBS_TRUST_FILE store recording a design OUTSIDE
+    the store's directory keeps its absolute key while that path exists —
+    even if a same-named file appears next to the store."""
+    import json
+
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    real = elsewhere / "d.py"
+    real.write_text(CLEAN)
+    store = userdir / "custom-trust.json"
+    monkeypatch.setenv("ANTENNAKNOBS_TRUST_FILE", str(store))
+    dt.trust(real, mode="always")
+    # A same-named local file must NOT inherit the out-of-dir grant.
+    imposter = userdir / "d.py"
+    imposter.write_text(CLEAN + "# different file\n")
+    assert dt.is_trusted(real)
+    assert json.loads(store.read_text())["designs"].keys() == {str(real.resolve())}
+    assert not dt.is_trusted(imposter)
+
+
 def test_migration_collision_prefers_always(userdir):
     """A folder that lived at several mount points can carry several key
     spellings of the same file; on migration the broader 'always' grant
