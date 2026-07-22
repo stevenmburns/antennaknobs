@@ -90,6 +90,14 @@ Differences from the Fly image, on purpose:
 - `linux/amd64` only (momwire's PyPI wheels are manylinux x86_64;
   revisit if it grows aarch64 wheels).
 
+- **Fully unlocked.** The hosted instance's solve-size caps and sweep
+  budgets are opt-in via `ANTENNAKNOBS_HOSTED=1`, which only `fly.toml`
+  sets — the image never does, so a docker.io container runs like a
+  local install: no login, no limits. The corollary from the user-design
+  docs applies: it's meant for localhost or a network you control, not
+  for re-hosting on the open internet as-is (set `ANTENNAKNOBS_HOSTED=1`
+  in the container env if you do).
+
 The workflow needs two repo secrets: `DOCKERHUB_USERNAME` (also the
 image namespace) and `DOCKERHUB_TOKEN` (a Docker Hub access token with
 Read/Write scope). `workflow_dispatch` runs build the image without
