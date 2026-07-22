@@ -11,7 +11,7 @@ Reserved keys inside `ui_params`:
   default_view     : "xy" | "yz" | "xz"  — initial 2D projection
   target_z0        : float — reference impedance for SWR (default 50)
   meas_freq_range  : (lo, hi)  — measurement-freq slider span override
-  bands            : tuple[BandSpec] — band tabs (default HF amateur set)
+  bands            : tuple[BandSpec] — band tabs (default amateur set, 160m–70cm)
   sweep_policy     : (anchor, lo_factor, hi_factor)
   multi_feed       : bool — declare multi-feed response shape
   notes            : str — informational note shown under the antenna
@@ -86,7 +86,7 @@ from momwire import (
 
 from .examples import register
 from .examples._base import (
-    DEFAULT_HF_BANDS,
+    DEFAULT_AMATEUR_BANDS,
     DEFAULT_SWEEP_POLICY,
     AntennaExample,
     BandSpec,
@@ -1299,7 +1299,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     if bands_override is not None:
         bands = tuple(BandSpec(*b) for b in bands_override)
     else:
-        bands = DEFAULT_HF_BANDS
+        bands = DEFAULT_AMATEUR_BANDS
 
     param_schema = _derive_schema(dp)
     has_design_freq = "design_freq" in dp

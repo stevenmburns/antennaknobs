@@ -39,6 +39,7 @@ CENSUS_TOP_RUNG = 641
 # change.
 FAT_CONDUCTOR_HEADROOM = {
     "beams.owa_yagi": 85,  # measured 92 — fat tube driven element
+    "beams.owa_yagi_6el": 100,  # measured 107 — 3/16"-equivalent tube (2m)
     "verticals.elt_whip": 155,  # measured 169 — deck-faithful whip (#435)
     "verticals.pota_performer": 330,  # measured 360 — stainless whip
     "verticals.challenger": 380,  # measured 413 — aluminum tube

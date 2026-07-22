@@ -179,7 +179,7 @@ class BandSpec:
 
     The solver only sees the resulting `design_freq_mhz` float; bands are
     purely a UI affordance. Examples that target HF amateur bands reuse
-    `DEFAULT_HF_BANDS`; others can supply their own list, or set bands=()
+    `DEFAULT_AMATEUR_BANDS`; others can supply their own list, or set bands=()
     to suppress the row entirely (fan_dipole does this — its per-band
     schema-driven controls own the design frequency).
     """
@@ -225,10 +225,13 @@ class SweepPolicy:
 DEFAULT_SWEEP_POLICY = SweepPolicy()
 
 
-DEFAULT_HF_BANDS: tuple[BandSpec, ...] = (
-    # Full HF amateur set + 6m, low to high. The band dropdown scales to any
-    # number, so designs (especially design_freq-scaled ones) can be placed and
-    # tuned anywhere from 160m up. (key, label, snap-freq, slider-min, -max MHz)
+DEFAULT_AMATEUR_BANDS: tuple[BandSpec, ...] = (
+    # Full HF amateur set + 6m/2m/70cm, low to high (issue #497; formerly
+    # DEFAULT_HF_BANDS). The band dropdown scales to any number, so designs
+    # (especially design_freq-scaled ones) can be placed and tuned anywhere
+    # from 160m through UHF. Edges are US/ITU Region 2 (Region 1's 2m/70cm
+    # allocations fit inside them); snap freqs are the customary mid-band
+    # picks. (key, label, snap-freq, slider-min, -max MHz)
     BandSpec("160m", "160m", 1.900, 1.800, 2.000),
     BandSpec("80m", "80m", 3.750, 3.500, 4.000),
     BandSpec("40m", "40m", 7.150, 7.000, 7.300),
@@ -239,6 +242,8 @@ DEFAULT_HF_BANDS: tuple[BandSpec, ...] = (
     BandSpec("12m", "12m", 24.970, 24.890, 24.990),
     BandSpec("10m", "10m", 28.470, 28.000, 29.700),
     BandSpec("6m", "6m", 50.150, 50.000, 54.000),
+    BandSpec("2m", "2m", 146.000, 144.000, 148.000),
+    BandSpec("70cm", "70cm", 435.000, 420.000, 450.000),
 )
 
 
@@ -339,7 +344,7 @@ class AntennaExample:
     # Design-frequency band tabs offered by the UI. Defaults to the HF
     # amateur set; multi-band examples (fan_dipole) set this to () to
     # suppress the row.
-    bands: tuple[BandSpec, ...] = DEFAULT_HF_BANDS
+    bands: tuple[BandSpec, ...] = DEFAULT_AMATEUR_BANDS
     # Optional override for the measurement-freq slider span. When None,
     # the UI uses a generic ±20%/+25% window around the design freq.
     # Multi-band examples that span the whole HF range set this to e.g.

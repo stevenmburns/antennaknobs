@@ -29,7 +29,7 @@ from antennaknobs.web.adapter import (
 )
 from antennaknobs.web.examples import REGISTRY
 from antennaknobs.web.examples._base import (
-    DEFAULT_HF_BANDS,
+    DEFAULT_AMATEUR_BANDS,
     AntennaExample,
     BandSpec,
     ParamGroupSpec,
@@ -134,7 +134,7 @@ def test_bands_default_to_hf_set_unless_overridden(name):
     # Defaulted designs share the HF set object; overrides have their
     # own tuple but still parse as BandSpecs (covered above).
     if "ui_params" not in dict(_builder_cls(name).default_params):
-        assert bands is DEFAULT_HF_BANDS
+        assert bands is DEFAULT_AMATEUR_BANDS
 
 
 @pytest.mark.parametrize("name", DESIGN_NAMES)

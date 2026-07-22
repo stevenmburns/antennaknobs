@@ -64,6 +64,7 @@ whole shape with a `Drone` — see
 | `beams.moxon` | Moxon rectangle — a 2-element beam with folded-back element tips · variants: `opt`, `original` |
 | `beams.moxon_turnstile` | Moxon turnstile: two up-firing Moxons in real quadrature (L. B. Cebik, W4RNL, QST Aug 2001 pp |
 | `beams.owa_yagi` | OWA Yagi: 4 elements, whole-band flat 50-ohm feed (NW3Z/WA3FET concept, systematized by L. B. Cebik, W4RNL) |
+| `beams.owa_yagi_6el` | 6-element OWA Yagi — Cebik's 2 m band-flat beam, wavelength-scaled (issue #497's first VHF-native design) · variants: `band70cm` |
 | `beams.phased_driver_yagi` | 40 m wide-band phased-driver wire Yagi (L. B. Cebik, W4RNL, "Wide-Band 40-Meter Yagis", Part 3) |
 | `beams.yagi` | Yagi-Uda parasitic beam (driven element + reflector + directors) |
 <!-- catalog:end beams -->
