@@ -91,6 +91,7 @@ export default defineConfig({
             { label: "Wire gauge for POTA", slug: "advanced/wire-gauge" },
             { label: "The end-fed question", slug: "advanced/efhw" },
             { label: "Three ledgers of efficiency", slug: "advanced/pota-performer" },
+            { label: "Cut for one band, worked on another", slug: "advanced/off-band" },
             { label: "How many segments?", slug: "advanced/convergence" },
           ],
         },
