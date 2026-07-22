@@ -77,7 +77,15 @@ class Builder(AntennaBuilder):
         tups.extend(build_path([S, A], n_seg0, None))
         tups.extend(build_path([A, B], n_seg1, None))
         tups.extend(build_path([B, s], n_seg0, None))
-        tups.extend(build_path([s, t], n_seg0, None))
+        # The 0.1 m facing link gets the ARM's density (n_seg2, same length
+        # as the feed wire T-S), not the full nominal count: with n_seg0 a
+        # fine mesh drives this wire's segment length below the wire RADIUS
+        # (N=321: 0.31 mm segs on a 0.5 mm-radius wire, Δ/a = 0.62) — the
+        # classic reduced-kernel ill-posedness, which the folded element's
+        # stub antiresonance then amplifies into a wildly wrong sin/pynec
+        # impedance (issue #484: 280−1188j at N=321; proportional density
+        # holds the ladder flat at 223−30j through N=641).
+        tups.extend(build_path([s, t], n_seg2, None))
         tups.extend(build_path([t, C], n_seg0, None))
         tups.extend(build_path([C, D], n_seg1, None))
         tups.extend(build_path([D, T], n_seg0, None))
