@@ -113,7 +113,7 @@ def test_optimize_real_geometry_improves_resonance():
 
     name = "broadband.g5rv"
     ex = REGISTRY[name]
-    freq = ex.default_freq_mhz or 14.0
+    freq = ex.default_freq or 14.0
     base = {"geometry": name, "measurement_freq_mhz": freq, "design_freq_mhz": freq}
     res = optimize(
         base,

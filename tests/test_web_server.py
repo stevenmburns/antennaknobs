@@ -265,7 +265,7 @@ def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
         "bands",
         "meas_freq_range_mhz",
         "default_view",
-        "default_freq_mhz",
+        "default_freq",
         "has_design_freq",
         "variants",
         "variant_values",
