@@ -106,10 +106,13 @@ def test_lossy_shunt_coil_dissipates_power():
 
 
 def test_tuner_designs_expose_the_coil_q_knob():
-    # Default 0 = ideal coil: the branch carries ql=None (bit-identical).
-    for builder_cls, lossy_branch in [
-        (LMatchBuilder, TwoPort),
-        (TMatchBuilder, Shunt),
+    # coil_q = 0 is the ideal-coil sentinel: the branch carries ql=None
+    # (bit-identical to the pre-#298 build); coil_q > 0 lands verbatim in
+    # the branch's ql. Stock defaults differ per design: the L-match ships
+    # ideal (0), the T-match ships a real Q=200 coil.
+    for builder_cls, lossy_branch, stock_ql in [
+        (LMatchBuilder, TwoPort, None),
+        (TMatchBuilder, Shunt, 200.0),
     ]:
         net = builder_cls().build_network()
         coils = [
@@ -117,16 +120,17 @@ def test_tuner_designs_expose_the_coil_q_knob():
             for b in net.branches
             if isinstance(b, lossy_branch) and getattr(b, "l", None)
         ]
-        assert coils and all(b.ql is None for b in coils)
-        net_q = builder_cls(
-            params={**builder_cls.default_params, "coil_q": 200.0}
-        ).build_network()
-        coils_q = [
-            b
-            for b in net_q.branches
-            if isinstance(b, lossy_branch) and getattr(b, "l", None)
-        ]
-        assert coils_q and all(b.ql == 200.0 for b in coils_q)
+        assert coils and all(b.ql == stock_ql for b in coils)
+        for coil_q, ql in [(200.0, 200.0), (0.0, None)]:
+            net_q = builder_cls(
+                params={**builder_cls.default_params, "coil_q": coil_q}
+            ).build_network()
+            coils_q = [
+                b
+                for b in net_q.branches
+                if isinstance(b, lossy_branch) and getattr(b, "l", None)
+            ]
+            assert coils_q and all(b.ql == ql for b in coils_q)
 
 
 def test_pynec_routes_finite_q_loads_down_the_reducer():

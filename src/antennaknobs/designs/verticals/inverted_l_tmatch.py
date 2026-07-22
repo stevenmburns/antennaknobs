@@ -16,11 +16,16 @@ fixes it with two series capacitors flanking a shunt inductor:
                             │
                      [ L shunt ]── common
 
-The port spec drives a virtual `in` node, chains `TwoPort` capacitors
-through a virtual midpoint `m`, and hangs a `Shunt` inductor off `m`. The
-midpoint is a pure interior circuit node — no antenna segment, no TL,
-nothing but lumped Group-2 branches meeting at a KCL row — which no other
-design exercises. Stock values land ~50 Ω / SWR ≈ 1.0005 at 24.9 MHz.
+The tuner is the station-stdlib `t_network_tuner` composite instanced as
+``"tuner"`` between a virtual `in` node and the feed (issue #489); its tee
+midpoint expands to the instance-internal node ``tuner.m`` — a pure
+interior circuit node with no antenna segment, no TL, nothing but lumped
+Group-2 branches meeting at a KCL row, which no other design exercises.
+The stock coil has Q = 200 (a good air-wound coil; `coil_q = 0` recovers
+the ideal one), and the stock element values are tuned WITH that coil
+loss: they land ~50 Ω / SWR ≈ 1.0004 at 24.9 MHz, burning ~9 % of the
+input power in the coil — the classic hidden T-tuner cost, visible in the
+power-budget readout.
 
 Because the antenna is short (R ≈ 11 Ω) the match must ride a virtual
 resistance of ~2 kΩ, so there is no symmetric-capacitor solution and the
@@ -42,12 +47,12 @@ from types import MappingProxyType
 from antennaknobs.designs.verticals.inverted_l import Builder as InvertedL
 from antennaknobs.network import (
     Driven,
+    Instance,
     Network,
     PortOnWire,
     PortVirtual,
-    Shunt,
-    TwoPort,
 )
+from antennaknobs.station import t_network_tuner
 
 
 class Builder(InvertedL):
@@ -58,16 +63,21 @@ class Builder(InvertedL):
             # operated on 12 m.
             "freq": 24.9,
             # T-network elements, tuned for ~50 Ω at 24.9 MHz on the stock
-            # inverted-L (virtual resistance ~2 kΩ; see module docstring).
-            "series_c1_pF": 20.47,  # source-side series capacitor
-            "shunt_l_uH": 0.6458,  # shunt inductor at the tee midpoint
+            # inverted-L (virtual resistance ~2 kΩ; see module docstring)
+            # WITH the stock Q=200 coil — the ~0.5 Ω coil ESR shifts the
+            # match, so these differ from the old ideal-coil tune
+            # (20.47 pF / 0.6458 µH).
+            "series_c1_pF": 22.01,  # source-side series capacitor
+            "shunt_l_uH": 0.6305,  # shunt inductor at the tee midpoint
             "series_c2_pF": 254.5,  # antenna-side series capacitor
             # Coil quality factor (issue #298): adds R = ωL/Q in series with
-            # the tee's shunt inductor. 0 = ideal coil (the historical
-            # behavior); real air-wound coils run ~50–400. A T-network runs
-            # high circulating current through this coil, so its loss is the
-            # classic hidden tuner cost.
-            "coil_q": 0.0,
+            # the tee's shunt inductor. Real air-wound coils run ~50–400;
+            # default 200 matches doublet_ladder_tuner (0 = ideal coil is
+            # still reachable on the slider, but a lossless matchbox hides
+            # the whole power budget and misstates the classic hidden tuner
+            # cost — a T-network runs high circulating current through this
+            # coil).
+            "coil_q": 200.0,
             "ui_params": MappingProxyType(
                 {
                     # Matched to 50 Ω, so the SWR readout shows ~1:1.
@@ -77,6 +87,15 @@ class Builder(InvertedL):
                     "shunt_l_uH": {"min": 0.1, "max": 2.0},
                     "series_c2_pF": {"min": 50.0, "max": 500.0},
                     "coil_q": {"min": 0.0, "max": 400.0},
+                    # Display names for the power-budget rows (issue #489).
+                    # Keys are the STRUCTURAL labels the solver emits —
+                    # keep in sync with the "tuner" instance in
+                    # build_network below.
+                    "budget_labels": {
+                        "tuner: TwoPort in→m": "series C1",
+                        "tuner: Shunt m": "shunt coil",
+                        "tuner: TwoPort m→feed": "series C2",
+                    },
                 }
             ),
         }
@@ -98,17 +117,23 @@ class Builder(InvertedL):
         return Network(
             ports={
                 "feed": PortOnWire("feed"),
-                "m": PortVirtual("m"),
                 "in": PortVirtual("in"),
             },
             branches=[
-                TwoPort(a="in", b="m", c=self.series_c1_pF * 1e-12),
-                Shunt(
-                    port="m",
-                    l=self.shunt_l_uH * 1e-6,
-                    ql=self.coil_q if self.coil_q > 0 else None,
+                # T-network tuner box (station stdlib composite, issue #489);
+                # its tee midpoint is the instance's own internal node
+                # ("tuner.m" after expansion).
+                Instance(
+                    "tuner",
+                    t_network_tuner(
+                        c1_pF=self.series_c1_pF,
+                        c2_pF=self.series_c2_pF,
+                        l_uH=self.shunt_l_uH,
+                        ql=self.coil_q if self.coil_q > 0 else None,
+                    ),
+                    rig="in",
+                    out="feed",
                 ),
-                TwoPort(a="m", b="feed", c=self.series_c2_pF * 1e-12),
             ],
             sources=[Driven(port="in", voltage=1 + 0j)],
         )
