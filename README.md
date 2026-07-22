@@ -311,6 +311,17 @@ description.
 
 ## Install
 
+### Docker (nothing but Docker required)
+
+```bash
+docker run --rm -p 8000:8000 stevenmburns/antennaknobs:latest
+# -> the full web workbench at http://localhost:8000
+```
+
+Published on every release. See **[DOCKER.md](DOCKER.md)** for the
+compose file, mounting your own designs into the container, and adding
+the optional NEC2 engine.
+
 ### From PyPI (prebuilt wheels — no toolchain)
 
 `antennaknobs` and its C++ engine `momwire` are published to **PyPI** with
