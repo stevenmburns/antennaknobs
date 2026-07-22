@@ -1674,14 +1674,22 @@ def test_tmatch_matches_circuit_theory():
 @needs_pynec
 def test_inverted_l_tmatch_matches_50ohm_cross_engine():
     """The showcase: a 10 m inverted-L worked on 12 m is a short vertical
-    (~10.8 − 121.7j) but the stock T-network brings it to ~50 Ω. Both
-    engines agree (the match is exact circuit theory on the antenna Y)."""
+    (~11 − 117j) but the stock T-network brings it to ~50 Ω. The stock
+    values are tuned against the WORKBENCH default solve (default basis,
+    free space), where the match is exact; the sinusoidal basis sees the
+    bare antenna a few percent differently and the ~2 kΩ virtual-resistance
+    ride magnifies that to ~43 − 15j — so the matched-basis engines get a
+    ballpark window here, plus the tight engines-agree assertion (the
+    network composition itself is exact circuit theory on the antenna Y)."""
     from antennaknobs.designs.verticals.inverted_l_tmatch import Builder as B
+
+    z_web = MomwireEngine(B(), ground=None).impedance()[0]
+    assert abs(z_web - 50.0) < 2.0, z_web  # the tune the design opens as
 
     z_mom = _sinusoidal(B()).impedance()[0]
     z_nec = PyNECEngine(B(), ground=None).impedance()[0]
     for z in (z_mom, z_nec):
-        assert abs(z.real - 50.0) < 5.0 and abs(z.imag) < 5.0, z  # matched
+        assert abs(z - 50.0) < 20.0, z  # ballpark-matched on this basis
     assert abs(z_mom - z_nec) / abs(z_mom) < 0.01, (z_mom, z_nec)
 
 

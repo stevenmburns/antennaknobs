@@ -23,9 +23,12 @@ interior circuit node with no antenna segment, no TL, nothing but lumped
 Group-2 branches meeting at a KCL row, which no other design exercises.
 The stock coil has Q = 200 (a good air-wound coil; `coil_q = 0` recovers
 the ideal one), and the stock element values are tuned WITH that coil
-loss: they land ~50 Ω / SWR ≈ 1.0004 at 24.9 MHz, burning ~9 % of the
-input power in the coil — the classic hidden T-tuner cost, visible in the
-power-budget readout.
+loss against the workbench's default solve: the design opens at ~50 Ω /
+SWR ≈ 1.0 at 24.9 MHz, burning ~9 % of the input power in the coil — the
+classic hidden T-tuner cost, visible in the power-budget readout. (The
+sinusoidal reference basis reads the same tune at SWR ≈ 1.4 — the ~2 kΩ
+virtual-resistance ride magnifies even basis-level differences in the
+bare antenna Z; see the off-band guide on the site.)
 
 Because the antenna is short (R ≈ 11 Ω) the match must ride a virtual
 resistance of ~2 kΩ, so there is no symmetric-capacitor solution and the
@@ -64,11 +67,14 @@ class Builder(InvertedL):
             "freq": 24.9,
             # T-network elements, tuned for ~50 Ω at 24.9 MHz on the stock
             # inverted-L (virtual resistance ~2 kΩ; see module docstring)
-            # WITH the stock Q=200 coil — the ~0.5 Ω coil ESR shifts the
-            # match, so these differ from the old ideal-coil tune
-            # (20.47 pF / 0.6458 µH).
-            "series_c1_pF": 22.01,  # source-side series capacitor
-            "shunt_l_uH": 0.6305,  # shunt inductor at the tee midpoint
+            # WITH the stock Q=200 coil, against the WORKBENCH default
+            # solve (default basis, free space) — what the design opens as.
+            # The high-Q tee magnifies basis-level differences in the bare
+            # Z_ant, so the sinusoidal reference reads this same tune at
+            # ~43 − 15j (SWR ≈ 1.4); the cross-engine test asserts
+            # ballpark-match there and exact match here.
+            "series_c1_pF": 22.54,  # source-side series capacitor
+            "shunt_l_uH": 0.6132,  # shunt inductor at the tee midpoint
             "series_c2_pF": 254.5,  # antenna-side series capacitor
             # Coil quality factor (issue #298): adds R = ωL/Q in series with
             # the tee's shunt inductor. Real air-wound coils run ~50–400;
