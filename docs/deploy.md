@@ -75,6 +75,16 @@ docker run --rm -p 8000:8000 <user>/antennaknobs:latest
 # -> http://localhost:8000
 ```
 
+Or use the repo's [`compose.yaml`](../compose.yaml) — `docker compose up`
+maps the port, mounts `~/.antennaknobs/designs` into the container (so
+the "Your designs" panel works on your local files), and carries
+commented-out lines for the common opt-ins: pre-trusting your own
+designs, the hosted caps, a memory limit, and a pynec-extension service
+(built inline from the published image). Prefer no Docker at all? The
+PyPI wheel ships the same browser UI: `pip install "antennaknobs[web]"`
+and run uvicorn as in the Dockerfile's CMD (remember `libgomp1` and the
+OMP launch-env pins on a slim system).
+
 Differences from the Fly image, on purpose:
 
 - Built with `--build-arg INCLUDE_PYNEC=0`: **momwire-only**, so the

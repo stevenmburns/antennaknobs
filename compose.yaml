@@ -1,0 +1,49 @@
+# Run the antennaknobs workbench from the published Docker image:
+#
+#     docker compose up
+#     -> http://localhost:8000
+#
+# The image is momwire-only and runs UNLOCKED, like a local install (the
+# hosted instance's caps are opt-in — see the commented environment
+# below and docs/deploy.md). Prefer no Docker at all? The PyPI wheel
+# ships the same browser UI: `pip install "antennaknobs[web]"`.
+
+services:
+  antennaknobs:
+    # Override with e.g. ANTENNAKNOBS_IMAGE=myuser/antennaknobs:0.34.0
+    image: ${ANTENNAKNOBS_IMAGE:-stevenmburns/antennaknobs:latest}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      # Share your local design folder with the container so the "Your
+      # designs" panel works (and edits on either side are the same
+      # files). Comment out to run with built-in designs only.
+      - ~/.antennaknobs/designs:/root/.antennaknobs/designs
+    # environment:
+    #   # Designs still need your per-file OK before they run (the web
+    #   # UI prompts). On a single-user machine you can pre-trust them:
+    #   - ANTENNAKNOBS_TRUST_USER_DESIGNS=1
+    #   # Re-hosting this on the open internet? Turn on the shared
+    #   # instance's solve-size caps and sweep budgets:
+    #   - ANTENNAKNOBS_HOSTED=1
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2g
+
+  # Want the optional NEC2 reference engine (pynec-accel wraps GPLv2
+  # nec2++, so it is not in the published image)? Comment out the
+  # service above and use this one instead — it builds a local image
+  # with the one extra layer:
+  #
+  # antennaknobs-with-pynec:
+  #   build:
+  #     dockerfile_inline: |
+  #       FROM ${ANTENNAKNOBS_IMAGE:-stevenmburns/antennaknobs:latest}
+  #       RUN pip install "pynec-accel>=1.7.4.post1"
+  #   ports:
+  #     - "8000:8000"
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ~/.antennaknobs/designs:/root/.antennaknobs/designs
