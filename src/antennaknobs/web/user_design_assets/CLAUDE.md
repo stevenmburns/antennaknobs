@@ -346,9 +346,17 @@ The stdlib: `t_network_tuner(c1_pF, c2_pF, l_uH, ql)`,
 qlmag, comp_c_pF)`, `balun(n, lmag_uH, qlmag)`, and `bypass()` — a
 pass-through with a box's two-port interface, so swapping a tuner for
 `bypass()` answers "what is this box buying me?" in a one-line change.
+There are also **calibrated presets** — `kj6er_unun_4_1()`,
+`kj6er_unun_49_1()`, `kj6er_unun_56_1()`, `ft240_43_unun_49_1()` —
+published, bench-measured boxes as ready-made values.
+
 A box's internals are private (the T-network's midpoint is `tuner.m`,
 auto-declared), and its loss rows group under the instance name in the
-power budget.
+power budget. To retitle budget rows for display, add a
+`"budget_labels"` dict to `ui_params` mapping the solver's structural
+labels to friendly names, e.g.
+`{"unun: Transformer pri→ant (mag)": "unun core (mag)"}` — exact match,
+unmatched rows pass through unchanged.
 
 Built-in designs to copy from: `dipoles.invvee_coax_station` (just
 coax — the minimal case), `wire.efhw_sloper` (unun + comp cap + coax),

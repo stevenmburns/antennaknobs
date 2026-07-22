@@ -18,6 +18,15 @@ Reserved keys inside `ui_params`:
                      selector (deck-backed designs fill it from
                      NecDeck.skipped_note() to list the cards the import
                      recorded but did not apply)
+  budget_labels    : dict {structural_label: display_label} — display
+                     renames for power-budget rows (issue #489). Keys are
+                     the STRUCTURAL labels the solver emits ("unun:
+                     Transformer pri→ant (mag)", "TL rig→pri"); values
+                     are what the UI shows ("unun core (mag)",
+                     "feedline"). Exact-match only, unmatched rows pass
+                     through unchanged — the mapping can retitle rows but
+                     never hide one. Tests keep pinning the structural
+                     labels; this is presentation only.
   layout           : dict {columns: int} — pin the knob grid to a fixed
                      column count so per-param `layout` col positions are
                      stable (default: responsive auto-flow packing)
@@ -523,6 +532,22 @@ def _group_spec_from_default(
         default_overrides=default_overrides,
         link_meas_freq_to_param=str(link) if isinstance(link, str) else None,
     )
+
+
+def _budget_rows(eng, builder):
+    """Package the engine's power budget for the UI, applying the design's
+    optional ``ui_params["budget_labels"]`` display renames (issue #489).
+    Structural labels stay authoritative everywhere else (tests pin them);
+    this rename happens only at the presentation boundary. Tiny negative
+    float noise from reactive stamps is clamped to 0."""
+    try:
+        relabel = dict((builder.ui_params or {}).get("budget_labels") or {})
+    except Exception:
+        relabel = {}
+    return [
+        {"label": relabel.get(label, label), "watts": max(0.0, float(w))}
+        for label, w in (getattr(eng, "_excited_power_budget", None) or [])
+    ]
 
 
 def _derive_schema(default_params: dict) -> tuple:
@@ -1462,13 +1487,10 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # has resistive loads, e.g. a terminated rhombic / T2FD);
             # current_distribution() above populated it on the engine.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
-            # Per-branch network dissipation [(label, watts)] from the MNA
-            # solve (issue #299); empty for plain / lossless designs. Tiny
-            # negative float noise from reactive stamps is clamped to 0.
-            "power_budget": [
-                {"label": label, "watts": max(0.0, float(w))}
-                for label, w in (getattr(eng, "_excited_power_budget", None) or [])
-            ],
+            # Per-branch network dissipation from the MNA solve (issue
+            # #299), with the design's optional display renames applied
+            # (ui_params["budget_labels"], issue #489).
+            "power_budget": _budget_rows(eng, builder),
             # Source input power in watts: the server's gain normaliser is
             # η₀k²/(8π·P_in), which is what makes the plot GAIN (load and
             # ground losses live inside P_in, so no efficiency multiply).
@@ -1632,10 +1654,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # keeps the far-field plot meaning GAIN. current_distribution()
             # set both from the solved feed/load currents.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
-            "power_budget": [
-                {"label": label, "watts": max(0.0, float(w))}
-                for label, w in (getattr(eng, "_excited_power_budget", None) or [])
-            ],
+            "power_budget": _budget_rows(eng, builder),
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
             **_wire_material_results(builder),
         }
