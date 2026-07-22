@@ -130,6 +130,17 @@ class Builder(AntennaBuilder):
                     # Smith chart fast off-resonance — lock the sweep to
                     # the band being measured.
                     "sweep_policy": {"anchor": "meas_freq", "band_locked": True},
+                    # Display names for the power-budget rows (issue #489).
+                    # Keys are the STRUCTURAL labels the solver emits —
+                    # keep in sync with build_network below (the "unun"
+                    # instance and its pri/ant port bindings); unmatched
+                    # rows pass through unchanged.
+                    "budget_labels": {
+                        "unun: Transformer pri→ant": "unun windings",
+                        "unun: Transformer pri→ant (mag)": "unun core (mag)",
+                        "unun: Shunt pri": "unun comp cap",
+                        "TL rig→pri": "feedline",
+                    },
                 }
             ),
         }

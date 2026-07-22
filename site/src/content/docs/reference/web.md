@@ -235,7 +235,8 @@ come straight from the MNA network solve (each branch current is an
 explicit unknown, so the watts are read off the solution, not modelled
 separately — see [Station modelling](/concepts/station-modelling/) for
 the network vocabulary; rows from a station *box* are grouped under its
-instance name, e.g. `tuner: Shunt m`), and the same accounting drives
+instance name, e.g. `tuner: Shunt m`, and a design may retitle rows for
+display via `ui_params["budget_labels"]`), and the same accounting drives
 the reported radiation
 efficiency: **every** dissipative branch counts, including resistive
 coupling and matching elements, not just explicit `Load`s. Gain is

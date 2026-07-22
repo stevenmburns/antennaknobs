@@ -349,3 +349,98 @@ def test_load_inside_composite_on_real_port():
     z_box = MomwireEngine(Boxed()).impedance()[0]
     z_ref = MomwireEngine(Builder()).impedance()[0]
     assert z_box == pytest.approx(z_ref, rel=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# calibrated presets + budget display renames (issue #489 polish)
+# ---------------------------------------------------------------------------
+def test_kj6er_presets_pin_design_stock_values():
+    """The station presets and the catalog designs source the same
+    published calibrations — Composite equality keeps them from drifting."""
+    from antennaknobs import resolve_variant_params
+    from antennaknobs.designs.verticals.challenger import Builder as Challenger
+    from antennaknobs.designs.verticals.dominator import XFMR_TURNS
+    from antennaknobs.designs.verticals.dominator import Builder as Dominator
+    from antennaknobs.station import (
+        kj6er_unun_4_1,
+        kj6er_unun_49_1,
+        kj6er_unun_56_1,
+    )
+
+    c = Challenger()
+    assert kj6er_unun_4_1() == unun(turns=c.turns, lmag_uH=c.lmag_uH, qlmag=c.qlmag)
+    c_plus = Challenger(params=resolve_variant_params(Challenger, "plus"))
+    assert kj6er_unun_4_1(plus=True) == unun(
+        turns=c_plus.turns, lmag_uH=c_plus.lmag_uH, qlmag=c_plus.qlmag
+    )
+
+    d = Dominator()
+    assert kj6er_unun_49_1() == unun(
+        turns=XFMR_TURNS[d.xfmr_ratio], lmag_uH=d.lmag_uH, qlmag=d.qlmag
+    )
+    d_plus = Dominator(params=resolve_variant_params(Dominator, "plus"))
+    assert kj6er_unun_56_1() == unun(
+        turns=XFMR_TURNS[d_plus.xfmr_ratio],
+        lmag_uH=d_plus.lmag_uH,
+        qlmag=d_plus.qlmag,
+    )
+
+
+def test_ft240_preset_pins_efhw_stock_values():
+    from antennaknobs.designs.wire.efhw_sloper import UNUN_TURNS
+    from antennaknobs.designs.wire.efhw_sloper import Builder as Efhw
+    from antennaknobs.station import ft240_43_unun_49_1
+
+    e = Efhw()
+    assert ft240_43_unun_49_1() == unun(
+        turns=UNUN_TURNS[e.unun_ratio],
+        lmag_uH=e.lmag_uH,
+        qlmag=e.qlmag,
+        comp_c_pF=e.comp_c_pF,
+    )
+
+
+def test_budget_rows_apply_display_renames():
+    """ui_params["budget_labels"] retitles rows at the presentation
+    boundary — exact match, unmatched rows pass through, negatives clamp."""
+    # examples first: entering the package via adapter alone trips the
+    # adapter↔examples import cycle (examples calls register_all mid-import)
+    import antennaknobs.web.examples  # noqa: F401
+
+    from antennaknobs.web.adapter import _budget_rows
+
+    class Eng:
+        _excited_power_budget = [
+            ("unun: Shunt pri", 0.25),
+            ("TL rig→pri", -1e-18),
+        ]
+
+    class WithLabels:
+        ui_params = {"budget_labels": {"unun: Shunt pri": "unun comp cap"}}
+
+    class Bare:
+        pass
+
+    assert _budget_rows(Eng(), WithLabels()) == [
+        {"label": "unun comp cap", "watts": 0.25},
+        {"label": "TL rig→pri", "watts": 0.0},
+    ]
+    assert [r["label"] for r in _budget_rows(Eng(), Bare())] == [
+        "unun: Shunt pri",
+        "TL rig→pri",
+    ]
+
+
+def test_efhw_budget_labels_stay_in_sync_with_structural_labels():
+    """The efhw design's display map keys must match labels the solver
+    actually emits — a renamed port or instance would silently orphan
+    them otherwise."""
+    from antennaknobs.engines.momwire import MomwireEngine
+    from antennaknobs.designs.wire.efhw_sloper import Builder
+
+    b = Builder()
+    eng = MomwireEngine(b)
+    eng.input_power()
+    emitted = {label for label, _w in eng._excited_power_budget}
+    mapped = set(b.ui_params["budget_labels"])
+    assert mapped <= emitted, mapped - emitted

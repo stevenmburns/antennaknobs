@@ -110,3 +110,44 @@ def balun(
         ports=("line", "ant"),
         branches=(Transformer(a="line", b="ant", n=n, lmag=lmag, qlmag=qlmag),),
     )
+
+
+# ---------------------------------------------------------------------------
+# Calibrated presets — measured boxes as named values (issue #489).
+#
+# Each preset wraps a factory above with parameters CALIBRATED to a published
+# measurement rather than derived from core datasheets (the `Transformer`
+# loss model's intended use). The catalog designs that source these numbers
+# keep their own knobs (so users can re-tune them); the presets are the same
+# stock values as importable, reusable components for station authors —
+# tests pin preset == design-stock so the two cannot drift apart.
+# ---------------------------------------------------------------------------
+def kj6er_unun_4_1(plus: bool = False) -> Composite:
+    """KJ6ER Challenger's 4:1 unun (2:1 turns), calibrated to his measured
+    insertion loss at 21.35 MHz: stock build −0.34 dB; ``plus=True`` is the
+    upgraded build at −0.24 dB. Source: the Challenger plans' measured
+    table (see ``verticals.challenger``)."""
+    return unun(turns=2.0, lmag_uH=1.75 if plus else 1.22, qlmag=3.0)
+
+
+def kj6er_unun_49_1() -> Composite:
+    """KJ6ER Dominator's stock 49:1 unun (7:1 turns), calibrated to the
+    measured −0.96 dB at 21.35 MHz — the loss figure interrogated in the
+    docs' end-fed pages (see ``verticals.dominator``)."""
+    return unun(turns=7.0, lmag_uH=0.33, qlmag=3.0)
+
+
+def kj6er_unun_56_1() -> Composite:
+    """The Dominator-plus 56:1 unun (7.5:1 turns, MyAntennas-class build),
+    calibrated to the measured −0.40 dB at 21.35 MHz (see
+    ``verticals.dominator``'s ``plus`` variant)."""
+    return unun(turns=7.5, lmag_uH=0.74, qlmag=3.0)
+
+
+def ft240_43_unun_49_1(comp_c_pF: float | None = 100.0) -> Composite:
+    """The generic FT240-43-class 49:1 EFHW unun (7:1 turns, ~3 primary
+    turns → 8 µH magnetizing, core Q ≈ 10), landing in the 85–90 %
+    efficiency range bench-measured for such builds, with the customary
+    100 pF compensation capacitor across the primary (pass ``None`` to
+    omit it). The stock box of ``wire.efhw_sloper``."""
+    return unun(turns=7.0, lmag_uH=8.0, qlmag=10.0, comp_c_pF=comp_c_pF)
