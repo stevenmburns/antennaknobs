@@ -58,8 +58,17 @@ RUN pip install --upgrade pip \
 
 # Optional NEC2 solver (PyNEC) — not a dependency of antennaknobs, installed in
 # its own step. antennaknobs runs fully on momwire alone; this adds the NEC2
-# engine as an alternative.
-RUN pip install "pynec-accel>=1.7.4.post1"
+# engine as an alternative. INCLUDE_PYNEC=1 (default) keeps the historical
+# image contents (the Fly deploys build with the default); the public
+# docker.io image is built with INCLUDE_PYNEC=0 — pynec-accel wraps nec2++
+# (GPLv2), and leaving it out keeps the published image MIT/BSD-only. Users
+# who want the NEC2 engine add one layer:
+#   FROM <user>/antennaknobs:latest
+#   RUN pip install "pynec-accel>=1.7.4.post1"
+ARG INCLUDE_PYNEC=1
+RUN if [ "$INCLUDE_PYNEC" = "1" ]; then \
+      pip install "pynec-accel>=1.7.4.post1"; \
+    fi
 
 EXPOSE 8000
 

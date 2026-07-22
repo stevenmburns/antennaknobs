@@ -64,6 +64,37 @@ remotely from your own machine and confirm dragging a knob feels responsive
 before adding the custom domains** — this is the moment to measure the real
 round-trip.
 
+## Public Docker image (docker.io)
+
+Every release tag also publishes the workbench image to Docker Hub
+(`.github/workflows/docker-publish.yml`): `docker.io/<DOCKERHUB_USERNAME>/antennaknobs`,
+tagged with the release version and `latest`.
+
+```bash
+docker run --rm -p 8000:8000 <user>/antennaknobs:latest
+# -> http://localhost:8000
+```
+
+Differences from the Fly image, on purpose:
+
+- Built with `--build-arg INCLUDE_PYNEC=0`: **momwire-only**, so the
+  published image contains only MIT/BSD components (pynec-accel wraps
+  nec2++, which is GPLv2). The app runs fully on momwire; the NEC2
+  engine is an opt-in layer users add themselves:
+
+  ```dockerfile
+  FROM <user>/antennaknobs:latest
+  RUN pip install "pynec-accel>=1.7.4.post1"
+  ```
+
+- `linux/amd64` only (momwire's PyPI wheels are manylinux x86_64;
+  revisit if it grows aarch64 wheels).
+
+The workflow needs two repo secrets: `DOCKERHUB_USERNAME` (also the
+image namespace) and `DOCKERHUB_TOKEN` (a Docker Hub access token with
+Read/Write scope). `workflow_dispatch` runs build the image without
+pushing — a free packaging check on any branch.
+
 ## 3. Custom domains (after the app is verified live)
 
 For each of `antennaknobs.com` and `antennaknobs.dev` (or a subdomain like
