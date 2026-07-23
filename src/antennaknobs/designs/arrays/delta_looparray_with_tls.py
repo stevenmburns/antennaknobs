@@ -4,6 +4,7 @@ from antennaknobs import AntennaBuilder
 import math
 
 from antennaknobs import Transform, TransformStack
+from antennaknobs.network import Wire
 
 from types import MappingProxyType
 
@@ -37,13 +38,8 @@ class Builder(AntennaBuilder):
         cos_theta = math.cos(angle)
         tan_theta = math.tan(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         # y of the top corner (half the top-edge width), in closed form.
         y = (cos_theta * (driver - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
@@ -64,6 +60,9 @@ class Builder(AntennaBuilder):
 
         B, T = ry(A), ry(S)
 
+        # The three TL-endpoint wires keep a concrete count: the tl tuples
+        # below index their midpoint segments, so their counts must be known
+        # at build time (same policy as sterba_tl's TL ports).
         n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
 
         st = TransformStack()
@@ -75,20 +74,23 @@ class Builder(AntennaBuilder):
 
         SSS, AAA, BBB, TTT = ry(SS), ry(AA), ry(BB), ry(TT)
 
-        tups = []
-
-        tups.extend(build_path([SS, AA, BB, TT], n_seg0, None))
-        tups.extend(build_path([TT, SS], n_seg1, 1 + 0j))
-
-        tups.extend(build_path([SSS, AAA, BBB, TTT], n_seg0, None))
-        tups.extend(build_path([SSS, TTT], n_seg1, 1 + 0j))
+        tups = [
+            Wire(SS, AA),
+            Wire(AA, BB),
+            Wire(BB, TT),
+            Wire(TT, SS, n_seg=n_seg1, ex=1 + 0j),
+            Wire(SSS, AAA),
+            Wire(AAA, BBB),
+            Wire(BBB, TTT),
+            Wire(SSS, TTT, n_seg=n_seg1, ex=1 + 0j),
+        ]
 
         WW = (SS[0], eps, SS[1])
         WWW = ry(WW)
 
         self.tls = []
 
-        tups.extend(build_path([WWW, WW], n_seg1, 1 + 0j))
+        tups.append(Wire(WWW, WW, n_seg=n_seg1, ex=1 + 0j))
 
         feedpoints = [
             (idx, x) for idx, x in enumerate(tups, start=1) if x[3] is not None
@@ -101,10 +103,10 @@ class Builder(AntennaBuilder):
             self.del_y + wavelength * self.twist,
         )
 
-        for (idx, (p0, p1, nsegs, ev)), tl_length in zip(feedpoints[:2], tl_lengths):
+        for (idx, w), tl_length in zip(feedpoints[:2], tl_lengths):
             self.tls.append(
-                (idx, (nsegs + 1) // 2, len(tups), (n_seg1 + 1) // 2, 100, tl_length)
+                (idx, (w.n_seg + 1) // 2, len(tups), (n_seg1 + 1) // 2, 100, tl_length)
             )
-            tups[idx - 1] = (p0, p1, nsegs, None)
+            tups[idx - 1] = w._replace(ex=None)
 
         return tups
