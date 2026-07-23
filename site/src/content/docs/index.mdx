@@ -25,23 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.35.1" icon="star">
-  **Cut for one band, worked on another.** Off-band designs — a 10 m
-  inverted-L worked on 12 m through a T-network, an 80 m skyloop run on
-  17 m — now open the way they're meant to be seen: geometry on the band
-  they're cut for, the dial on the band they're worked, the tuner already
-  doing its job (a frequency-snap bug used to silently re-size them).
-  Both matchbox designs ship **real Q = 200 coils**, so the power budget
-  shows the true tuner cost — ~9 % of your watts burned in the T-match's
-  coil vs ~1 % in the L-match — and budget rows now **group indented
-  under their station box**. Trust decisions for your own designs travel
-  with the folder now, so the
-  [Docker workbench](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)
-  sees them without re-allowing. New study:
-  [Cut for one band, worked on another](/advanced/off-band/).
-  (v0.35.1 completes the portable-trust story: allow-decisions recorded
-  *before* v0.35.0 now also carry across a mount point or machine move —
-  the first cut only migrated them in-place.)
+<Card title="New in v0.35.2" icon="star">
+  **The NEC-2 reference you can trust near the ground.** A long-standing
+  nec2++ transcription bug — the Sommerfeld interpolation cache
+  extrapolated stale coefficients whenever a source–observer pair
+  crossed the near-field grid boundary — made PyNEC unreliable for
+  low radials, hanging open ends, and low horizontal runs over real
+  ground. We found the root cause, fixed it upstream
+  (pynec-accel 1.7.6), and re-scored the wild corpus: **every deck in
+  the affected class now matches nec2c/nec2dxs/momwire to four digits**,
+  and the workbench's solve-time warning retires itself on fixed
+  installs. Also new in the docs: on single closed loops the default
+  B-spline basis is converged at a **2–3× coarser mesh** than the
+  sinusoidal basis needs — see
+  [How many segments?](/advanced/convergence/).
   [All release notes →](/reference/releases/)
 </Card>
 
