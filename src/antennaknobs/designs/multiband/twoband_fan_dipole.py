@@ -21,6 +21,7 @@ from math import sqrt
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,10 @@ class Builder(AntennaBuilder):
             # The band group's link_meas_freq_to_param wires each band's `freq`
             # leaf to this when a band row is selected.
             "freq": 28.47,
+            # Geometry is hand-tuned per band in absolute metres;
+            # design_freq only anchors auto_mesh's density scale
+            # (nominal_nsegs per quarter-wave), so it is hidden from the UI.
+            "design_freq": 28.47,
             "base": 7.0,
             # In-plane spread of the two bands about the y axis (deg). 0 keeps
             # each band in its own x = ±s/√2 plane (a true parallel fan).
@@ -139,6 +144,7 @@ class Builder(AntennaBuilder):
                         "angle_deg": {"min": 0.0, "max": 60.0},
                     },
                     "s": {"min": 0.05, "max": 0.8, "step": 0.01, "precision": 2},
+                    "design_freq": {"hidden": True},
                     "eps": {"min": 0.001, "max": 0.05, "step": 0.001, "precision": 3},
                     "gap_angle_deg": {"min": 0.0, "max": 30.0},
                 }
@@ -173,7 +179,6 @@ class Builder(AntennaBuilder):
 
         S = (0, eps, 0)
         T = ry(S)
-        n_seg0 = self.nominal_nsegs
 
         # Per band: a junction point G a distance `s` out (band 0 to +x, band 1
         # to -x) and the drooping tip beyond it.
@@ -187,10 +192,11 @@ class Builder(AntennaBuilder):
             junctions.append(G)
             tips.append(tip)
 
-        # Feed gap T->S refines with the mesh (issue #435); band 0's arm
-        # (junction -> tip) is the reference-length wire carrying n_seg0.
+        # Arms and the feed gap mesh at the design density (auto_mesh:
+        # nominal_nsegs per design_freq quarter-wave; the feed gap thereby
+        # refines with the mesh, issue #435). Band 0's arm is the links'
+        # density reference.
         ref_arm = math.dist(junctions[0], tips[0])
-        n_seg1 = self.segs_for(math.dist(T, S), ref_arm)
 
         # The feed-split links must refine WITH the arms (issue #484): a
         # fixed count leaves the G junctions ever more graded as the mesh
@@ -205,23 +211,21 @@ class Builder(AntennaBuilder):
         # 2-band case.
         tups = []
         for G in junctions:
-            tups.append((S, G, n_link, None))
+            tups.append(Wire(S, G, n_seg=n_link))
         for G, tip in zip(junctions, tips):
-            tups.append((G, tip, n_seg0, None))
+            tups.append(Wire(G, tip))
         for G in junctions:
-            tups.append((T, ry(G), n_link, None))
+            tups.append(Wire(T, ry(G), n_seg=n_link))
         for G, tip in zip(junctions, tips):
-            tups.append((ry(G), ry(tip), n_seg0, None))
-        tups.append((T, S, n_seg1, 1 + 0j))
+            tups.append(Wire(ry(G), ry(tip)))
+        tups.append(Wire(T, S, ex=1 + 0j))
 
         return [
-            (
-                (x0, y0, z0 + self.base),
-                (x1, y1, z1 + self.base),
-                ns,
-                ev,
+            w._replace(
+                p0=(w.p0[0], w.p0[1], w.p0[2] + self.base),
+                p1=(w.p1[0], w.p1[1], w.p1[2] + self.base),
             )
-            for ((x0, y0, z0), (x1, y1, z1), ns, ev) in tups
+            for w in tups
         ]
 
 

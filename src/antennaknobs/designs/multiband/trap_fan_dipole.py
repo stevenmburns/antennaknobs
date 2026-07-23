@@ -34,7 +34,7 @@ exactly as NEC2's ld_card type-1 would.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 
 import math
 from types import MappingProxyType
@@ -71,8 +71,8 @@ C_LIGHT_MHZ_M = 299.792458
 # bands largely unchanged. (Band-0 shift has near-zero leverage on
 # Re17 — kept at 1.0.)
 # Length factors tuned against MomwireEngine with BSplineSolver(degree=2)
-# at nominal_nsegs=41. After moving to adaptive per-wire segmentation
-# (target_seg_len = max_wire / nominal_nsegs, see build_wires), both Bs2
+# at nominal_nsegs=41. After moving to per-wire design-density
+# segmentation (now auto_mesh, see build_wires), both Bs2
 # and the (since retired) Triangular basis stay essentially flat across N=21..81 — drift ≤ 0.22 Ω
 # on every band — and agree with each other to ~1 Ω at the converged
 # limit. Sinusoidal still wanders 2–8 Ω over the same N range (basis-
@@ -131,6 +131,11 @@ class Builder(AntennaBuilder):
             # frontend overwrites it from the meas-freq slider on every
             # tick; this default only seeds the very first response.
             "freq": _BAND_15_10["trap_freq"],
+            # Geometry is sized from each band's full_freq / trap_freq /
+            # length factors; design_freq only anchors auto_mesh's density
+            # scale (nominal_nsegs per quarter-wave), so it is hidden from
+            # the UI.
+            "design_freq": _BAND_15_10["trap_freq"],
             "base": 7.0,
             # Same fan-spoke droop angle as fandipole — each spoke drops at
             # this droop angle (deg) from the cone apex outward
@@ -158,6 +163,7 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "n_bands": {"min": 1, "max": 2, "step": 1},
+                    "design_freq": {"hidden": True},
                     "bands": {
                         "label_template": "band {i}",
                         "repeat_count": "n_bands",
@@ -312,55 +318,46 @@ class Builder(AntennaBuilder):
             tip = offset_outward(A[i], q1 + trap_seg + q2)
             spokes.append((trap_in, trap_out, tip))
 
-        # Adaptive segmentation: size each variable-length wire (cone +
-        # inner outer + outer) so segment length is near-constant across
-        # the antenna. nominal_nsegs sets the count for the longest such
-        # wire; everything else scales proportionally. Trap segments are
-        # pinned to 1 (load-port convention — the named port lives on a
-        # single basis function). The feed bridge meshes via n_for like
-        # the rest (1 segment at the default mesh, which is fine for the
-        # BSpline d=2 basis this design is tuned against; the retired
-        # triangular basis couldn't drive a 1-segment feed gap).
-        adaptive_lengths = []
-        for i, (trap_in, trap_out, tip) in enumerate(spokes):
-            adaptive_lengths.append(dist(S, A[i]))
-            adaptive_lengths.append(dist(A[i], trap_in))
-            adaptive_lengths.append(dist(trap_out, tip))
-        target_seg_len = max(adaptive_lengths) / self.nominal_nsegs
-
-        def n_for(length):
-            return max(1, round(length / target_seg_len))
-
+        # Structural wires (cone + inner outer + outer + feed) mesh at the
+        # design density (auto_mesh: nominal_nsegs per design_freq
+        # quarter-wave), so segment length is near-constant across the
+        # antenna. Trap segments are pinned to 1 (load-port convention —
+        # the named port lives on a single basis function, and the trap
+        # L/C were tuned against 1-seg trap wires; retiring the pin is
+        # #525 stage 3). The feed bridge resolves to 1 segment at the
+        # default mesh, which is fine for the BSpline d=2 basis this
+        # design is tuned against; the retired triangular basis couldn't
+        # drive a 1-segment feed gap.
         tups = []
         for i, (trap_in, trap_out, tip) in enumerate(spokes):
             # +y arm
-            tups.append((S, A[i], n_for(dist(S, A[i])), None))
-            tups.append((A[i], trap_in, n_for(dist(A[i], trap_in)), None))
-            tups.append((trap_in, trap_out, 1, None, f"trap_p_b{i}"))
-            tups.append((trap_out, tip, n_for(dist(trap_out, tip)), None))
+            tups.append(Wire(S, A[i]))
+            tups.append(Wire(A[i], trap_in))
+            tups.append(Wire(trap_in, trap_out, n_seg=1, name=f"trap_p_b{i}"))
+            tups.append(Wire(trap_out, tip))
 
             # −y arm (mirror via ry)
             Ay = ry(A[i])
             tin_y = ry(trap_in)
             tout_y = ry(trap_out)
             tip_y = ry(tip)
-            tups.append((T, Ay, n_for(dist(T, Ay)), None))
-            tups.append((Ay, tin_y, n_for(dist(Ay, tin_y)), None))
-            tups.append((tin_y, tout_y, 1, None, f"trap_n_b{i}"))
-            tups.append((tout_y, tip_y, n_for(dist(tout_y, tip_y)), None))
+            tups.append(Wire(T, Ay))
+            tups.append(Wire(Ay, tin_y))
+            tups.append(Wire(tin_y, tout_y, n_seg=1, name=f"trap_n_b{i}"))
+            tups.append(Wire(tout_y, tip_y))
 
         # Feed wire — named "feed", source supplied by build_network().
-        # Meshed via n_for like the rest (1 segment at the default mesh);
-        # the BSpline d=2 basis handles a 1-segment feed cleanly.
-        tups.append((T, S, n_for(dist(T, S)), None, "feed"))
+        tups.append(Wire(T, S, name="feed"))
 
         # Lift to base height.
         zoff = self.base
-        lifted = []
-        for t in tups:
-            (x0, y0, z0), (x1, y1, z1) = t[0], t[1]
-            lifted.append(((x0, y0, z0 + zoff), (x1, y1, z1 + zoff), *t[2:]))
-        return lifted
+        return [
+            w._replace(
+                p0=(w.p0[0], w.p0[1], w.p0[2] + zoff),
+                p1=(w.p1[0], w.p1[1], w.p1[2] + zoff),
+            )
+            for w in tups
+        ]
 
     def build_network(self):
         bands = tuple(self.bands)

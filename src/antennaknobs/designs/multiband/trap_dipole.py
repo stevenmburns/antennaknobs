@@ -26,7 +26,7 @@ tuned independently; defaults are LC-resonant at design_freq.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 
 import math
 from types import MappingProxyType
@@ -96,39 +96,39 @@ class Builder(AntennaBuilder):
         def p(x):
             return (x, 0.0, z)
 
-        # Catalog-norm meshing: nominal_nsegs per quarter-wave via segs_for,
-        # so the convergence slider reaches this design like every other.
+        # Structural wires mesh at the design density (auto_mesh:
+        # nominal_nsegs per design_freq quarter-wave), so the convergence
+        # slider reaches this design like every other. The trap wires keep
+        # their explicit segs_for count (1 segment at the default mesh —
+        # the trap L/C were tuned against that; retiring it is #525
+        # stage 3). The single continuous inner wire spans −X_inner →
+        # +X_inner so the named "feed" middle segment lands exactly at the
+        # geometric centre (x = 0). Splitting the inner span at the origin
+        # would put `feed` on the middle of *one half*, offsetting the
+        # feed point by X_inner/2 — a real asymmetry that broke the
+        # symmetric design. Engine parity coercion bumps to odd/even as
+        # needed.
         quarter = 0.25 * wavelength
-        n_outer = self.segs_for(outer, quarter)
-        # Single continuous inner wire spanning −X_inner → +X_inner so the
-        # named "feed" middle segment lands exactly at the geometric centre
-        # (x = 0). Splitting the inner span at the origin would put `feed`
-        # on the middle of *one half*, offsetting the feed point by
-        # X_inner/2 — a real asymmetry that broke the symmetric design.
-        # Engine parity coercion bumps to odd/even as needed.
-        n_inner = self.segs_for(2 * inner_arm, quarter)
 
         return [
             # Left arm, outer → trap.
-            (p(x_outer_tip_l), p(x_trap_outer_l), n_outer, None),
-            (
+            Wire(p(x_outer_tip_l), p(x_trap_outer_l)),
+            Wire(
                 p(x_trap_outer_l),
                 p(x_trap_inner_l),
-                self.segs_for(trap_seg, quarter),
-                None,
-                "trap_l",
+                n_seg=self.segs_for(trap_seg, quarter),
+                name="trap_l",
             ),
             # Inner span — one wire, feed at middle = origin.
-            (p(x_trap_inner_l), p(x_trap_inner_r), n_inner, None, "feed"),
+            Wire(p(x_trap_inner_l), p(x_trap_inner_r), name="feed"),
             # Right arm, trap → outer.
-            (
+            Wire(
                 p(x_trap_inner_r),
                 p(x_trap_outer_r),
-                self.segs_for(trap_seg, quarter),
-                None,
-                "trap_r",
+                n_seg=self.segs_for(trap_seg, quarter),
+                name="trap_r",
             ),
-            (p(x_trap_outer_r), p(x_outer_tip_r), n_outer, None),
+            Wire(p(x_trap_outer_r), p(x_outer_tip_r)),
         ]
 
     def build_network(self):
