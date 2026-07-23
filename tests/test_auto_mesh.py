@@ -83,3 +83,41 @@ def test_density_is_the_same_across_designs():
     wa = a.auto_mesh([_wire(1.9, None)])
     wo = o.auto_mesh([_wire(1.9, None)])
     assert wa[0][2] == wo[0][2]
+
+
+def test_auto_mesh_is_part_of_the_stack():
+    """Builders never call auto_mesh: build_wires results resolve
+    automatically, so every consumer sees integer counts."""
+
+    class Dipole(_Design):
+        def build_wires(self):
+            return [_wire(2.5, None), _wire(1.25, None, 1 + 0j)]
+
+    b = Dipole()
+    b.nominal_nsegs = 20
+    assert [t[2] for t in b.build_wires()] == [20, 10]
+
+
+def test_explicit_auto_mesh_call_is_idempotent():
+    """Legacy builders that still call auto_mesh themselves get the
+    identical mesh — the wrap resolves an already-resolved list to
+    itself."""
+
+    class Dipole(_Design):
+        def build_wires(self):
+            return self.auto_mesh([_wire(2.5, None), _wire(1.25, 3)])
+
+    b = Dipole()
+    b.nominal_nsegs = 20
+    assert [t[2] for t in b.build_wires()] == [20, 3]
+
+
+def test_missing_design_freq_raises_at_build_wires():
+    class Bad(_NoDesignFreq):
+        def build_wires(self):
+            return [_wire(2.5, None)]
+
+    b = Bad()
+    b.nominal_nsegs = 20
+    with pytest.raises(ValueError, match="design_freq"):
+        b.build_wires()

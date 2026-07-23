@@ -83,6 +83,26 @@ class AntennaBuilder:
     # `self.nominal_nsegs` and scale per-edge segment counts accordingly.
     FRAMEWORK_PARAMS = {"nominal_nsegs": 21}
 
+    def __init_subclass__(cls, **kwargs):
+        """Auto-meshing is part of the stack: every subclass's
+        ``build_wires`` is wrapped so its result passes through
+        :meth:`auto_mesh` before any consumer sees it. A builder can
+        therefore return ``None`` segment counts and never mention
+        meshing; engines, the preview, exporters, and scripts all
+        receive resolved integer counts. The wrap is idempotent — a
+        legacy builder that calls ``auto_mesh`` itself, or returns only
+        explicit counts, passes through unchanged."""
+        super().__init_subclass__(**kwargs)
+        inner = cls.__dict__.get("build_wires")
+        if inner is not None:
+            import functools
+
+            @functools.wraps(inner)
+            def build_wires(self):
+                return self.auto_mesh(list(inner(self)))
+
+            cls.build_wires = build_wires
+
     def __init__(self, params=None):
         # write directly to __dict__ because otherwise __setattr__ goes into infinite loop
         merged = dict(self.FRAMEWORK_PARAMS)
@@ -200,7 +220,12 @@ class AntennaBuilder:
         mesh ladders are comparable across designs. Designs must declare
         ``design_freq`` (the frequency the geometry is designed for) to
         use ``None`` counts — a design without one raises here rather
-        than silently guessing a scale."""
+        than silently guessing a scale.
+
+        Builders never need to call this: ``__init_subclass__`` wraps
+        every subclass's ``build_wires`` so its result passes through
+        here automatically. Calling it explicitly is harmless (the
+        resolution is idempotent)."""
         import math as _math
 
         tups = list(tups)
