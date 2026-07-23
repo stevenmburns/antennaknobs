@@ -199,11 +199,15 @@ the physics doesn't:
   study saw a pinned trap hold bs2 flat at the wrong reactance while the
   density-meshed model converged cleanly. What you should *not* do is
   spread the load's port current over a finite extent: gap-averaging a
-  physical resistor under-counts its dissipation. The one case still
-  under study is a load at a **near-current-null (high-|Z|) attachment**,
+  physical resistor under-counts its dissipation. Even the historically
+  hardest case — a load at a **near-current-null (high-|Z|) attachment**,
   where the delta gap's parasitic susceptance competes with the tiny
-  real admittance — the catalog's terminated longwire keeps a validated
-  explicit-count model until that lands (issue #526).
+  real admittance — turned out to be mesh-stable under this treatment:
+  the catalog's terminated longwire kept pinned counts for years on
+  evidence that refinement made its readout drift, but re-probing on the
+  modern port machinery showed the density-meshed model reaching a clean
+  mutual limit where the pinned one left the bases permanently apart
+  (issue #526). The old drift was the port readout, not the physics.
 
 ## A working recipe
 
