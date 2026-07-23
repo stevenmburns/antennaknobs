@@ -145,3 +145,34 @@ def test_drone_legacy_meshing_args_unchanged():
     d = Drone(nominal_nsegs=21, ref=1.0)
     d.pay_out().forward(2.0)
     assert d.edges[0][2] == 42  # resolved in-drone, exactly as before
+
+
+def test_wire_keyword_construction_is_the_brief_spelling():
+    """Wire(a, b) / Wire(t, s, ex=...) / Wire(ti, to, name=...) — every
+    field after the endpoints defaults, n_seg to None (design density),
+    and resolution preserves the Wire type (names/specs stay named)."""
+    from antennaknobs.network import Wire
+
+    class Dipole(_Design):
+        def build_wires(self):
+            return [
+                Wire((0.0, -2.5, 0.0), (0.0, -0.05, 0.0)),
+                Wire((0.0, 0.05, 0.0), (0.0, 2.5, 0.0)),
+                Wire((0.0, -0.05, 0.0), (0.0, 0.05, 0.0), ex=1 + 0j, name="feed"),
+            ]
+
+    b = Dipole()
+    b.nominal_nsegs = 20  # lambda/4 = 2.5 m
+    out = b.build_wires()
+    assert [w.n_seg for w in out] == [20, 20, 1]
+    assert all(isinstance(w, Wire) for w in out)
+    assert out[2].ex == 1 + 0j and out[2].name == "feed"
+
+
+def test_short_plain_tuples_stay_rejected():
+    """The brevity lives in Wire keywords, not in 2/3-tuples — a bare
+    third element would be ambiguous between a count and an excitation."""
+    from antennaknobs.network import as_wire
+
+    with pytest.raises(ValueError, match="4-6"):
+        as_wire(((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)))

@@ -236,6 +236,19 @@ class Wire(NamedTuple):
     unpacking, and the ``t[4]``-style name access keep working, and designs
     may freely mix plain 4/5-tuples and ``Wire`` entries in one list.
 
+    With every field after the endpoints defaulted, keyword construction
+    is the recommended brief spelling — ``Wire(a, b)`` is a structural
+    wire at the design density, ``Wire(t, s, ex=1 + 0j)`` the feed,
+    ``Wire(ti, to, name="trap_b0")`` a named attachment wire — with no
+    positional ``None`` placeholders. (Plain tuples stay 4-6 fields;
+    short plain tuples are rejected because a bare third element would
+    be ambiguous between a count and an excitation.)
+
+    ``n_seg=None`` means "mesh me at the design density" — resolved by
+    ``AntennaBuilder.auto_mesh`` as part of the stack (nominal_nsegs
+    segments per design_freq quarter-wave); an integer is honored
+    verbatim.
+
     ``spec=None`` means "the design default": engines fall back to
     ``build_wire_material()``. Precedence, defined once: an explicit
     per-wire ``spec`` wins; the web ``wire_radius`` override only moves
@@ -246,7 +259,7 @@ class Wire(NamedTuple):
 
     p0: tuple
     p1: tuple
-    n_seg: int
+    n_seg: int | None = None
     ex: complex | None = None
     name: str | None = None
     spec: WireSpec | None = None
