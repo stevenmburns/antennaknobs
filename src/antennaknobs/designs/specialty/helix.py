@@ -38,6 +38,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
@@ -101,7 +102,7 @@ class Builder(AntennaBuilder):
         tups = []
 
         # Base feed: a one-segment driven gap at the foot, against the radials.
-        tups.append(((0.0, 0.0, z0), (0.0, 0.0, z0 + eps), 1, 1 + 0j))
+        tups.append(Wire((0.0, 0.0, z0), (0.0, 0.0, z0 + eps), n_seg=1, ex=1 + 0j))
 
         # Helix: a space curve from the top of the feed gap upward. Each chord
         # is a straight segment between successive points on the winding; the
@@ -116,7 +117,7 @@ class Builder(AntennaBuilder):
             y = radius * math.sin(ang)
             z = zbot + (axial * i / n_pts)
             cur = (x, y, z)
-            tups.append((prev, cur, 1, None))
+            tups.append(Wire(prev, cur, n_seg=1))
             prev = cur
 
         # Elevated quarter-wave radials from the feedpoint (cf. vertical.py).
@@ -126,6 +127,6 @@ class Builder(AntennaBuilder):
             theta = 2 * math.pi / n_radials * j
             rx = quarter * math.cos(theta)
             ry = quarter * math.sin(theta)
-            tups.append(((0.0, 0.0, z0), (rx, ry, z0), n_seg_radials, None))
+            tups.append(Wire((0.0, 0.0, z0), (rx, ry, z0), n_seg=n_seg_radials))
 
         return tups

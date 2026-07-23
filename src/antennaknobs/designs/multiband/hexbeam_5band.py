@@ -23,6 +23,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 C_LIGHT_MHZ_M = 299.792458
 
@@ -340,18 +341,18 @@ class Builder(AntennaBuilder):
             J = at_z(anchors["J"])
             T = at_z(anchors["T"])
 
-            def build_path(lst, ns):
-                return [(a, b, ns, None) for a, b in zip(lst[:-1], lst[1:])]
+            def build_path(lst):
+                return [Wire(a, b) for a, b in zip(lst[:-1], lst[1:])]
 
-            tups.extend(build_path([S, A, B], None))
-            tups.extend(build_path([C, D], None))
-            tups.extend(build_path([D, E, F, G], None))
-            tups.extend(build_path([G, H], None))
-            tups.extend(build_path([II, J, T], None))
+            tups.extend(build_path([S, A, B]))
+            tups.extend(build_path([C, D]))
+            tups.extend(build_path([D, E, F, G]))
+            tups.extend(build_path([G, H]))
+            tups.extend(build_path([II, J, T]))
             # The feed wire (one per band). Daisy-chain mode strips the
             # excitation on bands 1..N-1 inside build_tls; multi-feed
             # mode leaves every band's excitation in place.
-            tups.append((T, S, n_seg_feed, 1 + 0j))
+            tups.append(Wire(T, S, n_seg=n_seg_feed, ex=1 + 0j))
             self._feed_wire_indices.append(len(tups))  # 1-indexed NEC tag
 
         if self.daisy_chain:
@@ -359,8 +360,7 @@ class Builder(AntennaBuilder):
             # added in build_tls() couple bands 1..N-1 to their upstream
             # neighbour.
             for idx in self._feed_wire_indices[1:]:
-                p0, p1, ns, _ = tups[idx - 1]
-                tups[idx - 1] = (p0, p1, ns, None)
+                tups[idx - 1] = tups[idx - 1]._replace(ex=None)
 
         # Every band's every edge meshes at the design density
         # (nominal_nsegs per design_freq quarter-wave — one segment

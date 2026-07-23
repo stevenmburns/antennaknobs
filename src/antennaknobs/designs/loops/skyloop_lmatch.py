@@ -34,6 +34,7 @@ from types import MappingProxyType
 
 from antennaknobs.designs.loops.triangular_skyloop import Builder as TriangularSkyloop
 from antennaknobs.network import (
+    as_wire,
     Driven,
     Instance,
     Network,
@@ -85,12 +86,10 @@ class Builder(TriangularSkyloop):
         # the driven chamfer as the network's "feed" port and clear its inline
         # excitation, since the L-match network supplies the source at the
         # virtual `in` node instead.
-        wires = []
-        for p0, p1, nseg, ex, *rest in super().build_wires():
-            wires.append(
-                (p0, p1, nseg, None, "feed") if ex is not None else (p0, p1, nseg, ex)
-            )
-        return wires
+        return [
+            w._replace(ex=None, name="feed") if w.ex is not None else w
+            for w in map(as_wire, super().build_wires())
+        ]
 
     def build_network(self):
         r"""L-match, stamped LITERALLY at whatever the sliders say: the MNA

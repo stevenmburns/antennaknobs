@@ -22,6 +22,7 @@ wire, no geometry parameters at all:
 
 ```python
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -33,7 +34,7 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         y = 5.0  # half-length in metres → a 10 m wire, tip to tip
         return [
-            ((0.0, -y, 0.0), (0.0, y, 0.0), None, 1 + 0j),
+            Wire((0.0, -y, 0.0), (0.0, y, 0.0), ex=1 + 0j),
         ]
 ```
 
@@ -41,16 +42,16 @@ That's a complete, loadable design. Drop it in your
 [designs folder](/concepts/authoring-with-claude/#your-designs-folder) as
 `my_dipole.py`, refresh the workbench, and it appears under **Your designs**.
 
-Reading the one wire tuple `((0,-y,0), (0,y,0), None, 1+0j)` against the
+Reading the one `Wire((0,-y,0), (0,y,0), ex=1+0j)` against the
 [`build_wires()` contract](/concepts/model/#the-build_wires-contract):
 
 - **`(0,-y,0)` → `(0,y,0)`** — the two endpoints (metres): a straight wire along
   the **y** axis from −5 m to +5 m, lying on the ground plane (`z = 0`).
-- **`None`** — no segment count: the framework meshes the wire for you, at a
-  density anchored to `design_freq` (step 4 explains the rule — you will never
-  pick a count by hand).
-- **`1 + 0j`** — this wire is the **driven** element; the source sits on it. (A
-  structural, undriven wire would carry `None` here.) Exactly one segment in the
+- **no segment count** — you didn't pass one, so the framework meshes the wire
+  for you, at a density anchored to `design_freq` (step 4 explains the rule —
+  you will never pick a count by hand).
+- **`ex=1 + 0j`** — this wire is the **driven** element; the source sits on it.
+  (A structural, undriven wire is just `Wire(a, b)`.) Exactly one segment in the
   whole design carries the feed — here the wire's own centre segment.
 
 <Aside type="note" title="Why the feed has no separate wire">
@@ -106,7 +107,7 @@ class Builder(AntennaBuilder):
         y = 5.0
         z = self.base   # every param is read as self.<name>
         return [
-            ((0.0, -y, z), (0.0, y, z), None, 1 + 0j),
+            Wire((0.0, -y, z), (0.0, y, z), ex=1 + 0j),
         ]
 ```
 
@@ -155,9 +156,9 @@ N=21 it meshes into **39** segments — and the count will *track* the length
 once we make it a parameter.
 
 <Aside type="note" title="Explicit counts still exist">
-  An integer in the count slot is honored verbatim. You'd only reach for one
-  when the mesh itself is data — reproducing an imported NEC deck wire-for-wire,
-  say. For everything you author, write `None`.
+  An integer count — `Wire(a, b, n_seg=28)` — is honored verbatim. You'd only
+  reach for one when the mesh itself is data — reproducing an imported NEC deck
+  wire-for-wire, say. For everything you author, leave the count off.
 </Aside>
 
 <Aside type="note" title="You give a count; the solver picks the parity">
@@ -180,6 +181,7 @@ adjustable — slide it longer to drop the resonant frequency, shorter to raise 
 
 ```python
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -195,7 +197,7 @@ class Builder(AntennaBuilder):
         y = self.half_length
         z = self.base
         return [
-            ((0.0, -y, z), (0.0, y, z), None, 1 + 0j),
+            Wire((0.0, -y, z), (0.0, y, z), ex=1 + 0j),
         ]
 ```
 
@@ -218,6 +220,7 @@ true resonance:
 
 ```python
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -235,7 +238,7 @@ class Builder(AntennaBuilder):
         y = quarter * self.length_factor   # half-length ≈ a quarter wavelength
         z = self.base
         return [
-            ((0.0, -y, z), (0.0, y, z), None, 1 + 0j),
+            Wire((0.0, -y, z), (0.0, y, z), ex=1 + 0j),
         ]
 ```
 
