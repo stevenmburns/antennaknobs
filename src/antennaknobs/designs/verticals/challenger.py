@@ -39,6 +39,7 @@ from antennaknobs.network import (
     Network,
     PortOnWire,
     PortVirtual,
+    Wire,
     WireSpec,
 )
 from antennaknobs.station import unun
@@ -54,6 +55,11 @@ class Builder(AntennaBuilder):
         {
             # 15M — the band the plans publish detailed 4NEC2 claims for.
             "freq": 21.35,
+            # Geometry is per-band absolute inches; design_freq only anchors
+            # auto_mesh's density scale (nominal_nsegs per quarter-wave at
+            # the band the lengths are cut for), so it is hidden from the
+            # UI. Each band variant restates it alongside its freq.
+            "design_freq": 21.35,
             # "Computer Model" columns: 12" pigtail + whip = total radiator.
             "whip_len_m": 205 * _IN,
             "cp_len_m": 65 * _IN,
@@ -69,6 +75,7 @@ class Builder(AntennaBuilder):
                 {
                     "target_z0": 50.0,
                     "default_view": "xz",
+                    "design_freq": {"hidden": True},
                     "whip_len_m": {"min": 1.0, "max": 8.0, "unit": "m"},
                     "cp_len_m": {"min": 0.3, "max": 3.0, "unit": "m"},
                     "h_feed": {"min": 0.3, "max": 1.5, "unit": "m"},
@@ -86,21 +93,48 @@ class Builder(AntennaBuilder):
     # Challenger+: Palomar Bullet 4:1, measured −0.24 dB.
     plus_params = MappingProxyType({"lmag_uH": 1.75, "qlmag": 3.0})
 
-    # Per-band "Computer Model" radiator/counterpoise lengths.
+    # Per-band "Computer Model" radiator/counterpoise lengths. design_freq
+    # tracks the band so the auto-mesh density follows the wavelength the
+    # lengths are cut for.
     band20_params = MappingProxyType(
-        {"freq": 14.25, "whip_len_m": 304 * _IN, "cp_len_m": 99 * _IN}
+        {
+            "freq": 14.25,
+            "design_freq": 14.25,
+            "whip_len_m": 304 * _IN,
+            "cp_len_m": 99 * _IN,
+        }
     )
     band17_params = MappingProxyType(
-        {"freq": 18.14, "whip_len_m": 240 * _IN, "cp_len_m": 76 * _IN}
+        {
+            "freq": 18.14,
+            "design_freq": 18.14,
+            "whip_len_m": 240 * _IN,
+            "cp_len_m": 76 * _IN,
+        }
     )
     band12_params = MappingProxyType(
-        {"freq": 24.94, "whip_len_m": 175 * _IN, "cp_len_m": 56 * _IN}
+        {
+            "freq": 24.94,
+            "design_freq": 24.94,
+            "whip_len_m": 175 * _IN,
+            "cp_len_m": 56 * _IN,
+        }
     )
     band10_params = MappingProxyType(
-        {"freq": 28.40, "whip_len_m": 154 * _IN, "cp_len_m": 49 * _IN}
+        {
+            "freq": 28.40,
+            "design_freq": 28.40,
+            "whip_len_m": 154 * _IN,
+            "cp_len_m": 49 * _IN,
+        }
     )
     band6_params = MappingProxyType(
-        {"freq": 51.00, "whip_len_m": 87 * _IN, "cp_len_m": 26 * _IN}
+        {
+            "freq": 51.00,
+            "design_freq": 51.00,
+            "whip_len_m": 87 * _IN,
+            "cp_len_m": 26 * _IN,
+        }
     )
 
     # Transformer turns ratio: 4:1 impedance = 2:1 turns, rig side low.
@@ -116,23 +150,19 @@ class Builder(AntennaBuilder):
         droop = math.asin(min(1.0, max(0.0, h - self.cp_end_h) / self.cp_len_m))
 
         return [
-            (
-                (0, 0, h),
-                (0, 0, h + eps),
-                self.segs_for(eps, self.whip_len_m),
-                None,
-                "ant",
-            ),
-            ((0, 0, h + eps), (0, 0, h + self.whip_len_m), self.nominal_nsegs, None),
-            (
+            # Gap wire at the whip base carries the "ant" port.
+            Wire((0, 0, h), (0, 0, h + eps), name="ant"),
+            Wire((0, 0, h + eps), (0, 0, h + self.whip_len_m)),
+            # Counterpoise keeps its validated floored allocation (#525
+            # stage 3 retires the remaining hand counts).
+            Wire(
                 (0, 0, h),
                 (
                     self.cp_len_m * math.cos(droop),
                     0.0,
                     h - self.cp_len_m * math.sin(droop),
                 ),
-                max(5, self.nominal_nsegs // 3),
-                None,
+                n_seg=max(5, self.nominal_nsegs // 3),
             ),
         ]
 

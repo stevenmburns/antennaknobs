@@ -1,6 +1,7 @@
 """Elevated quarter-wave vertical, fed above ground."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 import math
 from types import MappingProxyType
@@ -10,10 +11,15 @@ class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
             "freq": 14.27,
+            # Geometry is hand-tuned in absolute metres; design_freq only
+            # anchors auto_mesh's density scale (nominal_nsegs per
+            # quarter-wave), so it is hidden from the UI.
+            "design_freq": 14.27,
             "length": 5.2245,
             "radial_factor": 0.9545,
             "theta": 110.0,
             "base": 3.0,
+            "ui_params": MappingProxyType({"design_freq": {"hidden": True}}),
         }
     )
 
@@ -21,15 +27,12 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         z = self.length
-
-        n_seg0 = self.nominal_nsegs
-        # Driven gap at the riser foot refines with the mesh (issue #435);
-        # the riser above it (length z - eps) carries n_seg0.
-        n_seg1 = self.segs_for(eps, z - eps)
+        base = self.base
 
         tups = []
-        tups.extend([((0, 0, 0), (0, 0, eps), n_seg1, 1 + 0j)])
-        tups.extend([((0, 0, eps), (0, 0, z), n_seg0, None)])
+        # Driven gap at the riser foot; the riser stacks on top of it.
+        tups.append(Wire((0, 0, base), (0, 0, base + eps), ex=1 + 0j))
+        tups.append(Wire((0, 0, base + eps), (0, 0, base + z)))
 
         # ±45° spread of the two sloping radials
         radial_angle = math.pi / 4
@@ -43,11 +46,6 @@ class Builder(AntennaBuilder):
             y = r * math.sin(phi) * math.sin(theta)
             rz = r * math.cos(theta)
 
-            tups.extend([((0, 0, 0), (x, y, rz), n_seg0, None)])
+            tups.append(Wire((0, 0, base), (x, y, rz + base)))
 
-        base = self.base
-        new_tups = []
-        for (x0, y0, z0), (x1, y1, z1), n_seg, ev in tups:
-            new_tups.append(((x0, y0, z0 + base), (x1, y1, z1 + base), n_seg, ev))
-
-        return new_tups
+        return tups

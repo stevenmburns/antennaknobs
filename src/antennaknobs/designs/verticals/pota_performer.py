@@ -50,7 +50,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import WireSpec
+from antennaknobs.network import Wire, WireSpec
 
 _IN = 0.0254
 
@@ -66,6 +66,11 @@ class Builder(AntennaBuilder):
             # Whip/radial lengths straight from the plans' per-band table
             # (144" / 120"); no retune, the point is duplicating HIS numbers.
             "freq": 21.35,
+            # Geometry is per-band absolute inches; design_freq only anchors
+            # auto_mesh's density scale (nominal_nsegs per quarter-wave at
+            # the band the lengths are cut for), so it is hidden from the
+            # UI. Each band variant restates it alongside its freq.
+            "design_freq": 21.35,
             "whip_len_m": 144 * _IN,
             "radial_len_m": 120 * _IN,
             "h_feed": 52 * _IN,
@@ -78,6 +83,7 @@ class Builder(AntennaBuilder):
                 {
                     "target_z0": 50.0,
                     "default_view": "xz",
+                    "design_freq": {"hidden": True},
                     # Max covers band20's 207" = 5.26 m (17' whip + stud).
                     "whip_len_m": {"min": 1.0, "max": 5.3, "unit": "m"},
                     "radial_len_m": {"min": 0.5, "max": 5.1, "unit": "m"},
@@ -98,20 +104,47 @@ class Builder(AntennaBuilder):
     single_radial_params = MappingProxyType({"n_radials": 1})
 
     # Per-band whip/radial lengths from the plans (target freqs + inches).
+    # design_freq tracks the band so the auto-mesh density follows the
+    # wavelength the lengths are cut for.
     band20_params = MappingProxyType(
-        {"freq": 14.25, "whip_len_m": 207 * _IN, "radial_len_m": 198 * _IN}
+        {
+            "freq": 14.25,
+            "design_freq": 14.25,
+            "whip_len_m": 207 * _IN,
+            "radial_len_m": 198 * _IN,
+        }
     )
     band17_params = MappingProxyType(
-        {"freq": 18.14, "whip_len_m": 165 * _IN, "radial_len_m": 149 * _IN}
+        {
+            "freq": 18.14,
+            "design_freq": 18.14,
+            "whip_len_m": 165 * _IN,
+            "radial_len_m": 149 * _IN,
+        }
     )
     band12_params = MappingProxyType(
-        {"freq": 24.94, "whip_len_m": 126 * _IN, "radial_len_m": 96 * _IN}
+        {
+            "freq": 24.94,
+            "design_freq": 24.94,
+            "whip_len_m": 126 * _IN,
+            "radial_len_m": 96 * _IN,
+        }
     )
     band10_params = MappingProxyType(
-        {"freq": 28.40, "whip_len_m": 113 * _IN, "radial_len_m": 80 * _IN}
+        {
+            "freq": 28.40,
+            "design_freq": 28.40,
+            "whip_len_m": 113 * _IN,
+            "radial_len_m": 80 * _IN,
+        }
     )
     band6_params = MappingProxyType(
-        {"freq": 51.00, "whip_len_m": 64 * _IN, "radial_len_m": 43 * _IN}
+        {
+            "freq": 51.00,
+            "design_freq": 51.00,
+            "whip_len_m": 64 * _IN,
+            "radial_len_m": 43 * _IN,
+        }
     )
 
     def build_wire_material(self):
@@ -128,8 +161,8 @@ class Builder(AntennaBuilder):
         tups = [
             # Gap wire at the whip base carries the port (ev on its one
             # segment); the whip proper stacks on top of it.
-            ((0, 0, h), (0, 0, h + eps), self.segs_for(eps, self.whip_len_m), 1 + 0j),
-            ((0, 0, h + eps), (0, 0, h + self.whip_len_m), self.nominal_nsegs, None),
+            Wire((0, 0, h), (0, 0, h + eps), ex=1 + 0j),
+            Wire((0, 0, h + eps), (0, 0, h + self.whip_len_m)),
         ]
 
         n = int(self.n_radials)
@@ -138,6 +171,8 @@ class Builder(AntennaBuilder):
         phis = (
             [0.0] if n == 1 else [-self.radial_span_deg / 2, self.radial_span_deg / 2]
         )
+        # Radials keep their validated floored allocation (#525 stage 3
+        # retires the remaining hand counts).
         r_seg = max(5, self.nominal_nsegs // 3)
         for phi_deg in phis:
             p = math.radians(phi_deg)
@@ -146,5 +181,5 @@ class Builder(AntennaBuilder):
                 self.radial_len_m * math.cos(droop) * math.sin(p),
                 h - self.radial_len_m * math.sin(droop),
             )
-            tups.append(((0, 0, h), end, r_seg, None))
+            tups.append(Wire((0, 0, h), end, n_seg=r_seg))
         return tups

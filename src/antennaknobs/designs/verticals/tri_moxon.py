@@ -50,6 +50,7 @@ from antennaknobs.network import (
     PortVirtual,
     Shunt,
     TL,
+    Wire,
     WireSpec,
 )
 import math
@@ -115,7 +116,6 @@ class Builder(AntennaBuilder):
         """Wire tuples for rectangle k (1-3), standing in the vertical
         plane at azimuth (k-1)*120 deg, reflector nearest the post."""
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         lf = self.length_factor
 
         a = self.a_frac * wavelength * lf
@@ -136,29 +136,18 @@ class Builder(AntennaBuilder):
         zm = zb + a / 2
         pe = 0.1  # feed-edge length, m
 
-        vert = self.segs_for(a, quarter)
-        half_drv = self.segs_for(a / 2 - pe / 2, quarter)
-        tail_b = self.segs_for(b, quarter)
-        tail_d = self.segs_for(d, quarter)
-
         return [
             # Reflector: vertical + fold-back tails toward the driver.
-            (at(r_ref, zb), at(r_ref, zt), vert, None, None),
-            (at(r_ref, zt), at(r_ref + d, zt), tail_d, None, None),
-            (at(r_ref, zb), at(r_ref + d, zb), tail_d, None, None),
+            Wire(at(r_ref, zb), at(r_ref, zt)),
+            Wire(at(r_ref, zt), at(r_ref + d, zt)),
+            Wire(at(r_ref, zb), at(r_ref + d, zb)),
             # Driver: vertical in two halves around the mid-height feed gap,
             # plus its tails back toward the reflector (gap C left open).
-            (at(r_drv, zb), at(r_drv, zm - pe / 2), half_drv, None, None),
-            (
-                at(r_drv, zm - pe / 2),
-                at(r_drv, zm + pe / 2),
-                self.segs_for(pe, quarter),
-                None,
-                f"feed_{k}",
-            ),
-            (at(r_drv, zm + pe / 2), at(r_drv, zt), half_drv, None, None),
-            (at(r_drv, zt), at(r_drv - b, zt), tail_b, None, None),
-            (at(r_drv, zb), at(r_drv - b, zb), tail_b, None, None),
+            Wire(at(r_drv, zb), at(r_drv, zm - pe / 2)),
+            Wire(at(r_drv, zm - pe / 2), at(r_drv, zm + pe / 2), name=f"feed_{k}"),
+            Wire(at(r_drv, zm + pe / 2), at(r_drv, zt)),
+            Wire(at(r_drv, zt), at(r_drv - b, zt)),
+            Wire(at(r_drv, zb), at(r_drv - b, zb)),
         ]
 
     def build_wires(self):

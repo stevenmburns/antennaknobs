@@ -54,6 +54,7 @@ from antennaknobs.network import (
     Network,
     PortOnWire,
     PortVirtual,
+    as_wire,
 )
 from antennaknobs.station import t_network_tuner
 
@@ -111,13 +112,10 @@ class Builder(InvertedL):
         # Reuse the inverted-L geometry verbatim; rename the driven base gap
         # as the network's "feed" port and clear its inline excitation — the
         # T-network supplies the source at the virtual `in` node instead.
-        wires = []
-        for p0, p1, nseg, ev, *rest in super().build_wires():
-            if ev is not None:
-                wires.append((p0, p1, nseg, None, "feed"))
-            else:
-                wires.append((p0, p1, nseg, ev, *rest))
-        return wires
+        return [
+            w._replace(ex=None, name="feed") if w.ex is not None else w
+            for w in map(as_wire, super().build_wires())
+        ]
 
     def build_network(self):
         return Network(

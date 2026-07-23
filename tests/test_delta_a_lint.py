@@ -70,12 +70,17 @@ FAT_CONDUCTOR_HEADROOM = {
     "beams.owa_yagi": 85,  # measured 92 — fat tube driven element
     "beams.owa_yagi_6el": 100,  # measured 107 — 3/16"-equivalent tube (2m)
     "verticals.elt_whip": 155,  # measured 169 — deck-faithful whip (#435)
-    "verticals.pota_performer": 330,  # measured 360 — stainless whip
-    "verticals.challenger": 380,  # measured 413 — aluminum tube
+    # The KJ6ER whips re-measured 2026-07-23 after the auto-mesh conversion
+    # (#525 stage 2): the halfwave whips now carry their density-correct
+    # count (~1.5-2 quarter-waves' worth instead of one nominal), so the
+    # same physical Δ/a floor is reached at a proportionally lower nominal
+    # N. The conductors are unchanged.
+    "verticals.pota_performer": 330,  # measured 350 — stainless whip
+    "verticals.challenger": 270,  # measured 292 — aluminum tube
     # moxon / moxonarray were listed here at 515 ("fat elements") until the
     # #522 density fix revealed the low headroom was the DEFECT, not the
     # conductors: with every wire at driver-arm density they measure ~1840.
-    "verticals.dominator": 525,  # measured 571 — one aluminum tube
+    "verticals.dominator": 270,  # measured 292 — one aluminum tube
     "specialty.hourglass": 545,  # measured 593 — short crossing rails
 }
 

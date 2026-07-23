@@ -30,6 +30,7 @@ The structure is planar in x = 0.
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -70,7 +71,6 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         vert = self.vert_frac * wavelength * self.length_factor
         horiz = self.horiz_frac * wavelength * self.length_factor
@@ -79,10 +79,6 @@ class Builder(AntennaBuilder):
         z_bot = self.base
         z_top = self.base + vert
 
-        # Keep the per-segment length roughly uniform across wires of
-        # different lengths (good NEC practice at the corner junctions):
-        # scale each wire's segment count by its length relative to a
-        # quarter wave. Odd counts so the centre falls on a segment.
         # A short feed gap just below the left top corner, at the current
         # maximum. One segment carries the excitation (cf. moxon.py).
         feed = 2 * eps
@@ -92,14 +88,13 @@ class Builder(AntennaBuilder):
         D = (0.0, y_right, z_top)
         B = (0.0, y_right, z_bot)
 
-        tups = []
-        # Left leg (bottom -> just below corner), passive.
-        tups.append((A, F, self.segs_for(vert - feed, quarter), None))
-        # Feed segment at the corner, driven.
-        tups.append((F, C, self.segs_for(feed, quarter), 1 + 0j))
-        # Top wire, passive.
-        tups.append((C, D, self.segs_for(horiz, quarter), None))
-        # Right leg (corner -> bottom), passive.
-        tups.append((D, B, self.segs_for(vert, quarter), None))
-
-        return tups
+        return [
+            # Left leg (bottom -> just below corner), passive.
+            Wire(A, F),
+            # Feed segment at the corner, driven.
+            Wire(F, C, ex=1 + 0j),
+            # Top wire, passive.
+            Wire(C, D),
+            # Right leg (corner -> bottom), passive.
+            Wire(D, B),
+        ]

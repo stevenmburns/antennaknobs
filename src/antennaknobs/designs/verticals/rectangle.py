@@ -49,7 +49,7 @@ element (a `TL` branch), not geometry.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 from types import MappingProxyType
 
 
@@ -100,7 +100,6 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         lf = self.length_factor
 
         w = self.horiz_frac * wavelength * lf
@@ -119,16 +118,15 @@ class Builder(AntennaBuilder):
         F0 = (0.0, -half_w, zb + (v - pe) / 2)
         F1 = (0.0, -half_w, zb + (v + pe) / 2)
 
-        leg = self.segs_for((v - pe) / 2, quarter)
         return [
             # Left short side: bottom corner -> feed edge -> top corner.
-            (A, F0, leg, None, None),
-            (F0, F1, self.segs_for(pe, quarter), None, "feed"),
-            (F1, D, leg, None, None),
+            Wire(A, F0),
+            Wire(F0, F1, name="feed"),
+            Wire(F1, D),
             # Top, right side, and bottom close the loop.
-            (D, C, self.segs_for(w, quarter), None, None),
-            (C, B, self.segs_for(v, quarter), None, None),
-            (B, A, self.segs_for(w, quarter), None, None),
+            Wire(D, C),
+            Wire(C, B),
+            Wire(B, A),
         ]
 
     def build_network(self):
