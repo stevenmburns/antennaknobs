@@ -175,3 +175,45 @@ TL port stamp sensitivity). In-code comments carry the rationale (grep
 - #459 — mesh-stable feed model for high-Z feeds / TL ports; would lift
   the two exemptions and possibly resolve #448.
 - Remaining 12-outlier triage (above).
+
+## Addendum 2026-07-22: outlier residue 19 → 2 after pynec-accel 1.7.6
+
+The #448 root cause turned out to be an engine-side transcription bug in
+nec2++ — the INTRP interpolation cache extrapolated stale cell
+coefficients across Sommerfeld grid-region crossings (fixed in
+stevenmburns/necpp#5, released as pynec-accel 1.7.6, adopted in PR #517).
+Re-running the full clean-deck ΔΓ > 0.2 PyNEC outlier population from
+this sweep (19 decks by max-feed ΔΓ; the "12" above grouped families)
+against 1.7.6: **17 of 19 resolve outright**
+(`bench_out/outlier-recount-176.jsonl`):
+
+| deck (was ΔΓ) | now |
+|---|--:|
+| salt_ground (1.12) | 0.0001 |
+| ch-11/11-4 (0.93) | 0.0034 |
+| VP2E-CW (0.84) | 0.0003 |
+| ELEVRAD1 / ELEVRAD2 / ElevatRad (0.72–0.78) | 0.0003–0.0004 |
+| SLOPER2 (0.68) | 0.0003 |
+| ch-5/5-10, 5-10a (0.54) | 0.0044 |
+| 15-5-4 / -4A / -32 (0.24–0.40) | 0.0001–0.0002 |
+| half-square / bobtail family (0.28–0.40) | 0.0007–0.0015 |
+| 1r8-2-elphased-radials (0.31) | 0.0000 |
+| BurRad (0.23) | 0.0001 |
+
+Notable reattributions: `salt_ground` ("extreme ground parameters,
+known standalone") and the elevated-radial family were #448 all along;
+the half-square/bobtail cluster was NOT the #459 high-Z-feed class. The
+#459 exemptions (terminated_longwire, sterba_tl) stand on their own
+evidence and are unaffected.
+
+**Two genuine survivors**, and both are a different class: on
+`ch-5/5-6a` (free space, 0.85 → 0.232) and `2m Wide Hentenna over
+ground` (0.56 → 0.565), PyNEC and momwire-sin now agree with EACH OTHER
+to ≤ 0.015 and jointly differ from the nec2c reference — an
+import/reference-side question (both carry resolved/repaired-deck
+flags), not an engine defect. Filed under future corpus triage.
+
+Side observation: with PyNEC now trustworthy on finite ground, it is
+the best available reference on the elevated-radial decks, where the
+sinusoidal basis at native mesh shows its own 0.57–0.64 gap (likely
+mesh-density physics, cf. #484/#478 threads).
