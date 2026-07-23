@@ -53,9 +53,6 @@ class Builder(AntennaBuilder):
         tipspacer = short * self.tipspacer_factor
         t0 = short * self.t0_factor
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def rx(p):
             return -p[0], p[1], p[2]
 
@@ -91,13 +88,27 @@ class Builder(AntennaBuilder):
 
         n_seg0 = self.nominal_nsegs
         # Feed gap T->S refines with the mesh (issue #435); the driver arm
-        # S->A is the reference-length wire that carries n_seg0.
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
+        # S->A is the reference-length wire that carries n_seg0. Every other
+        # wire meshes at the SAME density via segs_for (issue #522): giving
+        # each wire the full nominal count put 6.7x-over-dense segments on
+        # the short folded tails — exactly the facing conductors across the
+        # critical tip gap — and the sin/PyNEC family walked off the
+        # Galerkin value at fine mesh (39.2-21.2j vs 43.6-16.3j at N=321).
+        # At uniform density sin lands on bs2 to 0.0% there.
+        ref = math.dist(S, A)
+        n_seg1 = self.segs_for(math.dist(T, S), ref)
+
+        def path(lst):
+            return [
+                (a, b, self.segs_for(math.dist(a, b), ref), None)
+                for a, b in zip(lst[:-1], lst[1:])
+            ]
 
         tups = []
-        tups.extend(build_path([S, A, B], n_seg0, None))
-        tups.extend(build_path([C, D, E, F], n_seg0, None))
-        tups.extend(build_path([G, H, T], n_seg0, None))
+        tups.append((S, A, n_seg0, None))
+        tups.extend(path([A, B]))
+        tups.extend(path([C, D, E, F]))
+        tups.extend(path([G, H, T]))
         tups.append((T, S, n_seg1, 1 + 0j))
 
         return tups

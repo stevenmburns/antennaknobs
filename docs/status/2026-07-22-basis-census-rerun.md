@@ -128,3 +128,35 @@ effects.
    catalog-default meshes the error is a few percent.
 3. The census tool now enforces the headroom clamp by construction, so
    no future run can quietly score sub-floor rungs.
+
+## Addendum 2026-07-23: moxon was the same defect; the T/X cluster is mostly the same defect
+
+A reader question — "are the segment lengths roughly the same size at
+every N?" — cracked both follow-up issues the same day they were filed.
+
+**beams.moxon (#522): pure density defect, resolved.** The builder gave
+every wire the full nominal count, running the short folded tails 6.7×
+over-dense — precisely the facing conductors across the critical tip
+gap. At uniform driver-arm density (`segs_for`), sin lands on bs2 to
+**0.0 % at N=321** (43.5−16.4j; stock read 39.2−21.2j), the census row
+scores mutual (Z\* 43.6−16.3j, 0.1 % agree), and the measured Δ/a
+headroom jumps 563 → **1844** — the "fat-conductor" lint floor was an
+artifact of the defect. moxonarray composes the same builder and scores
+too (0.3 %). The critical-coupling-amplifier hypothesis in #522 was
+wrong; the tip gap only marked where the over-dense wires sat.
+
+**The hentenna/hourglass cluster (#521): density-dominant, with a
+characterized residue.** The whole cluster carries the same signature
+(4.3–6.2× density mismatch at N=321). A generic uniform-density rebuild
+collapses the gaps — hentenna 43.4 % → 14.2 %, hourglass 35.3 % →
+9.2 % at N=321 — and the residue is **slow monotonic sin X-convergence
+toward the Galerkin value** (hentenna sin +30.7 → +31.8 over 321→641,
+target +38.9; R agrees to 0.5 % throughout), while bs1 ≡ bs2 to three
+digits at every rung. So after the density fix the cluster is class-1
+(slow convergence, trust the flat Galerkin value), not a divergence.
+**broadband.discone is the exception**: its mesh is already uniform
+(ratio 1.05), so its 15 % gap stands as the genuine apex-fan candidate
+for the #484 junction mechanism. Builder fixes for the
+hentenna/hourglass families are follow-up work under #521 (their bs2
+default-slot readouts barely move; only the sin-family values were
+wrong).
