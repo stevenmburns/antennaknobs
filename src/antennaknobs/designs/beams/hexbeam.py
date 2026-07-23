@@ -1,6 +1,7 @@
 """Hex beam — a W-folded 2-element beam on a hexagonal spreader footprint."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
@@ -53,8 +54,8 @@ class Builder(AntennaBuilder):
         cos30 = math.sqrt(3) / 2
         # x is the beam direction
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
+        def build_path(lst, ex=None):
+            return (Wire(a, b, ex=ex) for a, b in zip(lst[:-1], lst[1:]))
 
         def rx(p):
             return -p[0], p[1], p[2]
@@ -81,25 +82,19 @@ class Builder(AntennaBuilder):
         # junction that worsened with N), and the feed gap — meshes at the
         # design density (nominal_nsegs per design_freq quarter-wave).
         tups = []
-        tups.extend(build_path([S, A, B], None, None))
-        tups.extend(build_path([C, D], None, None))
-        tups.extend(build_path([D, E, F, G], None, None))
-        tups.extend(build_path([G, H], None, None))
-        tups.extend(build_path([II, J, T], None, None))
-        tups.append((T, S, None, 1 + 0j))
+        tups.extend(build_path([S, A, B]))
+        tups.extend(build_path([C, D]))
+        tups.extend(build_path([D, E, F, G]))
+        tups.extend(build_path([G, H]))
+        tups.extend(build_path([II, J, T]))
+        tups.append(Wire(T, S, ex=1 + 0j))
 
-        new_tups = []
-        for xoff, yoff, zoff in [(0, 0, self.base)]:
-            new_tups.extend(
-                [
-                    (
-                        (x0 + xoff, y0 + yoff, z0 + zoff),
-                        (x1 + xoff, y1 + yoff, z1 + zoff),
-                        ns,
-                        ex,
-                    )
-                    for ((x0, y0, z0), (x1, y1, z1), ns, ex) in tups
-                ]
+        # Lift the whole (z=0-planar) hex up to the mast height.
+        zoff = self.base
+        return [
+            w._replace(
+                p0=(w.p0[0], w.p0[1], w.p0[2] + zoff),
+                p1=(w.p1[0], w.p1[1], w.p1[2] + zoff),
             )
-
-        return new_tups
+            for w in tups
+        ]

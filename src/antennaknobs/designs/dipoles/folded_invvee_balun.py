@@ -20,6 +20,7 @@ it; the geometry knobs are the stock folded-invvee ones.
 from types import MappingProxyType
 
 from antennaknobs.network import (
+    as_wire,
     CABLES,
     TL,
     Driven,
@@ -62,13 +63,10 @@ class Builder(FoldedInvVee):
     def build_wires(self):
         # Stock folded inv-vee geometry; the driven gap becomes the named
         # "feed" port (the source lives at the virtual rig node).
-        wires = []
-        for p0, p1, nseg, ev, *rest in super().build_wires():
-            if ev is not None:
-                wires.append((p0, p1, nseg, None, "feed"))
-            else:
-                wires.append((p0, p1, nseg, ev, *rest))
-        return wires
+        return [
+            w._replace(ex=None, name="feed") if w.ex is not None else w
+            for w in map(as_wire, super().build_wires())
+        ]
 
     def build_network(self):
         return Network(

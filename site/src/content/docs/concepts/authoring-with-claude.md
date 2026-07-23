@@ -70,6 +70,7 @@ The seeded `CLAUDE.md` is authoritative; in brief, a design file must:
 
 ```python
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -86,9 +87,9 @@ class Builder(AntennaBuilder):
         h = (wavelength / 4.0) * self.length_factor
         z, eps = self.height, 0.01
         return [
-            ((0.0, -h, z), (0.0, -eps, z), None, None),     # left arm
-            ((0.0, eps, z), (0.0, h, z), None, None),       # right arm
-            ((0.0, -eps, z), (0.0, eps, z), None, 1 + 0j),  # driven feed gap
+            Wire((0.0, -h, z), (0.0, -eps, z)),               # left arm
+            Wire((0.0, eps, z), (0.0, h, z)),                 # right arm
+            Wire((0.0, -eps, z), (0.0, eps, z), ex=1 + 0j),   # driven feed gap
         ]
 ```
 

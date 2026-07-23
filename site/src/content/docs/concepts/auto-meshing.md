@@ -116,17 +116,17 @@ def build_wires(self):
     # ... geometry: corner points S, A, B, C, D, E, F, G, H, T ...
 
     def path(lst):
-        return [(a, b, None, None) for a, b in zip(lst[:-1], lst[1:])]
+        return [Wire(a, b) for a, b in zip(lst[:-1], lst[1:])]
 
     tups = []
     tups.extend(path([S, A, B]))
     tups.extend(path([C, D, E, F]))
     tups.extend(path([G, H, T]))
-    tups.append((T, S, None, 1 + 0j))
+    tups.append(Wire(T, S, ex=1 + 0j))
     return tups
 ```
 
-Every count is `None` — that's it. Auto-meshing is part of the stack:
+No `Wire()` here mentions a count at all — the field defaults to `None`. Auto-meshing is part of the stack:
 the framework resolves `build_wires` results before any consumer sees
 them, so there is no meshing call to remember. The design declares one
 new parameter:

@@ -2,6 +2,7 @@
 
 from antennaknobs import AntennaBuilder
 from antennaknobs import Transform, TransformStack
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -74,16 +75,18 @@ class Builder(AntennaBuilder):
         st = TransformStack()
         st.push(Transform.translate(0, 0, b))
 
-        def build_path(lst, ns, ex):
-            return ((st.hit(a), st.hit(b), ns, ex) for a, b in zip(lst[:-1], lst[1:]))
+        def build_path(lst, ex=None):
+            return (
+                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in zip(lst[:-1], lst[1:])
+            )
 
         tups = []
 
-        tups.extend(build_path([B, A, C, D], None, None))
-        tups.extend(build_path([B, F, E, D], None, None))
-        tups.extend(build_path([S, B], None, None))
-        tups.extend(build_path([D, T], None, None))
-        tups.extend(build_path([T, S], None, 1 + 0j))
+        tups.extend(build_path([B, A, C, D]))
+        tups.extend(build_path([B, F, E, D]))
+        tups.extend(build_path([S, B]))
+        tups.extend(build_path([D, T]))
+        tups.extend(build_path([T, S], ex=1 + 0j))
         # Uniform-density mesh (issue #521): None counts resolve to the
         # design density automatically (auto_mesh is part of the stack).
 
