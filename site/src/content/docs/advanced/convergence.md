@@ -81,11 +81,14 @@ refines while another is pinned coarse, and the graded junction between
 them poisons the solve — the curve may *diverge* with refinement. (Two
 catalog verticals did exactly this until their radials were made to
 refine with the mesh; the tell was sin/PyNEC marching away from a flat
-bs2 while the meshes decoupled.) Response: refine *uniformly* — in your
-own builders, return `None` segment counts and finish `build_wires`
-with `self.auto_mesh(tups)`, which meshes every wire at one density
-(an integer count is reserved for deliberate pins, like 1-segment
-lumped-element ports).
+bs2 while the meshes decoupled.) Response: refine *uniformly* — in
+your own builders, return `None` segment counts and finish
+`build_wires` with `self.auto_mesh(tups)`, which meshes every wire at
+the design density: `nominal_nsegs` segments per quarter-wavelength
+at your declared `design_freq` (so N=15 means a segment length of
+λ/60, on every design). Integer counts are still honored verbatim as
+the legacy path, but hand-assigned counts are how every one of these
+defects was written.
 
 **3. Physics-limited: the near-open feed.** A feed near a current null
 (|Z| in the thousands of ohms — end-fed designs, some multi-element

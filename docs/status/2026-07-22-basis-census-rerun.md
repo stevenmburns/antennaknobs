@@ -193,3 +193,21 @@ Default-slot churn (bs2 @ N=15) from the re-mesh is ≤ 2.2 % across all
 eight affected designs — inside their established coarse-mesh error
 bands. After this sweep the only catalog design above ratio 2.6 is the
 deck-faithful elt_whip, and the growth check passes everywhere.
+
+### Semantics note (same day): `nominal_nsegs` becomes a physical density
+
+Design review of `auto_mesh` settled its reference on the principled
+option: a `None` count meshes at **`nominal_nsegs` segments per
+quarter-wavelength at `design_freq`** (declared, or a build-time
+error — never the measurement `freq`, so sweeps can never remesh
+geometry; never the longest wire, whose identity can flip mid-knob-drag
+and jump every count in the design). N is now the same physical density
+on every design — N=15 = λ/60 segments — and mesh ladders are
+comparable across the catalog. There is no "pin" concept: integer
+counts are simply the legacy path, honored verbatim, discouraged, and
+policed by the lint. The trap-wire study that motivated retiring the
+1-segment load-wire convention (stock trap_fan diverges to 25.9 % while
+density-meshed traps converge to 5.4 %, **and the pinned trap biased
+even bs2** — flat at X=+0.7j vs the refined model's +3.6j) is recorded
+in #521; migrating the trap designs needs a small L/C retune and is
+follow-up work.

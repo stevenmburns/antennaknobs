@@ -362,10 +362,11 @@ class Builder(AntennaBuilder):
                 p0, p1, ns, _ = tups[idx - 1]
                 tups[idx - 1] = (p0, p1, ns, None)
 
-        # Longest auto wire (band 0's largest edge) carries nominal_nsegs;
-        # every band's every edge gets the same segment length. The feed
-        # wires keep their explicit shared count (build_tls attaches
-        # jumpers to their middle segment via _n_seg_feed).
+        # Every band's every edge meshes at the design density
+        # (nominal_nsegs per design_freq quarter-wave — one segment
+        # length across all five bands). The feed wires keep their
+        # explicit shared count (build_tls attaches jumpers to their
+        # middle segment via _n_seg_feed).
         return self.auto_mesh(tups)
 
     def build_tls(self):

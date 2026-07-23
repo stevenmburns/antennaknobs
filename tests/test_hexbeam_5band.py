@@ -144,11 +144,15 @@ def test_registered_in_web_examples():
 
 def test_nominal_nsegs_scales_radiator_edges():
     """Standard convergence-flow contract: bumping nominal_nsegs scales
-    the long radiator edges and leaves the feed gap at 1."""
-    b = Builder()
-    b.nominal_nsegs = 41
-    tups = b.build_wires()
-    seg_counts = {t[2] for t in tups}
-    assert 41 in seg_counts  # major radiator scaled with N
-    feeds = _feeds(tups)
-    assert all(f[1][2] == 1 for f in feeds)  # feed gaps stay 1
+    the radiator edges (auto_mesh density: N per design_freq
+    quarter-wave) and leaves the feed gap at 1."""
+    counts = {}
+    for n in (41, 123):
+        b = Builder()
+        b.nominal_nsegs = n
+        tups = b.build_wires()
+        counts[n] = max(t[2] for t in tups)
+        feeds = _feeds(tups)
+        assert all(f[1][2] == 1 for f in feeds)  # feed gaps stay 1
+    # tripling N triples the densest edge's count (within rounding)
+    assert 2.8 < counts[123] / counts[41] < 3.2
