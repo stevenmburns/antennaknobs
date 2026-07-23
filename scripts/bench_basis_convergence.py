@@ -22,6 +22,14 @@ Memory discipline: RLIMIT_AS caps the process (an OOM becomes a recorded
 MemoryError rung, not a dead machine) and ``--seg-cap`` skips rungs whose
 nominal segment total is too large (recorded, not silently dropped).
 
+Δ/a discipline (issue #484): rungs past a design's thin-wire headroom
+(``bench_delta_a_headroom.n_max`` — the largest N before some wire's
+segment length falls under 2x its radius) are skipped and recorded, for
+BOTH bases. Below the floor the reduced kernel is ill-posed; sin answers
+there are meaningless and bs2's Galerkin regularization merely hides the
+same defect. The 2026-07-20 census ran fat-conductor designs' fine rungs
+below the floor — this clamp is that run's recorded caveat, enforced.
+
     python scripts/bench_basis_convergence.py
     python scripts/bench_basis_convergence.py --ladder 21 61 161 --only wire.zepp
 """
@@ -38,6 +46,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_converge as bc  # noqa: E402 — sibling script, reused ladder machinery
+import bench_delta_a_headroom as dah  # noqa: E402 — Δ/a headroom clamp (#484)
 
 DEFAULT_LADDER = (21, 61, 161, 321)
 DEFAULT_SEG_CAP = 4000
@@ -56,9 +65,17 @@ def census_row(design: str, ladder, seg_cap: int) -> dict:
     except Exception as e:  # noqa: BLE001 — one dud design must not sink the census
         row["error"] = f"load: {type(e).__name__}: {e}"
         return row
+    try:
+        headroom = dah.n_max(cls)
+    except Exception:  # noqa: BLE001 — a design n_max can't size never blocks it
+        headroom = None
+    row["headroom"] = headroom
     for engine in ENGINES:
         series, skipped = [], []
         for nseg in ladder:
+            if headroom is not None and nseg > headroom:
+                skipped.append([nseg, f"headroom {headroom}"])
+                continue
             try:
                 tot = bc.total_nominal_segs(cls, nseg)
             except Exception as e:  # noqa: BLE001
