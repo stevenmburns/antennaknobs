@@ -25,12 +25,15 @@ from antennaknobs import AntennaBuilder
 
 
 class Builder(AntennaBuilder):
-    default_params = {"freq": 14.0}  # MHz — the only knob
+    default_params = {
+        "freq": 14.0,         # MHz — measurement frequency
+        "design_freq": 14.0,  # MHz — the band it's designed for (anchors the mesh)
+    }
 
     def build_wires(self):
         y = 5.0  # half-length in metres → a 10 m wire, tip to tip
         return [
-            ((0.0, -y, 0.0), (0.0, y, 0.0), 21, 1 + 0j),
+            ((0.0, -y, 0.0), (0.0, y, 0.0), None, 1 + 0j),
         ]
 ```
 
@@ -38,12 +41,14 @@ That's a complete, loadable design. Drop it in your
 [designs folder](/concepts/authoring-with-claude/#your-designs-folder) as
 `my_dipole.py`, refresh the workbench, and it appears under **Your designs**.
 
-Reading the one wire tuple `((0,-y,0), (0,y,0), 21, 1+0j)` against the
+Reading the one wire tuple `((0,-y,0), (0,y,0), None, 1+0j)` against the
 [`build_wires()` contract](/concepts/model/#the-build_wires-contract):
 
 - **`(0,-y,0)` → `(0,y,0)`** — the two endpoints (metres): a straight wire along
   the **y** axis from −5 m to +5 m, lying on the ground plane (`z = 0`).
-- **`21`** — mesh this wire into 21 segments (more on that in step 4).
+- **`None`** — no segment count: the framework meshes the wire for you, at a
+  density anchored to `design_freq` (step 4 explains the rule — you will never
+  pick a count by hand).
 - **`1 + 0j`** — this wire is the **driven** element; the source sits on it. (A
   structural, undriven wire would carry `None` here.) Exactly one segment in the
   whole design carries the feed — here the wire's own centre segment.
@@ -92,79 +97,80 @@ add `base` to the params and use it as the `z` coordinate:
 ```python
 class Builder(AntennaBuilder):
     default_params = {
-        "freq": 14.0,   # MHz — measurement frequency
-        "base": 10.0,   # metres — height above ground
+        "freq": 14.0,         # MHz — measurement frequency
+        "design_freq": 14.0,  # MHz — mesh anchor
+        "base": 10.0,         # metres — height above ground
     }
 
     def build_wires(self):
         y = 5.0
         z = self.base   # every param is read as self.<name>
         return [
-            ((0.0, -y, z), (0.0, y, z), 21, 1 + 0j),
+            ((0.0, -y, z), (0.0, y, z), None, 1 + 0j),
         ]
 ```
 
 Every key in `default_params` is now a knob in the panel, read inside the build
 as `self.base`. Slide it and watch the pattern lift off the ground. Make sure to enable ground modelling.
 
-## 4. Segment the wire the right way
+## 4. How the mesh gets made
 
-That `21` we've been carrying is the **segment count** — and it deserves an
-explanation, because it's where antenna *modelling* meets antenna *physics*.
+That `None` we've been carrying is the **segment count** — and the reason it's
+`None` deserves an explanation, because it's where antenna *modelling* meets
+antenna *physics*.
 
 The solver is a [Method of Moments](/reference/solver/) engine: it chops each
-wire into `nsegs` short segments, puts an unknown current on each, and solves a
-linear system for them all at once. So `nsegs` is an **accuracy/cost dial**:
+wire into short segments, puts an unknown current on each, and solves a linear
+system for them all at once. So the mesh is an **accuracy/cost dial**:
 
 - **too few** segments and the current distribution is too coarse to be
   trustworthy — the impedance and pattern are wrong;
 - **too many** and the solve is needlessly slow;
 - what matters is that each segment is **short relative to a wavelength**, and
   that segment length stays roughly **constant across every wire** so no part of
-  the antenna is under-meshed.
+  the antenna is under- or over-meshed.
 
-Hardcoding `21` breaks that last rule the moment a wire's length changes. The
-framework gives you the right tool — `segs_for(length, ref)`:
-
-```python
-def build_wires(self):
-    wavelength = 299.792458 / self.freq   # metres; c = 299.792458 m·MHz
-    quarter = wavelength / 4.0            # the reference length
-    y = 5.0
-    z = self.base
-    n = self.segs_for(2 * y, quarter)    # segments scaled to the wire's length
-    return [
-        ((0.0, -y, z), (0.0, y, z), n, 1 + 0j),
-    ]
-```
-
-`segs_for` scales the framework's `nominal_nsegs` (default **21**, the count for
-one reference length) by `length / ref`, so a wire twice as long gets twice the
-segments and segment length stays constant:
+You never manage any of that. A `None` count means the framework meshes the
+wire at the **design density**:
 
 ```text
-n = max(1, round(nominal_nsegs · length / ref))
+n = max(1, round(N · length / (λ/4)))     # λ from design_freq
 ```
 
-The clip at 1 matters for *short* wires: a feed bridge or stub a few
-centimetres long gets exactly one segment instead of being over-meshed —
-segment length stays roughly constant across the whole antenna, which is
-the point.
+where **N** is the workbench's segment slider (`nominal_nsegs`). N is a
+physical unit — N=21 means a segment length of λ/84 on every wire of every
+design — and because every `None` wire gets the *same* segment length, no part
+of the antenna can end up meshed out of step with its neighbours. That
+uniformity is not a nicety: hand-picked counts that broke it are the single
+most common historical bug in our own design catalog (the full story, with the
+same design written both ways, is in
+[Segmentation you never think about](/concepts/auto-meshing/)).
 
-Our 10 m wire is about two quarter-waves long, so it now meshes into **39**
-segments instead of 21 — finer, and it will *track* the length once we make it a
-parameter.
+The mesh is anchored to `design_freq` — the band the antenna is *designed*
+for — never to the measurement `freq`, so sweeping the measurement frequency
+can never re-mesh the geometry under you.
+
+Our 10 m wire is about two quarter-waves long at 14 MHz, so at the default
+N=21 it meshes into **39** segments — and the count will *track* the length
+once we make it a parameter.
+
+<Aside type="note" title="Explicit counts still exist">
+  An integer in the count slot is honored verbatim. You'd only reach for one
+  when the mesh itself is data — reproducing an imported NEC deck wire-for-wire,
+  say. For everything you author, write `None`.
+</Aside>
 
 <Aside type="note" title="You give a count; the solver picks the parity">
   You might expect the feed to need an **odd** count so a centre-fed wire has a
   true middle segment — and for some solvers it does. But which parity lands the
   feed cleanly depends on the basis functions: sinusoidal, PyNEC, and the
   default B-spline (degree-2) solver want odd, while B-spline degree-1 wants
-  **even**. So `segs_for` deliberately doesn't force a parity — it returns the
-  natural count, and each solver nudges the **fed** wire's count by at most one
-  to suit its own basis at solve time. Wires without a feed or named port keep
-  exactly the count you give them, so a deliberately meshed (or imported)
-  geometry is preserved. You size the mesh; the solver gets the feed right.
+  **even**. So the framework deliberately doesn't force a parity — the mesh
+  resolves to its natural count, and each solver nudges the **fed** wire's
+  count by at most one to suit its own basis at solve time. Wires without a
+  feed or named port keep exactly their resolved (or explicitly given) count,
+  so a deliberately meshed or imported geometry is preserved. The framework
+  sizes the mesh; the solver gets the feed right.
 </Aside>
 
 ## 5. Parameterize the length
@@ -179,19 +185,17 @@ from antennaknobs import AntennaBuilder
 class Builder(AntennaBuilder):
     default_params = {
         "freq": 14.6,          # MHz — measurement frequency
+        "design_freq": 14.6,   # MHz — mesh anchor
         "base": 10.0,          # metres — height above ground
         "half_length": 5.0,    # metres — half the wire, tip to centre
         "ui_params": {"default_view": "xz"},
     }
 
     def build_wires(self):
-        wavelength = 299.792458 / self.freq
-        quarter = wavelength / 4.0
         y = self.half_length
         z = self.base
-        n = self.segs_for(2 * y, quarter)
         return [
-            ((0.0, -y, z), (0.0, y, z), n, 1 + 0j),
+            ((0.0, -y, z), (0.0, y, z), None, 1 + 0j),
         ]
 ```
 
@@ -204,8 +208,9 @@ frequency.
 
 `half_length` in raw metres works, but it **freezes** the antenna at one size:
 pick a different band and you're back to hand-tuning the length. The fix is to
-tie every dimension to the **wavelength of the band you're cutting for**. Add a
-`design_freq` knob and size the wire from it.
+tie every dimension to the **wavelength of the band you're cutting for** — and
+you've been carrying exactly the right knob since step 1: `design_freq`, so far
+only anchoring the mesh, now sizes the geometry too.
 
 A half-wave dipole is two **quarter-wave** arms, so the half-length is one
 quarter wavelength — times a `length_factor` near 1.0 that trims a real wire to
@@ -229,9 +234,8 @@ class Builder(AntennaBuilder):
         quarter = wavelength / 4.0
         y = quarter * self.length_factor   # half-length ≈ a quarter wavelength
         z = self.base
-        n = self.segs_for(2 * y, quarter)
         return [
-            ((0.0, -y, z), (0.0, y, z), n, 1 + 0j),
+            ((0.0, -y, z), (0.0, y, z), None, 1 + 0j),
         ]
 ```
 

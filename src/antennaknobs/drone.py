@@ -48,12 +48,19 @@ class Drone:
     nose), local +z is 'up' (the yaw axis), local +y completes a
     right-handed frame ('left')."""
 
-    def __init__(self, position=(0.0, 0.0, 0.0), *, nominal_nsegs=21, ref=1.0):
-        # ``ref`` is the reference length a wire of which gets ``nominal_nsegs``
-        # segments (usually a quarter-wavelength), matching AntennaBuilder.
+    def __init__(self, position=(0.0, 0.0, 0.0), *, nominal_nsegs=None, ref=None):
+        # Segment counts are not the drone's problem by default: edges are
+        # emitted with count None and resolve to the design density
+        # (nominal_nsegs per design_freq quarter-wave) when build_wires
+        # returns — auto-meshing is part of the stack. Passing
+        # ``nominal_nsegs``/``ref`` (the reference length whose wire gets
+        # nominal_nsegs segments) switches to the legacy in-drone
+        # resolution, unchanged for existing callers; ``forward(...,
+        # nsegs=k)`` still pins a single edge verbatim either way.
         self.pose = Transform.translate(*position)
-        self.nominal_nsegs = nominal_nsegs
-        self.ref = ref
+        self._legacy_mesh = nominal_nsegs is not None or ref is not None
+        self.nominal_nsegs = 21 if nominal_nsegs is None else nominal_nsegs
+        self.ref = 1.0 if ref is None else ref
         self._pen = None  # None = up; ("ex", value) when down
         self._origin = None  # world position where the current stroke began
         self._nodes = {}  # labelled positions, dropped by mark()
@@ -105,7 +112,9 @@ class Drone:
     def _emit(self, p0, p1, nsegs):
         if self._pen is not None:
             _, ex = self._pen
-            self.edges.append((p0, p1, nsegs or self._seg(math.dist(p0, p1)), ex))
+            if nsegs is None:
+                nsegs = self._seg(math.dist(p0, p1)) if self._legacy_mesh else None
+            self.edges.append((p0, p1, nsegs, ex))
 
     # -- moves ----------------------------------------------------------
     def forward(self, dist, nsegs=None):

@@ -121,3 +121,27 @@ def test_missing_design_freq_raises_at_build_wires():
     b.nominal_nsegs = 20
     with pytest.raises(ValueError, match="design_freq"):
         b.build_wires()
+
+
+def test_drone_edges_resolve_through_the_stack():
+    """A Drone with no meshing args emits None counts; inside a builder
+    they resolve at the design density like any other wire."""
+    from antennaknobs.drone import Drone
+
+    class Loop(_Design):
+        def build_wires(self):
+            d = Drone(position=(0.0, 0.0, 0.0))
+            d.pay_out().forward(2.5).yaw(90).forward(1.25, nsegs=3)
+            return d.edges
+
+    b = Loop()
+    b.nominal_nsegs = 20  # lambda/4 = 2.5 m for _Design's design_freq
+    assert [t[2] for t in b.build_wires()] == [20, 3]
+
+
+def test_drone_legacy_meshing_args_unchanged():
+    from antennaknobs.drone import Drone
+
+    d = Drone(nominal_nsegs=21, ref=1.0)
+    d.pay_out().forward(2.0)
+    assert d.edges[0][2] == 42  # resolved in-drone, exactly as before

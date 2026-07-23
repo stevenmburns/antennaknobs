@@ -40,7 +40,13 @@ view, and so on).
 ```
 
 - the two endpoints are 3D coordinates (metres),
-- `nsegs` is how many segments to mesh that wire into,
+- `nsegs` is the wire's segment count — write **`None`** and the framework
+  meshes the wire at the design density, `nominal_nsegs` segments per
+  quarter-wavelength at the design's `design_freq` (see
+  [Segmentation you never think about](/concepts/auto-meshing/)); an
+  **integer** is honored verbatim. The rule is strictly per-wire: in a mixed
+  list, `None` wires resolve at the design density and integer wires keep
+  their counts, with no interaction between them,
 - `excitation` is `None` for a structural wire, or a complex value for the
   **driven** segment carrying the source.
 

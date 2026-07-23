@@ -35,14 +35,17 @@ heading, not the world axes.
 ### Constructor
 
 ```python
-Drone(position=(0.0, 0.0, 0.0), *, nominal_nsegs=21, ref=1.0)
+Drone(position=(0.0, 0.0, 0.0), *, nominal_nsegs=None, ref=None)
 ```
 
 - **`position`** — starting world position `(x, y, z)`.
-- **`nominal_nsegs`** — the segment count a wire of length `ref` receives. Longer
-  wires get proportionally more (see [auto-segmentation](#auto-segmentation)).
-- **`ref`** — the reference length for that scaling, usually a quarter
-  wavelength. Matches `AntennaBuilder`'s convention.
+- **`nominal_nsegs`** / **`ref`** — leave both off (the default): edges are
+  emitted with segment count `None`, and the framework meshes them at the
+  design density when `build_wires` returns
+  ([Segmentation you never think about](/concepts/auto-meshing/)). Passing
+  them switches to legacy in-drone resolution — a wire of length `ref`
+  (usually a quarter wavelength) gets `nominal_nsegs` segments, longer wires
+  proportionally more (see [segmentation](#segmentation)).
 
 ### Pen control
 
@@ -93,11 +96,14 @@ trig:
 | `heading` *(property)* | World-space unit vector the nose points along. |
 | `wires()` | The accumulated edge list, in `build_wires` shape. |
 
-### Auto-segmentation
+### Segmentation
 
-When `forward()` / `close()` / `line_to()` aren't given an explicit `nsegs`, the
-drone picks `max(1, round(nominal_nsegs · |length| / ref))` — the same formula
-as `segs_for`, short moves included. It does **not**
+When `forward()` / `close()` / `line_to()` aren't given an explicit `nsegs`,
+the edge carries `None` and meshes at the design density like any other wire —
+the drone has no meshing opinions of its own. (With the legacy constructor
+args, the drone instead picks `max(1, round(nominal_nsegs · |length| / ref))`
+in-drone — the same formula, anchored to the caller's `ref`.) An explicit
+`nsegs` on a single move is honored verbatim either way. It does **not**
 force a parity — each solver wants a different one (odd for sinusoidal /
 B-spline degree-2 / PyNEC, even for B-spline degree-1) so the feed lands
 cleanly, and the engine coerces the fed wire's count to its own parity at solve
