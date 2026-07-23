@@ -96,38 +96,26 @@ class Builder(AntennaBuilder):
         def p(x):
             return (x, 0.0, z)
 
-        # Structural wires mesh at the design density (auto_mesh:
-        # nominal_nsegs per design_freq quarter-wave), so the convergence
-        # slider reaches this design like every other. The trap wires keep
-        # their explicit segs_for count (1 segment at the default mesh —
-        # the trap L/C were tuned against that; retiring it is #525
-        # stage 3). The single continuous inner wire spans −X_inner →
+        # Every wire meshes at the design density (auto_mesh:
+        # nominal_nsegs per design_freq quarter-wave), the trap wires
+        # included — their old explicit segs_for count was the identical
+        # formula, so this is a pure spelling change (#525 stage 3); the
+        # load still lands on the trap wire's middle segment as it
+        # refines. The single continuous inner wire spans −X_inner →
         # +X_inner so the named "feed" middle segment lands exactly at the
         # geometric centre (x = 0). Splitting the inner span at the origin
         # would put `feed` on the middle of *one half*, offsetting the
         # feed point by X_inner/2 — a real asymmetry that broke the
         # symmetric design. Engine parity coercion bumps to odd/even as
         # needed.
-        quarter = 0.25 * wavelength
-
         return [
             # Left arm, outer → trap.
             Wire(p(x_outer_tip_l), p(x_trap_outer_l)),
-            Wire(
-                p(x_trap_outer_l),
-                p(x_trap_inner_l),
-                n_seg=self.segs_for(trap_seg, quarter),
-                name="trap_l",
-            ),
+            Wire(p(x_trap_outer_l), p(x_trap_inner_l), name="trap_l"),
             # Inner span — one wire, feed at middle = origin.
             Wire(p(x_trap_inner_l), p(x_trap_inner_r), name="feed"),
             # Right arm, trap → outer.
-            Wire(
-                p(x_trap_inner_r),
-                p(x_trap_outer_r),
-                n_seg=self.segs_for(trap_seg, quarter),
-                name="trap_r",
-            ),
+            Wire(p(x_trap_inner_r), p(x_trap_outer_r), name="trap_r"),
             Wire(p(x_trap_outer_r), p(x_outer_tip_r)),
         ]
 

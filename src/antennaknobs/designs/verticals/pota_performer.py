@@ -171,9 +171,8 @@ class Builder(AntennaBuilder):
         phis = (
             [0.0] if n == 1 else [-self.radial_span_deg / 2, self.radial_span_deg / 2]
         )
-        # Radials keep their validated floored allocation (#525 stage 3
-        # retires the remaining hand counts).
-        r_seg = max(5, self.nominal_nsegs // 3)
+        # Radials mesh at the design density like every other wire (#525
+        # stage 3 retired the old max(5, N//3) hand floor).
         for phi_deg in phis:
             p = math.radians(phi_deg)
             end = (
@@ -181,5 +180,5 @@ class Builder(AntennaBuilder):
                 self.radial_len_m * math.cos(droop) * math.sin(p),
                 h - self.radial_len_m * math.sin(droop),
             )
-            tups.append(Wire((0, 0, h), end, n_seg=r_seg))
+            tups.append(Wire((0, 0, h), end))
         return tups
