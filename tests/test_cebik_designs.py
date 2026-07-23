@@ -1815,7 +1815,7 @@ def test_tlw_topology_grounded_legs():
     tups = b.build_wires()
     grounded = [t for t in tups if t[0][2] == 0.0 or t[1][2] == 0.0]
     assert len(grounded) == 2
-    names = {t[4] for t in tups if len(t) == 5 and t[4]}
+    names = {t[4] for t in tups if len(t) >= 5 and t[4]}
     assert names == {"feed", "term"}
     net = b.build_network()
     (load,) = [br for br in net.branches if isinstance(br, Load)]

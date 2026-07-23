@@ -43,7 +43,7 @@ contribution shaping the low-angle response.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 from types import MappingProxyType
 
 
@@ -87,7 +87,6 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         L = self.length_frac * wavelength
         h = self.height_frac * wavelength
@@ -100,25 +99,27 @@ class Builder(AntennaBuilder):
         T1 = (L, 0.0, pe)
         GT = (L, 0.0, 0.0)  # terminated-leg ground end
 
-        leg = self.segs_for(h - pe, quarter)
-        # Feed/termination edges mesh at catalog density like everything
-        # else (issue #435) — 2 segments at the default mesh.
-        # Feed/term edges stay PINNED at one segment, deliberately exempt
-        # from the issue-#435 refine-with-the-mesh rule: the feed here is
-        # near-open (|Z| ≈ 5 kΩ), where the delta-gap readout diverges as
-        # the gap segment shrinks — refining turns a flat ladder
-        # (~960−5240j) into a 20%+ drift that never settles. A fixed gap
-        # is the mesh-stable model of this feed.
-        pe_seg = 1
+        # Every wire — the feed/termination edges included — meshes at the
+        # design density (#525 stage 4, closing #526's chief case). The
+        # edges were long pinned at one segment on evidence that refining
+        # them turned a flat ladder into a 20 %+ drift; re-probing on the
+        # modern port machinery (MNA network + PortOnWire keeping the
+        # source/load on the wire's middle segment as it refines) shows
+        # the opposite: with density-meshed edges bs2 and sin converge to
+        # the *same* value (mutual limit 436−44j at N=161 on the 3 λ
+        # variant) where the pinned model left the bases ~2.4 % apart
+        # forever, and the Cebik anchors (terminator dissipation, SWR(600),
+        # gain/F-B) are unchanged at the default mesh. The old drift was
+        # an artifact of the pre-MNA port readout, not physics.
         return [
             # Near leg: driven edge at the ground end, then up to the run.
-            (G0, F1, pe_seg, None, "feed"),
-            (F1, A, leg, None, None),
+            Wire(G0, F1, name="feed"),
+            Wire(F1, A),
             # The long horizontal run.
-            (A, B, self.segs_for(L, quarter), None, None),
+            Wire(A, B),
             # Far leg down to the termination edge at the ground end.
-            (B, T1, leg, None, None),
-            (T1, GT, pe_seg, None, "term"),
+            Wire(B, T1),
+            Wire(T1, GT, name="term"),
         ]
 
     def build_network(self):
