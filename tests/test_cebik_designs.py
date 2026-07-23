@@ -1914,7 +1914,7 @@ def test_moxon_turnstile_quadrature_currents():
     eng = PyNECEngine(b, ground=None)
     cur = eng.current_distribution()
     feed_idx = [
-        i for i, t in enumerate(b.build_wires()) if len(t) == 5 and t[4] is not None
+        i for i, t in enumerate(b.build_wires()) if len(t) >= 5 and t[4] is not None
     ]
     ia, ib = (cur[i].knot_currents[1] for i in feed_idx)
     ratio = abs(ib) / abs(ia)
@@ -1975,7 +1975,7 @@ def test_moxon_turnstile_network_topology():
     assert isinstance(src, Driven) and src.port == "shack"
     # Two crossed elements: the two driver gaps run perpendicular.
     tups = b.build_wires()
-    gaps = [t for t in tups if len(t) == 5 and t[4] is not None]
+    gaps = [t for t in tups if len(t) >= 5 and t[4] is not None]
     assert {g[4] for g in gaps} == {"feed_a", "feed_b"}
 
 
@@ -2077,7 +2077,7 @@ def test_pdy_topology_phased_driver_cell():
 
     b = Builder()
     tups = b.build_wires()
-    names = {t[4]: t for t in tups if len(t) == 5 and t[4]}
+    names = {t[4]: t for t in tups if len(t) >= 5 and t[4]}
     assert set(names) == {"feed", "rear"}
     wavelength = 299.792458 / b.design_freq
     halves = [h for h, _ in b.TABLE]

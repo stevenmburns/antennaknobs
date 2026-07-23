@@ -49,7 +49,7 @@ Free space or over ground, the dome looks up.
 
 from antennaknobs import AntennaBuilder
 from antennaknobs.designs.beams.moxon import Builder as Moxon
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 from types import MappingProxyType
 
 
@@ -111,11 +111,14 @@ class Builder(AntennaBuilder):
     def _moxon_outline(self):
         """The reused beams.moxon wire list, scaled to this design's
         frequency, in the Moxon's own planar coordinates (u = beam axis,
-        reflector at -short/2 and driver at +short/2; v = element run)."""
+        reflector at -short/2 and driver at +short/2; v = element run).
+        Only geometry and the excitation flag are carried: this design
+        meshes the outline itself (auto_mesh at its own design_freq /
+        nominal_nsegs), so the borrowed builder's counts are dropped."""
         m = Moxon(dict(Moxon.default_params, base=0.0))
         s = 28.57 / self.design_freq * self.length_factor
         return [
-            ((t[0][0] * s, t[0][1] * s), (t[1][0] * s, t[1][1] * s), t[2], t[3])
+            ((t[0][0] * s, t[0][1] * s), (t[1][0] * s, t[1][1] * s), t[3])
             for t in m.build_wires()
         ]
 
@@ -139,12 +142,12 @@ class Builder(AntennaBuilder):
         # reflector (u min) lands at `base`.
         u0 = min(min(t[0][0], t[1][0]) for t in self._moxon_outline())
         tups = []
-        for (au, av), (bu, bv), n, ev in self._moxon_outline():
+        for (au, av), (bu, bv), ev in self._moxon_outline():
             p0 = place(au - u0, av)
             p1 = place(bu - u0, bv)
             p0 = (p0[0], p0[1], p0[2] + lift)
             p1 = (p1[0], p1[1], p1[2] + lift)
-            tups.append((p0, p1, n, None, name if ev is not None else None))
+            tups.append(Wire(p0, p1, name=name if ev is not None else None))
         return tups
 
     def build_wires(self):

@@ -43,7 +43,7 @@ Horizontally polarised.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, TL, WireSpec
+from antennaknobs.network import Driven, Network, PortOnWire, TL, Wire, WireSpec
 from types import MappingProxyType
 
 
@@ -102,7 +102,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         lf = self.length_factor
 
         tups = []
@@ -110,21 +109,20 @@ class Builder(AntennaBuilder):
             half = half_frac * wavelength * lf
             x = pos_frac * wavelength
             z = self.base
-            arm = self.segs_for(half - eps, quarter)
             L = (x, -half, z)
             C0 = (x, -eps, z)
             C1 = (x, eps, z)
             R = (x, half, z)
             if i == self.DIR:
                 # Parasitic director: one unbroken wire.
-                tups.append((L, R, 2 * arm + 1, None, None))
+                tups.append(Wire(L, R))
                 continue
             # Both drivers carry a centre gap: the forward one is the feed,
             # the rear one takes the far end of the phase line.
             name = "feed" if i == self.FWD else "rear"
-            tups.append((L, C0, arm, None, None))
-            tups.append((C0, C1, self.segs_for(2 * eps, quarter), None, name))
-            tups.append((C1, R, arm, None, None))
+            tups.append(Wire(L, C0))
+            tups.append(Wire(C0, C1, name=name))
+            tups.append(Wire(C1, R))
         return tups
 
     def build_network(self):

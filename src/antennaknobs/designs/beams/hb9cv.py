@@ -34,7 +34,7 @@ in place of the ideal line). Treat F/B as "real but shallow" in this model.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, TL
+from antennaknobs.network import Driven, Network, PortOnWire, TL, Wire
 from types import MappingProxyType
 
 
@@ -96,11 +96,10 @@ class Builder(AntennaBuilder):
             C0 = (x, -eps, z)
             C1 = (x, eps, z)
             R = (x, h, z)
-            arm = self.segs_for(h - eps, quarter)
             return [
-                (L, C0, arm, None, None),
-                (C0, C1, self.segs_for(2 * eps, quarter), None, name),
-                (C1, R, arm, None, None),
+                Wire(L, C0),
+                Wire(C0, C1, name=name),
+                Wire(C1, R),
             ]
 
         tups = []
