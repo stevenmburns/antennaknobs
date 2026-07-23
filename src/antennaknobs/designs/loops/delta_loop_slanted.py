@@ -4,6 +4,7 @@ from antennaknobs import AntennaBuilder
 import math
 
 from antennaknobs import Transform, TransformStack
+from antennaknobs.network import Wire
 
 from types import MappingProxyType
 
@@ -45,13 +46,8 @@ class Builder(AntennaBuilder):
         cos_theta = math.cos(angle)
         tan_theta = math.tan(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         d = driver
         h = (cos_theta * (d - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
@@ -81,14 +77,13 @@ class Builder(AntennaBuilder):
 
         SSS, AAA, BBB, TTT = ry(SS), ry(AA), ry(BB), ry(TT)
 
-        n_seg1 = self.segs_for(math.dist(TT, SS), math.dist(SS, AA))
-
-        tups = []
-
-        tups.extend(build_path([SS, AA, BB, TT], n_seg0, None))
-        tups.extend(build_path([TT, SS], n_seg1, 1 + 0j))
-
-        tups.extend(build_path([SSS, AAA, BBB, TTT], n_seg0, None))
-        tups.extend(build_path([SSS, TTT], n_seg1, 1 + 0j))
-
-        return tups
+        return [
+            Wire(SS, AA),
+            Wire(AA, BB),
+            Wire(BB, TT),
+            Wire(TT, SS, ex=1 + 0j),
+            Wire(SSS, AAA),
+            Wire(AAA, BBB),
+            Wire(BBB, TTT),
+            Wire(SSS, TTT, ex=1 + 0j),
+        ]

@@ -65,11 +65,7 @@ class Builder(AntennaBuilder):
         # horizontal and yaw(90) turns stay in the z = base plane -- no trig.
         # Start just past corner A on side A->B; we'll fly back to the matching
         # point on side D->A and let the driven segment bridge the corner.
-        drone = Drone(
-            position=(-h + inset, -h, self.base),
-            nominal_nsegs=self.nominal_nsegs,
-            ref=quarter,
-        )
+        drone = Drone(position=(-h + inset, -h, self.base))
 
         drone.pay_out()
         drone.forward(side - inset)  # -> B   (rest of side A->B)

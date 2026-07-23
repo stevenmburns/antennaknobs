@@ -34,6 +34,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Drone
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -64,13 +65,9 @@ class Builder(AntennaBuilder):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
         target = self.length_factor * wavelength
-        n0 = self.nominal_nsegs
 
         def ry(p):
             return (p[0], -p[1], p[2])
-
-        def build_path(lst, ns, ex):
-            return [(a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:])]
 
         def geometry(side):
             # Build with the feed at z = 0 (no top height involved yet). Fly the
@@ -84,21 +81,25 @@ class Builder(AntennaBuilder):
                 .position
             )
             B, T = ry(A), ry(S)
-            n1 = self.segs_for(math.dist(T, S), math.dist(S, A))
-            return build_path([S, A, B, T], n0, None) + build_path([T, S], n1, 1 + 0j)
+            return [
+                Wire(S, A),
+                Wire(A, B),
+                Wire(B, T),
+                Wire(T, S, ex=1 + 0j),
+            ]
 
         def total(side):
-            return sum(math.dist(p0, p1) for p0, p1, _ns, _ex in geometry(side))
+            return sum(math.dist(w.p0, w.p1) for w in geometry(side))
 
         # Size by total wire length, numerically (no closed-form corner position).
         side = brentq(lambda s: total(s) - target, 1e-3, 2.0 * wavelength)
         wires = geometry(side)
 
         # z-offset pass: lift the whole loop so the top edge seats at `base`.
-        top_z = max(p[2] for e in wires for p in (e[0], e[1]))
+        top_z = max(p[2] for w in wires for p in (w.p0, w.p1))
         shift = self.base - top_z
 
         def lift(p):
             return (p[0], p[1], p[2] + shift)
 
-        return [(lift(a), lift(b), ns, ex) for a, b, ns, ex in wires]
+        return [w._replace(p0=lift(w.p0), p1=lift(w.p1)) for w in wires]

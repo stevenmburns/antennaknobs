@@ -1,6 +1,7 @@
 """Inverted delta loop — the triangle flipped so the feed edge sits at the top."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 
 from types import MappingProxyType
@@ -35,13 +36,8 @@ class Builder(AntennaBuilder):
         cos_theta = math.cos(angle)
         tan_theta = math.tan(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         d = driver
         h = (cos_theta * (d - 2 * eps) + 2 * eps) / (2 * (cos_theta + 1))
@@ -63,11 +59,9 @@ class Builder(AntennaBuilder):
 
         B, T = ry(A), ry(S)
 
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
-
-        tups = []
-
-        tups.extend(build_path([S, A, B, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg1, 1 + 0j))
-
-        return tups
+        return [
+            Wire(S, A),
+            Wire(A, B),
+            Wire(B, T),
+            Wire(T, S, ex=1 + 0j),
+        ]

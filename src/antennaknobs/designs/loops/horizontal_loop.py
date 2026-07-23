@@ -33,6 +33,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -77,15 +78,11 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         side = self.side_frac * wavelength * self.length_factor
         h = side / 2.0
         z = self.base
 
-        # Keep the per-segment length roughly uniform across wires (good NEC
-        # practice at the corner junctions). Odd counts so the side centre
-        # falls on a segment.
         # Four corners of the flat square, all at z = base.
         A = (-h, -h, z)
         B = (h, -h, z)
@@ -97,15 +94,13 @@ class Builder(AntennaBuilder):
         F0 = (-h, -feed / 2.0, z)  # gap start, just below the midpoint
         F1 = (-h, feed / 2.0, z)  # gap end, just above the midpoint
 
-        tups = []
         # Side A->D split into: A->gap-start (passive), gap (driven, 1 seg),
         # gap-end->D (passive). The remaining three sides close the loop.
-        tups.append((A, F0, self.segs_for(h - feed / 2.0, quarter), None))
-        tups.append((F0, F1, self.segs_for(feed, quarter), 1 + 0j))  # driven gap
-        tups.append((F1, D, self.segs_for(h - feed / 2.0, quarter), None))
-        tups.append((D, C, self.segs_for(side, quarter), None))  # top side
-        tups.append((C, B, self.segs_for(side, quarter), None))  # right side
-        tups.append(
-            (B, A, self.segs_for(side, quarter), None)
-        )  # bottom side, closes the loop
-        return tups
+        return [
+            Wire(A, F0),
+            Wire(F0, F1, ex=1 + 0j),  # driven gap
+            Wire(F1, D),
+            Wire(D, C),  # top side
+            Wire(C, B),  # right side
+            Wire(B, A),  # bottom side, closes the loop
+        ]

@@ -27,6 +27,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Drone
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -57,36 +58,34 @@ class Builder(AntennaBuilder):
 
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         target = self.length_factor * wavelength
-        n0 = self.nominal_nsegs
 
         def ry(p):
             return (p[0], -p[1], p[2])
-
-        def build_path(lst, ns, ex):
-            return [(a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:])]
 
         def geometry(half_top):
             # Start at the top centre; fly the right half pen-up to find its two
             # vertices -- out to the top corner A, then down the slant until it
             # crosses the feed plane y = eps. The top is at `base` from move one.
-            drone = Drone(nominal_nsegs=n0, ref=quarter)
+            drone = Drone()
             drone.move_to((0.0, 0.0, self.base))
             drone.face(heading=(0.0, 1.0, 0.0), up=(1.0, 0.0, 0.0))
             A = drone.forward(half_top).position
             drone.yaw(180.0 + self.angle_deg)  # turn down onto the slant
             S = drone.forward_to_plane((0.0, 1.0, 0.0, eps)).position
             B, T = ry(A), ry(S)
-            n1 = self.segs_for(math.dist(T, S), math.dist(A, B))
 
-            # build_path stitches the four corners into the perimeter and feed
-            # gap -- the same helper delta_loop and delta_loop_reflected use. No
+            # Stitch the four corners into the perimeter and feed gap. No
             # second drone pass: the flight only found the points A and S.
-            return build_path([S, A, B, T], n0, None) + build_path([T, S], n1, 1 + 0j)
+            return [
+                Wire(S, A),
+                Wire(A, B),
+                Wire(B, T),
+                Wire(T, S, ex=1 + 0j),
+            ]
 
         def total(half_top):
-            return sum(math.dist(p0, p1) for p0, p1, _ns, _ex in geometry(half_top))
+            return sum(math.dist(w.p0, w.p1) for w in geometry(half_top))
 
         # Solve the top half-width so the total wire length hits the target.
         half_top = brentq(lambda w: total(w) - target, eps, wavelength)

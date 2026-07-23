@@ -29,6 +29,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 import math
 
@@ -71,7 +72,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         side = self.side_frac * wavelength * self.length_factor
         # Square standing on a corner: the half-diagonal is side / sqrt(2).
@@ -82,19 +82,17 @@ class Builder(AntennaBuilder):
         Tc = (0.0, 0.0, self.base + 2 * hd)  # top corner
         Lc = (0.0, -hd, self.base + hd)  # left corner
 
-        ns = self.segs_for(side, quarter)
         feed = 2 * eps
         # Feed gap on the lower-right side, a short `feed` distance up from the
         # bottom corner along the Bc -> Rc direction (unit (0, 1, 1)/sqrt(2)).
         u = hd / side  # = 1/sqrt(2)
         F = (0.0, feed * u, self.base + feed * u)
 
-        tups = []
-        tups.append(
-            (Bc, F, self.segs_for(feed, quarter), 1 + 0j)
-        )  # driven gap at the corner (length `feed` along the side)
-        tups.append((F, Rc, self.segs_for(side - feed, quarter), None))
-        tups.append((Rc, Tc, ns, None))  # upper-right side
-        tups.append((Tc, Lc, ns, None))  # upper-left side
-        tups.append((Lc, Bc, ns, None))  # lower-left side
-        return tups
+        return [
+            # driven gap at the corner (length `feed` along the side)
+            Wire(Bc, F, ex=1 + 0j),
+            Wire(F, Rc),  # rest of the lower-right side
+            Wire(Rc, Tc),  # upper-right side
+            Wire(Tc, Lc),  # upper-left side
+            Wire(Lc, Bc),  # lower-left side
+        ]

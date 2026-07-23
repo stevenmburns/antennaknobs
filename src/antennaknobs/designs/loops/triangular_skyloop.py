@@ -97,7 +97,6 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         # Equilateral triangle, so each side is a third of the perimeter; the
         # perimeter is length_factor wavelengths (length_factor = 1 -> a nominal
@@ -118,19 +117,15 @@ class Builder(AntennaBuilder):
         # face() is needed: back up half a gap, lay the driven chamfer
         # straddling the vertex, then alternate -60 deg yaws between runs and
         # chamfers, staying in the z = base plane throughout.
-        drone = Drone(
-            position=(0.0, 0.0, self.base),
-            nominal_nsegs=self.nominal_nsegs,
-            ref=quarter,
-        )
+        drone = Drone(position=(0.0, 0.0, self.base))
         drone.jump(-gap / 2.0)
 
         drone.feed(1 + 0j).forward(gap)  # driven chamfer across apex
         drone.pay_out()
         drone.yaw(-60).forward(run)  # -> v_right
-        drone.yaw(-60).forward(gap, nsegs=1)  # passive chamfer across v_right
+        drone.yaw(-60).forward(gap)  # passive chamfer across v_right
         drone.yaw(-60).forward(run)  # -> v_left
-        drone.yaw(-60).forward(gap, nsegs=1)  # passive chamfer across v_left
+        drone.yaw(-60).forward(gap)  # passive chamfer across v_left
         drone.yaw(-60).close()  # final run, home to the apex chamfer
 
         return drone.wires()
