@@ -460,8 +460,8 @@ def test_t2fd_folded_with_termination():
     from antennaknobs.network import Driven, Load
 
     tups = Builder().build_wires()
-    feeds = [t for t in tups if len(t) == 5 and t[4] == "feed"]
-    terms = [t for t in tups if len(t) == 5 and t[4] == "term"]
+    feeds = [t for t in tups if len(t) >= 5 and t[4] == "feed"]
+    terms = [t for t in tups if len(t) >= 5 and t[4] == "term"]
     assert len(feeds) == 1 and len(terms) == 1
     net = Builder().build_network()
     (load,) = [br for br in net.branches if isinstance(br, Load)]

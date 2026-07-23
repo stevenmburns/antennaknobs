@@ -31,6 +31,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
@@ -79,7 +80,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         cone = self.cone_frac * wavelength
         ang = math.radians(self.cone_half_angle_deg)
@@ -95,35 +95,14 @@ class Builder(AntennaBuilder):
         tups = []
         # Feed: a one-segment driven gap between the disc centre and the cone
         # apex (the coax point of a discone).
-        tups.append(
-            (
-                (0.0, 0.0, z_disc),
-                (0.0, 0.0, z_apex),
-                self.segs_for(2 * eps, quarter),
-                1 + 0j,
-            )
-        )
+        tups.append(Wire((0.0, 0.0, z_disc), (0.0, 0.0, z_apex), ex=1 + 0j))
 
         for i in range(m):
             phi = 2 * math.pi / m * i
             c, s = math.cos(phi), math.sin(phi)
             # Disc radial: horizontal, out from the centre.
-            tups.append(
-                (
-                    (0.0, 0.0, z_disc),
-                    (disc_r * c, disc_r * s, z_disc),
-                    self.segs_for(disc_r, quarter),
-                    None,
-                )
-            )
+            tups.append(Wire((0.0, 0.0, z_disc), (disc_r * c, disc_r * s, z_disc)))
             # Cone slant wire: down and out from the apex.
-            tups.append(
-                (
-                    (0.0, 0.0, z_apex),
-                    (cone_r * c, cone_r * s, z_cone_base),
-                    self.segs_for(cone, quarter),
-                    None,
-                )
-            )
+            tups.append(Wire((0.0, 0.0, z_apex), (cone_r * c, cone_r * s, z_cone_base)))
 
         return tups
