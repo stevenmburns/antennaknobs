@@ -1,6 +1,7 @@
 """Folded inverted-vee — the folded dipole's impedance step-up, with drooped arms."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 
 from types import MappingProxyType
@@ -30,13 +31,8 @@ class Builder(AntennaBuilder):
         z_sin = math.sin(angle)
         y_cos = math.cos(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         """
                     
@@ -69,26 +65,25 @@ class Builder(AntennaBuilder):
 
         D, T, C, t = ry(A), ry(S), ry(B), ry(s)
 
-        n_seg1 = self.segs_for(math.dist(A, B), math.dist(S, A))
-        n_seg2 = self.segs_for(math.dist(T, S), math.dist(S, A))
-
-        tups = []
-
-        tups.extend(build_path([S, A], n_seg0, None))
-        tups.extend(build_path([A, B], n_seg1, None))
-        tups.extend(build_path([B, s], n_seg0, None))
-        # The 0.1 m facing link gets the ARM's density (n_seg2, same length
-        # as the feed wire T-S), not the full nominal count: with n_seg0 a
-        # fine mesh drives this wire's segment length below the wire RADIUS
-        # (N=321: 0.31 mm segs on a 0.5 mm-radius wire, Δ/a = 0.62) — the
-        # classic reduced-kernel ill-posedness, which the folded element's
-        # stub antiresonance then amplifies into a wildly wrong sin/pynec
-        # impedance (issue #484: 280−1188j at N=321; proportional density
-        # holds the ladder flat at 223−30j through N=641).
-        tups.extend(build_path([s, t], n_seg2, None))
-        tups.extend(build_path([t, C], n_seg0, None))
-        tups.extend(build_path([C, D], n_seg1, None))
-        tups.extend(build_path([D, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg2, 1 + 0j))
-
-        return tups
+        # Auto-mesh gives every wire the same segment length, which is
+        # exactly what this geometry needs: the two parallel conductors
+        # (S-A / B-s and t-C / D-T) stay density-matched, and the short
+        # facing link s-t and feed T-S get a proportionally small count
+        # instead of the full nominal one. The latter matters — a full
+        # nominal count on the 0.1 m link drives its segment length below
+        # the wire RADIUS at fine meshes (N=321: 0.31 mm segs on a
+        # 0.5 mm-radius wire, Δ/a = 0.62), the classic reduced-kernel
+        # ill-posedness, which the folded element's stub antiresonance
+        # amplifies into a wildly wrong sin/pynec impedance (issue #484:
+        # 280−1188j at N=321; proportional density holds the ladder flat
+        # at 223−30j through N=641).
+        return [
+            Wire(S, A),
+            Wire(A, B),
+            Wire(B, s),
+            Wire(s, t),
+            Wire(t, C),
+            Wire(C, D),
+            Wire(D, T),
+            Wire(T, S, ex=1 + 0j),
+        ]

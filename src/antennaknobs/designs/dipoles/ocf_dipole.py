@@ -25,8 +25,8 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
-import math
 
 
 class Builder(AntennaBuilder):
@@ -64,7 +64,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         length = self.length_frac * wavelength
         z = self.base
@@ -80,17 +79,8 @@ class Builder(AntennaBuilder):
         F1 = (0.0, y_feed + eps, z)
         R = (0.0, y_right, z)
 
-        left_arm = (y_feed - eps) - y_left
-        right_arm = y_right - (y_feed + eps)
-
-        tups = []
-        tups.append(
-            (L, F0, self.segs_for(left_arm, quarter), None)
-        )  # short arm (to -y end)
-        tups.append(
-            (F0, F1, self.segs_for(math.dist(F0, F1), quarter), 1 + 0j)
-        )  # off-centre feed
-        tups.append(
-            (F1, R, self.segs_for(right_arm, quarter), None)
-        )  # long arm (to +y end)
-        return tups
+        return [
+            Wire(L, F0),  # short arm (to -y end)
+            Wire(F0, F1, ex=1 + 0j),  # off-centre feed
+            Wire(F1, R),  # long arm (to +y end)
+        ]

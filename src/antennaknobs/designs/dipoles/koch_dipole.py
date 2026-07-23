@@ -31,6 +31,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
@@ -89,7 +90,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         span = self.span_frac * wavelength * self.length_factor
         half = span / 2.0
@@ -97,36 +97,18 @@ class Builder(AntennaBuilder):
         it = int(self.iterations)
 
         tups = []
-        # Centre feed: a one-segment driven gap along y at the origin.
-        tups.append(
-            ((0.0, -eps, z), (0.0, eps, z), self.segs_for(2 * eps, quarter), 1 + 0j)
-        )
+        # Centre feed: a short driven gap along y at the origin.
+        tups.append(Wire((0.0, -eps, z), (0.0, eps, z), ex=1 + 0j))
 
         # Right arm: Koch curve from the feed edge (y=+eps) out to the tip,
         # built in the (y, z) plane then emitted as straight chords.
         right = _koch((eps, 0.0), (half, 0.0), it)
         for (ya, za), (yb, zb) in zip(right[:-1], right[1:]):
-            seg = math.hypot(yb - ya, zb - za)
-            tups.append(
-                (
-                    (0.0, ya, z + za),
-                    (0.0, yb, z + zb),
-                    self.segs_for(seg, quarter),
-                    None,
-                )
-            )
+            tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
 
         # Left arm: mirror of the right arm in y.
         left = _koch((-eps, 0.0), (-half, 0.0), it)
         for (ya, za), (yb, zb) in zip(left[:-1], left[1:]):
-            seg = math.hypot(yb - ya, zb - za)
-            tups.append(
-                (
-                    (0.0, ya, z + za),
-                    (0.0, yb, z + zb),
-                    self.segs_for(seg, quarter),
-                    None,
-                )
-            )
+            tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
 
         return tups
