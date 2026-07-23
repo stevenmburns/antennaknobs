@@ -1,6 +1,7 @@
 """Yagi-Uda parasitic beam (driven element + reflector + directors)."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 
 from types import MappingProxyType
@@ -36,13 +37,8 @@ class Builder(AntennaBuilder):
         z_sin = math.sin(angle)
         y_cos = math.cos(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         """
     B                    
@@ -73,19 +69,18 @@ class Builder(AntennaBuilder):
 
         C, D, T = ry(B), ry(A), ry(S)
 
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
-
-        tups = []
-
-        tups.extend(build_path([S, A], n_seg0, None))
-        tups.extend(build_path([B, U, C], n_seg0, None))
-        tups.extend(build_path([D, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg1, 1 + 0j))
+        tups = [
+            Wire(S, A),
+            Wire(B, U),
+            Wire(U, C),
+            Wire(D, T),
+            Wire(T, S, ex=1 + 0j),
+        ]
 
         for i in range(self.n_directors):
             U = (boom_x * (1 + i), 0, b)
             B = (boom_x * (1 + i), director_y * y_cos, b - director_y * z_sin)
             C = ry(B)
-            tups.extend(build_path([B, U, C], n_seg0, None))
+            tups.extend([Wire(B, U), Wire(U, C)])
 
         return tups

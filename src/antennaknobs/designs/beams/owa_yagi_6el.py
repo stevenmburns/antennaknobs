@@ -31,7 +31,7 @@ the workbench's forward direction, same as `beams.owa_yagi`.
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import WireSpec
+from antennaknobs.network import Wire, WireSpec
 
 
 class Builder(AntennaBuilder):
@@ -89,7 +89,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         wavelength = 299.792458 / self.design_freq
         eps = 0.025 * wavelength / 2.053373  # feed-gap half-width, scaled
-        quarter = 0.25 * wavelength
         b = self.base
 
         tups = []
@@ -99,14 +98,10 @@ class Builder(AntennaBuilder):
                 half *= self.d1_length_factor
             x = pos_frac * wavelength
             if i == self.DRIVER:
-                # Driver: one-segment centre gap carries the direct feed.
-                arm = self.segs_for(half - eps, quarter)
-                tups.append(((x, -half, b), (x, -eps, b), arm, None))
-                tups.append(
-                    ((x, -eps, b), (x, eps, b), self.segs_for(2 * eps, quarter), 1 + 0j)
-                )
-                tups.append(((x, eps, b), (x, half, b), arm, None))
+                # Driver: the short centre-gap wire carries the direct feed.
+                tups.append(Wire((x, -half, b), (x, -eps, b)))
+                tups.append(Wire((x, -eps, b), (x, eps, b), ex=1 + 0j))
+                tups.append(Wire((x, eps, b), (x, half, b)))
             else:
-                ns = self.segs_for(2 * half, quarter)
-                tups.append(((x, -half, b), (x, half, b), ns, None))
+                tups.append(Wire((x, -half, b), (x, half, b)))
         return tups
