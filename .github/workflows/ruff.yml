@@ -5,9 +5,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Pinned: the unpinned action installs the latest ruff, and 0.16.0
+      # (released 2026-07-23, ~90 min after main's last green run) flags
+      # long-standing files repo-wide. Keep in sync with the local dev venv;
+      # bump deliberately alongside a repo-wide `ruff check` cleanup.
       - uses: astral-sh/ruff-action@v1
         with:
+          version: "0.15.21"
           args: "check"
       - uses: astral-sh/ruff-action@v1
         with:
+          version: "0.15.21"
           args: "format --check"
