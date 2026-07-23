@@ -1,13 +1,24 @@
 """Bowtie dipole — triangular fan arms for broadened bandwidth."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
 
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
-        {"freq": 28.47, "angle_deg": 28.2625, "base": 9.0, "length": 5.4213}
+        {
+            "freq": 28.47,
+            # Geometry is hand-tuned in absolute metres; design_freq only
+            # anchors auto_mesh's density scale (nominal_nsegs per
+            # quarter-wave), so it is hidden from the UI.
+            "design_freq": 28.47,
+            "angle_deg": 28.2625,
+            "base": 9.0,
+            "length": 5.4213,
+            "ui_params": MappingProxyType({"design_freq": {"hidden": True}}),
+        }
     )
 
     def build_wires(self):
@@ -23,29 +34,25 @@ class Builder(AntennaBuilder):
         y = half * math.cos(theta)
         z = half * math.sin(theta)
 
-        n_seg0 = self.nominal_nsegs
-        n_seg1 = self.segs_for(
-            math.dist((-eps, eps), (eps, eps)), math.dist((-y, z), (-eps, eps))
-        )
-
-        tups = []
-        tups.extend([((-y, 0), (-y, z), n_seg0, None)])
-        tups.extend([((-y, z), (-eps, eps), n_seg0, None)])
-        tups.extend([((-eps, eps), (eps, eps), n_seg1, None)])
-        tups.extend([((eps, eps), (y, z), n_seg0, None)])
-        tups.extend([((y, z), (y, 0), n_seg0, None)])
-        tups.extend([((-y, 0), (-y, -z), n_seg0, None)])
-        tups.extend([((-y, -z), (-eps, -eps), n_seg0, None)])
-        tups.extend([((eps, -eps), (y, -z), n_seg0, None)])
-        tups.extend([((y, -z), (y, 0), n_seg0, None)])
-        tups.extend([((-eps, -eps), (eps, -eps), n_seg1, 1 + 0j)])
+        tups = [
+            ((-y, 0), (-y, z), None),
+            ((-y, z), (-eps, eps), None),
+            ((-eps, eps), (eps, eps), None),
+            ((eps, eps), (y, z), None),
+            ((y, z), (y, 0), None),
+            ((-y, 0), (-y, -z), None),
+            ((-y, -z), (-eps, -eps), None),
+            ((eps, -eps), (y, -z), None),
+            ((y, -z), (y, 0), None),
+            ((-eps, -eps), (eps, -eps), 1 + 0j),
+        ]
 
         new_tups = []
         for yoff, zoff in [(0, self.base)]:
             new_tups.extend(
                 [
-                    ((0, y0 + yoff, z0 + zoff), (0, y1 + yoff, z1 + zoff), ns, ev)
-                    for ((y0, z0), (y1, z1), ns, ev) in tups
+                    Wire((0, y0 + yoff, z0 + zoff), (0, y1 + yoff, z1 + zoff), ex=ev)
+                    for ((y0, z0), (y1, z1), ev) in tups
                 ]
             )
 
