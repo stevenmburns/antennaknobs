@@ -56,6 +56,21 @@ the wire so the network layer can attach to it — a
 transmission-line endpoint — at that wire's middle segment. Most wires are
 anonymous; you name exactly the ones something attaches to.
 
+For anything beyond the plain 4-tuple, the recommended spelling is the
+`Wire` named tuple (`from antennaknobs.network import Wire`) — a drop-in
+tuple superset whose fields after the endpoints all default, so keywords
+replace positional `None` placeholders:
+
+```python
+Wire(a, b)                     # structural wire, design density
+Wire(t, s, ex=1 + 0j)          # the feed
+Wire(ti, to, name="trap_b0")   # a named attachment wire
+```
+
+(Plain tuples stay 4–6 fields — there is deliberately no 2/3-tuple form,
+because a bare third element would be ambiguous between a segment count
+and an excitation.)
+
 That single list is the entire interface to the solver and every renderer —
 nothing downstream cares *how* you produced it, which is what makes the
 [geometry layer so flexible](/concepts/authoring/).

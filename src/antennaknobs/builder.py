@@ -240,17 +240,16 @@ class AntennaBuilder:
                 "or give every wire an explicit segment count."
             )
         quarter_wave = 0.25 * 299.792458 / float(design_freq)
-        return [
-            t
-            if t[2] is not None
-            else (
-                t[0],
-                t[1],
-                self.segs_for(_math.dist(t[0], t[1]), quarter_wave),
-                *t[3:],
-            )
-            for t in tups
-        ]
+
+        def resolve(t):
+            if t[2] is not None:
+                return t
+            n = self.segs_for(_math.dist(t[0], t[1]), quarter_wave)
+            if isinstance(t, Wire):
+                return t._replace(n_seg=n)
+            return (t[0], t[1], n, *t[3:])
+
+        return [resolve(t) for t in tups]
 
     def _phasor(self, name):
         """Unit phasor exp(j·phase) for a degrees-valued phase param (e.g.
