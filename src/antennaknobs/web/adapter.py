@@ -1087,7 +1087,7 @@ def _auto_target_z0(cls) -> float:
         return 50.0
     try:
         b = cls()
-        n_feeds = sum(1 for *_, ev in b.build_wires() if ev is not None)
+        n_feeds = sum(1 for t in b.build_wires() if as_wire(t).ex is not None)
     except Exception:
         return 50.0
     return 50.0 * max(1, n_feeds)
@@ -1107,7 +1107,7 @@ def _auto_multi_feed(cls) -> bool:
     """
     try:
         b = cls()
-        n_feeds = sum(1 for *_, ev in b.build_wires() if ev is not None)
+        n_feeds = sum(1 for t in b.build_wires() if as_wire(t).ex is not None)
     except Exception:
         return False
     return n_feeds > 1
