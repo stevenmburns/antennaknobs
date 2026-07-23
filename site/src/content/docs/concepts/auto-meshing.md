@@ -178,7 +178,7 @@ for computing them. They are the right tool when the mesh itself is
 *data*: a deck-faithful reproduction of an external NEC model, or the
 few validated port models whose counts encode physics still under study.
 For everything else, the recommendation is now simple: write `None`,
-declare `design_freq`, finish with `auto_mesh`, and never think about
+declare `design_freq`, and never think about
 segmentation again.
 
 For the measurement story behind this — the convergence ladders, the
