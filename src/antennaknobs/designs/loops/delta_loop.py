@@ -4,6 +4,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 
 class Builder(AntennaBuilder):
@@ -35,13 +36,8 @@ class Builder(AntennaBuilder):
         cos_theta = math.cos(angle)
         tan_theta = math.tan(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         d = driver
         # y of the top corner (half the top-edge width), in closed form from the
@@ -64,11 +60,9 @@ class Builder(AntennaBuilder):
 
         B, T = ry(A), ry(S)
 
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
-
-        tups = []
-
-        tups.extend(build_path([S, A, B, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg1, 1 + 0j))
-
-        return tups
+        return [
+            Wire(S, A),
+            Wire(A, B),
+            Wire(B, T),
+            Wire(T, S, ex=1 + 0j),
+        ]
