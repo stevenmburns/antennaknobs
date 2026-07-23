@@ -104,4 +104,4 @@ class Builder(AntennaBuilder):
         tups.extend(path([G, H, T]))
         tups.append((T, S, None, 1 + 0j))
 
-        return self.auto_mesh(tups)
+        return tups

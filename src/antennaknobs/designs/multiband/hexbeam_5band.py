@@ -367,7 +367,7 @@ class Builder(AntennaBuilder):
         # length across all five bands). The feed wires keep their
         # explicit shared count (build_tls attaches jumpers to their
         # middle segment via _n_seg_feed).
-        return self.auto_mesh(tups)
+        return tups
 
     def build_tls(self):
         """50ohm jumpers between successive band feeds in daisy-chain mode.

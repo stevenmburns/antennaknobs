@@ -67,9 +67,7 @@ class Builder(AntennaBuilder):
         tups.extend(build_path([S, B], None, None))
         tups.extend(build_path([D, T], None, None))
         tups.extend(build_path([T, S], None, 1 + 0j))
-        # Uniform-density mesh (issue #521): the old per-edge nominal
-        # count over-densified the short edges 4-6x; the longest edge now
-        # carries nominal_nsegs and every wire meshes at its density.
-        tups = self.auto_mesh(tups)
+        # Uniform-density mesh (issue #521): None counts resolve to the
+        # design density automatically (auto_mesh is part of the stack).
 
         return tups

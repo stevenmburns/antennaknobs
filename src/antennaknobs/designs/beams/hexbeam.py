@@ -87,7 +87,6 @@ class Builder(AntennaBuilder):
         tups.extend(build_path([G, H], None, None))
         tups.extend(build_path([II, J, T], None, None))
         tups.append((T, S, None, 1 + 0j))
-        tups = self.auto_mesh(tups)
 
         new_tups = []
         for xoff, yoff, zoff in [(0, 0, self.base)]:
