@@ -1,7 +1,7 @@
 """Crossed dipoles fed in phase quadrature (turnstile)."""
 
 from antennaknobs import AntennaBuilder
-import math
+from antennaknobs.network import Wire
 
 from types import MappingProxyType
 
@@ -28,25 +28,17 @@ class Builder(AntennaBuilder):
         length = wavelength * self.length_factor
         x = 0.5 * length
 
-        n_seg0 = self.nominal_nsegs
-
         # Two crossed half-wave dipoles, lower along x at z=base and upper
         # along y at z=base+gap_z. The 1+0j / 0+1j drive is the 90° turnstile
         # phasing that produces (near-)circular polarisation broadside.
-        tups = []
-
         z_lo = self.base
-        n_seg1 = self.segs_for(
-            math.dist((-eps, 0, z_lo), (eps, 0, z_lo)),
-            math.dist((-x, 0, z_lo), (-eps, 0, z_lo)),
-        )
-        tups.extend([((-x, 0, z_lo), (-eps, 0, z_lo), n_seg0, None)])
-        tups.extend([((eps, 0, z_lo), (x, 0, z_lo), n_seg0, None)])
-        tups.extend([((-eps, 0, z_lo), (eps, 0, z_lo), n_seg1, 1 + 0j)])
-
         z_hi = self.base + self.gap_z
-        tups.extend([((0, -x, z_hi), (0, -eps, z_hi), n_seg0, None)])
-        tups.extend([((0, eps, z_hi), (0, x, z_hi), n_seg0, None)])
-        tups.extend([((0, -eps, z_hi), (0, eps, z_hi), n_seg1, 0 + 1j)])
 
-        return tups
+        return [
+            Wire((-x, 0, z_lo), (-eps, 0, z_lo)),
+            Wire((eps, 0, z_lo), (x, 0, z_lo)),
+            Wire((-eps, 0, z_lo), (eps, 0, z_lo), ex=1 + 0j),
+            Wire((0, -x, z_hi), (0, -eps, z_hi)),
+            Wire((0, eps, z_hi), (0, x, z_hi)),
+            Wire((0, -eps, z_hi), (0, eps, z_hi), ex=0 + 1j),
+        ]

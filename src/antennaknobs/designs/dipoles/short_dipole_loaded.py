@@ -12,7 +12,7 @@ dipole at `design_freq` — recompute it if you change `length_factor`.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 
 from types import MappingProxyType
 
@@ -35,17 +35,9 @@ class Builder(AntennaBuilder):
         wavelength = 299.792458 / self.design_freq
         half_arm = 0.25 * wavelength * self.length_factor
         # Single straight wire spanning the dipole, feed at the centre.
-        # No `ev` — the Network supplies the source; `name` marks the
+        # No `ex` — the Network supplies the source; `name` marks the
         # segment for PortOnWire resolution.
-        return [
-            (
-                (0, -half_arm, 5),
-                (0, half_arm, 5),
-                self.segs_for(2 * half_arm, 0.25 * wavelength),
-                None,
-                "feed",
-            )
-        ]
+        return [Wire((0, -half_arm, 5), (0, half_arm, 5), name="feed")]
 
     def build_network(self):
         return Network(
