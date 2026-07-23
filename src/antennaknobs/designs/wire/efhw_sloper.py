@@ -68,6 +68,7 @@ from antennaknobs.network import (
     PortOnWire,
     PortVirtual,
     TL,
+    Wire,
     WIRES,
 )
 from antennaknobs.station import unun
@@ -169,18 +170,13 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         length = 0.5 * wavelength * self.length_factor
 
         # Fly it: face −x so the radiator climbs toward −x and the sloper's
         # downhill main lobe lands on +x; counterpoise in to the feed
         # point, pitch up by the rise angle (Drone pitch is nose-down
         # positive), gap wire, radiator.
-        d = Drone(
-            (self.cp_len_m, 0.0, self.h_feed),
-            nominal_nsegs=self.nominal_nsegs,
-            ref=quarter,
-        )
+        d = Drone((self.cp_len_m, 0.0, self.h_feed))
         d.face((-1.0, 0.0, 0.0))
         d.pay_out().forward(self.cp_len_m)
         d.pitch(-self.slope_deg)
@@ -190,8 +186,8 @@ class Builder(AntennaBuilder):
         # The short gap edge becomes the named "ant" port wire: the port
         # interrupts the current path between counterpoise and radiator —
         # the end-fed's feed.
-        p0, p1, nsegs, _ev = wires[1]
-        wires[1] = (p0, p1, nsegs, None, "ant")
+        p0, p1, _nsegs, _ev = wires[1]
+        wires[1] = Wire(p0, p1, name="ant")
         return wires
 
     def build_network(self):

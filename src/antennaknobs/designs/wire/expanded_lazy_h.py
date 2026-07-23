@@ -38,7 +38,7 @@ The structure is planar in x = 0; the harness is electrical (TL branches).
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 from types import MappingProxyType
 
 
@@ -86,7 +86,6 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         elem = self.elem_frac * wavelength
         spacing = self.spacing_frac * wavelength
@@ -94,16 +93,16 @@ class Builder(AntennaBuilder):
 
         def element(z, name):
             """A 1.25 wl horizontal wire along y at height z with a named
-            one-segment centre port (the harness attaches here; no direct
-            voltage source)."""
+            centre port (the harness attaches here; no direct voltage
+            source)."""
             L = (0.0, -half, z)
             R = (0.0, half, z)
             C0 = (0.0, -eps, z)
             C1 = (0.0, eps, z)
             return [
-                (L, C0, self.segs_for(half - eps, quarter), None, None),
-                (C0, C1, self.segs_for(2 * eps, quarter), None, name),
-                (C1, R, self.segs_for(half - eps, quarter), None, None),
+                Wire(L, C0),
+                Wire(C0, C1, name=name),
+                Wire(C1, R),
             ]
 
         tups = []

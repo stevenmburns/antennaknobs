@@ -43,7 +43,7 @@ The tuned feeder is an electrical element (a `TL` branch), not geometry.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 from types import MappingProxyType
 
 
@@ -91,22 +91,16 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         length = self.length_frac * wavelength * self.length_factor
         z = self.base
 
-        # End feed: a one-segment named gap "ant" at y=0 (the open end / voltage
+        # End feed: a short named gap "ant" at y=0 (the open end / voltage
         # antinode), then the half-wave radiator running out to y=+length.
         # No direct voltage source -- the tuned stub drives this port.
         return [
-            ((0.0, 0.0, z), (0.0, eps, z), self.segs_for(eps, quarter), None, "ant"),
-            (
-                (0.0, eps, z),
-                (0.0, length, z),
-                self.segs_for(length - eps, quarter),
-                None,
-            ),
+            Wire((0.0, 0.0, z), (0.0, eps, z), name="ant"),
+            Wire((0.0, eps, z), (0.0, length, z)),
         ]
 
     def build_network(self):

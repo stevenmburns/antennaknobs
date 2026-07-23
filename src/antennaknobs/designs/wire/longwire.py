@@ -32,8 +32,8 @@ The structure is a single straight conductor in x = 0, z = base.
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
-import math
 
 
 class Builder(AntennaBuilder):
@@ -76,30 +76,26 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         length = self.length_frac * wavelength * self.length_factor
         half = length / 2
 
         z = self.base
 
-        # Single straight wire along y, with a one-segment driven gap at the
-        # centre (the current maximum). Split into a passive left half, the
-        # driven gap, and a passive right half (cf. half_square / lazy_h
-        # centre-feed idiom).
+        # Single straight wire along y, with a driven gap at the centre (the
+        # current maximum). Split into a passive left half, the driven gap,
+        # and a passive right half (cf. half_square / lazy_h centre-feed
+        # idiom).
         left_end = (0.0, -half, z)
         gap_m = (0.0, -eps, z)
         gap_p = (0.0, eps, z)
         right_end = (0.0, half, z)
 
-        tups = []
-        # Left half (end -> -eps), passive.
-        tups.append((left_end, gap_m, self.segs_for(half - eps, quarter), None))
-        # Driven feed gap across the centre.
-        tups.append(
-            (gap_m, gap_p, self.segs_for(math.dist(gap_m, gap_p), quarter), 1 + 0j)
-        )
-        # Right half (+eps -> end), passive.
-        tups.append((gap_p, right_end, self.segs_for(half - eps, quarter), None))
-
-        return tups
+        return [
+            # Left half (end -> -eps), passive.
+            Wire(left_end, gap_m),
+            # Driven feed gap across the centre.
+            Wire(gap_m, gap_p, ex=1 + 0j),
+            # Right half (+eps -> end), passive.
+            Wire(gap_p, right_end),
+        ]
