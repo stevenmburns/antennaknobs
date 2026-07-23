@@ -132,6 +132,29 @@ threshold law. Until the mechanism is pinned down, treat fine-mesh
 sin/pynec drift on fan geometry as suspect and trust the flat d=2
 value.
 
+## Closed loops: room below the default
+
+One geometry class earns a specific note because the payoff runs the
+*other* way — not "raise N until it settles" but "you may lower it".
+On single closed-loop designs the d=2 basis reaches the converged
+impedance at a mesh ~2–3× coarser than the sinusoidal basis needs
+([convergence anchor](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-18-quad-convergence-anchor.md),
+free space; "converged" = within 2 % of the finest rung):
+
+| design | sinusoidal | B-spline d=2 |
+|---|--:|--:|
+| `loops.diamond_loop` (square loop) | N≥21 | N≥7 |
+| `loops.delta_loop` (triangle) | N≥15 | N≥7 |
+
+A dense solve scales as (basis count)², so 2–3× fewer segments is a
+~4–9× cheaper solve at equal accuracy — on bs2 a single-loop design can
+run *below* the N=15 default without losing the answer. Verify with the
+convergence sweep as usual, and don't generalize the discount: it is
+loop-specific. On open linear structures (`beams.yagi`) and the
+two-element quad, every basis converges at the same N — which is why
+the workbench applies no automatic basis-dependent coarsening. The
+slider is yours.
+
 ## Feeds and ports deserve their own paragraph
 
 The driving-point readout is the most mesh-sensitive number in the whole
