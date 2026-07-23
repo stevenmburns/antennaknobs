@@ -20,7 +20,10 @@ def test_translator_chains_dipole_into_single_polyline():
     polyline = out["polylines"][0]
     assert polyline.shape == (4, 3), polyline.shape
     # 1-segment feed bridge since issue #457 (proportional segs_for meshing).
-    assert out["edge_segments"] == [[21, 1, 21]]
+    # Arms are 20 since the auto-mesh conversion (#525): each arm is
+    # driver_y - eps long, i.e. slightly under the quarter-wave that
+    # carries the nominal 21 segments.
+    assert out["edge_segments"] == [[20, 1, 20]]
     assert out["feed_wire_index"] == 0
 
     # Feed sits at the geometric centre of the dipole; for the design_freq-sized
