@@ -63,7 +63,7 @@ jobs:
       # shadow it; numpy is already installed above.
       run: |
         pip install pynec-accel --no-index \
-          --find-links https://github.com/stevenmburns/python-necpp/releases/expanded_assets/v1.7.4-accel.3
+          --find-links https://github.com/stevenmburns/python-necpp/releases/expanded_assets/v1.7.6
 
     - name: Install momwire (vendored MoM engine)
       # momwire is still a submodule; its C++ accelerator builds from source here.

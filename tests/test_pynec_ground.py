@@ -113,13 +113,24 @@ def test_ge_flag_stays_zero_when_nothing_touches_ground():
 # gn 2 near-ground defect warning (issue #448)
 # ---------------------------------------------------------------------------
 #
-# nec2++'s Sommerfeld solve is known-unreliable for near-ground conductors
-# that aren't plain grounded verticals (measured against nec2c/nec2dxs/
-# momwire agreement on the wild corpus). The engine warns on the calibrated
-# risk predicate; these tests pin when it fires and — as importantly — when
-# it must not.
+# Before pynec-accel 1.7.6, nec2++'s Sommerfeld solve was unreliable for
+# near-ground conductors that aren't plain grounded verticals (measured
+# against nec2c/nec2dxs/momwire agreement on the wild corpus; root cause
+# was the INTRP cell-cache inversion fixed by stevenmburns/necpp#5). The
+# engine warns on the calibrated risk predicate only when the installed
+# pynec-accel predates the fix. The legacy-warn tests below force the
+# old-version path so the predicate stays pinned for users on <1.7.6;
+# separate tests cover the fixed-install behaviour (no warning, and the
+# solve itself lands on the three-way-agreed value).
 
 _GN2 = ("finite", 10.0, 0.002)
+
+
+def _force_legacy(monkeypatch):
+    """Pretend the installed pynec-accel predates the 1.7.6 fix."""
+    from antennaknobs.engines import pynec as _p
+
+    monkeypatch.setattr(_p, "_pynec_somm_fixed", lambda: False)
 
 
 def _warns_gn2(builder, ground):
@@ -135,12 +146,13 @@ def _warns_gn2(builder, ground):
     )
 
 
-def test_somm_low_horizontal_wire_warns_once():
+def test_somm_low_horizontal_wire_warns_once(monkeypatch):
     """A flat dipole at 0.03 wavelength over gn 2 is squarely in the broken
     class (the golden capture's own minimal repro); one warning per engine
     instance even across repeated solves."""
     import warnings as _w
 
+    _force_legacy(monkeypatch)
     eng = PyNECEngine(_flat_dipole(0.3), ground=_GN2)
     with _w.catch_warnings(record=True) as rec:
         _w.simplefilter("always")
@@ -151,13 +163,15 @@ def test_somm_low_horizontal_wire_warns_once():
     assert "#448" in str(hits[0].message)
 
 
-def test_somm_low_hanging_open_end_warns():
+def test_somm_low_hanging_open_end_warns(monkeypatch):
     """Half-square/bobtail/sloper class: a vertical whose open end hangs
     near the plane without touching it (connectivity path of the risk
     predicate — no horizontal wire anywhere near the ground)."""
     from types import MappingProxyType
 
     from antennaknobs import AntennaBuilder
+
+    _force_legacy(monkeypatch)
 
     class HalfSquareish(AntennaBuilder):
         default_params = MappingProxyType({"freq": 28.57})
@@ -174,12 +188,46 @@ def test_somm_low_hanging_open_end_warns():
     assert _warns_gn2(HalfSquareish(), _GN2) == 1
 
 
-def test_somm_warning_exemptions():
+def test_somm_warning_exemptions(monkeypatch):
     """No warning for: elevated structure on gn 2; the same low structure on
     the reflection-coefficient ground (gn 0 stays faithful); and a plain
     ground-connected vertical — even split into wires with an interior
     joint below 0.1 wavelength (the connectivity analysis, not a naive
     endpoint-height test, is what exempts it)."""
+    _force_legacy(monkeypatch)
     assert _warns_gn2(_flat_dipole(4.0), _GN2) == 0
     assert _warns_gn2(_flat_dipole(0.3), ("finite-fast", 10.0, 0.002)) == 0
     assert _warns_gn2(_GroundedMonopole(), _GN2) == 0
+
+
+def _pynec_fixed_installed():
+    from antennaknobs.engines.pynec import _pynec_somm_fixed
+
+    return _pynec_somm_fixed()
+
+
+@pytest.mark.skipif(
+    not _pynec_fixed_installed(), reason="installed pynec-accel predates 1.7.6"
+)
+def test_somm_fixed_install_no_warning_and_accurate():
+    """With pynec-accel >= 1.7.6 (the necpp#5 INTRP fix), the risk class is
+    solved correctly and the #448 warning stays silent. Oracle: the low flat
+    dipole (~0.03λ, squarely the geometry class that used to land ~7×
+    off) must agree with momwire's sinusoidal basis — the same NEC-2 basis
+    family, so this is the matched-basis cross-engine check — on the
+    reflection coefficient to within 2%. The unfixed engine failed this by
+    an order of magnitude."""
+    from antennaknobs.engines import MomwireEngine
+    from momwire import SinusoidalSolver
+
+    assert _warns_gn2(_flat_dipole(0.3), _GN2) == 0
+
+    z_pynec = PyNECEngine(_flat_dipole(0.3), ground=_GN2).impedance()[0]
+    z_sin = MomwireEngine(
+        _flat_dipole(0.3), ground=_GN2, solver=SinusoidalSolver
+    ).impedance()[0]
+
+    def gamma(z):
+        return (z - 50.0) / (z + 50.0)
+
+    assert abs(gamma(z_pynec) - gamma(z_sin)) < 0.02
