@@ -1,6 +1,7 @@
 """Inverted-vee dipole — the default quickstart example."""
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 
 from types import MappingProxyType
@@ -102,13 +103,8 @@ class Builder(AntennaBuilder):
         z_sin = math.sin(angle)
         y_cos = math.cos(angle)
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         """
                     
@@ -139,12 +135,8 @@ class Builder(AntennaBuilder):
 
         D, T = ry(A), ry(S)
 
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
-
-        tups = []
-
-        tups.extend(build_path([S, A], n_seg0, None))
-        tups.extend(build_path([D, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg1, 1 + 0j))
-
-        return tups
+        return [
+            Wire(S, A),
+            Wire(D, T),
+            Wire(T, S, ex=1 + 0j),
+        ]
