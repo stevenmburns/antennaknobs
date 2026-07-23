@@ -45,7 +45,7 @@ Horizontally polarised.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, TL
+from antennaknobs.network import Driven, Network, PortOnWire, TL, Wire
 from types import MappingProxyType
 
 
@@ -112,8 +112,6 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         half, x = self._layout()
         n = int(self.n_elements)
         z = self.base
@@ -126,11 +124,10 @@ class Builder(AntennaBuilder):
             C0 = (xk, -eps, z)
             C1 = (xk, eps, z)
             R = (xk, h, z)
-            arm = self.segs_for(h - eps, quarter)
             # left arm, named centre gap (a feeder port), right arm
-            tups.append((L, C0, arm, None, None))
-            tups.append((C0, C1, self.segs_for(2 * eps, quarter), None, f"d{k}"))
-            tups.append((C1, R, arm, None, None))
+            tups.append(Wire(L, C0))
+            tups.append(Wire(C0, C1, name=f"d{k}"))
+            tups.append(Wire(C1, R))
         return tups
 
     def build_network(self):

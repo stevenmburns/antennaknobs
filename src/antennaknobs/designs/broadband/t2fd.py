@@ -30,7 +30,7 @@ far wire.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 import math
 from types import MappingProxyType
 
@@ -90,9 +90,6 @@ class Builder(AntennaBuilder):
             # slopes up by `tilt`; the fold spacing (x) stays horizontal.
             return (x, y * math.cos(tilt), y * math.sin(tilt) + self.base)
 
-        arm = self.segs_for(half - eps, quarter)
-        short = self.segs_for(s, quarter)
-
         # near wire (feed) at x=0; far wire (termination) at x=s
         nL, nR = P(0.0, -half), P(0.0, half)
         nF0, nF1 = P(0.0, -eps), P(0.0, eps)
@@ -101,16 +98,17 @@ class Builder(AntennaBuilder):
 
         return [
             # near (feed) wire: left arm, feed gap, right arm
-            (nL, nF0, arm, None, None),
-            (nF0, nF1, self.segs_for(2 * eps, quarter), None, "feed"),
-            (nF1, nR, arm, None, None),
+            Wire(nL, nF0),
+            Wire(nF0, nF1, name="feed"),
+            Wire(nF1, nR),
             # far (termination) wire: left arm, load gap, right arm
-            (fL, fT0, arm, None, None),
-            (fT0, fT1, self.segs_for(2 * eps, quarter), None, "term"),
-            (fT1, fR, arm, None, None),
+            Wire(fL, fT0),
+            # Termination-resistor wire: count kept explicit (#525 stage 3).
+            Wire(fT0, fT1, n_seg=self.segs_for(2 * eps, quarter), name="term"),
+            Wire(fT1, fR),
             # end shorts joining the two wires
-            (nL, fL, short, None, None),
-            (nR, fR, short, None, None),
+            Wire(nL, fL),
+            Wire(nR, fR),
         ]
 
     def build_network(self):
