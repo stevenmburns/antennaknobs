@@ -62,8 +62,10 @@ The seeded `CLAUDE.md` is authoritative; in brief, a design file must:
 - Define a class **`Builder`** subclassing `AntennaBuilder`.
 - Provide a **`default_params`** mapping (every key becomes a knob, read as
   `self.<key>` in the build) and a **`build_wires(self)`** method returning
-  `(start, end, n_segments, feed)` tuples — exactly **one** segment carries the
-  feed `1 + 0j`, the rest `None`.
+  `(start, end, n_segments, feed)` tuples — write `None` for `n_segments`
+  (the framework meshes at the design density; never hand-assign counts) and
+  declare a `design_freq` param. Exactly **one** wire carries the feed
+  `1 + 0j`, the rest `None`.
 - Import only from `antennaknobs` and the standard library.
 
 ```python
@@ -83,11 +85,10 @@ class Builder(AntennaBuilder):
         wavelength = 299.792458 / self.design_freq
         h = (wavelength / 4.0) * self.length_factor
         z, eps = self.height, 0.01
-        arm = self.nominal_nsegs
         return [
-            ((0.0, -h, z), (0.0, -eps, z), arm, None),       # left arm
-            ((0.0, eps, z), (0.0, h, z), arm, None),         # right arm
-            ((0.0, -eps, z), (0.0, eps, z), 1, 1 + 0j),      # driven feed gap
+            ((0.0, -h, z), (0.0, -eps, z), None, None),     # left arm
+            ((0.0, eps, z), (0.0, h, z), None, None),       # right arm
+            ((0.0, -eps, z), (0.0, eps, z), None, 1 + 0j),  # driven feed gap
         ]
 ```
 
