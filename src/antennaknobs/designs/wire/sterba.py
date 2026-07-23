@@ -36,6 +36,7 @@ gain falls off quickly below ~0.96 as the half-wave phasing breaks down.
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
@@ -141,7 +142,6 @@ class Builder(AntennaBuilder):
             p0 = loop[k]
             p1 = loop[(k + 1) % N]
             seg_len = math.dist(p0, p1)
-            nseg = self.segs_for(seg_len, h)
 
             is_horizontal = abs(p0[2] - p1[2]) < 1e-9
             at_bottom = abs(p0[2] - bot) < 1e-9 and abs(p1[2] - bot) < 1e-9
@@ -157,11 +157,9 @@ class Builder(AntennaBuilder):
             ev = None
             if is_feed:
                 feed_count += 1
-                if nseg % 2 == 0:
-                    nseg += 1  # odd -> a segment sits exactly at centre
                 ev = 1 + 0j
 
-            tups.append((p0, p1, nseg, ev))
+            tups.append(Wire(p0, p1, ex=ev))
 
         assert feed_count == 1, f"expected exactly one feed edge, got {feed_count}"
 

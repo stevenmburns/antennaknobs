@@ -31,6 +31,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 import math
 
@@ -71,7 +72,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         leg = self.leg_frac * wavelength
         theta = math.radians(self.half_apex_deg)
@@ -80,24 +80,15 @@ class Builder(AntennaBuilder):
         z = self.base
 
         # Apex near the origin, legs opening toward +x at +/- theta off the
-        # bisector. A one-segment driven gap bridges the two inner ends.
+        # bisector. A driven gap bridges the two inner ends.
         inner_p = (eps * dx, eps * dy, z)  # toward +y leg
         inner_m = (eps * dx, -eps * dy, z)  # toward -y leg
         end_p = (leg * dx, leg * dy, z)
         end_m = (leg * dx, -leg * dy, z)
 
-        arm = self.segs_for(leg - eps, quarter)
-
-        tups = []
-        # Driven gap across the apex between the two legs' inner ends.
-        tups.append(
-            (
-                inner_m,
-                inner_p,
-                self.segs_for(math.dist(inner_m, inner_p), quarter),
-                1 + 0j,
-            )
-        )
-        tups.append((inner_p, end_p, arm, None))  # +y leg
-        tups.append((inner_m, end_m, arm, None))  # -y leg
-        return tups
+        return [
+            # Driven gap across the apex between the two legs' inner ends.
+            Wire(inner_m, inner_p, ex=1 + 0j),
+            Wire(inner_p, end_p),  # +y leg
+            Wire(inner_m, end_m),  # -y leg
+        ]

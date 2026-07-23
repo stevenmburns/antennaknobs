@@ -43,7 +43,7 @@ The matching section is an electrical element (a `TL` branch), not geometry.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 from types import MappingProxyType
 
 
@@ -95,7 +95,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         length = self.elem_frac * wavelength * self.length_factor
         half = length / 2.0
@@ -105,13 +104,12 @@ class Builder(AntennaBuilder):
         C0 = (0.0, -eps, z)
         C1 = (0.0, eps, z)
         R = (0.0, half, z)
-        arm = self.segs_for(half - eps, quarter)
         # Centre-fed doublet; the named centre gap "feed" is the antenna-side
         # port the matching section connects to (no direct voltage source).
         return [
-            (L, C0, arm, None, None),
-            (C0, C1, self.segs_for(2 * eps, quarter), None, "feed"),
-            (C1, R, arm, None, None),
+            Wire(L, C0),
+            Wire(C0, C1, name="feed"),
+            Wire(C1, R),
         ]
 
     def build_network(self):

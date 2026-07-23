@@ -32,7 +32,7 @@ polarised.
 """
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 import math
 from types import MappingProxyType
 
@@ -79,7 +79,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05  # half-gap at the feed / termination apexes
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         L = self.leg_factor * wavelength
         tilt = math.radians(self.tilt_deg)
@@ -87,7 +86,6 @@ class Builder(AntennaBuilder):
         w = L * math.sin(tilt)
         z = self.base
 
-        leg = self.segs_for(L, quarter)
         FU = (0.0, eps, z)  # feed apex, upper terminal
         FL = (0.0, -eps, z)  # feed apex, lower terminal
         SU = (d, w, z)  # upper side apex
@@ -97,14 +95,14 @@ class Builder(AntennaBuilder):
 
         return [
             # feed gap at the rear apex (driven via build_network)
-            (FU, FL, self.segs_for(2 * eps, quarter), None, "feed"),
+            Wire(FU, FL, name="feed"),
             # four legs
-            (FU, SU, leg, None, None),  # rear upper
-            (FL, SD, leg, None, None),  # rear lower
-            (SU, TU, leg, None, None),  # front upper
-            (SD, TL, leg, None, None),  # front lower
+            Wire(FU, SU),  # rear upper
+            Wire(FL, SD),  # rear lower
+            Wire(SU, TU),  # front upper
+            Wire(SD, TL),  # front lower
             # termination gap at the far apex (resistor via build_network)
-            (TU, TL, self.segs_for(2 * eps, quarter), None, "term"),
+            Wire(TU, TL, name="term"),
         ]
 
     def build_network(self):

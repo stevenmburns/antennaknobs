@@ -41,6 +41,7 @@ from antennaknobs.network import (
     Network,
     PortOnWire,
     PortVirtual,
+    as_wire,
 )
 from antennaknobs.station import t_network_tuner
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee
@@ -109,11 +110,11 @@ class Builder(InvVee):
         # driven gap becomes the named "feed" port and loses its inline
         # excitation — the source lives at the virtual rig node.
         wires = []
-        for p0, p1, nseg, ev, *rest in super().build_wires():
-            if ev is not None:
-                wires.append((p0, p1, nseg, None, "feed"))
+        for w in map(as_wire, super().build_wires()):
+            if w.ex is not None:
+                wires.append(w._replace(ex=None, name="feed"))
             else:
-                wires.append((p0, p1, nseg, ev, *rest))
+                wires.append(w)
         return wires
 
     def build_network(self):

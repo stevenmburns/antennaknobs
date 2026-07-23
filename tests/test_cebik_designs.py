@@ -1186,12 +1186,13 @@ def _edz_bare():
     """The EDZ with its centre gap driven directly (matching section removed),
     to read the raw feedpoint the series section transforms."""
     from antennaknobs.designs.wire.edz import Builder
+    from antennaknobs.network import as_wire
 
     class Bare(Builder):
         def build_wires(self):
             return [
-                (t[0], t[1], t[2], 1 + 0j) if len(t) == 5 and t[4] == "feed" else t[:4]
-                for t in super().build_wires()
+                w._replace(ex=1 + 0j, name=None) if w.name == "feed" else w
+                for w in map(as_wire, super().build_wires())
             ]
 
         def build_network(self):
