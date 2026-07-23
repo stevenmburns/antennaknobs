@@ -82,7 +82,10 @@ them poisons the solve — the curve may *diverge* with refinement. (Two
 catalog verticals did exactly this until their radials were made to
 refine with the mesh; the tell was sin/PyNEC marching away from a flat
 bs2 while the meshes decoupled.) Response: refine *uniformly* — in your
-own builders, scale every wire's count with `segs_for`.
+own builders, return `None` segment counts and finish `build_wires`
+with `self.auto_mesh(tups)`, which meshes every wire at one density
+(an integer count is reserved for deliberate pins, like 1-segment
+lumped-element ports).
 
 **3. Physics-limited: the near-open feed.** A feed near a current null
 (|Z| in the thousands of ohms — end-fed designs, some multi-element
@@ -114,9 +117,10 @@ localized error into a wildly wrong reactance (with no visible
 oscillation — the current stays smooth), and coarse meshes agree
 beautifully because the coarse mesh itself keeps every wire above the
 Δ/a floor. Response: when a ladder breaks at fine N, **check per-wire
-Δ/a first** — in your own builders, derive short-wire counts with
-`segs_for` rather than reusing the nominal count (the catalog is now
-linted for exactly this). The d=2 basis is immune — a Galerkin method
+Δ/a first** — in your own builders, let `auto_mesh` assign the counts
+rather than reusing the nominal count on short wires (the catalog is
+now linted for exactly this, both the ratio at fine mesh and its
+growth up the ladder). The d=2 basis is immune — a Galerkin method
 regularizes the reduced-kernel ill-posedness — which is also why a flat
 bs2 next to an exploding sin curve is the tell.
 
