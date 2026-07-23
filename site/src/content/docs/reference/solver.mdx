@@ -105,10 +105,12 @@ threading; see the benchmark docs for full tables.
 
 Method-of-moments discretizes each wire into **segments**, and the solve builds
 one **basis function** per segment. The **segments / wire (N)** control in the
-workbench sets the nominal count; antennaknobs scales it per wire by length, so a
-long radiator gets proportionally more segments than a short stub. The total
-basis-function count — the sum across every wire — is the **dimension of the
-impedance matrix** the solver fills and factors.
+workbench sets the design's mesh **density**: every wire gets N segments per
+quarter-wavelength (at the design frequency), so a long radiator gets
+proportionally more segments than a short stub — and N means the same physical
+segment length on every design (N=15 ≈ λ/60). The total basis-function count —
+the sum across every wire — is the **dimension of the impedance matrix** the
+solver fills and factors.
 
 That matrix is what sets both accuracy and cost:
 

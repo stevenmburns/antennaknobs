@@ -25,20 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.35.2" icon="star">
-  **The NEC-2 reference you can trust near the ground.** A long-standing
-  nec2++ transcription bug — the Sommerfeld interpolation cache
-  extrapolated stale coefficients whenever a source–observer pair
-  crossed the near-field grid boundary — made PyNEC unreliable for
-  low radials, hanging open ends, and low horizontal runs over real
-  ground. We found the root cause, fixed it upstream
-  (pynec-accel 1.7.6), and re-scored the wild corpus: **every deck in
-  the affected class now matches nec2c/nec2dxs/momwire to four digits**,
-  and the workbench's solve-time warning retires itself on fixed
-  installs. Also new in the docs: on single closed loops the default
-  B-spline basis is converged at a **2–3× coarser mesh** than the
-  sinusoidal basis needs — see
-  [How many segments?](/advanced/convergence/).
+<Card title="New in v0.36.0" icon="star">
+  **Segmentation you never think about.** Give a wire the segment count
+  `None` and the framework meshes it at the design density —
+  `nominal_nsegs` segments per quarter-wavelength at `design_freq`,
+  resolved automatically before any solver sees the wires. The whole
+  catalog is converted, and doing so surfaced **seven silent meshing
+  defects** hand-assigned counts had hidden for months (a curtain at
+  half density, a bowtie at double, a beam whose convergence ladder
+  never actually refined…). N is now a physical unit — N=15 means
+  λ/60 segments on *every* design — and the basis census improved to
+  **77/92 designs with a verified mutual convergence limit**. Even the
+  catalog's hardest port model, the terminated longwire's high-|Z|
+  feed, turned out mesh-stable under the new treatment. Read the story:
+  [Segmentation you never think about](/concepts/auto-meshing/).
   [All release notes →](/reference/releases/)
 </Card>
 
