@@ -169,43 +169,61 @@ class AntennaBuilder:
         even-parity solve bump the count up by one."""
         return max(1, round(self.nominal_nsegs * length / ref))
 
-    def auto_mesh(self, tups, ref=None):
-        """Resolve ``None`` segment counts to a uniform-density mesh.
+    def auto_mesh(self, tups):
+        """Resolve ``None`` segment counts to the design density:
+        ``nominal_nsegs`` segments per quarter-wavelength at
+        ``design_freq``.
 
         The recurring catalog defect class (#481 radials, #484 folded/fan,
-        #521/#522 hentenna/hourglass/moxon) is a builder hand-assigning
-        per-wire counts that leave one wire's segment length out of step
-        with its junction partners — either a short wire carrying the full
-        nominal count (over-dense: Δ/a breakdown, tip-gap poisoning) or a
-        fixed count that the rest of the mesh refines past (a graded
-        junction that worsens with N). This helper removes the arithmetic
-        from builders: pass wire tuples whose count is ``None`` for "mesh
-        me at the design's density" and an int only for a *deliberate* pin
-        (1-segment lumped-element ports, validated deck-faithful counts).
+        #521/#522 hentenna/hourglass/moxon, the trap-wire study) is a
+        builder hand-assigning per-wire counts that leave one wire's
+        segment length out of step with its junction partners — either a
+        short wire carrying the full nominal count (over-dense: Δ/a
+        breakdown, tip-gap poisoning) or a fixed count that the rest of
+        the mesh refines past (a graded junction that worsens with N, and
+        a frozen discretization that biases even the Galerkin bases).
+        This helper removes the arithmetic: mark a wire's count ``None``
+        and it meshes at the design density; every ``None`` wire in every
+        design gets the same segment length for the same N.
 
-        ``ref`` is the length whose wire carries ``nominal_nsegs`` — the
-        design's density scale. Default: the longest auto wire, so
-        ``nominal_nsegs`` means "segments on the longest wire" and every
-        auto wire gets the same segment length via ``segs_for``. Pass an
-        explicit ``ref`` (e.g. a driver arm's length) to keep a design's
-        historical density scale when migrating.
+        The rules, deliberately per-wire with no interactions:
 
-        The catalog lint (``tests/test_delta_a_lint.py``) asserts the
-        resulting mesh is density-uniform for every design, so a builder
-        that bypasses this helper still can't reintroduce the defect
-        silently."""
+        * ``None`` — the wire gets ``max(1, round(N * L / (lambda/4)))``
+          segments, lambda from ``design_freq``. The measurement ``freq``
+          plays no part, so sweeping it never remeshes the geometry.
+        * an int — taken verbatim. This is the legacy path (builders may
+          still compute counts with ``segs_for``); it is allowed but not
+          recommended — the catalog lint polices the outcome either way.
+
+        ``nominal_nsegs`` thereby becomes a physical density: N=15 means
+        a segment length of lambda/60 on every design that uses it, and
+        mesh ladders are comparable across designs. Designs must declare
+        ``design_freq`` (the frequency the geometry is designed for) to
+        use ``None`` counts — a design without one raises here rather
+        than silently guessing a scale."""
         import math as _math
 
         tups = list(tups)
-        if ref is None:
-            auto_lens = [_math.dist(t[0], t[1]) for t in tups if t[2] is None]
-            if not auto_lens:
-                return tups
-            ref = max(auto_lens)
+        if all(t[2] is not None for t in tups):
+            return tups
+        design_freq = getattr(self, "design_freq", None)
+        if not design_freq:
+            raise ValueError(
+                f"{type(self).__name__}: auto_mesh needs a design_freq "
+                "param to define the mesh density (nominal_nsegs segments "
+                "per quarter-wavelength); declare one in default_params "
+                "or give every wire an explicit segment count."
+            )
+        quarter_wave = 0.25 * 299.792458 / float(design_freq)
         return [
             t
             if t[2] is not None
-            else (t[0], t[1], self.segs_for(_math.dist(t[0], t[1]), ref), *t[3:])
+            else (
+                t[0],
+                t[1],
+                self.segs_for(_math.dist(t[0], t[1]), quarter_wave),
+                *t[3:],
+            )
             for t in tups
         ]
 

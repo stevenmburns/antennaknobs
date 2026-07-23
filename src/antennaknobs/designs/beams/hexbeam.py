@@ -9,6 +9,10 @@ class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
             "freq": 28.47,
+            # Geometry is hand-tuned in absolute metres; design_freq only
+            # anchors auto_mesh's density scale (nominal_nsegs per
+            # quarter-wave), so it is hidden from the UI.
+            "design_freq": 28.47,
             "base": 7.0,
             "halfdriver": 2.82,
             "tipspacer_factor": 0.1312,
@@ -16,7 +20,10 @@ class Builder(AntennaBuilder):
             # The opt variant's tip spacer (0.208) sits above the auto ±50%
             # window around the default (≤0.197).
             "ui_params": MappingProxyType(
-                {"tipspacer_factor": {"min": 0.065, "max": 0.25}}
+                {
+                    "tipspacer_factor": {"min": 0.065, "max": 0.25},
+                    "design_freq": {"hidden": True},
+                }
             ),
         }
     )
@@ -72,8 +79,7 @@ class Builder(AntennaBuilder):
         # Uniform-density mesh (issue #521 class): every wire — arms, the
         # short tip spacers (whose old hard-coded 5 segments left a graded
         # junction that worsened with N), and the feed gap — meshes at the
-        # driver arm's density. The arm keeps its historical role as the
-        # wire that carries nominal_nsegs.
+        # design density (nominal_nsegs per design_freq quarter-wave).
         tups = []
         tups.extend(build_path([S, A, B], None, None))
         tups.extend(build_path([C, D], None, None))
@@ -81,7 +87,7 @@ class Builder(AntennaBuilder):
         tups.extend(build_path([G, H], None, None))
         tups.extend(build_path([II, J, T], None, None))
         tups.append((T, S, None, 1 + 0j))
-        tups = self.auto_mesh(tups, ref=math.dist(S, A))
+        tups = self.auto_mesh(tups)
 
         new_tups = []
         for xoff, yoff, zoff in [(0, 0, self.base)]:

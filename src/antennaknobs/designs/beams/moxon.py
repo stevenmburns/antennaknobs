@@ -1,7 +1,5 @@
 """Moxon rectangle — a 2-element beam with folded-back element tips."""
 
-import math
-
 from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
@@ -20,11 +18,16 @@ class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
             "freq": 28.57,
+            # Geometry is hand-tuned in absolute metres; design_freq only
+            # anchors auto_mesh's density scale (nominal_nsegs per
+            # quarter-wave), so it is hidden from the UI.
+            "design_freq": 28.57,
             "base": 7.0,
             "halfdriver": 2.4597430629596713,
             "aspect_ratio": 0.3646010186757216,
             "tipspacer_factor": 0.07729647745945359,
             "t0_factor": 0.4078045966770739,
+            "ui_params": MappingProxyType({"design_freq": {"hidden": True}}),
         }
     )
 
@@ -91,7 +94,7 @@ class Builder(AntennaBuilder):
         # tails — exactly the facing conductors across the critical tip
         # gap — and the sin/PyNEC family walked off the Galerkin value at
         # fine mesh (39.2-21.2j vs 43.6-16.3j at N=321). At uniform
-        # driver-arm density sin lands on bs2 to 0.0% there.
+        # design density sin lands on bs2 to 0.1% there.
         def path(lst):
             return [(a, b, None, None) for a, b in zip(lst[:-1], lst[1:])]
 
@@ -101,4 +104,4 @@ class Builder(AntennaBuilder):
         tups.extend(path([G, H, T]))
         tups.append((T, S, None, 1 + 0j))
 
-        return self.auto_mesh(tups, ref=math.dist(S, A))
+        return self.auto_mesh(tups)

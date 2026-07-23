@@ -38,9 +38,13 @@ DECK_FAITHFUL = {"verticals.elt_whip"}
 
 def _seg_ratio(builder_cls, n):
     """Max/min segment length over the refining (ns > 1) wires at nominal
-    ``n``, or None if fewer than two such wires. 1-segment wires are the
-    deliberate-pin convention (lumped-element ports, taps) and stay out
-    of the ratio."""
+    ``n``, or None if fewer than two such wires. 1-segment wires stay out
+    of the ratio: density rounding legitimately produces them on short
+    wires (max(1, ...)), and a geometry-only scan cannot tell those from
+    legacy fixed counts — the solve-level census polices the latter (cf.
+    the trap-wire study under #521: even a 1-seg load wire left behind
+    by a refining mesh biases the answer, so legacy 1-seg counts are
+    being retired, not blessed)."""
     import math
 
     b = builder_cls()
@@ -121,7 +125,10 @@ def test_segment_density_is_uniform(name):
     (return None counts); a builder that hand-assigns counts must still
     land within the bound. The 3.0 tolerance passes benign rounding
     (short wires quantize to few segments, ~2x worst) and fails every
-    defect this class has produced (4.3-10.7x)."""
+    defect this class has produced (4.3-10.7x). Explicit integer counts
+    are legacy — allowed, not recommended — and get no special
+    treatment here: the mesh they produce must satisfy the same
+    bound."""
     import importlib
 
     if name in DECK_FAITHFUL:
@@ -131,9 +138,9 @@ def test_segment_density_is_uniform(name):
     if r is not None:
         assert r <= 3.0, (
             f"{name}: segment lengths differ {r:.1f}x across wires at "
-            "N=321. Mesh every non-pinned wire at one density — return "
-            "None counts and finish build_wires with self.auto_mesh "
-            "(issues #521/#522)."
+            "N=321. Mesh every wire at one density — return None counts "
+            "and finish build_wires with self.auto_mesh (issues "
+            "#521/#522)."
         )
 
 
@@ -143,7 +150,9 @@ def test_segment_density_ratio_does_not_grow(name):
     ever more graded as N climbs — invisible at N=321's snapshot if the
     count is generous (twoband_fan's 5-seg links passed 6.7x there but
     hit the census as a 55.7->67.0 ohm drift). The tell is the ratio
-    GROWING with N; a healthy mesh's ratio is flat in N."""
+    GROWING with N; a healthy mesh's ratio is flat in N. (auto_mesh
+    designs pass by construction; only legacy explicit counts can trip
+    this.)"""
     import importlib
 
     if name in DECK_FAITHFUL:
@@ -153,10 +162,9 @@ def test_segment_density_ratio_does_not_grow(name):
     if r61 is not None and r641 is not None:
         assert r641 <= r61 * 1.5, (
             f"{name}: segment-length ratio grows {r61:.2f} -> {r641:.2f} "
-            "from N=61 to N=641 — some wire's count is pinned while its "
-            "junction partners refine (issue #484/#521 class). Derive it "
-            "with auto_mesh/segs_for, or pin it at 1 segment if it is a "
-            "deliberate lumped-element port."
+            "from N=61 to N=641 — some wire carries a fixed count while "
+            "its junction partners refine (issue #484/#521 class). Mark "
+            "the count None and let auto_mesh assign it."
         )
 
 
