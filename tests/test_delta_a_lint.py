@@ -43,8 +43,9 @@ FAT_CONDUCTOR_HEADROOM = {
     "verticals.elt_whip": 155,  # measured 169 — deck-faithful whip (#435)
     "verticals.pota_performer": 330,  # measured 360 — stainless whip
     "verticals.challenger": 380,  # measured 413 — aluminum tube
-    "arrays.moxonarray": 515,  # measured 561 — fat moxon elements
-    "beams.moxon": 515,  # measured 563
+    # moxon / moxonarray were listed here at 515 ("fat elements") until the
+    # #522 density fix revealed the low headroom was the DEFECT, not the
+    # conductors: with every wire at driver-arm density they measure ~1840.
     "verticals.dominator": 525,  # measured 571 — one aluminum tube
     "specialty.hourglass": 545,  # measured 593 — short crossing rails
 }
@@ -82,6 +83,23 @@ def test_twoband_fan_sin_ladder_stays_flat():
     b.nominal_nsegs = 321
     z = MomwireEngine(b, solver=SinusoidalSolver).impedance()[0]
     assert abs(z - (55.8 - 7.4j)) < 3.0, z
+
+
+def test_moxon_sin_ladder_stays_flat():
+    """The #522 repro rung: with every wire carrying the full nominal count
+    the short folded tails ran 6.7x over-dense (right at the critical tip
+    gap) and sin walked off the Galerkin value (39.2−21.2j at N=321 vs the
+    bs1/bs2-agreed 43.5−16.4j). At uniform driver-arm density sin lands on
+    bs2 to 0.0% there."""
+    from momwire import SinusoidalSolver
+
+    from antennaknobs.designs.beams.moxon import Builder
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    b = Builder()
+    b.nominal_nsegs = 321
+    z = MomwireEngine(b, solver=SinusoidalSolver).impedance()[0]
+    assert abs(z - (43.5 - 16.4j)) < 2.0, z
 
 
 def test_folded_invvee_sin_ladder_stays_flat():
