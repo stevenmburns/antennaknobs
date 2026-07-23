@@ -1,4 +1,5 @@
 import logging
+import re
 import warnings
 
 import numpy as np
@@ -43,10 +44,27 @@ WIRE_CONDUCTIVITY = None
 DEFAULT_GROUND = ("finite", 10.0, 0.002)  # (kind, dielectric, conductivity)
 
 
+def _pynec_somm_fixed():
+    """True when the installed pynec-accel carries the nec2++ Sommerfeld
+    interpolation fix (stevenmburns/necpp#5, released in pynec-accel 1.7.6):
+    the INTRP cell cache no longer extrapolates stale coefficients across
+    grid-region crossings, which was the whole gn 2 near-ground defect
+    (issue #448). On fixed installs the risk-class warning below is noise;
+    on older installs it still protects the user."""
+    try:
+        from importlib.metadata import version
+
+        m = re.match(r"(\d+)\.(\d+)\.(\d+)", version("pynec-accel"))
+        return m is not None and tuple(int(g) for g in m.groups()) >= (1, 7, 6)
+    except Exception:
+        # Unknown provenance (source build, upstream PyNEC): keep warning.
+        return False
+
+
 def _somm_low_wire_risk(tups, wavelength):
-    """Geometry classes where nec2++'s gn 2 Sommerfeld is known-unreliable
-    (issue #448): near-ground conductor that is not a plain grounded
-    vertical. True when either
+    """Geometry classes where nec2++'s gn 2 Sommerfeld was unreliable before
+    the pynec-accel 1.7.6 interpolation fix (issue #448): near-ground
+    conductor that is not a plain grounded vertical. True when either
 
       (a) some wire endpoint sits in (0, 0.1λ) on a connected component
           with no z = 0 point (low radial fields at small height, hanging
@@ -118,12 +136,15 @@ class PyNECEngine(SimulationEngine):
           ("finite", eps_r, sigma)       — Sommerfeld-Norton finite ground
                                            (default, matches the historical
                                            hard-coded eps_r=10, sigma=0.002).
-                                           CAVEAT (#448): nec2++'s gn 2 is
-                                           known-unreliable for conductors
-                                           within 0.1λ of the plane that
-                                           don't touch it — the engine warns
+                                           CAVEAT (#448): before pynec-accel
+                                           1.7.6, nec2++'s gn 2 was unreliable
+                                           for conductors within 0.1λ of the
+                                           plane that don't touch it — on
+                                           older installs the engine warns
                                            and momwire/nec2c should be
-                                           trusted there.
+                                           trusted there. Fixed by the INTRP
+                                           cell-cache repair in 1.7.6
+                                           (stevenmburns/necpp#5).
           ("finite-fast", eps_r, sigma)  — finite ground via NEC's reflection-
                                            coefficient approximation. Much
                                            cheaper than Sommerfeld and within
@@ -808,41 +829,49 @@ class PyNECEngine(SimulationEngine):
         return c
 
     def _warn_if_somm_low_wires(self, wavelength):
-        """nec2++'s Sommerfeld (gn 2) solve is known-unreliable for conductors
-        that run NEAR the ground plane (issue #448).
+        """nec2++'s Sommerfeld (gn 2) solve was unreliable for conductors
+        that run NEAR the ground plane (issue #448) before pynec-accel
+        1.7.6; warn users of older installs.
 
-        Measured (momwire's golden-capture controls, 2026-07-06, and the
-        wild-corpus triage, 2026-07-20): on identical geometry PyNEC's gn 2
-        agrees with nec2c/nec2dxs/momwire to well under 1% for structure
-        0.1λ and higher, and for plain ground-connected verticals (the
-        z = 0 junction NEC handles specially) — but low radial fields,
-        low-hanging open ends (half-squares, bobtails, slopers), and long
-        low horizontal runs (beverages) put the solve in an erratic
-        regime: reflection-coefficient (gn 0) results on the same deck
-        stay faithful while gn 2 lands ~7–8× off in the real part (e.g.
-        9.5 − 70.9j vs the three-way-agreed 32.1 − 3.5j on a 300 MHz
-        monopole with radials at 0.002λ). The risk predicate below —
+        Root cause (fixed by stevenmburns/necpp#5, shipped in pynec-accel
+        1.7.6): the INTRP interpolation cache extrapolated stale cell
+        coefficients across grid-region crossings, corrupting exactly the
+        source–observer pairs that straddle the r = 0.2λ near-field-grid
+        boundary. Measured before the fix (momwire's golden-capture
+        controls, 2026-07-06, and the wild-corpus triage, 2026-07-20): on
+        identical geometry PyNEC's gn 2 agreed with nec2c/nec2dxs/momwire
+        to well under 1% for structure 0.1λ and higher, and for plain
+        ground-connected verticals (the z = 0 junction NEC handles
+        specially) — but low radial fields, low-hanging open ends
+        (half-squares, bobtails, slopers), and long low horizontal runs
+        (beverages) hit the erratic regime: gn 0 results on the same deck
+        stayed faithful while gn 2 landed ~7–8× off in the real part
+        (e.g. 9.5 − 70.9j vs the three-way-agreed 32.1 − 3.5j on a
+        300 MHz monopole with radials at 0.002λ). The risk predicate —
         a near-ground endpoint on a component not connected to z = 0, OR
-        any low horizontal run — covers all 19 wild-corpus decks where
+        any low horizontal run — covered all 19 wild-corpus decks where
         PyNEC broke against an agreeing nec2c+momwire pair, and exempts
-        plain grounded verticals. The defect is erratic, so a clean
-        result on a flagged geometry is luck, not health: trust momwire
-        or nec2c there. Warns once per engine instance.
+        plain grounded verticals. With 1.7.6 installed the whole class
+        re-scores clean (dΓ ≤ 0.0035 on the 19-deck calibration set) and
+        no warning fires. Warns once per engine instance.
         """
         if self._somm_lowz_warned or not (
             isinstance(self.ground, tuple) and self.ground[0] == "finite"
         ):
             return
+        if _pynec_somm_fixed():
+            return
         if _somm_low_wire_risk(self.tups, wavelength):
             self._somm_lowz_warned = True
             warnings.warn(
-                "PyNEC/nec2++'s Sommerfeld ground (gn 2) is known-"
+                "This PyNEC/nec2++ build's Sommerfeld ground (gn 2) is "
                 "unreliable for conductors running within 0.1 wavelength "
                 "of the ground plane (low radials, low open ends, low "
                 "horizontal runs — antennaknobs #448): results in this "
                 "configuration are erratic even when they look plausible. "
-                "Use a momwire engine (or nec2c) as the reference here, or "
-                "the 'finite-fast' reflection-coefficient ground for "
+                "Upgrade to pynec-accel >= 1.7.6 for the fix, or use a "
+                "momwire engine (or nec2c) as the reference here, or the "
+                "'finite-fast' reflection-coefficient ground for "
                 "comparisons.",
                 RuntimeWarning,
                 stacklevel=3,

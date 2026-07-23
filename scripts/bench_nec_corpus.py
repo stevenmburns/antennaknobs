@@ -1284,11 +1284,14 @@ def bench_deck(
         return row
     row["freq"] = freq
 
-    # nec2++/PyNEC's Sommerfeld (gn 2) is known-unreliable when a conductor
-    # sits within 0.1 wavelength of the ground plane without touching it
-    # (issue #448; calibrated on this corpus — all 19 decks where PyNEC broke
-    # against an agreeing nec2c+momwire pair are in this class). A large
-    # pynec dgamma on a flagged deck is the known engine defect, not an
+    # Before pynec-accel 1.7.6, nec2++/PyNEC's Sommerfeld (gn 2) was
+    # unreliable when a conductor sits within 0.1 wavelength of the ground
+    # plane without touching it (issue #448; calibrated on this corpus — all
+    # 19 decks where PyNEC broke against an agreeing nec2c+momwire pair are
+    # in this class; fixed by the INTRP cell-cache repair in
+    # stevenmburns/necpp#5). The flag is kept for provenance when scoring
+    # older PyNEC builds: a large pynec dgamma on a flagged deck under
+    # pynec-accel < 1.7.6 is the known engine defect, not an
     # import/translation signal.
     row["pynec_somm_suspect"] = (
         isinstance(ground, tuple)
