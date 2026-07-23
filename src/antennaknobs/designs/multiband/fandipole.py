@@ -5,6 +5,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,10 @@ class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
             "freq": _BAND_10M["freq"],
+            # Geometry is sized per band from `bands`; design_freq only
+            # anchors auto_mesh's density scale (nominal_nsegs per
+            # quarter-wave), so it is hidden from the UI.
+            "design_freq": _BAND_10M["freq"],
             "base": 7.0,
             "angle_deg": 26.5651,
             "n_bands": _MAX_BANDS,
@@ -78,6 +83,7 @@ class Builder(AntennaBuilder):
                         "max": _MAX_BANDS,
                         "step": 1,
                     },
+                    "design_freq": {"hidden": True},
                 }
             ),
         }
@@ -130,9 +136,6 @@ class Builder(AntennaBuilder):
             for i in range(360 // (2 * n), 360, 360 // n)
         ][:n_bands]
 
-        def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-
         def ry(p):
             return p[0], -p[1], p[2]
 
@@ -182,33 +185,23 @@ class Builder(AntennaBuilder):
                 (wire_length - lengths[i] / 2) / lengths[i],
             )
 
-        n_seg0 = self.nominal_nsegs
-        # Feed wire (T → S) meshed at the segment density of the longest
-        # n_seg0 arm (the reference wire).
-        ref_arm = max(math.dist(a, bb) for a, bb in zip(A, B))
-        n_seg1 = self.segs_for(math.dist(T, S), ref_arm)
-
+        # Every wire meshes at the design density (auto_mesh: nominal_nsegs
+        # per design_freq quarter-wave). The short risers (S→A / T→Ay,
+        # ~0.2 m) and the feed thereby stay proportional to their length —
+        # a full nominal count on them drives fine-mesh segment length
+        # toward the wire radius (the reduced-kernel Δ/a floor, issue #484).
         tups = []
         for i in range(n_bands):
-            # The short risers (S→A / T→Ay, ~0.2 m) mesh at the reference
-            # arm's density, NOT the full nominal count: n_seg0 on them
-            # drives fine-mesh segment length near the wire radius (N=321:
-            # 0.65 mm segs = 1.3a) — the reduced-kernel Δ/a floor, which
-            # wrecked the sin/pynec fine-mesh reactance (issue #484).
-            n_riser = self.segs_for(math.dist(S, A[i]), ref_arm)
-            tups.extend(build_path([S, A[i]], n_riser, None))
-            tups.extend(build_path([A[i], B[i]], n_seg0, None))
-            n_riser_y = self.segs_for(math.dist(T, Ay[i]), ref_arm)
-            tups.extend(build_path([T, Ay[i]], n_riser_y, None))
-            tups.extend(build_path([Ay[i], By[i]], n_seg0, None))
-        tups.append((T, S, n_seg1, 1 + 0j))
+            tups.append(Wire(S, A[i]))
+            tups.append(Wire(A[i], B[i]))
+            tups.append(Wire(T, Ay[i]))
+            tups.append(Wire(Ay[i], By[i]))
+        tups.append(Wire(T, S, ex=1 + 0j))
 
         return [
-            (
-                (x0, y0, z0 + self.base),
-                (x1, y1, z1 + self.base),
-                ns,
-                ev,
+            w._replace(
+                p0=(w.p0[0], w.p0[1], w.p0[2] + self.base),
+                p1=(w.p1[0], w.p1[1], w.p1[2] + self.base),
             )
-            for ((x0, y0, z0), (x1, y1, z1), ns, ev) in tups
+            for w in tups
         ]
