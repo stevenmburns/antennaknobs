@@ -191,9 +191,19 @@ the physics doesn't:
   ports this way; they refine like every other wire and hold one
   basis-agreed value.
 - A **lumped load** (termination resistor, trap) is genuinely a point
-  element — keep it on a delta gap, and pin that wire's segment count if
-  refinement disturbs it. Spreading a physical resistor over a finite
-  gap under-counts its dissipation.
+  element — keep it on a delta gap, on a short named wire that meshes at
+  the design density like everything else. The load stays on the wire's
+  *middle segment* as the mesh refines, so the point model survives
+  refinement; pinning the wire's count instead (the old convention)
+  turned out to bias the converged value itself — the catalog's trap
+  study saw a pinned trap hold bs2 flat at the wrong reactance while the
+  density-meshed model converged cleanly. What you should *not* do is
+  spread the load's port current over a finite extent: gap-averaging a
+  physical resistor under-counts its dissipation. The one case still
+  under study is a load at a **near-current-null (high-|Z|) attachment**,
+  where the delta gap's parasitic susceptance competes with the tiny
+  real admittance — the catalog's terminated longwire keeps a validated
+  explicit-count model until that lands (issue #526).
 
 ## A working recipe
 
