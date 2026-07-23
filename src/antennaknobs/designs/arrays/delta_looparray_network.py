@@ -15,7 +15,7 @@ numerical precision; the showcase for the network-spec API in #65.
 """
 
 from antennaknobs import AntennaBuilder, Transform, TransformStack
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 
 import math
 from types import MappingProxyType
@@ -44,24 +44,14 @@ class Builder(AntennaBuilder):
         cos_t = math.cos(angle)
         tan_t = math.tan(angle)
 
-        def build_path(lst, ns, ex, name=None):
-            pairs = list(zip(lst[:-1], lst[1:]))
-            for i, (a, c) in enumerate(pairs):
-                # Only the centre feed-edge of the gap gets the name.
-                yield (a, c, ns, ex, name if i == 0 and len(pairs) == 1 else None)
-
         def ry(p):
             return p[0], -p[1], p[2]
-
-        n_seg0 = self.nominal_nsegs
 
         # y of the top corner (half the top-edge width), in closed form.
         y = (cos_t * (driver - 2 * eps) + 2 * eps) / (2 * (cos_t + 1))
         S = (0, eps, b - (y - eps) * tan_t)
         A = (0, y, b)
         B, T = ry(A), ry(S)
-
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
 
         st = TransformStack()
         st.push(Transform.translate(0, 0, b))
@@ -70,14 +60,18 @@ class Builder(AntennaBuilder):
         SS, AA, BB, TT = st.hit(S), st.hit(A), st.hit(B), st.hit(T)
         SSS, AAA, BBB, TTT = ry(SS), ry(AA), ry(BB), ry(TT)
 
-        tups = []
-        # Loop 1: SS → AA → BB → TT perimeter (no feed), then TT → SS named.
-        tups.extend(build_path([SS, AA, BB, TT], n_seg0, None))
-        tups.extend(build_path([TT, SS], n_seg1, None, name="loop1"))
-        # Loop 2: mirror.
-        tups.extend(build_path([SSS, AAA, BBB, TTT], n_seg0, None))
-        tups.extend(build_path([SSS, TTT], n_seg1, None, name="loop2"))
-        return tups
+        return [
+            # Loop 1: SS → AA → BB → TT perimeter (no feed), then TT → SS named.
+            Wire(SS, AA),
+            Wire(AA, BB),
+            Wire(BB, TT),
+            Wire(TT, SS, name="loop1"),
+            # Loop 2: mirror.
+            Wire(SSS, AAA),
+            Wire(AAA, BBB),
+            Wire(BBB, TTT),
+            Wire(SSS, TTT, name="loop2"),
+        ]
 
     def build_network(self):
         wavelength = 299.792458 / self.design_freq
