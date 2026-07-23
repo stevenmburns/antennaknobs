@@ -50,6 +50,12 @@ view, and so on).
 - `excitation` is `None` for a structural wire, or a complex value for the
   **driven** segment carrying the source.
 
+A tuple may carry an optional **fifth element, a name** (a string), tagging
+the wire so the network layer can attach to it — a
+[`PortOnWire("feed")`](/concepts/station-modelling/) port, a trap's load, a
+transmission-line endpoint — at that wire's middle segment. Most wires are
+anonymous; you name exactly the ones something attaches to.
+
 That single list is the entire interface to the solver and every renderer —
 nothing downstream cares *how* you produced it, which is what makes the
 [geometry layer so flexible](/concepts/authoring/).
