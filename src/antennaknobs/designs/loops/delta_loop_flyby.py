@@ -59,32 +59,29 @@ class Builder(AntennaBuilder):
 
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         target = self.length_factor * wavelength
-        n_body = self.nominal_nsegs
 
         def geometry(side):
             # Fly the whole loop with the feed at z = 0 -- the top height is
             # added by the z-offset pass below, not known during the flight.
             S = (0.0, eps, 0.0)  # right feed terminal; loop is planar in x = 0
-            drone = Drone(position=S, nominal_nsegs=n_body, ref=quarter)
+            drone = Drone(position=S)
 
             # Nose out along the top edge, then tilt up onto the right slant.
             drone.face(heading=(0.0, 1.0, 0.0), up=(1.0, 0.0, 0.0))
             drone.yaw(self.angle_deg)
 
             drone.pay_out()
-            drone.forward(side, nsegs=n_body)  # S -> A  (right slant, given length)
+            drone.forward(side)  # S -> A  (right slant, given length)
             drone.yaw(180.0 - self.angle_deg)  # exterior angle at A
             # A -> B: fly through the symmetry plane y = 0 to an equal distance
             # past it, landing on the mirror corner -- the top edge, no length
             # computed and nothing reflected.
-            drone.forward_through_plane((0.0, 1.0, 0.0, 0.0), nsegs=n_body)
+            drone.forward_through_plane((0.0, 1.0, 0.0, 0.0))
             drone.yaw(180.0 - self.angle_deg)  # exterior angle at B
-            drone.forward(side, nsegs=n_body)  # B -> T  (left slant, given length)
-            n_feed = self.segs_for(math.dist(drone.position, S), side)
+            drone.forward(side)  # B -> T  (left slant, given length)
             drone.feed(1 + 0j)
-            drone.close(nsegs=n_feed)  # T -> S  (driven feed gap, fly home)
+            drone.close()  # T -> S  (driven feed gap, fly home)
             return drone.wires()
 
         def total(side):

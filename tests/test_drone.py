@@ -241,7 +241,7 @@ def _undirected(builder):
     """{(sorted endpoint pair, is_driven)} for a design's wires, ignoring
     edge order, direction, and segment count."""
     out = set()
-    for p0, p1, _ns, ex in builder.build_wires():
+    for p0, p1, _ns, ex, *_rest in builder.build_wires():
         a = tuple(round(c, 9) for c in p0)
         b = tuple(round(c, 9) for c in p1)
         out.add((tuple(sorted([a, b])), ex is not None))

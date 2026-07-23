@@ -35,6 +35,7 @@ The loops lie in planes of constant x.
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -77,7 +78,6 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         side_d = self.driver_circ * wavelength / 4
         side_r = self.reflector_circ * wavelength / 4
@@ -97,16 +97,15 @@ class Builder(AntennaBuilder):
             BR = (x, half, z0)
             TR = (x, half, z1)
             TL = (x, -half, z1)
-            ns = self.segs_for(side, quarter)
             wires = []
             if fed:
-                wires.append((BL, BR, ns, 1 + 0j))
+                wires.append(Wire(BL, BR, ex=1 + 0j))
             else:
-                wires.append((BL, BR, ns, None))
+                wires.append(Wire(BL, BR))
             # remaining three sides (passive for both loops)
-            wires.append((BR, TR, ns, None))
-            wires.append((TR, TL, ns, None))
-            wires.append((TL, BL, ns, None))
+            wires.append(Wire(BR, TR))
+            wires.append(Wire(TR, TL))
+            wires.append(Wire(TL, BL))
             return wires
 
         tups = []
