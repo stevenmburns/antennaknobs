@@ -290,10 +290,10 @@ class Builder(AntennaBuilder):
             raise ValueError(f"n_bands must be in [1, {_MAX_BANDS}], got {n_bands}")
         active_bands = tuple(self.bands)[:n_bands]
 
-        n_seg0 = self.nominal_nsegs
-        # Tip segments stay short; floor at 1 matches single-band hexbeam
-        # (designs/hexbeam.py:66 leaves the tip count at 1 too).
-        n_seg_tip = max(1, self.nominal_nsegs // 21)
+        # Element wires mesh at uniform density via auto_mesh below (issue
+        # #521 class): the old scheme gave every band's arms the full
+        # nominal count (over-densifying the small high bands) and the tips
+        # a nominal//21 count untied to their length.
         # T->S feed gap refines with the mesh (issue #435). |T - S| =
         # 2*_FEED_GAP*sin30 = _FEED_GAP for every band, so one shared count
         # against the design_freq quarter-wave keeps all five feeds equal
@@ -343,11 +343,11 @@ class Builder(AntennaBuilder):
             def build_path(lst, ns):
                 return [(a, b, ns, None) for a, b in zip(lst[:-1], lst[1:])]
 
-            tups.extend(build_path([S, A, B], n_seg0))
-            tups.extend(build_path([C, D], n_seg_tip))
-            tups.extend(build_path([D, E, F, G], n_seg0))
-            tups.extend(build_path([G, H], n_seg_tip))
-            tups.extend(build_path([II, J, T], n_seg0))
+            tups.extend(build_path([S, A, B], None))
+            tups.extend(build_path([C, D], None))
+            tups.extend(build_path([D, E, F, G], None))
+            tups.extend(build_path([G, H], None))
+            tups.extend(build_path([II, J, T], None))
             # The feed wire (one per band). Daisy-chain mode strips the
             # excitation on bands 1..N-1 inside build_tls; multi-feed
             # mode leaves every band's excitation in place.
@@ -362,7 +362,11 @@ class Builder(AntennaBuilder):
                 p0, p1, ns, _ = tups[idx - 1]
                 tups[idx - 1] = (p0, p1, ns, None)
 
-        return tups
+        # Longest auto wire (band 0's largest edge) carries nominal_nsegs;
+        # every band's every edge gets the same segment length. The feed
+        # wires keep their explicit shared count (build_tls attaches
+        # jumpers to their middle segment via _n_seg_feed).
+        return self.auto_mesh(tups)
 
     def build_tls(self):
         """50ohm jumpers between successive band feeds in daisy-chain mode.

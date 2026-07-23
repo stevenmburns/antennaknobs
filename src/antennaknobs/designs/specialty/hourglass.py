@@ -2,8 +2,6 @@
 
 from antennaknobs import AntennaBuilder
 from antennaknobs import Transform, TransformStack
-import math
-
 from types import MappingProxyType
 
 
@@ -33,8 +31,6 @@ class Builder(AntennaBuilder):
         def rz(p):
             return p[0], p[1], -p[2]
 
-        n_seg0 = self.nominal_nsegs
-
         r"""
  C----------------------------A
   \                          /
@@ -58,8 +54,6 @@ class Builder(AntennaBuilder):
         C, D, T = ry(A), ry(B), ry(S)
         E, F = rz(C), rz(A)
 
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(B, A))
-
         st = TransformStack()
         st.push(Transform.translate(0, 0, b - A[2]))
 
@@ -68,10 +62,14 @@ class Builder(AntennaBuilder):
 
         tups = []
 
-        tups.extend(build_path([B, A, C, D], n_seg0, None))
-        tups.extend(build_path([B, F, E, D], n_seg0, None))
-        tups.extend(build_path([S, B], n_seg0, None))
-        tups.extend(build_path([D, T], n_seg0, None))
-        tups.extend(build_path([T, S], n_seg1, 1 + 0j))
+        tups.extend(build_path([B, A, C, D], None, None))
+        tups.extend(build_path([B, F, E, D], None, None))
+        tups.extend(build_path([S, B], None, None))
+        tups.extend(build_path([D, T], None, None))
+        tups.extend(build_path([T, S], None, 1 + 0j))
+        # Uniform-density mesh (issue #521): the old per-edge nominal
+        # count over-densified the short edges 4-6x; the longest edge now
+        # carries nominal_nsegs and every wire meshes at its density.
+        tups = self.auto_mesh(tups)
 
         return tups

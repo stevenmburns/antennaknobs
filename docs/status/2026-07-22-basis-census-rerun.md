@@ -160,3 +160,36 @@ for the #484 junction mechanism. Builder fixes for the
 hentenna/hourglass families are follow-up work under #521 (their bs2
 default-slot readouts barely move; only the sin-family values were
 wrong).
+
+## Addendum 2, 2026-07-23: manual segmentation retired for the offender class (`auto_mesh` + lint)
+
+The defect class recurred often enough (#481, #484, #521, #522) that
+convention became mechanism. `AntennaBuilder.auto_mesh` now resolves
+`None` segment counts to a uniform-density mesh (integer counts remain
+deliberate pins — 1-segment lumped-element ports, deck-faithful
+wires), and the catalog lint enforces the outcome two ways: max/min
+segment-length ratio ≤ 3 over refining wires at N=321, and the ratio
+must not *grow* from N=61 to N=641 (the fixed-count tell that a
+single-rung snapshot misses; twoband_fan's 5-seg links passed 6.7× at
+N=321 but drifted 55.7 → 67.0 Ω up the census ladder). Sole
+exemption: elt_whip's deck-faithful wire list.
+
+The migration swept two more hidden defects the ratio scan exposed —
+**hexbeam** (hard-coded 5-segment tip spacers, ratio 10.7× and
+growing) and **hexbeam_5band** (every band's arms at full nominal
+count, tips at `nominal//21`):
+
+| design | stock gap | migrated gap | verdict |
+|---|--:|--:|---|
+| beams.hexbeam | 3.2 % @321 | **0.1 % @641** | mutual from N=21 — the census's "≤4 % tail" entry was this defect |
+| multiband.hexbeam_5band | 2.7 % @61 (capped) | **0.1 % @161** | mutual |
+| specialty.hentenna_slant | 25.2 % @321 | **1.2 % @321** | mutual |
+| specialty.hentenna | 43.4 % @321 | 12.3 % @641 | slow-X residue (class 1, bs1 ≡ bs2) |
+| specialty.hourglass | 35.3 % @321 | 7.9 % @641 | slow-X residue |
+| specialty.hourglass_slant | 25.5 % @321 | 15.6 % @321 | slow-X residue |
+
+moxon and the hentenna/hourglass arrays inherit via composition.
+Default-slot churn (bs2 @ N=15) from the re-mesh is ≤ 2.2 % across all
+eight affected designs — inside their established coarse-mesh error
+bands. After this sweep the only catalog design above ratio 2.6 is the
+deck-faithful elt_whip, and the growth check passes everywhere.

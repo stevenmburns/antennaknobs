@@ -69,18 +69,19 @@ class Builder(AntennaBuilder):
         S = (eps * cos30, eps * sin30, 0)
         T = ry(S)
 
-        n_seg0 = self.nominal_nsegs
-        # Feed gap T->S refines with the mesh (issue #435); the driver arm
-        # S->A is the reference-length wire that carries n_seg0.
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(S, A))
-
+        # Uniform-density mesh (issue #521 class): every wire — arms, the
+        # short tip spacers (whose old hard-coded 5 segments left a graded
+        # junction that worsened with N), and the feed gap — meshes at the
+        # driver arm's density. The arm keeps its historical role as the
+        # wire that carries nominal_nsegs.
         tups = []
-        tups.extend(build_path([S, A, B], n_seg0, None))
-        tups.extend(build_path([C, D], 5, None))
-        tups.extend(build_path([D, E, F, G], n_seg0, None))
-        tups.extend(build_path([G, H], 5, None))
-        tups.extend(build_path([II, J, T], n_seg0, None))
-        tups.append((T, S, n_seg1, 1 + 0j))
+        tups.extend(build_path([S, A, B], None, None))
+        tups.extend(build_path([C, D], None, None))
+        tups.extend(build_path([D, E, F, G], None, None))
+        tups.extend(build_path([G, H], None, None))
+        tups.extend(build_path([II, J, T], None, None))
+        tups.append((T, S, None, 1 + 0j))
+        tups = self.auto_mesh(tups, ref=math.dist(S, A))
 
         new_tups = []
         for xoff, yoff, zoff in [(0, 0, self.base)]:

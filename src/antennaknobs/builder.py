@@ -169,6 +169,46 @@ class AntennaBuilder:
         even-parity solve bump the count up by one."""
         return max(1, round(self.nominal_nsegs * length / ref))
 
+    def auto_mesh(self, tups, ref=None):
+        """Resolve ``None`` segment counts to a uniform-density mesh.
+
+        The recurring catalog defect class (#481 radials, #484 folded/fan,
+        #521/#522 hentenna/hourglass/moxon) is a builder hand-assigning
+        per-wire counts that leave one wire's segment length out of step
+        with its junction partners — either a short wire carrying the full
+        nominal count (over-dense: Δ/a breakdown, tip-gap poisoning) or a
+        fixed count that the rest of the mesh refines past (a graded
+        junction that worsens with N). This helper removes the arithmetic
+        from builders: pass wire tuples whose count is ``None`` for "mesh
+        me at the design's density" and an int only for a *deliberate* pin
+        (1-segment lumped-element ports, validated deck-faithful counts).
+
+        ``ref`` is the length whose wire carries ``nominal_nsegs`` — the
+        design's density scale. Default: the longest auto wire, so
+        ``nominal_nsegs`` means "segments on the longest wire" and every
+        auto wire gets the same segment length via ``segs_for``. Pass an
+        explicit ``ref`` (e.g. a driver arm's length) to keep a design's
+        historical density scale when migrating.
+
+        The catalog lint (``tests/test_delta_a_lint.py``) asserts the
+        resulting mesh is density-uniform for every design, so a builder
+        that bypasses this helper still can't reintroduce the defect
+        silently."""
+        import math as _math
+
+        tups = list(tups)
+        if ref is None:
+            auto_lens = [_math.dist(t[0], t[1]) for t in tups if t[2] is None]
+            if not auto_lens:
+                return tups
+            ref = max(auto_lens)
+        return [
+            t
+            if t[2] is not None
+            else (t[0], t[1], self.segs_for(_math.dist(t[0], t[1]), ref), *t[3:])
+            for t in tups
+        ]
+
     def _phasor(self, name):
         """Unit phasor exp(j·phase) for a degrees-valued phase param (e.g.
         phase_lr/phase_tb), or 1 if the param is absent."""

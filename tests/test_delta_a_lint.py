@@ -30,6 +30,31 @@ from antennaknobs.cli import list_builtin_designs  # noqa: E402
 
 CENSUS_TOP_RUNG = 641
 
+# Deck-faithful designs whose wire list reproduces an external model
+# verbatim (mixed hand-chosen counts are the point). Everything else
+# must mesh at uniform density.
+DECK_FAITHFUL = {"verticals.elt_whip"}
+
+
+def _seg_ratio(builder_cls, n):
+    """Max/min segment length over the refining (ns > 1) wires at nominal
+    ``n``, or None if fewer than two such wires. 1-segment wires are the
+    deliberate-pin convention (lumped-element ports, taps) and stay out
+    of the ratio."""
+    import math
+
+    b = builder_cls()
+    b.nominal_nsegs = n
+    segs = [
+        math.dist(w[0], w[1]) / int(w[2])
+        for w in b.build_wires()
+        if int(w[2]) > 1 and math.dist(w[0], w[1]) > 0
+    ]
+    if len(segs) < 2:
+        return None
+    return max(segs) / min(segs)
+
+
 # Fat/short-conductor designs whose radius bounds refinement before the
 # census top rung — physics, not builder defects. Values are the measured
 # headroom (2026-07-22, floor 2.0) rounded DOWN a little so ordinary
@@ -83,6 +108,56 @@ def test_twoband_fan_sin_ladder_stays_flat():
     b.nominal_nsegs = 321
     z = MomwireEngine(b, solver=SinusoidalSolver).impedance()[0]
     assert abs(z - (55.8 - 7.4j)) < 3.0, z
+
+
+@pytest.mark.parametrize("name", sorted(list_builtin_designs()))
+def test_segment_density_is_uniform(name):
+    """Every refining wire in a design must carry roughly the same segment
+    length (issue #521/#522): a wire meshed out of step with its junction
+    partners is the catalog's most-recurring defect class — over-dense
+    short wires (folded links, fan risers, moxon tails) or fixed counts
+    the rest of the mesh refines past (twoband links, hexbeam spacers).
+    Builders get this by construction via ``AntennaBuilder.auto_mesh``
+    (return None counts); a builder that hand-assigns counts must still
+    land within the bound. The 3.0 tolerance passes benign rounding
+    (short wires quantize to few segments, ~2x worst) and fails every
+    defect this class has produced (4.3-10.7x)."""
+    import importlib
+
+    if name in DECK_FAITHFUL:
+        pytest.skip("deck-faithful wire list")
+    mod = importlib.import_module(f"antennaknobs.designs.{name}")
+    r = _seg_ratio(mod.Builder, 321)
+    if r is not None:
+        assert r <= 3.0, (
+            f"{name}: segment lengths differ {r:.1f}x across wires at "
+            "N=321. Mesh every non-pinned wire at one density — return "
+            "None counts and finish build_wires with self.auto_mesh "
+            "(issues #521/#522)."
+        )
+
+
+@pytest.mark.parametrize("name", sorted(list_builtin_designs()))
+def test_segment_density_ratio_does_not_grow(name):
+    """A fixed segment count next to refining wires leaves the junction
+    ever more graded as N climbs — invisible at N=321's snapshot if the
+    count is generous (twoband_fan's 5-seg links passed 6.7x there but
+    hit the census as a 55.7->67.0 ohm drift). The tell is the ratio
+    GROWING with N; a healthy mesh's ratio is flat in N."""
+    import importlib
+
+    if name in DECK_FAITHFUL:
+        pytest.skip("deck-faithful wire list")
+    mod = importlib.import_module(f"antennaknobs.designs.{name}")
+    r61, r641 = _seg_ratio(mod.Builder, 61), _seg_ratio(mod.Builder, 641)
+    if r61 is not None and r641 is not None:
+        assert r641 <= r61 * 1.5, (
+            f"{name}: segment-length ratio grows {r61:.2f} -> {r641:.2f} "
+            "from N=61 to N=641 — some wire's count is pinned while its "
+            "junction partners refine (issue #484/#521 class). Derive it "
+            "with auto_mesh/segs_for, or pin it at 1 segment if it is a "
+            "deliberate lumped-element port."
+        )
 
 
 def test_moxon_sin_ladder_stays_flat():
