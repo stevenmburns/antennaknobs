@@ -120,17 +120,30 @@ linted for exactly this). The d=2 basis is immune — a Galerkin method
 regularizes the reduced-kernel ill-posedness — which is also why a flat
 bs2 next to an exploding sin curve is the tell.
 
-One genuine residue remains after the Δ/a accounting
+One genuine residue survives the Δ/a accounting, and it is now pinned
 ([issue #484](https://github.com/stevenmburns/antennaknobs/issues/484)):
-**multi-wire fan feeds** — several dipole pairs converging on one feed
-wire — where the sinusoidal basis drifts slowly and monotonically at
-fine mesh while bs2 holds flat, with every wire comfortably above the
-Δ/a floor. The traditional close-parallel-wire lore (the NEC-2 manual's
-aligned-segments requirement, Cebik's segment-length ≈ wire-spacing
-practice) points at this regime, but our census hasn't confirmed a
-threshold law. Until the mechanism is pinned down, treat fine-mesh
-sin/pynec drift on fan geometry as suspect and trust the flat d=2
-value.
+**multi-wire fan feeds** — several dipole pairs sharing one feed wire —
+where the point-matched family drifts slowly and monotonically at fine
+mesh while the Galerkin bases hold flat, with every wire comfortably
+above the Δ/a floor. Three discriminating experiments settled what
+drives it. Varying the element spacing over a 7× range moves the error
+not at all — the traditional close-parallel-wire lore (the NEC-2
+manual's aligned-segments requirement, Cebik's segment-length ≈
+wire-spacing practice) does **not** explain this class. What does is
+the **junction fan degree**: a one-element control converges cleanly,
+and the fine-mesh error grows monotonically with each dipole pair
+added to the shared feed junction (a five-band fan reads ~30 % low on
+R at N=321). And it is a property of the *method family*, not one
+implementation: our sinusoidal solver and PyNEC (nec2++) drift in
+lockstep to a fraction of an ohm, while d=1 and d=2 B-splines — two
+independent Galerkin bases — sit flat on the same value from N=21.
+(That d=1 shares the immunity despite its merely-C⁰ junctions
+identifies Galerkin's stationary impedance as the protective property:
+collocation takes junction-charge error at first order in Z, and a
+shared feed junction multiplies the error sites by the fan degree.)
+Response: on fan-fed multiband geometry, read the fine-mesh answer on
+the B-spline bases — and remember nec2c inherits the same family bias,
+so it is not an independent referee here.
 
 ## Closed loops: room below the default
 
