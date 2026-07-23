@@ -189,18 +189,27 @@ class Builder(AntennaBuilder):
 
         # Feed gap T->S refines with the mesh (issue #435); band 0's arm
         # (junction -> tip) is the reference-length wire carrying n_seg0.
-        n_seg1 = self.segs_for(math.dist(T, S), math.dist(junctions[0], tips[0]))
+        ref_arm = math.dist(junctions[0], tips[0])
+        n_seg1 = self.segs_for(math.dist(T, S), ref_arm)
+
+        # The feed-split links must refine WITH the arms (issue #484): a
+        # fixed count leaves the G junctions ever more graded as the mesh
+        # refines, and sin/PyNEC drift monotonically off the bs2 value
+        # (55.7 -> 67.0 ohm over the census ladder) while a proportional
+        # link mesh stays flat. The floor of 5 keeps the links at least as
+        # fine as they always were, so the default (N=21) mesh is unchanged.
+        n_link = max(5, self.segs_for(math.dist(S, junctions[0]), ref_arm))
 
         # Emit in the original order: +y junctions, +y arms, -y junctions,
         # -y arms, then the feed gap — so the wire list is unchanged for the
         # 2-band case.
         tups = []
         for G in junctions:
-            tups.append((S, G, 5, None))
+            tups.append((S, G, n_link, None))
         for G, tip in zip(junctions, tips):
             tups.append((G, tip, n_seg0, None))
         for G in junctions:
-            tups.append((T, ry(G), 5, None))
+            tups.append((T, ry(G), n_link, None))
         for G, tip in zip(junctions, tips):
             tups.append((ry(G), ry(tip), n_seg0, None))
         tups.append((T, S, n_seg1, 1 + 0j))

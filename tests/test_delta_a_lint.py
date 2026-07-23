@@ -67,6 +67,23 @@ def test_design_scales_to_census_top_rung(name):
     )
 
 
+def test_twoband_fan_sin_ladder_stays_flat():
+    """The #484 "4b" repro rung: with the feed-split links at a fixed 5
+    segments the sin basis drifted monotonically off the Galerkin value as
+    the arms refined past them (63.4 Ω at N=321, 67.0 at 641, vs the
+    bs1/bs2-agreed ~56 Ω). With the links refining at arm density the
+    ladder holds ~55.8−7.4j at N=321."""
+    from momwire import SinusoidalSolver
+
+    from antennaknobs.designs.multiband.twoband_fan_dipole import Builder
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    b = Builder()
+    b.nominal_nsegs = 321
+    z = MomwireEngine(b, solver=SinusoidalSolver).impedance()[0]
+    assert abs(z - (55.8 - 7.4j)) < 3.0, z
+
+
 def test_folded_invvee_sin_ladder_stays_flat():
     """The #484 repro rung: before the density fix the sin basis broke to
     232.9−230.2j at N=161 (and −1188j at 321). With wire 3 at arm density
