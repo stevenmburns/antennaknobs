@@ -78,7 +78,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         D = self.length_frac * wavelength
         s = self.spacing_frac * wavelength
@@ -103,8 +102,11 @@ class Builder(AntennaBuilder):
             Wire(nF1, nR),
             # far (termination) wire: left arm, load gap, right arm
             Wire(fL, fT0),
-            # Termination-resistor wire: count kept explicit (#525 stage 3).
-            Wire(fT0, fT1, n_seg=self.segs_for(2 * eps, quarter), name="term"),
+            # Termination-resistor wire meshes at the design density like
+            # every other wire (#525 stage 3; its old segs_for count was
+            # the identical formula, and the load stays on the middle
+            # segment as it refines).
+            Wire(fT0, fT1, name="term"),
             Wire(fT1, fR),
             # end shorts joining the two wires
             Wire(nL, fL),

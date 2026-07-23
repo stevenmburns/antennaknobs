@@ -82,6 +82,13 @@ C_LIGHT_MHZ_M = 299.792458
 # N=81), which is its own discretization story.
 # Final SWR50 at target freqs (Bs2 @ N=41): 17m=1.04, 15m=1.02, 12m=1.19, 10m=1.13.
 # Plan to verify by measurement after build.
+# Stage-3 note (#525): retiring the trap wires' 1-seg pin leaves every
+# Bs2@41 band SWR bit-identical (the 0.05 m trap wire still resolves to
+# one segment below N≈150) while fixing the fine-mesh limit the study
+# flagged — bs2 X now converges to ~+3.2j instead of sitting flat at the
+# biased +0.6j, sin's gap at N=321 drops 25.9 % → ~7 %, and the honest
+# converged SWR50 stays ≤ 1.10 on all four bands, so the L/C values
+# above remain valid without a retune.
 _BAND_17_12 = {
     "full_freq": 18.1575,
     "trap_freq": 24.97,
@@ -318,22 +325,24 @@ class Builder(AntennaBuilder):
             tip = offset_outward(A[i], q1 + trap_seg + q2)
             spokes.append((trap_in, trap_out, tip))
 
-        # Structural wires (cone + inner outer + outer + feed) mesh at the
-        # design density (auto_mesh: nominal_nsegs per design_freq
-        # quarter-wave), so segment length is near-constant across the
-        # antenna. Trap segments are pinned to 1 (load-port convention —
-        # the named port lives on a single basis function, and the trap
-        # L/C were tuned against 1-seg trap wires; retiring the pin is
-        # #525 stage 3). The feed bridge resolves to 1 segment at the
-        # default mesh, which is fine for the BSpline d=2 basis this
-        # design is tuned against; the retired triangular basis couldn't
-        # drive a 1-segment feed gap.
+        # Every wire — trap segments included — meshes at the design
+        # density (auto_mesh: nominal_nsegs per design_freq quarter-wave),
+        # so segment length is near-constant across the antenna. The trap
+        # wires resolve to 1 segment at the default/tuning meshes (0.05 m
+        # ≪ λ/4) and only start subdividing above N≈150, where the load
+        # keeps landing on the wire's middle segment; the trap-wire study
+        # (#484/#525 stage 3) showed the old hard 1-seg pin biased the
+        # fine-mesh limit (bs2 X flat at the wrong value) and drove the
+        # sin↔bs2 gap to 25.9 % instead of converging. The feed bridge
+        # resolves to 1 segment at the default mesh, which is fine for
+        # the BSpline d=2 basis this design is tuned against; the retired
+        # triangular basis couldn't drive a 1-segment feed gap.
         tups = []
         for i, (trap_in, trap_out, tip) in enumerate(spokes):
             # +y arm
             tups.append(Wire(S, A[i]))
             tups.append(Wire(A[i], trap_in))
-            tups.append(Wire(trap_in, trap_out, n_seg=1, name=f"trap_p_b{i}"))
+            tups.append(Wire(trap_in, trap_out, name=f"trap_p_b{i}"))
             tups.append(Wire(trap_out, tip))
 
             # −y arm (mirror via ry)
@@ -343,7 +352,7 @@ class Builder(AntennaBuilder):
             tip_y = ry(tip)
             tups.append(Wire(T, Ay))
             tups.append(Wire(Ay, tin_y))
-            tups.append(Wire(tin_y, tout_y, n_seg=1, name=f"trap_n_b{i}"))
+            tups.append(Wire(tin_y, tout_y, name=f"trap_n_b{i}"))
             tups.append(Wire(tout_y, tip_y))
 
         # Feed wire — named "feed", source supplied by build_network().

@@ -68,7 +68,6 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         radiator = self.radiator_frac * wavelength
         stub = self.stub_frac * wavelength
@@ -83,9 +82,11 @@ class Builder(AntennaBuilder):
         # Leg A at x = 0 carries the radiator on top; leg B at x = gap is the
         # short open-ended stub leg.
         return [
-            # Bottom short bar bridging the two legs (deliberately pinned at
-            # one segment; retiring it is #525 stage 3).
-            Wire((0.0, 0.0, z_short), (gap, 0.0, z_short), n_seg=1),
+            # Bottom short bar bridging the two legs, meshed at the design
+            # density like everything else (#525 stage 3 retired its old
+            # 1-segment pin; at the default mesh the density gives the
+            # same answer anyway).
+            Wire((0.0, 0.0, z_short), (gap, 0.0, z_short)),
             # Leg A: short -> tap node -> stub top, then the radiator
             # continues up.
             Wire((0.0, 0.0, z_short), (0.0, 0.0, z_tap)),
@@ -95,13 +96,9 @@ class Builder(AntennaBuilder):
             Wire((gap, 0.0, z_short), (gap, 0.0, z_tap)),
             Wire((gap, 0.0, z_tap), (gap, 0.0, z_stub_top)),
             # Feed: a driven bridge between the two legs at the tap, meshed
-            # proportionally like every other edge so the delta gap refines
-            # with the mesh (issue #435 — its empirical 2-segment default
-            # comes from exactly this density; kept on segs_for verbatim).
-            Wire(
-                (0.0, 0.0, z_tap),
-                (gap, 0.0, z_tap),
-                n_seg=self.segs_for(gap, quarter),
-                ex=1 + 0j,
-            ),
+            # at the design density like every other edge so the delta gap
+            # refines with the mesh (issue #435 — its empirical 2-segment
+            # default comes from exactly this density; the old explicit
+            # segs_for spelling was the identical formula, #525 stage 3).
+            Wire((0.0, 0.0, z_tap), (gap, 0.0, z_tap), ex=1 + 0j),
         ]

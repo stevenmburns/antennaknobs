@@ -153,8 +153,8 @@ class Builder(AntennaBuilder):
             # Gap wire at the whip base carries the "ant" port.
             Wire((0, 0, h), (0, 0, h + eps), name="ant"),
             Wire((0, 0, h + eps), (0, 0, h + self.whip_len_m)),
-            # Counterpoise keeps its validated floored allocation (#525
-            # stage 3 retires the remaining hand counts).
+            # Counterpoise meshes at the design density like every other
+            # wire (#525 stage 3 retired the old max(5, N//3) hand floor).
             Wire(
                 (0, 0, h),
                 (
@@ -162,7 +162,6 @@ class Builder(AntennaBuilder):
                     0.0,
                     h - self.cp_len_m * math.sin(droop),
                 ),
-                n_seg=max(5, self.nominal_nsegs // 3),
             ),
         ]
 
