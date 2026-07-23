@@ -34,6 +34,7 @@ from antennaknobs.network import (
     Network,
     PortOnWire,
     PortVirtual,
+    Wire,
     WireSpec,
 )
 from antennaknobs.station import unun
@@ -54,6 +55,11 @@ class Builder(AntennaBuilder):
         {
             # 15M reference band ("Computer Model" columns).
             "freq": 21.35,
+            # Geometry is per-band absolute inches; design_freq only anchors
+            # auto_mesh's density scale (nominal_nsegs per quarter-wave at
+            # the band the lengths are cut for), so it is hidden from the
+            # UI. Each band variant restates it alongside its freq.
+            "design_freq": 21.35,
             "whip_len_m": 272 * _IN,
             "cp_len_m": 175 * _IN,
             # Feed 48–52" up ("I recommend the feedpoint be elevated
@@ -73,6 +79,7 @@ class Builder(AntennaBuilder):
                 {
                     "target_z0": 50.0,
                     "default_view": "xz",
+                    "design_freq": {"hidden": True},
                     "whip_len_m": {"min": 2.0, "max": 8.5, "unit": "m"},
                     "cp_len_m": {"min": 1.0, "max": 6.0, "unit": "m"},
                     "h_feed": {"min": 0.3, "max": 1.6, "unit": "m"},
@@ -93,15 +100,32 @@ class Builder(AntennaBuilder):
         {"xfmr_ratio": "56:1", "lmag_uH": 0.74, "qlmag": 3.0}
     )
 
-    # Per-band "Computer Model" radiator/counterpoise lengths.
+    # Per-band "Computer Model" radiator/counterpoise lengths. design_freq
+    # tracks the band so the auto-mesh density follows the wavelength the
+    # lengths are cut for.
     band17_params = MappingProxyType(
-        {"freq": 18.14, "whip_len_m": 315 * _IN, "cp_len_m": 206 * _IN}
+        {
+            "freq": 18.14,
+            "design_freq": 18.14,
+            "whip_len_m": 315 * _IN,
+            "cp_len_m": 206 * _IN,
+        }
     )
     band12_params = MappingProxyType(
-        {"freq": 24.94, "whip_len_m": 233 * _IN, "cp_len_m": 150 * _IN}
+        {
+            "freq": 24.94,
+            "design_freq": 24.94,
+            "whip_len_m": 233 * _IN,
+            "cp_len_m": 150 * _IN,
+        }
     )
     band10_params = MappingProxyType(
-        {"freq": 28.40, "whip_len_m": 204 * _IN, "cp_len_m": 132 * _IN}
+        {
+            "freq": 28.40,
+            "design_freq": 28.40,
+            "whip_len_m": 204 * _IN,
+            "cp_len_m": 132 * _IN,
+        }
     )
 
     def build_wire_material(self):
@@ -114,23 +138,19 @@ class Builder(AntennaBuilder):
         droop = math.asin(min(1.0, max(0.0, h - self.cp_end_h) / self.cp_len_m))
 
         return [
-            (
-                (0, 0, h),
-                (0, 0, h + eps),
-                self.segs_for(eps, self.whip_len_m),
-                None,
-                "ant",
-            ),
-            ((0, 0, h + eps), (0, 0, h + self.whip_len_m), self.nominal_nsegs, None),
-            (
+            # Gap wire at the whip base carries the "ant" port.
+            Wire((0, 0, h), (0, 0, h + eps), name="ant"),
+            Wire((0, 0, h + eps), (0, 0, h + self.whip_len_m)),
+            # Counterpoise keeps its validated floored allocation (#525
+            # stage 3 retires the remaining hand counts).
+            Wire(
                 (0, 0, h),
                 (
                     self.cp_len_m * math.cos(droop),
                     0.0,
                     h - self.cp_len_m * math.sin(droop),
                 ),
-                max(7, self.nominal_nsegs // 2),
-                None,
+                n_seg=max(7, self.nominal_nsegs // 2),
             ),
         ]
 

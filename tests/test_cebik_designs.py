@@ -150,11 +150,12 @@ def test_bobtail_tap_position_sets_impedance():
 def test_bobtail_only_centre_element_is_fed():
     """Exactly one driven gap; the outer verticals are passive."""
     from antennaknobs.designs.verticals.bobtail import Builder
+    from antennaknobs.network import as_wire
 
-    feeds = [t for t in Builder().build_wires() if t[3] is not None]
+    feeds = [w for w in map(as_wire, Builder().build_wires()) if w.ex is not None]
     assert len(feeds) == 1
     # The fed gap sits on the centre vertical (y = 0).
-    (x0, y0, _), (x1, y1, _), _, _ = feeds[0]
+    (_, y0, _), (_, y1, _) = feeds[0].p0, feeds[0].p1
     assert y0 == 0.0 and y1 == 0.0
 
 
@@ -1566,12 +1567,13 @@ def _rectangle_bare():
     """The rectangle with its side gap driven directly (matching section
     removed), to read the raw very-low-R feedpoint the transformer steps up."""
     from antennaknobs.designs.verticals.rectangle import Builder
+    from antennaknobs.network import as_wire
 
     class Bare(Builder):
         def build_wires(self):
             return [
-                (t[0], t[1], t[2], 1 + 0j) if len(t) == 5 and t[4] == "feed" else t[:4]
-                for t in super().build_wires()
+                w._replace(ex=1 + 0j, name=None) if w.name == "feed" else w
+                for w in map(as_wire, super().build_wires())
             ]
 
         def build_network(self):
@@ -1654,10 +1656,11 @@ def test_rectangle_is_a_wide_closed_loop_fed_mid_short_side():
     12.8' proportions, aspect > 3.5), with the single port gap centred on one
     short VERTICAL side -- the current maximum that makes it an SCV."""
     from antennaknobs.designs.verticals.rectangle import Builder
+    from antennaknobs.network import as_wire
 
     b = Builder()
     tups = b.build_wires()
-    ports = [t for t in tups if len(t) == 5 and t[4] == "feed"]
+    ports = [w for w in map(as_wire, tups) if w.name == "feed"]
     assert len(ports) == 1
     (p,) = ports
     # The port edge is vertical (spans z, constant y) and sits mid-side.
@@ -2208,7 +2211,7 @@ def test_tri_moxon_idle_feedlines_are_shorted_quarter_waves():
     open circuit at the parked feedpoint that 'modeling shows' works best.
     Geometry: three AWG-14 wire rectangles 120 degrees apart, reflectors
     48 inches off the post, Cebik's A/E proportions."""
-    from antennaknobs.network import Driven, PortVirtual, Shunt, TL
+    from antennaknobs.network import Driven, PortVirtual, Shunt, TL, as_wire
 
     b = _tm()
     net = b.build_network()
@@ -2227,7 +2230,7 @@ def test_tri_moxon_idle_feedlines_are_shorted_quarter_waves():
     # Geometry: 3 feed gaps, element verticals A ~ 0.364 wl tall, driver
     # radius = post spacing + E, thin AWG-14 wire.
     tups = b.build_wires()
-    names = {t[4] for t in tups if len(t) == 5 and t[4]}
+    names = {w.name for w in map(as_wire, tups) if w.name}
     assert names == {"feed_1", "feed_2", "feed_3"}
     assert abs(b.a_frac - 0.364) < 0.01
     assert abs(b.e_frac - 0.1329) < 0.005

@@ -35,6 +35,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -80,7 +81,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         elem = self.elem_frac * wavelength
         spacing = self.spacing_frac * wavelength
@@ -94,9 +94,9 @@ class Builder(AntennaBuilder):
             C0 = (x, 0.0, zc - eps)
             C1 = (x, 0.0, zc + eps)
             return [
-                (B, C0, self.segs_for(half - eps, quarter), None),
-                (C0, C1, self.segs_for(2 * eps, quarter), voltage),
-                (C1, T, self.segs_for(half - eps, quarter), None),
+                Wire(B, C0),
+                Wire(C0, C1, ex=voltage),
+                Wire(C1, T),
             ]
 
         tups = []

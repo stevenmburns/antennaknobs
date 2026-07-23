@@ -45,7 +45,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
-import math
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -99,7 +99,6 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         vert = self.vert_frac * wavelength * self.length_factor
         horiz = self.horiz_frac * wavelength * self.length_factor
@@ -128,37 +127,13 @@ class Builder(AntennaBuilder):
 
         tups = []
         for k, ((ya, za), (yb, zb)) in enumerate(zip(nodes[:-1], nodes[1:])):
-            seg = math.hypot(yb - ya, zb - za)
             if k == fa:
                 # Split the end riser: passive below, 1-seg driven gap, passive
                 # above (a current-maximum-style tap, but on a current minimum).
-                tups.append(
-                    (
-                        (0.0, ya, za),
-                        (0.0, ya, zf),
-                        self.segs_for(zf - za, quarter),
-                        None,
-                    )
-                )
-                tups.append(
-                    (
-                        (0.0, ya, zf),
-                        (0.0, ya, zf + 2 * eps),
-                        self.segs_for(2 * eps, quarter),
-                        1 + 0j,
-                    )
-                )
-                tups.append(
-                    (
-                        (0.0, ya, zf + 2 * eps),
-                        (0.0, yb, zb),
-                        self.segs_for(zb - (zf + 2 * eps), quarter),
-                        None,
-                    )
-                )
+                tups.append(Wire((0.0, ya, za), (0.0, ya, zf)))
+                tups.append(Wire((0.0, ya, zf), (0.0, ya, zf + 2 * eps), ex=1 + 0j))
+                tups.append(Wire((0.0, ya, zf + 2 * eps), (0.0, yb, zb)))
             else:
-                tups.append(
-                    ((0.0, ya, za), (0.0, yb, zb), self.segs_for(seg, quarter), None)
-                )
+                tups.append(Wire((0.0, ya, za), (0.0, yb, zb)))
 
         return tups

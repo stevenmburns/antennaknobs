@@ -39,6 +39,7 @@ The structure is planar in x = 0.
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -83,7 +84,6 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
         lf = self.length_factor
 
         w = self.base_frac * wavelength * lf
@@ -115,10 +115,10 @@ class Builder(AntennaBuilder):
 
         return [
             # Left side: apex -> feed edge -> base corner (driven mid-side).
-            (T, F0, self.segs_for(d, quarter), None),
-            (F0, F1, self.segs_for(pe, quarter), 1 + 0j),
-            (F1, A, self.segs_for(s - d, quarter), None),
+            Wire(T, F0),
+            Wire(F0, F1, ex=1 + 0j),
+            Wire(F1, A),
             # Horizontal base and right side close the delta.
-            (A, B, self.segs_for(w, quarter), None),
-            (B, T, self.segs_for(s, quarter), None),
+            Wire(A, B),
+            Wire(B, T),
         ]

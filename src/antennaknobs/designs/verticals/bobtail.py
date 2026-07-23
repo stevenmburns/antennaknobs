@@ -44,6 +44,7 @@ The structure is planar in x = 0.
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 from types import MappingProxyType
 
 
@@ -92,7 +93,6 @@ class Builder(AntennaBuilder):
         eps = 0.05
 
         wavelength = 299.792458 / self.design_freq
-        quarter = 0.25 * wavelength
 
         vert = self.vert_frac * wavelength * self.length_factor
         span = self.span_frac * wavelength * self.length_factor
@@ -100,68 +100,22 @@ class Builder(AntennaBuilder):
         z_bot = self.base
         z_top = self.base + vert
 
-        tups = []
-
-        # Top phasing wire: -span -> 0 -> +span, split at the centre so the
-        # centre vertical shares the junction node.
-        tups.append(
-            (
-                (0.0, -span, z_top),
-                (0.0, 0.0, z_top),
-                self.segs_for(span, quarter),
-                None,
-            )
-        )
-        tups.append(
-            ((0.0, 0.0, z_top), (0.0, span, z_top), self.segs_for(span, quarter), None)
-        )
-
-        # Outer verticals (passive, open at the bottom).
-        tups.append(
-            (
-                (0.0, -span, z_top),
-                (0.0, -span, z_bot),
-                self.segs_for(vert, quarter),
-                None,
-            )
-        )
-        tups.append(
-            (
-                (0.0, span, z_top),
-                (0.0, span, z_bot),
-                self.segs_for(vert, quarter),
-                None,
-            )
-        )
-
-        # Centre vertical: a one-segment driven gap tapped `feed_height_frac`
-        # of the way up (a current maximum), with passive wire above and below.
-        # zf is the lower edge of the gap.
+        # Centre vertical's driven gap taps `feed_height_frac` of the way up
+        # (a current maximum), with passive wire above and below. zf is the
+        # lower edge of the gap.
         feed = 2 * eps
         zf = z_bot + self.feed_height_frac * (vert - feed)
-        tups.append(
-            (
-                (0.0, 0.0, z_top),
-                (0.0, 0.0, zf + feed),
-                self.segs_for(z_top - (zf + feed), quarter),
-                None,
-            )
-        )
-        tups.append(
-            (
-                (0.0, 0.0, zf + feed),
-                (0.0, 0.0, zf),
-                self.segs_for(feed, quarter),
-                1 + 0j,
-            )
-        )
-        tups.append(
-            (
-                (0.0, 0.0, zf),
-                (0.0, 0.0, z_bot),
-                self.segs_for(zf - z_bot, quarter),
-                None,
-            )
-        )
 
-        return tups
+        return [
+            # Top phasing wire: -span -> 0 -> +span, split at the centre so
+            # the centre vertical shares the junction node.
+            Wire((0.0, -span, z_top), (0.0, 0.0, z_top)),
+            Wire((0.0, 0.0, z_top), (0.0, span, z_top)),
+            # Outer verticals (passive, open at the bottom).
+            Wire((0.0, -span, z_top), (0.0, -span, z_bot)),
+            Wire((0.0, span, z_top), (0.0, span, z_bot)),
+            # Centre vertical: passive above, driven gap, passive below.
+            Wire((0.0, 0.0, z_top), (0.0, 0.0, zf + feed)),
+            Wire((0.0, 0.0, zf + feed), (0.0, 0.0, zf), ex=1 + 0j),
+            Wire((0.0, 0.0, zf), (0.0, 0.0, z_bot)),
+        ]

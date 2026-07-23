@@ -29,6 +29,7 @@ Geometry, in the framework's (x, y, z) convention:
 """
 
 from antennaknobs import AntennaBuilder
+from antennaknobs.network import Wire
 import math
 from types import MappingProxyType
 
@@ -77,39 +78,22 @@ class Builder(AntennaBuilder):
         # segments at the feed junction on fine meshes — a graded-junction
         # ratio the pulse/sinusoidal bases handle badly, so PyNEC/sin diverged
         # up the convergence ladder while BSpline d=2 stayed flat).
-        n_seg_radials = self.segs_for(quarter, quarter)
         n_radials = 4
         radial_len = quarter  # quarter-wave radials, like a ground-plane vert
 
         tups = []
         # Base feed: a one-segment driven gap at the foot of the riser, against
         # the radial counterpoise (cf. designs/vertical.py).
-        tups.append(
-            ((0.0, 0.0, z), (0.0, 0.0, z + eps), self.segs_for(eps, quarter), 1 + 0j)
-        )
+        tups.append(Wire((0.0, 0.0, z), (0.0, 0.0, z + eps), ex=1 + 0j))
         # Vertical riser, then the horizontal top section.
-        tups.append(
-            (
-                (0.0, 0.0, z + eps),
-                (0.0, 0.0, z + vert),
-                self.segs_for(vert, quarter),
-                None,
-            )
-        )
-        tups.append(
-            (
-                (0.0, 0.0, z + vert),
-                (0.0, horiz, z + vert),
-                self.segs_for(horiz, quarter),
-                None,
-            )
-        )
+        tups.append(Wire((0.0, 0.0, z + eps), (0.0, 0.0, z + vert)))
+        tups.append(Wire((0.0, 0.0, z + vert), (0.0, horiz, z + vert)))
 
         # Elevated radials spreading from the feedpoint in the x/y plane.
         for i in range(n_radials):
             theta = 2 * math.pi / n_radials * i
             rx = radial_len * math.cos(theta)
             ry = radial_len * math.sin(theta)
-            tups.append(((0.0, 0.0, z), (rx, ry, z), n_seg_radials, None))
+            tups.append(Wire((0.0, 0.0, z), (rx, ry, z)))
 
         return tups
