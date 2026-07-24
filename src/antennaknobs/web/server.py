@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import math
 import os
 import time
@@ -41,6 +42,8 @@ from . import cost as _cost
 from . import pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
+
+_logger = logging.getLogger(__name__)
 
 
 def _physical_cpu_count() -> int:
@@ -287,6 +290,124 @@ def _moment_segments(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     )
 
 
+def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid=None):
+    """|M_perp|² at arbitrary far-field directions — the single server-side
+    implementation of the pattern physics (issue #547; the frontend's JS
+    copy is being retired against this).
+
+    rhat: (..., 3) unit direction array (any leading shape). With ground on,
+    evaluates the PEC image + per-ray Fresnel correction from the response's
+    ground constants. Returns a real array of rhat's leading shape. Callers
+    that already hold the moment set pass it via mid/dr/i_mid to skip the
+    re-extraction.
+    """
+    k = float(out["k_meas_m_inv"])
+    ground_on = bool(out.get("ground", False))
+    if mid is None:
+        mid, dr, i_mid = _moment_segments(out)
+    rx, ry, rz = rhat[..., 0], rhat[..., 1], rhat[..., 2]
+
+    phase = k * np.einsum("...c,nc->...n", rhat, mid)
+    expp = np.exp(1j * phase)
+    weighted = i_mid[:, None] * dr  # (Nseg, 3)
+    M = np.einsum("...n,nc->...c", expp, weighted)
+    m_dot_r = np.sum(M * rhat, axis=-1)
+    M_perp = M - m_dot_r[..., None] * rhat
+
+    if ground_on:
+        # PEC-image method, then Fresnel-correct the reflected wave per-ray.
+        # Image current: horizontal components flipped, vertical preserved.
+        # This reproduces PEC reflection when ρ_h=-1, ρ_v=+1, and lets us
+        # apply the actual finite-ground coefficients to that same image.
+        mid_img = mid * np.array([1.0, 1.0, -1.0])
+        dr_img = dr * np.array([-1.0, -1.0, 1.0])
+        weighted_img = i_mid[:, None] * dr_img
+        phase_img = k * np.einsum("...c,nc->...n", rhat, mid_img)
+        expp_img = np.exp(1j * phase_img)
+        M_img = np.einsum("...n,nc->...c", expp_img, weighted_img)
+        m_img_dot_r = np.sum(M_img * rhat, axis=-1)
+        M_img_perp = M_img - m_img_dot_r[..., None] * rhat
+
+        # Polarization basis at each ray: ĥ = ẑ × r̂ (perp to plane of
+        # incidence), v̂ = r̂ × ĥ (in plane of incidence, perp to r̂).
+        s = np.sqrt(rx * rx + ry * ry)
+        s_safe = np.where(s > 1e-12, s, 1.0)
+        h_hat = np.stack([-ry / s_safe, rx / s_safe, np.zeros_like(rx)], axis=-1)
+        v_hat = np.stack([-rx * rz / s_safe, -ry * rz / s_safe, s], axis=-1)
+
+        M_img_h = np.sum(M_img_perp * h_hat, axis=-1)
+        M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
+
+        eps_c = out["ground_eps_r"] + 1j * out["ground_eps_im"]
+        cos_ti = rz
+        sin2_ti = s * s
+        Q = np.sqrt(eps_c - sin2_ti)
+        rho_h = (cos_ti - Q) / (cos_ti + Q)
+        rho_v = (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
+
+        # Reflected: ρ_v on the v-pol component, −ρ_h on the h-pol component
+        # (the minus sign folds the PEC image's pre-applied horizontal flip
+        # back out so ρ_h=−1 recovers the PEC limit exactly).
+        M_refl = (rho_v * M_img_v)[..., None] * v_hat - (rho_h * M_img_h)[
+            ..., None
+        ] * h_hat
+        M_perp = M_perp + M_refl
+
+    return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
+
+
+# The polar-chart cuts are sampled on this many directions around the full
+# circle — matches the frontend's FARFIELD_N_DIR so the retired JS path and
+# the server cuts are sample-for-sample comparable during the migration.
+_CUT_N_DIR = 180
+
+# dBi floor sentinel for below-horizon samples (JSON can't carry -Infinity).
+_CUT_FLOOR_DBI = -999.0
+
+
+def _pattern_cuts(out: dict, az_elev_deg: float, elev_az_deg: float) -> dict | None:
+    """The two polar-chart traces (issue #547): the azimuth cut at elevation
+    `az_elev_deg` and the great-circle elevation cut through azimuth
+    `elev_az_deg`, each _CUT_N_DIR samples of absolute dBi.
+
+    Both circles are parameterised exactly as the frontend's computeCutDbi:
+    sample i sits at t = 2π·i/N_DIR; the azimuth cut runs the horizon circle
+    at the given elevation, the elevation cut is the vertical circle whose
+    t ∈ (180°, 360°) half dips below the horizon. With ground on, below-
+    horizon samples clamp to _CUT_FLOOR_DBI. Returns None when the response
+    can't support cuts (no wires or no positive gain norm).
+    """
+    norm = float(out.get("directivity_norm") or 0.0)
+    if norm <= 0.0 or not out.get("wires"):
+        return None
+    t = 2.0 * np.pi * np.arange(_CUT_N_DIR) / _CUT_N_DIR
+    ct, st = np.cos(t), np.sin(t)
+
+    az = np.radians(az_elev_deg)
+    az_rhat = np.stack(
+        [np.cos(az) * ct, np.cos(az) * st, np.full_like(t, np.sin(az))], axis=-1
+    )
+    el = np.radians(elev_az_deg)
+    el_rhat = np.stack([np.cos(el) * ct, np.sin(el) * ct, st], axis=-1)
+
+    rhat = np.stack([az_rhat, el_rhat])  # (2, N_DIR, 3)
+    mag2 = _mag2_at_directions(out, rhat)
+    if bool(out.get("ground", False)):
+        mag2 = np.where(rhat[..., 2] < 0.0, 0.0, mag2)
+
+    with np.errstate(divide="ignore"):
+        dbi = 10.0 * np.log10(np.maximum(norm * mag2, 0.0))
+    dbi = np.where(np.isfinite(dbi), dbi, _CUT_FLOOR_DBI)
+    return {
+        "az_elev_deg": float(az_elev_deg),
+        "elev_az_deg": float(elev_az_deg),
+        "n_dir": _CUT_N_DIR,
+        "floor_dbi": _CUT_FLOOR_DBI,
+        "azimuth": [round(float(v), 3) for v in dbi[0]],
+        "elevation": [round(float(v), 3) for v in dbi[1]],
+    }
+
+
 def _pattern_integral_norm(out: dict) -> float:
     """The pattern-integral gain norm (4π/∮|M_perp|²dΩ)·efficiency evaluated
     in CLOSED FORM — no angular grid. Because the radiated power is quadratic
@@ -420,53 +541,7 @@ def _compute_directivity_norm(
     rz = np.broadcast_to(cos_t[:, None], (n_theta, n_phi))
     rhat = np.stack([rx, ry, rz], axis=-1)  # (nθ, nφ, 3)
 
-    phase = k * np.einsum("ijc,nc->ijn", rhat, mid)  # (nθ, nφ, Nseg)
-    expp = np.exp(1j * phase)
-    weighted = i_mid[:, None] * dr  # (Nseg, 3)
-    M = np.einsum("ijn,nc->ijc", expp, weighted)  # (nθ, nφ, 3)
-    m_dot_r = np.sum(M * rhat, axis=-1)
-    M_perp = M - m_dot_r[..., None] * rhat
-
-    if ground_on:
-        # PEC-image method, then Fresnel-correct the reflected wave per-ray.
-        # Image current: horizontal components flipped, vertical preserved.
-        # This reproduces PEC reflection when ρ_h=-1, ρ_v=+1, and lets us
-        # apply the actual finite-ground coefficients to that same image.
-        mid_img = mid * np.array([1.0, 1.0, -1.0])
-        dr_img = dr * np.array([-1.0, -1.0, 1.0])
-        weighted_img = i_mid[:, None] * dr_img
-        phase_img = k * np.einsum("ijc,nc->ijn", rhat, mid_img)
-        expp_img = np.exp(1j * phase_img)
-        M_img = np.einsum("ijn,nc->ijc", expp_img, weighted_img)
-        m_img_dot_r = np.sum(M_img * rhat, axis=-1)
-        M_img_perp = M_img - m_img_dot_r[..., None] * rhat
-
-        # Polarization basis at each ray: ĥ = ẑ × r̂ (perp to plane of
-        # incidence), v̂ = r̂ × ĥ (in plane of incidence, perp to r̂).
-        s = np.sqrt(rx * rx + ry * ry)
-        s_safe = np.where(s > 1e-12, s, 1.0)
-        h_hat = np.stack([-ry / s_safe, rx / s_safe, np.zeros_like(rx)], axis=-1)
-        v_hat = np.stack([-rx * rz / s_safe, -ry * rz / s_safe, s], axis=-1)
-
-        M_img_h = np.sum(M_img_perp * h_hat, axis=-1)  # complex (nθ, nφ)
-        M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
-
-        eps_c = out["ground_eps_r"] + 1j * out["ground_eps_im"]
-        cos_ti = rz
-        sin2_ti = s * s
-        Q = np.sqrt(eps_c - sin2_ti)
-        rho_h = (cos_ti - Q) / (cos_ti + Q)
-        rho_v = (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
-
-        # Reflected: ρ_v on the v-pol component, −ρ_h on the h-pol component
-        # (the minus sign folds the PEC image's pre-applied horizontal flip
-        # back out so ρ_h=−1 recovers the PEC limit exactly).
-        M_refl = (rho_v * M_img_v)[..., None] * v_hat - (rho_h * M_img_h)[
-            ..., None
-        ] * h_hat
-        M_perp = M_perp + M_refl
-
-    mag2 = np.sum((M_perp.real**2 + M_perp.imag**2), axis=-1)  # (nθ, nφ)
+    mag2 = _mag2_at_directions(out, rhat, mid=mid, dr=dr, i_mid=i_mid)
 
     # Gauss–Legendre in θ (weight absorbs sin θ) × uniform rectangle in φ.
     dphi = 2 * np.pi / n_phi
@@ -799,13 +874,34 @@ def solve(req: dict, cancel=None) -> dict:
         # tick first populated this cache entry.
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
+        _attach_request_cuts(out, req)
         return out
     out = _solve_uncached(req, cancel=cancel)
     out["cache_hit"] = False
     _SOLVE_CACHE[key] = deepcopy(out)
     while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
         _SOLVE_CACHE.popitem(last=False)
+    # After the cache store: cuts depend on the request's cut angles, so the
+    # cached entry stays angle-independent and every request gets fresh cuts.
+    _attach_request_cuts(out, req)
     return out
+
+
+def _attach_request_cuts(out: dict, req: dict) -> None:
+    """Attach the request's polar-chart cuts to a solve response (issue
+    #547). Never lets a cuts failure break the solve — the frontend treats
+    a missing `cuts` field as "compute unavailable"."""
+    try:
+        cuts = _pattern_cuts(
+            out,
+            float(req.get("az_elev_deg", 15.0)),
+            float(req.get("elev_az_deg", 0.0)),
+        )
+    except Exception:
+        _logger.exception("pattern cuts failed; solve response ships without them")
+        cuts = None
+    if cuts is not None:
+        out["cuts"] = cuts
 
 
 @app.post("/sweep")
@@ -1273,6 +1369,35 @@ async def params_source_endpoint(req: dict):
     except Exception as exc:  # noqa: BLE001 — a user design's params can be odd
         return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
     return {"geometry": geometry, "available": True, "source": source}
+
+
+@app.post("/cuts")
+def cuts_endpoint(req: dict):
+    """Recompute the two polar-chart cuts at new cut angles (issue #547).
+
+    Stateless: the body carries the fields of a previously returned solve
+    response under ``solve`` (wires + k_meas_m_inv + ground constants +
+    directivity_norm — the client already holds all of them) plus
+    ``az_elev_deg`` / ``elev_az_deg``. Returns the same ``cuts`` object the
+    live solve attaches. Sync def → FastAPI threadpool, so a big-mesh cut
+    (~100 ms at 4k segments) never blocks the event loop.
+    """
+    solve_out = req.get("solve")
+    if not isinstance(solve_out, dict):
+        raise HTTPException(status_code=400, detail="missing solve response body")
+    try:
+        cuts = _pattern_cuts(
+            solve_out,
+            float(req.get("az_elev_deg", 15.0)),
+            float(req.get("elev_az_deg", 0.0)),
+        )
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"bad cuts request: {e}") from e
+    if cuts is None:
+        raise HTTPException(
+            status_code=400, detail="solve response cannot support cuts"
+        )
+    return cuts
 
 
 @app.post("/pattern_metrics")
