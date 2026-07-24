@@ -30,6 +30,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Drone
+from antennaknobs.network import as_wire
 
 
 class Builder(AntennaBuilder):
@@ -85,7 +86,7 @@ class Builder(AntennaBuilder):
             return drone.wires()
 
         def total(side):
-            return sum(math.dist(p0, p1) for p0, p1, _ns, _ex in geometry(side))
+            return sum(math.dist(w.p0, w.p1) for w in map(as_wire, geometry(side)))
 
         # Size by total wire length, numerically (the drone builds never use the
         # closed-form top-corner position the shipped delta_loop leans on).
@@ -99,4 +100,4 @@ class Builder(AntennaBuilder):
         def lift(p):
             return (p[0], p[1], p[2] + shift)
 
-        return [(lift(a), lift(b), ns, ex) for a, b, ns, ex in wires]
+        return [w._replace(p0=lift(w.p0), p1=lift(w.p1)) for w in map(as_wire, wires)]
