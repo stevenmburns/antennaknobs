@@ -329,11 +329,31 @@ def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid
         M_img_perp = M_img - m_img_dot_r[..., None] * rhat
 
         # Polarization basis at each ray: ĥ = ẑ × r̂ (perp to plane of
-        # incidence), v̂ = r̂ × ĥ (in plane of incidence, perp to r̂).
+        # incidence), v̂ = r̂ × ĥ (in plane of incidence, perp to r̂). At the
+        # pole (s → 0, e.g. the elevation cut's zenith sample, where float
+        # cos(π/2) ≈ 6e-17) the basis degenerates; normal incidence makes
+        # ρ_v = −ρ_h so any horizontal orthonormal pair is the correct limit
+        # — substitute x̂/ŷ. Guarding only the division would instead shrink
+        # ĥ, v̂ to ~0 and silently drop the reflected wave at that sample.
         s = np.sqrt(rx * rx + ry * ry)
-        s_safe = np.where(s > 1e-12, s, 1.0)
-        h_hat = np.stack([-ry / s_safe, rx / s_safe, np.zeros_like(rx)], axis=-1)
-        v_hat = np.stack([-rx * rz / s_safe, -ry * rz / s_safe, s], axis=-1)
+        at_pole = s <= 1e-9
+        s_safe = np.where(at_pole, 1.0, s)
+        h_hat = np.stack(
+            [
+                np.where(at_pole, 1.0, -ry / s_safe),
+                np.where(at_pole, 0.0, rx / s_safe),
+                np.zeros_like(rx),
+            ],
+            axis=-1,
+        )
+        v_hat = np.stack(
+            [
+                np.where(at_pole, 0.0, -rx * rz / s_safe),
+                np.where(at_pole, 1.0, -ry * rz / s_safe),
+                np.where(at_pole, 0.0, s),
+            ],
+            axis=-1,
+        )
 
         M_img_h = np.sum(M_img_perp * h_hat, axis=-1)
         M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
