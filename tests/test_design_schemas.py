@@ -20,7 +20,9 @@ import math
 import pytest
 
 import antennaknobs.web.examples  # noqa: F401 — primes the adapter
+from antennaknobs.network import Wire
 from antennaknobs.web.adapter import (
+    _auto_default_view,
     _auto_paramspec,
     _build_builder,
     _make_example,
@@ -114,6 +116,45 @@ def test_variant_values_serialise_for_every_variant(name):
 @pytest.mark.parametrize("name", DESIGN_NAMES)
 def test_default_view_is_a_valid_2d_plane(name):
     assert REGISTRY[name].default_view in {"xy", "yz", "xz"}
+
+
+def test_auto_default_view_reads_wire_idiom_entries():
+    """Regression guard for the #525 stage-2 Wire() migration.
+
+    `_auto_default_view` used to unpack build_wires() entries as strict
+    4-tuples. A `Wire`'s len() is always 6 (defaults fill name/spec), so
+    the unpack raised inside the function's try block and the bare-except
+    fallback silently returned "xy" for every Wire-idiom design — invvee
+    rendered edge-on until the user switched views, and no test noticed
+    because "xy" is a valid plane. Pin the mechanism directly: a Wire-idiom
+    geometry lying in the y-z plane must autodetect "yz".
+    """
+
+    class YZVee:
+        def build_wires(self):
+            return [
+                Wire((0, 0.05, 7.0), (0, 5.0, 4.0), 20, 1.0),
+                Wire((0, -0.05, 7.0), (0, -5.0, 4.0), 20, None),
+            ]
+
+    assert _auto_default_view(YZVee) == "yz"
+
+
+@pytest.mark.parametrize(
+    "name,view",
+    [
+        # These designs carry no ui_params["default_view"] override, so the
+        # value below is the *auto-detected* plane — if the detector silently
+        # falls back to "xy" again, these pins fail where the generic
+        # valid-plane sweep above cannot.
+        ("dipoles.invvee", "yz"),
+        ("loops.delta_loop", "yz"),
+        ("specialty.bowtie", "yz"),
+        ("beams.yagi", "xy"),  # boom on x, elements on y — genuinely xy
+    ],
+)
+def test_auto_default_view_pins(name, view):
+    assert REGISTRY[name].default_view == view
 
 
 @pytest.mark.parametrize("name", DESIGN_NAMES)

@@ -1129,9 +1129,10 @@ def _auto_default_view(cls) -> str:
     try:
         b = cls()
         pts = []
-        for p0, p1, _n, _e in b.build_wires():
-            pts.append(p0)
-            pts.append(p1)
+        for t in b.build_wires():
+            w = as_wire(t)
+            pts.append(w.p0)
+            pts.append(w.p1)
         a = np.asarray(pts, dtype=float)
     except Exception:
         return "xy"
