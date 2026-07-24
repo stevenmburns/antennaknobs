@@ -38,6 +38,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
 
+from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
+
 from . import cost as _cost
 from . import pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
@@ -290,6 +292,69 @@ def _moment_segments(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     )
 
 
+def _terrain_from_packed(d: dict) -> Terrain:
+    """Rebuild the faceted terrain from a response's `ground_terrain` field
+    (the adapter's _pack_terrain). Validation lives in the terrain
+    dataclasses — bad client data raises ValueError/TypeError/KeyError,
+    which the /cuts endpoint maps to a 400."""
+    return Terrain(
+        sectors=tuple(
+            Sector(
+                az0=float(s["az0"]),
+                az1=float(s["az1"]),
+                facets=tuple(
+                    Facet(
+                        x1=None if f[0] is None else float(f[0]),
+                        z1=float(f[1]),
+                        eps_r=float(f[2]),
+                        sigma=float(f[3]),
+                    )
+                    for f in s["facets"]
+                ),
+            )
+            for s in d["sectors"]
+        )
+    )
+
+
+def _terrain_ray_geometry(terrain: Terrain, rhat, mid, dr, i_mid):
+    """Per-ray specular-facet data for a faceted terrain: surface height z_f
+    at each ray's specular point, facet downward tilt beta, and the facet
+    medium (eps_r, sigma), all over rhat's leading shape. Mirrors the
+    engine's grid-based branch (engines/momwire.py _evaluate_M_perp) for
+    arbitrary direction sets; h_ref is the same current-weighted mean
+    segment height (the web ground plane sits at z=0)."""
+    w = np.abs(i_mid) * np.linalg.norm(dr, axis=1)
+    wsum = float(np.sum(w))
+    h_ref = float((np.sum(w * mid[:, 2]) / wsum) if wsum > 0 else np.mean(mid[:, 2]))
+
+    shape = rhat.shape[:-1]
+    rxf = rhat[..., 0].ravel()
+    ryf = rhat[..., 1].ravel()
+    rzf = rhat[..., 2].ravel()
+    theta = np.arccos(np.clip(rzf, -1.0, 1.0))
+    sec_idx = terrain.sector_for(np.degrees(np.arctan2(ryf, rxf)))
+    z_f = np.empty(theta.shape)
+    beta = np.empty(theta.shape)
+    eps = np.empty(theta.shape)
+    sig = np.empty(theta.shape)
+    for i, sector in enumerate(terrain.sectors):
+        rays = sec_idx == i
+        if not np.any(rays):
+            continue
+        zf_t, b_t, e_t, s_t = specular_cut(sector, theta[rays], h_ref)
+        z_f[rays] = zf_t
+        beta[rays] = b_t
+        eps[rays] = e_t
+        sig[rays] = s_t
+    return (
+        z_f.reshape(shape),
+        beta.reshape(shape),
+        eps.reshape(shape),
+        sig.reshape(shape),
+    )
+
+
 def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid=None):
     """|M_perp|² at arbitrary far-field directions — the single server-side
     implementation of the pattern physics (issue #547; the frontend's JS
@@ -358,9 +423,32 @@ def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid
         M_img_h = np.sum(M_img_perp * h_hat, axis=-1)
         M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
 
-        eps_c = out["ground_eps_r"] + 1j * out["ground_eps_im"]
-        cos_ti = rz
-        sin2_ti = s * s
+        terr = out.get("ground_terrain")
+        if terr:
+            # Faceted terrain (issue #534): per ray, find the facet the
+            # specular point lands on, shift the image plane to the facet
+            # surface (an extra 2·k·z_f·cosθ path phase — z_f ≤ 0 below
+            # the crest, so the reflected wave rides the full effective
+            # height), tilt the incidence angle by the facet slope, and
+            # evaluate Fresnel with the facet's medium.
+            z_f, beta, eps_g, sig_g = _terrain_ray_geometry(
+                _terrain_from_packed(terr), rhat, mid, dr, i_mid
+            )
+            pf = np.exp(2j * k * z_f * rz)
+            M_img_h = M_img_h * pf
+            M_img_v = M_img_v * pf
+            omega = 2.0 * np.pi * float(out["measurement_freq_mhz"]) * 1e6
+            eps_c = eps_g + 1j * (-sig_g / (omega * _EPS0))
+            th_loc = np.clip(np.arccos(np.clip(rz, -1.0, 1.0)) - beta, 0.0, np.pi / 2)
+            # On untilted facets keep the flat branch's exact trig route
+            # (rz / s·s) so a single-flat-facet terrain reproduces the plain
+            # finite ground bit-for-bit (mirrors the engine, #534 gate 1).
+            cos_ti = np.where(beta == 0.0, rz, np.cos(th_loc))
+            sin2_ti = np.where(beta == 0.0, s * s, np.sin(th_loc) ** 2)
+        else:
+            eps_c = out["ground_eps_r"] + 1j * out["ground_eps_im"]
+            cos_ti = rz
+            sin2_ti = s * s
         Q = np.sqrt(eps_c - sin2_ti)
         rho_h = (cos_ti - Q) / (cos_ti + Q)
         rho_v = (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
