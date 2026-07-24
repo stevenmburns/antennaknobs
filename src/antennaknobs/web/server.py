@@ -357,8 +357,8 @@ def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid
 
 
 # The polar-chart cuts are sampled on this many directions around the full
-# circle — matches the frontend's FARFIELD_N_DIR so the retired JS path and
-# the server cuts are sample-for-sample comparable during the migration.
+# circle. The frontend draws whatever length the `azimuth`/`elevation`
+# arrays carry, so this is free to change server-side.
 _CUT_N_DIR = 180
 
 # dBi floor sentinel for below-horizon samples (JSON can't carry -Infinity).
@@ -370,7 +370,7 @@ def _pattern_cuts(out: dict, az_elev_deg: float, elev_az_deg: float) -> dict | N
     `az_elev_deg` and the great-circle elevation cut through azimuth
     `elev_az_deg`, each _CUT_N_DIR samples of absolute dBi.
 
-    Both circles are parameterised exactly as the frontend's computeCutDbi:
+    Both circles are parameterised as the frontend chart draws them:
     sample i sits at t = 2π·i/N_DIR; the azimuth cut runs the horizon circle
     at the given elevation, the elevation cut is the vertical circle whose
     t ∈ (180°, 360°) half dips below the horizon. With ground on, below-

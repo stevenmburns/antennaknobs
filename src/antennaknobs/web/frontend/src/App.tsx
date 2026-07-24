@@ -1317,6 +1317,20 @@ type FeedEntry = {
   v_im: number;
 };
 
+/** The two polar-chart traces, computed server-side (issue #547): the
+ *  azimuth cut at elevation `az_elev_deg` and the vertical great-circle cut
+ *  through azimuth `elev_az_deg`. Each is `n_dir` absolute-dBi samples with
+ *  sample i at t = 2π·i/n_dir — the parameterisation FarFieldChart draws.
+ *  Below-horizon samples clamp to `floor_dbi` (JSON can't carry -Infinity). */
+type PatternCuts = {
+  az_elev_deg: number;
+  elev_az_deg: number;
+  n_dir: number;
+  floor_dbi: number;
+  azimuth: number[];
+  elevation: number[];
+};
+
 type SolveResponse = {
   geometry: string;
   wires: Wire[];
@@ -1338,6 +1352,10 @@ type SolveResponse = {
    *  responses by this; a higher `_seq` implicitly acks every lower one.
    *  Absent from geometry-preview payloads (they never carry a request seq). */
   _seq?: number;
+  /** Polar-chart cuts at the request's cut angles. Absent when the response
+   *  can't support them (no wires / no gain norm) or from geometry previews;
+   *  new angles are fetched from POST /cuts (see useCutTraces). */
+  cuts?: PatternCuts;
   directivity_norm?: number;
   ground?: boolean;
   height_m?: number;
@@ -1704,6 +1722,9 @@ type SolveRequest = {
   ground: boolean;
   ground_fast: boolean;
   ground_model?: GroundModel;
+  /** Cut angles for the server-attached polar traces (issue #547). */
+  az_elev_deg?: number;
+  elev_az_deg?: number;
   // V
   angle_deg?: number;
   halfdriver_factor?: number;
@@ -3171,6 +3192,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       // server-side when present. Send both so either server version agrees.
       ground_fast: groundActive && groundModel === "fast",
       ground_model: groundModel,
+      // Cut angles ride along so each solve response arrives with its polar
+      // traces attached (server-side, issue #547). Deliberately NOT solve-
+      // effect deps: angle drags refresh traces via POST /cuts instead of
+      // re-solving; the next real solve just bakes in the current angles.
+      az_elev_deg: azElevDeg,
+      elev_az_deg: elevAzDeg,
     };
     if (backend !== "pynec") {
       base.momwire_model = backend;
@@ -6587,182 +6614,153 @@ function PatternCompareTable({
   );
 }
 
-// Directions sampled around each polar cut. Module-level so the trace helper
-// and the chart agree.
-const FARFIELD_N_DIR = 180;
+// --- Server-side polar cuts (issue #547) -----------------------------------
+// The per-direction cut physics lives in server.py (_pattern_cuts); every
+// solve response arrives with `cuts` attached at the request's angles, and
+// new angles come from the stateless POST /cuts endpoint. The pieces below
+// cache those fetches so the azimuth + elevation charts (and thumbnails)
+// sharing a solve don't duplicate round trips.
 
-// Compute the per-direction gain (dBi) of one solve response along a polar cut,
-// reproducing the live lobe math (moment integral over all segments, PEC image
-// + Fresnel reflection when ground is on). Returns the N_DIR-length dBi samples
-// and the peak, or null when there's nothing to draw. Both the live trace and
-// every pinned ghost go through this, so they're guaranteed consistent.
-function computeCutDbi(
+// Identity for solve-response objects (immutable snapshots), used to key the
+// cuts cache. WeakMap so ids die with their solves.
+let cutsIdSeq = 0;
+const cutsIds = new WeakMap<SolveResponse, number>();
+// Resolved /cuts responses by `${solveId}:${azElev}:${elevAz}`. Insertion-
+// ordered and capped — a long session of slider drags would otherwise grow
+// it without bound.
+const cutsCache = new Map<string, PatternCuts>();
+const CUTS_CACHE_MAX = 256;
+// In-flight fetch dedup — both chart instances ask for the same key at once.
+const cutsInFlight = new Map<string, Promise<PatternCuts | null>>();
+// Freshest trace known per solve, at whatever angles — drawn while the fetch
+// for the current angles is in flight so drags never blank the chart.
+const cutsLatest = new WeakMap<SolveResponse, PatternCuts>();
+
+function cutsKey(
   result: SolveResponse,
-  cut: FarFieldCut,
   azElevDeg: number,
   elevAzDeg: number,
+): string {
+  let id = cutsIds.get(result);
+  if (id === undefined) {
+    id = ++cutsIdSeq;
+    cutsIds.set(result, id);
+  }
+  return `${id}:${azElevDeg}:${elevAzDeg}`;
+}
+
+// The cuts for a solve at exactly these angles, or null if not yet known.
+function cachedCuts(
+  result: SolveResponse,
+  azElevDeg: number,
+  elevAzDeg: number,
+): PatternCuts | null {
+  const attached = result.cuts;
+  if (
+    attached &&
+    attached.az_elev_deg === azElevDeg &&
+    attached.elev_az_deg === elevAzDeg
+  ) {
+    return attached;
+  }
+  return cutsCache.get(cutsKey(result, azElevDeg, elevAzDeg)) ?? null;
+}
+
+function fetchCuts(
+  result: SolveResponse,
+  azElevDeg: number,
+  elevAzDeg: number,
+): Promise<PatternCuts | null> {
+  const key = cutsKey(result, azElevDeg, elevAzDeg);
+  const inFlight = cutsInFlight.get(key);
+  if (inFlight) return inFlight;
+  const p = fetch("/cuts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      solve: result,
+      az_elev_deg: azElevDeg,
+      elev_az_deg: elevAzDeg,
+    }),
+  })
+    .then((r) => (r.ok ? (r.json() as Promise<PatternCuts>) : null))
+    .then((cuts) => {
+      if (cuts) {
+        if (cutsCache.size >= CUTS_CACHE_MAX) {
+          // Evict the oldest half (Maps iterate in insertion order).
+          let drop = CUTS_CACHE_MAX >> 1;
+          for (const k of Array.from(cutsCache.keys())) {
+            if (drop-- <= 0) break;
+            cutsCache.delete(k);
+          }
+        }
+        cutsCache.set(key, cuts);
+      }
+      return cuts;
+    })
+    .catch(() => null)
+    .finally(() => cutsInFlight.delete(key));
+  cutsInFlight.set(key, p);
+  return p;
+}
+
+// Resolve the cut traces for a list of solves (live + pinned ghosts) at the
+// current angles. Synchronous when a solve already carries or has cached the
+// right angles; otherwise the freshest known trace is returned immediately
+// (stale-while-refetch) and a debounced POST /cuts brings the real one — the
+// debounce eats the flood of intermediate angles a slider drag produces.
+function useCutTraces(
+  results: readonly (SolveResponse | null)[],
+  azElevDeg: number,
+  elevAzDeg: number,
+): (PatternCuts | null)[] {
+  const [, setFetchTick] = useState(0); // re-render when a fetch lands
+  const wantKey = results
+    .map((r) => (r ? cutsKey(r, azElevDeg, elevAzDeg) : "-"))
+    .join("|");
+  useEffect(() => {
+    const missing = results.filter(
+      (r): r is SolveResponse => !!r && !cachedCuts(r, azElevDeg, elevAzDeg),
+    );
+    if (missing.length === 0) return;
+    let cancelled = false;
+    const h = window.setTimeout(() => {
+      Promise.all(missing.map((r) => fetchCuts(r, azElevDeg, elevAzDeg))).then(
+        () => {
+          if (!cancelled) setFetchTick((t) => t + 1);
+        },
+      );
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(h);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantKey]);
+  return results.map((r) => {
+    if (!r) return null;
+    const exact = cachedCuts(r, azElevDeg, elevAzDeg);
+    if (exact) {
+      cutsLatest.set(r, exact);
+      return exact;
+    }
+    return cutsLatest.get(r) ?? r.cuts ?? null;
+  });
+}
+
+// One chart's trace from a cuts payload: the dBi samples for the requested
+// cut plus their peak (for the adaptive radial scale and the annotation).
+// Null when there's nothing to draw (no cuts, or everything at the floor).
+function traceFor(
+  cuts: PatternCuts | null,
+  cut: FarFieldCut,
 ): { dbi: number[]; peakDbi: number } | null {
-  const azElevRad = (azElevDeg * Math.PI) / 180;
-  const azSinT = Math.cos(azElevRad);
-  const azCosT = Math.sin(azElevRad);
-  const elevAzRad = (elevAzDeg * Math.PI) / 180;
-  const elevAzCos = Math.cos(elevAzRad);
-  const elevAzSin = Math.sin(elevAzRad);
-  const groundOn = !!result.ground;
-  const N_DIR = FARFIELD_N_DIR;
-  const k = result.k_meas_m_inv ?? 0;
-  const epsRe = result.ground_eps_r ?? 1;
-  const epsIm = result.ground_eps_im ?? 0;
-
-  let nSeg = 0;
-  for (const w of result.wires) {
-    const pts = w.sample_positions ?? w.knot_positions;
-    nSeg += pts.length - 1;
-  }
-  if (nSeg === 0) return null;
-  const dx = new Float64Array(nSeg);
-  const dy = new Float64Array(nSeg);
-  const dz = new Float64Array(nSeg);
-  const midx = new Float64Array(nSeg);
-  const midy = new Float64Array(nSeg);
-  const midz = new Float64Array(nSeg);
-  const Ire = new Float64Array(nSeg);
-  const Iim = new Float64Array(nSeg);
-  let off = 0;
-  for (const w of result.wires) {
-    const pts = w.sample_positions ?? w.knot_positions;
-    const cre = w.sample_currents_re ?? w.knot_currents_re;
-    const cim = w.sample_currents_im ?? w.knot_currents_im;
-    for (let n = 0; n < pts.length - 1; n++) {
-      const a = pts[n];
-      const b = pts[n + 1];
-      dx[off] = b[0] - a[0];
-      dy[off] = b[1] - a[1];
-      dz[off] = b[2] - a[2];
-      midx[off] = 0.5 * (a[0] + b[0]);
-      midy[off] = 0.5 * (a[1] + b[1]);
-      midz[off] = 0.5 * (a[2] + b[2]);
-      Ire[off] = 0.5 * (cre[n] + cre[n + 1]);
-      Iim[off] = 0.5 * (cim[n] + cim[n + 1]);
-      off++;
-    }
-  }
-
-  const mag2s = new Array<number>(N_DIR);
-  let maxMag2 = 0;
-  for (let pi = 0; pi < N_DIR; pi++) {
-    const t = (2 * Math.PI * pi) / N_DIR;
-    const ct = Math.cos(t);
-    const st = Math.sin(t);
-    const rx = cut === "xy" ? azSinT * ct : elevAzCos * ct;
-    const ry = cut === "xy" ? azSinT * st : elevAzSin * ct;
-    const rz = cut === "xy" ? azCosT : st;
-    if (groundOn && rz < 0) {
-      mag2s[pi] = 0;
-      continue;
-    }
-    let mxRe = 0, mxIm = 0, myRe = 0, myIm = 0, mzRe = 0, mzIm = 0;
-    let ixRe = 0, ixIm = 0, iyRe = 0, iyIm = 0, izRe = 0, izIm = 0;
-    for (let n = 0; n < nSeg; n++) {
-      const phase = k * (rx * midx[n] + ry * midy[n] + rz * midz[n]);
-      const cph = Math.cos(phase);
-      const sph = Math.sin(phase);
-      const ire = Ire[n] * cph - Iim[n] * sph;
-      const iim = Ire[n] * sph + Iim[n] * cph;
-      mxRe += ire * dx[n];
-      mxIm += iim * dx[n];
-      myRe += ire * dy[n];
-      myIm += iim * dy[n];
-      mzRe += ire * dz[n];
-      mzIm += iim * dz[n];
-      if (groundOn) {
-        const phaseI = k * (rx * midx[n] + ry * midy[n] - rz * midz[n]);
-        const cphI = Math.cos(phaseI);
-        const sphI = Math.sin(phaseI);
-        const ireI = Ire[n] * cphI - Iim[n] * sphI;
-        const iimI = Ire[n] * sphI + Iim[n] * cphI;
-        ixRe += ireI * -dx[n]; ixIm += iimI * -dx[n];
-        iyRe += ireI * -dy[n]; iyIm += iimI * -dy[n];
-        izRe += ireI *  dz[n]; izIm += iimI *  dz[n];
-      }
-    }
-    const mDotRre = mxRe * rx + myRe * ry + mzRe * rz;
-    const mDotRim = mxIm * rx + myIm * ry + mzIm * rz;
-    let pxRe = mxRe - mDotRre * rx;
-    let pxIm = mxIm - mDotRim * rx;
-    let pyRe = myRe - mDotRre * ry;
-    let pyIm = myIm - mDotRim * ry;
-    let pzRe = mzRe - mDotRre * rz;
-    let pzIm = mzIm - mDotRim * rz;
-    if (groundOn) {
-      const iDotRre = ixRe * rx + iyRe * ry + izRe * rz;
-      const iDotRim = ixIm * rx + iyIm * ry + izIm * rz;
-      const qxRe = ixRe - iDotRre * rx;
-      const qxIm = ixIm - iDotRim * rx;
-      const qyRe = iyRe - iDotRre * ry;
-      const qyIm = iyIm - iDotRim * ry;
-      const qzRe = izRe - iDotRre * rz;
-      const qzIm = izIm - iDotRim * rz;
-      const s = Math.sqrt(rx * rx + ry * ry);
-      let hx: number, hy: number, hz: number;
-      let vx: number, vy: number, vz: number;
-      if (s > 1e-9) {
-        hx = -ry / s; hy = rx / s; hz = 0;
-        vx = -rx * rz / s; vy = -ry * rz / s; vz = s;
-      } else {
-        hx = 1; hy = 0; hz = 0;
-        vx = 0; vy = 1; vz = 0;
-      }
-      const qhRe = qxRe * hx + qyRe * hy + qzRe * hz;
-      const qhIm = qxIm * hx + qyIm * hy + qzIm * hz;
-      const qvRe = qxRe * vx + qyRe * vy + qzRe * vz;
-      const qvIm = qxIm * vx + qyIm * vy + qzIm * vz;
-      const cosTi = rz;
-      const sin2Ti = s * s;
-      const aRe = epsRe - sin2Ti;
-      const aIm = epsIm;
-      const aMag = Math.hypot(aRe, aIm);
-      const QRe = Math.sqrt(0.5 * (aMag + aRe));
-      const QIm = Math.sign(aIm || 1) * Math.sqrt(Math.max(0, 0.5 * (aMag - aRe)));
-      const numHRe = cosTi - QRe, numHIm = -QIm;
-      const denHRe = cosTi + QRe, denHIm = QIm;
-      const denH2 = denHRe * denHRe + denHIm * denHIm;
-      const rhoHRe = (numHRe * denHRe + numHIm * denHIm) / denH2;
-      const rhoHIm = (numHIm * denHRe - numHRe * denHIm) / denH2;
-      const ecRe = epsRe * cosTi, ecIm = epsIm * cosTi;
-      const numVRe = ecRe - QRe, numVIm = ecIm - QIm;
-      const denVRe = ecRe + QRe, denVIm = ecIm + QIm;
-      const denV2 = denVRe * denVRe + denVIm * denVIm;
-      const rhoVRe = (numVRe * denVRe + numVIm * denVIm) / denV2;
-      const rhoVIm = (numVIm * denVRe - numVRe * denVIm) / denV2;
-      const rvqRe = rhoVRe * qvRe - rhoVIm * qvIm;
-      const rvqIm = rhoVRe * qvIm + rhoVIm * qvRe;
-      const rhqRe = rhoHRe * qhRe - rhoHIm * qhIm;
-      const rhqIm = rhoHRe * qhIm + rhoHIm * qhRe;
-      pxRe += rvqRe * vx - rhqRe * hx;
-      pxIm += rvqIm * vx - rhqIm * hx;
-      pyRe += rvqRe * vy - rhqRe * hy;
-      pyIm += rvqIm * vy - rhqIm * hy;
-      pzRe += rvqRe * vz - rhqRe * hz;
-      pzIm += rvqIm * vz - rhqIm * hz;
-    }
-    const mag2 =
-      pxRe * pxRe + pxIm * pxIm +
-      pyRe * pyRe + pyIm * pyIm +
-      pzRe * pzRe + pzIm * pzIm;
-    mag2s[pi] = mag2;
-    if (mag2 > maxMag2) maxMag2 = mag2;
-  }
-  if (maxMag2 <= 0) return null;
-  // Absolute-dBi reference. Every solve carries its gain norm (an O(1)
-  // input-power scalar server-side), so the only fallback is peak-normalizing
-  // a response that somehow shipped without one (defensive).
-  const norm =
-    result.directivity_norm && result.directivity_norm > 0
-      ? result.directivity_norm
-      : 1 / maxMag2;
-  const dbi = mag2s.map((m) => (norm * m > 0 ? 10 * Math.log10(norm * m) : -Infinity));
-  return { dbi, peakDbi: 10 * Math.log10(norm * maxMag2) };
+  if (!cuts) return null;
+  const dbi = cut === "xy" ? cuts.azimuth : cuts.elevation;
+  let peak = -Infinity;
+  for (const d of dbi) if (d > peak) peak = d;
+  if (!(peak > cuts.floor_dbi)) return null;
+  return { dbi, peakDbi: peak };
 }
 
 function FarFieldChart({
@@ -6792,6 +6790,22 @@ function FarFieldChart({
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Server-computed cut traces for the live solve + enabled pins (issue
+  // #547): synchronous when the angles match what each solve shipped with,
+  // POST /cuts (debounced, cached) after the user drags a cut slider.
+  // Disabled pins draw no ghost and don't stretch the radial scale.
+  const enabledPins = pinned.filter((p) => p.enabled);
+  const cutTraces = useCutTraces(
+    [result, ...enabledPins.map((p) => p.result)],
+    azElevDeg,
+    elevAzDeg,
+  );
+  // Draw-effect dep: changes when a fetched trace replaces a stale one (the
+  // solve identities and angles are already deps of their own).
+  const cutTracesKey = cutTraces
+    .map((t) => (t ? `${t.az_elev_deg},${t.elev_az_deg}` : "-"))
+    .join("|");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -6829,19 +6843,13 @@ function FarFieldChart({
     const elevAzCos = Math.cos(elevAzRad);
     const elevAzSin = Math.sin(elevAzRad);
 
-    // Compute every trace (live + any pinned ghosts) up front, so the radial
-    // scale below can expand to fit the highest-gain lobe on screen. Cheap —
-    // each is computed once here and reused when drawing.
-    const liveTrace = result
-      ? computeCutDbi(result, cut, azElevDeg, elevAzDeg)
-      : null;
-    // Disabled pins draw no ghost and don't stretch the radial scale.
-    const ghosts = pinned
-      .filter((p) => p.enabled)
-      .map((p) => ({
-        colorIdx: p.colorIdx,
-        trace: computeCutDbi(p.result, cut, azElevDeg, elevAzDeg),
-      }));
+    // Slice every trace (live + any pinned ghosts) up front, so the radial
+    // scale below can expand to fit the highest-gain lobe on screen.
+    const liveTrace = traceFor(cutTraces[0], cut);
+    const ghosts = enabledPins.map((p, i) => ({
+      colorIdx: p.colorIdx,
+      trace: traceFor(cutTraces[i + 1], cut),
+    }));
 
     // Radial axis: absolute directivity in dBi. Origin is a fixed −20 dBi
     // floor. The outer edge is +10 dBi by default, but expands to fit the peak
@@ -6930,18 +6938,18 @@ function FarFieldChart({
 
     if (!result) return;
 
-    const N_DIR = FARFIELD_N_DIR;
-
-    // Draw one dBi trace around the polar cut. The live lobe closes + fills;
-    // pinned ghosts are an open dashed stroke so the live trace reads on top.
+    // Draw one dBi trace around the polar cut (sample i at t = 2π·i/n, the
+    // server cuts' parameterisation). The live lobe closes + fills; pinned
+    // ghosts are an open dashed stroke so the live trace reads on top.
     const strokeTrace = (
       dbi: number[],
       o: { stroke: string; fill?: string; width: number; dash?: number[] },
     ) => {
+      const n = dbi.length;
       ctx.beginPath();
-      for (let pi = 0; pi <= N_DIR; pi++) {
-        const t = (2 * Math.PI * pi) / N_DIR;
-        const frac = dbiToFrac(dbi[pi % N_DIR]);
+      for (let pi = 0; pi <= n; pi++) {
+        const t = (2 * Math.PI * pi) / n;
+        const frac = dbiToFrac(dbi[pi % n]);
         const px = cx + Math.cos(t) * frac * R;
         // Canvas y flips: +y on canvas is down, so we negate to put +y at top.
         const py = cy - Math.sin(t) * frac * R;
@@ -6995,6 +7003,7 @@ function FarFieldChart({
     // interpolation off the (θ, φ) grid; rays below horizon are skipped so
     // the line breaks at the ground rather than wrapping to the origin.
     if (pattern) {
+      const N_DIR = 180; // drawing resolution for the interpolated overlay
       const nt = pattern.theta_deg.length;
       const np_ = pattern.phi_deg.length;
       const dTheta = pattern.theta_deg[1] - pattern.theta_deg[0];
@@ -7059,7 +7068,10 @@ function FarFieldChart({
     const peakText = `peak ${peakDbi >= 0 ? "+" : ""}${peakDbi.toFixed(1)} dBi`;
     const tw = ctx.measureText(peakText).width;
     ctx.fillText(peakText, size - tw - 6, 14);
-  }, [result, pattern, pinned, size, cut, azElevDeg, elevAzDeg, fineNorm, theme]);
+    // cutTracesKey stands in for the fetched trace contents (see above); the
+    // other deps cover everything the draw reads directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, pattern, pinned, size, cut, azElevDeg, elevAzDeg, fineNorm, theme, cutTracesKey]);
 
   return <canvas ref={canvasRef} className="farfield" />;
 }

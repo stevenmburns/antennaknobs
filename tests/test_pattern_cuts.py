@@ -1,6 +1,6 @@
 """Server-side polar-chart cuts (issue #547).
 
-The frontend's computeCutDbi (App.tsx) is being retired in favour of
+The frontend's JS cut physics (computeCutDbi) is retired in favour of
 `server._pattern_cuts`, so these tests pin the physics analytically (a
 Hertzian dipole has closed-form gain), the request plumbing (/ws solve
 attaches cuts; /cuts recomputes them statelessly), and the sample
@@ -186,4 +186,4 @@ def test_mag2_directions_shape_generic():
     r1 = _mag2_at_directions(out, np.array([[0.0, 1.0, 0.0]]))
     r2 = _mag2_at_directions(out, np.stack([np.eye(3), np.eye(3)[::-1]]))  # (2, 3, 3)
     assert r1.shape == (1,) and r2.shape == (2, 3)
-    assert server._CUT_N_DIR == 180  # frontend FARFIELD_N_DIR parity
+    assert server._CUT_N_DIR == 180  # the cut-trace sample-count contract
