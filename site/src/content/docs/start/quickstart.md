@@ -3,10 +3,10 @@ title: Quickstart
 description: Install antennaknobs and solve your first antenna in a few lines of Python.
 ---
 
-## Install
+## Run the workbench with Docker
 
 The fastest path needs nothing but Docker — the published image serves the
-full workbench (new in v0.34):
+full workbench, no install (new in v0.34):
 
 ```bash
 docker run --rm -p 8000:8000 stevenmburns/antennaknobs:latest
@@ -16,8 +16,11 @@ docker run --rm -p 8000:8000 stevenmburns/antennaknobs:latest
 (See [DOCKER.md](https://github.com/stevenmburns/antennaknobs/blob/main/DOCKER.md)
 for compose, mounting your own designs, and the optional NEC2 engine.)
 
-Prefer a Python install? `antennaknobs` and its engine `momwire` are
-published to PyPI with prebuilt wheels — a plain install needs no compiler:
+## Install with Python
+
+To use the library — or hack on designs in your editor — install from PyPI.
+`antennaknobs` and its engine `momwire` ship prebuilt wheels, so a plain
+install needs no compiler:
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -35,7 +38,7 @@ pip install "pynec-accel>=1.7.4.post2"
 ```
 :::
 
-## Launch the web workbench
+This install serves the same web workbench as the Docker image:
 
 ```bash
 uvicorn antennaknobs.web.server:app      # then open http://127.0.0.1:8000
