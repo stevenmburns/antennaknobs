@@ -57,7 +57,7 @@
 | src/antennaknobs/designs/loops/\_\_init\_\_.py                    |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/bisquare.py                        |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/delta\_loop.py                     |       25 |        0 |    100% |           |
-| src/antennaknobs/designs/loops/delta\_loop\_flyby.py              |       33 |        0 |    100% |           |
+| src/antennaknobs/designs/loops/delta\_loop\_flyby.py              |       34 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/delta\_loop\_reflected.py          |       27 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/delta\_loop\_slanted.py            |       32 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/delta\_loop\_topdown.py            |       26 |        0 |    100% |           |
@@ -134,7 +134,7 @@
 | src/antennaknobs/transform.py                                     |       42 |        1 |     98% |        62 |
 | src/antennaknobs/user\_designs.py                                 |       67 |        5 |     93% |35, 45, 77, 99, 104 |
 | src/antennaknobs/web/\_\_init\_\_.py                              |        0 |        0 |    100% |           |
-| src/antennaknobs/web/adapter.py                                   |      753 |       85 |     89% |76-78, 173, 185, 187, 191, 198, 204-206, 307, 403-404, 438, 442, 450, 493, 496, 501-504, 507, 517, 522, 619, 629, 643, 645, 647, 650, 670, 680, 690-691, 863, 896, 899, 902, 919, 922, 925, 959, 987, 991, 1021, 1091-1092, 1111-1112, 1133-1135, 1138-1144, 1198-1199, 1202-1203, 1242, 1691-1693, 1723, 1776-1784, 1884, 1906-1908, 1911, 1916-1917 |
+| src/antennaknobs/web/adapter.py                                   |      754 |       77 |     90% |76-78, 173, 185, 187, 191, 198, 204-206, 307, 403-404, 438, 442, 450, 493, 496, 501-504, 507, 517, 522, 619, 629, 643, 645, 647, 650, 670, 680, 690-691, 863, 896, 899, 902, 919, 922, 925, 959, 987, 991, 1021, 1091-1092, 1111-1112, 1137-1138, 1199-1200, 1203-1204, 1243, 1692-1694, 1724, 1777-1785, 1885, 1907-1909, 1912, 1917-1918 |
 | src/antennaknobs/web/cost.py                                      |       43 |        0 |    100% |           |
 | src/antennaknobs/web/examples/\_\_init\_\_.py                     |       11 |        1 |     91% |        24 |
 | src/antennaknobs/web/examples/\_base.py                           |       92 |        0 |    100% |           |
@@ -144,7 +144,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      673 |       77 |     89% |66-68, 136-140, 271-272, 358, 412, 559-562, 733, 775, 807, 869, 877-880, 899-911, 914, 939, 954-967, 1015-1017, 1065, 1079, 1108-1109, 1133-1134, 1164, 1218-1225, 1237-1250, 1270, 1273-1274, 1290, 1308-1311, 1327, 1360, 1363, 1371, 1398-1399, 1613, 1674, 1685, 1689, 1740-1741, 1759 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **8692** |  **458** | **95%** |           |
+| **TOTAL**                                                         | **8694** |  **450** | **95%** |           |
 
 
 ## Setup coverage badge
