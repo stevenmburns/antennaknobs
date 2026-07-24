@@ -93,6 +93,31 @@ def test_pec_limit_vertical_dipole_gains_over_free_space():
     assert 10 * math.log10(m_pec / m_free) == pytest.approx(6.0, abs=0.1)
 
 
+def test_ground_reflection_survives_the_zenith_sample():
+    """The elevation cut hits zenith exactly (i=45 → t=90°, where float
+    cos(π/2) ≈ 6e-17), and there the h/v polarisation basis degenerates.
+    A guard that only protects the division (s_safe) shrinks ĥ, v̂ to ~0 and
+    silently drops the reflected wave at that one sample — a visible kink in
+    the live chart. At normal incidence ρ_v = −ρ_h makes the reflection
+    basis-independent, so the correct value is the closed-form two-ray
+    result |e^{jkh} + ρ_h(0)·e^{−jkh}|²·dl² for a horizontal dipole."""
+    dl, h = 0.01, 1.0
+    out = _hertzian(dl=dl, h=h, ground=True)
+    out["wires"][0]["knot_positions"] = [[0.0, 0.0, h], [dl, 0.0, h]]  # x-directed
+    k = out["k_meas_m_inv"]
+    root = np.sqrt(out["ground_eps_r"] + 1j * out["ground_eps_im"])
+    rho_h = (1 - root) / (1 + root)
+    expect = dl * dl * abs(np.exp(1j * k * h) + rho_h * np.exp(-1j * k * h)) ** 2
+
+    t = 2 * np.pi * 45 / 180  # the elevation cut's zenith sample direction
+    zen = np.array([[np.cos(t), 0.0, np.sin(t)]])
+    m_zen = _mag2_at_directions(out, zen)[0]
+    assert m_zen == pytest.approx(expect, rel=1e-9)
+    # Continuity: a hair off the pole (s just above any guard) must agree.
+    near = np.array([[np.sin(1e-8), 0.0, np.cos(1e-8)]])
+    assert _mag2_at_directions(out, near)[0] == pytest.approx(m_zen, rel=1e-6)
+
+
 def test_cuts_none_without_norm_or_wires():
     out = _hertzian()
     out["directivity_norm"] = 0.0
