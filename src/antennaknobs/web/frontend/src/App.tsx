@@ -1362,6 +1362,10 @@ type SolveResponse = {
   ground_eps_r?: number;
   ground_sigma?: number;
   ground_eps_im?: number;
+  /** Packed faceted-terrain description when the solve ran over a terrain
+   *  ground (issue #534). Opaque to the frontend — it rides back to the
+   *  server inside /cuts bodies, where the per-facet physics lives. */
+  ground_terrain?: unknown;
   /** What the impedance solve actually used. Momwire: "refl-coef" |
    *  "pec-image" | "free"; PyNEC adds "sommerfeld". Authoritative — the
    *  readout's ground row shows this rather than re-deriving it from
@@ -1499,14 +1503,17 @@ function isBSplineFamily(b: Backend): boolean {
 }
 
 // The UI separates WHAT the ground is from HOW it's solved. GroundType is
-// the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002) or
-// a perfectly conducting one. It never promises more than the physics —
-// each backend solves it as best it can: PyNEC and the plain B-spline
-// backend offer a method sub-choice (Sommerfeld-Norton vs the
-// reflection-coefficient approximation) — since momwire 0.8.0 every
-// momwire backend honours both, so the choice is uniform across solvers;
-// either way the finite constants reach the far-field Fresnel cut.
-type GroundType = "finite" | "pec";
+// the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002), a
+// perfectly conducting one, or a faceted terrain (levee/cliff presets —
+// momwire only). It never promises more than the physics — each backend
+// solves it as best it can: PyNEC and the plain B-spline backend offer a
+// method sub-choice (Sommerfeld-Norton vs the reflection-coefficient
+// approximation) — since momwire 0.8.0 every momwire backend honours both,
+// so the choice is uniform across solvers; either way the finite constants
+// reach the far-field Fresnel cut. Terrain solves impedance on the crest
+// medium (Sommerfeld) and applies per-direction specular-facet reflection
+// in the far field (issue #534).
+type GroundType = "finite" | "pec" | "terrain";
 // Finite-ground solve method, shown for every finite-ground backend:
 // PyNEC (NEC ITYPE=2 vs ITYPE=0) and, since momwire 0.8.0, every momwire
 // solver (true Sommerfeld on bspline dense, sinusoidal field-based, and
@@ -1518,10 +1525,47 @@ type GroundType = "finite" | "pec";
 type FiniteGroundMethod = "sommerfeld" | "fast";
 // The wire value (`ground_model` on SolveRequest): derived from groundType
 // (+ the method wherever finite ground is supported).
-type GroundModel = "sommerfeld" | "fast" | "pec";
+type GroundModel = "sommerfeld" | "fast" | "pec" | "terrain";
+
+// Terrain preset parameters, sent as the request's `terrain` object when
+// ground_model === "terrain". Media are fixed server-side (water 80/0.005,
+// land + crest 13/0.005) — the panel shows them read-only.
+type TerrainPreset = "levee" | "cliff";
+type TerrainParams = {
+  // levee
+  crest_width_m: number;
+  slope_deg: number;
+  drop_water_m: number;
+  drop_land_m: number;
+  water_azimuth_deg: number;
+  // cliff
+  edge_m: number;
+  drop_m: number;
+  azimuth_deg: number;
+  arc_deg: number;
+};
+// Defaults are the motivating QTH (issues #534/#535): a 3 m levee crest
+// with 20° slopes, water 10.7 m below one side, land 7.6 m below the other.
+const TERRAIN_DEFAULTS: TerrainParams = {
+  crest_width_m: 3.0,
+  slope_deg: 20,
+  drop_water_m: 10.7,
+  drop_land_m: 7.6,
+  water_azimuth_deg: 0,
+  edge_m: 10,
+  drop_m: 10,
+  azimuth_deg: 0,
+  arc_deg: 360,
+};
 
 function backendSupportsGround(b: Backend): boolean {
   return b === "sinusoidal" || isBSplineFamily(b) || b === "pynec";
+}
+
+// Faceted terrain needs the momwire engine (per-facet far field + crest
+// Sommerfeld impedance); PyNEC has no equivalent and the server rejects it.
+function backendSupportsTerrain(b: Backend): boolean {
+  return backendSupportsGround(b) && b !== "pynec";
 }
 
 // Coerce a server-supplied backend name into something this UI knows.
@@ -1722,6 +1766,9 @@ type SolveRequest = {
   ground: boolean;
   ground_fast: boolean;
   ground_model?: GroundModel;
+  /** Terrain preset params when ground_model === "terrain" (issue #534);
+   *  the server clamps every number, so raw knob state is fine to send. */
+  terrain?: { preset: TerrainPreset } & Partial<TerrainParams>;
   /** Cut angles for the server-attached polar traces (issue #547). */
   az_elev_deg?: number;
   elev_az_deg?: number;
@@ -2791,13 +2838,31 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // seconds per solve on the B-spline backend).
   const [finiteGroundMethod, setFiniteGroundMethod] =
     useState<FiniteGroundMethod>("fast");
-  // Wire value derived for the server protocol (see GroundModel).
+  // Terrain preset + knobs (groundType === "terrain"; momwire only). One
+  // flat params object for both presets so values survive preset flips.
+  const [terrainPreset, setTerrainPreset] = useState<TerrainPreset>("levee");
+  const [terrainParams, setTerrainParams] =
+    useState<TerrainParams>(TERRAIN_DEFAULTS);
+  // Wire value derived for the server protocol (see GroundModel). A
+  // terrain selection quietly degrades to the finite method on backends
+  // without terrain support (PyNEC) — the radio is hidden there, but the
+  // state can still say "terrain" from a backend flip mid-comparison.
   const groundModel: GroundModel =
     groundType === "pec"
       ? "pec"
-      : backendSupportsGround(backend)
-        ? finiteGroundMethod
-        : "fast";
+      : groundType === "terrain" && backendSupportsTerrain(backend)
+        ? "terrain"
+        : backendSupportsGround(backend)
+          ? finiteGroundMethod
+          : "fast";
+
+  // Solve-effect dep for the terrain knobs: only bites while terrain is
+  // the active model, so parked levee state never re-solves a flat-ground
+  // setup (and vice versa).
+  const terrainKey =
+    groundModel === "terrain"
+      ? JSON.stringify([terrainPreset, terrainParams])
+      : "";
 
   // One-line tab-hover summary: design · solver N=segs · ground model.
   // Every backend honours the selected method (momwire >= 0.8.0), so the
@@ -2807,9 +2872,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     ? "free space"
     : groundModel === "pec"
       ? "PEC ground"
-      : groundModel === "fast"
-        ? "reflection-coef ground"
-        : "Sommerfeld ground";
+      : groundModel === "terrain"
+        ? `terrain (${terrainPreset})`
+        : groundModel === "fast"
+          ? "reflection-coef ground"
+          : "Sommerfeld ground";
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
@@ -3199,6 +3266,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       az_elev_deg: azElevDeg,
       elev_az_deg: elevAzDeg,
     };
+    if (base.ground_model === "terrain") {
+      base.terrain = { preset: terrainPreset, ...terrainParams };
+    }
     if (backend !== "pynec") {
       base.momwire_model = backend;
       const opts = modelOptionsForRequest(backend, currentOpts);
@@ -3661,7 +3731,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     geometry, previewReady, backend, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
-    groundEnabled, groundModel,
+    groundEnabled, groundModel, terrainKey,
   ]);
 
   // Antenna switch: drop the previous antenna's results immediately so nothing
@@ -5062,6 +5132,15 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                         ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
                         : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
                     ],
+                    ...(backendSupportsTerrain(backend)
+                      ? [
+                          [
+                            "terrain",
+                            "terrain",
+                            "Faceted terrain (levee or cliff preset): impedance solves Sommerfeld on the crest medium; the far field reflects off the facet each ray's specular point lands on — tilted incidence, per-facet media, full effective height below the drops.",
+                          ] as [GroundType, string, string],
+                        ]
+                      : []),
                   ] as [GroundType, string, string][]
                 ).map(([value, label, title]) => (
                   <label key={value} className="link-toggle" title={title}>
@@ -5111,6 +5190,142 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                     ))}
                   </div>
                 )}
+              {groundType === "terrain" && backendSupportsTerrain(backend) && (
+                <div style={{ marginLeft: "1.2em" }}>
+                  <div role="radiogroup" aria-label="Terrain preset">
+                    {(
+                      [
+                        [
+                          "levee",
+                          "levee",
+                          "A raised crest with two sloped sides: water drop_water below on the water bearing, land drop_land below opposite. Crest and slopes are earth; water starts at the toe.",
+                        ],
+                        [
+                          "cliff",
+                          "cliff",
+                          "Flat earth out to the cliff edge, then a sheer drop to water. arc < 360° restricts the cliff to a sector facing the bearing.",
+                        ],
+                      ] as [TerrainPreset, string, string][]
+                    ).map(([value, label, title]) => (
+                      <label key={value} className="link-toggle" title={title}>
+                        <input
+                          type="radio"
+                          name="terrain-preset"
+                          checked={terrainPreset === value}
+                          onChange={() => setTerrainPreset(value)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  {terrainPreset === "levee" ? (
+                    <>
+                      <NumberField
+                        label="crest width (m)"
+                        value={terrainParams.crest_width_m}
+                        min={0.1}
+                        max={1000}
+                        step={0.5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, crest_width_m: v }))
+                        }
+                      />
+                      <NumberField
+                        label="slope (°)"
+                        value={terrainParams.slope_deg}
+                        min={1}
+                        max={89}
+                        step={1}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, slope_deg: v }))
+                        }
+                      />
+                      <NumberField
+                        label="drop to water (m)"
+                        value={terrainParams.drop_water_m}
+                        min={0.01}
+                        max={1000}
+                        step={0.5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, drop_water_m: v }))
+                        }
+                      />
+                      <NumberField
+                        label="drop to land (m)"
+                        value={terrainParams.drop_land_m}
+                        min={0.01}
+                        max={1000}
+                        step={0.5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, drop_land_m: v }))
+                        }
+                      />
+                      <NumberField
+                        label="water bearing (°)"
+                        value={terrainParams.water_azimuth_deg}
+                        min={-360}
+                        max={360}
+                        step={5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({
+                            ...p,
+                            water_azimuth_deg: v,
+                          }))
+                        }
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <NumberField
+                        label="cliff edge (m)"
+                        value={terrainParams.edge_m}
+                        min={0.1}
+                        max={10000}
+                        step={1}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, edge_m: v }))
+                        }
+                      />
+                      <NumberField
+                        label="drop (m)"
+                        value={terrainParams.drop_m}
+                        min={0.01}
+                        max={1000}
+                        step={0.5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, drop_m: v }))
+                        }
+                      />
+                      <NumberField
+                        label="bearing (°)"
+                        value={terrainParams.azimuth_deg}
+                        min={-360}
+                        max={360}
+                        step={5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, azimuth_deg: v }))
+                        }
+                      />
+                      <NumberField
+                        label="arc (°)"
+                        value={terrainParams.arc_deg}
+                        min={1}
+                        max={360}
+                        step={15}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, arc_deg: v }))
+                        }
+                      />
+                    </>
+                  )}
+                  <div
+                    style={{ fontSize: "0.85em", opacity: 0.65 }}
+                    title="Media are fixed in this version; the geometry knobs above are the live parameters."
+                  >
+                    media: water εr=80 σ=0.005 · land/crest εr=13 σ=0.005
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -6134,6 +6349,9 @@ const GROUND_APPLIED_LABEL: Record<string, string> = {
   "refl-coef": "refl-coef",
   "pec-image": "PEC image",
   free: "free space",
+  // Faceted terrain: impedance ran crest-medium Sommerfeld; the far field
+  // reflects per-direction off the facets (issue #534).
+  terrain: "terrain (crest Somm.)",
 };
 
 function formatOhms(v: number): string {

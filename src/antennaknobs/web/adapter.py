@@ -77,6 +77,7 @@ except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 10.0, 0.002)
 from antennaknobs.engines.momwire import MomwireEngine
+from antennaknobs.terrain import Terrain, cliff_terrain, levee_terrain
 from momwire import (
     ArrayBlockSolver,
     BSplineSolver,
@@ -711,6 +712,84 @@ def _requested_ground_model(req: dict):
     return model
 
 
+# Fixed terrain media (v1 of the web exposure, issue #534's QTH numbers):
+# the panel shows them read-only; editable media are a possible follow-up.
+_TERRAIN_WATER = (80.0, 0.005)
+_TERRAIN_LAND = (13.0, 0.005)
+
+
+def _terrain_num(t: Mapping, key: str, default: float, lo: float, hi: float) -> float:
+    """One clamped, finite terrain parameter — client input is untrusted."""
+    try:
+        v = float(t.get(key, default))
+    except (TypeError, ValueError):
+        v = default
+    if not math.isfinite(v):
+        v = default
+    return min(max(v, lo), hi)
+
+
+def _terrain_from_request(req: dict) -> Terrain:
+    """Build the faceted-terrain ground from the request's `terrain` preset
+    params (ground_model="terrain"). Two presets, mapping straight onto the
+    antennaknobs.terrain constructors:
+
+      {"preset": "levee", "crest_width_m", "slope_deg", "drop_water_m",
+       "drop_land_m", "water_azimuth_deg"}
+      {"preset": "cliff", "edge_m", "drop_m", "azimuth_deg", "arc_deg"}
+
+    Media are fixed at the QTH constants (water 80/0.005 outward of the
+    cliff/water-side toe; land 13/0.005 for crest, slopes and the land
+    plain). Every number is clamped to a sane range so a hand-crafted
+    request can't build a degenerate Terrain."""
+    t = req.get("terrain") or {}
+    if not isinstance(t, Mapping):
+        t = {}
+    if t.get("preset") == "cliff":
+        return cliff_terrain(
+            edge=_terrain_num(t, "edge_m", 10.0, 0.1, 1e4),
+            drop=_terrain_num(t, "drop_m", 10.0, 0.01, 1e3),
+            inner=_TERRAIN_LAND,
+            outer=_TERRAIN_WATER,
+            azimuth=_terrain_num(t, "azimuth_deg", 0.0, -360.0, 360.0),
+            arc=_terrain_num(t, "arc_deg", 360.0, 1.0, 360.0),
+        )
+    return levee_terrain(
+        crest_width=_terrain_num(t, "crest_width_m", 3.0, 0.1, 1e3),
+        slope_deg=_terrain_num(t, "slope_deg", 20.0, 1.0, 89.0),
+        drop_water=_terrain_num(t, "drop_water_m", 10.7, 0.01, 1e3),
+        drop_land=_terrain_num(t, "drop_land_m", 7.6, 0.01, 1e3),
+        water=_TERRAIN_WATER,
+        land=_TERRAIN_LAND,
+        water_azimuth=_terrain_num(t, "water_azimuth_deg", 0.0, -360.0, 360.0),
+    )
+
+
+def _pack_terrain(t: Terrain) -> dict:
+    """JSON-safe terrain description shipped on the solve response. The
+    server's cut physics (server._mag2_at_directions) rebuilds the Terrain
+    from this to run the per-direction specular-facet reflection — the
+    response must be self-contained because /cuts is stateless."""
+    return {
+        "sectors": [
+            {
+                "az0": float(s.az0),
+                "az1": float(s.az1),
+                "facets": [
+                    [
+                        f.x1 if f.x1 is None else float(f.x1),
+                        float(f.z1),
+                        float(f.eps_r),
+                        float(f.sigma),
+                    ]
+                    for f in s.facets
+                ],
+            }
+            for s in t.sectors
+        ]
+    }
+
+
 def _ground_for_engine(req: dict, ground_z: float):
     """Map the frontend's ground knobs to MomwireEngine's ground spec —
     same three-way model as `_pynec_ground_spec`, one shared selector
@@ -730,6 +809,11 @@ def _ground_for_engine(req: dict, ground_z: float):
         return "pec"
     if model == "fast":
         return ("finite-fast",) + DEFAULT_GROUND[1:]
+    if model == "terrain":
+        # Faceted terrain (issue #534): impedance solves flat Sommerfeld on
+        # the crest medium; the far field applies per-direction specular-
+        # facet reflection (engine far_field and server cuts alike).
+        return ("terrain", _terrain_from_request(req))
     return DEFAULT_GROUND
 
 
@@ -759,6 +843,12 @@ def _pynec_ground_spec(req: dict):
         return "pec"
     if model == "fast":
         return ("finite-fast",) + DEFAULT_GROUND[1:]
+    if model == "terrain":
+        # The UI hides terrain for PyNEC; a hand-crafted request gets an
+        # honest error instead of a silent flat-ground substitution.
+        raise ValueError(
+            "terrain ground is not supported by the PyNEC engine — use a momwire solver"
+        )
     return DEFAULT_GROUND
 
 
@@ -833,6 +923,43 @@ def _make_pynec_engine(req: dict, builder):
 # while staying away from float overflow. Matches momwire/web/server.py.
 _PEC_GROUND_EPS_R = 1.0e10
 _PEC_GROUND_SIGMA = 0.0
+
+
+def _momwire_ground_fields(eng) -> dict:
+    """Ground-describing response fields for a momwire solve.
+
+    Ships the eps_r/sigma of the ground the engine actually solved over,
+    exactly like the PyNEC branch: the server's far-field cut applies the
+    PEC image + Fresnel with these, so finite grounds get their real
+    constants while ground_model="pec" and free space keep the PEC
+    placeholders (ρ→−1). A faceted terrain ships its crest medium there
+    (what the impedance solve used) plus the packed facet model under
+    `ground_terrain` for the per-direction cut physics.
+
+    `ground_model_applied` is what the impedance solve actually used, for
+    honest UI wording: "sommerfeld" (any momwire solver + "finite", momwire
+    >= 0.8.0), "refl-coef" ("finite-fast"), "pec-image", "free" — or
+    "terrain" (crest-medium Sommerfeld impedance + faceted far field)."""
+    g = eng._ground
+    if isinstance(g, tuple) and g[0] == "terrain":
+        eps_r, sigma = g[1].crest_medium
+        return {
+            "ground_eps_r": eps_r,
+            "ground_sigma": sigma,
+            "ground_model_applied": "terrain",
+            "ground_terrain": _pack_terrain(g[1]),
+        }
+    if isinstance(g, tuple) and len(g) == 3:
+        eps_r, sigma = g[1], g[2]
+    else:
+        eps_r, sigma = _PEC_GROUND_EPS_R, _PEC_GROUND_SIGMA
+    return {
+        "ground_eps_r": eps_r,
+        "ground_sigma": sigma,
+        "ground_model_applied": (
+            "free" if g is None else (eng._ground_model or "pec-image")
+        ),
+    }
 
 
 def _pack_wires(currents) -> list[dict]:
@@ -1483,28 +1610,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "solve_ms": solve_ms,
             "ground": bool(req.get("ground", False)),
             "height_m": 0.0,
-            # Ship the eps_r/sigma of the ground the engine actually solved
-            # over, exactly like the PyNEC branch: the frontend's far-field
-            # cut applies PEC image + Fresnel with these, so finite grounds
-            # get their real constants while ground_model="pec" and free
-            # space keep the PEC placeholders (ρ→−1).
-            "ground_eps_r": (
-                eng._ground[1]
-                if isinstance(eng._ground, tuple) and len(eng._ground) == 3
-                else _PEC_GROUND_EPS_R
-            ),
-            "ground_sigma": (
-                eng._ground[2]
-                if isinstance(eng._ground, tuple) and len(eng._ground) == 3
-                else _PEC_GROUND_SIGMA
-            ),
-            # What the impedance solve actually used, for honest UI wording:
-            # "sommerfeld" (any momwire solver + "finite", momwire >= 0.8.0),
-            # "refl-coef" (the "finite-fast" spec), "pec-image"
-            # (model="pec"), or "free".
-            "ground_model_applied": (
-                "free" if eng._ground is None else (eng._ground_model or "pec-image")
-            ),
+            # Ground constants + applied-model label (+ the packed terrain
+            # when the spec is faceted) — see _momwire_ground_fields.
+            **_momwire_ground_fields(eng),
             "z0_ohms": hints()["target_z0"],
             # Geometry-derived UI hints, folded into the response so user
             # designs (which defer them) get correct values the moment they're
@@ -1782,6 +1890,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         if has_design_freq:
             builder.design_freq = design_freq
         ground = _ground_for_engine(req, 0.0) or "free"
+        if isinstance(ground, tuple) and ground[0] == "terrain":
+            # A NEC deck can't carry the facet model (and the GD card is
+            # silently ignored under RP 0 anyway — see
+            # scripts/bench_levee_bracket.py): export the crest medium as
+            # the flat finite ground the impedance solve uses.
+            ground = ("finite",) + ground[1].crest_medium
         return _export_nec(builder, ground=ground, freq=meas_freq)
 
     def momwire_sweep(req: dict, freqs_mhz: list[float], cancel=None):
