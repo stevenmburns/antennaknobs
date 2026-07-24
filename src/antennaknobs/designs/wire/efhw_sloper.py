@@ -70,6 +70,7 @@ from antennaknobs.network import (
     TL,
     Wire,
     WIRES,
+    as_wire,
 )
 from antennaknobs.station import unun
 
@@ -186,8 +187,8 @@ class Builder(AntennaBuilder):
         # The short gap edge becomes the named "ant" port wire: the port
         # interrupts the current path between counterpoise and radiator —
         # the end-fed's feed.
-        p0, p1, _nsegs, _ev = wires[1]
-        wires[1] = Wire(p0, p1, name="ant")
+        gap = as_wire(wires[1])
+        wires[1] = Wire(gap.p0, gap.p1, name="ant")
         return wires
 
     def build_network(self):
