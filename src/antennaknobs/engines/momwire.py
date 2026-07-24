@@ -13,6 +13,7 @@ from momwire import BSplineSolver
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
 from ..network import PortOnWire, PortVirtual, as_wire
+from ..terrain import Terrain, specular_cut
 from ..network_reduce import NetworkReducer, tl_admittance_2x2
 
 _logger = logging.getLogger(__name__)
@@ -74,6 +75,16 @@ def _normalise_ground(ground):
         # fall back to their best available one — see the ground-model
         # mapping in __init__.
         return (ground[0],) + tuple(ground[1:])
+    if (
+        isinstance(ground, tuple)
+        and len(ground) == 2
+        and ground[0] == "terrain"
+        and isinstance(ground[1], Terrain)
+    ):
+        # Faceted-terrain far-field ground (issue #534). The impedance
+        # solve runs flat Sommerfeld with the crest facet's medium; the
+        # far field reflects per-direction off the specular facet.
+        return ground
     raise ValueError(f"unrecognised ground spec: {ground!r}")
 
 
@@ -155,6 +166,14 @@ class MomwireEngine(SimulationEngine):
                                      "finite" to ~2 ohm above ~0.1λ heights
                                      but diverges hard below (~22 ohm at
                                      0.05λ, >100 ohm at 0.02λ).
+          ("terrain", Terrain)     — faceted-terrain far field (issue #534,
+                                     antennaknobs.terrain): per-direction
+                                     specular-facet reflection with per-facet
+                                     media and height offsets (levee/ridge
+                                     QTHs). The impedance solve runs flat
+                                     Sommerfeld with the crest medium; the
+                                     single-flat-facet terrain reproduces
+                                     ("finite", eps_r, sigma) exactly.
         """
         super().__init__(builder)
 
@@ -309,6 +328,16 @@ class MomwireEngine(SimulationEngine):
         self._ground_eps = None
         self._ground_model = None
         if (
+            self._ground is not None
+            and self._ground[0] == "terrain"
+            and _solver_supports_ground_eps(self._solver)
+        ):
+            # Terrain: the matrix never sees the facets — near-field ground
+            # interaction is crest-local, so the impedance solve runs true
+            # Sommerfeld with the crest medium (issue #534).
+            self._ground_eps = self._ground[1].crest_medium
+            self._ground_model = "sommerfeld"
+        elif (
             self._ground is not None
             and self._ground[0] in ("finite", "finite-fast")
             and _solver_supports_ground_eps(self._solver)
@@ -820,9 +849,8 @@ class MomwireEngine(SimulationEngine):
             M_perp = M_perp + M_img_perp
             return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
-        # ("finite", eps_r, sigma): polarisation basis at each ray and
-        # Fresnel reflection on the image wave.
-        _, eps_r, sigma = self._ground
+        # ("finite", eps_r, sigma) / ("terrain", Terrain): polarisation basis
+        # at each ray and Fresnel reflection on the image wave.
         # Vertical (TM, in-plane) and horizontal (TE, out-of-plane)
         # polarisation unit vectors for the reflected ray, written straight
         # from the azimuth/zenith angles rather than from the horizontal
@@ -843,9 +871,53 @@ class MomwireEngine(SimulationEngine):
         M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
 
         omega = 2 * np.pi * freq_hz
-        eps_c = eps_r - 1j * sigma / (omega * EPS0)
-        cos_ti = rz
-        sin2_ti = s * s
+        if self._ground[0] == "terrain":
+            # Faceted terrain (issue #534): per direction, find the facet
+            # the specular point lands on, shift the image plane to the
+            # facet surface (an extra 2·k·z_f·cosθ path phase — z_f ≤ 0
+            # below the crest, so the reflected wave rides the full
+            # effective height), tilt the incidence angle by the facet
+            # slope, and evaluate Fresnel with the facet's medium. The
+            # image itself stays the z=ground_z mirror built above; the
+            # plane shift factors out as a per-direction scalar phase.
+            terrain = self._ground[1]
+            w = np.abs(i_mid) * np.linalg.norm(dr, axis=1)
+            wsum = float(np.sum(w))
+            h_ref = (
+                float(
+                    (np.sum(w * mid[:, 2]) / wsum) if wsum > 0 else np.mean(mid[:, 2])
+                )
+                - z0
+            )
+            sec_idx = terrain.sector_for(np.degrees(phi))
+            z_f = np.empty(rx.shape)
+            beta_g = np.empty(rx.shape)
+            eps_g = np.empty(rx.shape)
+            sig_g = np.empty(rx.shape)
+            for i, sector in enumerate(terrain.sectors):
+                cols = sec_idx == i
+                if not np.any(cols):
+                    continue
+                zf_t, b_t, e_t, s_t = specular_cut(sector, theta, h_ref)
+                z_f[:, cols] = zf_t[:, None]
+                beta_g[:, cols] = b_t[:, None]
+                eps_g[:, cols] = e_t[:, None]
+                sig_g[:, cols] = s_t[:, None]
+            pf = np.exp(2j * k * z_f * cos_t_g)
+            M_img_h = M_img_h * pf
+            M_img_v = M_img_v * pf
+            th_loc = np.clip(theta[:, None] - beta_g, 0.0, np.pi / 2)
+            # On untilted facets keep the exact same trig route as the flat
+            # branch (rz / s·s) so the single-flat-facet terrain reproduces
+            # ("finite", eps, sigma) bit-for-bit — issue #534 gate 1.
+            cos_ti = np.where(beta_g == 0.0, rz, np.cos(th_loc))
+            sin2_ti = np.where(beta_g == 0.0, s * s, np.sin(th_loc) ** 2)
+            eps_c = eps_g - 1j * sig_g / (omega * EPS0)
+        else:
+            _, eps_r, sigma = self._ground
+            eps_c = eps_r - 1j * sigma / (omega * EPS0)
+            cos_ti = rz
+            sin2_ti = s * s
         Q = np.sqrt(eps_c - sin2_ti)
         rho_h = (cos_ti - Q) / (cos_ti + Q)
         rho_v = (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
