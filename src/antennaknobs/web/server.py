@@ -492,7 +492,15 @@ _CUT_N_DIR = 180
 _CUT_FLOOR_DBI = -999.0
 
 
-def _pattern_cuts(out: dict, az_elev_deg: float, elev_az_deg: float) -> dict | None:
+def _pattern_cuts(
+    out: dict,
+    az_elev_deg: float,
+    elev_az_deg: float,
+    *,
+    mid=None,
+    dr=None,
+    i_mid=None,
+) -> dict | None:
     """The two polar-chart traces (issue #547): the azimuth cut at elevation
     `az_elev_deg` and the great-circle elevation cut through azimuth
     `elev_az_deg`, each _CUT_N_DIR samples of absolute dBi.
@@ -503,9 +511,13 @@ def _pattern_cuts(out: dict, az_elev_deg: float, elev_az_deg: float) -> dict | N
     t ∈ (180°, 360°) half dips below the horizon. With ground on, below-
     horizon samples clamp to _CUT_FLOOR_DBI. Returns None when the response
     can't support cuts (no wires or no positive gain norm).
+
+    Callers that already hold the moment set (the solve_id cache, issue
+    #551) pass it via mid/dr/i_mid; `out` then only needs the scalar/ground
+    fields and may omit `wires`.
     """
     norm = float(out.get("directivity_norm") or 0.0)
-    if norm <= 0.0 or not out.get("wires"):
+    if norm <= 0.0 or (mid is None and not out.get("wires")):
         return None
     t = 2.0 * np.pi * np.arange(_CUT_N_DIR) / _CUT_N_DIR
     ct, st = np.cos(t), np.sin(t)
@@ -518,7 +530,7 @@ def _pattern_cuts(out: dict, az_elev_deg: float, elev_az_deg: float) -> dict | N
     el_rhat = np.stack([np.cos(el) * ct, np.sin(el) * ct, st], axis=-1)
 
     rhat = np.stack([az_rhat, el_rhat])  # (2, N_DIR, 3)
-    mag2 = _mag2_at_directions(out, rhat)
+    mag2 = _mag2_at_directions(out, rhat, mid=mid, dr=dr, i_mid=i_mid)
     if bool(out.get("ground", False)):
         mag2 = np.where(rhat[..., 2] < 0.0, 0.0, mag2)
 
@@ -533,6 +545,77 @@ def _pattern_cuts(out: dict, az_elev_deg: float, elev_az_deg: float) -> dict | N
         "azimuth": [round(float(v), 3) for v in dbi[0]],
         "elevation": [round(float(v), 3) for v in dbi[1]],
     }
+
+
+# Server-side cuts sources (issue #551): solve_id → the pre-extracted data
+# _pattern_cuts needs, so /cuts and the ws cuts channel can recompute cut
+# traces from a ~100-byte request instead of a re-uploaded solve body
+# (~92 B/segment on the wire — 60 KB+ for the dense meshes where cut-dial
+# latency is actually felt, times one request per pinned ghost).
+#
+# The id is ADVISORY, never authoritative: on a miss (server restart,
+# eviction) the server answers 404 / ok=false and the client falls back to
+# the stateless full-body request. Pins deliberately outlive sessions, so
+# ghosts must never silently die with this cache. Assumes a single server
+# process (true for uvicorn and the Docker image); a multi-worker deployment
+# would need sticky routing or a shared store.
+_CUTS_SRC_CACHE: "OrderedDict[str, dict]" = OrderedDict()
+# Entries hold the numpy moment set at ~64 B/segment, so even 64 entries of
+# a 4k-segment mesh bound the cache near ~16 MB.
+_CUTS_SRC_CACHE_MAX = 64
+
+# The scalar/ground fields _pattern_cuts reads besides the moment set.
+_CUTS_SRC_FIELDS = (
+    "k_meas_m_inv",
+    "ground",
+    "ground_eps_r",
+    "ground_eps_im",
+    "ground_terrain",
+    "measurement_freq_mhz",
+    "directivity_norm",
+)
+
+
+def _remember_cuts_source(solve_id: str, out: dict) -> None:
+    """Store (or LRU-refresh) the cuts source for a solve response. Never
+    raises — a response the cuts math can't digest simply isn't cached and
+    the client's full-body fallback still works."""
+    if solve_id in _CUTS_SRC_CACHE:
+        _CUTS_SRC_CACHE.move_to_end(solve_id)
+        return
+    if float(out.get("directivity_norm") or 0.0) <= 0.0 or not out.get("wires"):
+        return
+    try:
+        mid, dr, i_mid = _moment_segments(out)
+    except Exception:
+        _logger.exception("cuts-source extraction failed; solve_id not cached")
+        return
+    src = {k: out[k] for k in _CUTS_SRC_FIELDS if k in out}
+    src["_mid"], src["_dr"], src["_i_mid"] = mid, dr, i_mid
+    _CUTS_SRC_CACHE[solve_id] = src
+    while len(_CUTS_SRC_CACHE) > _CUTS_SRC_CACHE_MAX:
+        _CUTS_SRC_CACHE.popitem(last=False)
+
+
+def _cuts_from_source(
+    solve_id: str, az_elev_deg: float, elev_az_deg: float
+) -> dict | None:
+    """Cuts computed from the server-side source for `solve_id`, or None on
+    a cache miss (callers map that to 404 / ok=false). Only sources with a
+    positive norm are ever cached, so None never means "can't support cuts"
+    here."""
+    src = _CUTS_SRC_CACHE.get(solve_id)
+    if src is None:
+        return None
+    _CUTS_SRC_CACHE.move_to_end(solve_id)
+    return _pattern_cuts(
+        src,
+        az_elev_deg,
+        elev_az_deg,
+        mid=src["_mid"],
+        dr=src["_dr"],
+        i_mid=src["_i_mid"],
+    )
 
 
 def _pattern_integral_norm(out: dict) -> float:
@@ -1010,13 +1093,22 @@ def solve(req: dict, cancel=None) -> dict:
         # tick first populated this cache entry.
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
+        # solve_id (issue #551): the canonical key itself — already an opaque
+        # 128-bit blake2b digest, so it doubles as the advisory cuts-cache
+        # handle the client sends back instead of the full solve body. The
+        # hit path re-remembers so an evicted cuts source repopulates from
+        # the (larger) solve cache without a re-solve.
+        out["solve_id"] = key
+        _remember_cuts_source(key, out)
         _attach_request_cuts(out, req)
         return out
     out = _solve_uncached(req, cancel=cancel)
     out["cache_hit"] = False
+    out["solve_id"] = key
     _SOLVE_CACHE[key] = deepcopy(out)
     while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
         _SOLVE_CACHE.popitem(last=False)
+    _remember_cuts_source(key, out)
     # After the cache store: cuts depend on the request's cut angles, so the
     # cached entry stays angle-independent and every request gets fresh cuts.
     _attach_request_cuts(out, req)
@@ -1539,16 +1631,38 @@ async def params_source_endpoint(req: dict):
 def cuts_endpoint(req: dict):
     """Recompute the two polar-chart cuts at new cut angles (issue #547).
 
-    Stateless: the body carries the fields of a previously returned solve
-    response under ``solve`` (wires + k_meas_m_inv + ground constants +
-    directivity_norm — the client already holds all of them) plus
-    ``az_elev_deg`` / ``elev_az_deg``. Returns the same ``cuts`` object the
-    live solve attaches. Sync def → FastAPI threadpool, so a big-mesh cut
-    (~100 ms at 4k segments) never blocks the event loop.
+    Two request shapes:
+
+    - ``{solve_id, az_elev_deg, elev_az_deg}`` (issue #551): ~100-byte fast
+      path against the server-side cuts-source cache. 404 on an unknown id
+      (restart, eviction) — the client then retries with the full body.
+    - ``{solve, az_elev_deg, elev_az_deg}``: stateless backstop — the body
+      carries the fields of a previously returned solve response under
+      ``solve`` (wires + k_meas_m_inv + ground constants + directivity_norm
+      — the client already holds all of them).
+
+    Returns the same ``cuts`` object the live solve attaches. Sync def →
+    FastAPI threadpool, so a big-mesh cut (~100 ms at 4k segments) never
+    blocks the event loop.
     """
     solve_out = req.get("solve")
     if not isinstance(solve_out, dict):
-        raise HTTPException(status_code=400, detail="missing solve response body")
+        solve_id = req.get("solve_id")
+        if not (isinstance(solve_id, str) and solve_id):
+            raise HTTPException(status_code=400, detail="missing solve response body")
+        try:
+            cuts = _cuts_from_source(
+                solve_id,
+                float(req.get("az_elev_deg", 15.0)),
+                float(req.get("elev_az_deg", 0.0)),
+            )
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400, detail=f"bad cuts request: {e}"
+            ) from e
+        if cuts is None:
+            raise HTTPException(status_code=404, detail="unknown solve_id")
+        return cuts
     try:
         cuts = _pattern_cuts(
             solve_out,
@@ -1920,6 +2034,18 @@ async def ws_endpoint(ws: WebSocket):
     mailbox: list[dict] = []  # size-1: newest unsolved request only
     newer = asyncio.Event()  # set when the mailbox is (re)filled
     closed = asyncio.Event()  # set when the socket disconnects
+    # Cuts sidecar (issue #551): tiny `{_kind:"cuts", solve_id, angles}`
+    # messages ride this same socket (warm ws was ~2× cheaper than HTTP
+    # through the tunnel) and are answered from the server-side cuts-source
+    # cache. Latest-wins PER SOLVE — keyed by solve_id — because one cut-dial
+    # change legitimately needs cuts for the live trace AND every pinned
+    # ghost; a single-slot mailbox would let the last-sent ghost starve the
+    # others. Newer angles for the same solve overwrite the queued entry.
+    cuts_box: dict[str, dict] = {}
+    cuts_newer = asyncio.Event()
+    # Two tasks send on this socket (solver loop + cuts worker); ws.send_text
+    # isn't safe to interleave, so every send takes this lock.
+    send_lock = asyncio.Lock()
     # In-flight solve's cancel token, shared between the reader and the solver
     # loop (both coroutines on this event loop, so no lock needed — the token's
     # flag is the only thing the threadpool worker touches). The reader trips it
@@ -1932,6 +2058,16 @@ async def ws_endpoint(ws: WebSocket):
         try:
             while True:
                 req = json.loads(await ws.receive_text())
+                if req.get("_kind") == "cuts":
+                    # Cuts request: route to the sidecar. Deliberately does
+                    # NOT touch the solve mailbox, the cancel token, or the
+                    # session lane — a cut-dial drag must never preempt a
+                    # running solve.
+                    sid = req.get("solve_id")
+                    if isinstance(sid, str) and sid:
+                        cuts_box[sid] = req
+                        cuts_newer.set()
+                    continue
                 mailbox[:] = [req]  # overwrite → squash anything unsolved
                 token = current["token"]
                 if token is not None:
@@ -1951,8 +2087,58 @@ async def ws_endpoint(ws: WebSocket):
             if token is not None:
                 token.cancel()  # disconnect: free the threadpool worker promptly
             newer.set()  # wake the solver so it can observe `closed` and exit
+            cuts_newer.set()  # same for the cuts worker
+
+    async def cuts_worker() -> None:
+        # Drains the per-solve cuts box in arrival order. Each computation is
+        # small (~1 ms typical, ~100 ms at 4k segments) but still runs in the
+        # threadpool so a big-mesh cut never blocks the event loop — and by
+        # extension the reader's latest-wins squashing.
+        while True:
+            await cuts_newer.wait()
+            cuts_newer.clear()
+            while cuts_box:
+                if closed.is_set():
+                    return
+                sid = next(iter(cuts_box))
+                creq = cuts_box.pop(sid)
+                resp: dict = {
+                    "_kind": "cuts",
+                    "solve_id": sid,
+                    "az_elev_deg": creq.get("az_elev_deg"),
+                    "elev_az_deg": creq.get("elev_az_deg"),
+                }
+                try:
+                    cuts = await run_in_threadpool(
+                        _cuts_from_source,
+                        sid,
+                        float(creq.get("az_elev_deg", 15.0)),
+                        float(creq.get("elev_az_deg", 0.0)),
+                    )
+                except Exception:  # noqa: BLE001 — junk angles must not kill the socket
+                    _logger.exception("ws cuts request failed")
+                    cuts = None
+                # Unknown id (restart/eviction) or junk request → ok:false;
+                # the client falls back to the stateless POST /cuts.
+                resp["ok"] = cuts is not None
+                if cuts is not None:
+                    resp["cuts"] = cuts
+                if sid in cuts_box:
+                    # Newer angles for this solve arrived while we computed —
+                    # skip the doomed send; the fresh response supersedes it.
+                    continue
+                if closed.is_set() or ws.client_state != WebSocketState.CONNECTED:
+                    return
+                try:
+                    async with send_lock:
+                        await ws.send_text(json.dumps(resp))
+                except (WebSocketDisconnect, RuntimeError):
+                    return
+            if closed.is_set():
+                return
 
     reader_task = asyncio.create_task(reader())
+    cuts_task = asyncio.create_task(cuts_worker())
     try:
         while True:
             await newer.wait()
@@ -2025,11 +2211,13 @@ async def ws_endpoint(ws: WebSocket):
             if closed.is_set() or ws.client_state != WebSocketState.CONNECTED:
                 return
             try:
-                await ws.send_text(json.dumps(result))
+                async with send_lock:
+                    await ws.send_text(json.dumps(result))
             except (WebSocketDisconnect, RuntimeError):
                 return
     finally:
         reader_task.cancel()
+        cuts_task.cancel()
 
 
 # Serve the built React frontend (web/static, produced by `npm run build` in

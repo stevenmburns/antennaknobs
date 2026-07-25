@@ -223,3 +223,136 @@ def test_mag2_directions_shape_generic():
     r2 = _mag2_at_directions(out, np.stack([np.eye(3), np.eye(3)[::-1]]))  # (2, 3, 3)
     assert r1.shape == (1,) and r2.shape == (2, 3)
     assert server._CUT_N_DIR == 180  # the cut-trace sample-count contract
+
+
+# ---- solve_id cuts cache + ws cuts transport (issue #551) ----
+
+_SOLVE_REQ = {
+    "geometry": "dipoles.invvee",
+    "measurement_freq_mhz": 28.47,
+    "momwire_model": "bspline",
+    "az_elev_deg": 15.0,
+    "elev_az_deg": 45.0,
+}
+
+
+def _ws_solve(client: TestClient, req=_SOLVE_REQ) -> dict:
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps(req))
+        return json.loads(ws.receive_text())
+
+
+def test_solve_id_cuts_match_full_body(client: TestClient):
+    """A solve response carries solve_id, and the ~100-byte id-only /cuts
+    request returns byte-identical cuts to the stateless full-body path."""
+    result = _ws_solve(client)
+    solve_id = result.get("solve_id")
+    assert isinstance(solve_id, str) and solve_id
+
+    full = client.post(
+        "/cuts", json={"solve": result, "az_elev_deg": 22.0, "elev_az_deg": 5.0}
+    )
+    by_id = client.post(
+        "/cuts", json={"solve_id": solve_id, "az_elev_deg": 22.0, "elev_az_deg": 5.0}
+    )
+    assert full.status_code == 200 and by_id.status_code == 200
+    assert by_id.json() == full.json()
+
+
+def test_cuts_unknown_solve_id_is_404(client: TestClient):
+    r = client.post(
+        "/cuts",
+        json={"solve_id": "0" * 32, "az_elev_deg": 0.0, "elev_az_deg": 0.0},
+    )
+    assert r.status_code == 404
+
+
+def test_cuts_source_repopulates_from_solve_cache_hit(client: TestClient):
+    """Eviction of the cuts source must heal on the next solve of the same
+    request — the solve-cache HIT path re-remembers, no re-solve needed."""
+    result = _ws_solve(client)
+    server._CUTS_SRC_CACHE.pop(result["solve_id"], None)
+    miss = client.post(
+        "/cuts",
+        json={"solve_id": result["solve_id"], "az_elev_deg": 1.0, "elev_az_deg": 2.0},
+    )
+    assert miss.status_code == 404
+
+    again = _ws_solve(client)  # same request → cache hit → source repopulated
+    assert again["cache_hit"] is True and again["solve_id"] == result["solve_id"]
+    healed = client.post(
+        "/cuts",
+        json={"solve_id": result["solve_id"], "az_elev_deg": 1.0, "elev_az_deg": 2.0},
+    )
+    assert healed.status_code == 200
+
+
+def test_ws_cuts_channel_matches_http(client: TestClient):
+    """Cuts requested over the /ws sidecar match the HTTP endpoint, and the
+    solve mailbox is untouched (a later solve on the same socket still
+    works)."""
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps(_SOLVE_REQ))
+        result = json.loads(ws.receive_text())
+        ws.send_text(
+            json.dumps(
+                {
+                    "_kind": "cuts",
+                    "solve_id": result["solve_id"],
+                    "az_elev_deg": 40.0,
+                    "elev_az_deg": 10.0,
+                }
+            )
+        )
+        msg = json.loads(ws.receive_text())
+        # The socket still solves after a cuts message.
+        ws.send_text(json.dumps({**_SOLVE_REQ, "az_elev_deg": 20.0}))
+        result2 = json.loads(ws.receive_text())
+
+    assert msg["_kind"] == "cuts"
+    assert msg["ok"] is True
+    assert msg["solve_id"] == result["solve_id"]
+    assert msg["az_elev_deg"] == 40.0 and msg["elev_az_deg"] == 10.0
+    http = client.post(
+        "/cuts", json={"solve": result, "az_elev_deg": 40.0, "elev_az_deg": 10.0}
+    )
+    assert msg["cuts"] == http.json()
+    assert result2["cuts"]["az_elev_deg"] == 20.0
+
+
+def test_ws_cuts_unknown_id_answers_ok_false(client: TestClient):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(
+            json.dumps(
+                {
+                    "_kind": "cuts",
+                    "solve_id": "f" * 32,
+                    "az_elev_deg": 0.0,
+                    "elev_az_deg": 0.0,
+                }
+            )
+        )
+        msg = json.loads(ws.receive_text())
+    assert msg["_kind"] == "cuts" and msg["ok"] is False and "cuts" not in msg
+
+
+def test_ws_cuts_junk_angles_answers_ok_false(client: TestClient):
+    """Garbage angles must produce ok:false, not a torn-down socket."""
+    result = _ws_solve(client)
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(
+            json.dumps(
+                {
+                    "_kind": "cuts",
+                    "solve_id": result["solve_id"],
+                    "az_elev_deg": "garbage",
+                    "elev_az_deg": None,
+                }
+            )
+        )
+        msg = json.loads(ws.receive_text())
+        # Socket survives for real work.
+        ws.send_text(json.dumps(_SOLVE_REQ))
+        again = json.loads(ws.receive_text())
+    assert msg["ok"] is False
+    assert "wires" in again
