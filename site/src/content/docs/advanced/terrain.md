@@ -116,7 +116,9 @@ is flat.
 
 **In the [simulator](/reference/web/#faceted-terrain)**: ground plane →
 **terrain**, then pick the **levee** preset (crest width, slope, the two
-drops, water bearing) or **cliff** (edge, drop, bearing, arc). The elevation
+drops, water bearing), **cliff** (edge, drop, bearing, arc), or **hillside**
+(a bench on a slope — flat width, uphill slope, downhill slope; no bottom
+reference exists or is needed, since the slope itself is the reflector). The elevation
 cut's bearing dial uses the same azimuth convention as the water bearing, so
 leaving both at 0° slices straight through the asymmetry; pin the pattern on
 a flat ground first and the ghost overlay shows exactly what the facets
@@ -139,7 +141,8 @@ terrain = levee_terrain(
 eng = MomwireEngine(builder, ground=("terrain", terrain))
 ```
 
-`cliff_terrain(...)` builds the single-drop case, and the underlying
+`cliff_terrain(...)` builds the single-drop case, `hillside_terrain(...)`
+the bench-on-a-slope, and the underlying
 `Terrain(sectors=(Sector(..., facets=(Facet(...), ...)),))` dataclasses
 accept any piecewise profile per azimuth sector — a gully on one bearing, a
 rising hill on another — as long as each sector's last facet extends to

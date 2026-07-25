@@ -228,7 +228,7 @@ leaves as sky wave. The rest is absorbed power, not error.
 
 The **terrain** ground type models a site whose ground is *not* an infinite
 flat plane: a piecewise-linear height profile per azimuth sector, each facet
-carrying its own medium. Two presets cover the common cases, with every
+carrying its own medium. Three presets cover the common cases, with every
 number a live knob:
 
 - **levee** — a raised crest with two sloped sides: *crest width*, *slope*,
@@ -236,6 +236,13 @@ number a live knob:
   Crest and slopes are earth; the water medium starts at the water-side toe.
 - **cliff** — flat earth out to the *cliff edge*, then a sheer *drop* to
   water; *arc* < 360° restricts the cliff to a sector facing the *bearing*.
+- **hillside** — a flat bench on a slope: the ground rises at the *uphill
+  slope* on one side and falls at the *downhill slope* on the other (facing
+  the *downhill bearing*), all earth. There is no bottom to reference and
+  none is needed — the slope itself is the reflector, so the effective
+  height grows continuously as the elevation drops. One honest limit:
+  below the uphill slope angle the real sky is shadowed by the hill, which
+  a specular model cannot express.
 
 Media are fixed in this version (water εr=80 σ=0.005, land and crest εr=13
 σ=0.005 — shown read-only in the panel); arbitrary facet profiles and custom
