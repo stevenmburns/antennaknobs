@@ -1504,8 +1504,8 @@ function isBSplineFamily(b: Backend): boolean {
 
 // The UI separates WHAT the ground is from HOW it's solved. GroundType is
 // the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002), a
-// perfectly conducting one, or a faceted terrain (levee/cliff presets —
-// momwire only). It never promises more than the physics — each backend
+// perfectly conducting one, or a faceted terrain (levee/cliff presets).
+// It never promises more than the physics — each backend
 // solves it as best it can: PyNEC and the plain B-spline backend offer a
 // method sub-choice (Sommerfeld-Norton vs the reflection-coefficient
 // approximation) — since momwire 0.8.0 every momwire backend honours both,
@@ -1562,10 +1562,13 @@ function backendSupportsGround(b: Backend): boolean {
   return b === "sinusoidal" || isBSplineFamily(b) || b === "pynec";
 }
 
-// Faceted terrain needs the momwire engine (per-facet far field + crest
-// Sommerfeld impedance); PyNEC has no equivalent and the server rejects it.
+// Every ground-capable backend supports terrain. Momwire applies the
+// per-facet far field natively; PyNEC runs the hybrid (issue #553): NEC
+// solves the currents over crest-medium Sommerfeld — exactly what the
+// terrain recipe feeds the current solve anyway — and the server's cut
+// physics applies the facet reflection to those currents.
 function backendSupportsTerrain(b: Backend): boolean {
-  return backendSupportsGround(b) && b !== "pynec";
+  return backendSupportsGround(b);
 }
 
 // Coerce a server-supplied backend name into something this UI knows.
@@ -2844,9 +2847,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   const [terrainParams, setTerrainParams] =
     useState<TerrainParams>(TERRAIN_DEFAULTS);
   // Wire value derived for the server protocol (see GroundModel). A
-  // terrain selection quietly degrades to the finite method on backends
-  // without terrain support (PyNEC) — the radio is hidden there, but the
-  // state can still say "terrain" from a backend flip mid-comparison.
+  // terrain selection quietly degrades to the finite method on any future
+  // backend without terrain support (all current ground-capable backends
+  // have it — PyNEC via the #553 hybrid).
   const groundModel: GroundModel =
     groundType === "pec"
       ? "pec"
@@ -2991,6 +2994,10 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // solver's power-balance error. Cheap (closed form), so on by default;
   // the checkbox hides the overlay. `normCheck` is null while off or pending.
   const [normCheckEnabled, setNormCheckEnabled] = useState(true);
+  // NEC rp_card exact-pattern overlay (PyNEC backend only). User-switchable;
+  // forced off (and the switch greyed) over a terrain ground, where NEC's
+  // flat-ground rp pattern would silently disagree with the facet traces.
+  const [necOverlayEnabled, setNecOverlayEnabled] = useState(true);
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
   // NEC's rp_card pattern, fetched on a debounce so we don't fire one per
   // slider tick. Overlaid on the cuts as a comparison line.
@@ -3928,10 +3935,19 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
 
   // Debounced NEC pattern fetch. PyNEC only — for momwire there's no rp_card
   // equivalent. Tracks measurement freq too (unlike the impedance sweep).
+  // Held off entirely over terrain (the rp pattern is flat-ground only) and
+  // when the user switches the overlay off.
   useEffect(() => {
     if (patternTimerRef.current) window.clearTimeout(patternTimerRef.current);
     setPattern(null);
-    if (backend !== "pynec" || !active) return;
+    if (
+      backend !== "pynec" ||
+      !active ||
+      !necOverlayEnabled ||
+      groundModel === "terrain"
+    ) {
+      return;
+    }
     patternTimerRef.current = window.setTimeout(() => {
       runPattern();
       patternTimerRef.current = null;
@@ -3945,6 +3961,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundModel,
+    necOverlayEnabled,
     active,
   ]);
 
@@ -5534,6 +5551,27 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                     onChange={(e) => setNormCheckEnabled(e.target.checked)}
                   />
                   norm check
+                </label>
+              )}
+              {!isMobile && backend === "pynec" && (
+                <label
+                  className="overlay-checkbox"
+                  style={
+                    groundModel === "terrain" ? { opacity: 0.45 } : undefined
+                  }
+                  title={
+                    groundModel === "terrain"
+                      ? "NEC's rp_card pattern is flat-ground only (no facet model), so the exact-pattern overlay is unavailable over terrain — the terrain traces come from the server's facet physics instead."
+                      : "Overlay NEC's own rp_card far-field pattern (dashed cyan) as an exact reference for this engine's ground model."
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={necOverlayEnabled && groundModel !== "terrain"}
+                    disabled={groundModel === "terrain"}
+                    onChange={(e) => setNecOverlayEnabled(e.target.checked)}
+                  />
+                  NEC rp
                 </label>
               )}
               {/* Over a finite ground the norm gap IS physics (structural
