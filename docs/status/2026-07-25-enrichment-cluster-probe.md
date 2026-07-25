@@ -139,6 +139,50 @@ from a coarse mesh. That reframes #521's remedy hunt:
   probe closer to a junction feed (or on the current distribution near the
   junction) would test the mechanism where it could still bite.
 
+## Catalog-wide follow-up — does *any* design benefit? (does not)
+
+If the cluster does not benefit, is there anywhere in the catalog that does?
+The working hypothesis: enrichment should help where there is a **K≥3 junction
+with appreciable current through ≥3 arms**. `scripts/bench_enrichment_scan.py`
+tests it directly across all 91 designs — it finds the K≥3 junctions, measures
+each junction's **arm-current split** (how many arms carry ≥20 % of the largest
+arm's current), and measures the driving-point enrichment shift with BOTH the
+`raw` and `stable` variants.
+
+**17 designs have a K≥3 junction; the largest `stable`-variant driving-point
+shift across the entire catalog is 0.216 Ω** (on `specialty.helix`, the #521
+curvature outlier — a <1 % effect on a single-junction curved wire, not a clean
+junction case). Every other K≥3 design is ≤ 0.007 Ω. The qualifying-current
+condition is met all over the catalog (fan dipoles `[1.0, 0.77, 0.24]`, T-match
+verticals `[1.0, 0.26, 0.25, 0.25, 0.24]`, the hentenna/hourglass cluster,
+j-poles) — and enrichment still does nothing. **"3 live arms" is necessary but
+not sufficient.**
+
+Two traps this scan exists to expose:
+
+1. **The `raw` variant's coarse-mesh transient masquerades as benefit.** On the
+   fan dipoles `raw` swings the driving point ~2.8 Ω at N=41–161 — the single
+   largest enrichment effect in the catalog — but it is *wrong*: at those meshes
+   sin, bs2, and PyNEC all agree (`trap_fan_dipole` X ≈ 2.3 Ω at N=161) while
+   `raw` alone reads −0.65 Ω, and it snaps back to match everyone by N=321. The
+   `stable`/`tikhonov` variants show ≤ 0.002 Ω there — no transient. A large
+   `raw` |Δ| is an artifact of the raw basis's small-N conditioning, **not**
+   evidence of benefit; the scan prints both variants side by side so it cannot
+   be mistaken again. (This also means a `raw`-only probe would mis-rank the fan
+   dipoles as top beneficiaries — they are not.)
+2. **The extra conditions beyond "3 live arms."** Benefit also needs the feed
+   current to flow *through* the junction singularity (the cluster feeds
+   mid-wire, away from it) AND the junction to be the convergence bottleneck
+   (the fan dipoles are trap-loaded, whole-structure-slow — their reactance is
+   still climbing at N=641, so the junction is not what limits convergence).
+   The purpose-built momwire test hentenna (tiny feed stub *at* the junction,
+   otherwise well-conditioned) meets all three; no catalog geometry does.
+
+Incidental momwire limitation surfaced: `use_singular_enrichment` + distributed
+wire loading raises `NotImplementedError` ("the enrichment bases don't carry the
+loading overlap term"), so lossy-spec designs (`verticals.pota_performer`) cannot
+be enriched today — recorded, not silently dropped.
+
 ## Reproduce
 
 ```
@@ -146,6 +190,7 @@ python scripts/bench_enrichment_probe.py --ladder 21 41 81 161 \
     --grounds free pec sommerfeld --out probe.jsonl
 python scripts/bench_enrichment_probe.py --only specialty.hentenna \
     --variant auto      # demonstrates auto suppressing enrichment (enr↦ = 0)
+python scripts/bench_enrichment_scan.py --out scan.jsonl   # catalog-wide hunt
 ```
 
 Related: #521 (the cluster), #484 (closed — the R-dominated fan-feed drift
