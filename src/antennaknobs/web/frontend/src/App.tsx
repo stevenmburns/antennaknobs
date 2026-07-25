@@ -5644,27 +5644,22 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   form — the radiated fraction, same number as the Info-pane
                   row. Free space / PEC keeps the raw Δ dB, where it is a
                   pure solver power-balance diagnostic. Over faceted TERRAIN
-                  the fraction is NOT an efficiency — the per-facet far
-                  field has no obligation to integrate to the crest-
-                  referenced input power, and can exceed 100% — so terrain
-                  shows the raw Δ with its own explanation. */}
+                  the fraction is PEC-facet-referenced (the server integrates
+                  the same facet geometry with lossless media as the
+                  denominator, cancelling the hybrid ledger gap); the ledger
+                  Δ itself lives in the tooltip and the dotted overlay. */}
               {normCheckEnabled && normCheck && (
                 <span
                   className="overlay-readout"
                   title={
                     normCheck.method.startsWith("grid_terrain")
-                      ? `Hybrid-model ledger over faceted terrain (${normCheck.method}): the per-facet far field integrates to a different total power than the crest-referenced input-power norm — a model-consistency indicator, not an efficiency (either sign is normal; absolute gains stay anchored to the input-power norm, the convention validated against NEC-2's cliff).`
+                      ? `Share of accepted power leaving as sky wave over the faceted terrain (${normCheck.method}): the same facet geometry integrated with perfect-reflector media is the reference, so the ratio isolates real ground-media absorption. The dotted overlay shows the separate hybrid-model ledger gap (Δ ${normCheck.delta_db >= 0 ? "+" : ""}${normCheck.delta_db.toFixed(2)} dB — the facet far field vs the crest-referenced input power; either sign is normal, and absolute gains stay anchored to the input-power norm, the convention validated against NEC-2's cliff).`
                       : normCheck.method.startsWith("grid_")
                         ? `P_radiated/P_input from the pattern-integral norm (${normCheck.method}): the gap between the solid and dotted lobes as a fraction — structural loss plus real ground absorption (Δ ${normCheck.delta_db >= 0 ? "+" : ""}${normCheck.delta_db.toFixed(3)} dB, NEC average-gain style)`
                         : `input-power norm vs pattern-integral norm (${normCheck.method}); 0 dB = perfect power balance`
                   }
                 >
-                  {normCheck.method.startsWith("grid_terrain") ? (
-                    <>
-                      ledger Δ {normCheck.delta_db >= 0 ? "+" : ""}
-                      {normCheck.delta_db.toFixed(1)} dB
-                    </>
-                  ) : normCheck.method.startsWith("grid_") ? (
+                  {normCheck.method.startsWith("grid_") ? (
                     <>radiated {(normCheck.radiated_fraction * 100).toFixed(0)}%</>
                   ) : (
                     <>
@@ -6638,27 +6633,24 @@ function SolveReadout({
             )}
             {normCheckEnabled &&
               (() => {
-                // Over faceted terrain the fraction is a hybrid-model
-                // consistency indicator, not an efficiency (it can exceed
-                // 100%) — present it as the raw ledger Δ instead.
+                // Over faceted terrain the same row reads the PEC-facet-
+                // referenced fraction (the tooltip explains the different
+                // denominator); the plain finite ground keeps its P_in-
+                // referenced number.
                 const isTerrain = !!normCheck?.method.startsWith("grid_terrain");
                 return (
                   <div
                     className="row"
                     title={
                       isTerrain
-                        ? "Hybrid-model ledger over faceted terrain: the per-facet far field integrates to a different total power than the crest-referenced input-power norm. A model-consistency indicator, not an efficiency — either sign is normal, and absolute gains stay anchored to the input-power norm (the convention validated against NEC-2's cliff)."
+                        ? "Share of accepted power leaving as sky wave over the faceted terrain: referenced against the same facet geometry with perfect-reflector media, so the ratio isolates real ground-media absorption (the hybrid model's separate field-vs-circuit ledger gap cancels; it is shown on the chart as the dotted overlay)."
                         : "P_radiated / P_input from the dwell-triggered pattern integral (the norm check as a percentage): what actually leaves as far-field radiation after network, wire AND real ground absorption. Fills in once the knobs settle; over PEC ground or free space it collapses onto the structural efficiency. See the 'three ledgers' section of the docs."
                     }
                   >
-                    <span>
-                      {isTerrain ? "pattern ledger Δ (terrain)" : "radiated (incl. ground)"}
-                    </span>
+                    <span>radiated (incl. ground)</span>
                     <span className={normCheck ? "val" : "val val-pending"}>
                       {normCheck
-                        ? isTerrain
-                          ? `${normCheck.delta_db >= 0 ? "+" : ""}${normCheck.delta_db.toFixed(1)} dB`
-                          : `${(normCheck.radiated_fraction * 100).toFixed(0)}%`
+                        ? `${(normCheck.radiated_fraction * 100).toFixed(0)}%`
                         : "—"}
                     </span>
                   </div>

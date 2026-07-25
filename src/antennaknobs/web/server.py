@@ -355,7 +355,15 @@ def _terrain_ray_geometry(terrain: Terrain, rhat, mid, dr, i_mid):
     )
 
 
-def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid=None):
+def _mag2_at_directions(
+    out: dict,
+    rhat: np.ndarray,
+    *,
+    mid=None,
+    dr=None,
+    i_mid=None,
+    terrain_pec: bool = False,
+):
     """|M_perp|² at arbitrary far-field directions — the single server-side
     implementation of the pattern physics (issue #547; the frontend's JS
     copy is being retired against this).
@@ -365,6 +373,12 @@ def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid
     ground constants. Returns a real array of rhat's leading shape. Callers
     that already hold the moment set pass it via mid/dr/i_mid to skip the
     re-extraction.
+
+    terrain_pec (faceted-terrain responses only): evaluate the same facet
+    geometry — image, height phase, specular selection — with the media
+    forced to a perfect reflector (ρ_h=−1, ρ_v=+1). The reference integral
+    for the terrain ground-absorption ledger: the real/PEC power ratio
+    cancels the geometric restructuring and isolates media absorption.
     """
     k = float(out["k_meas_m_inv"])
     ground_on = bool(out.get("ground", False))
@@ -449,9 +463,14 @@ def _mag2_at_directions(out: dict, rhat: np.ndarray, *, mid=None, dr=None, i_mid
             eps_c = out["ground_eps_r"] + 1j * out["ground_eps_im"]
             cos_ti = rz
             sin2_ti = s * s
-        Q = np.sqrt(eps_c - sin2_ti)
-        rho_h = (cos_ti - Q) / (cos_ti + Q)
-        rho_v = (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
+        if terr and terrain_pec:
+            # Perfect-reflector facets (see docstring): geometry intact,
+            # media losses off.
+            rho_h, rho_v = -1.0, 1.0
+        else:
+            Q = np.sqrt(eps_c - sin2_ti)
+            rho_h = (cos_ti - Q) / (cos_ti + Q)
+            rho_v = (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
 
         # Reflected: ρ_v on the v-pol component, −ρ_h on the h-pol component
         # (the minus sign folds the PEC image's pre-applied horizontal flip
@@ -595,6 +614,7 @@ def _compute_directivity_norm(
     n_phi: int | None = None,
     *,
     _theta_rule: str = "gl",
+    terrain_pec: bool = False,
 ) -> None:
     """Attach `directivity_norm` = 4π / ∫|M_perp|² dΩ to the response.
 
@@ -649,7 +669,9 @@ def _compute_directivity_norm(
     rz = np.broadcast_to(cos_t[:, None], (n_theta, n_phi))
     rhat = np.stack([rx, ry, rz], axis=-1)  # (nθ, nφ, 3)
 
-    mag2 = _mag2_at_directions(out, rhat, mid=mid, dr=dr, i_mid=i_mid)
+    mag2 = _mag2_at_directions(
+        out, rhat, mid=mid, dr=dr, i_mid=i_mid, terrain_pec=terrain_pec
+    )
 
     # Gauss–Legendre in θ (weight absorbs sin θ) × uniform rectangle in φ.
     dphi = 2 * np.pi / n_phi
@@ -1372,6 +1394,7 @@ def _norm_check(req: dict, cancel=None) -> dict:
     pec = float(out.get("ground_eps_r", _PEC_GROUND_EPS_R)) >= 1e6 and not float(
         out.get("ground_sigma", 0.0) or 0.0
     )
+    terrain_pec_norm = None
     if not ground_on or pec:
         pattern_norm = _pattern_integral_norm(out)
         method = "closed_form"
@@ -1391,29 +1414,44 @@ def _norm_check(req: dict, cancel=None) -> dict:
         n_theta, n_phi = _fine_norm_grid(nt_adapt)
         _compute_directivity_norm(ref, n_theta=n_theta, n_phi=n_phi)
         pattern_norm = ref["directivity_norm"]
-        # Over a faceted terrain the quadrature integrates the per-facet
-        # composed pattern, which has no obligation to match the crest-
-        # referenced input power (the impedance solve never saw the facets)
-        # — the ratio is a hybrid-model consistency indicator, not an
-        # efficiency, and it can exceed 1. Tag the method so the frontend
-        # presents it as a raw Δ rather than "radiated %".
-        method = (
-            f"grid_terrain_{n_theta}x{n_phi}"
-            if out.get("ground_terrain")
-            else f"grid_{n_theta}x{n_phi}"
-        )
+        # Over a faceted terrain the P_in-referenced ratio is NOT an
+        # efficiency: the far field is composed per facet while the
+        # impedance solve saw only the flat crest ground, so the pattern
+        # integral has no obligation to match the input power (it can
+        # exceed it — the frontend shows that gap as the "ledger Δ"). The
+        # honest ground-loss ledger instead references the SAME facet
+        # geometry with perfect-reflector media: identical image phases,
+        # tilts and specular selection cancel in the ratio, leaving purely
+        # the power the ground media absorb from the reflected wave.
+        if out.get("ground_terrain"):
+            pec_ref = dict(out)
+            _compute_directivity_norm(
+                pec_ref, n_theta=n_theta, n_phi=n_phi, terrain_pec=True
+            )
+            terrain_pec_norm = pec_ref["directivity_norm"]
+            method = f"grid_terrain_{n_theta}x{n_phi}"
+        else:
+            method = f"grid_{n_theta}x{n_phi}"
     efficiency = float(out.get("radiation_efficiency", 1.0))
+    if terrain_pec_norm is not None:
+        # P_real/P_pec (norms are inverse powers; the folded-in structural
+        # efficiency cancels in the ratio and is re-applied once).
+        radiated = (
+            efficiency * terrain_pec_norm / pattern_norm if pattern_norm > 0 else 0.0
+        )
+    else:
+        radiated = (
+            efficiency * out["directivity_norm"] / pattern_norm
+            if pattern_norm > 0
+            else 0.0
+        )
     return {
         "available": pattern_norm > 0,
         "directivity_norm": out["directivity_norm"],
         "pattern_norm": pattern_norm,
         "method": method,
         "radiation_efficiency": efficiency,
-        "radiated_fraction": (
-            efficiency * out["directivity_norm"] / pattern_norm
-            if pattern_norm > 0
-            else 0.0
-        ),
+        "radiated_fraction": radiated,
     }
 
 

@@ -215,26 +215,33 @@ def test_terrain_zenith_sample_stays_finite_and_smooth():
     assert el[45] <= min(el[44], el[46])
 
 
-def test_norm_check_tags_terrain_as_ledger_not_efficiency():
-    """Over terrain the pattern integral needn't match the crest-referenced
-    input power (measured: levee invvee 100.6% at 28.47 MHz, 38% at
-    21.2 MHz — both confirmed against the engine's own far-field integral
-    to ~0.4%). The method tag tells the frontend to present the raw Δ as a
-    model-consistency indicator instead of 'radiated %'."""
+def test_norm_check_terrain_radiated_is_pec_facet_referenced():
+    """Over terrain the P_in-referenced ratio is not an efficiency (the
+    facet far field needn't integrate to the crest-referenced input power:
+    measured 100.6% at 28.47 MHz / 38% at 21.2 MHz for the levee invvee,
+    both confirmed against the engine's own far-field integral). The
+    radiated fraction is instead referenced against the SAME facet
+    geometry with perfect-reflector media — the restructuring cancels,
+    isolating ground-media absorption — so it behaves like an efficiency
+    again (measured 71.3% / 99.5% at the same two frequencies). The
+    method tag drives the terrain-specific tooltip."""
     from antennaknobs.web.server import _norm_check
 
-    r = _norm_check(
-        {
-            "geometry": "dipoles.invvee",
-            "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
-            "ground": True,
-            "ground_model": "terrain",
-            "terrain": {"preset": "levee"},
-        }
-    )
-    assert r["available"] and r["method"].startswith("grid_terrain_")
-    assert r["radiated_fraction"] > 0  # still shipped for API consumers
+    for f in (28.47, 21.2):
+        r = _norm_check(
+            {
+                "geometry": "dipoles.invvee",
+                "measurement_freq_mhz": f,
+                "momwire_model": "bspline",
+                "ground": True,
+                "ground_model": "terrain",
+                "terrain": {"preset": "levee"},
+            }
+        )
+        assert r["available"] and r["method"].startswith("grid_terrain_")
+        # Bounded like an efficiency (small tolerance for quadrature and
+        # interference cross-terms), and physically substantial.
+        assert 0.2 < r["radiated_fraction"] <= 1.02, (f, r["radiated_fraction"])
 
     flat = _norm_check(
         {
