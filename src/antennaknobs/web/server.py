@@ -868,6 +868,12 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         "_session",
         "_gen",
         "_approved",
+        # Polar-cut angles (issue #547): cuts are attached per-request AFTER
+        # the cache, so the cached entry is angle-independent by design.
+        # Leaving these in the key meant every cut-dial drag silently
+        # invalidated cache hits for all subsequent knob scrubs.
+        "az_elev_deg",
+        "elev_az_deg",
     }
 )
 
