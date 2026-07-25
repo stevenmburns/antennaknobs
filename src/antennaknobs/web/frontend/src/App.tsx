@@ -1356,6 +1356,12 @@ type SolveResponse = {
    *  can't support them (no wires / no gain norm) or from geometry previews;
    *  new angles are fetched from POST /cuts (see useCutTraces). */
   cuts?: PatternCuts;
+  /** Advisory key into the server's cuts-source cache (issue #551). When
+   *  present, cut refetches send this ~100-byte id (over /ws or POST /cuts)
+   *  instead of re-uploading the full solve body; a server-side miss
+   *  (restart, eviction) falls back to the stateless full-body POST, so
+   *  pinned ghosts from dead sessions still work. */
+  solve_id?: string;
   directivity_norm?: number;
   ground?: boolean;
   height_m?: number;
@@ -4423,8 +4429,22 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (!active) return;
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
+    // This socket's cuts sender (issue #551). A stable identity per socket
+    // so the close/cleanup handlers only deregister their OWN sender — a
+    // stale socket's late onclose must not tear down the transport a newer
+    // socket just registered.
+    const cutsSender = (msg: string): boolean => {
+      if (ws.readyState !== WebSocket.OPEN) return false;
+      ws.send(msg);
+      return true;
+    };
+    const dropCutsSender = () => {
+      if (cutsWsSend === cutsSender) cutsWsSend = null;
+      flushCutsWsPending();
+    };
     ws.onopen = () => {
       setStatus("open");
+      cutsWsSend = cutsSender;
       // A prior socket's in-flight responses can never arrive on this new one.
       // Treat everything sent so far as received so `solving` can't stick true,
       // drop stale RTT timers, then send fresh current state. StrictMode and HMR
@@ -4436,6 +4456,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     };
     ws.onclose = () => {
       setStatus("closed");
+      dropCutsSender();
       // No solve can progress while disconnected — collapse the outstanding
       // count so the busy bar can't spin under a "closed" status (reconnect
       // re-arms it via onopen).
@@ -4444,11 +4465,18 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     };
     ws.onerror = () => {
       setStatus("closed");
+      dropCutsSender();
       lastReceivedSeqRef.current = lastSentSeqRef.current;
       setSolving(false);
     };
     ws.onmessage = (ev) => {
-      const data: SolveResponse = JSON.parse(ev.data);
+      const data: SolveResponse & Partial<CutsWsMessage> = JSON.parse(ev.data);
+      if (data._kind === "cuts") {
+        // Cuts sidecar response (issue #551) — never a solve; route it
+        // before any _seq/solving bookkeeping.
+        resolveCutsWsMessage(data as CutsWsMessage);
+        return;
+      }
       const seq = data._seq ?? 0;
       // One socket delivers in order, and the server may skip-send superseded
       // results — so a higher `_seq` implicitly acknowledges every lower one.
@@ -4497,6 +4525,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
         cancelAnimationFrame(solveRafRef.current);
         solveRafRef.current = null;
       }
+      dropCutsSender(); // ws.close() fires onclose async; don't leave a dead sender up
       ws.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -7016,6 +7045,95 @@ function cachedCuts(
   return cutsCache.get(cutsKey(result, azElevDeg, elevAzDeg)) ?? null;
 }
 
+// Cuts over the live /ws socket (issue #551): when the socket is open it
+// doubles as the cuts transport — a ~100-byte {_kind:"cuts", solve_id}
+// message replaces the full-body POST (warm ws measured ~2× cheaper than
+// HTTP through a tunnel, and the server answers from its cuts-source
+// cache). The socket effect registers a sender here on open and clears it
+// on close; fetchCuts falls back to HTTP when it's absent or doesn't
+// answer.
+let cutsWsSend: ((msg: string) => boolean) | null = null;
+// Outcome of a ws cuts round trip. "miss" (server says unknown id) skips
+// the pointless HTTP id retry — the same cache would 404 — and goes
+// straight to the full-body backstop; "unavailable" (no socket, timeout,
+// socket died) still tries the tiny HTTP id request first.
+type CutsWsReply =
+  | { status: "ok"; cuts: PatternCuts }
+  | { status: "miss" }
+  | { status: "unavailable" };
+const cutsWsPending = new Map<string, (reply: CutsWsReply) => void>();
+// Generous vs the ~100 ms worst-case big-mesh cut compute: a timeout only
+// fires when the socket is wedged, and the HTTP fallback then still
+// delivers — slower, never wrong.
+const CUTS_WS_TIMEOUT_MS = 1500;
+
+function cutsWsPendingKey(solveId: string, az: number, el: number): string {
+  return `${solveId}:${az}:${el}`;
+}
+
+function requestCutsViaWs(
+  solveId: string,
+  azElevDeg: number,
+  elevAzDeg: number,
+): Promise<CutsWsReply> {
+  const send = cutsWsSend;
+  if (!send) return Promise.resolve({ status: "unavailable" });
+  const key = cutsWsPendingKey(solveId, azElevDeg, elevAzDeg);
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      cutsWsPending.delete(key);
+      resolve({ status: "unavailable" });
+    }, CUTS_WS_TIMEOUT_MS);
+    cutsWsPending.set(key, (reply) => {
+      window.clearTimeout(timer);
+      cutsWsPending.delete(key);
+      resolve(reply);
+    });
+    if (
+      !send(
+        JSON.stringify({
+          _kind: "cuts",
+          solve_id: solveId,
+          az_elev_deg: azElevDeg,
+          elev_az_deg: elevAzDeg,
+        }),
+      )
+    ) {
+      window.clearTimeout(timer);
+      cutsWsPending.delete(key);
+      resolve({ status: "unavailable" });
+    }
+  });
+}
+
+/** Server cuts message arriving on the /ws socket — routed here by the
+ *  socket effect's onmessage before any solve handling. */
+type CutsWsMessage = {
+  _kind: "cuts";
+  solve_id: string;
+  az_elev_deg: number;
+  elev_az_deg: number;
+  ok: boolean;
+  cuts?: PatternCuts;
+};
+
+function resolveCutsWsMessage(data: CutsWsMessage): void {
+  const key = cutsWsPendingKey(data.solve_id, data.az_elev_deg, data.elev_az_deg);
+  const pending = cutsWsPending.get(key);
+  if (!pending) return; // timed out / superseded — fallback already running
+  pending(data.ok && data.cuts ? { status: "ok", cuts: data.cuts } : { status: "miss" });
+}
+
+/** Socket died: nothing pending will ever be answered on it. Resolving as
+ *  "unavailable" sends every waiter down the HTTP path immediately instead
+ *  of eating the full timeout. (A rare pending riding a *newer* socket gets
+ *  flushed too — it just falls back to HTTP: slower, never wrong.) */
+function flushCutsWsPending(): void {
+  for (const pending of Array.from(cutsWsPending.values())) {
+    pending({ status: "unavailable" });
+  }
+}
+
 function fetchCuts(
   result: SolveResponse,
   azElevDeg: number,
@@ -7024,16 +7142,36 @@ function fetchCuts(
   const key = cutsKey(result, azElevDeg, elevAzDeg);
   const inFlight = cutsInFlight.get(key);
   if (inFlight) return inFlight;
-  const p = fetch("/cuts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      solve: result,
-      az_elev_deg: azElevDeg,
-      elev_az_deg: elevAzDeg,
-    }),
-  })
-    .then((r) => (r.ok ? (r.json() as Promise<PatternCuts>) : null))
+  const postCuts = (body: object): Promise<Response> =>
+    fetch("/cuts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...body,
+        az_elev_deg: azElevDeg,
+        elev_az_deg: elevAzDeg,
+      }),
+    });
+  const p = (async (): Promise<PatternCuts | null> => {
+    // Transport ladder (issue #551): ws id → HTTP id → HTTP full body.
+    // Every rung is strictly a fallback of the one above; the full-body
+    // POST remains the correctness backstop (it's how pre-#551 responses
+    // and pins from dead server sessions resolve).
+    const solveId = result.solve_id;
+    if (solveId) {
+      const viaWs = await requestCutsViaWs(solveId, azElevDeg, elevAzDeg);
+      if (viaWs.status === "ok") return viaWs.cuts;
+      if (viaWs.status === "unavailable") {
+        const r = await postCuts({ solve_id: solveId });
+        if (r.ok) return (await r.json()) as PatternCuts;
+        if (r.status !== 404) return null; // 400: cuts genuinely unsupported
+      }
+      // ws said "miss" (or HTTP id 404'd): the server lost this solve —
+      // only the full body can answer now.
+    }
+    const r = await postCuts({ solve: result });
+    return r.ok ? ((await r.json()) as PatternCuts) : null;
+  })()
     .then((cuts) => {
       if (cuts) {
         if (cutsCache.size >= CUTS_CACHE_MAX) {
@@ -7074,13 +7212,19 @@ function useCutTraces(
     );
     if (missing.length === 0) return;
     let cancelled = false;
+    // When every missing trace can go over the ws id path (~100 bytes, and
+    // the server squashes per-solve latest-wins), a much tighter debounce
+    // makes cut drags feel live; the original 120 ms guard stays for the
+    // full-body HTTP fallback, whose requests are 10 KB–300 KB (issue #551).
+    const delay =
+      cutsWsSend && missing.every((r) => r.solve_id) ? 30 : 120;
     const h = window.setTimeout(() => {
       Promise.all(missing.map((r) => fetchCuts(r, azElevDeg, elevAzDeg))).then(
         () => {
           if (!cancelled) setFetchTick((t) => t + 1);
         },
       );
-    }, 120);
+    }, delay);
     return () => {
       cancelled = true;
       window.clearTimeout(h);
