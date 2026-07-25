@@ -1657,9 +1657,7 @@ def cuts_endpoint(req: dict):
                 float(req.get("elev_az_deg", 0.0)),
             )
         except (KeyError, TypeError, ValueError) as e:
-            raise HTTPException(
-                status_code=400, detail=f"bad cuts request: {e}"
-            ) from e
+            raise HTTPException(status_code=400, detail=f"bad cuts request: {e}") from e
         if cuts is None:
             raise HTTPException(status_code=404, detail="unknown solve_id")
         return cuts
