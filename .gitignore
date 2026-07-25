@@ -29,3 +29,5 @@ src/antennaknobs/web/static/
 !.claude/skills/
 scripts/sterba_center_driven_pattern.png
 bench_out/
+# Claude Code scratchpad — session-local working files, never shipped
+scratchpad/
