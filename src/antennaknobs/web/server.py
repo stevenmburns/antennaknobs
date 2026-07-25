@@ -1362,6 +1362,8 @@ def _norm_check(req: dict, cancel=None) -> dict:
     finite ground the shortfall from 1.0 is structural loss plus real ground
     absorption; over PEC/free space it collapses to ~structural efficiency
     (times the solver's self-consistency gap, <0.05 dB on converged designs).
+    Over a faceted terrain the fraction is NOT an efficiency — see the
+    method-tag comment below — and the frontend shows the raw Δ instead.
     """
     out = solve(dict(req), cancel=cancel)
     if "directivity_norm" not in out or out["directivity_norm"] <= 0:
@@ -1389,7 +1391,17 @@ def _norm_check(req: dict, cancel=None) -> dict:
         n_theta, n_phi = _fine_norm_grid(nt_adapt)
         _compute_directivity_norm(ref, n_theta=n_theta, n_phi=n_phi)
         pattern_norm = ref["directivity_norm"]
-        method = f"grid_{n_theta}x{n_phi}"
+        # Over a faceted terrain the quadrature integrates the per-facet
+        # composed pattern, which has no obligation to match the crest-
+        # referenced input power (the impedance solve never saw the facets)
+        # — the ratio is a hybrid-model consistency indicator, not an
+        # efficiency, and it can exceed 1. Tag the method so the frontend
+        # presents it as a raw Δ rather than "radiated %".
+        method = (
+            f"grid_terrain_{n_theta}x{n_phi}"
+            if out.get("ground_terrain")
+            else f"grid_{n_theta}x{n_phi}"
+        )
     efficiency = float(out.get("radiation_efficiency", 1.0))
     return {
         "available": pattern_norm > 0,
