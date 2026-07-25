@@ -181,6 +181,43 @@ def test_terrain_zenith_sample_stays_finite_and_smooth():
     assert el[45] <= min(el[44], el[46])
 
 
+def test_norm_check_tags_terrain_as_ledger_not_efficiency():
+    """Over terrain the pattern integral needn't match the crest-referenced
+    input power (measured: levee invvee 100.6% at 28.47 MHz, 38% at
+    21.2 MHz — both confirmed against the engine's own far-field integral
+    to ~0.4%). The method tag tells the frontend to present the raw Δ as a
+    model-consistency indicator instead of 'radiated %'."""
+    from antennaknobs.web.server import _norm_check
+
+    r = _norm_check(
+        {
+            "geometry": "dipoles.invvee",
+            "measurement_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+            "ground": True,
+            "ground_model": "terrain",
+            "terrain": {"preset": "levee"},
+        }
+    )
+    assert r["available"] and r["method"].startswith("grid_terrain_")
+    assert r["radiated_fraction"] > 0  # still shipped for API consumers
+
+    flat = _norm_check(
+        {
+            "geometry": "dipoles.invvee",
+            "measurement_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+            "ground": True,
+            "ground_model": "sommerfeld",
+        }
+    )
+    assert flat["method"].startswith("grid_") and not flat["method"].startswith(
+        "grid_terrain"
+    )
+    # Flat finite ground stays a true efficiency: strictly below 1.
+    assert 0.0 < flat["radiated_fraction"] < 1.0
+
+
 # --- end-to-end -------------------------------------------------------------
 
 
