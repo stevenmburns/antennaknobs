@@ -25,19 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.36.1" icon="star">
-  **The 3D view faces your antenna again.** v0.36.0's `Wire()` migration
-  silently broke automatic view selection — 67 of 92 designs opened on
-  the x-y plane, so a dipole or inverted-V rendered edge-on until you
-  switched planes by hand. Fixed, with concrete per-design view pins in
-  the test suite so a silent fallback can't slip through again. Still
-  fresh from v0.36.0: **segmentation you never think about** — give a
-  wire the segment count `None` and the framework meshes it at the
-  design density, a conversion that surfaced seven silent meshing
-  defects and raised the basis census to **77/92 designs with a
-  verified mutual convergence limit**. Read the story:
-  [Segmentation you never think about](/concepts/auto-meshing/).
-  [All release notes →](/reference/releases/)
+<Card title="New in v0.37.0" icon="star">
+  **Your antenna, on the ground you actually stand on.** Every flat-ground
+  model — Sommerfeld, reflection-coefficient, PEC — assumes the earth is an
+  infinite flat plane at the mast's feet. The new **faceted-terrain ground**
+  drops that assumption: pick a **levee**, **cliff**, or **hillside** preset,
+  set the slopes, drops, and bearings, and the far field reflects off the
+  actual sloped facet each ray's specular point lands on — tilted incidence,
+  per-facet media (water vs. land), full effective height below the drops. The
+  motivating QTH — a 20 ft mast on a levee, fresh water off one slope and
+  farmland off the other — is worked end to end in
+  [Antennas on a levee](/advanced/terrain/). Presets are schema-driven, so
+  adding one is a single Python entry — no frontend rebuild. Also new:
+  **server-side polar cuts**, so every solve returns its azimuth and elevation
+  traces ready to plot. [All release notes →](/reference/releases/)
 </Card>
 
 ## The whole pitch, in one line
