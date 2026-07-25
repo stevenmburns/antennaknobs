@@ -3936,6 +3936,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundModel,
+    // The pattern integral runs over the facets, so terrain knob changes
+    // invalidate it (unlike the impedance-only sweep/converge effects,
+    // which are legitimately terrain-param-independent — every preset
+    // shares the crest medium the impedance solve uses).
+    terrainKey,
     normCheckEnabled,
     active,
     // Poor-match gate (see the sweep effect).

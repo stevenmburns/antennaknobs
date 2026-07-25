@@ -204,6 +204,17 @@ def test_solve_cache_stays_angle_independent(client: TestClient):
     assert r1["cuts"]["az_elev_deg"] == 10.0
     assert r2["cuts"]["az_elev_deg"] == 35.0
     assert r1["cuts"]["azimuth"] != r2["cuts"]["azimuth"]
+    # The angles are blocklisted from the cache key, so the second request
+    # is a genuine hit — a cut-dial drag must not shred the solve cache.
+    assert r2["cache_hit"] is True
+
+
+def test_solve_cache_key_ignores_cut_angles():
+    from antennaknobs.web.server import _canonical_solve_key
+
+    a = {"geometry": "dipoles.invvee", "az_elev_deg": 10.0, "elev_az_deg": 0.0}
+    b = {"geometry": "dipoles.invvee", "az_elev_deg": 35.0, "elev_az_deg": 90.0}
+    assert _canonical_solve_key(a) == _canonical_solve_key(b)
 
 
 def test_mag2_directions_shape_generic():
