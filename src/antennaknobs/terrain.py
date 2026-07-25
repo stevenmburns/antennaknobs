@@ -241,6 +241,79 @@ def cliff_terrain(
     return Terrain(sectors=(cliff, flat))
 
 
+def hillside_terrain(
+    *,
+    flat_width: float,
+    up_slope_deg: float,
+    down_slope_deg: float,
+    medium: tuple[float, float] = (13.0, 0.005),
+    downhill_azimuth: float = 0.0,
+    drop: float = 150.0,
+    rise: float = 100.0,
+    n_facets: int = 10,
+) -> Terrain:
+    """A bench on a hillside: a flat terrace ``flat_width`` wide, the ground
+    rising at ``up_slope_deg`` on one side and falling at ``down_slope_deg``
+    on the other (the side facing ``downhill_azimuth``), all one ``medium``.
+
+    Unlike the levee there is no natural "bottom" to reference — and none is
+    needed: the slope itself is the reflector, so the effective height grows
+    continuously as the elevation angle drops (the specular point walks down
+    the hill). Each slope is subdivided into ``n_facets`` pieces —
+    ``specular_cut`` locates facets by their midpoint height, so a long
+    slope needs subdivision to track the continuous tilted-mirror solution —
+    and capped at ``drop``/``rise`` metres of relief before flattening; at
+    HF the caps only matter below ~1-2 degrees of elevation.
+
+    Honest limit: toward the *uphill* side below ``up_slope_deg`` of
+    elevation the real sky is shadowed by the hill. The specular model has
+    no diffraction, so it reports grazing-cancelled reflection there instead
+    of blockage — don't trust that band.
+    """
+    if not 0.0 < up_slope_deg < 90.0 or not 0.0 < down_slope_deg < 90.0:
+        raise ValueError("hillside slopes must be in (0, 90) degrees")
+    if n_facets < 1:
+        raise ValueError(f"n_facets must be >= 1, got {n_facets}")
+    half = flat_width / 2.0
+    eps, sig = medium
+
+    def ramp(slope_deg: float, dz_total: float) -> tuple[Facet, ...]:
+        run = abs(dz_total) / math.tan(math.radians(slope_deg))
+        return tuple(
+            Facet(
+                half + run * (i + 1) / n_facets,
+                dz_total * (i + 1) / n_facets,
+                eps,
+                sig,
+            )
+            for i in range(n_facets)
+        )
+
+    bench = Facet(half, 0.0, eps, sig)
+    return Terrain(
+        sectors=(
+            Sector(
+                az0=downhill_azimuth - 90.0,
+                az1=downhill_azimuth + 90.0,
+                facets=(
+                    bench,
+                    *ramp(down_slope_deg, -drop),
+                    Facet(None, -drop, eps, sig),
+                ),
+            ),
+            Sector(
+                az0=downhill_azimuth + 90.0,
+                az1=downhill_azimuth + 270.0,
+                facets=(
+                    bench,
+                    *ramp(up_slope_deg, +rise),
+                    Facet(None, +rise, eps, sig),
+                ),
+            ),
+        )
+    )
+
+
 def levee_terrain(
     *,
     crest_width: float,

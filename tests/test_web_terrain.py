@@ -101,6 +101,40 @@ def test_garbage_terrain_params_clamp_to_defaults():
     )
 
 
+def test_hillside_params_flow_through():
+    t = _terrain_from_request(
+        _terrain_req(
+            preset="hillside",
+            flat_width_m=30.0,
+            up_slope_deg=25.0,
+            down_slope_deg=8.0,
+            downhill_azimuth_deg=180.0,
+        )
+    )
+    down, up = t.sectors
+    assert (down.az0, down.az1) == (90.0, 270.0)  # downhill_azimuth ± 90
+    assert down.facets[0].x1 == pytest.approx(15.0)
+    run = down.facets[-2].x1 - down.facets[0].x1
+    assert math.degrees(math.atan2(150.0, run)) == pytest.approx(8.0)
+    assert up.facets[-1].z1 > 0
+    assert t.crest_medium == adapter._TERRAIN_LAND
+
+
+def test_hillside_downhill_lifts_low_angles_over_flat():
+    """The hillside's payoff at the cuts layer: toward the downhill side the
+    low-angle field beats flat ground by several dB (the specular point
+    walks down the slope, growing the effective height), while well above
+    the slope band the bench governs and terrain equals flat exactly."""
+    from antennaknobs.terrain import hillside_terrain
+
+    t = hillside_terrain(flat_width=20.0, up_slope_deg=15.0, down_slope_deg=10.0)
+    el = _pattern_cuts(_hertzian_over(t), 15.0, 0.0)["elevation"]
+    el_flat = _pattern_cuts(_hertzian_over(None), 15.0, 0.0)["elevation"]
+    assert el[2] > el_flat[2] + 3.0  # 4 deg toward the downhill side
+    # 80 deg: the specular point sits on the flat bench -> identical values.
+    assert el[40] == el_flat[40]
+
+
 def test_pynec_terrain_maps_to_crest_medium_sommerfeld():
     """The PyNEC terrain hybrid (issue #553): NEC has no facet model, but
     the #534 recipe solves currents over flat Sommerfeld at the crest

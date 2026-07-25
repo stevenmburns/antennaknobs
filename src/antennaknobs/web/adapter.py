@@ -77,7 +77,12 @@ except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 10.0, 0.002)
 from antennaknobs.engines.momwire import MomwireEngine
-from antennaknobs.terrain import Terrain, cliff_terrain, levee_terrain
+from antennaknobs.terrain import (
+    Terrain,
+    cliff_terrain,
+    hillside_terrain,
+    levee_terrain,
+)
 from momwire import (
     ArrayBlockSolver,
     BSplineSolver,
@@ -731,12 +736,14 @@ def _terrain_num(t: Mapping, key: str, default: float, lo: float, hi: float) -> 
 
 def _terrain_from_request(req: dict) -> Terrain:
     """Build the faceted-terrain ground from the request's `terrain` preset
-    params (ground_model="terrain"). Two presets, mapping straight onto the
-    antennaknobs.terrain constructors:
+    params (ground_model="terrain"). Three presets, mapping straight onto
+    the antennaknobs.terrain constructors:
 
       {"preset": "levee", "crest_width_m", "slope_deg", "drop_water_m",
        "drop_land_m", "water_azimuth_deg"}
       {"preset": "cliff", "edge_m", "drop_m", "azimuth_deg", "arc_deg"}
+      {"preset": "hillside", "flat_width_m", "up_slope_deg",
+       "down_slope_deg", "downhill_azimuth_deg"}
 
     Media are fixed at the QTH constants (water 80/0.005 outward of the
     cliff/water-side toe; land 13/0.005 for crest, slopes and the land
@@ -753,6 +760,16 @@ def _terrain_from_request(req: dict) -> Terrain:
             outer=_TERRAIN_WATER,
             azimuth=_terrain_num(t, "azimuth_deg", 0.0, -360.0, 360.0),
             arc=_terrain_num(t, "arc_deg", 360.0, 1.0, 360.0),
+        )
+    if t.get("preset") == "hillside":
+        return hillside_terrain(
+            flat_width=_terrain_num(t, "flat_width_m", 20.0, 0.1, 1e3),
+            up_slope_deg=_terrain_num(t, "up_slope_deg", 15.0, 1.0, 89.0),
+            down_slope_deg=_terrain_num(t, "down_slope_deg", 10.0, 1.0, 89.0),
+            medium=_TERRAIN_LAND,
+            downhill_azimuth=_terrain_num(
+                t, "downhill_azimuth_deg", 0.0, -360.0, 360.0
+            ),
         )
     return levee_terrain(
         crest_width=_terrain_num(t, "crest_width_m", 3.0, 0.1, 1e3),
