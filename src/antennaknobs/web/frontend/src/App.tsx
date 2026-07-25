@@ -1539,45 +1539,33 @@ type FiniteGroundMethod = "sommerfeld" | "fast";
 // (+ the method wherever finite ground is supported).
 type GroundModel = "sommerfeld" | "fast" | "pec" | "terrain";
 
-// Terrain preset parameters, sent as the request's `terrain` object when
-// ground_model === "terrain". Media are fixed server-side (water 80/0.005,
-// land + crest 13/0.005) — the panel shows them read-only.
-type TerrainPreset = "levee" | "cliff" | "hillside";
-type TerrainParams = {
-  // levee
-  crest_width_m: number;
-  slope_deg: number;
-  drop_water_m: number;
-  drop_land_m: number;
-  water_azimuth_deg: number;
-  // cliff
-  edge_m: number;
-  drop_m: number;
-  azimuth_deg: number;
-  arc_deg: number;
-  // hillside
-  flat_width_m: number;
-  up_slope_deg: number;
-  down_slope_deg: number;
-  downhill_azimuth_deg: number;
+// Terrain preset schema, served by GET /capabilities (issue #560). The
+// frontend renders the whole terrain knob panel from this — the presets,
+// their field ranges/labels/units, and the read-only media note all live
+// server-side (adapter.terrain_presets_schema), so a Python-only preset needs
+// no TypeScript. Media are fixed server-side (water 80/0.005, land + crest
+// 13/0.005); each preset's media_note describes its own.
+type TerrainFieldSchema = {
+  key: string;
+  label: string; // omits the unit; the panel renders "{label} ({unit})"
+  unit: string | null;
+  default: number;
+  min: number;
+  max: number;
+  step: number;
 };
-// Levee defaults are the motivating QTH (issues #534/#535): a 3 m crest
-// with 20° slopes, water 10.7 m below one side, land 7.6 m below the other.
-const TERRAIN_DEFAULTS: TerrainParams = {
-  crest_width_m: 3.0,
-  slope_deg: 20,
-  drop_water_m: 10.7,
-  drop_land_m: 7.6,
-  water_azimuth_deg: 0,
-  edge_m: 10,
-  drop_m: 10,
-  azimuth_deg: 0,
-  arc_deg: 360,
-  flat_width_m: 20,
-  up_slope_deg: 15,
-  down_slope_deg: 10,
-  downhill_azimuth_deg: 0,
+type TerrainPresetSchema = {
+  name: string;
+  label: string; // radio label
+  tooltip: string; // radio hover text
+  media_note: string;
+  fields: TerrainFieldSchema[];
 };
+// Terrain knob values keyed by field key, sent (spread) as the request's
+// `terrain` object when ground_model === "terrain". One flat bag across all
+// presets so edits survive preset flips; an unset key falls back to the
+// schema default and the server clamps every number.
+type TerrainParams = Record<string, number>;
 
 function backendSupportsGround(b: Backend): boolean {
   return b === "sinusoidal" || isBSplineFamily(b) || b === "pynec";
@@ -1792,7 +1780,7 @@ type SolveRequest = {
   ground_model?: GroundModel;
   /** Terrain preset params when ground_model === "terrain" (issue #534);
    *  the server clamps every number, so raw knob state is fine to send. */
-  terrain?: { preset: TerrainPreset } & Partial<TerrainParams>;
+  terrain?: { preset: string; [key: string]: number | string };
   /** Cut angles for the server-attached polar traces (issue #547). */
   az_elev_deg?: number;
   elev_az_deg?: number;
@@ -2375,6 +2363,13 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // the common (installed) case never flashes the option off before the fetch
   // resolves; a false reply then hides it and remaps any PyNEC slot.
   const [havePynec, setHavePynec] = useState<boolean>(true);
+  // Terrain preset catalog (issue #560), reported by /capabilities on mount.
+  // Empty until it resolves (and on any older server without the field), which
+  // gates the terrain ground option off — the panel is rendered entirely from
+  // this schema, so there is nothing to show without it.
+  const [terrainPresets, setTerrainPresets] = useState<TerrainPresetSchema[]>(
+    [],
+  );
   // User designs that failed to load (bad Python, no Builder, geometry error).
   // Surfaced from /examples so the author / Claude can see and fix them.
   const [loadErrors, setLoadErrors] = useState<DesignLoadError[]>([]);
@@ -2481,7 +2476,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     (async () => {
       try {
         const c = await (await fetch("/capabilities")).json();
-        if (!cancelled) setHavePynec(c.have_pynec !== false);
+        if (!cancelled) {
+          setHavePynec(c.have_pynec !== false);
+          setTerrainPresets(
+            Array.isArray(c.terrain_presets) ? c.terrain_presets : [],
+          );
+        }
       } catch {
         /* keep the default; PyNEC stays offered */
       }
@@ -2864,9 +2864,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     useState<FiniteGroundMethod>("fast");
   // Terrain preset + knobs (groundType === "terrain"; momwire only). One
   // flat params object for both presets so values survive preset flips.
-  const [terrainPreset, setTerrainPreset] = useState<TerrainPreset>("levee");
-  const [terrainParams, setTerrainParams] =
-    useState<TerrainParams>(TERRAIN_DEFAULTS);
+  const [terrainPreset, setTerrainPreset] = useState<string>("levee");
+  const [terrainParams, setTerrainParams] = useState<TerrainParams>({});
   // Wire value derived for the server protocol (see GroundModel). A
   // terrain selection quietly degrades to the finite method on any future
   // backend without terrain support (all current ground-capable backends
@@ -5198,7 +5197,8 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                         ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
                         : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
                     ],
-                    ...(backendSupportsTerrain(backend)
+                    ...(backendSupportsTerrain(backend) &&
+                    terrainPresets.length > 0
                       ? [
                           [
                             "terrain",
@@ -5256,198 +5256,58 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                     ))}
                   </div>
                 )}
-              {groundType === "terrain" && backendSupportsTerrain(backend) && (
-                <div style={{ marginLeft: "1.2em" }}>
-                  <div role="radiogroup" aria-label="Terrain preset">
-                    {(
-                      [
-                        [
-                          "levee",
-                          "levee",
-                          "A raised crest with two sloped sides: water drop_water below on the water bearing, land drop_land below opposite. Crest and slopes are earth; water starts at the toe.",
-                        ],
-                        [
-                          "cliff",
-                          "cliff",
-                          "Flat earth out to the cliff edge, then a sheer drop to water. arc < 360° restricts the cliff to a sector facing the bearing.",
-                        ],
-                        [
-                          "hillside",
-                          "hillside",
-                          "A flat bench on a hillside: ground rises at the uphill slope on one side, falls at the downhill slope on the other (facing the downhill bearing). No bottom needed — the slope itself is the reflector, so effective height grows as the elevation drops. Below the uphill slope angle the model can't see the hill's shadowing.",
-                        ],
-                      ] as [TerrainPreset, string, string][]
-                    ).map(([value, label, title]) => (
-                      <label key={value} className="link-toggle" title={title}>
-                        <input
-                          type="radio"
-                          name="terrain-preset"
-                          checked={terrainPreset === value}
-                          onChange={() => setTerrainPreset(value)}
+              {groundType === "terrain" &&
+                backendSupportsTerrain(backend) &&
+                terrainPresets.length > 0 &&
+                (() => {
+                  // Whole panel driven by the /capabilities schema (issue
+                  // #560): radio list, per-preset knobs and media note all
+                  // come from terrainPresets. Fall back to the first preset if
+                  // the parked name is absent (a server-side rename).
+                  const activePreset =
+                    terrainPresets.find((p) => p.name === terrainPreset) ??
+                    terrainPresets[0];
+                  return (
+                    <div style={{ marginLeft: "1.2em" }}>
+                      <div role="radiogroup" aria-label="Terrain preset">
+                        {terrainPresets.map((p) => (
+                          <label
+                            key={p.name}
+                            className="link-toggle"
+                            title={p.tooltip}
+                          >
+                            <input
+                              type="radio"
+                              name="terrain-preset"
+                              checked={activePreset.name === p.name}
+                              onChange={() => setTerrainPreset(p.name)}
+                            />
+                            {p.label}
+                          </label>
+                        ))}
+                      </div>
+                      {activePreset.fields.map((f) => (
+                        <NumberField
+                          key={f.key}
+                          label={f.unit ? `${f.label} (${f.unit})` : f.label}
+                          value={terrainParams[f.key] ?? f.default}
+                          min={f.min}
+                          max={f.max}
+                          step={f.step}
+                          onChange={(v) =>
+                            setTerrainParams((p) => ({ ...p, [f.key]: v }))
+                          }
                         />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  {terrainPreset === "levee" ? (
-                    <>
-                      <NumberField
-                        label="crest width (m)"
-                        value={terrainParams.crest_width_m}
-                        min={0.1}
-                        max={1000}
-                        step={0.5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, crest_width_m: v }))
-                        }
-                      />
-                      <NumberField
-                        label="slope (°)"
-                        value={terrainParams.slope_deg}
-                        min={1}
-                        max={89}
-                        step={1}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, slope_deg: v }))
-                        }
-                      />
-                      <NumberField
-                        label="drop to water (m)"
-                        value={terrainParams.drop_water_m}
-                        min={0.01}
-                        max={1000}
-                        step={0.5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, drop_water_m: v }))
-                        }
-                      />
-                      <NumberField
-                        label="drop to land (m)"
-                        value={terrainParams.drop_land_m}
-                        min={0.01}
-                        max={1000}
-                        step={0.5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, drop_land_m: v }))
-                        }
-                      />
-                      <NumberField
-                        label="water bearing (°)"
-                        value={terrainParams.water_azimuth_deg}
-                        min={-360}
-                        max={360}
-                        step={5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({
-                            ...p,
-                            water_azimuth_deg: v,
-                          }))
-                        }
-                      />
-                    </>
-                  ) : terrainPreset === "cliff" ? (
-                    <>
-                      <NumberField
-                        label="cliff edge (m)"
-                        value={terrainParams.edge_m}
-                        min={0.1}
-                        max={10000}
-                        step={1}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, edge_m: v }))
-                        }
-                      />
-                      <NumberField
-                        label="drop (m)"
-                        value={terrainParams.drop_m}
-                        min={0.01}
-                        max={1000}
-                        step={0.5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, drop_m: v }))
-                        }
-                      />
-                      <NumberField
-                        label="bearing (°)"
-                        value={terrainParams.azimuth_deg}
-                        min={-360}
-                        max={360}
-                        step={5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, azimuth_deg: v }))
-                        }
-                      />
-                      <NumberField
-                        label="arc (°)"
-                        value={terrainParams.arc_deg}
-                        min={1}
-                        max={360}
-                        step={15}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, arc_deg: v }))
-                        }
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <NumberField
-                        label="flat width (m)"
-                        value={terrainParams.flat_width_m}
-                        min={0.1}
-                        max={1000}
-                        step={1}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, flat_width_m: v }))
-                        }
-                      />
-                      <NumberField
-                        label="uphill slope (°)"
-                        value={terrainParams.up_slope_deg}
-                        min={1}
-                        max={89}
-                        step={1}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({ ...p, up_slope_deg: v }))
-                        }
-                      />
-                      <NumberField
-                        label="downhill slope (°)"
-                        value={terrainParams.down_slope_deg}
-                        min={1}
-                        max={89}
-                        step={1}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({
-                            ...p,
-                            down_slope_deg: v,
-                          }))
-                        }
-                      />
-                      <NumberField
-                        label="downhill bearing (°)"
-                        value={terrainParams.downhill_azimuth_deg}
-                        min={-360}
-                        max={360}
-                        step={5}
-                        onChange={(v) =>
-                          setTerrainParams((p) => ({
-                            ...p,
-                            downhill_azimuth_deg: v,
-                          }))
-                        }
-                      />
-                    </>
-                  )}
-                  <div
-                    style={{ fontSize: "0.85em", opacity: 0.65 }}
-                    title="Media are fixed in this version; the geometry knobs above are the live parameters."
-                  >
-                    {terrainPreset === "hillside"
-                      ? "media: earth εr=13 σ=0.005"
-                      : "media: water εr=80 σ=0.005 · land/crest εr=13 σ=0.005"}
-                  </div>
-                </div>
-              )}
+                      ))}
+                      <div
+                        style={{ fontSize: "0.85em", opacity: 0.65 }}
+                        title="Media are fixed in this version; the geometry knobs above are the live parameters."
+                      >
+                        {activePreset.media_note}
+                      </div>
+                    </div>
+                  );
+                })()}
             </>
           )}
         </div>
