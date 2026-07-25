@@ -194,9 +194,12 @@ actually depend on.
 
 The selector describes what the ground **is**, independent of solver:
 
-- **finite (εr=10, σ=0.002 S/m)** — "average" real earth, the default; or
+- **finite (εr=10, σ=0.002 S/m)** — "average" real earth, the default;
 - **PEC** — a perfect reflector, mainly for apples-to-apples engine
-  comparisons.
+  comparisons; or
+- **terrain** — a faceted height profile around the site (levee/cliff
+  presets), for antennas where the ground is not flat. See
+  [Faceted terrain](#faceted-terrain) below.
 
 Every solver then offers the same method sub-choice — full
 **Sommerfeld/Norton** (most accurate, the reference below ~0.1λ heights)
@@ -220,6 +223,47 @@ was actually used, and over a finite ground the
 [norm check](#norm-check--is-the-solve-trustworthy) readout becomes a
 **radiated** percentage — the share of your input power that actually
 leaves as sky wave. The rest is absorbed power, not error.
+
+### Faceted terrain
+
+The **terrain** ground type models a site whose ground is *not* an infinite
+flat plane: a piecewise-linear height profile per azimuth sector, each facet
+carrying its own medium. Two presets cover the common cases, with every
+number a live knob:
+
+- **levee** — a raised crest with two sloped sides: *crest width*, *slope*,
+  *drop to water* on the *water bearing* side, *drop to land* opposite.
+  Crest and slopes are earth; the water medium starts at the water-side toe.
+- **cliff** — flat earth out to the *cliff edge*, then a sheer *drop* to
+  water; *arc* < 360° restricts the cliff to a sector facing the *bearing*.
+
+Media are fixed in this version (water εr=80 σ=0.005, land and crest εr=13
+σ=0.005 — shown read-only in the panel); arbitrary facet profiles and custom
+media are available from Python via `antennaknobs.terrain`.
+
+How it solves: the **impedance/current solution runs over a flat Sommerfeld
+ground with the crest medium** (near-field ground interaction is
+crest-local; soil and water cannot be wire-gridded), and the **far field
+reflects each ray off the facet its specular point lands on** — tilted
+incidence, that facet's Fresnel coefficients, and the facet's height folded
+into the reflected-path phase, which is what lets a modest mast act
+electrically tall toward a drop-off. A single flat facet reproduces the
+plain finite ground exactly, and the solve readout's ground row reports
+**terrain (crest Somm.)**. It is a specular model: lobe positions and
+direction-dependent asymmetry are its business; diffraction behind a crest
+is not. The worked example —
+[Antennas on a levee](/advanced/terrain/) — shows what it changes on a real
+site and where each flat model fails.
+
+Engine notes: momwire applies the facet far field natively. **PyNEC runs a
+hybrid** — NEC-2 has no facet model, so NEC solves the currents over the
+crest-medium Sommerfeld ground (exactly what the terrain recipe feeds the
+current solve anyway) and the server applies the facet reflection to those
+currents; the two engines agree to engine tolerance. The **NEC rp** overlay
+switch (PyNEC only) is greyed out over terrain, because NEC's own `rp_card`
+pattern is flat-ground-only and would silently disagree with the facet
+traces. **Download .nec** exports the crest medium as a flat `GN` card —
+a NEC deck cannot carry the facets.
 
 A wire that ends at exactly z = 0 **connects to the ground plane** — the
 return path a design like `wire.terminated_longwire` (fed and terminated
