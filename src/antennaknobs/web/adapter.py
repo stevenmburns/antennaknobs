@@ -844,11 +844,13 @@ def _pynec_ground_spec(req: dict):
     if model == "fast":
         return ("finite-fast",) + DEFAULT_GROUND[1:]
     if model == "terrain":
-        # The UI hides terrain for PyNEC; a hand-crafted request gets an
-        # honest error instead of a silent flat-ground substitution.
-        raise ValueError(
-            "terrain ground is not supported by the PyNEC engine — use a momwire solver"
-        )
+        # PyNEC terrain hybrid (issue #553): NEC-2 has no facet model, but
+        # the #534 recipe never lets the facets touch the current solve —
+        # impedance/currents run over flat Sommerfeld at the CREST medium,
+        # which NEC solves natively (GN 2). The facets enter afterward in
+        # the server's far-field composition, fed by the `ground_terrain`
+        # field pynec_solve attaches to the response.
+        return ("finite",) + _terrain_from_request(req).crest_medium
     return DEFAULT_GROUND
 
 
@@ -1794,6 +1796,14 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
             **_wire_material_results(builder),
         }
+        if _requested_ground_model(req) == "terrain":
+            # PyNEC terrain hybrid (issue #553): the engine solved over the
+            # crest-medium Sommerfeld spec (so ground_eps_r/sigma above are
+            # already the crest constants); re-stamp the applied label and
+            # attach the facet model so the server's cut physics applies the
+            # per-facet reflection — the same response contract as momwire.
+            out["ground_model_applied"] = "terrain"
+            out["ground_terrain"] = _pack_terrain(_terrain_from_request(req))
         if hints()["multi_feed"] and len(zs) > 1:
             # PyNECEngine.excitation_pairs is [(tag, sub_seg, voltage)];
             # pull the voltage off each so per-feed phase comes through.

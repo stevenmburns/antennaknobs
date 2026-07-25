@@ -101,9 +101,13 @@ def test_garbage_terrain_params_clamp_to_defaults():
     )
 
 
-def test_pynec_rejects_terrain_explicitly():
-    with pytest.raises(ValueError, match="PyNEC"):
-        _pynec_ground_spec(_terrain_req())
+def test_pynec_terrain_maps_to_crest_medium_sommerfeld():
+    """The PyNEC terrain hybrid (issue #553): NEC has no facet model, but
+    the #534 recipe solves currents over flat Sommerfeld at the crest
+    medium anyway — which NEC does natively (GN 2). The facets ride the
+    response's ground_terrain into the server's cut physics."""
+    spec = _pynec_ground_spec(_terrain_req())
+    assert spec == ("finite",) + adapter._TERRAIN_LAND
 
 
 # --- server cut physics -----------------------------------------------------
@@ -218,6 +222,41 @@ def test_ws_solve_with_terrain(client: TestClient):
     bad = dict(result)
     bad["ground_terrain"] = {"sectors": [{"az0": 0.0, "az1": 360.0, "facets": []}]}
     assert client.post("/cuts", json={"solve": bad}).status_code == 400
+
+
+def test_pynec_terrain_solve_matches_momwire(client: TestClient):
+    """End-to-end #553 hybrid: a PyNEC terrain solve carries the same
+    response contract as momwire (applied label, crest constants, packed
+    facets, cuts), and the two engines' terrain traces agree to engine
+    tolerance — same facet physics over independently solved currents."""
+    from antennaknobs.web import pynec_backend
+
+    if not pynec_backend.HAVE_PYNEC:
+        pytest.skip("pynec-accel not installed")
+
+    base = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 21.2,
+        "ground": True,
+        "ground_model": "terrain",
+        "terrain": {"preset": "levee", "water_azimuth_deg": 0.0},
+        "az_elev_deg": 15.0,
+        "elev_az_deg": 0.0,
+    }
+    nec = _solve_ws(client, {**base, "solver": "pynec"})
+    assert "error" not in nec
+    assert nec["ground_model_applied"] == "terrain"
+    eps_r, sigma = adapter._TERRAIN_LAND
+    assert nec["ground_eps_r"] == eps_r and nec["ground_sigma"] == sigma
+    assert len(nec["ground_terrain"]["sectors"]) == 2
+
+    mom = _solve_ws(client, {**base, "solver": "momwire", "momwire_model": "bspline"})
+    el_nec = np.asarray(nec["cuts"]["elevation"])
+    el_mom = np.asarray(mom["cuts"]["elevation"])
+    assert abs(el_nec.max() - el_mom.max()) < 1.0
+    # The terrain asymmetry (water side up at the lowest angle) shows in
+    # both engines' traces.
+    assert el_nec[2] > el_nec[88] and el_mom[2] > el_mom[88]
 
 
 def test_nec_export_falls_back_to_crest_medium():
