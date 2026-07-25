@@ -1363,9 +1363,15 @@ type SolveResponse = {
   ground_sigma?: number;
   ground_eps_im?: number;
   /** Packed faceted-terrain description when the solve ran over a terrain
-   *  ground (issue #534). Opaque to the frontend — it rides back to the
-   *  server inside /cuts bodies, where the per-facet physics lives. */
-  ground_terrain?: unknown;
+   *  ground (issue #534). The facet data is opaque to the frontend — it
+   *  rides back to the server inside /cuts bodies, where the per-facet
+   *  physics lives — but the optional `marker` orientation hint is drawn
+   *  on the polar charts (the preset's characteristic bearing + labels for
+   *  its two sides; absent for azimuth-symmetric terrains). */
+  ground_terrain?: {
+    sectors?: unknown;
+    marker?: { bearing_deg: number; label: string; opposite: string };
+  };
   /** What the impedance solve actually used. Momwire: "refl-coef" |
    *  "pec-image" | "free"; PyNEC adds "sommerfeld". Authoritative — the
    *  readout's ground row shows this rather than re-deriving it from
@@ -7281,6 +7287,60 @@ function FarFieldChart({
     }
 
     if (!result) return;
+
+    // Terrain orientation marker: the terrain's characteristic bearing
+    // (water / downhill / cliff side), so orientation reads off the chart
+    // instead of being inferred from lobes — which can legitimately peak
+    // toward the OTHER side (a hillside's mid-angle lobes point uphill;
+    // downhill only wins below the first-lobe band).
+    const terrainMarker = result.ground_terrain?.marker;
+    if (terrainMarker) {
+      ctx.font = "10px ui-monospace, monospace";
+      if (cut === "xy") {
+        // Inward tick + label at the bearing; dimmer label opposite.
+        const a = (terrainMarker.bearing_deg * Math.PI) / 180;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        ctx.strokeStyle = PC.labelStrong;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + ca * R, cy - sa * R);
+        ctx.lineTo(cx + ca * (R - 8), cy - sa * (R - 8));
+        ctx.stroke();
+        const place = (label: string, dirx: number, diry: number) => {
+          const tw = ctx.measureText(label).width;
+          // Sit the label just inside the rim along the bearing, nudged
+          // toward the centre so it doesn't collide with the axis labels.
+          ctx.fillText(
+            label,
+            cx + dirx * (R - 24) - tw / 2,
+            cy - diry * (R - 24) + 4,
+          );
+        };
+        ctx.fillStyle = PC.labelStrong;
+        place(terrainMarker.label, ca, sa);
+        ctx.fillStyle = PC.labelDim;
+        place(terrainMarker.opposite, -ca, -sa);
+      } else {
+        // Elevation cut: label which terrain side each horizon points into
+        // (the right rim is the cut bearing elevAzDeg).
+        const rel =
+          ((((elevAzDeg - terrainMarker.bearing_deg) % 360) + 540) % 360) -
+          180;
+        const rightLabel =
+          Math.abs(rel) <= 90 ? terrainMarker.label : terrainMarker.opposite;
+        const leftLabel =
+          Math.abs(rel) <= 90 ? terrainMarker.opposite : terrainMarker.label;
+        ctx.fillStyle = PC.labelStrong;
+        ctx.fillText(
+          rightLabel,
+          cx + R - ctx.measureText(rightLabel).width - 2,
+          cy - 5,
+        );
+        ctx.fillStyle = PC.labelDim;
+        ctx.fillText(leftLabel, cx - R + 2, cy - 5);
+      }
+    }
 
     // Draw one dBi trace around the polar cut (sample i at t = 2π·i/n, the
     // server cuts' parameterisation). The live lobe closes + fills; pinned

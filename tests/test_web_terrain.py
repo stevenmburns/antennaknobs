@@ -135,6 +135,20 @@ def test_hillside_downhill_lifts_low_angles_over_flat():
     assert el[40] == el_flat[40]
 
 
+def test_terrain_marker_orientation_hint():
+    """The chart-orientation marker: preset bearing + side labels, absent
+    for the azimuth-symmetric full-circle cliff."""
+    from antennaknobs.web.adapter import _terrain_marker
+
+    m = _terrain_marker(_terrain_req(preset="hillside", downhill_azimuth_deg=45.0))
+    assert m == {"bearing_deg": 45.0, "label": "downhill", "opposite": "uphill"}
+    m = _terrain_marker(_terrain_req(preset="levee", water_azimuth_deg=-90.0))
+    assert m == {"bearing_deg": -90.0, "label": "water", "opposite": "land"}
+    assert _terrain_marker(_terrain_req(preset="cliff", arc_deg=360.0)) is None
+    m = _terrain_marker(_terrain_req(preset="cliff", arc_deg=120.0, azimuth_deg=10.0))
+    assert m == {"bearing_deg": 10.0, "label": "cliff", "opposite": "flat"}
+
+
 def test_pynec_terrain_maps_to_crest_medium_sommerfeld():
     """The PyNEC terrain hybrid (issue #553): NEC has no facet model, but
     the #534 recipe solves currents over flat Sommerfeld at the crest
@@ -287,6 +301,7 @@ def test_ws_solve_with_terrain(client: TestClient):
     eps_r, sigma = adapter._TERRAIN_LAND
     assert result["ground_eps_r"] == eps_r and result["ground_sigma"] == sigma
     assert len(result["ground_terrain"]["sectors"]) == 2
+    assert result["ground_terrain"]["marker"]["label"] == "water"
     assert len(result["cuts"]["elevation"]) == 180
 
     # /cuts stays stateless for terrain responses: new angles round-trip.

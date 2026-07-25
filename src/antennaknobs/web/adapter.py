@@ -782,6 +782,38 @@ def _terrain_from_request(req: dict) -> Terrain:
     )
 
 
+def _terrain_marker(req: dict) -> dict | None:
+    """Chart-orientation hint for the response's terrain: the preset's
+    characteristic bearing plus labels for its two sides, drawn on the
+    polar charts so "which way is the water/downhill" reads off the chart
+    instead of being inferred from lobes (which can legitimately peak
+    toward the other side — e.g. a hillside's uphill mid-angle lobes).
+    None when the terrain is azimuth-symmetric (full-circle cliff)."""
+    t = req.get("terrain") or {}
+    if not isinstance(t, Mapping):
+        t = {}
+    preset = t.get("preset", "levee")
+    if preset == "cliff":
+        if _terrain_num(t, "arc_deg", 360.0, 1.0, 360.0) >= 360.0:
+            return None
+        return {
+            "bearing_deg": _terrain_num(t, "azimuth_deg", 0.0, -360.0, 360.0),
+            "label": "cliff",
+            "opposite": "flat",
+        }
+    if preset == "hillside":
+        return {
+            "bearing_deg": _terrain_num(t, "downhill_azimuth_deg", 0.0, -360.0, 360.0),
+            "label": "downhill",
+            "opposite": "uphill",
+        }
+    return {
+        "bearing_deg": _terrain_num(t, "water_azimuth_deg", 0.0, -360.0, 360.0),
+        "label": "water",
+        "opposite": "land",
+    }
+
+
 def _pack_terrain(t: Terrain) -> dict:
     """JSON-safe terrain description shipped on the solve response. The
     server's cut physics (server._mag2_at_directions) rebuilds the Terrain
@@ -944,7 +976,7 @@ _PEC_GROUND_EPS_R = 1.0e10
 _PEC_GROUND_SIGMA = 0.0
 
 
-def _momwire_ground_fields(eng) -> dict:
+def _momwire_ground_fields(eng, req: dict) -> dict:
     """Ground-describing response fields for a momwire solve.
 
     Ships the eps_r/sigma of the ground the engine actually solved over,
@@ -962,11 +994,15 @@ def _momwire_ground_fields(eng) -> dict:
     g = eng._ground
     if isinstance(g, tuple) and g[0] == "terrain":
         eps_r, sigma = g[1].crest_medium
+        gt = _pack_terrain(g[1])
+        marker = _terrain_marker(req)
+        if marker:
+            gt["marker"] = marker
         return {
             "ground_eps_r": eps_r,
             "ground_sigma": sigma,
             "ground_model_applied": "terrain",
-            "ground_terrain": _pack_terrain(g[1]),
+            "ground_terrain": gt,
         }
     if isinstance(g, tuple) and len(g) == 3:
         eps_r, sigma = g[1], g[2]
@@ -1631,7 +1667,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "height_m": 0.0,
             # Ground constants + applied-model label (+ the packed terrain
             # when the spec is faceted) — see _momwire_ground_fields.
-            **_momwire_ground_fields(eng),
+            **_momwire_ground_fields(eng, req),
             "z0_ohms": hints()["target_z0"],
             # Geometry-derived UI hints, folded into the response so user
             # designs (which defer them) get correct values the moment they're
@@ -1820,7 +1856,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # attach the facet model so the server's cut physics applies the
             # per-facet reflection — the same response contract as momwire.
             out["ground_model_applied"] = "terrain"
-            out["ground_terrain"] = _pack_terrain(_terrain_from_request(req))
+            gt = _pack_terrain(_terrain_from_request(req))
+            marker = _terrain_marker(req)
+            if marker:
+                gt["marker"] = marker
+            out["ground_terrain"] = gt
         if hints()["multi_feed"] and len(zs) > 1:
             # PyNECEngine.excitation_pairs is [(tag, sub_seg, voltage)];
             # pull the voltage off each so per-feed phase comes through.
