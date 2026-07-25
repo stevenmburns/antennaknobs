@@ -3299,11 +3299,12 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (backend !== "pynec") {
       base.momwire_model = backend;
       const opts = modelOptionsForRequest(backend, currentOpts);
-      // BSplineSolver rejects ground_z + use_singular_enrichment together
-      // (image reaction for enrichment bases isn't worked out yet). Force
-      // enrichment off in the request when ground is active so the user
-      // gets a sensible solve instead of a server error; the gear shows
-      // an inline note.
+      // Enrichment now solves over ground (momwire #167: PEC image reaction,
+      // refl-coef, and Sommerfeld), so this is no longer an error guard — it is
+      // a UX choice. Enrichment is a validation-only knob that is redundant for
+      // the d=2 basis (issue #565), so we keep it off when ground is active
+      // rather than surface a control that can only match or worsen the grounded
+      // production solve; the gear shows the validation note.
       if (isBSplineFamily(backend) && groundActive) {
         opts.use_singular_enrichment = false;
       }
@@ -6174,8 +6175,15 @@ function BSplineFields({
           />
         )}
       </div>
+      <div className="backend-config-section">validation · experimental</div>
+      <p className="backend-config-note">
+        The d=2 basis already resolves K≥3 junctions — enrichment does not
+        improve a d=2 solve, and worsens it at coarse mesh (issue #565). Kept
+        as a validation tool against the low-order (sinusoidal) basis, where the
+        junction singularity genuinely matters. Not needed for production.
+      </p>
       <div className="field">
-        <label className="link-toggle" title="Add (u/h)·log(u/h) singular basis at K ≥ enrichment_min_k junctions; flips O(1/N) → ~O(1/N^(d+1)) on dominant-pair K=3 junctions (most current flowing through two of three wires).">
+        <label className="link-toggle" title="VALIDATION ONLY. Adds (u/h)·log(u/h) singular basis at K ≥ enrichment_min_k junctions. This flips O(1/N) → ~O(1/N^(d+1)) for LOW-ORDER bases (sinusoidal); the d=2 B-spline already converges at that rate on its own, so enrichment is redundant here and adds a coarse-mesh transient. See issue #565.">
           <input
             type="checkbox"
             checked={opts.useSingularEnrichment}

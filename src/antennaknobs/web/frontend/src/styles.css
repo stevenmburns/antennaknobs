@@ -1660,6 +1660,29 @@ input[type=checkbox] {
   overflow-y: auto;
 }
 
+/* Section divider inside the backend-config body — marks the enrichment block
+   as validation/experimental (issue #565: enrichment is redundant for the d=2
+   basis the product solves on). Mirrors .gear-menu-section, with a rule above
+   so it reads as a distinct group rather than another field. */
+.backend-config-section {
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.backend-config-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
 .backend-config-footer {
   padding: var(--space-5) var(--space-6);
   border-top: 1px solid var(--border);
