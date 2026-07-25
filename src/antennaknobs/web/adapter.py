@@ -54,7 +54,8 @@ import math
 import os
 import pathlib
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
@@ -734,52 +735,185 @@ def _terrain_num(t: Mapping, key: str, default: float, lo: float, hi: float) -> 
     return min(max(v, lo), hi)
 
 
-def _terrain_from_request(req: dict) -> Terrain:
-    """Build the faceted-terrain ground from the request's `terrain` preset
-    params (ground_model="terrain"). Three presets, mapping straight onto
-    the antennaknobs.terrain constructors:
+# --- Terrain preset registry (issue #560) --------------------------------
+#
+# One descriptor per preset is the single source of truth for three things
+# that used to be spelled out three times (once per preset, in Python AND in
+# App.tsx): the server-side clamp + constructor mapping, the response
+# chart-orientation marker, and the self-describing field schema the frontend
+# renders its knob panel from (served on GET /capabilities). Adding a preset
+# is now one entry here — no TypeScript, no rebuild beyond the asset build.
 
-      {"preset": "levee", "crest_width_m", "slope_deg", "drop_water_m",
-       "drop_land_m", "water_azimuth_deg"}
-      {"preset": "cliff", "edge_m", "drop_m", "azimuth_deg", "arc_deg"}
-      {"preset": "hillside", "flat_width_m", "up_slope_deg",
-       "down_slope_deg", "downhill_azimuth_deg"}
 
-    Media are fixed at the QTH constants (water 80/0.005 outward of the
-    cliff/water-side toe; land 13/0.005 for crest, slopes and the land
-    plain). Every number is clamped to a sane range so a hand-crafted
-    request can't build a degenerate Terrain."""
+@dataclass(frozen=True)
+class _TerrainField:
+    """One clamped numeric knob of a preset. `min`/`max`/`default` are
+    authoritative server-side (the clamp) AND drive the frontend slider;
+    `label`/`unit`/`step` are presentation the UI reads verbatim. `label`
+    omits the unit — the panel renders it as ``"{label} ({unit})"``."""
+
+    key: str
+    label: str
+    default: float
+    min: float
+    max: float
+    step: float
+    unit: str | None = None
+
+
+@dataclass(frozen=True)
+class _TerrainMarker:
+    """Chart-orientation hint: which field carries the preset's characteristic
+    bearing, and the two side labels drawn on the polar charts. `hide_when_ge`
+    drops the marker for an azimuth-symmetric configuration (a full-circle
+    cliff, arc_deg >= 360)."""
+
+    bearing_key: str
+    label: str
+    opposite: str
+    hide_when_ge: tuple[str, float] | None = None
+
+
+@dataclass(frozen=True)
+class _TerrainPreset:
+    name: str
+    label: str  # radio label shown in the panel
+    tooltip: str  # radio hover text
+    media_note: str  # read-only media line under the knobs
+    fields: tuple[_TerrainField, ...]
+    build: Callable[[Mapping[str, float]], Terrain]
+    marker: _TerrainMarker | None = None
+
+
+_TERRAIN_MEDIA_NOTE = "media: water εr=80 σ=0.005 · land/crest εr=13 σ=0.005"
+
+
+def _build_levee(v: Mapping[str, float]) -> Terrain:
+    return levee_terrain(
+        crest_width=v["crest_width_m"],
+        slope_deg=v["slope_deg"],
+        drop_water=v["drop_water_m"],
+        drop_land=v["drop_land_m"],
+        water=_TERRAIN_WATER,
+        land=_TERRAIN_LAND,
+        water_azimuth=v["water_azimuth_deg"],
+    )
+
+
+def _build_cliff(v: Mapping[str, float]) -> Terrain:
+    return cliff_terrain(
+        edge=v["edge_m"],
+        drop=v["drop_m"],
+        inner=_TERRAIN_LAND,
+        outer=_TERRAIN_WATER,
+        azimuth=v["azimuth_deg"],
+        arc=v["arc_deg"],
+    )
+
+
+def _build_hillside(v: Mapping[str, float]) -> Terrain:
+    return hillside_terrain(
+        flat_width=v["flat_width_m"],
+        up_slope_deg=v["up_slope_deg"],
+        down_slope_deg=v["down_slope_deg"],
+        medium=_TERRAIN_LAND,
+        downhill_azimuth=v["downhill_azimuth_deg"],
+    )
+
+
+_TERRAIN_PRESETS: tuple[_TerrainPreset, ...] = (
+    _TerrainPreset(
+        name="levee",
+        label="levee",
+        tooltip=(
+            "A raised crest with two sloped sides: water drop_water below on "
+            "the water bearing, land drop_land below opposite. Crest and slopes "
+            "are earth; water starts at the toe."
+        ),
+        media_note=_TERRAIN_MEDIA_NOTE,
+        fields=(
+            _TerrainField("crest_width_m", "crest width", 3.0, 0.1, 1e3, 0.5, "m"),
+            _TerrainField("slope_deg", "slope", 20.0, 1.0, 89.0, 1.0, "°"),
+            _TerrainField("drop_water_m", "drop to water", 10.7, 0.01, 1e3, 0.5, "m"),
+            _TerrainField("drop_land_m", "drop to land", 7.6, 0.01, 1e3, 0.5, "m"),
+            _TerrainField(
+                "water_azimuth_deg", "water bearing", 0.0, -360.0, 360.0, 5.0, "°"
+            ),
+        ),
+        build=_build_levee,
+        marker=_TerrainMarker("water_azimuth_deg", "water", "land"),
+    ),
+    _TerrainPreset(
+        name="cliff",
+        label="cliff",
+        tooltip=(
+            "Flat earth out to the cliff edge, then a sheer drop to water. "
+            "arc < 360° restricts the cliff to a sector facing the bearing."
+        ),
+        media_note=_TERRAIN_MEDIA_NOTE,
+        fields=(
+            _TerrainField("edge_m", "cliff edge", 10.0, 0.1, 1e4, 1.0, "m"),
+            _TerrainField("drop_m", "drop", 10.0, 0.01, 1e3, 0.5, "m"),
+            _TerrainField("azimuth_deg", "bearing", 0.0, -360.0, 360.0, 5.0, "°"),
+            _TerrainField("arc_deg", "arc", 360.0, 1.0, 360.0, 15.0, "°"),
+        ),
+        build=_build_cliff,
+        marker=_TerrainMarker(
+            "azimuth_deg", "cliff", "flat", hide_when_ge=("arc_deg", 360.0)
+        ),
+    ),
+    _TerrainPreset(
+        name="hillside",
+        label="hillside",
+        tooltip=(
+            "A flat bench on a hillside: ground rises at the uphill slope on "
+            "one side, falls at the downhill slope on the other (facing the "
+            "downhill bearing). No bottom needed — the slope itself is the "
+            "reflector, so effective height grows as the elevation drops. Below "
+            "the uphill slope angle the model can't see the hill's shadowing."
+        ),
+        media_note="media: earth εr=13 σ=0.005",
+        fields=(
+            _TerrainField("flat_width_m", "flat width", 20.0, 0.1, 1e3, 1.0, "m"),
+            _TerrainField("up_slope_deg", "uphill slope", 15.0, 1.0, 89.0, 1.0, "°"),
+            _TerrainField(
+                "down_slope_deg", "downhill slope", 10.0, 1.0, 89.0, 1.0, "°"
+            ),
+            _TerrainField(
+                "downhill_azimuth_deg", "downhill bearing", 0.0, -360.0, 360.0, 5.0, "°"
+            ),
+        ),
+        build=_build_hillside,
+        marker=_TerrainMarker("downhill_azimuth_deg", "downhill", "uphill"),
+    ),
+)
+_TERRAIN_PRESET_BY_NAME = {p.name: p for p in _TERRAIN_PRESETS}
+_DEFAULT_TERRAIN_PRESET = _TERRAIN_PRESETS[0]  # levee
+
+
+def _clamped_terrain(req: dict) -> tuple[_TerrainPreset, dict[str, float]]:
+    """Resolve the request's `terrain` block to (preset, clamped values).
+    Unknown or missing preset falls back to levee; every field is clamped to
+    the descriptor's range so a hand-crafted request can't build a degenerate
+    Terrain."""
     t = req.get("terrain") or {}
     if not isinstance(t, Mapping):
         t = {}
-    if t.get("preset") == "cliff":
-        return cliff_terrain(
-            edge=_terrain_num(t, "edge_m", 10.0, 0.1, 1e4),
-            drop=_terrain_num(t, "drop_m", 10.0, 0.01, 1e3),
-            inner=_TERRAIN_LAND,
-            outer=_TERRAIN_WATER,
-            azimuth=_terrain_num(t, "azimuth_deg", 0.0, -360.0, 360.0),
-            arc=_terrain_num(t, "arc_deg", 360.0, 1.0, 360.0),
-        )
-    if t.get("preset") == "hillside":
-        return hillside_terrain(
-            flat_width=_terrain_num(t, "flat_width_m", 20.0, 0.1, 1e3),
-            up_slope_deg=_terrain_num(t, "up_slope_deg", 15.0, 1.0, 89.0),
-            down_slope_deg=_terrain_num(t, "down_slope_deg", 10.0, 1.0, 89.0),
-            medium=_TERRAIN_LAND,
-            downhill_azimuth=_terrain_num(
-                t, "downhill_azimuth_deg", 0.0, -360.0, 360.0
-            ),
-        )
-    return levee_terrain(
-        crest_width=_terrain_num(t, "crest_width_m", 3.0, 0.1, 1e3),
-        slope_deg=_terrain_num(t, "slope_deg", 20.0, 1.0, 89.0),
-        drop_water=_terrain_num(t, "drop_water_m", 10.7, 0.01, 1e3),
-        drop_land=_terrain_num(t, "drop_land_m", 7.6, 0.01, 1e3),
-        water=_TERRAIN_WATER,
-        land=_TERRAIN_LAND,
-        water_azimuth=_terrain_num(t, "water_azimuth_deg", 0.0, -360.0, 360.0),
-    )
+    preset = _TERRAIN_PRESET_BY_NAME.get(t.get("preset"), _DEFAULT_TERRAIN_PRESET)
+    values = {
+        f.key: _terrain_num(t, f.key, f.default, f.min, f.max) for f in preset.fields
+    }
+    return preset, values
+
+
+def _terrain_from_request(req: dict) -> Terrain:
+    """Build the faceted-terrain ground from the request's `terrain` preset
+    params (ground_model="terrain"). The preset registry maps the clamped
+    field values straight onto the antennaknobs.terrain constructors; media
+    are fixed at the QTH constants (water 80/0.005 outward of the cliff/water-
+    side toe; land 13/0.005 for crest, slopes and the land plain)."""
+    preset, values = _clamped_terrain(req)
+    return preset.build(values)
 
 
 def _terrain_marker(req: dict) -> dict | None:
@@ -789,29 +923,48 @@ def _terrain_marker(req: dict) -> dict | None:
     instead of being inferred from lobes (which can legitimately peak
     toward the other side — e.g. a hillside's uphill mid-angle lobes).
     None when the terrain is azimuth-symmetric (full-circle cliff)."""
-    t = req.get("terrain") or {}
-    if not isinstance(t, Mapping):
-        t = {}
-    preset = t.get("preset", "levee")
-    if preset == "cliff":
-        if _terrain_num(t, "arc_deg", 360.0, 1.0, 360.0) >= 360.0:
+    preset, values = _clamped_terrain(req)
+    m = preset.marker
+    if m is None:
+        return None
+    if m.hide_when_ge is not None:
+        key, threshold = m.hide_when_ge
+        if values[key] >= threshold:
             return None
-        return {
-            "bearing_deg": _terrain_num(t, "azimuth_deg", 0.0, -360.0, 360.0),
-            "label": "cliff",
-            "opposite": "flat",
-        }
-    if preset == "hillside":
-        return {
-            "bearing_deg": _terrain_num(t, "downhill_azimuth_deg", 0.0, -360.0, 360.0),
-            "label": "downhill",
-            "opposite": "uphill",
-        }
     return {
-        "bearing_deg": _terrain_num(t, "water_azimuth_deg", 0.0, -360.0, 360.0),
-        "label": "water",
-        "opposite": "land",
+        "bearing_deg": values[m.bearing_key],
+        "label": m.label,
+        "opposite": m.opposite,
     }
+
+
+def terrain_presets_schema() -> list[dict]:
+    """The self-describing preset catalog served on GET /capabilities: each
+    preset's radio label + tooltip, its ordered field schema (key, label,
+    unit, default, min/max/step), and the read-only media note. The frontend
+    renders its whole terrain knob panel from this — a Python-only preset
+    needs no TypeScript."""
+    return [
+        {
+            "name": p.name,
+            "label": p.label,
+            "tooltip": p.tooltip,
+            "media_note": p.media_note,
+            "fields": [
+                {
+                    "key": f.key,
+                    "label": f.label,
+                    "unit": f.unit,
+                    "default": f.default,
+                    "min": f.min,
+                    "max": f.max,
+                    "step": f.step,
+                }
+                for f in p.fields
+            ],
+        }
+        for p in _TERRAIN_PRESETS
+    ]
 
 
 def _pack_terrain(t: Terrain) -> dict:
