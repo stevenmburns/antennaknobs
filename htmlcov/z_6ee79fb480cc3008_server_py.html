@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/web/server.py: 89%</title>
+    <title>Coverage for src/antennaknobs/web/server.py: 90%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>web<span class="sep">/</span>server.py</b>:
-            <span class="pc_cov">89%</span>
+            <span class="pc_cov">90%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">763 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">682<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">81<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">683<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">80<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_user_designs_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-25 00:57 +0000
+            created at 2026-07-25 02:59 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1037,7 +1037,7 @@
     <p class="pln"><span class="n"><a id="t955" href="#t955">955</a></span><span class="t">        <span class="com"># begins dies for free here; the native solve is one opaque call with no</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t956" href="#t956">956</a></span><span class="t">        <span class="com"># mid-solve abort, so an in-flight one runs to completion (as today).</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t957" href="#t957">957</a></span><span class="t">        <span class="key">if</span> <span class="nam">cancel</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t958" href="#t958">958</a></span><span class="t">            <span class="nam">cancel</span><span class="op">.</span><span class="nam">raise_if_cancelled</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t958" href="#t958">958</a></span><span class="t">            <span class="nam">cancel</span><span class="op">.</span><span class="nam">raise_if_cancelled</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t959" href="#t959">959</a></span><span class="t">        <span class="nam">out</span> <span class="op">=</span> <span class="nam">pynec_backend</span><span class="op">.</span><span class="nam">solve</span><span class="op">(</span><span class="nam">req</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t960" href="#t960">960</a></span><span class="t">    <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t961" href="#t961">961</a></span><span class="t">        <span class="nam">ex</span> <span class="op">=</span> <span class="nam">EXAMPLES</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="nam">geometry</span><span class="op">)</span> <span class="key">or</span> <span class="nam">next</span><span class="op">(</span><span class="nam">iter</span><span class="op">(</span><span class="nam">EXAMPLES</span><span class="op">.</span><span class="nam">values</span><span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -2081,7 +2081,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_user_designs_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-25 00:57 +0000
+            created at 2026-07-25 02:59 +0000
         </p>
     </div>
 </footer>
