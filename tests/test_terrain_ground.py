@@ -29,6 +29,7 @@ from antennaknobs.terrain import (
     Terrain,
     cliff_terrain,
     flat_terrain,
+    hillside_terrain,
     levee_terrain,
     specular_cut,
 )
@@ -148,6 +149,46 @@ def test_flat_terrain_reproduces_finite_ground_bit_identically():
     _, g_fin = _grid(e_fin)
     _, g_ter = _grid(e_ter)
     assert np.array_equal(g_fin, g_ter)
+
+
+def test_hillside_terrain_structure():
+    """Bench + subdivided rising/falling ramps, one medium, tiled sectors.
+    The uphill sector carries genuinely positive facet heights — rising
+    terrain is legal in the model (the specular scan just never lands on a
+    facet above the source at high elevation)."""
+    t = hillside_terrain(flat_width=20.0, up_slope_deg=15.0, down_slope_deg=10.0)
+    assert len(t.sectors) == 2
+    down, up = t.sectors
+    assert down.facets[0].x1 == pytest.approx(10.0)  # bench half-width
+    assert down.facets[-1].x1 is None and down.facets[-1].z1 == pytest.approx(-150.0)
+    assert up.facets[-1].z1 == pytest.approx(100.0)  # rises above the bench
+    assert all(f.z1 >= 0 for f in up.facets)
+    assert t.crest_medium == (13.0, 0.005)
+    # Ramp subdivision: strictly increasing edges, monotone heights.
+    zs = [f.z1 for f in down.facets[1:-1]]
+    assert all(b < a for a, b in zip(zs, zs[1:]))
+    # Downhill ramp run matches the slope: total 150 m drop at 10 deg.
+    run = down.facets[-2].x1 - down.facets[0].x1
+    assert np.degrees(np.arctan2(150.0, run)) == pytest.approx(10.0)
+    with pytest.raises(ValueError, match="slopes"):
+        hillside_terrain(flat_width=20.0, up_slope_deg=0.0, down_slope_deg=10.0)
+
+
+def test_hillside_specular_height_grows_downhill():
+    """The hillside's defining physics: with no bottom to reference, the
+    specular height z_f still deepens continuously as elevation drops —
+    the slope itself is the reflector."""
+    t = hillside_terrain(flat_width=20.0, up_slope_deg=15.0, down_slope_deg=10.0)
+    theta = np.radians(90.0 - np.array([45.0, 30.0, 20.0, 10.0]))
+    z_f, beta, _, _ = specular_cut(t.sectors[0], theta, h_ref=6.1)
+    assert z_f[0] == 0.0 and beta[0] == 0.0  # 45 deg: still on the bench
+    ramp = slice(1, None)  # 30/20/10 deg: on the descending ramp
+    assert np.all(z_f[ramp] < 0) and np.all(np.diff(z_f[ramp]) < 0)
+    assert np.allclose(np.degrees(beta[ramp]), 10.0)
+    # Below the modeled relief the ray falls onto the flat bottom: full
+    # 150 m depth, untilted — the cap only bites at the lowest angles.
+    z_lo, b_lo, _, _ = specular_cut(t.sectors[0], np.radians([87.0]), h_ref=6.1)
+    assert z_lo[0] == pytest.approx(-150.0) and b_lo[0] == 0.0
 
 
 # ---------------------------------------------------------------------------

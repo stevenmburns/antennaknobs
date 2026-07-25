@@ -1530,7 +1530,7 @@ type GroundModel = "sommerfeld" | "fast" | "pec" | "terrain";
 // Terrain preset parameters, sent as the request's `terrain` object when
 // ground_model === "terrain". Media are fixed server-side (water 80/0.005,
 // land + crest 13/0.005) — the panel shows them read-only.
-type TerrainPreset = "levee" | "cliff";
+type TerrainPreset = "levee" | "cliff" | "hillside";
 type TerrainParams = {
   // levee
   crest_width_m: number;
@@ -1543,8 +1543,13 @@ type TerrainParams = {
   drop_m: number;
   azimuth_deg: number;
   arc_deg: number;
+  // hillside
+  flat_width_m: number;
+  up_slope_deg: number;
+  down_slope_deg: number;
+  downhill_azimuth_deg: number;
 };
-// Defaults are the motivating QTH (issues #534/#535): a 3 m levee crest
+// Levee defaults are the motivating QTH (issues #534/#535): a 3 m crest
 // with 20° slopes, water 10.7 m below one side, land 7.6 m below the other.
 const TERRAIN_DEFAULTS: TerrainParams = {
   crest_width_m: 3.0,
@@ -1556,6 +1561,10 @@ const TERRAIN_DEFAULTS: TerrainParams = {
   drop_m: 10,
   azimuth_deg: 0,
   arc_deg: 360,
+  flat_width_m: 20,
+  up_slope_deg: 15,
+  down_slope_deg: 10,
+  downhill_azimuth_deg: 0,
 };
 
 function backendSupportsGround(b: Backend): boolean {
@@ -5222,6 +5231,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                           "cliff",
                           "Flat earth out to the cliff edge, then a sheer drop to water. arc < 360° restricts the cliff to a sector facing the bearing.",
                         ],
+                        [
+                          "hillside",
+                          "hillside",
+                          "A flat bench on a hillside: ground rises at the uphill slope on one side, falls at the downhill slope on the other (facing the downhill bearing). No bottom needed — the slope itself is the reflector, so effective height grows as the elevation drops. Below the uphill slope angle the model can't see the hill's shadowing.",
+                        ],
                       ] as [TerrainPreset, string, string][]
                     ).map(([value, label, title]) => (
                       <label key={value} className="link-toggle" title={title}>
@@ -5291,7 +5305,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                         }
                       />
                     </>
-                  ) : (
+                  ) : terrainPreset === "cliff" ? (
                     <>
                       <NumberField
                         label="cliff edge (m)"
@@ -5334,12 +5348,63 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                         }
                       />
                     </>
+                  ) : (
+                    <>
+                      <NumberField
+                        label="flat width (m)"
+                        value={terrainParams.flat_width_m}
+                        min={0.1}
+                        max={1000}
+                        step={1}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, flat_width_m: v }))
+                        }
+                      />
+                      <NumberField
+                        label="uphill slope (°)"
+                        value={terrainParams.up_slope_deg}
+                        min={1}
+                        max={89}
+                        step={1}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({ ...p, up_slope_deg: v }))
+                        }
+                      />
+                      <NumberField
+                        label="downhill slope (°)"
+                        value={terrainParams.down_slope_deg}
+                        min={1}
+                        max={89}
+                        step={1}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({
+                            ...p,
+                            down_slope_deg: v,
+                          }))
+                        }
+                      />
+                      <NumberField
+                        label="downhill bearing (°)"
+                        value={terrainParams.downhill_azimuth_deg}
+                        min={-360}
+                        max={360}
+                        step={5}
+                        onChange={(v) =>
+                          setTerrainParams((p) => ({
+                            ...p,
+                            downhill_azimuth_deg: v,
+                          }))
+                        }
+                      />
+                    </>
                   )}
                   <div
                     style={{ fontSize: "0.85em", opacity: 0.65 }}
                     title="Media are fixed in this version; the geometry knobs above are the live parameters."
                   >
-                    media: water εr=80 σ=0.005 · land/crest εr=13 σ=0.005
+                    {terrainPreset === "hillside"
+                      ? "media: earth εr=13 σ=0.005"
+                      : "media: water εr=80 σ=0.005 · land/crest εr=13 σ=0.005"}
                   </div>
                 </div>
               )}
