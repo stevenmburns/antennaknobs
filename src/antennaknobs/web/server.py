@@ -1954,13 +1954,20 @@ def capabilities_endpoint():
     """Backend feature availability the frontend reads once on mount.
 
     Kept separate from /examples (the design catalog, re-fetched on every
-    trust action) since capabilities are server-static. Currently just
-    `have_pynec`: PyNEC is an optional backend (needs the pynec-accel
-    package), and when it's absent the UI must not offer it — otherwise the
-    /ws solve silently falls back to momwire (#429). New capability flags
-    (mesh-size caps, engine list, version) belong here too.
+    trust action) since capabilities are server-static. `have_pynec`: PyNEC
+    is an optional backend (needs the pynec-accel package), and when it's
+    absent the UI must not offer it — otherwise the /ws solve silently falls
+    back to momwire (#429). `terrain_presets`: the self-describing terrain
+    preset catalog (issue #560) the frontend renders its knob panel from, so
+    a Python-only preset needs no TypeScript. New capability flags (mesh-size
+    caps, engine list, version) belong here too.
     """
-    return {"have_pynec": pynec_backend.HAVE_PYNEC}
+    from .adapter import terrain_presets_schema
+
+    return {
+        "have_pynec": pynec_backend.HAVE_PYNEC,
+        "terrain_presets": terrain_presets_schema(),
+    }
 
 
 def _resolve_user_design_path(stem: str):

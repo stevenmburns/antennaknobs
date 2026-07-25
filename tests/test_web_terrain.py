@@ -149,6 +149,50 @@ def test_terrain_marker_orientation_hint():
     assert m == {"bearing_deg": 10.0, "label": "cliff", "opposite": "flat"}
 
 
+def test_terrain_presets_schema_catalog(client):
+    """The self-describing preset catalog (issue #560): served on
+    /capabilities, one entry per preset with its ordered field schema. The
+    frontend renders its whole knob panel from this — a Python-only preset
+    needs no TypeScript."""
+    schema = adapter.terrain_presets_schema()
+    assert [p["name"] for p in schema] == ["levee", "cliff", "hillside"]
+    levee = schema[0]
+    assert [f["key"] for f in levee["fields"]] == [
+        "crest_width_m",
+        "slope_deg",
+        "drop_water_m",
+        "drop_land_m",
+        "water_azimuth_deg",
+    ]
+    crest = levee["fields"][0]
+    assert (crest["label"], crest["unit"]) == ("crest width", "m")
+    assert (crest["default"], crest["min"], crest["max"], crest["step"]) == (
+        3.0,
+        0.1,
+        1e3,
+        0.5,
+    )
+    # The catalog rides /capabilities so the frontend learns presets on mount.
+    served = client.get("/capabilities").json()["terrain_presets"]
+    assert served == schema
+
+
+def test_schema_bounds_are_the_authoritative_clamp():
+    """The descriptor's min/max are the same numbers _terrain_from_request
+    clamps to — one source of truth, so a UI slider and the server agree. An
+    out-of-range knob lands on the schema bound, not a degenerate Terrain."""
+    for preset in adapter.terrain_presets_schema():
+        for f in preset["fields"]:
+            _, values = adapter._clamped_terrain(
+                _terrain_req(preset=preset["name"], **{f["key"]: 1e12})
+            )
+            assert values[f["key"]] == f["max"]
+            _, values = adapter._clamped_terrain(
+                _terrain_req(preset=preset["name"], **{f["key"]: -1e12})
+            )
+            assert values[f["key"]] == f["min"]
+
+
 def test_pynec_terrain_maps_to_crest_medium_sommerfeld():
     """The PyNEC terrain hybrid (issue #553): NEC has no facet model, but
     the #534 recipe solves currents over flat Sommerfeld at the crest
