@@ -71,7 +71,7 @@
 | src/antennaknobs/designs/loops/triangular\_skyloop.py             |       21 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/fandipole.py                   |       58 |        1 |     98% |       126 |
-| src/antennaknobs/designs/multiband/hexbeam\_5band.py              |      103 |        0 |    100% |           |
+| src/antennaknobs/designs/multiband/hexbeam\_5band.py              |       93 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_dipole.py                |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       78 |        3 |     96% |250, 311, 317 |
 | src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       72 |       12 |     83% |   234-246 |
@@ -145,7 +145,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      855 |       91 |     89% |71-73, 141-145, 276-277, 344, 590-592, 597, 689, 744, 847-850, 1027, 1110, 1128-1130, 1193, 1201-1204, 1223-1235, 1238, 1263, 1278-1291, 1339-1341, 1389, 1403, 1432-1433, 1457-1458, 1490, 1570-1577, 1589-1602, 1622, 1625-1626, 1659-1660, 1691, 1709-1712, 1728, 1761, 1764, 1772, 1799-1800, 2021, 2107, 2134, 2136, 2140-2141, 2154, 2165, 2169, 2221-2222, 2241 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **9208** |  **489** | **95%** |           |
+| **TOTAL**                                                         | **9198** |  **489** | **95%** |           |
 
 
 ## Setup coverage badge
