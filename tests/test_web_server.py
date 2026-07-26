@@ -506,7 +506,9 @@ def test_auto_multi_feed_classifies_both_feed_conventions():
     # build_network() harness feed declaring two feed ports
     assert adapter._auto_multi_feed(_design_builder("wire.expanded_lazy_h")) is True
     # build_network() single feed (tuner + line to one gap)
-    assert adapter._auto_multi_feed(_design_builder("wire.doublet_ladder_tuner")) is False
+    assert (
+        adapter._auto_multi_feed(_design_builder("wire.doublet_ladder_tuner")) is False
+    )
     # traps are one-port Loads on named ports, not feeds
     assert adapter._auto_multi_feed(_design_builder("multiband.trap_dipole")) is False
     # log-periodic: one feed, ~10 chained elements — reachability would wrongly
