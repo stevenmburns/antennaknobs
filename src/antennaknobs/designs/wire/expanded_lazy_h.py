@@ -63,6 +63,13 @@ class Builder(AntennaBuilder):
                     # Reactive junction fed via open-wire line + tuner.
                     "target_z0": 300.0,
                     "default_view": "yz",
+                    # Both element centres ("lo" and "hi") are driven in phase
+                    # through the harness from the single junction source, so
+                    # this is a two-feedpoint antenna. Declaring the feed ports
+                    # marks both in the geometry view and flags multi_feed
+                    # (issues #570/#571) — the drive is via build_network(), so
+                    # the inline-`ex` auto-detector would otherwise see none.
+                    "feed_ports": ["lo", "hi"],
                     "elem_frac": {
                         "min": 0.8,
                         "max": 1.4,

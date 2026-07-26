@@ -1339,6 +1339,11 @@ type SolveResponse = {
   /** Exact 3D feed point for the primary feed; the marker dot uses this so
    *  it stays on the true feed regardless of solver-basis parity. */
   feed_position?: [number, number, number];
+  /** One marker per physical feed port (issue #571). Multi-feed antennas whose
+   *  drive is routed through build_network() (e.g. a lazy-H fed through a
+   *  phasing harness) declare ui_params["feed_ports"] and get one entry per
+   *  element centre here; single-feed designs get a single "feed" entry. */
+  feed_positions?: { name: string; position: [number, number, number] }[];
   z_in_re: number;
   z_in_im: number;
   /** Multi-feed geometries (bowtie 1×2 array) populate this; single-feed
@@ -8323,36 +8328,55 @@ function CurrentCanvas({
         }
       }
 
-      // Feed marker(s). Multi-feed geometries (bowtie 1×2 array) expose
-      // a `feeds[]` array — render one yellow dot per feed and label with
-      // the prescribed voltage phase. Single-feed geometries fall through
-      // to the legacy feed_wire_index / feed_knot_index path.
-      const feedList = result.feeds && result.feeds.length > 0
-        ? result.feeds
-        : [{
-            wire_index: feedWireIdx,
-            knot_index: result.feed_knot_index,
-            feed_position: result.feed_position,
-            v_re: 1, v_im: 0,
-            z_re: result.z_in_re, z_im: result.z_in_im,
-          }];
-      for (let fi = 0; fi < feedList.length; fi++) {
-        const f = feedList[fi];
-        const w_ = result.wires[f.wire_index];
-        // Prefer the exact feed point; fall back to the nearest knot.
-        const pos3d = f.feed_position ?? (w_ ? w_.knot_positions[f.knot_index] : undefined);
-        if (!pos3d) continue;
-        const feed = project(pos3d);
-        ctx!.fillStyle = PC.feed;
-        ctx!.beginPath();
-        ctx!.arc(feed.x, feed.y, 5 * s, 0, Math.PI * 2);
-        ctx!.fill();
-        if (showFeedNames) {
-          ctx!.font = `${feedFontPx}px ui-monospace, monospace`;
-          const label = feedList.length > 1
-            ? `feed ${fi} ∠${Math.round(Math.atan2(f.v_im, f.v_re) * 180 / Math.PI)}°`
-            : "feed";
-          ctx!.fillText(label, feed.x + 8 * s, feed.y - 8 * s);
+      // Feed marker(s). Three sources, in priority order:
+      //  1. `feed_positions[]` (issue #571): one physical feed point per
+      //     declared feed port — a lazy-H fed in phase through a harness has
+      //     two, one per element centre, even though its drive comes from a
+      //     single build_network() source. Rendered with the port name.
+      //  2. `feeds[]` (bowtie 1×2 array): per-feed Z+V, labelled by phase.
+      //  3. the legacy single feed_position / feed_wire_index path.
+      if (result.feed_positions && result.feed_positions.length > 0) {
+        const fps = result.feed_positions;
+        for (let fi = 0; fi < fps.length; fi++) {
+          const feed = project(fps[fi].position);
+          ctx!.fillStyle = PC.feed;
+          ctx!.beginPath();
+          ctx!.arc(feed.x, feed.y, 5 * s, 0, Math.PI * 2);
+          ctx!.fill();
+          if (showFeedNames) {
+            ctx!.font = `${feedFontPx}px ui-monospace, monospace`;
+            const label = fps.length > 1 ? fps[fi].name : "feed";
+            ctx!.fillText(label, feed.x + 8 * s, feed.y - 8 * s);
+          }
+        }
+      } else {
+        const feedList = result.feeds && result.feeds.length > 0
+          ? result.feeds
+          : [{
+              wire_index: feedWireIdx,
+              knot_index: result.feed_knot_index,
+              feed_position: result.feed_position,
+              v_re: 1, v_im: 0,
+              z_re: result.z_in_re, z_im: result.z_in_im,
+            }];
+        for (let fi = 0; fi < feedList.length; fi++) {
+          const f = feedList[fi];
+          const w_ = result.wires[f.wire_index];
+          // Prefer the exact feed point; fall back to the nearest knot.
+          const pos3d = f.feed_position ?? (w_ ? w_.knot_positions[f.knot_index] : undefined);
+          if (!pos3d) continue;
+          const feed = project(pos3d);
+          ctx!.fillStyle = PC.feed;
+          ctx!.beginPath();
+          ctx!.arc(feed.x, feed.y, 5 * s, 0, Math.PI * 2);
+          ctx!.fill();
+          if (showFeedNames) {
+            ctx!.font = `${feedFontPx}px ui-monospace, monospace`;
+            const label = feedList.length > 1
+              ? `feed ${fi} ∠${Math.round(Math.atan2(f.v_im, f.v_re) * 180 / Math.PI)}°`
+              : "feed";
+            ctx!.fillText(label, feed.x + 8 * s, feed.y - 8 * s);
+          }
         }
       }
 

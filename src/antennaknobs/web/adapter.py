@@ -1242,6 +1242,19 @@ def _feed_indices(engine, currents) -> tuple[int, int]:
     return pl_idx, j
 
 
+def _position_at(currents, pl_idx, arclen):
+    """Exact 3D point at `arclen` along polyline `pl_idx` of `currents`, or
+    None. Shared by the primary-feed marker and the per-feed-port markers."""
+    if pl_idx >= len(currents):
+        return None
+    knots = currents[pl_idx].knot_positions
+    if knots.shape[0] < 2:
+        return knots[0].tolist() if knots.shape[0] else None
+    deltas = np.linalg.norm(np.diff(knots, axis=0), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(deltas)])
+    return _interp_polyline(knots, cum, arclen)
+
+
 def _feed_position(engine, currents):
     """Exact 3D feed point for the primary feed — the physical location the
     solver actually feeds, independent of where segment knots fall. Avoids
@@ -1252,15 +1265,53 @@ def _feed_position(engine, currents):
     pf = _primary_feed(engine)
     if pf is None:
         return None
-    pl_idx, arclen = pf
-    if pl_idx >= len(currents):
-        return None
-    knots = currents[pl_idx].knot_positions
-    if knots.shape[0] < 2:
-        return knots[0].tolist() if knots.shape[0] else None
-    deltas = np.linalg.norm(np.diff(knots, axis=0), axis=1)
-    cum = np.concatenate([[0.0], np.cumsum(deltas)])
-    return _interp_polyline(knots, cum, arclen)
+    return _position_at(currents, pf[0], pf[1])
+
+
+def _declared_feed_ports(cls) -> list[str]:
+    """Physical feed-port names a design declares in
+    ``ui_params["feed_ports"]`` — the explicit, robust way to mark a multi-feed
+    antenna whose drive is routed through ``build_network()`` (e.g. a lazy-H
+    whose two element centres are fed in phase through a harness from one
+    source). Topology is deliberately NOT inferred: a log-periodic feeds ~10
+    chained elements from a single point, so "PortOnWire reachable from a
+    source" would wrongly report ten feeds (issues #570 / #571). Empty when a
+    design declares nothing — callers then keep the single-primary behaviour.
+    """
+    try:
+        ui = dict(cls.default_params).get("ui_params", {})
+        ports = ui.get("feed_ports")
+        if isinstance(ports, (list, tuple)):
+            return [str(p) for p in ports]
+    except Exception:  # noqa: BLE001
+        pass
+    return []
+
+
+def _feed_positions(engine, currents):
+    """One marker per *declared* physical feed port (issue #571), each as
+    ``{"name", "position": [x, y, z]}``. Designs that declare no ``feed_ports``
+    fall back to the single primary feed, so every existing design is
+    unchanged. Named-but-non-feed ports (trap stubs, TL endpoints) are never
+    markers because they are not listed in ``feed_ports``."""
+    feeds = getattr(engine, "_feeds", None) or []
+    feed_names = getattr(engine, "_feed_names", None) or []
+    builder = getattr(engine, "builder", None)
+    declared = _declared_feed_ports(type(builder)) if builder is not None else []
+    out = []
+    if declared and feeds:
+        name_to_idx = {n: i for i, n in enumerate(feed_names) if n}
+        for nm in declared:
+            idx = name_to_idx.get(nm)
+            if idx is None or idx >= len(feeds):
+                continue
+            pos = _position_at(currents, feeds[idx][0], feeds[idx][1])
+            if pos is not None:
+                out.append({"name": nm, "position": pos})
+    if out:
+        return out
+    pos = _feed_position(engine, currents)
+    return [{"name": "feed", "position": pos}] if pos is not None else []
 
 
 def _pynec_feed_indices(builder, currents) -> tuple[int, int]:
@@ -1327,6 +1378,30 @@ def _pynec_feed_position(builder, currents):
         mid_seg = (n_seg + 1) // 2  # 1-indexed driven segment
         return (0.5 * (knots[mid_seg - 1] + knots[mid_seg])).tolist()
     return None
+
+
+def _pynec_feed_positions(builder, currents):
+    """PyNEC analogue of `_feed_positions` (issue #571): one marker per declared
+    physical feed port, matched to its `build_wires()` tuple by name and placed
+    on that wire's centre. Falls back to the single primary feed."""
+    declared = _declared_feed_ports(type(builder))
+    out = []
+    if declared:
+        tuples = list(builder.build_wires())
+        by_name = {t[4]: i for i, t in enumerate(tuples) if len(t) >= 5 and t[4]}
+        for nm in declared:
+            i = by_name.get(nm)
+            if i is None or i >= len(currents):
+                continue
+            knots = currents[i].knot_positions
+            if knots.shape[0] < 1:
+                continue
+            k = knots.shape[0] // 2
+            out.append({"name": nm, "position": knots[k].tolist()})
+    if out:
+        return out
+    pos = _pynec_feed_position(builder, currents)
+    return [{"name": "feed", "position": pos}] if pos is not None else []
 
 
 # ---------------------------------------------------------------------------
@@ -1429,21 +1504,33 @@ def _auto_target_z0(cls) -> float:
 
 
 def _auto_multi_feed(cls) -> bool:
-    """Detect whether the design has more than one excited wire.
+    """Detect whether the design has more than one feed.
 
-    Builders that drive >1 feed wire in `build_wires()` get multi_feed=True
-    by default — the response shape switches to include a `feeds` array
-    (per-port Z + V) and the frontend renders the per-feed table.
+    Two conventions, two signals (issue #570):
 
-    Designs can still force the flag via `ui_params["multi_feed"]` — set
-    False to suppress the per-feed table even when multiple excitations
-    exist (e.g. mirror-symmetric arrays where the per-port Z is identical
-    by construction and the extra column adds no information).
+    * Inline-``ex`` designs: >1 wire carries an ``ex`` excitation in
+      ``build_wires()`` — each is an independently driven feed.
+    * ``build_network()`` designs: excitation comes from ``Driven`` sources,
+      not the ``ex`` field, so the inline count is always 0. A network design
+      is multi-feed when it has **>1 source** (=> >1 driving-point impedance in
+      the per-feed table) or it explicitly declares **>1 physical feed port**
+      via ``ui_params["feed_ports"]`` (a harness/split feed driven in phase
+      from one source — one driving-point impedance but two feedpoints on the
+      structure). Reachability over the branch graph is deliberately NOT used:
+      it cannot tell a harness-split lazy-H from a log-periodic's chained
+      feeder (see ``_declared_feed_ports``).
+
+    When multi_feed is True the response shape switches to include a `feeds`
+    array (per-port Z + V) and the frontend renders the per-feed table.
+    Designs can still force the flag via ``ui_params["multi_feed"]``.
     """
     try:
         b = cls()
+        net = b.build_network() if hasattr(b, "build_network") else None
+        if net is not None:
+            return len(net.sources) > 1 or len(_declared_feed_ports(cls)) > 1
         n_feeds = sum(1 for t in b.build_wires() if as_wire(t).ex is not None)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
     return n_feeds > 1
 
@@ -1810,6 +1897,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
             "feed_position": _feed_position(eng, currents),
+            "feed_positions": _feed_positions(eng, currents),
             "z_in_re": float(z_primary.real),
             "z_in_im": float(z_primary.imag),
             "design_freq_mhz": design_freq,
@@ -1881,6 +1969,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
             "feed_position": _feed_position(eng, geom),
+            "feed_positions": _feed_positions(eng, geom),
             "design_freq_mhz": design_freq,
             "measurement_freq_mhz": meas_freq,
             "lambda_design_m": C_LIGHT / (design_freq * 1e6),
@@ -1971,6 +2060,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
             "feed_position": _pynec_feed_position(builder, currents),
+            "feed_positions": _pynec_feed_positions(builder, currents),
             "z_in_re": float(z_primary.real),
             "z_in_im": float(z_primary.imag),
             "design_freq_mhz": design_freq,
