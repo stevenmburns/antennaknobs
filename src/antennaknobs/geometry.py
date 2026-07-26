@@ -37,8 +37,19 @@ def _round_point(p, eps):
     return tuple(round(float(c) / eps) * eps for c in p)
 
 
-def flat_wires_to_polylines(tups, *, eps=1e-6):
+def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
     """Convert flat wire tuples to momwire polyline form.
+
+    ``end_ports`` (issue #579): iterable of ``(wire_name, "p0"|"p1")`` pairs
+    naming wire ENDPOINTS that must become junction-node ports. Each such
+    node is forced to be a polyline boundary (so momwire gives it junction
+    directional bases) and its shared-node group is emitted in `junctions`
+    even when only one polyline end lives there (a lone conductor end — the
+    1-entry groups momwire#172 made legal). A name that appears in
+    ``end_ports`` is NOT registered as a gap-feed port edge (no delta gap is
+    cut in it); it identifies the wire only. The returned
+    ``end_port_junctions`` maps each ``(wire_name, end)`` to its junction
+    index — pass those straight to a momwire solver's ``junction_ports=``.
 
     Returns a dict with keys:
         polylines       : list of (M, 3) np.ndarray
@@ -62,6 +73,8 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
                           shared-node groups, suitable to pass directly
                           to a momwire solver's junctions=... kwarg. Empty list
                           if every component is a simple path.
+        end_port_junctions : dict (wire_name, "p0"|"p1") -> junction index
+                          for every requested end port (issue #579).
     """
     if not tups:
         raise ValueError("no wires to translate")
@@ -96,6 +109,38 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         tup_names.append(name)
         tup_specs.append(spec)
 
+    # End ports (issue #579): resolve each (wire_name, "p0"|"p1") to its
+    # node id. These names identify wires only — they are excluded from
+    # gap-feed registration below, and their nodes are forced to be
+    # polyline boundaries so momwire can host a junction port there.
+    end_ports = list(end_ports or [])
+    end_port_names = set()
+    end_port_nodes = []  # (name, which, node_id)
+    if end_ports:
+        name_to_tup = {}
+        for i, nm in enumerate(tup_names):
+            if nm is not None:
+                name_to_tup.setdefault(nm, []).append(i)
+        for nm, which in end_ports:
+            if which not in ("p0", "p1"):
+                raise ValueError(
+                    f"end port on {nm!r}: end must be 'p0' or 'p1', got {which!r}"
+                )
+            idxs = name_to_tup.get(nm)
+            if not idxs:
+                raise ValueError(
+                    f"end port references wire name {nm!r} but no build_wires() "
+                    f"tuple carries that name"
+                )
+            if len(idxs) > 1:
+                raise ValueError(
+                    f"end port references wire name {nm!r} which is carried by "
+                    f"{len(idxs)} tuples — end-port wire names must be unique"
+                )
+            a, b, *_ = edges[idxs[0]]
+            end_port_names.add(nm)
+            end_port_nodes.append((nm, which, a if which == "p0" else b))
+
     # adj[nid] = list of (other_node, edge_index), in registration order.
     adj = [[] for _ in nodes]
     for ei, (a, b, _, _, _) in enumerate(edges):
@@ -122,6 +167,14 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
             e0, e1 = neigh[0][1], neigh[1][1]
             if tup_specs[edges[e0][4]] != tup_specs[edges[e1][4]]:
                 is_boundary[nid] = True
+
+    # An end-port node is a boundary too (issue #579): the port must land on
+    # a junction node, so a degree-2 node splits its chain here (registered
+    # as a 2-entry junction below — KCL still carries the current through,
+    # and the port injects into the shared node). Degree-1 nodes become
+    # 1-entry junction groups (legal since momwire#172).
+    for _nm, _which, nid in end_port_nodes:
+        is_boundary[nid] = True
 
     edge_seen = [False] * len(edges)
 
@@ -282,8 +335,19 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         junction_ends[cut_b].append((loop_pl_idx, "start"))
 
     # Junctions = nodes where >= 2 polylines meet. Single-end records
-    # (degree-1 free ends) and lone polyline starts aren't junctions.
-    junctions = [ends for ends in junction_ends.values() if len(ends) >= 2]
+    # (degree-1 free ends) and lone polyline starts aren't junctions —
+    # EXCEPT end-port nodes (issue #579), whose group is emitted even with a
+    # single member so a momwire junction port can live there.
+    end_port_nids = {nid for _nm, _w, nid in end_port_nodes}
+    junctions = []
+    junction_index_of_node = {}
+    for nid, ends in junction_ends.items():
+        if len(ends) >= 2 or (nid in end_port_nids and len(ends) >= 1):
+            junction_index_of_node[nid] = len(junctions)
+            junctions.append(ends)
+    end_port_junctions = {
+        (nm, which): junction_index_of_node[nid] for nm, which, nid in end_port_nodes
+    }
 
     # Locate the excitation(s) and convert each to (polyline_idx,
     # arclength, voltage). PyNEC feeds at segment `(n_seg+1)//2` of the
@@ -301,6 +365,10 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
     for tup_index, edge in enumerate(edges):
         voltage = edge[3]
         name = tup_names[tup_index]
+        # An end-port name identifies its wire for the junction port only —
+        # no gap is cut in the wire (issue #579), so it is not a port edge.
+        if name in end_port_names:
+            name = None
         if voltage is None and name is None:
             continue
         feed_pl, feed_edge_idx = edge_to_polyline[tup_index]
@@ -316,7 +384,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         feed_edges.append((feed_pl, feed_edge_idx))
         feed_dirs.append(edge_walk_dir[tup_index])
 
-    if not feeds:
+    if not feeds and not end_port_nodes:
         raise ValueError("no excitation found in wire list")
 
     return {
@@ -333,9 +401,11 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         # convention follows the walk; engines multiply by this factor to
         # normalize every port to the AUTHORED direction (issue #580).
         "feed_dirs": feed_dirs,
-        # Back-compat scalars — first feed.
-        "feed_wire_index": feeds[0][0],
-        "feed_arclength": feeds[0][1],
-        "feed_voltage": feeds[0][2],
+        # Back-compat scalars — first feed (None when the design is driven
+        # entirely through end ports, issue #579).
+        "feed_wire_index": feeds[0][0] if feeds else None,
+        "feed_arclength": feeds[0][1] if feeds else None,
+        "feed_voltage": feeds[0][2] if feeds else None,
         "junctions": junctions,
+        "end_port_junctions": end_port_junctions,
     }

@@ -76,7 +76,39 @@ class PortVirtual:
 # externally-authored design importing it keeps working.
 PortAtEdge = PortOnWire
 
-Port = Union[PortOnWire, PortVirtual]
+
+@dataclass(frozen=True)
+class PortAtEnd:
+    """Port AT a wire ENDPOINT (issue #579) — the attachment a floating
+    multi-terminal element (`BalancedLine`) needs and a `PortOnWire` gap
+    cannot provide (a gap is a series insertion; issue #576's validation
+    mapped the dead-end-stub and bridge-idiom failure modes).
+
+    ``wire`` names a `build_wires()` tuple (names must be unique); ``end``
+    picks its authored ``"p0"`` or ``"p1"`` endpoint. The port resolves to
+    the shared NODE at that point: geometry translation forces a polyline
+    boundary there and momwire hosts a junction port (momwire#172) — the
+    node's KCL row becomes the port's drive/readout vector, so driving the
+    port injects current INTO the node and the port voltage is the node's
+    Lagrange dual. When several wire ends coincide at the point, the port
+    attaches to the whole shared junction group (declare it on ONE of the
+    wires). Unlike `PortOnWire`, no gap is cut in the wire — the name only
+    identifies the geometry, and a wire name may be referenced by either
+    port kind, not both.
+
+    momwire-only: NEC-2 has no junction-node port (NT/TL cards attach to
+    segment interiors), so `PyNECEngine` rejects designs using this port
+    type — a deliberate, declared engine-parity break."""
+
+    wire: str
+    end: str = "p1"
+
+    def __post_init__(self):
+        if self.end not in ("p0", "p1"):
+            raise ValueError(f"PortAtEnd end must be 'p0' or 'p1', got {self.end!r}")
+
+
+Port = Union[PortOnWire, PortAtEnd, PortVirtual]
 
 
 @dataclass(frozen=True)
@@ -582,15 +614,23 @@ def validate_named_wires_referenced(named_wires, network):
     Engines call this once the flattened network and the final wire list are
     both known (composite expansion has already namespaced port names).
     """
-    port_names = {n for n, p in network.ports.items() if isinstance(p, PortOnWire)}
-    orphaned = sorted(set(named_wires) - {None} - port_names)
+    gap_names = {n for n, p in network.ports.items() if isinstance(p, PortOnWire)}
+    end_names = {p.wire for p in network.ports.values() if isinstance(p, PortAtEnd)}
+    both = sorted(gap_names & end_names)
+    if both:
+        raise ValueError(
+            f"wire name(s) {both} are referenced by both a PortOnWire and a "
+            "PortAtEnd — a gap port cuts a delta gap in the wire while an "
+            "end port must leave it gapless (issue #579); use separate wires."
+        )
+    orphaned = sorted(set(named_wires) - {None} - gap_names - end_names)
     if orphaned:
         raise ValueError(
             f"named wire(s) {orphaned} are not referenced by any PortOnWire "
-            "in build_network(); a named wire becomes a port edge, and an "
-            "unreferenced port is an OPEN gap that cuts the wire there "
-            "(issue #578). Reference each name in Network.ports, or drop "
-            "the name."
+            "or PortAtEnd in build_network(); a named wire becomes a port "
+            "edge, and an unreferenced port is an OPEN gap that cuts the "
+            "wire there (issue #578). Reference each name in Network.ports, "
+            "or drop the name."
         )
 
 
@@ -731,7 +771,7 @@ def _resolve_aliases(pairs, ports):
 
     rename = {}
     for members in classes.values():
-        real = [n for n in members if isinstance(ports.get(n), PortOnWire)]
+        real = [n for n in members if isinstance(ports.get(n), (PortOnWire, PortAtEnd))]
         if len(real) > 1:
             raise ValueError(
                 f"aliases merge distinct geometry ports {sorted(real)} — "
@@ -920,7 +960,10 @@ class Network:
             raise ValueError("branch_paths is derived — do not pass it")
         self._expand_instances()
         for name, port in self.ports.items():
-            if port.name != name:
+            # A PortAtEnd is keyed by its PORT name alone; its `wire` field
+            # names geometry, not the port (two end ports may share a wire),
+            # so there is no redundant name field to cross-check.
+            if not isinstance(port, PortAtEnd) and port.name != name:
                 raise ValueError(
                     f"port dict key {name!r} doesn't match Port.name {port.name!r}"
                 )
@@ -942,12 +985,15 @@ class Network:
         BalancedLine terminals is therefore common-mode floating, which makes
         the MNA singular at solve time — raise a clear, node-naming error here
         at build time instead. A node is common-mode-determinate if it is a
-        real `PortOnWire` (an antenna-Y row grounds it), is driven by a source,
-        or is referenced by any non-BalancedLine branch (issue #575)."""
+        real `PortOnWire` or `PortAtEnd` (an antenna-Y row grounds it), is
+        driven by a source, or is referenced by any non-BalancedLine branch
+        (issue #575)."""
         balanced = [b for b in self.branches if isinstance(b, BalancedLine)]
         if not balanced:
             return
-        determinate = {n for n, p in self.ports.items() if isinstance(p, PortOnWire)}
+        determinate = {
+            n for n, p in self.ports.items() if isinstance(p, (PortOnWire, PortAtEnd))
+        }
         determinate.update(src.port for src in self.sources)
         for br in self.branches:
             if not isinstance(br, BalancedLine):
