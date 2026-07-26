@@ -1288,28 +1288,51 @@ def _declared_feed_ports(cls) -> list[str]:
     return []
 
 
-def _feed_positions(engine, currents):
-    """One marker per *declared* physical feed port (issue #571), each as
-    ``{"name", "position": [x, y, z]}``. Designs that declare no ``feed_ports``
-    fall back to the single primary feed, so every existing design is
-    unchanged. Named-but-non-feed ports (trap stubs, TL endpoints) are never
-    markers because they are not listed in ``feed_ports``."""
-    feeds = getattr(engine, "_feeds", None) or []
-    feed_names = getattr(engine, "_feed_names", None) or []
-    builder = getattr(engine, "builder", None)
-    declared = _declared_feed_ports(type(builder)) if builder is not None else []
-    out = []
-    if declared and feeds:
-        name_to_idx = {n: i for i, n in enumerate(feed_names) if n}
-        for nm in declared:
-            idx = name_to_idx.get(nm)
-            if idx is None or idx >= len(feeds):
-                continue
-            pos = _position_at(currents, feeds[idx][0], feeds[idx][1])
-            if pos is not None:
-                out.append({"name": nm, "position": pos})
-    if out:
-        return out
+def _feed_positions(engine, currents, multi_feed=False):
+    """One marker per feed (issue #571), each ``{"name", "position": [x,y,z]}``.
+
+    Gated by the resolved ``multi_feed`` flag so markers and the flag always
+    agree — a design that overrides ``multi_feed=False`` (e.g. a common-feed
+    antenna modelled with several driven gaps) shows a single marker.
+
+    When multi-feed:
+    * ``build_network()`` designs → the explicitly declared ``feed_ports``
+      (topology is not trusted — see ``_declared_feed_ports``);
+    * inline-``ex`` designs → every driven ``_feeds`` entry.
+
+    Otherwise a single primary-feed marker, so single-feed designs and
+    ``multi_feed=False`` overrides are unchanged."""
+    if multi_feed:
+        feeds = getattr(engine, "_feeds", None) or []
+        feed_names = getattr(engine, "_feed_names", None) or []
+        builder = getattr(engine, "builder", None)
+        net = None
+        if builder is not None and hasattr(builder, "build_network"):
+            try:
+                net = builder.build_network()
+            except Exception:  # noqa: BLE001
+                net = None
+        out = []
+        if net is not None:
+            name_to_idx = {n: i for i, n in enumerate(feed_names) if n}
+            for nm in _declared_feed_ports(type(builder)):
+                idx = name_to_idx.get(nm)
+                if idx is not None and idx < len(feeds):
+                    pos = _position_at(currents, feeds[idx][0], feeds[idx][1])
+                    if pos is not None:
+                        out.append({"name": nm, "position": pos})
+        elif len(feeds) > 1:
+            for i, feed in enumerate(feeds):
+                pos = _position_at(currents, feed[0], feed[1])
+                if pos is not None:
+                    nm = (
+                        feed_names[i]
+                        if i < len(feed_names) and feed_names[i]
+                        else f"feed {i}"
+                    )
+                    out.append({"name": nm, "position": pos})
+        if out:
+            return out
     pos = _feed_position(engine, currents)
     return [{"name": "feed", "position": pos}] if pos is not None else []
 
@@ -1380,24 +1403,33 @@ def _pynec_feed_position(builder, currents):
     return None
 
 
-def _pynec_feed_positions(builder, currents):
-    """PyNEC analogue of `_feed_positions` (issue #571): one marker per declared
-    physical feed port, matched to its `build_wires()` tuple by name and placed
-    on that wire's centre. Falls back to the single primary feed."""
-    declared = _declared_feed_ports(type(builder))
+def _pynec_feed_positions(builder, currents, multi_feed=False):
+    """PyNEC analogue of `_feed_positions` (issue #571), gated by multi_feed:
+    build_network() designs → declared feed ports (matched to their
+    build_wires() tuple by name); inline-`ex` designs → each `ev`-driven tuple.
+    Each marker sits on its wire's centre. Falls back to the single primary."""
     out = []
-    if declared:
+    if multi_feed:
         tuples = list(builder.build_wires())
-        by_name = {t[4]: i for i, t in enumerate(tuples) if len(t) >= 5 and t[4]}
-        for nm in declared:
-            i = by_name.get(nm)
-            if i is None or i >= len(currents):
-                continue
+        net = builder.build_network() if hasattr(builder, "build_network") else None
+
+        def center(i):
             knots = currents[i].knot_positions
-            if knots.shape[0] < 1:
-                continue
-            k = knots.shape[0] // 2
-            out.append({"name": nm, "position": knots[k].tolist()})
+            return knots[knots.shape[0] // 2].tolist() if knots.shape[0] else None
+
+        if net is not None:
+            by_name = {t[4]: i for i, t in enumerate(tuples) if len(t) >= 5 and t[4]}
+            for nm in _declared_feed_ports(type(builder)):
+                i = by_name.get(nm)
+                if i is not None and i < len(currents) and center(i) is not None:
+                    out.append({"name": nm, "position": center(i)})
+        else:
+            for i, t in enumerate(tuples):
+                if (t[3] if len(t) > 3 else None) is None or i >= len(currents):
+                    continue
+                if center(i) is not None:
+                    nm = t[4] if len(t) >= 5 and t[4] else f"feed {len(out)}"
+                    out.append({"name": nm, "position": center(i)})
     if out:
         return out
     pos = _pynec_feed_position(builder, currents)
@@ -1897,7 +1929,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
             "feed_position": _feed_position(eng, currents),
-            "feed_positions": _feed_positions(eng, currents),
+            "feed_positions": _feed_positions(eng, currents, hints()["multi_feed"]),
             "z_in_re": float(z_primary.real),
             "z_in_im": float(z_primary.imag),
             "design_freq_mhz": design_freq,
@@ -1969,7 +2001,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
             "feed_position": _feed_position(eng, geom),
-            "feed_positions": _feed_positions(eng, geom),
+            "feed_positions": _feed_positions(eng, geom, hints()["multi_feed"]),
             "design_freq_mhz": design_freq,
             "measurement_freq_mhz": meas_freq,
             "lambda_design_m": C_LIGHT / (design_freq * 1e6),
@@ -2060,7 +2092,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
             "feed_position": _pynec_feed_position(builder, currents),
-            "feed_positions": _pynec_feed_positions(builder, currents),
+            "feed_positions": _pynec_feed_positions(
+                builder, currents, hints()["multi_feed"]
+            ),
             "z_in_re": float(z_primary.real),
             "z_in_im": float(z_primary.imag),
             "design_freq_mhz": design_freq,

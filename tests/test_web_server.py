@@ -535,6 +535,22 @@ def test_solve_emits_one_feed_marker_per_declared_port():
     assert out["multi_feed"] is True
 
 
+def test_solve_inline_ex_multifeed_marks_every_feed():
+    """Inline-`ex` multi-feed arrays keep one marker per driven element — the
+    multi-marker path must not collapse them to the single primary (issue #571
+    regression guard). four_square drives four phased verticals."""
+    out = server.solve(
+        {
+            "geometry": "verticals.four_square",
+            "measurement_freq_mhz": 7.15,
+            "design_freq_mhz": 7.15,
+            "momwire_model": "bspline",
+        }
+    )
+    assert out["multi_feed"] is True
+    assert len(out["feed_positions"]) == 4
+
+
 def test_solve_single_feed_reports_one_marker():
     """Single-feed designs report exactly one feed marker — no regression from
     the multi-marker path (issue #571)."""
