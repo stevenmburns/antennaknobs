@@ -13,6 +13,7 @@ from momwire import BSplineSolver
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
 from ..network import (
+    PortAtEnd,
     PortOnWire,
     PortVirtual,
     as_wire,
@@ -215,7 +216,24 @@ class MomwireEngine(SimulationEngine):
                         tups[tag - 1] = as_wire(t)._replace(ex=0 + 0j)
                         augmented_tags.add(tag)
 
-        translated = flat_wires_to_polylines(tups)
+        # End ports (issue #579): PortAtEnd entries resolve to junction-node
+        # ports (momwire#172). Collected before translation so the geometry
+        # layer can synthesize the end junctions and leave those wires
+        # gapless. Order of appearance in net.ports fixes the engine's
+        # end-port ordering everywhere.
+        self._end_ports = (
+            [
+                (name, port.wire, port.end)
+                for name, port in self._network.ports.items()
+                if isinstance(port, PortAtEnd)
+            ]
+            if self._network is not None
+            else []
+        )
+
+        translated = flat_wires_to_polylines(
+            tups, end_ports=[(w, e) for _n, w, e in self._end_ports]
+        )
         self._polylines = translated["polylines"]
         self._edge_segments = translated["edge_segments"]
         self._polyline_specs = translated["polyline_specs"]
@@ -223,6 +241,10 @@ class MomwireEngine(SimulationEngine):
         self._feed_names = translated["feed_names"]
         self._feed_edges = translated["feed_edges"]
         self._junctions = translated["junctions"]
+        # Junction index per end port, in self._end_ports order.
+        self._end_port_junctions = [
+            translated["end_port_junctions"][(w, e)] for _n, w, e in self._end_ports
+        ]
         # Distributed-port expansion (issue #477): None until _init_network
         # finds a PortOnWire(distributed=True); every other path treats the
         # feed list 1:1.
@@ -411,8 +433,13 @@ class MomwireEngine(SimulationEngine):
                     )
                 port_to_idx[name] = feed_name_to_idx[name]
 
-        # Virtual ports are indexed after the real feeds.
+        # End ports follow the gap feeds (matching momwire's solver-side
+        # [feeds..., junction_ports...] Y ordering, issue #579), then the
+        # virtual ports.
         next_idx = len(self._feeds)
+        for name, _wire, _end in self._end_ports:
+            port_to_idx[name] = next_idx
+            next_idx += 1
         for name, port in net.ports.items():
             if isinstance(port, PortVirtual):
                 port_to_idx[name] = next_idx
@@ -492,11 +519,23 @@ class MomwireEngine(SimulationEngine):
         """Contract a solver Y (sub-feed granularity) to port granularity;
         the signed W also normalizes each port's sign convention to the
         authored wire direction (issue #580). Identity when no distributed
-        ports exist and every port edge was walked as authored. Works on one
-        matrix or a swept (n_k, n, n) stack."""
+        ports exist and every port edge was walked as authored. End-port
+        rows (issue #579) trail the solver's feed rows and pass through
+        unweighted — a junction-node port has no sub-feed expansion and no
+        walk-sign ambiguity (a KCL row's outflow convention is geometric) —
+        so W extends by an identity block. Works on one matrix or a swept
+        (n_k, n, n) stack."""
         if self._feed_W is None:
             return Y
         W = self._feed_W
+        n_end = len(self._end_port_junctions)
+        if n_end:
+            W = np.block(
+                [
+                    [W, np.zeros((W.shape[0], n_end))],
+                    [np.zeros((n_end, W.shape[1])), np.eye(n_end)],
+                ]
+            )
         if Y.ndim == 3:
             return np.einsum("ia,kij,jb->kab", W, Y, W)
         return W.T @ Y @ W
@@ -514,7 +553,21 @@ class MomwireEngine(SimulationEngine):
             kw["ground_model"] = "sommerfeld"
         return kw
 
-    def _make_solver(self, *, wavelength):
+    def _make_solver(self, *, wavelength, end_port_voltages=None):
+        """Solver instance. ``end_port_voltages`` (issue #579): per-end-port
+        complex voltages in `self._end_ports` order; None means 0 V on every
+        end port (the Y-matrix path enumerates ports, so drive levels are
+        irrelevant there)."""
+        kw = {}
+        if self._end_port_junctions:
+            volts = (
+                end_port_voltages
+                if end_port_voltages is not None
+                else [0j] * len(self._end_port_junctions)
+            )
+            kw["junction_ports"] = [
+                (j, complex(v)) for j, v in zip(self._end_port_junctions, volts)
+            ]
         return self._solver(
             wires=self._polylines,
             n_per_edge_per_wire=self._edge_segments,
@@ -524,6 +577,7 @@ class MomwireEngine(SimulationEngine):
             ground_z=self._ground_z,
             junctions=self._junctions or None,
             cancel=self._cancel,
+            **kw,
             **self._loading_kwargs,
             **self._ground_solver_kwargs(),
             **self._solver_kwargs,
@@ -592,7 +646,11 @@ class MomwireEngine(SimulationEngine):
         """
         sim = self._make_excited_solver(wavelength=wavelength)
         v_key = tuple((complex(v).real, complex(v).imag) for *_, v in sim.feeds)
-        key = (float(wavelength), v_key)
+        jp_key = tuple(
+            (int(j), complex(v).real, complex(v).imag)
+            for j, v in getattr(sim, "junction_ports", []) or []
+        )
+        key = (float(wavelength), v_key, jp_key)
         cached = getattr(self, "_solved_cache", None)
         if cached is not None and cached[0] == key:
             sim, coeffs, z = cached[1]
@@ -734,6 +792,14 @@ class MomwireEngine(SimulationEngine):
             feeds_resolved = self._solver_feeds(
                 [complex(V_full[i]) for i in range(len(self._feeds))]
             )
+            # End-port voltages (issue #579) follow the gap feeds in the
+            # reducer's port ordering; force them in the excited solver so
+            # the current distribution / far field see the branch-induced
+            # node drive exactly like the gap ports do.
+            n_f = len(self._feeds)
+            end_port_voltages = [
+                complex(V_full[n_f + k]) for k in range(len(self._end_ports))
+            ]
         elif self._tls:
             self._excited_efficiency = 1.0
             self._excited_power_budget = []
@@ -758,6 +824,13 @@ class MomwireEngine(SimulationEngine):
             # the excited solve's driving-point impedance(s) on demand.
             self._excited_p_in = None
             return self._make_solver(wavelength=wavelength)
+        kw = {}
+        if self._end_port_junctions:
+            # Legacy build_tls designs have no end ports, so this only
+            # fires on the network path where end_port_voltages is set.
+            kw["junction_ports"] = [
+                (j, v) for j, v in zip(self._end_port_junctions, end_port_voltages)
+            ]
         return self._solver(
             wires=self._polylines,
             n_per_edge_per_wire=self._edge_segments,
@@ -767,6 +840,7 @@ class MomwireEngine(SimulationEngine):
             ground_z=self._ground_z,
             junctions=self._junctions or None,
             cancel=self._cancel,
+            **kw,
             **self._loading_kwargs,
             **self._ground_solver_kwargs(),
             **self._solver_kwargs,

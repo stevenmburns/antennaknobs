@@ -16,6 +16,7 @@ from ..network import (
     BalancedLine,
     Driven,
     Load,
+    PortAtEnd,
     PortOnWire,
     PortVirtual,
     Shunt,
@@ -193,6 +194,19 @@ class PyNECEngine(SimulationEngine):
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
+        # End ports are momwire-only (issue #579): NEC-2 has no junction-node
+        # port — NT/TL cards attach to segment interiors, and synthesizing a
+        # stub would reintroduce the exact attachment artifact PortAtEnd
+        # exists to eliminate (#576). Hard error, by design decision; such
+        # designs declare the parity break in design_trust.
+        if self._network is not None and any(
+            isinstance(p, PortAtEnd) for p in self._network.ports.values()
+        ):
+            raise ValueError(
+                "this design uses PortAtEnd (a junction-node port), which "
+                "NEC-2 cannot represent — run it on the momwire engine "
+                "(issue #579)"
+            )
         # Wire material (issue #316): radius + conductor loss from the
         # design's WireSpec. The spec's conductivity is emitted as a global
         # ld_card type 5 (NEC's native wire-loss model — the momwire#131
