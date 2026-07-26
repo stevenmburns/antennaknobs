@@ -1,4 +1,14 @@
-"""Delta-loop pair phased through explicit transmission lines (legacy build_tls path)."""
+"""Delta-loop pair phased through explicit transmission lines (legacy build_tls path).
+
+TEST FIXTURE, not a catalog design. This is the deliberate oracle for the
+``build_tls()`` → native NEC ``tl_card`` path: it cross-checks that the shared,
+engine-agnostic ``NetworkReducer`` (used by every ``build_network()`` design)
+reproduces NEC's native transmission-line handling. It lives in ``tests/`` so
+it is not shipped in the catalog and not copied as a pattern for new designs —
+new designs should use ``build_network()`` (see ``delta_looparray_network`` for
+the same antenna done that way). Imported by tests as
+``fixtures.delta_looparray_with_tls``.
+"""
 
 from antennaknobs import AntennaBuilder
 import math

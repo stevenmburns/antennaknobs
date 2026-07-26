@@ -127,13 +127,6 @@ def export_nec(
     if l_ins is not None:
         lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
 
-    # Legacy build_tls() path -> native NEC TL cards. (The build_network() TL
-    # path uses the multiport-Y reducer and is rejected above.)
-    for idx1, seg1, idx2, seg2, impedance, length in eng.tls:
-        lines.append(
-            f"TL {idx1} {seg1} {idx2} {seg2} {_num(impedance)} {_num(length)} 0 0 0 0"
-        )
-
     gn = _gn(eng.ground)
     if gn:
         lines.append(gn)

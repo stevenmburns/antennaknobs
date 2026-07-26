@@ -1,5 +1,6 @@
 """Stacked hexbeam: up to 5 concentric hexbeam shapes stacked along z,
-each sized to its own band's wavelength and driven by its own feed.
+each sized to its own band's wavelength, sharing one common feed by default
+(band 0 driven, the rest coupled up the stack — see the feed-mode note below).
 
 Each band reuses the single-band hexbeam geometry (driver hex with t0/t1
 tip segments, reflector hex, 1-segment T->S feed gap). Per-band sizing

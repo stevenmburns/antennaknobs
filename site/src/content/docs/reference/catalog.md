@@ -130,7 +130,7 @@ whole shape with a `Drone` — see
 | Design | Notes |
 | --- | --- |
 | `multiband.fandipole` | Fan dipole — parallel dipoles off one feed for several bands · variants: `five_band`, `pair_12_10`, `pair_17_15` |
-| `multiband.hexbeam_5band` | Stacked hexbeam: up to 5 concentric hexbeam shapes stacked along z, each sized to its own band's wavelength and driven by its own feed · variants: `opt`, `opt_coupled` |
+| `multiband.hexbeam_5band` | Stacked hexbeam: up to 5 concentric hexbeam shapes stacked along z, each sized to its own band's wavelength, sharing one common feed by default (band 0 driven, the rest coupled up the stack — see the feed-mode note below) · variants: `opt`, `opt_coupled` |
 | `multiband.trap_dipole` | Dual-band trap dipole — Load(parallel=True) showcase for issue #65 |
 | `multiband.trap_fan_dipole` | Four-band trapped fan dipole — combines `fandipole` geometry with the `trap_dipole` Load(parallel=True) idiom · variants: `band0_full`, `band0_inner`, `band1_full`, `band1_inner` |
 | `multiband.twoband_fan_dipole` | Two-band fan (parallel) dipole — two dipoles bonded at a common feed · variants: `current_physical`, `s01`, `s015`, `s01_eps001`, `s02`, `s025`, `s03`, `s05`, `s07` |
@@ -152,7 +152,6 @@ showcase (see [the solver guide](/reference/solver/)):
 | `arrays.delta_looparray_1x4_grouped` | 1x4 delta-loop row with per-group knobs (inner/outer pairs tuned separately) |
 | `arrays.delta_looparray_2x2` | 2x2 phased stack of delta loops |
 | `arrays.delta_looparray_network` | delta_looparray driven by two TLs from a central virtual driver |
-| `arrays.delta_looparray_with_tls` | Delta-loop pair phased through explicit transmission lines (legacy build_tls path) |
 | `arrays.folded_invveearray` | 2x2 phased stack of folded inverted-vees |
 | `arrays.hentenna_array` | Side-by-side hentenna pair (1x2) |
 | `arrays.hourglass_array` | Side-by-side hourglass pair (1x2) |
