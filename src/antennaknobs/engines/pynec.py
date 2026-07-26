@@ -13,6 +13,7 @@ from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import as_wire
 from ..network import (
     Admittance,
+    BalancedLine,
     Driven,
     Load,
     PortOnWire,
@@ -191,6 +192,18 @@ class PyNECEngine(SimulationEngine):
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
+        if self._network is not None and any(
+            isinstance(b, BalancedLine) for b in self._network.branches
+        ):
+            # PyNEC card mapping is out of scope (issue #575): NEC-2 has no
+            # native coupled-line card, so raise rather than silently
+            # mis-modelling the differential pair as single-ended. momwire is
+            # the supported engine for BalancedLine.
+            raise NotImplementedError(
+                "BalancedLine is not supported on PyNECEngine: NEC-2 has no "
+                "native coupled-line card. Run this design on MomwireEngine "
+                "(the differential stamp lives in the shared NetworkReducer)."
+            )
         # Wire material (issue #316): radius + conductor loss from the
         # design's WireSpec. The spec's conductivity is emitted as a global
         # ld_card type 5 (NEC's native wire-loss model — the momwire#131

@@ -477,13 +477,75 @@ class Admittance:
             )
 
 
-Branch = Union[TL, Load, TwoPort, Shunt, Transformer, Admittance]
+@dataclass(frozen=True)
+class BalancedLine:
+    """Balanced / differential two-conductor transmission line (issue #575) —
+    the differential sibling of `TL`. Where a `TL(a, b)` is single-ended (each
+    end referenced to the one network common), a BalancedLine models a pair of
+    conductors carrying ±I with the return current riding the *partner* wire:
+    open-wire feeder, twisted pair, the Sterba curtain's offset-pair verticals.
+
+    Four terminals in two pairs — port A = ``(a1, a2)``, port B = ``(b1, b2)``,
+    the two ends of the 2-conductor line. It is characterised by a single
+    **differential impedance ``zdiff``** (the number off the ladder-line spool:
+    300 / 450 / 600 Ω) plus physical ``length``, ``vf``, and optional
+    matched-loss ``k1``/``k2`` — mirroring `TL`. For anyone coming from the
+    microwave even/odd convention, ``zdiff = 2·z0o``.
+
+    Deliberately **differential-ONLY**, not general even/odd coupled: an
+    isolated two-wire pair supports exactly one TEM mode — the differential
+    one. The even ("common") mode needs a third conductor as its return; for
+    risers hanging in space its Z0 is ill-defined, and even-mode current is
+    really antenna-mode current that radiates, which a network branch inherently
+    cannot represent. So the element stamps only the odd-mode block, which
+    structurally forces ``I(a1) = −I(a2)`` at each end — exactly the ±I
+    cancellation the Sterba pair relies on, enforced by construction.
+
+    Stamped through the shared `NetworkReducer` as a frequency-dependent 4×4
+    Group-1 admittance block (see ``network_reduce.balanced_admittance_4x4``):
+    in differential variables it is an ordinary 2-port TL with z0 = zdiff, so
+    the 4×4 is ``tl_admittance_2x2(zdiff, …)`` expanded through the pair
+    incidence — each 2×2 entry ``y`` becomes the block ``y·[[1,−1],[−1,1]]``. It
+    reuses that helper's matched-loss model and half-wave singularity guard: a
+    lossless line at exactly k·vf·λ/2 raises, and real open-wire ``k1`` loss
+    regularises the exactly-λ/2 riser physically (no length-factor fudge).
+
+    **No ``transposed`` flag**: with four explicit terminals a crossover (the
+    Sterba's half-twist) is just wiring port B as ``(b2, b1)`` — visible in the
+    design source.
+
+    The common mode is structurally open (the 4×4 is rank-2 by construction),
+    so each terminal node must be common-mode-determinate from elsewhere —
+    attached to a radiating wire (`PortOnWire`), driven, or wired to a
+    non-BalancedLine branch. A node reachable *only* through BalancedLine
+    terminals is rejected by `Network.__post_init__` (it would make MNA
+    singular at solve time).
+
+    **PyNEC is out of scope**: NEC-2 has no native coupled-line card, so
+    `PyNECEngine` raises `NotImplementedError` rather than mis-modelling.
+    momwire is the supported engine (physics validation is issue #576).
+    """
+
+    a1: str
+    a2: str
+    b1: str
+    b2: str
+    zdiff: float
+    length: float
+    vf: float = 1.0
+    k1: float = 0.0
+    k2: float = 0.0
+
+
+Branch = Union[TL, Load, TwoPort, Shunt, Transformer, Admittance, BalancedLine]
 
 
 def _branch_port_refs(br):
     """Port names a branch references, regardless of branch type."""
     if isinstance(br, Admittance):
         return tuple(br.ports)
+    if isinstance(br, BalancedLine):
+        return (br.a1, br.a2, br.b1, br.b2)
     if hasattr(br, "a"):  # TL, TwoPort, Transformer
         return (br.a, br.b)
     return (br.port,)  # Load, Shunt
@@ -493,6 +555,8 @@ def _rewrite_branch(br, ren):
     """Copy of ``br`` with every port reference passed through ``ren``."""
     if isinstance(br, Admittance):
         return replace(br, ports=tuple(ren(p) for p in br.ports))
+    if isinstance(br, BalancedLine):
+        return replace(br, a1=ren(br.a1), a2=ren(br.a2), b1=ren(br.b1), b2=ren(br.b2))
     if hasattr(br, "a"):  # TL, TwoPort, Transformer
         return replace(br, a=ren(br.a), b=ren(br.b))
     return replace(br, port=ren(br.port))
@@ -838,6 +902,36 @@ class Network:
                 raise ValueError(f"source {src!r} references unknown port")
         if not self.sources:
             raise ValueError("Network has no driven sources")
+        self._validate_common_mode()
+
+    def _validate_common_mode(self):
+        """A `BalancedLine` stamps only the differential block, contributing
+        nothing to its terminals' common mode. A node reachable ONLY through
+        BalancedLine terminals is therefore common-mode floating, which makes
+        the MNA singular at solve time — raise a clear, node-naming error here
+        at build time instead. A node is common-mode-determinate if it is a
+        real `PortOnWire` (an antenna-Y row grounds it), is driven by a source,
+        or is referenced by any non-BalancedLine branch (issue #575)."""
+        balanced = [b for b in self.branches if isinstance(b, BalancedLine)]
+        if not balanced:
+            return
+        determinate = {n for n, p in self.ports.items() if isinstance(p, PortOnWire)}
+        determinate.update(src.port for src in self.sources)
+        for br in self.branches:
+            if not isinstance(br, BalancedLine):
+                determinate.update(_branch_port_refs(br))
+        touched = set()
+        for br in balanced:
+            touched.update(_branch_port_refs(br))
+        floating = sorted(touched - determinate)
+        if floating:
+            raise ValueError(
+                f"node(s) {floating} attach only via BalancedLine terminals, "
+                "whose common mode is structurally open — the MNA would be "
+                "singular. Give each a common-mode return: attach it to a "
+                "radiating wire (PortOnWire), drive it, or wire it to a "
+                "non-BalancedLine branch."
+            )
 
     def _expand_instances(self):
         """Flatten `Instance` items (issue #489): namespace internals,
