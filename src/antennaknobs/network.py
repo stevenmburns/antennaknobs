@@ -521,9 +521,14 @@ class BalancedLine:
     terminals is rejected by `Network.__post_init__` (it would make MNA
     singular at solve time).
 
-    **PyNEC is out of scope**: NEC-2 has no native coupled-line card, so
-    `PyNECEngine` raises `NotImplementedError` rather than mis-modelling.
-    momwire is the supported engine (physics validation is issue #576).
+    Both engines stamp it through the shared `NetworkReducer` (a pure
+    admittance block, no native NEC card — exactly like `TL`, `Shunt`,
+    `Transformer`, `Admittance`), so PyNEC and momwire agree on it to
+    MoM-basis tolerance and nec2++ serves as an independent oracle for the
+    differential stamp. There is no native-card path: NEC-2 has no coupled-
+    line card, but the reducer never needed one. (Physics validation of the
+    differential *model* against real coupled structures — the isolation
+    oracle and end-to-end TL Sterba — is issue #576.)
     """
 
     a1: str

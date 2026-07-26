@@ -233,36 +233,54 @@ def test_crossover_is_wiring_not_a_flag():
 
 
 # ---------------------------------------------------------------------------
-# 5. PyNEC is out of scope — NEC-2 has no native coupled-line card
+# 5. Cross-engine MoM oracle: PyNEC and momwire agree on the differential stamp
 # ---------------------------------------------------------------------------
 
 
-def test_pynec_raises_not_implemented():
-    """PyNEC card mapping is explicitly out of scope (NEC-2 has no native
-    coupled-line card): PyNECEngine raises NotImplementedError rather than
-    silently mis-modelling. momwire is the supported engine (issue #576)."""
-    from antennaknobs import AntennaBuilder
-    from antennaknobs.engines import PyNECEngine
+class _BalancedFourPortBuilder:
+    """Four parallel port wires with mutual coupling, a BalancedLine stamped
+    across all four terminals, one driven. Not a physically-meaningful antenna
+    — a correctness fixture: same geometry + same network on both engines must
+    agree, proving the differential stamp is a pure (engine-agnostic) reducer
+    block on the antenna Y."""
 
-    class B(AntennaBuilder):
+    def build_wires(self):
+        from antennaknobs.network import Wire
+
+        length = 0.15 * WL
+        ys = {"a1": 0.0, "a2": 0.6, "b1": 1.2, "b2": 1.8}
+        return [
+            Wire((0.0, y, 0.0), (length, y, 0.0), 3, name=name)
+            for name, y in ys.items()
+        ]
+
+    def build_network(self):
+        return Network(
+            ports={n: PortOnWire(n) for n in ("a1", "a2", "b1", "b2")},
+            branches=[
+                BalancedLine("a1", "a2", "b1", "b2", zdiff=450.0, length=0.3 * WL)
+            ],
+            sources=[Driven(port="a1")],
+        )
+
+
+def test_balanced_line_cross_engine_agrees():
+    """BalancedLine is a shared-NetworkReducer stamp with no native NEC card
+    (like TL / Shunt / Transformer / Admittance), so it runs on PyNEC too:
+    nec2++'s antenna Y and momwire's sinusoidal-basis Y, both reduced with the
+    same 4×4 differential block, return the same driving-point impedance to
+    MoM-basis tolerance. nec2++ is thus an independent oracle for the stamp."""
+    from antennaknobs import AntennaBuilder, WireSpec
+    from antennaknobs.engines import MomwireEngine, PyNECEngine
+    from momwire import SinusoidalSolver
+
+    class B(_BalancedFourPortBuilder, AntennaBuilder):
         default_params = {"freq": FREQ_MHZ}
 
-        def build_wires(self):
-            z = 0.0
-            wires = []
-            for i, name in enumerate(("a1", "a2", "b1", "b2")):
-                x = 0.5 * i
-                wires.append(((x, 0.0, z), (x, 0.5, z), 1, None, name))
-            return wires
+        def build_wire_material(self):
+            return WireSpec(radius=0.001)
 
-        def build_network(self):
-            return Network(
-                ports={n: PortOnWire(n) for n in ("a1", "a2", "b1", "b2")},
-                branches=[
-                    BalancedLine("a1", "a2", "b1", "b2", zdiff=450.0, length=0.3 * WL)
-                ],
-                sources=[Driven(port="a1")],
-            )
-
-    with pytest.raises(NotImplementedError, match="BalancedLine"):
-        PyNECEngine(B(), ground="free")
+    builder = B()
+    z_mw = MomwireEngine(builder, solver=SinusoidalSolver, ground="free").impedance()[0]
+    z_pynec = PyNECEngine(builder, ground="free").impedance()[0]
+    assert abs(z_pynec - z_mw) / abs(z_mw) < 0.02

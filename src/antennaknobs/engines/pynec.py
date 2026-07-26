@@ -192,18 +192,6 @@ class PyNECEngine(SimulationEngine):
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
-        if self._network is not None and any(
-            isinstance(b, BalancedLine) for b in self._network.branches
-        ):
-            # PyNEC card mapping is out of scope (issue #575): NEC-2 has no
-            # native coupled-line card, so raise rather than silently
-            # mis-modelling the differential pair as single-ended. momwire is
-            # the supported engine for BalancedLine.
-            raise NotImplementedError(
-                "BalancedLine is not supported on PyNECEngine: NEC-2 has no "
-                "native coupled-line card. Run this design on MomwireEngine "
-                "(the differential stamp lives in the shared NetworkReducer)."
-            )
         # Wire material (issue #316): radius + conductor loss from the
         # design's WireSpec. The spec's conductivity is emitted as a global
         # ld_card type 5 (NEC's native wire-loss model — the momwire#131
@@ -551,11 +539,16 @@ class PyNECEngine(SimulationEngine):
 
     def _network_uses_reducer(self):
         """True iff the network needs the Y-matrix reduction path — i.e. it
-        has a transmission line (TL), a virtual driver, or a lumped 2-port
-        (TwoPort) that isn't being emitted as a native nt_card. Load-only (and
-        native-nt) networks are handled natively by NEC's ld_card / nt_card."""
+        has a transmission line (TL or BalancedLine), a virtual driver, or a
+        lumped 2-port (TwoPort) that isn't being emitted as a native nt_card.
+        Load-only (and native-nt) networks are handled natively by NEC's
+        ld_card / nt_card."""
         net = self._network
-        if any(isinstance(b, TL) for b in net.branches):
+        # TL and the differential BalancedLine (issue #575) are both pure
+        # NetworkReducer stamps on the antenna Y — no native NEC card is
+        # involved on either engine, so nec2++ serves as an independent MoM
+        # oracle for momwire's sinusoidal-basis Y here just as it does for TL.
+        if any(isinstance(b, (TL, BalancedLine)) for b in net.branches):
             return True
         if any(isinstance(p, PortVirtual) for p in net.ports.values()):
             return True
@@ -612,6 +605,12 @@ class PyNECEngine(SimulationEngine):
                 "native_nt=True cannot emit a TL natively (NEC's tl_card needs "
                 "a real segment on both ends and a virtual driver has none); "
                 "run the default reducer path instead"
+            )
+        if any(isinstance(b, BalancedLine) for b in net.branches):
+            raise ValueError(
+                "native_nt=True cannot emit a BalancedLine natively (NEC-2 has "
+                "no coupled-line card; the differential stamp is a reducer-only "
+                "admittance block); run the default reducer path instead"
             )
         if any(isinstance(p, PortVirtual) for p in net.ports.values()):
             raise ValueError(
