@@ -187,8 +187,10 @@ class MomwireEngine(SimulationEngine):
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
 
-        # build_wires() must run before build_tls() — some designs populate
-        # self.tls inside build_wires() (delta_looparray_with_tls).
+        # build_wires() must run before build_tls() — a build_tls design may
+        # populate self.tls inside build_wires() (the legacy path, exercised by
+        # the tests/fixtures/delta_looparray_with_tls oracle; no catalog design
+        # uses build_tls anymore).
         tups = self._coerce_wire_tuples(builder.build_wires())
         self._network = builder.build_network()
         self._tls = [] if self._network is not None else list(builder.build_tls())

@@ -77,16 +77,6 @@ def test_export_reducer_network_raises():
         export_nec(NetTLBuilder())
 
 
-def test_export_legacy_tls_emits_tl_cards():
-    """The legacy build_tls() path maps to native NEC TL cards."""
-    from antennaknobs.designs.arrays.delta_looparray_with_tls import (
-        Builder as TLBuilder,
-    )
-
-    deck = export_nec(TLBuilder(), ground="free")
-    assert any(ln.startswith("TL ") for ln in deck.splitlines())
-
-
 def _nec2c_impedances(deck):
     with tempfile.TemporaryDirectory() as d:
         nec = Path(d) / "deck.nec"

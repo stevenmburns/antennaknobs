@@ -114,7 +114,7 @@ def test_momwire_multi_feed_impedance_sweep_shape():
 
 
 def test_momwire_tl_card_runs_and_returns_finite_impedance():
-    """delta_looparray_with_tls — the one design with tl_card. MomwireEngine
+    """delta_looparray_with_tls fixture — the sole build_tls oracle. MomwireEngine
     extracts the N-port Y via N independent solves, stamps the TL admittance
     between the right port pairs, then reduces back to the driven port.
     No strict PyNEC match here: NEC2 models the TL as a segment-level
@@ -123,7 +123,7 @@ def test_momwire_tl_card_runs_and_returns_finite_impedance():
     near TL half-wave resonance (the default twist puts one TL at ~0.5λ).
     Validate that the engine produces a finite, passive impedance and
     that the underlying Y matrix is symmetric (reciprocity)."""
-    from antennaknobs.designs.arrays.delta_looparray_with_tls import (
+    from fixtures.delta_looparray_with_tls import (
         Builder as TLBuilder,
     )
 
@@ -145,7 +145,7 @@ def test_momwire_tl_card_passive_port_floats_correctly():
     """With TLs present, the passive (TL-only) ports must satisfy I_ext=0
     in the reduced solution. Reconstruct V from the impedance() solve and
     verify the constraint at every passive port."""
-    from antennaknobs.designs.arrays.delta_looparray_with_tls import (
+    from fixtures.delta_looparray_with_tls import (
         Builder as TLBuilder,
     )
 
@@ -176,7 +176,7 @@ def test_momwire_tl_impedance_sweep_matches_per_freq():
     to within solver noise. Exercises the swept-Y → per-k TL stamp →
     driven-port reduction path that was added once compute_y_matrix_swept
     learned about junctions upstream."""
-    from antennaknobs.designs.arrays.delta_looparray_with_tls import (
+    from fixtures.delta_looparray_with_tls import (
         Builder as TLBuilder,
     )
 
@@ -642,7 +642,7 @@ def test_network_spec_matches_legacy_tls_on_delta_looparray():
     an attachment point for tl_card. Same antenna, same TLs, same drive.
     Impedance should agree to within the stub wire's tiny radiative
     contribution (~0.5%), far-field peak essentially identical."""
-    from antennaknobs.designs.arrays.delta_looparray_with_tls import (
+    from fixtures.delta_looparray_with_tls import (
         Builder as LegacyBuilder,
     )
     from antennaknobs.designs.arrays.delta_looparray_network import (

@@ -1,16 +1,18 @@
 """delta_looparray driven by two TLs from a central virtual driver.
 
-Same antenna geometry as `delta_looparray_with_tls` (two slanted delta loops
-spaced along y), driven the same way (two Z0=100 transmission lines from a
-single driver, lengths set by `twist`). The difference: this Builder uses
-the new port-based network spec (`build_network()`), so
+Same antenna geometry as the legacy `build_tls` variant (two slanted delta
+loops spaced along y), driven the same way (two Z0=100 transmission lines from a
+single driver, lengths set by `twist`). That legacy Builder now lives only as a
+test oracle at `tests/fixtures/delta_looparray_with_tls.py` (it is not a catalog
+design). This Builder is the canonical version: it uses the port-based network
+spec (`build_network()`), so
 
   - there is no dummy `WWW`-`WW` stub wire in `build_wires()`,
   - the loop feed edges are named (`"loop1"`, `"loop2"`),
   - the central driver is a `PortVirtual` — exists only as a row/column
     in the network Y matrix during the nodal reduction.
 
-MomwireEngine produces the same impedance as `delta_looparray_with_tls` to
+MomwireEngine produces the same impedance as the legacy `build_tls` fixture to
 numerical precision; the showcase for the network-spec API in #65.
 """
 
