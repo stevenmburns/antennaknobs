@@ -807,7 +807,13 @@ class PyNECEngine(SimulationEngine):
         port: drive that port's gap at 1 V (the other named ports stay
         continuous = shorted) and read the resulting current at every port —
         column j of Y. The geometry's interaction matrix is refactored once
-        per solve; small antennas make the N solves cheap."""
+        per solve; small antennas make the N solves cheap.
+
+        Sign convention (issue #580): each named wire is its own GW card
+        emitted in its authored p0→p1 direction, and NEC's EX drive and
+        current readout follow the segment (= card) direction — so this Y is
+        natively in the authored-direction port convention that
+        MomwireEngine normalizes to via its walk-direction signs."""
         freq = C_LIGHT / wavelength / 1e6
         names = self._real_port_names
         n = len(names)

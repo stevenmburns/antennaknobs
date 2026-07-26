@@ -228,6 +228,21 @@ class MomwireEngine(SimulationEngine):
         # feed list 1:1.
         self._feed_W = None
         self._exp_feed_pos = None
+        # Port sign normalization (issue #580): the polyline walker may
+        # traverse a port edge against its authored p0->p1 direction, and a
+        # delta-gap feed's sign convention follows the WALK. d_k = +-1 per
+        # feed records which; normalizing every port to the authored
+        # direction is the diagonal congruence Y_port = D.Y_walk.D with the
+        # matching V_walk = D.V_port on applied voltages — both realised by
+        # folding d_k into the feed weight matrix W (built sign-only here;
+        # rebuilt sign-aware with the distributed-port expansion in
+        # _init_network). With W = D, _solver_feeds applies D going in and
+        # _contract_y applies D..D coming out, so every consumer (network
+        # reducer, legacy build_tls stamps, plain multi-feed excitation)
+        # sees the authored convention.
+        self._feed_dirs = [int(d) for d in translated["feed_dirs"]]
+        if any(d != 1 for d in self._feed_dirs):
+            self._build_feed_expansion(set())
         # Wire material (issues #316/#388): a design-declared WireSpec
         # supplies the default conductor radius plus the distributed-loading
         # kwargs; per-wire specs on individual Wire entries override it wire
@@ -430,11 +445,19 @@ class MomwireEngine(SimulationEngine):
         """Expanded solver-feed positions + the (n_sub × n_feeds) weight
         matrix W for distributed ports. Non-distributed feeds keep a single
         sub-feed with weight 1 (W's column is a unit vector), so the
-        contraction is exact for every port kind."""
+        contraction is exact for every port kind.
+
+        Every weight in a port's column carries that port's walk-direction
+        sign d_k (issue #580): V_solver = W·V applies d_k to the applied
+        voltage(s) and Y_port = Wᵀ·Y_sub·W applies d_k to the port's row AND
+        column, so a single signed W normalizes both congruence sides to the
+        authored p0→p1 convention (all sub-feeds of a distributed port share
+        its d_k — they lie on the same walked edge)."""
         pos, cols = [], []
         for k, ((pl, arc, _v), (epl, eidx)) in enumerate(
             zip(self._feeds, self._feed_edges)
         ):
+            d = float(self._feed_dirs[k])
             if k in dist_idx:
                 poly = self._polylines[epl]
                 lens = np.linalg.norm(np.diff(poly, axis=0), axis=1)
@@ -443,10 +466,10 @@ class MomwireEngine(SimulationEngine):
                 n_sub = int(self._edge_segments[epl][eidx])
                 for i in range(n_sub):
                     pos.append((epl, arc0 + (i + 0.5) * length / n_sub))
-                    cols.append((k, 1.0 / n_sub))
+                    cols.append((k, d / n_sub))
             else:
                 pos.append((pl, arc))
-                cols.append((k, 1.0))
+                cols.append((k, d))
         W = np.zeros((len(pos), len(self._feeds)))
         for row, (k, w) in enumerate(cols):
             W[row, k] = w
@@ -467,8 +490,10 @@ class MomwireEngine(SimulationEngine):
 
     def _contract_y(self, Y):
         """Contract a solver Y (sub-feed granularity) to port granularity;
-        identity when no distributed ports exist. Works on one matrix or a
-        swept (n_k, n, n) stack."""
+        the signed W also normalizes each port's sign convention to the
+        authored wire direction (issue #580). Identity when no distributed
+        ports exist and every port edge was walked as authored. Works on one
+        matrix or a swept (n_k, n, n) stack."""
         if self._feed_W is None:
             return Y
         W = self._feed_W
@@ -664,9 +689,11 @@ class MomwireEngine(SimulationEngine):
             # frequency-dependent) and driven-port reduction. The Y assembly
             # is amortised across frequencies via the upstream swept solve;
             # the per-k post-processing is O(n_p³) and dwarfed by the solve.
-            Y_swept = np.asarray(
-                s.compute_y_matrix_swept(k_array), dtype=np.complex128
-            )  # (n_k, n_p, n_p)
+            Y_swept = self._contract_y(
+                np.asarray(s.compute_y_matrix_swept(k_array), dtype=np.complex128)
+            )  # (n_k, n_p, n_p) — contraction applies the issue-#580 port
+            # signs (legacy TLs have no distributed ports, so W is at most
+            # the diagonal sign matrix; identity when W is None)
             n_driven = sum(
                 1 for i in range(Y_swept.shape[1]) if i not in self._tl_passive_feed_idx
             )
@@ -720,9 +747,10 @@ class MomwireEngine(SimulationEngine):
             self._excited_p_in = 0.5 * float(
                 sum((V[i] * np.conj(I_ports[i])).real for i in driven)
             )
-            feeds_resolved = [
-                (w, arc, complex(V[i])) for i, (w, arc, _v) in enumerate(self._feeds)
-            ]
+            # Through _solver_feeds so each port's resolved voltage picks up
+            # its walk-direction sign (issue #580) exactly like the network
+            # path; identity when every feed was walked as authored.
+            feeds_resolved = self._solver_feeds([complex(v) for v in V])
         else:
             self._excited_efficiency = 1.0
             self._excited_power_budget = []

@@ -47,6 +47,11 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
                           one entry per excited tuple, in registration
                           order. Suitable to pass directly to a
                           momwire solver's feeds=... kwarg.
+        feed_dirs       : list of int — +1/-1 per feed: whether the walk
+                          traversed the authored tuple p0->p1 (+1) or
+                          p1->p0 (-1); engines use it to normalize each
+                          port's sign convention to the authored
+                          direction (issue #580).
         feed_wire_index : int — polyline holding the first excited
                           segment (back-compat: feeds[0][0])
         feed_arclength  : float — arclength of the first feed
@@ -132,6 +137,13 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
     junction_ends = {nid: [] for nid in range(len(nodes)) if is_boundary[nid]}
     # tup_index -> (polyline_index, edge_index_within)
     edge_to_polyline = {}
+    # tup_index -> +1 when the walk traversed the tuple in its authored
+    # p0 -> p1 direction, -1 when reversed. A port edge's delta-gap sign
+    # convention (EMF direction / positive-current direction) follows the
+    # POLYLINE direction, i.e. the walk — so this factor is what an engine
+    # needs to normalize each port to the authored direction (issue #580:
+    # "the port's + terminal is toward p1" is the design-visible contract).
+    edge_walk_dir = {}
 
     def walk_from(start_nid, first_edge):
         path_nodes = [start_nid]
@@ -171,6 +183,9 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
             polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
             for k, e in enumerate(path_edges):
                 edge_to_polyline[edges[e][4]] = (polyline_idx, k)
+                # Edge k was walked path_nodes[k] -> path_nodes[k+1];
+                # authored direction is edges[e][0] -> edges[e][1].
+                edge_walk_dir[edges[e][4]] = 1 if edges[e][0] == path_nodes[k] else -1
             junction_ends[path_nodes[0]].append((polyline_idx, "start"))
             junction_ends[path_nodes[-1]].append((polyline_idx, "end"))
 
@@ -225,6 +240,8 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         edge_segments.append([cut_n_seg])
         polyline_specs.append(tup_specs[cut_tup_idx])
         edge_to_polyline[cut_tup_idx] = (cut_pl_idx, 0)
+        # The cut polyline is stacked [A, B] = authored p0 -> p1.
+        edge_walk_dir[cut_tup_idx] = 1
 
         # Polyline 1 (long way): walk B → ... → A via the remaining edges.
         # The cut nodes are now polyline boundaries; the walker stops there.
@@ -254,6 +271,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
         for k, e in enumerate(path_edges):
             edge_to_polyline[edges[e][4]] = (loop_pl_idx, k)
+            edge_walk_dir[edges[e][4]] = 1 if edges[e][0] == path_nodes[k] else -1
 
         # Register the cut endpoints as junctions: the cut polyline has
         # path [A, B] so its start=A, end=B; loop polyline was walked
@@ -279,6 +297,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
     feeds = []
     feed_names = []
     feed_edges = []
+    feed_dirs = []
     for tup_index, edge in enumerate(edges):
         voltage = edge[3]
         name = tup_names[tup_index]
@@ -295,6 +314,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         )
         feed_names.append(name)
         feed_edges.append((feed_pl, feed_edge_idx))
+        feed_dirs.append(edge_walk_dir[tup_index])
 
     if not feeds:
         raise ValueError("no excitation found in wire list")
@@ -308,6 +328,11 @@ def flat_wires_to_polylines(tups, *, eps=1e-6):
         # Which (polyline, edge) each feed sits on — a distributed port
         # (issue #477) needs the whole edge's extent, not just its midpoint.
         "feed_edges": feed_edges,
+        # +1/-1 per feed: whether the walk traversed the authored tuple
+        # p0 -> p1 (+1) or p1 -> p0 (-1). A feed's solver-side sign
+        # convention follows the walk; engines multiply by this factor to
+        # normalize every port to the AUTHORED direction (issue #580).
+        "feed_dirs": feed_dirs,
         # Back-compat scalars — first feed.
         "feed_wire_index": feeds[0][0],
         "feed_arclength": feeds[0][1],
