@@ -488,6 +488,66 @@ def test_solve_dispatches_to_momwire_for_dipole():
     assert out["z_in_re"] > 0
 
 
+def _design_builder(dotted):
+    import importlib
+
+    return importlib.import_module(f"antennaknobs.designs.{dotted}").Builder
+
+
+def test_auto_multi_feed_classifies_both_feed_conventions():
+    """multi_feed detection spans both conventions (issue #570): inline-`ex`
+    designs by their excited-wire count, and build_network() designs by source
+    count OR a declared feed_ports list. Topology is NOT inferred, so a
+    log-periodic's chained feeder stays single-feed."""
+    from antennaknobs.web import adapter
+
+    # inline-`ex` multi-feed (two driven gaps)
+    assert adapter._auto_multi_feed(_design_builder("wire.lazy_h")) is True
+    # build_network() harness feed declaring two feed ports
+    assert adapter._auto_multi_feed(_design_builder("wire.expanded_lazy_h")) is True
+    # build_network() single feed (tuner + line to one gap)
+    assert adapter._auto_multi_feed(_design_builder("wire.doublet_ladder_tuner")) is False
+    # traps are one-port Loads on named ports, not feeds
+    assert adapter._auto_multi_feed(_design_builder("multiband.trap_dipole")) is False
+    # log-periodic: one feed, ~10 chained elements — reachability would wrongly
+    # report ten; declaration-based detection keeps it single-feed.
+    assert adapter._auto_multi_feed(_design_builder("broadband.lpda")) is False
+
+
+def test_solve_emits_one_feed_marker_per_declared_port():
+    """A build_network() lazy-H declaring feed_ports=[lo, hi] gets one feed
+    marker per element centre (issue #571), even though its drive comes from a
+    single source and it reports one driving-point impedance."""
+    out = server.solve(
+        {
+            "geometry": "wire.expanded_lazy_h",
+            "measurement_freq_mhz": 28.57,
+            "design_freq_mhz": 28.57,
+            "momwire_model": "bspline",
+        }
+    )
+    fps = out["feed_positions"]
+    assert [f["name"] for f in fps] == ["lo", "hi"]
+    for f in fps:
+        assert len(f["position"]) == 3
+    assert out["multi_feed"] is True
+
+
+def test_solve_single_feed_reports_one_marker():
+    """Single-feed designs report exactly one feed marker — no regression from
+    the multi-marker path (issue #571)."""
+    out = server.solve(
+        {
+            "geometry": "dipoles.invvee",
+            "measurement_freq_mhz": 28.47,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    assert len(out["feed_positions"]) == 1
+    assert out["multi_feed"] is False
+
+
 def test_solve_open_circuited_feed_is_json_safe():
     """A matching-network slider at a physical open (T-match series C1 = 0 pF
     open-circuits the source; the network core reports Z = ∞, issue #289)
