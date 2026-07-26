@@ -34,6 +34,7 @@ import numpy as np
 from .network import (
     TL,
     Admittance,
+    BalancedLine,
     Driven,
     DrivenCurrent,
     Load,
@@ -90,6 +91,37 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, 
     scale = 1.0 / (z0 * sh)
     off = 1.0 if transposed else -1.0
     return scale * np.array([[ch, off], [off, ch]], dtype=np.complex128)
+
+
+# The pair incidence: a differential-mode current I into terminal 1 and −I out
+# of terminal 2, driven by the pair voltage v1 − v2. Tensoring the 2×2 TL
+# admittance with this rank-1 block expands each differential port to its two
+# physical terminals (issue #575).
+_DIFF_INCIDENCE = np.array([[1.0, -1.0], [-1.0, 1.0]], dtype=np.complex128)
+
+
+def balanced_admittance_4x4(zdiff, length, wavelength, vf=1.0, k1=0.0, k2=0.0):
+    """Balanced/differential two-conductor TL nodal admittance (issue #575) —
+    a 4×4 Group-1 block over the terminal order ``(a1, a2, b1, b2)`` (port
+    A = (a1, a2), port B = (b1, b2)).
+
+    In differential variables the element is an ordinary 2-port TL with
+    z0 = ``zdiff``, so the 4×4 is that 2×2 expanded through the pair incidence:
+
+        Y_4 = kron(tl_admittance_2x2(zdiff, …), [[1, −1], [−1, 1]])
+
+    i.e. each 2×2 entry ``y`` becomes the block ``y·[[1,−1],[−1,1]]`` over the
+    terminal pair. The construction makes the common mode structurally open
+    (rank 2) and forces ``I(a1) = −I(a2)`` at each end — the ±I differential
+    cancellation, enforced by wiring. There is no ``transposed`` flag: a
+    crossover is wiring port B as ``(b2, b1)``.
+
+    Inherits `tl_admittance_2x2`'s matched-loss model and its half-wave
+    singularity guard — a lossless line at exactly k·vf·λ/2 raises; real
+    open-wire ``k1`` loss regularises it. Grounding conductor 2 at both ends
+    (dropping rows/cols a2, b2) collapses this exactly back to that 2×2."""
+    y2 = tl_admittance_2x2(zdiff, length, wavelength, vf=vf, k1=k1, k2=k2)
+    return np.kron(y2, _DIFF_INCIDENCE)
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +378,26 @@ class NetworkReducer:
                 G[np.ix_([a, b], [a, b])] += y_tl
                 probes.append(
                     (lab(f"TL {_short(br.a)}→{_short(br.b)}"), "group1", ([a, b], y_tl))
+                )
+            elif isinstance(br, BalancedLine):
+                # Differential 4-terminal line (issue #575): a frequency-
+                # dependent 4×4 Group-1 block, the differential 2×2 TL expanded
+                # through the pair incidence. Common mode is structurally open
+                # (rank 2); the half-wave singularity guard is inherited.
+                idxs = [self.port_to_idx[p] for p in (br.a1, br.a2, br.b1, br.b2)]
+                yb = balanced_admittance_4x4(
+                    br.zdiff, br.length, wavelength, vf=br.vf, k1=br.k1, k2=br.k2
+                )
+                G[np.ix_(idxs, idxs)] += yb
+                probes.append(
+                    (
+                        lab(
+                            f"BalancedLine {_short(br.a1)},{_short(br.a2)}"
+                            f"→{_short(br.b1)},{_short(br.b2)}"
+                        ),
+                        "group1",
+                        (idxs, yb),
+                    )
                 )
             elif isinstance(br, Admittance):
                 # Fixed complex Y stamped verbatim — no ω scaling, no auxiliary
