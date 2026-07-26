@@ -9,21 +9,25 @@ band 0 (longest wavelength) sits on top and band N-1 sits at base —
 the usual physical convention for stacked Yagi/hexbeam towers.
 
 Two feed modes are exposed via daisy_chain:
-  * False (default) — multi-feed: every band driven independently with
-    V = 1+0j. The response carries one entry in feeds[] per band so the
-    Smith chart shows per-band driving-point Z.
-  * True — daisy-chain: only band 0 is driven externally; the lower
-    bands couple via 50ohm TL jumpers of length z_spacing between
-    successive feeds. build_tls() emits the jumper specs. Momwire engines
-    don't support TLs yet; the frontend greys out the toggle when a
-    momwire slot is active.
+  * True (default) — single feed: only band 0 is driven externally; the
+    lower bands couple up the stack via 50 ohm TL jumpers of length
+    z_spacing between successive feeds. Modelled with build_network() (an
+    engine-agnostic circuit reduction over the antenna's multiport Y), so
+    it works on momwire AND PyNEC — this is the physical "one coax" hexbeam.
+  * False — independent per-band feeds: every band driven separately with
+    V = 1+0j (inline `ex`, no network). The response carries one entry in
+    feeds[] per band so the Smith chart shows each band's own driving-point
+    Z — a tuning aid, not the physical feed.
+
+(Prior to the build_network() rewrite this was a PyNEC-only build_tls()
+daisy chain; momwire could not model the jumpers. That path is gone.)
 """
 
 import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Driven, Network, PortOnWire, TL, Wire
 
 C_LIGHT_MHZ_M = 299.792458
 
@@ -201,7 +205,10 @@ class Builder(AntennaBuilder):
             "freq": 14.300,
             "base": 7.0,
             "z_spacing": 0.2,
-            "daisy_chain": False,
+            # Single common feed (band 0 + jumpers up the stack) by default —
+            # the physical one-coax hexbeam. False drives every band
+            # independently for per-band Z study.
+            "daisy_chain": True,
             "n_bands": _MAX_BANDS,
             "bands": (_BAND_20M, _BAND_17M, _BAND_15M, _BAND_12M, _BAND_10M),
             "ui_params": MappingProxyType(
@@ -248,7 +255,7 @@ class Builder(AntennaBuilder):
                         "unit": " m",
                     },
                     "daisy_chain": {
-                        "label": "Daisy-chain feed (PyNEC only)",
+                        "label": "Single common feed (daisy-chain)",
                     },
                 }
             ),
@@ -298,20 +305,15 @@ class Builder(AntennaBuilder):
         # T->S feed gap refines with the mesh (issue #435). |T - S| =
         # 2*_FEED_GAP*sin30 = _FEED_GAP for every band, so one shared count
         # against the design_freq quarter-wave keeps all five feeds equal
-        # (1 segment at the default mesh). Stored for build_tls, which
-        # attaches jumpers to the feed wires' middle segment.
+        # (1 segment at the default mesh).
         wavelength0 = C_LIGHT_MHZ_M / self.design_freq
         n_seg_feed = self.segs_for(_FEED_GAP, 0.25 * wavelength0)
-        self._n_seg_feed = n_seg_feed
 
         tups = []
         # build_wires() emits, per band, six edges from the driver hex,
         # one tip edge on the reflector, three reflector edges, one more
-        # reflector tip, and finally the 1-segment feed across T->S.
-        # The feed tuple's index inside the flat list is recorded so
-        # build_tls() can wire daisy-chain jumpers between successive
-        # feeds without re-running build_wires().
-        self._feed_wire_indices = []
+        # reflector tip, and finally the 1-segment feed across T->S, named
+        # feed{i} so build_network() can reference each band's feedpoint.
 
         for band_idx, band in enumerate(active_bands):
             wavelength = C_LIGHT_MHZ_M / float(band["freq"])
@@ -349,18 +351,14 @@ class Builder(AntennaBuilder):
             tups.extend(build_path([D, E, F, G]))
             tups.extend(build_path([G, H]))
             tups.extend(build_path([II, J, T]))
-            # The feed wire (one per band). Daisy-chain mode strips the
-            # excitation on bands 1..N-1 inside build_tls; multi-feed
-            # mode leaves every band's excitation in place.
-            tups.append(Wire(T, S, n_seg=n_seg_feed, ex=1 + 0j))
-            self._feed_wire_indices.append(len(tups))  # 1-indexed NEC tag
-
-        if self.daisy_chain:
-            # Daisy-chain mode: only band 0 stays excited. The TL jumpers
-            # added in build_tls() couple bands 1..N-1 to their upstream
-            # neighbour.
-            for idx in self._feed_wire_indices[1:]:
-                tups[idx - 1] = tups[idx - 1]._replace(ex=None)
+            # The feed wire (one per band), named feed{i} so build_network()
+            # can reference it. Single-feed mode drives the whole antenna
+            # through build_network() (ex=None; source at feed0 + jumpers up
+            # the stack); independent-feed mode drives every band inline.
+            feed_ex = None if self.daisy_chain else (1 + 0j)
+            tups.append(
+                Wire(T, S, n_seg=n_seg_feed, name=f"feed{band_idx}", ex=feed_ex)
+            )
 
         # Every band's every edge meshes at the design density
         # (nominal_nsegs per design_freq quarter-wave — one segment
@@ -369,23 +367,26 @@ class Builder(AntennaBuilder):
         # middle segment via _n_seg_feed).
         return tups
 
-    def build_tls(self):
-        """50ohm jumpers between successive band feeds in daisy-chain mode.
-        Each tuple is (idx1, seg1, idx2, seg2, impedance, length) — the
-        shape PyNECEngine.tl_card expects. Momwire engines reject any
-        non-empty list (engines/momwire.py:90), which the frontend should
-        guard against by greying out the toggle when a momwire slot is
-        active."""
-        if not getattr(self, "daisy_chain", False):
-            return []
-        # build_wires must run first to populate _feed_wire_indices.
-        if not hasattr(self, "_feed_wire_indices"):
-            self.build_wires()
-        feeds = self._feed_wire_indices
-        # Jumpers land on the middle segment of the n_seg_feed-segment
-        # feed wires (1 when the count is 1, i.e. at the default mesh).
-        seg = (self._n_seg_feed + 1) // 2
-        tls = []
-        for i in range(len(feeds) - 1):
-            tls.append((feeds[i], seg, feeds[i + 1], seg, 50.0, self.z_spacing))
-        return tls
+    def build_network(self):
+        """Single common feed as an engine-agnostic network (replaces the old
+        PyNEC-only build_tls daisy chain). Band 0 is the sole external feed;
+        each successive band couples to its upstream neighbour through a 50 ohm
+        TL jumper of length z_spacing. Returns None in independent-feed mode
+        (daisy_chain=False), where every band is driven inline via `ex` and the
+        engine takes the multi-feed path.
+
+        The jumper TLs and floating (passive) band feeds are reduced over the
+        antenna's multiport Y by the shared NetworkReducer, so the model runs
+        on momwire and PyNEC alike."""
+        if not self.daisy_chain:
+            return None
+        n_bands = int(self.n_bands)
+        feed_names = [f"feed{i}" for i in range(n_bands)]
+        return Network(
+            ports={nm: PortOnWire(nm) for nm in feed_names},
+            branches=[
+                TL(a=feed_names[i], b=feed_names[i + 1], z0=50.0, length=self.z_spacing)
+                for i in range(n_bands - 1)
+            ],
+            sources=[Driven(port=feed_names[0], voltage=1 + 0j)],
+        )
