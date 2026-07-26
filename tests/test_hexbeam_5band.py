@@ -1,6 +1,5 @@
-"""hexbeam_5band Builder: per-band z-stagger, multi-feed shape, daisy-
-chain TL list. Ports the multi-band convention from momwire's
-hexbeam_5band example into antennaknobs's Builder pattern."""
+"""hexbeam_5band Builder: per-band z-stagger, single-feed default, and the
+build_network() daisy-chain feed (replaces the old PyNEC-only build_tls path)."""
 
 from __future__ import annotations
 
@@ -8,29 +7,64 @@ import math
 
 import pytest
 
+from antennaknobs.network import TL
 from antennaknobs.designs.multiband.hexbeam_5band import Builder
 
 
-def _feeds(tups):
-    return [(i + 1, t) for i, t in enumerate(tups) if t[3] is not None]
+def _feed_wires(tups):
+    """The named band-feed wires (feed0..feedN-1), in emission order."""
+    return [t for t in tups if len(t) > 4 and t[4] and str(t[4]).startswith("feed")]
 
 
-def test_default_is_five_bands_multi_feed():
+def test_default_is_single_feed_five_bands():
     b = Builder()
     tups = b.build_wires()
-    feeds = _feeds(tups)
+    feeds = _feed_wires(tups)
     assert b.n_bands == 5
-    assert b.daisy_chain is False
+    assert b.daisy_chain is True  # single common feed by default
     assert len(feeds) == 5
-    assert b.build_tls() == []
+    # Single-feed: no band is driven inline; build_network() drives band 0.
+    assert all(t[3] is None for t in feeds)
+    net = b.build_network()
+    assert net is not None
+    assert [s.port for s in net.sources] == ["feed0"]
+
+
+def test_single_feed_network_jumpers_chain_the_bands():
+    b = Builder()
+    b.z_spacing = 1.2
+    net = b.build_network()
+    tls = [br for br in net.branches if isinstance(br, TL)]
+    assert len(tls) == 4  # N-1 jumpers for 5 bands
+    for tl in tls:
+        assert tl.z0 == 50.0
+        assert tl.length == pytest.approx(1.2)
+    # Each jumper couples successive band feeds up the stack.
+    assert [(tl.a, tl.b) for tl in tls] == [
+        ("feed0", "feed1"),
+        ("feed1", "feed2"),
+        ("feed2", "feed3"),
+        ("feed3", "feed4"),
+    ]
+
+
+def test_independent_feed_mode_drives_every_band_inline():
+    b = Builder()
+    b.daisy_chain = False
+    assert b.build_network() is None  # no network -> inline-ex multi-feed path
+    feeds = _feed_wires(b.build_wires())
+    assert len(feeds) == 5
+    assert all(t[3] is not None for t in feeds)  # every band driven with ex
 
 
 def test_n_bands_slicing_drops_higher_bands():
     b = Builder()
     b.n_bands = 3
     tups = b.build_wires()
-    feeds = _feeds(tups)
-    assert len(feeds) == 3
+    assert len(_feed_wires(tups)) == 3
+    # single feed still drives only band 0, with n_bands-1 = 2 jumpers
+    net = b.build_network()
+    assert len([br for br in net.branches if isinstance(br, TL)]) == 2
     # Same per-band tuple count → exactly n_bands × per_band_tuples.
     b5 = Builder()
     assert len(tups) == len(b5.build_wires()) * 3 // 5
@@ -52,58 +86,18 @@ def test_z_stagger_band0_on_top():
     b.n_bands = 3
     b.z_spacing = 1.5
     b.base = 10.0
-    tups = b.build_wires()
-    # The feed tuple is the last edge added per band; its endpoints
-    # share the same z as the rest of that band.
-    feeds = _feeds(tups)
-    zs = [feed[1][0][2] for feed in feeds]  # z of T knot
-    # Bands emitted in order 0,1,2 → z descends.
+    feeds = _feed_wires(b.build_wires())
+    zs = [t[0][2] for t in feeds]  # z of the T knot (feed wire start)
     assert zs[0] > zs[1] > zs[2]
     assert math.isclose(zs[0] - zs[1], 1.5)
     assert math.isclose(zs[1] - zs[2], 1.5)
     assert math.isclose(zs[-1], 10.0)
 
 
-def test_daisy_chain_strips_excitation_from_lower_bands():
-    b = Builder()
-    b.daisy_chain = True
-    tups = b.build_wires()
-    feeds = _feeds(tups)
-    # Only band 0 (the first feed) keeps a non-None excitation.
-    assert len(feeds) == 1
-
-
-def test_daisy_chain_emits_tl_jumpers():
-    b = Builder()
-    b.daisy_chain = True
-    b.z_spacing = 1.2
-    tls = b.build_tls()
-    assert len(tls) == 4  # N-1 jumpers for 5 bands
-    # Shape PyNECEngine consumes: (idx1, seg1, idx2, seg2, Z, length).
-    for jumper in tls:
-        assert len(jumper) == 6
-        assert jumper[4] == 50.0
-        assert jumper[5] == pytest.approx(1.2)
-    # Each jumper connects successive feed wires; with the build_wires
-    # convention each band emits the same number of tuples so feed
-    # indices increment uniformly.
-    feed_idxs = [j[0] for j in tls] + [tls[-1][2]]
-    diffs = [b - a for a, b in zip(feed_idxs[:-1], feed_idxs[1:])]
-    assert len(set(diffs)) == 1  # uniform stride between feeds
-
-
-def test_daisy_chain_disabled_returns_empty_tls():
-    b = Builder()
-    assert b.daisy_chain is False
-    assert b.build_tls() == []
-
-
 def test_per_band_freq_scales_geometry():
     """Halving the band freq should roughly double its radius (linear in λ)."""
     b = Builder()
     b.n_bands = 2
-    # Use the per-band freq override path: override the second band to
-    # double the first's wavelength.
     bands = (
         {
             "freq": 28.0,
@@ -120,26 +114,21 @@ def test_per_band_freq_scales_geometry():
     )
     b.bands = bands
     tups = b.build_wires()
-    # Take the second-edge-of-each-band (S→A on the driver path); its
-    # length should scale with wavelength.
-    # Band 0's S→A edge is at tuple index 0; band 1's at index 10
-    # (single-band emits 10 tuples).
     per_band = len(tups) // 2
-    s0 = tups[0]
-    s1 = tups[per_band]
+    s0, s1 = tups[0], tups[per_band]
     dist0 = math.dist(s0[0], s0[1])
     dist1 = math.dist(s1[0], s1[1])
-    # Band 1 has half the freq → λ doubles → radius doubles.
     assert dist1 / dist0 == pytest.approx(2.0, rel=0.05)
 
 
-def test_registered_in_web_examples():
-    """Adapter auto-discovers the new design and reports multi_feed."""
+def test_registered_single_feed_by_default():
+    """The auto-discovered example is single-feed by default (one common feed
+    modelled with build_network(), so multi_feed is False)."""
     from antennaknobs.web.examples import REGISTRY
 
     ex = REGISTRY.get("multiband.hexbeam_5band")
     assert ex is not None
-    assert ex.multi_feed is True
+    assert ex.multi_feed is False
 
 
 def test_nominal_nsegs_scales_radiator_edges():
@@ -152,7 +141,5 @@ def test_nominal_nsegs_scales_radiator_edges():
         b.nominal_nsegs = n
         tups = b.build_wires()
         counts[n] = max(t[2] for t in tups)
-        feeds = _feeds(tups)
-        assert all(f[1][2] == 1 for f in feeds)  # feed gaps stay 1
-    # tripling N triples the densest edge's count (within rounding)
+        assert all(t[2] == 1 for t in _feed_wires(tups))  # feed gaps stay 1
     assert 2.8 < counts[123] / counts[41] < 3.2

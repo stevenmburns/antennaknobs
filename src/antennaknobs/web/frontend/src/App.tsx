@@ -1032,9 +1032,10 @@ function ParamForm({
   onChange: (path: (string | number)[], value: number | string | boolean) => void;
   pathPrefix?: (string | number)[];
   // Param names that should render as disabled even though they're
-  // visible in the schema. Used to grey out controls whose effect
-  // depends on the active backend (e.g. daisy_chain only works on
-  // PyNEC; momwire engines don't support transmission lines yet).
+  // visible in the schema — e.g. to grey out a control whose effect
+  // depends on the active backend. Currently unused (kept as a general
+  // mechanism); daisy_chain used to rely on it before build_network()
+  // made the single-feed hexbeam engine-agnostic.
   disabledFields?: Set<string>;
   // Optimiser integration (top-level rail only). `settings` overrides a knob's
   // effective min/max/step; `onContext` opens that knob's right-click menu;
@@ -3320,15 +3321,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // `bands: [{band_id, freq, length_factor}, ...]` array; the backend
     // unpacks it in _bands_from_request().
     Object.assign(base, currentValues);
-    // hexbeam_5band's daisy_chain feed mode uses NEC TL cards; momwire
-    // engines reject any non-empty build_tls(). The daisy_chain gear
-    // is greyed out when a momwire slot is active (see the disabled prop
-    // on the schema control), and we belt-and-suspenders force the
-    // request to daisy_chain=false here so a stale value from a
-    // previously-active pynec slot doesn't slip through.
-    if (backend !== "pynec" && "daisy_chain" in base) {
-      base.daisy_chain = false;
-    }
+    // hexbeam_5band's daisy_chain (single common feed) is now modelled with
+    // build_network(), which the shared NetworkReducer solves on momwire and
+    // PyNEC alike — so it is no longer greyed out or forced off on momwire.
     return base;
   }
 
@@ -4796,15 +4791,6 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
               schema={currentSchema}
               values={currentValues}
               onChange={handleUserParamChange}
-              // hexbeam_5band's daisy_chain mode emits NEC TL cards;
-              // momwire engines reject any non-empty build_tls() so the
-              // toggle has no effect there. Grey it out when the active
-              // slot's backend is momwire — the request-build side also
-              // forces daisy_chain=false so a stale value doesn't slip
-              // through.
-              disabledFields={
-                backend !== "pynec" ? new Set(["daisy_chain"]) : undefined
-              }
               // Per-knob optimiser hooks: effective min/max/step come from the
               // knob's menu settings (overriding schema), and right-click opens
               // that menu.
