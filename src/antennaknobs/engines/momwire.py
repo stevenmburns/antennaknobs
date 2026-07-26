@@ -12,7 +12,12 @@ from momwire import BSplineSolver
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
-from ..network import PortOnWire, PortVirtual, as_wire
+from ..network import (
+    PortOnWire,
+    PortVirtual,
+    as_wire,
+    validate_named_wires_referenced,
+)
 from ..terrain import Terrain, specular_cut
 from ..network_reduce import NetworkReducer, tl_admittance_2x2
 
@@ -372,9 +377,12 @@ class MomwireEngine(SimulationEngine):
     def _init_network(self):
         """Build the port-index map (real feeds first, virtual ports after)
         and the engine-agnostic NetworkReducer that stamps the branches and
-        reduces to driven-port impedance. Validates that every PortOnWire
-        resolves to a translated feed name."""
+        reduces to driven-port impedance. Validates the name/port contract in
+        both directions: every PortOnWire resolves to a translated feed name,
+        and every named wire is referenced by a PortOnWire (issue #578 — an
+        unreferenced name would be a silent open gap cutting the wire)."""
         net = self._network
+        validate_named_wires_referenced(self._feed_names, net)
         feed_name_to_idx = {n: i for i, n in enumerate(self._feed_names) if n}
 
         port_to_idx = {}

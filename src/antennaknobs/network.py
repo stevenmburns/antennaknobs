@@ -567,6 +567,33 @@ def _rewrite_branch(br, ren):
     return replace(br, port=ren(br.port))
 
 
+def validate_named_wires_referenced(named_wires, network):
+    """Reject named ``build_wires()`` wires that no `PortOnWire` references
+    (issue #578).
+
+    The geometry layer registers EVERY named wire as a port edge; a port row
+    the network never references is left electrically open, and an open
+    series gap CUTS the current path at that wire. The failure is silent and
+    masquerades as plausible physics (the solve succeeds with the structure
+    partitioned), so it is an init-time error. A wire named purely for
+    documentation is almost certainly this bug; a deliberately-open gap
+    should be an explicit `Load`/branch on a referenced port.
+
+    Engines call this once the flattened network and the final wire list are
+    both known (composite expansion has already namespaced port names).
+    """
+    port_names = {n for n, p in network.ports.items() if isinstance(p, PortOnWire)}
+    orphaned = sorted(set(named_wires) - {None} - port_names)
+    if orphaned:
+        raise ValueError(
+            f"named wire(s) {orphaned} are not referenced by any PortOnWire "
+            "in build_network(); a named wire becomes a port edge, and an "
+            "unreferenced port is an OPEN gap that cuts the wire there "
+            "(issue #578). Reference each name in Network.ports, or drop "
+            "the name."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Composite components (issue #489): reusable sub-networks with hierarchy
 # ---------------------------------------------------------------------------

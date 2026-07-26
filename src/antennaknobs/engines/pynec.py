@@ -24,6 +24,7 @@ from ..network import (
     TwoPort,
     _series_rlc_impedance,
     load_impedance,
+    validate_named_wires_referenced,
 )
 from ..network_reduce import C_LIGHT, NetworkReducer
 
@@ -629,10 +630,13 @@ class PyNECEngine(SimulationEngine):
 
     def _init_network(self):
         """Build the port-index map (real PortOnWire ports first, virtual
-        ports after) and the NetworkReducer. Validates that every PortOnWire
-        names an edge in build_wires()."""
+        ports after) and the NetworkReducer. Validates the name/port contract
+        in both directions: every PortOnWire names an edge in build_wires(),
+        and every named wire is referenced by a PortOnWire (issue #578 — an
+        unreferenced name would be a silent open gap cutting the wire)."""
         net = self._network
         named = {t[4] for t in self.tups if len(t) >= 5 and t[4] is not None}
+        validate_named_wires_referenced(named, net)
         self._real_port_names = [
             n for n, p in net.ports.items() if isinstance(p, PortOnWire)
         ]
