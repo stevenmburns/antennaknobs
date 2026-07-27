@@ -233,7 +233,7 @@ class Builder(AntennaBuilder):
     }
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength   # free-space λ at design_freq, in metres
         quarter = wavelength / 4.0
         y = quarter * self.length_factor   # half-length ≈ a quarter wavelength
         z = self.base
@@ -255,8 +255,10 @@ Two things changed, and they're the whole point:
   leaving `design_freq` to do the coarse band placement.
 
 <Aside type="tip" title="The design_freq rule — resonate across bands, not just one">
-  Sizing dimensions as fractions of `wavelength = 299.792458 / self.design_freq`
-  is the house rule for tunable designs. Skip it — freeze the length in metres —
+  Sizing dimensions as fractions of `self.design_wavelength` — an
+  `AntennaBuilder` property that returns the free-space wavelength at
+  `design_freq`, so you never spell the `299.792458` constant yourself — is the
+  house rule for tunable designs. Skip it — freeze the length in metres —
   and the geometry won't resize when you pick a different band: you can still
   *measure* the antenna anywhere (the meas-freq slider reaches any band you
   select), but a fixed-metre wire only *resonates* on the one band its

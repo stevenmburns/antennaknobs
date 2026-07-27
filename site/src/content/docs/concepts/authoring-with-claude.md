@@ -83,7 +83,7 @@ class Builder(AntennaBuilder):
     }
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength   # = C_LIGHT_MHZ_M / design_freq, in metres
         h = (wavelength / 4.0) * self.length_factor
         z, eps = self.height, 0.01
         return [
@@ -95,8 +95,10 @@ class Builder(AntennaBuilder):
 
 :::tip[The `design_freq` rule — resonate across bands]
 To put an antenna on a band *and keep it tunable there*, size every dimension as
-a fraction of `wavelength = 299.792458 / self.design_freq` (times a
-`length_factor` near 1.0). That scales the geometry with the band selector, so
+a fraction of `self.design_wavelength` (the free-space wavelength at
+`design_freq`, in metres — an `AntennaBuilder` property, so you never write the
+bare `299.792458` constant), times a `length_factor` near 1.0. That scales the
+geometry with the band selector, so
 one design resonates anywhere you point it. Skip it — freeze the dimensions in
 metres — and changing the band no longer resizes the antenna: the meas-freq
 slider still reaches any band you select, but a fixed-metre wire only *resonates*
