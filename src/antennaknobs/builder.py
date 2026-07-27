@@ -9,6 +9,15 @@ import numpy as np
 # so keeping it off module import keeps `import antennaknobs` and web startup
 # (which never plots) lean.
 
+# Speed of light in the units radio work actually uses: a free-space
+# wavelength in metres is ``C_LIGHT_MHZ_M / freq_MHz``. It is the same physical
+# constant the engines carry as SI ``C_LIGHT = 299_792_458`` m/s, pre-scaled so
+# that dividing by a frequency in MHz yields metres with no 1e6 bookkeeping —
+# the form catalog designs (which work in MHz and metres throughout) want. One
+# canonical spelling of the number, exported from the package top level, so a
+# design never has to write the bare ``299.792458`` literal again.
+C_LIGHT_MHZ_M = 299.792458
+
 
 def merge_params(base, over):
     """Recursively overlay ``over`` onto a copy of ``base``.
@@ -139,6 +148,38 @@ class AntennaBuilder:
                 res.append(f"{k} = {v!r}")
         return ", ".join(res)
 
+    @property
+    def design_wavelength(self):
+        """Free-space wavelength in metres at ``design_freq`` (MHz).
+
+        The single named quantity for the ``299.792458 / self.design_freq``
+        idiom that every wavelength-scaled builder repeats — geometry held as
+        wavelength fractions (``half_frac * self.design_wavelength``) then reads
+        as what it is, and the constant lives in exactly one place. This is the
+        *design* wavelength (the frequency the geometry is dimensioned for), not
+        the *measurement* ``freq``: sweeping ``freq`` must never resize the
+        antenna, so wavelength-fraction specs scale against this, matching
+        :meth:`auto_mesh`'s density.
+
+        Raises ``ValueError`` if the design declares no ``design_freq`` — a
+        builder holding its geometry in wavelength fractions must say what
+        frequency those fractions are of, the same contract ``auto_mesh``
+        enforces for ``None`` segment counts. ``design_lambda`` is a spelling
+        alias for the same value."""
+        design_freq = getattr(self, "design_freq", None)
+        if not design_freq:
+            raise ValueError(
+                f"{type(self).__name__}: design_wavelength needs a design_freq "
+                "param (the frequency the geometry is designed for); declare "
+                "one in default_params."
+            )
+        return C_LIGHT_MHZ_M / float(design_freq)
+
+    @property
+    def design_lambda(self):
+        """Spelling alias for :attr:`design_wavelength`."""
+        return self.design_wavelength
+
     def build_tls(self):
         return []
 
@@ -239,7 +280,7 @@ class AntennaBuilder:
                 "per quarter-wavelength); declare one in default_params "
                 "or give every wire an explicit segment count."
             )
-        quarter_wave = 0.25 * 299.792458 / float(design_freq)
+        quarter_wave = 0.25 * C_LIGHT_MHZ_M / float(design_freq)
 
         def resolve(t):
             if t[2] is not None:
