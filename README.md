@@ -4,9 +4,9 @@
 
 | Name                                                              |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| src/antennaknobs/\_\_init\_\_.py                                  |       18 |        2 |     89% |     90-91 |
+| src/antennaknobs/\_\_init\_\_.py                                  |       18 |        2 |     89% |     92-93 |
 | src/antennaknobs/\_\_main\_\_.py                                  |        0 |        0 |    100% |           |
-| src/antennaknobs/builder.py                                       |      292 |        1 |     99% |       258 |
+| src/antennaknobs/builder.py                                       |      302 |        1 |     99% |       299 |
 | src/antennaknobs/cli.py                                           |      402 |       40 |     90% |157, 176, 214, 226, 251-252, 472, 604-617, 656-666, 735-749, 813, 892-893 |
 | src/antennaknobs/core.py                                          |       16 |        2 |     88% |     12-13 |
 | src/antennaknobs/design\_data.py                                  |       29 |        1 |     97% |        43 |
@@ -14,7 +14,7 @@
 | src/antennaknobs/design\_trust.py                                 |      103 |        7 |     93% |154, 182-184, 222-224 |
 | src/antennaknobs/designs/\_\_init\_\_.py                          |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
-| src/antennaknobs/designs/arrays/bowtie1x2\_bl.py                  |       37 |        0 |    100% |           |
+| src/antennaknobs/designs/arrays/bowtie1x2\_bl.py                  |       36 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray1x2.py                 |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray2x4.py                 |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray.py                    |        7 |        0 |    100% |           |
@@ -70,10 +70,10 @@
 | src/antennaknobs/designs/loops/skyloop\_lmatch.py                 |       10 |        0 |    100% |           |
 | src/antennaknobs/designs/loops/triangular\_skyloop.py             |       21 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/\_\_init\_\_.py                |        0 |        0 |    100% |           |
-| src/antennaknobs/designs/multiband/fandipole.py                   |       58 |        1 |     98% |       126 |
-| src/antennaknobs/designs/multiband/hexbeam\_5band.py              |       93 |        0 |    100% |           |
+| src/antennaknobs/designs/multiband/fandipole.py                   |       57 |        1 |     98% |       124 |
+| src/antennaknobs/designs/multiband/hexbeam\_5band.py              |       92 |        0 |    100% |           |
 | src/antennaknobs/designs/multiband/trap\_dipole.py                |       28 |        0 |    100% |           |
-| src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       78 |        3 |     96% |250, 311, 317 |
+| src/antennaknobs/designs/multiband/trap\_fan\_dipole.py           |       77 |        3 |     96% |247, 308, 314 |
 | src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       72 |       12 |     83% |   234-246 |
 | src/antennaknobs/designs/specialty/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/bowtie.py                      |       17 |        0 |    100% |           |
@@ -101,7 +101,7 @@
 | src/antennaknobs/designs/verticals/tri\_moxon.py                  |       41 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/vertical.py                    |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/\_\_init\_\_.py                     |        0 |        0 |    100% |           |
-| src/antennaknobs/designs/wire/doublet\_balanced\_tuner.py         |       18 |        0 |    100% |           |
+| src/antennaknobs/designs/wire/doublet\_balanced\_tuner.py         |       17 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/doublet\_ladder\_tuner.py           |       15 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/edz.py                              |       20 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/efhw\_sloper.py                     |       24 |        0 |    100% |           |
@@ -147,7 +147,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      855 |       91 |     89% |71-73, 141-145, 276-277, 344, 590-592, 597, 689, 744, 847-850, 1027, 1110, 1128-1130, 1193, 1201-1204, 1223-1235, 1238, 1263, 1278-1291, 1339-1341, 1389, 1403, 1432-1433, 1457-1458, 1490, 1570-1577, 1589-1602, 1622, 1625-1626, 1659-1660, 1691, 1709-1712, 1728, 1761, 1764, 1772, 1799-1800, 2026, 2112, 2139, 2141, 2145-2146, 2159, 2170, 2174, 2226-2227, 2246 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **9473** |  **491** | **95%** |           |
+| **TOTAL**                                                         | **9478** |  **491** | **95%** |           |
 
 
 ## Setup coverage badge
