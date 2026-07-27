@@ -598,7 +598,74 @@ class BalancedLine:
     zcomm: Optional[float] = None
 
 
-Branch = Union[TL, Load, TwoPort, Shunt, Transformer, Admittance, BalancedLine]
+@dataclass(frozen=True)
+class FloatingBalun:
+    """Floating-secondary transformer / link-coupling — the differential twin
+    of `Transformer` (issue #589). Where `Transformer` spans both windings
+    node-to-datum (a single-ended:single-ended balun *ratio*, but NOT the
+    unbalanced↔balanced *transition*), a FloatingBalun has a single-ended
+    **primary** (``primary`` node to the datum, e.g. a 50 Ω rig) and a
+    genuinely **floating differential secondary** — the terminal pair
+    ``(a, b)``, neither leg bonded to the datum. It is the one primitive that
+    closes the balanced chain ``Driven → rig → FloatingBalun → balanced tuner
+    → BalancedLine → antenna`` to a datum-locked source without injecting the
+    common-mode current a balanced feed exists to avoid.
+
+    Reference topology: the Palstar BT1500A "double roller balanced tuner"
+    places a 1:1 choke (current) balun at its 50 Ω input, converting the
+    unbalanced coax to a balanced condition for the floating L-network; the
+    balun is literally the first component and sits at the benign resistive
+    input on purpose. `FloatingBalun(n=1)` is that element.
+
+    ``n`` is the primary→secondary ratio in the constitutive relation
+
+        v(a) − v(b) = n · v(primary)        (v(primary) is vs. the datum)
+
+    so the *differential* impedance across the floating secondary is referred
+    to the primary as ``Z_primary = Z_secondary / n²`` — a 1:1 balun (``n=1``,
+    no loss) presents the balanced load impedance to the rig unchanged, and a
+    4:1 current balun stepping a 200 Ω balanced load down to 50 Ω at the rig
+    is ``n=2``. ``n = 1`` is a legal ideal element (no value is inverted);
+    ``n = 0`` is rejected at stamp time (it would pin the secondary
+    differential voltage to 0 — no physical balun does that).
+
+    Loss model, mirroring `Transformer` (minimal, shape-of-the-curve only):
+      r     — series winding resistance in Ω, referred to the secondary
+              (constitutive row v_a − v_b − n·v_primary = r·j, j the
+              secondary current);
+      lmag  — magnetizing / choke inductance in H, shunted across the primary
+              node to the datum: at low frequency ωL_mag stops dwarfing the
+              source and insertion loss rises, the classic balun low-end
+              rolloff. This models the *balun's own* common-mode choking and
+              is distinct from `BalancedLine.zcomm` (the *line's* CM path);
+      qlmag — finite Q of the magnetizing branch (core loss), same
+              convention as `Transformer.qlmag` / `ql` elsewhere.
+
+    Common-mode note: the constitutive row constrains only the secondary
+    *differential* voltage; the secondary common mode ``(v_a + v_b)/2`` is
+    genuinely floating (an isolated winding), and the element draws zero
+    common-mode current (``I(a) = −I(b)`` at the element by construction).
+    So the secondary pair needs a common-mode return from elsewhere — the
+    antenna it feeds (a radiating structure grounds it), or a
+    ``zcomm``-carrying `BalancedLine` — exactly like a CM-open `BalancedLine`
+    terminal, and `Network.__post_init__` enforces this.
+
+    Reducer-only on both engines, like `Transformer` (there is no native NEC
+    card for an ideal transformer); its dissipation itemises in the power
+    budget (issue #299)."""
+
+    primary: str
+    a: str
+    b: str
+    n: float
+    r: float | None = None
+    lmag: float | None = None
+    qlmag: float | None = None
+
+
+Branch = Union[
+    TL, Load, TwoPort, Shunt, Transformer, Admittance, BalancedLine, FloatingBalun
+]
 
 
 def _branch_port_refs(br):
@@ -607,6 +674,8 @@ def _branch_port_refs(br):
         return tuple(br.ports)
     if isinstance(br, BalancedLine):
         return (br.a1, br.a2, br.b1, br.b2)
+    if isinstance(br, FloatingBalun):  # has .a/.b too — must precede the fallback
+        return (br.primary, br.a, br.b)
     if hasattr(br, "a"):  # TL, TwoPort, Transformer
         return (br.a, br.b)
     return (br.port,)  # Load, Shunt
@@ -618,6 +687,8 @@ def _rewrite_branch(br, ren):
         return replace(br, ports=tuple(ren(p) for p in br.ports))
     if isinstance(br, BalancedLine):
         return replace(br, a1=ren(br.a1), a2=ren(br.a2), b1=ren(br.b1), b2=ren(br.b2))
+    if isinstance(br, FloatingBalun):  # has .a/.b too — must precede the fallback
+        return replace(br, primary=ren(br.primary), a=ren(br.a), b=ren(br.b))
     if hasattr(br, "a"):  # TL, TwoPort, Transformer
         return replace(br, a=ren(br.a), b=ren(br.b))
     return replace(br, port=ren(br.port))
@@ -1006,36 +1077,48 @@ class Network:
     def _validate_common_mode(self):
         """A CM-open `BalancedLine` (``zcomm=None``) stamps only the
         differential block, contributing nothing to its terminals' common
-        mode. A node reachable ONLY through such terminals is common-mode
-        floating, which makes the MNA singular at solve time — raise a clear,
+        mode; a `FloatingBalun`'s secondary pair ``(a, b)`` is likewise
+        CM-floating — its constitutive row constrains only the differential
+        voltage and the element draws zero common-mode current (issue #589).
+        A node reachable ONLY through such terminals is common-mode floating,
+        which makes the MNA singular at solve time — raise a clear,
         node-naming error here at build time instead. A node is
         common-mode-determinate if it is a real `PortOnWire` or `PortAtEnd`
-        (an antenna-Y row grounds it), is driven by a source, or is
-        referenced by any non-BalancedLine branch or by a ``zcomm``-carrying
-        BalancedLine (its CM block is itself a return) — issues #575/#576."""
+        (an antenna-Y row grounds it), is driven by a source, is referenced by
+        any non-BalancedLine branch or by a ``zcomm``-carrying BalancedLine
+        (its CM block is itself a return), or is a `FloatingBalun` *primary*
+        (datum-referenced) — issues #575/#576/#589."""
         cm_open = [
             b for b in self.branches if isinstance(b, BalancedLine) and b.zcomm is None
         ]
-        if not cm_open:
+        fbaluns = [b for b in self.branches if isinstance(b, FloatingBalun)]
+        if not cm_open and not fbaluns:
             return
         determinate = {
             n for n, p in self.ports.items() if isinstance(p, (PortOnWire, PortAtEnd))
         }
         determinate.update(src.port for src in self.sources)
         for br in self.branches:
-            if not (isinstance(br, BalancedLine) and br.zcomm is None):
-                determinate.update(_branch_port_refs(br))
+            if isinstance(br, BalancedLine) and br.zcomm is None:
+                continue  # CM-open line is not itself a common-mode return
+            if isinstance(br, FloatingBalun):
+                determinate.add(br.primary)  # only the datum-referenced primary
+                continue
+            determinate.update(_branch_port_refs(br))
         touched = set()
         for br in cm_open:
             touched.update(_branch_port_refs(br))
+        for br in fbaluns:
+            touched.update((br.a, br.b))  # the floating secondary pair
         floating = sorted(touched - determinate)
         if floating:
             raise ValueError(
-                f"node(s) {floating} attach only via BalancedLine terminals, "
-                "whose common mode is structurally open — the MNA would be "
-                "singular. Give each a common-mode return: attach it to a "
-                "radiating wire (PortOnWire), drive it, wire it to a "
-                "non-BalancedLine branch, or set zcomm on the BalancedLine."
+                f"node(s) {floating} attach only via terminals whose common "
+                "mode is structurally open (a CM-open BalancedLine, or a "
+                "FloatingBalun secondary) — the MNA would be singular. Give "
+                "each a common-mode return: attach it to a radiating wire "
+                "(PortOnWire), drive it, wire it to a non-BalancedLine branch, "
+                "or set zcomm on the BalancedLine."
             )
 
     def _expand_instances(self):

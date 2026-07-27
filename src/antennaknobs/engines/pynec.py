@@ -15,6 +15,7 @@ from ..network import (
     Admittance,
     BalancedLine,
     Driven,
+    FloatingBalun,
     Load,
     PortAtEnd,
     PortOnWire,
@@ -574,10 +575,14 @@ class PyNECEngine(SimulationEngine):
             return True
         # A Shunt to common has no native NEC card (there's no 1-port
         # shunt-to-common primitive); always reduce it. Same for the ideal
-        # Transformer (issue #301): no NEC card expresses the ideal ratio, and
-        # the fixed complex-Y Admittance (issue #416) — a general 1-/2-port Y
-        # with no native 1-port card — always takes the reducer stamp too.
-        if any(isinstance(b, (Shunt, Transformer, Admittance)) for b in net.branches):
+        # Transformer (issue #301) and its floating-secondary sibling the
+        # FloatingBalun (issue #589): no NEC card expresses the ideal ratio,
+        # and the fixed complex-Y Admittance (issue #416) — a general 1-/2-port
+        # Y with no native 1-port card — always takes the reducer stamp too.
+        if any(
+            isinstance(b, (Shunt, Transformer, Admittance, FloatingBalun))
+            for b in net.branches
+        ):
             return True
         # A finite-Q Load (issue #298) needs R = ωL/Q re-derived at every
         # frequency; ld_card takes fixed R/L/C baked into one context, which

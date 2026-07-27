@@ -37,6 +37,7 @@ from .network import (
     BalancedLine,
     Driven,
     DrivenCurrent,
+    FloatingBalun,
     Load,
     PortOnWire,
     Shunt,
@@ -189,6 +190,17 @@ class _Group2Element:
 
     (the transformer's row is v_a − n·v_b − r_w·j = 0). Defaults keep
     every pre-existing series element bit-identical.
+
+    Third terminal (issue #589, the FloatingBalun): an optional node ``c``
+    with KCL scale ``kc`` (``kc·j`` leaves node c, same sign convention as
+    node a) and voltage coefficient ``c_vc`` adds a third column/row so a
+    single branch current can couple three distinct nodes — a
+    floating-secondary transformer whose primary lives on its own node ``c``
+    while the differential secondary spans ``a``/``b``. Its constitutive row
+    is v_a − v_b − n·v_c = r·j (c_va=1, c_vb=−1, c_vc=−n), and reciprocity
+    pins kc = c_vc = −n (the row equals the current column, as for a/b), so
+    the ideal element is lossless. ``c=None`` (the default) is a plain
+    two-terminal branch, bit-identical to before.
     """
 
     a: int | None
@@ -200,6 +212,9 @@ class _Group2Element:
     kb: complex = 1.0 + 0j
     c_va: complex | None = None
     c_vb: complex | None = None
+    c: int | None = None
+    kc: complex = 0j
+    c_vc: complex = 0j
 
 
 def _series_group2(a, b, r, l, c, omega, emf=0j, ql=None, qc=None):
@@ -246,6 +261,9 @@ class MNASystem:
             if el.b is not None:
                 A[el.b, col] -= el.kb  # kb·j enters node b
                 A[col, el.b] += el.c_v if el.c_vb is None else el.c_vb
+            if el.c is not None:
+                A[el.c, col] += el.kc  # kc·j leaves node c (third terminal)
+                A[col, el.c] += el.c_vc
             A[col, col] = el.c_j
             rhs[col] = el.e
         self.n_nodes = n
@@ -281,13 +299,19 @@ class MNASystem:
             el = self.elements[payload]
             va = 0j if el.a is None else v[el.a]
             vb = 0j if el.b is None else v[el.b]
-            # Power absorbed = ½Re(v_a·(ka·j)* − v_b·(kb·j)*): the element
-            # draws ka·j from node a and delivers kb·j into node b. Plain
-            # series elements have ka = kb = 1 (the familiar (v_a − v_b)·j*);
-            # a transformer's ratio-linked windings make it (v_a − n·v_b)·j*,
-            # i.e. only the winding-resistance drop dissipates.
+            # Power absorbed = ½Re(v_a·(ka·j)* − v_b·(kb·j)* + v_c·(kc·j)*):
+            # the element draws ka·j from node a, delivers kb·j into node b,
+            # and draws kc·j from a third node c when present. Plain series
+            # elements have ka = kb = 1 (the familiar (v_a − v_b)·j*); a
+            # transformer's ratio-linked windings make it (v_a − n·v_b)·j*,
+            # i.e. only the winding-resistance drop dissipates. A FloatingBalun
+            # adds v_c·(−n·j)* on the primary node, so the ideal element's
+            # absorbed power is exactly zero and only r·|j|² dissipates.
             i_a, i_b = el.ka * j[payload], el.kb * j[payload]
-            return 0.5 * float(np.real(va * np.conj(i_a) - vb * np.conj(i_b)))
+            p = va * np.conj(i_a) - vb * np.conj(i_b)
+            if el.c is not None:
+                p += v[el.c] * np.conj(el.kc * j[payload])
+            return 0.5 * float(np.real(p))
         # termination: the Load part of the source/load branch at node k.
         col, e, tkind, z_chain = self.terminations[payload]
         if tkind == "i":
@@ -525,6 +549,66 @@ class NetworkReducer:
                             lab(f"Transformer {_short(br.a)}→{_short(br.b)} (mag)"),
                             "group1",
                             ([a], np.array([[y_mag]])),
+                        )
+                    )
+            elif isinstance(br, FloatingBalun):
+                if br.n == 0:
+                    raise ValueError(
+                        f"FloatingBalun {br.primary!r}→({br.a!r},{br.b!r}) has "
+                        "turns ratio n = 0; no physical balun pins the secondary "
+                        "differential voltage at 0 V"
+                    )
+                p = self.port_to_idx[br.primary]
+                a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
+                nr = complex(br.n)
+                z_w = complex(br.r) if br.r is not None else 0j
+                # Floating secondary (a, b) + single-ended primary p. The
+                # auxiliary current j is the secondary current (into a, out of
+                # b): KCL carries j out of a, j into b, and −n·j out of the
+                # primary p (reciprocity pins the primary coeff = c_vc, so the
+                # ideal element absorbs zero net power for any n). The
+                # constitutive row v_a − v_b − n·v_p = r_w·j refers the winding
+                # R to the secondary; the ideal element is lossless.
+                probes.append(
+                    (
+                        lab(
+                            f"FloatingBalun {_short(br.primary)}→"
+                            f"({_short(br.a)},{_short(br.b)})"
+                        ),
+                        "group2",
+                        len(elements),
+                    )
+                )
+                elements.append(
+                    _Group2Element(
+                        a,
+                        b,
+                        c_v=0j,
+                        c_j=-z_w,
+                        e=0j,
+                        ka=1.0 + 0j,
+                        kb=1.0 + 0j,
+                        c_va=1.0 + 0j,
+                        c_vb=-1.0 + 0j,
+                        c=p,
+                        kc=-nr,
+                        c_vc=-nr,
+                    )
+                )
+                if br.lmag is not None:
+                    zl = 1j * omega * br.lmag
+                    if br.qlmag is not None:
+                        zl += omega * br.lmag / br.qlmag
+                    y_mag = 1.0 / zl
+                    G[p, p] += y_mag
+                    probes.append(
+                        (
+                            lab(
+                                f"FloatingBalun {_short(br.primary)}→"
+                                f"({_short(br.a)},{_short(br.b)}) (mag)"
+                            ),
+                            "group1",
+                            ([p], np.array([[y_mag]])),
                         )
                     )
             elif isinstance(br, Load):
