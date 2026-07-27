@@ -145,6 +145,7 @@ showcase (see [the solver guide](/reference/solver/)):
 <!-- catalog:begin arrays -->
 | Design | Notes |
 | --- | --- |
+| `arrays.bowtie1x2_bl` | 1x2 stacked bowtie array with a balanced-line corporate feed |
 | `arrays.bowtiearray` | 2x2 phased stack of bowtie dipoles |
 | `arrays.bowtiearray1x2` | Side-by-side bowtie pair (1x2) |
 | `arrays.bowtiearray2x4` | 2x4 phased bowtie curtain — the catalog's largest stack |
