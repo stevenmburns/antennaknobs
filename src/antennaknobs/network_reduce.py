@@ -99,29 +99,55 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, 
 # physical terminals (issue #575).
 _DIFF_INCIDENCE = np.array([[1.0, -1.0], [-1.0, 1.0]], dtype=np.complex128)
 
+# The common-mode incidence: the pair driven as one conductor. CM current is
+# the TOTAL I₁ + I₂ (splitting equally) and CM voltage the pair AVERAGE, so
+# each terminal carries ¼ of the 2×2 CM entry: I(a1) = ¼·(y·(v_a1 + v_a2) + …).
+# Orthogonal to _DIFF_INCIDENCE (it annihilates differential vectors), so the
+# two blocks superpose without cross-terms — the even/odd decomposition.
+_COMM_INCIDENCE = np.full((2, 2), 0.25, dtype=np.complex128)
 
-def balanced_admittance_4x4(zdiff, length, wavelength, vf=1.0, k1=0.0, k2=0.0):
-    """Balanced/differential two-conductor TL nodal admittance (issue #575) —
-    a 4×4 Group-1 block over the terminal order ``(a1, a2, b1, b2)`` (port
-    A = (a1, a2), port B = (b1, b2)).
+
+def balanced_admittance_4x4(
+    zdiff, length, wavelength, vf=1.0, k1=0.0, k2=0.0, zcomm=None
+):
+    """Balanced two-conductor TL nodal admittance (issues #575/#576) — a 4×4
+    Group-1 block over the terminal order ``(a1, a2, b1, b2)`` (port A =
+    (a1, a2), port B = (b1, b2)).
 
     In differential variables the element is an ordinary 2-port TL with
-    z0 = ``zdiff``, so the 4×4 is that 2×2 expanded through the pair incidence:
+    z0 = ``zdiff``, so the differential block is that 2×2 expanded through the
+    pair incidence:
 
         Y_4 = kron(tl_admittance_2x2(zdiff, …), [[1, −1], [−1, 1]])
 
     i.e. each 2×2 entry ``y`` becomes the block ``y·[[1,−1],[−1,1]]`` over the
-    terminal pair. The construction makes the common mode structurally open
-    (rank 2) and forces ``I(a1) = −I(a2)`` at each end — the ±I differential
-    cancellation, enforced by wiring. There is no ``transposed`` flag: a
-    crossover is wiring port B as ``(b2, b1)``.
+    terminal pair. With ``zcomm=None`` that is the whole stamp: the common
+    mode is structurally open (rank 2) and ``I(a1) = −I(a2)`` is forced at
+    each end — the ±I differential cancellation, enforced by wiring. There is
+    no ``transposed`` flag: a crossover is wiring port B as ``(b2, b1)``.
+
+    ``zcomm`` (issue #576's end-to-end finding) adds the orthogonal
+    common-mode block — the pair driven as ONE conductor against the network
+    common, an ordinary 2-port TL with z0 = ``zcomm`` over (I₁+I₂, ½(v₁+v₂)):
+
+        Y_4 += kron(tl_admittance_2x2(zcomm, …), ¼·ones(2, 2))
+
+    The ¼-ones incidence annihilates differential vectors, so the CM block
+    never perturbs the differential behaviour — the exact even/odd
+    decomposition of an ideal coupled pair. See `network.BalancedLine` for
+    when (and how honestly) a CM path can be modelled at all.
 
     Inherits `tl_admittance_2x2`'s matched-loss model and its half-wave
     singularity guard — a lossless line at exactly k·vf·λ/2 raises; real
     open-wire ``k1`` loss regularises it. Grounding conductor 2 at both ends
-    (dropping rows/cols a2, b2) collapses this exactly back to that 2×2."""
+    (dropping rows/cols a2, b2) collapses the ``zcomm=None`` stamp exactly
+    back to that 2×2."""
     y2 = tl_admittance_2x2(zdiff, length, wavelength, vf=vf, k1=k1, k2=k2)
-    return np.kron(y2, _DIFF_INCIDENCE)
+    y4 = np.kron(y2, _DIFF_INCIDENCE)
+    if zcomm is not None:
+        yc = tl_admittance_2x2(zcomm, length, wavelength, vf=vf, k1=k1, k2=k2)
+        y4 = y4 + np.kron(yc, _COMM_INCIDENCE)
+    return y4
 
 
 # ---------------------------------------------------------------------------
@@ -380,13 +406,20 @@ class NetworkReducer:
                     (lab(f"TL {_short(br.a)}→{_short(br.b)}"), "group1", ([a, b], y_tl))
                 )
             elif isinstance(br, BalancedLine):
-                # Differential 4-terminal line (issue #575): a frequency-
+                # Balanced 4-terminal line (issues #575/#576): a frequency-
                 # dependent 4×4 Group-1 block, the differential 2×2 TL expanded
                 # through the pair incidence. Common mode is structurally open
-                # (rank 2); the half-wave singularity guard is inherited.
+                # (rank 2) unless the element declares a `zcomm` CM path; the
+                # half-wave singularity guard is inherited.
                 idxs = [self.port_to_idx[p] for p in (br.a1, br.a2, br.b1, br.b2)]
                 yb = balanced_admittance_4x4(
-                    br.zdiff, br.length, wavelength, vf=br.vf, k1=br.k1, k2=br.k2
+                    br.zdiff,
+                    br.length,
+                    wavelength,
+                    vf=br.vf,
+                    k1=br.k1,
+                    k2=br.k2,
+                    zcomm=br.zcomm,
                 )
                 G[np.ix_(idxs, idxs)] += yb
                 probes.append(
