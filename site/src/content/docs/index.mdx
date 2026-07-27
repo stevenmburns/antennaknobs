@@ -25,20 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.37.0" icon="star">
-  **Your antenna, on the ground you actually stand on.** Every flat-ground
-  model — Sommerfeld, reflection-coefficient, PEC — assumes the earth is an
-  infinite flat plane at the mast's feet. The new **faceted-terrain ground**
-  drops that assumption: pick a **levee**, **cliff**, or **hillside** preset,
-  set the slopes, drops, and bearings, and the far field reflects off the
-  actual sloped facet each ray's specular point lands on — tilted incidence,
-  per-facet media (water vs. land), full effective height below the drops. The
-  motivating QTH — a 20 ft mast on a levee, fresh water off one slope and
-  farmland off the other — is worked end to end in
-  [Antennas on a levee](/advanced/terrain/). Presets are schema-driven, so
-  adding one is a single Python entry — no frontend rebuild. Also new:
-  **server-side polar cuts**, so every solve returns its azimuth and elevation
-  traces ready to plot. [All release notes →](/reference/releases/)
+<Card title="New in v0.38.0" icon="star">
+  **Transmission-line curtains, built as a circuit.** A Sterba-curtain array is
+  stitched together by transmission-line risers whose feed and phasing you used
+  to have to model as bare wire. The new **`BalancedLine`** element models that
+  riser as what it is — a differential two-conductor line — and its optional
+  **common-mode path** (`zcomm`) restores the conduction path a purely
+  differential stamp drops, so a **`build_network()`** TL Sterba now matches the
+  all-wire reference to a few tenths of a dB (**+15.4 dBi** at n=3), on both the
+  momwire and PyNEC backends. The result ships as the new **`wire.sterba_bl`**
+  catalog design. Also landing: **`PortAtEnd`** ports that attach a floating
+  element at a conductor's very end (not just a mid-wire gap), stricter
+  **network-authoring checks** that reject silent open-gap traps, and **one feed
+  marker per driven port** for multi-feed arrays. Built on **momwire 0.18.0**
+  (junction ports). [All release notes →](/reference/releases/)
 </Card>
 
 ## The whole pitch, in one line
