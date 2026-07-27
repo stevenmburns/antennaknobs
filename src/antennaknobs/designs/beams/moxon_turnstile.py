@@ -154,7 +154,7 @@ class Builder(AntennaBuilder):
         return self._element("a") + self._element("b")
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         return Network(
             ports={
                 "feed_a": PortOnWire("feed_a"),

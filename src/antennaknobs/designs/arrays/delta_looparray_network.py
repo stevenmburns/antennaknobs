@@ -40,7 +40,7 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
         b = self.base
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         driver = wavelength * self.length_factor
         angle = math.radians(self.angle_deg)
         cos_t = math.cos(angle)
@@ -76,7 +76,7 @@ class Builder(AntennaBuilder):
         ]
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         tl_lengths = (
             self.del_y - wavelength * self.twist,
             self.del_y + wavelength * self.twist,

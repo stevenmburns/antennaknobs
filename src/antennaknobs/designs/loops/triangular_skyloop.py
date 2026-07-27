@@ -96,7 +96,7 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
 
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         # Equilateral triangle, so each side is a third of the perimeter; the
         # perimeter is length_factor wavelengths (length_factor = 1 -> a nominal

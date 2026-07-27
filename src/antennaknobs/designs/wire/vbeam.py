@@ -71,7 +71,7 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         leg = self.leg_frac * wavelength
         theta = math.radians(self.half_apex_deg)

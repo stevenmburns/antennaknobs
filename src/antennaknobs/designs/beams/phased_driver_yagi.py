@@ -101,7 +101,7 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         lf = self.length_factor
 
         tups = []
@@ -126,7 +126,7 @@ class Builder(AntennaBuilder):
         return tups
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         drivers_apart = (self.TABLE[self.FWD][1] - self.TABLE[self.REAR][1]) * (
             wavelength
         )

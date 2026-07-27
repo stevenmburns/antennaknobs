@@ -26,7 +26,7 @@ class Builder(AntennaBuilder):
         eps = 0.05
         b = self.base
 
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         third = wavelength / 3
 

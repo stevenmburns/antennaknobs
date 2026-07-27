@@ -97,7 +97,7 @@ class Builder(AntennaBuilder):
 
     # ---- layout ---------------------------------------------------------
     def _layout(self):
-        wl = 299.792458 / self.design_freq
+        wl = self.design_wavelength
         h = 0.5 * wl * self.length_factor
         q = 0.5 * h
         n = int(self.n_cells)

@@ -27,10 +27,8 @@ daisy chain; momwire could not model the jumpers. That path is gone.)
 import math
 from types import MappingProxyType
 
-from antennaknobs import AntennaBuilder
+from antennaknobs import AntennaBuilder, C_LIGHT_MHZ_M
 from antennaknobs.network import Driven, Network, PortOnWire, TL, Wire
-
-C_LIGHT_MHZ_M = 299.792458
 
 _MAX_BANDS = 5
 
@@ -307,7 +305,7 @@ class Builder(AntennaBuilder):
         # 2*_FEED_GAP*sin30 = _FEED_GAP for every band, so one shared count
         # against the design_freq quarter-wave keeps all five feeds equal
         # (1 segment at the default mesh).
-        wavelength0 = C_LIGHT_MHZ_M / self.design_freq
+        wavelength0 = self.design_wavelength
         n_seg_feed = self.segs_for(_FEED_GAP, 0.25 * wavelength0)
 
         tups = []

@@ -115,7 +115,7 @@ class Builder(AntennaBuilder):
     def _element(self, k):
         """Wire tuples for rectangle k (1-3), standing in the vertical
         plane at azimuth (k-1)*120 deg, reflector nearest the post."""
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         lf = self.length_factor
 
         a = self.a_frac * wavelength * lf
@@ -154,7 +154,7 @@ class Builder(AntennaBuilder):
         return [t for k in (1, 2, 3) for t in self._element(k)]
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         active = int(self.active)
         parked = [k for k in (1, 2, 3) if k != active]
 

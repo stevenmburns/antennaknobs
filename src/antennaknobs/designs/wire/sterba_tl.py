@@ -84,7 +84,7 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         h = 0.5 * wavelength * self.length_factor  # half-wave unit
         q = 0.5 * h  # quarter-wave end section
         bot = self.base
