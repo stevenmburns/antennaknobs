@@ -83,7 +83,7 @@ class Builder(AntennaBuilder):
         # Size each arm from the design frequency: a half-wave dipole is about
         # lambda/2 tip-to-tip, so each arm is ~lambda/4. ``length_factor`` trims
         # it to resonance (real wire runs a few % short of the ideal).
-        wavelength = 299.792458 / self.design_freq  # metres
+        wavelength = self.design_wavelength  # free-space λ at design_freq, in metres
         h = (wavelength / 4.0) * self.length_factor  # each arm, metres
         z = self.height
         eps = 0.01  # tiny half-gap at the centre where the feed point sits
