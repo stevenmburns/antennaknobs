@@ -248,9 +248,11 @@ scale knobs and transforms move geometry, never specs.
 
 **Tuning on a band — use `design_freq` (strongly recommended).** To place an
 antenna on a band *and be able to tune it there*, add a `design_freq` param
-(MHz) plus a `length_factor` (a multiplier near 1.0), compute
-`wavelength = 299.792458 / self.design_freq`, and build every dimension as a
-fraction of `wavelength * self.length_factor`. This does two things at once:
+(MHz) plus a `length_factor` (a multiplier near 1.0), read
+`wavelength = self.design_wavelength` (an `AntennaBuilder` property giving the
+free-space wavelength at `design_freq` in metres — no need to spell the
+speed-of-light constant), and build every dimension as a fraction of
+`wavelength * self.length_factor`. This does two things at once:
 it scales the geometry to the chosen frequency, **and** it makes the app's band
 selector and the measurement-frequency slider follow `design_freq`. So a design
 with `design_freq = 7.1` lands on 40m and tunes on 40m. This is how the built-in
