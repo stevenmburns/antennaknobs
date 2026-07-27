@@ -1920,6 +1920,11 @@ def examples_endpoint():
                 "default_freq": ex.default_freq,
                 "default_design_freq": ex.default_design_freq,
                 "default_backend": ex.default_backend,
+                "requires_backends": (
+                    list(ex.requires_backends)
+                    if ex.requires_backends is not None
+                    else None
+                ),
                 "has_design_freq": ex.has_design_freq,
                 "variants": list(ex.variants),
                 "variant_values": dict(ex.variant_values),

@@ -222,105 +222,15 @@ def test_sterba_offset_pair_risers_carry_differential_current():
 # ---------------------------------------------------------------------------
 
 
-class _MiniSterbaTL(AntennaBuilder):
-    """One Sterba bay (n_cells = 1) with wire.sterba's exact radiator layout —
-    two interleaved conductors, sections λ/4 + λ/2 + λ/4, physical
-    single-conductor end closures — and each interior riser pair replaced by
-    a BalancedLine across four `PortAtEnd` junction ports, wired by physical
-    conductor pairing (port A = the two top-rail ends, conductor 1 = the
-    A-conductor riser). The scratchpad `sterba_bl.py` riser="end" builder,
-    specialised to one bay."""
+def _catalog_curtain(n_cells, **overrides):
+    """The promoted catalog design (wire.sterba_bl): wire.sterba's exact
+    radiator layout with every interior riser pair replaced by a BalancedLine
+    across four `PortAtEnd` junction ports, wired by physical conductor
+    pairing (port A = the two top-rail ends, conductor 1 = the A-conductor
+    riser). This test IS the design's physics regression."""
+    from antennaknobs.designs.wire.sterba_bl import Builder
 
-    default_params = MappingProxyType(
-        {
-            "design_freq": FREQ,
-            "freq": FREQ,
-            "base": 7.0,
-            "spacing": 0.04,
-            "zcomm": 200.0,
-            "k1": 0.02,  # real open-wire loss regularises the λ/2 stamp
-            "end_corr": 0.030,  # measured pair end-effect elongation (m)
-        }
-    )
-
-    def _layout(self):
-        h = 0.5 * WL
-        q = 0.5 * h
-        yb = [0.0, q, q + h, 2 * q + h]
-        return h, yb
-
-    def _lvl(self, i, cond):
-        h, _ = self._layout()
-        a_top = i % 2 == 0
-        top, bot = self.base + h, self.base
-        if cond == "A":
-            return top if a_top else bot
-        return bot if a_top else top
-
-    def build_wires(self):
-        h, yb = self._layout()
-        s, pe = self.spacing, 0.2
-        tups = []
-        for cond, x in (("A", 0.0), ("B", s)):
-            for i in range(3):
-                z = self._lvl(i, cond)
-                y0, y1 = yb[i], yb[i + 1]
-                la = f"{cond}{i}a" if i > 0 else None
-                lb = f"{cond}{i}b" if i < 2 else None
-                if cond == "A" and i == 1:  # feed span (bottom-rail conductor)
-                    yc = 0.5 * (y0 + y1)
-                    tups.append(Wire((x, y0, z), (x, yc - 0.5 * pe, z), name=la))
-                    tups.append(
-                        Wire(
-                            (x, yc - 0.5 * pe, z), (x, yc + 0.5 * pe, z), name="feed"
-                        )  # fmt: skip
-                    )
-                    tups.append(Wire((x, yc + 0.5 * pe, z), (x, y1, z), name=lb))
-                else:
-                    ym = 0.5 * (y0 + y1)
-                    tups.append(Wire((x, y0, z), (x, ym, z), name=la))
-                    tups.append(Wire((x, ym, z), (x, y1, z), name=lb))
-        tups.append(Wire((0.0, 0.0, self._lvl(0, "A")), (s, 0.0, self._lvl(0, "B"))))
-        yl = yb[-1]
-        tups.append(Wire((0.0, yl, self._lvl(2, "A")), (s, yl, self._lvl(2, "B"))))
-        return tups
-
-    def build_network(self):
-        from antennaknobs.network import BalancedLine, PortAtEnd
-
-        h, _ = self._layout()
-        zd = analytic_zdiff(self.spacing)
-        ports = {"feed": PortOnWire("feed", distributed=True)}
-        branches = []
-        top = self.base + h
-        for k in (1, 2):
-            i = k - 1
-            pa, pa2 = f"eA{k}", f"eA{k}n"
-            pb, pb2 = f"eB{k}", f"eB{k}n"
-            ports[pa] = PortAtEnd(f"A{i}b", end="p1")
-            ports[pa2] = PortAtEnd(f"A{k}a", end="p0")
-            ports[pb] = PortAtEnd(f"B{i}b", end="p1")
-            ports[pb2] = PortAtEnd(f"B{k}a", end="p0")
-            a_top = self._lvl(i, "A") == top
-            a1, b1 = (pa, pa2) if a_top else (pa2, pa)
-            a2, b2 = (pb2, pb) if a_top else (pb, pb2)
-            branches.append(
-                BalancedLine(
-                    a1=a1,
-                    a2=a2,
-                    b1=b1,
-                    b2=b2,
-                    zdiff=zd,
-                    length=h + self.end_corr,
-                    k1=self.k1,
-                    zcomm=self.zcomm,
-                )  # fmt: skip
-            )
-        return Network(
-            ports=ports,
-            branches=branches,
-            sources=[Driven(port="feed", voltage=1 + 0j)],
-        )
+    return Builder(dict(Builder.default_params, n_cells=n_cells, **overrides))
 
 
 def _peak(eng):
@@ -347,11 +257,11 @@ def test_bl_riser_curtain_reproduces_wire_sterba_with_zcomm():
     gain_phys, az_phys = _peak(MomwireEngine(bp, ground=None))
     assert min(az_phys % 180.0, 180.0 - az_phys % 180.0) <= 10.0  # broadside
 
-    b100 = _MiniSterbaTL(dict(_MiniSterbaTL.default_params, zcomm=100.0))
+    b100 = _catalog_curtain(1, zcomm=100.0)
     gain_100, az_100 = _peak(MomwireEngine(b100, ground=None))
     assert min(az_100 % 180.0, 180.0 - az_100 % 180.0) <= 10.0
     assert abs(gain_100 - gain_phys) < 0.5
 
-    b400 = _MiniSterbaTL(dict(_MiniSterbaTL.default_params, zcomm=400.0))
+    b400 = _catalog_curtain(1, zcomm=400.0)
     gain_400, _az = _peak(MomwireEngine(b400, ground=None))
     assert abs(gain_400 - gain_100) < 0.1  # λ/2 repeater: zcomm-insensitive

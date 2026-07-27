@@ -309,6 +309,16 @@ class AntennaExample:
     # UI keep its own default. Surfaced in the /examples schema; the frontend
     # seeds the active slot's backend from it on antenna selection.
     default_backend: Optional[str] = None
+    # Backend allowlist when the design is restricted to specific solver
+    # backends; None = no restriction. Today: designs with PortAtEnd
+    # junction ports report ("bspline",) — only the dense B-spline solver
+    # implements junction ports (momwire#172), and NEC-2 has no equivalent
+    # card at all (PyNECEngine rejects such designs at construction, issue
+    # #579). Derived from the network spec by the adapter, not declared.
+    # The frontend disables the other backend tabs for such designs (with a
+    # tooltip) and coerces a disallowed active selection on switch; the
+    # solvers' hard errors remain the enforcement.
+    requires_backends: Optional[tuple[str, ...]] = None
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
     # Render the geometry as a NEC2 .nec card deck (str) for the current

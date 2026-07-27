@@ -148,6 +148,15 @@ type ExampleDescriptor = {
    *  this UI has retired (e.g. "triangular"); run it through
    *  normalizeBackend before use. */
   default_backend: string | null;
+  /** Backend allowlist when the design is restricted to specific solvers,
+   *  else null. Today: designs with PortAtEnd junction ports report
+   *  ["bspline"] — only the dense B-spline solver implements junction
+   *  ports (momwire#172), and NEC-2 has no equivalent card (issue #579).
+   *  Derived server-side from the design's network spec. The UI disables
+   *  the other backend tabs and withholds the solve with a hard (not
+   *  "solve anyway") gate when the active backend is disallowed; the
+   *  solvers' errors remain the enforcement. */
+  requires_backends: string[] | null;
   /** True when the Builder has a `design_freq` param that scales
    *  geometry (design_freq-sized designs). When false, the design-freq
    *  band-tab row is hidden because dragging it would be a no-op. */
@@ -1510,6 +1519,29 @@ function selectableBackends(havePynec: boolean): Backend[] {
 function resolveBackend(b: Backend, havePynec: boolean): Backend {
   return b === "pynec" && !havePynec ? PYNEC_FALLBACK_BACKEND : b;
 }
+
+// Per-design backend allowlist (`requires_backends` on the descriptor —
+// e.g. ["bspline"] for designs with PortAtEnd junction ports, which only
+// the B-spline solver implements; NEC-2 has no equivalent card at all).
+// null/undefined = no restriction. Unlike the missing-pynec-accel case
+// (#429) this is per-design, and unlike comboInappropriate it is a HARD
+// incompatibility: the disallowed solvers raise, so the gate offers
+// "switch", never "solve anyway".
+function backendAllowed(
+  b: Backend,
+  required: string[] | null | undefined,
+): boolean {
+  return !required || required.includes(b);
+}
+
+// One-line explanation for why a design is backend-restricted, used by the
+// disabled tabs' tooltip and the hard withhold gate. Today the only
+// restriction cause is junction ports, so the copy is specific; broaden it
+// if _required_backends ever grows another cause.
+const RESTRICTED_BACKEND_REASON =
+  "This design attaches network elements at conductor ends (junction-node " +
+  "ports) — only the B-spline solver implements them, and NEC-2 has no " +
+  "equivalent card.";
 
 // hmatrix (hierarchical H-matrix / ACA) and arrayblock (element-aware block
 // solver for arrays) are accelerators built on the same B-spline basis as
@@ -2962,17 +2994,29 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // Never surface a PyNEC recommendation the server can't honor (#429).
     return rec ? resolveBackend(rec, havePynec) : null;
   })();
+  // The active design's backend allowlist (null = unrestricted). Only
+  // catalog designs carry it — user designs defer their hints, so a
+  // restricted user design surfaces the solver's hard error through the
+  // normal solve-error banner instead.
+  const requiredBackends = currentExample?.requires_backends ?? null;
+  // Hard incompatibility: the active backend cannot run this design at all
+  // (the solver raises). Distinct from comboInappropriate, which is a
+  // performance mismatch the user may override.
+  const backendDisallowed = !backendAllowed(backend, requiredBackends);
   // True while the live solve is being withheld by the solver-mismatch gate.
   // The batch runners (sweep / converge / norm-check) decline to fire on
   // this: they are batches of the same solves the gate is protecting the
   // machine from (a dense sweep on a benchmark mesh is 41 multi-GiB solves).
   // Their effects depend on `comboApproved`, so "Solve anyway" re-fires them;
   // the server's cost model refuses warned batches without the approval flag
-  // anyway (issue #382) — this gate is UX, not the enforcement.
+  // anyway (issue #382) — this gate is UX, not the enforcement. A
+  // backend-disallowed design withholds unconditionally: there is no
+  // approval path around a solver that raises.
   function solveWithheld(): boolean {
     return (
-      comboInappropriate(backend, recommendedBackend) &&
-      !approvedComboRef.current
+      backendDisallowed ||
+      (comboInappropriate(backend, recommendedBackend) &&
+        !approvedComboRef.current)
     );
   }
   // Set when the selected design fails to solve/build — most often a user
@@ -3737,6 +3781,14 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
           })
           .catch(() => {});
       }
+      return;
+    }
+    // Hard gate first: the active backend cannot run this design at all
+    // (e.g. junction-port designs on anything but B-spline — the solver
+    // raises). Same withhold UI, but the banner offers "switch", never
+    // "solve anyway". The app still never switches the solver itself.
+    if (backendDisallowed) {
+      setSolverWarning(true);
       return;
     }
     // Withhold the solve when the design/solver combo is a poor match and the
@@ -5309,6 +5361,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             slot={gearOpen}
             backend={slots[gearOpen].backend}
             backends={selectableBackends(havePynec)}
+            requiredBackends={requiredBackends}
             opts={slots[gearOpen].opts}
             onChangeBackend={(b) => {
               backendTouchedRef.current = true;
@@ -5338,7 +5391,52 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             Cancel solve
           </button>
         )}
-        {solverWarning && (
+        {solverWarning && backendDisallowed && (
+          <div
+            className="solver-suggest"
+            role="alertdialog"
+            aria-label="Solver unavailable for this design"
+          >
+            <span className="solver-suggest-title">
+              {BACKEND_LABEL[backend]} can't run this design
+            </span>
+            <span className="solver-suggest-sub">
+              {RESTRICTED_BACKEND_REASON} Switch to{" "}
+              {(requiredBackends ?? [])
+                .map((r) => normalizeBackend(r))
+                .filter((r): r is Backend => r !== null)
+                .map((r) => BACKEND_LABEL[r])
+                .join(" / ") || "a supported solver"}{" "}
+              to solve it, or pause to keep editing.
+            </span>
+            <div className="solver-suggest-actions">
+              {(() => {
+                const target = normalizeBackend(requiredBackends?.[0]);
+                return target ? (
+                  <button
+                    type="button"
+                    className="solver-suggest-primary"
+                    onClick={() => {
+                      backendTouchedRef.current = true;
+                      setSlotBackend(activeSlot, target);
+                    }}
+                  >
+                    Switch to {BACKEND_LABEL[target]}
+                  </button>
+                ) : null;
+              })()}
+              <button
+                type="button"
+                className="solver-suggest-secondary"
+                onClick={pauseSimulation}
+                title="Stop auto-solving so you can keep editing; click Live to resume."
+              >
+                Pause simulation
+              </button>
+            </div>
+          </div>
+        )}
+        {solverWarning && !backendDisallowed && (
           <div
             className="solver-suggest"
             role="alertdialog"
@@ -5988,6 +6086,11 @@ type BackendConfigProps = {
   slot: Slot;
   backend: Backend;
   backends: Backend[];
+  /** Per-design backend allowlist (`requires_backends`); null = all of
+   *  `backends` selectable. Disallowed tabs render disabled with a tooltip
+   *  explaining why, rather than disappearing — the picker stays stable
+   *  across design switches and the restriction itself is the signal. */
+  requiredBackends: string[] | null;
   opts: BackendOptsMap[Backend];
   onChangeBackend: (b: Backend) => void;
   onPatch: (patch: Partial<BackendOptsMap[Backend]>) => void;
@@ -5999,6 +6102,7 @@ function BackendConfigModal({
   slot,
   backend,
   backends,
+  requiredBackends,
   opts,
   onChangeBackend,
   onPatch,
@@ -6033,17 +6137,22 @@ function BackendConfigModal({
               <span>{BACKEND_LABEL[backend]}</span>
             </label>
             <div className="geometry-tabs" role="tablist">
-              {backends.map((b) => (
-                <button
-                  key={b}
-                  role="tab"
-                  aria-selected={backend === b}
-                  className={backend === b ? "active" : ""}
-                  onClick={() => onChangeBackend(b)}
-                >
-                  {BACKEND_LABEL[b]}
-                </button>
-              ))}
+              {backends.map((b) => {
+                const allowed = backendAllowed(b, requiredBackends);
+                return (
+                  <button
+                    key={b}
+                    role="tab"
+                    aria-selected={backend === b}
+                    className={backend === b ? "active" : ""}
+                    disabled={!allowed}
+                    title={allowed ? undefined : RESTRICTED_BACKEND_REASON}
+                    onClick={() => allowed && onChangeBackend(b)}
+                  >
+                    {BACKEND_LABEL[b]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
