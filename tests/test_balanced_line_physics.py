@@ -25,10 +25,16 @@ to model*, against full-wave MoM solves:
    cell is common-mode dominated (CM/DM ≈ 2.3, measured while developing
    these tests), which is why the oracle must be the full structure.
 
-The end-to-end BalancedLine-riser Sterba is NOT here: issue #576's
-validation found the blocker is attachment semantics (a `PortOnWire` gap
-cannot faithfully attach a floating element at a conductor END), not the
-element or its premise — see the issue thread for the evidence trail.
+4. The end-to-end BalancedLine-riser curtain (one Sterba bay, risers as
+   4-terminal elements on `PortAtEnd` junction ports) reproduces the all-wire
+   `wire.sterba`'s broadside gain — but ONLY with the element's ``zcomm``
+   common-mode path enabled. This is the #576 end-to-end finding: the pair's
+   conductor continuity is a load-bearing boundary condition in the
+   multi-loop curtain even though its CM current is small (test 3), and at
+   the risers' resonant λ/2 length the CM transport is a repeater —
+   insensitive to the ``zcomm`` value, which the test also asserts.
+   (History: #576 first found the attachment blocker, solved by #579's end
+   ports; then the differential-only residual, solved by ``zcomm``.)
 """
 
 import math
@@ -209,3 +215,143 @@ def test_sterba_offset_pair_risers_carry_differential_current():
         dm = np.max(np.abs(i1 - i2))
         ratios.append(cm / dm)
     assert all(r < 0.2 for r in ratios), ratios
+
+
+# ---------------------------------------------------------------------------
+# 4. End-to-end: a one-bay BL-riser curtain reproduces wire.sterba — with zcomm
+# ---------------------------------------------------------------------------
+
+
+class _MiniSterbaTL(AntennaBuilder):
+    """One Sterba bay (n_cells = 1) with wire.sterba's exact radiator layout —
+    two interleaved conductors, sections λ/4 + λ/2 + λ/4, physical
+    single-conductor end closures — and each interior riser pair replaced by
+    a BalancedLine across four `PortAtEnd` junction ports, wired by physical
+    conductor pairing (port A = the two top-rail ends, conductor 1 = the
+    A-conductor riser). The scratchpad `sterba_bl.py` riser="end" builder,
+    specialised to one bay."""
+
+    default_params = MappingProxyType(
+        {
+            "design_freq": FREQ,
+            "freq": FREQ,
+            "base": 7.0,
+            "spacing": 0.04,
+            "zcomm": 200.0,
+            "k1": 0.02,  # real open-wire loss regularises the λ/2 stamp
+            "end_corr": 0.030,  # measured pair end-effect elongation (m)
+        }
+    )
+
+    def _layout(self):
+        h = 0.5 * WL
+        q = 0.5 * h
+        yb = [0.0, q, q + h, 2 * q + h]
+        return h, yb
+
+    def _lvl(self, i, cond):
+        h, _ = self._layout()
+        a_top = i % 2 == 0
+        top, bot = self.base + h, self.base
+        if cond == "A":
+            return top if a_top else bot
+        return bot if a_top else top
+
+    def build_wires(self):
+        h, yb = self._layout()
+        s, pe = self.spacing, 0.2
+        tups = []
+        for cond, x in (("A", 0.0), ("B", s)):
+            for i in range(3):
+                z = self._lvl(i, cond)
+                y0, y1 = yb[i], yb[i + 1]
+                la = f"{cond}{i}a" if i > 0 else None
+                lb = f"{cond}{i}b" if i < 2 else None
+                if cond == "A" and i == 1:  # feed span (bottom-rail conductor)
+                    yc = 0.5 * (y0 + y1)
+                    tups.append(Wire((x, y0, z), (x, yc - 0.5 * pe, z), name=la))
+                    tups.append(
+                        Wire(
+                            (x, yc - 0.5 * pe, z), (x, yc + 0.5 * pe, z), name="feed"
+                        )  # fmt: skip
+                    )
+                    tups.append(Wire((x, yc + 0.5 * pe, z), (x, y1, z), name=lb))
+                else:
+                    ym = 0.5 * (y0 + y1)
+                    tups.append(Wire((x, y0, z), (x, ym, z), name=la))
+                    tups.append(Wire((x, ym, z), (x, y1, z), name=lb))
+        tups.append(Wire((0.0, 0.0, self._lvl(0, "A")), (s, 0.0, self._lvl(0, "B"))))
+        yl = yb[-1]
+        tups.append(Wire((0.0, yl, self._lvl(2, "A")), (s, yl, self._lvl(2, "B"))))
+        return tups
+
+    def build_network(self):
+        from antennaknobs.network import BalancedLine, PortAtEnd
+
+        h, _ = self._layout()
+        zd = analytic_zdiff(self.spacing)
+        ports = {"feed": PortOnWire("feed", distributed=True)}
+        branches = []
+        top = self.base + h
+        for k in (1, 2):
+            i = k - 1
+            pa, pa2 = f"eA{k}", f"eA{k}n"
+            pb, pb2 = f"eB{k}", f"eB{k}n"
+            ports[pa] = PortAtEnd(f"A{i}b", end="p1")
+            ports[pa2] = PortAtEnd(f"A{k}a", end="p0")
+            ports[pb] = PortAtEnd(f"B{i}b", end="p1")
+            ports[pb2] = PortAtEnd(f"B{k}a", end="p0")
+            a_top = self._lvl(i, "A") == top
+            a1, b1 = (pa, pa2) if a_top else (pa2, pa)
+            a2, b2 = (pb2, pb) if a_top else (pb, pb2)
+            branches.append(
+                BalancedLine(
+                    a1=a1,
+                    a2=a2,
+                    b1=b1,
+                    b2=b2,
+                    zdiff=zd,
+                    length=h + self.end_corr,
+                    k1=self.k1,
+                    zcomm=self.zcomm,
+                )  # fmt: skip
+            )
+        return Network(
+            ports=ports,
+            branches=branches,
+            sources=[Driven(port="feed", voltage=1 + 0j)],
+        )
+
+
+def _peak(eng):
+    ff = eng.far_field(n_theta=45, n_phi=72, del_theta=2, del_phi=5)
+    rings = np.asarray(ff.rings)
+    _, j = np.unravel_index(np.argmax(rings), rings.shape)
+    return float(ff.max_gain), float(np.asarray(ff.phis)[j])
+
+
+@pytest.mark.antenna_computation_check
+def test_bl_riser_curtain_reproduces_wire_sterba_with_zcomm():
+    """The #576 end-to-end acceptance at one bay, free space: the BL-riser
+    curtain must land within 0.5 dB of the all-wire wire.sterba and fire
+    BROADSIDE. Differential-only (zcomm=None) fails the gain bound (−0.9 dB
+    at one bay, from the ±90°-per-boundary span-phase fanout that at n≥3
+    grows to −5 dB with the beam steered to az 35°); the CM path restores
+    it. At the risers' λ/2 length the CM line is a repeater, so the result
+    must be insensitive to the zcomm value — the reason no zdiff/zcomm
+    tuning is needed or possible."""
+    import importlib
+
+    ster = importlib.import_module("antennaknobs.designs.wire.sterba").Builder
+    bp = ster(dict(ster.default_params, n_cells=1))
+    gain_phys, az_phys = _peak(MomwireEngine(bp, ground=None))
+    assert min(az_phys % 180.0, 180.0 - az_phys % 180.0) <= 10.0  # broadside
+
+    b100 = _MiniSterbaTL(dict(_MiniSterbaTL.default_params, zcomm=100.0))
+    gain_100, az_100 = _peak(MomwireEngine(b100, ground=None))
+    assert min(az_100 % 180.0, 180.0 - az_100 % 180.0) <= 10.0
+    assert abs(gain_100 - gain_phys) < 0.5
+
+    b400 = _MiniSterbaTL(dict(_MiniSterbaTL.default_params, zcomm=400.0))
+    gain_400, _az = _peak(MomwireEngine(b400, ground=None))
+    assert abs(gain_400 - gain_100) < 0.1  # λ/2 repeater: zcomm-insensitive

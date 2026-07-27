@@ -284,3 +284,107 @@ def test_balanced_line_cross_engine_agrees():
     z_mw = MomwireEngine(builder, solver=SinusoidalSolver, ground="free").impedance()[0]
     z_pynec = PyNECEngine(builder, ground="free").impedance()[0]
     assert abs(z_pynec - z_mw) / abs(z_mw) < 0.02
+
+
+# ---------------------------------------------------------------------------
+# 6. The optional common-mode path (zcomm, issue #576)
+# ---------------------------------------------------------------------------
+
+
+def test_zcomm_stamp_is_dm_plus_cm_kron():
+    """With zcomm, the 4×4 is exactly the differential kron plus the CM 2×2
+    tensored with ¼·ones — the even/odd decomposition, to machine precision."""
+    y_dm = tl_admittance_2x2(450.0, 0.3 * WL, WL)
+    y_cm = tl_admittance_2x2(200.0, 0.3 * WL, WL)
+    y4 = balanced_admittance_4x4(450.0, 0.3 * WL, WL, zcomm=200.0)
+    expected = np.kron(y_dm, np.array([[1.0, -1.0], [-1.0, 1.0]])) + np.kron(
+        y_cm, np.full((2, 2), 0.25)
+    )
+    np.testing.assert_allclose(y4, expected, rtol=0, atol=1e-18)
+
+
+def test_zcomm_never_perturbs_differential_behaviour():
+    """The ¼·ones incidence annihilates differential vectors, so the response
+    to any pure-differential excitation is IDENTICAL with and without zcomm —
+    no cross-terms between the modes."""
+    y_plain = balanced_admittance_4x4(450.0, 0.3 * WL, WL)
+    y_cm = balanced_admittance_4x4(450.0, 0.3 * WL, WL, zcomm=200.0)
+    for v in (np.array([1, -1, 0, 0]), np.array([0, 0, 1, -1])):
+        np.testing.assert_allclose(y_cm @ v, y_plain @ v, rtol=0, atol=1e-18)
+
+
+def test_zcomm_common_mode_is_the_cm_tl():
+    """Driving a pair with a pure common vector reproduces the CM 2×2 TL over
+    (total current, average voltage): the pair current splits equally and the
+    totals equal tl_admittance_2x2(zcomm)'s column."""
+    y_cm = tl_admittance_2x2(200.0, 0.3 * WL, WL)
+    y4 = balanced_admittance_4x4(450.0, 0.3 * WL, WL, zcomm=200.0)
+    i = y4 @ np.array([1.0, 1.0, 0.0, 0.0])  # V_cm(A) = 1, V_cm(B) = 0
+    assert i[0] == pytest.approx(i[1])  # splits equally
+    assert i[2] == pytest.approx(i[3])
+    assert i[0] + i[1] == pytest.approx(y_cm[0, 0])
+    assert i[2] + i[3] == pytest.approx(y_cm[1, 0])
+
+
+def test_zcomm_stamp_is_full_rank():
+    """DM (rank 2) plus its orthogonal CM complement (rank 2) span all four
+    terminal directions: the stamp is rank 4 — no floating mode left."""
+    y4 = balanced_admittance_4x4(450.0, 0.3 * WL, WL, zcomm=200.0)
+    assert np.linalg.matrix_rank(y4, tol=1e-9) == 4
+
+
+def test_zcomm_crossover_flips_only_the_differential_sign():
+    """Swapping (b1, b2) — the physical crossover — leaves the CM block
+    untouched: the swapped-minus-straight difference is identical with and
+    without zcomm."""
+    swap = [0, 1, 3, 2]
+    plain = balanced_admittance_4x4(450.0, 0.3 * WL, WL)
+    with_cm = balanced_admittance_4x4(450.0, 0.3 * WL, WL, zcomm=200.0)
+    d_plain = plain[np.ix_(swap, swap)] - plain
+    d_cm = with_cm[np.ix_(swap, swap)] - with_cm
+    np.testing.assert_allclose(d_cm, d_plain, rtol=0, atol=1e-18)
+
+
+def test_zcomm_terminals_count_as_cm_determinate():
+    """The exact network test_common_mode_floating_rejected_at_build_time
+    rejects becomes valid once the BalancedLine carries a zcomm: its CM block
+    is itself the return, so the virtual far end is determinate."""
+    net = Network(
+        ports={
+            "a1": PortOnWire("a1"),
+            "a2": PortOnWire("a2"),
+            "v1": PortVirtual("v1"),
+            "v2": PortVirtual("v2"),
+        },
+        branches=[
+            BalancedLine(
+                "a1", "a2", "v1", "v2", zdiff=450.0, length=0.3 * WL, zcomm=200.0
+            )
+        ],
+        sources=[Driven(port="a1")],
+    )
+    assert len(net.branches) == 1
+
+
+def test_reducer_passes_zcomm_through():
+    """NetworkReducer stamps the zcomm-augmented block: same nodal-reference
+    oracle as the differential case, with the CM block in y_full."""
+    net = Network(
+        ports={n: PortOnWire(n) for n in ("a1", "a2", "b1", "b2")},
+        branches=[
+            BalancedLine(
+                "a1", "a2", "b1", "b2", zdiff=450.0, length=0.3 * WL, zcomm=200.0
+            )
+        ],
+        sources=[Driven(port="a1", voltage=1 + 0j), Driven(port="b1", voltage=0.5j)],
+    )
+    port_to_idx = {n: i for i, n in enumerate(("a1", "a2", "b1", "b2"))}
+    red = NetworkReducer(net, port_to_idx, 4)
+
+    y = synth_y(4, 11)
+    y_full = y.copy()
+    y_full += balanced_admittance_4x4(450.0, 0.3 * WL, WL, zcomm=200.0)
+    v_ref, i_ref = nodal_reference(y_full, {0: 1 + 0j, 2: 0.5j})
+
+    z = red.driven_impedance(y, WL)
+    np.testing.assert_allclose(z, [v_ref[0] / i_ref[0], v_ref[2] / i_ref[2]], rtol=1e-9)

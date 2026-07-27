@@ -22,7 +22,7 @@ as tiny stub wires at sensible locations.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import NamedTuple, Union
+from typing import NamedTuple, Optional, Union
 
 
 @dataclass(frozen=True)
@@ -524,34 +524,57 @@ class BalancedLine:
     matched-loss ``k1``/``k2`` — mirroring `TL`. For anyone coming from the
     microwave even/odd convention, ``zdiff = 2·z0o``.
 
-    Deliberately **differential-ONLY**, not general even/odd coupled: an
-    isolated two-wire pair supports exactly one TEM mode — the differential
-    one. The even ("common") mode needs a third conductor as its return; for
-    risers hanging in space its Z0 is ill-defined, and even-mode current is
-    really antenna-mode current that radiates, which a network branch inherently
-    cannot represent. So the element stamps only the odd-mode block, which
-    structurally forces ``I(a1) = −I(a2)`` at each end — exactly the ±I
-    cancellation the Sterba pair relies on, enforced by construction.
+    **Differential by default, with an optional common-mode path** (``zcomm``,
+    issue #576). The default ``zcomm=None`` stamps only the odd-mode block,
+    which structurally forces ``I(a1) = −I(a2)`` at each end — exactly the ±I
+    cancellation the Sterba pair relies on, enforced by construction. That
+    default follows the physics of an isolated pair: it supports exactly one
+    TEM mode (the differential one); the even ("common") mode's return is a
+    third conductor that isn't there, its Z0 is ill-defined, and even-mode
+    current is really antenna-mode current that radiates, which a network
+    branch cannot faithfully represent.
+
+    BUT — the #576 end-to-end finding — a differential-only stamp also
+    deletes the pair's *conductor continuity*: a real pair, however tightly
+    coupled, still transports its end-to-end common-mode boundary condition,
+    and in multi-loop structures (the multi-bay Sterba curtain) that
+    constraint is load-bearing even where the CM *current* is small (measured
+    5–15% of DM there, yet its removal costs 5 dB and steers the beam). Set
+    ``zcomm`` — the pair-driven-as-one-conductor CM impedance — to add the
+    orthogonal even-mode block and restore the path. Honesty notes: at
+    resonant lengths (≈ k·vf·λ/2, e.g. the Sterba's risers) the CM line is a
+    repeater and results are insensitive to the value (measured identical
+    over 25–400 Ω), so any plausible number is fine; away from resonance
+    ``zcomm`` is a genuine approximation for a radiating path — estimate it
+    from geometry and treat results accordingly. The CM stamp still cannot
+    radiate; a structure whose riser antenna-mode current matters beyond its
+    boundary condition needs real wires.
 
     Stamped through the shared `NetworkReducer` as a frequency-dependent 4×4
     Group-1 admittance block (see ``network_reduce.balanced_admittance_4x4``):
     in differential variables it is an ordinary 2-port TL with z0 = zdiff, so
     the 4×4 is ``tl_admittance_2x2(zdiff, …)`` expanded through the pair
-    incidence — each 2×2 entry ``y`` becomes the block ``y·[[1,−1],[−1,1]]``. It
-    reuses that helper's matched-loss model and half-wave singularity guard: a
-    lossless line at exactly k·vf·λ/2 raises, and real open-wire ``k1`` loss
+    incidence — each 2×2 entry ``y`` becomes the block ``y·[[1,−1],[−1,1]]``;
+    ``zcomm`` adds ``kron(tl_admittance_2x2(zcomm, …), ¼·ones)``, which
+    annihilates differential vectors — the exact even/odd decomposition, no
+    cross-terms, so the differential behaviour is untouched. It reuses that
+    helper's matched-loss model and half-wave singularity guard: a lossless
+    line at exactly k·vf·λ/2 raises, and real open-wire ``k1`` loss
     regularises the exactly-λ/2 riser physically (no length-factor fudge).
 
     **No ``transposed`` flag**: with four explicit terminals a crossover (the
-    Sterba's half-twist) is just wiring port B as ``(b2, b1)`` — visible in the
-    design source.
+    Sterba's half-twist) is just wiring port B as ``(b2, b1)`` — visible in
+    the design source. (A crossover flips only the differential sign; the CM
+    block is symmetric under it.)
 
-    The common mode is structurally open (the 4×4 is rank-2 by construction),
-    so each terminal node must be common-mode-determinate from elsewhere —
-    attached to a radiating wire (`PortOnWire`), driven, or wired to a
-    non-BalancedLine branch. A node reachable *only* through BalancedLine
-    terminals is rejected by `Network.__post_init__` (it would make MNA
-    singular at solve time).
+    With ``zcomm=None`` the common mode is structurally open (the 4×4 is
+    rank-2 by construction), so each terminal node must be
+    common-mode-determinate from elsewhere — attached to a radiating wire
+    (`PortOnWire`), driven, or wired to a non-BalancedLine branch. A node
+    reachable *only* through CM-open BalancedLine terminals is rejected by
+    `Network.__post_init__` (it would make MNA singular at solve time); a
+    ``zcomm``-carrying BalancedLine is itself a common-mode return, so its
+    terminals count as determinate.
 
     Both engines stamp it through the shared `NetworkReducer` (a pure
     admittance block, no native NEC card — exactly like `TL`, `Shunt`,
@@ -572,6 +595,7 @@ class BalancedLine:
     vf: float = 1.0
     k1: float = 0.0
     k2: float = 0.0
+    zcomm: Optional[float] = None
 
 
 Branch = Union[TL, Load, TwoPort, Shunt, Transformer, Admittance, BalancedLine]
@@ -980,26 +1004,29 @@ class Network:
         self._validate_common_mode()
 
     def _validate_common_mode(self):
-        """A `BalancedLine` stamps only the differential block, contributing
-        nothing to its terminals' common mode. A node reachable ONLY through
-        BalancedLine terminals is therefore common-mode floating, which makes
-        the MNA singular at solve time — raise a clear, node-naming error here
-        at build time instead. A node is common-mode-determinate if it is a
-        real `PortOnWire` or `PortAtEnd` (an antenna-Y row grounds it), is
-        driven by a source, or is referenced by any non-BalancedLine branch
-        (issue #575)."""
-        balanced = [b for b in self.branches if isinstance(b, BalancedLine)]
-        if not balanced:
+        """A CM-open `BalancedLine` (``zcomm=None``) stamps only the
+        differential block, contributing nothing to its terminals' common
+        mode. A node reachable ONLY through such terminals is common-mode
+        floating, which makes the MNA singular at solve time — raise a clear,
+        node-naming error here at build time instead. A node is
+        common-mode-determinate if it is a real `PortOnWire` or `PortAtEnd`
+        (an antenna-Y row grounds it), is driven by a source, or is
+        referenced by any non-BalancedLine branch or by a ``zcomm``-carrying
+        BalancedLine (its CM block is itself a return) — issues #575/#576."""
+        cm_open = [
+            b for b in self.branches if isinstance(b, BalancedLine) and b.zcomm is None
+        ]
+        if not cm_open:
             return
         determinate = {
             n for n, p in self.ports.items() if isinstance(p, (PortOnWire, PortAtEnd))
         }
         determinate.update(src.port for src in self.sources)
         for br in self.branches:
-            if not isinstance(br, BalancedLine):
+            if not (isinstance(br, BalancedLine) and br.zcomm is None):
                 determinate.update(_branch_port_refs(br))
         touched = set()
-        for br in balanced:
+        for br in cm_open:
             touched.update(_branch_port_refs(br))
         floating = sorted(touched - determinate)
         if floating:
@@ -1007,8 +1034,8 @@ class Network:
                 f"node(s) {floating} attach only via BalancedLine terminals, "
                 "whose common mode is structurally open — the MNA would be "
                 "singular. Give each a common-mode return: attach it to a "
-                "radiating wire (PortOnWire), drive it, or wire it to a "
-                "non-BalancedLine branch."
+                "radiating wire (PortOnWire), drive it, wire it to a "
+                "non-BalancedLine branch, or set zcomm on the BalancedLine."
             )
 
     def _expand_instances(self):
