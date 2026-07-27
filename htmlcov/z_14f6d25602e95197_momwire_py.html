@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/engines/momwire.py: 95%</title>
+    <title>Coverage for src/antennaknobs/engines/momwire.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>engines<span class="sep">/</span>momwire.py</b>:
-            <span class="pc_cov">95%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">477 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">455<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">22<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">457<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">20<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_14f6d25602e95197_pynec_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-07-27 00:10 +0000
+            created at 2026-07-27 02:12 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -612,12 +612,12 @@
     <p class="run"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">        <span class="nam">W</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_feed_W</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">        <span class="nam">n_end</span> <span class="op">=</span> <span class="nam">len</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_end_port_junctions</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">        <span class="key">if</span> <span class="nam">n_end</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">            <span class="nam">W</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">block</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t534" href="#t534">534</a></span><span class="t">                <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">                    <span class="op">[</span><span class="nam">W</span><span class="op">,</span> <span class="nam">np</span><span class="op">.</span><span class="nam">zeros</span><span class="op">(</span><span class="op">(</span><span class="nam">W</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">n_end</span><span class="op">)</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t">                    <span class="op">[</span><span class="nam">np</span><span class="op">.</span><span class="nam">zeros</span><span class="op">(</span><span class="op">(</span><span class="nam">n_end</span><span class="op">,</span> <span class="nam">W</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="nam">np</span><span class="op">.</span><span class="nam">eye</span><span class="op">(</span><span class="nam">n_end</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">                <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">            <span class="nam">W</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">block</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t534" href="#t534">534</a></span><span class="t">                <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">                    <span class="op">[</span><span class="nam">W</span><span class="op">,</span> <span class="nam">np</span><span class="op">.</span><span class="nam">zeros</span><span class="op">(</span><span class="op">(</span><span class="nam">W</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">n_end</span><span class="op">)</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t">                    <span class="op">[</span><span class="nam">np</span><span class="op">.</span><span class="nam">zeros</span><span class="op">(</span><span class="op">(</span><span class="nam">n_end</span><span class="op">,</span> <span class="nam">W</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="nam">np</span><span class="op">.</span><span class="nam">eye</span><span class="op">(</span><span class="nam">n_end</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">                <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">        <span class="key">if</span> <span class="nam">Y</span><span class="op">.</span><span class="nam">ndim</span> <span class="op">==</span> <span class="num">3</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t540" href="#t540">540</a></span><span class="t">            <span class="key">return</span> <span class="nam">np</span><span class="op">.</span><span class="nam">einsum</span><span class="op">(</span><span class="str">"ia,kij,jb->kab"</span><span class="op">,</span> <span class="nam">W</span><span class="op">,</span> <span class="nam">Y</span><span class="op">,</span> <span class="nam">W</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t541" href="#t541">541</a></span><span class="t">        <span class="key">return</span> <span class="nam">W</span><span class="op">.</span><span class="nam">T</span> <span class="op">@</span> <span class="nam">Y</span> <span class="op">@</span> <span class="nam">W</span>&nbsp;</span><span class="r"></span></p>
@@ -910,9 +910,9 @@
     <p class="run"><span class="n"><a id="t828" href="#t828">828</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_end_port_junctions</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t829" href="#t829">829</a></span><span class="t">            <span class="com"># Legacy build_tls designs have no end ports, so this only</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t830" href="#t830">830</a></span><span class="t">            <span class="com"># fires on the network path where end_port_voltages is set.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t831" href="#t831">831</a></span><span class="t">            <span class="nam">kw</span><span class="op">[</span><span class="str">"junction_ports"</span><span class="op">]</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t832" href="#t832">832</a></span><span class="t">                <span class="op">(</span><span class="nam">j</span><span class="op">,</span> <span class="nam">v</span><span class="op">)</span> <span class="key">for</span> <span class="nam">j</span><span class="op">,</span> <span class="nam">v</span> <span class="key">in</span> <span class="nam">zip</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_end_port_junctions</span><span class="op">,</span> <span class="nam">end_port_voltages</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t833" href="#t833">833</a></span><span class="t">            <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t831" href="#t831">831</a></span><span class="t">            <span class="nam">kw</span><span class="op">[</span><span class="str">"junction_ports"</span><span class="op">]</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t832" href="#t832">832</a></span><span class="t">                <span class="op">(</span><span class="nam">j</span><span class="op">,</span> <span class="nam">v</span><span class="op">)</span> <span class="key">for</span> <span class="nam">j</span><span class="op">,</span> <span class="nam">v</span> <span class="key">in</span> <span class="nam">zip</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_end_port_junctions</span><span class="op">,</span> <span class="nam">end_port_voltages</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t833" href="#t833">833</a></span><span class="t">            <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t834" href="#t834">834</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_solver</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t835" href="#t835">835</a></span><span class="t">            <span class="nam">wires</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_polylines</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t836" href="#t836">836</a></span><span class="t">            <span class="nam">n_per_edge_per_wire</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_edge_segments</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -1200,7 +1200,7 @@
             <a class="nav" href="z_14f6d25602e95197_pynec_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-07-27 00:10 +0000
+            created at 2026-07-27 02:12 +0000
         </p>
     </div>
 </footer>
