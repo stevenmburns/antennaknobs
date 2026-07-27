@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">930 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">836<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">94<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">839<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">91<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-07-27 04:02 +0000
+            created at 2026-07-27 16:07 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1277,7 +1277,7 @@
     <p class="run"><span class="n"><a id="t1195" href="#t1195">1195</a></span><span class="t">    <span class="nam">feeds</span> <span class="op">=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">engine</span><span class="op">,</span> <span class="str">"_feeds"</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span> <span class="key">or</span> <span class="op">[</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1196" href="#t1196">1196</a></span><span class="t">    <span class="nam">feed_names</span> <span class="op">=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">engine</span><span class="op">,</span> <span class="str">"_feed_names"</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span> <span class="key">or</span> <span class="op">[</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1197" href="#t1197">1197</a></span><span class="t">    <span class="key">if</span> <span class="key">not</span> <span class="nam">feeds</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1198" href="#t1198">1198</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1198" href="#t1198">1198</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1199" href="#t1199">1199</a></span><span class="t">    <span class="nam">feed_idx</span> <span class="op">=</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1200" href="#t1200">1200</a></span><span class="t">    <span class="nam">network</span> <span class="op">=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">engine</span><span class="op">,</span> <span class="str">"_network"</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1201" href="#t1201">1201</a></span><span class="t">    <span class="key">if</span> <span class="nam">network</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">and</span> <span class="nam">network</span><span class="op">.</span><span class="nam">sources</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -1310,7 +1310,7 @@
     <p class="pln"><span class="n"><a id="t1228" href="#t1228">1228</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1229" href="#t1229">1229</a></span><span class="t">    <span class="nam">pf</span> <span class="op">=</span> <span class="nam">_primary_feed</span><span class="op">(</span><span class="nam">engine</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1230" href="#t1230">1230</a></span><span class="t">    <span class="key">if</span> <span class="nam">pf</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1231" href="#t1231">1231</a></span><span class="t">        <span class="key">return</span> <span class="num">0</span><span class="op">,</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1231" href="#t1231">1231</a></span><span class="t">        <span class="key">return</span> <span class="num">0</span><span class="op">,</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1232" href="#t1232">1232</a></span><span class="t">    <span class="nam">pl_idx</span><span class="op">,</span> <span class="nam">arclen</span> <span class="op">=</span> <span class="nam">pf</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1233" href="#t1233">1233</a></span><span class="t">    <span class="key">if</span> <span class="nam">pl_idx</span> <span class="op">>=</span> <span class="nam">len</span><span class="op">(</span><span class="nam">currents</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1234" href="#t1234">1234</a></span><span class="t">        <span class="key">return</span> <span class="num">0</span><span class="op">,</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
@@ -1346,7 +1346,7 @@
     <p class="pln"><span class="n"><a id="t1264" href="#t1264">1264</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1265" href="#t1265">1265</a></span><span class="t">    <span class="nam">pf</span> <span class="op">=</span> <span class="nam">_primary_feed</span><span class="op">(</span><span class="nam">engine</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1266" href="#t1266">1266</a></span><span class="t">    <span class="key">if</span> <span class="nam">pf</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1267" href="#t1267">1267</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1267" href="#t1267">1267</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1268" href="#t1268">1268</a></span><span class="t">    <span class="key">return</span> <span class="nam">_position_at</span><span class="op">(</span><span class="nam">currents</span><span class="op">,</span> <span class="nam">pf</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">pf</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1269" href="#t1269">1269</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1270" href="#t1270">1270</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -2507,7 +2507,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-07-27 04:02 +0000
+            created at 2026-07-27 16:07 +0000
         </p>
     </div>
 </footer>
