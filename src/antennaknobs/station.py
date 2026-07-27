@@ -26,7 +26,7 @@ branch classes' SI at construction. Ohms and Q are dimensionless-as-usual.
 
 from __future__ import annotations
 
-from .network import Composite, Shunt, Transformer, TwoPort
+from .network import Composite, FloatingBalun, Shunt, Transformer, TwoPort
 
 
 def bypass() -> Composite:
@@ -109,6 +109,64 @@ def balun(
     return Composite(
         ports=("line", "ant"),
         branches=(Transformer(a="line", b="ant", n=n, lmag=lmag, qlmag=qlmag),),
+    )
+
+
+def link_coupling(
+    n: float = 1.0, lmag_uH: float | None = None, qlmag: float | None = None
+) -> Composite:
+    """Link-coupling / floating balun — the differential twin of `balun()`
+    (issue #589). A single-ended ``primary`` (to the datum, e.g. the rig) and
+    a genuinely floating differential secondary pair ``a``/``b``: the balanced
+    output is above the datum on both legs, so it hands a `BalancedLine` / a
+    balanced tuner a datum-free feed. ``n`` is the primary→secondary voltage
+    ratio (``v_a − v_b = n·v_primary``), so the secondary differential load is
+    referred to the primary as ``Z_primary = Z_secondary / n²`` — ``n=1`` is a
+    1:1 current balun (the Palstar BT1500A's input choke), ``n=2`` a 4:1
+    step-down. ``lmag_uH``/``qlmag`` are the choke's magnetizing branch (the
+    balun's own common-mode choking, distinct from `BalancedLine.zcomm`).
+    Formals: ``primary`` (rig/coax side), ``a``/``b`` (balanced pair)."""
+    lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
+    return Composite(
+        ports=("primary", "a", "b"),
+        branches=(
+            FloatingBalun(primary="primary", a="a", b="b", n=n, lmag=lmag, qlmag=qlmag),
+        ),
+    )
+
+
+def balanced_l_tuner(
+    l_uH: float,
+    c_pF: float,
+    n: float = 1.0,
+    ql: float | None = None,
+    lmag_uH: float | None = None,
+    qlmag: float | None = None,
+) -> Composite:
+    """The Palstar BT1500A "double roller balanced tuner" idiom (issue #589):
+    a 1:1 (``n``) floating balun at the single-ended ``rig`` input, then a
+    balanced L-network whose whole tuning section floats above the datum —
+    the series roller inductance split symmetrically into both legs
+    (``l_uH``/2 per leg) and a differential resonating capacitor ``c_pF``
+    across the balanced output. Only the balun's primary is datum-referenced;
+    the L-network legs are both above ground, so no common-mode current is
+    injected at the rig. ``ql`` gives the roller coil a finite Q (the tuner's
+    dominant loss); ``lmag_uH``/``qlmag`` the balun choke. Formals: ``rig``
+    (transmitter/coax side), ``outL``/``outR`` (balanced line side)."""
+    lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
+    return Composite(
+        ports=("rig", "outL", "outR"),
+        branches=(
+            # 1:1 choke balun at the 50 Ω input → floating secondary (sL, sR)
+            FloatingBalun(
+                primary="rig", a="sL", b="sR", n=n, lmag=lmag, qlmag=qlmag
+            ),  # fmt: skip
+            # roller inductance split into both legs, one half per leg
+            TwoPort(a="sL", b="outL", l=0.5 * l_uH * 1e-6, ql=ql),
+            TwoPort(a="sR", b="outR", l=0.5 * l_uH * 1e-6, ql=ql),
+            # differential resonating cap across the balanced output legs
+            TwoPort(a="outL", b="outR", c=c_pF * 1e-12),
+        ),
     )
 
 
