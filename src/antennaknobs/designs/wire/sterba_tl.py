@@ -5,6 +5,14 @@ Where `wire.sterba` models the curtain as a single continuous wire
 the vertical phasing sections as **ideal transmission lines** via
 `build_network()`.
 
+NOTE: this is deliberately the one-high single-conductor STUDY — it
+plateaus ~4 dB below the true curtain by construction (see the design
+notes below). The faithful TL curtain is `wire.sterba_bl`: the full
+two-conductor geometry with `BalancedLine` risers on `PortAtEnd` junction
+ports, which reproduces `wire.sterba`'s gain within ~0.2 dB (momwire
+only). This design stays in the catalog as the simplest network-TL
+worked example.
+
 Simplified single-conductor form: a flat meander at x=0 made of
 `n_cells + 2` horizontal sections (a quarter-wave at each end, `n_cells`
 half-waves in the middle) at alternating heights — bottom rail (z = base)

@@ -70,7 +70,7 @@ from antennaknobs.builder import (
     diff_params,
     resolve_variant_params,
 )
-from antennaknobs.network import as_wire
+from antennaknobs.network import PortAtEnd, as_wire
 
 try:
     from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
@@ -1607,6 +1607,33 @@ _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 
 
 @lru_cache(maxsize=None)
+def _required_backends(cls) -> tuple[str, ...] | None:
+    """Backend allowlist a design is restricted to, or None (no restriction).
+
+    Today's only restriction: a design whose network has any `PortAtEnd`
+    resolves to junction-node ports, which only the dense B-spline solver
+    implements (momwire#172 — the sinusoidal and iterative HMatrix/
+    ArrayBlock solvers raise NotImplementedError, and NEC-2 has no
+    equivalent card at all, so `PyNECEngine` rejects the design at
+    construction, issue #579). DERIVED from the flattened network spec
+    rather than declared per design, so the capability cannot drift from
+    what the design actually does. The frontend disables the other backend
+    tabs (with an explanatory tooltip) and coerces an active disallowed
+    selection to the first allowed entry on design switch; the solvers'
+    hard errors remain the enforcement. Any failure to build the network
+    falls back to None — the design's real error surfaces through the
+    normal solve path. A future momwire release that widens junction-port
+    support only needs to widen this tuple."""
+    try:
+        net = _build_builder(cls, {}).build_network()
+    except Exception:
+        return None
+    if net is not None and any(isinstance(p, PortAtEnd) for p in net.ports.values()):
+        return ("bspline",)
+    return None
+
+
+@lru_cache(maxsize=None)
 def _recommended_backend(cls) -> str | None:
     """Recommend a default solver for the design, or None to let the UI keep
     its own default (the dense B-spline path).
@@ -1756,7 +1783,15 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 if multi_feed_override is not None
                 else _auto_multi_feed(cls)
             )
-            _hints["default_backend"] = _recommended_backend(cls)
+            # A backend restriction trumps the fit-based recommendation: the
+            # recommender's geometry heuristics (array detection, mesh size)
+            # don't know about solver capabilities, and recommending a
+            # backend the design cannot run would seed a guaranteed failure.
+            required = _required_backends(cls)
+            _hints["requires_backends"] = required
+            _hints["default_backend"] = (
+                required[0] if required else _recommended_backend(cls)
+            )
         return _hints
 
     # Grid-level layout config (reserved ui_params["layout"]). A dict today
@@ -2280,11 +2315,16 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # of snapping to a wrong "xy" and then flipping when the preview lands.
         field_default_view = str(view_override) if view_override is not None else None
         field_default_backend = None
+        # Provisional None for deferred (user) designs: every backend tab
+        # stays enabled, and a PortAtEnd user design surfaces the solver's
+        # hard error through the normal solve-error banner instead.
+        field_requires_backends = None
     else:
         h = hints()
         field_multi_feed = h["multi_feed"]
         field_default_view = h["default_view"]
         field_default_backend = h["default_backend"]
+        field_requires_backends = h["requires_backends"]
 
     return AntennaExample(
         name=name,
@@ -2294,6 +2334,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         momwire_geometry=momwire_geometry,
         count_basis=count_basis,
         default_backend=field_default_backend,
+        requires_backends=field_requires_backends,
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,

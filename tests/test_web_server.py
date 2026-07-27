@@ -1148,13 +1148,19 @@ def test_geometry_endpoint_returns_wires_without_solving(client: TestClient):
 def test_examples_carry_default_backend(client: TestClient):
     # Every example exposes default_backend (str | null). Grid arrays recommend
     # the array-block accelerator; benchmark-sized meshes recommend the
-    # sinusoidal solver (see _SINUSOIDAL_RECOMMEND_MIN_BASIS); other designs
-    # keep the UI default (null) so their basis/results are unchanged.
+    # sinusoidal solver (see _SINUSOIDAL_RECOMMEND_MIN_BASIS); backend-
+    # restricted designs (requires_backends) get their allowlist's first
+    # entry (the fit-based recommendation could name a backend the design
+    # cannot run); other designs keep the UI default (null) so their
+    # basis/results are unchanged.
     payload = client.get("/examples").json()
     by_name = {e["name"]: e for e in payload["examples"]}
     for e in payload["examples"]:
         assert "default_backend" in e
-        assert e["default_backend"] in (None, "arrayblock", "sinusoidal")
+        if e["requires_backends"] is not None:
+            assert e["default_backend"] == e["requires_backends"][0]
+        else:
+            assert e["default_backend"] in (None, "arrayblock", "sinusoidal")
     assert by_name["arrays.bowtiearray2x4"]["default_backend"] == "arrayblock"
     assert by_name["verticals.elt_whip"]["default_backend"] == "sinusoidal"
     # A plain single-element design keeps the default.
@@ -1165,6 +1171,27 @@ def test_examples_carry_default_backend(client: TestClient):
     # so a Yagi (and a plain dipole) keep the dense default.
     assert by_name["beams.yagi"]["default_backend"] is None
     assert by_name["dipoles.invvee"]["default_backend"] is None
+
+
+def test_examples_carry_requires_backends(client: TestClient):
+    """Backend allowlist (issue #579): a design whose network has PortAtEnd
+    junction ports is restricted to the B-spline solver — the only one that
+    implements junction ports (momwire#172; NEC-2 has no equivalent card).
+    The flag is DERIVED from the network spec by the adapter, so it appears
+    exactly on the designs that need it; the frontend disables the other
+    backend tabs and hard-gates the solve on it. Its default_backend must
+    also be the allowed solver, not the array-detector's recommendation
+    (the curtain's repeated spans look like a grid array to it)."""
+    payload = client.get("/examples").json()
+    by_name = {e["name"]: e for e in payload["examples"]}
+    for e in payload["examples"]:
+        assert "requires_backends" in e
+    assert by_name["wire.sterba_bl"]["requires_backends"] == ["bspline"]
+    assert by_name["wire.sterba_bl"]["default_backend"] == "bspline"
+    # The unrestricted Sterba siblings stay unrestricted — including the
+    # network-TL one (TL/BalancedLine on PortOnWire gaps run everywhere).
+    assert by_name["wire.sterba"]["requires_backends"] is None
+    assert by_name["wire.sterba_tl"]["requires_backends"] is None
 
 
 def test_examples_carry_notes(client: TestClient):
