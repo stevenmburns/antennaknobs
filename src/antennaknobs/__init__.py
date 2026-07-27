@@ -4,6 +4,7 @@ __all__ = [
     "Drone",
     "Antenna",
     "AntennaBuilder",
+    "C_LIGHT_MHZ_M",
     "Array2x2Builder",
     "Array2x4Builder",
     "Array1x4Builder",
@@ -40,6 +41,7 @@ __all__ = [
 
 from .builder import (
     AntennaBuilder,
+    C_LIGHT_MHZ_M,
     Array2x2Builder,
     Array2x4Builder,
     Array1x4Builder,
