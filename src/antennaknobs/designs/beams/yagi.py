@@ -26,7 +26,7 @@ class Builder(AntennaBuilder):
         eps = 0.05
         b = self.base
 
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         driver_y = 0.25 * wavelength * self.length_factor
         reflector_y = driver_y * self.reflector_factor

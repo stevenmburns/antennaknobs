@@ -44,7 +44,7 @@ Horizontally polarised.
    back (low freq)                              front (high freq), beam --> +x
 """
 
-from antennaknobs import AntennaBuilder
+from antennaknobs import AntennaBuilder, C_LIGHT_MHZ_M
 from antennaknobs.network import Driven, Network, PortOnWire, TL, Wire
 from types import MappingProxyType
 
@@ -93,7 +93,7 @@ class Builder(AntennaBuilder):
     def _layout(self):
         """Element half-lengths h[n] and boom positions x[n], longest (n=0)
         at the back. Shared by build_wires and build_network."""
-        c = 299.792458
+        c = C_LIGHT_MHZ_M
         n = int(self.n_elements)
         tau = self.tau
         sigma = self.sigma

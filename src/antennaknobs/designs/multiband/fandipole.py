@@ -4,13 +4,11 @@ import logging
 import math
 from types import MappingProxyType
 
-from antennaknobs import AntennaBuilder
+from antennaknobs import AntennaBuilder, C_LIGHT_MHZ_M
 from antennaknobs.network import Wire
 
 logger = logging.getLogger(__name__)
 
-
-C_LIGHT_MHZ_M = 299.792458
 
 # Max bands the cone geometry supports — fixes the spoke layout so
 # variants with fewer active bands can still share a single bands tuple

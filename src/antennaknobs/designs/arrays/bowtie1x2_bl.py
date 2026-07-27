@@ -61,8 +61,6 @@ from antennaknobs.network import (
     Wire,
 )
 
-C_LIGHT = 299.792458  # m·MHz
-
 
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
@@ -98,7 +96,7 @@ class Builder(AntennaBuilder):
     # ---- geometry -------------------------------------------------------
     def _element_geo(self):
         """(wavelength, half-width y, half-height z) of one bowtie."""
-        wl = C_LIGHT / self.design_freq
+        wl = self.design_wavelength
         length = self.length_factor * wl
         theta = math.radians(self.angle_deg)
         half = 0.5 * length / (1.0 + math.sin(theta))

@@ -91,12 +91,12 @@ class Builder(AntennaBuilder):
         # 1" aluminum tubing idealized as PEC, held as a wavelength fraction
         # (0.0127 m at 28.4 MHz) so the fat-element behaviour -- which the
         # OWA's bandwidth depends on -- survives rescaling to other bands.
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         return WireSpec(radius=0.001203 * wavelength)
 
     def build_wires(self):
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         b = self.base
 
         tups = []

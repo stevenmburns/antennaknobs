@@ -33,14 +33,11 @@ function carries the actual arm current and Load(parallel=True) acts
 exactly as NEC2's ld_card type-1 would.
 """
 
-from antennaknobs import AntennaBuilder
+from antennaknobs import AntennaBuilder, C_LIGHT_MHZ_M
 from antennaknobs.network import Driven, Load, Network, PortOnWire, Wire
 
 import math
 from types import MappingProxyType
-
-
-C_LIGHT_MHZ_M = 299.792458
 
 
 # Defaults: 5 µH traps, C chosen so each trap LC-resonates at its trap_freq.

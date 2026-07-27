@@ -78,7 +78,7 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         eps = 0.05  # half-gap at the feed / termination apexes
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         L = self.leg_factor * wavelength
         tilt = math.radians(self.tilt_deg)

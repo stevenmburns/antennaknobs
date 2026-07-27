@@ -83,11 +83,11 @@ class Builder(AntennaBuilder):
         # 3/16" aluminum tube at 146 MHz, held as a wavelength fraction
         # (0.0023813 m / lambda) so the fat-element behaviour survives
         # rescaling; aluminum conductivity per the source deck's LD 5.
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         return WireSpec(radius=0.0011597 * wavelength, conductivity=2.5e7)
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         eps = 0.025 * wavelength / 2.053373  # feed-gap half-width, scaled
         b = self.base
 

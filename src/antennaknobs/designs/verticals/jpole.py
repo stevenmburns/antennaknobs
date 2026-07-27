@@ -67,7 +67,7 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         radiator = self.radiator_frac * wavelength
         stub = self.stub_frac * wavelength

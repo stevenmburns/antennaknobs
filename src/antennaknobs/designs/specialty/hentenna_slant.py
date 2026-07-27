@@ -119,7 +119,7 @@ class Builder(AntennaBuilder):
         eps = 0.05
         b = self.base
 
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         slant_radians = math.radians(self.slant_deg)
         slant_cos = math.cos(slant_radians)

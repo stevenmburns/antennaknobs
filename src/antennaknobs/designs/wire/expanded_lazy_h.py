@@ -92,7 +92,7 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         eps = 0.05
 
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         elem = self.elem_frac * wavelength
         spacing = self.spacing_frac * wavelength
@@ -118,7 +118,7 @@ class Builder(AntennaBuilder):
         return tups
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         # Equal legs from each element centre to the mid-stack junction --
         # equal length is what makes the drive in-phase.
         leg = 0.5 * self.spacing_frac * wavelength

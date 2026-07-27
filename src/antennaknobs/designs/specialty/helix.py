@@ -89,7 +89,7 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         quarter = 0.25 * wavelength
 
         radius = self.radius_frac * wavelength

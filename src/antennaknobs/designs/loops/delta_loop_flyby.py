@@ -59,7 +59,7 @@ class Builder(AntennaBuilder):
         from scipy.optimize import brentq
 
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         target = self.length_factor * wavelength
 
         def geometry(side):

@@ -99,7 +99,7 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         lf = self.length_factor
 
         w = self.horiz_frac * wavelength * lf
@@ -130,7 +130,7 @@ class Builder(AntennaBuilder):
         ]
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         return Network(
             ports={
                 "feed": PortOnWire("feed"),  # centre of the left short side

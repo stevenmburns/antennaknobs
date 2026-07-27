@@ -66,7 +66,7 @@ class Builder(AntennaBuilder):
     )
 
     def build_wires(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         inner_arm = 0.25 * wavelength * self.length_factor
         z = self.base
         trap_seg = self.trap_seg_m

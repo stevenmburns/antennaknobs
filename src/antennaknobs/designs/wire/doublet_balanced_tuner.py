@@ -50,8 +50,6 @@ from antennaknobs.network import (
 )
 from antennaknobs.station import balanced_l_tuner
 
-C_LIGHT = 299.792458  # m·MHz
-
 
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
@@ -108,7 +106,7 @@ class Builder(AntennaBuilder):
 
     # ---- geometry -------------------------------------------------------
     def build_wires(self):
-        wl = C_LIGHT / self.design_freq
+        wl = self.design_wavelength
         arm = 0.5 * self.length_factor * wl
         z = self.height_factor * wl
         gap = 0.02 * wl  # feed-gap half-width, so the arm ends are free ENDS
@@ -123,7 +121,7 @@ class Builder(AntennaBuilder):
 
     # ---- feed network ---------------------------------------------------
     def build_network(self):
-        wl = C_LIGHT / self.design_freq
+        wl = self.design_wavelength
         line_len = self.line_len_factor * wl
         zc = self.line_zcomm or None
         return Network(

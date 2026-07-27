@@ -94,7 +94,7 @@ class Builder(AntennaBuilder):
 
     def build_wires(self):
         eps = 0.05
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
 
         length = self.elem_frac * wavelength * self.length_factor
         half = length / 2.0
@@ -113,7 +113,7 @@ class Builder(AntennaBuilder):
         ]
 
     def build_network(self):
-        wavelength = 299.792458 / self.design_freq
+        wavelength = self.design_wavelength
         match_len = self.match_len_frac * wavelength
         return Network(
             ports={
