@@ -20,7 +20,7 @@ This page introduces the vocabulary. The worked examples put it to use:
 ## Ports: where the circuit meets the wire
 
 A design's `build_network()` returns a `Network` — ports, branches,
-sources. Ports come in two kinds:
+sources. Ports come in three kinds:
 
 - **`PortOnWire("feed")`** — a real port at a named wire of the
   geometry. This is the seam between the circuit world and the field
@@ -30,6 +30,12 @@ sources. Ports come in two kinds:
   transmitter end of a feedline is the classic one: it exists only in
   the network, and driving it makes every readout — impedance, SWR,
   gain, the power budget — **rig-referenced**.
+- **`PortAtEnd("riser", "p1")`** — a port at a wire's *endpoint*
+  rather than a mid-wire gap. It attaches to the shared junction node
+  at that point without cutting a gap — the way a floating
+  multi-terminal element (a `BalancedLine`) hangs off a conductor's
+  end. momwire-only: NEC-2 has no junction-node port, so the PyNEC
+  backend rejects designs that use it (a declared engine-parity break).
 
 The source (`Driven(port="rig")`) goes wherever your measurement plane
 is. Put it at the antenna feed and you're modelling the antenna; put it
@@ -66,6 +72,7 @@ honest model:
 | branch | what it is |
 |---|---|
 | `TL` / `TL.from_cable` | transmission line — ideal, or a real cable from the `CABLES` catalog (RG-58, RG-8X, window line…) with frequency-dependent matched loss; SWR-multiplied loss *emerges* from the circuit solution rather than a formula |
+| `BalancedLine` | balanced / differential two-conductor line — the pair sibling of `TL`, carrying ±I with the return riding the partner wire (open-wire feeder, the Sterba curtain's offset-pair risers). Set by a single differential impedance `zdiff`; add an optional common-mode path `zcomm` for a pair that also carries end-to-end conductor continuity |
 | `Load` | series R/L/C in a wire's current path — a trap, a terminating resistor |
 | `TwoPort` | series R/L/C between two ports — a tuner's series capacitor |
 | `Shunt` | R/L/C from a port to the common return — a tuner's shunt coil |
