@@ -15,26 +15,19 @@ ground — no common-mode injection), the build-time CM-floating guard, and an
 end-to-end momwire showcase of the Palstar BT1500A balanced-tuner idiom.
 """
 
-from types import MappingProxyType
-
 import numpy as np
 import pytest
 
-from antennaknobs import AntennaBuilder
 from antennaknobs.network import (
     BalancedLine,
     Driven,
     FloatingBalun,
-    Instance,
     Network,
-    PortAtEnd,
     PortOnWire,
     PortVirtual,
     Shunt,
-    Wire,
 )
 from antennaknobs.network_reduce import C_LIGHT, NetworkReducer
-from antennaknobs.station import balanced_l_tuner
 
 F_MHZ = 10.0
 WL = C_LIGHT / (F_MHZ * 1e6)
@@ -221,82 +214,41 @@ def test_zcomm_feedline_grounds_the_secondary_common_mode():
 
 
 # ---------------------------------------------------------------------------
-# end-to-end: the Palstar BT1500A balanced-tuner idiom on a real doublet
-# (issue #589 acceptance criterion) — a driven-port Z and a far-field pattern
-# through Driven → rig → FloatingBalun → split-leg L-network → BalancedLine
-# → PortAtEnd × 2 → doublet.
+# end-to-end: the shipped `wire.doublet_balanced_tuner` catalog showcase
+# (issue #589 acceptance criterion) — the Palstar BT1500A balanced-tuner idiom
+# on a real doublet, through Driven → rig → FloatingBalun → split-leg L-network
+# → BalancedLine → PortAtEnd × 2 → doublet.
 # ---------------------------------------------------------------------------
-FREQ = 14.1
-WLA = 299.792458 / FREQ
-ARM = 0.24 * WLA
-SPACING = 0.05
+def _showcase_builder(**over):
+    from antennaknobs.cli import list_builtin_designs
+    from antennaknobs.designs.wire.doublet_balanced_tuner import Builder
 
-
-class _BalancedTunerDoublet(AntennaBuilder):
-    """A doublet fed, through a balanced L-network tuner with a 1:1 floating
-    balun at the rig, over a common-mode-carrying ladder line."""
-
-    default_params = MappingProxyType(
-        {
-            "design_freq": FREQ,
-            "freq": FREQ,
-            "l_uH": 8.0,
-            "c_pF": 120.0,
-            "blen": 0.18 * WLA,
-        }
-    )
-
-    def build_wires(self):
-        s, z = SPACING, 0.5 * WLA
-        return [
-            Wire((0, 0, z), (0, -ARM, z), name="armA"),
-            Wire((s, 0, z), (s, ARM, z), name="armB"),
-        ]
-
-    def build_network(self):
-        return Network(
-            ports={
-                "ta": PortAtEnd("armA", end="p0"),
-                "tb": PortAtEnd("armB", end="p0"),
-                "rig": PortVirtual("rig"),
-                "liL": PortVirtual("liL"),
-                "liR": PortVirtual("liR"),
-            },
-            branches=[
-                Instance(
-                    "tuner",
-                    balanced_l_tuner(l_uH=self.l_uH, c_pF=self.c_pF, n=1.0),
-                    rig="rig",
-                    outL="liL",
-                    outR="liR",
-                ),  # fmt: skip
-                BalancedLine(
-                    a1="liL",
-                    a2="liR",
-                    b1="ta",
-                    b2="tb",
-                    zdiff=450.0,
-                    length=self.blen,
-                    vf=0.91,
-                    zcomm=250.0,
-                ),  # fmt: skip
-            ],
-            sources=[Driven(port="rig", voltage=1 + 0j)],
-        )
+    assert "wire.doublet_balanced_tuner" in set(list_builtin_designs())
+    return Builder(dict(Builder.default_params, **over))
 
 
 @pytest.mark.antenna_computation_check
-def test_bt1500a_idiom_solves_end_to_end():
-    """The whole balanced chain reaches the datum-locked rig source: a finite
-    driven-port impedance and a physical far-field pattern, with the tuner's
-    single-ended balun primary the only datum reference in the RF path."""
+def test_doublet_balanced_tuner_showcase():
+    """The shipped catalog design: the stock ~0.72 λ doublet on ladder line
+    matches near 50 Ω at the rig, the ideal 1:1 balun's ratio row burns
+    nothing while the roller-coil legs carry the tuner's loss, and the whole
+    balanced chain reaches the datum-locked source with a physical pattern."""
     from antennaknobs.engines.momwire import MomwireEngine
 
-    b = _BalancedTunerDoublet(dict(_BalancedTunerDoublet.default_params))
-    eng = MomwireEngine(b, ground=None)
+    eng = MomwireEngine(_showcase_builder(), ground=None)
     (z,) = eng.impedance()
-    assert np.isfinite(z.real) and np.isfinite(z.imag)
-    assert z.real > 0  # a passive driving-point resistance at the rig
+    gamma = abs((z - 50.0) / (z + 50.0))
+    assert (1 + gamma) / (1 - gamma) < 1.3  # matched at the rig
+
+    eng.current_distribution()
+    fr = {
+        label: max(0.0, w) / eng._excited_p_in for label, w in eng._excited_power_budget
+    }
+    # the ideal FloatingBalun ratio row dissipates nothing...
+    assert fr["tuner: FloatingBalun rig→(sL,sR)"] < 1e-9
+    # ...while the split roller-coil legs carry the tuner's (finite-Q) loss
+    assert fr["tuner: TwoPort sL→liL"] > 0.0
+    assert fr["tuner: TwoPort sR→liR"] > 0.0
 
     ff = eng.far_field(n_theta=45, n_phi=180, del_theta=2, del_phi=2)
     peak = max(max(ring) for ring in ff.rings)
@@ -304,15 +256,18 @@ def test_bt1500a_idiom_solves_end_to_end():
 
 
 @pytest.mark.antenna_computation_check
-def test_tuning_the_balanced_l_network_moves_the_rig_impedance():
+def test_balanced_tuner_cap_retunes_the_rig_impedance():
     """The roller L and differential C actually tune: sweeping the cap changes
     the driven-point impedance at the rig, so the L-network is live (not an
     inert pass-through) through the floating balun."""
     from antennaknobs.engines.momwire import MomwireEngine
 
     def zin(c_pF):
-        b = _BalancedTunerDoublet(dict(_BalancedTunerDoublet.default_params, c_pF=c_pF))
-        return complex(MomwireEngine(b, ground=None).impedance()[0])
+        return complex(
+            MomwireEngine(_showcase_builder(tuner_c_pF=c_pF), ground=None).impedance()[
+                0
+            ]
+        )
 
-    z_lo, z_hi = zin(60.0), zin(220.0)
+    z_lo, z_hi = zin(40.0), zin(160.0)
     assert abs(z_hi - z_lo) / abs(z_lo) > 0.05  # the cap visibly retunes the rig Z
