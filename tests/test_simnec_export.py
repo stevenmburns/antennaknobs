@@ -148,6 +148,56 @@ def test_version_control_string_is_simnec_shaped():
     assert vc.startswith("SimNEC:")
 
 
+def test_name_comment_strips_main_prefix():
+    """Builders defined in a script live in module __main__; the leading
+    '__main__.' is noise, so the name comment is just the qualname."""
+    # simulate a script-defined builder (__module__ == "__main__")
+    Script = type("FlatDoublet", (_Dipole,), {})
+    Script.__module__ = "__main__"
+    line0 = build_nec_portal_script(Script(), freq_mhz=14.0).splitlines()[0]
+    assert line0 == "//FlatDoublet"
+    # a real design keeps its full dotted path
+    from antennaknobs.designs.dipoles.invvee import Builder as InvVee
+
+    line0 = build_nec_portal_script(InvVee(), freq_mhz=14.1).splitlines()[0]
+    assert line0 == "//antennaknobs.designs.dipoles.invvee.Builder"
+
+
+def test_no_generator_sweep_by_default():
+    """Minimal by default: no <sweepParam> on the Generator (SimNEC supplies its
+    own default, disabled range)."""
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None)
+    assert "<sweepParam>" not in ssn
+    assert "doSweep" not in ssn
+
+
+def test_sweep_enabled_when_requested():
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None, sweep=(13.0, 15.0))
+    root = ET.fromstring(ssn)  # well-formed
+    gen_mhz = None
+    for el in root.iter("element"):
+        if el.findtext("type") == "GENERATOR":
+            for p in el.findall("p"):
+                if p.findtext("n") == "MHz":
+                    gen_mhz = p
+    sp = gen_mhz.find("sweepParam")
+    assert sp is not None and sp.findtext("name") == "G.MHz"
+    got = {p.findtext("n"): p.findtext("v") for p in sp.findall("p")}
+    assert got["from"] == "13" and got["to"] == "15"
+    assert got["doSweep"] == "y"
+
+
+def test_cli_sweep_auto_band(capsys):
+    """Bare --sweep enables an auto +/-10% band around the design frequency."""
+    from antennaknobs.simnec_export import main
+
+    main(["dipoles.invvee", "--freq", "10", "--sweep"])
+    out = capsys.readouterr().out
+    sp = ET.fromstring(out).find(".//sweepParam")
+    got = {p.findtext("n"): p.findtext("v") for p in sp.findall("p")}
+    assert got["from"] == "9" and got["to"] == "11" and got["doSweep"] == "y"
+
+
 def test_networked_design_raises():
     from antennaknobs.designs.wire.zepp import Builder as Zepp
 
