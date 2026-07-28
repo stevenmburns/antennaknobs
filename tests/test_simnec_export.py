@@ -31,24 +31,48 @@ def _script(**kw):
 
 
 def test_geometry_cards_match_export_nec():
-    """The GW/EX cards in the portal script are exactly export_nec's."""
+    """The portal script carries exactly export_nec's GW/FR/EX cards (as a set),
+    regrouped into canonical GW → FR → EX order (see test_card_order_gw_fr_ex)."""
     deck = export_nec(_Dipole(), ground=None, freq=14.0, include_rp=False)
-    deck_cards = [
-        s.strip() for s in deck.splitlines() if s.strip().startswith(("GW ", "EX "))
-    ]
+    deck_cards = {
+        s.strip()
+        for s in deck.splitlines()
+        if s.strip().startswith(("GW ", "FR ", "EX "))
+    }
     script = _script(ground=None)
     body = script.split("NEC2", 1)[1].split("NECEND", 1)[0]
-    script_cards = [
-        ln.strip() for ln in body.splitlines() if ln.strip().startswith(("GW ", "EX "))
-    ]
+    script_cards = {
+        ln.strip()
+        for ln in body.splitlines()
+        if ln.strip().startswith(("GW ", "FR ", "EX "))
+    }
     assert script_cards == deck_cards
     assert deck_cards, "expected at least one GW and one EX card"
+
+
+def test_card_order_gw_fr_ex():
+    """SimNEC-saved decks order GW … FR … EX; export_nec emits EX before FR, so
+    the portal regroups. Guard the order the module guarantees."""
+    body = _script(ground=None).split("NEC2", 1)[1].split("NECEND", 1)[0]
+    kinds = [
+        ln.strip()[:2]
+        for ln in body.splitlines()
+        if ln.strip().startswith(("GW ", "FR ", "EX "))
+    ]
+    assert kinds.index("GW") < kinds.index("FR") < kinds.index("EX")
+
+
+def test_fr_card_is_kept():
+    """FR stays in the deck — SimNEC's own .ssn carries it alongside a G.MHz
+    sweep (advisory; the solve frequency comes from the Generator)."""
+    body = _script(ground=None).split("NEC2", 1)[1].split("NECEND", 1)[0]
+    assert "FR " in body
 
 
 def test_structural_cards_are_dropped():
     script = _script(ground=None)
     body = script.split("NEC2", 1)[1].split("NECEND", 1)[0]
-    for card in ("FR ", "RP ", "XQ", "GE ", "GN ", "EN"):
+    for card in ("RP ", "XQ", "GE ", "GN ", "EN"):
         assert card not in body, f"{card!r} should not be inside NEC2..NECEND"
     assert "NEC2" in script and "NECEND" in script
 
@@ -101,6 +125,27 @@ def test_export_ssn_is_wellformed_xml_carrying_the_script():
                 mhz = p.findtext("v")
     assert equ is not None and "NEC2" in equ and "GW " in equ  # ET unescapes text
     assert mhz == "14.1"
+
+
+def test_generator_impedance_uses_zo_tag():
+    """SimNEC's GENERATOR impedance param is <n>Zo</n> (the LOAD uses <n>ohms</n>).
+    Reconciled against a SimNEC 5.1a1-saved .ssn."""
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None)
+    root = ET.fromstring(ssn)
+    zo = None
+    for el in root.iter("element"):
+        if el.findtext("type") == "GENERATOR":
+            for p in el.findall("p"):
+                if p.findtext("n") == "Zo":
+                    zo = p.findtext("v")
+            assert all(p.findtext("n") != "ohms" for p in el.findall("p"))
+    assert zo == "50"
+
+
+def test_version_control_string_is_simnec_shaped():
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None)
+    vc = ET.fromstring(ssn).find(".//XMLVersionControl").text
+    assert vc.startswith("SimNEC:")
 
 
 def test_networked_design_raises():

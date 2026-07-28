@@ -24,10 +24,13 @@ script, expressed in SimNEC's NEC-portal daemon language:
     NECEND
 
 We reuse :func:`antennaknobs.nec_export.export_nec` for the geometry, then keep
-only the ``GW`` / ``EX`` / lumped-``LD`` cards and translate the rest into
-daemon directives: ``FR`` → the Generator's ``MHz``; ``GN`` → the ground call;
-the deck's segment counts are *advisory only* — SimNEC re-meshes at
-``NECOptions.segmentsPerWavelength``, which is why that knob is exposed.
+the ``GW`` / ``FR`` / ``EX`` / lumped-``LD`` cards and translate the rest into
+daemon directives: the Generator's ``MHz`` carries the (sweepable) solve
+frequency; ``GN`` → the ground call; the deck's segment counts are *advisory
+only* — SimNEC re-meshes at ``NECOptions.segmentsPerWavelength``, which is why
+that knob is exposed. ``FR`` is left in the deck too: a SimNEC 5.1a1-saved
+``.ssn`` carries ``FR`` alongside a live ``G.MHz`` sweep, so it is harmless
+(advisory) and matches SimNEC's own output.
 
 Scope
 -----
@@ -44,12 +47,13 @@ for interoperability (like emitting a NEC deck or a Touchstone file); it does
 the documented NEC-portal API. The surrounding XML scaffold in
 :data:`_SSN_TEMPLATE` is authored here (clean-room) from the format's structure.
 
-.. warning::
-   The XML scaffold is **provisional** until confirmed to load in SimNEC on a
-   Windows box — this environment has no Java runtime to test against. The
-   generated *daemon script* (the substantive part) is unit-tested here; the
-   wrapper's exact required tags may need reconciliation with a known-good
-   SimNEC-saved ``.ssn``.
+.. note::
+   Reconciled against a SimNEC 5.1a1-saved ``.ssn``: the root ``SimNEC1p0``,
+   the ``SimNEC:<version>`` ``XMLVersionControl`` string, the Generator's ``Zo``
+   impedance tag, and the retained ``FR`` card all match SimNEC's own output.
+   The scaffold here is deliberately *minimal* (it omits SimNEC's display state
+   — ``SPREADSHEET`` / charts / band menus — which SimNEC regenerates on load);
+   a Windows load-test confirms SimNEC accepts that minimal subset.
 """
 
 from __future__ import annotations
@@ -93,27 +97,40 @@ def _ground_directive(ground) -> tuple[str | None, float]:
 
 
 def _nec_cards_for_portal(deck: str) -> list[str]:
-    """Keep only the cards SimNEC's NEC block wants: geometry (``GW``),
-    excitation (``EX``), and lumped loads (``LD 0`` / ``LD 1``).
+    """Keep the cards SimNEC's NEC block wants: geometry (``GW``), frequency
+    (``FR``), excitation (``EX``), and lumped loads (``LD 0`` / ``LD 1``).
 
-    Dropped: ``CM``/``CE``/``GE``/``FR``/``RP``/``XQ``/``EN`` (structural or
-    handled by daemon directives), ``GN`` (→ ground call), ``LD 5`` global
-    conductivity (→ ``NECOptions.mhosPerMeter``) and ``LD 2`` insulation
-    (not representable in the NEC block — see the warning below).
+    ``FR`` is kept because SimNEC's own NEC-portal decks carry it — even while
+    the Generator sweeps ``G.MHz`` (the deck's ``FR`` is advisory; the solve
+    frequency comes from the Generator). Confirmed against a SimNEC 5.1a1-saved
+    ``.ssn`` (``FR 0 1 0 0 <f> 0`` present alongside a live G.MHz sweep).
+
+    Dropped: ``CM``/``CE``/``GE``/``RP``/``XQ``/``EN`` (structural), ``GN`` (→
+    ground call), ``LD 5`` global conductivity (→ ``NECOptions.mhosPerMeter``)
+    and ``LD 2`` insulation (not representable in the NEC block).
     """
-    kept: list[str] = []
+    # Group into canonical NEC order — geometry+loads, then FR, then EX — to
+    # match a SimNEC 5.1a1-saved deck (GW … FR … EX) rather than export_nec's
+    # emission order, which puts EX before FR.
+    geom: list[str] = []
+    fr: list[str] = []
+    ex: list[str] = []
     for raw in deck.splitlines():
         s = raw.strip()
-        if s.startswith("GW ") or s.startswith("EX "):
-            kept.append(s)
+        if s.startswith("GW "):
+            geom.append(s)
+        elif s.startswith("FR "):
+            fr.append(s)
+        elif s.startswith("EX "):
+            ex.append(s)
         elif s.startswith("LD "):
             parts = s.split()
             ldtyp = parts[1] if len(parts) > 1 else ""
             if ldtyp in ("0", "1"):  # series / parallel lumped RLC load
-                kept.append(s)
+                geom.append(s)
             # LD 5 (conductivity) and LD 2 (insulation) are handled elsewhere
             # or unsupported; skip here.
-    return kept
+    return geom + fr + ex
 
 
 def build_nec_portal_script(
@@ -159,7 +176,7 @@ _SSN_TEMPLATE = """\
 <?xml version="1.0" encoding="utf-8"?>
 <SimNEC1p0>
     <SmithChartCircuit>
-        <XMLVersionControl>SimNEC:antennaknobs.simnec_export</XMLVersionControl>
+        <XMLVersionControl>SimNEC:5.1a1</XMLVersionControl>
         <CIRCUIT>
             <element>
                 <type>LOAD</type>
@@ -176,7 +193,7 @@ _SSN_TEMPLATE = """\
                 <type>GENERATOR</type>
                 <sweeperLabel>G</sweeperLabel>
                 <p><n>MHz</n><v>{mhz}</v></p>
-                <p><n>ohms</n><v>50</v></p>
+                <p><n>Zo</n><v>50</v></p>
             </element>
         </CIRCUIT>
     </SmithChartCircuit>
