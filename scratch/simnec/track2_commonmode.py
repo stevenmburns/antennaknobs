@@ -11,6 +11,7 @@ fixed number, no zcomm knob). That spread-vs-point contrast IS the result.
 
 Run:  python scratch/simnec/track2_commonmode.py
 """
+
 from antennaknobs.designs.wire.doublet_balanced_tuner import Builder
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.network import Wire
@@ -48,13 +49,19 @@ def rig(asym, zcomm):
 
 
 if __name__ == "__main__":
-    for asym, tag in ((1.0, "SYMMETRIC (null case: SimNEC and AntennaKNoBs agree)"),
-                      (1.15, "ASYMMETRIC R+15% (the divergence SimNEC cannot follow)")):
+    for asym, tag in (
+        (1.0, "SYMMETRIC (null case: SimNEC and AntennaKNoBs agree)"),
+        (1.15, "ASYMMETRIC R+15% (the divergence SimNEC cannot follow)"),
+    ):
         print(f"=== {tag} ===")
         for zc in (25.0, 100.0, 250.0, 400.0):
             z, s = rig(asym, zc)
-            print(f"   line_zcomm={zc:5.0f}:  Z_rig = {z.real:7.2f} {z.imag:+7.2f} j   SWR = {s:6.3f}")
+            print(
+                f"   line_zcomm={zc:5.0f}:  Z_rig = {z.real:7.2f} {z.imag:+7.2f} j   SWR = {s:6.3f}"
+            )
         print()
     print("SimNEC side: build the differential cascade ONCE (450ohm line, balanced")
     print("L-tuner as one series 2.8uH + one shunt 74pF, 1:1 balun, 50ohm gen) and")
-    print("record the single value. It has no zcomm knob -> one number vs the spread above.")
+    print(
+        "record the single value. It has no zcomm knob -> one number vs the spread above."
+    )

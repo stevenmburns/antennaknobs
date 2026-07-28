@@ -25,6 +25,7 @@ TEMPLATE DEPENDENCY (fresh environment!)
   networked export): SERIES_TLINE (Zo/VFnom/ft/~deg/k0..k2/'/100f' loss),
   SERIES_CAP (F/Q/@MHz), SHUNT_IND (H/Q/@MHz).
 """
+
 import re
 
 from antennaknobs.nec_export import export_nec
@@ -43,22 +44,31 @@ def _cards(builder, ground):
     return "\n".join(buckets["GW"] + buckets["GN"] + buckets["FR"] + buckets["EX"])
 
 
-def export_ssn(builder, out_path, *, freq_mhz, ground="free",
-               seg_per_wl=None, template=None):
+def export_ssn(
+    builder, out_path, *, freq_mhz, ground="free", seg_per_wl=None, template=None
+):
     template = template or TEMPLATE
     if not template:
         raise ValueError("Set TEMPLATE to a SimNEC-saved antenna-only .ssn (see #600).")
     xml = open(template, encoding="utf-8").read()
     cards = _cards(builder, ground)
-    xml = re.sub(r"(NEC2\n).*?(\nNECEND)", lambda m: m.group(1) + cards + m.group(2),
-                 xml, count=1, flags=re.S)
+    xml = re.sub(
+        r"(NEC2\n).*?(\nNECEND)",
+        lambda m: m.group(1) + cards + m.group(2),
+        xml,
+        count=1,
+        flags=re.S,
+    )
     if isinstance(ground, tuple) and len(ground) == 3:
         _, eps_r, sigma = ground
-        xml = xml.replace("//SommerfeldGround(0.005, 13);",
-                          f"SommerfeldGround({sigma}, {eps_r});")
+        xml = xml.replace(
+            "//SommerfeldGround(0.005, 13);", f"SommerfeldGround({sigma}, {eps_r});"
+        )
     if seg_per_wl is not None:
-        xml = xml.replace("//NECOptions.segmentsPerWavelength = 20;",
-                          f"NECOptions.segmentsPerWavelength = {seg_per_wl};")
+        xml = xml.replace(
+            "//NECOptions.segmentsPerWavelength = 20;",
+            f"NECOptions.segmentsPerWavelength = {seg_per_wl};",
+        )
     xml = re.sub(r"(<n>MHz</n><v>)[^<]*(</v>)", rf"\g<1>{freq_mhz}\g<2>", xml, count=1)
     open(out_path, "w", encoding="utf-8").write(xml)
     return cards
@@ -67,6 +77,7 @@ def export_ssn(builder, out_path, *, freq_mhz, ground="free",
 if __name__ == "__main__":
     from antennaknobs.designs.wire.doublet_ladder_tuner import Builder
     from antennaknobs.network import Driven, Network, PortOnWire, Wire
+
     YT = 13.400300629701409
 
     class DipoleOnly(Builder):
@@ -74,11 +85,16 @@ if __name__ == "__main__":
             return [Wire((0, -YT, 10.0), (0, YT, 10.0), n_seg=None, name="feed")]
 
         def build_network(self):
-            return Network(ports={"feed": PortOnWire("feed")}, branches=[],
-                           sources=[Driven(port="feed")])
+            return Network(
+                ports={"feed": PortOnWire("feed")},
+                branches=[],
+                sources=[Driven(port="feed")],
+            )
 
     if not TEMPLATE:
-        print("Set TEMPLATE to a SimNEC-saved .ssn first (see module docstring / #600).")
+        print(
+            "Set TEMPLATE to a SimNEC-saved .ssn first (see module docstring / #600)."
+        )
     else:
         b = DipoleOnly(dict(Builder.default_params))
         b.nominal_nsegs = 120
