@@ -31,3 +31,5 @@ scripts/sterba_center_driven_pattern.png
 bench_out/
 # Claude Code scratchpad — session-local working files, never shipped
 scratchpad/
+# Dev-server logs (e.g. `.backend.log` / `.frontend.log` from local runs)
+*.log
