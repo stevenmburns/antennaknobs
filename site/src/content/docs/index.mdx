@@ -32,8 +32,8 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   riser as what it is — a differential two-conductor line — and its optional
   **common-mode path** (`zcomm`) restores the conduction path a purely
   differential stamp drops, so a **`build_network()`** TL Sterba now matches the
-  all-wire reference to a few tenths of a dB (**+15.4 dBi** at n=3), on both the
-  momwire and PyNEC backends. The result ships as the new **`wire.sterba_bl`**
+  all-wire reference to a few tenths of a dB (**+15.4 dBi** vs +15.2, at n=3
+  over average ground). The result ships as the new **`wire.sterba_bl`**
   catalog design. Also landing: **`PortAtEnd`** ports that attach a floating
   element at a conductor's very end (not just a mid-wire gap), stricter
   **network-authoring checks** that reject silent open-gap traps, and **one feed
