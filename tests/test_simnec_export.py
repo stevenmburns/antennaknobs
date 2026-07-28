@@ -172,10 +172,20 @@ def test_name_override():
 
 def test_no_generator_sweep_by_default():
     """Minimal by default: no <sweepParam> on the Generator (SimNEC supplies its
-    own default, disabled range)."""
+    own default, disabled range), and no SCATTERGUN arming."""
     ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None)
     assert "<sweepParam>" not in ssn
     assert "doSweep" not in ssn
+    assert "SCATTERGUN" not in ssn
+
+
+def test_sweep_arms_scattergun_and_chart():
+    """A requested sweep also arms it: SCATTERGUN names G.MHz (without it doSweep
+    does nothing) and the chart goes to Sweep mode. ET-parseable."""
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None, sweep=(13.0, 15.0))
+    ET.fromstring(ssn)  # well-formed
+    assert "<SCATTERGUN><n>G.MHz</n></SCATTERGUN>" in ssn
+    assert "<displayMode>Sweep</displayMode>" in ssn
 
 
 def test_sweep_enabled_when_requested():
