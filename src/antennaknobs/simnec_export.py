@@ -205,6 +205,7 @@ _SSN_TEMPLATE = """\
             <element>
                 <type>GENERATOR</type>
                 <sweeperLabel>G</sweeperLabel>
+                <showInSmith>true</showInSmith>
                 <p><n>MHz</n><v>{mhz}</v>{gen_sweep}</p>
                 <p><n>Zo</n><v>50</v></p>
             </element>

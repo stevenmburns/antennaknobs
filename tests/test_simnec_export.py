@@ -170,6 +170,15 @@ def test_name_override():
     assert "//dip20" in ssn
 
 
+def test_generator_is_measured_block():
+    """The GENERATOR carries showInSmith so its impedance is measured/displayed
+    (and plotted during a sweep) without the user turning a block on."""
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None)
+    root = ET.fromstring(ssn)
+    gen = next(el for el in root.iter("element") if el.findtext("type") == "GENERATOR")
+    assert gen.findtext("showInSmith") == "true"
+
+
 def test_no_generator_sweep_by_default():
     """Minimal by default: no <sweepParam> on the Generator (SimNEC supplies its
     own default, disabled range), and no SCATTERGUN arming."""
