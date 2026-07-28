@@ -18,7 +18,7 @@ agree and where they diverge (common-mode).
 - **Track 1 — agreement (`wire.doublet_ladder_tuner`, 7.1 MHz): DONE, tools agree.**
   - Scenario 1 (antenna): SimNEC `nec2c` == PyNEC to <0.1 Ω on an identical mesh.
   - Scenario 2 (coupled rig): **SimNEC 40 − j5.7 (SWR 1.29) vs AntennaKNoBs 41.9 − j5.8 (SWR 1.24)** — ~2 Ω, identical reactance.
-- **Track 2 — divergence (`wire.doublet_balanced_tuner`, 14.1 MHz): TODO.** The common-mode "money shot". AntennaKNoBs numbers computed; SimNEC side is one differential cascade to build.
+- **Track 2 — divergence (`wire.doublet_balanced_tuner`, 14.1 MHz): DONE.** The common-mode "money shot". Compared with a matched (center-fed) feed: AntennaKNoBs symmetric **28.75 + j27.03 (SWR 2.41)** vs SimNEC **28.95 + j25.18 (SWR 2.31)** — agree to ~2 Ω; break symmetry and AntennaKNoBs fans SWR 5.0→5.7 across `line_zcomm` while SimNEC (no zcomm knob) holds one value.
 - **Bonus delivered:** a validated AntennaKNoBs → SimNEC `.ssn` exporter prototype (issue #600).
 - Reproduce everything: `scratch/simnec/*.py` (see [Reproducing](#reproducing)).
 
@@ -106,7 +106,27 @@ gives ~49.7 − j0.1, SWR 1.01 — a documented variant, not yet built in SimNEC
 Design: `wire.doublet_balanced_tuner` — 0.72 λ doublet on 450 Ω line → balanced
 L-tuner → 1:1 balun → 50 Ω rig, **14.1 MHz**, momwire/**BSpline** (PortAtEnd).
 
-**AntennaKNoBs (computed, `scratch/simnec/track2_commonmode.py`):**
+**Feed definition drives the baseline — compare tools with the SAME feed.**
+SimNEC's NEC can only **center-feed** (a delta-gap on the middle segment). The
+stock design's 0.04 λ **arm-end** `PortAtEnd` gap is a *different* feedpoint
+(51.8 / SWR 1.04 — momwire-only, and **not** what SimNEC solves). Shrinking the
+AntennaKNoBs feed gap toward 0 converges the symmetric rig answer onto SimNEC's
+(the residual is the delta-gap convergence caveat, correction 3):
+
+**Center-fed (0.004 λ gap ≈ SimNEC delta-gap) — the apples-to-apples column:**
+
+| `line_zcomm` | symmetric | asymmetric (R arm +15%) |
+|---|---|---|
+| 25  | 28.75 + j27.03 (SWR 2.407) | 18.06 + j43.27 (SWR 5.004) |
+| 100 | 28.75 + j27.03 (SWR 2.407) | 17.43 + j44.81 (SWR 5.333) |
+| 250 | 28.75 + j27.03 (SWR 2.407) | 17.03 + j46.06 (SWR 5.591) |
+| 400 | 28.75 + j27.03 (SWR 2.407) | 16.88 + j46.61 (SWR 5.699) |
+
+SimNEC (center-fed, tuned 14.1 MHz cascade): **28.95 + j25.18 (SWR 2.31)** —
+**captured** (rig readout of the cascade below, lossless line, coil Q=200) —
+matches the center-fed symmetric row to ~2 Ω (same order as Tracks 1–2).
+
+**Arm-end (0.04 λ `PortAtEnd`, momwire-only) — for reference, not SimNEC-matched:**
 
 | `line_zcomm` | symmetric | asymmetric (R arm +15%) |
 |---|---|---|
@@ -115,13 +135,15 @@ L-tuner → 1:1 balun → 50 Ω rig, **14.1 MHz**, momwire/**BSpline** (PortAtEn
 | 250 | 51.80 + j0.01 (SWR 1.036) | 24.23 + j31.38 (SWR 3.031) |
 | 400 | 51.80 + j0.01 (SWR 1.036) | 23.93 + j32.17 (SWR 3.112) |
 
-**SimNEC side (to do):** build the differential cascade **once** —
-`Generator(50Ω) ← Transformer(1:1 ideal) ← series L 2.8 µH (Q=200) ← shunt C
-74 pF ← TLine(450Ω, vf 0.91, 0.40λ=8.5048 m) ← NEC(doublet)` at 14.1 MHz — and
-record the single value. SimNEC's TLine is purely differential ("no common-mode
-conduction"), so it has **no `zcomm` knob**: one fixed number vs the AntennaKNoBs
-spread above. That spread-vs-point contrast **is** the result. (Symmetric row is
-the honest "both tools agree" null case; asymmetric is the divergence.)
+**SimNEC side (captured):** the differential cascade — `Generator(50Ω) ←
+Transformer(1:1 ideal) ← series L 2.8 µH (Q=200) ← shunt C 74 pF ← TLine(450Ω,
+vf 0.91, 0.40λ=8.5048 m=27.90 ft, `0/100f` lossless) ← NEC(center-fed doublet)`
+at 14.1 MHz — reads **28.95 + j25.18 (SWR 2.31)** at the rig. SimNEC's TLine is purely differential
+("no common-mode conduction"), so it has **no `zcomm` knob**: one fixed number vs
+the AntennaKNoBs spread above. In **either** feed definition the symmetric row is
+flat across `zcomm` (no common mode excited — the honest "both tools agree" null
+case); only the asymmetric case diverges, and that spread-vs-point contrast **is**
+the result. Both columns reproducible via `GAP_CENTER` / `GAP_ARMEND` in the script.
 
 Doublet deck for SimNEC's N block (14.1 MHz, free space), and the anchor
 feedpoint ≈ 342 + j962 (center-fed; note the arm-end vs center-fed caveat from
@@ -188,7 +210,7 @@ with **no** class default, and set `b._asym` on the instance.
 - [x] Table 1 (antenna): PyNEC/Sin/nec2c agree; converged 192.9 + j589.8.
 - [x] Table 2 (coupled rig, free space): SimNEC 40 − j5.7 vs AntennaKNoBs 41.9 − j5.8.
 - [ ] Table 2 over real ground (variant): AntennaKNoBs 49.7 − j0.1 computed; SimNEC TODO.
-- [ ] Table 3 (common-mode sweep): AntennaKNoBs done (above); SimNEC single value TODO.
+- [x] Table 3 (common-mode sweep): AntennaKNoBs center-fed + arm-end columns done; SimNEC single value captured (28.95 + j25.18, SWR 2.31) and matches the center-fed symmetric baseline to ~2 Ω.
 - [x] SimNEC gotchas documented.
 - [x] `.ssn` bridge (#600 filed).
 - [ ] SimNEC `.ssn` files + screenshots for the writeup.
