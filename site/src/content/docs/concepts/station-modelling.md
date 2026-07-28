@@ -72,7 +72,7 @@ honest model:
 | branch | what it is |
 |---|---|
 | `TL` / `TL.from_cable` | transmission line — ideal, or a real cable from the `CABLES` catalog (RG-58, RG-8X, window line…) with frequency-dependent matched loss; SWR-multiplied loss *emerges* from the circuit solution rather than a formula |
-| `BalancedLine` | balanced / differential two-conductor line — the pair sibling of `TL`, carrying ±I with the return riding the partner wire (open-wire feeder, the Sterba curtain's offset-pair risers). Set by a single differential impedance `zdiff`; add an optional common-mode path `zcomm` for a pair that also carries end-to-end conductor continuity |
+| `BalancedLine` | balanced / differential two-conductor line — the pair sibling of `TL`, carrying ±I with the return riding the partner wire (open-wire feeder, the Sterba curtain's offset-pair risers). Set by a single differential impedance `zdiff`; add an optional common-mode path `zcomm` for a pair that also carries end-to-end conductor continuity. Narrower scope than the rest of this table — see [what `BalancedLine` is good for](#what-balancedline-is-good-for) |
 | `Load` | series R/L/C in a wire's current path — a trap, a terminating resistor |
 | `TwoPort` | series R/L/C between two ports — a tuner's series capacitor |
 | `Shunt` | R/L/C from a port to the common return — a tuner's shunt coil |
@@ -82,6 +82,44 @@ Reactive elements accept a finite **Q** (`ql`, `qc`, `qlmag`), and that
 is where real matchboxes and transformers burn power. Degenerate values
 are physics, not errors: a 0 H series arm is an ideal short, a 0 F
 shunt is an open — sliders can sweep straight through them.
+
+### What `BalancedLine` is good for
+
+`BalancedLine` is newer and more narrowly validated than the other
+branches, so it is worth being explicit about where it earns its keep.
+
+**It models a *tightly coupled* pair.** The differential stamp assumes the
+two conductors are close enough to behave as one TEM line. Measured
+against physical MoM wires, a pair at 0.004 λ spacing (the Sterba
+offset-pair scale) matches the analytic
+`(η₀/π)·acosh(D/2a)` within 3 %; by 0.06 λ the TEM model is visibly wrong
+and degrades monotonically in between. A widely-spaced pair is not a
+transmission line, and modelling it as one will quietly mislead you.
+
+**It is differential-only by construction.** The stamp carries ±I and
+cannot represent common-mode radiation. That is a deliberate contract, and
+it is why the element suits structures whose pairs measurably *are*
+balanced — `wire.sterba`'s risers run a common-mode residual of 0.05–0.15
+of the differential current. It is not the tool for asking "how much does
+my feedline radiate"; for feedline common-mode see `FloatingBalun`.
+
+**`zcomm` is a switch, not a knob.** The optional common-mode path exists
+because a real pair also provides end-to-end *conductor continuity*, which
+a purely differential stamp drops. In the Sterba curtain that continuity is
+load-bearing: without it the three-bay array loses 5 dB and its beam swings
+35° off broadside. But the *value* barely matters — sweeping `zcomm` across
+25 Ω to 3200 Ω moves the gain by 0.05 dB, because at the risers' λ/2 length
+the common-mode line is a repeater. Turn it on when the pair is physically
+continuous; don't try to tune it.
+
+**It is momwire-only.** Practical `BalancedLine` designs attach through
+`PortAtEnd`, which NEC-2 has no equivalent for, so the PyNEC backend
+rejects them (see [Ports](#ports-where-the-circuit-meets-the-wire)). You
+lose cross-engine validation on these designs — the available cross-check
+is between B-spline basis degrees rather than between engines.
+
+Three catalog designs use it today: `wire.sterba_bl`,
+`arrays.bowtie1x2_bl`, and `wire.doublet_balanced_tuner`.
 
 ## Boxes: reusable station components
 

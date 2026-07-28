@@ -35,8 +35,25 @@ to model*, against full-wave MoM solves:
    insensitive to the ``zcomm`` value, which the test also asserts.
    (History: #576 first found the attachment blocker, solved by #579's end
    ports; then the differential-only residual, solved by ``zcomm``.)
+
+5. The same end-to-end claim at the *catalog* configuration, n_cells=3,
+   where it is far sharper than at one bay: omitting the CM path costs 5 dB
+   and swings the beam 35° off broadside (vs −0.9 dB and still broadside at
+   n=1). Pins both published gain figures over average ground (+15.2 dBi
+   all-wire, +15.4 dBi BL-riser), and establishes that ``zcomm`` is a
+   *topological switch* rather than a tuning knob: a 128× sweep of its value
+   (25 Ω → 3200 Ω) moves the gain by 0.05 dB, while removing it costs 5 dB.
+
+6. Element SUBSTITUTION as a two-port — #576's original acceptance criterion,
+   stated directly. One antenna built twice, once with a physical open-wire
+   feeder and once with that feeder replaced by the element (``zdiff`` from
+   the analytic geometry, not fitted): the complex driving-point impedance
+   agrees to 2.4–4.3 % across feeder lengths spanning 83 − j118 to
+   1158 + j1616 Ω. Covers the NON-λ/2 regime section 5's repeater argument
+   does not, which is where ``wire.doublet_balanced_tuner`` operates.
 """
 
+import importlib
 import math
 from types import MappingProxyType
 
@@ -44,7 +61,16 @@ import numpy as np
 import pytest
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Driven, Network, PortOnWire, Wire
+from antennaknobs.network import (
+    BalancedLine,
+    Driven,
+    FloatingBalun,
+    Network,
+    PortAtEnd,
+    PortOnWire,
+    PortVirtual,
+    Wire,
+)
 from antennaknobs.engines.momwire import MomwireEngine
 
 C_LIGHT = 299.792458  # m·MHz
@@ -250,8 +276,6 @@ def test_bl_riser_curtain_reproduces_wire_sterba_with_zcomm():
     it. At the risers' λ/2 length the CM line is a repeater, so the result
     must be insensitive to the zcomm value — the reason no zdiff/zcomm
     tuning is needed or possible."""
-    import importlib
-
     ster = importlib.import_module("antennaknobs.designs.wire.sterba").Builder
     bp = ster(dict(ster.default_params, n_cells=1))
     gain_phys, az_phys = _peak(MomwireEngine(bp, ground=None))
@@ -265,3 +289,233 @@ def test_bl_riser_curtain_reproduces_wire_sterba_with_zcomm():
     b400 = _catalog_curtain(1, zcomm=400.0)
     gain_400, _az = _peak(MomwireEngine(b400, ground=None))
     assert abs(gain_400 - gain_100) < 0.1  # λ/2 repeater: zcomm-insensitive
+
+
+# ---------------------------------------------------------------------------
+# 5. The catalog configuration: n_cells=3, where the CM path is load-bearing
+# ---------------------------------------------------------------------------
+#
+# Section 4 validates one bay, which is the *weakest* form of the claim: at
+# n=1 the differential-only curtain is only −0.9 dB and still broadside, so
+# the CM path looks like a refinement. The catalog default is n_cells=3, and
+# there the same omission costs −5 dB AND swings the beam 35° off broadside.
+# These tests pin the shipped configuration and the documented gain figures.
+
+
+def _peak_over(builder, ground):
+    return _peak(MomwireEngine(builder, ground=ground))
+
+
+AVG_GROUND = ("finite-fast", 13.0, 0.005)
+
+
+@pytest.mark.antenna_computation_check
+def test_bl_riser_curtain_matches_wire_sterba_at_catalog_n_cells():
+    """Free space, n_cells=3 (the catalog default): the BL-riser curtain
+    tracks the all-wire wire.sterba to within 0.5 dB and fires broadside.
+
+    This is the load-bearing end-to-end case. Unlike the one-bay test, the
+    differential-only build fails here *unmistakably* — the per-boundary
+    span-phase fanout accumulates over three bays into a beam that is both
+    ~5 dB down and pointed 35° off broadside. Measured 2026-07-28:
+
+        wire.sterba (all wire)   10.47 dBi  az 180
+        sterba_bl  (zcomm on)    10.61 dBi  az 180   (+0.14)
+        sterba_bl  (zcomm off)    5.52 dBi  az  35   (-4.95)
+    """
+    ster = importlib.import_module("antennaknobs.designs.wire.sterba").Builder
+    bp = ster(dict(ster.default_params, n_cells=3))
+    gain_phys, az_phys = _peak_over(bp, None)
+    assert min(az_phys % 180.0, 180.0 - az_phys % 180.0) <= 10.0
+
+    gain_bl, az_bl = _peak_over(_catalog_curtain(3), None)
+    assert min(az_bl % 180.0, 180.0 - az_bl % 180.0) <= 10.0
+    assert abs(gain_bl - gain_phys) < 0.5
+
+    # differential-only: the failure is large and directional, not marginal
+    gain_dm, az_dm = _peak_over(_catalog_curtain(3, zcomm=0.0), None)
+    assert gain_phys - gain_dm > 3.0
+    assert min(az_dm % 180.0, 180.0 - az_dm % 180.0) > 20.0
+
+
+@pytest.mark.antenna_computation_check
+def test_catalog_curtain_gain_over_average_ground():
+    """Over average ground (eps_r 13, sigma 0.005) at n_cells=3 — the
+    configuration the documentation quotes. Pins both published figures:
+    wire.sterba at +15.2 dBi (issue #576's acceptance target) and
+    wire.sterba_bl at +15.4 dBi, both broadside. Measured 2026-07-28:
+    15.22 and 15.39 dBi."""
+    ster = importlib.import_module("antennaknobs.designs.wire.sterba").Builder
+    gain_phys, az_phys = _peak_over(
+        ster(dict(ster.default_params, n_cells=3)), AVG_GROUND
+    )
+    gain_bl, az_bl = _peak_over(_catalog_curtain(3), AVG_GROUND)
+
+    assert abs(gain_phys - 15.2) < 0.3, gain_phys
+    assert abs(gain_bl - 15.4) < 0.3, gain_bl
+    assert abs(gain_bl - gain_phys) < 0.5
+    for az in (az_phys, az_bl):
+        assert min(az % 180.0, 180.0 - az % 180.0) <= 10.0
+
+
+@pytest.mark.antenna_computation_check
+def test_zcomm_is_a_topological_switch_not_a_tuning_knob():
+    """The CM path's *presence* is load-bearing; its *value* is not.
+
+    At the risers' λ/2 length the common-mode line is a repeater, so the
+    curtain is insensitive to zcomm across a 128× range — 25 Ω to 3200 Ω
+    spans 0.05 dB (measured 2026-07-28: 10.62 / 10.61 / 10.61 / 10.61 /
+    10.61 / 10.62 / 10.63 / 10.66 dBi, all broadside). Removing it entirely
+    costs 5 dB (previous test).
+
+    This is why `zcomm` needs no calibration and cannot be fitted: it is a
+    switch for conductor continuity, not a characteristic impedance the user
+    is expected to get right. A future geometry-derived zcomm (#596) must
+    reproduce this insensitivity, not a particular number."""
+    gains = []
+    for zc in (25.0, 100.0, 400.0, 1600.0, 3200.0):
+        g, az = _peak_over(_catalog_curtain(3, zcomm=zc), None)
+        assert min(az % 180.0, 180.0 - az % 180.0) <= 10.0
+        gains.append(g)
+    assert max(gains) - min(gains) < 0.25, gains
+
+
+# ---------------------------------------------------------------------------
+# 6. Element substitution: a real feeder replaced by the element, as a 2-port
+# ---------------------------------------------------------------------------
+#
+# Sections 1-2 characterize the pair as a line (Z0, electrical length) and
+# sections 4-5 check an end-to-end pattern. This is the direct statement of
+# #576's original criterion in between: build one antenna twice — once with
+# the feeder as PHYSICAL MoM wires, once with that same feeder replaced by a
+# `BalancedLine` element — and compare the complex driving-point impedance.
+#
+# It generalizes past the Sterba: the feeder here is a plain open-wire drop
+# at lengths that are NOT λ/2, which is the regime `wire.doublet_balanced_
+# tuner` lives in and the one section 5's repeater argument does not cover.
+
+_ARM_FACTOR = 0.25
+_SUBST_BASE = {
+    "design_freq": FREQ,
+    "freq": FREQ,
+    "spacing": 0.004 * WL,
+    "arm_factor": _ARM_FACTOR,
+    "feed_len_wl": 0.30,
+}
+
+
+class _PhysFedDoublet(AntennaBuilder):
+    """Doublet + open-wire drop, all as physical wires, driven at a bridge
+    gap across the bottom of the pair (a genuinely floating differential
+    drive: the source loop closes through real metal)."""
+
+    default_params = MappingProxyType(_SUBST_BASE)
+
+    def build_wires(self):
+        s, arm, L = self.spacing, self.arm_factor * WL, self.feed_len_wl * WL
+        n = min(max(self.segs_for(L, 0.25 * WL), round(L / s)), 151)
+        xa, xb = -0.2 * s, 0.2 * s
+        return [
+            Wire((0.0, -s / 2, L), (-arm, -s / 2, L)),
+            Wire((0.0, +s / 2, L), (+arm, +s / 2, L)),
+            Wire((0.0, -s / 2, L), (0.0, -s / 2, 0.0), n_seg=n),
+            Wire((0.0, +s / 2, L), (0.0, +s / 2, 0.0), n_seg=n),
+            Wire((0.0, -s / 2, 0.0), (0.0, xa, 0.0)),
+            Wire((0.0, xa, 0.0), (0.0, xb, 0.0), name="feed"),
+            Wire((0.0, xb, 0.0), (0.0, +s / 2, 0.0)),
+        ]
+
+    def build_network(self):
+        return Network(
+            ports={"feed": PortOnWire("feed", distributed=True)},
+            branches=[],
+            sources=[Driven(port="feed")],
+        )
+
+
+class _ElementFedDoublet(AntennaBuilder):
+    """The SAME doublet, feeder deleted from the geometry and replaced by a
+    `BalancedLine` on `PortAtEnd` ports. Driven through an ideal 1:1
+    `FloatingBalun`, the circuit equivalent of the physical build's floating
+    bridge-gap drive."""
+
+    default_params = MappingProxyType(dict(_SUBST_BASE, zcomm=600.0))
+
+    def build_wires(self):
+        s, arm, L = self.spacing, self.arm_factor * WL, self.feed_len_wl * WL
+        return [
+            Wire((0.0, -s / 2, L), (-arm, -s / 2, L), name="armL"),
+            Wire((0.0, +s / 2, L), (+arm, +s / 2, L), name="armR"),
+        ]
+
+    def build_network(self):
+        s, L = self.spacing, self.feed_len_wl * WL
+        return Network(
+            ports={
+                "ta": PortAtEnd("armL", end="p0"),
+                "tb": PortAtEnd("armR", end="p0"),
+                "rig": PortVirtual("rig"),
+                "bL": PortVirtual("bL"),
+                "bR": PortVirtual("bR"),
+            },
+            branches=[
+                FloatingBalun(primary="rig", a="bL", b="bR", n=1.0),
+                BalancedLine(
+                    a1="bL",
+                    a2="bR",
+                    b1="ta",
+                    b2="tb",
+                    zdiff=analytic_zdiff(s),
+                    length=L,
+                    vf=1.0,
+                    zcomm=self.zcomm or None,
+                ),
+            ],
+            sources=[Driven(port="rig")],
+        )
+
+
+def _subst_zin(cls, **over):
+    b = cls(dict(cls.default_params, **over))
+    return complex(MomwireEngine(b, ground=None).impedance()[0])
+
+
+@pytest.mark.antenna_computation_check
+def test_element_reproduces_a_physical_feeder_as_a_two_port():
+    """Replacing a physical open-wire feeder with the element reproduces the
+    complex driving-point impedance to within 6 %, at feeder lengths chosen
+    to span wildly different impedance regimes — the element is not being
+    checked at one convenient operating point. `zdiff` is the ANALYTIC
+    value from the geometry, not a fitted one. Measured 2026-07-28:
+
+        len     physical            element           deviation
+        0.20 λ  1158.2 +1615.8j     1079.0 +1583.4j     4.3 %
+        0.30 λ   445.2 -1075.6j      467.2 -1100.5j     2.9 %
+        0.45 λ    82.6  -118.4j       83.1  -121.9j     2.4 %
+
+    The residual is the physical pair's own radiation and end effects, which
+    a differential-only element cannot represent by construction — i.e. this
+    bounds the element's achievable fidelity, it is not a bug to drive out.
+    """
+    for flw, tol in ((0.20, 0.06), (0.30, 0.06), (0.45, 0.06)):
+        zp = _subst_zin(_PhysFedDoublet, feed_len_wl=flw)
+        ze = _subst_zin(_ElementFedDoublet, feed_len_wl=flw)
+        assert abs(ze - zp) / abs(zp) < tol, (flw, zp, ze)
+
+
+@pytest.mark.antenna_computation_check
+def test_zcomm_value_is_immaterial_behind_a_floating_balun():
+    """Third independent confirmation that `zcomm` carries no information
+    (after section 5's λ/2-repeater sweep): behind a floating balun secondary
+    there is no common-mode circuit path at all, so the CM line carries no
+    current whatever its impedance — a 16× sweep is bit-identical.
+
+    `zcomm` is required here only for MNA determinacy: `Network` rejects a
+    CM-open BalancedLine feeding a floating-balun secondary as structurally
+    singular. That is the whole reason `wire.doublet_balanced_tuner` sets a
+    `line_zcomm` at all, and why its particular value needs no defending."""
+    zs = [
+        _subst_zin(_ElementFedDoublet, zcomm=zc)
+        for zc in (150.0, 300.0, 600.0, 1200.0, 2400.0)
+    ]
+    assert max(abs(z - zs[0]) for z in zs) < 1e-6, zs
