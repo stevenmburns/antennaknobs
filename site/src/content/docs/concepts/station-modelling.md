@@ -103,14 +103,26 @@ balanced — `wire.sterba`'s risers run a common-mode residual of 0.05–0.15
 of the differential current. It is not the tool for asking "how much does
 my feedline radiate"; for feedline common-mode see `FloatingBalun`.
 
-**`zcomm` is a switch, not a knob.** The optional common-mode path exists
-because a real pair also provides end-to-end *conductor continuity*, which
-a purely differential stamp drops. In the Sterba curtain that continuity is
-load-bearing: without it the three-bay array loses 5 dB and its beam swings
-35° off broadside. But the *value* barely matters — sweeping `zcomm` across
-25 Ω to 3200 Ω moves the gain by 0.05 dB, because at the risers' λ/2 length
-the common-mode line is a repeater. Turn it on when the pair is physically
-continuous; don't try to tune it.
+**Whether `zcomm` matters depends on the topology it sits in.** The optional
+common-mode path exists because a real pair also provides end-to-end
+*conductor continuity*, which a purely differential stamp drops. Two regimes,
+and it is worth knowing which one you are in:
+
+- *Closed loop, λ/2 pairs* — the Sterba curtain. Continuity is load-bearing:
+  omit it and the three-bay array loses 5 dB with its beam swung 35° off
+  broadside. But the **value** carries no information: sweeping `zcomm` from
+  25 Ω to 3200 Ω moves the gain by 0.05 dB, because at λ/2 the common-mode
+  line is a repeater. Turn it on; don't try to tune it.
+- *Open feed tree* — `arrays.bowtie1x2_bl`'s corporate feed. There is no
+  common-mode return, so a CM path is a genuine extra shunt admittance and
+  its value matters a great deal: `zcomm = 100 Ω` drags the driving-point
+  resistance from 50 Ω to 5 Ω. The correct model is CM-**open** (leave
+  `zcomm` unset), which is what that design defaults to; large finite values
+  converge back to it.
+
+The rule of thumb: set `zcomm` when the pair's two conductors are part of a
+closed conduction path that the differential stamp would otherwise break.
+Leave it open when the pair simply ends.
 
 **It is momwire-only.** Practical `BalancedLine` designs attach through
 `PortAtEnd`, which NEC-2 has no equivalent for, so the PyNEC backend
