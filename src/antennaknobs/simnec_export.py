@@ -53,7 +53,9 @@ the documented NEC-portal API. The surrounding XML scaffold in
    impedance tag, and the retained ``FR`` card all match SimNEC's own output.
    The scaffold here is deliberately *minimal* (it omits SimNEC's display state
    — ``SPREADSHEET`` / charts / band menus — which SimNEC regenerates on load);
-   a Windows load-test confirms SimNEC accepts that minimal subset.
+   a Windows load-test confirms SimNEC accepts that minimal subset. The Generator
+   frequency sweep is off by default (SimNEC supplies its own range); pass
+   ``sweep=(lo, hi)`` / ``--sweep`` to emit an enabled band.
 """
 
 from __future__ import annotations
@@ -147,7 +149,12 @@ def build_nec_portal_script(
     deck = export_nec(builder, ground=ground, freq=freq_mhz, include_rp=False)
     cards = _nec_cards_for_portal(deck)
 
-    name = name or f"{type(builder).__module__}.{type(builder).__qualname__}"
+    if name is None:
+        mod = type(builder).__module__
+        qual = type(builder).__qualname__
+        # Keep the dotted path for real designs (e.g. antennaknobs.designs...),
+        # but drop the noisy "__main__." prefix for builders defined in a script.
+        name = qual if mod == "__main__" else f"{mod}.{qual}"
     ground_call, mhos = _ground_directive(ground)
 
     lines = [
@@ -168,10 +175,11 @@ def build_nec_portal_script(
     return "\n".join(lines)
 
 
-# --- provisional .ssn XML scaffold (see module warning) ---------------------
-# Minimal three-element cascade: LOAD (open, right end) — NETWORK (the antenna,
-# in the escape-hatch script) — GENERATOR (50 Ohm source, left end). Authored
-# here from the observed format; confirm it loads in SimNEC before relying on it.
+# --- minimal .ssn XML scaffold (see module note) ----------------------------
+# Three-element cascade: LOAD (open, right end) — NETWORK (the antenna, in the
+# escape-hatch script) — GENERATOR (50 Ohm source, left end). Deliberately minimal
+# — SimNEC regenerates the display state (SPREADSHEET / charts / band menus) it
+# omits. The Generator's MHz carries an optional {gen_sweep} <sweepParam>.
 _SSN_TEMPLATE = """\
 <?xml version="1.0" encoding="utf-8"?>
 <SimNEC1p0>
@@ -192,7 +200,7 @@ _SSN_TEMPLATE = """\
             <element>
                 <type>GENERATOR</type>
                 <sweeperLabel>G</sweeperLabel>
-                <p><n>MHz</n><v>{mhz}</v></p>
+                <p><n>MHz</n><v>{mhz}</v>{gen_sweep}</p>
                 <p><n>Zo</n><v>50</v></p>
             </element>
         </CIRCUIT>
@@ -201,12 +209,31 @@ _SSN_TEMPLATE = """\
 """
 
 
+def _gen_sweep_block(lo: float, hi: float) -> str:
+    """SimNEC ``<sweepParam>`` for the Generator's ``MHz``, enabled (``doSweep
+    y``). Mirrors the structure of a SimNEC 5.1a1-saved file (confirmed to load);
+    without it SimNEC falls back to its default (disabled) sweep range."""
+    return (
+        "<sweepParam><name>G.MHz</name><listed>true</listed>"
+        "<p><n>points</n><v>100</v></p>"
+        f"<p><n>from</n><v>{_fmt(lo)}</v></p>"
+        f"<p><n>to</n><v>{_fmt(hi)}</v></p>"
+        "<p><n>log</n><v>lin</v></p>"
+        "<p><n>doSweep</n><v>y</v></p>"
+        "<p><n>expr</n><v>Vary</v><fontScale>1</fontScale><w>640</w><h>360</h>"
+        "<relx>0</relx><rely>360</rely><ProgrammingDialog><ThreeSplitPane>"
+        "<errDiv>0.3</errDiv><outDiv>0.7</outDiv></ThreeSplitPane>"
+        "</ProgrammingDialog></p></sweepParam>"
+    )
+
+
 def export_ssn(
     builder,
     *,
     freq_mhz: float | None = None,
     ground=DEFAULT_GROUND,
     seg_per_wl: int | None = None,
+    sweep: tuple[float, float] | None = None,
 ) -> str:
     """Return a SimNEC ``.ssn`` (str) for an antenna-only ``builder``.
 
@@ -216,6 +243,10 @@ def export_ssn(
     seg_per_wl : SimNEC auto-mesh density (segments per wavelength). None leaves
                  SimNEC's default; set it to pin SimNEC's mesh for a convergence
                  comparison (SimNEC re-segments regardless of the deck).
+    sweep      : ``(lo_mhz, hi_mhz)`` to enable the Generator's frequency sweep
+                 over that band. ``None`` (default) leaves it minimal, so SimNEC
+                 uses its own default (disabled) range — the single-point solve
+                 at ``freq_mhz`` is still correct.
 
     Raises ``NotImplementedError`` (via ``export_nec``) for networked designs.
     """
@@ -223,7 +254,12 @@ def export_ssn(
     script = build_nec_portal_script(
         builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl
     )
-    return _SSN_TEMPLATE.format(equ=_xml_escape(script), mhz=_fmt(freq_mhz))
+    gen_sweep = (
+        "" if sweep is None else _gen_sweep_block(float(sweep[0]), float(sweep[1]))
+    )
+    return _SSN_TEMPLATE.format(
+        equ=_xml_escape(script), mhz=_fmt(freq_mhz), gen_sweep=gen_sweep
+    )
 
 
 def main(argv=None):
@@ -251,15 +287,35 @@ def main(argv=None):
         default=None,
         help="SimNEC auto-mesh density (segments/wavelength)",
     )
+    ap.add_argument(
+        "--sweep",
+        nargs="?",
+        const="auto",
+        default=None,
+        metavar="LO,HI",
+        help="Enable the Generator frequency sweep: bare '--sweep' for an auto "
+        "band (+/-10%% around --freq), or '--sweep LO,HI' for an explicit MHz range.",
+    )
     ap.add_argument("--out", default=None, help="Write here (default: stdout)")
     args = ap.parse_args(argv)
 
     builder = get_builder(args.builder)()
+    freq = builder.freq if args.freq is None else args.freq
+    sweep = None
+    if args.sweep is not None:
+        if args.sweep == "auto":
+            sweep = (round(freq * 0.9, 6), round(freq * 1.1, 6))
+        else:
+            parts = args.sweep.split(",")
+            if len(parts) != 2:
+                ap.error("--sweep expects LO,HI (two MHz values), or bare for auto")
+            sweep = (float(parts[0]), float(parts[1]))
     ssn = export_ssn(
         builder,
         freq_mhz=args.freq,
         ground=parse_ground(args.ground),
         seg_per_wl=args.seg_per_wl,
+        sweep=sweep,
     )
     if args.out:
         with open(args.out, "w") as fh:
