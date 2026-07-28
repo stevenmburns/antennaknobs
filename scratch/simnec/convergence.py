@@ -11,6 +11,7 @@ Result:  Z_converged ~= 192.9 + j589.8 ohm.
 
 Run:  python scratch/simnec/convergence.py
 """
+
 from antennaknobs.designs.wire.doublet_ladder_tuner import Builder
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.network import Driven, Network, PortOnWire, Wire
@@ -24,14 +25,19 @@ class DipoleOnly(Builder):
         return [Wire((0, -YT, 10.0), (0, YT, 10.0), n_seg=None, name="feed")]
 
     def build_network(self):
-        return Network(ports={"feed": PortOnWire("feed")}, branches=[],
-                       sources=[Driven(port="feed")])
+        return Network(
+            ports={"feed": PortOnWire("feed")},
+            branches=[],
+            sources=[Driven(port="feed")],
+        )
 
 
 def zfeed(solver, kw, nominal):
     b = DipoleOnly(dict(Builder.default_params))
     b.nominal_nsegs = nominal
-    return complex(MomwireEngine(b, solver=solver, ground=None, solver_kwargs=kw).impedance()[0])
+    return complex(
+        MomwireEngine(b, solver=solver, ground=None, solver_kwargs=kw).impedance()[0]
+    )
 
 
 def neville(hs, ys):
@@ -39,16 +45,20 @@ def neville(hs, ys):
     T = list(ys)
     n = len(ys)
     for k in range(1, n):
-        T = [((0 - hs[i + k]) * T[i] - (0 - hs[i]) * T[i + 1]) / (hs[i] - hs[i + k])
-             for i in range(n - k)]
+        T = [
+            ((0 - hs[i + k]) * T[i] - (0 - hs[i]) * T[i + 1]) / (hs[i] - hs[i + k])
+            for i in range(n - k)
+        ]
     return T[0]
 
 
 if __name__ == "__main__":
     ladder = [21, 61, 161, 321, 641]
     finest = {}
-    for name, solver, kw in (("bs2", BSplineSolver, {"degree": 2}),
-                             ("sin", SinusoidalSolver, None)):
+    for name, solver, kw in (
+        ("bs2", BSplineSolver, {"degree": 2}),
+        ("sin", SinusoidalSolver, None),
+    ):
         print(f"=== {name} ===")
         zs = []
         for nseg in ladder:
@@ -61,5 +71,7 @@ if __name__ == "__main__":
         finest[name] = (zs[-1], complex(zr, zx))
         print(f"   Neville -> h=0 : {zr:8.3f} {zx:+8.3f} j\n")
     a, b = finest["bs2"][1], finest["sin"][1]
-    print(f"CONVERGED (both bases agree to {abs(a - b):.3f} ohm): "
-          f"{(a.real + b.real) / 2:.1f} {(a.imag + b.imag) / 2:+.1f} j")
+    print(
+        f"CONVERGED (both bases agree to {abs(a - b):.3f} ohm): "
+        f"{(a.real + b.real) / 2:.1f} {(a.imag + b.imag) / 2:+.1f} j"
+    )

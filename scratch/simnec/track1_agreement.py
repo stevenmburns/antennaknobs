@@ -9,6 +9,7 @@ and runs on the Sinusoidal basis (== PyNEC == SimNEC's nec2c). Prints:
 
 Run:  python scratch/simnec/track1_agreement.py
 """
+
 import cmath
 import math
 
@@ -18,7 +19,7 @@ from antennaknobs.network import Driven, Network, PortOnWire, Wire
 from momwire import BSplineSolver, SinusoidalSolver
 
 YT = 13.400300629701409  # half-length of the 88 ft doublet, metres
-Z10 = 10.0               # height (free space => irrelevant, kept for parity)
+Z10 = 10.0  # height (free space => irrelevant, kept for parity)
 
 
 def swr(z):
@@ -95,19 +96,32 @@ def analytic_cascade(Za, vf, label):
 if __name__ == "__main__":
     print("=== antenna-only feedpoint (free space, momwire/Sin, nominal=120) ===")
     za = antenna_feedpoint()
-    print(f"  {za.real:.2f} {za.imag:+.2f} j   (SimNEC nec2c reproduces this at matched mesh)\n")
+    print(
+        f"  {za.real:.2f} {za.imag:+.2f} j   (SimNEC nec2c reproduces this at matched mesh)\n"
+    )
 
     print("=== NEC deck for SimNEC's N block ===")
     print(NEC_DECK, "\n")
 
     print("=== full-chain rig Z ===")
-    for gname, ground in (("free space", None),
-                          ("finite (eps10 sig0.002)", ("finite-fast", 10.0, 0.002))):
-        for sname, solver in (("BSpline", BSplineSolver), ("Sinusoidal", SinusoidalSolver)):
+    for gname, ground in (
+        ("free space", None),
+        ("finite (eps10 sig0.002)", ("finite-fast", 10.0, 0.002)),
+    ):
+        for sname, solver in (
+            ("BSpline", BSplineSolver),
+            ("Sinusoidal", SinusoidalSolver),
+        ):
             z = full_chain(solver, ground)
-            print(f"  {gname:24s} {sname:10s}: {z.real:7.2f} {z.imag:+7.2f} j  SWR={swr(z):.3f}")
+            print(
+                f"  {gname:24s} {sname:10s}: {z.real:7.2f} {z.imag:+7.2f} j  SWR={swr(z):.3f}"
+            )
     print()
 
     print("=== analytic cascade checkpoints (Za=188+583j, the SimNEC-mesh antenna) ===")
-    analytic_cascade(complex(188, 583), 0.95, "vf 0.95 -> SimNEC read 40-j5.7; momwire/Sin 41.9-j5.8")
-    print("\n  VERDICT: SimNEC 40-j5.7 (SWR 1.29) == AntennaKNoBs 41.9-j5.8 (SWR 1.24). Agree.")
+    analytic_cascade(
+        complex(188, 583), 0.95, "vf 0.95 -> SimNEC read 40-j5.7; momwire/Sin 41.9-j5.8"
+    )
+    print(
+        "\n  VERDICT: SimNEC 40-j5.7 (SWR 1.29) == AntennaKNoBs 41.9-j5.8 (SWR 1.24). Agree."
+    )
