@@ -51,6 +51,15 @@ to model*, against full-wave MoM solves:
    agrees to 2.4–4.3 % across feeder lengths spanning 83 − j118 to
    1158 + j1616 Ω. Covers the NON-λ/2 regime section 5's repeater argument
    does not, which is where ``wire.doublet_balanced_tuner`` operates.
+
+7. The counter-case that keeps 5 and 6 from being over-generalized: in an
+   OPEN feed tree (``arrays.bowtie1x2_bl``'s corporate feed) there is no
+   common-mode return, so a CM path is a real extra shunt admittance and its
+   VALUE matters — ``zcomm = 100 Ω`` drags the driving-point R from 50 Ω to
+   5 Ω. CM-open is the physical model there, and large ``zcomm`` converges
+   back to it monotonically. So the rule is topological, not universal: set
+   ``zcomm`` when the pair closes a conduction loop the differential stamp
+   would break; leave it open when the pair simply ends.
 """
 
 import importlib
@@ -519,3 +528,51 @@ def test_zcomm_value_is_immaterial_behind_a_floating_balun():
         for zc in (150.0, 300.0, 600.0, 1200.0, 2400.0)
     ]
     assert max(abs(z - zs[0]) for z in zs) < 1e-6, zs
+
+
+# ---------------------------------------------------------------------------
+# 7. The other topology: an OPEN feed tree, where zcomm's value does matter
+# ---------------------------------------------------------------------------
+#
+# Sections 5 and 6 both found zcomm's value immaterial — but both live in
+# topologies that make it so (a closed λ/2 loop; a floating-balun secondary
+# with no CM path at all). `arrays.bowtie1x2_bl` is the counter-case and the
+# reason the element ships zcomm as an explicit opt-in rather than a default:
+# its corporate feed is an open tree, so a common-mode path is a real extra
+# shunt admittance rather than a repeater, and the physical model is CM-OPEN.
+
+
+@pytest.mark.antenna_computation_check
+def test_zcomm_value_is_load_bearing_in_an_open_feed_tree():
+    """`arrays.bowtie1x2_bl` (zcomm off by default): adding a common-mode
+    path to a feed that has no common-mode return is not a refinement, it is
+    a modelling error, and the element does not hide it. Measured 2026-07-28,
+    driving-point Z:
+
+        zcomm off (open)   49.8 - 0.3j      <- the physical model
+        zcomm =  100       5.4 + 9.0j       <- 10x error in R
+        zcomm =  250      31.7 +16.7j
+        zcomm =  600      47.4 + 4.9j
+        zcomm = 1500      49.5 + 0.6j       <- converging back to open
+
+    The monotone return to the CM-open answer as zcomm grows is the
+    consistency check: `zcomm=None` really is the zcomm→∞ limit, not a
+    separate code path. Guards the docs' claim that the choice is topological
+    (closed conduction loop vs. a pair that simply ends), NOT a universal
+    "always turn it on"."""
+    from antennaknobs.designs.arrays.bowtie1x2_bl import Builder
+
+    def zin(zc):
+        b = Builder(dict(Builder.default_params, zcomm=zc))
+        return complex(MomwireEngine(b, ground=None).impedance()[0])
+
+    z_open = zin(0.0)  # the design default: CM path absent
+    assert abs(z_open.real - 50.0) < 5.0 and abs(z_open.imag) < 5.0
+
+    # a low-impedance CM shunt is a gross, visible error — not a nudge
+    assert abs(zin(100.0) - z_open) / abs(z_open) > 0.5
+
+    # ...and large zcomm converges monotonically back to the open case
+    devs = [abs(zin(zc) - z_open) / abs(z_open) for zc in (250.0, 600.0, 1500.0)]
+    assert devs[0] > devs[1] > devs[2]
+    assert devs[2] < 0.05
