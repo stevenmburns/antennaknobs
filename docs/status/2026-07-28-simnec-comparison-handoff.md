@@ -19,7 +19,7 @@ agree and where they diverge (common-mode).
   - Scenario 1 (antenna): SimNEC `nec2c` == PyNEC to <0.1 Ω on an identical mesh.
   - Scenario 2 (coupled rig): **SimNEC 40 − j5.7 (SWR 1.29) vs AntennaKNoBs 41.9 − j5.8 (SWR 1.24)** — ~2 Ω, identical reactance.
 - **Track 2 — divergence (`wire.doublet_balanced_tuner`, 14.1 MHz): DONE.** The common-mode "money shot". Compared with a matched (center-fed) feed: AntennaKNoBs symmetric **28.75 + j27.03 (SWR 2.41)** vs SimNEC **28.95 + j25.18 (SWR 2.31)** — agree to ~2 Ω; break symmetry and AntennaKNoBs fans SWR 5.0→5.7 across `line_zcomm` while SimNEC (no zcomm knob) holds one value.
-- **Bonus delivered:** a validated AntennaKNoBs → SimNEC `.ssn` exporter prototype (issue #600).
+- **Bonus delivered:** the AntennaKNoBs → SimNEC `.ssn` exporter — prototype validated, now shipped as `antennaknobs.simnec_export` (issue #600, PR #602); full-station export tracked in #604.
 - Reproduce everything: `scratch/simnec/*.py` (see [Reproducing](#reproducing)).
 
 ---
@@ -180,11 +180,15 @@ Validated: a generated `.ssn` loaded in SimNEC 5.1a1 and tracked the
 AntennaKNoBs/PyNEC convergence curve exactly (segPerWl 40 → 181+j573, 120 →
 188+j583). A `.ssn` is XML with LOAD / NETWORK / GENERATOR `<element>`s; the
 antenna lives in the NETWORK element's escape-hatch `<equ>` script between `NEC2`
-and `NECEND`. Recipe + prototype: `scratch/simnec/export_ssn.py`. #600 promotes
-it to `antennaknobs.simnec_export` with a **clean bundled template** (the
-prototype currently reuses a SimNEC-saved `.ssn` as its template — not in the
-repo) and a CLI. Phase-2 (full networked export) needs the `SERIES_CAP`/
-`SHUNT_CAP` element schemas confirmed (`SERIES_TLINE`, `SHUNT_IND` already known).
+and `NECEND`. Recipe + prototype: `scratch/simnec/export_ssn.py`. **#600 step 1
+is now shipped** as `antennaknobs.simnec_export` (PR #602): a clean-room minimal
+template (no dependency on a user's saved `.ssn`), a CLI, an optional Generator
+sweep, and Windows-confirmed load/solve/sweep. **Phase-2** (full networked /
+station export) is tracked in **#604** — the `SERIES_TLINE` / `SHUNT_CAP` /
+`SERIES_IND` / `TRANSFORMER2` element schemas are now in hand from a saved
+`lastCircuit.ssn`; the open work is mapping the reducer branches and **rejecting
+common-mode designs** (SimNEC's TLine has no `zcomm` knob, so `BalancedLine` /
+`FloatingBalun` can't be faithfully represented — this is Track 2's finding).
 
 ---
 
@@ -212,7 +216,7 @@ with **no** class default, and set `b._asym` on the instance.
 - [ ] Table 2 over real ground (variant): AntennaKNoBs 49.7 − j0.1 computed; SimNEC TODO.
 - [x] Table 3 (common-mode sweep): AntennaKNoBs center-fed + arm-end columns done; SimNEC single value captured (28.95 + j25.18, SWR 2.31) and matches the center-fed symmetric baseline to ~2 Ω.
 - [x] SimNEC gotchas documented.
-- [x] `.ssn` bridge (#600 filed).
+- [x] `.ssn` bridge (#600): antenna-only exporter shipped + SimNEC-validated (PR #602); full-station export tracked in #604.
 - [ ] SimNEC `.ssn` files + screenshots for the writeup.
 
 Related issues: #593 (s1p/s2p import), #594 (auto-transformer), #595 (VNA
