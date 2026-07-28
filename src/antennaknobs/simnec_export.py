@@ -208,10 +208,18 @@ _SSN_TEMPLATE = """\
                 <p><n>MHz</n><v>{mhz}</v>{gen_sweep}</p>
                 <p><n>Zo</n><v>50</v></p>
             </element>
-        </CIRCUIT>
+        </CIRCUIT>{sweep_state}
     </SmithChartCircuit>
 </SimNEC1p0>
 """
+
+# When a sweep is requested, arm it: SCATTERGUN names the swept parameter (without
+# it, doSweep=y on the param does nothing) and ROUNDCHART puts the chart in
+# swept-trace mode. Confirmed against a SimNEC 5.1a1-saved, actively-sweeping file.
+_SWEEP_STATE = (
+    "\n        <SCATTERGUN><n>G.MHz</n></SCATTERGUN>"
+    "\n        <ROUNDCHART><displayMode>Sweep</displayMode></ROUNDCHART>"
+)
 
 
 def _gen_sweep_block(lo: float, hi: float) -> str:
@@ -266,8 +274,12 @@ def export_ssn(
     gen_sweep = (
         "" if sweep is None else _gen_sweep_block(float(sweep[0]), float(sweep[1]))
     )
+    sweep_state = "" if sweep is None else _SWEEP_STATE
     return _SSN_TEMPLATE.format(
-        equ=_xml_escape(script), mhz=_fmt(freq_mhz), gen_sweep=gen_sweep
+        equ=_xml_escape(script),
+        mhz=_fmt(freq_mhz),
+        gen_sweep=gen_sweep,
+        sweep_state=sweep_state,
     )
 
 
