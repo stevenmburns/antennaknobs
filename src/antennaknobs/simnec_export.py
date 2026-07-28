@@ -152,9 +152,14 @@ def build_nec_portal_script(
     if name is None:
         mod = type(builder).__module__
         qual = type(builder).__qualname__
-        # Keep the dotted path for real designs (e.g. antennaknobs.designs...),
-        # but drop the noisy "__main__." prefix for builders defined in a script.
-        name = qual if mod == "__main__" else f"{mod}.{qual}"
+        # SimNEC shows this first //comment as the block's display name, which
+        # only fits ~12 chars before the font shrinks to unreadable. So use the
+        # SHORT leaf name: the design's module leaf (e.g. "invvee") for a real
+        # design, or the class qualname for a script-defined (__main__) builder.
+        if mod != "__main__" and qual == "Builder":
+            name = mod.rsplit(".", 1)[-1]
+        else:
+            name = qual
     ground_call, mhos = _ground_directive(ground)
 
     lines = [
@@ -234,6 +239,7 @@ def export_ssn(
     ground=DEFAULT_GROUND,
     seg_per_wl: int | None = None,
     sweep: tuple[float, float] | None = None,
+    name: str | None = None,
 ) -> str:
     """Return a SimNEC ``.ssn`` (str) for an antenna-only ``builder``.
 
@@ -247,12 +253,15 @@ def export_ssn(
                  over that band. ``None`` (default) leaves it minimal, so SimNEC
                  uses its own default (disabled) range — the single-point solve
                  at ``freq_mhz`` is still correct.
+    name       : block display name (SimNEC's first ``//`` comment). Defaults to
+                 the design's short leaf name; keep it ≤ ~12 chars — SimNEC
+                 shrinks the font for longer names.
 
     Raises ``NotImplementedError`` (via ``export_nec``) for networked designs.
     """
     freq_mhz = builder.freq if freq_mhz is None else float(freq_mhz)
     script = build_nec_portal_script(
-        builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl
+        builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
     )
     gen_sweep = (
         "" if sweep is None else _gen_sweep_block(float(sweep[0]), float(sweep[1]))
@@ -296,6 +305,12 @@ def main(argv=None):
         help="Enable the Generator frequency sweep: bare '--sweep' for an auto "
         "band (+/-10%% around --freq), or '--sweep LO,HI' for an explicit MHz range.",
     )
+    ap.add_argument(
+        "--name",
+        default=None,
+        help="Block display name (default: design's short leaf name). SimNEC "
+        "shrinks the font past ~12 chars, so keep it short.",
+    )
     ap.add_argument("--out", default=None, help="Write here (default: stdout)")
     args = ap.parse_args(argv)
 
@@ -316,6 +331,7 @@ def main(argv=None):
         ground=parse_ground(args.ground),
         seg_per_wl=args.seg_per_wl,
         sweep=sweep,
+        name=args.name,
     )
     if args.out:
         with open(args.out, "w") as fh:

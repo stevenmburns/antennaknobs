@@ -148,19 +148,26 @@ def test_version_control_string_is_simnec_shaped():
     assert vc.startswith("SimNEC:")
 
 
-def test_name_comment_strips_main_prefix():
-    """Builders defined in a script live in module __main__; the leading
-    '__main__.' is noise, so the name comment is just the qualname."""
-    # simulate a script-defined builder (__module__ == "__main__")
-    Script = type("FlatDoublet", (_Dipole,), {})
-    Script.__module__ = "__main__"
-    line0 = build_nec_portal_script(Script(), freq_mhz=14.0).splitlines()[0]
-    assert line0 == "//FlatDoublet"
-    # a real design keeps its full dotted path
+def test_name_comment_is_short_leaf_name():
+    """SimNEC shows the first //comment as the block name (~12-char budget), so
+    the default is the design's short leaf name — not the full dotted path."""
+    # a real design → its module leaf, e.g. "invvee"
     from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
-    line0 = build_nec_portal_script(InvVee(), freq_mhz=14.1).splitlines()[0]
-    assert line0 == "//antennaknobs.designs.dipoles.invvee.Builder"
+    assert (
+        build_nec_portal_script(InvVee(), freq_mhz=14.1).splitlines()[0] == "//invvee"
+    )
+    # a script-defined builder (__module__ == "__main__") → the class qualname
+    Script = type("FlatDoublet", (_Dipole,), {})
+    Script.__module__ = "__main__"
+    assert build_nec_portal_script(Script(), freq_mhz=14.0).splitlines()[0] == (
+        "//FlatDoublet"
+    )
+
+
+def test_name_override():
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None, name="dip20")
+    assert "//dip20" in ssn
 
 
 def test_no_generator_sweep_by_default():
