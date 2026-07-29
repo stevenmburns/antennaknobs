@@ -60,6 +60,17 @@ to model*, against full-wave MoM solves:
    back to it monotonically. So the rule is topological, not universal: set
    ``zcomm`` when the pair closes a conduction loop the differential stamp
    would break; leave it open when the pair simply ends.
+
+8. Why ``PortAtEnd`` exists at all — the negative result. The obvious
+   engine-portable substitute (hang a short stub off the conductor end and
+   centre-tap it with an ordinary gap port, then shrink it) does NOT converge
+   to a junction-node port: it converges to an OPEN, R collapsing to ~0.01 Ω.
+   The stub beyond the gap is a dead end, so the port can only drive
+   displacement current into a capacitance that vanishes with the stub. The
+   contrast with momwire's own ``_bridged_z`` oracle — where the same limit
+   converges to 1.5 % — is where the SECOND terminal lands: a live conductor
+   converges, a dead stub opens. A gap always needs metal on both sides,
+   which is exactly what a conductor end does not have.
 """
 
 import importlib
@@ -576,3 +587,95 @@ def test_zcomm_value_is_load_bearing_in_an_open_feed_tree():
     devs = [abs(zin(zc) - z_open) / abs(z_open) for zc in (250.0, 600.0, 1500.0)]
     assert devs[0] > devs[1] > devs[2]
     assert devs[2] < 0.05
+
+
+# ---------------------------------------------------------------------------
+# 8. Why PortAtEnd exists: the shrinking-nub construction does NOT converge
+# ---------------------------------------------------------------------------
+#
+# The natural objection to a momwire-only junction-node port is: "attach a
+# tiny wire at the conductor end, centre-tap it, and shrink it — in the limit
+# that IS an end port, and it works on every engine." It is a good objection,
+# and it is wrong, for a reason worth recording rather than rediscovering.
+
+
+class _NubFedDoublet(_ElementFedDoublet):
+    """`_ElementFedDoublet` with each `PortAtEnd` replaced by a short stub at
+    the arm end, centre-tapped by an ordinary `PortOnWire` gap."""
+
+    default_params = MappingProxyType(dict(_SUBST_BASE, zcomm=600.0, nub=0.1))
+
+    def build_wires(self):
+        s, arm, L = self.spacing, self.arm_factor * WL, self.feed_len_wl * WL
+        nub = self.nub
+        return [
+            # arms unnamed: the ports now live on the stubs, not the arm ends
+            Wire((0.0, -s / 2, L), (-arm, -s / 2, L)),
+            Wire((0.0, +s / 2, L), (+arm, +s / 2, L)),
+            Wire((0.0, -s / 2, L), (nub, -s / 2, L), name="nubL", n_seg=3),
+            Wire((0.0, +s / 2, L), (nub, +s / 2, L), name="nubR", n_seg=3),
+        ]
+
+    def build_network(self):
+        s, L = self.spacing, self.feed_len_wl * WL
+        return Network(
+            ports={
+                "nubL": PortOnWire("nubL"),
+                "nubR": PortOnWire("nubR"),
+                "rig": PortVirtual("rig"),
+                "bL": PortVirtual("bL"),
+                "bR": PortVirtual("bR"),
+            },
+            branches=[
+                FloatingBalun(primary="rig", a="bL", b="bR", n=1.0),
+                BalancedLine(
+                    a1="bL",
+                    a2="bR",
+                    b1="nubL",
+                    b2="nubR",
+                    zdiff=analytic_zdiff(s),
+                    length=L,
+                    vf=1.0,
+                    zcomm=self.zcomm,
+                ),
+            ],
+            sources=[Driven(port="rig")],
+        )
+
+
+@pytest.mark.antenna_computation_check
+def test_shrinking_nub_does_not_converge_to_an_end_port():
+    """A centre-tapped stub at a conductor end converges to an OPEN, not to
+    a junction-node port — so `PortAtEnd` cannot be replaced by it.
+
+    The stub beyond the gap is a dead end: current must vanish at its tip, so
+    the only current the port can drive is displacement current charging the
+    stub, whose capacitance shrinks with its length. The port series
+    impedance runs to -j*infinity. Measured 2026-07-29 (reference
+    PortAtEnd: 467.2 - 1100.5j):
+
+        nub = 1.00 m   13.32 + 470.7j
+        nub = 0.30 m    0.56 + 175.7j
+        nub = 0.10 m    0.06 + 193.5j
+        nub = 0.03 m    0.01 + 180.2j
+        nub = 0.01 m    0.01 + 173.8j
+
+    R collapses toward zero: no power reaches the antenna at all. Contrast
+    momwire's own `_bridged_z` oracle, where the same shrinking limit DOES
+    converge (<1.5%) — there both terminals land on conductors that carry
+    current away. The discriminator is where the second terminal lands: a
+    live conductor (converges) or a dead stub (opens). A gap construction
+    always needs metal on both sides, which is precisely what a conductor
+    END does not have."""
+    z_ref = _subst_zin(_ElementFedDoublet)
+    assert z_ref.real > 100.0  # the end port genuinely couples
+
+    r_vals = []
+    for nub in (1.0, 0.3, 0.1, 0.03, 0.01):
+        z = _subst_zin(_NubFedDoublet, nub=nub)
+        r_vals.append(z.real)
+        # never approaches the end-port answer, at any stub size
+        assert abs(z - z_ref) / abs(z_ref) > 0.5, (nub, z, z_ref)
+    # ...and the coupling collapses as the stub shrinks: the port opens
+    assert r_vals[0] > 1.0
+    assert r_vals[-1] < 0.1
