@@ -179,7 +179,9 @@ def expand_modules(instances) -> Assembly:
             final = _rewrite_port(port, prefix)
             final_key = prefix + key
             if final_key in ports:
-                raise ValueError(f"module expansion produced duplicate port {final_key!r}")
+                raise ValueError(
+                    f"module expansion produced duplicate port {final_key!r}"
+                )
             ports[final_key] = final
             if isinstance(port, (PortOnWire, PortAtEnd)):  # geometry-touching feed
                 feeds.append(final_key)
@@ -203,9 +205,7 @@ def lattice(module, *, nx, nz, dy, dz, name="e", bind=None):
     insts = []
     for i in range(int(nx)):
         for j in range(int(nz)):
-            t = Transform.translate(
-                0, (i - (nx - 1) / 2) * dy, (j - (nz - 1) / 2) * dz
-            )
+            t = Transform.translate(0, (i - (nx - 1) / 2) * dy, (j - (nz - 1) / 2) * dz)
             portmap = bind(i, j) if bind is not None else {}
             insts.append(ModuleInstance(f"{name}{i}_{j}", module, t, **portmap))
     return insts

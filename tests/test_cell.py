@@ -147,9 +147,13 @@ def test_nested_cell_compounds_prefix_and_surfaces_child_feed():
     outer = Cell(
         feeds=("out_tip",),
         wires=[Wire((0, 0, 0), (1, 0, 0), name="spine")],
-        children=[Placement("inner", inner, Transform.translate(0, 0, 5), tip="out_tip")],
+        children=[
+            Placement("inner", inner, Transform.translate(0, 0, 5), tip="out_tip")
+        ],
     )
-    out = flatten_placements([Placement("o", outer, Transform.translate(10, 0, 0), out_tip="feedX")])
+    out = flatten_placements(
+        [Placement("o", outer, Transform.translate(10, 0, 0), out_tip="feedX")]
+    )
 
     assert _names(out) == {"o.spine", "feedX", "o.inner.stub"}
     # child feed surfaced all the way to the top-level actual…
@@ -243,7 +247,9 @@ def test_4x4_grid_reproduces_manual_builder_and_names_every_feed():
         for j in range(nz):
             yoff = (i - (nx - 1) / 2) * del_y
             zoff = (j - (nz - 1) / 2) * del_z
-            manual.extend(_shift_entry(w, yoff, zoff, lambda ex: ex) for w in element_wires)
+            manual.extend(
+                _shift_entry(w, yoff, zoff, lambda ex: ex) for w in element_wires
+            )
 
     # Same wire count; endpoints agree element-for-element.
     assert len(placed) == len(manual) == 16 * len(element_wires)

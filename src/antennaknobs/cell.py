@@ -85,9 +85,7 @@ class Cell:
             raise ValueError(f"duplicate formal feed in {self.feeds!r}")
         for child in self.children:
             if not isinstance(child, Placement):
-                raise ValueError(
-                    f"Cell.children hold Placements, got {child!r}"
-                )
+                raise ValueError(f"Cell.children hold Placements, got {child!r}")
 
         local_names = {as_wire(w).name for w in self.wires} - {None}
         surfaced = {a for c in self.children for a in c.feedmap.values()}
