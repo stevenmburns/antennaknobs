@@ -12,11 +12,29 @@ spec (`build_network()`), so
   - the central driver is a `PortVirtual` — exists only as a row/column
     in the network Y matrix during the nodal reduction.
 
+The geometry is authored with the `Cell`/`Placement` hierarchy (the geometry
+analog of `Composite`/`Instance`): one delta-loop `Cell` is stamped twice, and
+the formal feed name `"feed"` is renamed to `"loop1"`/`"loop2"` by the
+placement map — the single source of truth `build_network()` binds its ports
+to. The two placements are a mirror pair across y = 0, but expressed as pure
+placement rather than an explicit `ry` on the geometry: loop2 negates both the
+y-offset (`-del_y`) and the slant. Negating the slant is what keeps it a true
+reflection at any tilt — a y-mirror conjugates the tilt (`ry . rotX(-s) . ry =
+rotX(+s)`). Combined with the base loop's own y-reflection symmetry, this
+reproduces the legacy mirror construction edge-for-edge (including the fed
+edge) for every `slant_deg`, not just the default 0.
+
 MomwireEngine produces the same impedance as the legacy `build_tls` fixture to
 numerical precision; the showcase for the network-spec API in #65.
 """
 
-from antennaknobs import AntennaBuilder, Transform, TransformStack
+from antennaknobs import (
+    AntennaBuilder,
+    Cell,
+    Placement,
+    Transform,
+    flatten_placements,
+)
 from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL, Wire
 
 import math
@@ -49,31 +67,43 @@ class Builder(AntennaBuilder):
         def ry(p):
             return p[0], -p[1], p[2]
 
-        # y of the top corner (half the top-edge width), in closed form.
+        # One delta loop in LOCAL coordinates, symmetric about y = 0: the
+        # bottom edge T → S is the named feed, the other three edges close the
+        # loop. y is the top-corner half-width in closed form.
         y = (cos_t * (driver - 2 * eps) + 2 * eps) / (2 * (cos_t + 1))
         S = (0, eps, b - (y - eps) * tan_t)
         A = (0, y, b)
         B, T = ry(A), ry(S)
+        loop = Cell(
+            feeds=("feed",),
+            wires=[
+                Wire(S, A),
+                Wire(A, B),
+                Wire(B, T),
+                Wire(T, S, name="feed"),
+            ],
+        )
 
-        st = TransformStack()
-        st.push(Transform.translate(0, 0, b))
-        st.push(Transform.rotX(-self.slant_deg))
-        st.push(Transform.translate(0, self.del_y, -b))
-        SS, AA, BB, TT = st.hit(S), st.hit(A), st.hit(B), st.hit(T)
-        SSS, AAA, BBB, TTT = ry(SS), ry(AA), ry(BB), ry(TT)
+        # Element pose: raise by the base height, apply the slant, shift along
+        # y. The two loops are a mirror pair across y = 0, expressed as pure
+        # placement: loop2 negates BOTH the y-offset and the slant. Negating
+        # the slant is what makes it a true reflection at any tilt — a y-mirror
+        # conjugates the tilt, ry . rotX(-s) . ry = rotX(+s), so the reflected
+        # loop is tilted the opposite way. The placement map renames the formal
+        # "feed" edge to the per-loop actual build_network() binds a port to.
+        def pose(dy, slant):
+            return (
+                Transform.translate(0, 0, b)
+                .postmult(Transform.rotX(-slant))
+                .postmult(Transform.translate(0, dy, -b))
+            )
 
-        return [
-            # Loop 1: SS → AA → BB → TT perimeter (no feed), then TT → SS named.
-            Wire(SS, AA),
-            Wire(AA, BB),
-            Wire(BB, TT),
-            Wire(TT, SS, name="loop1"),
-            # Loop 2: mirror.
-            Wire(SSS, AAA),
-            Wire(AAA, BBB),
-            Wire(BBB, TTT),
-            Wire(SSS, TTT, name="loop2"),
-        ]
+        return flatten_placements(
+            [
+                Placement("loop1", loop, pose(self.del_y, self.slant_deg), feed="loop1"),
+                Placement("loop2", loop, pose(-self.del_y, -self.slant_deg), feed="loop2"),
+            ]
+        )
 
     def build_network(self):
         wavelength = self.design_wavelength
