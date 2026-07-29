@@ -866,6 +866,23 @@ class MomwireEngine(SimulationEngine):
             return float(p_in)
         return self._p_in_from_excited(sim, z)
 
+    def solver_diag(self):
+        """Array Block solver diagnostics from the last solve (issue #613):
+        which coupling path engaged (lattice-FFT / per-pair / dense
+        H-matrix fallback) and, when the FFT path did not, why not.
+
+        Delegates to `ArrayBlockSolver.solver_diag()` on the cached excited
+        solver — the same instance `current_distribution()` reads currents
+        from — so this needs no re-solve. Returns None before any solve has
+        run, or when the configured model isn't Array Block (no
+        `solver_diag` attribute), so the adapter can omit the field."""
+        cached = getattr(self, "_solved_cache", None)
+        if cached is None:
+            return None
+        sim = cached[1][0]
+        diag = getattr(sim, "solver_diag", None)
+        return diag() if diag is not None else None
+
     def current_distribution(self):
         self._raise_if_cancelled()
         sim, coeffs, _z = self._solved_excited(self._wavelength_for(self.builder.freq))

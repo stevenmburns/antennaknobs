@@ -1996,6 +1996,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "input_power_w": float(eng.input_power()),
             **_wire_material_results(builder),
         }
+        # Array Block coupling-path diagnostics (issue #613): absent for
+        # every other engine/model (eng.solver_diag() only returns a dict
+        # for an ArrayBlockSolver-backed solve).
+        solver_diag = eng.solver_diag()
+        if solver_diag is not None:
+            out["solver_diag"] = solver_diag
         if hints()["multi_feed"] and len(zs) > 1:
             # Pull per-feed drive voltages off the engine so the frontend
             # can render each feed's phase indicator. MomwireEngine stores
