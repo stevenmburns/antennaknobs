@@ -20,7 +20,7 @@ This page introduces the vocabulary. The worked examples put it to use:
 ## Ports: where the circuit meets the wire
 
 A design's `build_network()` returns a `Network` — ports, branches,
-sources. Ports come in three kinds:
+sources. Ports come in four kinds:
 
 - **`PortOnWire("feed")`** — a real port at a named wire of the
   geometry. This is the seam between the circuit world and the field
@@ -36,6 +36,19 @@ sources. Ports come in three kinds:
   multi-terminal element (a `BalancedLine`) hangs off a conductor's
   end. momwire-only: NEC-2 has no junction-node port, so the PyNEC
   backend rejects designs that use it (a declared engine-parity break).
+- **`PortOnWireFloating("feed")`** — a gap port with **both** terminals
+  exposed, addressed as `feed.p` and `feed.n`. An ordinary `PortOnWire` is
+  stamped node-to-datum: its second terminal is bonded to the common return,
+  so a branch can only reach one side of the gap. That is a stamping
+  convention, not physics — the field solver only ever knows gap voltage and
+  gap current. Use this when the two sides must go to *different* branches,
+  which is what a balanced feed actually needs. Unlike `PortAtEnd` it asks
+  nothing of the solver, so it works on every engine.
+
+  A single floating gap is a one-port, so its stamp is purely differential and
+  provides **no** common-mode path — give the network a CM return, or model
+  the common-mode path as its own gap port and let the two-port coupling carry
+  that physics.
 
 The source (`Driven(port="rig")`) goes wherever your measurement plane
 is. Put it at the antenna feed and you're modelling the antenna; put it

@@ -40,6 +40,7 @@ from .network import (
     FloatingBalun,
     Load,
     PortOnWire,
+    PortOnWireFloating,
     Shunt,
     Transformer,
     TwoPort,
@@ -340,8 +341,31 @@ class NetworkReducer:
 
     def __init__(self, network, port_to_idx, n_total_ports):
         self.network = network
-        self.port_to_idx = port_to_idx
+        self.port_to_idx = dict(port_to_idx)
         self.n_total_ports = n_total_ports
+
+        # Floating gap ports: the antenna Y row still lives at the port's
+        # existing index (that node becomes the "+" terminal), and the "-"
+        # terminal gets a freshly appended node instead of being bonded to the
+        # datum. Both are exposed as dotted sub-nodes, so every branch keeps
+        # resolving through port_to_idx unchanged.
+        self._floating = {}
+        next_node = n_total_ports
+        for name, port in network.ports.items():
+            if isinstance(port, PortOnWireFloating):
+                p_idx = self.port_to_idx[name]
+                self._floating[name] = (p_idx, next_node)
+                self.port_to_idx[f"{name}.p"] = p_idx
+                self.port_to_idx[f"{name}.n"] = next_node
+                next_node += 1
+        self.n_nodes = next_node
+        for src in network.sources:
+            if src.port in self._floating:
+                raise NotImplementedError(
+                    f"source on floating gap port {src.port!r}: drive it through "
+                    f"the network instead (a branch across {src.port}.p / "
+                    f"{src.port}.n), or use a plain PortOnWire"
+                )
 
         # 0-based driven port indices, with per-source kind: "v" for a
         # Driven voltage source (value = EMF), "i" for a DrivenCurrent
@@ -396,10 +420,23 @@ class NetworkReducer:
         plain KCL with zero injection (the floating I_ext = 0 condition).
         """
         omega = 2.0 * np.pi * C_LIGHT / wavelength
-        n = self.n_total_ports
+        n = self.n_nodes
         G = np.zeros((n, n), dtype=np.complex128)
         n_real = Y_real.shape[0]
-        G[:n_real, :n_real] = Y_real
+        if self._floating:
+            # Port incidence: gap row i drives node i positively, and a
+            # floating port also drives its "-" node negatively. The stamp is
+            # the congruence AᵀYA — the same [[1,-1],[-1,1]] structure
+            # BalancedLine uses, generalized over the whole multiport. With no
+            # floating ports A is the identity block and this reduces exactly
+            # to the historical G[:n_real, :n_real] = Y_real.
+            A = np.zeros((n_real, n), dtype=np.complex128)
+            A[np.arange(n_real), np.arange(n_real)] = 1.0
+            for p_idx, n_idx in self._floating.values():
+                A[p_idx, n_idx] = -1.0
+            G += A.T @ Y_real @ A
+        else:
+            G[:n_real, :n_real] = Y_real
 
         elements = []
         loads_by_node = {}
