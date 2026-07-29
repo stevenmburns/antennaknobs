@@ -20,6 +20,9 @@ __all__ = [
     "as_wire",
     "Composite",
     "Instance",
+    "Cell",
+    "Placement",
+    "flatten_placements",
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
@@ -54,6 +57,7 @@ from .design_data import read_data, read_json
 from .nec_import import read_nec
 from .network import Composite, Instance, Wire, WireSpec, as_wire
 from .transform import Transform, TransformStack
+from .cell import Cell, Placement, flatten_placements
 from .drone import Drone
 from .sim import Antenna
 from .opt import optimize
