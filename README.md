@@ -4,9 +4,10 @@
 
 | Name                                                              |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| src/antennaknobs/\_\_init\_\_.py                                  |       18 |        2 |     89% |     92-93 |
+| src/antennaknobs/\_\_init\_\_.py                                  |       20 |        2 |     90% |   108-109 |
 | src/antennaknobs/\_\_main\_\_.py                                  |        0 |        0 |    100% |           |
 | src/antennaknobs/builder.py                                       |      302 |        1 |     99% |       299 |
+| src/antennaknobs/cell.py                                          |       70 |        1 |     99% |        88 |
 | src/antennaknobs/cli.py                                           |      402 |       40 |     90% |157, 176, 214, 226, 251-252, 472, 604-617, 656-666, 735-749, 813, 892-893 |
 | src/antennaknobs/core.py                                          |       16 |        2 |     88% |     12-13 |
 | src/antennaknobs/design\_data.py                                  |       29 |        1 |     97% |        43 |
@@ -15,6 +16,7 @@
 | src/antennaknobs/designs/\_\_init\_\_.py                          |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtie1x2\_bl.py                  |       36 |        0 |    100% |           |
+| src/antennaknobs/designs/arrays/bowtie4x4.py                      |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray1x2.py                 |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray2x4.py                 |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/bowtiearray.py                    |        7 |        0 |    100% |           |
@@ -22,7 +24,7 @@
 | src/antennaknobs/designs/arrays/delta\_looparray\_1x4.py          |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/delta\_looparray\_1x4\_grouped.py |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/delta\_looparray\_2x2.py          |        7 |        0 |    100% |           |
-| src/antennaknobs/designs/arrays/delta\_looparray\_network.py      |       31 |        0 |    100% |           |
+| src/antennaknobs/designs/arrays/delta\_looparray\_network.py      |       28 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/folded\_invveearray.py            |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/hentenna\_array.py                |        7 |        0 |    100% |           |
 | src/antennaknobs/designs/arrays/hourglass\_array.py               |        7 |        0 |    100% |           |
@@ -123,6 +125,7 @@
 | src/antennaknobs/engines/pynec.py                                 |      454 |       29 |     94% |63-65, 295-300, 405, 425, 454, 462, 472, 481, 503, 510, 544, 575, 614, 624, 630, 644, 762-763, 943, 968, 972-976, 978, 983 |
 | src/antennaknobs/far\_field.py                                    |      184 |        2 |     99% |    92, 96 |
 | src/antennaknobs/geometry.py                                      |      185 |        6 |     97% |80, 102-103, 107, 126, 152 |
+| src/antennaknobs/module.py                                        |       82 |        4 |     95% |84, 89, 146, 182 |
 | src/antennaknobs/nec\_export.py                                   |       57 |       12 |     79% |60, 105-115 |
 | src/antennaknobs/nec\_import.py                                   |      937 |       48 |     95% |290-291, 295, 298, 336, 435, 560, 567, 601, 655, 674, 684, 822, 838, 888, 894, 902, 926, 935, 958, 973, 977, 1031, 1049, 1051, 1053, 1071, 1073, 1075, 1080, 1086-1087, 1106, 1180, 1203, 1218, 1289, 1340-1341, 1344, 1347, 1443, 1467, 1481-1482, 1641, 1723, 1835 |
 | src/antennaknobs/network.py                                       |      372 |       14 |     96% |537, 720, 722, 805, 973, 997, 1003, 1088, 1095, 1119, 1121, 1195, 1201, 1215 |
@@ -148,7 +151,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      855 |       91 |     89% |71-73, 141-145, 276-277, 344, 590-592, 597, 689, 744, 847-850, 1027, 1110, 1128-1130, 1193, 1201-1204, 1223-1235, 1238, 1263, 1278-1291, 1339-1341, 1389, 1403, 1432-1433, 1457-1458, 1490, 1570-1577, 1589-1602, 1622, 1625-1626, 1659-1660, 1691, 1709-1712, 1728, 1761, 1764, 1772, 1799-1800, 2026, 2112, 2139, 2141, 2145-2146, 2159, 2170, 2174, 2226-2227, 2246 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **9605** |  **505** | **95%** |           |
+| **TOTAL**                                                         | **9781** |  **510** | **95%** |           |
 
 
 ## Setup coverage badge
