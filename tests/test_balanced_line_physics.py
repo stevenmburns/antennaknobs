@@ -71,6 +71,16 @@ to model*, against full-wave MoM solves:
    converges to 1.5 % — is where the SECOND terminal lands: a live conductor
    converges, a dead stub opens. A gap always needs metal on both sides,
    which is exactly what a conductor end does not have.
+
+9. The construction actually shipped (`wire.doublet_balanced_tuner`): one
+   wire, an ideal delta gap at its centre exposed as a `PortOnWireFloating`,
+   no bridge and no second length scale. Its idealization error against a
+   physical feeder is 3.2 / 2.1 / 1.3 % — a few percent being the expected gap
+   between an ideal delta-gap feed and a real two-wire attachment. Agreement
+   with physical wires BOUNDS that error; it is not the definition of
+   correctness, since the model is an idealization and the physical build is a
+   different model. The model's own criterion is convergence under refinement,
+   which both engines satisfy.
 """
 
 import importlib
@@ -88,6 +98,7 @@ from antennaknobs.network import (
     Network,
     PortAtEnd,
     PortOnWire,
+    PortOnWireFloating,
     PortVirtual,
     Wire,
 )
@@ -679,3 +690,75 @@ def test_shrinking_nub_does_not_converge_to_an_end_port():
     # ...and the coupling collapses as the stub shrinks: the port opens
     assert r_vals[0] > 1.0
     assert r_vals[-1] < 0.1
+
+
+# ---------------------------------------------------------------------------
+# 9. The shipped centre-port construction, on the same oracle
+# ---------------------------------------------------------------------------
+#
+# `wire.doublet_balanced_tuner` feeds a single wire through a
+# `PortOnWireFloating` at its centre: an ideal TL plus an ideal delta gap, with
+# no bridge and no second length scale. Section 6 bounded `PortAtEnd`'s
+# idealization error against a physical feeder; this does the same for the
+# construction actually shipped.
+#
+# NOTE on what this does and does not prove. Agreement with a physical-wire
+# feeder BOUNDS the idealization error — it is not the definition of
+# correctness, because the model is an idealization by construction and the
+# physical build is a different model. The model's own criterion is
+# convergence under refinement, which both engines satisfy (bare wire,
+# N = 21 -> 641: momwire 344.3 -> 383.4 + j1010.0, PyNEC 328.3 -> 382.1 +
+# j1008.6, steps halving per doubling, 0.4% apart at the end).
+
+
+class _CentrePortDoublet(_ElementFedDoublet):
+    """One wire, floating port at its centre — the shipped construction."""
+
+    def build_wires(self):
+        arm, L = self.arm_factor * WL, self.feed_len_wl * WL
+        return self.auto_mesh([Wire((-arm, 0.0, L), (arm, 0.0, L), name="feed")])
+
+    def build_network(self):
+        s, L = self.spacing, self.feed_len_wl * WL
+        return Network(
+            ports={
+                "feed": PortOnWireFloating("feed"),
+                "rig": PortVirtual("rig"),
+                "bL": PortVirtual("bL"),
+                "bR": PortVirtual("bR"),
+            },
+            branches=[
+                FloatingBalun(primary="rig", a="bL", b="bR", n=1.0),
+                BalancedLine(
+                    a1="bL",
+                    a2="bR",
+                    b1="feed.p",
+                    b2="feed.n",
+                    zdiff=analytic_zdiff(s),
+                    length=L,
+                    vf=1.0,
+                    zcomm=self.zcomm,
+                ),
+            ],
+            sources=[Driven(port="rig")],
+        )
+
+
+@pytest.mark.antenna_computation_check
+def test_centre_port_construction_tracks_a_physical_feeder():
+    """Idealization error of the shipped construction, measured 2026-07-29:
+
+        feeder   physical           centre port         dev    (PortAtEnd)
+        0.20 λ   1158.2 +1615.8j    1097.5 +1595.0j    3.2 %      4.3 %
+        0.30 λ    445.2 -1075.6j     460.5 -1094.0j    2.1 %      2.9 %
+        0.45 λ     82.6  -118.4j      82.8  -120.3j    1.3 %      2.4 %
+
+    A few percent is the expected gap between an ideal delta-gap feed and a
+    real two-wire attachment, and it is the bound worth pinning. It also beats
+    the `PortAtEnd` authoring at every length — but that is a secondary
+    observation, not the reason to prefer it; portability and the absence of a
+    second length scale are."""
+    for flw in (0.20, 0.30, 0.45):
+        zp = _subst_zin(_PhysFedDoublet, feed_len_wl=flw)
+        dev = abs(_subst_zin(_CentrePortDoublet, feed_len_wl=flw) - zp) / abs(zp)
+        assert dev < 0.05, (flw, dev)
