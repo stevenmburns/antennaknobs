@@ -100,8 +100,12 @@ class Builder(AntennaBuilder):
 
         return flatten_placements(
             [
-                Placement("loop1", loop, pose(self.del_y, self.slant_deg), feed="loop1"),
-                Placement("loop2", loop, pose(-self.del_y, -self.slant_deg), feed="loop2"),
+                Placement(
+                    "loop1", loop, pose(self.del_y, self.slant_deg), feed="loop1"
+                ),
+                Placement(
+                    "loop2", loop, pose(-self.del_y, -self.slant_deg), feed="loop2"
+                ),
             ]
         )
 
