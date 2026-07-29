@@ -2660,6 +2660,56 @@ def test_momwire_sommerfeld_applies_on_every_solver(model):
     assert abs(z_somm - z_ref) < 3.0  # cross-solver floor
 
 
+def test_solve_response_carries_solver_diag_for_array_block():
+    """Issue #613: the Array Block solve response reports which coupling
+    path engaged, sourced from the operator momwire already built (no
+    re-solve). `arrays.bowtie4x4` is the issue's own worked example: 16
+    identical elements engage the FFT lattice path in free space, but ANY
+    ground model splits the block-shape classes by height (4 rows -> 4
+    heights), dropping to the per-pair path with a reason that names the
+    split specifically — not just `lattice_fft: false`."""
+    base = {
+        "geometry": "arrays.bowtie4x4",
+        "solver": "momwire",
+        "momwire_model": "arrayblock",
+        "measurement_freq_mhz": 28.47,
+    }
+    free = server.solve(base)
+    assert free["solver_diag"] == {
+        "operator": "LatticeArrayBlock",
+        "lattice_fft": True,
+        "n_elem": 16,
+        "n_shapes": 1,
+        "reason": None,
+    }
+    grounded = server.solve({**base, "ground": True})
+    assert grounded["solver_diag"] == {
+        "operator": "ArrayBlock",
+        "lattice_fft": False,
+        "n_elem": 16,
+        "n_shapes": 4,
+        "reason": (
+            "shape classes split by height above ground (4 classes); "
+            "the FFT path needs 1"
+        ),
+    }
+
+
+def test_solve_response_omits_solver_diag_for_other_engines():
+    """Only the Array Block engine populates this field (issue #613's
+    scope) — every other momwire model, and PyNEC, leave it absent rather
+    than reporting a misleading empty/false diagnostic."""
+    base = {
+        "geometry": "dipoles.invvee",
+        "measurement_freq_mhz": 28.47,
+    }
+    for model in ("bspline", "sinusoidal", "hmatrix"):
+        resp = server.solve({**base, "solver": "momwire", "momwire_model": model})
+        assert "solver_diag" not in resp, model
+    resp = server.solve({**base, "solver": "pynec"})
+    assert "solver_diag" not in resp
+
+
 def test_retired_model_name_falls_back_to_bspline():
     """The triangular solver is retired: a stale client still naming it
     (or any unknown model) gets the default BSpline solve instead of a

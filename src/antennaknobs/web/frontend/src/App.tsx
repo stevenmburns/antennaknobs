@@ -1398,6 +1398,21 @@ type SolveResponse = {
    *  readout's ground row shows this rather than re-deriving it from
    *  backend + groundType state. */
   ground_model_applied?: string;
+  /** Array Block solver diagnostics (issue #613): which coupling path the
+   *  last solve actually used. Only the Array Block engine populates this —
+   *  every other engine/model leaves it absent, and the Info panel omits
+   *  the row in that case. `reason` names the specific unmet FFT-gate
+   *  condition (e.g. a height split under ground, or fewer than 16
+   *  elements) and is null when `lattice_fft` is true. This never reflects
+   *  a refused solve — the engine always falls back to a slower-but-correct
+   *  path instead of erroring. */
+  solver_diag?: {
+    operator: "LatticeArrayBlock" | "ArrayBlock" | "HMatrix";
+    lattice_fft: boolean;
+    n_elem: number | null;
+    n_shapes: number | null;
+    reason: string | null;
+  };
   /** Per-branch network dissipation from the MNA solve (issue #299):
    *  one entry per TL / TwoPort / Shunt / Load branch, in watts for the
    *  canonical 1 V drive. Absent or all-~0 for plain and lossless
@@ -6686,6 +6701,25 @@ function SolveReadout({
           feeds-table wrapper is used only for its dashed separator rule —
           no header. */}
       <div className="feeds-table">
+        {result?.solver_diag && (
+          <div
+            className="row"
+            title={
+              result.solver_diag.reason
+                ? `Array Block solve did not use the fast lattice-FFT coupling path: ${result.solver_diag.reason}. Correctness is unaffected — only speed.`
+                : "Array Block solve used the fast lattice-FFT coupling path (a regular same-height lattice of 16+ identical elements)."
+            }
+          >
+            <span>array path</span>
+            <span className="val">
+              {result.solver_diag.lattice_fft
+                ? "FFT lattice"
+                : result.solver_diag.operator === "HMatrix"
+                  ? "H-matrix"
+                  : "per-pair"}
+            </span>
+          </div>
+        )}
         <div className="row">
           <span>solve</span>
           <span className="val">

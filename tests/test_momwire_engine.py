@@ -1851,3 +1851,68 @@ def test_lattice_fft_identical_feeds_give_symmetric_port_impedances():
     # And the array is genuinely inhomogeneous — edge and interior differ, so
     # the mirror check above isn't passing trivially on 16 equal numbers.
     assert abs(z[0] - z[5]) / abs(z[5]) > 1e-3
+
+
+# --------------------------------------------------------------------------
+# solver_diag() (issue #613): surfaces which coupling path the Array Block
+# engine actually used, so a surprising solve time is explainable instead of
+# opaque. The 4x4 bowtie panel is the issue's own worked example: it engages
+# the FFT lattice path in free space, but drops to per-pair under any ground
+# model because block-shape classes are refined by height above the plane
+# (4 rows -> 4 heights) — see array_block.py's build_array_blocks().
+# --------------------------------------------------------------------------
+
+
+def test_solver_diag_engine_fft_engaged_on_4x4_bowtie_array():
+    from momwire import ArrayBlockSolver
+
+    eng = MomwireEngine(
+        _bowtie_4x4(), solver=ArrayBlockSolver, solver_kwargs={"degree": 2}
+    )
+    assert eng.solver_diag() is None  # nothing solved yet
+    eng.current_distribution()
+    assert eng.solver_diag() == {
+        "operator": "LatticeArrayBlock",
+        "lattice_fft": True,
+        "n_elem": 16,
+        "n_shapes": 1,
+        "reason": None,
+    }
+
+
+def test_solver_diag_engine_height_split_under_pec_ground_on_4x4_bowtie_array():
+    """The headline case from the issue: same panel, same 16 elements, but
+    PEC ground refines the block-shape classes by height (4 rows -> 4
+    heights), dropping the FFT path — and the reason names that specifically,
+    not just `lattice_fft: false`."""
+    from momwire import ArrayBlockSolver
+
+    eng = MomwireEngine(
+        _bowtie_4x4(),
+        solver=ArrayBlockSolver,
+        solver_kwargs={"degree": 2},
+        ground="pec",
+    )
+    eng.current_distribution()
+    assert eng.solver_diag() == {
+        "operator": "ArrayBlock",
+        "lattice_fft": False,
+        "n_elem": 16,
+        "n_shapes": 4,
+        "reason": (
+            "shape classes split by height above ground (4 classes); "
+            "the FFT path needs 1"
+        ),
+    }
+
+
+def test_solver_diag_absent_for_dense_bspline_engine():
+    """Only the Array Block engine reports this (issue #613's scope) — the
+    default dense B-spline solver has no `solver_diag` method at all."""
+    from momwire import BSplineSolver
+
+    eng = MomwireEngine(
+        _bowtie_4x4(), solver=BSplineSolver, solver_kwargs={"degree": 2}
+    )
+    eng.current_distribution()
+    assert eng.solver_diag() is None
