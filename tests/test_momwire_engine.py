@@ -1741,52 +1741,15 @@ def test_tmatch_degenerate_endpoints():
 # --------------------------------------------------------------------------
 
 
-from types import MappingProxyType  # noqa: E402
-
-from antennaknobs import AntennaBuilder  # noqa: E402
-from antennaknobs.builder import _shift_entry  # noqa: E402
-
-
-class _Array4x4Builder(AntennaBuilder):
-    """4x4 grid of IDENTICAL elements with identical (in-phase, unit) feeds.
-
-    Deliberately not one of the shipped array builders: those give elements
-    two shape classes (``*_top``/``*_bot`` params) and at most 8 elements,
-    while the lattice path needs a single shape class and >= 16 elements to
-    auto-engage. Spacing is uniform in y and z, so the element centroids form
-    a regular 2-D lattice — exactly the structure under test.
-    """
-
-    default_params = MappingProxyType(
-        {"freq": 28.47, "del_y": 4.0, "del_z": 4.0, "nx": 4, "nz": 4}
-    )
-
-    def __init__(self, element_builder, params=None):
-        self.__dict__["element_builder"] = element_builder
-        super().__init__(params)
-
-    def build_wires(self):
-        elem_params = dict(self.element_builder.default_params)
-        for k in self.FRAMEWORK_PARAMS:
-            if k in self._params:
-                elem_params[k] = self._params[k]
-        tups = self.element_builder(elem_params).build_wires()
-
-        out = []
-        for i in range(int(self.nx)):
-            for j in range(int(self.nz)):
-                yoff = (i - (self.nx - 1) / 2) * self.del_y
-                zoff = (j - (self.nz - 1) / 2) * self.del_z
-                # Identical feeds: every element driven at unit amplitude,
-                # zero relative phase (broadside, no steering).
-                out.extend(_shift_entry(t, yoff, zoff, lambda ex: 1 + 0j) for t in tups)
-        return out
-
-
 def _bowtie_4x4():
-    from antennaknobs.designs.specialty import bowtie
+    """The shipped 4x4 broadside bowtie panel — 16 identical elements on a
+    regular grid, each fed at unit amplitude and zero relative phase. Authored
+    with the Module/lattice hierarchy (single shape class, >= 16 elements), it
+    is exactly the lattice-FFT structure under test, so the tests exercise the
+    real catalog design instead of a test-local builder."""
+    from antennaknobs.designs.arrays.bowtie4x4 import Builder
 
-    return _Array4x4Builder(bowtie.Builder)
+    return Builder()
 
 
 def test_lattice_fft_engages_on_4x4_bowtie_array():
