@@ -150,3 +150,26 @@ def test_driving_a_floating_port_is_rejected():
 
     with pytest.raises(ValueError, match="attachment point, not a drive point"):
         Bad().build_network()
+
+
+def test_physical_port_voltage_is_the_drop_across_the_gap():
+    """Regression: the excited far-field/current solve must be driven with the
+    gap voltage `v[p] - v[n]`, not the "+" node against a datum the port is
+    deliberately not bonded to.
+
+    Getting this wrong under-drives the antenna SILENTLY — the driven-point
+    impedance reads off the termination branch and stays correct, so SWR and
+    the power budget look fine while the radiated field is wrong. It surfaced
+    as `wire.doublet_balanced_tuner` reporting -3.46 dBi for a 0.72 lambda
+    free-space doublet (correct: +2.56 dBi).
+
+    Oracle: the floating build with its "-" terminal shorted to the datum must
+    match the grounded build's FAR FIELD, not merely its impedance."""
+    ff = {}
+    for floating in (False, True):
+        b = _Doublet(dict(_Doublet.default_params, floating=int(floating)))
+        eng = MomwireEngine(b, ground=None)
+        eng.impedance()
+        pat = eng.far_field(n_theta=45, n_phi=72, del_theta=2, del_phi=5)
+        ff[floating] = max(max(r) for r in pat.rings)
+    assert abs(ff[True] - ff[False]) < 1e-6, ff
