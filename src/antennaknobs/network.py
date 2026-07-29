@@ -71,6 +71,39 @@ class PortVirtual:
     name: str
 
 
+@dataclass(frozen=True)
+class PortOnWireFloating(PortOnWire):
+    """A `PortOnWire` whose BOTH terminals are exposed as circuit nodes.
+
+    An ordinary gap port is stamped node-to-datum: its second terminal is
+    bonded to the common return, so a branch can only connect to one side of
+    the gap. That is a *stamping convention*, not physics — the MoM only ever
+    knows gap voltage and gap current, so every delta gap is inherently a
+    floating two-terminal object. This port type stops imposing the bond.
+
+    The two terminals are addressed as dotted sub-nodes — ``"feed.p"`` and
+    ``"feed.n"`` for a port named ``feed`` — the same way `Instance` exposes a
+    composite's interior nodes (``"tuner.m"``). Branches reference those names;
+    the bare port name is not a node.
+
+    Use it to hang a genuinely balanced element off the structure: the two
+    terminals may go to *different* branches, which a node-to-datum port
+    cannot express. SimNEC models NEC feeds this way as a matter of course —
+    its `NECSource({w1,w2}, wire, percent)` takes two arbitrary circuit nets,
+    and its Ruthroff/Guanella balun sample runs the two sides of one antenna
+    gap into two different choke inductors.
+
+    Unlike `PortAtEnd` this needs nothing new from the solver — it changes only
+    how the shared reducer stamps the antenna's multiport Y — so it works on
+    every engine, PyNEC included.
+
+    NOTE a single floating gap is a 1-port: its Y has one degree of freedom, so
+    the stamp is purely differential and supplies NO common-mode path. Either
+    give the network a CM return, or model the CM path as its own gap port —
+    a 2-port Y couples the two gaps and carries that physics itself.
+    """
+
+
 # Deprecated alias — the pre-rename class name ("edge" meant a wire-graph
 # edge, i.e. one build_wires() tuple, but read as "wire end"). Kept so any
 # externally-authored design importing it keeps working.
@@ -108,7 +141,7 @@ class PortAtEnd:
             raise ValueError(f"PortAtEnd end must be 'p0' or 'p1', got {self.end!r}")
 
 
-Port = Union[PortOnWire, PortAtEnd, PortVirtual]
+Port = Union[PortOnWire, PortOnWireFloating, PortAtEnd, PortVirtual]
 
 
 @dataclass(frozen=True)
@@ -1063,11 +1096,25 @@ class Network:
                     f"port dict key {name!r} doesn't match Port.name {port.name!r}"
                 )
         port_names = set(self.ports)
+        # A floating gap port is addressed by its two terminals, never by the
+        # bare name: branches reference "<name>.p" / "<name>.n" (the dotted
+        # sub-node convention Instance already uses for composite interiors).
+        for name, port in self.ports.items():
+            if isinstance(port, PortOnWireFloating):
+                port_names.discard(name)
+                port_names.update((f"{name}.p", f"{name}.n"))
         for br in self.branches:
             for ref in _branch_port_refs(br):
                 if ref not in port_names:
                     raise ValueError(f"branch {br!r} references unknown port {ref!r}")
         for src in self.sources:
+            if isinstance(self.ports.get(src.port), PortOnWireFloating):
+                raise ValueError(
+                    f"source {src!r} drives floating gap port {src.port!r}: a "
+                    "floating gap is an attachment point, not a drive point "
+                    "(which terminal would be the reference?). Drive through "
+                    "the network instead, or use a plain PortOnWire."
+                )
             if src.port not in port_names:
                 raise ValueError(f"source {src!r} references unknown port")
         if not self.sources:
