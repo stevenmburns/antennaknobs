@@ -1729,3 +1729,162 @@ def test_tmatch_degenerate_endpoints():
         warnings.simplefilter("error")
         z = _sinusoidal(B(params={**p, "series_c1_pF": 0.0})).impedance()[0]
     assert np.isinf(z.real) and z.imag == 0.0, z
+
+
+# --------------------------------------------------------------------------
+# Lattice-FFT coupling path (momwire #168): a regular grid of >= 16 identical
+# elements auto-selects ArrayBlockSolver's block-Toeplitz FFT representation
+# instead of the per-pair one. These drive it through the real antennaknobs
+# stack (builder -> MomwireEngine -> solver) rather than momwire's synthetic
+# dipole fixtures, so the element grouping, parity wiring, and feed handling
+# are all exercised on a design-shaped mesh.
+# --------------------------------------------------------------------------
+
+
+from types import MappingProxyType  # noqa: E402
+
+from antennaknobs import AntennaBuilder  # noqa: E402
+from antennaknobs.builder import _shift_entry  # noqa: E402
+
+
+class _Array4x4Builder(AntennaBuilder):
+    """4x4 grid of IDENTICAL elements with identical (in-phase, unit) feeds.
+
+    Deliberately not one of the shipped array builders: those give elements
+    two shape classes (``*_top``/``*_bot`` params) and at most 8 elements,
+    while the lattice path needs a single shape class and >= 16 elements to
+    auto-engage. Spacing is uniform in y and z, so the element centroids form
+    a regular 2-D lattice — exactly the structure under test.
+    """
+
+    default_params = MappingProxyType(
+        {"freq": 28.47, "del_y": 4.0, "del_z": 4.0, "nx": 4, "nz": 4}
+    )
+
+    def __init__(self, element_builder, params=None):
+        self.__dict__["element_builder"] = element_builder
+        super().__init__(params)
+
+    def build_wires(self):
+        elem_params = dict(self.element_builder.default_params)
+        for k in self.FRAMEWORK_PARAMS:
+            if k in self._params:
+                elem_params[k] = self._params[k]
+        tups = self.element_builder(elem_params).build_wires()
+
+        out = []
+        for i in range(int(self.nx)):
+            for j in range(int(self.nz)):
+                yoff = (i - (self.nx - 1) / 2) * self.del_y
+                zoff = (j - (self.nz - 1) / 2) * self.del_z
+                # Identical feeds: every element driven at unit amplitude,
+                # zero relative phase (broadside, no steering).
+                out.extend(_shift_entry(t, yoff, zoff, lambda ex: 1 + 0j) for t in tups)
+        return out
+
+
+def _bowtie_4x4():
+    from antennaknobs.designs.specialty import bowtie
+
+    return _Array4x4Builder(bowtie.Builder)
+
+
+def test_lattice_fft_engages_on_4x4_bowtie_array():
+    """16 identical elements on a regular grid ⇒ the FFT coupling operator is
+    selected automatically (the P >= 16 'auto' threshold)."""
+    from momwire import ArrayBlockSolver
+    from momwire.array_block import LatticeArrayBlock
+
+    eng = MomwireEngine(
+        _bowtie_4x4(), solver=ArrayBlockSolver, solver_kwargs={"degree": 2}
+    )
+    # Same construction path impedance() uses; held so the operator is visible.
+    sim = eng._make_solver(wavelength=eng._wavelength_for(28.47))
+    op = sim._build_operator()
+    assert isinstance(op, LatticeArrayBlock), type(op).__name__
+    st = op.stats()
+    assert st["n_elem"] == 16
+    assert st["n_shapes"] == 1  # identical elements ⇒ one shape class
+
+
+def test_lattice_fft_beats_per_pair_accuracy_on_4x4_bowtie_array():
+    """Against the dense oracle the FFT representation is strictly the more
+    accurate of the two encodings, on every port.
+
+    The two are NOT interchangeable to roundoff and shouldn't be asserted so:
+    the per-pair path compresses each coupling block with ACA to `aca_tol`,
+    while the lattice path stores whole displacement blocks exactly (the FFT
+    convolution needs them in full anyway). Measured here: ~4e-6 mean error
+    for the FFT path vs ~8e-4 for per-pair — a ~200x gap that is entirely
+    per-pair truncation."""
+    from momwire import ArrayBlockSolver, BSplineSolver
+
+    common = {"degree": 2}
+    z_dense = np.array(
+        MomwireEngine(
+            _bowtie_4x4(), solver=BSplineSolver, solver_kwargs=common
+        ).impedance()
+    )
+    z_fft = np.array(
+        MomwireEngine(
+            _bowtie_4x4(),
+            solver=ArrayBlockSolver,
+            solver_kwargs={**common, "lattice_fft": True},
+        ).impedance()
+    )
+    z_pair = np.array(
+        MomwireEngine(
+            _bowtie_4x4(),
+            solver=ArrayBlockSolver,
+            solver_kwargs={**common, "lattice_fft": False},
+        ).impedance()
+    )
+    err_fft = np.abs(z_fft - z_dense) / np.abs(z_dense)
+    err_pair = np.abs(z_pair - z_dense) / np.abs(z_dense)
+    assert len(z_fft) == 16
+    assert err_fft.max() < 1e-4, err_fft
+    assert np.all(err_fft <= err_pair), (err_fft, err_pair)
+
+
+def test_lattice_fft_matches_dense_bspline_on_4x4_bowtie_array():
+    """End-to-end oracle: the FFT-accelerated array solve reproduces the dense
+    B-spline per-port impedance on all 16 identically-fed ports."""
+    from momwire import ArrayBlockSolver, BSplineSolver
+
+    kw = {"solver_kwargs": {"degree": 2}}
+    z_dense = MomwireEngine(_bowtie_4x4(), solver=BSplineSolver, **kw).impedance()
+    z_fft = MomwireEngine(_bowtie_4x4(), solver=ArrayBlockSolver, **kw).impedance()
+    assert len(z_dense) == len(z_fft) == 16
+    # Tight bound on purpose: the exact displacement blocks put this at ~1e-5,
+    # so a real regression (a mis-indexed kernel slot, a wrapped convolution)
+    # cannot hide under a loose 1e-3 array-solver tolerance.
+    for i, (zd, zf) in enumerate(zip(z_dense, z_fft)):
+        assert abs(zd - zf) / abs(zd) < 1e-4, f"feed {i}: {zd} vs {zf}"
+
+
+def test_lattice_fft_identical_feeds_give_symmetric_port_impedances():
+    """Physics check that needs no reference solver: identical elements,
+    identical feeds, and a grid symmetric under y-mirror ⇒ ports related by
+    that mirror must see the same impedance.
+
+    Only the *y* mirror is asserted. The grid is geometrically symmetric in z
+    too, but the bowtie's feed sits on its lower crossbar only, so a z-mirror
+    maps the driven structure onto a differently-driven one — not a symmetry
+    of the fed problem, and the z-paired ports genuinely differ (~2%). Getting
+    this wrong is easy; the y pairs below are the real invariant."""
+    from momwire import ArrayBlockSolver
+
+    z = MomwireEngine(
+        _bowtie_4x4(), solver=ArrayBlockSolver, solver_kwargs={"degree": 2}
+    ).impedance()
+    assert len(z) == 16
+    # Element order is i (y) major, j (z) minor: index = 4*i + j.
+    # y-mirror maps (i, j) -> (3 - i, j).
+    for i in range(2):
+        for j in range(4):
+            a, b = 4 * i + j, 4 * (3 - i) + j
+            rel = abs(z[a] - z[b]) / abs(z[b])
+            assert rel < 1e-6, f"ports {a}/{b} should mirror: {z[a]} vs {z[b]}"
+    # And the array is genuinely inhomogeneous — edge and interior differ, so
+    # the mirror check above isn't passing trivially on 16 equal numbers.
+    assert abs(z[0] - z[5]) / abs(z[5]) > 1e-3
