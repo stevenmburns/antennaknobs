@@ -32,11 +32,19 @@ from antennaknobs import (
 from antennaknobs.designs.specialty import bowtie
 from antennaknobs.network import Driven, Network, PortOnWire
 
+#: Fixed grid — the name says 4x4, and 16 elements is the lattice-FFT floor.
+_NX, _NZ = 4, 4
+
+#: The namespaced feed-port names lattice() produces (instance "e{i}_{j}" +
+#: formal feed "feed"). Declared to the web UI as ``ui_params["feed_ports"]``
+#: so all sixteen feed markers render — build_network() designs don't infer
+#: feed topology, they trust this list (adapter._declared_feed_ports).
+_FEED_PORTS = tuple(f"e{i}_{j}.feed" for i in range(_NX) for j in range(_NZ))
+
 
 class Builder(AntennaBuilder):
-    #: Fixed grid — the name says 4x4, and 16 elements is the lattice-FFT floor.
-    NX = 4
-    NZ = 4
+    NX = _NX
+    NZ = _NZ
 
     default_params = MappingProxyType(
         {
@@ -49,7 +57,9 @@ class Builder(AntennaBuilder):
             "base": 9.0,  # element height (z of the fan centre)
             "del_y": 4.0,  # column spacing along y
             "del_z": 4.0,  # row spacing along z
-            "ui_params": MappingProxyType({"design_freq": {"hidden": True}}),
+            "ui_params": MappingProxyType(
+                {"design_freq": {"hidden": True}, "feed_ports": _FEED_PORTS}
+            ),
         }
     )
 
