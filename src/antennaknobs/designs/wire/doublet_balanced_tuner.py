@@ -15,26 +15,32 @@ close before #589 — a balanced feedline into a balanced tuner into a
 Signal path, the Palstar BT1500A "double roller balanced tuner" idiom:
 
     rig (50 Ω) → FloatingBalun 1:1 → [L/2 roller in each leg] → diff cap
-                → open-wire BalancedLine → doublet arm ends (PortAtEnd)
+                → open-wire BalancedLine → doublet centre port
 
-Only the balun's primary touches the datum. The doublet is authored WITHOUT a
-center feed-bridge, so its two inner arm ends are free conductor ENDS that
-`PortAtEnd` grabs (issue #579), and one `BalancedLine` carries the differential
-feed up to them. The line's ``line_zcomm`` (issue #576) is the common-mode
-return that lets the floating tuner section reference ground through the
-antenna — without it the MNA is singular, and the design says so at build time.
+Only the balun's primary touches the datum. The doublet is ONE wire carrying a
+`PortOnWireFloating` at its centre: an ordinary delta gap (a point
+discontinuity, no physical extent), but with BOTH its terminals exposed as
+circuit nodes, so the `BalancedLine`'s two conductors attach to the two sides
+of it. The line is an ideal element — its conductor spacing lives in
+``line_zdiff``, not in the geometry — so nothing here has a second length
+scale, and the whole antenna meshes at one uniform density. The line's
+``line_zcomm`` (issue #576) is the common-mode return that lets the floating
+tuner section reference ground through the antenna — without it the MNA is
+singular, and the design says so at build time.
 
 The roller inductance ``tuner_l_uH`` and differential capacitance
 ``tuner_c_pF`` are the two tuning knobs; ``tuner_ql`` is the roller-coil Q (the
 tuner's dominant loss, so the power budget shows where the watts go). The stock
-values land the ~0.72 λ doublet's ladder-line feedpoint on ~50 Ω at the rig
-(SWR ≈ 1.04) at 14.1 MHz — retune them (and the line length) for another band,
+values land the ~0.72 λ doublet's ladder-line feedpoint on 50 Ω at the rig
+(SWR ≈ 1.00 momwire, 1.03 PyNEC) at 14.1 MHz — retune them (and the line length) for another band,
 the way a real balanced tuner is worked.
 
-Engine support: **momwire only** — `PortAtEnd` resolves to a junction-node port
-(momwire#172) that NEC-2 has no card for, so `PyNECEngine` rejects the design.
-The balanced tuner itself is engine-agnostic; the end-port feed is the
-momwire-only piece, as in `wire.sterba_bl` / `arrays.bowtie1x2_bl`."""
+Engine support: **every engine**. A floating port changes only how the shared
+reducer stamps the antenna's multiport Y, never what the solver is asked for,
+so this runs on PyNEC as well as momwire. Both converge on refinement and agree
+to 0.2 % by N=641 (the delta gap is smeared over one segment, so the answer
+depends on segment length until refined — the usual delta-gap convergence, not
+a modelling choice)."""
 
 from types import MappingProxyType
 
@@ -44,7 +50,7 @@ from antennaknobs.network import (
     Driven,
     Instance,
     Network,
-    PortAtEnd,
+    PortOnWireFloating,
     PortVirtual,
     Wire,
 )
@@ -73,10 +79,10 @@ class Builder(AntennaBuilder):
             # be present (0 → None → a singular, rejected common mode).
             "line_zcomm": 250.0,
             # Balanced L-network tuner knobs (roller L split into both legs,
-            # differential resonating C), tuned to ~50 Ω at the rig (SWR ≈ 1.04
+            # differential resonating C), tuned to 50 Ω at the rig (SWR ≈ 1.00
             # at 14.1 MHz on the stock geometry).
-            "tuner_l_uH": 2.8,
-            "tuner_c_pF": 74.0,
+            "tuner_l_uH": 3.350,
+            "tuner_c_pF": 60.43,
             # Roller-coil Q (issue #298) — defaults high (near-ideal); the
             # power budget itemizes the coil loss so you can watch it grow as
             # you retune a shorter wire.
@@ -109,15 +115,11 @@ class Builder(AntennaBuilder):
         wl = self.design_wavelength
         arm = 0.5 * self.length_factor * wl
         z = self.height_factor * wl
-        gap = 0.02 * wl  # feed-gap half-width, so the arm ends are free ENDS
 
-        # Two collinear horizontal arms along y, center gap at y = 0. Name only
-        # the two inner arm ends (issue #578: a named wire must be referenced —
-        # both are, by PortAtEnd).
-        return [
-            Wire((0.0, -gap, z), (0.0, -arm, z), name="armL"),
-            Wire((0.0, gap, z), (0.0, arm, z), name="armR"),
-        ]
+        # One horizontal wire along y. The feed is a floating port at its
+        # centre — a delta gap has no physical extent, so there is no bridge
+        # and no second length scale to mesh around.
+        return self.auto_mesh([Wire((0.0, -arm, z), (0.0, arm, z), name="feed")])
 
     # ---- feed network ---------------------------------------------------
     def build_network(self):
@@ -126,9 +128,8 @@ class Builder(AntennaBuilder):
         zc = self.line_zcomm or None
         return Network(
             ports={
-                # doublet inner arm ends → the balanced line's top
-                "ta": PortAtEnd("armL", end="p0"),
-                "tb": PortAtEnd("armR", end="p0"),
+                # the doublet's centre port, BOTH terminals exposed
+                "feed": PortOnWireFloating("feed"),
                 "rig": PortVirtual("rig"),
                 "liL": PortVirtual("liL"),  # tuner output → line bottom
                 "liR": PortVirtual("liR"),
@@ -149,8 +150,8 @@ class Builder(AntennaBuilder):
                 BalancedLine(
                     a1="liL",
                     a2="liR",
-                    b1="ta",
-                    b2="tb",
+                    b1="feed.p",
+                    b2="feed.n",
                     zdiff=self.line_zdiff,
                     length=line_len,
                     vf=self.line_vf,
