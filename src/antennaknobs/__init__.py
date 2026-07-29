@@ -23,6 +23,11 @@ __all__ = [
     "Cell",
     "Placement",
     "flatten_placements",
+    "Module",
+    "ModuleInstance",
+    "Assembly",
+    "expand_modules",
+    "lattice",
     "plot_patterns",
     "compare_patterns",
     "pattern_metrics",
@@ -58,6 +63,13 @@ from .nec_import import read_nec
 from .network import Composite, Instance, Wire, WireSpec, as_wire
 from .transform import Transform, TransformStack
 from .cell import Cell, Placement, flatten_placements
+from .module import (
+    Assembly,
+    Module,
+    ModuleInstance,
+    expand_modules,
+    lattice,
+)
 from .drone import Drone
 from .sim import Antenna
 from .opt import optimize
