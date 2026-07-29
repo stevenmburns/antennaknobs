@@ -3913,7 +3913,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     }
     setSweep(null);
     setSweepRunning(false);
-    if (!sweepEnabled || !active) {
+    // Paused (Live off) holds the engine (issue #612): an enabled sweep must
+    // not keep solving while the user edits. Clearing above + returning here
+    // blanks the overlay while paused; resuming Live re-runs this effect
+    // (autoSim is a dep) and restarts the sweep from the current design.
+    if (!autoSim || !sweepEnabled || !active) {
       return;
     }
     // The 500 ms dwell only debounces network churn; ordering against the
@@ -3929,6 +3933,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     designFreq,
     groundEnabled, groundModel,
     sweepEnabled,
+    autoSim,
     active,
     // measFreq/measLocked drive the anchor now (meas_freq policy, or any
     // unlocked design — incl. fixed-geometry designs whose lock is inert),
@@ -3956,7 +3961,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     }
     setConverge(null);
     setConvergeRunning(false);
-    if (!convergeEnabled || !active) {
+    // Held when Paused (issue #612) — see the sweep effect. autoSim is a dep so
+    // resuming Live restarts the convergence sweep.
+    if (!autoSim || !convergeEnabled || !active) {
       return;
     }
     // Debounce only; the server lane orders it behind the live solve.
@@ -3971,6 +3978,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     designFreq, measFreq,
     groundEnabled, groundModel,
     convergeEnabled,
+    autoSim,
     active,
     // Poor-match gate (see the sweep effect).
     comboApproved, recommendedBackend,
@@ -3987,7 +3995,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       window.clearTimeout(normCheckTimerRef.current);
     }
     setNormCheck(null);
-    if (!normCheckEnabled || !active) {
+    // Held when Paused (issue #612): the norm check re-solves, so it must not
+    // run while the engine is held. autoSim is a dep — resuming Live re-runs it.
+    if (!autoSim || !normCheckEnabled || !active) {
       return;
     }
     normCheckTimerRef.current = window.setTimeout(runNormCheck, 500);
@@ -4006,6 +4016,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     // shares the crest medium the impedance solve uses).
     terrainKey,
     normCheckEnabled,
+    autoSim,
     active,
     // Poor-match gate (see the sweep effect).
     comboApproved, recommendedBackend,
@@ -4019,6 +4030,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (patternTimerRef.current) window.clearTimeout(patternTimerRef.current);
     setPattern(null);
     if (
+      !autoSim || // Paused holds the engine (issue #612) — no NEC re-solve.
       backend !== "pynec" ||
       !active ||
       !necOverlayEnabled ||
@@ -4040,6 +4052,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
     designFreq, measFreq,
     groundEnabled, groundModel,
     necOverlayEnabled,
+    autoSim,
     active,
   ]);
 
