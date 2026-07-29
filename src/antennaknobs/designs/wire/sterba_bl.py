@@ -1,4 +1,4 @@
-"""Sterba curtain with balanced-line risers — the faithful TL Sterba.
+"""Sterba curtain whose interior risers are ideal balanced line, not wire (momwire-only).
 
 The third member of the Sterba family: where `wire.sterba` models the whole
 curtain as wires (verticals as tightly-spaced offset pairs) and

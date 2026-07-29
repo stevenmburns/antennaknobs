@@ -30,25 +30,33 @@ sources. Ports come in four kinds:
   transmitter end of a feedline is the classic one: it exists only in
   the network, and driving it makes every readout — impedance, SWR,
   gain, the power budget — **rig-referenced**.
-- **`PortAtEnd("riser", "p1")`** — a port at a wire's *endpoint*
-  rather than a mid-wire gap. It attaches to the shared junction node
-  at that point without cutting a gap — the way a floating
-  multi-terminal element (a `BalancedLine`) hangs off a conductor's
-  end. momwire-only: NEC-2 has no junction-node port, so the PyNEC
-  backend rejects designs that use it (a declared engine-parity break).
 - **`PortOnWireFloating("feed")`** — a gap port with **both** terminals
   exposed, addressed as `feed.p` and `feed.n`. An ordinary `PortOnWire` is
   stamped node-to-datum: its second terminal is bonded to the common return,
   so a branch can only reach one side of the gap. That is a stamping
   convention, not physics — the field solver only ever knows gap voltage and
   gap current. Use this when the two sides must go to *different* branches,
-  which is what a balanced feed actually needs. Unlike `PortAtEnd` it asks
-  nothing of the solver, so it works on every engine.
+  which is what a balanced feed actually needs. It asks nothing of the
+  solver, so it works on **every** engine — this is the construct to reach
+  for when you need to hang a floating element off an antenna.
 
   A single floating gap is a one-port, so its stamp is purely differential and
   provides **no** common-mode path — give the network a CM return, or model
   the common-mode path as its own gap port and let the two-port coupling carry
   that physics.
+- **`PortAtEnd("riser", "p1")`** — a port at a wire's *endpoint*
+  rather than a mid-wire gap. It attaches to the shared junction node
+  at that point without cutting a gap. momwire-only: NEC-2 has no
+  junction-node port, so the PyNEC backend rejects designs that use it
+  (a declared engine-parity break).
+
+  Prefer `PortOnWireFloating` where the attachment can be authored as a
+  mid-wire gap — it is portable and costs nothing. `PortAtEnd` earns its
+  parity break only where the attachment is genuinely at a bare conductor
+  *end*, because the obvious workarounds are measurably wrong there: a
+  vanishing centre-tapped stub converges to an **open** (its far face is a
+  dead end, not live conductor), and bridging across the two conductors
+  gives the wrong conduction graph.
 
 The source (`Driven(port="rig")`) goes wherever your measurement plane
 is. Put it at the antenna feed and you're modelling the antenna; put it
@@ -137,14 +145,19 @@ The rule of thumb: set `zcomm` when the pair's two conductors are part of a
 closed conduction path that the differential stamp would otherwise break.
 Leave it open when the pair simply ends.
 
-**It is momwire-only.** Practical `BalancedLine` designs attach through
-`PortAtEnd`, which NEC-2 has no equivalent for, so the PyNEC backend
-rejects them (see [Ports](#ports-where-the-circuit-meets-the-wire)). You
-lose cross-engine validation on these designs — the available cross-check
-is between B-spline basis degrees rather than between engines.
+**Engine support follows the port, not the element.** `BalancedLine` itself
+is a pure circuit stamp and runs anywhere. What can pin a design to momwire
+is how it *attaches*: a design that hangs the line off `PortAtEnd` is
+momwire-only, because NEC-2 has no junction-node port and the PyNEC backend
+rejects it (see [Ports](#ports-where-the-circuit-meets-the-wire)). Those
+designs lose cross-engine validation — the available cross-check is between
+B-spline basis degrees rather than between engines. A design that attaches
+through `PortOnWireFloating` keeps both engines.
 
-Three catalog designs use it today: `wire.sterba_bl`,
-`arrays.bowtie1x2_bl`, and `wire.doublet_balanced_tuner`.
+Three catalog designs use `BalancedLine` today:
+`wire.doublet_balanced_tuner` (floating centre port — runs on every engine),
+plus `wire.sterba_bl` and `arrays.bowtie1x2_bl` (both `PortAtEnd`, so
+momwire-only).
 
 ## Boxes: reusable station components
 
