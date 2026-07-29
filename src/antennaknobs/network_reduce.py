@@ -724,6 +724,21 @@ class NetworkReducer:
 
         return MNASystem(G, elements, terminations, probes=probes)
 
+    def _physical_port_voltages(self, v):
+        """Node voltages -> PHYSICAL port voltages. They differ only for a
+        floating gap port, whose voltage is the drop ACROSS the gap,
+        ``v[p] - v[n]``, not the "+" node's voltage against a datum it is
+        deliberately not bonded to. The excited far-field/current solve forces
+        these at the real feeds, so getting it wrong under-drives the antenna
+        (and silently: the driven-point impedance reads off the termination
+        branch and stays correct)."""
+        if not self._floating:
+            return v.copy()
+        out = v.copy()
+        for p_idx, n_idx in self._floating.values():
+            out[p_idx] = v[p_idx] - v[n_idx]
+        return out
+
     def resolve_voltages(self, system):
         """Return the (n_total,) physical port-voltage vector of the solved
         network: voltage-driven ports at their applied voltages, current-
@@ -734,7 +749,7 @@ class NetworkReducer:
         These are the voltages the excited far-field/current solver forces
         at the real feeds."""
         v, _j = system.solve()
-        return v.copy()
+        return self._physical_port_voltages(v)
 
     def excited_state(self, Y_real, wavelength):
         """Physical port voltages + radiation efficiency + per-branch power
@@ -793,7 +808,7 @@ class NetworkReducer:
         if p_in > 0.0 and abs(p_diss) <= 1e-9 * p_in:
             p_diss = 0.0
         efficiency = 1.0 if p_in <= 0.0 else max(0.0, min(1.0, 1.0 - p_diss / p_in))
-        return v.copy(), efficiency, p_in, budget
+        return self._physical_port_voltages(v), efficiency, p_in, budget
 
     def impedance_from_y(self, system):
         """Driven-point impedance per Driven source from an `apply_branches`
