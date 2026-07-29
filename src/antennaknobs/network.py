@@ -24,6 +24,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple, Optional, Union
 
+from .touchstone import Touchstone
+
 
 @dataclass(frozen=True)
 class PortOnWire:
@@ -539,6 +541,52 @@ class Admittance:
             raise ValueError(
                 f"Admittance y must be {n}×{n} to match ports {self.ports}; "
                 f"got {len(self.y)}×{len(self.y[0]) if self.y else 0}"
+            )
+
+
+@dataclass(frozen=True)
+class TouchstoneLoad:
+    """A measured / vendor 1-port (``.s1p``) as a frequency-dependent load
+    (issue #593) — a node-to-datum admittance the reducer stamps at each solve
+    frequency by interpolating the Touchstone data. Use it to terminate the
+    model with a *measured* antenna feedpoint (NanoVNA/VNA) or a real load
+    instead of an ideal one. The admittance is ``y = 1/Z(f)`` from the file, so
+    it is the measured-data sibling of a 1-port ``Admittance`` / ``Shunt``.
+
+    ``data`` is a 1-port :class:`~antennaknobs.touchstone.Touchstone`
+    (see ``read_touchstone``). Works on both engines (post-MoM reducer math)."""
+
+    port: str
+    data: Touchstone
+
+    def __post_init__(self):
+        if self.data.nports != 1:
+            raise ValueError(
+                f"TouchstoneLoad on port {self.port!r} needs a 1-port (.s1p) "
+                f"file; got a {self.data.nports}-port"
+            )
+
+
+@dataclass(frozen=True)
+class TouchstoneTwoPort:
+    """A measured / vendor 2-port (``.s2p``) as an in-line branch between ports
+    ``a`` and ``b`` (issue #593) — the SimSmith "S block" analog. The file's
+    measured ``[S]`` is converted to ``[Y]`` and stamped as a 2×2 Group-1 block,
+    like ``TL``/``Admittance`` but from real data: a characterized balun, coax
+    section, filter, or tuner dropped in as a black box.
+
+    ``data`` is a 2-port :class:`~antennaknobs.touchstone.Touchstone`
+    (see ``read_touchstone``). Works on both engines (post-MoM reducer math)."""
+
+    a: str
+    b: str
+    data: Touchstone
+
+    def __post_init__(self):
+        if self.data.nports != 2:
+            raise ValueError(
+                f"TouchstoneTwoPort {self.a!r}→{self.b!r} needs a 2-port (.s2p) "
+                f"file; got a {self.data.nports}-port"
             )
 
 

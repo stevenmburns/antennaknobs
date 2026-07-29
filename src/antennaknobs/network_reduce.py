@@ -42,6 +42,8 @@ from .network import (
     PortOnWire,
     PortOnWireFloating,
     Shunt,
+    TouchstoneLoad,
+    TouchstoneTwoPort,
     Transformer,
     TwoPort,
     _parallel_rlc_admittance,
@@ -505,6 +507,34 @@ class NetworkReducer:
                         lab(f"Admittance {'→'.join(map(_short, br.ports))}"),
                         "group1",
                         (idxs, yb),
+                    )
+                )
+            elif isinstance(br, TouchstoneLoad):
+                # Measured 1-port (.s2p→.s1p) as a node-to-datum admittance
+                # (issue #593): y = 1/Z(f) interpolated from the file, stamped
+                # verbatim like a 1-port Admittance / parallel Shunt.
+                k = self.port_to_idx[br.port]
+                yb = br.data.y_at(C_LIGHT / wavelength)
+                G[k, k] += yb[0, 0]
+                probes.append(
+                    (
+                        lab(f"Touchstone {_short(br.port)}"),
+                        "group1",
+                        ([k], np.array([[yb[0, 0]]])),
+                    )
+                )
+            elif isinstance(br, TouchstoneTwoPort):
+                # Measured 2-port (.s2p) as an in-line 2×2 admittance block
+                # (issue #593): [S](f)→[Y](f) interpolated from the file, stamped
+                # like TL's 2×2 — a characterized balun / coax / filter black box.
+                a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
+                yb = br.data.y_at(C_LIGHT / wavelength)
+                G[np.ix_([a, b], [a, b])] += yb
+                probes.append(
+                    (
+                        lab(f"Touchstone {_short(br.a)}→{_short(br.b)}"),
+                        "group1",
+                        ([a, b], yb),
                     )
                 )
             elif isinstance(br, TwoPort):
