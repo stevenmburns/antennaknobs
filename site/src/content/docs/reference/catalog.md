@@ -146,6 +146,7 @@ showcase (see [the solver guide](/reference/solver/)):
 <!-- catalog:begin arrays -->
 | Design | Notes |
 | --- | --- |
+| `arrays.bowtie16x1` | 16-element linear bowtie array — sixteen identical bowtie elements on a single row (constant height), each fed in phase |
 | `arrays.bowtie1x2_bl` | 1x2 stacked bowtie array with a balanced-line corporate feed |
 | `arrays.bowtie4x4` | 4x4 broadside bowtie panel — sixteen identical bowtie elements on a regular y-z grid, each fed in phase |
 | `arrays.bowtiearray` | 2x2 phased stack of bowtie dipoles |
