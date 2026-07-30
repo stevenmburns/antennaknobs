@@ -1192,6 +1192,9 @@ def test_examples_carry_requires_backends(client: TestClient):
     # network-TL one (TL/BalancedLine on PortOnWire gaps run everywhere).
     assert by_name["wire.sterba"]["requires_backends"] is None
     assert by_name["wire.sterba_tl"]["requires_backends"] is None
+    # #608: the bowtie corporate feed re-authored onto PortOnWireFloating —
+    # the derived restriction lifted with the last PortAtEnd in the design.
+    assert by_name["arrays.bowtie1x2_bl"]["requires_backends"] is None
 
 
 def test_examples_carry_notes(client: TestClient):
