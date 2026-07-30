@@ -1479,6 +1479,7 @@ type SolveResponse = {
 // see normalizeBackend for how a stale recommendation is mapped.
 type Backend =
   | "sinusoidal"
+  | "sinusoidal-galerkin"
   | "bspline"
   | "hmatrix"
   | "arrayblock"
@@ -1486,6 +1487,7 @@ type Backend =
 
 const BACKEND_LABEL: Record<Backend, string> = {
   sinusoidal: "Sinusoidal",
+  "sinusoidal-galerkin": "Sin-Galerkin",
   bspline: "B-spline",
   hmatrix: "H-matrix (ACA)",
   arrayblock: "Array-block",
@@ -1508,6 +1510,7 @@ function comboInappropriate(b: Backend, rec: Backend | null): boolean {
 
 const BACKEND_ORDER: Backend[] = [
   "sinusoidal",
+  "sinusoidal-galerkin",
   "bspline",
   "hmatrix",
   "arrayblock",
@@ -1555,8 +1558,8 @@ function backendAllowed(
 // if _required_backends ever grows another cause.
 const RESTRICTED_BACKEND_REASON =
   "This design attaches network elements at conductor ends (junction-node " +
-  "ports) — only the B-spline solver implements them, and NEC-2 has no " +
-  "equivalent card.";
+  "ports) — only the B-spline and sinusoidal-Galerkin solvers implement " +
+  "them, and NEC-2 has no equivalent card.";
 
 // hmatrix (hierarchical H-matrix / ACA) and arrayblock (element-aware block
 // solver for arrays) are accelerators built on the same B-spline basis as
@@ -1621,7 +1624,15 @@ type TerrainPresetSchema = {
 type TerrainParams = Record<string, number>;
 
 function backendSupportsGround(b: Backend): boolean {
-  return b === "sinusoidal" || isBSplineFamily(b) || b === "pynec";
+  // sinusoidal-galerkin: all three grounds since momwire#182 M4. (Junction-
+  // port designs OVER a ground refuse server-side — a per-design error the
+  // solve surfaces cleanly, not a backend capability gap.)
+  return (
+    b === "sinusoidal" ||
+    b === "sinusoidal-galerkin" ||
+    isBSplineFamily(b) ||
+    b === "pynec"
+  );
 }
 
 // Every ground-capable backend supports terrain. Momwire applies the
@@ -1681,6 +1692,9 @@ type PyNECOpts = CommonOpts;
 // tolerances use the solver defaults.
 type BackendOptsMap = {
   sinusoidal: SinusoidalOpts;
+  // Same constructor surface as sinusoidal (momwire#182: same basis, Galerkin
+  // testing); the test-quadrature knobs keep their solver defaults.
+  "sinusoidal-galerkin": SinusoidalOpts;
   bspline: BSplineOpts;
   hmatrix: BSplineOpts;
   arrayblock: BSplineOpts;
@@ -1704,6 +1718,7 @@ const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
 
 const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
   sinusoidal: { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
+  "sinusoidal-galerkin": { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
   bspline: { ...BSPLINE_DEFAULT_OPTS },
   hmatrix: { ...BSPLINE_DEFAULT_OPTS },
   // Arrays auto-select this; 21 segs/wire is the converged, correct-parity
@@ -1788,7 +1803,7 @@ function modelOptionsForRequest(
   backend: Backend,
   opts: BackendOptsMap[Backend],
 ): Record<string, unknown> {
-  if (backend === "sinusoidal") {
+  if (backend === "sinusoidal" || backend === "sinusoidal-galerkin") {
     const o = opts as SinusoidalOpts;
     return { n_qp_const: o.nQpConst };
   }
@@ -1820,6 +1835,7 @@ type SolveRequest = {
   solver: "momwire" | "pynec";
   momwire_model?:
     | "sinusoidal"
+    | "sinusoidal-galerkin"
     | "bspline"
     | "hmatrix"
     | "arrayblock";
@@ -6199,7 +6215,7 @@ function BackendConfigModal({
             onChange={(v) => onPatch({ wireRadius: v })}
           />
 
-          {backend === "sinusoidal" && (
+          {(backend === "sinusoidal" || backend === "sinusoidal-galerkin") && (
             <NumberField
               label="n_qp_const (GL pts)"
               value={(opts as SinusoidalOpts).nQpConst}
