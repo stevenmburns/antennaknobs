@@ -1754,20 +1754,19 @@ def _bowtie_4x4():
 
 def test_lattice_fft_engages_on_4x4_bowtie_array():
     """16 identical elements on a regular grid ⇒ the FFT coupling operator is
-    selected automatically (the P >= 16 'auto' threshold)."""
+    selected automatically (the P >= 16 'auto' threshold). Asserted through
+    the public solve path via `require_lattice_fft` (antennaknobs#616): the
+    solver raises `LatticeFFTUnavailable` naming the unmet gate if a layout
+    tweak ever nudges the panel off the fast path, instead of this test
+    silently exercising the per-pair path."""
     from momwire import ArrayBlockSolver
-    from momwire.array_block import LatticeArrayBlock
 
-    eng = MomwireEngine(
-        _bowtie_4x4(), solver=ArrayBlockSolver, solver_kwargs={"degree": 2}
-    )
-    # Same construction path impedance() uses; held so the operator is visible.
-    sim = eng._make_solver(wavelength=eng._wavelength_for(28.47))
-    op = sim._build_operator()
-    assert isinstance(op, LatticeArrayBlock), type(op).__name__
-    st = op.stats()
-    assert st["n_elem"] == 16
-    assert st["n_shapes"] == 1  # identical elements ⇒ one shape class
+    z = MomwireEngine(
+        _bowtie_4x4(),
+        solver=ArrayBlockSolver,
+        solver_kwargs={"degree": 2, "require_lattice_fft": True},
+    ).impedance()
+    assert len(z) == 16
 
 
 def test_lattice_fft_beats_per_pair_accuracy_on_4x4_bowtie_array():
@@ -1792,7 +1791,7 @@ def test_lattice_fft_beats_per_pair_accuracy_on_4x4_bowtie_array():
         MomwireEngine(
             _bowtie_4x4(),
             solver=ArrayBlockSolver,
-            solver_kwargs={**common, "lattice_fft": True},
+            solver_kwargs={**common, "lattice_fft": True, "require_lattice_fft": True},
         ).impedance()
     )
     z_pair = np.array(
@@ -1814,9 +1813,14 @@ def test_lattice_fft_matches_dense_bspline_on_4x4_bowtie_array():
     B-spline per-port impedance on all 16 identically-fed ports."""
     from momwire import ArrayBlockSolver, BSplineSolver
 
-    kw = {"solver_kwargs": {"degree": 2}}
-    z_dense = MomwireEngine(_bowtie_4x4(), solver=BSplineSolver, **kw).impedance()
-    z_fft = MomwireEngine(_bowtie_4x4(), solver=ArrayBlockSolver, **kw).impedance()
+    z_dense = MomwireEngine(
+        _bowtie_4x4(), solver=BSplineSolver, solver_kwargs={"degree": 2}
+    ).impedance()
+    z_fft = MomwireEngine(
+        _bowtie_4x4(),
+        solver=ArrayBlockSolver,
+        solver_kwargs={"degree": 2, "require_lattice_fft": True},
+    ).impedance()
     assert len(z_dense) == len(z_fft) == 16
     # Tight bound on purpose: the exact displacement blocks put this at ~1e-5,
     # so a real regression (a mis-indexed kernel slot, a wrapped convolution)
@@ -1838,7 +1842,9 @@ def test_lattice_fft_identical_feeds_give_symmetric_port_impedances():
     from momwire import ArrayBlockSolver
 
     z = MomwireEngine(
-        _bowtie_4x4(), solver=ArrayBlockSolver, solver_kwargs={"degree": 2}
+        _bowtie_4x4(),
+        solver=ArrayBlockSolver,
+        solver_kwargs={"degree": 2, "require_lattice_fft": True},
     ).impedance()
     assert len(z) == 16
     # Element order is i (y) major, j (z) minor: index = 4*i + j.
