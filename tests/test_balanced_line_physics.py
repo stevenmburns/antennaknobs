@@ -780,3 +780,108 @@ def test_centre_port_construction_tracks_a_physical_feeder():
         zp = _subst_zin(_PhysFedDoublet, feed_len_wl=flw)
         dev = abs(_subst_zin(_CentrePortDoublet, feed_len_wl=flw) - zp) / abs(zp)
         assert dev < 0.05, (flw, dev)
+
+
+# ---------------------------------------------------------------------------
+# 8. The junction-port network on a second formulation (momwire#182 M5b)
+# ---------------------------------------------------------------------------
+#
+# Everything above rides `PortAtEnd` -> momwire junction ports, which until
+# momwire#182 only `BSplineSolver` implemented. A single implementation of a
+# port model is a single point of failure for the whole `sterba_bl` result:
+# the design's physics rests on 16 one-terminal node ports whose only oracle
+# is the all-wire `wire.sterba`, and a shared bug in the port algebra would
+# reproduce itself in every test in this file.
+#
+# `SinusoidalGalerkinSolver` is now an independent second implementation --
+# different basis (NEC's three-term vs quadratic B-spline), different testing
+# quadrature, and a completely different port derivation (the node's lumped
+# charge removed from a FIELD-based reaction integral, vs a Lagrange
+# multiplier on a KCL row in a MIXED-POTENTIAL formulation). Agreement
+# between them is therefore evidence about the port MODEL, not about one
+# implementation's self-consistency.
+#
+# FREE SPACE ONLY, stated openly: momwire#182 M5b scoped junction ports over
+# any ground out (the node-charge IMAGE is not removed yet, so part of the M5
+# blocker would survive), and the solver refuses rather than approximating.
+# Section 5's average-ground test therefore has no sinusoidal-Galerkin column;
+# `test_catalog_curtain_on_sin_galerkin_refuses_a_ground` pins the refusal so
+# the omission cannot be mistaken for an oversight.
+
+
+def _sin_galerkin_curtain(n_cells, **overrides):
+    from momwire import SinusoidalGalerkinSolver
+
+    return MomwireEngine(
+        _catalog_curtain(n_cells, **overrides),
+        solver=SinusoidalGalerkinSolver,
+        ground=None,
+    )
+
+
+@pytest.mark.antenna_computation_check
+def test_catalog_curtain_matches_on_the_sinusoidal_galerkin_basis():
+    """wire.sterba_bl's 16-port junction-port network, solved twice on two
+    formulations that share no basis, no testing and no port algebra.
+
+    Both the driving-point impedance and the radiated pattern must agree --
+    Z is the port network's own readout, gain is what the resulting current
+    distribution does, and a port-model error that cancelled in one would
+    still show in the other.
+
+    Measured 2026-07-30, free space, catalog default n_cells=3:
+
+        bspline d=2           Z = 673.293 + 385.592j   10.606 dBi  az 180
+        sinusoidal-Galerkin   Z = 672.055 + 387.371j   10.605 dBi  az 180
+
+    i.e. 0.28 % in |Z| and 0.001 dB in peak gain. The bounds below are set an
+    order of magnitude looser than the measurement (2 % / 0.15 dB) because
+    this is a cross-FORMULATION check, not a pin: the two schemes' ordinary
+    discretization error does not have to agree to three digits, and only a
+    port-model discrepancy would be large enough to trip these.
+    """
+    # One engine per formulation, reused for both readouts (the far field
+    # rides the same cached solve, so this costs one solve each).
+    e_ref = MomwireEngine(_catalog_curtain(3), ground=None)  # BSplineSolver
+    e_sg = _sin_galerkin_curtain(3)
+    z_ref, z_sg = e_ref.impedance()[0], e_sg.impedance()[0]
+    assert abs(z_sg - z_ref) / abs(z_ref) < 0.02, (z_ref, z_sg)
+
+    gain_ref, az_ref = _peak(e_ref)
+    gain_sg, az_sg = _peak(e_sg)
+    assert abs(gain_sg - gain_ref) < 0.15, (gain_ref, gain_sg)
+    for az in (az_ref, az_sg):
+        assert min(az % 180.0, 180.0 - az % 180.0) <= 10.0
+
+
+@pytest.mark.antenna_computation_check
+def test_sin_galerkin_curtain_still_needs_the_common_mode_path():
+    """The section-5 finding, re-derived on the independent formulation.
+
+    `zcomm` is the file's most load-bearing claim -- the CM path is what
+    makes a 4-terminal element stand in for a pair of conductors that closes
+    a conduction loop -- and it is a claim about the PORT boundary condition,
+    exactly what a second port implementation is able to falsify. Removing
+    the CM path must cost several dB and swing the beam off broadside here
+    too. Measured 2026-07-30: 10.61 dBi az 180 with, 5.53 dBi az 35 without.
+    """
+    gain_on, az_on = _peak(_sin_galerkin_curtain(3))
+    gain_off, az_off = _peak(_sin_galerkin_curtain(3, zcomm=0.0))
+    assert min(az_on % 180.0, 180.0 - az_on % 180.0) <= 10.0
+    assert gain_on - gain_off > 3.0, (gain_on, gain_off)
+    assert min(az_off % 180.0, 180.0 - az_off % 180.0) > 20.0
+
+
+def test_catalog_curtain_on_sin_galerkin_refuses_a_ground():
+    """Junction ports over a ground are REFUSED on the sinusoidal-Galerkin
+    solver, not approximated (momwire#182 M5b scoped them out: the node
+    charge's ground IMAGE is still in the kernel). Pinned so that section 5's
+    missing sinusoidal-Galerkin column reads as a scope boundary rather than
+    an untested path -- and so a future momwire that lifts the restriction
+    fails here loudly instead of silently changing what this file covers."""
+    with pytest.raises(NotImplementedError, match="junction_ports over a ground"):
+        MomwireEngine(
+            _catalog_curtain(1),
+            solver=__import__("momwire").SinusoidalGalerkinSolver,
+            ground=AVG_GROUND,
+        ).impedance()

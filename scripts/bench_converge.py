@@ -64,7 +64,8 @@ DEFAULT_DESIGNS = (
     "beams.yagi",
 )
 DEFAULT_LADDER = (7, 11, 15, 21, 31, 45, 61, 85)
-ENGINE_KEYS = bnc.ENGINE_KEYS  # ("pynec", "sin", "bs1", "bs2")
+ENGINE_KEYS = bnc.ENGINE_KEYS  # ("pynec", "sin", "sing", "bs1", "bs2")
+DEFAULT_ENGINE_KEYS = bnc.DEFAULT_ENGINE_KEYS
 ENGINE_LABEL = bnc.ENGINE_LABEL
 
 
@@ -164,6 +165,11 @@ def solve_design(builder_cls, nseg: int, engine: str, ground):
         eng = PyNECEngine(b, ground=ground)
     elif engine == "sin":
         eng = MomwireEngine(b, solver=SinusoidalSolver, ground=ground)
+    elif engine == "sing":
+        # Same basis as "sin", Galerkin-tested (momwire#182).
+        from momwire import SinusoidalGalerkinSolver
+
+        eng = MomwireEngine(b, solver=SinusoidalGalerkinSolver, ground=ground)
     elif engine == "bs1":
         eng = MomwireEngine(
             b, solver=BSplineSolver, solver_kwargs={"degree": 1}, ground=ground
@@ -334,7 +340,10 @@ def main(argv=None):
     )
     ap.add_argument("--designs", nargs="+", default=list(DEFAULT_DESIGNS))
     ap.add_argument(
-        "--engines", nargs="+", default=list(ENGINE_KEYS), choices=ENGINE_KEYS
+        "--engines",
+        nargs="+",
+        default=list(DEFAULT_ENGINE_KEYS),
+        choices=ENGINE_KEYS,
     )
     ap.add_argument(
         "--nseg-ladder",

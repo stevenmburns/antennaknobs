@@ -91,6 +91,11 @@ from momwire import (
     SinusoidalSolver,
 )
 
+try:
+    from momwire import SinusoidalGalerkinSolver
+except ImportError:  # momwire older than the #182 Galerkin solver
+    SinusoidalGalerkinSolver = None
+
 from .examples import register
 from .examples._base import (
     DEFAULT_AMATEUR_BANDS,
@@ -158,6 +163,20 @@ _MOMWIRE_MODELS = {
     # structure it degrades to one element and matches the dense bspline solve.
     "arrayblock": ArrayBlockSolver,
 }
+if SinusoidalGalerkinSolver is not None:
+    # The same three-term basis as "sinusoidal", tested variationally rather
+    # than point-matched (momwire#182). It is the instrument column, not an
+    # interactive default: no C++ accelerator and no distributed wire loading,
+    # and the fill costs several times the point-matched one. Exposed on the
+    # wire protocol so the CLI/API and the engine-parity tests can select it by
+    # name; the frontend's own `Backend` union deliberately does NOT list it,
+    # so no solver tab appears until it earns one.
+    #
+    # Conditional only because the `momwire==` pin in pyproject.toml still
+    # admits a release predating the class (the wheel-smoke CI job installs
+    # momwire from PyPI, not the submodule). Make it unconditional at the
+    # next momwire release bump.
+    _MOMWIRE_MODELS["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
 
 
 # ---------------------------------------------------------------------------
@@ -1605,6 +1624,20 @@ def _auto_default_view(cls) -> str:
 # already past interactive; the whip benchmark sits at ~12,700.
 _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 
+# Backends that implement junction-node ports, in preference order — the
+# allowlist a `PortAtEnd` design is restricted to. `bspline` stays FIRST
+# because `_required_backends()[0]` becomes the design's default backend and
+# the dense mixed-potential solver is the reference implementation for these
+# ports. `sinusoidal-galerkin` joined in momwire#182 M5b: it holds the node's
+# lumped charge outside the reaction integral and reproduces the B-spline port
+# network entrywise to 3.4e-5 / 3.9e-6, which is what "widening this tuple"
+# was waiting for. Caveat carried by the solver's own hard error, not by this
+# list: its junction ports are FREE SPACE only (the node-charge image is not
+# removed yet) and reject mixed per-wire radii.
+_JUNCTION_PORT_BACKENDS = ("bspline",) + (
+    ("sinusoidal-galerkin",) if SinusoidalGalerkinSolver is not None else ()
+)
+
 
 @lru_cache(maxsize=None)
 def _required_backends(cls) -> tuple[str, ...] | None:
@@ -1612,24 +1645,24 @@ def _required_backends(cls) -> tuple[str, ...] | None:
 
     Today's only restriction: a design whose network has any `PortAtEnd`
     resolves to junction-node ports, which only the dense B-spline solver
-    implements (momwire#172 — the sinusoidal and iterative HMatrix/
-    ArrayBlock solvers raise NotImplementedError, and NEC-2 has no
-    equivalent card at all, so `PyNECEngine` rejects the design at
-    construction, issue #579). DERIVED from the flattened network spec
-    rather than declared per design, so the capability cannot drift from
-    what the design actually does. The frontend disables the other backend
-    tabs (with an explanatory tooltip) and coerces an active disallowed
-    selection to the first allowed entry on design switch; the solvers'
-    hard errors remain the enforcement. Any failure to build the network
-    falls back to None — the design's real error surfaces through the
-    normal solve path. A future momwire release that widens junction-port
-    support only needs to widen this tuple."""
+    and the sinusoidal-Galerkin solver implement (momwire#172 / momwire#182 —
+    the point-matched sinusoidal and iterative HMatrix/ArrayBlock solvers
+    raise NotImplementedError, and NEC-2 has no equivalent card at all, so
+    `PyNECEngine` rejects the design at construction, issue #579). DERIVED
+    from the flattened network spec rather than declared per design, so the
+    capability cannot drift from what the design actually does. The frontend
+    disables the other backend tabs (with an explanatory tooltip) and coerces
+    an active disallowed selection to the first allowed entry on design
+    switch; the solvers' hard errors remain the enforcement. Any failure to
+    build the network falls back to None — the design's real error surfaces
+    through the normal solve path. A future momwire release that widens
+    junction-port support only needs to widen `_JUNCTION_PORT_BACKENDS`."""
     try:
         net = _build_builder(cls, {}).build_network()
     except Exception:
         return None
     if net is not None and any(isinstance(p, PortAtEnd) for p in net.ports.values()):
-        return ("bspline",)
+        return _JUNCTION_PORT_BACKENDS
     return None
 
 

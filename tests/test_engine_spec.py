@@ -74,10 +74,22 @@ def test_make_factory_binds_ground_and_solver():
 def test_momwire_bases_keys():
     assert set(MOMWIRE_BASES) == {
         "sinusoidal",
+        "sinusoidal-galerkin",
         "bspline",
         "hmatrix",
         "arrayblock",
     }
+
+
+def test_make_factory_binds_sinusoidal_galerkin():
+    """The Galerkin-tested sinusoidal basis is selectable by name
+    (momwire#182). Same basis as `momwire:sinusoidal`, variational testing —
+    the pair is the instrument, so both must be addressable."""
+    from momwire import SinusoidalGalerkinSolver
+
+    factory = make_engine_factory("momwire:sinusoidal-galerkin", _GROUND_UNSET)
+    assert factory.func is MomwireEngine
+    assert factory.keywords == {"solver": SinusoidalGalerkinSolver}
 
 
 O = " --fn /dev/null"

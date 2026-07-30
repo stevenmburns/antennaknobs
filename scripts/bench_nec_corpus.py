@@ -85,13 +85,23 @@ import numpy as np  # noqa: E402
 
 XNEC2C_EXAMPLES = Path.home() / "antennas" / "xnec2c" / "examples"
 Z0 = 50.0  # system impedance for the reflection-coefficient metric (issue #407)
-ENGINE_KEYS = ("pynec", "sin", "bs1", "bs2")
+# Every engine key the benchmark scripts can dispatch. "sing" (momwire#182)
+# is the SAME three-term basis as "sin" tested variationally instead of
+# point-matched, so the pair isolates the TESTING scheme with the basis held
+# fixed — that is what it is here for.
+ENGINE_KEYS = ("pynec", "sin", "sing", "bs1", "bs2")
 ENGINE_LABEL = {
     "pynec": "PyNEC",
     "sin": "Sinusoidal",
+    "sing": "Sinusoidal-Gal",
     "bs1": "BSpline d=1",
     "bs2": "BSpline d=2",
 }
+# What `--engines` defaults to. Deliberately NOT all of ENGINE_KEYS: the
+# corpus/catalog sweeps are long-running, and silently adding a fifth column
+# to every historical benchmark would change what those runs cost and mean.
+# Ask for "sing" explicitly.
+DEFAULT_ENGINE_KEYS = ("pynec", "sin", "bs1", "bs2")
 
 
 # --------------------------------------------------------------------------
@@ -387,6 +397,10 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
             )
         elif engine == "sin":
             eng = MomwireEngine(builder, solver=SinusoidalSolver, ground=ground)
+        elif engine == "sing":
+            from momwire import SinusoidalGalerkinSolver
+
+            eng = MomwireEngine(builder, solver=SinusoidalGalerkinSolver, ground=ground)
         elif engine == "bs1":
             eng = MomwireEngine(
                 builder,
@@ -1644,7 +1658,10 @@ def main(argv=None):
     )
     ap.add_argument("--corpus", type=Path, default=XNEC2C_EXAMPLES)
     ap.add_argument(
-        "--engines", nargs="+", default=list(ENGINE_KEYS), choices=ENGINE_KEYS
+        "--engines",
+        nargs="+",
+        default=list(DEFAULT_ENGINE_KEYS),
+        choices=ENGINE_KEYS,
     )
     ap.add_argument(
         "--decks",

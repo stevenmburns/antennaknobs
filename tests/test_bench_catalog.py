@@ -112,6 +112,17 @@ def test_bench_one_guard_skips_finite_grounds_for_oversized_meshes():
             assert "skipped" in cell["error"]
 
 
-def test_engine_keys_cover_all_four_solvers():
-    assert set(bc.ENGINE_KEYS) == {"pynec", "sin", "bs1", "bs2"}
+def test_engine_keys_cover_every_dispatchable_solver():
+    # "sing" (momwire#182) is the sinusoidal basis tested variationally — the
+    # same basis as "sin", so the pair isolates the testing scheme.
+    assert set(bc.ENGINE_KEYS) == {"pynec", "sin", "sing", "bs1", "bs2"}
     assert all(k in bc.ENGINE_LABEL for k in bc.ENGINE_KEYS)
+
+
+def test_default_engine_keys_stay_the_historical_four():
+    """`--engines` defaults must NOT silently grow: the corpus/catalog sweeps
+    are long-running, and adding a column to every historical benchmark would
+    change what those runs cost and what they can be compared against. "sing"
+    is dispatchable but opt-in."""
+    assert set(bc.DEFAULT_ENGINE_KEYS) == {"pynec", "sin", "bs1", "bs2"}
+    assert set(bc.DEFAULT_ENGINE_KEYS) <= set(bc.ENGINE_KEYS)
