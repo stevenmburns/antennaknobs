@@ -1264,6 +1264,96 @@ def test_momwire_arrayblock_parity_matches_bspline():
 
 
 # --------------------------------------------------------------------------
+# SinusoidalGalerkinSolver wiring — momwire#182.
+#
+# The same three-term basis as SinusoidalSolver, tested variationally instead
+# of point-matched. It is a MEASURING instrument first: with the basis and the
+# mesh held fixed, the sin/sin-Galerkin pair reads the testing scheme's
+# contribution to a discrepancy directly, which is what antennaknobs#521's
+# residue cluster needed. Full write-up: momwire
+# docs/sinusoidal-galerkin-instrument-report.md.
+# --------------------------------------------------------------------------
+
+
+def test_momwire_sinusoidal_galerkin_parity_matches_sinusoidal():
+    """The Galerkin solver shares the point-matched one's odd-segment parity
+    (a regression guard for the _parity_for_solver wiring).
+
+    Load-bearing rather than cosmetic: the whole point of running the two
+    sinusoidal cells side by side is that they differ in exactly ONE thing
+    (the testing). A parity fall-through to "any" would build a different
+    mesh and quietly make every comparison a comparison of two problems."""
+    from momwire import SinusoidalSolver, SinusoidalGalerkinSolver
+    from antennaknobs.engines.momwire import _parity_for_solver
+
+    assert _parity_for_solver(SinusoidalGalerkinSolver, {}) == "odd"
+    assert _parity_for_solver(SinusoidalGalerkinSolver, {}) == _parity_for_solver(
+        SinusoidalSolver, {}
+    )
+
+
+def test_momwire_sinusoidal_galerkin_capability_gates():
+    """The name-keyed capability tuples, both directions.
+
+    Grounds: momwire#182 M4 wired all three ground models onto the Galerkin
+    testing, so ground_eps must NOT be silently dropped. Wire loading: M6
+    left it unwired (the solver raises where reached), so the engine must
+    take the warn-and-drop branch instead — deliberately absent, not
+    forgotten."""
+    from momwire import SinusoidalGalerkinSolver
+    from antennaknobs.engines.momwire import (
+        _solver_supports_ground_eps,
+        _solver_supports_wire_loading,
+    )
+
+    assert _solver_supports_ground_eps(SinusoidalGalerkinSolver)
+    assert not _solver_supports_wire_loading(SinusoidalGalerkinSolver)
+
+
+def test_momwire_sinusoidal_galerkin_reads_the_hentenna_residue():
+    """The instrument's headline reading, as a regression guard.
+
+    antennaknobs#521 filed specialty.hentenna at the top of the "no-mutual
+    residue cluster": at the catalog mesh the point-matched sinusoidal solver
+    and the B-spline Galerkin solver disagree by tens of percent, concentrated
+    in reactance, and the census could not say whether that was the basis or
+    the testing. Swapping ONLY the testing answers it — sin-Galerkin lands on
+    the B-spline value at the same mesh, so the gap is a testing effect, not a
+    basis effect.
+
+    Measured 2026-07-30 at the catalog default (nominal_nsegs=21, 119 segs,
+    free space):
+
+        sin (collocation)   42.44 + 29.23j
+        sin-Galerkin        43.01 + 38.90j
+        bspline d=2         43.05 + 38.59j
+
+    The bounds are loose on purpose — this pins the VERDICT (collocation far,
+    the two Galerkin schemes together), not the third digit."""
+    from importlib import import_module
+    from momwire import BSplineSolver, SinusoidalSolver, SinusoidalGalerkinSolver
+
+    mod = "antennaknobs.designs.specialty.hentenna"
+    z = {}
+    for key, cls in (
+        ("coll", SinusoidalSolver),
+        ("gal", SinusoidalGalerkinSolver),
+        ("bs2", BSplineSolver),
+    ):
+        b = import_module(mod).Builder()
+        z[key] = MomwireEngine(b, solver=cls, ground=None).impedance()[0]
+
+    def rel(a, b):
+        return abs(a - b) / abs(b)
+
+    assert rel(z["coll"], z["bs2"]) > 0.10, z
+    assert rel(z["gal"], z["bs2"]) < 0.02, z
+    # ...and the win is in the reactance, which is where #521 filed the gap.
+    assert abs(z["coll"].imag - z["bs2"].imag) > 5.0, z
+    assert abs(z["gal"].imag - z["bs2"].imag) < 1.0, z
+
+
+# --------------------------------------------------------------------------
 # TwoPort branch — issue #65 piece (B).
 #
 # A lumped series R+jωL+1/(jωC) bridging two distinct feed segments. The

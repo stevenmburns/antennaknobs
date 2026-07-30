@@ -30,9 +30,16 @@ def _parity_for_solver(solver, solver_kwargs):
       - BSplineSolver degree=1 → tent basis, even (feed straddles 2 segs)
       - BSplineSolver degree=2 → quadratic → odd
       - SinusoidalSolver → odd
+      - SinusoidalGalerkinSolver → odd (same basis, Galerkin testing)
     Anything else falls through as "any" (no coercion)."""
     name = getattr(solver, "__name__", "")
-    if name == "SinusoidalSolver":
+    if name in ("SinusoidalSolver", "SinusoidalGalerkinSolver"):
+        # SinusoidalGalerkinSolver subclasses SinusoidalSolver — same three-term
+        # basis and the same delta-gap feed, so it inherits the odd-segment
+        # rule. Load-bearing for the whole point of the class: the basis ×
+        # testing instrument (momwire#182) only reads cleanly when the two
+        # sinusoidal cells differ in exactly ONE thing (the testing), and a
+        # parity fall-through to "any" would have them differ in the mesh too.
         return "odd"
     if name in ("BSplineSolver", "HMatrixSolver", "ArrayBlockSolver"):
         # HMatrixSolver and ArrayBlockSolver are BSplineSolver subclasses (same
@@ -106,6 +113,14 @@ _GROUND_EPS_SOLVERS = (
     "HMatrixSolver",
     "ArrayBlockSolver",
     "SinusoidalSolver",
+    # SinusoidalGalerkinSolver wires all three grounds (momwire#182 M4) by
+    # reusing each ground's existing source-field evaluator under the Galerkin
+    # test quadrature — no new field kernels, so it inherits the point-matched
+    # sibling's NEC gn 0 / gn 2 agreement. Caveat, inherited and shared with
+    # SinusoidalSolver: a wire END LYING IN the ground plane is only sound
+    # under the PEC image (the #151 ground-connected basis completes the end
+    # current with an exact mirror, which a Fresnel/Sommerfeld image is not).
+    "SinusoidalGalerkinSolver",
 )
 
 
@@ -123,6 +138,10 @@ _WIRE_LOADING_SOLVERS = (
     "HMatrixSolver",
     "ArrayBlockSolver",
     "SinusoidalSolver",
+    # SinusoidalGalerkinSolver is DELIBERATELY absent: momwire#182 left wire
+    # loading unwired on it (it raises where reached), so it takes the
+    # warn-and-drop branch below rather than crashing a loaded design. Add it
+    # here when momwire wires loading into the Galerkin testing.
 )
 
 
@@ -147,9 +166,16 @@ class MomwireEngine(SimulationEngine):
         """
         solver:
           A momwire solver class — BSplineSolver (default), SinusoidalSolver,
-          or the fast BSpline subclasses (HMatrixSolver, ArrayBlockSolver).
+          SinusoidalGalerkinSolver, or the fast BSpline subclasses
+          (HMatrixSolver, ArrayBlockSolver).
           Different bases trade speed vs impedance fidelity; on the hentenna
           sinusoidal is typically closer to PyNEC at modest segmentation.
+          SinusoidalGalerkinSolver is the same three-term basis as
+          SinusoidalSolver tested variationally instead of point-matched
+          (momwire#182): it costs more per fill and buys coarse-mesh
+          reactance accuracy, and it closes most of the sin↔bs2 gaps this
+          repo tracked as basis effects — see momwire
+          docs/sinusoidal-galerkin-instrument-report.md.
         solver_kwargs:
           Dict of solver-specific kwargs passed straight to the constructor
           (e.g. `{"degree": 1}` for BSplineSolver, or `{"n_qp_const": 16}`

@@ -1186,7 +1186,13 @@ def test_examples_carry_requires_backends(client: TestClient):
     by_name = {e["name"]: e for e in payload["examples"]}
     for e in payload["examples"]:
         assert "requires_backends" in e
-    assert by_name["wire.sterba_bl"]["requires_backends"] == ["bspline"]
+    # momwire#182 M5b widened junction-port support to the sinusoidal-Galerkin
+    # solver, so the allowlist is a PAIR now. bspline stays first — it is the
+    # reference implementation and `default_backend` is `requires_backends[0]`.
+    assert by_name["wire.sterba_bl"]["requires_backends"] == [
+        "bspline",
+        "sinusoidal-galerkin",
+    ]
     assert by_name["wire.sterba_bl"]["default_backend"] == "bspline"
     # The unrestricted Sterba siblings stay unrestricted — including the
     # network-TL one (TL/BalancedLine on PortOnWire gaps run everywhere).

@@ -68,7 +68,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_converge as cvg  # noqa: E402
 import bench_nec_corpus as bnc  # noqa: E402
 
-ENGINE_KEYS = cvg.ENGINE_KEYS  # ("pynec", "sin", "bs1", "bs2")
+ENGINE_KEYS = cvg.ENGINE_KEYS  # ("pynec", "sin", "sing", "bs1", "bs2")
+DEFAULT_ENGINE_KEYS = cvg.DEFAULT_ENGINE_KEYS
 ENGINE_LABEL = cvg.ENGINE_LABEL
 
 # Ground specs by CLI label — identical to profile_ground_models.py, so the
@@ -333,7 +334,10 @@ def main(argv=None):
     )
     ap.add_argument("--designs", nargs="+", default=None)
     ap.add_argument(
-        "--engines", nargs="+", default=list(ENGINE_KEYS), choices=ENGINE_KEYS
+        "--engines",
+        nargs="+",
+        default=list(DEFAULT_ENGINE_KEYS),
+        choices=ENGINE_KEYS,
     )
     ap.add_argument(
         "--grounds",

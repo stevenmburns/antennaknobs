@@ -22,6 +22,11 @@ from momwire import (
     ArrayBlockSolver,
 )
 
+try:
+    from momwire import SinusoidalGalerkinSolver
+except ImportError:  # momwire older than the #182 Galerkin solver
+    SinusoidalGalerkinSolver = None
+
 import argparse
 import logging
 from importlib import import_module
@@ -41,6 +46,12 @@ MOMWIRE_BASES = {
     "hmatrix": HMatrixSolver,
     "arrayblock": ArrayBlockSolver,
 }
+if SinusoidalGalerkinSolver is not None:
+    # Same three-term basis as `sinusoidal`, tested variationally instead of
+    # point-matched (momwire#182). Registered conditionally only because the
+    # `momwire==` pin in pyproject.toml still admits a release that predates
+    # the class; make it unconditional at the next momwire bump.
+    MOMWIRE_BASES["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
 
 
 def resolve_class(s):
@@ -276,7 +287,8 @@ def broadcast_pairs(builders, engines):
 def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
-    Forms: "pynec", "momwire", "momwire:sinusoidal|bspline|hmatrix|arrayblock".
+    Forms: "pynec", "momwire",
+    "momwire:sinusoidal|sinusoidal-galerkin|bspline|hmatrix|arrayblock".
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -357,7 +369,8 @@ def cli(arguments=None):
                 nargs="+",
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
-                '"momwire[:sinusoidal|bspline|hmatrix|arrayblock]" or "pynec". '
+                '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
+                'hmatrix|arrayblock]" or "pynec". '
                 "Cross-products with --builders.",
             )
         else:
@@ -366,7 +379,8 @@ def cli(arguments=None):
                 type=str,
                 default="momwire",
                 help="Simulation backend: momwire | "
-                "momwire:sinusoidal | momwire:bspline | momwire:hmatrix | "
+                "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
+                "momwire:bspline | momwire:hmatrix | "
                 "momwire:arrayblock | pynec (default: momwire). pynec needs "
                 "the optional pynec-accel package; momwire is always "
                 "available.",
