@@ -38,18 +38,25 @@ Known model residual: the CM stamp neither radiates nor dissipates the real
 pair's small antenna-mode current, so the model runs progressively hot at
 high n (+0.2 dB at n=3 → +0.8 dB at n=7 vs the all-wire curtain).
 
-Why not the engine-portable `PortOnWireFloating` (issue #608, measured
-2026-07-30): a floating gap is a single-DOF series EMF on CONTINUOUS metal,
-so through-current continuity is forced at every gap — but the weave needs
-the rail current to reverse across each boundary (the span ends there; its
-current leaves down the riser). That per-boundary four-terminal exchange is
-exactly what `PortAtEnd` provides and no across-gap element can express;
-the #576 zcomm rescue is also unavailable (a gap passes zero CM current
-structurally). Measured on a rectangle-with-gap-risers re-authoring: one
-bay converges cleanly at 7.22 dBi broadside (its own forced-co-phase
-ceiling), but the mechanism does not scale — 5.28 dBi steered az 145 at
-n=3, 5.17 az 50 at n=5 — the #576 phase-fanout failure class with no CM
-lever. Full record on the issue.
+Why no gap-family port can replace `PortAtEnd` here (issue #608, measured
+2026-07-30): a delta gap is a single-DOF series EMF needing live conductor
+on both faces, so every gap placement either dies into a dead-end stub
+(series stub capacitance — the shrinking-nub mechanism, also measured as
+`PortAtEndApproximate` on this very design: 2.9 dBi az 35 at n=3) or
+enforces through-current continuity. But the weave boundary SWAPS rail
+currents (I_top,right = I_bot,left and vice versa — the TEM-pair
+crossover): in the symmetric mode that reduces to plain continuity, which
+is why one bay of every gap construction works; the swap's real function
+is forbidding the asymmetric parasitic modes, and when rail currents
+differ it requires NET current transfer between rails λ/2 apart — which by
+KCL needs metal (a real riser = `wire.sterba`) or a node port that can
+source net current into a wire end (`PortAtEnd`). Gap constructions admit
+the parasitics and collapse at n≥3: rectangle-with-gap-risers 5.28 dBi
+az 145 at n=3 (vs 10.47 broadside), end-segment gaps 2.88 az 35, #579's
+cross-bridge 10.2 az 35 — one failure class, four measurements. The #576
+zcomm rescue is also unavailable (a gap passes zero CM current
+structurally), and NEC-2's NT/TL cards are gap-semantics too, so no
+PyNEC-portable variant can exist. Full record on the issue.
 """
 
 import math
