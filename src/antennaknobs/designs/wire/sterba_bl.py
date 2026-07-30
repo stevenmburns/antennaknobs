@@ -37,6 +37,19 @@ offers only momwire backends for it.
 Known model residual: the CM stamp neither radiates nor dissipates the real
 pair's small antenna-mode current, so the model runs progressively hot at
 high n (+0.2 dB at n=3 → +0.8 dB at n=7 vs the all-wire curtain).
+
+Why not the engine-portable `PortOnWireFloating` (issue #608, measured
+2026-07-30): a floating gap is a single-DOF series EMF on CONTINUOUS metal,
+so through-current continuity is forced at every gap — but the weave needs
+the rail current to reverse across each boundary (the span ends there; its
+current leaves down the riser). That per-boundary four-terminal exchange is
+exactly what `PortAtEnd` provides and no across-gap element can express;
+the #576 zcomm rescue is also unavailable (a gap passes zero CM current
+structurally). Measured on a rectangle-with-gap-risers re-authoring: one
+bay converges cleanly at 7.22 dBi broadside (its own forced-co-phase
+ceiling), but the mechanism does not scale — 5.28 dBi steered az 145 at
+n=3, 5.17 az 50 at n=5 — the #576 phase-fanout failure class with no CM
+lever. Full record on the issue.
 """
 
 import math
