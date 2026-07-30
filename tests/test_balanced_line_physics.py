@@ -553,35 +553,36 @@ def test_zcomm_value_is_immaterial_behind_a_floating_balun():
 
 
 # ---------------------------------------------------------------------------
-# 7. The other topology: an OPEN feed tree, where zcomm's value does matter
+# 7. The other topology: an OPEN feed tree, where zcomm is a modelling error
 # ---------------------------------------------------------------------------
 #
 # Sections 5 and 6 both found zcomm's value immaterial — but both live in
 # topologies that make it so (a closed λ/2 loop; a floating-balun secondary
 # with no CM path at all). `arrays.bowtie1x2_bl` is the counter-case and the
 # reason the element ships zcomm as an explicit opt-in rather than a default:
-# its corporate feed is an open tree, so a common-mode path is a real extra
-# shunt admittance rather than a repeater, and the physical model is CM-OPEN.
+# its corporate feed is an open tree, and the physical model is CM-OPEN.
+#
+# In the design's floating-gap authoring (#608) the statement sharpens from
+# "the value matters" to "any value is wrong": the element-side gap passes
+# zero CM current STRUCTURALLY, so the λ/4 CM line dead-ends into an open,
+# and the quarter-wave open→short transform pins the CM level at the
+# grounded tap to zero — shorting the driven node for ANY finite zcomm (the
+# constraint is Z-independent; only the current scale changes). The PortAtEnd
+# authoring recovered the open answer as zcomm→∞; the floating authoring is
+# discontinuous there, which is why the design pins the CM level with 100 MΩ
+# shunts instead of zcomm (see its docstring).
 
 
 @pytest.mark.antenna_computation_check
-def test_zcomm_value_is_load_bearing_in_an_open_feed_tree():
+def test_zcomm_is_a_modelling_error_in_an_open_feed_tree():
     """`arrays.bowtie1x2_bl` (zcomm off by default): adding a common-mode
-    path to a feed that has no common-mode return is not a refinement, it is
-    a modelling error, and the element does not hide it. Measured 2026-07-28,
-    driving-point Z:
-
-        zcomm off (open)   49.8 - 0.3j      <- the physical model
-        zcomm =  100       5.4 + 9.0j       <- 10x error in R
-        zcomm =  250      31.7 +16.7j
-        zcomm =  600      47.4 + 4.9j
-        zcomm = 1500      49.5 + 0.6j       <- converging back to open
-
-    The monotone return to the CM-open answer as zcomm grows is the
-    consistency check: `zcomm=None` really is the zcomm→∞ limit, not a
-    separate code path. Guards the docs' claim that the choice is topological
-    (closed conduction loop vs. a pair that simply ends), NOT a universal
-    "always turn it on"."""
+    path to a feed whose element side is a structural CM open is not a
+    refinement at ANY value — the λ/4 line transforms the open into a CM
+    short at the grounded tap, collapsing the driving-point impedance.
+    Measured 2026-07-30 (floating-gap authoring): zcomm off → 49.8−0.4j
+    (the physical model, SWR 1.01); zcomm 100/600/1500 → |Ztap| < 1 Ω.
+    Guards the docs' claim that the choice is topological AND that the CM
+    level pin must be the high-R shunt, never zcomm."""
     from antennaknobs.designs.arrays.bowtie1x2_bl import Builder
 
     def zin(zc):
@@ -591,13 +592,29 @@ def test_zcomm_value_is_load_bearing_in_an_open_feed_tree():
     z_open = zin(0.0)  # the design default: CM path absent
     assert abs(z_open.real - 50.0) < 5.0 and abs(z_open.imag) < 5.0
 
-    # a low-impedance CM shunt is a gross, visible error — not a nudge
-    assert abs(zin(100.0) - z_open) / abs(z_open) > 0.5
+    # ANY finite zcomm is a gross, visible error — the λ/4 open→short
+    # transform is independent of the line impedance.
+    for zc in (100.0, 600.0, 1500.0):
+        z = zin(zc)
+        assert abs(z - z_open) / abs(z_open) > 0.5, (zc, z)
+        assert abs(z) < 1.0, (zc, z)  # the tap-short mechanism specifically
 
-    # ...and large zcomm converges monotonically back to the open case
-    devs = [abs(zin(zc) - z_open) / abs(z_open) for zc in (250.0, 600.0, 1500.0)]
-    assert devs[0] > devs[1] > devs[2]
-    assert devs[2] < 0.05
+
+@pytest.mark.antenna_computation_check
+def test_bowtie_corporate_feed_runs_on_both_engines():
+    """The #608 bowtie-half payoff: the floating-gap corporate feed is
+    engine-portable. PyNEC accepts the design (impossible with the previous
+    PortAtEnd authoring — NEC-2 has no junction-node card) and agrees with
+    momwire on the matched tap. Measured 2026-07-30 at the retuned point:
+    momwire 49.80−0.39j, PyNEC 49.74−1.26j, gains 5.70/5.70 dBi broadside."""
+    from antennaknobs.designs.arrays.bowtie1x2_bl import Builder
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    zm = complex(MomwireEngine(Builder(), ground=None).impedance()[0])
+    zp = complex(PyNECEngine(Builder(), ground=None).impedance()[0])
+    for z in (zm, zp):
+        assert abs(z - 50.0) < 3.0, z  # both engines see the ~1:1 match
+    assert abs(zm - zp) < 3.0, (zm, zp)  # and agree with each other
 
 
 # ---------------------------------------------------------------------------
