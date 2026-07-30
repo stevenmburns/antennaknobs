@@ -605,8 +605,9 @@ def test_bowtie_corporate_feed_runs_on_both_engines():
     """The #608 bowtie-half payoff: the floating-gap corporate feed is
     engine-portable. PyNEC accepts the design (impossible with the previous
     PortAtEnd authoring — NEC-2 has no junction-node card) and agrees with
-    momwire on the matched tap. Measured 2026-07-30 at the retuned point:
-    momwire 49.80−0.39j, PyNEC 49.74−1.26j, gains 5.70/5.70 dBi broadside."""
+    momwire on the matched tap. Measured 2026-07-30 at the retuned point
+    (45.0°, 0.5525, 100 Ω): momwire 50.00−0.21j, PyNEC 49.86−1.19j, gains
+    5.70/5.70 dBi broadside."""
     from antennaknobs.designs.arrays.bowtie1x2_bl import Builder
     from antennaknobs.engines.pynec import PyNECEngine
 
