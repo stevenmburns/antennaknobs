@@ -19,9 +19,10 @@ current ratio the balanced network sets differs from an isolated or delta-gap
 drive), so there is no feed-independent "100 Ω element" — the tuned
 element-plus-line network as a whole realizes the 50 Ω tap. The tune is also
 feed-MODEL-dependent: the pre-#608 `PortAtEnd` authoring of this same design
-tuned to (44.0°, 0.560, 100 Ω); the floating-gap authoring below retunes to
-(46.5°, 0.555, 97 Ω) for the same SWR ~1.01 — the restored bridge metal and
-gap drive shift each element's driving-point by a few percent.
+tuned to (44.0°, 0.560); the floating-gap authoring below retunes to
+(45.0°, 0.5525) for the same match with the line kept at the round 100 Ω —
+the restored bridge metal and gap drive shift each element's driving-point
+by a few percent, absorbed entirely in the geometry knobs.
 
 Against ideal equal-current feeding of the same geometry the balanced feed is
 pattern-identical (within ~0.2 dB everywhere): it is lossless and matched, so
@@ -58,7 +59,7 @@ Construction (issues #575/#576/#605; re-authored engine-portable per #608):
 Engine support: **all engines.** The floating gap is stamped entirely in the
 shared reducer (#605/#607), so momwire (every basis) and PyNEC both run this
 design; measured 2026-07-30 at the retuned point: momwire 5.70 dBi broadside,
-tap 49.80−0.39j (SWR 1.009); PyNEC 5.70 dBi, 49.74−1.26j (SWR 1.026) —
+tap 50.00−0.21j (SWR 1.004); PyNEC 5.71 dBi, 49.98−0.94j (SWR 1.019) —
 0.01 dB and ~1 Ω apart, both mesh-stable nsegs 21→41. This closed the
 bowtie half of issue #608 (the sterba half measured "no"; see that design).
 """
@@ -85,14 +86,15 @@ class Builder(AntennaBuilder):
             # design_freq scales the geometry AND anchors auto_mesh; hidden.
             "design_freq": 28.47,
             # Bowtie flare half-angle and length (as a wavelength factor),
-            # tuned so the center TAP presents 50 Ohm to the coax (SWR ~1.01)
-            # under the floating-gap feed model (#608 re-authoring).
-            "angle_deg": 46.5,
-            "length_factor": 0.555,
+            # tuned so the center TAP presents 50 Ohm to the coax (SWR 1.004)
+            # under the floating-gap feed model (#608 re-authoring) with the
+            # line held at the round 100 Ohm.
+            "angle_deg": 45.0,
+            "length_factor": 0.5525,
             # Element stacking distance / wavelength (sets the half-line length).
             "del_z_factor": 0.5,
             # Corporate-feed line impedance (matched to the element).
-            "zdiff": 97.0,
+            "zdiff": 100.0,
             # Feeders are common-mode-open (0 -> None): the physical model.
             # Exposed for the modelling study only — see the docstring note
             # on why zcomm must NOT be used as the CM level pin here.
