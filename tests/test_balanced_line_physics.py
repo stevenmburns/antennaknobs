@@ -863,7 +863,9 @@ def test_sin_galerkin_curtain_still_needs_the_common_mode_path():
     a conduction loop -- and it is a claim about the PORT boundary condition,
     exactly what a second port implementation is able to falsify. Removing
     the CM path must cost several dB and swing the beam off broadside here
-    too. Measured 2026-07-30: 10.61 dBi az 180 with, 5.53 dBi az 35 without.
+    too. Measured 2026-07-30: 10.605 dBi az 180 with, 5.518 dBi az 35
+    without -- against the B-spline solver's own 10.606 / 5.519 on the same
+    pair of builds.
     """
     gain_on, az_on = _peak(_sin_galerkin_curtain(3))
     gain_off, az_off = _peak(_sin_galerkin_curtain(3, zcomm=0.0))
