@@ -64,6 +64,14 @@ N=21 on 53 — the sinusoidal basis on 36 — with conv@N advantages up to
 N=15: on the scorable catalog it is converged out of the box, at ~35 %
 less cost per solve than N=21.
 
+Why the sinusoidal basis lags has since been *attributed*, not just
+measured: momwire's basis × testing instrument showed the census gap is
+mostly the **point matching**, not the basis — swap only the testing
+scheme (the `sinusoidal-galerkin` backend) and the junction-heavy gaps
+collapse ~100×, with the residual on clean geometry down at the
+feed-model level. The mechanism write-up is
+[momwire chapter 15](https://momwire.dev/act-5/the-fourth-cell/).
+
 ## The four ways a curve refuses to settle
 
 When the sweep does *not* flatten, resist the reflex to just raise N.
