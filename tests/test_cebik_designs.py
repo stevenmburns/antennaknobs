@@ -854,22 +854,27 @@ def test_discone_has_disc_and_cone_one_feed():
 
 # ---------------------------------------------------------------------------
 # Helix (normal-mode helical vertical) -- 3-D non-planar geometry
+#
+# Two variants (issue #630): faceted_helix, whose pts_per_turn polygon IS the
+# geometry and whose mesh refines by subdividing segments along the fixed
+# facets, and continuous_helix, whose chord count derives from nominal_nsegs
+# (one segment per chord) so refining the mesh refines the curve itself.
 # ---------------------------------------------------------------------------
 
 
-def test_helix_resonant_low_z():
+def test_faceted_helix_resonant_low_z():
     """Helically-loaded short whip: near-resonant, low radiation resistance."""
-    from antennaknobs.designs.specialty.helix import Builder
+    from antennaknobs.designs.specialty.faceted_helix import Builder
 
     z = _z(Builder())
     assert 8.0 < z.real < 25.0  # low R of a helically-loaded short vertical
     assert abs(z.imag) < 25.0  # tuned near resonance
 
 
-def test_helix_is_genuinely_three_dimensional():
+def test_faceted_helix_is_genuinely_three_dimensional():
     """Unlike every planar design in the catalog, the helix winds through many
     distinct x AND y coordinates -- a true space curve."""
-    from antennaknobs.designs.specialty.helix import Builder
+    from antennaknobs.designs.specialty.faceted_helix import Builder
 
     tups = Builder().build_wires()
     xs = {round(p[0], 3) for t in tups for p in (t[0], t[1])}
@@ -877,25 +882,30 @@ def test_helix_is_genuinely_three_dimensional():
     assert len(xs) > 4 and len(ys) > 4
 
 
-def test_helix_mesh_refines_with_nominal_nsegs():
+def test_faceted_helix_mesh_refines_with_nominal_nsegs():
     """Issue #630: the helix must respond to ``nominal_nsegs`` so a
     convergence ladder actually refines — every rung of #521's census
     re-solved one identical mesh because each winding chord hard-coded
-    one segment."""
-    from antennaknobs.designs.specialty.helix import Builder
+    one segment. The faceted variant refines by subdividing segments
+    along its FIXED pts_per_turn polygon: chord count constant, segment
+    count growing."""
+    from antennaknobs.designs.specialty.faceted_helix import Builder
 
-    def total_segs(n):
+    def mesh(n):
         b = Builder()
         b.nominal_nsegs = n
-        return sum(t[2] for t in b.build_wires())
+        tups = b.build_wires()
+        return len(tups), sum(t[2] for t in tups)
 
-    assert total_segs(21) < total_segs(161) < total_segs(641)
+    wires = {mesh(n)[0] for n in (21, 161, 641)}
+    assert len(wires) == 1  # the polygon is geometry: chord count is fixed
+    assert mesh(21)[1] < mesh(161)[1] < mesh(641)[1]
 
 
-def test_helix_vertically_polarised_omni():
+def test_faceted_helix_vertically_polarised_omni():
     """Normal-mode helix radiates like a short vertical: omnidirectional in
     azimuth, modest gain."""
-    from antennaknobs.designs.specialty.helix import Builder
+    from antennaknobs.designs.specialty.faceted_helix import Builder
 
     ff = _far_field(Builder())
     rings = np.array(ff.rings)
@@ -903,6 +913,52 @@ def test_helix_vertically_polarised_omni():
     az = rings[ti]
     assert az.max() - az.min() < 1.0  # omnidirectional in azimuth
     assert ff.max_gain < 3.0  # a small radiator, not a beam
+
+
+def test_continuous_helix_resonant_low_z():
+    """The continuous variant is the same electrical design: near-resonant,
+    low radiation resistance."""
+    from antennaknobs.designs.specialty.continuous_helix import Builder
+
+    z = _z(Builder())
+    assert 8.0 < z.real < 25.0
+    assert abs(z.imag) < 25.0
+
+
+def test_continuous_helix_curve_refines_with_nominal_nsegs():
+    """Issue #630: the continuous variant refines the CURVE itself — the
+    chord count derives from nominal_nsegs and every chord carries exactly
+    one segment, so the polygon converges to the true circular helix."""
+    from antennaknobs.designs.specialty.continuous_helix import Builder
+
+    def helix_chords(n):
+        b = Builder()
+        b.nominal_nsegs = n
+        # Helix chords are the wires starting above the feed gap (the gap
+        # and the radials both start at z = base).
+        return [t for t in b.build_wires() if t[0][2] > b.base]
+
+    coarse, fine = helix_chords(21), helix_chords(641)
+    assert len(coarse) < len(fine)  # geometry refines
+    assert all(t[2] == 1 for t in coarse + fine)  # one segment per chord
+
+
+def test_continuous_helix_chords_track_design_density():
+    """Each chord comes out at the design segment length, so total helix
+    wire length is (nearly) mesh-independent while the chord count scales
+    ~linearly with N — the two variants' refinement axes are distinct."""
+    import math as m
+    from antennaknobs.designs.specialty.continuous_helix import Builder
+
+    def wound_length(n):
+        b = Builder()
+        b.nominal_nsegs = n
+        chords = [t for t in b.build_wires() if t[0][2] > b.base]
+        return sum(m.dist(t[0], t[1]) for t in chords)
+
+    # Inscribed-polygon length grows toward the true curve as N refines.
+    assert wound_length(21) < wound_length(161) < wound_length(641)
+    assert wound_length(641) / wound_length(21) < 1.05  # converging, not scaling
 
 
 # ---------------------------------------------------------------------------

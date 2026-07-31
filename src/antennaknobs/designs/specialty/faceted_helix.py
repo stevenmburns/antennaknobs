@@ -1,4 +1,12 @@
-"""Normal-mode helical vertical (L. B. Cebik, W4RNL).
+"""Normal-mode helical vertical, faceted winding (L. B. Cebik, W4RNL).
+
+One of the catalog's two helix variants (issue #630). Here the winding is
+a FACETED polygon by construction: `pts_per_turn` chords per turn are part
+of the GEOMETRY, the way a real coil wound on a polygonal former would be,
+and the mesh refines by subdividing segments along the fixed facets. A
+convergence ladder therefore converges to this faceted structure's answer.
+For the ideal circular winding — where refining `nominal_nsegs` also
+refines the curve itself — see `continuous_helix`.
 
 A vertical whip wound as a HELIX instead of a straight rod. When the helix
 diameter and turn-to-turn pitch are both small compared with a wavelength the
