@@ -25,20 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.38.0" icon="star">
-  **Transmission-line curtains, built as a circuit.** A Sterba-curtain array is
-  stitched together by transmission-line risers whose feed and phasing you used
-  to have to model as bare wire. The new **`BalancedLine`** element models that
-  riser as what it is — a differential two-conductor line — and its optional
-  **common-mode path** (`zcomm`) restores the conduction path a purely
-  differential stamp drops, so a **`build_network()`** TL Sterba now matches the
-  all-wire reference to a few tenths of a dB (**+15.4 dBi** vs +15.2, at n=3
-  over average ground). The result ships as the new **`wire.sterba_bl`**
-  catalog design. Also landing: **`PortAtEnd`** ports that attach a floating
-  element at a conductor's very end (not just a mid-wire gap), stricter
-  **network-authoring checks** that reject silent open-gap traps, and **one feed
-  marker per driven port** for multi-feed arrays. Built on **momwire 0.18.0**
-  (junction ports). [All release notes →](/reference/releases/)
+<Card title="New in v0.39.0" icon="star">
+  **A second opinion for every port-fed design — and a verdict on a
+  years-old question.** The new **`sinusoidal-galerkin`** backend keeps
+  NEC's three-term sinusoidal current basis but tests it by integration
+  (Galerkin), the way the B-spline solver does. That fourth basis × testing
+  cell turned solver disagreement into *attribution*: the junction-heavy
+  sin↔B-spline gaps in the catalog census were the **point matching, not the
+  basis** (1–23 % collapsing to 0.01–0.33 %), and the near-open residual is
+  the **feed model**. Practically: exactly reciprocal Z, B-spline-class
+  convergence on junction geometry, and **junction-node ports** — so
+  **`PortAtEnd`** designs like `wire.sterba_bl` (previously B-spline-only)
+  now solve on two independent bases agreeing to 0.28 % / 0.001 dB. Also:
+  **Touchstone (.s1p/.s2p) import** as network elements, the
+  **`bowtie1x2_bl`** corporate-feed design, and a frontend↔backend roster
+  contract test. Built on **momwire 0.20.0**; the full story is
+  [momwire chapter 15](https://momwire.dev/act-5/the-fourth-cell/).
+  [All release notes →](/reference/releases/)
 </Card>
 
 ## The whole pitch, in one line
