@@ -172,7 +172,8 @@ showcase (see [the solver guide](/reference/solver/)):
 | Design | Notes |
 | --- | --- |
 | `specialty.bowtie` | Bowtie dipole — triangular fan arms for broadened bandwidth |
-| `specialty.helix` | Normal-mode helical vertical (L. B. Cebik, W4RNL) |
+| `specialty.continuous_helix` | Normal-mode helical vertical, continuous winding (L. B. Cebik, W4RNL) |
+| `specialty.faceted_helix` | Normal-mode helical vertical, faceted winding (L. B. Cebik, W4RNL) |
 | `specialty.hentenna` | Hentenna — the Japanese rectangular loop, fed off-center for vertical polarization · variants: `z100`, `z50` |
 | `specialty.hentenna_slant` | Slanted hentenna parameterised by top-rectangle perimeter + two aspect ratios · variants: `z100`, `z50` |
 | `specialty.hourglass` | Hourglass loop — a crossed (bowtie-folded) rectangular loop |
