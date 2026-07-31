@@ -943,22 +943,29 @@ def test_continuous_helix_curve_refines_with_nominal_nsegs():
     assert all(t[2] == 1 for t in coarse + fine)  # one segment per chord
 
 
-def test_continuous_helix_chords_track_design_density():
-    """Each chord comes out at the design segment length, so total helix
-    wire length is (nearly) mesh-independent while the chord count scales
-    ~linearly with N — the two variants' refinement axes are distinct."""
+def test_helix_variants_wind_identical_wire_length():
+    """Arc-length-preserving faceting: chord vertices sit at r*alpha/
+    sin(alpha), so at ANY mesh both variants wind exactly the ideal
+    helix's wire length — a ladder refines the winding's shape, never its
+    length, and the two variants' converged answers are comparable."""
     import math as m
-    from antennaknobs.designs.specialty.continuous_helix import Builder
+    from antennaknobs.designs.specialty import continuous_helix, faceted_helix
 
-    def wound_length(n):
-        b = Builder()
+    def wound_length(mod, n):
+        b = mod.Builder()
         b.nominal_nsegs = n
         chords = [t for t in b.build_wires() if t[0][2] > b.base]
         return sum(m.dist(t[0], t[1]) for t in chords)
 
-    # Inscribed-polygon length grows toward the true curve as N refines.
-    assert wound_length(21) < wound_length(161) < wound_length(641)
-    assert wound_length(641) / wound_length(21) < 1.05  # converging, not scaling
+    b = continuous_helix.Builder()
+    wl = b.design_wavelength
+    ideal = m.hypot(
+        2 * m.pi * b.radius_frac * wl * b.n_turns,
+        b.axial_frac * wl * b.length_factor,
+    )
+    for mod in (continuous_helix, faceted_helix):
+        for n in (21, 161, 641):
+            assert abs(wound_length(mod, n) / ideal - 1) < 1e-9
 
 
 # ---------------------------------------------------------------------------
