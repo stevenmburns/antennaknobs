@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "antennaknobs"
-version = "0.39.0"
+version = "0.40.0"
 authors = [
   { name="Steven M. Burns", email="smburns47@gmail.com" },
 ]
@@ -41,7 +41,7 @@ classifiers = [
 # `pynec-accel` distribution; see README) and must never be declared a
 # dependency of this MIT package.
 dependencies = [
-    "momwire==0.20.0",
+    "momwire==0.21.0",
     "numpy>=1.21",
     "scipy>=1.7",
     "matplotlib>=3.5",
