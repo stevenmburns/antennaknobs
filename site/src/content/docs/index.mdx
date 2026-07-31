@@ -25,22 +25,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.39.0" icon="star">
-  **A second opinion for every port-fed design — and a verdict on a
-  years-old question.** The new **`sinusoidal-galerkin`** backend keeps
-  NEC's three-term sinusoidal current basis but tests it by integration
-  (Galerkin), the way the B-spline solver does. That fourth basis × testing
-  cell turned solver disagreement into *attribution*: the junction-heavy
-  sin↔B-spline gaps in the catalog census were the **point matching, not the
-  basis** (1–23 % collapsing to 0.01–0.33 %), and the near-open residual is
-  the **feed model**. Practically: exactly reciprocal Z, B-spline-class
-  convergence on junction geometry, and **junction-node ports** — so
-  **`PortAtEnd`** designs like `wire.sterba_bl` (previously B-spline-only)
-  now solve on two independent bases agreeing to 0.28 % / 0.001 dB. Also:
-  **Touchstone (.s1p/.s2p) import** as network elements, the
-  **`bowtie1x2_bl`** corporate-feed design, and a frontend↔backend roster
-  contract test. Built on **momwire 0.20.0**; the full story is
-  [momwire chapter 15](https://momwire.antennaknobs.dev/act-5/the-fourth-cell/).
+<Card title="New in v0.40.0" icon="star">
+  **The Galerkin backend grows up, and the helix splits in two.** The
+  `sinusoidal-galerkin` backend now runs on **momwire 0.21.0**, whose far
+  fill is a fused C++ kernel — **7–12× faster end-to-end**, and the memory
+  ceiling that capped it near 2 000 segments is gone (a 4 000-segment solve
+  fits in under 4 GiB), so census-scale meshes are interactive. In the
+  catalog, the helix is now **two designs with one refinement axis each**:
+  **`faceted_helix`** (the winding's polygon is the geometry; the mesh
+  subdivides along it) and **`continuous_helix`** (the chord count follows
+  the mesh density, converging to the true circular winding) — both
+  arc-length-normalized so they wind identical wire at every mesh, closing
+  the catalog's last unmeshable convergence story (the old builder solved
+  one frozen 53-segment mesh at every density).
   [All release notes →](/reference/releases/)
 </Card>
 
