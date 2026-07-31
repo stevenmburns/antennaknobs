@@ -119,14 +119,25 @@ class Builder(AntennaBuilder):
         # and a convergence ladder re-solved one identical mesh at every
         # rung. At the design density a chord still gets one segment, but a
         # refined ladder now subdivides the chords.
-        n_pts = int(round(n_turns * ppt))
+        # The winding spans EXACTLY n_turns: n_pts uniform chords over the
+        # whole sweep, at pts_per_turn chords-per-turn density. (Stepping the
+        # angle by 2*pi/ppt for a rounded chord count — the original
+        # construction — silently quantized n_turns to 1/ppt-ths.)
+        n_pts = max(1, round(n_turns * ppt))
+        # Arc-length-preserving faceting: vertices sit at r*alpha/sin(alpha)
+        # (alpha = half the turn angle per chord) so every chord is exactly
+        # as long as the arc it replaces. Both helix variants thereby wind
+        # the IDENTICAL wire length at every mesh — an inscribed polygon
+        # would be ~0.65% short at ppt=12, a permanent bias worth ~10 ohm
+        # of feed reactance on this high-Q whip (PR #636).
+        alpha = math.pi * n_turns / n_pts
+        r_v = radius * alpha / math.sin(alpha)
         zbot = z0 + eps
         prev = (0.0, 0.0, zbot)
         for i in range(1, n_pts + 1):
-            t = i / ppt  # turns completed
-            ang = 2.0 * math.pi * t
-            x = radius * math.cos(ang) - radius  # start at angle 0 -> x=0
-            y = radius * math.sin(ang)
+            ang = 2.0 * math.pi * n_turns * i / n_pts
+            x = r_v * math.cos(ang) - r_v  # start at angle 0 -> x=0
+            y = r_v * math.sin(ang)
             z = zbot + (axial * i / n_pts)
             cur = (x, y, z)
             tups.append(Wire(prev, cur))

@@ -101,13 +101,22 @@ class Builder(AntennaBuilder):
         # resolves every chord to exactly one segment and refining
         # nominal_nsegs refines the curve itself.
         wound = math.hypot(2.0 * math.pi * radius * n_turns, axial)
-        n_pts = max(1, round(wound * self.nominal_nsegs / quarter))
+        # Floor of two chords per turn keeps the arc-length correction below
+        # finite (alpha < pi/2) on absurdly coarse meshes.
+        n_pts = max(round(wound * self.nominal_nsegs / quarter), math.ceil(2 * n_turns))
+        # Arc-length-preserving faceting (cf. faceted_helix): vertices sit at
+        # r*alpha/sin(alpha) so every chord is exactly as long as the arc it
+        # replaces. The wound wire length is then EXACTLY the ideal helix's
+        # at every rung — the ladder converges the winding's shape, not its
+        # length — and the correction itself vanishes as N grows (alpha -> 0).
+        alpha = math.pi * n_turns / n_pts
+        r_v = radius * alpha / math.sin(alpha)
         zbot = z0 + eps
         prev = (0.0, 0.0, zbot)
         for i in range(1, n_pts + 1):
             ang = 2.0 * math.pi * n_turns * i / n_pts
-            x = radius * math.cos(ang) - radius  # start at angle 0 -> x=0
-            y = radius * math.sin(ang)
+            x = r_v * math.cos(ang) - r_v  # start at angle 0 -> x=0
+            y = r_v * math.sin(ang)
             z = zbot + (axial * i / n_pts)
             cur = (x, y, z)
             tups.append(Wire(prev, cur))
