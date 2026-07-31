@@ -49,9 +49,9 @@ What you get:
 - **A ground plane, on by default** — real antennas hang over real ground, so
   the workbench starts there (free space is one click away). The ground is
   described by what it *is* — finite (εr=10, σ=0.002) or PEC — independent of
-  solver; both backends offer the true Sommerfeld-Norton solve and the faster
-  reflection-coefficient method, and the solve readout reports the model that
-  actually ran.
+  solver; every momwire backend (and PyNEC) offers the true Sommerfeld-Norton
+  solve and the faster reflection-coefficient method, and the solve readout
+  reports the model that actually ran.
 
 Live updates stay responsive because rapid knob drags are coalesced into one
 solve per round-trip, so the solver is never buried under stale requests.
