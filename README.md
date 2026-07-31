@@ -80,7 +80,8 @@
 | src/antennaknobs/designs/multiband/twoband\_fan\_dipole.py        |       72 |       12 |     83% |   234-246 |
 | src/antennaknobs/designs/specialty/\_\_init\_\_.py                |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/bowtie.py                      |       17 |        0 |    100% |           |
-| src/antennaknobs/designs/specialty/helix.py                       |       37 |        0 |    100% |           |
+| src/antennaknobs/designs/specialty/continuous\_helix.py           |       37 |        0 |    100% |           |
+| src/antennaknobs/designs/specialty/faceted\_helix.py              |       37 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/hentenna.py                    |       32 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/hentenna\_slant.py             |       42 |        0 |    100% |           |
 | src/antennaknobs/designs/specialty/hourglass.py                   |       32 |        0 |    100% |           |
@@ -153,7 +154,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       83 |       31 |     63% |20-22, 72-90, 117, 128-131, 187-192, 199-204 |
 | src/antennaknobs/web/server.py                                    |      855 |       91 |     89% |71-73, 141-145, 276-277, 344, 590-592, 597, 689, 744, 847-850, 1027, 1110, 1128-1130, 1193, 1201-1204, 1223-1235, 1238, 1263, 1278-1291, 1339-1341, 1389, 1403, 1432-1433, 1457-1458, 1490, 1570-1577, 1589-1602, 1622, 1625-1626, 1659-1660, 1691, 1709-1712, 1728, 1761, 1764, 1772, 1799-1800, 2026, 2112, 2139, 2141, 2145-2146, 2159, 2170, 2174, 2226-2227, 2246 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **9977** |  **528** | **95%** |           |
+| **TOTAL**                                                         | **10014** |  **528** | **95%** |           |
 
 
 ## Setup coverage badge
