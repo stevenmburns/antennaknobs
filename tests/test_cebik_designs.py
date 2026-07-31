@@ -877,6 +877,21 @@ def test_helix_is_genuinely_three_dimensional():
     assert len(xs) > 4 and len(ys) > 4
 
 
+def test_helix_mesh_refines_with_nominal_nsegs():
+    """Issue #630: the helix must respond to ``nominal_nsegs`` so a
+    convergence ladder actually refines — every rung of #521's census
+    re-solved one identical mesh because each winding chord hard-coded
+    one segment."""
+    from antennaknobs.designs.specialty.helix import Builder
+
+    def total_segs(n):
+        b = Builder()
+        b.nominal_nsegs = n
+        return sum(t[2] for t in b.build_wires())
+
+    assert total_segs(21) < total_segs(161) < total_segs(641)
+
+
 def test_helix_vertically_polarised_omni():
     """Normal-mode helix radiates like a short vertical: omnidirectional in
     azimuth, modest gain."""

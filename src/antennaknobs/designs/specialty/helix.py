@@ -101,12 +101,16 @@ class Builder(AntennaBuilder):
 
         tups = []
 
-        # Base feed: a one-segment driven gap at the foot, against the radials.
-        tups.append(Wire((0.0, 0.0, z0), (0.0, 0.0, z0 + eps), n_seg=1, ex=1 + 0j))
+        # Base feed: a driven gap at the foot, against the radials.
+        tups.append(Wire((0.0, 0.0, z0), (0.0, 0.0, z0 + eps), ex=1 + 0j))
 
         # Helix: a space curve from the top of the feed gap upward. Each chord
-        # is a straight segment between successive points on the winding; the
-        # chords are short, so one MoM segment each is plenty.
+        # is a straight segment between successive points on the winding.
+        # Segment counts are left to auto_mesh (issue #630): hard-coding one
+        # segment per chord froze the mesh, so nominal_nsegs had no effect
+        # and a convergence ladder re-solved one identical mesh at every
+        # rung. At the design density a chord still gets one segment, but a
+        # refined ladder now subdivides the chords.
         n_pts = int(round(n_turns * ppt))
         zbot = z0 + eps
         prev = (0.0, 0.0, zbot)
@@ -117,16 +121,18 @@ class Builder(AntennaBuilder):
             y = radius * math.sin(ang)
             z = zbot + (axial * i / n_pts)
             cur = (x, y, z)
-            tups.append(Wire(prev, cur, n_seg=1))
+            tups.append(Wire(prev, cur))
             prev = cur
 
         # Elevated quarter-wave radials from the feedpoint (cf. vertical.py).
-        n_seg_radials = 5
+        # Like the chords, the radials refine with the mesh (issue #477):
+        # a hard-coded count would meet ever-finer helix segments at the
+        # feed junction as the ladder climbs.
         n_radials = 4
         for j in range(n_radials):
             theta = 2 * math.pi / n_radials * j
             rx = quarter * math.cos(theta)
             ry = quarter * math.sin(theta)
-            tups.append(Wire((0.0, 0.0, z0), (rx, ry, z0), n_seg=n_seg_radials))
+            tups.append(Wire((0.0, 0.0, z0), (rx, ry, z0)))
 
         return tups
