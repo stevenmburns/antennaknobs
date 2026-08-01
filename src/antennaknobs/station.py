@@ -26,7 +26,19 @@ branch classes' SI at construction. Ohms and Q are dimensionless-as-usual.
 
 from __future__ import annotations
 
-from .network import Composite, FloatingBalun, Shunt, Transformer, TwoPort
+import math
+
+from .builder import C_LIGHT_MHZ_M
+from .network import (
+    TL,
+    BalancedLine,
+    Composite,
+    FloatingBalun,
+    Instance,
+    Shunt,
+    Transformer,
+    TwoPort,
+)
 
 
 def bypass() -> Composite:
@@ -166,6 +178,305 @@ def balanced_l_tuner(
             TwoPort(a="sR", b="outR", l=0.5 * l_uH * 1e-6, ql=ql),
             # differential resonating cap across the balanced output legs
             TwoPort(a="outL", b="outR", c=c_pF * 1e-12),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Transmission-line stubs (issue #598) — composition sugar over `TL` /
+# `BalancedLine`, no new reducer math.
+#
+# LENGTH CONVENTION, once, for everything below: ``length_wl`` is the stub's
+# ELECTRICAL length in wavelengths ON THE LINE at ``freq_mhz`` — i.e. βl =
+# 2π·length_wl at the design frequency, the number you read off a Smith chart
+# ("a 0.125 λ shorted stub"). The physical line that gets cut is
+#
+#     length_m = length_wl · vf · (C_LIGHT_MHZ_M / freq_mhz)
+#
+# so the velocity factor is applied FOR you and a 0.125 λ stub is 0.125 λ
+# electrically whatever it is made of. That physical length is what lands in
+# the `TL`, so a frequency sweep re-derives βl from the solve wavelength the
+# usual way: away from ``freq_mhz`` the stub is exactly as detuned as the real
+# piece of coax would be. (Contrast the raw `TL`, whose ``length`` is metres
+# and whose ``vf`` you must apply yourself.)
+#
+# LOSS: ``k1``/``k2`` are the cable-table matched-loss coefficients of `TL`
+# (dB per 100 ft = k1·√f_MHz + k2·f_MHz); ``cable="RG-213"`` fills z0/vf/k1/k2
+# from the `CABLES` catalog in one word — the honest spelling for a stub cut
+# from real coax, and the escape hatch from the lossless singularities below.
+# ---------------------------------------------------------------------------
+def _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable):
+    """Resolve a stub's line parameters to ``(z0, length_m, vf, k1, k2)``.
+
+    ``cable`` (a `CABLES` key) supersedes z0/vf/k1/k2 wholesale — it is the
+    cable, not a default — and reuses `TL.from_cable`'s unknown-name
+    ergonomics by probing it with a zero length. Then the one length
+    conversion of the module section header, in one place."""
+    if cable is not None:
+        probe = TL.from_cable(cable, a="_", b="_", length=0.0)
+        z0, vf, k1, k2 = probe.z0, probe.vf, probe.k1, probe.k2
+    if freq_mhz <= 0.0:
+        raise ValueError(f"stub freq_mhz must be positive, got {freq_mhz!r}")
+    return z0, length_wl * vf * C_LIGHT_MHZ_M / freq_mhz, vf, k1, k2
+
+
+def _guard_open_stub(freq_mhz, length_wl, k1, k2):
+    """The open stub's odd-quarter-wave singularity, guarded with the SAME
+    policy (and the same 1e-12 threshold) as the half-wave guard in
+    ``network_reduce.tl_admittance_2x2`` — raise rather than hand the solver
+    a singular matrix, and let any real loss regularize it.
+
+    Same coin, other face: that guard trips when ``sinh γl`` → 0 (a lossless
+    k·λ/2 line has no finite admittance); an open stub goes singular when
+    ``cosh γl`` → 0, i.e. at an odd multiple of λ/4, where Z_in = 0 puts a
+    dead short across the port and no ideal source can drive it. Lossless is
+    the precondition for both (with α > 0 neither function reaches zero), so
+    a lossy ``k1``/``k2`` — or ``cable=`` — buys the exact λ/4 open stub.
+    The shorted flavors need nothing here: their λ/4 is Z_in = ∞, a
+    perfectly well-behaved zero admittance.
+
+    Checked at construction, not at stamp time, because ``freq_mhz`` and
+    ``length_wl`` are exactly the pair that makes it decidable; a sweep can
+    still walk a lossless stub onto a λ/4 point elsewhere, where the TL guard
+    (half-wave) or a singular solve reports it."""
+    if k1 or k2:
+        return
+    if abs(math.cos(2.0 * math.pi * length_wl)) < 1e-12:
+        raise ValueError(
+            f"lossless open stub of {length_wl} λ is an odd multiple of λ/4 at "
+            f"f={freq_mhz:.4f} MHz (cos βl ≈ 0); Z_in = 0 shorts the port and "
+            "the admittance is singular — pick a different length, or give the "
+            "stub the loss it really has (k1/k2, or cable=...)"
+        )
+
+
+def shunt_open_stub(
+    freq_mhz: float,
+    length_wl: float,
+    z0: float = 50.0,
+    vf: float = 1.0,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    cable: str | None = None,
+) -> Composite:
+    """Open-circuited stub hung ACROSS the line (issue #598): a `TL` from the
+    formal port into a private internal node that nothing else touches — an
+    open is the *absence* of a termination, so it is spelled as one, with no
+    element to stand for it. The port sees the classic
+
+        Z_in = −j·Z₀·cot(βl)      (lossless; Z₀·coth(γl) in general)
+
+    — capacitive below λ/4, inductive between λ/4 and λ/2, and repeating: the
+    quarter-wave open stub is a short (the harmonic-notch trap), the half-wave
+    open stub an open. Lengths in wavelengths at ``freq_mhz``; see this
+    section's header for the convention and `_guard_open_stub` for why an
+    exactly-λ/4 LOSSLESS open stub raises. Formal: ``port``."""
+    z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
+    _guard_open_stub(freq_mhz, length_wl, k1, k2)
+    return Composite(
+        ports=("port",),
+        branches=(TL(a="port", b="far", z0=z0, length=length, vf=vf, k1=k1, k2=k2),),
+    )
+
+
+def shunt_shorted_stub(
+    freq_mhz: float,
+    length_wl: float,
+    z0: float = 50.0,
+    vf: float = 1.0,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    cable: str | None = None,
+) -> Composite:
+    """Short-circuited stub hung ACROSS the line (issue #598): a `TL` from the
+    formal port into a private node bonded to the datum by a 0 Ω `Shunt` —
+    the reducer's exact ideal short (issue #285), not a small resistor. The
+    port sees
+
+        Z_in = +j·Z₀·tan(βl)      (lossless; Z₀·tanh(γl) in general)
+
+    — inductive below λ/4, capacitive between λ/4 and λ/2: the dual of
+    `shunt_open_stub`, and the flavor real installations prefer (DC-grounded,
+    weatherable, adjustable with a shorting bar). The quarter-wave shorted
+    stub is an open — the "metal insulator" / RF choke — and needs no guard,
+    being a plain zero admittance; the half-wave one is a dead short and
+    trips `TL`'s own half-wave singularity guard at stamp time. Lengths in
+    wavelengths at ``freq_mhz`` (section header). Formal: ``port``."""
+    z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
+    return Composite(
+        ports=("port",),
+        branches=(
+            TL(a="port", b="far", z0=z0, length=length, vf=vf, k1=k1, k2=k2),
+            Shunt(port="far", r=0.0),  # the shorting strap, as an ideal short
+        ),
+    )
+
+
+def series_open_stub(
+    freq_mhz: float,
+    length_wl: float,
+    z0: float = 50.0,
+    vf: float = 1.0,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    cable: str | None = None,
+) -> Composite:
+    """Open-circuited stub inserted IN SERIES with the line (issue #598) —
+    the line is broken and the stub's ``Z_in = −j·Z₀·cot(βl)`` appears
+    between ``a`` and ``b``.
+
+    Built on `BalancedLine`, not `TL`, and that is forced: a `TL`'s two
+    terminals are each referenced to the network datum, so a `TL` stub's
+    input impedance is unavoidably a node-to-DATUM (shunt) quantity. A
+    series element must float between two nodes, which is precisely what
+    `BalancedLine`'s differential stamp gives — it forces I(a1) = −I(a2)
+    with no datum path (``zcomm=None``), so the pair IS a floating
+    two-terminal impedance of value ``zdiff·coth(γl)``. ``z0`` is therefore
+    the stub's differential Z₀ (`BalancedLine.zdiff`).
+
+    The far end: ``far1`` open (a 0 F `Shunt` — the reducer's exact open,
+    here spelling out "nothing is attached" so the node is not rejected as
+    common-mode floating), ``far2`` bonded to the datum. That bond carries
+    ZERO current — the differential stamp forces I(far2) = −I(far1) and
+    ``far1`` is open — so it is a common-mode reference pin, not a
+    termination, and the element stays genuinely floating at ``a``/``b``.
+    Same lossless-λ/4 guard as `shunt_open_stub` (there it shorts the port;
+    here it shorts the line's two halves together). Formals: ``a``, ``b``."""
+    z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
+    _guard_open_stub(freq_mhz, length_wl, k1, k2)
+    return Composite(
+        ports=("a", "b"),
+        branches=(
+            BalancedLine(
+                a1="a",
+                a2="b",
+                b1="far1",
+                b2="far2",
+                zdiff=z0,
+                length=length,
+                vf=vf,
+                k1=k1,
+                k2=k2,
+            ),
+            Shunt(port="far1", c=0.0),  # open end: 0 F = no element
+            Shunt(port="far2", r=0.0),  # common-mode reference pin (0 A)
+        ),
+    )
+
+
+def series_shorted_stub(
+    freq_mhz: float,
+    length_wl: float,
+    z0: float = 50.0,
+    vf: float = 1.0,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    cable: str | None = None,
+) -> Composite:
+    """Short-circuited stub inserted IN SERIES with the line (issue #598) —
+    the line is broken and the stub's ``Z_in = +j·Z₀·tan(βl)`` appears
+    between ``a`` and ``b``. The floating-element argument, the ``zdiff``
+    reading of ``z0``, and the zero-current reference pin are all as in
+    `series_open_stub`; the difference is the far end, where a 0 Ω `TwoPort`
+    straps ``far1`` to ``far2`` — the shorting strap itself, exactly where
+    the physical one goes. Formals: ``a``, ``b``."""
+    z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
+    return Composite(
+        ports=("a", "b"),
+        branches=(
+            BalancedLine(
+                a1="a",
+                a2="b",
+                b1="far1",
+                b2="far2",
+                zdiff=z0,
+                length=length,
+                vf=vf,
+                k1=k1,
+                k2=k2,
+            ),
+            TwoPort(a="far1", b="far2", r=0.0),  # the shorting strap
+            Shunt(port="far2", r=0.0),  # common-mode reference pin (0 A)
+        ),
+    )
+
+
+def single_stub_tuner(
+    freq_mhz: float,
+    line_wl: float,
+    stub_wl: float,
+    z0: float = 50.0,
+    shorted: bool = True,
+    vf: float = 1.0,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    cable: str | None = None,
+) -> Composite:
+    """The classic single-stub match (issue #598): a section of line of
+    length ``line_wl`` from the load up to a tap, and a shunt stub of length
+    ``stub_wl`` hung at that tap. Walk ``line_wl`` from the load until the
+    admittance there has the right real part (Y = Y₀ + jB), then pick
+    ``stub_wl`` so the stub's susceptance cancels the jB — a match with no
+    lumped parts, just two lengths of the same cable.
+
+    ``shorted`` picks the stub flavor (`shunt_shorted_stub` by default,
+    `shunt_open_stub` when False); the section and the stub share one set of
+    line parameters, which is what cutting both from the same reel means. For
+    a stub of a *different* cable, compose the pieces by hand — that is all
+    this factory does. Both lengths are in wavelengths at ``freq_mhz``
+    (section header). Formals: ``rig`` (source side — this IS the tap), ``ant``
+    (load side)."""
+    lz0, length, lvf, lk1, lk2 = _stub_line(freq_mhz, line_wl, z0, vf, k1, k2, cable)
+    make = shunt_shorted_stub if shorted else shunt_open_stub
+    stub = make(freq_mhz, stub_wl, z0=z0, vf=vf, k1=k1, k2=k2, cable=cable)
+    return Composite(
+        ports=("rig", "ant"),
+        branches=(
+            TL(a="rig", b="ant", z0=lz0, length=length, vf=lvf, k1=lk1, k2=lk2),
+            Instance("stub", stub, port="rig"),
+        ),
+    )
+
+
+def double_stub_tuner(
+    freq_mhz: float,
+    spacing_wl: float,
+    stub1_wl: float,
+    stub2_wl: float,
+    z0: float = 50.0,
+    shorted: bool = True,
+    vf: float = 1.0,
+    k1: float = 0.0,
+    k2: float = 0.0,
+    cable: str | None = None,
+) -> Composite:
+    """The double-stub tuner (issue #598): stubs at two FIXED positions —
+    ``stub1`` at the load end, ``stub2`` a fixed ``spacing_wl`` up the line at
+    the rig end — matched by adjusting the two lengths instead of sliding a
+    tap. The trombone-free tuner of the real world (both stubs can be
+    telescoping sections at fixed tees), at the price of a forbidden region:
+    loads whose admittance lands inside the spacing's dead circle cannot be
+    matched at all, and that is the tuner's fault, not the solver's. λ/8 and
+    3λ/8 spacings are the usual choices.
+
+    Same parameter conventions as `single_stub_tuner`, one stub length per
+    stub. Formals: ``rig`` (stub2 side), ``ant`` (stub1/load side)."""
+    lz0, length, lvf, lk1, lk2 = _stub_line(freq_mhz, spacing_wl, z0, vf, k1, k2, cable)
+    make = shunt_shorted_stub if shorted else shunt_open_stub
+    return Composite(
+        ports=("rig", "ant"),
+        branches=(
+            Instance(
+                "stub1",
+                make(freq_mhz, stub1_wl, z0=z0, vf=vf, k1=k1, k2=k2, cable=cable),
+                port="ant",
+            ),
+            TL(a="rig", b="ant", z0=lz0, length=length, vf=lvf, k1=lk1, k2=lk2),
+            Instance(
+                "stub2",
+                make(freq_mhz, stub2_wl, z0=z0, vf=vf, k1=k1, k2=k2, cable=cable),
+                port="rig",
+            ),
         ),
     )
 
