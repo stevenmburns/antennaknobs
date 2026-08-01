@@ -248,6 +248,9 @@ radio units (picofarads, microhenries) — plus two special members:
   catalog reel, loss included. `single_stub_tuner` and
   `double_stub_tuner` place them at the classic positions — a match
   with no lumped parts, just cable lengths.
+  `verticals.stub_matched_vertical` is the worked example: a 22 Ω
+  quarter-wave vertical brought to 50 Ω by two lengths of RG-213, with
+  both lengths as live knobs so the match is something you *find*.
 
 Boxes are ordinary values made by ordinary functions, so a design can
 also define its own — a measured, calibrated component wrapped once and
