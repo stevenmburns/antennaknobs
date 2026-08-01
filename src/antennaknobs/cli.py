@@ -13,6 +13,7 @@ from . import (
 )
 from .engines import PyNECEngine, MomwireEngine
 from .serialize import builder_params_source
+from .measured import read_measured
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
 from momwire import (
@@ -489,6 +490,12 @@ def cli(arguments=None):
     )
     p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
     p.add_argument(
+        "--measured",
+        default=None,
+        help="Overlay a measured one-port Touchstone (.s1p, e.g. a NanoVNA "
+        "sweep) on the chart, renormalized to --z0. Frequency sweeps only.",
+    )
+    p.add_argument(
         "--markers",
         default=[],
         nargs="+",
@@ -506,6 +513,12 @@ def cli(arguments=None):
     def f(args):
         builder = get_builder(args.builder)
         engine = engine_factory_from_args(args)
+        measured = read_measured(args.measured, z0=args.z0) if args.measured else None
+        if measured is not None and (args.patterns or args.gain):
+            # Measured S11 has nothing to say about a pattern or gain chart.
+            raise SystemExit(
+                "--measured overlays an impedance/SWR chart; drop --patterns/--gain"
+            )
         if args.patterns:
             sweep_patterns(
                 builder(),
@@ -531,6 +544,7 @@ def cli(arguments=None):
                 fraction=args.fraction,
                 fn=args.fn,
                 engine=engine,
+                measured=measured,
             )
         elif args.gain:
             sweep_gain(
@@ -556,6 +570,7 @@ def cli(arguments=None):
                 z0=args.z0,
                 markers=args.markers,
                 engine=engine,
+                measured=measured,
             )
 
     p.set_defaults(func=f)
