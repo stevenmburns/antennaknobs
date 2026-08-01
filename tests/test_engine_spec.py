@@ -92,6 +92,45 @@ def test_make_factory_binds_sinusoidal_galerkin():
     assert factory.keywords == {"solver": SinusoidalGalerkinSolver}
 
 
+def test_parse_converged_variant_binds_feed_model():
+    """`momwire:sinusoidal-galerkin-converged` is the point-gap feed model as
+    a roster variant (issue #640): same solver class, `feed_model="point"`
+    bound as solver kwargs. The kwargs are a fresh dict per parse so a caller
+    mutating them cannot poison the roster."""
+    from momwire import SinusoidalGalerkinSolver
+
+    name, kw = parse_engine_spec("momwire:sinusoidal-galerkin-converged")
+    assert name == "momwire"
+    assert kw == {
+        "solver": SinusoidalGalerkinSolver,
+        "solver_kwargs": {"feed_model": "point"},
+    }
+    kw["solver_kwargs"]["feed_model"] = "mutated"
+    assert parse_engine_spec("momwire:sinusoidal-galerkin-converged")[1][
+        "solver_kwargs"
+    ] == {"feed_model": "point"}
+
+
+def test_make_factory_binds_converged_variant():
+    from momwire import SinusoidalGalerkinSolver
+
+    factory = make_engine_factory(
+        "momwire:sinusoidal-galerkin-converged", _GROUND_UNSET
+    )
+    assert factory.func is MomwireEngine
+    assert factory.keywords == {
+        "solver": SinusoidalGalerkinSolver,
+        "solver_kwargs": {"feed_model": "point"},
+    }
+
+
+def test_no_converged_variant_for_plain_sinusoidal():
+    """The point gap has no collocation RHS (momwire#212), so the roster must
+    not offer a converged flavour of the point-matched solver."""
+    with pytest.raises(argparse.ArgumentTypeError):
+        parse_engine_spec("momwire:sinusoidal-converged")
+
+
 O = " --fn /dev/null"
 
 

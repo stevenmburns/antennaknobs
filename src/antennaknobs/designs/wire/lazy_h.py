@@ -51,6 +51,10 @@ class Builder(AntennaBuilder):
                     # High-Z junction fed via open-wire line + tuner.
                     "target_z0": 300.0,
                     "default_view": "yz",
+                    # Near-open high-Q feed (antennaknobs#478): the converged
+                    # (point-gap) feed model collapses the cross-basis residual
+                    # up to 992× on this design (momwire#213, report §18).
+                    "converged_feed_suggested": True,
                     "elem_frac": {
                         "min": 0.8,
                         "max": 1.3,

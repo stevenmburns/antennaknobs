@@ -239,6 +239,16 @@ def test_examples_are_sorted_by_label(client: TestClient):
     assert labels == sorted(labels)
 
 
+def test_examples_carry_the_converged_feed_suggestion(client: TestClient):
+    """Issue #640: the near-open high-Q designs (antennaknobs#478) declare
+    `converged_feed_suggested` in ui_params and the descriptor must carry it —
+    it drives the "Converged" recommendation hint in the frontend's
+    Sin-Galerkin feed-model control. Everything else defaults to False."""
+    by_name = {e["name"]: e for e in client.get("/examples").json()["examples"]}
+    flagged = {n for n, e in by_name.items() if e.get("converged_feed_suggested")}
+    assert flagged == {"wire.lazy_h", "wire.vbeam"}, flagged
+
+
 def test_capabilities_reports_pynec_availability(client: TestClient, monkeypatch):
     """The frontend gates the PyNEC backend option on this flag (#429): when
     pynec-accel is absent the UI must not offer PyNEC, so the /ws solve does
@@ -2443,6 +2453,22 @@ def test_local_model_options_forward_verbatim():
     }
     with pytest.raises(ValueError):  # non-dict is a clean error even locally
         adapter.sanitize_model_options({"model_options": "junk"})
+
+
+def test_hosted_feed_model_option_is_whitelisted(monkeypatch):
+    """Issue #640: the feed-model choice ("NEC-compatible vs converged" in
+    the UI) must survive the hosted whitelist — it is a physics selection,
+    not a compute-amplification lever — and bad values get the clean
+    enum error."""
+    from antennaknobs.web import adapter
+
+    monkeypatch.setattr(adapter, "_HOSTED", True)
+    out = adapter.sanitize_model_options({"model_options": {"feed_model": "point"}})
+    assert out == {"feed_model": "point"}
+    out = adapter.sanitize_model_options({"model_options": {"feed_model": "segment"}})
+    assert out == {"feed_model": "segment"}
+    with pytest.raises(ValueError, match="feed_model"):
+        adapter.sanitize_model_options({"model_options": {"feed_model": "delta"}})
 
 
 # ---------------------------------------------------------------------------

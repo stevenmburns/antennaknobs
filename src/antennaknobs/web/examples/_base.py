@@ -319,6 +319,13 @@ class AntennaExample:
     # tooltip) and coerces a disallowed active selection on switch; the
     # solvers' hard errors remain the enforcement.
     requires_backends: Optional[tuple[str, ...]] = None
+    # Near-open high-Q feed (antennaknobs#478): the design benefits from the
+    # sinusoidal-Galerkin solver's converged (point-gap) feed model, which
+    # collapses the cross-basis residual by 2-3 orders on this class
+    # (momwire#213). Declared statically in the design's ui_params — it is an
+    # empirical classification, not derivable from geometry. The frontend uses
+    # it to recommend "Converged" in the Sin-Galerkin feed-model control.
+    converged_feed_suggested: bool = False
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
     # Render the geometry as a NEC2 .nec card deck (str) for the current

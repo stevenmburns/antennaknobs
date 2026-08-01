@@ -43,6 +43,26 @@ def test_momwire_impedance_in_realistic_range():
     assert abs(z.imag) < 200, f"unrealistic X: {z}"
 
 
+def test_converged_feed_model_reaches_the_solver():
+    """Issue #640: `solver_kwargs={"feed_model": "point"}` must reach the
+    sinusoidal-Galerkin constructor and change the answer. Both feed models
+    solve the same dipole to a realistic impedance; the point gap differs
+    from the segment gap by a measurable margin (the M3 feed-model axis,
+    momwire#192) — a plumbing regression that dropped the kwarg would read
+    identical impedances and fail the inequality."""
+    from momwire import SinusoidalGalerkinSolver
+
+    b = Builder(resolve_variant_params(Builder, "dipole"))
+    z = {}
+    for fm in ("segment", "point"):
+        (z[fm],) = MomwireEngine(
+            b, solver=SinusoidalGalerkinSolver, solver_kwargs={"feed_model": fm}
+        ).impedance()
+        assert 30 < z[fm].real < 150, (fm, z[fm])
+    rel = abs(z["point"] - z["segment"]) / abs(z["segment"])
+    assert 1e-6 < rel < 0.05, z
+
+
 def test_momwire_impedance_sweep_shape_and_monotone_resistance():
     freqs = np.linspace(28.0, 29.0, 5)
     zs = MomwireEngine(Builder()).impedance_sweep(freqs)

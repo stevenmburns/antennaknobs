@@ -1925,6 +1925,7 @@ def examples_endpoint():
                     if ex.requires_backends is not None
                     else None
                 ),
+                "converged_feed_suggested": ex.converged_feed_suggested,
                 "has_design_freq": ex.has_design_freq,
                 "variants": list(ex.variants),
                 "variant_values": dict(ex.variant_values),
