@@ -13,6 +13,7 @@ from . import (
 )
 from .engines import PyNECEngine, MomwireEngine
 from .serialize import builder_params_source
+from .fit import MAX_FREE_PARAMS, LineEmbedding, fit, plot_fit
 from .measured import read_measured
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
@@ -676,6 +677,136 @@ def cli(arguments=None):
                 base=base,
             )
         )
+
+    p.set_defaults(func=f)
+
+    p = subparsers.add_parser(
+        "fit",
+        help="Calibrate design params against a measured .s1p sweep",
+        description="Fit selected design parameters so the model reproduces a "
+        "measured VNA sweep. Fit the things a tape measure can't give you — "
+        "site ground constants, as-built length after sag, feedline electrical "
+        "length, stray feedpoint reactance — and read the residual to see how "
+        "much of the measurement the model can actually account for.",
+    )
+    add_common(p)
+    add_engine_args(p)
+    p.add_argument(
+        "--measured",
+        required=True,
+        help="Measured one-port Touchstone (.s1p) to fit against.",
+    )
+    p.add_argument(
+        "--params",
+        nargs="+",
+        required=True,
+        help=f"Free parameters as dotted paths (at most {MAX_FREE_PARAMS}), e.g. "
+        "length_factor terrain.facets.0.eps_r",
+    )
+    p.add_argument("--z0", default=50, type=float, help="Reference impedance.")
+    p.add_argument(
+        "--npoints",
+        default=21,
+        type=int,
+        help="Frequencies compared per iteration, subsampled from the "
+        "measured grid (default 21).",
+    )
+    p.add_argument(
+        "--range",
+        nargs=2,
+        default=None,
+        type=float,
+        help="Restrict the fit to this band (MHz) of the measurement.",
+    )
+    p.add_argument(
+        "--bounds",
+        nargs="+",
+        default=None,
+        type=float,
+        help="Bounds as 'lo hi' per free parameter, in --params order.",
+    )
+    p.add_argument(
+        "--fractions",
+        nargs="+",
+        default=None,
+        type=float,
+        help="Multiplicative window per free parameter when --bounds is "
+        "absent (one value, or one per parameter; default 0.10 = +/-10%%).",
+    )
+    p.add_argument(
+        "--plane",
+        default="feedpoint",
+        choices=("feedpoint", "station"),
+        help="Where the VNA was calibrated. 'station' needs --line.",
+    )
+    p.add_argument(
+        "--line",
+        default=None,
+        help="Feedline between the model port and a --plane station "
+        "measurement, as '<cable>:<length_m>' (e.g. RG-213:30.5).",
+    )
+    p.add_argument(
+        "--no_plot",
+        default=False,
+        action="store_true",
+        help="Print the fit report without drawing the comparison plot.",
+    )
+
+    def f(args):
+        pairs = None
+        if args.bounds is not None:
+            if len(args.bounds) != 2 * len(args.params):
+                raise SystemExit(
+                    f"--bounds takes 'lo hi' per free parameter: "
+                    f"{2 * len(args.params)} numbers for {len(args.params)} params"
+                )
+            pairs = list(zip(args.bounds[0::2], args.bounds[1::2]))
+        line = None
+        if args.plane == "station":
+            if not args.line:
+                raise SystemExit(
+                    "--plane station needs --line '<cable>:<length_m>' — the line "
+                    "between the antenna and where the VNA was calibrated. (If the "
+                    "design already models its feedline in build_network(), its port "
+                    "IS the station plane: use --plane feedpoint.)"
+                )
+            line = LineEmbedding.parse(args.line)
+        elif args.line:
+            raise SystemExit("--line only applies with --plane station")
+
+        builder = get_builder(args.builder)()
+        try:
+            result = fit(
+                builder,
+                read_measured(args.measured),
+                args.params,
+                z0=args.z0,
+                engine=engine_factory_from_args(args),
+                bounds=pairs,
+                fractions=args.fractions,
+                npoints=args.npoints,
+                band=args.range,
+                line=line,
+            )
+        except (ValueError, KeyError) as e:
+            # Bad free-parameter list, disjoint bands, malformed bounds: the
+            # messages already name the problem, and a traceback would only
+            # bury it (same convention as the unknown-builder path).
+            raise SystemExit(str(e)) from e
+        print(result.report())
+        print()
+        print("# Calibrated knobs — paste into the design as a variant:")
+        print(
+            builder_params_source(
+                result.builder,
+                name="measured_params",
+                base=type(result.builder).default_params,
+                include_ui=False,
+                default_precision=6,
+            )
+        )
+        if not args.no_plot:
+            plot_fit(result, fn=args.fn)
 
     p.set_defaults(func=f)
 
