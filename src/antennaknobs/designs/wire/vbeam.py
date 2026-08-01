@@ -54,6 +54,10 @@ class Builder(AntennaBuilder):
                     "target_z0": 300.0,
                     # Legs splay in x/y -> the xy view is face-on.
                     "default_view": "xy",
+                    # Near-open high-Q feed (antennaknobs#478): the converged
+                    # (point-gap) feed model collapses the cross-basis residual
+                    # up to 374× on this design (momwire#213, report §18).
+                    "converged_feed_suggested": True,
                     "leg_frac": {
                         "min": 0.75,
                         "max": 2.0,

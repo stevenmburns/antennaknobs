@@ -247,6 +247,12 @@ _HOSTED_MODEL_OPTIONS = {
     "n_qp_source": _int_in(1, 64),
     "n_qp_sing": _int_in(1, 128),
     "feed_smoothing_factor": _float_in(0.0, 100.0, allow_none=True),
+    # Gap-source model on the solvers that offer it (momwire#192/#216):
+    # "segment" is NEC's segment-wide gap, "point" the zero-width (converged)
+    # gap. The UI words this "NEC-compatible vs converged" (issue #640). The
+    # point-matched SinusoidalSolver refuses "point" with its own instructive
+    # error (momwire#212), so no per-solver filtering is needed here.
+    "feed_model": _enum_opt("segment", "point"),
     "use_singular_enrichment": _bool_opt,
     "enrichment_variant": _enum_opt("raw", "stable", "tikhonov", "auto"),
     "tikhonov_lambda": _float_in(0.0, 1e3),
@@ -2374,6 +2380,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         count_basis=count_basis,
         default_backend=field_default_backend,
         requires_backends=field_requires_backends,
+        # Static ui_params pin, never derived — safe to read eagerly even for
+        # deferred (user) designs, unlike the geometry hints above.
+        converged_feed_suggested=bool(
+            _ui_scalar(dp, "converged_feed_suggested", False)
+        ),
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,

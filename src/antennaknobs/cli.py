@@ -53,6 +53,23 @@ if SinusoidalGalerkinSolver is not None:
     # the class; make it unconditional at the next momwire bump.
     MOMWIRE_BASES["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
 
+# Roster variants: a basis name bound to solver kwargs. The one entry is the
+# feed-model axis (issue #640): the plain `sinusoidal-galerkin` keeps NEC's
+# segment-wide gap (NEC-compatible — reproduces NEC/EZNEC behaviour, including
+# the reactance walk with mesh density), while `-converged` opts into the
+# zero-width point gap that converges to the B-spline answer (momwire#192) and
+# is the recommended setting for near-open high-Q designs — up to 992× tighter
+# cross-basis agreement on the antennaknobs#478 class (momwire#213). No such
+# variant exists for plain `sinusoidal`: the point gap has no collocation RHS
+# (momwire#212), and the solver refuses it rather than silently serving the
+# segment gap.
+MOMWIRE_BASIS_VARIANTS = {}
+if SinusoidalGalerkinSolver is not None:
+    MOMWIRE_BASIS_VARIANTS["sinusoidal-galerkin-converged"] = (
+        SinusoidalGalerkinSolver,
+        {"feed_model": "point"},
+    )
+
 
 def resolve_class(s):
     lst = s.split(".")
@@ -288,7 +305,9 @@ def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
     Forms: "pynec", "momwire",
-    "momwire:sinusoidal|sinusoidal-galerkin|bspline|hmatrix|arrayblock".
+    "momwire:sinusoidal|sinusoidal-galerkin|sinusoidal-galerkin-converged|
+    bspline|hmatrix|arrayblock". The `-converged` variant is sinusoidal-galerkin
+    with the point-gap feed model (issue #640; see MOMWIRE_BASIS_VARIANTS).
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -301,9 +320,13 @@ def parse_engine_spec(spec):
         raise argparse.ArgumentTypeError(
             f"engine {name!r} does not accept a basis suffix (got {basis!r})"
         )
+    if basis in MOMWIRE_BASIS_VARIANTS:
+        solver, solver_kwargs = MOMWIRE_BASIS_VARIANTS[basis]
+        return name, {"solver": solver, "solver_kwargs": dict(solver_kwargs)}
     if basis not in MOMWIRE_BASES:
+        available = sorted(MOMWIRE_BASES) + sorted(MOMWIRE_BASIS_VARIANTS)
         raise argparse.ArgumentTypeError(
-            f"unknown momwire basis {basis!r}; available: {', '.join(sorted(MOMWIRE_BASES))}"
+            f"unknown momwire basis {basis!r}; available: {', '.join(available)}"
         )
     return name, {"solver": MOMWIRE_BASES[basis]}
 
@@ -369,9 +392,13 @@ def cli(arguments=None):
                 nargs="+",
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
-                '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
+                '"momwire[:sinusoidal|sinusoidal-galerkin|'
+                "sinusoidal-galerkin-converged|bspline|"
                 'hmatrix|arrayblock]" or "pynec". '
-                "Cross-products with --builders.",
+                "The -converged variant uses the point-gap feed model — "
+                "converges to the B-spline answer instead of reproducing "
+                "NEC's segment gap; recommended for near-open high-Q "
+                "designs. Cross-products with --builders.",
             )
         else:
             p.add_argument(
@@ -380,8 +407,12 @@ def cli(arguments=None):
                 default="momwire",
                 help="Simulation backend: momwire | "
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
+                "momwire:sinusoidal-galerkin-converged | "
                 "momwire:bspline | momwire:hmatrix | "
-                "momwire:arrayblock | pynec (default: momwire). pynec needs "
+                "momwire:arrayblock | pynec (default: momwire). The "
+                "-converged variant uses the point-gap feed model "
+                "(converges to the B-spline answer; recommended for "
+                "near-open high-Q designs). pynec needs "
                 "the optional pynec-accel package; momwire is always "
                 "available.",
             )
