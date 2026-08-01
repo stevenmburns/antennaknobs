@@ -157,6 +157,49 @@ grounds are still refused). So a `PortAtEnd` design can be checked against a
 different basis *and* a different testing scheme, not merely a second B-spline
 degree. A design that attaches through `PortOnWireFloating` keeps both engines.
 
+### Naming a line by its geometry instead of its spool
+
+`zdiff` is the number off the spool — 300 / 450 / 600 Ω. When you know the
+*line* instead (conductor size, spacing, jacket), `BalancedLine.from_geometry`
+computes `zdiff` and `vf` for you:
+
+```python
+# #12 bare wire on six-inch spreaders — the classic 600 Ω open-wire line
+BalancedLine.from_geometry(
+    "t1", "t2", "a1", "a2",
+    spacing=0.1524, length=20.0, conductor=0.001024,
+)
+# a jacketed catalog wire brings its own insulation along
+BalancedLine.from_geometry(
+    "t1", "t2", "a1", "a2",
+    spacing=0.0254, length=20.0, conductor="18-awg-pvc",
+)
+```
+
+`conductor` is a radius in metres, a `WireSpec`, or a `WIRES` catalog key; pass
+`conductor2` for an unequal pair. `two_wire_params()` is the same calculation
+standalone, if you want the numbers without the element.
+
+How much to trust it depends on the construction:
+
+- **Bare conductors are exact** — the general unequal-radius
+  `Z = (η₀/2π)·acosh((D² − a₁² − a₂²)/2a₁a₂)`, which collapses to the textbook
+  `(η₀/π)·acosh(D/d)` for a matched pair. #12 at six inches comes out at
+  599.9 Ω.
+- **Jacketed round conductors** use a coaxial-shell model: the potential splits
+  into a dielectric part near each wire and an air part across the gap. Right
+  for insulated open-wire and for window line, and refused outright when the
+  jackets touch — there is no air path then, and the model would be quietly
+  wrong rather than loudly absent.
+- **Solid-web twinlead** has no air path at all, so it takes the mixing rule
+  `ε_eff = 1 + fill·(εᵣ − 1)` with an explicit `fill` (≈0.5 for a solid web,
+  ≈0.15–0.25 for windowed). That is a *fitted* fraction, not a derived one.
+
+A manufacturer's "450 Ω" is a round number covering a range of real
+constructions, so expect geometry to land within a few percent of a nameplate
+rather than on it — and when you know the nameplate `vf`, that is better data
+than either estimator here.
+
 Three catalog designs use `BalancedLine` today:
 `wire.doublet_balanced_tuner` (floating centre port — runs on every engine),
 plus `wire.sterba_bl` and `arrays.bowtie1x2_bl` (both `PortAtEnd`, so

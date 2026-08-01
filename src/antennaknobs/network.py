@@ -21,6 +21,7 @@ as tiny stub wires at sensible locations.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple, Optional, Union
 
@@ -677,6 +678,197 @@ class BalancedLine:
     k1: float = 0.0
     k2: float = 0.0
     zcomm: Optional[float] = None
+
+    @classmethod
+    def from_geometry(
+        cls,
+        a1,
+        a2,
+        b1,
+        b2,
+        *,
+        spacing,
+        length,
+        conductor,
+        conductor2=None,
+        eps_r=None,
+        fill=None,
+        k1=0.0,
+        k2=0.0,
+        zcomm=None,
+    ):
+        """A `BalancedLine` whose ``zdiff``/``vf`` come from the line's physical
+        dimensions instead of a spool label (issue #596).
+
+        ``conductor`` (and ``conductor2`` for an unequal pair) is a radius in
+        metres, a `WireSpec`, or a `WIRES` catalog key — so a jacketed catalog
+        wire brings its own insulation along::
+
+            BalancedLine.from_geometry(
+                "t1", "t2", "a1", "a2",
+                spacing=0.0254, length=20.0, conductor="18-awg-pvc",
+            )
+
+        ``spacing`` is centre-to-centre in metres. See :func:`two_wire_params`
+        for the electrical model and, importantly, for what the insulation
+        estimators can and cannot claim. ``k1``/``k2``/``zcomm`` pass straight
+        through — geometry says nothing about matched loss or the common-mode
+        path, which stay explicit.
+        """
+        r1, ins1, er1 = _conductor_geometry(conductor)
+        r2, ins2, er2 = (
+            (None, None, None)
+            if conductor2 is None
+            else _conductor_geometry(conductor2)
+        )
+        if ins1 is not None and ins2 is not None and ins1 != ins2:
+            raise ValueError(
+                "the two conductors declare different insulation radii "
+                f"({ins1} vs {ins2} m); the shell model assumes one jacket "
+                "thickness — pass `fill` (with eps_r) instead"
+            )
+        insulation_radius = ins1 if ins1 is not None else ins2
+        eps_r = eps_r if eps_r is not None else (er1 if er1 is not None else er2)
+        zdiff, vf = two_wire_params(
+            spacing,
+            r1,
+            r2,
+            insulation_radius=insulation_radius,
+            eps_r=eps_r,
+            fill=fill,
+        )
+        return cls(
+            a1=a1, a2=a2, b1=b1, b2=b2, zdiff=zdiff, length=length,
+            vf=vf, k1=k1, k2=k2, zcomm=zcomm,
+        )  # fmt: skip
+
+
+# Free-space wave impedance, √(μ₀/ε₀). The two-wire line formula below is
+# η₀/π ≈ 119.917 Ω per unit of acosh — the familiar "276·log₁₀(2D/d)" of the
+# handbooks is this same constant in base-10 clothing.
+ETA0 = 376.730313668
+
+
+def _conductor_geometry(spec):
+    """``(radius, insulation_radius, eps_r)`` from a radius, `WireSpec`, or
+    `WIRES` key — the three ways a caller can name a conductor."""
+    if isinstance(spec, str):
+        spec = wire_from_catalog(spec)
+    if isinstance(spec, WireSpec):
+        return spec.radius, spec.insulation_radius, spec.insulation_eps_r
+    return float(spec), None, None
+
+
+def two_wire_params(
+    spacing: float,
+    radius: float,
+    radius2: float | None = None,
+    *,
+    insulation_radius: float | None = None,
+    eps_r: float | None = None,
+    fill: float | None = None,
+) -> tuple[float, float]:
+    """``(zdiff, vf)`` of a two-conductor line from its physical dimensions
+    (issue #596).
+
+    ``spacing`` is centre-to-centre, ``radius``/``radius2`` are the conductor
+    radii (``radius2=None`` → equal conductors); all lengths in metres, to
+    match the rest of ``network.py``. Use it when you know the *line* — "#14
+    wire, six inches apart" — rather than the number off a spool:
+
+        zdiff, vf = two_wire_params(0.1524, 0.000815)   # ≈ 627 Ω, 1.0
+
+    **Bare conductors** are exact, from the general unequal-radius form
+
+        Z = (η₀/2π)·acosh((D² − a₁² − a₂²) / (2·a₁·a₂))
+
+    which collapses to the textbook ``(η₀/π)·acosh(D/d)`` for equal radii
+    (evaluated in that direct form when the radii match, which is both exactly
+    the identity ``acosh(2x²−1) = 2·acosh(x)`` and better conditioned for
+    closely-spaced wires).
+
+    **Insulation** is where the honesty caveats live, because a real balanced
+    line is a *partial* dielectric fill — some of the field is in the plastic,
+    most is in the air — and no closed form covers every construction. Two
+    documented estimators, both reducing the result by ``√ε_eff`` (the
+    inductance is unchanged: the jacket is not magnetic), so
+    ``vf = 1/√ε_eff``:
+
+    - ``insulation_radius`` + ``eps_r`` — the **coaxial-shell** model: each
+      conductor wears a jacket of outer radius ``b``, and the potential
+      integral splits into a dielectric part ``(1/εᵣ)·ln(b/a)`` and an air part
+      ``ln(D/b)``. Right for jacketed wire and for window line, where the
+      conductors are round, jacketed, and separated by mostly air. It uses the
+      wide-spacing (``D ≫ b``) logarithmic form for the *correction only* — the
+      bare value it corrects stays exact — and it is refused outright when the
+      jackets touch (``b₁ + b₂ ≥ D``), where the assumption of air between them
+      is simply false.
+    - ``fill`` + ``eps_r`` — the **mixing rule** ``ε_eff = 1 + fill·(εᵣ − 1)``
+      for the constructions the shell model can't describe: solid-web twinlead,
+      or windowed line whose webbing you want to account for empirically.
+      ``fill`` is the fraction of the field energy sitting in dielectric, and
+      it is a fitted number, not a derived one (≈0.5 for solid twinlead,
+      ≈0.15–0.25 for windowed line). Supply it when you have a nameplate ``vf``
+      to match; prefer the shell model when you don't.
+
+    Manufacturers' "450 Ω" and "300 Ω" are round numbers over a range of real
+    constructions, so expect geometry-derived values to land within a few
+    percent of a nameplate, not on it. When you know the nameplate ``vf``,
+    it is better data than either estimator here.
+    """
+    a1 = float(radius)
+    a2 = float(radius if radius2 is None else radius2)
+    d = float(spacing)
+    if a1 <= 0 or a2 <= 0:
+        raise ValueError("conductor radii must be positive")
+    if d <= a1 + a2:
+        raise ValueError(
+            f"centre spacing {d} m must exceed the sum of the radii "
+            f"({a1 + a2} m) — these conductors overlap"
+        )
+
+    if a1 == a2:
+        z_bare = (ETA0 / math.pi) * math.acosh(d / (2.0 * a1))
+    else:
+        z_bare = (ETA0 / (2.0 * math.pi)) * math.acosh(
+            (d * d - a1 * a1 - a2 * a2) / (2.0 * a1 * a2)
+        )
+
+    eps_eff = 1.0
+    if fill is not None:
+        if eps_r is None:
+            raise ValueError("fill needs eps_r (the insulation's permittivity)")
+        if not 0.0 <= fill <= 1.0:
+            raise ValueError(f"fill must be a fraction in [0, 1]; got {fill}")
+        eps_eff = 1.0 + fill * (float(eps_r) - 1.0)
+    elif insulation_radius is not None:
+        if eps_r is None:
+            raise ValueError("insulation_radius needs eps_r")
+        b = float(insulation_radius)
+        b1 = b2 = b
+        if b1 <= a1 or b2 <= a2:
+            raise ValueError(
+                f"insulation radius {b} m must exceed the conductor radius"
+            )
+        if b1 + b2 >= d:
+            raise ValueError(
+                f"the jackets touch at this spacing ({b1 + b2} m of insulation "
+                f"across a {d} m gap): there is no air path between the "
+                "conductors, so the coaxial-shell model does not apply. Give "
+                "`fill` (with eps_r) for a solid-web line, or pass the "
+                "nameplate zdiff/vf directly."
+            )
+        er = float(eps_r)
+        bare_terms = math.log(d / a1) + math.log(d / a2)
+        clad_terms = (
+            math.log(b1 / a1) / er
+            + math.log(d / b1)
+            + math.log(b2 / a2) / er
+            + math.log(d / b2)
+        )
+        eps_eff = bare_terms / clad_terms
+
+    return z_bare / math.sqrt(eps_eff), 1.0 / math.sqrt(eps_eff)
 
 
 @dataclass(frozen=True)
