@@ -37,6 +37,36 @@ def _polish_axes(ax, title=None):
         ax.set_title(title, fontsize=11)
 
 
+# A measured trace (issue #595) is drawn dashed with 'x' markers, against the
+# solid 'o' of the modeled curve, in whatever colour the axis already uses —
+# so the eye reads "same quantity, other source" rather than "another port".
+_MEASURED_KW = dict(linestyle="--", marker="x", ms=4, linewidth=1.3, alpha=0.75)
+
+
+def _align_measured(measured, nm, xs, z0):
+    """``(xs, gamma)`` of a measured overlay on the sweep grid, or ``None``.
+
+    Measured data is indexed by frequency, so it can only be overlaid on a
+    frequency sweep; any other knob gets a clear error rather than a chart
+    whose two traces share an axis by accident.
+    """
+    if measured is None:
+        return None
+    if nm != "freq":
+        raise ValueError(
+            f"a measured overlay is frequency data — it cannot be drawn against "
+            f"a {nm!r} sweep; sweep --param freq to compare against it"
+        )
+    return measured.renormalized(z0).align(xs)
+
+
+def _measured_legend(ax, label):
+    """Legend keying the solid/dashed convention, drawn in neutral grey."""
+    ax.plot([], [], color="0.35", linestyle="-", marker="o", ms=3, label="modeled")
+    ax.plot([], [], color="0.35", label=label, **_MEASURED_KW)
+    ax.legend(loc="best", frameon=False, fontsize=8)
+
+
 def build_and_get_elevation(antenna_builder, *, engine=Antenna):
     a = engine(antenna_builder)
     return get_elevation(a)
@@ -75,16 +105,23 @@ def sweep_swr(
     npoints=21,
     fn=None,
     engine=Antenna,
+    measured=None,
 ):
     """SWR + reflection magnitude against any swept knob.
 
     Sweeping `freq` uses the engine's vectorized impedance_sweep (one build,
     one matrix per frequency); any other knob changes the geometry, so the
     engine is rebuilt per point like the other parameter sweeps.
+
+    `measured` is an optional `MeasuredTrace` (a VNA `.s1p`, issue #595) drawn
+    as a second, dashed trace on both axes over the band it covers.
     """
     import matplotlib.pyplot as plt
 
     xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
+    # Align before solving: a disjoint measured band should fail immediately,
+    # not after a full sweep's worth of matrix solves.
+    meas = _align_measured(measured, nm, xs, z0)
 
     if nm == "freq":
         a = engine(antenna_builder)
@@ -112,6 +149,10 @@ def sweep_swr(
         ax0.plot(
             xs, rho_db[:, i], color=color, linestyle=_port_style(i), marker="o", ms=3
         )
+    if meas is not None:
+        mxs, mgamma = meas
+        mrho = np.abs(mgamma)
+        ax0.plot(mxs, np.log10(mrho) * 10.0, color=color, **_MEASURED_KW)
 
     color = "tab:blue"
     ax1 = ax0.twinx()
@@ -119,6 +160,10 @@ def sweep_swr(
     ax1.tick_params(axis="y", labelcolor=color)
     for i in range(swr.shape[1]):
         ax1.plot(xs, swr[:, i], color=color, linestyle=_port_style(i), marker="o", ms=3)
+    if meas is not None:
+        mrho_c = np.minimum(mrho, 1.0 - 1e-9)  # see MeasuredTrace.swr
+        ax1.plot(mxs, (1.0 + mrho_c) / (1.0 - mrho_c), color=color, **_MEASURED_KW)
+        _measured_legend(ax0, measured.label)
 
     _polish_axes(ax0, title=f"SWR vs {nm} (z0 = {z0:g} Ω)")
     ax1.spines["top"].set_visible(False)
@@ -219,10 +264,13 @@ def sweep(
     markers=[],
     fn=None,
     engine=Antenna,
+    measured=None,
 ):
     import matplotlib.pyplot as plt
 
     xs = gen_xs(getattr(antenna_builder, nm), rng, center, fraction, npoints)
+    # Align first so a disjoint measured band errors before any solving.
+    meas = _align_measured(measured, nm, xs, z0)
 
     zs = []
     for x in xs:
@@ -257,7 +305,10 @@ def sweep(
         draw_smith_chart(ax0, z0=z0)
         for i in range(nwidth):
             color = f"C{i}"
-            label = f"port {i + 1}" if nwidth > 1 else None
+            if nwidth > 1:
+                label = f"port {i + 1}"
+            else:
+                label = "modeled" if meas is not None else None
             if zs.shape[0] > 0:
                 gamma = (zs[:, i] - z0) / (zs[:, i] + z0)
                 plot_reflection(ax0, gamma, color=color, linewidth=1.8, label=label)
@@ -273,7 +324,15 @@ def sweep(
                     linestyle="None",
                     label=label,
                 )
-        if nwidth > 1:
+        if meas is not None:
+            plot_reflection(
+                ax0,
+                meas[1],
+                color="0.25",
+                label=measured.label,
+                **_MEASURED_KW,
+            )
+        if nwidth > 1 or meas is not None:
             # Upper left keeps clear of the z0 note in the lower-left corner.
             ax0.legend(loc="upper left", frameon=False, fontsize=8)
         # Same title as the rectangular branch — the chart form says "Smith".
@@ -304,6 +363,9 @@ def sweep(
                     marker="s",
                     linestyle="None",
                 )
+        if meas is not None:
+            mxs, mz = meas[0], z0 * (1.0 + meas[1]) / (1.0 - meas[1])
+            ax0.plot(mxs, np.real(mz), color=color, **_MEASURED_KW)
 
         color = "tab:blue"
         ax1 = ax0.twinx()
@@ -327,6 +389,9 @@ def sweep(
                     marker="s",
                     linestyle="None",
                 )
+        if meas is not None:
+            ax1.plot(mxs, np.imag(mz), color=color, **_MEASURED_KW)
+            _measured_legend(ax0, measured.label)
 
         _polish_axes(ax0, title=f"feedpoint impedance vs {nm}")
         ax1.spines["top"].set_visible(False)

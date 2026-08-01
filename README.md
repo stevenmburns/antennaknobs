@@ -265,6 +265,10 @@ python -m antennaknobs draw --builder beams.moxon --fn moxon.png
 python -m antennaknobs sweep --builder beams.moxon --param freq \
     --use_smithchart --npoints 21 --fn moxon_smith.png
 
+# Overlay a measured NanoVNA .s1p sweep on the modeled SWR curve
+python -m antennaknobs sweep --builder dipoles.invvee --swr \
+    --range 28.0 29.0 --npoints 21 --measured bench_10m.s1p
+
 # Far-field pattern of a Yagi, solved with momwire
 python -m antennaknobs pattern --builder beams.yagi --engine momwire:triangular
 

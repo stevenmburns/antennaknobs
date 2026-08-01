@@ -61,6 +61,47 @@ Note that knob sweeps in **free space** can be perfectly flat by design —
 translation-invariant knobs like a height `base` only matter over a ground
 (`--ground finite`).
 
+### Overlaying a VNA measurement
+
+`--measured <file.s1p>` draws a **measured** sweep alongside the modeled one —
+the "did my model match reality?" chart. A NanoVNA (or any VNA) exports the
+one-port Touchstone `.s1p` this reads; files written as R+jX instead of S11
+work too.
+
+```bash
+# the antenna on the bench, against the model of it
+python -m antennaknobs sweep --builder dipoles.invvee --swr \
+    --range 28.0 29.0 --npoints 21 --measured bench_10m.s1p --fn compare.png
+# same comparison on the Smith chart, or as R and X
+python -m antennaknobs sweep --builder dipoles.invvee --use_smithchart \
+    --measured bench_10m.s1p
+```
+
+The overlay works on all three impedance chart forms (SWR, Smith, R/X); the
+measured trace is dashed with `×` markers against the modeled solid line. Some
+details worth knowing:
+
+- **Reference impedance.** The file declares its own (a NanoVNA writes 50 Ω);
+  the trace is renormalized through its impedance to whatever `--z0` the chart
+  uses, so a 75 Ω calibration overlays correctly on a 50 Ω chart.
+- **Bands.** The measurement is interpolated onto the sweep grid and drawn only
+  where the two bands overlap — a single-band measurement against a wide sweep
+  renders over its own band, and nothing is extrapolated. Disjoint bands are an
+  error, not an empty chart.
+- **Frequency only.** Measured data is indexed by frequency, so `--measured`
+  needs `--param freq` (the default).
+- **Measurement plane.** The comparison happens at whatever plane the chart
+  already plots — normally the antenna feedpoint, so calibrate the VNA at the
+  feedpoint. A design whose `build_network()` includes a
+  [station chain](/concepts/station-modelling/) plots the station plane
+  instead, which is what a shack-end measurement sees.
+
+Expect some irreducible disagreement: common-mode current on a real feedline
+perturbs a measurement in ways a differential model does not reproduce. A
+*structured* residual — the two curves offset the same way across the band — is
+usually pointing at something physical (line length, ground, a connector),
+which is the diagnostic value of drawing them together.
+
 ## Choosing an engine
 
 The `--engine` flag selects the solver:
