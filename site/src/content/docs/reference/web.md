@@ -357,6 +357,36 @@ impedance, so you can see where the curve flattens out. Basics:
 method (ladders, cross-basis validation with a second solver slot, and what a
 non-settling curve is telling you): [How many segments?](/advanced/convergence/).
 
+## Measured overlay — your VNA on the Smith chart
+
+Under the Smith chart, **measured .s1p…** loads a one-port Touchstone file — a
+NanoVNA export, or any VNA's — and draws the antenna you actually measured as a
+dashed violet locus against the modeled one. It is the "did my model match
+reality?" view, and the same overlay the CLI draws with
+[`--measured`](/reference/cli/#overlaying-a-vna-measurement).
+
+- **Your file stays on your machine.** The browser reads it and posts the text
+  to be parsed; nothing is stored server-side. That also means it works
+  unchanged when the backend runs somewhere else while the VNA is plugged in
+  here.
+- **Reference impedance is handled.** The measurement travels as impedance and
+  is converted at the chart's own reference, so a 75 Ω calibration lands
+  correctly on a 50 Ω chart.
+- **Bands are clipped to the frequency sweep** so both loci cover the same
+  frequencies; the label under the chart reports the span actually drawn, and
+  says `(clipped)` when the measurement reaches past the swept band. A
+  measurement with no overlap at all says so rather than silently drawing
+  nothing — turn the [freq sweep](#convergence-sweep) onto that band, or move
+  the measurement frequency there.
+- **Calibrate at the plane you're comparing.** The chart shows the feedpoint,
+  so a measurement taken at the feedpoint is the like-for-like one; a
+  shack-end sweep includes feedline the model may not have.
+
+Expect some irreducible disagreement — common-mode current on a real feedline
+perturbs a measurement in ways a differential model doesn't reproduce. A
+*structured* gap (the same offset across the band) usually points at something
+physical: line length, ground, a connector.
+
 ## Design sessions (tabs)
 
 The sidebar is a **notebook**: the tabs across its top (**D1**, **D2**, …) are

@@ -42,9 +42,20 @@ import numpy as np
 
 from .touchstone import Touchstone, _nports_from_name, parse_touchstone
 
-__all__ = ["MeasuredTrace", "read_measured", "BandOverlapError"]
+__all__ = [
+    "MeasuredTrace",
+    "parse_measured",
+    "read_measured",
+    "BandOverlapError",
+    "RHO_MAX",
+]
 
 logger = logging.getLogger(__name__)
+
+# Largest |Γ| the derived impedance/SWR views will evaluate at — see
+# MeasuredTrace.impedance. 1 − 1e-9 puts a measured open at ~1e11 Ω: off the
+# top of any chart, but finite.
+RHO_MAX = 1.0 - 1e-9
 
 
 class BandOverlapError(ValueError):
@@ -90,16 +101,27 @@ class MeasuredTrace:
     # -- derived views ------------------------------------------------------
     @property
     def impedance(self) -> np.ndarray:
-        """Measured impedance (Ω) — ``z0·(1+Γ)/(1−Γ)``."""
-        return self.z0 * (1.0 + self.gamma) / (1.0 - self.gamma)
+        """Measured impedance (Ω) — ``z0·(1+Γ)/(1−Γ)``.
+
+        A real measurement can land at or just outside |Γ| = 1 (noise on a
+        near-open, an imperfect calibration), where that expression divides by
+        zero. The magnitude is clamped a hair inside the unit circle so the
+        result stays finite — huge, which is the honest reading of a measured
+        open, and JSON-safe for the web overlay, where a bare ``inf`` would
+        produce a body the browser refuses to parse.
+        """
+        g = self.gamma
+        rho = np.abs(g)
+        over = rho > RHO_MAX
+        if over.any():
+            g = np.where(over, g * (RHO_MAX / np.maximum(rho, 1e-300)), g)
+        return self.z0 * (1.0 + g) / (1.0 - g)
 
     @property
     def swr(self) -> np.ndarray:
-        rho = np.abs(self.gamma)
-        # A measurement with |Γ| ≥ 1 (noise, or a bad calibration on a
-        # near-open) would divide by zero or go negative; clamp just below 1 so
-        # the trace pins at a large SWR instead of exploding the axis.
-        rho = np.minimum(rho, 1.0 - 1e-9)
+        # Same clamp as `impedance`, for the same reason: |Γ| ≥ 1 would divide
+        # by zero or go negative. The trace pins at a large SWR instead.
+        rho = np.minimum(np.abs(self.gamma), RHO_MAX)
         return (1.0 + rho) / (1.0 - rho)
 
     def renormalized(self, z0: float) -> "MeasuredTrace":
@@ -153,6 +175,21 @@ class MeasuredTrace:
         return xs, gamma
 
 
+def parse_measured(
+    text: str, *, z0: float | None = None, label: str = "measured"
+) -> MeasuredTrace:
+    """Parse Touchstone ``text`` into a measured overlay trace.
+
+    The port count is *inferred from the data* rather than taken on trust, so a
+    two-port file that reached here under a one-port name gets the "needs a
+    1-port" error instead of being silently read as three times as many
+    frequency points. This is the shared entry point for the web upload
+    (``/measured``) and :func:`read_measured`.
+    """
+    trace = MeasuredTrace.from_touchstone(parse_touchstone(text), label=label)
+    return trace if z0 is None else trace.renormalized(z0)
+
+
 def read_measured(
     path, *, z0: float | None = None, label: str | None = None
 ) -> MeasuredTrace:
@@ -166,13 +203,9 @@ def read_measured(
     reference; ``label`` defaults to the file's stem.
     """
     p = Path(path)
-    nports = _nports_from_name(p.name)  # validate the extension before reading
-    if nports != 1:
+    if _nports_from_name(p.name) != 1:  # validate the extension before reading
         raise ValueError(
             f"{p.name}: a measured overlay needs a 1-port .s1p file "
             "(a .s2p is a two-port block — see TouchstoneTwoPort)"
         )
-    trace = MeasuredTrace.from_touchstone(
-        parse_touchstone(p.read_text(), nports=1), label=label or p.stem
-    )
-    return trace if z0 is None else trace.renormalized(z0)
+    return parse_measured(p.read_text(), z0=z0, label=label or p.stem)

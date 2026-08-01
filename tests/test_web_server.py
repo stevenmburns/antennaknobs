@@ -368,6 +368,69 @@ def test_trust_refused_when_hosted(client, monkeypatch):
     assert client.post("/untrust", json={"stem": "whatever"}).status_code == 403
 
 
+# ---------------------------------------------------------------------------
+# /measured — the VNA overlay upload (issue #595)
+# ---------------------------------------------------------------------------
+_S1P_75OHM = """! a two-point measurement calibrated at 75 ohms
+# MHZ S RI R 75
+14.000 0.0 0.0
+14.200 0.2 -0.1
+"""
+
+
+def test_measured_returns_impedance_not_reflection(client: TestClient):
+    """The overlay travels as Z so the chart re-references it to its own z0.
+
+    The first point is Gamma = 0 against a 75 ohm calibration, i.e. 75 ohms —
+    which is emphatically not the 50 ohms a naive read of the raw S11 would put
+    at chart centre.
+    """
+    r = client.post("/measured", json={"name": "bench_20m.s1p", "text": _S1P_75OHM})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["label"] == "bench_20m"  # file stem, for the chart legend
+    assert body["z0_file"] == 75.0
+    assert body["freqs_mhz"] == [14.0, 14.2]  # Hz in the file, MHz on the wire
+    assert body["z_re"][0] == pytest.approx(75.0)
+    assert body["z_im"][0] == pytest.approx(0.0)
+
+
+def test_measured_rejects_a_two_port_file(client: TestClient):
+    """A .s2p is a two-port block, not an overlay — and the port count is read
+    from the data, so a mislabelled upload can't be read as 3x the points."""
+    r = client.post(
+        "/measured",
+        json={"name": "balun.s1p", "text": "# MHZ S RI R 50\n14.0 0 0 1 0 1 0 0 0\n"},
+    )
+    assert r.status_code == 422 and "1-port" in r.json()["detail"]
+
+
+def test_measured_rejects_junk_and_empty_uploads(client: TestClient):
+    assert (
+        client.post("/measured", json={"name": "x.s1p", "text": ""}).status_code == 422
+    )
+    r = client.post("/measured", json={"name": "deck.nec", "text": "GW 1 9 0 0 0\n"})
+    assert r.status_code == 422
+
+
+def test_measured_refuses_an_oversized_upload(client: TestClient):
+    big = "! pad\n" * (server._MEASURED_MAX_CHARS // 6 + 1)
+    r = client.post("/measured", json={"name": "huge.s1p", "text": big})
+    assert r.status_code == 413
+
+
+def test_measured_open_circuit_stays_json_parseable(client: TestClient):
+    """|Gamma| = 1 is a measured open; the body must not carry Infinity, which
+    the browser's JSON.parse rejects outright."""
+    r = client.post(
+        "/measured",
+        json={"name": "open.s1p", "text": "# MHZ S RI R 50\n14.0 1.0 0.0\n"},
+    )
+    assert r.status_code == 200
+    json.loads(r.content)  # strict parse: no Infinity/NaN tokens
+    assert np.isfinite(r.json()["z_re"][0])
+
+
 def test_examples_serialize_param_groups_with_kind_group(client: TestClient):
     # fandipole is the canonical group-bearing geometry — its `bands`
     # ParamGroupSpec must round-trip with kind="group" so the frontend's

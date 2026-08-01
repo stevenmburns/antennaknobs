@@ -161,7 +161,9 @@ def sweep_swr(
     for i in range(swr.shape[1]):
         ax1.plot(xs, swr[:, i], color=color, linestyle=_port_style(i), marker="o", ms=3)
     if meas is not None:
-        mrho_c = np.minimum(mrho, 1.0 - 1e-9)  # see MeasuredTrace.swr
+        from .measured import RHO_MAX
+
+        mrho_c = np.minimum(mrho, RHO_MAX)  # see MeasuredTrace.swr
         ax1.plot(mxs, (1.0 + mrho_c) / (1.0 - mrho_c), color=color, **_MEASURED_KW)
         _measured_legend(ax0, measured.label)
 
