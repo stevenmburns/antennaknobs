@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/antennaknobs/touchstone.py: 91%</title>
+    <title>Coverage for src/antennaknobs/touchstone.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>antennaknobs<span class="sep">/</span>touchstone.py</b>:
-            <span class="pc_cov">91%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">122 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">111<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">11<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">117<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">5<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_transform_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-01 15:38 +0000
+            created at 2026-08-01 18:30 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -164,10 +164,10 @@
     <p class="run"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="nam">m</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_interp</span><span class="op">(</span><span class="nam">f_hz</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">ptype</span> <span class="op">==</span> <span class="str">"S"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">            <span class="key">return</span> <span class="nam">m</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">        <span class="nam">n</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">nports</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">        <span class="nam">eye</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">eye</span><span class="op">(</span><span class="nam">n</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">        <span class="nam">z</span> <span class="op">=</span> <span class="nam">m</span> <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">ptype</span> <span class="op">==</span> <span class="str">"Z"</span> <span class="key">else</span> <span class="nam">np</span><span class="op">.</span><span class="nam">linalg</span><span class="op">.</span><span class="nam">inv</span><span class="op">(</span><span class="nam">m</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">        <span class="key">return</span> <span class="op">(</span><span class="nam">z</span> <span class="op">-</span> <span class="nam">self</span><span class="op">.</span><span class="nam">z0</span> <span class="op">*</span> <span class="nam">eye</span><span class="op">)</span> <span class="op">@</span> <span class="nam">np</span><span class="op">.</span><span class="nam">linalg</span><span class="op">.</span><span class="nam">inv</span><span class="op">(</span><span class="nam">z</span> <span class="op">+</span> <span class="nam">self</span><span class="op">.</span><span class="nam">z0</span> <span class="op">*</span> <span class="nam">eye</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">        <span class="nam">n</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">nports</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">        <span class="nam">eye</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">eye</span><span class="op">(</span><span class="nam">n</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">        <span class="nam">z</span> <span class="op">=</span> <span class="nam">m</span> <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">ptype</span> <span class="op">==</span> <span class="str">"Z"</span> <span class="key">else</span> <span class="nam">np</span><span class="op">.</span><span class="nam">linalg</span><span class="op">.</span><span class="nam">inv</span><span class="op">(</span><span class="nam">m</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">        <span class="key">return</span> <span class="op">(</span><span class="nam">z</span> <span class="op">-</span> <span class="nam">self</span><span class="op">.</span><span class="nam">z0</span> <span class="op">*</span> <span class="nam">eye</span><span class="op">)</span> <span class="op">@</span> <span class="nam">np</span><span class="op">.</span><span class="nam">linalg</span><span class="op">.</span><span class="nam">inv</span><span class="op">(</span><span class="nam">z</span> <span class="op">+</span> <span class="nam">self</span><span class="op">.</span><span class="nam">z0</span> <span class="op">*</span> <span class="nam">eye</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">    <span class="key">def</span> <span class="nam">y_at</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">f_hz</span><span class="op">:</span> <span class="nam">float</span><span class="op">)</span> <span class="op">-></span> <span class="nam">np</span><span class="op">.</span><span class="nam">ndarray</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">        <span class="str">"""Admittance matrix (siemens) at ``f_hz`` &#8212; what the reducer stamps."""</span>&nbsp;</span><span class="r"></span></p>
@@ -198,7 +198,7 @@
     <p class="run"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">    <span class="key">if</span> <span class="nam">low</span><span class="op">.</span><span class="nam">endswith</span><span class="op">(</span><span class="str">".s1p"</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">        <span class="key">return</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">    <span class="key">if</span> <span class="nam">low</span><span class="op">.</span><span class="nam">endswith</span><span class="op">(</span><span class="str">".s2p"</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">        <span class="key">return</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">        <span class="key">return</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">    <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="fst">f"</span><span class="op">{</span><span class="nam">name</span><span class="op">!</span><span class="nam">r</span><span class="op">}</span><span class="fst">: expected a .s1p or .s2p Touchstone extension </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">        <span class="str">"(only 1- and 2-port files are supported)"</span>&nbsp;</span><span class="r"></span></p>
@@ -249,10 +249,10 @@
     <p class="run"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">        <span class="nam">n2</span> <span class="op">=</span> <span class="op">(</span><span class="nam">width</span> <span class="op">-</span> <span class="num">1</span><span class="op">)</span> <span class="op">//</span> <span class="num">2</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">        <span class="nam">nports</span> <span class="op">=</span> <span class="nam">int</span><span class="op">(</span><span class="nam">round</span><span class="op">(</span><span class="nam">n2</span><span class="op">**</span><span class="num">0.5</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">        <span class="key">if</span> <span class="nam">nports</span> <span class="key">not</span> <span class="key">in</span> <span class="op">(</span><span class="num">1</span><span class="op">,</span> <span class="num">2</span><span class="op">)</span> <span class="key">or</span> <span class="num">1</span> <span class="op">+</span> <span class="num">2</span> <span class="op">*</span> <span class="nam">nports</span> <span class="op">*</span> <span class="nam">nports</span> <span class="op">!=</span> <span class="nam">width</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">            <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">                <span class="fst">f"</span><span class="fst">cannot infer port count from a </span><span class="op">{</span><span class="nam">width</span><span class="op">}</span><span class="fst">-column data row </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">                <span class="str">"(expected 3 for .s1p or 9 for .s2p)"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">            <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">                <span class="fst">f"</span><span class="fst">cannot infer port count from a </span><span class="op">{</span><span class="nam">width</span><span class="op">}</span><span class="fst">-column data row </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">                <span class="str">"(expected 3 for .s1p or 9 for .s2p)"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">    <span class="key">if</span> <span class="nam">nports</span> <span class="key">not</span> <span class="key">in</span> <span class="op">(</span><span class="num">1</span><span class="op">,</span> <span class="num">2</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="str">"only 1- and 2-port Touchstone files are supported"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -312,7 +312,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_transform_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-01 15:38 +0000
+            created at 2026-08-01 18:30 +0000
         </p>
     </div>
 </footer>
