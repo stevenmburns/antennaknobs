@@ -126,7 +126,21 @@ point — agreement between independent engines is your confidence check.
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
+--engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
+--engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
 ```
+
+**NEC-compatible vs converged feed** (sinusoidal-Galerkin only): the plain
+`sinusoidal-galerkin` drives NEC's segment-wide gap — it reproduces NEC/EZNEC
+behaviour, including the well-known reactance drift as the mesh refines, which
+is what you want when cross-checking against NEC results. The `-converged`
+variant (web: the "Converged" feed-model setting on the Sin-Galerkin solver)
+drives a zero-width gap instead: the impedance converges to the B-spline
+answer, and on near-open high-Q designs (`lazy_h`, `vbeam`) it removes two to
+three orders of magnitude of the apparent disagreement between solver bases
+(momwire#213). It does not reduce the mesh a near-open design needs — budget
+fine mesh either way. The plain `sinusoidal` solver offers no such choice: a
+zero-width gap cannot be expressed under point-matching (momwire#212).
 
 In Python, instantiate an engine directly:
 
