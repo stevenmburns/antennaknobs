@@ -184,13 +184,24 @@ A box (`Composite`) has a formal port interface and a private inside:
 the tuner's tee midpoint exists as `tuner.m`, invisible to the rest of
 the design. The stdlib today: `t_network_tuner`, `l_network_tuner`,
 `unun` (with the compensation capacitor real 49:1 builds carry),
-`balun` — all parameterized in radio units (picofarads, microhenries)
-— plus one special member:
+`balun`, `link_coupling`, `balanced_l_tuner` — all parameterized in
+radio units (picofarads, microhenries) — plus two special members:
 
 - **`bypass()`** — a box-shaped nothing: it wires its input straight to
   its output. Swap any tuner or balun for `bypass()` and you get the
   same station *without* that box, in a one-line change — the honest
   way to answer "what is this component actually buying me?"
+
+- **stubs** — `shunt_shorted_stub`, `shunt_open_stub`, and their
+  `series_*` twins are matching elements made of nothing but cable: a
+  length of line terminated in a short or an open, presenting
+  `+jZ₀·tan(βl)` or `−jZ₀·cot(βl)` at its port. Lengths are given in
+  wavelengths *on the line* at a design frequency (the velocity factor
+  is applied for you; the composite bakes metres, so it detunes across
+  a sweep like the real thing), and `cable="RG-213"` cuts it from a
+  catalog reel, loss included. `single_stub_tuner` and
+  `double_stub_tuner` place them at the classic positions — a match
+  with no lumped parts, just cable lengths.
 
 Boxes are ordinary values made by ordinary functions, so a design can
 also define its own — a measured, calibrated component wrapped once and
