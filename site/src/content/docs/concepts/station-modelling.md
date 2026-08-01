@@ -150,9 +150,12 @@ is a pure circuit stamp and runs anywhere. What can pin a design to momwire
 is how it *attaches*: a design that hangs the line off `PortAtEnd` is
 momwire-only, because NEC-2 has no junction-node port and the PyNEC backend
 rejects it (see [Ports](#ports-where-the-circuit-meets-the-wire)). Those
-designs lose cross-engine validation — the available cross-check is between
-B-spline basis degrees rather than between engines. A design that attaches
-through `PortOnWireFloating` keeps both engines.
+designs lose cross-*engine* validation, but no longer cross-*basis*
+validation: the sinusoidal-Galerkin solver implements junction ports as well
+(momwire#182), in free space and over a **PEC** ground (momwire#191; finite
+grounds are still refused). So a `PortAtEnd` design can be checked against a
+different basis *and* a different testing scheme, not merely a second B-spline
+degree. A design that attaches through `PortOnWireFloating` keeps both engines.
 
 Three catalog designs use `BalancedLine` today:
 `wire.doublet_balanced_tuner` (floating centre port — runs on every engine),

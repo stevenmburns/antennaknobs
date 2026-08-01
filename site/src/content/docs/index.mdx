@@ -25,19 +25,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.40.0" icon="star">
-  **The Galerkin backend grows up, and the helix splits in two.** The
-  `sinusoidal-galerkin` backend now runs on **momwire 0.21.0**, whose far
-  fill is a fused C++ kernel — **7–12× faster end-to-end**, and the memory
-  ceiling that capped it near 2 000 segments is gone (a 4 000-segment solve
-  fits in under 4 GiB), so census-scale meshes are interactive. In the
-  catalog, the helix is now **two designs with one refinement axis each**:
-  **`faceted_helix`** (the winding's polygon is the geometry; the mesh
-  subdivides along it) and **`continuous_helix`** (the chord count follows
-  the mesh density, converging to the true circular winding) — both
-  arc-length-normalized so they wind identical wire at every mesh, closing
-  the catalog's last unmeshable convergence story (the old builder solved
-  one frozen 53-segment mesh at every density).
+<Card title="New in v0.41.0" icon="star">
+  **The feed-model release: NEC-compatible or converged — your choice.** The
+  `sinusoidal-galerkin` backend (now on **momwire 0.22.0**) gains a
+  **feed-model control**: *NEC-compatible* reproduces NEC/EZNEC behaviour,
+  gap and all, while *Converged* drives a zero-width feed whose impedance
+  converges to the B-spline answer. On **near-open, high-Q designs**
+  (`lazy_h`, `vbeam`) the converged feed removes **two to three orders of
+  magnitude** of the apparent disagreement between solver bases — measured
+  out to 5 000+ segments — and the workbench now recommends it on the
+  designs that need it. Under the hood, an instrumented campaign settled
+  *why*: most of the historical "sinusoidal vs B-spline" gap was never the
+  basis — it was the feed. Also new: sin-Galerkin **junction ports over a
+  PEC ground**, and a sparse Galerkin assembly path. Details in
+  [Solvers & accuracy](/reference/solver/) and
+  [How many segments?](/advanced/convergence/).
   [All release notes →](/reference/releases/)
 </Card>
 
