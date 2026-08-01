@@ -157,6 +157,13 @@ type ExampleDescriptor = {
    *  "solve anyway") gate when the active backend is disallowed; the
    *  solvers' errors remain the enforcement. */
   requires_backends: string[] | null;
+  /** Near-open high-Q feed (antennaknobs#478): the Sin-Galerkin solver's
+   *  "Converged" (point-gap) feed model is recommended for this design —
+   *  it collapses the cross-basis residual by 2-3 orders on this class
+   *  (momwire#213). Drives the recommendation hint in the Sin-Galerkin
+   *  feed-model control; declared statically in the design's ui_params.
+   *  Absent/undefined on older servers → treat as false. */
+  converged_feed_suggested?: boolean;
   /** True when the Builder has a `design_freq` param that scales
    *  geometry (design_freq-sized designs). When false, the design-freq
    *  band-tab row is hidden because dragging it would be a no-op. */
@@ -1659,6 +1666,14 @@ function normalizeBackend(b: string | null | undefined): Backend | null {
 type CommonOpts = { nPerWire: number; wireRadius: number };
 
 type SinusoidalOpts = CommonOpts & { nQpConst: number };
+// Sin-Galerkin only: the feed-model axis (issue #640, momwire#192).
+// "segment" = NEC-compatible (NEC's segment-wide gap — reproduces NEC/EZNEC
+// behaviour, including the reactance walk with mesh density); "point" =
+// Converged (zero-width gap — converges to the B-spline answer; recommended
+// for near-open high-Q designs, momwire#213). Deliberately NOT on plain
+// sinusoidal: the point gap has no collocation RHS (momwire#212), so that
+// solver offers no choice to present.
+type SinGalerkinOpts = SinusoidalOpts & { feedModel: "segment" | "point" };
 type BSplineOpts = CommonOpts & {
   degree: 1 | 2;
   nQpPair: number;
@@ -1693,8 +1708,9 @@ type PyNECOpts = CommonOpts;
 type BackendOptsMap = {
   sinusoidal: SinusoidalOpts;
   // Same constructor surface as sinusoidal (momwire#182: same basis, Galerkin
-  // testing); the test-quadrature knobs keep their solver defaults.
-  "sinusoidal-galerkin": SinusoidalOpts;
+  // testing) plus the feed-model choice only the Galerkin testing can carry;
+  // the test-quadrature knobs keep their solver defaults.
+  "sinusoidal-galerkin": SinGalerkinOpts;
   bspline: BSplineOpts;
   hmatrix: BSplineOpts;
   arrayblock: BSplineOpts;
@@ -1718,7 +1734,14 @@ const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
 
 const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
   sinusoidal: { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
-  "sinusoidal-galerkin": { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
+  // feedModel "segment" (NEC-compatible) is the solver's own default; the
+  // gear menu recommends "point" (Converged) on near-open designs (#640).
+  "sinusoidal-galerkin": {
+    nPerWire: 30,
+    wireRadius: 0.0005,
+    nQpConst: 8,
+    feedModel: "segment",
+  },
   bspline: { ...BSPLINE_DEFAULT_OPTS },
   hmatrix: { ...BSPLINE_DEFAULT_OPTS },
   // Arrays auto-select this; 21 segs/wire is the converged, correct-parity
@@ -1745,9 +1768,13 @@ type SlotConfig = {
 // their spline degree so two b-spline slots (the default A d=2 / B d=1
 // pair) stay distinguishable at a glance.
 function backendDisplayLabel(b: Backend, opts: BackendOptsMap[Backend]): string {
-  return isBSplineFamily(b)
-    ? `${BACKEND_LABEL[b]} d=${(opts as BSplineOpts).degree}`
-    : BACKEND_LABEL[b];
+  if (isBSplineFamily(b))
+    return `${BACKEND_LABEL[b]} d=${(opts as BSplineOpts).degree}`;
+  // Surface the non-default feed model on the slot chip: two Sin-Galerkin
+  // slots differing only in feed model must be tellable apart at a glance.
+  if (b === "sinusoidal-galerkin" && (opts as SinGalerkinOpts).feedModel === "point")
+    return `${BACKEND_LABEL[b]} (converged)`;
+  return BACKEND_LABEL[b];
 }
 
 const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
@@ -1803,7 +1830,13 @@ function modelOptionsForRequest(
   backend: Backend,
   opts: BackendOptsMap[Backend],
 ): Record<string, unknown> {
-  if (backend === "sinusoidal" || backend === "sinusoidal-galerkin") {
+  if (backend === "sinusoidal-galerkin") {
+    const o = opts as SinGalerkinOpts;
+    // feed_model only here: plain sinusoidal cannot carry the point gap
+    // (momwire#212) and must not receive the key at all.
+    return { n_qp_const: o.nQpConst, feed_model: o.feedModel };
+  }
+  if (backend === "sinusoidal") {
     const o = opts as SinusoidalOpts;
     return { n_qp_const: o.nQpConst };
   }
@@ -5406,6 +5439,9 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             backend={slots[gearOpen].backend}
             backends={selectableBackends(havePynec)}
             requiredBackends={requiredBackends}
+            suggestConvergedFeed={
+              currentExample?.converged_feed_suggested ?? false
+            }
             opts={slots[gearOpen].opts}
             onChangeBackend={(b) => {
               backendTouchedRef.current = true;
@@ -6135,6 +6171,10 @@ type BackendConfigProps = {
    *  explaining why, rather than disappearing — the picker stays stable
    *  across design switches and the restriction itself is the signal. */
   requiredBackends: string[] | null;
+  /** Current design recommends the Converged feed model (near-open high-Q,
+   *  antennaknobs#478) — shown as a hint on the Sin-Galerkin feed-model
+   *  control. */
+  suggestConvergedFeed: boolean;
   opts: BackendOptsMap[Backend];
   onChangeBackend: (b: Backend) => void;
   onPatch: (patch: Partial<BackendOptsMap[Backend]>) => void;
@@ -6147,6 +6187,7 @@ function BackendConfigModal({
   backend,
   backends,
   requiredBackends,
+  suggestConvergedFeed,
   opts,
   onChangeBackend,
   onPatch,
@@ -6224,6 +6265,63 @@ function BackendConfigModal({
               step={1}
               onChange={(v) => onPatch({ nQpConst: v } as never)}
             />
+          )}
+
+          {backend === "sinusoidal-galerkin" && (
+            <div className="field">
+              <label>
+                <span>feed model</span>
+              </label>
+              <div className="geometry-tabs" role="tablist">
+                {(
+                  [
+                    ["segment", "NEC-compatible"],
+                    ["point", "Converged"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    role="tab"
+                    aria-selected={
+                      (opts as SinGalerkinOpts).feedModel === value
+                    }
+                    className={
+                      (opts as SinGalerkinOpts).feedModel === value
+                        ? "active"
+                        : ""
+                    }
+                    title={
+                      value === "segment"
+                        ? "NEC's segment-wide gap: reproduces NEC/EZNEC " +
+                          "behaviour, including reactance drift with mesh " +
+                          "density. Use when cross-checking against NEC " +
+                          "results."
+                        : "Zero-width (point) gap: converges to the " +
+                          "B-spline answer and gives a reciprocal Y. " +
+                          "Recommended for near-open high-Q designs " +
+                          "(momwire#213)."
+                    }
+                    onClick={() => onPatch({ feedModel: value } as never)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {suggestConvergedFeed &&
+                (opts as SinGalerkinOpts).feedModel === "segment" && (
+                  <em
+                    style={{
+                      color: "var(--muted)",
+                      fontSize: "var(--text-sm)",
+                    }}
+                  >
+                    This design's feed is near-open / high-Q: "Converged" is
+                    recommended — it removes up to ~1000× of the cross-basis
+                    disagreement here (momwire#213). "NEC-compatible" remains
+                    right for NEC cross-checks.
+                  </em>
+                )}
+            </div>
           )}
 
           {isBSplineFamily(backend) && (
