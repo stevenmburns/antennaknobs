@@ -147,8 +147,8 @@ variant just replaced. Re-mark the knobs and turn Optimize back on to resume.
 A **solver selector** offers a few preset slots so you can flip between engines
 without re-entering options — e.g. a fast dense basis, an accelerated array
 engine, and the PyNEC reference. The available engines are the momwire bases
-(**sinusoidal**, **bspline**), the accelerators (**hmatrix**,
-**arrayblock**), and the optional **PyNEC** backend — see
+(**Sinusoidal**, **Sin-Galerkin**, **B-spline**), the accelerators
+(**H-matrix (ACA)**, **Array-block**), and the optional **PyNEC** backend — see
 [The solver & accuracy](/reference/solver/) for what each is good at.
 
 The solver's gear menu also exposes **segments / wire (N)** — how finely each
@@ -167,6 +167,31 @@ above anything the UI sends. This applies **only** to the shared hosted
 instance: a local install is **unlocked** (solve as big as your own machine
 allows, sweep as long as you like). See `docs/deploy.md`.
 :::
+
+### The feed model (Sin-Galerkin only)
+
+Pick **Sin-Galerkin** and its gear menu grows one more control, **feed
+model** — how the source gap itself is modelled:
+
+- **NEC-compatible** (the default) — NEC's segment-wide gap. The readout
+  reproduces NEC/EZNEC behaviour, including the familiar reactance drift as
+  the mesh refines. Use it when you're cross-checking against NEC results.
+- **Converged** — a zero-width (point) gap instead: the impedance converges
+  to the B-spline answer, and the port admittance is exactly reciprocal.
+
+On **near-open, high-Q feeds** the choice is worth a lot, and the gear menu
+says so: those designs (`wire.lazy_h`, `wire.vbeam` and their class) show a
+hint recommending *Converged*, which removes two to three orders of magnitude
+of the apparent disagreement between solver bases (momwire#213). What it does
+**not** do is reduce the mesh such a design needs — budget fine segments
+either way; see
+[the near-open feed](/advanced/convergence/#the-four-ways-a-curve-refuses-to-settle).
+A slot running the non-default setting is labelled **Sin-Galerkin
+(converged)**, so two Sin-Galerkin slots stay tellable apart at a glance.
+
+No other engine carries the control: the plain **Sinusoidal** solver cannot
+express a zero-width gap under point matching (momwire#212), and the B-spline
+family already uses the point gap.
 
 ### One solve at a time
 
