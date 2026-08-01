@@ -68,11 +68,22 @@ The `--engine` flag selects the solver:
 ```bash
 --engine momwire                 # momwire (default), default (B-spline) basis
 --engine momwire:sinusoidal      # NEC-2-style three-term basis
+--engine momwire:sinusoidal-galerkin            # same basis, Galerkin testing
+--engine momwire:sinusoidal-galerkin-converged  # …with the converged feed model
 --engine momwire:bspline         # B-spline Galerkin basis
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
 ```
+
+The `-converged` variant swaps the sinusoidal-Galerkin solver's NEC-style
+segment-wide gap for a zero-width one: the impedance converges to the
+B-spline answer instead of reproducing NEC's mesh-dependent reactance
+drift. Use the plain form when cross-checking against NEC/EZNEC results;
+use `-converged` on near-open high-Q feeds (`wire.lazy_h`, `wire.vbeam`
+class), where it removes two to three orders of magnitude of the apparent
+disagreement between solver bases — see
+[Solvers & accuracy](/reference/solver/) for the details.
 
 `momwire` is the default so a plain install works without the optional
 `pynec-accel` package. See [The solver & accuracy](/reference/solver/) for which

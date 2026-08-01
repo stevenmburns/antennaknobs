@@ -106,6 +106,17 @@ default fixes this class; expect a slow drift of a few percent, read the
 admittance if you need a well-conditioned number, and treat the last
 percent as physical uncertainty rather than solver error.
 
+One refinement since that was first written (momwire#213): on this class
+the *apparent disagreement between bases* — sin-Galerkin vs B-spline
+reading percent-level apart at the same mesh — turned out to be almost
+entirely the **feed model**, not the physics. The Sin-Galerkin solver's
+*Converged* feed-model setting (the gear-menu control; the workbench
+recommends it on the designs that need it) removes two to three orders
+of magnitude of that cross-basis gap, measured out to N=641. What it
+does **not** change is the paragraph above: each solver's own
+rung-to-rung drift is still percent-level, so the mesh budget and the
+"treat the last percent as physical" advice stand exactly as written.
+
 **4. A wire's segments approaching its own radius (Δ/a).** The oldest
 rule in thin-wire MoM is also the one that produced the census's most
 spectacular failure. The thin-wire kernel needs each segment to stay
