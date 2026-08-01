@@ -17,15 +17,11 @@ from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
 from momwire import (
     SinusoidalSolver,
+    SinusoidalGalerkinSolver,
     BSplineSolver,
     HMatrixSolver,
     ArrayBlockSolver,
 )
-
-try:
-    from momwire import SinusoidalGalerkinSolver
-except ImportError:  # momwire older than the #182 Galerkin solver
-    SinusoidalGalerkinSolver = None
 
 import argparse
 import logging
@@ -42,16 +38,13 @@ if PyNECEngine is not None:
 
 MOMWIRE_BASES = {
     "sinusoidal": SinusoidalSolver,
+    # Same three-term basis as `sinusoidal`, tested variationally instead of
+    # point-matched (momwire#182).
+    "sinusoidal-galerkin": SinusoidalGalerkinSolver,
     "bspline": BSplineSolver,
     "hmatrix": HMatrixSolver,
     "arrayblock": ArrayBlockSolver,
 }
-if SinusoidalGalerkinSolver is not None:
-    # Same three-term basis as `sinusoidal`, tested variationally instead of
-    # point-matched (momwire#182). Registered conditionally only because the
-    # `momwire==` pin in pyproject.toml still admits a release that predates
-    # the class; make it unconditional at the next momwire bump.
-    MOMWIRE_BASES["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
 
 # Roster variants: a basis name bound to solver kwargs. The one entry is the
 # feed-model axis (issue #640): the plain `sinusoidal-galerkin` keeps NEC's
@@ -63,12 +56,12 @@ if SinusoidalGalerkinSolver is not None:
 # variant exists for plain `sinusoidal`: the point gap has no collocation RHS
 # (momwire#212), and the solver refuses it rather than silently serving the
 # segment gap.
-MOMWIRE_BASIS_VARIANTS = {}
-if SinusoidalGalerkinSolver is not None:
-    MOMWIRE_BASIS_VARIANTS["sinusoidal-galerkin-converged"] = (
+MOMWIRE_BASIS_VARIANTS = {
+    "sinusoidal-galerkin-converged": (
         SinusoidalGalerkinSolver,
         {"feed_model": "point"},
-    )
+    ),
+}
 
 
 def resolve_class(s):
