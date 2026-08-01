@@ -875,13 +875,18 @@ def test_sin_galerkin_curtain_still_needs_the_common_mode_path():
 
 
 def test_catalog_curtain_on_sin_galerkin_refuses_a_ground():
-    """Junction ports over a ground are REFUSED on the sinusoidal-Galerkin
-    solver, not approximated (momwire#182 M5b scoped them out: the node
-    charge's ground IMAGE is still in the kernel). Pinned so that section 5's
-    missing sinusoidal-Galerkin column reads as a scope boundary rather than
-    an untested path -- and so a future momwire that lifts the restriction
-    fails here loudly instead of silently changing what this file covers."""
-    with pytest.raises(NotImplementedError, match="junction_ports over a ground"):
+    """Junction ports over a FINITE ground are REFUSED on the
+    sinusoidal-Galerkin solver, not approximated. momwire#182 M5b scoped all
+    grounds out (the node charge's ground image was still in the kernel);
+    momwire#191 lifted exactly the PEC case (a point charge's PEC image is a
+    point charge), so the boundary this file pins moved once already -- this
+    test fired on that bump, as designed. Finite grounds remain out: the
+    reflection-coefficient and Sommerfeld images of a point charge are not
+    point charges. Pinned so section 5's missing sinusoidal-Galerkin column
+    reads as a scope boundary rather than an untested path -- and so the next
+    momwire that moves the boundary again fails here loudly instead of
+    silently changing what this file covers."""
+    with pytest.raises(NotImplementedError, match="junction_ports over a FINITE"):
         MomwireEngine(
             _catalog_curtain(1),
             solver=__import__("momwire").SinusoidalGalerkinSolver,
