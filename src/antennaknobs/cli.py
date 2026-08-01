@@ -15,6 +15,8 @@ from .engines import PyNECEngine, MomwireEngine
 from .serialize import builder_params_source
 from .fit import MAX_FREE_PARAMS, LineEmbedding, fit, plot_fit
 from .measured import read_measured
+from .touchstone import format_s1p
+from .vna import DRIVERS, VNAError, capture, list_candidate_ports
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
 from momwire import (
@@ -807,6 +809,88 @@ def cli(arguments=None):
         )
         if not args.no_plot:
             plot_fit(result, fn=args.fn)
+
+    p.set_defaults(func=f)
+
+    p = subparsers.add_parser(
+        "capture",
+        help="Capture a sweep from an attached VNA into a .s1p file",
+        description="Sweep a USB-attached analyzer (NanoVNA) and write the "
+        "result as a one-port Touchstone. Feed the file to `sweep --measured` "
+        "to overlay it on a model, or to `fit` to calibrate against it. "
+        "Capture is CLI-only and local: the web server never opens a serial "
+        "port.",
+    )
+    p.add_argument(
+        "--out",
+        default=None,
+        help="Write the .s1p here (default: stdout, so it can be piped).",
+    )
+    p.add_argument("--start", type=float, default=None, help="Sweep start (MHz).")
+    p.add_argument("--stop", type=float, default=None, help="Sweep stop (MHz).")
+    p.add_argument(
+        "--points", type=int, default=101, help="Sweep points (default 101)."
+    )
+    p.add_argument(
+        "--port",
+        default=None,
+        help="Serial device (e.g. /dev/ttyACM0). Default: the only analyzer found.",
+    )
+    p.add_argument(
+        "--driver",
+        default="nanovna",
+        help=f"Analyzer protocol: {' | '.join(sorted(DRIVERS))} (default nanovna).",
+    )
+    p.add_argument("--z0", default=50, type=float, help="Calibration reference (Ω).")
+    p.add_argument(
+        "--list",
+        dest="list_devices",
+        default=False,
+        action="store_true",
+        help="List attached analyzers and exit, without sweeping.",
+    )
+
+    def f(args):
+        if args.list_devices:
+            found = list_candidate_ports()
+            if not found:
+                print("no analyzer found (see `capture --help` for what to check)")
+            for device, desc in found:
+                print(f"{device}\t{desc}")
+            return
+        if args.start is None or args.stop is None:
+            raise SystemExit("capture needs --start and --stop in MHz")
+        try:
+            trace = capture(
+                args.start,
+                args.stop,
+                points=args.points,
+                port=args.port,
+                driver=args.driver,
+                z0=args.z0,
+            )
+        except VNAError as e:
+            # Missing device, busy port, unreadable reply: a plain message, not
+            # a traceback — none of these are bugs in antennaknobs.
+            raise SystemExit(str(e)) from e
+        text = format_s1p(
+            trace.freqs * 1e6,
+            trace.gamma,
+            z0=trace.z0,
+            comments=(
+                f"captured by antennaknobs from a {args.driver}",
+                f"{trace.freqs[0]:g}-{trace.freqs[-1]:g} MHz, {trace.freqs.size} points",
+            ),
+        )
+        if args.out:
+            with open(args.out, "w") as fh:
+                fh.write(text)
+            print(
+                f"wrote {args.out}: {trace.freqs.size} points, "
+                f"{trace.freqs[0]:g}-{trace.freqs[-1]:g} MHz"
+            )
+        else:
+            print(text, end="")
 
     p.set_defaults(func=f)
 

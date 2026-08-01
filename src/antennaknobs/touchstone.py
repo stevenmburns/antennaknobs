@@ -27,7 +27,12 @@ import numpy as np
 
 from .design_data import read_data
 
-__all__ = ["Touchstone", "parse_touchstone", "read_touchstone"]
+__all__ = [
+    "Touchstone",
+    "parse_touchstone",
+    "read_touchstone",
+    "format_s1p",
+]
 
 # Touchstone frequency-unit keywords → multiplier to Hz.
 _FUNIT = {"HZ": 1.0, "KHZ": 1e3, "MHZ": 1e6, "GHZ": 1e9}
@@ -207,6 +212,29 @@ def parse_touchstone(text: str, *, nports: int | None = None) -> Touchstone:
     return Touchstone(
         freqs=freqs[order], params=params[order], ptype=ptype, z0=float(z0)
     )
+
+
+def format_s1p(
+    freqs_hz, s11, *, z0: float = 50.0, comments: tuple[str, ...] = ()
+) -> str:
+    """Render a one-port sweep as Touchstone ``.s1p`` text (MHz, S, RI).
+
+    The writing counterpart of :func:`parse_touchstone`, used by the VNA
+    capture path (issue #597) so a captured sweep becomes an ordinary file that
+    the overlay, ``fit``, and every other Touchstone-reading tool consume — the
+    same format, not a private one. MHz keeps the numbers readable against the
+    rest of antennaknobs; real/imaginary keeps them exact.
+    """
+    import numpy as _np
+
+    f = _np.asarray(freqs_hz, dtype=float)
+    g = _np.asarray(s11, dtype=complex)
+    if f.shape != g.shape:
+        raise ValueError(f"{f.size} frequencies but {g.size} S11 values")
+    lines = [f"! {c}" for c in comments]
+    lines.append(f"# MHZ S RI R {z0:g}")
+    lines += [f"{a / 1e6:.6f} {v.real:+.9f} {v.imag:+.9f}" for a, v in zip(f, g)]
+    return "\n".join(lines) + "\n"
 
 
 def read_touchstone(builder, name: str) -> Touchstone:
