@@ -102,6 +102,26 @@ perturbs a measurement in ways a differential model does not reproduce. A
 usually pointing at something physical (line length, ground, a connector),
 which is the diagnostic value of drawing them together.
 
+### Fitting a model to a measurement
+
+`fit` goes the other way: instead of drawing the measurement next to the model,
+it solves for the model parameters that reproduce it — site ground constants,
+as-built length, feedline electrical length, stray feedpoint reactance.
+
+```bash
+python -m antennaknobs fit --builder dipoles.invvee --measured bench_10m.s1p \
+    --params length_factor angle_deg --npoints 15 --fractions 0.15 --fn fit.png
+```
+
+It prints the fitted values with their shifts, the RMS |ΔΓ| before and after, a
+paste-ready variant block, and warnings when the fit is under-determined or a
+parameter ended pinned at a bound. `--plane station --line RG-213:30.5` moves
+the comparison to the far end of a known feedline for a shack-end sweep.
+
+The full treatment — how to read the residual, why identifiability is the hard
+part, and what a fit does and doesn't prove — is in
+[Calibrating a model against your VNA](/advanced/calibrating/).
+
 ## Choosing an engine
 
 The `--engine` flag selects the solver:

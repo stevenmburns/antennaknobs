@@ -95,6 +95,7 @@ export default defineConfig({
             { label: "Cut for one band, worked on another", slug: "advanced/off-band" },
             { label: "How many segments?", slug: "advanced/convergence" },
             { label: "Antennas on a levee", slug: "advanced/terrain" },
+            { label: "Calibrating against your VNA", slug: "advanced/calibrating" },
           ],
         },
         {
