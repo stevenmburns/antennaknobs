@@ -88,13 +88,9 @@ from momwire import (
     ArrayBlockSolver,
     BSplineSolver,
     HMatrixSolver,
+    SinusoidalGalerkinSolver,
     SinusoidalSolver,
 )
-
-try:
-    from momwire import SinusoidalGalerkinSolver
-except ImportError:  # momwire older than the #182 Galerkin solver
-    SinusoidalGalerkinSolver = None
 
 from .examples import register
 from .examples._base import (
@@ -163,20 +159,13 @@ _MOMWIRE_MODELS = {
     # structure it degrades to one element and matches the dense bspline solve.
     "arrayblock": ArrayBlockSolver,
 }
-if SinusoidalGalerkinSolver is not None:
-    # The same three-term basis as "sinusoidal", tested variationally rather
-    # than point-matched (momwire#182). It is the instrument column, not an
-    # interactive default: no C++ accelerator and no distributed wire loading,
-    # and the fill costs several times the point-matched one. Exposed on the
-    # wire protocol so the CLI/API and the engine-parity tests can select it by
-    # name; the frontend's own `Backend` union deliberately does NOT list it,
-    # so no solver tab appears until it earns one.
-    #
-    # Conditional only because the `momwire==` pin in pyproject.toml still
-    # admits a release predating the class (the wheel-smoke CI job installs
-    # momwire from PyPI, not the submodule). Make it unconditional at the
-    # next momwire release bump.
-    _MOMWIRE_MODELS["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
+# The same three-term basis as "sinusoidal", tested variationally rather
+# than point-matched (momwire#182). Not the interactive default — no C++
+# accelerator and no distributed wire loading, and the fill costs several
+# times the point-matched one — but a first-class backend tab in the
+# frontend, and the one solver carrying the feed-model choice
+# ("NEC-compatible vs converged", issue #640).
+_MOMWIRE_MODELS["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
 
 
 # ---------------------------------------------------------------------------
@@ -1638,11 +1627,11 @@ _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 # lumped charge outside the reaction integral and reproduces the B-spline port
 # network entrywise to 3.4e-5 / 3.9e-6, which is what "widening this tuple"
 # was waiting for. Caveat carried by the solver's own hard error, not by this
-# list: its junction ports are FREE SPACE only (the node-charge image is not
-# removed yet) and reject mixed per-wire radii.
-_JUNCTION_PORT_BACKENDS = ("bspline",) + (
-    ("sinusoidal-galerkin",) if SinusoidalGalerkinSolver is not None else ()
-)
+# list: its junction ports run in free space and over a PEC ground
+# (momwire#191 removed the node-charge PEC image) but refuse FINITE grounds —
+# the reflection-coefficient and Sommerfeld images of a point charge are not
+# point charges — and reject mixed per-wire radii.
+_JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin")
 
 
 @lru_cache(maxsize=None)
