@@ -1,5 +1,9 @@
 # This workflow will install Python dependencies, run tests and lint with a single version of Python
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+#
+# Despite the name (kept as-is so existing required-status-check config keeps
+# matching), this workflow is the whole test suite, not only Python: the
+# `frontend` job at the bottom typechecks and builds the workbench UI.
 
 name: Test Python package
 
@@ -147,3 +151,48 @@ jobs:
         SMOKE=$(pwd)/.github/scripts/wheel_solve_smoke.py
         cd "$(mktemp -d)"
         python "$SMOKE"
+
+  frontend:
+    # Typecheck + build the workbench frontend (issue #615). The bundle is
+    # gitignored and built locally, so before this job a TypeScript error could
+    # sit on main indefinitely — the Python jobs above never touch the frontend.
+    #
+    # A separate job, not a step in `build`: it shares nothing with the Python
+    # lanes (no Python, no submodule, no ccache), it runs in parallel instead of
+    # adding ~1 min to the critical path, and a red X here names the frontend
+    # directly instead of hiding inside a Python job's log.
+    #
+    # No `paths:` filter, deliberately: a filtered-out job reports as "no checks
+    # reported" rather than success, which branch protection cannot distinguish
+    # from "still queueing" (a trap this repo has hit before). The job is ~1 min
+    # with a warm npm cache, so always-run costs less than the ambiguity.
+    #
+    # Scope is the workbench frontend only. The docs site under site/ is a
+    # separate Astro app with its own package.json; it is built and deployed by
+    # deploy-docs.yml on tags and is intentionally NOT built here.
+    name: frontend build + typecheck
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+      # No `submodules:` — the frontend build is pure Node, momwire is irrelevant.
+    - uses: actions/setup-node@v5
+      # Same pinning as publish.yml's frontend step: Node 20 with the built-in
+      # npm cache keyed on the frontend lockfile. Keep the two in sync — publish
+      # builds the very same bundle into the wheel, and a version split there
+      # would mean CI green on a bundle the release never builds.
+      with:
+        node-version: "20"
+        cache: npm
+        cache-dependency-path: src/antennaknobs/web/frontend/package-lock.json
+    - name: Build the React frontend
+      # `npm run build` is `tsc --noEmit && vite build`, so the typecheck gates
+      # the bundle — a type error fails here before Vite runs.
+      #
+      # The output lands in src/antennaknobs/web/static (vite outDir), which is
+      # gitignored. That is fine and expected: nothing downstream consumes it in
+      # this job, the artifact is simply discarded when the runner is torn down.
+      # The release path (publish.yml) is what actually ships the bundle.
+      working-directory: src/antennaknobs/web/frontend
+      run: |
+        npm ci
+        npm run build
