@@ -365,6 +365,10 @@ dashed violet locus against the modeled one. It is the "did my model match
 reality?" view, and the same overlay the CLI draws with
 [`--measured`](/reference/cli/#overlaying-a-vna-measurement).
 
+- **Capture is a local CLI step.** `python -m antennaknobs capture --out
+  bench.s1p --start 27 --stop 30` sweeps an attached NanoVNA into a file you
+  then load here. The server never opens a serial port — its ports are not
+  yours when the backend runs elsewhere.
 - **Your file stays on your machine.** The browser reads it and posts the text
   to be parsed; nothing is stored server-side. That also means it works
   unchanged when the backend runs somewhere else while the VNA is plugged in

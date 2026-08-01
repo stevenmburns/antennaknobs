@@ -61,6 +61,32 @@ Note that knob sweeps in **free space** can be perfectly flat by design —
 translation-invariant knobs like a height `base` only matter over a ground
 (`--ground finite`).
 
+### Capturing from a VNA
+
+`capture` sweeps a USB-attached NanoVNA and writes the `.s1p` the overlay and
+`fit` read:
+
+```bash
+# list what's attached
+python -m antennaknobs capture --list
+# sweep 27-30 MHz and save it
+python -m antennaknobs capture --out bench_10m.s1p --start 27 --stop 30 --points 101
+```
+
+Needs the optional extra: `pip install 'antennaknobs[vna]'` (pyserial). Pass
+`--port /dev/ttyACM0` when more than one analyzer is attached; `--driver` selects
+the protocol (`nanovna` today — the driver registry is the extension point for
+others). Both NanoVNA console dialects are handled: the `scan` command on
+current firmware, falling back to `sweep` + `data 0` on the original. Whatever
+the device measures is what you get — a firmware that caps the sweep at 101
+points reports 101 points rather than being padded out.
+
+Capture is **CLI-only and local by design**. The web workbench never opens a
+serial port: its backend often runs on another machine, where the serial ports
+aren't yours (and on the hosted instance aren't anyone's business). The
+workflow across a remote backend is capture locally, then upload the file in
+the workbench.
+
 ### Overlaying a VNA measurement
 
 `--measured <file.s1p>` draws a **measured** sweep alongside the modeled one —

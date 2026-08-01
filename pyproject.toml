@@ -66,6 +66,15 @@ dependencies = [
 #     can set them (issue #377).
 web = ["fastapi", "uvicorn[standard]", "websockets", "psutil", "threadpoolctl"]
 
+# VNA capture (`antennaknobs capture`, issue #597): pyserial drives the USB
+# serial console of a NanoVNA. Optional because talking to hardware is a
+# capability nothing else in the package needs — the import is lazy, and every
+# other entry point (including the whole web server, which must never open a
+# serial port) works without it. `antennaknobs.vna.list_candidate_ports()`
+# returns empty rather than raising when it is absent, so the CLI's "no device"
+# message covers both causes.
+vna = ["pyserial"]
+
 # Test suite: `pip install -e ".[test]"` makes `pytest` reproducible from a
 # clean clone (the runtime deps in [project] cover the numpy/scipy/matplotlib
 # that the solver tests need).
