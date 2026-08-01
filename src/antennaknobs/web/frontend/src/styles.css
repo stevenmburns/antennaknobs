@@ -83,6 +83,7 @@
   --plot-center-mark: #b6c5d6;
   --plot-spoke: rgba(120, 90, 200, 0.6);
   --plot-feed: #cf7a22;
+  --plot-measured: #7855cd;   /* measured VNA overlay (violet) */
   --plot-lobe-rgb: 207, 122, 34;     /* far-field radiation lobe (orange) */
   --plot-nec-rgb: 47, 95, 176;        /* NEC overlay (blueprint blue) */
   --plot-ground-rgb: 150, 116, 70;    /* ground line (brown) */
@@ -157,6 +158,7 @@
   --plot-center-mark: #5a6170;
   --plot-spoke: rgba(180, 140, 250, 0.7);
   --plot-feed: #ffd166;
+  --plot-measured: #b48cfa;
   --plot-lobe-rgb: 255, 209, 102;
   --plot-nec-rgb: 110, 220, 255;
   --plot-ground-rgb: 140, 110, 70;
@@ -2053,6 +2055,67 @@ input[type=checkbox] {
 .overlay-checkbox input {
   margin: 0;
   cursor: pointer;
+}
+
+/* Measured-overlay file picker + clear (issue #595). Same chip shell as the
+   Smith overlay's checkboxes; the native file input is hidden because its
+   default "Choose file / no file selected" chrome is unstyleable and far too
+   wide for the overlay strip — the label text carries the state instead. */
+.overlay-file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-5);
+  font: var(--text-xs) var(--font-mono);
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 10px var(--shadow);
+}
+
+.overlay-file:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.overlay-file input[type="file"] {
+  display: none;
+}
+
+.overlay-clear {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-3) var(--space-5);
+  font: var(--text-xs) var(--font-mono);
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 2px 10px var(--shadow);
+}
+
+.overlay-clear:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+/* Gear-menu twin (the mobile home for the same control). */
+.gear-menu-file input[type="file"] {
+  display: none;
+}
+
+.gear-menu-button {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
 }
 
 .projection-toggle button {

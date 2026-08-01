@@ -1942,6 +1942,20 @@ type SweepData = {
   feeds_z_im?: number[][];
 };
 
+/** A measured VNA sweep uploaded for the measured-vs-modeled overlay
+ *  (issue #595). Parsed server-side by /measured — the browser never reads
+ *  Touchstone itself, so there is exactly one parser to disagree with.
+ *  Carried as impedance (like every other Z on this chart) so the chart
+ *  re-references it to its own z0; `z0_file` is kept only to report the
+ *  calibration the file declared. */
+type MeasuredData = {
+  label: string;
+  z0_file: number;
+  freqs_mhz: number[];
+  z_re: number[];
+  z_im: number[];
+};
+
 type ConvergeData = {
   n_values: number[];
   z_re: number[];
@@ -3120,6 +3134,11 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
   // convergence on slow geometries) without leaving the Smith view.
   const [sweepEnabled, setSweepEnabled] = useState(true);
   const [convergeEnabled, setConvergeEnabled] = useState(false);
+  // Measured overlay (issue #595): a VNA .s1p the user picks from their own
+  // machine, drawn against the modeled locus. Deliberately client-side state —
+  // the file is posted once to be parsed and is never stored server-side, which
+  // also means the overlay survives nothing but this tab, by design.
+  const [measured, setMeasured] = useState<MeasuredData | null>(null);
   const [converge, setConverge] = useState<ConvergeData | null>(null);
   const [convergeRunning, setConvergeRunning] = useState(false);
   // Far-field norm consistency check: on dwell, recompute the gain norm from
@@ -3615,6 +3634,36 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
       URL.revokeObjectURL(url);
     } catch (e) {
       window.alert(`NEC export failed: ${e}`);
+    }
+  }
+
+  // Load a measured VNA sweep (.s1p) for the measured-vs-modeled overlay.
+  // The file is read in the browser and posted as text: the server owns the
+  // Touchstone parsing (one reader, shared with the CLI), and because the
+  // *file* stays local, this works the same whether the backend is on this
+  // machine or across a tunnel.
+  async function loadMeasured(file: File) {
+    setGearMenuOpen(false);
+    try {
+      const text = await file.text();
+      const resp = await fetch("/measured", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, text }),
+      });
+      if (!resp.ok) {
+        let detail = `Could not read ${file.name} (${resp.status}).`;
+        try {
+          detail = (await resp.json()).detail ?? detail;
+        } catch {
+          /* non-JSON error body — keep the status-based message */
+        }
+        window.alert(detail);
+        return;
+      }
+      setMeasured(await resp.json());
+    } catch (e) {
+      window.alert(`Could not read ${file.name}: ${e}`);
     }
   }
 
@@ -4807,6 +4856,30 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                       />
                       converge sweep
                     </label>
+                    <label
+                      className="gear-menu-check gear-menu-file"
+                      title="Overlay a measured VNA sweep (one-port Touchstone .s1p, e.g. from a NanoVNA) against the modeled locus"
+                    >
+                      <input
+                        type="file"
+                        accept=".s1p,.S1P"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) loadMeasured(f);
+                        }}
+                      />
+                      {measured ? `measured: ${measured.label}` : "measured .s1p\u2026"}
+                    </label>
+                    {measured && (
+                      <button
+                        type="button"
+                        className="gear-menu-check gear-menu-button"
+                        onClick={() => setMeasured(null)}
+                      >
+                        clear measured
+                      </button>
+                    )}
                     <div className="gear-menu-section">azimuth / elevation</div>
                     <label
                       className="gear-menu-check"
@@ -5666,6 +5739,33 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                 />
                 converge sweep
               </label>
+              <label
+                className="overlay-file"
+                title="Overlay a measured VNA sweep (one-port Touchstone .s1p, e.g. from a NanoVNA) against the modeled locus"
+              >
+                <input
+                  type="file"
+                  accept=".s1p,.S1P"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    // Reset the input so re-picking the same file (after a
+                    // re-measure) fires onChange again.
+                    e.target.value = "";
+                    if (f) loadMeasured(f);
+                  }}
+                />
+                {measured ? `measured: ${measured.label}` : "measured .s1p…"}
+              </label>
+              {measured && (
+                <button
+                  type="button"
+                  className="overlay-clear"
+                  title="Remove the measured overlay"
+                  onClick={() => setMeasured(null)}
+                >
+                  clear
+                </button>
+              )}
             </div>
           )}
           {/* On mobile only the Δ readout survives (it's output, not a
@@ -5853,6 +5953,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
             preview={preview}
             sweep={sweep}
             converge={converge}
+            measured={measured}
             pattern={pattern}
             pinnedPatterns={pinnedPatterns}
             measFreqMhz={measFreq}
@@ -5966,6 +6067,7 @@ function DesignSession({ id, active }: { id: number; active: boolean }) {
                   preview={preview}
                   sweep={sweep}
                   converge={converge}
+                  measured={measured}
                   pattern={pattern}
                   pinnedPatterns={[]}
                   measFreqMhz={measFreq}
@@ -6859,6 +6961,7 @@ function ViewPanel({
   preview,
   sweep,
   converge,
+  measured,
   pattern,
   pinnedPatterns,
   measFreqMhz,
@@ -6881,6 +6984,7 @@ function ViewPanel({
   preview: SolveResponse | null;
   sweep: SweepData | null;
   converge: ConvergeData | null;
+  measured: MeasuredData | null;
   pattern: PatternData | null;
   pinnedPatterns: PinnedPattern[];
   measFreqMhz: number;
@@ -6952,6 +7056,7 @@ function ViewPanel({
       size={size}
       sweep={sweep}
       converge={converge}
+      measured={measured}
       measFreqMhz={measFreqMhz}
       running={sweepRunning}
       convergeRunning={convergeRunning}
@@ -7810,6 +7915,7 @@ function SmithChart({
   size,
   sweep,
   converge,
+  measured,
   measFreqMhz,
   running,
   convergeRunning,
@@ -7822,6 +7928,8 @@ function SmithChart({
   size: number;
   sweep: SweepData | null;
   converge: ConvergeData | null;
+  /** Uploaded VNA measurement drawn against the modeled locus (issue #595). */
+  measured: MeasuredData | null;
   measFreqMhz: number;
   running: boolean;
   convergeRunning: boolean;
@@ -7995,6 +8103,79 @@ function SmithChart({
       const txt = `${fLoTxt} → ${fHiTxt} MHz`;
       ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 6);
 
+    }
+
+    // Measured overlay (issue #595): the locus a VNA actually saw, against the
+    // one the model predicts. The measurement arrives as impedance and goes
+    // through the same reflectionCoefficient() as the solved Z, so the file's
+    // own calibration reference is absorbed by the conversion — a 75 Ω
+    // measurement lands correctly on a 50 Ω chart with no special case.
+    if (measured && measured.freqs_mhz.length > 0) {
+      // Clip to the swept band so both loci span the same frequencies (the CLI
+      // overlay applies the same rule). With no sweep on screen there is
+      // nothing to clip against, so the whole measurement is drawn.
+      const mf = measured.freqs_mhz;
+      const swept = sweep && sweep.freqs_mhz.length > 1;
+      const fLo = swept ? sweep!.freqs_mhz[0] : -Infinity;
+      const fHi = swept ? sweep!.freqs_mhz[sweep!.freqs_mhz.length - 1] : Infinity;
+      const idx: number[] = [];
+      for (let i = 0; i < mf.length; i++) {
+        if (mf[i] >= fLo && mf[i] <= fHi) idx.push(i);
+      }
+      const mGamma = (i: number) =>
+        reflectionCoefficient(measured.z_re[i], measured.z_im[i], z0);
+      ctx.font = "10px ui-monospace, monospace";
+      ctx.fillStyle = PC.measured;
+      if (idx.length === 0) {
+        // Disjoint bands. Say so — the user picked a file and would otherwise
+        // see the chart not change at all.
+        const txt = `measured ${mf[0].toFixed(2)}–${mf[mf.length - 1].toFixed(2)} MHz: outside the sweep`;
+        ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 20);
+      } else {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+        ctx.clip();
+        // Dashed, to read as "other source" next to the solid convergence
+        // trail and the scattered sweep dots.
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = PC.measured;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let k = 0; k < idx.length; k++) {
+          const g = mGamma(idx[k]);
+          const px = cx + g.gRe * R;
+          const py = cy - g.gIm * R;
+          if (k === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Endpoint markers matching the sweep trail's grammar: low-frequency
+        // end filled, high-frequency end hollow, so the locus has a direction.
+        for (const [k, filled] of [[0, true], [idx.length - 1, false]] as const) {
+          const g = mGamma(idx[k]);
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = PC.measured;
+          ctx.fillStyle = filled ? PC.measured : `rgba(${PC.bgRgb}, 0.95)`;
+          ctx.beginPath();
+          ctx.arc(cx + g.gRe * R, cy - g.gIm * R, 3, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Label above the sweep's freq-range line, with the span actually
+        // drawn — which is the measurement's own band when it is narrower than
+        // the sweep, and says as much when the file reaches past it.
+        ctx.fillStyle = PC.measured;
+        const dLo = mf[idx[0]].toFixed(2);
+        const dHi = mf[idx[idx.length - 1]].toFixed(2);
+        const partial = idx.length < mf.length ? " (clipped)" : "";
+        const txt = `measured: ${measured.label}  ${dLo} → ${dHi} MHz${partial}`;
+        ctx.fillText(txt, size - 6 - ctx.measureText(txt).width, size - 20);
+      }
     }
 
     if (running) {
@@ -8242,7 +8423,7 @@ function SmithChart({
     // initial false to the real /examples value (true for bowtie /
     // hexbeam_5band) — the user saw only one Z* annotation in the
     // legend because the closure stayed wedged on the single-feed branch.
-  }, [r, x, z0, size, sweep, converge, measFreqMhz, running, convergeRunning, feeds, multiFeed, theme]);
+  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, theme]);
 
   return <canvas ref={canvasRef} className="smith" />;
 }
@@ -8941,6 +9122,9 @@ function plotColors() {
     groundRgb: v("--plot-ground-rgb", "140, 110, 70"),
     envelopeRgb: v("--plot-envelope-rgb", "118, 208, 255"),
     feed: v("--plot-feed", "#ffd166"),
+    // Measured-overlay locus (issue #595). Violet: unused elsewhere on the
+    // Smith chart, so it never reads as another feed.
+    measured: v("--plot-measured", "#b48cfa"),
   };
 }
 

@@ -1606,6 +1606,68 @@ async def export_nec_endpoint(req: dict):
     )
 
 
+# Upload ceilings for the measured overlay (issue #595). A NanoVNA writes
+# 101–1001 points (a few tens of kB); nanovna-saver's segmented sweeps reach a
+# few thousand. The caps are generous multiples of that — they exist so a
+# mis-picked file (a NEC deck, a CSV log, a binary) is refused by size before
+# it is parsed, not to constrain real measurements.
+_MEASURED_MAX_CHARS = 4_000_000
+_MEASURED_MAX_POINTS = 100_000
+
+
+@app.post("/measured")
+async def measured_endpoint(req: dict):
+    """Parse an uploaded one-port Touchstone into a measured overlay trace.
+
+    The file is read *in the browser* and posted here as text: parsing happens
+    server-side so there is exactly one Touchstone reader (issue #593's), not a
+    second one transliterated into TypeScript that could disagree with the CLI
+    about the same file.
+
+    Returns the measurement as impedance versus frequency — the same shape the
+    solve and ``/sweep`` responses carry — so the chart converts it to Γ at
+    whatever reference the chart is showing, and a file calibrated at 75 Ω
+    lands correctly on a 50 Ω chart with no special case.
+
+    Nothing is stored: the trace lives in the client's state, so no
+    user-uploaded file is retained server-side (this endpoint is also the one
+    the hosted instance exposes to arbitrary visitors).
+    """
+    from antennaknobs.measured import parse_measured
+
+    text = req.get("text") or ""
+    name = str(req.get("name") or "measured.s1p")
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(status_code=422, detail="empty measurement file")
+    if len(text) > _MEASURED_MAX_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"measurement file is too large "
+            f"({len(text) // 1024} kB; limit {_MEASURED_MAX_CHARS // 1024} kB)",
+        )
+    label = Path(name).stem or "measured"
+    try:
+        trace = await run_in_threadpool(parse_measured, text, label=label)
+    except ValueError as e:
+        # Bad header, wrong port count, ragged records — the parser's messages
+        # already name the problem; surface them verbatim as a 422.
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    if trace.freqs.size > _MEASURED_MAX_POINTS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"measurement has {trace.freqs.size} points "
+            f"(limit {_MEASURED_MAX_POINTS})",
+        )
+    z = trace.impedance
+    return {
+        "label": trace.label,
+        "z0_file": trace.z0,
+        "freqs_mhz": [float(f) for f in trace.freqs],
+        "z_re": [float(v) for v in z.real],
+        "z_im": [float(v) for v in z.imag],
+    }
+
+
 @app.post("/params_source")
 async def params_source_endpoint(req: dict):
     """Serialise the current knob values to a paste-ready Python params block.
