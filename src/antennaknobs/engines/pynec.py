@@ -28,7 +28,7 @@ from ..network import (
     load_impedance,
     validate_named_wires_referenced,
 )
-from ..network_reduce import C_LIGHT, NetworkReducer
+from ..network_reduce import C_LIGHT, NetworkReducer, poison_singular_sample
 
 _logger = logging.getLogger(__name__)
 
@@ -972,7 +972,14 @@ class PyNECEngine(SimulationEngine):
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for k, f in enumerate(freqs):
                 wl = C_LIGHT / (float(f) * 1e6)
-                zs[k] = self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
+                # One singular sample must not cost the sweep (issue #647).
+                z = poison_singular_sample(
+                    self._reducer.driven_impedance,
+                    self._compute_y_matrix(wl),
+                    wl,
+                    where=f" at {f:.6g} MHz",
+                )
+                zs[k] = np.nan if z is None else z
             return zs
         if freqs.size == 1:
             del_freq = 0.0

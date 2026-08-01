@@ -29,6 +29,7 @@ from __future__ import annotations
 import math
 
 from .builder import C_LIGHT_MHZ_M
+from .network_reduce import SingularNetworkError
 from .network import (
     TL,
     BalancedLine,
@@ -242,7 +243,7 @@ def _guard_open_stub(freq_mhz, length_wl, k1, k2):
     if k1 or k2:
         return
     if abs(math.cos(2.0 * math.pi * length_wl)) < 1e-12:
-        raise ValueError(
+        raise SingularNetworkError(
             f"lossless open stub of {length_wl} λ is an odd multiple of λ/4 at "
             f"f={freq_mhz:.4f} MHz (cos βl ≈ 0); Z_in = 0 shorts the port and "
             "the admittance is singular — pick a different length, or give the "

@@ -27,6 +27,8 @@ constitutive row, so no element value is ever inverted.
 
 from __future__ import annotations
 
+import logging
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -59,6 +61,32 @@ FEET_PER_M = 1.0 / 0.3048
 NEPER_PER_DB = 1.0 / (20.0 / np.log(10.0))  # 1/8.6859: dB → nepers
 
 
+class SingularNetworkError(ValueError):
+    """The network has no finite solution at this frequency (issue #647).
+
+    Raised by the construction-time guards (a lossless k·λ/2 line, whose
+    admittance itself is infinite) and by the solve (a network the branches
+    made singular *as a system* — the classic case being a lossless quarter-
+    wave open stub, whose Z_in = 0 shorts the port it hangs on, with every
+    individual stamp perfectly finite).
+
+    A `ValueError` subclass so the guards that predate it keep their contract;
+    a distinct type so `impedance_sweep` can poison one sample and carry on
+    instead of losing the whole sweep.
+    """
+
+
+# Reciprocal condition number below which the MNA solve is called singular.
+# 1e-12 is the same threshold the stamp-time guards use for |sinh γl| — one
+# policy for "this is a pole, not a stiff problem".
+_logger = logging.getLogger(__name__)
+
+RCOND_SINGULAR = 1e-12
+# Between the two, the answer exists but its leading digits are being eaten by
+# the pole; worth saying so, not worth refusing.
+RCOND_SUSPECT = 1e-9
+
+
 def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, k2=0.0):
     """Ideal-TL nodal admittance between its two terminals — lossless or
     lossy (issue #297).
@@ -88,9 +116,10 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, 
     gl = (alpha + 1j * beta) * length
     sh, ch = np.sinh(gl), np.cosh(gl)
     if abs(sh) < 1e-12:
-        raise ValueError(
+        raise SingularNetworkError(
             f"lossless TL length {length} is ~k·vf·λ/2 at "
-            f"f={f_mhz:.4f} MHz (sinh γl ≈ 0); admittance is singular"
+            f"f={f_mhz:.4f} MHz (sinh γl ≈ 0); admittance is singular — give "
+            "the line the loss it really has (k1/k2, or cable=...)"
         )
     scale = 1.0 / (z0 * sh)
     off = 1.0 if transposed else -1.0
@@ -250,7 +279,7 @@ class MNASystem:
     impedance is ``v_k / j[column] + z_chain``.
     """
 
-    def __init__(self, G, elements, terminations, probes=None):
+    def __init__(self, G, elements, terminations, probes=None, diagnose=None):
         n = G.shape[0]
         m = len(elements)
         A = np.zeros((n + m, n + m), dtype=np.complex128)
@@ -279,6 +308,10 @@ class MNASystem:
         # kind "group2" → payload element index; kind "termination" →
         # payload node index (dissipation = the Load part of the branch).
         self.probes = probes or []
+        # Called only when the solve goes singular, to name the branch that
+        # did it (issue #647). A closure rather than stored state: the walk
+        # costs nothing on the happy path, which is every path but one.
+        self.diagnose = diagnose
         self._solution = None
 
     def branch_power(self, label_kind_payload):
@@ -322,11 +355,75 @@ class MNASystem:
         return 0.5 * float(np.real((e - v[payload]) * np.conj(j[col])))
 
     def solve(self):
-        """Solve once (cached); returns ``(v, j)``."""
+        """Solve once (cached); returns ``(v, j)``.
+
+        Uses LAPACK's expert driver rather than a bare ``np.linalg.solve``,
+        because the failure this guards against is usually not an exception
+        (issue #647). A lossless quarter-wave open stub puts a dead short
+        across its port: exactly on the pole the system is singular, but a few
+        kHz off it is merely *nearly* singular, and a plain solve answers with
+        enormous, meaningless numbers and no complaint at all.
+
+        The subtlety is that a raw condition number is useless here. An MNA
+        matrix mixes admittance rows with unit-valued constitutive rows, so a
+        perfectly healthy network routinely spans twenty-plus orders of
+        magnitude and "looks" singular to any unscaled estimate — the shipping
+        `arrays.bowtie1x2_bl` reports 1e-16 that way while solving fine.
+        ``zgesvx`` equilibrates first (``fact="E"``) and reports the condition
+        of the *scaled* system, which is the number that means rank-deficient
+        rather than badly-scaled: across every catalog design with a network,
+        the worst healthy value measured is 2.4e-7, five orders above the
+        threshold below.
+        """
         if self._solution is None:
-            x = np.linalg.solve(self.A, self.rhs)
+            from scipy.linalg.lapack import zgesvx
+
+            with warnings.catch_warnings():
+                # An exactly-singular factorization warns; we are about to
+                # raise a message that actually explains it.
+                warnings.simplefilter("ignore")
+                out = zgesvx(self.A, self.rhs.reshape(-1, 1))
+            x, rcond, info = out[7], float(out[8]), int(out[11])
+            n = self.A.shape[0]
+            if (0 < info <= n) or not np.isfinite(rcond) or rcond < RCOND_SINGULAR:
+                detail = self.diagnose() if self.diagnose is not None else ""
+                raise SingularNetworkError(
+                    "the network has no finite solution at this frequency "
+                    f"(reciprocal condition {rcond:.2e} after equilibration). "
+                    "Every branch stamped fine on its own — the singularity is "
+                    "in the assembled system." + (f"\n{detail}" if detail else "")
+                )
+            if rcond < RCOND_SUSPECT:
+                _logger.warning(
+                    "MNA solve is nearly singular (reciprocal condition %.2e): "
+                    "the impedance is dominated by proximity to a pole and its "
+                    "leading digits are unreliable.%s",
+                    rcond,
+                    ("\n" + self.diagnose()) if self.diagnose is not None else "",
+                )
+            x = np.asarray(x).reshape(-1)
             self._solution = (x[: self.n_nodes], x[self.n_nodes :])
         return self._solution
+
+
+def poison_singular_sample(fn, *args, where="", **kwargs):
+    """Run a per-frequency reduction, returning NaNs if it is singular (#647).
+
+    A sweep is a series of independent questions, and one of them landing
+    exactly on a lossless line's pole is no reason to lose the answers to the
+    other forty. The bad sample becomes NaN — which the web adapter already
+    converts to its ``Z_OPEN_OHMS`` JSON sentinel, and which every plotting
+    path already skips — and the reason is logged once, with the same
+    attribution a single-point solve would have raised.
+
+    Deliberately NOT applied to a single-point ``impedance()``: someone who
+    asked about one frequency should get the message, not a silent NaN.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except SingularNetworkError as e:
+        _logger.warning("singular network%s — this sample is NaN.\n%s", where, e)
+        return None
 
 
 class NetworkReducer:
@@ -391,6 +488,107 @@ class NetworkReducer:
     @property
     def n_driven(self):
         return len(self.driven_port_idx)
+
+    def _open_ended_nodes(self):
+        """Node indices that only one branch terminal touches.
+
+        An open stub is spelled as the *absence* of a termination — a `TL`
+        into a private node nothing else uses (see ``station.shunt_open_stub``)
+        — so "TL with a dangling far end" is how an open stub is recognised
+        here, and the same walk finds any accidentally-unterminated line.
+        """
+        degree = {}
+        for br in self.network.branches:
+            for name in getattr(br, "__dataclass_fields__", {}):
+                if name in ("a", "b", "c", "a1", "a2", "b1", "b2", "port", "line"):
+                    node = getattr(br, name, None)
+                    if isinstance(node, str) and node in self.port_to_idx:
+                        idx = self.port_to_idx[node]
+                        degree[idx] = degree.get(idx, 0) + 1
+        # A real feed node is never "open" however few branches touch it: the
+        # antenna's own dense Y ties it to every other feed. Only a virtual
+        # node can dangle, so real ports and driven ports are excluded.
+        real = {
+            self.port_to_idx[name]
+            for name, port in self.network.ports.items()
+            if isinstance(port, PortOnWire) and name in self.port_to_idx
+        }
+        driven = set(self.driven_port_idx)
+        return {
+            idx
+            for idx, deg in degree.items()
+            if deg == 1 and idx not in driven and idx not in real
+        }
+
+    def _singularity_report(self, wavelength):
+        """Which branch drove the system singular at this wavelength (#647).
+
+        Attribution rather than a bare "matrix is singular": a lossless line
+        is singular at a *specific* electrical length, so the walk asks each
+        lossless line how close it sits to its own pole — k·λ/2 for a line
+        between two live nodes (no finite admittance), odd λ/4 for one hanging
+        open (Z_in = 0, a dead short across the port it hangs on). Anything
+        with real loss is skipped, because loss is exactly what regularises
+        both, and that is also the remedy the message recommends.
+        """
+        f_mhz = C_LIGHT / wavelength / 1e6
+        open_nodes = self._open_ended_nodes()
+        suspects = []
+        for br, path in zip(
+            self.network.branches,
+            self.network.branch_paths or [""] * len(self.network.branches),
+        ):
+            if isinstance(br, TL):
+                z0, vf, k1, k2 = br.z0, br.vf, br.k1, br.k2
+                ends = (br.a, br.b)
+            elif isinstance(br, BalancedLine):
+                z0, vf, k1, k2 = br.zdiff, br.vf, br.k1, br.k2
+                ends = (br.a1, br.b1)
+            else:
+                continue
+            if k1 or k2:
+                continue  # a lossy line has no pole to sit on
+            wl_line = wavelength * vf
+            n_half = br.length / (0.5 * wl_line)  # length in half-wavelengths
+            hanging = any(
+                self.port_to_idx.get(e) in open_nodes
+                for e in ends
+                if isinstance(e, str)
+            )
+            name = f"{path[:-1]}: " if path else ""
+            if hanging:
+                # Odd quarter-waves: n_half at an odd multiple of 0.5.
+                off = abs(n_half % 1.0 - 0.5)
+                if off < 0.02:
+                    suspects.append(
+                        f"  {name}open-ended line {'→'.join(str(e) for e in ends)} "
+                        f"is {n_half / 2:.4f} λ at {f_mhz:.4f} MHz — an odd "
+                        "multiple of λ/4, where an open stub's Z_in = 0 shorts "
+                        f"the port it hangs on (z0 = {z0:g} Ω)"
+                    )
+            else:
+                off = min(n_half % 1.0, 1.0 - n_half % 1.0)
+                if off < 0.02:
+                    suspects.append(
+                        f"  {name}line {'→'.join(str(e) for e in ends)} is "
+                        f"{n_half / 2:.4f} λ at {f_mhz:.4f} MHz — a multiple of "
+                        f"λ/2, where a lossless line has no finite admittance "
+                        f"(z0 = {z0:g} Ω)"
+                    )
+        if not suspects:
+            return (
+                "No lossless line sits on a pole at this frequency, so the "
+                "cause is elsewhere in the topology — a node reachable only "
+                "through open-circuited branches, or two ideal sources in "
+                "contradiction."
+            )
+        return (
+            "Suspect:\n"
+            + "\n".join(suspects)
+            + "\nGive the line the loss it really has (k1/k2, or cable=...): "
+            "any real attenuation moves the pole off the real axis and the "
+            "solve becomes well-posed."
+        )
 
     def apply_branches(self, Y_real, wavelength):
         """Stamp the antenna Y and every network branch into one MNA system.
@@ -752,7 +950,13 @@ class NetworkReducer:
                 names = [br.port for br in loads]
                 probes.append((f"Load {'+'.join(names)}", "termination", k))
 
-        return MNASystem(G, elements, terminations, probes=probes)
+        return MNASystem(
+            G,
+            elements,
+            terminations,
+            probes=probes,
+            diagnose=lambda wl=wavelength: self._singularity_report(wl),
+        )
 
     def _physical_port_voltages(self, v):
         """Node voltages -> PHYSICAL port voltages. They differ only for a

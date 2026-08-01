@@ -253,6 +253,44 @@ Boxes are ordinary values made by ordinary functions, so a design can
 also define its own — a measured, calibrated component wrapped once and
 reused across variants.
 
+### When a lossless line has no answer
+
+An *ideal* line has frequencies where the circuit genuinely has no finite
+solution. A lossless half-wave line has no finite admittance at all; a lossless
+quarter-wave **open** stub is a dead short across the port it hangs on. These
+are not numerical accidents — they are what the idealisation says, and the fix
+is physical: give the line the loss it really has (`k1`/`k2`, or `cable="..."`).
+Any real attenuation moves the pole off the real axis.
+
+Two places this shows up:
+
+- **At construction**, when the length and design frequency make it decidable —
+  `shunt_open_stub` at exactly λ/4 refuses to be built.
+- **Mid-sweep**, when a length that was innocuous at its design frequency
+  becomes λ/4 or λ/2 somewhere else in the swept band. Nothing is decidable in
+  advance there, and no individual element is singular — each stamp is finite
+  and the *assembled system* is not. The reducer detects it, names the branch
+  and its electrical length, and repeats the remedy:
+
+  ```
+  SingularNetworkError: the network has no finite solution at this frequency
+  (reciprocal condition 7.6e-16 after equilibration). Every branch stamped fine
+  on its own — the singularity is in the assembled system.
+  Suspect:
+    stub: open-ended line feed→stub.far is 0.2500 λ at 35.0000 MHz — an odd
+    multiple of λ/4, where an open stub's Z_in = 0 shorts the port it hangs on
+  ```
+
+A **sweep** loses only that sample: the frequency in question comes back as
+NaN (the workbench renders it as an open) with the reason logged, and every
+other frequency answers normally. A single-point solve raises, because someone
+who asked about one frequency should get the sentence, not a silent NaN.
+
+The near-miss is the sneaky case and gets the same treatment: a sample a few
+kHz off the pole is not singular, merely dominated by it, and produces
+enormous numbers whose leading digits are noise. That logs a warning rather
+than refusing — the answer exists, it just should not be believed.
+
 ## The power budget: where the watts go
 
 Because every branch current is an explicit unknown in the circuit

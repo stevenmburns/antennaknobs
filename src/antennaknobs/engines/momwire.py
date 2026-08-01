@@ -20,7 +20,11 @@ from ..network import (
     validate_named_wires_referenced,
 )
 from ..terrain import Terrain, specular_cut
-from ..network_reduce import NetworkReducer, tl_admittance_2x2
+from ..network_reduce import (
+    NetworkReducer,
+    poison_singular_sample,
+    tl_admittance_2x2,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -751,6 +755,12 @@ class MomwireEngine(SimulationEngine):
         z_arr = np.atleast_1d(z)
         return [complex(zi) for zi in z_arr]
 
+    def _reduce_at(self, y_real, wavelength):
+        """One frequency's branch stamp + driven-port reduction."""
+        return self._reducer.impedance_from_y(
+            self._reducer.apply_branches(y_real, wavelength)
+        )
+
     def impedance_sweep(self, freqs):
         freqs = np.asarray(freqs, dtype=float)
         if freqs.ndim != 1 or freqs.size == 0:
@@ -763,10 +773,15 @@ class MomwireEngine(SimulationEngine):
             )  # (n_k, n_real, n_real) at port granularity
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for ki, freq in enumerate(freqs):
-                Y_total = self._reducer.apply_branches(
-                    Y_swept[ki], self._wavelength_for(freq)
+                # A lossless line can sit on its pole at ONE sample of a sweep
+                # (issue #647); poison that sample rather than the sweep.
+                z = poison_singular_sample(
+                    self._reduce_at,
+                    Y_swept[ki],
+                    self._wavelength_for(freq),
+                    where=f" at {freq:.6g} MHz",
                 )
-                zs[ki] = self._reducer.impedance_from_y(Y_total)
+                zs[ki] = np.nan if z is None else z
             return zs
         if self._tls:
             # Batched Y at every frequency, then per-k TL stamping (βL is

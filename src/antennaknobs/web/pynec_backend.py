@@ -21,6 +21,7 @@ except ImportError:
     HAVE_PYNEC = False
     nec = None
 
+from ..network_reduce import SingularNetworkError
 from .examples import REGISTRY as EXAMPLES
 
 
@@ -172,7 +173,16 @@ def _sweep_at(req: dict, freq_mhz: float) -> complex:
     """
     req2 = dict(req)
     req2["measurement_freq_mhz"] = freq_mhz
-    res = solve(req2)
+    try:
+        res = solve(req2)
+    except SingularNetworkError:
+        # One frequency landing on a lossless line's pole (issue #647) must
+        # not break the stream; the sentinel is what the momwire path's
+        # non-finite samples already clamp to. Imported here, not at module
+        # scope: adapter imports the examples registry, which imports this.
+        from .adapter import Z_OPEN_OHMS
+
+        return complex(Z_OPEN_OHMS, 0.0)
     return complex(res["z_in_re"], res["z_in_im"])
 
 
@@ -186,7 +196,12 @@ def _sweep_at_multifeed(req: dict, freq_mhz: float):
     """
     req2 = dict(req)
     req2["measurement_freq_mhz"] = freq_mhz
-    res = solve(req2)
+    try:
+        res = solve(req2)
+    except SingularNetworkError:  # see _sweep_at
+        from .adapter import Z_OPEN_OHMS
+
+        return complex(Z_OPEN_OHMS, 0.0), []
     primary = complex(res["z_in_re"], res["z_in_im"])
     feeds_z = [complex(f["z_re"], f["z_im"]) for f in res.get("feeds", [])]
     return primary, feeds_z
