@@ -6,13 +6,19 @@
 import { describe, it, expect } from "vitest";
 import {
   applyVisibility,
+  defaultKnobOpt,
   familyOf,
   familyRank,
+  FAMILY_LABELS,
   FAMILY_ORDER,
   findLinkedDesignFreq,
+  groupExamplesForPicker,
   isGroup,
+  linkedMeasFreqFor,
   matchesQuery,
+  overlaySchemaForVariant,
   seedDefaults,
+  setValueAtPath,
   snapForExample,
   type BandSpec,
   type ExampleDescriptor,
@@ -384,5 +390,280 @@ describe("familyRank", () => {
   it("sorts an unknown family after every known one", () => {
     expect(familyRank("mystery")).toBe(FAMILY_ORDER.length);
     expect(familyRank("mystery")).toBeGreaterThan(familyRank(FAMILY_ORDER[FAMILY_ORDER.length - 1]));
+  });
+});
+
+// --- setValueAtPath -----------------------------------------------------
+// Issue #642 PR 5b-1: extracted verbatim from DesignSession's setParamAtPath
+// local `setIn` closure.
+
+describe("setValueAtPath", () => {
+  it("sets a top-level scalar path immutably", () => {
+    const node = { a: 1, b: 2 };
+    const out = setValueAtPath(node, ["a"], 5) as Record<string, unknown>;
+    expect(out).toEqual({ a: 5, b: 2 });
+    expect(node).toEqual({ a: 1, b: 2 }); // original untouched
+    expect(out).not.toBe(node);
+  });
+
+  it("returns `value` directly for an empty path", () => {
+    expect(setValueAtPath({ a: 1 }, [], 42)).toBe(42);
+  });
+
+  it("sets a nested group-array leaf (['bands', 2, 'freq']) immutably at every level", () => {
+    const inst0 = { freq: 1 };
+    const inst1 = { freq: 2 };
+    const inst2 = { freq: 3 };
+    const node = { bands: [inst0, inst1, inst2] };
+    const out = setValueAtPath(node, ["bands", 2, "freq"], 99) as {
+      bands: { freq: number }[];
+    };
+    expect(out.bands[2]).toEqual({ freq: 99 });
+    // Untouched sibling instances keep their original object identity —
+    // only the path actually walked gets cloned.
+    expect(out.bands[0]).toBe(inst0);
+    expect(out.bands[1]).toBe(inst1);
+    // Original tree is fully unmutated at every level (array + object).
+    expect(node.bands[2]).toEqual({ freq: 3 });
+    expect(node.bands).not.toBe(out.bands);
+    expect(node).not.toBe(out);
+  });
+
+  it("clones the array via slice when indexing into it (no in-place mutation)", () => {
+    const arr = [1, 2, 3];
+    const node = { xs: arr };
+    const out = setValueAtPath(node, ["xs", 1], 20) as { xs: number[] };
+    expect(out.xs).toEqual([1, 20, 3]);
+    expect(arr).toEqual([1, 2, 3]); // original array untouched
+    expect(out.xs).not.toBe(arr);
+  });
+
+  it("builds a fresh array from an undefined node when the path starts with a numeric index", () => {
+    const out = setValueAtPath(undefined, [0, "freq"], 14.1) as { freq: number }[];
+    expect(out).toEqual([{ freq: 14.1 }]);
+  });
+});
+
+// --- linkedMeasFreqFor -----------------------------------------------------
+
+describe("linkedMeasFreqFor", () => {
+  const groupSchema = makeGroup({
+    name: "bands",
+    max_repeats: 2,
+    params: [makeParam({ name: "freq", kind: "float", default: 14.1 })],
+    default_overrides: [{}, {}],
+    link_meas_freq_to_param: "freq",
+  });
+  const flatSchema = makeParam({
+    name: "freq_02",
+    kind: "float",
+    link_meas_freq_to_param: "freq_02",
+  });
+
+  it("returns null when the example is undefined", () => {
+    expect(linkedMeasFreqFor(undefined, ["freq_02"], {})).toBeNull();
+  });
+
+  it("resolves a flat-scalar link (path length 1)", () => {
+    const ex = makeExample({ param_schema: [flatSchema] });
+    const newRoot: ParamValueBag = { freq_02: 21.2 };
+    expect(linkedMeasFreqFor(ex, ["freq_02"], newRoot)).toBe(21.2);
+  });
+
+  it("returns null for a flat scalar with no link_meas_freq_to_param declared", () => {
+    const unlinked = makeParam({ name: "angle_deg" });
+    const ex = makeExample({ param_schema: [unlinked] });
+    expect(linkedMeasFreqFor(ex, ["angle_deg"], { angle_deg: 30 })).toBeNull();
+  });
+
+  it("returns null when the flat-scalar linked value is non-numeric", () => {
+    const ex = makeExample({ param_schema: [flatSchema] });
+    const newRoot: ParamValueBag = { freq_02: "n/a" };
+    expect(linkedMeasFreqFor(ex, ["freq_02"], newRoot)).toBeNull();
+  });
+
+  it("resolves a group-leaf link (path = [groupName, instanceIdx, leafName])", () => {
+    const ex = makeExample({ param_schema: [groupSchema] });
+    const newRoot: ParamValueBag = {
+      bands: [{ freq: 7.1 }, { freq: 21.2 }],
+    };
+    expect(linkedMeasFreqFor(ex, ["bands", 1, "freq"], newRoot)).toBe(21.2);
+  });
+
+  it("returns null when the group-leaf linked value is non-numeric", () => {
+    const ex = makeExample({ param_schema: [groupSchema] });
+    const newRoot: ParamValueBag = { bands: [{ freq: "n/a" }] };
+    expect(linkedMeasFreqFor(ex, ["bands", 0, "freq"], newRoot)).toBeNull();
+  });
+
+  it("returns null for a group with no link_meas_freq_to_param declared", () => {
+    const unlinkedGroup = makeGroup({
+      name: "bands",
+      params: [makeParam({ name: "freq" })],
+    });
+    const ex = makeExample({ param_schema: [unlinkedGroup] });
+    const newRoot: ParamValueBag = { bands: [{ freq: 7.1 }] };
+    expect(linkedMeasFreqFor(ex, ["bands", 0, "freq"], newRoot)).toBeNull();
+  });
+
+  it("returns null when path.length is 2 (too short for the group-leaf shape)", () => {
+    const ex = makeExample({ param_schema: [groupSchema] });
+    expect(linkedMeasFreqFor(ex, ["bands", 0], { bands: [{ freq: 1 }] })).toBeNull();
+  });
+
+  it("returns null when the group instance index is out of range", () => {
+    const ex = makeExample({ param_schema: [groupSchema] });
+    const newRoot: ParamValueBag = { bands: [{ freq: 7.1 }] };
+    expect(linkedMeasFreqFor(ex, ["bands", 5, "freq"], newRoot)).toBeNull();
+  });
+
+  it("returns null when the group's current value isn't an array", () => {
+    const ex = makeExample({ param_schema: [groupSchema] });
+    const newRoot: ParamValueBag = { bands: "oops" };
+    expect(linkedMeasFreqFor(ex, ["bands", 0, "freq"], newRoot)).toBeNull();
+  });
+});
+
+// --- overlaySchemaForVariant -----------------------------------------------------
+
+describe("overlaySchemaForVariant", () => {
+  it("returns [] when the example is undefined", () => {
+    expect(overlaySchemaForVariant(undefined, "default")).toEqual([]);
+  });
+
+  it("passes the schema through unchanged (same reference) when the variant has no variant_ui entry", () => {
+    const schema: SchemaItem[] = [makeParam({ name: "angle_deg" })];
+    const ex = makeExample({ param_schema: schema });
+    expect(overlaySchemaForVariant(ex, "default")).toBe(schema);
+  });
+
+  it("overlays a per-param override onto the matching scalar", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "length_factor", min: 0.5, max: 1.5 }),
+    ];
+    const ex = makeExample({
+      param_schema: schema,
+      variant_ui: {
+        longwire: { params: { length_factor: { min: 1, max: 4 } } },
+      },
+    });
+    const out = overlaySchemaForVariant(ex, "longwire");
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ name: "length_factor", min: 1, max: 4 });
+  });
+
+  it("hides a param the variant marks hidden, but leaves groups untouched (same reference)", () => {
+    const group = makeGroup({ name: "bands" });
+    const schema: SchemaItem[] = [makeParam({ name: "angle_deg" }), group];
+    const ex = makeExample({
+      param_schema: schema,
+      variant_ui: {
+        dipole: { params: { angle_deg: { hidden: true } } },
+      },
+    });
+    const out = overlaySchemaForVariant(ex, "dipole");
+    expect(out).toHaveLength(1);
+    expect(out[0]).toBe(group);
+  });
+
+  it("falls back to the base schema (same reference) for a variant absent from variant_ui", () => {
+    const schema: SchemaItem[] = [makeParam({ name: "angle_deg" })];
+    const ex = makeExample({
+      param_schema: schema,
+      variant_ui: { longwire: { params: {} } },
+    });
+    expect(overlaySchemaForVariant(ex, "default")).toBe(schema);
+  });
+});
+
+// --- groupExamplesForPicker -----------------------------------------------------
+
+describe("groupExamplesForPicker", () => {
+  const dipole = makeExample({ name: "dipoles.invvee", label: "Inverted Vee" });
+  const yagi = makeExample({ name: "beams.yagi", label: "Yagi-Uda Beam" });
+  const quad = makeExample({ name: "loops.quad", label: "Cubical Quad" });
+  const examples = [dipole, yagi, quad];
+
+  it("keeps the selected example visible even when the query matches nothing else", () => {
+    const groups = groupExamplesForPicker(examples, "dipoles.invvee", "zzzznomatch");
+    const names = groups.flatMap((g) => g.items.map((i) => i.name));
+    expect(names).toEqual(["dipoles.invvee"]);
+  });
+
+  it("groups by family and orders groups by familyRank (dipoles, then loops, then beams)", () => {
+    const groups = groupExamplesForPicker(examples, "", "");
+    expect(groups.map((g) => g.fam)).toEqual(["dipoles", "loops", "beams"]);
+    expect(groups.map((g) => g.label)).toEqual([
+      FAMILY_LABELS.dipoles,
+      FAMILY_LABELS.loops,
+      FAMILY_LABELS.beams,
+    ]);
+  });
+
+  it("sorts items within a family by label", () => {
+    const dipoleZ = makeExample({ name: "dipoles.zepp", label: "AAA Zepp" });
+    const groups = groupExamplesForPicker([dipole, dipoleZ], "", "");
+    expect(groups[0].items.map((i) => i.label)).toEqual(["AAA Zepp", "Inverted Vee"]);
+  });
+
+  it("filters non-selected examples by matchesQuery", () => {
+    const groups = groupExamplesForPicker(examples, "dipoles.invvee", "yagi");
+    const names = groups.flatMap((g) => g.items.map((i) => i.name)).sort();
+    expect(names).toEqual(["beams.yagi", "dipoles.invvee"]);
+  });
+});
+
+// --- defaultKnobOpt -----------------------------------------------------
+
+describe("defaultKnobOpt", () => {
+  it("seeds vary:false and mirrors the schema's min/max/step", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "length_factor", min: 0.5, max: 2, step: 0.01 }),
+    ];
+    expect(defaultKnobOpt(schema, "length_factor")).toEqual({
+      vary: false,
+      optMin: 0.5,
+      optMax: 2,
+      dispMin: 0.5,
+      dispMax: 2,
+      step: 0.01,
+    });
+  });
+
+  it("falls back to 0/1/0.001 when the param name isn't in the schema", () => {
+    expect(defaultKnobOpt([], "missing")).toEqual({
+      vary: false,
+      optMin: 0,
+      optMax: 1,
+      dispMin: 0,
+      dispMax: 1,
+      step: 0.001,
+    });
+  });
+
+  it("falls back to 0/1/0.001 when the matched param's min/max/step are null", () => {
+    const schema: SchemaItem[] = [
+      makeParam({ name: "n_directors", min: null, max: null, step: null }),
+    ];
+    expect(defaultKnobOpt(schema, "n_directors")).toEqual({
+      vary: false,
+      optMin: 0,
+      optMax: 1,
+      dispMin: 0,
+      dispMax: 1,
+      step: 0.001,
+    });
+  });
+
+  it("does not match a group with the same name (only scalar leaves are eligible)", () => {
+    const group = makeGroup({ name: "length_factor" });
+    expect(defaultKnobOpt([group], "length_factor")).toEqual({
+      vary: false,
+      optMin: 0,
+      optMax: 1,
+      dispMin: 0,
+      dispMax: 1,
+      step: 0.001,
+    });
   });
 });
