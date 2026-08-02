@@ -102,6 +102,7 @@
 | src/antennaknobs/designs/verticals/raised\_vertical.py            |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/rectangle.py                   |       24 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/right\_angle\_delta.py         |       25 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/stub\_matched\_vertical.py     |       12 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/tri\_moxon.py                  |       41 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/vertical.py                    |       19 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/\_\_init\_\_.py                     |        0 |        0 |    100% |           |
@@ -157,7 +158,7 @@
 | src/antennaknobs/web/pynec\_backend.py                            |       92 |       38 |     59% |20-22, 73-91, 118, 129-132, 178-185, 197-207, 214-219 |
 | src/antennaknobs/web/server.py                                    |      875 |       92 |     89% |71-73, 141-145, 276-277, 344, 590-592, 597, 689, 744, 847-850, 1027, 1110, 1128-1130, 1193, 1201-1204, 1223-1235, 1238, 1263, 1278-1291, 1339-1341, 1389, 1403, 1432-1433, 1457-1458, 1490, 1570-1577, 1589-1602, 1656, 1684, 1687-1688, 1721-1722, 1753, 1771-1774, 1790, 1823, 1826, 1834, 1861-1862, 2089, 2175, 2202, 2204, 2208-2209, 2222, 2233, 2237, 2289-2290, 2309 |
 | src/antennaknobs/web/user\_designs.py                             |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| **TOTAL**                                                         | **10706** |  **570** | **95%** |           |
+| **TOTAL**                                                         | **10718** |  **570** | **95%** |           |
 
 
 ## Setup coverage badge
