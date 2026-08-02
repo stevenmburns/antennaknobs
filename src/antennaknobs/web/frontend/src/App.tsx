@@ -48,6 +48,7 @@ import {
   snapForExample,
   type BandSpec,
   type ExampleDescriptor,
+  type KnobOpt,
   type ParamValueBag,
   type SchemaItem,
   type SchemaParamGroupSpec,
@@ -70,7 +71,10 @@ import type {
 } from "./lib/api";
 import { BackendConfigModal } from "./components/backend/BackendConfigModal";
 import { KnobMenuNumber, NumberField } from "./components/backend/fields";
-import { AwaitingTrustPanel } from "./components/AwaitingTrustPanel";
+import {
+  AwaitingTrustPanel,
+  type DesignLoadError,
+} from "./components/AwaitingTrustPanel";
 import { BandDropdown } from "./components/params/BandDropdown";
 import { GeometryCombobox } from "./components/params/GeometryCombobox";
 import { Knob } from "./components/params/Knob";
@@ -83,7 +87,11 @@ import {
   type CutsWsMessage,
 } from "./components/charts/cuts";
 import { GHOST_COLOR_COUNT } from "./components/charts/palette";
-import type { PatternMetrics, PinnedPattern } from "./components/charts/types";
+import type {
+  PatternData,
+  PatternMetrics,
+  PinnedPattern,
+} from "./components/charts/types";
 import {
   ThemeContext,
   type Theme,
@@ -96,34 +104,12 @@ import { PatternCompareTable } from "./components/results/PatternCompareTable";
 import { SolveReadout } from "./components/results/SolveReadout";
 import { ViewPanel } from "./components/results/ViewPanel";
 
-// One advisory finding from the design screener (what a design does that a
-// typical one doesn't), attached to a trust-required entry.
-export type DesignAdvisory = { severity: string; message: string; line: number };
-
-// A user design reported by GET /examples that didn't register. Either a real
-// load error (bad Python), or — when `trust_required` — a design that loaded
-// fine but hasn't been trusted to run yet, carrying its screener `advisory`.
-export type DesignLoadError = {
-  name: string;
-  file: string;
-  message: string;
-  trust_required?: boolean;
-  advisory?: DesignAdvisory[];
-};
-
 // Log-spaced segments-per-wire ladder for the convergence sweep. Hentenna's
 // 8N+2 total segments at N=68 puts the dense LU at a ~550-cell matrix —
 // still snappy at this N range on all backends, but enough span to see
 // O(1/N) trajectories clearly. Same ladder across backends so the curves
 // are directly comparable when the user switches slots.
 const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
-
-export type PatternData = {
-  theta_deg: number[];
-  phi_deg: number[];
-  gain_dbi: number[][];
-  measurement_freq_mhz: number;
-};
 
 // Match the page's scheme: a wss:// upgrade is required on HTTPS pages (e.g. the
 // deployed site behind Fly's force_https), where browsers block insecure ws://
@@ -325,20 +311,6 @@ const OPT_OBJECTIVE_LABELS: Record<OptObjective, string> = {
 };
 // The two objectives offered in the compact control next to meas-freq.
 const OPT_OBJECTIVES: OptObjective[] = ["swr", "resonance"];
-
-// Per-knob optimisation settings (per geometry, per param name). `vary` marks
-// the knob as a free variable the optimiser may change; opt extents bound the
-// search; display extents are the knob's own slider range; step is the manual
-// turn granularity (the optimiser itself is continuous). Absent for a knob =
-// schema defaults.
-export type KnobOpt = {
-  vary: boolean;
-  optMin: number;
-  optMax: number;
-  dispMin: number;
-  dispMax: number;
-  step: number;
-};
 
 // Why the optimizer auto-paused, for the transient cue. `knob` = the user grabbed
 // a marked knob by hand; `load` = a new design/variant was loaded (its marks and

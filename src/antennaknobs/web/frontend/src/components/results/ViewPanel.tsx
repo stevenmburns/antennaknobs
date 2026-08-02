@@ -1,10 +1,9 @@
-import type { PatternData } from "../../App";
 import type { ConvergeData, MeasuredData, SolveResponse, SweepData } from "../../lib/api";
 import type { Projection, View } from "../../lib/view";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
-import type { PinnedPattern } from "../charts/types";
+import type { PatternData, PinnedPattern } from "../charts/types";
 
 export function ViewPanel({
   view,

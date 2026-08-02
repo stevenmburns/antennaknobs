@@ -333,6 +333,20 @@ export function snapForExample(
   };
 }
 
+// Per-knob optimisation settings (per geometry, per param name). `vary` marks
+// the knob as a free variable the optimiser may change; opt extents bound the
+// search; display extents are the knob's own slider range; step is the manual
+// turn granularity (the optimiser itself is continuous). Absent for a knob =
+// schema defaults.
+export type KnobOpt = {
+  vary: boolean;
+  optMin: number;
+  optMax: number;
+  dispMin: number;
+  dispMax: number;
+  step: number;
+};
+
 export function findLinkedDesignFreq(
   schema: SchemaItem[],
   values: ParamValueBag,

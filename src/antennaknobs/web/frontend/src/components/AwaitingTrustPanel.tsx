@@ -1,5 +1,19 @@
 import { useState } from "react";
-import type { DesignLoadError } from "../App";
+
+// One advisory finding from the design screener (what a design does that a
+// typical one doesn't), attached to a trust-required entry.
+export type DesignAdvisory = { severity: string; message: string; line: number };
+
+// A user design reported by GET /examples that didn't register. Either a real
+// load error (bad Python), or — when `trust_required` — a design that loaded
+// fine but hasn't been trusted to run yet, carrying its screener `advisory`.
+export type DesignLoadError = {
+  name: string;
+  file: string;
+  message: string;
+  trust_required?: boolean;
+  advisory?: DesignAdvisory[];
+};
 
 // Designs that loaded clean but haven't been trusted to run yet. A user design
 // is a Python program that runs with your privileges, so it executes only once

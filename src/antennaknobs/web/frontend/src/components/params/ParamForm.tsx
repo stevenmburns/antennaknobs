@@ -3,11 +3,11 @@ import {
   applyVisibility,
   isGroup,
   type KnobLayout,
+  type KnobOpt,
   type ParamValueBag,
   type SchemaItem,
   type SchemaParamSpec,
 } from "../../lib/params";
-import type { KnobOpt } from "../../App";
 import { Knob } from "./Knob";
 
 // Translate a knob's optional layout hint into inline grid-placement
