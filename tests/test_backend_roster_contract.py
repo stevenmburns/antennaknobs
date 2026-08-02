@@ -3,7 +3,7 @@
 The two halves of the backend roster live in different languages in different
 places — ``_MOMWIRE_MODELS`` in ``web/adapter.py`` (the authority: what the
 server will actually construct) and ``BACKEND_ORDER`` in
-``web/frontend/src/App.tsx`` (what the UI offers). Nothing structural keeps
+``web/frontend/src/lib/backends.ts`` (what the UI offers). Nothing structural keeps
 them in sync, and the failure mode of drift is *silent absence*: when the
 sinusoidal-Galerkin backend landed server-side (momwire#182 M6, PR #626),
 every test in both repos stayed green while the UI simply had no tab to
@@ -28,14 +28,15 @@ from pathlib import Path
 from antennaknobs.web import server as _server  # noqa: F401
 from antennaknobs.web.adapter import _MOMWIRE_MODELS
 
-_APP_TSX = (
+_BACKENDS_TS = (
     Path(__file__).resolve().parents[1]
     / "src"
     / "antennaknobs"
     / "web"
     / "frontend"
     / "src"
-    / "App.tsx"
+    / "lib"
+    / "backends.ts"
 )
 
 # Frontend entries that are deliberately not momwire models. PyNEC rides the
@@ -44,9 +45,9 @@ _NON_MOMWIRE_BACKENDS = {"pynec"}
 
 
 def _frontend_roster() -> set[str]:
-    src = _APP_TSX.read_text()
+    src = _BACKENDS_TS.read_text()
     m = re.search(r"const BACKEND_ORDER: Backend\[\] = \[(?P<body>[^\]]*)\]", src, re.S)
-    assert m, "BACKEND_ORDER literal not found in App.tsx — update this contract test"
+    assert m, "BACKEND_ORDER literal not found in lib/backends.ts — update this contract test"
     entries = set(re.findall(r'"([a-z0-9-]+)"', m.group("body")))
     assert entries, "BACKEND_ORDER parsed empty — update this contract test"
     return entries
@@ -58,8 +59,8 @@ def test_every_server_backend_has_a_frontend_tab():
     missing = set(_MOMWIRE_MODELS) - _frontend_roster()
     assert not missing, (
         f"server backends with no frontend tab: {sorted(missing)} — add them to "
-        "BACKEND_ORDER / BACKEND_LABEL / BackendOptsMap in App.tsx (see PR #627 "
-        "for the full checklist of touch-points)"
+        "BACKEND_ORDER / BACKEND_LABEL / BackendOptsMap in lib/backends.ts (see "
+        "PR #627 for the full checklist of touch-points)"
     )
 
 
