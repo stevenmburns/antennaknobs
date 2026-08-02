@@ -1,7 +1,7 @@
-// Pins the backend-selection/config logic in App.tsx's backend-config block
-// (issue #642 step 2). These are pure functions with no DOM dependency; the
-// jsdom environment is only here because importing "../App" evaluates the
-// module's WS_URL, which reads window.location.
+// Pins the backend-selection/config logic in src/lib/backends.ts (issue #642
+// step 2). Pure functions with no DOM dependency — the suite-wide jsdom
+// environment exists for tests that import App.tsx (its module-scope WS_URL
+// reads window.location), not for these.
 import { describe, it, expect } from "vitest";
 import {
   BACKEND_ORDER,
