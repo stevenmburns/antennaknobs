@@ -86,8 +86,8 @@ it renders as the tee it is, with the coil between the capacitors — an orderin
 the branch list cannot express, because "the coil goes in the middle" lives in
 the head of whoever wrote the factory. A box without a fragment still draws,
 from per-branch default symbols; it is simply more anonymous. Fragments are
-written with `schematic.series` / `shunt`, which are plain data, so declaring
-one costs `station.py` no drawing-library import:
+written with `schematic.series` / `retn` / `shunt`, which are plain data, so
+declaring one costs `station.py` no drawing-library import:
 
 ```python
 Composite(
@@ -101,8 +101,23 @@ Composite(
 )
 ```
 
-Designs with no feed circuit are refused with a message rather than an empty
-picture, and a multi-feed antenna (16 driven ports, no chain) says so.
+**Balanced sections are drawn as two conductors.** Past a `FloatingBalun`'s
+secondary, or along a `BalancedLine`, the return current rides the partner wire
+rather than the common datum — so there is a second rail, the isolation barrier
+is drawn through the balun, and no ground symbol appears beyond it. A roller
+inductance split half into each leg of a balanced tuner is two coils facing
+each other; a differential capacitor across the output is a rung between the
+rails. A `Shunt` keeps its ground wherever it sits, because that is what a
+`Shunt` is — a 100 MΩ common-mode pin draws as the connection to common it
+actually makes.
+
+Not every network is a chain, and nothing is invented for the ones that are
+not. A trap in a dipole leg, or a Sterba curtain's risers bridging points on
+the structure, are drawn beneath the antenna and labelled with the nodes they
+bridge. A second antenna fed in parallel from the same point is noted rather
+than drawn in line, which would say the two are in series. Designs with no feed
+circuit are refused with a message rather than an empty picture, and a
+multi-feed antenna (16 driven ports, no chain) says so.
 
 ### Capturing from a VNA
 
