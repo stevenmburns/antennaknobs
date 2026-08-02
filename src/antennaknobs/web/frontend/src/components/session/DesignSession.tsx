@@ -99,6 +99,7 @@ import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
+import { useMobileCarousel } from "./useMobileCarousel";
 import {
   type OptimizeResult,
   type OptObjective,
@@ -855,74 +856,19 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   const thumbStripRef = useRef<HTMLDivElement>(null);
   const thumbSize = useThumbColumnSize(thumbStripRef, 280, isMobile);
 
-  // Mobile output carousel (all hooks unconditional — desktop leaves them
-  // inert). mobileIndex is which of the 5 screens the snap carousel rests on;
-  // `view` stays the source of truth for the 4 chart screens and their data
-  // effects, kept in sync by the scroll handler / reverse-sync effect below.
-  const [mobileIndex, setMobileIndex] = useState(0);
-  const mobileCarouselRef = useRef<HTMLDivElement>(null);
-  const mobileScrollRafRef = useRef<number | null>(null);
-  const { ref: mobRef, size: mobChartSize } = useSlideSize(720, isMobile);
+  const {
+    mobileIndex,
+    mobileCarouselRef,
+    mobRef,
+    mobChartSize,
+    onMobileCarouselScroll,
+    goToMobileScreen,
+  } = useMobileCarousel({ isMobile, orientation, view, setView });
   // The pinned-pattern comparison table minimizes to a "{n} pinned" chip so
   // it can get off the chart — it grows a row per pin and swallows a phone
   // screen. Starts collapsed on mobile, expanded on desktop (the pre-existing
   // behavior); pinning always expands it so the new row is seen.
   const [compareCollapsed, setCompareCollapsed] = useState(isMobile);
-
-  // Track where a swipe/fling snaps and mirror it into state. rAF-throttled:
-  // scroll events arrive per frame during a fling, one rounding per frame is
-  // plenty. The rounded-index compare inside the setters keeps this from
-  // fighting the programmatic scrolls below.
-  const onMobileCarouselScroll = () => {
-    if (mobileScrollRafRef.current !== null) return;
-    mobileScrollRafRef.current = requestAnimationFrame(() => {
-      mobileScrollRafRef.current = null;
-      const el = mobileCarouselRef.current;
-      if (!el || el.clientWidth === 0) return;
-      const i = Math.round(el.scrollLeft / el.clientWidth);
-      setMobileIndex((prev) => (prev === i ? prev : i));
-      if (i < VIEWS.length) setView(VIEWS[i].id);
-    });
-  };
-
-  // Dot tap: jump to a screen. Info (the last index) is reachable only here
-  // and by swipe — it deliberately leaves `view` on the last chart screen.
-  const goToMobileScreen = (i: number) => {
-    setMobileIndex(i);
-    if (i < VIEWS.length) setView(VIEWS[i].id);
-    const el = mobileCarouselRef.current;
-    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
-  };
-
-  // Reverse sync: anything else that sets `view` (the arrow-key cycler) pages
-  // the carousel to match. The DOM scroll position is the ground truth for
-  // "where are we" — comparing rounded indices means we never fight an
-  // in-progress swipe, and parking on Info ignores view changes entirely.
-  useEffect(() => {
-    if (!isMobile) return;
-    const el = mobileCarouselRef.current;
-    if (!el || el.clientWidth === 0) return;
-    const target = VIEWS.findIndex((v) => v.id === view);
-    const current = Math.round(el.scrollLeft / el.clientWidth);
-    if (target < 0 || current >= VIEWS.length || current === target) return;
-    setMobileIndex(target);
-    el.scrollTo({ left: target * el.clientWidth, behavior: "smooth" });
-  }, [view, isMobile]);
-
-  // An orientation flip (or any pane resize) changes the screen width, so
-  // scrollLeft no longer sits on a snap point; re-center the active screen
-  // once the new layout lands (hence the rAF). Skipped when the rounded
-  // position already matches — never fights a drag.
-  useEffect(() => {
-    if (!isMobile) return;
-    const raf = requestAnimationFrame(() => {
-      const el = mobileCarouselRef.current;
-      if (!el || el.clientWidth === 0) return;
-      const i = Math.round(el.scrollLeft / el.clientWidth);
-      if (i !== mobileIndex) el.scrollTo({ left: mobileIndex * el.clientWidth });
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [isMobile, orientation, mobChartSize, mobileIndex]);
 
   useEffect(() => {
     if (!active) return;
