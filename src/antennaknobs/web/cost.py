@@ -3,7 +3,7 @@
 Admission used to be three parallel inventions: the hosted matrix caps
 (``_check_solve_size``), the hosted point-count caps (inline in ``/sweep``
 and ``/converge``), and the frontend's poor-match withhold gate
-(``comboInappropriate`` in App.tsx, keyed off the server's recommended
+(``comboInappropriate`` in frontend/src/lib/backends.ts, keyed off the server's recommended
 backend). This module is the single mapping they all consult:
 
     admit(req, kind=..., points=..., use_pynec=..., hosted=..., example=...)
