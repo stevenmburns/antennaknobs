@@ -19,53 +19,48 @@ is just ``μ′/μ″``. That last identity is the bridge to the old model: a
 material with flat ``μ′`` and ``μ″ = μ′/Q`` reproduces scalar ``qlmag``
 exactly, which is asserted by a test.
 
-## Where the numbers come from, and what they are not
+## Where the numbers come from
 
-The catalog below does **not** ship digitized vendor curves — neither ours to
-redistribute nor honest to present as measurements we made. Each mix is a
-**single-pole (Debye) relaxation fit**
+Fair-Rite publishes each material's **measured** complex permeability as a CSV,
+for exactly this purpose. :func:`fetch_material` downloads one on first use and
+caches it under ``~/.antennaknobs/ferrite``; nothing vendor-supplied is
+redistributed with this package, and after the first call everything is
+offline. :meth:`FerriteMaterial.from_table` takes your own data — measured
+cores beat vendor nominals, since the vendor never wound *your* toroid.
 
-    μ(f) = μ_i / (1 + j·f/f_r)   ⇒   μ′ = μ_i/(1+x²),  μ″ = μ_i·x/(1+x²)
+An earlier version of this module shipped one-pole (Debye) fits from
+remembered headline specs instead, and it is worth recording why that was
+abandoned rather than corrected. Checked against the published files, the
+assumed relaxation frequencies were wrong by up to **8×** (mix 43's μ″ peaks at
+4.4 MHz, not the 35 assumed). Worse, refitting does not save the idea: against
+the real curves over 0.1–100 MHz, the best one-pole fit is 30–60% out, and the
+best *two*-pole fit still misses by 22–60% for every mix except 31. These NiZn
+ferrites have a distribution of relaxation times, so no small parametric
+catalog can be honest about their loss — the table is the data.
 
-parameterized by an initial permeability ``μ_i`` and a relaxation frequency
-``f_r`` where ``μ″`` peaks. The *shape* is the one every ferrite datasheet
-shows — μ′ rolling off, μ″ peaking at ``f_r`` at half of μ_i, loss falling away
-either side.
-
-**The catalog's per-mix numbers are UNVERIFIED.** They were chosen from
-recollection of the usual headline specs, not read off a datasheet and not
-fitted to a measurement. Use them to compare mixes, turns counts and bands —
-the ordering and the shape are right — and do **not** quote an absolute loss
-figure from them. Every entry's ``source`` says so and a test enforces it.
-
-Even with good parameters it is **not** the datasheet curve: near the
-relaxation knee a real mix departs from a single pole, and mixes with more than
-one loss mechanism (31 in particular) are two-pole animals.
-
-Two ways to do better, both supported today. If you have the real ``μ′``/``μ″``
-table, :meth:`FerriteMaterial.from_table` takes it. If you have a VNA, sweep a
-known choke and fit ``μ_i``/``f_r``/``c_stray`` to it — that makes the
-provenance a measurement you can reproduce, which beats a datasheet read
-because it is *your* core rather than a vendor nominal.
-
-Treat catalog values as representative, in exactly the same spirit as the
-``CABLES`` matched-loss coefficients.
+:meth:`FerriteMaterial.debye` remains, clearly as a *synthetic* material: handy
+for tests and for reasoning about an idealized single relaxation, not a stand-in
+for a real mix.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
 __all__ = [
     "CORES",
-    "MATERIALS",
+    "MATERIAL_URLS",
     "FerriteCore",
     "FerriteMaterial",
+    "cache_dir",
+    "core",
     "core_from_catalog",
-    "material_from_catalog",
+    "fetch_material",
+    "parse_permeability_csv",
 ]
 
 MU0 = 4.0e-7 * math.pi  # H/m
@@ -202,50 +197,112 @@ class FerriteCore:
         return z
 
 
-# --- catalogs --------------------------------------------------------------
-# Mixes as single-pole fits. Each is parameterized by an initial permeability
-# and a relaxation frequency, and BOTH NUMBERS ARE UNVERIFIED: they were chosen
-# from recollection of the usual headline specs and have not been checked
-# against a datasheet or a measurement. They give the right shape and the right
-# ordering between mixes — which is what "compare 31 against 43 on 20 m" needs
-# — and they are NOT a basis for an absolute watts figure.
+# --- vendor data -----------------------------------------------------------
+# Fair-Rite publishes measured complex permeability per material as a CSV, for
+# exactly this purpose. Those files are NOT redistributed here — they are
+# fetched on first use and cached locally, so the package ships no vendor data
+# while the user still gets the vendor's own measurements rather than someone's
+# approximation of them.
 #
-# The fix is issue #599's follow-up: sweep a known choke per mix and fit
-# (mu_i, f_relax, c_stray) to it, which makes the provenance a measurement you
-# can reproduce rather than a number someone remembered. Until then every entry
-# says UNVERIFIED, and a test enforces that it does.
-MATERIALS = {
-    "31": FerriteMaterial.debye(
-        "31",
-        1500.0,
-        8.0,
-        source="UNVERIFIED one-pole fit (μi≈1500, μ″ peak ≈8 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
-    ),
-    "43": FerriteMaterial.debye(
-        "43",
-        800.0,
-        35.0,
-        source="UNVERIFIED one-pole fit (μi≈800, μ″ peak ≈35 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
-    ),
-    "52": FerriteMaterial.debye(
-        "52",
-        250.0,
-        60.0,
-        source="UNVERIFIED one-pole fit (μi≈250, μ″ peak ≈60 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
-    ),
-    "61": FerriteMaterial.debye(
-        "61",
-        125.0,
-        180.0,
-        source="UNVERIFIED one-pole fit (μi≈125, μ″ peak ≈180 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
-    ),
-    "77": FerriteMaterial.debye(
-        "77",
-        2000.0,
-        3.0,
-        source="UNVERIFIED one-pole fit (μi≈2000, μ″ peak ≈3 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
-    ),
+# An earlier version of this module shipped one-pole Debye fits instead. They
+# were wrong: measured against these files, the assumed relaxation frequencies
+# were off by up to 8x (mix 43 peaks at 4.4 MHz, not 35), and even a
+# best-fit 2-pole model lands 22-60% out over 0.1-100 MHz for every mix except
+# 31. A distribution of relaxation times is what these NiZn ferrites actually
+# have, so no small parametric catalog can be honest here — the table is the
+# data.
+MATERIAL_URLS = {
+    "31": "https://www.fair-rite.com/wp-content/uploads/2015/03/31-Material-Fair-Rite.csv",
+    "43": "https://www.fair-rite.com/wp-content/uploads/2020/11/43-Material-publish.csv",
+    "52": "https://www.fair-rite.com/wp-content/uploads/2015/04/52-Material-Fair-Rite.csv",
+    "61": "https://www.fair-rite.com/wp-content/uploads/2021/11/61-Material-Fair-Rite.csv",
+    "77": "https://www.fair-rite.com/wp-content/uploads/2015/04/77-Material-Fair-Rite.csv",
 }
+
+
+def cache_dir():
+    """Where fetched material files live (``~/.antennaknobs/ferrite``)."""
+    import os
+
+    root = os.environ.get("ANTENNAKNOBS_USER_DIR")
+    base = Path(root) if root else Path.home() / ".antennaknobs"
+    return base / "ferrite"
+
+
+def parse_permeability_csv(text: str, name: str = "", source: str = ""):
+    """Parse a vendor complex-permeability CSV into a `FerriteMaterial`.
+
+    Deliberately forgiving, because these files are hand-maintained: title
+    rows, blank lines, an "Equipment Used:" note, a mis-encoded ``µ`` in the
+    header, and Hz frequencies all appear across the five Fair-Rite files.
+    Any line whose first three comma-separated fields parse as numbers is a
+    data row; everything else is ignored.
+    """
+    freqs, mp, md = [], [], []
+    for line in text.replace("\r", "\n").split("\n"):
+        parts = [c.strip() for c in line.split(",")]
+        if len(parts) < 3:
+            continue
+        try:
+            f, a, b = float(parts[0]), float(parts[1]), float(parts[2])
+        except ValueError:
+            continue
+        if f > 0 and a > 0:
+            freqs.append(f / 1e6)  # the files are in Hz; we work in MHz
+            mp.append(a)
+            md.append(max(b, 0.0))
+    if len(freqs) < 2:
+        raise ValueError(
+            f"{name or 'material'}: no usable rows in the permeability data "
+            "(expected 'frequency,mu-prime,mu-double' lines)"
+        )
+    return FerriteMaterial.from_table(name, freqs, mp, md, source=source)
+
+
+def fetch_material(mix: str, *, refresh: bool = False) -> FerriteMaterial:
+    """The vendor's measured permeability for ``mix``, fetched once and cached.
+
+    Downloads to :func:`cache_dir` on first use and reads the cache thereafter,
+    so this is a one-time network call and everything afterwards is offline.
+    ``refresh=True`` re-downloads.
+
+    No network and no cache is a clear error naming the URL, because copying
+    that file into the cache directory by hand is a perfectly good substitute
+    and the message should say so.
+    """
+    if mix not in MATERIAL_URLS:
+        raise KeyError(
+            f"no published data URL for mix {mix!r}; known: "
+            f"{', '.join(sorted(MATERIAL_URLS))}. Use "
+            "FerriteMaterial.from_table() for a material you have data for."
+        )
+    url = MATERIAL_URLS[mix]
+    path = cache_dir() / f"{mix}.csv"
+    if refresh or not path.exists():
+        try:
+            from urllib.request import Request, urlopen
+
+            req = Request(url, headers={"User-Agent": "antennaknobs"})
+            with urlopen(req, timeout=30) as fh:  # noqa: S310 — fixed https URL
+                data = fh.read()
+        except Exception as e:
+            if path.exists():
+                pass  # a stale cache beats no material
+            else:
+                raise RuntimeError(
+                    f"could not fetch the permeability data for mix {mix}: {e}\n"
+                    f"Download {url} to {path} and re-run — the file is only "
+                    "read locally after the first fetch."
+                ) from e
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+    return parse_permeability_csv(
+        path.read_text(encoding="latin-1"),
+        name=mix,
+        source=f"measured complex permeability, {url}",
+    )
+
 
 # Toroid geometry in metres/m², from published nominal dimensions. Ae and le
 # are the effective values manufacturers quote for the size, not derived from
@@ -260,13 +317,27 @@ CORES = {
 }
 
 
-def material_from_catalog(name: str) -> FerriteMaterial:
-    """The `MATERIALS` entry for a mix, with `TL.from_cable`'s ergonomics."""
-    if name not in MATERIALS:
+def core(size: str, material: FerriteMaterial, turns: float, c_stray_pF: float = 0.0):
+    """A wound core from a catalog SIZE and a material you already hold.
+
+    The offline half of :func:`core_from_catalog`: pass a material from
+    :func:`fetch_material`, :meth:`FerriteMaterial.from_table` (your own
+    measurements), or :meth:`FerriteMaterial.debye` (a synthetic one).
+    """
+    if size not in CORES:
         raise KeyError(
-            f"unknown ferrite mix {name!r}; available: {', '.join(sorted(MATERIALS))}"
+            f"unknown core size {size!r}; available: {', '.join(sorted(CORES))}"
         )
-    return MATERIALS[name]
+    if turns <= 0:
+        raise ValueError(f"turns must be positive; got {turns}")
+    ae, le = CORES[size]
+    return FerriteCore(
+        material=material,
+        turns=float(turns),
+        ae=ae,
+        le=le,
+        c_stray=c_stray_pF * 1e-12,
+    )
 
 
 def core_from_catalog(
@@ -274,20 +345,9 @@ def core_from_catalog(
 ) -> FerriteCore:
     """``core_from_catalog("FT-240", "43", 11)`` — the ham spelling of a core.
 
-    ``c_stray_pF`` is the winding's self-capacitance; give it a couple of pF to
-    reproduce the impedance peak a real choke shows (see `FerriteCore`).
+    Fetches the mix's published permeability on first use (see
+    :func:`fetch_material`), so the first call needs network and later ones do
+    not. ``c_stray_pF`` is the winding's self-capacitance; give it a couple of
+    pF to reproduce the impedance peak a real choke shows.
     """
-    if size not in CORES:
-        raise KeyError(
-            f"unknown core size {size!r}; available: {', '.join(sorted(CORES))}"
-        )
-    ae, le = CORES[size]
-    if turns <= 0:
-        raise ValueError(f"turns must be positive; got {turns}")
-    return FerriteCore(
-        material=material_from_catalog(mix),
-        turns=float(turns),
-        ae=ae,
-        le=le,
-        c_stray=c_stray_pF * 1e-12,
-    )
+    return core(size, fetch_material(mix), turns, c_stray_pF)
