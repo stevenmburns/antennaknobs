@@ -109,6 +109,9 @@ def unun(
 
         unun(49 ** 0.5, core=core_from_catalog("FT-240", "43", 11))
 
+    (that call fetches the mix's published permeability once and caches it —
+    the package ships no vendor data.)
+
     Formals: ``line`` (rig/feedline side), ``ant`` (high-Z antenna side)."""
     lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
     branches: tuple = (

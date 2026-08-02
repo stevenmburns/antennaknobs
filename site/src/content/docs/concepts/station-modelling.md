@@ -282,17 +282,18 @@ model exactly, which is how the two connect.
 Three honesty notes, because this is a place where a model can look more
 authoritative than it is:
 
-- **The catalog mixes are one-pole (Debye) fits with unverified parameters.**
-  Each mix is described by an initial permeability and the frequency where `μ″`
-  peaks, and those two numbers have *not* been checked against a datasheet or a
-  measurement. The shape is right and so is the ordering between mixes, so use
-  them to compare mixes, turns counts and bands — but do not quote an absolute
-  loss figure from them. Every entry's `source` string says so.
-- **Two ways to do better**, both supported: `FerriteMaterial.from_table()`
-  takes a real `μ′`/`μ″` table, or sweep a known choke with a
-  [VNA](/reference/cli/#capturing-from-a-vna) and fit `μ_i`/`f_r`/`c_stray` to
-  it — a measurement you can reproduce beats a datasheet read, because it is
-  *your* core rather than a vendor nominal.
+- **The material data is the vendor's, fetched not bundled.**
+  `core_from_catalog` downloads Fair-Rite's published complex-permeability CSV
+  for the mix on first use and caches it under `~/.antennaknobs/ferrite`, so
+  the package ships no vendor data and everything after the first call is
+  offline. `FerriteMaterial.from_table()` takes your own measurements instead —
+  better data still, since the vendor never wound *your* toroid.
+- **Parametric mix models were tried and dropped.** An earlier version shipped
+  one-pole fits; measured against the published curves their relaxation
+  frequencies were out by up to 8× (mix 43 peaks at 4.4 MHz, not 35), and even
+  a best-fit two-pole model misses by 22–60% over 0.1–100 MHz for every mix but
+  31. These NiZn ferrites have a *distribution* of relaxation times, so no
+  small parametric catalog can be honest about their loss.
 - **A choke's impedance peak comes from the winding, not just the material.** A
   single relaxation climbs and saturates; the few pF of winding self-capacitance
   (`c_stray_pF`) parallel-resonate with it, and *that* is what puts the peak in
