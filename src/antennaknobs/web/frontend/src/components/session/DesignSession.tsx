@@ -4,7 +4,6 @@ import {
   BACKEND_LABEL,
   backendDisplayLabel,
   backendSupportsGround,
-  backendSupportsTerrain,
   comboInappropriate,
   DEFAULT_BACKEND_OPTS,
   DEFAULT_SLOTS,
@@ -15,7 +14,6 @@ import {
   RESTRICTED_BACKEND_REASON,
   resolveSlotConfig,
   selectableBackends,
-  SLOT_ORDER,
   type Backend,
   type BackendOptsMap,
   type Slot,
@@ -69,13 +67,8 @@ import type {
   SweepData,
 } from "../../lib/api";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
-import { KnobMenuNumber, NumberField } from "../backend/fields";
-import {
-  AwaitingTrustPanel,
-  type DesignLoadError,
-} from "../AwaitingTrustPanel";
+import { type DesignLoadError } from "../AwaitingTrustPanel";
 import { BandDropdown } from "../params/BandDropdown";
-import { GeometryCombobox } from "../params/GeometryCombobox";
 import { Knob } from "../params/Knob";
 import { ParamForm } from "../params/ParamForm";
 import {
@@ -97,7 +90,12 @@ import { PatternCompareTable } from "../results/PatternCompareTable";
 import { SolveReadout } from "../results/SolveReadout";
 import { ViewPanel } from "../results/ViewPanel";
 import { fetchMetrics, PinsContext, SessionsContext, ThemeControlContext } from "./contexts";
-import { TabStrip } from "./TabStrip";
+import { CatalogPanel } from "./CatalogPanel";
+import { DesignFreqRow } from "./DesignFreqRow";
+import { GroundPanel } from "./GroundPanel";
+import { KnobOptMenu } from "./KnobOptMenu";
+import { SessionGearMenu } from "./SessionGearMenu";
+import { SolverSlotTabs } from "./SolverSlotTabs";
 
 // Log-spaced segments-per-wire ladder for the convergence sweep. Hentenna's
 // 8N+2 total segments at N=68 puts the dense LU at a ~550-cell matrix —
@@ -2272,269 +2270,50 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // shows them as pure moves.
   const controls = (
     <>
-        <TabStrip />
-        <div className="sidebar-header">
-          <div className="brand">
-            <h1>AntennaKNoBs</h1>
-            <span className="byline">by KK7KNB</span>
-          </div>
-          <div className="header-actions">
-            <div className="gear-menu-wrap">
-              <button
-                type="button"
-                className="header-icon-btn"
-                onClick={() => setGearMenuOpen((o) => !o)}
-                title="Tools"
-                aria-label="Tools menu"
-                aria-haspopup="menu"
-                aria-expanded={gearMenuOpen}
-              >
-                ⚙
-              </button>
-              {gearMenuOpen && (
-                <>
-                  <div
-                    className="gear-menu-backdrop"
-                    onClick={() => setGearMenuOpen(false)}
-                  />
-                  <div className="gear-menu" role="menu">
-                    <button
-                      type="button"
-                      className="gear-menu-item"
-                      role="menuitem"
-                      onClick={copyParams}
-                      title="Copy the current knob values as a paste-ready Python default_params block"
-                    >
-                      {copiedParams ? "Copied ✓" : "Copy params (Python)"}
-                    </button>
-                    <button
-                      type="button"
-                      className="gear-menu-item"
-                      role="menuitem"
-                      onClick={downloadNec}
-                      title="Download this design as a NEC2 .nec card deck (for xnec2c, 4nec2, EZNEC, …)"
-                    >
-                      Download .nec deck
-                    </button>
-                    {/* Reactive copies of the chart-overlay toggles (same state
-                        the overlays use, so the two locations can never
-                        disagree). On mobile the checkbox overlays are not
-                        rendered on the chart screens — small screens can't
-                        spare the chart area — so this menu is the only place
-                        to reach them there; on desktop it's a convenience
-                        duplicate. */}
-                    <div className="gear-menu-divider" />
-                    {/* Mobile-layout only: it exists to reclaim the phone's
-                        status/nav bars; on desktop F11 already does this and
-                        the menu entry would be clutter. Also needs element
-                        fullscreen (missing on iPhone Safari). */}
-                    {isMobile && fullscreen.supported && (
-                      <>
-                        <div className="gear-menu-section">display</div>
-                        <label
-                          className="gear-menu-check"
-                          title="Take over the whole screen — hides the system status and navigation bars. Uncheck (or use the back gesture) to exit."
-                        >
-                          <input
-                            type="checkbox"
-                            checked={fullscreen.active}
-                            onChange={fullscreen.toggle}
-                          />
-                          full screen
-                        </label>
-                      </>
-                    )}
-                    <div className="gear-menu-section">antenna chart</div>
-                    <label
-                      className="gear-menu-check"
-                      title="Color wire segments by current magnitude; modulate wire width"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showHeatmap}
-                        onChange={(e) => setShowHeatmap(e.target.checked)}
-                      />
-                      heatmapped currents
-                    </label>
-                    <label
-                      className="gear-menu-check"
-                      title="Draw the |I| envelope curve along each wire"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showEnvelope}
-                        onChange={(e) => setShowEnvelope(e.target.checked)}
-                      />
-                      current waveforms
-                    </label>
-                    <label
-                      className="gear-menu-check"
-                      title="Draw the per-wire labels (off to declutter dense geometries)"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showWireLabels}
-                        onChange={(e) => setShowWireLabels(e.target.checked)}
-                      />
-                      wire labels
-                    </label>
-                    <label
-                      className="gear-menu-check"
-                      title="Draw the 'feed' name beside each feedpoint marker"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showFeedNames}
-                        onChange={(e) => setShowFeedNames(e.target.checked)}
-                      />
-                      feed labels
-                    </label>
-                    <div className="gear-menu-section">smith chart</div>
-                    <label
-                      className="gear-menu-check"
-                      title="Sweep Z across measurement freq and plot the locus on the Smith chart"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={sweepEnabled}
-                        onChange={(e) => setSweepEnabled(e.target.checked)}
-                      />
-                      freq sweep
-                    </label>
-                    <label
-                      className="gear-menu-check"
-                      title={`Re-solve at N = ${CONVERGE_N_VALUES.join(", ")} segments/wire and Richardson-extrapolate Z to N→∞`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={convergeEnabled}
-                        onChange={(e) => setConvergeEnabled(e.target.checked)}
-                      />
-                      converge sweep
-                    </label>
-                    <label
-                      className="gear-menu-check gear-menu-file"
-                      title="Overlay a measured VNA sweep (one-port Touchstone .s1p, e.g. from a NanoVNA) against the modeled locus"
-                    >
-                      <input
-                        type="file"
-                        accept=".s1p,.S1P"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          e.target.value = "";
-                          if (f) loadMeasured(f);
-                        }}
-                      />
-                      {measured ? `measured: ${measured.label}` : "measured .s1p\u2026"}
-                    </label>
-                    {measured && (
-                      <button
-                        type="button"
-                        className="gear-menu-check gear-menu-button"
-                        onClick={() => setMeasured(null)}
-                      >
-                        clear measured
-                      </button>
-                    )}
-                    <div className="gear-menu-section">azimuth / elevation</div>
-                    <label
-                      className="gear-menu-check"
-                      title="On dwell, renormalise the pattern by its own integrated radiated power (dotted) instead of the input power the solid line uses. Overlap ⇒ the solve conserves power; a visible gap is the solver's discretisation error (NEC's 'average gain' check)."
-                    >
-                      <input
-                        type="checkbox"
-                        checked={normCheckEnabled}
-                        onChange={(e) => setNormCheckEnabled(e.target.checked)}
-                      />
-                      norm check
-                    </label>
-                  </div>
-                </>
-              )}
-            </div>
-            <button
-              type="button"
-              className="theme-toggle"
-              onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}
-              title="Toggle light / dark theme"
-              aria-label="Toggle light / dark theme"
-            >
-              {theme === "dark" ? "☀" : "☾"}
-            </button>
-          </div>
-        </div>
+        <SessionGearMenu
+          gearMenuOpen={gearMenuOpen}
+          setGearMenuOpen={setGearMenuOpen}
+          copiedParams={copiedParams}
+          onCopyParams={copyParams}
+          onDownloadNec={downloadNec}
+          isMobile={isMobile}
+          fullscreen={fullscreen}
+          showHeatmap={showHeatmap}
+          setShowHeatmap={setShowHeatmap}
+          showEnvelope={showEnvelope}
+          setShowEnvelope={setShowEnvelope}
+          showWireLabels={showWireLabels}
+          setShowWireLabels={setShowWireLabels}
+          showFeedNames={showFeedNames}
+          setShowFeedNames={setShowFeedNames}
+          sweepEnabled={sweepEnabled}
+          setSweepEnabled={setSweepEnabled}
+          convergeEnabled={convergeEnabled}
+          setConvergeEnabled={setConvergeEnabled}
+          convergeNValues={CONVERGE_N_VALUES}
+          measured={measured}
+          onLoadMeasured={loadMeasured}
+          onClearMeasured={() => setMeasured(null)}
+          normCheckEnabled={normCheckEnabled}
+          setNormCheckEnabled={setNormCheckEnabled}
+          theme={theme}
+          applyTheme={applyTheme}
+        />
 
-        <div className="antenna-row">
-          <GeometryCombobox
-            groups={geomGroups}
-            selected={geometry}
-            currentLabel={currentExample?.label ?? ""}
-            filter={geomFilter}
-            setFilter={setGeomFilter}
-            onSelect={setGeometry}
-          />
-          {currentExample && currentExample.variants.length > 1 && (
-            <select
-              id="variant-select"
-              className="geometry-select variant-select"
-              value={currentVariant}
-              onChange={(e) => selectVariant(e.target.value)}
-              aria-label="variant"
-              title="variant"
-            >
-              {currentExample.variants.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        {currentExample?.notes && (
-          <div className="design-note">{currentExample.notes}</div>
-        )}
-        {examplesError && (
-          <div className="examples-error">
-            Failed to load /examples: {examplesError}
-          </div>
-        )}
-        {loadErrors.some((e) => e.trust_required) && (
-          <AwaitingTrustPanel
-            designs={loadErrors.filter((e) => e.trust_required)}
-            busy={trustBusy}
-            onTrust={trustDesign}
-          />
-        )}
-        {loadErrors.some((e) => !e.trust_required) && (
-          <div className="design-load-errors" role="alert">
-            {(() => {
-              const errs = loadErrors.filter((e) => !e.trust_required);
-              return (
-                <>
-                  <div className="design-load-errors-title">
-                    {errs.length} design{errs.length === 1 ? "" : "s"} failed to
-                    load
-                  </div>
-                  <ul>
-                    {errs.map((err) => (
-                      <li key={err.name}>
-                        <code>{err.name}</code> — {err.message}
-                        <span className="design-load-errors-file">
-                          {err.file}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="design-load-errors-hint">
-                    Fix the file and refresh. See CLAUDE.md in your designs
-                    folder.
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        )}
-
+        <CatalogPanel
+          geomGroups={geomGroups}
+          geometry={geometry}
+          currentExample={currentExample}
+          geomFilter={geomFilter}
+          setGeomFilter={setGeomFilter}
+          setGeometry={setGeometry}
+          currentVariant={currentVariant}
+          selectVariant={selectVariant}
+          examplesError={examplesError}
+          loadErrors={loadErrors}
+          trustBusy={trustBusy}
+          trustDesign={trustDesign}
+        />
 
         {currentExample && (
           <div
@@ -2565,119 +2344,29 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
           </div>
         )}
 
-        {currentBands.length > 0 && currentExample?.has_design_freq && (() => {
-          // Highlight the band whose window contains the current
-          // designFreq — same behaviour as the meas-freq row below.
-          // The slider min/max also tracks that band, so sliding past
-          // its edge auto-re-anchors to the neighbouring band.
-          // Gated on has_design_freq so the row is hidden for
-          // hand-tuned absolute designs where the slider would do
-          // nothing.
-          const activeKey = bandContaining(designFreq);
-          const active = currentBands.find((b) => b.key === activeKey) ?? currentBands[0];
-          return (
-            <div className="field">
-              <label>
-                <span>design freq</span>
-                <span>{designFreq.toFixed(3)} MHz</span>
-              </label>
-              <div className="band-row">
-                <BandDropdown
-                  bands={currentBands}
-                  value={active.key}
-                  onSelect={selectBand}
-                  ariaLabel="band"
-                />
-                <input
-                  type="range"
-                  min={active.min_mhz}
-                  max={active.max_mhz}
-                  step={0.005}
-                  value={designFreq}
-                  onInput={(e) =>
-                    updateDesignFreq(Number((e.target as HTMLInputElement).value))
-                  }
-                />
-              </div>
-            </div>
-          );
-        })()}
+        {currentBands.length > 0 && currentExample?.has_design_freq && (
+          <DesignFreqRow
+            bands={currentBands}
+            designFreq={designFreq}
+            activeKey={bandContaining(designFreq)}
+            onSelectBand={selectBand}
+            onSetFreq={updateDesignFreq}
+          />
+        )}
 
         {/* Per-knob optimiser menu (right-click a knob): vary toggle + extents +
             turn step. Position-fixed at the click point. */}
-        {knobMenu &&
-          currentExample &&
-          (() => {
-            const name = knobMenu.name;
-            const ko = knobOptFor(name);
-            const s = currentSchema.find(
-              (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
-            );
-            const num = (v: number) => (Number.isFinite(v) ? v : 0);
-            const set = (patch: Partial<KnobOpt>) => updateKnobOpt(name, patch);
-            return (
-              <>
-                <div
-                  className="knob-menu-backdrop"
-                  onClick={() => setKnobMenu(null)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setKnobMenu(null);
-                  }}
-                />
-                <div
-                  className="knob-menu"
-                  style={{ left: knobMenu.x, top: knobMenu.y }}
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  <div className="knob-menu-title">{s?.label ?? name}</div>
-                  <label className="knob-menu-vary">
-                    <input
-                      type="checkbox"
-                      checked={ko.vary}
-                      onChange={(e) => set({ vary: e.target.checked })}
-                    />
-                    Optimize this knob
-                    <kbd
-                      className="knob-menu-kbd"
-                      title="Focus a knob and press O to toggle"
-                    >
-                      O
-                    </kbd>
-                  </label>
-                  <div className="knob-menu-row">
-                    <span>Optimize range</span>
-                    <KnobMenuNumber
-                      value={num(ko.optMin)}
-                      onChange={(v) => set({ optMin: v })}
-                    />
-                    <KnobMenuNumber
-                      value={num(ko.optMax)}
-                      onChange={(v) => set({ optMax: v })}
-                    />
-                  </div>
-                  <div className="knob-menu-row">
-                    <span>Display range</span>
-                    <KnobMenuNumber
-                      value={num(ko.dispMin)}
-                      onChange={(v) => set({ dispMin: v })}
-                    />
-                    <KnobMenuNumber
-                      value={num(ko.dispMax)}
-                      onChange={(v) => set({ dispMax: v })}
-                    />
-                  </div>
-                  <div className="knob-menu-row">
-                    <span>Turn step</span>
-                    <KnobMenuNumber
-                      value={num(ko.step)}
-                      onChange={(v) => set({ step: v })}
-                    />
-                  </div>
-                </div>
-              </>
-            );
-          })()}
+        {knobMenu && currentExample && (
+          <KnobOptMenu
+            menu={knobMenu}
+            spec={currentSchema.find(
+              (x): x is SchemaParamSpec => !isGroup(x) && x.name === knobMenu.name,
+            )}
+            ko={knobOptFor(knobMenu.name)}
+            onPatch={(patch) => updateKnobOpt(knobMenu.name, patch)}
+            onClose={() => setKnobMenu(null)}
+          />
+        )}
 
         {/* Measurement freq = the rig's tuning control: a weighted VFO dial +
             frequency-counter readout. Top line: band select + the LCD. Below:
@@ -2874,193 +2563,30 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
 
         <h2 className="group-label">simulation</h2>
 
-        <div className="field">
-          <label>
-            <span>solver slot</span>
-            <span>{backendDisplayLabel(backend, currentOpts)} · N={nPerWire}</span>
-          </label>
-          <div className="backend-tabs" role="tablist">
-            {SLOT_ORDER.map((s) => {
-              const cfg = slots[s];
-              return (
-                <div key={s} className="backend-tab-cell">
-                  <button
-                    role="tab"
-                    aria-selected={activeSlot === s}
-                    aria-label={`Solver slot ${s}: ${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${cfg.opts.nPerWire}`}
-                    className={`backend-tab-btn ${activeSlot === s ? "active" : ""}`}
-                    title={`${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${cfg.opts.nPerWire}`}
-                    onClick={() => setActiveSlot(s)}
-                  >
-                    <span className="slot-letter">{s}</span>
-                    <span className="slot-sub">{backendDisplayLabel(cfg.backend, cfg.opts)}</span>
-                  </button>
-                  <button
-                    className="backend-gear-btn"
-                    title={`Slot ${s} options`}
-                    aria-label={`Slot ${s} options`}
-                    onClick={() => setGearOpen(s)}
-                  >
-                    ⚙
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <SolverSlotTabs
+          slots={slots}
+          activeSlot={activeSlot}
+          onSelect={setActiveSlot}
+          onOpenGear={setGearOpen}
+          backend={backend}
+          currentOpts={currentOpts}
+          nPerWire={nPerWire}
+        />
 
-        {!backendSupportsGround(backend) && groundEnabled && (
-          <div className="field" title="This backend doesn't model ground; ignored until you switch to one that does.">
-            <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
-              ground plane ignored for {BACKEND_LABEL[backend]}
-            </em>
-          </div>
-        )}
-
-        <div className="field">
-          <label
-            className="link-toggle"
-            title="Ground plane at z=0; pick the ground model below"
-          >
-            <input
-              type="checkbox"
-              checked={groundEnabled}
-              disabled={!backendSupportsGround(backend)}
-              onChange={(e) => setGroundEnabled(e.target.checked)}
-            />
-            ground plane
-          </label>
-          {backendSupportsGround(backend) && groundEnabled && (
-            <>
-              <div role="radiogroup" aria-label="Ground type">
-                {(
-                  [
-                    [
-                      "finite",
-                      "finite (εr=10, σ=0.002 S/m)",
-                      "Finite ground — pick the solve method below (Sommerfeld-Norton or the reflection-coefficient approximation).",
-                    ],
-                    [
-                      "pec",
-                      "PEC",
-                      backend === "pynec"
-                        ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
-                        : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
-                    ],
-                    ...(backendSupportsTerrain(backend) &&
-                    terrainPresets.length > 0
-                      ? [
-                          [
-                            "terrain",
-                            "terrain",
-                            "Faceted terrain (levee or cliff preset): impedance solves Sommerfeld on the crest medium; the far field reflects off the facet each ray's specular point lands on — tilted incidence, per-facet media, full effective height below the drops.",
-                          ] as [GroundType, string, string],
-                        ]
-                      : []),
-                  ] as [GroundType, string, string][]
-                ).map(([value, label, title]) => (
-                  <label key={value} className="link-toggle" title={title}>
-                    <input
-                      type="radio"
-                      name="ground-type"
-                      checked={groundType === value}
-                      onChange={() => setGroundType(value)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              {groundType === "finite" && (
-                  <div
-                    role="radiogroup"
-                    aria-label="Finite-ground solve method"
-                    style={{ marginLeft: "1.2em" }}
-                  >
-                    {(
-                      [
-                        [
-                          "fast",
-                          "refl-coef (fast)",
-                          backend === "pynec"
-                            ? "Reflection-coefficient approximation (NEC ITYPE=0), the default. ~2x faster per solve; impedance degrades below ~0.1λ height."
-                            : "Reflection-coefficient model, the default. Fast; matches Sommerfeld above ~0.1λ heights.",
-                        ],
-                        [
-                          "sommerfeld",
-                          "Sommerfeld",
-                          backend === "pynec"
-                            ? "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
-                            : "True Sommerfeld ground — accurate at any height, on every momwire solver including the fast array paths (momwire ≥ 0.8.0). First solve at each frequency builds a grid (seconds); repeats are fast. The impedance sweep runs at half resolution.",
-                        ],
-                      ] as [FiniteGroundMethod, string, string][]
-                    ).map(([value, label, title]) => (
-                      <label key={value} className="link-toggle" title={title}>
-                        <input
-                          type="radio"
-                          name="ground-method"
-                          checked={finiteGroundMethod === value}
-                          onChange={() => setFiniteGroundMethod(value)}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              {groundType === "terrain" &&
-                backendSupportsTerrain(backend) &&
-                terrainPresets.length > 0 &&
-                (() => {
-                  // Whole panel driven by the /capabilities schema (issue
-                  // #560): radio list, per-preset knobs and media note all
-                  // come from terrainPresets. Fall back to the first preset if
-                  // the parked name is absent (a server-side rename).
-                  const activePreset =
-                    terrainPresets.find((p) => p.name === terrainPreset) ??
-                    terrainPresets[0];
-                  return (
-                    <div style={{ marginLeft: "1.2em" }}>
-                      <div role="radiogroup" aria-label="Terrain preset">
-                        {terrainPresets.map((p) => (
-                          <label
-                            key={p.name}
-                            className="link-toggle"
-                            title={p.tooltip}
-                          >
-                            <input
-                              type="radio"
-                              name="terrain-preset"
-                              checked={activePreset.name === p.name}
-                              onChange={() => setTerrainPreset(p.name)}
-                            />
-                            {p.label}
-                          </label>
-                        ))}
-                      </div>
-                      {activePreset.fields.map((f) => (
-                        <NumberField
-                          key={f.key}
-                          label={f.unit ? `${f.label} (${f.unit})` : f.label}
-                          value={terrainParams[f.key] ?? f.default}
-                          min={f.min}
-                          max={f.max}
-                          step={f.step}
-                          onChange={(v) =>
-                            setTerrainParams((p) => ({ ...p, [f.key]: v }))
-                          }
-                        />
-                      ))}
-                      <div
-                        style={{ fontSize: "0.85em", opacity: 0.65 }}
-                        title="Media are fixed in this version; the geometry knobs above are the live parameters."
-                      >
-                        {activePreset.media_note}
-                      </div>
-                    </div>
-                  );
-                })()}
-            </>
-          )}
-        </div>
+        <GroundPanel
+          backend={backend}
+          groundEnabled={groundEnabled}
+          setGroundEnabled={setGroundEnabled}
+          groundType={groundType}
+          setGroundType={setGroundType}
+          finiteGroundMethod={finiteGroundMethod}
+          setFiniteGroundMethod={setFiniteGroundMethod}
+          terrainPresets={terrainPresets}
+          terrainPreset={terrainPreset}
+          setTerrainPreset={setTerrainPreset}
+          terrainParams={terrainParams}
+          setTerrainParams={setTerrainParams}
+        />
 
         {gearOpen && (
           <BackendConfigModal
