@@ -3,7 +3,7 @@
 // convergence sweep and the SWR/Smith-chart readouts.
 import { describe, it, expect } from "vitest";
 import { reflectionCoefficient } from "../lib/format";
-import { richardsonExtrap } from "../lib/math";
+import { feedwiseRichardson, richardsonExtrap } from "../lib/math";
 
 describe("richardsonExtrap", () => {
   it("returns null for fewer than 3 points", () => {
@@ -53,6 +53,52 @@ describe("richardsonExtrap", () => {
     const got = richardsonExtrap(invN, vals, 3);
     expect(got).not.toBeNull();
     expect(Math.abs((got as number) - a0)).toBeLessThan(1e-9);
+  });
+});
+
+// --- feedwiseRichardson -----------------------------------------------------
+// Extracted verbatim from runConverge's per-feed extrapolation block (issue
+// #642 PR 5b-1): richardsonExtrap applied per feed-index column of the
+// accumulated feeds_z_re / feeds_z_im rows.
+
+describe("feedwiseRichardson", () => {
+  it("returns null per feed until >= 3 points have accumulated", () => {
+    // 2 feeds, 2 rows (points) so far — richardsonExtrap needs >= 3.
+    const invN = [1 / 8, 1 / 12];
+    const feedsZRe = [
+      [10, 20],
+      [11, 21],
+    ];
+    const feedsZIm = [
+      [1, 2],
+      [1.1, 2.1],
+    ];
+    const { feedsRe, feedsIm } = feedwiseRichardson(invN, feedsZRe, feedsZIm);
+    expect(feedsRe).toEqual([null, null]);
+    expect(feedsIm).toEqual([null, null]);
+  });
+
+  it("agrees per-column with richardsonExtrap once >= 3 points are in", () => {
+    const N = [8, 12, 17, 24];
+    const invN = N.map((n) => 1 / n);
+    // Two independent feeds, each Z = a0 + a1*h + a2*h^2 with its own coeffs.
+    const feed0 = { a0: 50, a1: 12, a2: -3 };
+    const feed1 = { a0: 30, a1: -8, a2: 5 };
+    const zOf = (c: { a0: number; a1: number; a2: number }, h: number) =>
+      c.a0 + c.a1 * h + c.a2 * h * h;
+    const feedsZRe = invN.map((h) => [zOf(feed0, h), zOf(feed1, h)]);
+    const feedsZIm = invN.map((h) => [zOf(feed0, h) / 2, zOf(feed1, h) / 2]);
+
+    const { feedsRe, feedsIm } = feedwiseRichardson(invN, feedsZRe, feedsZIm);
+
+    const col = (rows: number[][], fi: number) => rows.map((row) => row[fi]);
+    expect(feedsRe[0]).toBeCloseTo(richardsonExtrap(invN, col(feedsZRe, 0))!, 9);
+    expect(feedsRe[1]).toBeCloseTo(richardsonExtrap(invN, col(feedsZRe, 1))!, 9);
+    expect(feedsIm[0]).toBeCloseTo(richardsonExtrap(invN, col(feedsZIm, 0))!, 9);
+    expect(feedsIm[1]).toBeCloseTo(richardsonExtrap(invN, col(feedsZIm, 1))!, 9);
+    // And, being generated from known quadratics, recovers a0 exactly.
+    expect(feedsRe[0]).toBeCloseTo(feed0.a0, 9);
+    expect(feedsRe[1]).toBeCloseTo(feed1.a0, 9);
   });
 });
 
