@@ -2245,8 +2245,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // Hoisted JSX shared between the desktop tree below and the mobile tree
   // (Phase B). These close over the session's locals, so they are consts /
   // a closure rather than components — zero prop surface, identical DOM.
-  // The moved blocks keep their original indentation so the refactor diff
-  // shows them as pure moves.
+  // (The former inline sub-blocks now live as prop-driven components in
+  // components/session/ and results/StageOverlays.tsx — #642 seam 5b-2.)
   const controls = (
     <>
         <SessionGearMenu
