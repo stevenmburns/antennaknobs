@@ -14,8 +14,10 @@ import antennaknobs as ant
 from antennaknobs.network import (
     Composite,
     Driven,
+    FloatingBalun,
     Instance,
     Network,
+    PortOnWireFloating,
     PortVirtual,
     Shunt,
     TL,
@@ -24,6 +26,7 @@ from antennaknobs.schematic import (
     Element,
     lower,
     render_svg,
+    retn,
     series,
     shunt,
     terminals_of,
@@ -102,16 +105,24 @@ def test_a_multi_feed_antenna_says_so_instead_of_drawing_a_chain():
 
 
 def test_one_terminal_loads_still_appear():
-    """`multiband.trap_dipole` is all traps on the feed — no chain at all, but
-    emphatically not nothing to draw."""
+    """`multiband.trap_dipole` is all traps in the legs — no chain at all, but
+    emphatically not nothing to draw. They are attachments rather than blocks:
+    a trap is wired into the antenna, not between the rig and it."""
     sch = lower(build("multiband.trap_dipole").build_network())
-    assert len(sch.blocks) == 2
-    assert all(e.orient == "shunt" for b in sch.blocks for e in b.elements)
+    assert sch.blocks == []
+    assert [a.nodes for a in sch.attachments] == [("trap_l",), ("trap_r",)]
+    assert sch.ends_in_antenna  # the source is sitting on the antenna
 
 
 def test_a_long_chain_keeps_its_order():
+    """The chain is the LONGEST run that reaches an antenna, not the shortest.
+
+    An LPDA's phasing line is nine sections between ten driven elements, so
+    the first hop already lands on an antenna port — stopping there would draw
+    one section and lose the other eight.
+    """
     sch = lower(build("broadband.lpda").build_network())
-    assert len(sch.blocks) >= 5
+    assert len(sch.blocks) == 9
     assert all(e.kind == "coax" for b in sch.blocks for e in b.elements)
 
 
@@ -131,6 +142,141 @@ def test_power_annotates_the_blocks_that_burn():
 
 
 # ---------------------------------------------------------------------------
+# the return conductor
+#
+# A single-ended branch returns through the datum; a balanced pair returns
+# through its partner conductor. Walking single nodes cannot see the second
+# kind, and drawing it against an implied ground asserts a bond the hardware
+# does not have — so these are the tests that the return path is real.
+# ---------------------------------------------------------------------------
+def test_a_balanced_chain_reaches_the_antenna():
+    """`wire.doublet_balanced_tuner` is rig → floating balun → balanced tuner →
+    open-wire line → doublet. Walking single nodes read the `BalancedLine` as
+    its a1↔b2 diagonal and the `FloatingBalun` as primary↔b, so the walk never
+    arrived and the drawing said "no path from the source to an antenna"."""
+    sch = lower(build("wire.doublet_balanced_tuner").build_network())
+    assert sch.ends_in_antenna
+    assert sch.balanced_end  # it arrives as a PAIR, not on one wire
+    assert not sch.notes
+
+
+def test_a_split_roller_draws_one_coil_in_each_leg():
+    """The balanced tuner's inductance is half in each leg. Which conductor a
+    branch advances is the whole difference between that and one coil with an
+    imaginary ground under it — and it is only visible if the walk carries the
+    return."""
+    sch = lower(build("wire.doublet_balanced_tuner").build_network())
+    tuner = next(b for b in sch.blocks if b.label == "tuner")
+    assert [(e.kind, e.orient, e.leg) for e in tuner.elements] == [
+        ("balun", "series", "signal"),
+        ("inductor", "series", "signal"),
+        ("inductor", "series", "return"),
+        ("capacitor", "shunt", "signal"),  # differential, across the two legs
+    ]
+    assert all(e.balanced for e in tuner.elements)
+
+
+def test_a_differential_element_is_a_rung_not_a_drop_to_ground():
+    """The resonating cap bridges the two legs of a floating tuner. There is
+    no ground there to drop to, and drawing one would bond the section the
+    balun exists to keep floating."""
+    sch = lower(build("wire.doublet_balanced_tuner").build_network())
+    cap = next(
+        e for b in sch.blocks for e in b.elements if e.kind == "capacitor"
+    )  # fmt: skip
+    assert cap.orient == "shunt" and cap.balanced
+
+
+def test_a_rib_is_drawn_in_exactly_one_box():
+    """A node the chain passes through belongs to two consecutive blocks, so
+    keying a rib by node alone drew the differential capacitor twice."""
+    sch = lower(build("wire.doublet_balanced_tuner").build_network())
+    caps = [e for b in sch.blocks for e in b.elements if e.kind == "capacitor"]
+    assert len(caps) == 1
+
+
+def test_a_floating_port_is_recognised_by_its_terminals():
+    """A `PortOnWireFloating("feed")` is wired as feed.p / feed.n and the bare
+    name is not a node at all, so a walk looking for the port name never
+    arrives at the antenna it is looking for."""
+    net = build("wire.doublet_balanced_tuner").build_network()
+    assert "feed" in net.ports
+    assert not any("feed" in terminals_of(br) for br in net.branches)
+    assert lower(net).ends_in_antenna
+
+
+def test_a_common_mode_pin_keeps_its_ground():
+    """`Shunt` is defined as R/L/C to the common, so it stays a drop to ground
+    even inside a floating section — that is what a 100 MΩ common-mode pin IS
+    (SPICE's rshunt, drawn), and the ground is what explains the resistor.
+    The pair's two pins are one per leg, not two on the signal side."""
+    sch = lower(build("arrays.bowtie1x2_bl").build_network())
+    pins = [e for b in sch.blocks for e in b.elements if e.kind == "resistor"]
+    assert len(pins) == 2
+    assert not any(e.balanced for e in pins)  # to the datum, not across
+    assert {e.leg for e in pins} == {"signal", "return"}
+    assert all("100 MΩ" == e.label for e in pins)
+
+
+def test_a_grounded_shield_is_the_datum():
+    """`bowtie1x2_bl` writes the shield as `Shunt(port="JC2", l=0.0)` — a bond,
+    not a component. Without merging it the balanced line hanging off that
+    shield has a return the walk cannot recognise."""
+    sch = lower(build("arrays.bowtie1x2_bl").build_network())
+    assert sch.ends_in_antenna and sch.balanced_end
+
+
+def test_a_second_antenna_is_not_drawn_in_line():
+    """`bowtie1x2_bl` feeds two elements in parallel from one point. Drawing
+    the second in the chain would say they are in series, which is the
+    opposite of what they are."""
+    sch = lower(build("arrays.bowtie1x2_bl").build_network())
+    assert any("feed1" in n and "parallel" in n for n in sch.notes)
+    assert any("feed1.p" in a.nodes for a in sch.attachments)
+
+
+def test_a_structure_with_no_feed_chain_does_not_invent_one():
+    """`wire.sterba_bl`'s four risers share no node with each other or with the
+    source. The old walk wandered the graph and drew them as a plausible
+    series chain from the rig — a picture that reads correctly and is
+    fabricated."""
+    sch = lower(build("wire.sterba_bl").build_network())
+    assert sch.blocks == []
+    assert len(sch.attachments) == 4
+    assert all(len(a.nodes) == 4 for a in sch.attachments)
+    assert any("wired into the structure" in n for n in sch.notes)
+
+
+def test_a_single_ended_branch_will_not_carry_a_floating_pair():
+    """A coax returns through its shield and a `Transformer` spans both
+    windings node-to-datum, so neither can carry a pair onward. Refusing the
+    move is what makes the walk report a gap instead of quietly bonding a
+    floating section to ground to get past it."""
+    net = Network(
+        ports={
+            "rig": PortVirtual("rig"),
+            "ant": PortOnWireFloating("ant"),
+            "sL": PortVirtual("sL"),
+            "sR": PortVirtual("sR"),
+        },
+        branches=[
+            FloatingBalun(primary="rig", a="sL", b="sR", n=1.0),
+            # a coax spliced into one leg of the floating secondary: its
+            # return is its shield, so it cannot carry the pair onward
+            TL(a="sL", b="ant.p", z0=50.0, length=1.0),
+            # `Network` enforces SPICE's rule that every node needs a path to
+            # the datum, so the loose leg is pinned the way SPICE users pin
+            # one — a large resistor, `rshunt` by another name.
+            Shunt(port="sR", r=1e8),
+        ],
+        sources=[Driven(port="rig")],
+    )
+    sch = lower(net)
+    assert not sch.ends_in_antenna
+    assert any("no run of branches" in n for n in sch.notes)
+
+
+# ---------------------------------------------------------------------------
 # the wrapper vocabulary
 # ---------------------------------------------------------------------------
 def test_the_fragment_api_is_plain_data():
@@ -139,6 +285,10 @@ def test_the_fragment_api_is_plain_data():
     el = series("inductor", "2.5 µH")
     assert isinstance(el, Element) and el.orient == "series"
     assert shunt("capacitor", "180 pF").orient == "shunt"
+    # Where a symbol sits takes two answers: which way it runs, and which
+    # conductor that is.
+    assert retn("inductor", "2.5 µH").leg == "return"
+    assert shunt("resistor", "100 MΩ", leg="return").leg == "return"
     import antennaknobs.station as station_mod
 
     assert "schemdraw" not in str(vars(station_mod).keys())
