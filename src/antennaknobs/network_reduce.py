@@ -251,6 +251,29 @@ class _Group2Element:
     c_vc: complex = 0j
 
 
+def magnetizing_impedance(br, omega):
+    """Magnetizing-branch impedance of a `Transformer` / `FloatingBalun`.
+
+    ``core`` (a `ferrite.FerriteCore`, issue #599) supersedes ``lmag``/``qlmag``
+    wholesale — it IS the core, the way ``TL.from_cable``'s cable is the cable —
+    and the branch then follows the material's complex permeability at this
+    frequency: μ′ gives the inductance, μ″ the loss. Falling back to
+    ``lmag``/``qlmag`` keeps the scalar model available and unchanged, and the
+    two agree exactly when the material is flat with μ″ = μ′/Q.
+
+    Returns ``None`` when the element declares no magnetizing branch at all.
+    """
+    core = getattr(br, "core", None)
+    if core is not None:
+        return core.impedance(omega / (2.0 * np.pi) / 1e6)
+    if br.lmag is None:
+        return None
+    z = 1j * omega * br.lmag
+    if br.qlmag is not None:
+        z += omega * br.lmag / br.qlmag
+    return z
+
+
 def _series_group2(a, b, r, l, c, omega, emf=0j, ql=None, qc=None):
     """Group-2 stamp of a series R + jωL + 1/(jωC) (+ optional EMF) between
     nodes a and b. A 0 F capacitor is an open in the series path (infinite
@@ -824,10 +847,8 @@ class NetworkReducer:
                         c_vb=-nr,
                     )
                 )
-                if br.lmag is not None:
-                    zl = 1j * omega * br.lmag
-                    if br.qlmag is not None:
-                        zl += omega * br.lmag / br.qlmag
+                zl = magnetizing_impedance(br, omega)
+                if zl is not None:
                     y_mag = 1.0 / zl
                     G[a, a] += y_mag
                     probes.append(
@@ -922,10 +943,8 @@ class NetworkReducer:
                         c_vc=-nr,
                     )
                 )
-                if br.lmag is not None:
-                    zl = 1j * omega * br.lmag
-                    if br.qlmag is not None:
-                        zl += omega * br.lmag / br.qlmag
+                zl = magnetizing_impedance(br, omega)
+                if zl is not None:
                     y_mag = 1.0 / zl
                     G[p, p] += y_mag
                     probes.append(

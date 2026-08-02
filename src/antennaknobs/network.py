@@ -503,6 +503,13 @@ class Transformer:
     r: float | None = None
     lmag: float | None = None
     qlmag: float | None = None
+    #: A `ferrite.FerriteCore` (issue #599). When set it SUPERSEDES
+    #: ``lmag``/``qlmag`` wholesale — it is the core, not a default, exactly as
+    #: ``TL.from_cable``'s cable is the cable. The magnetizing branch then
+    #: follows the mix's complex permeability at each frequency: μ′ sets the
+    #: inductance, μ″ the loss, and the effective Q (μ′/μ″) moves with
+    #: frequency the way a real choke's does.
+    core: object | None = None
 
 
 @dataclass(frozen=True)
@@ -986,6 +993,8 @@ class FloatingBalun:
     r: float | None = None
     lmag: float | None = None
     qlmag: float | None = None
+    #: See `Transformer.core` — same supersede-wholesale semantics (issue #599).
+    core: object | None = None
 
 
 Branch = Union[

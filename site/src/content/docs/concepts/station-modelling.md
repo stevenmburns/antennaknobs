@@ -97,7 +97,7 @@ honest model:
 | `Load` | series R/L/C in a wire's current path — a trap, a terminating resistor |
 | `TwoPort` | series R/L/C between two ports — a tuner's series capacitor |
 | `Shunt` | R/L/C from a port to the common return — a tuner's shunt coil |
-| `Transformer` | ideal ratio + magnetizing branch with core-loss Q — the balun/unun model, calibrated against measured insertion loss rather than derived from core datasheets |
+| `Transformer` | ideal ratio + magnetizing branch with core-loss Q — the balun/unun model. Give it a `core` (`ferrite.FerriteCore`) instead and the branch follows the mix's complex permeability, so inductance *and* loss move with frequency |
 | `Autotransformer` | tapped **single** winding — two mutually coupled sections (`M = k·√(L₁L₂)`) sharing a node, so the common section carries the *difference* of the input and output currents. The ratio falls out of the L/M matrix instead of being asserted, which is what an ideal-ratio model would get wrong |
 
 Reactive elements accept a finite **Q** (`ql`, `qc`, `qlmag`), and that
@@ -253,6 +253,50 @@ special members:
   `verticals.stub_matched_vertical` is the worked example: a 22 Ω
   quarter-wave vertical brought to 50 Ω by two lengths of RG-213, with
   both lengths as live knobs so the match is something you *find*.
+
+### Ferrite cores: one number vs a curve
+
+`qlmag` is a single, frequency-independent Q on the magnetizing branch. Real
+ferrite has a strongly frequency-dependent **complex permeability**
+`μ = μ′ − jμ″`, and that dependence is the whole story of a choke — a 43-mix
+balun burns its watts in one part of the spectrum and is nearly lossless
+elsewhere. A flat Q cannot say "loses most here, little there", which is
+usually the question being asked.
+
+Give a `Transformer`, `FloatingBalun`, `unun` or `balun` a **core** instead:
+
+```python
+from antennaknobs.ferrite import core_from_catalog
+from antennaknobs.station import unun
+
+core = core_from_catalog("FT-240", "43", turns=11, c_stray_pF=3.0)
+unun(7.0, core=core)     # 49:1, wound on that core
+```
+
+`core` supersedes `lmag`/`qlmag` wholesale — it *is* the core, the same way
+`TL.from_cable`'s cable is the cable. The magnetizing branch then follows the
+material: `μ′` sets the inductance, `μ″` sets the loss, and the effective Q is
+just `μ′/μ″`. A material with flat `μ′` and `μ″ = μ′/Q` reproduces the scalar
+model exactly, which is how the two connect.
+
+Three honesty notes, because this is a place where a model can look more
+authoritative than it is:
+
+- **The catalog mixes are one-pole (Debye) fits**, not digitized vendor curves
+  — built from two published headline numbers per mix (initial permeability and
+  the frequency where `μ″` peaks). They reproduce the *shape* every datasheet
+  shows and are right to within the spread between vendors' constructions, but
+  they are not the datasheet curve, and near the relaxation knee a real mix
+  departs from a single pole. `FerriteMaterial.from_table()` takes real
+  `μ′`/`μ″` data and is strictly better.
+- **A choke's impedance peak comes from the winding, not just the material.** A
+  single relaxation climbs and saturates; the few pF of winding self-capacitance
+  (`c_stray_pF`) parallel-resonate with it, and *that* is what puts the peak in
+  every published choke plot — and why |Z| falls again above it.
+- **Absolute watts deserve a measurement.** Use this to compare mixes, turns
+  counts and bands; pin the absolute number against a
+  [measured sweep](/reference/cli/#overlaying-a-vna-measurement) before
+  trusting it.
 
 ### Isolation transformer vs auto-transformer
 
