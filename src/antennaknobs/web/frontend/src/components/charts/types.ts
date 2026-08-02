@@ -2,6 +2,13 @@ import type { SolveResponse } from "../../lib/api";
 
 export type FarFieldCut = "xy" | "yz";
 
+export type PatternData = {
+  theta_deg: number[];
+  phi_deg: number[];
+  gain_dbi: number[][];
+  measurement_freq_mhz: number;
+};
+
 // Scalar far-field metrics from /pattern_metrics, shown in the compare table.
 export type PatternMetrics = {
   peak_gain_dbi: number;

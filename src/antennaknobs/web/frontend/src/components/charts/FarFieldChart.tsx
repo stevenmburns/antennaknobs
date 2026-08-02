@@ -1,10 +1,9 @@
 import { useContext, useEffect, useRef } from "react";
-import type { PatternData } from "../../App";
 import type { SolveResponse } from "../../lib/api";
 import { ThemeContext } from "../hooks";
 import { traceFor, useCutTraces } from "./cuts";
 import { ghostRgb, plotColors } from "./palette";
-import type { FarFieldCut, PinnedPattern } from "./types";
+import type { FarFieldCut, PatternData, PinnedPattern } from "./types";
 
 export function FarFieldChart({
   result,
