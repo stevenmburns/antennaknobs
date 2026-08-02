@@ -39,6 +39,7 @@ graph-layout engine, and none needed.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 
 from .network import (
@@ -78,6 +79,7 @@ KINDS = (
     "coax",
     "line",
     "transformer",
+    "balun",
     "box",
     "short",
     "open",
@@ -89,12 +91,19 @@ KINDS = (
 @dataclass(frozen=True)
 class Element:
     """One drawn symbol. ``orient`` is ``"series"`` (along the spine) or
-    ``"shunt"`` (down to the datum)."""
+    ``"shunt"`` (down to the datum).
+
+    The two text slots mean the same thing whichever way the symbol is drawn:
+    ``label`` is *what it is* (an impedance, a value) and ``sublabel`` is the
+    second line (a line's length). How a shunt ends is not text — it is
+    ``term``, so the renderer draws it as a glyph and writes the word itself.
+    """
 
     kind: str
     label: str = ""
     orient: str = "series"
     sublabel: str = ""
+    term: str = ""  # "short" | "open" — a shunt's far end
 
 
 def series(kind: str, label: str = "", sublabel: str = "") -> Element:
@@ -102,9 +111,14 @@ def series(kind: str, label: str = "", sublabel: str = "") -> Element:
     return Element(kind=kind, label=label, orient="series", sublabel=sublabel)
 
 
-def shunt(kind: str, label: str = "", sublabel: str = "") -> Element:
-    """A symbol from the spine down to the common datum."""
-    return Element(kind=kind, label=label, orient="shunt", sublabel=sublabel)
+def shunt(kind: str, label: str = "", sublabel: str = "", term: str = "") -> Element:
+    """A symbol from the spine down to the common datum.
+
+    ``term`` names how the drop ends — ``"short"`` or ``"open"`` for a stub,
+    whose two flavors are different matches and must not draw alike. Left
+    empty (an R/L/C to common) the drop simply grounds.
+    """
+    return Element(kind=kind, label=label, orient="shunt", sublabel=sublabel, term=term)
 
 
 def ground(label: str = "") -> Element:
@@ -166,6 +180,22 @@ def _fmt_len(m):
     return f"{m:.2f} m" if m >= 1.0 else f"{m * 100:.0f} cm"
 
 
+def _val(v):
+    """A component value, to three significant figures.
+
+    `%g` prints whatever float arithmetic produced — a trap resonating at a
+    round frequency gives "6.46181 pF" and a 1:7 unun gives "1:0.142857",
+    neither of which is a number anyone winds or buys. Plain decimal at every
+    magnitude a component takes: `%g` would flip to an exponent at 1e5 and
+    `%.3g` as early as 1000, which is only a 600 Ω line away.
+    """
+    a = abs(v)
+    if a == 0.0:
+        return "0"
+    places = max(0, 2 - int(math.floor(math.log10(a))))
+    return f"{v:.{places}f}".rstrip("0").rstrip(".") if places else f"{v:.0f}"
+
+
 def default_elements(branch) -> tuple[Element, ...]:
     """The fallback picture for a branch with no author-supplied fragment.
 
@@ -173,15 +203,20 @@ def default_elements(branch) -> tuple[Element, ...]:
     it is. A box that wants to look like what it *is* supplies a fragment.
     """
     if isinstance(branch, TL):
-        return (series("coax", f"{branch.z0:g} Ω", _fmt_len(branch.length)),)
+        return (series("coax", f"{_val(branch.z0)} Ω", _fmt_len(branch.length)),)
     if isinstance(branch, BalancedLine):
-        return (series("line", f"{branch.zdiff:g} Ω pair", _fmt_len(branch.length)),)
+        return (
+            series("line", f"{_val(branch.zdiff)} Ω pair", _fmt_len(branch.length)),
+        )
     if isinstance(branch, Transformer):
-        return (series("transformer", f"1:{branch.n:g}"),)
+        return (series("transformer", f"1:{_val(branch.n)}"),)
     if isinstance(branch, Autotransformer):
         return (series("transformer", "autotransformer"),)
     if isinstance(branch, FloatingBalun):
-        return (series("transformer", f"balun 1:{branch.n:g}"),)
+        # Its own kind, not "transformer": the whole point of this branch is
+        # that the secondary is NOT bonded to the datum, so it must never be
+        # drawn with the return leg a `Transformer` has.
+        return (series("balun", f"balun 1:{_val(branch.n)}"),)
     if isinstance(branch, Shunt):
         return (shunt(_rlc_kind(branch), _rlc_label(branch)),)
     if isinstance(branch, Load):
@@ -208,11 +243,11 @@ def _rlc_kind(br):
 def _rlc_label(br):
     bits = []
     if getattr(br, "r", None):
-        bits.append(f"{br.r:g} Ω")
+        bits.append(f"{_val(br.r)} Ω")
     if getattr(br, "l", None):
-        bits.append(f"{br.l * 1e6:g} µH")
+        bits.append(f"{_val(br.l * 1e6)} µH")
     if getattr(br, "c", None):
-        bits.append(f"{br.c * 1e12:g} pF")
+        bits.append(f"{_val(br.c * 1e12)} pF")
     return " ".join(bits) if bits else "short"
 
 
@@ -397,12 +432,58 @@ _SCHEMDRAW_SYMBOLS = {
     "coax": "Coax",
     "line": "Coax",
     "transformer": "Transformer",
+    "balun": "Transformer",
     "short": "Line",
     "open": "Gap",
     "box": "RBox",
 }
 
 DX, DY = 3.2, 2.2  # spine step and rib drop, in schemdraw units
+FONTSIZE = 8  # one size for every label — element, block, note and terminal
+SUBFONT = 7  # the second line under an element (a line's length, a stub's end)
+LEADIN = 1.4  # source → first block (widened below when a shunt lands on the
+# first spine node, so its left-hand label clears the source circle).
+LEADOUT = 0.9  # last block → antenna
+GAP = 0.9  # between two blocks, so their enclosures never touch
+TERM = 0.5  # shunt symbol → its termination glyph
+SRC_R = 0.5  # radius of the source circle, for label clearance
+
+
+def _text_width(s: str, fontsize: float = FONTSIZE) -> float:
+    """Rough width of a label, in drawing units.
+
+    schemdraw's SVG canvas is 36 pt per unit and its default font averages
+    about half the point size per character. Only ever used to *reserve*
+    space, so an approximation that errs wide is the safe kind.
+    """
+    return 0.55 * fontsize * len(s) / 36.0
+
+
+def _label_room(el) -> float:
+    """Width to reserve for a drop's left-hand labels."""
+    return max(
+        _text_width(el.label),
+        _text_width(el.sublabel, SUBFONT),
+    )
+
+
+def _exit_x(e, fallback: float) -> float:
+    """Where the spine leaves a drawn element.
+
+    Two-terminal symbols expose ``end``; a Transformer exposes its secondary
+    (``s1``) instead. Anything else falls back to a plain step.
+    """
+    for anchor in ("end", "s1"):
+        if anchor in e.absanchors:
+            return float(e.absanchors[anchor][0])
+    return fallback
+
+
+def _exit_y(e, fallback: float) -> float:
+    """Where a drop really ends — see `_exit_x`, one axis over."""
+    if "end" in e.absanchors:
+        return float(e.absanchors["end"][1])
+    return fallback
 
 
 def render_svg(sch: Schematic, path=None) -> str:
@@ -420,48 +501,179 @@ def render_svg(sch: Schematic, path=None) -> str:
 
     schemdraw.use("svg")
     d = schemdraw.Drawing(show=False)
-    d.config(unit=DX, fontsize=10)
+    d.config(unit=DX, fontsize=FONTSIZE)
 
     def symbol(kind):
         return getattr(elm, _SCHEMDRAW_SYMBOLS.get(kind, "RBox"))
 
     x, y = 0.0, 0.0
-    d += elm.SourceSin().at((x, y - 2.0)).up().label(sch.source or "source", loc="left")
-    d += elm.Ground().at((x, y - 2.0))
-    d += elm.Line().at((x, y)).to((x + 0.7, y))
-    x += 0.7
+    # `.to()` rather than `.up()`: an element's default length is one unit
+    # (DX), so `.up()` from the datum overshoots the spine and leaves a bare
+    # wire sticking out of the top of the source.
+    d += elm.SourceSin().at((x, y - DY)).to((x, y))
+    d += (
+        elm.Label()
+        .at((x - SRC_R - 0.15, y - DY / 2.0))
+        .label(sch.source or "source", halign="right")
+    )
+    d += elm.Ground().at((x, y - DY))
 
-    for block in sch.blocks:
+    # A shunt on the first spine node labels itself leftward, into the source.
+    # Reserve the room here rather than nudging the label, so the drop stays
+    # on the node it is electrically attached to.
+    leadin = LEADIN
+    first = sch.blocks[0].elements[0] if sch.blocks and sch.blocks[0].elements else None
+    if first is not None and first.orient == "shunt":
+        leadin = max(leadin, SRC_R + 0.3 + _label_room(first) + 0.5)
+    d += elm.Line().at((x, y)).to((x + leadin, y))
+    x += leadin
+
+    for n, block in enumerate(sch.blocks):
+        if n:
+            d += elm.Line().at((x, y)).to((x + GAP, y))
+            x += GAP
         x0 = x
+        drawn = []  # what the block's enclosure has to contain
+        tall = False  # the last symbol drawn reaches below the spine
         for el in block.elements:
             if el.orient == "shunt":
-                d += (
-                    symbol(el.kind)()
-                    .at((x, y))
-                    .down()
-                    .label(el.label, loc="right", fontsize=8)
-                )
-                d += elm.Ground().at((x, y - DY))
-            else:
-                e = symbol(el.kind)().at((x, y)).right().label(el.label, fontsize=8)
-                if el.sublabel:
-                    e = e.label(el.sublabel, loc="bottom", fontsize=7)
+                if tall and (el.label or el.sublabel):
+                    # Same reservation as LEADIN: a drop labels itself
+                    # leftward, and a transformer fills the whole band below
+                    # the spine, so step clear before dropping.
+                    pad = _label_room(el) + 0.4
+                    lead = elm.Line().at((x, y)).to((x + pad, y))
+                    d += lead
+                    drawn.append(lead)
+                    x += pad
+                tall = False
+                # Drawn to an explicit endpoint for the same reason as the
+                # source, and so the termination lands *on* the end rather
+                # than part-way up a symbol that is longer than DY.
+                e = symbol(el.kind)().at((x, y)).to((x, y - DY))
                 d += e
-                x += DX
+                drawn.append(e)
+                # Placed absolutely and right-aligned rather than as labels
+                # on the element: schemdraw's label locations are in the
+                # element's own rotated frame, which puts "left" of a drop
+                # straight through the symbol body. Stacked so a drop reads
+                # like a series element turned on its side — value, then the
+                # second line under it.
+                # Where the drop really ends: a Coax ignores both `.to()` and
+                # `.length()` and keeps its own 3.0-unit body, so terminating
+                # at the requested DY draws the glyph over the symbol's own
+                # trailing lead.
+                bot = _exit_y(e, y - DY)
+                mid = (y + bot) / 2.0
+                for text, dy, size in (
+                    (el.label, 0.2, FONTSIZE),
+                    (el.sublabel, -0.25, SUBFONT),
+                ):
+                    if not text:
+                        continue
+                    lab = (
+                        elm.Label()
+                        .at((x - 0.5, mid + dy))
+                        .label(text, halign="right", fontsize=size)
+                    )
+                    d += lab
+                    drawn.append(lab)
+                ey = bot - TERM
+                d += elm.Line().at((x, bot)).to((x, ey))
+                # A stub's far end is the whole point of it: shorted and open
+                # are different matches, and they used to draw identically.
+                # The word comes from the data, so every stub says it the
+                # same way instead of each fragment spelling its own.
+                if el.term:
+                    # A shorted stub is a bar across the far end of the cable,
+                    # not a connection to earth: a ground symbol there claims
+                    # a bond the hardware does not have. The word carries it.
+                    end_mark = (
+                        elm.Dot(open=True).at((x, ey))
+                        if el.term == "open"
+                        else elm.Line().at((x - 0.25, ey)).to((x + 0.25, ey))
+                    )
+                    d += end_mark
+                    drawn.append(end_mark)
+                    sub = (
+                        elm.Label()
+                        .at((x + 0.4, ey))
+                        .label(
+                            "open" if el.term == "open" else "shorted",
+                            halign="left",
+                            fontsize=SUBFONT,
+                        )
+                    )
+                    d += sub
+                    drawn.append(sub)
+                else:
+                    d += elm.Ground().at((x, ey))
+            else:
+                wound = el.kind in ("transformer", "balun")
+                e = symbol(el.kind)().at((x, y)).right().label(el.label, loc="top")
+                if wound:
+                    # Not a two-terminal symbol: schemdraw's Transformer is a
+                    # winding pair anchored at its primary, so it has no
+                    # start/end and is 1.0 units wide, not DX. Enter on the
+                    # primary top and leave from the secondary top, or the
+                    # spine steps DX and leaves a gap where the coupling is.
+                    e.anchor("p1")
+                if el.sublabel:
+                    # Clear of the symbol body: a Coax is ~0.3 units tall, so
+                    # the default label offset lands the text inside it.
+                    e.label(el.sublabel, loc="bottom", ofst=0.5, fontsize=SUBFONT)
+                d += e
+                drawn.append(e)
+                if wound:
+                    # The winding bottoms are terminals, not loose ends. A
+                    # `Transformer` spans BOTH windings node-to-datum, so both
+                    # return legs ground; a `FloatingBalun`'s secondary is
+                    # deliberately unbonded, and grounding it would draw the
+                    # one connection the element exists to avoid.
+                    returns = ["p2"] if el.kind == "balun" else ["p2", "s2"]
+                    for anchor in returns:
+                        if anchor not in e.absanchors:  # pragma: no cover
+                            continue
+                        px, py = e.absanchors[anchor]
+                        lead = elm.Line().at((px, py)).to((px, py - TERM))
+                        d += lead
+                        drawn.append(lead)
+                        g = elm.Ground().at((px, py - TERM))
+                        d += g
+                        drawn.append(g)
+                x = _exit_x(e, x + DX)
+                tall = wound
         if x == x0:  # a block of pure shunts still needs a step
-            d += elm.Line().at((x, y)).to((x + DX, y))
+            e = elm.Line().at((x, y)).to((x + DX, y))
+            d += e
+            drawn.append(e)
             x += DX
-        note = block.label
-        if block.watts:
-            note = f"{note}  ({block.watts * 1e3:.2f} mW)"
-        if note:
-            d += elm.Label().at(((x0 + x) / 2.0, y + 1.1)).label(note, fontsize=8)
+        # An enclosure means "this is a box you named". A block with no path
+        # is a bare branch the flattening never grouped — drawing a dashed
+        # box round a lone TL and captioning it with its class name is noise,
+        # and two such boxes in a row visibly collide.
+        if block.path:
+            note = block.label
+            if block.watts:
+                note = f"{note}  ({block.watts * 1e3:.2f} mW)"
+            # A dashed enclosure, not a floating caption: the label names a
+            # box in the design, so the drawing shows where that box stops.
+            box = (
+                elm.EncircleBox(drawn, padx=0.35, pady=0.35)
+                .linestyle("--")
+                .color("gray")
+            )
+            if note:
+                box.label(note, loc="top", color="black")
+            d += box
 
     if sch.ends_in_antenna:
-        d += elm.Line().at((x, y)).to((x + 0.7, y))
-        d += elm.Antenna().at((x + 0.7, y)).up().label("antenna", loc="right")
+        d += elm.Line().at((x, y)).to((x + LEADOUT, y))
+        # No `.up()`: Antenna pins its own theta=0 and already draws its mast
+        # upward, so rotating it lays the whole symbol on its side.
+        d += elm.Antenna().at((x + LEADOUT, y)).label("antenna", loc="right")
     for i, note in enumerate(sch.notes):
-        d += elm.Label().at((0.0, y - 4.0 - i * 0.9)).label(note, fontsize=8)
+        d += elm.Label().at((0.0, y - DY - 1.6 - i * 0.9)).label(note)
 
     d.draw()
     svg = d.get_imagedata("svg").decode("utf-8")

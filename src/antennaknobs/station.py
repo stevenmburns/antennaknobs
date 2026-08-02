@@ -530,7 +530,15 @@ def single_stub_tuner(
             Instance("stub", stub, port="rig"),
         ),
         schematic=(
-            shunt("coax", f"stub {stub_wl:g} λ", "shorted" if shorted else "open"),
+            # Both lines are the same cable — `_stub_line` resolves the stub's
+            # z0/vf from the same arguments — so they annotate alike: what it
+            # is, then how long. The stub's far end is `term`, not prose.
+            shunt(
+                "coax",
+                f"{lz0:g} Ω",
+                f"{stub_wl:g} λ",
+                term="short" if shorted else "open",
+            ),
             series("coax", f"{lz0:g} Ω", f"{line_wl:g} λ"),
         ),
     )
