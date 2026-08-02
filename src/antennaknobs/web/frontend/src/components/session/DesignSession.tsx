@@ -21,31 +21,38 @@ import {
   type Slot,
   type SlotConfig,
 } from "../../lib/backends";
-import type {
-  FiniteGroundMethod,
-  GroundModel,
-  GroundType,
-  TerrainParams,
-  TerrainPresetSchema,
-} from "../../lib/ground";
-import { richardsonExtrap } from "../../lib/math";
 import {
-  familyOf,
-  familyRank,
-  FAMILY_LABELS,
+  bandContaining as bandContainingIn,
+  freqWindowCeiling as freqWindowCeilingFor,
+} from "../../lib/bands";
+import {
+  groundSummaryLabel,
+  resolveGroundModel,
+  type FiniteGroundMethod,
+  type GroundModel,
+  type GroundType,
+  type TerrainParams,
+  type TerrainPresetSchema,
+} from "../../lib/ground";
+import { feedwiseRichardson, richardsonExtrap } from "../../lib/math";
+import {
+  defaultKnobOpt,
   findLinkedDesignFreq,
+  groupExamplesForPicker,
   isGroup,
-  matchesQuery,
+  linkedMeasFreqFor,
+  overlaySchemaForVariant,
   seedDefaults,
+  setValueAtPath,
   snapForExample,
   type BandSpec,
   type ExampleDescriptor,
   type KnobOpt,
   type ParamValueBag,
   type SchemaItem,
-  type SchemaParamGroupSpec,
   type SchemaParamSpec,
 } from "../../lib/params";
+import { planSweepFreqs } from "../../lib/sweep";
 import {
   MOBILE_SCREENS,
   PROJECTIONS,
@@ -345,23 +352,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // selection visible so the <select> value stays valid), then group by
   // family in FAMILY_ORDER.
   const geomQuery = geomFilter.trim().toLowerCase();
-  const geomGroups = (() => {
-    const visible = examples.filter(
-      (ex) => ex.name === geometry || matchesQuery(ex, geomQuery),
-    );
-    const byFam = new Map<string, ExampleDescriptor[]>();
-    for (const ex of visible) {
-      const fam = familyOf(ex.name);
-      (byFam.get(fam) ?? byFam.set(fam, []).get(fam)!).push(ex);
-    }
-    return [...byFam.entries()]
-      .map(([fam, items]) => ({
-        fam,
-        label: FAMILY_LABELS[fam] ?? fam,
-        items: items.sort((a, b) => a.label.localeCompare(b.label)),
-      }))
-      .sort((a, b) => familyRank(a.fam) - familyRank(b.fam));
-  })();
+  const geomGroups = groupExamplesForPicker(examples, geometry, geomQuery);
   const currentVariant =
     variantByGeom[geometry] ?? currentExample?.variants?.[0] ?? "default";
 
@@ -371,23 +362,10 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // range. Feeds the knob rail and the per-knob optimiser menu so both
   // see variant-correct bounds; value seeding stays on the raw schema
   // (defaults/values are variant_values' job).
-  const currentSchema = useMemo<SchemaItem[]>(() => {
-    if (!currentExample) return [];
-    const over = currentExample.variant_ui?.[currentVariant]?.params;
-    if (!over) return currentExample.param_schema;
-    return currentExample.param_schema
-      .map((item) =>
-        !isGroup(item) && over[item.name]
-          ? { ...item, ...over[item.name] }
-          : item,
-      )
-      .filter(
-        // A variant can hide a base-visible knob (e.g. invvee:dipole's
-        // angle_deg — flat by definition, value pinned at 0 by the
-        // variant). Display-only: the value still rides variant_values.
-        (item) => isGroup(item) || !(item as { hidden?: boolean }).hidden,
-      );
-  }, [currentExample, currentVariant]);
+  const currentSchema = useMemo<SchemaItem[]>(
+    () => overlaySchemaForVariant(currentExample, currentVariant),
+    [currentExample, currentVariant],
+  );
 
   // Switch to a different variant: overlay the variant's per-param
   // values onto the existing slider state for this geometry (keeping
@@ -456,18 +434,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     path: (string | number)[],
     value: number | string | boolean,
   ) {
-    const setIn = (node: unknown, ps: (string | number)[]): unknown => {
-      if (ps.length === 0) return value;
-      const [head, ...rest] = ps;
-      if (typeof head === "number") {
-        const arr = ((node as unknown[]) ?? []).slice();
-        arr[head] = setIn(arr[head], rest);
-        return arr;
-      }
-      const obj = { ...((node as Record<string, unknown>) ?? {}) };
-      obj[head] = setIn(obj[head], rest);
-      return obj;
-    };
     // Compute the new geometry bag eagerly (outside the setter) so the
     // meas-freq follow logic below can read newRoot reliably. React's
     // useState eager-bailout optimization runs the updater synchronously
@@ -475,49 +441,17 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     // multiple updates, so a `newRoot` captured inside the updater
     // closure is null on the fast path — which manifests as the linked
     // measFreq snap working on slow drags but not on fast ones.
-    const newRoot = setIn(paramValues[geometry] ?? {}, path) as ParamValueBag;
+    const newRoot = setValueAtPath(paramValues[geometry] ?? {}, path, value) as ParamValueBag;
     setParamValues((prev) => ({
       ...prev,
-      [geometry]: setIn(prev[geometry] ?? {}, path) as ParamValueBag,
+      [geometry]: setValueAtPath(prev[geometry] ?? {}, path, value) as ParamValueBag,
     }));
 
-    // Schema-driven meas-freq follow. Two variants:
-    //   * group leaf: `path = [groupName, instanceIdx, leafName]` and
-    //     the group declares `link_meas_freq_to_param` — push that
-    //     instance's value of the named sibling into measFreq.
-    //   * flat scalar: `path = [paramName]` and the ParamSpec declares
-    //     `link_meas_freq_to_param` — push the current value of the
-    //     named sibling (possibly itself) into measFreq. Used by
-    //     multi-band antennas with parallel length_NN / freq_NN flat
-    //     sliders (antennaknobs's fandipole).
+    // Schema-driven meas-freq follow — see linkedMeasFreqFor for the two
+    // variants (group leaf vs. flat scalar `link_meas_freq_to_param`).
     if (!linkMeas) return;
-    const ex = currentExample;
-    if (!ex) return;
-    if (path.length === 1 && typeof path[0] === "string") {
-      const paramName = path[0];
-      const spec = ex.param_schema.find(
-        (s) => !isGroup(s) && s.name === paramName,
-      ) as SchemaParamSpec | undefined;
-      const linked = spec?.link_meas_freq_to_param;
-      if (!linked) return;
-      const freqValue = newRoot[linked];
-      if (typeof freqValue === "number") setMeasFreq(freqValue);
-      return;
-    }
-    if (path.length < 3) return;
-    const groupName = path[0];
-    const instanceIdx = path[1];
-    if (typeof groupName !== "string" || typeof instanceIdx !== "number") return;
-    const group = ex.param_schema.find(
-      (s) => isGroup(s) && s.name === groupName,
-    ) as SchemaParamGroupSpec | undefined;
-    if (!group || !group.link_meas_freq_to_param) return;
-    const instances = newRoot[groupName];
-    if (!Array.isArray(instances)) return;
-    const inst = instances[instanceIdx];
-    if (!inst) return;
-    const freqValue = inst[group.link_meas_freq_to_param];
-    if (typeof freqValue === "number") setMeasFreq(freqValue);
+    const freqValue = linkedMeasFreqFor(currentExample, path, newRoot);
+    if (freqValue != null) setMeasFreq(freqValue);
   }
 
   // A user-originated knob change (drag / arrow key) — the optimizer's own
@@ -679,14 +613,11 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // terrain selection quietly degrades to the finite method on any future
   // backend without terrain support (all current ground-capable backends
   // have it — PyNEC via the #553 hybrid).
-  const groundModel: GroundModel =
-    groundType === "pec"
-      ? "pec"
-      : groundType === "terrain" && backendSupportsTerrain(backend)
-        ? "terrain"
-        : backendSupportsGround(backend)
-          ? finiteGroundMethod
-          : "fast";
+  const groundModel: GroundModel = resolveGroundModel(
+    groundType,
+    backend,
+    finiteGroundMethod,
+  );
 
   // Solve-effect dep for the terrain knobs: only bites while terrain is
   // the active model, so parked levee state never re-solves a flat-ground
@@ -699,16 +630,12 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // One-line tab-hover summary: design · solver N=segs · ground model.
   // Every backend honours the selected method (momwire >= 0.8.0), so the
   // wording is uniform; "free space" when ground is off or unsupported.
-  const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
-  const groundSummary = !groundActiveForSummary
-    ? "free space"
-    : groundModel === "pec"
-      ? "PEC ground"
-      : groundModel === "terrain"
-        ? `terrain (${terrainPreset})`
-        : groundModel === "fast"
-          ? "reflection-coef ground"
-          : "Sommerfeld ground";
+  const groundSummary = groundSummaryLabel(
+    groundEnabled,
+    backend,
+    groundModel,
+    terrainPreset,
+  );
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
@@ -1258,19 +1185,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   function knobOptFor(name: string): KnobOpt {
     const existing = knobOpt[geometry]?.[name];
     if (existing) return existing;
-    const s = currentSchema.find(
-      (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
-    );
-    const min = s?.min ?? 0;
-    const max = s?.max ?? 1;
-    return {
-      vary: false,
-      optMin: min,
-      optMax: max,
-      dispMin: min,
-      dispMax: max,
-      step: s?.step ?? 0.001,
-    };
+    return defaultKnobOpt(currentSchema, name);
   }
   function updateKnobOpt(name: string, patch: Partial<KnobOpt>) {
     const base = knobOptFor(name);
@@ -1410,10 +1325,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // max 60, so touching the knob clamped it to 60 MHz). Derive it from
   // the design's own band table instead, keeping 60 as the floor so
   // bandless/HF-only designs behave exactly as before.
-  const freqWindowCeiling = Math.max(
-    60,
-    ...currentBands.map((b) => b.max_mhz * 1.25),
-  );
+  const freqWindowCeiling = freqWindowCeilingFor(currentBands);
 
   // When the active example changes (or first loads), snap band /
   // designFreq / measFreq to the band whose [min, max] window contains
@@ -1484,10 +1396,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // the active-tab highlight on the meas-band selector. Falls outside any
   // band → no tab highlighted.
   function bandContaining(f: number): string | null {
-    for (const b of currentBands) {
-      if (f >= b.min_mhz && f <= b.max_mhz) return b.key;
-    }
-    return null;
+    return bandContainingIn(currentBands, f);
   }
 
   // The latest control values, used to send a new request when the prior one
@@ -1874,58 +1783,20 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     const controller = new AbortController();
     sweepAbortRef.current = controller;
 
-    // Sweep range, log-spaced. Sommerfeld ground stays at half resolution:
-    // momwire 0.7.0's C++ fill + grid cache made warm sweeps fast (~30 ms
-    // per point once the per-frequency grids are cached; measured 0.6 s for
-    // 21 points at 2 threads), but the FIRST sweep after enabling it still
-    // fills one grid per point (measured 4.3 s for 21 points at 2 threads;
-    // 41 would be ~9 s) — half resolution halves that cold hit. Fast
-    // (reflection-coefficient) ground and momwire PEC ground are cheap
-    // enough for full resolution.
-    //
-    // Anchor + span come from the active example's sweep_policy. See
-    // SweepPolicy in web/examples/_base.py for the meaning of the fields.
-    // A variant can override the policy (e.g. a band-locked variant): prefer
-    // the active variant's entry in variant_ui, falling back to the
-    // design-level sweep_policy.
-    const slowGround =
-      backendSupportsGround(backend) &&
-      groundEnabled &&
-      groundModel === "sommerfeld";
-    const N = slowGround ? 21 : 41;
-    const policy =
-      currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
-      currentExample?.sweep_policy;
-    // Anchor on the measurement frequency whenever the sweep should follow what
-    // the user is *viewing*: multiband designs declare anchor="meas_freq", and
-    // any design that's been unlocked from its design freq (to check the pattern
-    // on another band) should sweep that band too — not stay pinned to the
-    // design band. Locked single-resonance designs keep sweeping design_freq
-    // (where measFreq == designFreq anyway).
-    const sweepAnchor =
-      !measLocked || policy?.anchor === "meas_freq" ? measFreq : designFreq;
-    // Band-locked sweep: when the active band contains the anchor,
-    // snap the sweep range to that band's [min_mhz, max_mhz] so the
-    // trace stays inside the band the user is tuning instead of
-    // bleeding into adjacent ones. Falls through to the multiplicative
-    // window if the anchor sits outside every band.
-    let fLo: number;
-    let fHi: number;
-    const bandLocked = policy?.band_locked
-      ? currentBands.find(
-          (b) => sweepAnchor >= b.min_mhz && sweepAnchor <= b.max_mhz,
-        )
-      : undefined;
-    if (bandLocked) {
-      fLo = bandLocked.min_mhz;
-      fHi = bandLocked.max_mhz;
-    } else {
-      fLo = Math.max(0.5, sweepAnchor * (policy?.lo_factor ?? 0.8));
-      fHi = Math.min(freqWindowCeiling, sweepAnchor * (policy?.hi_factor ?? 1.25));
-    }
-    const freqs = Array.from({ length: N }, (_, i) =>
-      Math.exp(Math.log(fLo) + (i / (N - 1)) * (Math.log(fHi) - Math.log(fLo))),
-    );
+    // Sweep range, log-spaced — see planSweepFreqs for the resolution,
+    // anchor, and band-lock policy this applies.
+    const freqs = planSweepFreqs({
+      backend,
+      groundEnabled,
+      groundModel,
+      currentExample,
+      currentVariant,
+      measLocked,
+      measFreq,
+      designFreq,
+      currentBands,
+      freqWindowCeiling,
+    });
 
     const body = {
       ...buildRequest(),
@@ -2082,21 +1953,13 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
           const invN = acc.n_values.map((n) => 1 / n);
           acc.z_re_extrap = richardsonExtrap(invN, acc.z_re);
           acc.z_im_extrap = richardsonExtrap(invN, acc.z_im);
-          // Per-feed Richardson Z*. Each feed's series is the column of
-          // feeds_z_re / feeds_z_im at that feed index across all sampled
-          // N values; richardsonExtrap returns null until ≥3 points are
-          // in, so the diamonds light up the same time the primary one
-          // does.
+          // Per-feed Richardson Z* — see feedwiseRichardson.
           if (acc.feeds_z_re && acc.feeds_z_im) {
-            const nFeeds = acc.feeds_z_re[0].length;
-            const feedsRe: (number | null)[] = [];
-            const feedsIm: (number | null)[] = [];
-            for (let fi = 0; fi < nFeeds; fi++) {
-              const re = acc.feeds_z_re.map((row) => row[fi]);
-              const im = acc.feeds_z_im.map((row) => row[fi]);
-              feedsRe.push(richardsonExtrap(invN, re));
-              feedsIm.push(richardsonExtrap(invN, im));
-            }
+            const { feedsRe, feedsIm } = feedwiseRichardson(
+              invN,
+              acc.feeds_z_re,
+              acc.feeds_z_im,
+            );
             acc.feeds_z_re_extrap = feedsRe;
             acc.feeds_z_im_extrap = feedsIm;
           }
