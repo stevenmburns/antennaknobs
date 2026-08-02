@@ -394,7 +394,7 @@ function findLinkedDesignFreq(
 
 // Blend two #rrggbb colors; t=0 -> a, t=1 -> b. Used to warm the knob's value
 // arc from --accent toward --hot as it nears max (an "energizing" cue).
-function mixHex(a: string, b: string, t: number): string {
+export function mixHex(a: string, b: string, t: number): string {
   const ch = (s: string, i: number) => parseInt(s.slice(i, i + 2), 16);
   const r = Math.round(ch(a, 1) + (ch(b, 1) - ch(a, 1)) * t);
   const g = Math.round(ch(a, 3) + (ch(b, 3) - ch(a, 3)) * t);
@@ -1253,7 +1253,7 @@ function ParamForm({
   );
 }
 
-function formatScalar(raw: unknown, precision: number, unit: string | null): string {
+export function formatScalar(raw: unknown, precision: number, unit: string | null): string {
   return typeof raw === "number" ? `${raw.toFixed(precision)}${unit ?? ""}` : "—";
 }
 
@@ -1484,7 +1484,7 @@ type SolveResponse = {
 // `model_options` are forwarded to server.py's _make_momwire_sim.
 // "triangular" is retired from the UI (the server still accepts it);
 // see normalizeBackend for how a stale recommendation is mapped.
-type Backend =
+export type Backend =
   | "sinusoidal"
   | "sinusoidal-galerkin"
   | "bspline"
@@ -1508,14 +1508,14 @@ const BACKEND_LABEL: Record<Backend, string> = {
 // solver is minutes per solve where sinusoidal (or PyNEC) is seconds. `rec`
 // is the server's recommended backend ("arrayblock" for grid arrays,
 // "sinusoidal" for huge meshes, else null).
-function comboInappropriate(b: Backend, rec: Backend | null): boolean {
+export function comboInappropriate(b: Backend, rec: Backend | null): boolean {
   const accel = b === "arrayblock" || b === "hmatrix";
   if (rec === "arrayblock") return !accel; // an array wants an accelerator
   if (rec === "sinusoidal") return b !== "sinusoidal" && b !== "pynec";
   return accel; // everything else doesn't need one
 }
 
-const BACKEND_ORDER: Backend[] = [
+export const BACKEND_ORDER: Backend[] = [
   "sinusoidal",
   "sinusoidal-galerkin",
   "bspline",
@@ -1534,14 +1534,14 @@ const PYNEC_FALLBACK_BACKEND: Backend = "sinusoidal";
 
 // Backends selectable given the server's capabilities: drops PyNEC when
 // pynec-accel is absent.
-function selectableBackends(havePynec: boolean): Backend[] {
+export function selectableBackends(havePynec: boolean): Backend[] {
   return havePynec ? BACKEND_ORDER : BACKEND_ORDER.filter((b) => b !== "pynec");
 }
 
 // Map an unavailable PyNEC selection to the fallback; leave everything else
 // untouched. Applied wherever a backend can arrive from outside the gated
 // picker — default slots, a saved/URL slot, a server recommendation.
-function resolveBackend(b: Backend, havePynec: boolean): Backend {
+export function resolveBackend(b: Backend, havePynec: boolean): Backend {
   return b === "pynec" && !havePynec ? PYNEC_FALLBACK_BACKEND : b;
 }
 
@@ -1552,7 +1552,7 @@ function resolveBackend(b: Backend, havePynec: boolean): Backend {
 // (#429) this is per-design, and unlike comboInappropriate it is a HARD
 // incompatibility: the disallowed solvers raise, so the gate offers
 // "switch", never "solve anyway".
-function backendAllowed(
+export function backendAllowed(
   b: Backend,
   required: string[] | null | undefined,
 ): boolean {
@@ -1573,7 +1573,7 @@ const RESTRICTED_BACKEND_REASON =
 // bspline; they share its options and request shape, and fall back to the
 // dense bspline path for ground/enrichment.
 const BSPLINE_FAMILY: Backend[] = ["bspline", "hmatrix", "arrayblock"];
-function isBSplineFamily(b: Backend): boolean {
+export function isBSplineFamily(b: Backend): boolean {
   return BSPLINE_FAMILY.includes(b);
 }
 
@@ -1630,7 +1630,7 @@ type TerrainPresetSchema = {
 // schema default and the server clamps every number.
 type TerrainParams = Record<string, number>;
 
-function backendSupportsGround(b: Backend): boolean {
+export function backendSupportsGround(b: Backend): boolean {
   // sinusoidal-galerkin: all three grounds since momwire#182 M4. (Junction-
   // port designs OVER a ground refuse server-side — a per-design error the
   // solve surfaces cleanly, not a backend capability gap.)
@@ -1647,7 +1647,7 @@ function backendSupportsGround(b: Backend): boolean {
 // solves the currents over crest-medium Sommerfeld — exactly what the
 // terrain recipe feeds the current solve anyway — and the server's cut
 // physics applies the facet reflection to those currents.
-function backendSupportsTerrain(b: Backend): boolean {
+export function backendSupportsTerrain(b: Backend): boolean {
   return backendSupportsGround(b);
 }
 
@@ -1657,7 +1657,7 @@ function backendSupportsTerrain(b: Backend): boolean {
 // design hint): map it to "bspline", the default working solver on the
 // same dense path. Anything else unrecognised falls back to null ("no
 // recommendation") so a stale value never reaches state or the wire.
-function normalizeBackend(b: string | null | undefined): Backend | null {
+export function normalizeBackend(b: string | null | undefined): Backend | null {
   if (!b) return null;
   if (b === "triangular") return "bspline";
   return (BACKEND_ORDER as string[]).includes(b) ? (b as Backend) : null;
@@ -1673,8 +1673,8 @@ type SinusoidalOpts = CommonOpts & { nQpConst: number };
 // for near-open high-Q designs, momwire#213). Deliberately NOT on plain
 // sinusoidal: the point gap has no collocation RHS (momwire#212), so that
 // solver offers no choice to present.
-type SinGalerkinOpts = SinusoidalOpts & { feedModel: "segment" | "point" };
-type BSplineOpts = CommonOpts & {
+export type SinGalerkinOpts = SinusoidalOpts & { feedModel: "segment" | "point" };
+export type BSplineOpts = CommonOpts & {
   degree: 1 | 2;
   nQpPair: number;
   feedSmoothingFactor: number | null; // null = sharp delta-gap
@@ -1732,7 +1732,7 @@ const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
   nQpSource: 16,
 };
 
-const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
+export const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
   sinusoidal: { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
   // feedModel "segment" (NEC-compatible) is the solver's own default; the
   // gear menu recommends "point" (Converged) on near-open designs (#640).
@@ -1759,7 +1759,7 @@ const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
 type Slot = "A" | "B" | "C";
 const SLOT_ORDER: Slot[] = ["A", "B", "C"];
 
-type SlotConfig = {
+export type SlotConfig = {
   backend: Backend;
   opts: BackendOptsMap[Backend];
 };
@@ -1767,7 +1767,7 @@ type SlotConfig = {
 // Display label for a configured backend: B-spline-family entries carry
 // their spline degree so two b-spline slots (the default A d=2 / B d=1
 // pair) stay distinguishable at a glance.
-function backendDisplayLabel(b: Backend, opts: BackendOptsMap[Backend]): string {
+export function backendDisplayLabel(b: Backend, opts: BackendOptsMap[Backend]): string {
   if (isBSplineFamily(b))
     return `${BACKEND_LABEL[b]} d=${(opts as BSplineOpts).degree}`;
   // Surface the non-default feed model on the slot chip: two Sin-Galerkin
@@ -1811,7 +1811,7 @@ const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
 // default kwargs, preserving the geometry-sizing (segments/wire, radius) the
 // same way a manual backend swap does. Slot C defaults to PyNEC, so this is
 // what keeps the default panel sensible on a server without it.
-function resolveSlotConfig(cfg: SlotConfig, havePynec: boolean): SlotConfig {
+export function resolveSlotConfig(cfg: SlotConfig, havePynec: boolean): SlotConfig {
   const backend = resolveBackend(cfg.backend, havePynec);
   if (backend === cfg.backend) return cfg;
   return {
@@ -1826,7 +1826,7 @@ function resolveSlotConfig(cfg: SlotConfig, havePynec: boolean): SlotConfig {
 
 // Translates the camelCase frontend options into the snake_case kwargs the
 // server forwards to each Momwire model class constructor.
-function modelOptionsForRequest(
+export function modelOptionsForRequest(
   backend: Backend,
   opts: BackendOptsMap[Backend],
 ): Record<string, unknown> {
@@ -2005,7 +2005,7 @@ const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
 // Quadratic gives a sane answer for O(1/N) limit (BSpline without
 // enrichment) AND O(1/N^p) for p slightly above 1 — basis-cap, enrichment,
 // etc. With ≤2 points we can't fit; return null.
-function richardsonExtrap(
+export function richardsonExtrap(
   invN: number[],
   vals: number[],
   nLast = 5,
@@ -6695,7 +6695,7 @@ function feedMag(r: SolveResponse): number {
   return Math.hypot(re, im);
 }
 
-function reflectionCoefficient(r: number, x: number, z0: number) {
+export function reflectionCoefficient(r: number, x: number, z0: number) {
   // Γ = (Z - Z0) / (Z + Z0), with Z = r + jx (Z0 real).
   const denom = (r + z0) * (r + z0) + x * x;
   const gRe = (r * r - z0 * z0 + x * x) / denom;
@@ -6715,7 +6715,7 @@ const GROUND_APPLIED_LABEL: Record<string, string> = {
   terrain: "terrain (crest Somm.)",
 };
 
-function formatOhms(v: number): string {
+export function formatOhms(v: number): string {
   // The server clamps an open-circuited feed (e.g. a series matchbox
   // capacitor slider at 0 pF) to a 1e9 Ω sentinel — JSON has no Infinity.
   // Anything that large is physically an open, not a number worth printing.
@@ -6723,7 +6723,7 @@ function formatOhms(v: number): string {
   return `${v.toFixed(2)} Ω`;
 }
 
-function formatSwr(r: number, x: number, z0: number): string {
+export function formatSwr(r: number, x: number, z0: number): string {
   const { gMag } = reflectionCoefficient(r, x, z0);
   if (gMag >= 0.9999) return "∞";
   const swr = (1 + gMag) / (1 - gMag);
