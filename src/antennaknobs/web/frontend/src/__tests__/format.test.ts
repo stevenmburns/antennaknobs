@@ -1,4 +1,4 @@
-// Pins the small display-formatting free functions in App.tsx: mixHex (knob
+// Pins the small display-formatting free functions in src/lib: mixHex (knob
 // arc color blend), formatScalar (generic numeric readout), formatOhms and
 // formatSwr (impedance/SWR readouts, including the open-circuit sentinel and
 // the |Gamma| -> 1 asymptote).
