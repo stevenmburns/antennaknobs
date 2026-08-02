@@ -44,6 +44,27 @@ export function richardsonExtrap(
   return a0;
 }
 
+// Per-feed Richardson Z*. Each feed's series is the column of feedsZRe /
+// feedsZIm (one row per sampled N value) at that feed index across all
+// sampled N values; richardsonExtrap returns null until ≥3 points are in,
+// so the diamonds light up the same time the primary one does.
+export function feedwiseRichardson(
+  invN: number[],
+  feedsZRe: number[][],
+  feedsZIm: number[][],
+): { feedsRe: (number | null)[]; feedsIm: (number | null)[] } {
+  const nFeeds = feedsZRe[0].length;
+  const feedsRe: (number | null)[] = [];
+  const feedsIm: (number | null)[] = [];
+  for (let fi = 0; fi < nFeeds; fi++) {
+    const re = feedsZRe.map((row) => row[fi]);
+    const im = feedsZIm.map((row) => row[fi]);
+    feedsRe.push(richardsonExtrap(invN, re));
+    feedsIm.push(richardsonExtrap(invN, im));
+  }
+  return { feedsRe, feedsIm };
+}
+
 // Blend two #rrggbb colors; t=0 -> a, t=1 -> b. Used to warm the knob's value
 // arc from --accent toward --hot as it nears max (an "energizing" cue).
 export function mixHex(a: string, b: string, t: number): string {
