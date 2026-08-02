@@ -1,3 +1,6 @@
+import type { Backend } from "./backends";
+import { backendSupportsGround, backendSupportsTerrain } from "./backends";
+
 // The UI separates WHAT the ground is from HOW it's solved. GroundType is
 // the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002), a
 // perfectly conducting one, or a faceted terrain (levee/cliff presets).
@@ -50,3 +53,44 @@ export type TerrainPresetSchema = {
 // presets so edits survive preset flips; an unset key falls back to the
 // schema default and the server clamps every number.
 export type TerrainParams = Record<string, number>;
+
+// The wire value (`ground_model` on SolveRequest), derived from groundType
+// (+ the finite-ground method wherever the active backend supports it). A
+// terrain selection quietly degrades to the finite method on any backend
+// without terrain support (all current ground-capable backends have it —
+// PyNEC via the #553 hybrid).
+export function resolveGroundModel(
+  groundType: GroundType,
+  backend: Backend,
+  finiteGroundMethod: FiniteGroundMethod,
+): GroundModel {
+  return groundType === "pec"
+    ? "pec"
+    : groundType === "terrain" && backendSupportsTerrain(backend)
+      ? "terrain"
+      : backendSupportsGround(backend)
+        ? finiteGroundMethod
+        : "fast";
+}
+
+// One-line tab-hover ground summary: "free space", "PEC ground", "terrain
+// (<preset>)", "reflection-coef ground", or "Sommerfeld ground". Every
+// backend honours the selected method (momwire >= 0.8.0), so the wording is
+// uniform; "free space" when ground is off or unsupported.
+export function groundSummaryLabel(
+  groundEnabled: boolean,
+  backend: Backend,
+  groundModel: GroundModel,
+  terrainPreset: string,
+): string {
+  const groundActiveForSummary = groundEnabled && backendSupportsGround(backend);
+  return !groundActiveForSummary
+    ? "free space"
+    : groundModel === "pec"
+      ? "PEC ground"
+      : groundModel === "terrain"
+        ? `terrain (${terrainPreset})`
+        : groundModel === "fast"
+          ? "reflection-coef ground"
+          : "Sommerfeld ground";
+}
