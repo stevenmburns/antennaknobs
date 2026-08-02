@@ -3,7 +3,8 @@
 // formatSwr (impedance/SWR readouts, including the open-circuit sentinel and
 // the |Gamma| -> 1 asymptote).
 import { describe, it, expect } from "vitest";
-import { formatOhms, formatScalar, formatSwr, mixHex } from "../App";
+import { formatOhms, formatScalar, formatSwr } from "../lib/format";
+import { mixHex } from "../lib/math";
 
 describe("mixHex", () => {
   it("returns exactly a at t=0 and exactly b at t=1", () => {
