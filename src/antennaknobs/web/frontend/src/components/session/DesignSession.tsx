@@ -4,31 +4,16 @@ import {
   backendDisplayLabel,
   backendSupportsGround,
   comboInappropriate,
-  DEFAULT_BACKEND_OPTS,
-  DEFAULT_SLOTS,
   isBSplineFamily,
   modelOptionsForRequest,
   normalizeBackend,
   resolveBackend,
-  resolveSlotConfig,
   selectableBackends,
-  type Backend,
-  type BackendOptsMap,
-  type Slot,
-  type SlotConfig,
 } from "../../lib/backends";
 import {
   bandContaining as bandContainingIn,
   freqWindowCeiling as freqWindowCeilingFor,
 } from "../../lib/bands";
-import {
-  groundSummaryLabel,
-  resolveGroundModel,
-  type FiniteGroundMethod,
-  type GroundModel,
-  type GroundType,
-  type TerrainParams,
-} from "../../lib/ground";
 import {
   findLinkedDesignFreq,
   groupExamplesForPicker,
@@ -43,12 +28,7 @@ import {
   type SchemaItem,
   type SchemaParamSpec,
 } from "../../lib/params";
-import {
-  MOBILE_SCREENS,
-  VIEWS,
-  type Projection,
-  type View,
-} from "../../lib/view";
+import { MOBILE_SCREENS, VIEWS, type View } from "../../lib/view";
 import type {
   MeasuredData,
   SolveRequest,
@@ -87,9 +67,12 @@ import {
   useAnalysisRunners,
 } from "./useAnalysisRunners";
 import { useDesignCatalog } from "./useDesignCatalog";
+import { useGroundConfig } from "./useGroundConfig";
 import { useMobileCarousel } from "./useMobileCarousel";
 import { useOptimizer } from "./useOptimizer";
 import { useSolveChannel } from "./useSolveChannel";
+import { useSolverSlots } from "./useSolverSlots";
+import { useViewState } from "./useViewState";
 import { VfoPanel } from "./VfoPanel";
 
 // One antenna design session: the entire left sidebar + right stage plus all
@@ -287,14 +270,24 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // paramValues["fan_dipole"], seeded from the schema's defaults +
   // default_overrides. The deletion removed ~25 lines of state plus the
   // setFanBandSlot / setFanBandFreq / setFanHalfdriverFactor helpers.
-  // Solver slots A / B / C — each one holds its own backend + options so
-  // the user can switch between configured solvers with a single click
-  // and tune each one independently from its gear menu.
-  const [activeSlot, setActiveSlot] = useState<Slot>("A");
-  const [slots, setSlots] = useState<Record<Slot, SlotConfig>>(DEFAULT_SLOTS);
-  // Set once the user picks a backend by hand; after that we stop auto-seeding
-  // the per-antenna recommended solver so their choice sticks.
-  const backendTouchedRef = useRef(false);
+  // Solver slots A / B / C (#642 seam 5b-3). Called at the cluster's own
+  // position, so its PyNEC-remap effect keeps its global order.
+  const {
+    activeSlot,
+    setActiveSlot,
+    slots,
+    backendTouchedRef,
+    gearOpen,
+    setGearOpen,
+    backend,
+    currentOpts,
+    nPerWire,
+    wireRadius,
+    backendOptsKey,
+    updateSlotOpts,
+    setSlotBackend,
+    resetSlot,
+  } = useSolverSlots({ havePynec });
   // True once the user clicked "Solve anyway" for the current design+solver
   // combo, so re-solves (knob drags) don't re-warn. Reset whenever the design or
   // solver changes (see the reset effect below). Mirrored into state so the
@@ -308,68 +301,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // solve is withheld until the user clicks "Solve anyway" or changes the solver
   // themselves; the app never switches solvers on its own.
   const [solverWarning, setSolverWarning] = useState(false);
-  const [gearOpen, setGearOpen] = useState<Slot | null>(null);
-  const activeConfig = slots[activeSlot];
-  const backend = activeConfig.backend;
-  const currentOpts = activeConfig.opts;
-  const nPerWire = currentOpts.nPerWire;
-  const wireRadius = currentOpts.wireRadius;
-  // Stable hash of the active slot's config so useEffect can depend on it.
-  const backendOptsKey = JSON.stringify(activeConfig);
-  function updateSlotOpts(slot: Slot, patch: Partial<BackendOptsMap[Backend]>) {
-    setSlots((prev) => ({
-      ...prev,
-      [slot]: {
-        ...prev[slot],
-        opts: { ...prev[slot].opts, ...patch } as BackendOptsMap[Backend],
-      },
-    }));
-  }
-  function setSlotBackend(slot: Slot, newBackend: Backend) {
-    // Preserve segments-per-wire and wire-radius across the swap so the
-    // user keeps their geometry-sizing choices when comparing models;
-    // model-specific kwargs revert to that backend's defaults.
-    setSlots((prev) => {
-      const prevOpts = prev[slot].opts;
-      const defaults = DEFAULT_BACKEND_OPTS[newBackend];
-      return {
-        ...prev,
-        [slot]: {
-          backend: newBackend,
-          opts: {
-            ...defaults,
-            nPerWire: prevOpts.nPerWire,
-            wireRadius: prevOpts.wireRadius,
-          } as BackendOptsMap[Backend],
-        },
-      };
-    });
-  }
-  function resetSlot(slot: Slot) {
-    setSlots((prev) => ({
-      ...prev,
-      [slot]: resolveSlotConfig(DEFAULT_SLOTS[slot], havePynec),
-    }));
-  }
-  // When the server reports no pynec-accel (#429), remap any slot still on
-  // PyNEC — the default slot C, or a saved/URL slot — to the fallback backend,
-  // so the panel never holds a backend the picker no longer offers (which the
-  // /ws solve would silently run as momwire).
-  useEffect(() => {
-    if (havePynec) return;
-    setSlots((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const s of Object.keys(prev) as Slot[]) {
-        const resolved = resolveSlotConfig(prev[s], havePynec);
-        if (resolved !== prev[s]) {
-          next[s] = resolved;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [havePynec]);
   // band/designFreq/measFreq seed to placeholders; the auto-select
   // effect below picks the first band of the active example and
   // overwrites them once /examples resolves.
@@ -394,65 +325,46 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // design_freq-scaled design.
   const measLockable = currentExample?.has_design_freq ?? true;
   const measLocked = linkMeas && measLockable;
-  // Ground plane at z = 0 (model per backend; see groundType). ON by
-  // default: this is an HF wire-antenna workbench, and the over-ground
-  // picture (takeoff angle, ground-lobed elevation pattern, shifted Z)
-  // is the decision-relevant one — free space is the idealization you
-  // opt into. The whole catalog solves grounded (75/75 audit, all
-  // designs above z=0) on the default B-spline refl-coef path.
-  const [groundEnabled, setGroundEnabled] = useState(true);
-  // Shared ground choice — one selector describing the GROUND (finite vs
-  // PEC); every backend solves it as best it can (see the GroundType note).
-  const [groundType, setGroundType] = useState<GroundType>("finite");
-  // Finite-ground method; hidden (and inert) on backends with a single
-  // finite model, but kept in state so it survives backend flips during
-  // engine comparison. Defaults to "fast" — Sommerfeld is opt-in (it costs
-  // seconds per solve on the B-spline backend).
-  const [finiteGroundMethod, setFiniteGroundMethod] =
-    useState<FiniteGroundMethod>("fast");
-  // Terrain preset + knobs (groundType === "terrain"; momwire only). One
-  // flat params object for both presets so values survive preset flips.
-  const [terrainPreset, setTerrainPreset] = useState<string>("levee");
-  const [terrainParams, setTerrainParams] = useState<TerrainParams>({});
-  // Wire value derived for the server protocol (see GroundModel). A
-  // terrain selection quietly degrades to the finite method on any future
-  // backend without terrain support (all current ground-capable backends
-  // have it — PyNEC via the #553 hybrid).
-  const groundModel: GroundModel = resolveGroundModel(
-    groundType,
-    backend,
-    finiteGroundMethod,
-  );
-
-  // Solve-effect dep for the terrain knobs: only bites while terrain is
-  // the active model, so parked levee state never re-solves a flat-ground
-  // setup (and vice versa).
-  const terrainKey =
-    groundModel === "terrain"
-      ? JSON.stringify([terrainPreset, terrainParams])
-      : "";
-
-  // One-line tab-hover summary: design · solver N=segs · ground model.
-  // Every backend honours the selected method (momwire >= 0.8.0), so the
-  // wording is uniform; "free space" when ground is off or unsupported.
-  const groundSummary = groundSummaryLabel(
+  // Ground / terrain selection and its derived protocol values (#642 seam
+  // 5b-3). Pure state + derivations, so it adds no effects here.
+  const {
     groundEnabled,
-    backend,
-    groundModel,
+    setGroundEnabled,
+    groundType,
+    setGroundType,
+    finiteGroundMethod,
+    setFiniteGroundMethod,
     terrainPreset,
-  );
+    setTerrainPreset,
+    terrainParams,
+    setTerrainParams,
+    groundModel,
+    terrainKey,
+    groundSummary,
+  } = useGroundConfig({ backend });
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
   }, [id, tabSummary, reportSummary]);
-  // Far-field cut angles. The azimuth plot slices the pattern at elevation
-  // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
-  // bearing `elevAzDeg` (0° = +x). Defaults give the conventional views.
-  const [azElevDeg, setAzElevDeg] = useState(15);
-  // Default elevation-cut azimuth is 0° (+x) for every geometry: Yagi,
-  // moxon, and hexbeam beam +x; the inverted V now runs its arms along
-  // ±y so its broadside lobe also peaks at ±x.
-  const [elevAzDeg, setElevAzDeg] = useState(0);
+  // Output view, camera and canvas display toggles (#642 seam 5b-3).
+  const {
+    azElevDeg,
+    setAzElevDeg,
+    elevAzDeg,
+    setElevAzDeg,
+    view,
+    setView,
+    cameraProjection,
+    setCameraProjection,
+    showHeatmap,
+    setShowHeatmap,
+    showEnvelope,
+    setShowEnvelope,
+    showWireLabels,
+    setShowWireLabels,
+    showFeedNames,
+    setShowFeedNames,
+  } = useViewState({ currentExample, active });
 
   // When linked, design and measurement freq move together.
   function updateDesignFreq(v: number) {
@@ -575,23 +487,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     clearPins,
   } = useContext(PinsContext);
   const [liveMetrics, setLiveMetrics] = useState<PatternMetrics | null>(null);
-  const [view, setView] = useState<View>("antenna");
-  const [cameraProjection, setCameraProjection] = useState<Projection>("xy");
-  // When the user switches antennas, reset the camera to that example's
-  // natural starting view (declared on the backend via default_view).
-  // Explicit user override sticks until the next geometry change.
-  //
-  // A deferred (user) design reports default_view === null — its real view is
-  // auto-detected and arrives with the first geometry preview (handled where
-  // the preview lands, below). Holding the current camera until then avoids
-  // snapping to a wrong provisional view and flipping when the preview arrives.
-  useEffect(() => {
-    if (currentExample?.default_view) {
-      setCameraProjection(currentExample.default_view);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExample?.name]);
-
   // The app never switches solvers on its own. When the current design+solver
   // combo is a poor match the solve is withheld and a warning is shown; these
   // handle its two buttons. (To change solver, the user uses the gear menu.)
@@ -635,17 +530,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedDesignFreq, linkMeas]);
-  // Antenna-canvas current visualization is split into two independent
-  // toggles: the per-segment current-magnitude heatmap (wire color/width)
-  // and the |I| envelope curve overlay. Either or both can be turned off;
-  // the wires and feed marker are always drawn.
-  const [showHeatmap, setShowHeatmap] = useState(true);
-  const [showEnvelope, setShowEnvelope] = useState(false);
-  // Wire labels and feed names can crowd dense geometries (and PyNEC returns
-  // many more wires than the momwire engines), so let them be toggled. Wire
-  // labels default OFF — they're the noisiest, especially on PyNEC.
-  const [showWireLabels, setShowWireLabels] = useState(false);
-  const [showFeedNames, setShowFeedNames] = useState(true);
   // Layout branch. Desktop never reads isMobile except as the sizing hooks'
   // reattach key, so no desktop viewport is affected; the key makes both
   // hooks re-measure if the window is resized across the breakpoint.
@@ -667,31 +551,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // screen. Starts collapsed on mobile, expanded on desktop (the pre-existing
   // behavior); pinning always expands it so the new row is seen.
   const [compareCollapsed, setCompareCollapsed] = useState(isMobile);
-
-  useEffect(() => {
-    if (!active) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-      // Don't hijack arrows while a knob (e.g. the cut-angle dials) or a real
-      // field is focused — those consume arrows to turn/edit their own value.
-      const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.isContentEditable ||
-          t.classList.contains("knob"))
-      ) {
-        return;
-      }
-      const idx = VIEWS.findIndex((v) => v.id === view);
-      const next = e.key === "ArrowDown" ? (idx + 1) % VIEWS.length : (idx - 1 + VIEWS.length) % VIEWS.length;
-      setView(VIEWS[next].id);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [view, active]);
 
   const previewAbortRef = useRef<AbortController | null>(null);
   // JSON of the request the currently-displayed preview wireframe was built
