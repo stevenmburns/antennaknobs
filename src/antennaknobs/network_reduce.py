@@ -28,6 +28,7 @@ constitutive row, so no element value is ever inverted.
 from __future__ import annotations
 
 import logging
+import math
 import warnings
 from dataclasses import dataclass
 
@@ -36,6 +37,7 @@ import numpy as np
 from .network import (
     TL,
     Admittance,
+    Autotransformer,
     BalancedLine,
     Driven,
     DrivenCurrent,
@@ -279,7 +281,9 @@ class MNASystem:
     impedance is ``v_k / j[column] + z_chain``.
     """
 
-    def __init__(self, G, elements, terminations, probes=None, diagnose=None):
+    def __init__(
+        self, G, elements, terminations, probes=None, diagnose=None, couplings=()
+    ):
         n = G.shape[0]
         m = len(elements)
         A = np.zeros((n + m, n + m), dtype=np.complex128)
@@ -298,6 +302,13 @@ class MNASystem:
                 A[col, el.c] += el.c_vc
             A[col, col] = el.c_j
             rhs[col] = el.e
+        # Mutual coupling between two Group-2 rows (issue #594): an
+        # autotransformer's two winding sections share flux, so one branch
+        # current appears in the OTHER's constitutive row. Every other element
+        # here is diagonal in the branch-current block; this is the only term
+        # that is not.
+        for i, k, z in couplings:
+            A[n + i, n + k] += z
         self.n_nodes = n
         self.A = A
         self.rhs = rhs
@@ -348,6 +359,15 @@ class MNASystem:
             if el.c is not None:
                 p += v[el.c] * np.conj(el.kc * j[payload])
             return 0.5 * float(np.real(p))
+        if kind == "group2r":
+            # Resistive dissipation ONLY (issue #594). The generic "group2"
+            # probe reads ½Re((v_a − v_b)·j*), which for a mutually-coupled
+            # winding also picks up the reactive power the two sections
+            # exchange — real-valued, sloshing back and forth, and emphatically
+            # not loss. Half of a lossless coupled pair would report positive
+            # dissipation and the other half negative.
+            idx, r = payload
+            return 0.5 * float(r) * float(abs(j[idx])) ** 2
         # termination: the Load part of the source/load branch at node k.
         col, e, tkind, z_chain = self.terminations[payload]
         if tkind == "i":
@@ -620,6 +640,7 @@ class NetworkReducer:
         plain KCL with zero injection (the floating I_ext = 0 condition).
         """
         omega = 2.0 * np.pi * C_LIGHT / wavelength
+        couplings: list[tuple[int, int, complex]] = []
         n = self.n_nodes
         G = np.zeros((n, n), dtype=np.complex128)
         n_real = Y_real.shape[0]
@@ -816,6 +837,47 @@ class NetworkReducer:
                             ([a], np.array([[y_mag]])),
                         )
                     )
+            elif isinstance(br, Autotransformer):
+                if not 0.0 <= br.k <= 1.0:
+                    raise ValueError(
+                        f"Autotransformer {br.a!r}→{br.b!r} has k = {br.k}; "
+                        "coupling must be 0 ≤ k ≤ 1. Above 1 the inductance "
+                        "matrix is not positive semi-definite (M² > L₁L₂) and "
+                        "the winding pair would deliver more energy than it "
+                        "stores — the power budget would stop balancing"
+                    )
+                if br.l_lower <= 0 or br.l_upper <= 0:
+                    raise ValueError(
+                        f"Autotransformer {br.a!r}→{br.b!r} needs positive "
+                        f"section inductances; got {br.l_lower} / {br.l_upper} H"
+                    )
+                a_i, b_i = self.port_to_idx[br.a], self.port_to_idx[br.b]
+                # Series r per section from the shared finite-Q convention.
+                r1 = omega * br.l_lower / br.ql if br.ql else 0.0
+                r2 = omega * br.l_upper / br.ql if br.ql else 0.0
+                z1 = r1 + 1j * omega * br.l_lower
+                z2 = r2 + 1j * omega * br.l_upper
+                zm = 1j * omega * br.k * math.sqrt(br.l_lower * br.l_upper)
+                # Both branch currents are referenced UP the winding: j1 runs
+                # datum → tap (its "a side" is the datum, absent from the node
+                # space), j2 runs tap → top. Each therefore enters its section
+                # at the lower terminal, so the passive-sign voltage is
+                #   (v_datum − v_tap) = z1·j1 + zm·j2
+                #   (v_tap   − v_top) = zm·j1 + z2·j2
+                # — the node potential is the NEGATIVE of the voltage across
+                # the element for j1, which is where a sign slip would hide.
+                # Same reference direction up the coil ⇒ flux adds ⇒ +zm.
+                i1, i2 = len(elements), len(elements) + 1
+                lo = lab(f"Autotransformer {_short(br.a)}→{_short(br.b)} (lower)")
+                hi = lab(f"Autotransformer {_short(br.a)}→{_short(br.b)} (upper)")
+                probes.append((lo, "group2r", (i1, r1)))
+                probes.append((hi, "group2r", (i2, r2)))
+                elements.append(_Group2Element(None, a_i, c_v=1.0 + 0j, c_j=z1, e=0j))
+                elements.append(_Group2Element(a_i, b_i, c_v=1.0 + 0j, c_j=z2, e=0j))
+                # v_a = z1·j1 + zm·j2 and v_b − v_a = zm·j1 + z2·j2: the
+                # off-diagonal pair that makes this one winding, not two.
+                couplings.append((i1, i2, zm))
+                couplings.append((i2, i1, zm))
             elif isinstance(br, FloatingBalun):
                 if br.n == 0:
                     raise ValueError(
@@ -956,6 +1018,7 @@ class NetworkReducer:
             terminations,
             probes=probes,
             diagnose=lambda wl=wavelength: self._singularity_report(wl),
+            couplings=couplings,
         )
 
     def _physical_port_voltages(self, v):

@@ -31,6 +31,7 @@ import math
 from .builder import C_LIGHT_MHZ_M
 from .network_reduce import SingularNetworkError
 from .network import (
+    Autotransformer,
     TL,
     BalancedLine,
     Composite,
@@ -122,6 +123,66 @@ def balun(
     return Composite(
         ports=("line", "ant"),
         branches=(Transformer(a="line", b="ant", n=n, lmag=lmag, qlmag=qlmag),),
+    )
+
+
+def autotransformer_ratio(lower_uH: float, upper_uH: float) -> float:
+    """Ideal tapped-autotransformer voltage ratio ``n = 1 + √(upper/lower)``.
+
+    Turns go as √L on one core, so a tap at ``lower`` on a winding whose
+    remainder is ``upper`` steps the tap voltage up by ``n`` — and the
+    impedance at the tap is the load at the top over ``n²``. This is the ``k``
+    → 1 limit that the coupled-inductor model in
+    :class:`~antennaknobs.network.Autotransformer` reproduces rather than
+    assumes; at realistic coupling (0.95–0.99) the achieved ratio falls a
+    little short of it, which is exactly the difference the model exists to
+    show.
+
+    SimSmith surfaces the two section inductances as ``Lwr`` / ``Upr``; they
+    are the arguments here, so a design can label its readout with
+    ``autotransformer_ratio(lwr, upr)`` alongside them.
+    """
+    if lower_uH <= 0 or upper_uH <= 0:
+        raise ValueError(
+            f"section inductances must be positive; got {lower_uH} / {upper_uH} µH"
+        )
+    return 1.0 + math.sqrt(upper_uH / lower_uH)
+
+
+def autotransformer(
+    lower_uH: float,
+    upper_uH: float,
+    k: float = 0.98,
+    ql: float | None = None,
+) -> Composite:
+    """Tapped single winding — the auto-transformer (issue #594).
+
+    The matching element in many unun and L-network builds: *one* coil with a
+    tap, so the sections are galvanically connected and the common section
+    carries the difference of the input and output currents. `unun` / `balun`
+    model the *isolated* two-winding case; this is the other one, and the
+    difference is constitutive, not cosmetic.
+
+    ``lower_uH`` is the common section (datum to the tap), ``upper_uH`` the
+    remainder (tap to the top). Step-up: feed ``tap``, load ``top``, and the
+    tap sees roughly the load over ``autotransformer_ratio(lower, upper)²``.
+    ``k`` is the coupling coefficient — the default 0.98 is a realistic
+    close-wound air-core value, and 1.0 is the ideal limit; ``ql`` gives both
+    sections a finite Q whose *resistive* dissipation lands in the power
+    budget. Formals: ``tap`` (low-Z side), ``top`` (high-Z side).
+    """
+    return Composite(
+        ports=("tap", "top"),
+        branches=(
+            Autotransformer(
+                a="tap",
+                b="top",
+                l_lower=lower_uH * 1e-6,
+                l_upper=upper_uH * 1e-6,
+                k=k,
+                ql=ql,
+            ),
+        ),
     )
 
 
