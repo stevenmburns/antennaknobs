@@ -47,7 +47,9 @@ _NON_MOMWIRE_BACKENDS = {"pynec"}
 def _frontend_roster() -> set[str]:
     src = _BACKENDS_TS.read_text()
     m = re.search(r"const BACKEND_ORDER: Backend\[\] = \[(?P<body>[^\]]*)\]", src, re.S)
-    assert m, "BACKEND_ORDER literal not found in lib/backends.ts — update this contract test"
+    assert m, (
+        "BACKEND_ORDER literal not found in lib/backends.ts — update this contract test"
+    )
     entries = set(re.findall(r'"([a-z0-9-]+)"', m.group("body")))
     assert entries, "BACKEND_ORDER parsed empty — update this contract test"
     return entries
