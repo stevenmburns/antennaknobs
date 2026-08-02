@@ -61,6 +61,49 @@ Note that knob sweeps in **free space** can be perfectly flat by design —
 translation-invariant knobs like a height `base` only matter over a ground
 (`--ground finite`).
 
+## Drawing the feed network
+
+`schematic` renders a design's `build_network()` — feedline, tuner, balun, and
+the port the source sits on — as an SVG:
+
+```bash
+python -m antennaknobs schematic --builder wire.doublet_ladder_tuner --out tuner.svg
+# annotate each box with the watts it burns
+python -m antennaknobs schematic --builder verticals.stub_matched_vertical --power --out m.svg
+```
+
+Needs the optional extra: `pip install 'antennaknobs[schematic]'` (schemdraw —
+MIT, and with no dependencies of its own).
+
+The circuit half of a design is otherwise visible only as
+[power-budget](/reference/web/#power-budget) rows, which means an element that
+burns nothing — an ideal `TL`, a `bypass()` — appears **nowhere**. This draws
+every branch whether it dissipates or not, groups them under the box they came
+from, and marks where the source sits, which is the design's reference plane.
+
+Boxes may carry their own drawing. `station.t_network_tuner` declares one, so
+it renders as the tee it is, with the coil between the capacitors — an ordering
+the branch list cannot express, because "the coil goes in the middle" lives in
+the head of whoever wrote the factory. A box without a fragment still draws,
+from per-branch default symbols; it is simply more anonymous. Fragments are
+written with `schematic.series` / `shunt`, which are plain data, so declaring
+one costs `station.py` no drawing-library import:
+
+```python
+Composite(
+    ports=("rig", "out"),
+    branches=(...),
+    schematic=(
+        series("capacitor", "81 pF"),
+        shunt("inductor", "4.2 µH"),
+        series("capacitor", "500 pF"),
+    ),
+)
+```
+
+Designs with no feed circuit are refused with a message rather than an empty
+picture, and a multi-feed antenna (16 driven ports, no chain) says so.
+
 ### Capturing from a VNA
 
 `capture` sweeps a USB-attached NanoVNA and writes the `.s1p` the overlay and

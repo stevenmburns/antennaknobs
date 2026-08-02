@@ -1108,6 +1108,12 @@ class Composite:
     ports: tuple[str, ...]
     branches: tuple = ()
     aliases: tuple[tuple[str, str], ...] = ()
+    #: How this box DRAWS (issue #652): a tuple of `schematic.Element`, or a
+    #: zero-argument callable returning one. Optional — a box without it falls
+    #: back to per-branch default symbols, which is a picture but an anonymous
+    #: one. Written with `schematic.series` / `shunt`, which are plain data, so
+    #: declaring one costs this module no drawing-library import.
+    schematic: object = None
 
     def __post_init__(self):
         if len(set(self.ports)) != len(self.ports):
@@ -1153,7 +1159,9 @@ class Instance:
         self.portmap = dict(portmap)
 
 
-def _expand_instance(inst, formal_to_final, prefix, flat, paths, aliases, internals):
+def _expand_instance(
+    inst, formal_to_final, prefix, flat, paths, aliases, internals, composites=None
+):
     """Recursively flatten ``inst`` into ``flat``/``paths``, collecting alias
     pairs and auto-created internal node names. ``formal_to_final`` maps the
     composite's formals to FINAL (fully resolved) names; ``prefix`` is the
@@ -1166,12 +1174,18 @@ def _expand_instance(inst, formal_to_final, prefix, flat, paths, aliases, intern
         internals.add(final)
         return final
 
+    if composites is not None:
+        # Keep the Composite that produced these branches, keyed by the same
+        # path `branch_paths` uses. Flattening otherwise erases every trace of
+        # the box, which is exactly what a schematic (issue #652) needs: the
+        # author's fragment lives on the Composite, not on its branches.
+        composites[prefix] = inst.of
     for item in inst.of.branches:
         if isinstance(item, Instance):
             child_map = {f: resolve(a) for f, a in item.portmap.items()}
             _expand_instance(
                 item, child_map, prefix + item.name + ".",
-                flat, paths, aliases, internals,
+                flat, paths, aliases, internals, composites,
             )  # fmt: skip
         else:
             flat.append(_rewrite_branch(item, resolve))
@@ -1391,6 +1405,9 @@ class Network:
     branches: list[Branch] = field(default_factory=list)
     sources: list[Source] = field(default_factory=list)
     branch_paths: list[str] = field(default_factory=list)
+    #: Instance path → the `Composite` it came from, filled by flattening
+    #: (issue #652). Derived, like ``branch_paths``.
+    composites: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.branch_paths:
@@ -1481,6 +1498,7 @@ class Network:
         """Flatten `Instance` items (issue #489): namespace internals,
         resolve aliases, stamp per-branch instance paths."""
         flat, paths, alias_pairs, internals = [], [], [], set()
+        composites: dict[str, Composite] = {}
         for item in self.branches:
             if isinstance(item, Instance):
                 for actual in item.portmap.values():
@@ -1492,13 +1510,14 @@ class Network:
                         )
                 _expand_instance(
                     item, dict(item.portmap), item.name + ".",
-                    flat, paths, alias_pairs, internals,
+                    flat, paths, alias_pairs, internals, composites,
                 )  # fmt: skip
             else:
                 flat.append(item)
                 paths.append("")
         self.branches = flat
         self.branch_paths = paths
+        self.composites = composites
         for n in sorted(internals):
             if n in self.ports:
                 raise ValueError(f"internal node {n!r} collides with a port")

@@ -29,6 +29,7 @@ from __future__ import annotations
 import math
 
 from .builder import C_LIGHT_MHZ_M
+from .schematic import series, shunt
 from .network_reduce import SingularNetworkError
 from .network import (
     Autotransformer,
@@ -68,6 +69,14 @@ def t_network_tuner(
             Shunt(port="m", l=l_uH * 1e-6, ql=ql),
             TwoPort(a="m", b="out", c=c2_pF * 1e-12),
         ),
+        # Draws as the tee it is (issue #652). Without this the shunt coil
+        # lands after both capacitors, because "the coil goes in the middle"
+        # is not recoverable from the branch list.
+        schematic=(
+            series("capacitor", f"{c1_pF:g} pF"),
+            shunt("inductor", f"{l_uH:g} µH"),
+            series("capacitor", f"{c2_pF:g} pF"),
+        ),
     )
 
 
@@ -85,6 +94,10 @@ def l_network_tuner(
         branches=(
             TwoPort(a="rig", b="out", l=series_l_uH * 1e-6, ql=ql),
             Shunt(port="out", c=shunt_c_pF * 1e-12),
+        ),
+        schematic=(
+            series("inductor", f"{series_l_uH:g} µH"),
+            shunt("capacitor", f"{shunt_c_pF:g} pF"),
         ),
     )
 
@@ -515,6 +528,10 @@ def single_stub_tuner(
         branches=(
             TL(a="rig", b="ant", z0=lz0, length=length, vf=lvf, k1=lk1, k2=lk2),
             Instance("stub", stub, port="rig"),
+        ),
+        schematic=(
+            shunt("coax", f"stub {stub_wl:g} λ", "shorted" if shorted else "open"),
+            series("coax", f"{lz0:g} Ω", f"{line_wl:g} λ"),
         ),
     )
 
