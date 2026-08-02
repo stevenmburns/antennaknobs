@@ -894,6 +894,47 @@ def cli(arguments=None):
 
     p.set_defaults(func=f)
 
+    p = subparsers.add_parser(
+        "schematic",
+        help="Draw the design's feed network as a circuit schematic",
+        description="Render a design's build_network() — feedline, tuner, "
+        "balun, and the port the source sits on — as an SVG schematic. The "
+        "circuit half of a design is otherwise visible only as power-budget "
+        "rows, so an element that burns nothing appears nowhere.",
+    )
+    add_common(p)
+    add_engine_args(p)
+    p.add_argument("--out", default=None, help="Write the SVG here (default: stdout).")
+    p.add_argument(
+        "--power",
+        default=False,
+        action="store_true",
+        help="Solve first and annotate each block with the watts it burns.",
+    )
+
+    def f(args):
+        from .schematic import lower, render_svg
+
+        builder = get_builder(args.builder)()
+        net = builder.build_network() if hasattr(builder, "build_network") else None
+        if net is None:
+            raise SystemExit(
+                f"{args.builder} has no build_network() — it is an antenna with "
+                "no feed circuit, so there is no schematic to draw"
+            )
+        budget = None
+        if args.power:
+            eng = engine_factory_from_args(args)(builder)
+            eng.current_distribution()
+            budget = getattr(eng, "_excited_power_budget", None)
+        svg = render_svg(lower(net, title=args.builder, budget=budget), args.out)
+        if args.out:
+            print(f"wrote {args.out}")
+        else:
+            print(svg, end="")
+
+    p.set_defaults(func=f)
+
     p = subparsers.add_parser("pattern", help="Display far field of antenna")
     add_common(p)
     add_engine_args(p)

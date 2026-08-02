@@ -75,6 +75,13 @@ web = ["fastapi", "uvicorn[standard]", "websockets", "psutil", "threadpoolctl"]
 # message covers both causes.
 vna = ["pyserial"]
 
+# Network schematics (`antennaknobs schematic`, issue #652): schemdraw supplies
+# the circuit symbols and an SVG writer. Optional because drawing is not on any
+# solve path — and cheap when wanted: schemdraw is MIT with NO required
+# dependencies of its own (its matplotlib backend is itself an extra, and we
+# use the built-in SVG one).
+schematic = ["schemdraw>=0.19"]
+
 # Test suite: `pip install -e ".[test]"` makes `pytest` reproducible from a
 # clean clone (the runtime deps in [project] cover the numpy/scipy/matplotlib
 # that the solver tests need).
@@ -87,7 +94,10 @@ vna = ["pyserial"]
 #     tests error at collection.
 #   - PyNEC is deliberately NOT included (GPL, installed separately per README);
 #     the pynec-backed tests skip when it's absent.
-test = ["antennaknobs[web]", "pytest", "coverage", "httpx2"]
+#   - the schematic extra is included so the renderer is actually exercised
+#     rather than skipped: schemdraw is MIT with no dependencies of its own, so
+#     it costs the test environment nothing.
+test = ["antennaknobs[web]", "antennaknobs[schematic]", "pytest", "coverage", "httpx2"]
 
 # Local developer tooling — install with `pip install -e ".[dev]"`.
 #   - ruff is the linter/formatter, configured under [tool.ruff] below. It is a
