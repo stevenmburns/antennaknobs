@@ -98,6 +98,7 @@ honest model:
 | `TwoPort` | series R/L/C between two ports — a tuner's series capacitor |
 | `Shunt` | R/L/C from a port to the common return — a tuner's shunt coil |
 | `Transformer` | ideal ratio + magnetizing branch with core-loss Q — the balun/unun model, calibrated against measured insertion loss rather than derived from core datasheets |
+| `Autotransformer` | tapped **single** winding — two mutually coupled sections (`M = k·√(L₁L₂)`) sharing a node, so the common section carries the *difference* of the input and output currents. The ratio falls out of the L/M matrix instead of being asserted, which is what an ideal-ratio model would get wrong |
 
 Reactive elements accept a finite **Q** (`ql`, `qc`, `qlmag`), and that
 is where real matchboxes and transformers burn power. Degenerate values
@@ -230,8 +231,9 @@ A box (`Composite`) has a formal port interface and a private inside:
 the tuner's tee midpoint exists as `tuner.m`, invisible to the rest of
 the design. The stdlib today: `t_network_tuner`, `l_network_tuner`,
 `unun` (with the compensation capacitor real 49:1 builds carry),
-`balun`, `link_coupling`, `balanced_l_tuner` — all parameterized in
-radio units (picofarads, microhenries) — plus two special members:
+`balun`, `autotransformer`, `link_coupling`, `balanced_l_tuner` — all
+parameterized in radio units (picofarads, microhenries) — plus two
+special members:
 
 - **`bypass()`** — a box-shaped nothing: it wires its input straight to
   its output. Swap any tuner or balun for `bypass()` and you get the
@@ -251,6 +253,38 @@ radio units (picofarads, microhenries) — plus two special members:
   `verticals.stub_matched_vertical` is the worked example: a 22 Ω
   quarter-wave vertical brought to 50 Ω by two lengths of RG-213, with
   both lengths as live knobs so the match is something you *find*.
+
+### Isolation transformer vs auto-transformer
+
+`unun` / `balun` model the **isolated** case: two windings, coupled only
+through the core, so the secondary current is a ratio-scaled copy of the
+primary's. `autotransformer` is the other one — a *single* coil with a tap, so
+the two sections are galvanically connected and the common section carries the
+**difference** of the input and output currents.
+
+That difference is constitutive, not cosmetic, which is why the element is two
+mutually coupled inductors rather than an ideal ratio:
+
+```python
+from antennaknobs.station import autotransformer, autotransformer_ratio
+
+# 4 µH from ground to the tap, 1.05 µH from the tap to the top
+Instance("xf", autotransformer(4.0, 1.05, k=0.99), tap="feed", top="rig")
+autotransformer_ratio(4.0, 1.05)   # 1.51 — impedance ratio n² ≈ 2.3
+```
+
+Turns go as √L on one core, so the ideal ratio is `n = 1 + √(upper/lower)` and
+the tap sees the top's load over `n²`. The model **reproduces** that in the
+`k` → 1 limit rather than assuming it — at realistic coupling (0.95–0.99) you
+get a little less, plus the series leakage reactance a real tapped coil has,
+which is the whole reason not to use an ideal ratio here.
+
+`k` must lie in [0, 1]. Above 1 the inductance matrix stops being positive
+semi-definite (`M² > L₁L₂`) and the pair would deliver more energy than it
+stores; SimSmith permits that and calls it non-physical, we refuse it, because
+the [power budget](#the-power-budget-where-the-watts-go) claims to balance.
+`ql` gives both sections a finite Q, and only the **resistive** part is
+itemised — never the reactive power the two sections trade back and forth.
 
 Boxes are ordinary values made by ordinary functions, so a design can
 also define its own — a measured, calibrated component wrapped once and

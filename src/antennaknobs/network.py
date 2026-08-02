@@ -506,6 +506,58 @@ class Transformer:
 
 
 @dataclass(frozen=True)
+class Autotransformer:
+    """Tapped single winding — the auto-transformer (issue #594).
+
+    `Transformer` is an *isolation* transformer: two windings, coupled only by
+    the core. An autotransformer has **one** winding with a tap, so primary and
+    secondary are galvanically connected and share the common turns. That is
+    not a detail of construction — it changes the constitutive law, because the
+    current in the common section is the *difference* of the input and output
+    currents rather than a ratio-scaled copy.
+
+    So this is not modelled as an ideal ratio. It is two **mutually coupled
+    inductors** in series up one leg:
+
+        datum ──[ l_lower ]── a (tap) ──[ l_upper ]── b (top)
+
+    with mutual ``M = k·√(l_lower·l_upper)`` between them, stamped as two
+    Group-2 branch-current rows plus their off-diagonal coupling. The turns
+    ratio, the magnetizing behaviour, and the loss all fall *out* of that L/M
+    matrix instead of being asserted — which is the point: an ideal-ratio model
+    would get the common-section current wrong.
+
+    In the ideal limit (``k`` → 1, inductances ≫ the load reactance) it
+    reproduces the textbook tapped ratio
+
+        n = 1 + √(l_upper / l_lower)          (turns go as √L on one core)
+
+    so the impedance at the tap is the load at the top divided by n² —
+    :func:`~antennaknobs.station.autotransformer_ratio` computes it.
+
+    ``ql`` gives both sections the same finite Q (core + winding loss as a
+    series r = ωL/Q, the ``ql`` convention used elsewhere); it itemizes in the
+    power budget as *resistive* dissipation only, never the reactive power the
+    two windings exchange.
+
+    ``k`` must satisfy 0 ≤ k ≤ 1. Above 1 the inductance matrix stops being
+    positive semi-definite — M² > L₁L₂ means the pair can deliver more energy
+    than it stores — and the element would quietly generate power. SimSmith
+    permits it and calls it non-physical; we refuse it, because our power
+    budget claims to balance.
+
+    Reducer-only, like `Transformer`: no NEC card, both engines.
+    """
+
+    a: str  # the tap — the low-impedance side
+    b: str  # the top of the winding — the high-impedance side
+    l_lower: float  # henries, datum → tap (the common section)
+    l_upper: float  # henries, tap → top
+    k: float = 1.0
+    ql: float | None = None
+
+
+@dataclass(frozen=True)
 class Admittance:
     """A fixed, frequency-INDEPENDENT complex admittance branch (issue #416) —
     the general primitive a reactive NT card, a reactive TL end-shunt, and a
@@ -937,7 +989,15 @@ class FloatingBalun:
 
 
 Branch = Union[
-    TL, Load, TwoPort, Shunt, Transformer, Admittance, BalancedLine, FloatingBalun
+    TL,
+    Load,
+    TwoPort,
+    Shunt,
+    Transformer,
+    Autotransformer,
+    Admittance,
+    BalancedLine,
+    FloatingBalun,
 ]
 
 
