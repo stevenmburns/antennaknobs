@@ -94,17 +94,27 @@ def unun(
     lmag_uH: float | None = None,
     qlmag: float | None = None,
     comp_c_pF: float | None = None,
+    core=None,
 ) -> Composite:
     """Step-down unun (the EFHW / OCF box): an ideal ``turns``:1
     transformer — the ``line`` side sees Z_ant/turns² — with the minimal
     loss model of `Transformer` (magnetizing inductance ``lmag_uH`` shunted
     across the line side, finite-Q core loss ``qlmag``), plus the optional
     compensation capacitor ``comp_c_pF`` across the line-side terminals
-    that commercial 49:1 builds carry. Formals: ``line`` (rig/feedline
-    side), ``ant`` (high-Z antenna side)."""
+    that commercial 49:1 builds carry.
+
+    ``core`` (a `ferrite.FerriteCore`, issue #599) replaces the scalar
+    ``lmag_uH``/``qlmag`` pair with the mix's actual complex permeability, so
+    the magnetizing inductance AND the core loss both follow frequency:
+
+        unun(49 ** 0.5, core=core_from_catalog("FT-240", "43", 11))
+
+    Formals: ``line`` (rig/feedline side), ``ant`` (high-Z antenna side)."""
     lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
     branches: tuple = (
-        Transformer(a="line", b="ant", n=1.0 / turns, lmag=lmag, qlmag=qlmag),
+        Transformer(
+            a="line", b="ant", n=1.0 / turns, lmag=lmag, qlmag=qlmag, core=core
+        ),
     )
     if comp_c_pF:
         branches += (Shunt(port="line", c=comp_c_pF * 1e-12),)
@@ -112,17 +122,23 @@ def unun(
 
 
 def balun(
-    n: float, lmag_uH: float | None = None, qlmag: float | None = None
+    n: float,
+    lmag_uH: float | None = None,
+    qlmag: float | None = None,
+    core=None,
 ) -> Composite:
     """Balun as an ideal ``a:b`` ratio transformer with the minimal loss
     model (magnetizing branch on the ``line`` side): ``n`` is the
     line:antenna voltage ratio, so a 4:1 impedance balun stepping a
     ~300 Ω feed down to ~75 Ω line is ``balun(n=0.5)`` — same convention
-    as `Transformer` itself. Formals: ``line``, ``ant``."""
+    as `Transformer` itself. ``core`` takes a `ferrite.FerriteCore` in place of
+    the scalar loss pair (issue #599). Formals: ``line``, ``ant``."""
     lmag = lmag_uH * 1e-6 if lmag_uH is not None else None
     return Composite(
         ports=("line", "ant"),
-        branches=(Transformer(a="line", b="ant", n=n, lmag=lmag, qlmag=qlmag),),
+        branches=(
+            Transformer(a="line", b="ant", n=n, lmag=lmag, qlmag=qlmag, core=core),
+        ),
     )
 
 
