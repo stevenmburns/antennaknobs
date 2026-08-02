@@ -367,3 +367,146 @@ export function findLinkedDesignFreq(
   }
   return null;
 }
+
+// Deep-immutable path setter. ParamForm calls with paths like
+// ["bands", 2, "freq"] for nested groups, or ["angle_deg"] for
+// scalars. Recursive clone along the path so React sees a new
+// reference at every level it watches.
+export function setValueAtPath(
+  node: unknown,
+  path: (string | number)[],
+  value: number | string | boolean,
+): unknown {
+  if (path.length === 0) return value;
+  const [head, ...rest] = path;
+  if (typeof head === "number") {
+    const arr = ((node as unknown[]) ?? []).slice();
+    arr[head] = setValueAtPath(arr[head], rest, value);
+    return arr;
+  }
+  const obj = { ...((node as Record<string, unknown>) ?? {}) };
+  obj[head] = setValueAtPath(obj[head], rest, value);
+  return obj;
+}
+
+// Schema-driven meas-freq follow, as a pure resolution over the just-set
+// value tree. Two variants:
+//   * group leaf: `path = [groupName, instanceIdx, leafName]` and the
+//     group declares `link_meas_freq_to_param` — resolve to that
+//     instance's value of the named sibling.
+//   * flat scalar: `path = [paramName]` and the ParamSpec declares
+//     `link_meas_freq_to_param` — resolve to the current value of the
+//     named sibling (possibly itself). Used by multi-band antennas with
+//     parallel length_NN / freq_NN flat sliders (antennaknobs's
+//     fandipole).
+// Returns null when nothing should follow (no link declared, or the
+// linked value isn't numeric); the caller decides whether/how to apply it
+// (e.g. gating on the linkMeas toggle and calling setMeasFreq).
+export function linkedMeasFreqFor(
+  ex: ExampleDescriptor | undefined,
+  path: (string | number)[],
+  newRoot: ParamValueBag,
+): number | null {
+  if (!ex) return null;
+  if (path.length === 1 && typeof path[0] === "string") {
+    const paramName = path[0];
+    const spec = ex.param_schema.find(
+      (s) => !isGroup(s) && s.name === paramName,
+    ) as SchemaParamSpec | undefined;
+    const linked = spec?.link_meas_freq_to_param;
+    if (!linked) return null;
+    const freqValue = newRoot[linked];
+    return typeof freqValue === "number" ? freqValue : null;
+  }
+  if (path.length < 3) return null;
+  const groupName = path[0];
+  const instanceIdx = path[1];
+  if (typeof groupName !== "string" || typeof instanceIdx !== "number") return null;
+  const group = ex.param_schema.find(
+    (s) => isGroup(s) && s.name === groupName,
+  ) as SchemaParamGroupSpec | undefined;
+  if (!group || !group.link_meas_freq_to_param) return null;
+  const instances = newRoot[groupName];
+  if (!Array.isArray(instances)) return null;
+  const inst = instances[instanceIdx];
+  if (!inst) return null;
+  const freqValue = inst[group.link_meas_freq_to_param];
+  return typeof freqValue === "number" ? freqValue : null;
+}
+
+// param_schema with a variant's explicit presentation overrides
+// (variant_ui[variant].params) overlaid per param — e.g. invvee's
+// long-wire variants carry their own length_factor slider range. Feeds
+// the knob rail and the per-knob optimiser menu so both see
+// variant-correct bounds; value seeding stays on the raw schema
+// (defaults/values are variant_values' job).
+export function overlaySchemaForVariant(
+  example: ExampleDescriptor | undefined,
+  variant: string,
+): SchemaItem[] {
+  if (!example) return [];
+  const over = example.variant_ui?.[variant]?.params;
+  if (!over) return example.param_schema;
+  return example.param_schema
+    .map((item) =>
+      !isGroup(item) && over[item.name]
+        ? { ...item, ...over[item.name] }
+        : item,
+    )
+    .filter(
+      // A variant can hide a base-visible knob (e.g. invvee:dipole's
+      // angle_deg — flat by definition, value pinned at 0 by the
+      // variant). Display-only: the value still rides variant_values.
+      (item) => isGroup(item) || !(item as { hidden?: boolean }).hidden,
+    );
+}
+
+// Picker contents: filter `examples` by `query` (always keeping `selected`
+// visible so the <select> value stays valid), then group by family in
+// FAMILY_ORDER.
+export type ExampleGroup = {
+  fam: string;
+  label: string;
+  items: ExampleDescriptor[];
+};
+
+export function groupExamplesForPicker(
+  examples: ExampleDescriptor[],
+  selected: string,
+  query: string,
+): ExampleGroup[] {
+  const visible = examples.filter(
+    (ex) => ex.name === selected || matchesQuery(ex, query),
+  );
+  const byFam = new Map<string, ExampleDescriptor[]>();
+  for (const ex of visible) {
+    const fam = familyOf(ex.name);
+    (byFam.get(fam) ?? byFam.set(fam, []).get(fam)!).push(ex);
+  }
+  return [...byFam.entries()]
+    .map(([fam, items]) => ({
+      fam,
+      label: FAMILY_LABELS[fam] ?? fam,
+      items: items.sort((a, b) => a.label.localeCompare(b.label)),
+    }))
+    .sort((a, b) => familyRank(a.fam) - familyRank(b.fam));
+}
+
+// The effective per-knob optimiser settings, seeded from the schema: opt
+// extents = slider bounds, step = schema step, not varying. The caller
+// overlays any explicitly stored KnobOpt entry on top of this default.
+export function defaultKnobOpt(schema: SchemaItem[], name: string): KnobOpt {
+  const s = schema.find(
+    (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
+  );
+  const min = s?.min ?? 0;
+  const max = s?.max ?? 1;
+  return {
+    vary: false,
+    optMin: min,
+    optMax: max,
+    dispMin: min,
+    dispMax: max,
+    step: s?.step ?? 0.001,
+  };
+}
