@@ -282,21 +282,21 @@ model exactly, which is how the two connect.
 Three honesty notes, because this is a place where a model can look more
 authoritative than it is:
 
-- **The catalog mixes are one-pole (Debye) fits**, not digitized vendor curves
-  — built from two published headline numbers per mix (initial permeability and
-  the frequency where `μ″` peaks). They reproduce the *shape* every datasheet
-  shows and are right to within the spread between vendors' constructions, but
-  they are not the datasheet curve, and near the relaxation knee a real mix
-  departs from a single pole. `FerriteMaterial.from_table()` takes real
-  `μ′`/`μ″` data and is strictly better.
+- **The catalog mixes are one-pole (Debye) fits with unverified parameters.**
+  Each mix is described by an initial permeability and the frequency where `μ″`
+  peaks, and those two numbers have *not* been checked against a datasheet or a
+  measurement. The shape is right and so is the ordering between mixes, so use
+  them to compare mixes, turns counts and bands — but do not quote an absolute
+  loss figure from them. Every entry's `source` string says so.
+- **Two ways to do better**, both supported: `FerriteMaterial.from_table()`
+  takes a real `μ′`/`μ″` table, or sweep a known choke with a
+  [VNA](/reference/cli/#capturing-from-a-vna) and fit `μ_i`/`f_r`/`c_stray` to
+  it — a measurement you can reproduce beats a datasheet read, because it is
+  *your* core rather than a vendor nominal.
 - **A choke's impedance peak comes from the winding, not just the material.** A
   single relaxation climbs and saturates; the few pF of winding self-capacitance
   (`c_stray_pF`) parallel-resonate with it, and *that* is what puts the peak in
   every published choke plot — and why |Z| falls again above it.
-- **Absolute watts deserve a measurement.** Use this to compare mixes, turns
-  counts and bands; pin the absolute number against a
-  [measured sweep](/reference/cli/#overlaying-a-vna-measurement) before
-  trusting it.
 
 ### Isolation transformer vs auto-transformer
 

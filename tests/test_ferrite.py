@@ -177,11 +177,19 @@ def test_the_catalog_covers_the_common_mixes_and_sizes():
 
 
 def test_every_catalog_material_says_where_it_came_from():
-    """These are one-pole fits, not vendor curves, and each entry has to say
-    so — it is the first question anyone comparing to a measurement asks."""
+    """These are one-pole fits with UNVERIFIED parameters, and every entry has
+    to say so in the object a user can print.
+
+    The provenance lives in the data rather than only in the docs on purpose:
+    "which curve is this?" is the first question anyone comparing against a
+    measurement asks, and the honest answer today is "a shape, not a
+    calibration".
+    """
     for name, m in MATERIALS.items():
         assert m.source, name
         assert "fit" in m.source
+        assert "UNVERIFIED" in m.source, name
+        assert "calibrate" in m.source, name
 
 
 def test_higher_permeability_mixes_relax_lower():

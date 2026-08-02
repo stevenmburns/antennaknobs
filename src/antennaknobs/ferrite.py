@@ -27,16 +27,26 @@ redistribute nor honest to present as measurements we made. Each mix is a
 
     μ(f) = μ_i / (1 + j·f/f_r)   ⇒   μ′ = μ_i/(1+x²),  μ″ = μ_i·x/(1+x²)
 
-built from two widely published headline specs: the initial permeability
-``μ_i`` and the relaxation frequency ``f_r`` where ``μ″`` peaks. It reproduces
-the *shape* every ferrite datasheet shows — μ′ rolling off, μ″ peaking at
-``f_r`` at half of μ_i, loss falling away either side — and it is right to
-within the spread between vendors' own constructions, which is itself large.
+parameterized by an initial permeability ``μ_i`` and a relaxation frequency
+``f_r`` where ``μ″`` peaks. The *shape* is the one every ferrite datasheet
+shows — μ′ rolling off, μ″ peaking at ``f_r`` at half of μ_i, loss falling away
+either side.
 
-It is **not** the datasheet curve. Near the relaxation knee a real mix departs
-from a single pole, and mixes with more than one loss mechanism (31 in
-particular) are two-pole animals. If you have the real ``μ′``/``μ″`` table,
-:meth:`FerriteMaterial.from_table` takes it and is strictly better data.
+**The catalog's per-mix numbers are UNVERIFIED.** They were chosen from
+recollection of the usual headline specs, not read off a datasheet and not
+fitted to a measurement. Use them to compare mixes, turns counts and bands —
+the ordering and the shape are right — and do **not** quote an absolute loss
+figure from them. Every entry's ``source`` says so and a test enforces it.
+
+Even with good parameters it is **not** the datasheet curve: near the
+relaxation knee a real mix departs from a single pole, and mixes with more than
+one loss mechanism (31 in particular) are two-pole animals.
+
+Two ways to do better, both supported today. If you have the real ``μ′``/``μ″``
+table, :meth:`FerriteMaterial.from_table` takes it. If you have a VNA, sweep a
+known choke and fit ``μ_i``/``f_r``/``c_stray`` to it — that makes the
+provenance a measurement you can reproduce, which beats a datasheet read
+because it is *your* core rather than a vendor nominal.
 
 Treat catalog values as representative, in exactly the same spirit as the
 ``CABLES`` matched-loss coefficients.
@@ -193,25 +203,47 @@ class FerriteCore:
 
 
 # --- catalogs --------------------------------------------------------------
-# Mixes as single-pole fits to published headline specs (initial permeability
-# and the relaxation frequency where μ″ peaks). NOT digitized vendor curves —
-# see the module docstring. Values rounded, and representative of a family of
-# constructions rather than of any one vendor's part.
+# Mixes as single-pole fits. Each is parameterized by an initial permeability
+# and a relaxation frequency, and BOTH NUMBERS ARE UNVERIFIED: they were chosen
+# from recollection of the usual headline specs and have not been checked
+# against a datasheet or a measurement. They give the right shape and the right
+# ordering between mixes — which is what "compare 31 against 43 on 20 m" needs
+# — and they are NOT a basis for an absolute watts figure.
+#
+# The fix is issue #599's follow-up: sweep a known choke per mix and fit
+# (mu_i, f_relax, c_stray) to it, which makes the provenance a measurement you
+# can reproduce rather than a number someone remembered. Until then every entry
+# says UNVERIFIED, and a test enforces that it does.
 MATERIALS = {
     "31": FerriteMaterial.debye(
-        "31", 1500.0, 8.0, source="one-pole fit to published μi≈1500, μ″ peak ≈8 MHz"
+        "31",
+        1500.0,
+        8.0,
+        source="UNVERIFIED one-pole fit (μi≈1500, μ″ peak ≈8 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
     ),
     "43": FerriteMaterial.debye(
-        "43", 800.0, 35.0, source="one-pole fit to published μi≈800, μ″ peak ≈35 MHz"
+        "43",
+        800.0,
+        35.0,
+        source="UNVERIFIED one-pole fit (μi≈800, μ″ peak ≈35 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
     ),
     "52": FerriteMaterial.debye(
-        "52", 250.0, 60.0, source="one-pole fit to published μi≈250, μ″ peak ≈60 MHz"
+        "52",
+        250.0,
+        60.0,
+        source="UNVERIFIED one-pole fit (μi≈250, μ″ peak ≈60 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
     ),
     "61": FerriteMaterial.debye(
-        "61", 125.0, 180.0, source="one-pole fit to published μi≈125, μ″ peak ≈180 MHz"
+        "61",
+        125.0,
+        180.0,
+        source="UNVERIFIED one-pole fit (μi≈125, μ″ peak ≈180 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
     ),
     "77": FerriteMaterial.debye(
-        "77", 2000.0, 3.0, source="one-pole fit to published μi≈2000, μ″ peak ≈3 MHz"
+        "77",
+        2000.0,
+        3.0,
+        source="UNVERIFIED one-pole fit (μi≈2000, μ″ peak ≈3 MHz) — not checked against a datasheet; calibrate before trusting absolute loss",
     ),
 }
 
