@@ -95,6 +95,7 @@ import { CatalogPanel } from "./CatalogPanel";
 import { DesignFreqRow } from "./DesignFreqRow";
 import { GroundPanel } from "./GroundPanel";
 import { KnobOptMenu } from "./KnobOptMenu";
+import { copyParams, downloadNec, loadMeasured } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
@@ -1182,108 +1183,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [knobMenu, active]);
 
-  // Export the current design as a NEC2 .nec card deck and trigger a
-  // browser download. The backend reuses the same builder construction as
-  // the live solve, so the deck matches what's on screen. Designs with no
-  // faithful native-NEC form (TL/DiffTL networks) come back 422; surface
-  // the server's message rather than downloading an error page.
-  async function downloadNec() {
-    setGearMenuOpen(false);
-    try {
-      const resp = await fetch("/export_nec", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequest()),
-      });
-      if (!resp.ok) {
-        let detail = `NEC export failed (${resp.status}).`;
-        try {
-          detail = (await resp.json()).detail ?? detail;
-        } catch {
-          /* non-JSON error body — keep the status-based message */
-        }
-        window.alert(detail);
-        return;
-      }
-      const blob = await resp.blob();
-      const cd = resp.headers.get("Content-Disposition") ?? "";
-      const m = cd.match(/filename="([^"]+)"/);
-      const filename = m ? m[1] : `${geometry.replace(/\./g, "_") || "antenna"}.nec`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      window.alert(`NEC export failed: ${e}`);
-    }
-  }
-
-  // Load a measured VNA sweep (.s1p) for the measured-vs-modeled overlay.
-  // The file is read in the browser and posted as text: the server owns the
-  // Touchstone parsing (one reader, shared with the CLI), and because the
-  // *file* stays local, this works the same whether the backend is on this
-  // machine or across a tunnel.
-  async function loadMeasured(file: File) {
-    setGearMenuOpen(false);
-    try {
-      const text = await file.text();
-      const resp = await fetch("/measured", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, text }),
-      });
-      if (!resp.ok) {
-        let detail = `Could not read ${file.name} (${resp.status}).`;
-        try {
-          detail = (await resp.json()).detail ?? detail;
-        } catch {
-          /* non-JSON error body — keep the status-based message */
-        }
-        window.alert(detail);
-        return;
-      }
-      setMeasured(await resp.json());
-    } catch (e) {
-      window.alert(`Could not read ${file.name}: ${e}`);
-    }
-  }
-
-  // Copy the current knob values as a paste-ready Python `default_params`
-  // (or `<variant>_params`) block. Replaces the old workflow of hand-copying
-  // the values printed on screen back into a design file. The backend reuses
-  // the same variant + live-knob overlay as the solve, so what you copy is
-  // exactly the antenna on screen.
-  async function copyParams() {
-    try {
-      const resp = await fetch("/params_source", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequest()),
-      });
-      const data = await resp.json();
-      if (!resp.ok || data.available === false || data.error) {
-        window.alert(data.error ?? "Copy params is unavailable for this design.");
-        return;
-      }
-      const src: string = data.source;
-      try {
-        await navigator.clipboard.writeText(src);
-        setCopiedParams(true);
-        window.setTimeout(() => setCopiedParams(false), 1500);
-      } catch {
-        // Clipboard API blocked (e.g. insecure context) — fall back to a
-        // prompt the user can copy from by hand.
-        window.prompt("Copy these params:", src);
-      }
-    } catch (e) {
-      window.alert(`Copy params failed: ${e}`);
-    }
-  }
-
   const currentBands: BandSpec[] = currentExample?.bands ?? [];
 
   // Anchor for the measurement-freq VFO window: the snap-freq of the *selected*
@@ -2253,8 +2152,10 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
           gearMenuOpen={gearMenuOpen}
           setGearMenuOpen={setGearMenuOpen}
           copiedParams={copiedParams}
-          onCopyParams={copyParams}
-          onDownloadNec={downloadNec}
+          onCopyParams={() => copyParams({ buildRequest, setCopiedParams })}
+          onDownloadNec={() =>
+            downloadNec({ setGearMenuOpen, buildRequest, geometry })
+          }
           isMobile={isMobile}
           fullscreen={fullscreen}
           showHeatmap={showHeatmap}
@@ -2271,7 +2172,9 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
           setConvergeEnabled={setConvergeEnabled}
           convergeNValues={CONVERGE_N_VALUES}
           measured={measured}
-          onLoadMeasured={loadMeasured}
+          onLoadMeasured={(f) =>
+            loadMeasured(f, { setGearMenuOpen, setMeasured })
+          }
           onClearMeasured={() => setMeasured(null)}
           normCheckEnabled={normCheckEnabled}
           setNormCheckEnabled={setNormCheckEnabled}
@@ -2478,7 +2381,9 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
               setConvergeEnabled={setConvergeEnabled}
               convergeNValues={CONVERGE_N_VALUES}
               measured={measured}
-              onLoadMeasured={loadMeasured}
+              onLoadMeasured={(f) =>
+                loadMeasured(f, { setGearMenuOpen, setMeasured })
+              }
               onClearMeasured={() => setMeasured(null)}
             />
           )}
