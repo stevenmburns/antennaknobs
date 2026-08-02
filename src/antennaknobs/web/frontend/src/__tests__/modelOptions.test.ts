@@ -7,7 +7,7 @@ import {
   modelOptionsForRequest,
   type BSplineOpts,
   type SinGalerkinOpts,
-} from "../App";
+} from "../lib/backends";
 
 describe("modelOptionsForRequest", () => {
   it("sinusoidal-galerkin sends exactly n_qp_const and feed_model", () => {

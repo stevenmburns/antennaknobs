@@ -20,7 +20,7 @@ import {
   type BSplineOpts,
   type SinGalerkinOpts,
   type SlotConfig,
-} from "../App";
+} from "../lib/backends";
 
 describe("normalizeBackend", () => {
   it("maps the retired 'triangular' name to bspline", () => {

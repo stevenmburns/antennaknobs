@@ -2,7 +2,8 @@
 // reflectionCoefficient (Gamma from R/X/Z0), the numeric cores behind the
 // convergence sweep and the SWR/Smith-chart readouts.
 import { describe, it, expect } from "vitest";
-import { reflectionCoefficient, richardsonExtrap } from "../App";
+import { reflectionCoefficient } from "../lib/format";
+import { richardsonExtrap } from "../lib/math";
 
 describe("richardsonExtrap", () => {
   it("returns null for fewer than 3 points", () => {
