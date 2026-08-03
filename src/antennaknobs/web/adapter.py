@@ -2311,6 +2311,30 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             ground = ("finite",) + ground[1].crest_medium
         return _export_nec(builder, ground=ground, freq=meas_freq)
 
+    def schematic_svg(req: dict) -> str | None:
+        # Same builder construction as the live solve, so the schematic's
+        # component labels (lengths, C/L values, turns ratios) match the
+        # knobs on screen. No solve happens — build_network() plus the
+        # schemdraw render is milliseconds, cheap enough to refetch on
+        # every knob change like the geometry preview. None (not a raise)
+        # for a plain build_wires antenna: "no feed circuit" is an answer,
+        # not an error, and it can only be told by building the builder —
+        # the base class defines build_network() returning None, so the
+        # override cannot be detected statically on cls.
+        from antennaknobs.schematic import lower, render_svg
+
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        net = builder.build_network()
+        if net is None:
+            return None
+        # "currentColor": the frontend inlines the SVG, so strokes/text
+        # inherit the app theme's CSS colour (see render_svg's docstring).
+        return render_svg(lower(net, title=name), color="currentColor")
+
     def momwire_sweep(req: dict, freqs_mhz: list[float], cancel=None):
         builder = _build_builder(cls, req)
         # MomwireEngine reads builder.freq only for the initial wavelength
@@ -2378,6 +2402,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,
         nec_export=nec_export,
+        schematic_svg=schematic_svg,
         params_source=params_source,
         far_field_metrics=far_field_metrics,
         multi_feed=field_multi_feed,
