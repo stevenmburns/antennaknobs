@@ -230,6 +230,12 @@ class Schematic:
     # value-identical parallel lines; without naming its end, the chain and
     # the feed1 attachment read as the same components listed twice.
     antenna_name: str = ""
+    # The picked measurement plane (issue #652 c), when it is NOT the natural
+    # source. ``plane_cut`` is the block index the marker draws in front of
+    # (len(blocks) = at the antenna); everything left of it is disconnected
+    # for the solve being displayed and renders de-emphasised.
+    plane: str = ""
+    plane_cut: int | None = None
     title: str = ""
     notes: list[str] = field(default_factory=list)
     attachments: list[Block] = field(default_factory=list)
@@ -545,7 +551,7 @@ def _walk(branches, start, targets, is_datum):
     return best
 
 
-def lower(net, *, title: str = "", budget=None, p_in=None) -> Schematic:
+def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schematic:
     """`Network` → :class:`Schematic`.
 
     Walks source → antenna to find the chain, groups consecutive chain
@@ -557,6 +563,12 @@ def lower(net, *, title: str = "", budget=None, p_in=None) -> Schematic:
     with what it burns — which is what puts the power budget *in* the topology
     instead of beside it. ``p_in`` is the same solve's input power; with it
     the annotation renders as the fraction the budget table already shows.
+
+    ``plane`` marks a picked measurement plane (issue #652 c): the FULL chain
+    still draws — the picker needs the whole thing on screen to point at —
+    with a marker at the cut and the disconnected upstream de-emphasised. A
+    plane the chain does not visit is quietly ignored: the drawing must never
+    crash, and the solve path (`plane.driven_at`) is the validating gate.
     """
     sch = Schematic(
         source=net.sources[0].port if net.sources else "",
@@ -758,8 +770,10 @@ def lower(net, *, title: str = "", budget=None, p_in=None) -> Schematic:
 
     # Group consecutive chain steps sharing an instance path.
     groups = []  # [(steps, path, nodes)]
+    starts = []  # each group's first chain-step index, for the plane cut
     i = 0
     while i < len(chain):
+        starts.append(i)
         path = paths[chain[i].idx]
         group, nodes = [chain[i]], set(chain[i].pair_in)
         while i + 1 < len(chain) and path and paths[chain[i + 1].idx] == path:
@@ -770,6 +784,18 @@ def lower(net, *, title: str = "", budget=None, p_in=None) -> Schematic:
         nodes.discard(DATUM)
         groups.append((group, path, nodes))
         i += 1
+
+    if plane and plane != sch.source and chain:
+        # Where the picked plane sits: in front of the first step whose
+        # entry pair carries it, or at the chain's end. Blocks wholly before
+        # that step are the upstream the solve disconnected.
+        cut = next(
+            (k for k, st in enumerate(chain) if plane in st.pair_in),
+            len(chain) if plane in chain[-1].pair_out else None,
+        )
+        if cut is not None:
+            sch.plane = plane
+            sch.plane_cut = sum(1 for s in starts if s < cut)
 
     # Assign each rib to EXACTLY ONE block. A node the chain passes through
     # can belong to two consecutive blocks, so keying a rib by node alone drew
@@ -947,8 +973,17 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     schemdraw.use("svg")
     d = schemdraw.Drawing(show=False)
     d.config(unit=DX, fontsize=FONTSIZE)
+    base_color = color or "black"
     if color is not None:
         d.config(color=color)
+    # De-emphasis for the section a picked measurement plane disconnects
+    # (issue #652 c). The upstream still DRAWS — the picker needs the whole
+    # chain on screen to point at — but it is not part of the solve being
+    # displayed, and the page must not pretend it is.
+    DIM = "gray"
+
+    def upstream(n: int) -> bool:
+        return sch.plane_cut is not None and n < sch.plane_cut
 
     def symbol(kind):
         return getattr(elm, _SCHEMDRAW_SYMBOLS.get(kind, "RBox"))
@@ -986,6 +1021,27 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                     drawn.append(line)
         x = xc = at
 
+    def plane_marker(px):
+        """The picked measurement plane: a dash-dot line crossing the chain.
+
+        Inherits the drawing colour from the config state on purpose — both
+        call sites have just restored the full colour, and an explicit
+        ``.color()`` would trip schemdraw's name validation on
+        "currentColor", which only ``config`` passes through verbatim.
+        `d.add`, not `d +=` — see `sync` for why.
+        """
+        top, bot = y + 0.9, gnd_y() + 0.3
+        d.add(elm.Line().at((px, top)).to((px, bot)).linestyle("-."))
+        d.add(
+            elm.Label()
+            .at((px, top + 0.1))
+            .label(f"plane: {sch.plane}", valign="bottom")
+        )
+
+    # A picked plane makes everything from the source to the cut a
+    # disconnected stub of the drawing — the source glyph included.
+    if sch.plane_cut is not None:
+        d.config(color=DIM)
     # `.to()` rather than `.up()`: an element's default length is one unit
     # (DX), so `.up()` from the datum overshoots the spine and leaves a bare
     # wire sticking out of the top of the source.
@@ -1008,12 +1064,18 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     x += leadin
 
     for n, block in enumerate(sch.blocks):
+        if sch.plane_cut is not None:
+            d.config(color=DIM if upstream(n) else base_color)
         if n:
             d += elm.Line().at((x, y)).to((x + GAP, y))
             x += GAP
             if balanced:
                 d += elm.Line().at((xc, yr)).to((xc + GAP, yr))
                 xc += GAP
+        if sch.plane_cut == n:
+            # The cut sits at the node this block starts from — mid-gap
+            # between blocks, or on the lead-in for a cut at the first one.
+            plane_marker(x - (GAP if n else leadin) / 2.0)
         x0 = x
         drawn = []  # what the block's enclosure has to contain
         tall = False  # the last symbol drawn reaches below the spine
@@ -1282,8 +1344,10 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             )
             if note:
                 # The box's own colour is the de-emphasis gray; the label
-                # re-asserts the drawing colour so it reads as content.
-                box.label(note, loc="top", color=color or "black")
+                # re-asserts the drawing colour so it reads as content —
+                # unless the block is upstream of a picked plane, in which
+                # case dim is exactly what it should read as.
+                box.label(note, loc="top", color=DIM if upstream(n) else base_color)
             d += box
         elif block.watts:
             # A bare branch has no enclosure to caption, but its burn still
@@ -1298,6 +1362,14 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                     valign="top",
                 )
             )
+
+    if sch.plane_cut is not None:
+        # Everything from here on — the antenna, attachments, notes — is on
+        # the live side of any cut; restore the drawing colour. A cut at the
+        # chain's very end marks the antenna terminals themselves.
+        d.config(color=base_color)
+        if sch.plane_cut == len(sch.blocks):
+            plane_marker(x + LEADOUT / 2.0)
 
     # "antenna (feed0)" when the chain's end carries a name — it only does
     # when the network has other antenna ports to confuse it with.
