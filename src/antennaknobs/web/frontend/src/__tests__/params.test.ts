@@ -173,19 +173,20 @@ describe("seedDefaults", () => {
     }
   });
 
-  it("applies default_overrides per group instance, bypassing kind coercion", () => {
+  it("applies default_overrides per group instance through the same kind coercion as defaults (decided in issue #674)", () => {
     const group = makeGroup({
       name: "bands",
       max_repeats: 2,
       params: [makeParam({ name: "freq", kind: "float", default: 14.1 })],
-      // Instance 0 overridden to a *string* — seedDefaults passes an
-      // override through untouched (no Number()/String()/Boolean() applied),
-      // unlike the plain-default path. Instance 1 has no override.
+      // Instance 0 overridden with a *stringified* number — #674 routed
+      // overrides through the same per-kind coercion as plain defaults, so
+      // it lands as the number 14.2, not the string. (Server-side types
+      // agree by construction today; this guards a heterogeneous instance.)
       default_overrides: [{ freq: "14.200" }, {}],
     });
     const out = seedDefaults([group]);
     const instances = out.bands as ParamValueBag[];
-    expect(instances[0]).toEqual({ freq: "14.200" });
+    expect(instances[0]).toEqual({ freq: 14.2 });
     expect(instances[1]).toEqual({ freq: 14.1 });
   });
 
@@ -203,7 +204,9 @@ describe("seedDefaults", () => {
       // The outer group's default_overrides is keyed by the outer's own
       // param names (here just "inner", the nested group) — but overrides
       // only apply to scalar leaves, never to a nested group, which always
-      // self-seeds from its own default_overrides regardless.
+      // self-seeds from its own default_overrides regardless. Promoted to a
+      // documented CONTRACT in issue #674 (the adapter cannot emit nested
+      // groups; this pins the fail-soft behavior if one ever appears).
       default_overrides: [{}, {}],
     });
     const out = seedDefaults([outer]);
@@ -355,12 +358,12 @@ describe("matchesQuery", () => {
     expect(matchesQuery(ex, "helix")).toBe(false);
   });
 
-  it("lowercases the haystack but NOT the query — an uppercase query misses (caller must lowercase first)", () => {
+  it("is case-insensitive on both sides (decided in issue #674)", () => {
     const ex = makeExample({ name: "beams.yagi", label: "Yagi-Uda Beam" });
-    // Surprising: matchesQuery does `hay.toLowerCase().includes(q)`, so a
-    // query that isn't already lowercase will not match even an
-    // otherwise-identical substring.
-    expect(matchesQuery(ex, "YAGI")).toBe(false);
+    // Originally only the haystack was lowercased and callers had to
+    // pre-lower the query; #674 promoted both-sides insensitivity to the
+    // contract so a new call site can't silently miss.
+    expect(matchesQuery(ex, "YAGI")).toBe(true);
     expect(matchesQuery(ex, "yagi")).toBe(true);
   });
 });
