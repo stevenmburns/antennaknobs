@@ -1270,7 +1270,10 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     for i, note in enumerate(sch.notes):
         d += elm.Label().at((0.0, ay - 1.4 - i * 0.9)).label(note, halign="left")
 
-    d.draw()
+    # show=False here, not just on the Drawing constructor: draw() defaults
+    # to show=True, which writes a temp file and xdg-opens it in the desktop
+    # image viewer — one popup per render, i.e. per web knob tweak.
+    d.draw(show=False)
     svg = d.get_imagedata("svg").decode("utf-8")
     if path is not None:
         with open(path, "w") as fh:
