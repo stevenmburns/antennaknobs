@@ -369,6 +369,31 @@ def test_every_shape_in_the_corpus_renders(design, tmp_path):
     assert "<svg" in svg
 
 
+def test_a_picked_plane_marks_the_cut_but_keeps_the_whole_chain():
+    """Plane UX (issue #652 c): the drawing is the picker, so the FULL chain
+    stays on screen — the cut index says where the marker goes and which
+    blocks are the disconnected upstream."""
+    net = build("wire.doublet_ladder_tuner").build_network()
+    sch = lower(net, plane="li")
+    assert (sch.plane, sch.plane_cut) == ("li", 1)
+    assert len(sch.blocks) == 2  # tuner (upstream) + line, both still drawn
+    # A cut at the chain's end marks the antenna terminals themselves.
+    assert lower(net, plane="feed").plane_cut == 2
+    # The natural plane and an unknown one mark nothing — the drawing never
+    # crashes; plane.driven_at is the validating gate.
+    assert lower(net, plane="rig").plane_cut is None
+    assert lower(net, plane="bogus").plane_cut is None
+
+
+def test_render_draws_the_plane_marker():
+    pytest.importorskip("schemdraw")
+    net = build("dipoles.invvee_coax_station").build_network()
+    svg = render_svg(lower(net, plane="feed"))
+    assert "plane: feed" in svg
+    # without a picked plane, no marker
+    assert "plane:" not in render_svg(lower(net))
+
+
 def test_render_burn_is_a_fraction_of_input_when_p_in_is_known(tmp_path):
     """With p_in the annotation is the same percent the power-budget table
     shows, placed where it burns; without a reference it falls back to the
