@@ -1836,6 +1836,47 @@ input[type=checkbox] {
   position: relative;
 }
 
+/* Feed-network schematic view (issue #652). The SVG arrives server-rendered
+   in currentColor, inlined — so `color` here is what paints the circuit,
+   and the drawing follows the theme with no refetch. Scale DOWN to fit
+   (max-*) but never up: a small station chain at its natural size stays
+   readable, a 9-branch LPDA shrinks into view. */
+.schematic-fill,
+.schematic-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+  overflow: hidden;
+}
+
+.schematic-fill {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-6, 16px);
+}
+
+.schematic-fill svg,
+.schematic-thumb svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+}
+
+.schematic-empty {
+  color: var(--muted);
+  text-align: center;
+  max-width: 34em;
+  padding: 0 16px;
+  font-size: 0.9rem;
+}
+
+.schematic-thumb .schematic-empty {
+  font-size: 0.7rem;
+  padding: 0 6px;
+}
+
 .antenna-overlay,
 .smith-overlay,
 .farfield-overlay {

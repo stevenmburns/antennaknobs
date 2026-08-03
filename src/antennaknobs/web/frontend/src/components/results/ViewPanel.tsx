@@ -4,6 +4,7 @@ import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
 import type { PatternData, PinnedPattern } from "../charts/types";
+import { SchematicPanel } from "./SchematicPanel";
 
 export function ViewPanel({
   view,
@@ -28,6 +29,8 @@ export function ViewPanel({
   showFeedNames = true,
   multiFeed,
   fineNorm,
+  schematicSvg = null,
+  schematicUnavailable = false,
 }: {
   view: View;
   size: number;
@@ -51,6 +54,8 @@ export function ViewPanel({
   showFeedNames?: boolean;
   multiFeed: boolean;
   fineNorm?: number | null;
+  schematicSvg?: string | null;
+  schematicUnavailable?: boolean;
 }) {
   if (view === "antenna") {
     // Fall back to the geometry-only preview while the real solve is in
@@ -97,6 +102,16 @@ export function ViewPanel({
         azElevDeg={azElevDeg}
         elevAzDeg={elevAzDeg}
         fineNorm={fineNorm}
+      />
+    );
+  }
+  if (view === "schematic") {
+    return (
+      <SchematicPanel
+        svg={schematicSvg}
+        unavailable={schematicUnavailable}
+        size={size}
+        fill={fill}
       />
     );
   }
