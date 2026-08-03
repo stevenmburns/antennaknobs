@@ -28,6 +28,22 @@ def _param_label(nm):
     return "freq (MHz)" if nm == "freq" else nm
 
 
+def _z_title(antenna_builder, nm):
+    """Title for an impedance sweep, naming the plane it is drawn at.
+
+    "feedpoint" is only true for a bare antenna. A station design is solved
+    at the port its source sits on — ``Driven(port="rig")`` — and with a
+    measured trace on the same axes (#595) calling that the feedpoint
+    actively invites comparing a VNA calibrated at the wrong plane (#652).
+    """
+    build = getattr(antenna_builder, "build_network", None)
+    net = build() if callable(build) else None
+    sources = getattr(net, "sources", None) if net is not None else None
+    if sources:
+        return f"impedance at {sources[0].port} vs {nm}"
+    return f"feedpoint impedance vs {nm}"
+
+
 def _polish_axes(ax, title=None):
     """Shared look-and-feel for the rectangular CLI charts."""
     ax.grid(True, alpha=0.3, linewidth=0.6)
@@ -338,7 +354,7 @@ def sweep(
             # Upper left keeps clear of the z0 note in the lower-left corner.
             ax0.legend(loc="upper left", frameon=False, fontsize=8)
         # Same title as the rectangular branch — the chart form says "Smith".
-        ax0.set_title(f"feedpoint impedance vs {nm}", fontsize=11)
+        ax0.set_title(_z_title(antenna_builder, nm), fontsize=11)
         fig.tight_layout()
 
     else:
@@ -395,7 +411,7 @@ def sweep(
             ax1.plot(mxs, np.imag(mz), color=color, **_MEASURED_KW)
             _measured_legend(ax0, measured.label)
 
-        _polish_axes(ax0, title=f"feedpoint impedance vs {nm}")
+        _polish_axes(ax0, title=_z_title(antenna_builder, nm))
         ax1.spines["top"].set_visible(False)
         fig.tight_layout()
 
