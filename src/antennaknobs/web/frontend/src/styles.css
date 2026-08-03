@@ -1758,6 +1758,19 @@ input[type=checkbox] {
   color: var(--muted);
 }
 
+/* Measurement-plane picker (issue #652 c): a select that reads like the
+   value it replaces — mono, accent, right-aligned — not a form control. */
+.readout .plane-select {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0 var(--space-1);
+  text-align: right;
+}
+
 .feeds-table {
   margin-top: var(--space-3);
   padding-top: var(--space-3);

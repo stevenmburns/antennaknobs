@@ -571,6 +571,38 @@ def test_solve_dispatches_to_momwire_for_dipole():
     assert out["z_in_re"] > 0
 
 
+def test_solve_at_a_picked_plane_measures_the_bare_antenna():
+    """Measurement-plane picking (issue #652 c): plane="feed" re-solves with
+    the upstream disconnected — the VNA-at-the-feedpoint measurement — and
+    the response says which plane it is referenced to and which are on
+    offer."""
+    base = {
+        "geometry": "dipoles.invvee_coax_station",
+        "measurement_freq_mhz": 28.47,
+        "design_freq_mhz": 28.47,
+        "momwire_model": "bspline",
+    }
+    at_rig = server.solve(base)
+    assert at_rig["plane"] == "rig"
+    assert at_rig["planes"] == ["rig", "feed"]
+    at_feed = server.solve({**base, "plane": "feed"})
+    assert at_feed["plane"] == "feed"
+    z_rig = complex(at_rig["z_in_re"], at_rig["z_in_im"])
+    z_feed = complex(at_feed["z_in_re"], at_feed["z_in_im"])
+    # 100 ft of RG-8X transforms the impedance; the planes must differ.
+    assert abs(z_rig - z_feed) > 1.0
+    # With the coax unscrewed nothing is left to burn.
+    assert at_rig["power_budget"] and not at_feed["power_budget"]
+
+    # A plain build_wires antenna has no plane to speak of — no fields.
+    bare = server.solve({**base, "geometry": "dipoles.invvee"})
+    assert "plane" not in bare and "planes" not in bare
+
+    # An unknown plane is a bad request field, same as a bad freq.
+    with pytest.raises(ValueError, match="measurement plane"):
+        server.solve({**base, "plane": "vna"})
+
+
 def _design_builder(dotted):
     import importlib
 
@@ -2936,6 +2968,14 @@ def test_schematic_folds_in_the_echoed_power_budget(client: TestClient):
     assert "(25.0%)" in svg
     # Without the budget nothing is claimed.
     assert "%" not in client.post("/schematic", json=base).json()["svg"]
+
+
+def test_schematic_marks_a_picked_plane(client: TestClient):
+    svg = client.post(
+        "/schematic",
+        json={"geometry": "dipoles.invvee_coax_station", "plane": "feed"},
+    ).json()["svg"]
+    assert "plane: feed" in svg
 
 
 def test_schematic_ignores_a_malformed_budget(client: TestClient):

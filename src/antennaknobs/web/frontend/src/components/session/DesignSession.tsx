@@ -430,6 +430,11 @@ function DesignSessionBody({
   // measFreq still follows designFreq via the linkMeas useEffect below.
 
   const [result, setResult] = useState<SolveResponse | null>(null);
+  // Measurement plane (issue #652 c): null = the design's natural source
+  // port (the field is then omitted from requests). A picked plane
+  // re-solves everything — readout, charts, sweeps, pattern — with the
+  // chain upstream of it disconnected, and the schematic marks the cut.
+  const [plane, setPlane] = useState<string | null>(null);
   // Geometry-only snapshot of the just-selected antenna (wires + feed marker,
   // no currents), fetched fast so a large design's shape renders immediately
   // instead of waiting tens of seconds for the full solve. Superseded by
@@ -659,6 +664,10 @@ function DesignSessionBody({
       }
       base.model_options = opts;
     }
+    // Measurement plane (issue #652 c): only ever sent when picked — the
+    // natural plane is the absence of the field, so designs with no
+    // network never see it.
+    if (plane) base.plane = plane;
     // Schema-driven antennas (all of them now): merge the active
     // paramValues straight in. For fan_dipole this includes a nested
     // `bands: [{band_id, freq, length_factor}, ...]` array; the backend
@@ -730,6 +739,7 @@ function DesignSessionBody({
       currentVariant,
       designFreq,
       measFreq,
+      plane, // the picked plane draws as a marker + dimmed upstream
     ]),
     buildRequest,
     budget: schematicBudget,
@@ -858,6 +868,13 @@ function DesignSessionBody({
   // Pin the current pattern: snapshot the solve response (for the ghost trace)
   // into the shared cross-session pin list. The snapshot is frozen — it won't
   // change as the live knobs move, which is the whole point of comparing.
+  // Measurement-plane pick (issue #652 c). Choosing the natural (first)
+  // plane clears the override entirely, so the request field disappears
+  // rather than pinning the default by name.
+  function pickPlane(p: string) {
+    setPlane(p === result?.planes?.[0] ? null : p);
+  }
+
   function pinCurrentPattern() {
     if (!result) return;
     const label = `${currentExample?.label ?? geometry} @ ${measFreq.toFixed(2)} MHz`;
@@ -976,7 +993,7 @@ function DesignSessionBody({
     autoSim,
     geometry, previewReady, backend, backendOptsKey,
     currentValuesKey,
-    designFreq, measFreq,
+    designFreq, measFreq, plane,
     groundEnabled, groundModel, terrainKey,
   ]);
 
@@ -999,6 +1016,7 @@ function DesignSessionBody({
     setResult(null);
     setPreview(null);
     setSolveError(null);
+    setPlane(null); // plane names belong to a design; never carry one over
     setPreviewReady(null); // close the solve gate until this antenna's preview lands
     setSolverWarning(false); // drop any combo warning from the prior design
     previewAbortRef.current?.abort();
@@ -1442,6 +1460,7 @@ function DesignSessionBody({
                       effectiveMultiFeed={effectiveMultiFeed}
                       normCheck={normCheck}
                       normCheckEnabled={normCheckEnabled}
+                      onPlaneChange={pickPlane}
                     />
                     {/* The ws status lives HERE, not floating over the
                         carousel — on a phone the desktop-style absolute
@@ -1556,6 +1575,7 @@ function DesignSessionBody({
             effectiveMultiFeed={effectiveMultiFeed}
             normCheck={normCheck}
             normCheckEnabled={normCheckEnabled}
+            onPlaneChange={pickPlane}
           />
         </div>
         <div className="status">
