@@ -629,6 +629,42 @@ def _req_budget(req):
     return out or None, (float(p_in) if ok else None)
 
 
+def _apply_plane(builder, req):
+    """Move the solve to the request's measurement plane (issue #652 c).
+
+    Returns ``(plane, planes)`` for the response — the plane actually solved
+    at (the natural source port when none was asked for) and every pickable
+    one. Asking for a non-natural plane shadows the built builder's
+    ``build_network`` with the pruned, re-sourced network from
+    `plane.driven_at`: engines read the network exactly once, so the
+    instance attribute is a sufficient seam. ``(None, None)`` when there is
+    nothing to pick — no network, or a multi-feed drive with no single plane
+    to move. An unknown plane raises ValueError like any bad request field.
+    """
+    from antennaknobs.plane import driven_at, planes_of
+
+    build = getattr(builder, "build_network", None)
+    net = build() if callable(build) else None
+    if net is None or len(net.sources) != 1:
+        return None, None
+    natural = net.sources[0].port
+    planes = planes_of(net)
+    plane = req.get("plane")
+    if not plane or plane == natural:
+        return natural, planes
+    if plane not in planes:
+        raise ValueError(
+            f"unknown measurement plane {plane!r}; this design offers {planes}"
+        )
+    pruned = driven_at(net, plane)
+    # object.__setattr__, NOT plain assignment: Builder.__setattr__ files
+    # every write into _params, where a normal read never finds it (the
+    # class method wins the lookup) — the shadow would be silently absorbed
+    # and every plane would quietly solve at the natural port.
+    object.__setattr__(builder, "build_network", lambda: pruned)
+    return plane, planes
+
+
 def _derive_schema(default_params: dict) -> tuple:
     ui = dict(default_params.get("ui_params") or {})
     specs: list[ParamSpec] = []
@@ -2010,6 +2046,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # into _params and never read — guard on has_design_freq.
         if has_design_freq:
             builder.design_freq = design_freq
+        plane, planes = _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         t0 = time.perf_counter()
         zs = [_json_safe_z(z) for z in eng.impedance()]
@@ -2055,6 +2092,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "input_power_w": float(eng.input_power()),
             **_wire_material_results(builder),
         }
+        if planes is not None:
+            # Measurement plane (issue #652 c): which port this solve is
+            # referenced to, and which the picker may offer.
+            out["plane"] = plane
+            out["planes"] = planes
         # Array Block coupling-path diagnostics (issue #613): absent for
         # every other engine/model (eng.solver_diag() only returns a dict
         # for an ArrayBlockSolver-backed solve).
@@ -2144,6 +2186,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
+        # The pattern must be the same solve the impedance readout shows —
+        # a picked plane (issue #652 c) moves both together.
+        _apply_plane(builder, req)
         eng = _make_pynec_engine(req, builder)
         # Find the first excited wire to fill the feed_seg / feed_tag
         # parity fields. PyNECEngine.excitation_pairs is (tag, sub_seg,
@@ -2179,6 +2224,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
+        plane, planes = _apply_plane(builder, req)
         eng = _make_pynec_engine(req, builder)
         t0 = time.perf_counter()
         zs = [_json_safe_z(z) for z in eng.impedance()]
@@ -2226,6 +2272,10 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
             **_wire_material_results(builder),
         }
+        if planes is not None:
+            # Same plane fields as the momwire path (issue #652 c).
+            out["plane"] = plane
+            out["planes"] = planes
         if _requested_ground_model(req) == "terrain":
             # PyNEC terrain hybrid (issue #553): the engine solved over the
             # crest-medium Sommerfeld spec (so ground_eps_r/sigma above are
@@ -2316,6 +2366,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
+        _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
         metrics = pattern_metrics(ff)
@@ -2366,10 +2417,16 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # echoes the latest solve's structural (key, watts) rows and input
         # power, and each block gets its burn drawn where it happens.
         budget, p_in = _req_budget(req)
+        # A picked plane (issue #652 c) draws as a marker on the FULL chain
+        # with the disconnected upstream dimmed — lower() quietly ignores a
+        # name the chain doesn't visit, so no validation needed here.
+        plane = req.get("plane")
+        plane = plane if isinstance(plane, str) else None
         # "currentColor": the frontend inlines the SVG, so strokes/text
         # inherit the app theme's CSS colour (see render_svg's docstring).
         return render_svg(
-            lower(net, title=name, budget=budget, p_in=p_in), color="currentColor"
+            lower(net, title=name, budget=budget, p_in=p_in, plane=plane),
+            color="currentColor",
         )
 
     def momwire_sweep(req: dict, freqs_mhz: list[float], cancel=None):
@@ -2382,6 +2439,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # solve sees. See momwire_solve for the rationale.
         if has_design_freq:
             builder.design_freq = _req_freqs(req)[0]
+        # A sweep at a picked plane sweeps THAT plane's impedance — the
+        # curve the measured overlay lands on (issue #652 c).
+        _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)))
         # Open-circuited points sweep through as inf; clamp for JSON.

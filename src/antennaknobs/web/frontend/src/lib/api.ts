@@ -120,6 +120,11 @@ export type SolveResponse = {
    *  (issue #652). */
   power_budget?: { label: string; watts: number; path?: string; key?: string }[];
   input_power_w?: number;
+  /** Measurement plane (issue #652 c): the port this solve's Z/SWR/chart are
+   *  referenced to, and every port the picker may offer (natural plane
+   *  first). Absent for designs with no network or a multi-feed drive. */
+  plane?: string;
+  planes?: string[];
   k_meas_m_inv?: number;
   // V-specific
   arm_len_m?: number;
@@ -200,6 +205,10 @@ export type SolveRequest = {
   /** Cut angles for the server-attached polar traces (issue #547). */
   az_elev_deg?: number;
   elev_az_deg?: number;
+  /** Measurement plane to solve at (issue #652 c). Omitted = the design's
+   *  natural source port. A non-natural plane re-solves with the upstream
+   *  chain disconnected — a VNA clipped on at that port. */
+  plane?: string;
   // V
   angle_deg?: number;
   halfdriver_factor?: number;

@@ -35,6 +35,7 @@ export function SolveReadout({
   effectiveMultiFeed,
   normCheck,
   normCheckEnabled,
+  onPlaneChange,
   className = "",
 }: {
   result: SolveResponse | null;
@@ -43,10 +44,33 @@ export function SolveReadout({
   effectiveMultiFeed: boolean;
   normCheck: NormCheckData | null;
   normCheckEnabled: boolean;
+  /** Measurement-plane pick (issue #652 c). Absent = picker never shown. */
+  onPlaneChange?: (plane: string) => void;
   className?: string;
 }) {
+  const planes = result?.planes;
   return (
     <div className={`readout${className ? " " + className : ""}`}>
+      {onPlaneChange && planes && planes.length > 1 && (
+        <div
+          className="row"
+          title="Measurement plane: the port every number and chart here is referenced to. Picking another port re-solves as a VNA clipped on there — the chain upstream of it disconnected."
+        >
+          <span>plane</span>
+          <select
+            className="val plane-select"
+            aria-label="measurement plane"
+            value={result?.plane ?? planes[0]}
+            onChange={(e) => onPlaneChange(e.target.value)}
+          >
+            {planes.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="row">
         <span>R</span>
         <span className="val">{result ? formatOhms(result.z_in_re) : "—"}</span>
