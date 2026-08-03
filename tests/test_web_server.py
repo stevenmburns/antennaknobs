@@ -252,16 +252,26 @@ def test_examples_carry_the_converged_feed_suggestion(client: TestClient):
 def test_capabilities_reports_pynec_availability(client: TestClient, monkeypatch):
     """The frontend gates the PyNEC backend option on this flag (#429): when
     pynec-accel is absent the UI must not offer PyNEC, so the /ws solve does
-    not silently fall back to momwire. Mirrors pynec_backend.HAVE_PYNEC."""
+    not silently fall back to momwire. Mirrors pynec_backend.HAVE_PYNEC.
+
+    Since issue #628 the same gate drives the served backend roster, which is
+    what the UI actually reads: the PyNEC entry is present exactly when the
+    flag is. Both are computed per request, so the monkeypatch bites."""
     from antennaknobs.web import pynec_backend
+
+    def pynec_offered() -> bool:
+        payload = client.get("/capabilities").json()
+        return "pynec" in {e["name"] for e in payload["backends"]}
 
     payload = client.get("/capabilities").json()
     assert payload["have_pynec"] == pynec_backend.HAVE_PYNEC
 
     monkeypatch.setattr(pynec_backend, "HAVE_PYNEC", False)
     assert client.get("/capabilities").json()["have_pynec"] is False
+    assert pynec_offered() is False
     monkeypatch.setattr(pynec_backend, "HAVE_PYNEC", True)
     assert client.get("/capabilities").json()["have_pynec"] is True
+    assert pynec_offered() is True
 
 
 def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):

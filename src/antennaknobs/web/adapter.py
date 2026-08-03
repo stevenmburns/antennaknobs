@@ -144,28 +144,176 @@ _SWEPT_MEM_MB = (
     else None
 )
 
-_MOMWIRE_MODELS = {
-    "sinusoidal": SinusoidalSolver,
-    "bspline": BSplineSolver,
+# ---------------------------------------------------------------------------
+# Backend registry (issue #628)
+# ---------------------------------------------------------------------------
+
+# The solver roster is ONE structure: the class the server constructs plus the
+# metadata the frontend renders its picker from. Before #628 the two halves
+# lived in different languages (this dict here, a hand-kept `BACKEND_ORDER` /
+# `BACKEND_LABEL` / `BackendOptsMap` in lib/backends.ts) and the failure mode of
+# drift was silent absence — sinusoidal-galerkin landed server-side with both
+# repos' CI green and no tab in the UI (#626/#627). Now GET /capabilities serves
+# this list and the frontend has no roster of its own, so registering a solver
+# here is the whole change.
+
+
+@dataclass(frozen=True)
+class _BackendOption:
+    """One generic numeric solver knob the frontend renders from the roster.
+
+    `key` is BOTH the client-side opts key and the snake_case constructor
+    kwarg on the wire — one name, so a served knob cannot land under the
+    wrong wire key. [min, max] must sit inside the hosted sanitiser's range
+    for that kwarg (_HOSTED_MODEL_OPTIONS below); pinned by a test.
+    """
+
+    key: str
+    label: str
+    min: float
+    max: float
+    step: float
+    default: float
+
+
+@dataclass(frozen=True)
+class _BackendSpec:
+    name: str
+    label: str
+    # The momwire solver class, or None for the PyNEC entry — PyNEC rides the
+    # separate `solver: "pynec"` request field, never `momwire_model`.
+    solver: type | None
+    kind: str = "momwire"
+    supports_ground: bool = True
+    options: tuple[_BackendOption, ...] = ()
+    # Bespoke frontend panel for the knobs no generic numeric renderer can
+    # carry (degree tabs, checkbox-gated smoothing, the feed-model tablist).
+    # A name, not a backend check: the component is selected by this hint.
+    panel: str | None = None
+    # Interactive default for the client-side segments/wire knob.
+    default_n_per_wire: int = 30
+    # comboInappropriate policy, as capabilities rather than name lists:
+    # `accelerator` = built for arrays (overkill on one element), and
+    # `dense_family` = minutes per solve on a benchmark-class mesh.
+    accelerator: bool = False
+    dense_family: bool = False
+
+
+_N_QP_CONST = _BackendOption(
+    key="n_qp_const",
+    label="n_qp_const (GL pts)",
+    min=2,
+    max=32,
+    step=1,
+    default=8,
+)
+
+_BACKENDS: tuple[_BackendSpec, ...] = (
+    _BackendSpec(
+        name="sinusoidal",
+        label="Sinusoidal",
+        solver=SinusoidalSolver,
+        options=(_N_QP_CONST,),
+    ),
+    # The same three-term basis as "sinusoidal", tested variationally rather
+    # than point-matched (momwire#182). Not the interactive default — no C++
+    # accelerator and no distributed wire loading, and the fill costs several
+    # times the point-matched one — but a first-class backend tab, and the one
+    # solver carrying the feed-model choice ("NEC-compatible vs converged",
+    # issue #640), which is what its bespoke panel renders.
+    _BackendSpec(
+        name="sinusoidal-galerkin",
+        label="Sin-Galerkin",
+        solver=SinusoidalGalerkinSolver,
+        options=(_N_QP_CONST,),
+        panel="sin-galerkin",
+        dense_family=True,
+    ),
+    _BackendSpec(
+        name="bspline",
+        label="B-spline",
+        solver=BSplineSolver,
+        panel="bspline",
+        dense_family=True,
+    ),
     # Hierarchical (H-matrix / ACA) accelerator — same B-spline basis as
     # bspline; model_options forward verbatim (degree, aca_eta,
     # aca_leaf_size, aca_tol, solve_tol, …). Ground/enrichment fall back to
     # the dense bspline solve inside HMatrixSolver.
-    "hmatrix": HMatrixSolver,
+    _BackendSpec(
+        name="hmatrix",
+        label="H-matrix (ACA)",
+        solver=HMatrixSolver,
+        panel="bspline",
+        accelerator=True,
+        dense_family=True,
+    ),
     # Element-aware array-block accelerator (sibling of hmatrix) for arrays of
     # identical/few-shape elements: dense per-shape self-blocks + low-rank
     # coupling, block-Jacobi GMRES. Same B-spline basis and model_options as
     # bspline/hmatrix (degree, aca_tol, solve_tol, …); on a single connected
     # structure it degrades to one element and matches the dense bspline solve.
-    "arrayblock": ArrayBlockSolver,
-}
-# The same three-term basis as "sinusoidal", tested variationally rather
-# than point-matched (momwire#182). Not the interactive default — no C++
-# accelerator and no distributed wire loading, and the fill costs several
-# times the point-matched one — but a first-class backend tab in the
-# frontend, and the one solver carrying the feed-model choice
-# ("NEC-compatible vs converged", issue #640).
-_MOMWIRE_MODELS["sinusoidal-galerkin"] = SinusoidalGalerkinSolver
+    # 21 segs/wire is the converged, correct-parity default for B-spline d=2
+    # (odd → interior knot at the feed).
+    _BackendSpec(
+        name="arrayblock",
+        label="Array-block",
+        solver=ArrayBlockSolver,
+        panel="bspline",
+        default_n_per_wire=21,
+        accelerator=True,
+        dense_family=True,
+    ),
+    # Optional (needs pynec-accel): served only when HAVE_PYNEC, so the
+    # frontend derives availability from roster membership instead of a
+    # second flag (#429). `kind` — not the name — is what marks it as the
+    # entry that rides `solver: "pynec"`.
+    _BackendSpec(
+        name="pynec",
+        label="PyNEC",
+        solver=None,
+        kind="pynec",
+        panel="pynec",
+        default_n_per_wire=21,
+    ),
+)
+
+_MOMWIRE_MODELS = {b.name: b.solver for b in _BACKENDS if b.kind == "momwire"}
+
+
+def backend_roster(*, have_pynec: bool) -> list[dict]:
+    """The self-describing solver catalog served on GET /capabilities.
+
+    Order is list order; the frontend renders its tabs, generic numeric knobs
+    and ground gating straight from this, and selects its two bespoke panels
+    by the `panel` hint rather than by backend name. Computed per request so
+    the PyNEC entry follows pynec_backend.HAVE_PYNEC.
+    """
+    return [
+        {
+            "name": b.name,
+            "label": b.label,
+            "kind": b.kind,
+            "supports_ground": b.supports_ground,
+            "options_schema": [
+                {
+                    "key": o.key,
+                    "label": o.label,
+                    "min": o.min,
+                    "max": o.max,
+                    "step": o.step,
+                    "default": o.default,
+                }
+                for o in b.options
+            ],
+            "panel": b.panel,
+            "default_n_per_wire": b.default_n_per_wire,
+            "accelerator": b.accelerator,
+            "dense_family": b.dense_family,
+        }
+        for b in _BACKENDS
+        if b.kind != "pynec" or have_pynec
+    ]
 
 
 # ---------------------------------------------------------------------------
