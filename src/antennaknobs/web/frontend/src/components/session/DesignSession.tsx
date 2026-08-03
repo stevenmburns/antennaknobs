@@ -1460,6 +1460,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
                   showHeatmap={showHeatmap}
                   showEnvelope={showEnvelope}
                   multiFeed={effectiveMultiFeed}
+                  schematicSvg={schematicSvg}
+                  schematicUnavailable={schematicUnavailable}
                 />
               </div>
               <div className="thumb-label">{v.label}</div>
