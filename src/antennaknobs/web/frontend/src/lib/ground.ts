@@ -1,4 +1,4 @@
-import type { Backend } from "./backends";
+import type { BackendEntry } from "./backends";
 import { backendSupportsGround, backendSupportsTerrain } from "./backends";
 
 // The UI separates WHAT the ground is from HOW it's solved. GroundType is
@@ -61,7 +61,7 @@ export type TerrainParams = Record<string, number>;
 // PyNEC via the #553 hybrid).
 export function resolveGroundModel(
   groundType: GroundType,
-  backend: Backend,
+  backend: BackendEntry,
   finiteGroundMethod: FiniteGroundMethod,
 ): GroundModel {
   return groundType === "pec"
@@ -79,7 +79,7 @@ export function resolveGroundModel(
 // uniform; "free space" when ground is off or unsupported.
 export function groundSummaryLabel(
   groundEnabled: boolean,
-  backend: Backend,
+  backend: BackendEntry,
   groundModel: GroundModel,
   terrainPreset: string,
 ): string {

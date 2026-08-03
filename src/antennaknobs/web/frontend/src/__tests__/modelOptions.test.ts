@@ -1,38 +1,43 @@
 // Pins modelOptionsForRequest's per-backend request-shape contract with the
-// server (issue #642 step 2): which snake_case keys each backend sends, and
-// that feed_model is sent ONLY for sinusoidal-galerkin.
+// server: which snake_case keys each backend sends, and that feed_model is
+// sent ONLY for the sin-galerkin panel. These are the SAME assertions as
+// before the roster refactor (issue #628) — the wire is a contract with
+// _make_momwire_sim and must not have moved; only the fixtures changed, from
+// module constants to roster entries.
 import { describe, it, expect } from "vitest";
 import {
-  DEFAULT_BACKEND_OPTS,
+  BSPLINE_DEFAULT_OPTS,
+  defaultOptsFor,
   modelOptionsForRequest,
   type BSplineOpts,
-  type SinGalerkinOpts,
 } from "../lib/backends";
+import { backendEntry, backendOption, entry } from "./backendFixtures";
 
 describe("modelOptionsForRequest", () => {
   it("sinusoidal-galerkin sends exactly n_qp_const and feed_model", () => {
-    const opts: SinGalerkinOpts = {
-      ...DEFAULT_BACKEND_OPTS["sinusoidal-galerkin"],
-      nQpConst: 11,
+    const b = entry("sinusoidal-galerkin");
+    const result = modelOptionsForRequest(b, {
+      ...defaultOptsFor(b),
+      schema: { n_qp_const: 11 },
       feedModel: "point",
-    };
-    const result = modelOptionsForRequest("sinusoidal-galerkin", opts);
+    });
     expect(Object.keys(result).sort()).toEqual(["feed_model", "n_qp_const"]);
     expect(result).toEqual({ n_qp_const: 11, feed_model: "point" });
   });
 
   it("plain sinusoidal sends exactly n_qp_const, and feed_model is ABSENT", () => {
-    const opts = { ...DEFAULT_BACKEND_OPTS.sinusoidal, nQpConst: 7 };
-    const result = modelOptionsForRequest("sinusoidal", opts);
+    const b = entry("sinusoidal");
+    const result = modelOptionsForRequest(b, {
+      ...defaultOptsFor(b),
+      schema: { n_qp_const: 7 },
+    });
     expect(Object.keys(result).sort()).toEqual(["n_qp_const"]);
     expect(result).toEqual({ n_qp_const: 7 });
     expect(result).not.toHaveProperty("feed_model");
   });
 
   it("bspline sends exactly the ten snake_case b-spline kwargs, values mapped from camelCase", () => {
-    const opts: BSplineOpts = {
-      nPerWire: 15, // not forwarded — geometry sizing, not a model kwarg
-      wireRadius: 0.0005, // not forwarded
+    const bspline: BSplineOpts = {
       degree: 1,
       nQpPair: 5,
       feedSmoothingFactor: 0.25,
@@ -44,7 +49,12 @@ describe("modelOptionsForRequest", () => {
       enrichmentMinK: 4,
       nQpSource: 17,
     };
-    const result = modelOptionsForRequest("bspline", opts);
+    const result = modelOptionsForRequest(entry("bspline"), {
+      nPerWire: 15, // not forwarded — geometry sizing, not a model kwarg
+      wireRadius: 0.0005, // not forwarded
+      schema: {},
+      bspline,
+    });
     expect(Object.keys(result).sort()).toEqual(
       [
         "auto_tap_ratio_threshold",
@@ -75,9 +85,9 @@ describe("modelOptionsForRequest", () => {
   });
 
   it("hmatrix and arrayblock (the rest of the b-spline family) get the same ten keys", () => {
-    for (const backend of ["hmatrix", "arrayblock"] as const) {
-      const opts = DEFAULT_BACKEND_OPTS[backend];
-      const result = modelOptionsForRequest(backend, opts);
+    for (const name of ["hmatrix", "arrayblock"]) {
+      const b = entry(name);
+      const result = modelOptionsForRequest(b, defaultOptsFor(b));
       expect(Object.keys(result).sort()).toEqual(
         [
           "auto_tap_ratio_threshold",
@@ -97,8 +107,51 @@ describe("modelOptionsForRequest", () => {
   });
 
   it("pynec sends no model_options at all", () => {
-    const result = modelOptionsForRequest("pynec", DEFAULT_BACKEND_OPTS.pynec);
-    expect(result).toEqual({});
-    expect(Object.keys(result)).toHaveLength(0);
+    const b = entry("pynec");
+    expect(modelOptionsForRequest(b, defaultOptsFor(b))).toEqual({});
+  });
+
+  // Byte-level regression guard for the refactor: the serialized request body
+  // for every real backend at its stock settings, key order included. The
+  // server reads these as constructor kwargs, so a reordering is harmless but
+  // a rename or a dropped key is not — and JSON equality catches both.
+  it("serializes each backend's stock options exactly as before the refactor", () => {
+    const stock = (name: string) => {
+      const b = entry(name);
+      return JSON.stringify(modelOptionsForRequest(b, defaultOptsFor(b)));
+    };
+    const BSPLINE_JSON =
+      '{"degree":2,"n_qp_pair":4,"n_qp_source":16,"feed_smoothing_factor":null,' +
+      '"use_singular_enrichment":false,"enrichment_variant":"raw",' +
+      '"tikhonov_lambda":0.1,"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,' +
+      '"enrichment_min_k":3}';
+    expect(stock("sinusoidal")).toBe('{"n_qp_const":8}');
+    expect(stock("sinusoidal-galerkin")).toBe(
+      '{"n_qp_const":8,"feed_model":"segment"}',
+    );
+    expect(stock("bspline")).toBe(BSPLINE_JSON);
+    expect(stock("hmatrix")).toBe(BSPLINE_JSON);
+    expect(stock("arrayblock")).toBe(BSPLINE_JSON);
+    expect(stock("pynec")).toBe("{}");
+  });
+
+  it("falls back to the served default for a knob the slot has never touched", () => {
+    const b = backendEntry({
+      name: "fake-solver",
+      options_schema: [backendOption({ key: "n_qp_const", default: 5 })],
+    });
+    expect(modelOptionsForRequest(b, { nPerWire: 30, wireRadius: 5e-4, schema: {} })).toEqual({
+      n_qp_const: 5,
+    });
+  });
+
+  it("uses the panel's own defaults when a b-spline slot carries no panel state", () => {
+    const result = modelOptionsForRequest(entry("bspline"), {
+      nPerWire: 30,
+      wireRadius: 5e-4,
+      schema: {},
+    });
+    expect(result.degree).toBe(BSPLINE_DEFAULT_OPTS.degree);
+    expect(result.n_qp_pair).toBe(BSPLINE_DEFAULT_OPTS.nQpPair);
   });
 });

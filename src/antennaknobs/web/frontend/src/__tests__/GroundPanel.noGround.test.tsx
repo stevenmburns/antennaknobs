@@ -1,38 +1,31 @@
-// Pins GroundPanel's no-ground-support branches (issue #673 follow-up):
-// the "ground plane ignored for <backend>" note, the disabled checkbox, and
-// the withheld ground-type sub-panel. Every current Backend supports ground,
-// so these branches are unreachable with real predicates — but issue #628
-// moves `supports_ground` into the server-supplied backend roster, where a
-// future solver can genuinely carry `false`. This file mocks the predicate
-// (rather than casting a fake Backend string, which would render an
-// undefined label) to pin the UI contract that server data will exercise.
+// Pins GroundPanel's no-ground-support branches (issue #673 follow-up): the
+// "ground plane ignored for <backend>" note, the disabled checkbox, and the
+// withheld ground-type sub-panel.
 //
-// A separate file from GroundPanel.test.tsx because vi.mock is file-scoped
-// and hoisted: the main matrix must keep testing the real predicates.
+// These branches used to be unreachable — every backend supports ground, so
+// PR #683 reached them by vi.mock-ing the predicate. Issue #628 moved
+// `supports_ground` into the server-supplied roster, so a fixture entry
+// carrying `false` exercises them with real data: the mock is gone and the
+// assertions below are unchanged from the mocked version.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GroundPanel } from "../components/session/GroundPanel";
-import { BACKEND_LABEL, type Backend } from "../lib/backends";
+import type { BackendEntry } from "../lib/backends";
+import { backendEntry, entry } from "./backendFixtures";
 
-// Pretend PyNEC is the ground-less solver. Both predicates are mocked in
-// step: the real backendSupportsTerrain calls backendSupportsGround through
-// a module-internal reference the mock cannot intercept, so overriding only
-// one would leave the pair inconsistent.
-vi.mock("../lib/backends", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/backends")>();
-  const supports = (b: Backend) => b !== "pynec";
-  return {
-    ...actual,
-    backendSupportsGround: supports,
-    backendSupportsTerrain: supports,
-  };
+// A solver that models no ground — the capability a future momwire backend
+// could genuinely report.
+const GROUNDLESS: BackendEntry = backendEntry({
+  name: "future-solver",
+  label: "Future solver",
+  supports_ground: false,
 });
 
 // Callbacks are supplied by the harness (and returned as spies) rather than
 // overridable, so an assertion can never target a spy the component never got.
 function renderGroundPanel(overrides: Partial<{
-  backend: Backend;
+  backend: BackendEntry;
   groundEnabled: boolean;
 }> = {}) {
   const spies = {
@@ -44,7 +37,7 @@ function renderGroundPanel(overrides: Partial<{
   };
   const view = render(
     <GroundPanel
-      backend="pynec"
+      backend={GROUNDLESS}
       groundEnabled={true}
       groundType="finite"
       finiteGroundMethod="fast"
@@ -58,9 +51,9 @@ function renderGroundPanel(overrides: Partial<{
   return { ...view, ...spies, user: userEvent.setup() };
 }
 
-const IGNORED_NOTE = `ground plane ignored for ${BACKEND_LABEL.pynec}`;
+const IGNORED_NOTE = `ground plane ignored for ${GROUNDLESS.label}`;
 
-describe("GroundPanel — backend without ground support (mocked predicate)", () => {
+describe("GroundPanel — backend without ground support (served supports_ground: false)", () => {
   it("shows the ignored note only while ground is enabled", () => {
     const on = renderGroundPanel({ groundEnabled: true });
     expect(screen.queryByText(IGNORED_NOTE)).not.toBeNull();
@@ -71,7 +64,7 @@ describe("GroundPanel — backend without ground support (mocked predicate)", ()
   });
 
   it("shows no note for a backend that supports ground", () => {
-    renderGroundPanel({ backend: "bspline", groundEnabled: true });
+    renderGroundPanel({ backend: entry("bspline"), groundEnabled: true });
     expect(screen.queryByText(/ground plane ignored/)).toBeNull();
   });
 
@@ -84,7 +77,7 @@ describe("GroundPanel — backend without ground support (mocked predicate)", ()
   });
 
   it("keeps the checkbox enabled for a supporting backend", () => {
-    renderGroundPanel({ backend: "bspline", groundEnabled: true });
+    renderGroundPanel({ backend: entry("bspline"), groundEnabled: true });
     expect(screen.getByRole("checkbox", { name: /ground plane/ })).toHaveProperty(
       "disabled",
       false,

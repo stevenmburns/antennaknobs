@@ -1,114 +1,141 @@
-// Pins the backend-selection/config logic in src/lib/backends.ts (issue #642
-// step 2). Pure functions with no DOM dependency — the suite-wide jsdom
-// environment exists for tests that import App.tsx (its module-scope WS_URL
-// reads window.location), not for these.
+// Pins the backend-selection/config logic in src/lib/backends.ts. Every case
+// is driven by a roster FIXTURE rather than a module constant (issue #628):
+// the roster is server data now, so these test how the frontend reacts to a
+// roster, not which backends exist. Pure functions with no DOM dependency —
+// the suite-wide jsdom environment exists for tests that import App.tsx (its
+// module-scope WS_URL reads window.location), not for these.
 import { describe, it, expect } from "vitest";
 import {
-  BACKEND_ORDER,
-  DEFAULT_BACKEND_OPTS,
+  BSPLINE_DEFAULT_OPTS,
   backendAllowed,
   backendDisplayLabel,
   backendSupportsGround,
   backendSupportsTerrain,
   comboInappropriate,
-  isBSplineFamily,
+  defaultOptsFor,
+  defaultSlots,
+  findBackend,
+  hasBSplinePanel,
   normalizeBackend,
-  resolveBackend,
-  resolveSlotConfig,
-  selectableBackends,
-  type Backend,
-  type BSplineOpts,
-  type SinGalerkinOpts,
-  type SlotConfig,
+  slotFromSeed,
+  type BackendEntry,
 } from "../lib/backends";
+import {
+  backendEntry,
+  backendOption,
+  entry,
+  ROSTER_NO_PYNEC,
+  SERVED_ROSTER,
+} from "./backendFixtures";
+
+const NAMES = SERVED_ROSTER.map((b) => b.name);
 
 describe("normalizeBackend", () => {
-  it("maps the retired 'triangular' name to bspline", () => {
-    expect(normalizeBackend("triangular")).toBe("bspline");
+  it("maps the retired 'triangular' name to the bspline entry", () => {
+    expect(normalizeBackend("triangular", SERVED_ROSTER)).toBe(entry("bspline"));
   });
 
-  it("passes through every current backend name unchanged", () => {
-    for (const b of BACKEND_ORDER) {
-      expect(normalizeBackend(b)).toBe(b);
+  it("resolves every served name to its own entry", () => {
+    for (const b of SERVED_ROSTER) {
+      expect(normalizeBackend(b.name, SERVED_ROSTER)).toBe(b);
     }
   });
 
-  it("maps an unrecognized string to null", () => {
-    expect(normalizeBackend("quadratic")).toBeNull();
-    expect(normalizeBackend("")).toBeNull();
+  it("maps a name the roster doesn't carry to null", () => {
+    expect(normalizeBackend("quadratic", SERVED_ROSTER)).toBeNull();
+    expect(normalizeBackend("", SERVED_ROSTER)).toBeNull();
+    // The #429 case is now roster membership: no entry, no recommendation.
+    expect(normalizeBackend("pynec", ROSTER_NO_PYNEC)).toBeNull();
   });
 
   it("maps null and undefined to null", () => {
-    expect(normalizeBackend(null)).toBeNull();
-    expect(normalizeBackend(undefined)).toBeNull();
+    expect(normalizeBackend(null, SERVED_ROSTER)).toBeNull();
+    expect(normalizeBackend(undefined, SERVED_ROSTER)).toBeNull();
+  });
+
+  it("resolves a name the fixture roster invented, with no frontend list to update", () => {
+    const roster = [...SERVED_ROSTER, backendEntry({ name: "fake-solver", label: "Fake" })];
+    expect(normalizeBackend("fake-solver", roster)?.label).toBe("Fake");
   });
 });
 
-describe("resolveBackend", () => {
-  it("falls back pynec to sinusoidal when pynec-accel is absent", () => {
-    expect(resolveBackend("pynec", false)).toBe("sinusoidal");
-  });
-
-  it("keeps pynec when pynec-accel is present", () => {
-    expect(resolveBackend("pynec", true)).toBe("pynec");
-  });
-
-  it("leaves every non-pynec backend unaffected by the flag", () => {
-    for (const b of BACKEND_ORDER.filter((x) => x !== "pynec")) {
-      expect(resolveBackend(b, false)).toBe(b);
-      expect(resolveBackend(b, true)).toBe(b);
-    }
+describe("findBackend", () => {
+  it("returns the entry for a served name and null otherwise", () => {
+    expect(findBackend(SERVED_ROSTER, "hmatrix")).toBe(entry("hmatrix"));
+    expect(findBackend(SERVED_ROSTER, "nope")).toBeNull();
+    expect(findBackend(SERVED_ROSTER, null)).toBeNull();
   });
 });
 
-describe("selectableBackends", () => {
-  it("returns the full BACKEND_ORDER, in order, when pynec is available", () => {
-    expect(selectableBackends(true)).toEqual(BACKEND_ORDER);
+describe("defaultOptsFor", () => {
+  it("seeds the served generic knobs under their own (wire) keys", () => {
+    const opts = defaultOptsFor(entry("sinusoidal"));
+    expect(opts.schema).toEqual({ n_qp_const: 8 });
+    expect(opts.nPerWire).toBe(30);
   });
 
-  it("drops pynec but preserves order when pynec is unavailable", () => {
-    expect(selectableBackends(false)).toEqual(
-      BACKEND_ORDER.filter((b) => b !== "pynec"),
-    );
+  it("takes segments/wire from the entry, not a client-side table", () => {
+    expect(defaultOptsFor(entry("arrayblock")).nPerWire).toBe(21);
+    expect(defaultOptsFor(entry("pynec")).nPerWire).toBe(21);
+    expect(
+      defaultOptsFor(backendEntry({ name: "x", default_n_per_wire: 7 })).nPerWire,
+    ).toBe(7);
+  });
+
+  it("attaches bespoke panel state only for the entry that names that panel", () => {
+    expect(defaultOptsFor(entry("bspline")).bspline).toEqual(BSPLINE_DEFAULT_OPTS);
+    expect(defaultOptsFor(entry("bspline")).feedModel).toBeUndefined();
+    expect(defaultOptsFor(entry("sinusoidal-galerkin")).feedModel).toBe("segment");
+    expect(defaultOptsFor(entry("sinusoidal-galerkin")).bspline).toBeUndefined();
+    expect(defaultOptsFor(entry("sinusoidal")).bspline).toBeUndefined();
+    expect(defaultOptsFor(entry("sinusoidal")).feedModel).toBeUndefined();
   });
 });
 
-describe("resolveSlotConfig", () => {
-  it("returns the SAME object reference when no swap is needed", () => {
-    const cfg: SlotConfig = {
-      backend: "bspline",
-      opts: { ...DEFAULT_BACKEND_OPTS.bspline },
-    };
-    expect(resolveSlotConfig(cfg, false)).toBe(cfg);
-    // pynec unaffected when the flag says it's available, too.
-    const pynecCfg: SlotConfig = {
-      backend: "pynec",
-      opts: { ...DEFAULT_BACKEND_OPTS.pynec },
-    };
-    expect(resolveSlotConfig(pynecCfg, true)).toBe(pynecCfg);
+describe("slotFromSeed / defaultSlots", () => {
+  it("resolves the stock A/B/C seeds against the full roster", () => {
+    const slots = defaultSlots(SERVED_ROSTER);
+    expect(slots.A.backend).toBe(entry("bspline"));
+    expect(slots.A.opts.nPerWire).toBe(15);
+    expect(slots.A.opts.bspline?.degree).toBe(2);
+    expect(slots.B.backend).toBe(entry("bspline"));
+    expect(slots.B.opts.nPerWire).toBe(20);
+    expect(slots.B.opts.bspline?.degree).toBe(1);
+    expect(slots.C.backend).toBe(entry("pynec"));
   });
 
-  it("swaps an unavailable pynec slot to sinusoidal, preserving nPerWire/wireRadius", () => {
-    // Non-default sizing so preservation is actually exercised, not just
-    // coincidentally equal to the sinusoidal defaults.
-    const cfg: SlotConfig = {
-      backend: "pynec",
-      opts: { nPerWire: 99, wireRadius: 0.0123 },
-    };
-    expect(resolveSlotConfig(cfg, false)).toEqual({
-      backend: "sinusoidal",
-      opts: {
-        ...DEFAULT_BACKEND_OPTS.sinusoidal,
-        nPerWire: 99,
-        wireRadius: 0.0123,
-      },
+  it("falls back to the roster's first entry when the seeded backend is absent (#429)", () => {
+    const slots = defaultSlots(ROSTER_NO_PYNEC);
+    expect(slots.C.backend).toBe(ROSTER_NO_PYNEC[0]);
+    expect(slots.C.opts).toEqual(defaultOptsFor(ROSTER_NO_PYNEC[0]));
+  });
+
+  it("applies the seed's deviations without mutating the entry's defaults", () => {
+    slotFromSeed({ backend: "bspline", bspline: { degree: 1 } }, SERVED_ROSTER);
+    expect(BSPLINE_DEFAULT_OPTS.degree).toBe(2);
+  });
+
+  it("seeds a backend the roster invented, with no seed of its own", () => {
+    const fake = backendEntry({
+      name: "fake-solver",
+      label: "Fake",
+      default_n_per_wire: 9,
+      options_schema: [backendOption()],
+    });
+    const cfg = slotFromSeed({ backend: "fake-solver" }, [...SERVED_ROSTER, fake]);
+    expect(cfg.backend).toBe(fake);
+    expect(cfg.opts).toEqual({
+      nPerWire: 9,
+      wireRadius: 0.0005,
+      schema: { n_qp_const: 8 },
     });
   });
 });
 
 describe("comboInappropriate", () => {
-  // Full 6 (backend) x 3 (rec) matrix.
-  const cases: [Backend, Backend | null, boolean][] = [
+  // Full 6 (backend) x 3 (recommendation) matrix, by name for readability —
+  // the function itself only ever reads the two capability flags.
+  const cases: [string, string | null, boolean][] = [
     ["sinusoidal", "arrayblock", true],
     ["sinusoidal", "sinusoidal", false],
     ["sinusoidal", null, false],
@@ -135,13 +162,22 @@ describe("comboInappropriate", () => {
   ];
 
   it.each(cases)("comboInappropriate(%s, %s) === %s", (b, rec, expected) => {
-    expect(comboInappropriate(b, rec)).toBe(expected);
+    expect(
+      comboInappropriate(entry(b), rec === null ? null : entry(rec)),
+    ).toBe(expected);
+  });
+
+  it("reads the flags, not the names: a fake accelerator behaves like arrayblock", () => {
+    const fake = backendEntry({ name: "fake-accel", accelerator: true, dense_family: true });
+    expect(comboInappropriate(fake, null)).toBe(true);
+    expect(comboInappropriate(fake, entry("arrayblock"))).toBe(false);
+    expect(comboInappropriate(entry("sinusoidal"), fake)).toBe(true);
   });
 });
 
 describe("backendAllowed", () => {
   it("allows every backend when required is null or undefined", () => {
-    for (const b of BACKEND_ORDER) {
+    for (const b of SERVED_ROSTER) {
       expect(backendAllowed(b, null)).toBe(true);
       expect(backendAllowed(b, undefined)).toBe(true);
     }
@@ -149,21 +185,21 @@ describe("backendAllowed", () => {
 
   it("restricts to exactly the members of a given allowlist", () => {
     const required = ["bspline"];
-    for (const b of BACKEND_ORDER) {
-      expect(backendAllowed(b, required)).toBe(b === "bspline");
+    for (const b of SERVED_ROSTER) {
+      expect(backendAllowed(b, required)).toBe(b.name === "bspline");
     }
   });
 
   it("supports a multi-backend allowlist (junction-port designs)", () => {
     const required = ["bspline", "sinusoidal-galerkin"];
-    for (const b of BACKEND_ORDER) {
-      expect(backendAllowed(b, required)).toBe(required.includes(b));
+    for (const b of SERVED_ROSTER) {
+      expect(backendAllowed(b, required)).toBe(required.includes(b.name));
     }
   });
 });
 
-describe("isBSplineFamily / backendSupportsGround / backendSupportsTerrain", () => {
-  const bsplineFamily: Record<Backend, boolean> = {
+describe("hasBSplinePanel / backendSupportsGround / backendSupportsTerrain", () => {
+  const bsplinePanel: Record<string, boolean> = {
     sinusoidal: false,
     "sinusoidal-galerkin": false,
     bspline: true,
@@ -172,65 +208,72 @@ describe("isBSplineFamily / backendSupportsGround / backendSupportsTerrain", () 
     pynec: false,
   };
 
-  it.each(BACKEND_ORDER)("isBSplineFamily(%s)", (b) => {
-    expect(isBSplineFamily(b)).toBe(bsplineFamily[b]);
+  it.each(NAMES)("hasBSplinePanel(%s)", (name) => {
+    expect(hasBSplinePanel(entry(name))).toBe(bsplinePanel[name]);
   });
 
-  // Current behavior: sinusoidal, sinusoidal-galerkin, the b-spline family,
-  // and pynec are the entire Backend union, so both predicates are true for
-  // every backend today — see the final report for a note on this.
-  it.each(BACKEND_ORDER)("backendSupportsGround(%s) is true", (b) => {
-    expect(backendSupportsGround(b)).toBe(true);
+  // Every solver the server currently registers models a ground, so the flag
+  // is true across the served roster — but it is now DATA, and a roster entry
+  // carrying false is honoured without any frontend change (see below and
+  // GroundPanel.noGround.test.tsx).
+  it.each(NAMES)("backendSupportsGround(%s) is true", (name) => {
+    expect(backendSupportsGround(entry(name))).toBe(true);
+    expect(backendSupportsTerrain(entry(name))).toBe(true);
   });
 
-  it.each(BACKEND_ORDER)("backendSupportsTerrain(%s) is true", (b) => {
-    expect(backendSupportsTerrain(b)).toBe(true);
+  it("reports a served supports_ground: false backend as ground-less", () => {
+    const groundless: BackendEntry = backendEntry({
+      name: "future-solver",
+      supports_ground: false,
+    });
+    expect(backendSupportsGround(groundless)).toBe(false);
+    expect(backendSupportsTerrain(groundless)).toBe(false);
   });
 });
 
 describe("backendDisplayLabel", () => {
-  const bsplineOpts = (degree: 1 | 2): BSplineOpts => ({
-    ...DEFAULT_BACKEND_OPTS.bspline,
-    degree,
+  const withDegree = (name: string, degree: 1 | 2) => {
+    const opts = defaultOptsFor(entry(name));
+    opts.bspline = { ...BSPLINE_DEFAULT_OPTS, degree };
+    return backendDisplayLabel(entry(name), opts);
+  };
+
+  it("carries the spline degree for every backend on the b-spline panel", () => {
+    expect(withDegree("bspline", 2)).toBe("B-spline d=2");
+    expect(withDegree("bspline", 1)).toBe("B-spline d=1");
+    expect(withDegree("hmatrix", 2)).toBe("H-matrix (ACA) d=2");
+    expect(withDegree("arrayblock", 1)).toBe("Array-block d=1");
   });
 
-  it("carries the spline degree for every b-spline-family backend", () => {
-    expect(backendDisplayLabel("bspline", bsplineOpts(2))).toBe("B-spline d=2");
-    expect(backendDisplayLabel("bspline", bsplineOpts(1))).toBe("B-spline d=1");
-    expect(backendDisplayLabel("hmatrix", bsplineOpts(2))).toBe(
-      "H-matrix (ACA) d=2",
-    );
-    expect(backendDisplayLabel("arrayblock", bsplineOpts(1))).toBe(
-      "Array-block d=1",
-    );
+  it('suffixes "(converged)" for the sin-galerkin panel with the point feed model', () => {
+    const opts = defaultOptsFor(entry("sinusoidal-galerkin"));
+    expect(
+      backendDisplayLabel(entry("sinusoidal-galerkin"), {
+        ...opts,
+        feedModel: "point",
+      }),
+    ).toBe("Sin-Galerkin (converged)");
   });
 
-  it('suffixes "(converged)" for sinusoidal-galerkin with the point feed model', () => {
-    const opts: SinGalerkinOpts = {
-      ...DEFAULT_BACKEND_OPTS["sinusoidal-galerkin"],
-      feedModel: "point",
-    };
-    expect(backendDisplayLabel("sinusoidal-galerkin", opts)).toBe(
-      "Sin-Galerkin (converged)",
-    );
-  });
-
-  it("stays plain for sinusoidal-galerkin with the segment feed model", () => {
-    const opts: SinGalerkinOpts = {
-      ...DEFAULT_BACKEND_OPTS["sinusoidal-galerkin"],
-      feedModel: "segment",
-    };
-    expect(backendDisplayLabel("sinusoidal-galerkin", opts)).toBe(
+  it("stays plain for the sin-galerkin panel with the segment feed model", () => {
+    const opts = defaultOptsFor(entry("sinusoidal-galerkin"));
+    expect(backendDisplayLabel(entry("sinusoidal-galerkin"), opts)).toBe(
       "Sin-Galerkin",
     );
   });
 
-  it("stays plain for sinusoidal and pynec", () => {
+  it("is the served label for a panel-less backend, including one nobody hardcoded", () => {
     expect(
-      backendDisplayLabel("sinusoidal", DEFAULT_BACKEND_OPTS.sinusoidal),
+      backendDisplayLabel(entry("sinusoidal"), defaultOptsFor(entry("sinusoidal"))),
     ).toBe("Sinusoidal");
-    expect(backendDisplayLabel("pynec", DEFAULT_BACKEND_OPTS.pynec)).toBe(
+    expect(backendDisplayLabel(entry("pynec"), defaultOptsFor(entry("pynec")))).toBe(
       "PyNEC",
     );
+    const fake = backendEntry({
+      name: "fake-solver",
+      label: "Fake",
+      options_schema: [backendOption()],
+    });
+    expect(backendDisplayLabel(fake, defaultOptsFor(fake))).toBe("Fake");
   });
 });

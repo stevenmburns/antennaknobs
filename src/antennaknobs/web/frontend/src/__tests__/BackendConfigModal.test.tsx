@@ -5,8 +5,11 @@
 // backend/flag that must NOT show the field — a presence-only test still passes
 // if the conditional is deleted.
 //
-// BSplineFields has no separate export; it is exercised through the modal with
-// a B-spline-family backend, which is also the only way it ships.
+// Since issue #628 the whole matrix is driven by the served roster fixture:
+// the tab list, the labels, the generic numeric knobs (options_schema) and the
+// two bespoke panels (selected by the `panel` hint). BSplineFields has no
+// separate export; it is exercised through the modal with an entry whose panel
+// is "bspline", which is also the only way it ships.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -15,36 +18,38 @@ import {
   type BackendConfigProps,
 } from "../components/backend/BackendConfigModal";
 import {
-  BACKEND_LABEL,
-  BACKEND_ORDER,
   BSPLINE_DEFAULT_OPTS,
-  BSPLINE_FAMILY,
-  DEFAULT_BACKEND_OPTS,
   RESTRICTED_BACKEND_REASON,
+  defaultOptsFor,
+  type BackendOpts,
   type BSplineOpts,
-  type SinGalerkinOpts,
 } from "../lib/backends";
+import { entry, SERVED_ROSTER } from "./backendFixtures";
 
 // --- fixtures --------------------------------------------------------------
-// Backend labels, option shapes and defaults all come from lib/backends so the
-// tests follow a rename or a default change instead of pinning a stale copy.
 
-function bsplineOpts(over: Partial<BSplineOpts> = {}): BSplineOpts {
-  return { ...BSPLINE_DEFAULT_OPTS, ...over };
-}
+const NAMES = SERVED_ROSTER.map((b) => b.name);
+const BSPLINE_PANEL = SERVED_ROSTER.filter((b) => b.panel === "bspline").map(
+  (b) => b.name,
+);
 
-function sinGalerkinOpts(over: Partial<SinGalerkinOpts> = {}): SinGalerkinOpts {
-  return { ...DEFAULT_BACKEND_OPTS["sinusoidal-galerkin"], ...over };
+/** Stock opts for a backend, with the b-spline panel state overridden. */
+function bsplineOpts(name: string, over: Partial<BSplineOpts> = {}): BackendOpts {
+  const opts = defaultOptsFor(entry(name));
+  opts.bspline = { ...BSPLINE_DEFAULT_OPTS, ...over };
+  return opts;
 }
 
 // Callbacks are supplied by the harness (and returned as spies) rather than
 // overridable, so an assertion can never target a spy the component never got.
-type ModalOverrides = Partial<
-  Omit<BackendConfigProps, "onChangeBackend" | "onPatch" | "onReset" | "onClose">
->;
+type ModalOverrides = Omit<
+  Partial<BackendConfigProps>,
+  "backend" | "onChangeBackend" | "onPatch" | "onReset" | "onClose"
+> & { backend?: string };
 
 function renderModal(overrides: ModalOverrides = {}) {
-  const backend = overrides.backend ?? "bspline";
+  const { backend: name = "bspline", ...rest } = overrides;
+  const backend = entry(name);
   const spies = {
     onChangeBackend: vi.fn(),
     onPatch: vi.fn(),
@@ -55,11 +60,11 @@ function renderModal(overrides: ModalOverrides = {}) {
     <BackendConfigModal
       slot="A"
       backend={backend}
-      backends={BACKEND_ORDER}
+      backends={SERVED_ROSTER}
       requiredBackends={null}
       suggestConvergedFeed={false}
-      opts={DEFAULT_BACKEND_OPTS[backend]}
-      {...overrides}
+      opts={defaultOptsFor(backend)}
+      {...rest}
       {...spies}
     />,
   );
@@ -85,21 +90,39 @@ const TIKHONOV_LAMBDA = "tikhonov_lambda (λ)";
 const AUTO_TAP_THRESHOLD = "auto_tap_ratio_threshold";
 
 describe("BackendConfigModal — backend tab list", () => {
-  it("offers every backend, marking the current one selected", () => {
+  it("offers every served backend, marking the current one selected", () => {
     renderModal({ backend: "bspline" });
-    for (const b of BACKEND_ORDER) {
-      const tab = screen.getByRole("tab", { name: BACKEND_LABEL[b] });
+    for (const b of SERVED_ROSTER) {
+      const tab = screen.getByRole("tab", { name: b.label });
       expect(tab).toHaveProperty("disabled", false);
       expect(tab.getAttribute("title")).toBeNull();
-      expect(tab.getAttribute("aria-selected")).toBe(String(b === "bspline"));
+      expect(tab.getAttribute("aria-selected")).toBe(String(b.name === "bspline"));
     }
   });
 
-  it("fires onChangeBackend with the clicked backend", async () => {
+  it("renders the tabs in the served order", () => {
+    const { container } = renderModal({ backend: "bspline" });
+    const tabs = within(
+      container.querySelector(".geometry-tabs") as HTMLElement,
+    ).getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(
+      SERVED_ROSTER.map((b) => b.label),
+    );
+  });
+
+  it("fires onChangeBackend with the clicked backend's entry", async () => {
     const { user, onChangeBackend } = renderModal({ backend: "bspline" });
-    await user.click(screen.getByRole("tab", { name: BACKEND_LABEL.pynec }));
-    expect(onChangeBackend).toHaveBeenCalledWith("pynec");
+    await user.click(screen.getByRole("tab", { name: entry("pynec").label }));
+    expect(onChangeBackend).toHaveBeenCalledWith(entry("pynec"));
     expect(onChangeBackend).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers only what the roster carries (no PyNEC tab on a server without it)", () => {
+    renderModal({
+      backend: "bspline",
+      backends: SERVED_ROSTER.filter((b) => b.kind !== "pynec"),
+    });
+    expect(screen.queryByRole("tab", { name: "PyNEC" })).toBeNull();
   });
 
   it("disables the backends a restricted design excludes, with the reason as tooltip", () => {
@@ -107,9 +130,9 @@ describe("BackendConfigModal — backend tab list", () => {
       backend: "bspline",
       requiredBackends: ["bspline", "sinusoidal-galerkin"],
     });
-    for (const b of BACKEND_ORDER) {
-      const tab = screen.getByRole("tab", { name: BACKEND_LABEL[b] });
-      const allowed = b === "bspline" || b === "sinusoidal-galerkin";
+    for (const b of SERVED_ROSTER) {
+      const tab = screen.getByRole("tab", { name: b.label });
+      const allowed = b.name === "bspline" || b.name === "sinusoidal-galerkin";
       expect(tab).toHaveProperty("disabled", !allowed);
       expect(tab.getAttribute("title")).toBe(
         allowed ? null : RESTRICTED_BACKEND_REASON,
@@ -122,55 +145,56 @@ describe("BackendConfigModal — backend tab list", () => {
       backend: "bspline",
       requiredBackends: ["bspline"],
     });
-    await user.click(screen.getByRole("tab", { name: BACKEND_LABEL.pynec }));
+    await user.click(screen.getByRole("tab", { name: entry("pynec").label }));
     expect(onChangeBackend).not.toHaveBeenCalled();
   });
 });
 
 describe("BackendConfigModal — per-backend knob visibility", () => {
-  it("shows the shared mesh knobs for every backend", () => {
-    for (const b of BACKEND_ORDER) {
-      const { unmount } = renderModal({ backend: b });
+  it("shows the shared mesh knobs for every backend, at the served default N", () => {
+    for (const b of SERVED_ROSTER) {
+      const { unmount } = renderModal({ backend: b.name });
       expect(numberField("segments / wire (N)").value).toBe(
-        String(DEFAULT_BACKEND_OPTS[b].nPerWire),
+        String(b.default_n_per_wire),
       );
       expect(numberField("wire radius (m)")).toBeTruthy();
       unmount();
     }
   });
 
-  it.each(["sinusoidal", "sinusoidal-galerkin"] as const)(
-    "shows n_qp_const for %s",
-    (backend) => {
-      renderModal({ backend });
-      expect(screen.queryByText(N_QP_CONST)).not.toBeNull();
-    },
-  );
+  it.each(NAMES)("renders exactly the options_schema knobs served for %s", (name) => {
+    const b = entry(name);
+    renderModal({ backend: name });
+    for (const f of b.options_schema) expect(screen.queryByText(f.label)).not.toBeNull();
+    // n_qp_const is the one generic knob any backend serves today; anything
+    // that doesn't serve it must not show it.
+    expect(screen.queryByText(N_QP_CONST) !== null).toBe(
+      b.options_schema.some((f) => f.key === "n_qp_const"),
+    );
+  });
 
-  it.each(["bspline", "hmatrix", "arrayblock", "pynec"] as const)(
-    "hides n_qp_const for %s",
-    (backend) => {
-      renderModal({ backend });
-      expect(screen.queryByText(N_QP_CONST)).toBeNull();
-    },
-  );
+  it("patches the generic knob under its served (wire) key", async () => {
+    const { user, onPatch } = renderModal({ backend: "sinusoidal" });
+    await user.type(numberField(N_QP_CONST), "1"); // "8" -> "81"
+    expect(onPatch).toHaveBeenCalledWith({ schema: { n_qp_const: 81 } });
+  });
 
-  it.each(BSPLINE_FAMILY)("shows the B-spline knobs for %s", (backend) => {
-    renderModal({ backend });
+  it.each(BSPLINE_PANEL)("shows the B-spline knobs for %s", (name) => {
+    renderModal({ backend: name });
     expect(screen.queryByRole("tab", { name: "d=2" })).not.toBeNull();
     expect(screen.queryByText(N_QP_PAIR)).not.toBeNull();
   });
 
-  it.each(["sinusoidal", "sinusoidal-galerkin", "pynec"] as const)(
+  it.each(NAMES.filter((n) => !BSPLINE_PANEL.includes(n)))(
     "hides the B-spline knobs for %s",
-    (backend) => {
-      renderModal({ backend });
+    (name) => {
+      renderModal({ backend: name });
       expect(screen.queryByRole("tab", { name: "d=2" })).toBeNull();
       expect(screen.queryByText(N_QP_PAIR)).toBeNull();
     },
   );
 
-  it("shows the no-extra-knobs note for pynec only", () => {
+  it("shows the no-extra-knobs note for the pynec panel only", () => {
     const { unmount } = renderModal({ backend: "pynec" });
     expect(screen.queryByText(/no extra solver knobs/)).not.toBeNull();
     unmount();
@@ -180,11 +204,8 @@ describe("BackendConfigModal — per-backend knob visibility", () => {
 });
 
 describe("BackendConfigModal — Sin-Galerkin feed model", () => {
-  it("offers the feed-model tabs only for sinusoidal-galerkin", () => {
-    const { unmount } = renderModal({
-      backend: "sinusoidal-galerkin",
-      opts: sinGalerkinOpts(),
-    });
+  it("offers the feed-model tabs only for the sin-galerkin panel", () => {
+    const { unmount } = renderModal({ backend: "sinusoidal-galerkin" });
     expect(screen.queryByRole("tab", { name: "Converged" })).not.toBeNull();
     expect(screen.queryByRole("tab", { name: "NEC-compatible" })).not.toBeNull();
     unmount();
@@ -194,9 +215,10 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
   });
 
   it("patches feedModel to point when Converged is clicked", async () => {
+    const b = entry("sinusoidal-galerkin");
     const { user, onPatch } = renderModal({
-      backend: "sinusoidal-galerkin",
-      opts: sinGalerkinOpts({ feedModel: "segment" }),
+      backend: b.name,
+      opts: { ...defaultOptsFor(b), feedModel: "segment" },
     });
     await user.click(screen.getByRole("tab", { name: "Converged" }));
     expect(onPatch).toHaveBeenCalledWith({ feedModel: "point" });
@@ -204,9 +226,10 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
   });
 
   it("patches feedModel to segment when NEC-compatible is clicked", async () => {
+    const b = entry("sinusoidal-galerkin");
     const { user, onPatch } = renderModal({
-      backend: "sinusoidal-galerkin",
-      opts: sinGalerkinOpts({ feedModel: "point" }),
+      backend: b.name,
+      opts: { ...defaultOptsFor(b), feedModel: "point" },
     });
     await user.click(screen.getByRole("tab", { name: "NEC-compatible" }));
     expect(onPatch).toHaveBeenCalledWith({ feedModel: "segment" });
@@ -214,6 +237,7 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
 
   it("shows the Converged hint only when recommended and still on segment", () => {
     const hint = /near-open \/ high-Q/;
+    const b = entry("sinusoidal-galerkin");
     const cases: Array<[boolean, "segment" | "point", boolean]> = [
       [true, "segment", true],
       [true, "point", false],
@@ -222,9 +246,9 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
     ];
     for (const [suggestConvergedFeed, feedModel, shown] of cases) {
       const { unmount } = renderModal({
-        backend: "sinusoidal-galerkin",
+        backend: b.name,
         suggestConvergedFeed,
-        opts: sinGalerkinOpts({ feedModel }),
+        opts: { ...defaultOptsFor(b), feedModel },
       });
       expect(screen.queryByText(hint) !== null).toBe(shown);
       unmount();
@@ -236,27 +260,31 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("patches the degree of the clicked tab", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ degree: 2 }),
+      opts: bsplineOpts("bspline", { degree: 2 }),
     });
     expect(screen.getByRole("tab", { name: "d=2" }).getAttribute("aria-selected")).toBe("true");
     await user.click(screen.getByRole("tab", { name: "d=1" }));
-    expect(onPatch).toHaveBeenCalledWith({ degree: 1 });
+    expect(onPatch).toHaveBeenCalledWith({
+      bspline: { ...BSPLINE_DEFAULT_OPTS, degree: 1 },
+    });
     expect(onPatch).toHaveBeenCalledTimes(1);
   });
 
   it("commits an edited number field as a patch on that key alone", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ nQpPair: 4 }),
+      opts: bsplineOpts("bspline", { nQpPair: 4 }),
     });
     await user.type(numberField(N_QP_PAIR), "2"); // "4" -> "42"
-    expect(onPatch).toHaveBeenCalledWith({ nQpPair: 42 });
+    expect(onPatch).toHaveBeenCalledWith({
+      bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: 42 },
+    });
   });
 
   it("hides the smoothing sub-fields while the delta-gap is sharp", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ feedSmoothingFactor: null }),
+      opts: bsplineOpts("bspline", { feedSmoothingFactor: null }),
     });
     const box = screen.getByRole("checkbox", { name: /feed source smoothing/ });
     expect(box).toHaveProperty("checked", false);
@@ -267,7 +295,7 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("shows the smoothing sub-fields once a factor is set", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ feedSmoothingFactor: 3 }),
+      opts: bsplineOpts("bspline", { feedSmoothingFactor: 3 }),
     });
     expect(
       screen.getByRole("checkbox", { name: /feed source smoothing/ }),
@@ -279,22 +307,22 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("toggles feedSmoothingFactor between the default 3 and null", async () => {
     const off = renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ feedSmoothingFactor: null }),
+      opts: bsplineOpts("bspline", { feedSmoothingFactor: null }),
     });
     await off.user.click(
       screen.getByRole("checkbox", { name: /feed source smoothing/ }),
     );
-    expect(off.onPatch).toHaveBeenCalledWith({ feedSmoothingFactor: 3 });
+    expect(off.onPatch.mock.calls[0][0].bspline.feedSmoothingFactor).toBe(3);
     off.unmount();
 
     const on = renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ feedSmoothingFactor: 3 }),
+      opts: bsplineOpts("bspline", { feedSmoothingFactor: 3 }),
     });
     await on.user.click(
       screen.getByRole("checkbox", { name: /feed source smoothing/ }),
     );
-    expect(on.onPatch).toHaveBeenCalledWith({ feedSmoothingFactor: null });
+    expect(on.onPatch.mock.calls[0][0].bspline.feedSmoothingFactor).toBeNull();
   });
 });
 
@@ -302,7 +330,7 @@ describe("BSplineFields — singular enrichment", () => {
   it("hides every enrichment sub-field while enrichment is off", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ useSingularEnrichment: false }),
+      opts: bsplineOpts("bspline", { useSingularEnrichment: false }),
     });
     expect(
       screen.getByRole("checkbox", { name: /junction singular enrichment/ }),
@@ -315,7 +343,7 @@ describe("BSplineFields — singular enrichment", () => {
   it("reveals the enrichment sub-fields when it is on", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ useSingularEnrichment: true }),
+      opts: bsplineOpts("bspline", { useSingularEnrichment: true }),
     });
     expect(screen.queryByText(N_QP_SING)).not.toBeNull();
     expect(screen.queryByText(ENRICHMENT_MIN_K)).not.toBeNull();
@@ -325,21 +353,21 @@ describe("BSplineFields — singular enrichment", () => {
   it("patches useSingularEnrichment on toggle", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ useSingularEnrichment: false }),
+      opts: bsplineOpts("bspline", { useSingularEnrichment: false }),
     });
     await user.click(
       screen.getByRole("checkbox", { name: /junction singular enrichment/ }),
     );
-    expect(onPatch).toHaveBeenCalledWith({ useSingularEnrichment: true });
+    expect(onPatch.mock.calls[0][0].bspline.useSingularEnrichment).toBe(true);
   });
 
   it("patches enrichmentVariant from the select", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts({ useSingularEnrichment: true }),
+      opts: bsplineOpts("bspline", { useSingularEnrichment: true }),
     });
     await user.selectOptions(screen.getByRole("combobox"), "auto");
-    expect(onPatch).toHaveBeenCalledWith({ enrichmentVariant: "auto" });
+    expect(onPatch.mock.calls[0][0].bspline.enrichmentVariant).toBe("auto");
   });
 
   // Each variant owns exactly one extra knob; the other must stay hidden.
@@ -353,7 +381,10 @@ describe("BSplineFields — singular enrichment", () => {
     (enrichmentVariant, lambdaShown, thresholdShown) => {
       renderModal({
         backend: "bspline",
-        opts: bsplineOpts({ useSingularEnrichment: true, enrichmentVariant }),
+        opts: bsplineOpts("bspline", {
+          useSingularEnrichment: true,
+          enrichmentVariant,
+        }),
       });
       expect(screen.queryByText(TIKHONOV_LAMBDA) !== null).toBe(lambdaShown);
       expect(screen.queryByText(AUTO_TAP_THRESHOLD) !== null).toBe(thresholdShown);
@@ -363,7 +394,7 @@ describe("BSplineFields — singular enrichment", () => {
   it("keeps the variant knobs hidden when enrichment itself is off", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts({
+      opts: bsplineOpts("bspline", {
         useSingularEnrichment: false,
         enrichmentVariant: "tikhonov",
       }),

@@ -4,11 +4,10 @@ import {
   backendDisplayLabel,
   backendSupportsGround,
   comboInappropriate,
-  isBSplineFamily,
+  hasBSplinePanel,
   modelOptionsForRequest,
   normalizeBackend,
-  resolveBackend,
-  selectableBackends,
+  type BackendRoster,
 } from "../../lib/backends";
 import {
   bandContaining as bandContainingIn,
@@ -34,6 +33,7 @@ import type {
   SolveRequest,
   SolveResponse,
 } from "../../lib/api";
+import type { TerrainPresetSchema } from "../../lib/ground";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
 import type { PatternMetrics } from "../charts/types";
@@ -66,6 +66,7 @@ import {
   CONVERGE_N_VALUES,
   useAnalysisRunners,
 } from "./useAnalysisRunners";
+import { useCapabilities } from "./useCapabilities";
 import { useDesignCatalog } from "./useDesignCatalog";
 import { useGroundConfig } from "./useGroundConfig";
 import { useMobileCarousel } from "./useMobileCarousel";
@@ -83,7 +84,44 @@ import { VfoPanel } from "./VfoPanel";
 // suspends its WebSocket, global key listeners, and background solves via the
 // `active` gates threaded through the effects below. Theme is global and lives
 // in the shell; the canvases here read it through ThemeContext.
+// Capabilities gate. The solver picker, the slot seeds and the ground panel
+// are all rendered from server data now (#628/#560), and there is deliberately
+// no hardcoded fallback roster to render from meanwhile — that duplication is
+// the bug this closes. So the session tree mounts only once /capabilities has
+// answered; this wrapper holds the one hook that decides, which keeps the
+// body's own (large, order-sensitive) hook sequence untouched.
 export function DesignSession({ id, active }: { id: number; active: boolean }) {
+  const { roster, terrainPresets, error } = useCapabilities();
+  if (error !== null)
+    return (
+      <div className="app app-capabilities" role="alert">
+        Could not load the server’s solver catalog ({error}). Reload once the
+        server is reachable.
+      </div>
+    );
+  if (roster === null)
+    return <div className="app app-capabilities">loading solver catalog…</div>;
+  return (
+    <DesignSessionBody
+      id={id}
+      active={active}
+      roster={roster}
+      terrainPresets={terrainPresets}
+    />
+  );
+}
+
+function DesignSessionBody({
+  id,
+  active,
+  roster,
+  terrainPresets,
+}: {
+  id: number;
+  active: boolean;
+  roster: BackendRoster;
+  terrainPresets: TerrainPresetSchema[];
+}) {
   const [geometry, setGeometry] = useState<string>("");
 
   // Theme is global (shell-owned); the sidebar toggle reads the current value
@@ -127,8 +165,6 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   const {
     examples,
     examplesError,
-    havePynec,
-    terrainPresets,
     loadErrors,
     trustBusy,
     trustDesign,
@@ -288,7 +324,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     updateSlotOpts,
     setSlotBackend,
     resetSlot,
-  } = useSolverSlots({ havePynec });
+  } = useSolverSlots({ roster });
   // True once the user clicked "Solve anyway" for the current design+solver
   // combo, so re-solves (knob drags) don't re-warn. Reset whenever the design or
   // solver changes (see the reset effect below). Mirrored into state so the
@@ -404,11 +440,13 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // arrays, "sinusoidal" for benchmark-sized meshes, null otherwise) — used
   // by the withhold gate and to pick the right warning copy.
   const recommendedBackend = (() => {
-    const rec = normalizeBackend(
+    // normalizeBackend resolves against the SERVED roster, so a
+    // recommendation this server can't honour (PyNEC without pynec-accel,
+    // #429) comes back null instead of seeding an unofferable solver.
+    return normalizeBackend(
       preview?.default_backend ?? currentExample?.default_backend,
+      roster,
     );
-    // Never surface a PyNEC recommendation the server can't honor (#429).
-    return rec ? resolveBackend(rec, havePynec) : null;
   })();
   // The active design's backend allowlist (null = unrestricted). Only
   // catalog designs carry it — user designs defer their hints, so a
@@ -587,7 +625,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       _session: sessionIdRef.current,
       geometry,
       variant: currentVariant,
-      solver: backend === "pynec" ? "pynec" : "momwire",
+      solver: backend.kind === "pynec" ? "pynec" : "momwire",
       n_per_wire: nPerWire,
       design_freq_mhz: designFreq,
       measurement_freq_mhz: measFreq,
@@ -607,8 +645,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     if (base.ground_model === "terrain") {
       base.terrain = { preset: terrainPreset, ...terrainParams };
     }
-    if (backend !== "pynec") {
-      base.momwire_model = backend;
+    if (backend.kind !== "pynec") {
+      base.momwire_model = backend.name;
       const opts = modelOptionsForRequest(backend, currentOpts);
       // Enrichment now solves over ground (momwire #167: PEC image reaction,
       // refl-coef, and Sommerfeld), so this is no longer an error guard — it is
@@ -616,7 +654,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       // the d=2 basis (issue #565), so we keep it off when ground is active
       // rather than surface a control that can only match or worsen the grounded
       // production solve; the gear shows the validation note.
-      if (isBSplineFamily(backend) && groundActive) {
+      if (hasBSplinePanel(backend) && groundActive) {
         opts.use_singular_enrichment = false;
       }
       base.model_options = opts;
@@ -658,7 +696,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     currentValues,
     currentValuesKey,
     currentSchema,
-    backend,
+    backend: backend.name,
     designFreq,
     measFreq,
     autoSim,
@@ -1230,7 +1268,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
           <BackendConfigModal
             slot={gearOpen}
             backend={slots[gearOpen].backend}
-            backends={selectableBackends(havePynec)}
+            backends={roster}
             requiredBackends={requiredBackends}
             suggestConvergedFeed={
               currentExample?.converged_feed_suggested ?? false
@@ -1256,6 +1294,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       solverWarning={solverWarning}
       backendDisallowed={backendDisallowed}
       backend={backend}
+      roster={roster}
       requiredBackends={requiredBackends}
       onSwitchBackend={(target) => {
         backendTouchedRef.current = true;
@@ -1311,7 +1350,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
               normCheckEnabled={normCheckEnabled}
               setNormCheckEnabled={setNormCheckEnabled}
               normCheck={normCheck}
-              backend={backend}
+              backend={backend.name}
               groundModel={groundModel}
               necOverlayEnabled={necOverlayEnabled}
               setNecOverlayEnabled={setNecOverlayEnabled}

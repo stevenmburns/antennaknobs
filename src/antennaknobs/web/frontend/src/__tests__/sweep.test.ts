@@ -3,6 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { planSweepFreqs } from "../lib/sweep";
 import type { BandSpec, ExampleDescriptor } from "../lib/params";
+import { backendEntry, entry } from "./backendFixtures";
 
 function makeExample(overrides: Partial<ExampleDescriptor> = {}): ExampleDescriptor {
   return {
@@ -32,7 +33,7 @@ const BAND_20M: BandSpec = { key: "20m", label: "20 m", freq_mhz: 14.15, min_mhz
 // individual tests override just the fields under study.
 function baseParams(overrides: Partial<Parameters<typeof planSweepFreqs>[0]> = {}) {
   return {
-    backend: "bspline" as const,
+    backend: entry("bspline"),
     groundEnabled: false,
     groundModel: "fast" as const,
     currentExample: makeExample(),
@@ -57,17 +58,17 @@ describe("planSweepFreqs", () => {
   it("halves to 21 points for a ground-capable backend on Sommerfeld ground", () => {
     expect(
       planSweepFreqs(
-        baseParams({ backend: "bspline", groundEnabled: true, groundModel: "sommerfeld" }),
+        baseParams({ backend: entry("bspline"), groundEnabled: true, groundModel: "sommerfeld" }),
       ),
     ).toHaveLength(21);
   });
 
   it("stays at 41 points on Sommerfeld ground if the backend doesn't support ground", () => {
-    // Every current Backend does support ground; cast past the closed union
-    // to exercise the (currently hypothetical) unsupported-backend branch.
+    // Every backend the server registers supports ground; a roster entry
+    // carrying supports_ground: false exercises the branch (issue #628).
     const freqs = planSweepFreqs(
       baseParams({
-        backend: "future-backend" as never,
+        backend: backendEntry({ name: "future-solver", supports_ground: false }),
         groundEnabled: true,
         groundModel: "sommerfeld",
       }),

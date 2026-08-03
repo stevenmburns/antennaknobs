@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type Backend } from "../../lib/backends";
+import { type BackendEntry } from "../../lib/backends";
 import {
   groundSummaryLabel,
   resolveGroundModel,
@@ -14,7 +14,7 @@ import {
 // string the solve and norm-check effects depend on, and the one-line summary
 // the tab hover shows (#642 seam 5b-3). No effects here — the cluster is state
 // plus derivations, so the component's global effect order is untouched.
-export function useGroundConfig({ backend }: { backend: Backend }) {
+export function useGroundConfig({ backend }: { backend: BackendEntry }) {
   // Ground plane at z = 0 (model per backend; see groundType). ON by
   // default: this is an HF wire-antenna workbench, and the over-ground
   // picture (takeoff angle, ground-lobed elevation pattern, shifted Z)

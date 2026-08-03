@@ -1,5 +1,5 @@
-import { BACKEND_LABEL, backendSupportsGround, backendSupportsTerrain } from "../../lib/backends";
-import type { Backend } from "../../lib/backends";
+import { backendSupportsGround, backendSupportsTerrain } from "../../lib/backends";
+import type { BackendEntry } from "../../lib/backends";
 import type {
   FiniteGroundMethod,
   GroundType,
@@ -22,7 +22,7 @@ export function GroundPanel({
   terrainParams,
   setTerrainParams,
 }: {
-  backend: Backend;
+  backend: BackendEntry;
   groundEnabled: boolean;
   setGroundEnabled: (v: boolean) => void;
   groundType: GroundType;
@@ -40,7 +40,7 @@ export function GroundPanel({
       {!backendSupportsGround(backend) && groundEnabled && (
         <div className="field" title="This backend doesn't model ground; ignored until you switch to one that does.">
           <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
-            ground plane ignored for {BACKEND_LABEL[backend]}
+            ground plane ignored for {backend.label}
           </em>
         </div>
       )}
@@ -71,7 +71,7 @@ export function GroundPanel({
                   [
                     "pec",
                     "PEC",
-                    backend === "pynec"
+                    backend.name === "pynec"
                       ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
                       : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
                   ],
@@ -109,14 +109,14 @@ export function GroundPanel({
                       [
                         "fast",
                         "refl-coef (fast)",
-                        backend === "pynec"
+                        backend.name === "pynec"
                           ? "Reflection-coefficient approximation (NEC ITYPE=0), the default. ~2x faster per solve; impedance degrades below ~0.1λ height."
                           : "Reflection-coefficient model, the default. Fast; matches Sommerfeld above ~0.1λ heights.",
                       ],
                       [
                         "sommerfeld",
                         "Sommerfeld",
-                        backend === "pynec"
+                        backend.name === "pynec"
                           ? "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
                           : "True Sommerfeld ground — accurate at any height, on every momwire solver including the fast array paths (momwire ≥ 0.8.0). First solve at each frequency builds a grid (seconds); repeats are fast. The impedance sweep runs at half resolution.",
                       ],

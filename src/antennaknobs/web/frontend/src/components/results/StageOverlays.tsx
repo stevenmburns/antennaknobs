@@ -1,4 +1,4 @@
-import type { Backend } from "../../lib/backends";
+
 import type { MeasuredData, NormCheckData, SolveResponse } from "../../lib/api";
 import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
@@ -197,7 +197,8 @@ export function FarFieldOverlayControls({
   normCheckEnabled: boolean;
   setNormCheckEnabled: (v: boolean) => void;
   normCheck: NormCheckData | null;
-  backend: Backend;
+  /** Backend NAME; the NEC-overlay switch is PyNEC-only. */
+  backend: string;
   groundModel: GroundModel;
   necOverlayEnabled: boolean;
   setNecOverlayEnabled: (v: boolean) => void;

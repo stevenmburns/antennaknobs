@@ -251,6 +251,18 @@ button:focus-visible,
   overflow: hidden;
 }
 
+/* Pre-capabilities placeholder (issue #628): the session tree renders from
+   the served solver roster, so it mounts only after GET /capabilities. One
+   centred line in place of the two-column workbench. */
+.app-capabilities {
+  display: grid;
+  place-items: center;
+  grid-template-columns: 1fr;
+  color: var(--muted);
+  padding: var(--space-7);
+  text-align: center;
+}
+
 .sidebar {
   background: var(--panel);
   padding: var(--space-7);
