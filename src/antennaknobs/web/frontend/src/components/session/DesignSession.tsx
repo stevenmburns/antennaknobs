@@ -1438,11 +1438,25 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
             >
               <div
                 className="thumb-canvas"
-                style={{ width: thumbSize, height: thumbSize }}
+                style={{ width: thumbSize.width, height: thumbSize.height }}
               >
+                {/* The chart draws at the column's full (3-thumb-era) width
+                    — where its fixed-px labels fit — and scales down
+                    uniformly into the shorter rectangle, a true miniature
+                    (issue #652; see useThumbColumnSize). */}
+                <div
+                  className="thumb-scale"
+                  style={{
+                    width: thumbSize.width,
+                    height: thumbSize.width,
+                    transform: `translate(-50%, -50%) scale(${
+                      thumbSize.height / thumbSize.width
+                    })`,
+                  }}
+                >
                 <ViewPanel
                   view={v.id}
-                  size={thumbSize}
+                  size={thumbSize.width}
                   fill={false}
                   result={result}
                   preview={preview}
@@ -1463,6 +1477,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
                   schematicSvg={schematicSvg}
                   schematicUnavailable={schematicUnavailable}
                 />
+                </div>
               </div>
               <div className="thumb-label">{v.label}</div>
             </button>
