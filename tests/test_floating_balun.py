@@ -183,6 +183,45 @@ def test_floating_secondary_needs_a_common_mode_return():
         )
 
 
+def test_the_primary_is_pinned_by_the_constitutive_row_not_a_datum_path():
+    """A `FloatingBalun` primary counts as common-mode determinate, and the
+    reason is the constitutive row ``v_a − v_b − n·v_p = r·j`` rather than any
+    path to the datum (issue #660).
+
+    The obvious-looking reason — the magnetizing shunt ``G[p, p] += y_mag`` —
+    is stamped only when the element declares a magnetizing branch, and the
+    ideal balun the catalog uses declares none. So an ideal balun has NO datum
+    path at its primary, and the network must still build.
+    """
+    from antennaknobs.network_reduce import magnetizing_impedance
+
+    ideal = _fb(1.0)
+    assert magnetizing_impedance(ideal, OMEGA) is None  # no shunt to the datum
+
+    def net(branches):
+        return Network(
+            ports={
+                "p": PortVirtual("p"),  # balun primary AND a CM-open terminal
+                "q": PortVirtual("q"),
+                "w1": PortOnWire("w1"),
+                "w2": PortOnWire("w2"),
+                "s1": PortOnWire("s1"),
+                "s2": PortOnWire("s2"),
+            },
+            branches=branches,
+            sources=[Driven("q", 1 + 0j)],
+        )
+
+    line = BalancedLine(a1="p", a2="q", b1="w1", b2="w2", zdiff=450.0, length=1.0)
+    # "p" is reachable only through the CM-open line and the balun primary, so
+    # the primary rule is the only thing making it determinate.
+    net([line, FloatingBalun(primary="p", a="s1", b="s2", n=1.0)])
+    # ...and without the balun, the same node is rejected — which is what
+    # makes this a test of the rule rather than of the rest of the network.
+    with pytest.raises(ValueError, match=r"'p'"):
+        net([line])
+
+
 def test_zcomm_feedline_grounds_the_secondary_common_mode():
     """The same chain with a zcomm-carrying feedline is a valid common-mode
     return, so the network builds and solves."""

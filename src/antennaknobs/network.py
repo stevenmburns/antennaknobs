@@ -1460,7 +1460,17 @@ class Network:
         (an antenna-Y row grounds it), is driven by a source, is referenced by
         any non-BalancedLine branch or by a ``zcomm``-carrying BalancedLine
         (its CM block is itself a return), or is a `FloatingBalun` *primary*
-        (datum-referenced) — issues #575/#576/#589."""
+        — issues #575/#576/#589.
+
+        The primary is pinned by the element's CONSTITUTIVE ROW, not by any
+        path to the datum: ``v_a − v_b − n·v_p = r·j`` determines ``v_p`` once
+        the secondary pair is determinate (which the check above already
+        requires), and ``n = 0`` is rejected at stamp time so the coefficient
+        is never zero. The datum path one might reach for — the magnetizing
+        shunt ``G[p, p] += y_mag`` — is stamped only when the element declares
+        a magnetizing branch, and both `station.floating_balun` and
+        `station.balanced_l_tuner` default ``lmag_uH=None``, so for the common
+        ideal-balun case there is no such path at all (issue #660)."""
         cm_open = [
             b for b in self.branches if isinstance(b, BalancedLine) and b.zcomm is None
         ]
@@ -1475,7 +1485,9 @@ class Network:
             if isinstance(br, BalancedLine) and br.zcomm is None:
                 continue  # CM-open line is not itself a common-mode return
             if isinstance(br, FloatingBalun):
-                determinate.add(br.primary)  # only the datum-referenced primary
+                # Only the primary — pinned by the constitutive row, see the
+                # docstring. The secondary pair is what we are checking FOR.
+                determinate.add(br.primary)
                 continue
             determinate.update(_branch_port_refs(br))
         touched = set()
