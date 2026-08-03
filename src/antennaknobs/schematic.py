@@ -218,6 +218,11 @@ class Schematic:
 
     source: str
     blocks: list[Block] = field(default_factory=list)
+    # Input power for the same solve the block watts came from. Watts alone
+    # are meaningless on the page — the canonical drive is 1 V, so a real
+    # loss is fractions of a milliwatt — but watts/p_in is the same "12.3%"
+    # the power-budget table shows, at the point in the chain where it burns.
+    p_in: float | None = None
     ends_in_antenna: bool = True
     balanced_end: bool = False  # the chain reaches the antenna as a pair
     # The port the chain actually landed on, set only when the network has
@@ -540,7 +545,7 @@ def _walk(branches, start, targets, is_datum):
     return best
 
 
-def lower(net, *, title: str = "", budget=None) -> Schematic:
+def lower(net, *, title: str = "", budget=None, p_in=None) -> Schematic:
     """`Network` → :class:`Schematic`.
 
     Walks source → antenna to find the chain, groups consecutive chain
@@ -550,9 +555,14 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
 
     ``budget`` (the reducer's ``(label, watts)`` list) annotates each block
     with what it burns — which is what puts the power budget *in* the topology
-    instead of beside it.
+    instead of beside it. ``p_in`` is the same solve's input power; with it
+    the annotation renders as the fraction the budget table already shows.
     """
-    sch = Schematic(source=net.sources[0].port if net.sources else "", title=title)
+    sch = Schematic(
+        source=net.sources[0].port if net.sources else "",
+        title=title,
+        p_in=p_in,
+    )
     if not net.sources:
         sch.notes.append("no source: nothing to draw a chain from")
         return sch
@@ -567,6 +577,65 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
     paths = list(net.branch_paths or [""] * len(branches))
     is_datum = _datum_nodes(net)
     targets = _antenna_nodes(net)
+
+    # Accumulated, not dict(budget): two probes can share one label (a
+    # parallel Shunt stamps group-1 and a series one group-2 under the same
+    # "Shunt <port>"), and a plain dict would keep only the last row's watts.
+    watts: dict[str, float] = {}
+    for k, w in budget or []:
+        watts[k] = watts.get(k, 0.0) + w
+
+    def burned(path):
+        """Watts this block burns, children included.
+
+        Budget labels are "<path>: <branch>" with the trailing dot stripped
+        ("match: TL rig→feed", "match.stub: ..."), so a block owns both its
+        own rows and its descendants'.
+        """
+        if not path:
+            return None
+        base = path[:-1]
+        total = sum(
+            w
+            for k, w in watts.items()
+            if k.startswith(f"{base}: ") or k.startswith(f"{base}.")
+        )
+        return total or None
+
+    #: Qualifiers the reducer appends to a branch's label for its sub-rows —
+    #: "Transformer a→b (mag)", "Autotransformer a→b (lower)"/"(upper)".
+    _QUALS = {"mag", "lower", "upper"}
+
+    def burned_bare(idx):
+        """Watts for a PATHLESS branch, matched by its own budget label.
+
+        A bare branch has no "<path>: " prefix to own rows by; its rows are
+        labelled "<Type> <terminals>" ("TL rig→feed", "Load trap_l").
+        Reconstructing each exact format here would duplicate
+        network_reduce's strings and drift, so the match is on what
+        identifies the branch — the type-name prefix and the set of node
+        names — letting the punctuation and any "(mag)" qualifier fall away.
+        `invvee_coax_station`, the design the issue opens with, is one bare
+        TL; without this its 30 m of coax showed no loss at all. Two bare
+        same-type branches on identical nodes would each claim both rows,
+        the same ambiguity the label scheme itself has.
+        """
+        br = branches[idx]
+        prefix = f"{type(br).__name__} "
+        want = set(terminals_of(br))
+        if not want:
+            return None
+        total = 0.0
+        for k, w in watts.items():
+            if not k.startswith(prefix):
+                continue
+            rest = k[len(prefix) :]
+            for sep in ("→", "(", ")", ","):
+                rest = rest.replace(sep, " ")
+            tokens = set(rest.split())
+            if want <= tokens and tokens - want <= _QUALS:
+                total += w
+        return total or None
 
     chain = _walk(branches, sch.source, targets, is_datum)
     on_chain = {st.idx for st in chain}
@@ -622,6 +691,7 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
                     label=paths[idx][:-1] or type(br).__name__,
                     elements=default_elements(br),
                     path=paths[idx],
+                    watts=burned(paths[idx]) if paths[idx] else burned_bare(idx),
                     nodes=tuple(ts),
                 )
             )
@@ -655,25 +725,6 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
             )
         else:
             sch.notes.append("no run of branches carries the source to an antenna")
-
-    watts = dict(budget or [])
-
-    def burned(path):
-        """Watts this block burns, children included.
-
-        Budget labels are "<path>: <branch>" with the trailing dot stripped
-        ("match: TL rig→feed"), and a nested box appears as "match.stub: ...",
-        so a block owns both its own rows and its descendants'.
-        """
-        if not path:
-            return None
-        base = path[:-1]
-        total = sum(
-            w
-            for k, w in watts.items()
-            if k.startswith(f"{base}: ") or k.startswith(f"{base}.")
-        )
-        return total or None
 
     def stamped(frag, balanced_in):
         """An author's fragment, with the local reference stamped onto it.
@@ -774,7 +825,7 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
                 label=path[:-1] if path else type(branches[group[0].idx]).__name__,
                 elements=tuple(els),
                 path=path,
-                watts=burned(path),
+                watts=burned(path) if path else burned_bare(group[0].idx),
             )
         )
 
@@ -787,7 +838,7 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
                         label=paths[idx][:-1] or type(branches[idx]).__name__,
                         elements=default_elements(branches[idx]),
                         path=paths[idx],
-                        watts=burned(paths[idx]),
+                        watts=burned(paths[idx]) if paths[idx] else burned_bare(idx),
                     )
                 )
     return sch
@@ -822,6 +873,20 @@ SRC_R = 0.5  # radius of the source circle, for label clearance
 SHUNT_STEP = 0.9  # past a drop, so two in a row do not land on the same x
 PAIR_LEN = 4.6  # a two-conductor line, long enough to read as a line
 ATTACH_ROW = 1.9  # between attachment rows, which carry two lines of text each
+
+
+def _burn_text(watts: float, p_in: float | None) -> str:
+    """How a block's dissipation reads on the page.
+
+    As the fraction of input power when the solve's ``p_in`` is known — the
+    same number the power-budget table shows, placed where it burns — and as
+    raw milliwatts otherwise: the canonical 1 V drive gives watts no
+    meaningful absolute scale, but with no reference there is nothing truer
+    to print.
+    """
+    if p_in:
+        return f"{watts / p_in:.1%}"
+    return f"{watts * 1e3:.2f} mW"
 
 
 def _text_width(s: str, fontsize: float = FONTSIZE) -> float:
@@ -1207,7 +1272,7 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
         if block.path:
             note = block.label
             if block.watts:
-                note = f"{note}  ({block.watts * 1e3:.2f} mW)"
+                note = f"{note}  ({_burn_text(block.watts, sch.p_in)})"
             # A dashed enclosure, not a floating caption: the label names a
             # box in the design, so the drawing shows where that box stops.
             box = (
@@ -1220,6 +1285,19 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                 # re-asserts the drawing colour so it reads as content.
                 box.label(note, loc="top", color=color or "black")
             d += box
+        elif block.watts:
+            # A bare branch has no enclosure to caption, but its burn still
+            # belongs on the page — the issue's opening design is one bare
+            # TL. Centered under the block, below the symbol's own sublabel.
+            d += (
+                elm.Label()
+                .at(((x0 + x) / 2.0, y - 1.15))
+                .label(
+                    f"({_burn_text(block.watts, sch.p_in)})",
+                    fontsize=SUBFONT,
+                    valign="top",
+                )
+            )
 
     # "antenna (feed0)" when the chain's end carries a name — it only does
     # when the network has other antenna ports to confuse it with.
@@ -1267,8 +1345,14 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                 .label(", ".join(block.nodes[:half]), halign="right", fontsize=SUBFONT)
             )
             e = symbol(el.kind if el else "box")().at((2.5, ay)).right().length(1.6)
-            if el is not None and el.label:
-                e.label(el.label, loc="top", fontsize=SUBFONT)
+            # A trap in a dipole leg burns power too; an attachment carries
+            # its burn on the symbol since it has no enclosure to caption.
+            top = el.label if el is not None else ""
+            if block.watts:
+                burn = f"({_burn_text(block.watts, sch.p_in)})"
+                top = f"{top}  {burn}" if top else burn
+            if top:
+                e.label(top, loc="top", fontsize=SUBFONT)
             if el is not None and el.sublabel:
                 e.label(el.sublabel, loc="bottom", ofst=0.4, fontsize=SUBFONT)
             d += e

@@ -922,12 +922,17 @@ def cli(arguments=None):
                 f"{args.builder} has no build_network() — it is an antenna with "
                 "no feed circuit, so there is no schematic to draw"
             )
-        budget = None
+        budget = p_in = None
         if args.power:
             eng = engine_factory_from_args(args)(builder)
             eng.current_distribution()
             budget = getattr(eng, "_excited_power_budget", None)
-        svg = render_svg(lower(net, title=args.builder, budget=budget), args.out)
+            # With p_in the annotation reads as the budget table's percent
+            # instead of the canonical drive's meaningless milliwatts.
+            p_in = getattr(eng, "_excited_p_in", None)
+        svg = render_svg(
+            lower(net, title=args.builder, budget=budget, p_in=p_in), args.out
+        )
         if args.out:
             print(f"wrote {args.out}")
         else:

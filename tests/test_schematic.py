@@ -141,6 +141,35 @@ def test_power_annotates_the_blocks_that_burn():
     assert lower(net).blocks[0].watts is None
 
 
+def test_power_reaches_a_bare_branch_by_its_own_label():
+    """`dipoles.invvee_coax_station` — the design the issue opens with — is
+    ONE bare TL, no composite: there is no "<path>: " prefix to own budget
+    rows by. The block matches its branch's own "TL rig→feed" row instead,
+    or the design that exists to model feedline loss shows none at all."""
+    net = build("dipoles.invvee_coax_station").build_network()
+    sch = lower(net, budget=[("TL rig→feed", 0.004)])
+    assert sch.blocks[0].watts == pytest.approx(0.004)
+
+
+def test_power_reaches_an_attachment():
+    """A trap in a dipole leg burns power where it hangs, not on a chain."""
+    net = build("multiband.trap_dipole").build_network()
+    sch = lower(net, budget=[("Load trap_l", 0.002), ("Load trap_r", 0.001)])
+    assert [a.watts for a in sch.attachments] == [
+        pytest.approx(0.002),
+        pytest.approx(0.001),
+    ]
+
+
+def test_duplicate_budget_labels_accumulate():
+    """Two probes can share one label (a parallel Shunt stamps group-1 and a
+    series one group-2 under the same "Shunt <port>"); a plain dict(budget)
+    kept only the last row's watts."""
+    net = build("verticals.stub_matched_vertical").build_network()
+    budget = [("match: TL rig→feed", 0.004), ("match: TL rig→feed", 0.001)]
+    assert lower(net, budget=budget).blocks[0].watts == pytest.approx(0.005)
+
+
 # ---------------------------------------------------------------------------
 # the return conductor
 #
@@ -338,6 +367,19 @@ def test_every_shape_in_the_corpus_renders(design, tmp_path):
     pytest.importorskip("schemdraw")
     svg = render_svg(lower(build(design).build_network()), tmp_path / "s.svg")
     assert "<svg" in svg
+
+
+def test_render_burn_is_a_fraction_of_input_when_p_in_is_known(tmp_path):
+    """With p_in the annotation is the same percent the power-budget table
+    shows, placed where it burns; without a reference it falls back to the
+    canonical drive's raw milliwatts."""
+    pytest.importorskip("schemdraw")
+    net = build("dipoles.invvee_coax_station").build_network()
+    budget = [("TL rig→feed", 0.004)]
+    with_pin = render_svg(lower(net, budget=budget, p_in=0.016))
+    assert "(25.0%)" in with_pin
+    without = render_svg(lower(net, budget=budget))
+    assert "mW" in without and "%" not in without
 
 
 def test_cli_writes_a_file(tmp_path):
