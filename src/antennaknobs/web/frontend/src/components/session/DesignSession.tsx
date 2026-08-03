@@ -70,6 +70,7 @@ import { useDesignCatalog } from "./useDesignCatalog";
 import { useGroundConfig } from "./useGroundConfig";
 import { useMobileCarousel } from "./useMobileCarousel";
 import { useOptimizer } from "./useOptimizer";
+import { useSchematic } from "./useSchematic";
 import { useSolveChannel } from "./useSolveChannel";
 import { useSolverSlots } from "./useSolverSlots";
 import { useViewState } from "./useViewState";
@@ -664,6 +665,21 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     active,
     buildRequest,
     setParamAtPath,
+  });
+
+  // The feed-network schematic (issue #652): fifth view in the carousel.
+  // Keyed on what can change the drawing — knobs, variant, freqs — not on
+  // solver/backend state: the network is the design's, not the solver's.
+  const { schematicSvg, schematicUnavailable } = useSchematic({
+    active,
+    geometry,
+    requestKey: JSON.stringify([
+      currentValuesKey,
+      currentVariant,
+      designFreq,
+      measFreq,
+    ]),
+    buildRequest,
   });
 
   const currentBands: BandSpec[] = currentExample?.bands ?? [];
@@ -1331,6 +1347,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
             showFeedNames={showFeedNames}
             multiFeed={effectiveMultiFeed}
             fineNorm={normCheck?.pattern_norm ?? null}
+            schematicSvg={schematicSvg}
+            schematicUnavailable={schematicUnavailable}
           />
     </>
   );

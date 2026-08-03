@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { VIEWS } from "../lib/view";
 
 // Shared between App.tsx (which owns the Provider and the theme-toggle
 // control) and the chart components under components/charts/ (which read it
@@ -112,12 +113,15 @@ export function useThumbColumnSize(
   maxThumb = 280,
   reattachKey?: unknown, // see useSlideSize
 ) {
-  // Vertical thumbstrip: 3 thumbs scaled so they ALWAYS fit (the strip never
-  // scrolls — overflow:hidden in CSS). Fixed overhead:
-  //   strip padding (12+12) + 2 gaps (2*8) +
-  //   per-thumb (button padding 8+6 + label ~14 + gap 6 + border 2) * 3 ≈ 148.
-  // Bias slightly high (150) so they fit with a hair of slack rather than
-  // clip; floor low so a short window shrinks them instead of overflowing.
+  // Vertical thumbstrip: the non-active views scaled so they ALWAYS fit (the
+  // strip never scrolls — overflow:hidden in CSS). Fixed overhead per the CSS:
+  //   strip padding (12+12) + (n-1) gaps of 8 +
+  //   per-thumb (button padding 8+6 + label ~14 + gap 6 + border 2) ≈ 36 each,
+  // biased slightly high (26 base) so they fit with a hair of slack rather
+  // than clip; floor low so a short window shrinks them instead of
+  // overflowing. n tracks the view registry: every view but the active one.
+  const nThumbs = VIEWS.length - 1;
+  const overhead = 26 + (nThumbs - 1) * 8 + nThumbs * 36;
   const [size, setSize] = useState(180);
   useEffect(() => {
     const el = stripRef.current;
@@ -125,7 +129,7 @@ export function useThumbColumnSize(
     const update = () => {
       const h = el.clientHeight;
       if (h <= 0) return;
-      const perThumb = (h - 150) / 3;
+      const perThumb = (h - overhead) / nThumbs;
       setSize(Math.max(40, Math.min(maxThumb, Math.floor(perThumb))));
     };
     update();

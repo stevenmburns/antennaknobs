@@ -1,12 +1,13 @@
-export type View = "antenna" | "azimuth" | "elevation" | "smith";
+export type View = "antenna" | "azimuth" | "elevation" | "smith" | "schematic";
 export const VIEWS: { id: View; label: string }[] = [
   { id: "antenna", label: "Antenna" },
   { id: "azimuth", label: "Azimuth (xy)" },
   { id: "elevation", label: "Elevation (yz)" },
   { id: "smith", label: "Smith" },
+  { id: "schematic", label: "Schematic" },
 ];
 
-// The mobile output carousel's screens: the 4 chart views plus a dedicated
+// The mobile output carousel's screens: the 5 chart views plus a dedicated
 // Info screen for the solve readout (which floats as a HUD on desktop but
 // deserves its own page on a phone). "info" stays out of the `View` union on
 // purpose — `view` (and every data effect keyed on it) only ever holds a
