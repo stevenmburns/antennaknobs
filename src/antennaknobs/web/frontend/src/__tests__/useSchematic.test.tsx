@@ -29,7 +29,13 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-type HookProps = { active: boolean; geometry: string; requestKey: string };
+type HookProps = {
+  active: boolean;
+  geometry: string;
+  requestKey: string;
+  budget?: [string, number][] | null;
+  inputPowerW?: number | null;
+};
 
 function renderSchematic(initial: Partial<HookProps> = {}) {
   return renderHook(
@@ -135,7 +141,54 @@ describe("stale-display policy", () => {
   });
 });
 
-// --- 4. inactive gate --------------------------------------------------------
+// --- 4. power-budget echo (issue #652) ---------------------------------------
+// /schematic never solves; the hook echoes the latest solve's structural
+// (key, watts) rows and input power so blocks draw their burn.
+
+describe("power-budget echo", () => {
+  const BUDGET: [string, number][] = [["TL rig→feed", 0.004]];
+
+  function lastBody() {
+    const call = fetchMock.mock.calls.at(-1) as unknown as [
+      string,
+      { body: string },
+    ];
+    return JSON.parse(call[1].body);
+  }
+
+  it("includes budget and input power in the POST when a solve has landed", async () => {
+    renderSchematic({ budget: BUDGET, inputPowerW: 0.016 });
+    await settle();
+    expect(lastBody().budget).toEqual(BUDGET);
+    expect(lastBody().input_power_w).toBe(0.016);
+  });
+
+  it("omits the fields entirely before a solve lands", async () => {
+    renderSchematic({ budget: null, inputPowerW: null });
+    await settle();
+    expect("budget" in lastBody()).toBe(false);
+    expect("input_power_w" in lastBody()).toBe(false);
+  });
+
+  it("a landed solve refetches the drawing with the fresh watts", async () => {
+    const { rerender } = renderSchematic({ budget: null, inputPowerW: null });
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Same knobs (requestKey unchanged) — only the solve result arrived.
+    rerender({
+      active: true,
+      geometry: "dipoles.invvee_coax_station",
+      requestKey: "k1",
+      budget: BUDGET,
+      inputPowerW: 0.016,
+    });
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lastBody().budget).toEqual(BUDGET);
+  });
+});
+
+// --- 5. inactive gate --------------------------------------------------------
 
 describe("inactive sessions", () => {
   it("does not fetch while the session tab is inactive", async () => {

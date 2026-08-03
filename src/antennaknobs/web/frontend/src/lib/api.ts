@@ -114,7 +114,11 @@ export type SolveResponse = {
    *  one entry per TL / TwoPort / Shunt / Load branch, in watts for the
    *  canonical 1 V drive. Absent or all-~0 for plain and lossless
    *  designs; input_power_w is the 100% reference. */
-  power_budget?: { label: string; watts: number; path?: string }[];
+  /** `label` is the display name (after ui_params["budget_labels"] renames);
+   *  `key` is the raw structural label, echoed back to /schematic so the
+   *  chain drawing can place each row's burn by its "<path>: ..." prefix
+   *  (issue #652). */
+  power_budget?: { label: string; watts: number; path?: string; key?: string }[];
   input_power_w?: number;
   k_meas_m_inv?: number;
   // V-specific
