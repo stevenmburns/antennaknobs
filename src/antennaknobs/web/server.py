@@ -2058,13 +2058,22 @@ def capabilities_endpoint():
     absent the UI must not offer it — otherwise the /ws solve silently falls
     back to momwire (#429). `terrain_presets`: the self-describing terrain
     preset catalog (issue #560) the frontend renders its knob panel from, so
-    a Python-only preset needs no TypeScript. New capability flags (mesh-size
-    caps, engine list, version) belong here too.
+    a Python-only preset needs no TypeScript. `backends`: the same treatment
+    for the solver roster (issue #628) — labels, order, ground support, knob
+    schemas and panel hints, so registering a solver in the adapter's
+    `_BACKENDS` makes it appear in the UI with no TypeScript either. New
+    capability flags (mesh-size caps, version) belong here too.
+
+    Both rosters are computed per request, not at import: HAVE_PYNEC is
+    monkeypatched in tests and the PyNEC roster entry must follow it.
+    `have_pynec` stays for compatibility — the roster's membership is what
+    the current frontend gates on.
     """
-    from .adapter import terrain_presets_schema
+    from .adapter import backend_roster, terrain_presets_schema
 
     return {
         "have_pynec": pynec_backend.HAVE_PYNEC,
+        "backends": backend_roster(have_pynec=pynec_backend.HAVE_PYNEC),
         "terrain_presets": terrain_presets_schema(),
     }
 
