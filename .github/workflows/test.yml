@@ -196,11 +196,11 @@ jobs:
       run: |
         npm ci
         npm run build
-    - name: Unit-test the pure frontend logic
-      # Vitest (issue #642): the backend-selection/model-options/format free
-      # functions in App.tsx, run headless under jsdom (module-scope WS_URL
-      # reads window.location, so a Node environment can't import App.tsx at
-      # all). A separate step, not folded into the run block above, so a
+    - name: Unit-test the frontend (lib logic + mounted components)
+      # Vitest: the pure lib/ functions (issue #642) plus Testing Library
+      # component tests (issue #673), run headless under jsdom (module-scope
+      # WS_URL reads window.location, so a Node environment can't import the
+      # app modules at all). A separate step, not folded into the run block above, so a
       # failure here is named distinctly from a build failure in the log.
       working-directory: src/antennaknobs/web/frontend
       run: npm test
