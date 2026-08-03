@@ -430,12 +430,24 @@ def test_budget_rows_apply_display_renames():
     class Bare:
         pass
 
+    # `key` keeps the raw structural label alongside every rename/strip:
+    # the schematic fold-in (issue #652) joins on it.
     assert _budget_rows(Eng(), WithLabels()) == [
         # renamed: the design's display name wins verbatim
-        {"label": "unun comp cap", "watts": 0.25, "path": "unun"},
+        {
+            "label": "unun comp cap",
+            "watts": 0.25,
+            "path": "unun",
+            "key": "unun: Shunt pri",
+        },
         # unrenamed instance row: prefix stripped, path carries the group
-        {"label": "Transformer pri→ant", "watts": 0.05, "path": "unun"},
-        {"label": "TL rig→pri", "watts": 0.0, "path": ""},
+        {
+            "label": "Transformer pri→ant",
+            "watts": 0.05,
+            "path": "unun",
+            "key": "unun: Transformer pri→ant",
+        },
+        {"label": "TL rig→pri", "watts": 0.0, "path": "", "key": "TL rig→pri"},
     ]
     assert [r["label"] for r in _budget_rows(Eng(), Bare())] == [
         "Shunt pri",
@@ -449,7 +461,12 @@ def test_budget_rows_apply_display_renames():
         _excited_power_budget = [("unun: Shunt pri", 0.25)]
 
     assert _budget_rows(EngNoNet(), Bare()) == [
-        {"label": "unun: Shunt pri", "watts": 0.25, "path": ""}
+        {
+            "label": "unun: Shunt pri",
+            "watts": 0.25,
+            "path": "",
+            "key": "unun: Shunt pri",
+        }
     ]
 
     # The server's _build_builder STRIPS ui_params from the instance's

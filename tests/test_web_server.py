@@ -2911,3 +2911,33 @@ def test_schematic_labels_track_the_request_params(client: TestClient):
     a = client.post("/schematic", json=base).json()["svg"]
     b = client.post("/schematic", json={**base, "line_len_m": 10.0}).json()["svg"]
     assert a != b
+
+
+def test_schematic_folds_in_the_echoed_power_budget(client: TestClient):
+    """The endpoint still never solves; the frontend echoes the latest
+    solve's structural (key, watts) rows — the `key` field _budget_rows now
+    carries — plus its input power, and the burn draws as the budget table's
+    percent at the point in the chain it happens (issue #652)."""
+    base = {"geometry": "dipoles.invvee_coax_station"}
+    svg = client.post(
+        "/schematic",
+        json={**base, "budget": [["TL rig→feed", 0.004]], "input_power_w": 0.016},
+    ).json()["svg"]
+    assert "(25.0%)" in svg
+    # Without the budget nothing is claimed.
+    assert "%" not in client.post("/schematic", json=base).json()["svg"]
+
+
+def test_schematic_ignores_a_malformed_budget(client: TestClient):
+    # The budget is an annotation: junk entries drop, the drawing survives.
+    resp = client.post(
+        "/schematic",
+        json={
+            "geometry": "dipoles.invvee_coax_station",
+            "budget": ["nonsense", [1, 2], ["TL rig→feed", "NaN"], {"a": 1}],
+            "input_power_w": "lots",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True and "%" not in data["svg"]

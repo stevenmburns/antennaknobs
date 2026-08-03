@@ -670,6 +670,20 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   // The feed-network schematic (issue #652): fifth view in the carousel.
   // Keyed on what can change the drawing — knobs, variant, freqs — not on
   // solver/backend state: the network is the design's, not the solver's.
+  // The one piece of solver output that DOES ride along is the power budget,
+  // echoed as structural (key, watts) rows so each block draws its burn.
+  // Gated on the result being THIS design's: two station designs share
+  // instance paths ("sta."), so a stale budget from the previous design
+  // would annotate the new chain with the old antenna's watts.
+  const schematicBudget = useMemo(
+    () =>
+      result?.geometry === geometry && result.power_budget
+        ? result.power_budget
+            .filter((b) => b.key !== undefined)
+            .map((b) => [b.key as string, b.watts] as [string, number])
+        : null,
+    [result, geometry],
+  );
   const { schematicSvg, schematicUnavailable } = useSchematic({
     active,
     geometry,
@@ -680,6 +694,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       measFreq,
     ]),
     buildRequest,
+    budget: schematicBudget,
+    inputPowerW: result?.input_power_w ?? null,
   });
 
   const currentBands: BandSpec[] = currentExample?.bands ?? [];

@@ -594,8 +594,39 @@ def _budget_rows(eng, builder):
             display = label[len(path) + 2 :]
         else:
             display = label
-        rows.append({"label": display, "watts": max(0.0, float(w)), "path": path})
+        # `key` keeps the raw structural label alongside the display rename:
+        # the schematic fold-in (issue #652) matches blocks by "<path>: ..."
+        # prefixes, which the relabelled/stripped display label no longer
+        # carries. The frontend echoes (key, watts) back to /schematic.
+        rows.append(
+            {"label": display, "watts": max(0.0, float(w)), "path": path, "key": label}
+        )
     return rows
+
+
+def _req_budget(req):
+    """The solve's power budget, read back out of a /schematic request.
+
+    The schematic endpoint deliberately never solves — it stays cheap enough
+    to refetch per knob change — so the frontend passes the budget it already
+    holds from the latest solve: structural ``(key, watts)`` pairs (the `key`
+    field `_budget_rows` carries) plus that solve's ``input_power_w``.
+    Malformed entries are dropped rather than erroring: the budget is an
+    annotation, and a drawing without watts beats a 422 for the whole panel.
+    """
+    out = []
+    for row in req.get("budget") or ():
+        if (
+            isinstance(row, (list, tuple))
+            and len(row) == 2
+            and isinstance(row[0], str)
+            and isinstance(row[1], (int, float))
+            and math.isfinite(row[1])
+        ):
+            out.append((row[0], float(row[1])))
+    p_in = req.get("input_power_w")
+    ok = isinstance(p_in, (int, float)) and math.isfinite(p_in) and p_in > 0
+    return out or None, (float(p_in) if ok else None)
 
 
 def _derive_schema(default_params: dict) -> tuple:
@@ -2331,9 +2362,15 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         net = builder.build_network()
         if net is None:
             return None
+        # Budget fold-in (issue #652): still no solve here — the frontend
+        # echoes the latest solve's structural (key, watts) rows and input
+        # power, and each block gets its burn drawn where it happens.
+        budget, p_in = _req_budget(req)
         # "currentColor": the frontend inlines the SVG, so strokes/text
         # inherit the app theme's CSS colour (see render_svg's docstring).
-        return render_svg(lower(net, title=name), color="currentColor")
+        return render_svg(
+            lower(net, title=name, budget=budget, p_in=p_in), color="currentColor"
+        )
 
     def momwire_sweep(req: dict, freqs_mhz: list[float], cancel=None):
         builder = _build_builder(cls, req)
