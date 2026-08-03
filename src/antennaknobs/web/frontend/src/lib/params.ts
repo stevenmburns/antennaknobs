@@ -229,7 +229,10 @@ export function matchesQuery(ex: ExampleDescriptor, q: string): boolean {
   const hay = `${ex.name} ${ex.label} ${familyOf(ex.name)} ${
     SEARCH_KEYWORDS[ex.name] ?? ""
   }`.toLowerCase();
-  return hay.includes(q);
+  // Case-insensitive on both sides (issue #674): callers used to have to
+  // pre-lowercase the query, which was a silent-miss footgun for any new
+  // call site.
+  return hay.includes(q.toLowerCase());
 }
 
 export function applyVisibility(spec: SchemaParamSpec, values: ParamValueBag): boolean {
@@ -262,21 +265,31 @@ export function seedDefaults(
   const out: ParamValueBag = {};
   for (const item of schema) {
     if (isGroup(item)) {
+      // CONTRACT (issue #674): a nested group always self-seeds from its own
+      // default_overrides; a parent override bag never reaches it. Overrides
+      // are per-scalar-leaf by design, and the adapter cannot emit nested
+      // groups at all today (audited: 0 across all 100 designs) — this
+      // branch exists only so a future nested schema fails soft, not wrong.
       const arr: ParamValueBag[] = [];
       for (let i = 0; i < item.max_repeats; i++) {
         arr.push(seedDefaults(item.params, item.default_overrides[i]));
       }
       out[item.name] = arr;
     } else {
+      // An override wins over the leaf default, but both go through the same
+      // per-kind coercion (issue #674): the server builds default_overrides
+      // from the Builder's own instance dicts, so types agree by
+      // construction today — coercing here keeps a heterogeneously-typed
+      // instance (e.g. an int where instance 0 had a float, or a stringified
+      // number) from leaking a wrong-typed value into the ParamValueBag.
       const ov = overrides?.[item.name];
-      if (ov !== undefined) {
-        out[item.name] = ov as number | string | boolean;
-      } else if (item.kind === "enum") {
-        out[item.name] = String(item.default);
+      const raw = ov !== undefined ? ov : item.default;
+      if (item.kind === "enum") {
+        out[item.name] = String(raw);
       } else if (item.kind === "bool") {
-        out[item.name] = Boolean(item.default);
+        out[item.name] = Boolean(raw);
       } else {
-        out[item.name] = Number(item.default);
+        out[item.name] = Number(raw);
       }
     }
   }
