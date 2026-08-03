@@ -2105,6 +2105,15 @@ input[type=checkbox] {
   pointer-events: none; /* a passive HUD — never intercept drags on the view */
 }
 
+/* The one interactive thing in the HUD: the measurement-plane picker
+   (issue #652 c). Children can restore pointer-events under a none parent,
+   so the select is clickable while every other pixel of the card still
+   lets canvas drags through. */
+.stage-readout .plane-select {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 .projection-toggle {
   display: flex;
   gap: var(--space-2);
