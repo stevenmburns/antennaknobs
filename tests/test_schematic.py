@@ -235,6 +235,17 @@ def test_a_second_antenna_is_not_drawn_in_line():
     assert any("feed1.p" in a.nodes for a in sch.attachments)
 
 
+def test_a_chain_among_parallel_feeds_names_the_port_it_reached():
+    """`bowtie1x2_bl`'s two lines are value-identical, so the chain and the
+    feed1 attachment read as the same components listed twice unless the
+    chain says which feed it landed on. A single-antenna design stays
+    unnamed — there is nothing to confuse its chain with."""
+    sch = lower(build("arrays.bowtie1x2_bl").build_network())
+    assert sch.antenna_name == "feed0"
+    sch = lower(build("dipoles.invvee_coax_station").build_network())
+    assert sch.antenna_name == ""
+
+
 def test_a_structure_with_no_feed_chain_does_not_invent_one():
     """`wire.sterba_bl`'s four risers share no node with each other or with the
     source. The old walk wandered the graph and drew them as a plausible

@@ -220,6 +220,11 @@ class Schematic:
     blocks: list[Block] = field(default_factory=list)
     ends_in_antenna: bool = True
     balanced_end: bool = False  # the chain reaches the antenna as a pair
+    # The port the chain actually landed on, set only when the network has
+    # more than one antenna port. A bowtie1x2_bl chain draws one of two
+    # value-identical parallel lines; without naming its end, the chain and
+    # the feed1 attachment read as the same components listed twice.
+    antenna_name: str = ""
     title: str = ""
     notes: list[str] = field(default_factory=list)
     attachments: list[Block] = field(default_factory=list)
@@ -566,6 +571,11 @@ def lower(net, *, title: str = "", budget=None) -> Schematic:
     chain = _walk(branches, sch.source, targets, is_datum)
     on_chain = {st.idx for st in chain}
     sch.balanced_end = bool(chain) and chain[-1].balanced
+    if chain and len(set(targets.values())) > 1:
+        # Several antenna ports: say which one this chain reached, so it can
+        # be told apart from a parallel feed drawn in the attachments.
+        end_names = {targets[t] for t in chain[-1].pair_out if t in targets}
+        sch.antenna_name = ", ".join(sorted(end_names))
 
     # Nodes the drawing reaches — what an off-chain branch can attach TO.
     reached = {sch.source}
@@ -1211,6 +1221,9 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                 box.label(note, loc="top", color=color or "black")
             d += box
 
+    # "antenna (feed0)" when the chain's end carries a name — it only does
+    # when the network has other antenna ports to confuse it with.
+    antenna_text = f"antenna ({sch.antenna_name})" if sch.antenna_name else "antenna"
     if sch.ends_in_antenna and sch.balanced_end:
         # A pair does not arrive at a one-terminal antenna symbol. Both
         # conductors reach the structure — the two halves of a doublet — so
@@ -1225,13 +1238,13 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
         d += (
             elm.Label()
             .at((tip + arm + 0.2, (y + yr) / 2.0))
-            .label("antenna", halign="left")
+            .label(antenna_text, halign="left")
         )
     elif sch.ends_in_antenna:
         d += elm.Line().at((x, y)).to((x + LEADOUT, y))
         # No `.up()`: Antenna pins its own theta=0 and already draws its mast
         # upward, so rotating it lays the whole symbol on its side.
-        d += elm.Antenna().at((x + LEADOUT, y)).label("antenna", loc="right")
+        d += elm.Antenna().at((x + LEADOUT, y)).label(antenna_text, loc="right")
 
     # Attachments: branches wired into the antenna structure rather than into
     # the feed. They have no place on the chain, and inventing one for them is
