@@ -120,17 +120,29 @@ export function useThumbColumnSize(
   // biased slightly high (26 base) so they fit with a hair of slack rather
   // than clip; floor low so a short window shrinks them instead of
   // overflowing. n tracks the view registry: every view but the active one.
+  //
+  // Two dimensions since the schematic view made it 4 thumbs (issue #652):
+  // `width` stays what the column measured in its 3-thumb era — chart text
+  // is drawn at fixed pixel fonts, so squares small enough to stack 4 high
+  // collide their left/right labels. Each thumb is a width × height
+  // rectangle; the chart renders at width and scales down uniformly to
+  // height (a true miniature — text shrinks with it instead of colliding).
   const nThumbs = VIEWS.length - 1;
   const overhead = 26 + (nThumbs - 1) * 8 + nThumbs * 36;
-  const [size, setSize] = useState(180);
+  const widthOverhead = 26 + 2 * 8 + 3 * 36;
+  const [size, setSize] = useState({ width: 180, height: 180 });
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
+    const clamp = (v: number) => Math.max(40, Math.min(maxThumb, Math.floor(v)));
     const update = () => {
       const h = el.clientHeight;
       if (h <= 0) return;
-      const perThumb = (h - overhead) / nThumbs;
-      setSize(Math.max(40, Math.min(maxThumb, Math.floor(perThumb))));
+      const width = clamp((h - widthOverhead) / 3);
+      const height = clamp((h - overhead) / nThumbs);
+      setSize((s) =>
+        s.width === width && s.height === height ? s : { width, height },
+      );
     };
     update();
     const ro = new ResizeObserver(update);

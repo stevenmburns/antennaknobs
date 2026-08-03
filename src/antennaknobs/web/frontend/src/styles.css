@@ -1810,6 +1810,18 @@ input[type=checkbox] {
   pointer-events: none;
   border-radius: var(--r-sm);
   overflow: hidden;
+  position: relative;
+}
+
+/* The rectangle thumb's inner square: the chart renders at the column's
+   full width (where its fixed-px labels fit) and is scaled down uniformly
+   to the rectangle height — a miniature, not a crop (issue #652). The
+   inline style carries the size and scale; centering lives here. */
+.thumb-scale {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
 }
 
 .thumb-label {
