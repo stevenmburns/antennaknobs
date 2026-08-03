@@ -1,4 +1,4 @@
-import { backendSupportsGround, type Backend } from "./backends";
+import { backendSupportsGround, type BackendEntry } from "./backends";
 import type { GroundModel } from "./ground";
 import type { BandSpec, ExampleDescriptor } from "./params";
 
@@ -26,7 +26,7 @@ import type { BandSpec, ExampleDescriptor } from "./params";
 // Falls through to the multiplicative window if the anchor sits outside
 // every band.
 export function planSweepFreqs(params: {
-  backend: Backend;
+  backend: BackendEntry;
   groundEnabled: boolean;
   groundModel: GroundModel;
   currentExample: ExampleDescriptor | undefined;

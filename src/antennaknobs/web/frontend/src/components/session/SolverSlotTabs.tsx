@@ -1,5 +1,5 @@
 import { backendDisplayLabel, SLOT_ORDER } from "../../lib/backends";
-import type { Backend, BackendOptsMap, Slot, SlotConfig } from "../../lib/backends";
+import type { BackendEntry, BackendOpts, Slot, SlotConfig } from "../../lib/backends";
 
 export function SolverSlotTabs({
   slots,
@@ -14,8 +14,8 @@ export function SolverSlotTabs({
   activeSlot: Slot;
   onSelect: (s: Slot) => void;
   onOpenGear: (s: Slot) => void;
-  backend: Backend;
-  currentOpts: BackendOptsMap[Backend];
+  backend: BackendEntry;
+  currentOpts: BackendOpts;
   nPerWire: number;
 }) {
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SolveRequest } from "../../lib/api";
-import { type Backend } from "../../lib/backends";
+
 import {
   defaultKnobOpt,
   type KnobOpt,
@@ -43,7 +43,8 @@ export function useOptimizer({
   currentValues: ParamValueBag;
   currentValuesKey: string;
   currentSchema: SchemaItem[];
-  backend: Backend;
+  /** Backend NAME — a dep-array/signature member, not a capability read. */
+  backend: string;
   designFreq: number;
   measFreq: number;
   autoSim: boolean;

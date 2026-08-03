@@ -5,7 +5,6 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { type TerrainPresetSchema } from "../../lib/ground";
 import {
   seedDefaults,
   type ExampleDescriptor,
@@ -34,18 +33,6 @@ export function useDesignCatalog({
 }) {
   const [examples, setExamples] = useState<ExampleDescriptor[]>([]);
   const [examplesError, setExamplesError] = useState<string | null>(null);
-  // Whether the server has the optional pynec-accel package (#429). Reported
-  // by /examples on mount; gates the PyNEC backend option. Defaults true so
-  // the common (installed) case never flashes the option off before the fetch
-  // resolves; a false reply then hides it and remaps any PyNEC slot.
-  const [havePynec, setHavePynec] = useState<boolean>(true);
-  // Terrain preset catalog (issue #560), reported by /capabilities on mount.
-  // Empty until it resolves (and on any older server without the field), which
-  // gates the terrain ground option off — the panel is rendered entirely from
-  // this schema, so there is nothing to show without it.
-  const [terrainPresets, setTerrainPresets] = useState<TerrainPresetSchema[]>(
-    [],
-  );
   // User designs that failed to load (bad Python, no Builder, geometry error).
   // Surfaced from /examples so the author / Claude can see and fix them.
   const [loadErrors, setLoadErrors] = useState<DesignLoadError[]>([]);
@@ -83,29 +70,9 @@ export function useDesignCatalog({
     loadExamples();
   }, [loadExamples]);
 
-  // Backend capabilities (#429), fetched once on mount — server-static, so
-  // unlike the design catalog it is not re-fetched on trust actions. A failed
-  // fetch or an older server without the route leaves havePynec at its `true`
-  // default (prior behavior). Gates the PyNEC backend option.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const c = await (await fetch("/capabilities")).json();
-        if (!cancelled) {
-          setHavePynec(c.have_pynec !== false);
-          setTerrainPresets(
-            Array.isArray(c.terrain_presets) ? c.terrain_presets : [],
-          );
-        }
-      } catch {
-        /* keep the default; PyNEC stays offered */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // (Server capabilities — the solver roster and the terrain presets — are
+  // fetched by useCapabilities, above this component: the session tree only
+  // mounts once they land, so nothing here has to cope with their absence.)
 
   // Trust a user design from the UI (local-only; the backend refuses when
   // hosted). `stem` is the design name (e.g. "user.my_dipole"); `allowEdits`
@@ -151,8 +118,6 @@ export function useDesignCatalog({
   return {
     examples,
     examplesError,
-    havePynec,
-    terrainPresets,
     loadErrors,
     trustBusy,
     trustDesign,

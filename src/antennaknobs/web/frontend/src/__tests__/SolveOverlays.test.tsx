@@ -21,18 +21,21 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SolveOverlays } from "../components/session/SolveOverlays";
-import { BACKEND_LABEL, normalizeBackend, type Backend } from "../lib/backends";
+import { normalizeBackend } from "../lib/backends";
+import { entry, SERVED_ROSTER } from "./backendFixtures";
 
 // --- fixtures --------------------------------------------------------------
+// Labels and the poor-match copy branch come off the served roster (issue
+// #628), so backends are named here and resolved through the fixture.
 
 type OverlayOverrides = Partial<{
   showBusy: boolean;
   solving: boolean;
   solverWarning: boolean;
   backendDisallowed: boolean;
-  backend: Backend;
+  backend: string;
   requiredBackends: string[] | null;
-  recommendedBackend: Backend | null;
+  recommendedBackend: string | null;
   solveError: string | null;
 }>;
 
@@ -46,17 +49,21 @@ function renderOverlays(overrides: OverlayOverrides = {}) {
     onPause: vi.fn(),
     onSolveAnyway: vi.fn(),
   };
+  const { backend, recommendedBackend, ...rest } = overrides;
   const view = render(
     <SolveOverlays
       showBusy={false}
       solving={false}
       solverWarning={false}
       backendDisallowed={false}
-      backend="bspline"
+      roster={SERVED_ROSTER}
       requiredBackends={null}
-      recommendedBackend={null}
       solveError={null}
-      {...overrides}
+      {...rest}
+      backend={entry(backend ?? "bspline")}
+      recommendedBackend={
+        recommendedBackend ? entry(recommendedBackend) : null
+      }
       {...spies}
     />,
   );
@@ -107,7 +114,7 @@ describe("SolveOverlays — disallowed banner", () => {
     renderOverlays({ solverWarning: true, backendDisallowed: true, backend: "hmatrix" });
     const banner = disallowedBanner();
     expect(banner?.querySelector(".solver-suggest-title")?.textContent).toBe(
-      `${BACKEND_LABEL.hmatrix} can't run this design`,
+      `${entry("hmatrix").label} can't run this design`,
     );
   });
 
@@ -115,7 +122,7 @@ describe("SolveOverlays — disallowed banner", () => {
     [null, "a supported solver"],
     [[], "a supported solver"],
     [["nosuch"], "a supported solver"],
-    [["bspline", "sinusoidal-galerkin"], `${BACKEND_LABEL.bspline} / ${BACKEND_LABEL["sinusoidal-galerkin"]}`],
+    [["bspline", "sinusoidal-galerkin"], `${entry("bspline").label} / ${entry("sinusoidal-galerkin").label}`],
   ] as const)("lists requiredBackends %s as %s", (requiredBackends, expected) => {
     renderOverlays({
       solverWarning: true,
@@ -132,24 +139,24 @@ describe("SolveOverlays — disallowed banner", () => {
       backendDisallowed: true,
       requiredBackends: ["bspline", "pynec"],
     });
-    const btn = screen.getByRole("button", { name: `Switch to ${BACKEND_LABEL.bspline}` });
+    const btn = screen.getByRole("button", { name: `Switch to ${entry("bspline").label}` });
     await user.click(btn);
-    expect(onSwitchBackend).toHaveBeenCalledWith("bspline");
+    expect(onSwitchBackend).toHaveBeenCalledWith(entry("bspline"));
     expect(onSwitchBackend).toHaveBeenCalledTimes(1);
   });
 
   // normalizeBackend maps the retired "triangular" name to "bspline" — the
   // load-bearing mapping a stale recommendation depends on.
   it("normalizes a retired backend name (triangular) before offering the switch", async () => {
-    expect(normalizeBackend("triangular")).toBe("bspline");
+    expect(normalizeBackend("triangular", SERVED_ROSTER)).toBe(entry("bspline"));
     const { user, onSwitchBackend } = renderOverlays({
       solverWarning: true,
       backendDisallowed: true,
       requiredBackends: ["triangular"],
     });
-    const btn = screen.getByRole("button", { name: `Switch to ${BACKEND_LABEL.bspline}` });
+    const btn = screen.getByRole("button", { name: `Switch to ${entry("bspline").label}` });
     await user.click(btn);
-    expect(onSwitchBackend).toHaveBeenCalledWith("bspline");
+    expect(onSwitchBackend).toHaveBeenCalledWith(entry("bspline"));
     expect(onSwitchBackend).toHaveBeenCalledTimes(1);
   });
 
@@ -181,7 +188,7 @@ describe("SolveOverlays — poor-match banner", () => {
     renderOverlays({ solverWarning: true, backendDisallowed: false, backend: "arrayblock" });
     const banner = mismatchBanner();
     expect(banner?.querySelector(".solver-suggest-title")?.textContent).toBe(
-      `${BACKEND_LABEL.arrayblock} is a poor match for this design`,
+      `${entry("arrayblock").label} is a poor match for this design`,
     );
   });
 
@@ -196,7 +203,7 @@ describe("SolveOverlays — poor-match banner", () => {
     expect(sub).toContain("This mesh is benchmark-sized");
   });
 
-  it.each(["arrayblock", "hmatrix"] as const)(
+  it.each(["arrayblock", "hmatrix"])(
     "shows the accelerator-overkill message for %s when there is no benchmark recommendation",
     (backend) => {
       renderOverlays({

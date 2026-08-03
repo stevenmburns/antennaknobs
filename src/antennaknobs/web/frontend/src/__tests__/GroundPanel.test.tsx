@@ -7,11 +7,10 @@
 // preset. Every visibility assertion is paired with an absence assertion —
 // a presence-only test still passes if the conditional is deleted.
 //
-// backendSupportsGround/backendSupportsTerrain (src/lib/backends.ts) both
-// return true for every value of the Backend union today, so the
-// "ground plane ignored for <backend>" note and the disabled-checkbox branch
-// are unreachable with a well-typed backend prop. Left untested rather than
-// forced via a cast to a fake Backend string; see the final report.
+// The no-ground branches ("ground plane ignored for <backend>", the disabled
+// checkbox) live in GroundPanel.noGround.test.tsx, driven by a roster fixture
+// with supports_ground: false (issue #628). Every backend the server actually
+// registers supports ground, so this file uses a real served entry.
 import type { ComponentProps } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -22,6 +21,7 @@ import type {
   TerrainParams,
   TerrainPresetSchema,
 } from "../lib/ground";
+import { entry } from "./backendFixtures";
 
 // --- fixtures --------------------------------------------------------------
 // TerrainPresetSchema is server-supplied (GET /capabilities); there is no
@@ -75,7 +75,7 @@ function renderGroundPanel(overrides: GroundOverrides = {}) {
   };
   const view = render(
     <GroundPanel
-      backend="bspline"
+      backend={entry("bspline")}
       groundEnabled={false}
       groundType="finite"
       finiteGroundMethod="fast"

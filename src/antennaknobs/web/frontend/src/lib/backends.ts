@@ -1,80 +1,101 @@
-// Backend selector — Momwire model variants + PyNEC. Per-backend
-// `model_options` are forwarded to server.py's _make_momwire_sim.
-// "triangular" is retired from the UI (the server still accepts it);
-// see normalizeBackend for how a stale recommendation is mapped.
-export type Backend =
-  | "sinusoidal"
-  | "sinusoidal-galerkin"
-  | "bspline"
-  | "hmatrix"
-  | "arrayblock"
-  | "pynec";
+// Backend selector, rendered entirely from the roster GET /capabilities
+// serves (issue #628). There is deliberately NO roster literal in this file:
+// the server's `_BACKENDS` in web/adapter.py is the single registry, and the
+// duplication this replaces failed by *silent absence* — sinusoidal-galerkin
+// landed server-side with both repos' CI green and no tab in the UI
+// (#626/#627). Registering a solver there is now the whole change.
+//
+// Per-backend `model_options` are forwarded to the server's _make_momwire_sim;
+// the served option keys ARE the snake_case constructor kwargs, so a generic
+// knob cannot land under the wrong wire key.
 
-export const BACKEND_LABEL: Record<Backend, string> = {
-  sinusoidal: "Sinusoidal",
-  "sinusoidal-galerkin": "Sin-Galerkin",
-  bspline: "B-spline",
-  hmatrix: "H-matrix (ACA)",
-  arrayblock: "Array-block",
-  pynec: "PyNEC",
+/** One generic numeric solver knob, rendered by the options-schema loop in
+ *  BackendConfigModal. `key` is both the client-side opts key and the wire
+ *  kwarg. */
+export type BackendOptionField = {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
 };
+
+/** A served roster entry. Mirrors adapter.backend_roster(); snake_case
+ *  because it is wire data, not a local shape. */
+export type BackendEntry = {
+  name: string;
+  label: string;
+  /** "pynec" rides the separate `solver: "pynec"` request field and never
+   *  `momwire_model`; everything else is a momwire model name. */
+  kind: "momwire" | "pynec";
+  supports_ground: boolean;
+  options_schema: BackendOptionField[];
+  /** Bespoke panel hint — the knobs no numeric renderer can carry. Null for
+   *  a backend whose whole surface is generic. */
+  panel: string | null;
+  default_n_per_wire: number;
+  accelerator: boolean;
+  dense_family: boolean;
+};
+
+export type BackendRoster = BackendEntry[];
+
+// Panel hints, as served. Named constants so the bespoke components are
+// selected by the server's hint rather than by backend name.
+export const PANEL_BSPLINE = "bspline";
+export const PANEL_SIN_GALERKIN = "sin-galerkin";
+export const PANEL_PYNEC = "pynec";
+
+export function hasBSplinePanel(b: BackendEntry): boolean {
+  return b.panel === PANEL_BSPLINE;
+}
+
+export function backendSupportsGround(b: BackendEntry): boolean {
+  return b.supports_ground;
+}
+
+// Every ground-capable backend supports terrain, so this is derived rather
+// than a second served flag. Momwire applies the per-facet far field
+// natively; PyNEC runs the hybrid (issue #553): NEC solves the currents over
+// crest-medium Sommerfeld — exactly what the terrain recipe feeds the current
+// solve anyway — and the server's cut physics applies the facet reflection to
+// those currents.
+export function backendSupportsTerrain(b: BackendEntry): boolean {
+  return b.supports_ground;
+}
 
 // A design/solver combo is "inappropriate" when the solver is a poor fit: a
 // dense solver (or PyNEC) on a large array is very slow, an accelerator
 // (array-block / H-matrix) on a single-element design is pure overhead, and
-// on a benchmark-class mesh (thousands of segments) every b-spline-family
-// solver is minutes per solve where sinusoidal (or PyNEC) is seconds. `rec`
-// is the server's recommended backend ("arrayblock" for grid arrays,
-// "sinusoidal" for huge meshes, else null).
-export function comboInappropriate(b: Backend, rec: Backend | null): boolean {
-  const accel = b === "arrayblock" || b === "hmatrix";
-  if (rec === "arrayblock") return !accel; // an array wants an accelerator
-  if (rec === "sinusoidal") return b !== "sinusoidal" && b !== "pynec";
-  return accel; // everything else doesn't need one
-}
-
-export const BACKEND_ORDER: Backend[] = [
-  "sinusoidal",
-  "sinusoidal-galerkin",
-  "bspline",
-  "hmatrix",
-  "arrayblock",
-  "pynec",
-];
-
-// PyNEC needs the optional pynec-accel package, so the server reports whether
-// it is installed (`have_pynec` in /examples). When it is not, the UI must not
-// offer it — otherwise the /ws solve silently falls back to momwire (#429).
-// `sinusoidal` is the fallback: it is the momwire basis closest to NEC (the
-// same sinusoidal current expansion), so a default panel or a coerced saved
-// slot still solves the same physics without PyNEC.
-export const PYNEC_FALLBACK_BACKEND: Backend = "sinusoidal";
-
-// Backends selectable given the server's capabilities: drops PyNEC when
-// pynec-accel is absent.
-export function selectableBackends(havePynec: boolean): Backend[] {
-  return havePynec ? BACKEND_ORDER : BACKEND_ORDER.filter((b) => b !== "pynec");
-}
-
-// Map an unavailable PyNEC selection to the fallback; leave everything else
-// untouched. Applied wherever a backend can arrive from outside the gated
-// picker — default slots, a saved/URL slot, a server recommendation.
-export function resolveBackend(b: Backend, havePynec: boolean): Backend {
-  return b === "pynec" && !havePynec ? PYNEC_FALLBACK_BACKEND : b;
+// on a benchmark-class mesh (thousands of segments) every dense-family solver
+// is minutes per solve where sinusoidal (or PyNEC) is seconds. `rec` is the
+// server's recommended backend (array-block for grid arrays, a cheap dense-free
+// momwire solver for huge meshes, else null) — read through its own roster
+// flags so the policy follows the registry instead of a name list.
+export function comboInappropriate(
+  b: BackendEntry,
+  rec: BackendEntry | null,
+): boolean {
+  if (rec?.accelerator) return !b.accelerator; // an array wants an accelerator
+  // A cheap momwire reference solver was recommended: the mesh is
+  // benchmark-class, so every dense-family solver is the wrong tool.
+  if (rec && rec.kind === "momwire" && !rec.dense_family) return b.dense_family;
+  return b.accelerator; // everything else doesn't need one
 }
 
 // Per-design backend allowlist (`requires_backends` on the descriptor —
 // e.g. ["bspline"] for designs with PortAtEnd junction ports, which only
 // the B-spline solver implements; NEC-2 has no equivalent card at all).
-// null/undefined = no restriction. Unlike the missing-pynec-accel case
-// (#429) this is per-design, and unlike comboInappropriate it is a HARD
-// incompatibility: the disallowed solvers raise, so the gate offers
+// null/undefined = no restriction. Unlike a solver the server doesn't offer
+// at all (#429) this is per-design, and unlike comboInappropriate it is a
+// HARD incompatibility: the disallowed solvers raise, so the gate offers
 // "switch", never "solve anyway".
 export function backendAllowed(
-  b: Backend,
+  b: BackendEntry,
   required: string[] | null | undefined,
 ): boolean {
-  return !required || required.includes(b);
+  return !required || required.includes(b.name);
 }
 
 // One-line explanation for why a design is backend-restricted, used by the
@@ -86,60 +107,36 @@ export const RESTRICTED_BACKEND_REASON =
   "ports) — only the B-spline and sinusoidal-Galerkin solvers implement " +
   "them, and NEC-2 has no equivalent card.";
 
-// hmatrix (hierarchical H-matrix / ACA) and arrayblock (element-aware block
-// solver for arrays) are accelerators built on the same B-spline basis as
-// bspline; they share its options and request shape, and fall back to the
-// dense bspline path for ground/enrichment.
-export const BSPLINE_FAMILY: Backend[] = ["bspline", "hmatrix", "arrayblock"];
-export function isBSplineFamily(b: Backend): boolean {
-  return BSPLINE_FAMILY.includes(b);
+export function findBackend(
+  roster: BackendRoster,
+  name: string | null | undefined,
+): BackendEntry | null {
+  if (!name) return null;
+  return roster.find((b) => b.name === name) ?? null;
 }
 
-export function backendSupportsGround(b: Backend): boolean {
-  // sinusoidal-galerkin: all three grounds since momwire#182 M4. (Junction-
-  // port designs OVER a ground refuse server-side — a per-design error the
-  // solve surfaces cleanly, not a backend capability gap.)
-  return (
-    b === "sinusoidal" ||
-    b === "sinusoidal-galerkin" ||
-    isBSplineFamily(b) ||
-    b === "pynec"
-  );
+// Coerce a server-supplied backend name into an entry of the served roster.
+// "triangular" was retired from the registry (the server still accepts it and
+// may still recommend it, e.g. from an older adapter or a saved design hint):
+// map it to "bspline", the default working solver on the same dense path.
+// Anything the roster doesn't carry — including PyNEC on a server without
+// pynec-accel — falls back to null ("no recommendation") so a name this
+// server can't honour never reaches state or the wire.
+export function normalizeBackend(
+  name: string | null | undefined,
+  roster: BackendRoster,
+): BackendEntry | null {
+  if (!name) return null;
+  return findBackend(roster, name === "triangular" ? "bspline" : name);
 }
 
-// Every ground-capable backend supports terrain. Momwire applies the
-// per-facet far field natively; PyNEC runs the hybrid (issue #553): NEC
-// solves the currents over crest-medium Sommerfeld — exactly what the
-// terrain recipe feeds the current solve anyway — and the server's cut
-// physics applies the facet reflection to those currents.
-export function backendSupportsTerrain(b: Backend): boolean {
-  return backendSupportsGround(b);
-}
+export type FeedModel = "segment" | "point";
 
-// Coerce a server-supplied backend name into something this UI knows.
-// "triangular" was retired from the frontend (the server still accepts
-// it and may still recommend it, e.g. from an older adapter or a saved
-// design hint): map it to "bspline", the default working solver on the
-// same dense path. Anything else unrecognised falls back to null ("no
-// recommendation") so a stale value never reaches state or the wire.
-export function normalizeBackend(b: string | null | undefined): Backend | null {
-  if (!b) return null;
-  if (b === "triangular") return "bspline";
-  return (BACKEND_ORDER as string[]).includes(b) ? (b as Backend) : null;
-}
-
-export type CommonOpts = { nPerWire: number; wireRadius: number };
-
-export type SinusoidalOpts = CommonOpts & { nQpConst: number };
-// Sin-Galerkin only: the feed-model axis (issue #640, momwire#192).
-// "segment" = NEC-compatible (NEC's segment-wide gap — reproduces NEC/EZNEC
-// behaviour, including the reactance walk with mesh density); "point" =
-// Converged (zero-width gap — converges to the B-spline answer; recommended
-// for near-open high-Q designs, momwire#213). Deliberately NOT on plain
-// sinusoidal: the point gap has no collocation RHS (momwire#212), so that
-// solver offers no choice to present.
-export type SinGalerkinOpts = SinusoidalOpts & { feedModel: "segment" | "point" };
-export type BSplineOpts = CommonOpts & {
+// Bespoke B-spline panel state (PANEL_BSPLINE). Not derivable from a numeric
+// options_schema: degree is a tab pair, smoothing and enrichment are
+// checkbox-gated sub-forms, and the variant is an enum select that gates two
+// further knobs.
+export type BSplineOpts = {
   degree: 1 | 2;
   nQpPair: number;
   feedSmoothingFactor: number | null; // null = sharp delta-gap
@@ -166,25 +163,8 @@ export type BSplineOpts = CommonOpts & {
   enrichmentMinK: number;
   nQpSource: number;
 };
-export type PyNECOpts = CommonOpts;
-
-// hmatrix and arrayblock share BSplineOpts (same basis + knobs); the ACA
-// tolerances use the solver defaults.
-export type BackendOptsMap = {
-  sinusoidal: SinusoidalOpts;
-  // Same constructor surface as sinusoidal (momwire#182: same basis, Galerkin
-  // testing) plus the feed-model choice only the Galerkin testing can carry;
-  // the test-quadrature knobs keep their solver defaults.
-  "sinusoidal-galerkin": SinGalerkinOpts;
-  bspline: BSplineOpts;
-  hmatrix: BSplineOpts;
-  arrayblock: BSplineOpts;
-  pynec: PyNECOpts;
-};
 
 export const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
-  nPerWire: 30,
-  wireRadius: 0.0005,
   degree: 2,
   nQpPair: 4,
   feedSmoothingFactor: null,
@@ -197,24 +177,42 @@ export const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
   nQpSource: 16,
 };
 
-export const DEFAULT_BACKEND_OPTS: BackendOptsMap = {
-  sinusoidal: { nPerWire: 30, wireRadius: 0.0005, nQpConst: 8 },
-  // feedModel "segment" (NEC-compatible) is the solver's own default; the
-  // gear menu recommends "point" (Converged) on near-open designs (#640).
-  "sinusoidal-galerkin": {
-    nPerWire: 30,
-    wireRadius: 0.0005,
-    nQpConst: 8,
-    feedModel: "segment",
-  },
-  bspline: { ...BSPLINE_DEFAULT_OPTS },
-  hmatrix: { ...BSPLINE_DEFAULT_OPTS },
-  // Arrays auto-select this; 21 segs/wire is the converged, correct-parity
-  // choice for B-spline d=2 (odd → interior knot at the feed). The old
-  // inherited 40 was both too many and the wrong (even) parity.
-  arrayblock: { ...BSPLINE_DEFAULT_OPTS, nPerWire: 21 },
-  pynec: { nPerWire: 21, wireRadius: 0.0005 },
+// The one common wire radius; every backend's gear menu offers it next to
+// segments/wire, whose per-backend default the roster carries.
+export const DEFAULT_WIRE_RADIUS = 0.0005;
+
+// One slot's solver settings. `schema` holds the served generic knobs keyed
+// by wire key; the two optional members are the bespoke panels' state,
+// present exactly when the entry names that panel.
+export type BackendOpts = {
+  nPerWire: number;
+  wireRadius: number;
+  schema: Record<string, number>;
+  bspline?: BSplineOpts;
+  // Sin-Galerkin only (PANEL_SIN_GALERKIN, issue #640, momwire#192).
+  // "segment" = NEC-compatible (NEC's segment-wide gap — reproduces
+  // NEC/EZNEC behaviour, including the reactance walk with mesh density);
+  // "point" = Converged (zero-width gap — converges to the B-spline answer;
+  // recommended for near-open high-Q designs, momwire#213). Deliberately not
+  // offered on plain sinusoidal: the point gap has no collocation RHS
+  // (momwire#212), so that solver's roster entry names no panel.
+  feedModel?: FeedModel;
 };
+
+/** A backend's stock options: served numeric defaults plus the bespoke
+ *  panel's own defaults. */
+export function defaultOptsFor(b: BackendEntry): BackendOpts {
+  const opts: BackendOpts = {
+    nPerWire: b.default_n_per_wire,
+    wireRadius: DEFAULT_WIRE_RADIUS,
+    schema: Object.fromEntries(b.options_schema.map((f) => [f.key, f.default])),
+  };
+  if (b.panel === PANEL_BSPLINE) opts.bspline = { ...BSPLINE_DEFAULT_OPTS };
+  // The solver's own default; the gear menu recommends "point" (Converged)
+  // on near-open designs (#640).
+  if (b.panel === PANEL_SIN_GALERKIN) opts.feedModel = "segment";
+  return opts;
+}
 
 // Three abstract solver slots. Each holds one backend choice and its
 // options; the user picks A/B/C with the row of buttons, configures the
@@ -225,24 +223,33 @@ export type Slot = "A" | "B" | "C";
 export const SLOT_ORDER: Slot[] = ["A", "B", "C"];
 
 export type SlotConfig = {
-  backend: Backend;
-  opts: BackendOptsMap[Backend];
+  backend: BackendEntry;
+  opts: BackendOpts;
 };
 
-// Display label for a configured backend: B-spline-family entries carry
-// their spline degree so two b-spline slots (the default A d=2 / B d=1
-// pair) stay distinguishable at a glance.
-export function backendDisplayLabel(b: Backend, opts: BackendOptsMap[Backend]): string {
-  if (isBSplineFamily(b))
-    return `${BACKEND_LABEL[b]} d=${(opts as BSplineOpts).degree}`;
+// Display label for a configured backend: B-spline-panel entries carry their
+// spline degree so two b-spline slots (the default A d=2 / B d=1 pair) stay
+// distinguishable at a glance.
+export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string {
+  if (b.panel === PANEL_BSPLINE)
+    return `${b.label} d=${opts.bspline?.degree ?? BSPLINE_DEFAULT_OPTS.degree}`;
   // Surface the non-default feed model on the slot chip: two Sin-Galerkin
   // slots differing only in feed model must be tellable apart at a glance.
-  if (b === "sinusoidal-galerkin" && (opts as SinGalerkinOpts).feedModel === "point")
-    return `${BACKEND_LABEL[b]} (converged)`;
-  return BACKEND_LABEL[b];
+  if (b.panel === PANEL_SIN_GALERKIN && opts.feedModel === "point")
+    return `${b.label} (converged)`;
+  return b.label;
 }
 
-export const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
+/** Seed for one default slot: a backend NAME (resolved against the served
+ *  roster, never assumed present) plus the deviations from that backend's
+ *  stock options. */
+export type SlotSeed = {
+  backend: string;
+  nPerWire?: number;
+  bspline?: Partial<BSplineOpts>;
+};
+
+export const DEFAULT_SLOT_SEEDS: Record<Slot, SlotSeed> = {
   // A is the default working solver: B-spline d=2 — most accurate per
   // unknown, converged at a small odd N (interior knot at the feed), and
   // its impedance solve honours finite grounds (Triangular, the old,
@@ -251,76 +258,71 @@ export const DEFAULT_SLOTS: Record<Slot, SlotConfig> = {
   // basis-agreed limit on 50/66 scorable designs (N=21 buys only 3 more,
   // all within 2.3%), patterns within 0.05 dB of the fine-mesh reference,
   // ~35% faster ticks. Odd parity keeps the feed's interior knot.
-  A: {
-    backend: "bspline",
-    opts: { ...DEFAULT_BACKEND_OPTS.bspline, nPerWire: 15 },
-  },
+  A: { backend: "bspline", nPerWire: 15 },
   // B is the cross-check basis: B-spline d=1 needs a larger N to reach
   // the same answer (slower), which is what makes agreement with A a
   // meaningful second opinion rather than the same solve twice. N=20
   // trades cross-check tightness for speed (within 2% of the limit on
   // 45/66 vs 55/66 at the old N=40 — disagreement with A beyond a couple
   // of percent warrants raising N before suspecting the design).
-  B: {
-    backend: "bspline",
-    opts: { ...DEFAULT_BACKEND_OPTS.bspline, degree: 1, nPerWire: 20 },
-  },
-  C: {
-    backend: "pynec",
-    opts: { ...DEFAULT_BACKEND_OPTS.pynec },
-  },
+  B: { backend: "bspline", nPerWire: 20, bspline: { degree: 1 } },
+  C: { backend: "pynec" },
 };
 
-// Resolve a slot config against server capabilities (#429): if it names PyNEC
-// and pynec-accel is absent, swap to the fallback backend with that backend's
-// default kwargs, preserving the geometry-sizing (segments/wire, radius) the
-// same way a manual backend swap does. Slot C defaults to PyNEC, so this is
-// what keeps the default panel sensible on a server without it.
-export function resolveSlotConfig(cfg: SlotConfig, havePynec: boolean): SlotConfig {
-  const backend = resolveBackend(cfg.backend, havePynec);
-  if (backend === cfg.backend) return cfg;
+// Resolve a seed against the served roster. A seed naming a backend this
+// server doesn't offer (slot C on an install without pynec-accel, #429)
+// falls back to the roster's first entry — the same tolerance the terrain
+// panel applies to a parked preset name (#560). Falling back to the head of
+// the served order rather than a hardcoded name is what keeps this file free
+// of a second roster: the server puts its plainest solver first.
+export function slotFromSeed(seed: SlotSeed, roster: BackendRoster): SlotConfig {
+  const backend = findBackend(roster, seed.backend) ?? roster[0];
+  const opts = defaultOptsFor(backend);
+  if (seed.nPerWire != null) opts.nPerWire = seed.nPerWire;
+  if (seed.bspline && opts.bspline)
+    opts.bspline = { ...opts.bspline, ...seed.bspline };
+  return { backend, opts };
+}
+
+export function defaultSlots(roster: BackendRoster): Record<Slot, SlotConfig> {
   return {
-    backend,
-    opts: {
-      ...DEFAULT_BACKEND_OPTS[backend],
-      nPerWire: cfg.opts.nPerWire,
-      wireRadius: cfg.opts.wireRadius,
-    } as BackendOptsMap[Backend],
+    A: slotFromSeed(DEFAULT_SLOT_SEEDS.A, roster),
+    B: slotFromSeed(DEFAULT_SLOT_SEEDS.B, roster),
+    C: slotFromSeed(DEFAULT_SLOT_SEEDS.C, roster),
   };
 }
 
-// Translates the camelCase frontend options into the snake_case kwargs the
-// server forwards to each Momwire model class constructor.
+
+// Translates the frontend options into the snake_case kwargs the server
+// forwards to each Momwire model class constructor: the served generic knobs
+// under their own keys, then whatever the bespoke panel contributes. PyNEC
+// takes none — it isn't a momwire model.
 export function modelOptionsForRequest(
-  backend: Backend,
-  opts: BackendOptsMap[Backend],
+  b: BackendEntry,
+  opts: BackendOpts,
 ): Record<string, unknown> {
-  if (backend === "sinusoidal-galerkin") {
-    const o = opts as SinGalerkinOpts;
-    // feed_model only here: plain sinusoidal cannot carry the point gap
-    // (momwire#212) and must not receive the key at all.
-    return { n_qp_const: o.nQpConst, feed_model: o.feedModel };
-  }
-  if (backend === "sinusoidal") {
-    const o = opts as SinusoidalOpts;
-    return { n_qp_const: o.nQpConst };
-  }
-  if (isBSplineFamily(backend)) {
+  if (b.kind === "pynec") return {};
+  const out: Record<string, unknown> = {};
+  for (const f of b.options_schema) out[f.key] = opts.schema[f.key] ?? f.default;
+  if (b.panel === PANEL_BSPLINE) {
     // bspline, hmatrix, and arrayblock all take the B-spline kwargs; the
     // accelerators read additional aca_tol/solve_tol from their own defaults.
-    const o = opts as BSplineOpts;
-    return {
-      degree: o.degree,
-      n_qp_pair: o.nQpPair,
-      n_qp_source: o.nQpSource,
-      feed_smoothing_factor: o.feedSmoothingFactor,
-      use_singular_enrichment: o.useSingularEnrichment,
-      enrichment_variant: o.enrichmentVariant,
-      tikhonov_lambda: o.tikhonovLambda,
-      auto_tap_ratio_threshold: o.autoTapRatioThreshold,
-      n_qp_sing: o.nQpSing,
-      enrichment_min_k: o.enrichmentMinK,
-    };
+    const o = opts.bspline ?? BSPLINE_DEFAULT_OPTS;
+    out.degree = o.degree;
+    out.n_qp_pair = o.nQpPair;
+    out.n_qp_source = o.nQpSource;
+    out.feed_smoothing_factor = o.feedSmoothingFactor;
+    out.use_singular_enrichment = o.useSingularEnrichment;
+    out.enrichment_variant = o.enrichmentVariant;
+    out.tikhonov_lambda = o.tikhonovLambda;
+    out.auto_tap_ratio_threshold = o.autoTapRatioThreshold;
+    out.n_qp_sing = o.nQpSing;
+    out.enrichment_min_k = o.enrichmentMinK;
   }
-  return {};
+  if (b.panel === PANEL_SIN_GALERKIN) {
+    // feed_model only here: plain sinusoidal cannot carry the point gap
+    // (momwire#212) and must not receive the key at all.
+    out.feed_model = opts.feedModel ?? "segment";
+  }
+  return out;
 }

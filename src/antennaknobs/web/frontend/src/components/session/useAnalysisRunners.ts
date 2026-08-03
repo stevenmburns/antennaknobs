@@ -10,7 +10,7 @@ import type {
   SolveRequest,
   SweepData,
 } from "../../lib/api";
-import { type Backend } from "../../lib/backends";
+import { type BackendEntry } from "../../lib/backends";
 import { type GroundModel } from "../../lib/ground";
 import { feedwiseRichardson, richardsonExtrap } from "../../lib/math";
 import { type BandSpec, type ExampleDescriptor } from "../../lib/params";
@@ -62,7 +62,7 @@ export function useAnalysisRunners({
   approvedComboRef,
 }: {
   geometry: string;
-  backend: Backend;
+  backend: BackendEntry;
   backendOptsKey: string;
   currentValuesKey: string;
   currentVariant: string;
@@ -82,7 +82,7 @@ export function useAnalysisRunners({
   autoSim: boolean;
   active: boolean;
   comboApproved: boolean;
-  recommendedBackend: Backend | null;
+  recommendedBackend: BackendEntry | null;
   buildRequest: () => SolveRequest;
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
@@ -138,7 +138,7 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend, backendOptsKey,
+    geometry, backend.name, backendOptsKey,
     currentValuesKey,
     designFreq,
     groundEnabled, groundModel,
@@ -183,7 +183,7 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend, backendOptsKey,
+    geometry, backend.name, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundModel,
@@ -216,7 +216,7 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend, backendOptsKey,
+    geometry, backend.name, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundModel,
@@ -241,7 +241,7 @@ export function useAnalysisRunners({
     setPattern(null);
     if (
       !autoSim || // Paused holds the engine (issue #612) — no NEC re-solve.
-      backend !== "pynec" ||
+      backend.name !== "pynec" ||
       !active ||
       !necOverlayEnabled ||
       groundModel === "terrain"
@@ -257,7 +257,7 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend, backendOptsKey,
+    geometry, backend.name, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq,
     groundEnabled, groundModel,

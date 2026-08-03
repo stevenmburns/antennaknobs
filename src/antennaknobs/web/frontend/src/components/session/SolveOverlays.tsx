@@ -1,8 +1,8 @@
 import {
-  BACKEND_LABEL,
   normalizeBackend,
   RESTRICTED_BACKEND_REASON,
-  type Backend,
+  type BackendEntry,
+  type BackendRoster,
 } from "../../lib/backends";
 
 export function SolveOverlays({
@@ -12,6 +12,7 @@ export function SolveOverlays({
   solverWarning,
   backendDisallowed,
   backend,
+  roster,
   requiredBackends,
   onSwitchBackend,
   onPause,
@@ -24,11 +25,14 @@ export function SolveOverlays({
   onCancelSolve: () => void;
   solverWarning: boolean;
   backendDisallowed: boolean;
-  backend: Backend;
+  backend: BackendEntry;
+  /** The served roster (#628) — needed to resolve `requires_backends` names
+   *  (which may include the retired "triangular") into offerable entries. */
+  roster: BackendRoster;
   requiredBackends: string[] | null;
-  onSwitchBackend: (target: Backend) => void;
+  onSwitchBackend: (target: BackendEntry) => void;
   onPause: () => void;
-  recommendedBackend: Backend | null;
+  recommendedBackend: BackendEntry | null;
   onSolveAnyway: () => void;
   solveError: string | null;
 }) {
@@ -55,20 +59,20 @@ export function SolveOverlays({
             aria-label="Solver unavailable for this design"
           >
             <span className="solver-suggest-title">
-              {BACKEND_LABEL[backend]} can't run this design
+              {backend.label} can't run this design
             </span>
             <span className="solver-suggest-sub">
               {RESTRICTED_BACKEND_REASON} Switch to{" "}
               {(requiredBackends ?? [])
-                .map((r) => normalizeBackend(r))
-                .filter((r): r is Backend => r !== null)
-                .map((r) => BACKEND_LABEL[r])
+                .map((r) => normalizeBackend(r, roster))
+                .filter((r): r is BackendEntry => r !== null)
+                .map((r) => r.label)
                 .join(" / ") || "a supported solver"}{" "}
               to solve it, or pause to keep editing.
             </span>
             <div className="solver-suggest-actions">
               {(() => {
-                const target = normalizeBackend(requiredBackends?.[0]);
+                const target = normalizeBackend(requiredBackends?.[0], roster);
                 return target ? (
                   <button
                     type="button"
@@ -77,7 +81,7 @@ export function SolveOverlays({
                       onSwitchBackend(target);
                     }}
                   >
-                    Switch to {BACKEND_LABEL[target]}
+                    Switch to {target.label}
                   </button>
                 ) : null;
               })()}
@@ -99,12 +103,14 @@ export function SolveOverlays({
             aria-label="Solver mismatch"
           >
             <span className="solver-suggest-title">
-              {BACKEND_LABEL[backend]} is a poor match for this design
+              {backend.label} is a poor match for this design
             </span>
             <span className="solver-suggest-sub">
-              {recommendedBackend === "sinusoidal"
+              {/* Which mismatch this is, read off the roster's capability
+                  flags rather than solver names (#628). */}
+              {recommendedBackend && !recommendedBackend.accelerator
                 ? "This mesh is benchmark-sized — B-spline-family solvers take minutes per solve here (and concurrent solves can exhaust memory). The sinusoidal solver or PyNEC answers in seconds. "
-                : backend === "arrayblock" || backend === "hmatrix"
+                : backend.accelerator
                   ? "This accelerator is overkill on a single-element design — a dense solver (e.g. B-spline) is faster here. "
                   : "This is a large array — a dense solver can be very slow. Array-block is far faster. "}
               Change the solver in the gear menu, solve anyway, or pause to keep

@@ -180,12 +180,10 @@ export type SolveRequest = {
    *  → backend falls back to default_params. */
   variant?: string;
   solver: "momwire" | "pynec";
-  momwire_model?:
-    | "sinusoidal"
-    | "sinusoidal-galerkin"
-    | "bspline"
-    | "hmatrix"
-    | "arrayblock";
+  /** A momwire model name from the served roster (#628) — a plain string,
+   *  not a union: the server owns the registry and validates it, and a
+   *  third copy of the roster here is exactly the drift #628 removes. */
+  momwire_model?: string;
   model_options?: Record<string, unknown>;
   n_per_wire: number;
   design_freq_mhz: number;

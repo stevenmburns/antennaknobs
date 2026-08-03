@@ -1,22 +1,23 @@
 import { useEffect } from "react";
 import {
   backendAllowed,
-  BACKEND_LABEL,
-  isBSplineFamily,
+  BSPLINE_DEFAULT_OPTS,
+  PANEL_BSPLINE,
+  PANEL_PYNEC,
+  PANEL_SIN_GALERKIN,
   RESTRICTED_BACKEND_REASON,
-  type Backend,
-  type BackendOptsMap,
+  type BackendEntry,
+  type BackendOpts,
   type BSplineOpts,
-  type SinGalerkinOpts,
-  type SinusoidalOpts,
+  type FeedModel,
   type Slot,
 } from "../../lib/backends";
 import { NumberField } from "./fields";
 
 export type BackendConfigProps = {
   slot: Slot;
-  backend: Backend;
-  backends: Backend[];
+  backend: BackendEntry;
+  backends: BackendEntry[];
   /** Per-design backend allowlist (`requires_backends`); null = all of
    *  `backends` selectable. Disallowed tabs render disabled with a tooltip
    *  explaining why, rather than disappearing — the picker stays stable
@@ -26,9 +27,9 @@ export type BackendConfigProps = {
    *  antennaknobs#478) — shown as a hint on the Sin-Galerkin feed-model
    *  control. */
   suggestConvergedFeed: boolean;
-  opts: BackendOptsMap[Backend];
-  onChangeBackend: (b: Backend) => void;
-  onPatch: (patch: Partial<BackendOptsMap[Backend]>) => void;
+  opts: BackendOpts;
+  onChangeBackend: (b: BackendEntry) => void;
+  onPatch: (patch: Partial<BackendOpts>) => void;
   onReset: () => void;
   onClose: () => void;
 };
@@ -62,7 +63,7 @@ export function BackendConfigModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="backend-config-header">
-          <strong>Slot {slot} — {BACKEND_LABEL[backend]}</strong>
+          <strong>Slot {slot} — {backend.label}</strong>
           <button className="backend-config-close" onClick={onClose} aria-label="Close">×</button>
         </div>
 
@@ -70,28 +71,34 @@ export function BackendConfigModal({
           <div className="field">
             <label>
               <span>solver</span>
-              <span>{BACKEND_LABEL[backend]}</span>
+              <span>{backend.label}</span>
             </label>
+            {/* Tabs, order and labels are the served roster's (#628): a solver
+                registered server-side appears here with no frontend change. */}
             <div className="geometry-tabs" role="tablist">
               {backends.map((b) => {
                 const allowed = backendAllowed(b, requiredBackends);
                 return (
                   <button
-                    key={b}
+                    key={b.name}
                     role="tab"
-                    aria-selected={backend === b}
-                    className={backend === b ? "active" : ""}
+                    aria-selected={backend.name === b.name}
+                    className={backend.name === b.name ? "active" : ""}
                     disabled={!allowed}
                     title={allowed ? undefined : RESTRICTED_BACKEND_REASON}
                     onClick={() => allowed && onChangeBackend(b)}
                   >
-                    {BACKEND_LABEL[b]}
+                    {b.label}
                   </button>
                 );
               })}
             </div>
           </div>
 
+          {/* Mesh sizing is common to every backend and stays client-side —
+              it is geometry, not a solver kwarg (it never rides
+              model_options). Only its default is per-backend, and that the
+              roster carries. */}
           <NumberField
             label="segments / wire (N)"
             value={opts.nPerWire}
@@ -107,82 +114,45 @@ export function BackendConfigModal({
             onChange={(v) => onPatch({ wireRadius: v })}
           />
 
-          {(backend === "sinusoidal" || backend === "sinusoidal-galerkin") && (
+          {/* Generic numeric knobs, straight from the served options_schema —
+              the same schema-driven loop the terrain panel uses (#560). */}
+          {backend.options_schema.map((f) => (
             <NumberField
-              label="n_qp_const (GL pts)"
-              value={(opts as SinusoidalOpts).nQpConst}
-              min={2}
-              max={32}
-              step={1}
-              onChange={(v) => onPatch({ nQpConst: v } as never)}
+              key={f.key}
+              label={f.label}
+              value={opts.schema[f.key] ?? f.default}
+              min={f.min}
+              max={f.max}
+              step={f.step}
+              onChange={(v) =>
+                onPatch({ schema: { ...opts.schema, [f.key]: v } })
+              }
+            />
+          ))}
+
+          {/* Bespoke panels: selected by the served `panel` hint, never by
+              backend name. Each carries the controls a numeric schema can't
+              express (tab pairs, gated sub-forms, an enum select). */}
+          {backend.panel === PANEL_SIN_GALERKIN && (
+            <FeedModelField
+              value={opts.feedModel ?? "segment"}
+              suggestConvergedFeed={suggestConvergedFeed}
+              onPatch={onPatch}
             />
           )}
 
-          {backend === "sinusoidal-galerkin" && (
-            <div className="field">
-              <label>
-                <span>feed model</span>
-              </label>
-              <div className="geometry-tabs" role="tablist">
-                {(
-                  [
-                    ["segment", "NEC-compatible"],
-                    ["point", "Converged"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    role="tab"
-                    aria-selected={
-                      (opts as SinGalerkinOpts).feedModel === value
-                    }
-                    className={
-                      (opts as SinGalerkinOpts).feedModel === value
-                        ? "active"
-                        : ""
-                    }
-                    title={
-                      value === "segment"
-                        ? "NEC's segment-wide gap: reproduces NEC/EZNEC " +
-                          "behaviour, including reactance drift with mesh " +
-                          "density. Use when cross-checking against NEC " +
-                          "results."
-                        : "Zero-width (point) gap: converges to the " +
-                          "B-spline answer and gives a reciprocal Y. " +
-                          "Recommended for near-open high-Q designs " +
-                          "(momwire#213)."
-                    }
-                    onClick={() => onPatch({ feedModel: value } as never)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {suggestConvergedFeed &&
-                (opts as SinGalerkinOpts).feedModel === "segment" && (
-                  <em
-                    style={{
-                      color: "var(--muted)",
-                      fontSize: "var(--text-sm)",
-                    }}
-                  >
-                    This design's feed is near-open / high-Q: "Converged" is
-                    recommended — it removes up to ~1000× of the cross-basis
-                    disagreement here (momwire#213). "NEC-compatible" remains
-                    right for NEC cross-checks.
-                  </em>
-                )}
-            </div>
-          )}
-
-          {isBSplineFamily(backend) && (
+          {backend.panel === PANEL_BSPLINE && (
             <BSplineFields
-              opts={opts as BSplineOpts}
-              onPatch={(p) => onPatch(p as never)}
+              opts={opts.bspline ?? BSPLINE_DEFAULT_OPTS}
+              onPatch={(p) =>
+                onPatch({
+                  bspline: { ...(opts.bspline ?? BSPLINE_DEFAULT_OPTS), ...p },
+                })
+              }
             />
           )}
 
-          {backend === "pynec" && (
+          {backend.panel === PANEL_PYNEC && (
             <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
               PyNEC has no extra solver knobs here — ground type / fast ground
               live in the main panel.
@@ -196,6 +166,66 @@ export function BackendConfigModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FeedModelField({
+  value,
+  suggestConvergedFeed,
+  onPatch,
+}: {
+  value: FeedModel;
+  suggestConvergedFeed: boolean;
+  onPatch: (patch: Partial<BackendOpts>) => void;
+}) {
+  return (
+    <div className="field">
+      <label>
+        <span>feed model</span>
+      </label>
+      <div className="geometry-tabs" role="tablist">
+        {(
+          [
+            ["segment", "NEC-compatible"],
+            ["point", "Converged"],
+          ] as const
+        ).map(([v, label]) => (
+          <button
+            key={v}
+            role="tab"
+            aria-selected={value === v}
+            className={value === v ? "active" : ""}
+            title={
+              v === "segment"
+                ? "NEC's segment-wide gap: reproduces NEC/EZNEC " +
+                  "behaviour, including reactance drift with mesh " +
+                  "density. Use when cross-checking against NEC " +
+                  "results."
+                : "Zero-width (point) gap: converges to the " +
+                  "B-spline answer and gives a reciprocal Y. " +
+                  "Recommended for near-open high-Q designs " +
+                  "(momwire#213)."
+            }
+            onClick={() => onPatch({ feedModel: v })}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {suggestConvergedFeed && value === "segment" && (
+        <em
+          style={{
+            color: "var(--muted)",
+            fontSize: "var(--text-sm)",
+          }}
+        >
+          This design's feed is near-open / high-Q: "Converged" is
+          recommended — it removes up to ~1000× of the cross-basis
+          disagreement here (momwire#213). "NEC-compatible" remains
+          right for NEC cross-checks.
+        </em>
+      )}
     </div>
   );
 }
