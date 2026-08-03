@@ -1606,6 +1606,37 @@ async def export_nec_endpoint(req: dict):
     )
 
 
+@app.post("/schematic")
+async def schematic_endpoint(req: dict):
+    """Render the design's feed network as an SVG circuit schematic (#652).
+
+    Same builder construction as the live solve, so component labels match
+    the knobs on screen. No solve happens — this is build_network() plus a
+    schemdraw render, cheap enough for the frontend to refetch per knob
+    change. JSON (not a raw SVG response) so "this antenna has no feed
+    circuit" is an answer rather than an error: the schematic view exists
+    for every design and shows an empty state for the ~2/3 without a
+    network.
+    """
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    if ex.schematic_svg is None:
+        return {"available": False}
+    try:
+        svg = await run_in_threadpool(ex.schematic_svg, req)
+    except ValueError as e:
+        # Request validation (bad freq / radius) — 422 like every endpoint.
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ImportError as e:
+        # schemdraw missing: an install without the schematic extra. The
+        # message names the pip command; surfacing it beats a 500.
+        return {"available": False, "reason": str(e)}
+    if svg is None:
+        # build_network() returned None: a plain build_wires antenna.
+        return {"available": False}
+    return {"available": True, "svg": svg}
+
+
 # Upload ceilings for the measured overlay (issue #595). A NanoVNA writes
 # 101–1001 points (a few tens of kB); nanovna-saver's segmented sweeps reach a
 # few thousand. The caps are generous multiples of that — they exist so a

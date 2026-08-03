@@ -851,10 +851,15 @@ def _exit_y(e, fallback: float) -> float:
     return fallback
 
 
-def render_svg(sch: Schematic, path=None) -> str:
+def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     """Draw a :class:`Schematic` and return SVG (also written to ``path``).
 
     Needs the optional extra: ``pip install 'antennaknobs[schematic]'``.
+
+    ``color`` sets the drawing's stroke/text colour. Schemdraw passes it
+    through to the SVG verbatim, so CSS's ``"currentColor"`` works: the web
+    panel inlines the SVG and the schematic follows the app theme with no
+    re-render (the default black would vanish on the dark theme).
     """
     try:
         import schemdraw
@@ -867,6 +872,8 @@ def render_svg(sch: Schematic, path=None) -> str:
     schemdraw.use("svg")
     d = schemdraw.Drawing(show=False)
     d.config(unit=DX, fontsize=FONTSIZE)
+    if color is not None:
+        d.config(color=color)
 
     def symbol(kind):
         return getattr(elm, _SCHEMDRAW_SYMBOLS.get(kind, "RBox"))
@@ -1199,7 +1206,9 @@ def render_svg(sch: Schematic, path=None) -> str:
                 .color("gray")
             )
             if note:
-                box.label(note, loc="top", color="black")
+                # The box's own colour is the de-emphasis gray; the label
+                # re-asserts the drawing colour so it reads as content.
+                box.label(note, loc="top", color=color or "black")
             d += box
 
     if sch.ends_in_antenna and sch.balanced_end:

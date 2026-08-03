@@ -64,7 +64,18 @@ dependencies = [
 #     antennaknobs.web.server — env vars are snapshotted by each library at
 #     import time, which happens (via antennaknobs/__init__) before server.py
 #     can set them (issue #377).
-web = ["fastapi", "uvicorn[standard]", "websockets", "psutil", "threadpoolctl"]
+#   - schemdraw renders the /schematic panel (issue #652). It lives here as
+#     well as in the `schematic` extra because the Docker image installs
+#     ".[web]" only — without it the endpoint would 500 in production while
+#     the test extra (which includes schemdraw) kept CI green.
+web = [
+    "fastapi",
+    "uvicorn[standard]",
+    "websockets",
+    "psutil",
+    "threadpoolctl",
+    "schemdraw>=0.19",
+]
 
 # VNA capture (`antennaknobs capture`, issue #597): pyserial drives the USB
 # serial console of a NanoVNA. Optional because talking to hardware is a

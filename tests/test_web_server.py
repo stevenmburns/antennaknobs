@@ -2881,3 +2881,33 @@ def test_momwire_ground_off_reports_free_model():
     )
     assert resp["ground_model_applied"] == "free"
     assert resp["ground_eps_r"] == pytest.approx(1.0e10)
+
+
+# ---------------------------------------------------------------------------
+# /schematic (issue #652)
+# ---------------------------------------------------------------------------
+
+
+def test_schematic_returns_themed_svg_for_a_networked_design(client: TestClient):
+    resp = client.post("/schematic", json={"geometry": "dipoles.invvee_coax_station"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert "<svg" in data["svg"]
+    # The frontend inlines the SVG, so the drawing must use currentColor
+    # (a hard-coded black would vanish on the dark theme).
+    assert "currentColor" in data["svg"]
+
+
+def test_schematic_says_no_feed_circuit_for_a_plain_antenna(client: TestClient):
+    resp = client.post("/schematic", json={"geometry": "dipoles.invvee"})
+    assert resp.status_code == 200
+    assert resp.json() == {"available": False}
+
+
+def test_schematic_labels_track_the_request_params(client: TestClient):
+    # Same design, different knob values → different component labels.
+    base = {"geometry": "dipoles.invvee_coax_station"}
+    a = client.post("/schematic", json=base).json()["svg"]
+    b = client.post("/schematic", json={**base, "line_len_m": 10.0}).json()["svg"]
+    assert a != b

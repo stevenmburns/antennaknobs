@@ -332,6 +332,14 @@ class AntennaExample:
     # request (params/variant/freq/ground). None when the design has no
     # faithful native-NEC representation (TL/virtual-driver networks).
     nec_export: Optional[Callable[[dict], str]] = None
+    # Render the design's build_network() — feedline, tuner, balun, and the
+    # port the source sits on — as an SVG circuit schematic for the current
+    # request (issue #652). The callable returns None when the design has no
+    # network (a plain build_wires antenna — only knowable by building the
+    # builder, since the base class defines build_network() returning None):
+    # the /schematic endpoint then answers "no feed circuit" instead of
+    # drawing an empty picture.
+    schematic_svg: Optional[Callable[[dict], Optional[str]]] = None
     # Serialise the request's current knob values back to a paste-ready
     # Python `default_params = {...}` (or named-variant) block, so the UI can
     # offer a "Copy Python" action that drops straight into a design file.
