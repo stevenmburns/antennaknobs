@@ -27,7 +27,7 @@ import {
   type SchemaItem,
   type SchemaParamSpec,
 } from "../../lib/params";
-import { MOBILE_SCREENS, type View } from "../../lib/view";
+import { mobileScreens, type View } from "../../lib/view";
 import type {
   MeasuredData,
   SolveRequest,
@@ -69,6 +69,7 @@ import {
 import { useCapabilities } from "./useCapabilities";
 import { useDesignCatalog } from "./useDesignCatalog";
 import { useGroundConfig } from "./useGroundConfig";
+import { MobileDots } from "./MobileDots";
 import { useMobileCarousel } from "./useMobileCarousel";
 import { useOptimizer } from "./useOptimizer";
 import { useSchematic } from "./useSchematic";
@@ -604,7 +605,11 @@ function DesignSessionBody({
     mobChartSize,
     onMobileCarouselScroll,
     goToMobileScreen,
-  } = useMobileCarousel({ isMobile, orientation, view, setView });
+  } = useMobileCarousel({ isMobile, orientation, pinned, view, setView });
+  // The carousel's pages: the pinned views in pin order plus the trailing Info
+  // screen. The dots row renders the SAME list, so a page can never exist
+  // without a dot (or the reverse) — see MobileDots.
+  const screens = useMemo(() => mobileScreens(pinned), [pinned]);
   // The pinned-pattern comparison table minimizes to a "{n} pinned" chip so
   // it can get off the chart — it grows a row per pin and swallows a phone
   // screen. Starts collapsed on mobile, expanded on desktop (the pre-existing
@@ -1437,8 +1442,10 @@ function DesignSessionBody({
     </>
   );
 
-  // Mobile: knobs pane + a 5-screen scroll-snap output carousel, instead of
-  // the desktop thumbstrip/HUD stage. A distinct tree (not CSS-hiding the
+  // Mobile: knobs pane + a scroll-snap output carousel over the PINNED views
+  // plus Info (#700 unit 4 — the roster lives behind the dots row's "⋯" sheet,
+  // as the rail's picker does on desktop), instead of the desktop
+  // thumbstrip/HUD stage. A distinct tree (not CSS-hiding the
   // desktop one) keeps both layouts honest; the shared pieces are exactly the
   // hoisted consts above. All hooks already ran, so branching here is safe.
   if (isMobile) {
@@ -1456,7 +1463,7 @@ function DesignSessionBody({
             ref={mobileCarouselRef}
             onScroll={onMobileCarouselScroll}
           >
-            {MOBILE_SCREENS.map((s) => (
+            {screens.map((s) => (
               <div
                 key={s.id}
                 className={`mobile-screen${s.id === "info" ? " mobile-screen-info" : ""}`}
@@ -1490,18 +1497,16 @@ function DesignSessionBody({
               </div>
             ))}
           </div>
-          <div className="mobile-dots" aria-label="Output screens">
-            {MOBILE_SCREENS.map((s, i) => (
-              <button
-                key={s.id}
-                type="button"
-                className={i === mobileIndex ? "active" : ""}
-                aria-label={`Show ${s.label}`}
-                title={s.label}
-                onClick={() => goToMobileScreen(i)}
-              />
-            ))}
-          </div>
+          <MobileDots
+            screens={screens}
+            index={mobileIndex}
+            goToScreen={goToMobileScreen}
+            view={view}
+            pinned={pinned}
+            newIds={newIds}
+            togglePin={toggleViewPin}
+            markRosterSeen={markRosterSeen}
+          />
         </section>
       </div>
     );

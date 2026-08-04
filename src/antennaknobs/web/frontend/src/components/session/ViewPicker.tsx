@@ -2,6 +2,77 @@ import { useRef, useState } from "react";
 import { VIEWS, type View } from "../../lib/view";
 import { PIN_CAP, pinBlockedReason } from "./useViewPrefs";
 
+// The roster listing both containers share: same rows, same pin dots, same
+// NEW badges, whole registry in registry order. Only the NAME button's gesture
+// differs between them, which is what `onRowClick`/`rowBlocked` parameterize.
+//
+// `rowBlocked` is undefined on desktop, where a row is always clickable (it
+// shows a view, and showing can't be refused). Undefined props render as
+// absent attributes, so the popover's DOM is byte-identical to what it was
+// before the sheet existed — the picker tests pin that.
+function ViewRosterRows({
+  view,
+  pinned,
+  badged,
+  onRowClick,
+  togglePin,
+  rowBlocked,
+}: {
+  view: View;
+  pinned: View[];
+  badged: Set<View>;
+  onRowClick: (v: View) => void;
+  togglePin: (v: View) => void;
+  rowBlocked?: (v: View) => string | null;
+}) {
+  return (
+    <>
+      {VIEWS.map((v) => {
+        const isPinned = pinned.includes(v.id);
+        const blocked = pinBlockedReason(pinned, v.id);
+        const rowStop = rowBlocked ? rowBlocked(v.id) : null;
+        return (
+          <div
+            key={v.id}
+            className={`view-picker-row${isPinned ? " pinned" : " unpinned"}${
+              v.id === view ? " active" : ""
+            }`}
+          >
+            <button
+              type="button"
+              className="view-picker-name"
+              role="menuitem"
+              aria-current={v.id === view}
+              disabled={rowBlocked ? rowStop !== null : undefined}
+              title={rowBlocked ? (rowStop ?? undefined) : undefined}
+              onClick={() => onRowClick(v.id)}
+            >
+              <span>{v.label}</span>
+              {badged.has(v.id) && <span className="view-picker-new">NEW</span>}
+            </button>
+            <button
+              type="button"
+              className="view-picker-dot"
+              aria-pressed={isPinned}
+              disabled={blocked !== null}
+              title={
+                blocked ??
+                (isPinned
+                  ? `Unpin ${v.label} from the rail`
+                  : `Pin ${v.label} to the rail`)
+              }
+              aria-label={isPinned ? `Unpin ${v.label}` : `Pin ${v.label}`}
+              onClick={() => togglePin(v.id)}
+            >
+              <span />
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // The overflow affordance: a fixed-height "All views ⌄ +N" button at the foot
 // of the thumbstrip opening a popover over the WHOLE roster in registry order
 // (unit 2 of docs/plan-view-rail-scaling.md). Two gestures per row, on purpose:
@@ -87,52 +158,16 @@ export function ViewPicker({
             role="menu"
             style={{ left: anchor.left, bottom: anchor.bottom }}
           >
-            {VIEWS.map((v) => {
-              const isPinned = pinned.includes(v.id);
-              const blocked = pinBlockedReason(pinned, v.id);
-              return (
-                <div
-                  key={v.id}
-                  className={`view-picker-row${isPinned ? " pinned" : " unpinned"}${
-                    v.id === view ? " active" : ""
-                  }`}
-                >
-                  <button
-                    type="button"
-                    className="view-picker-name"
-                    role="menuitem"
-                    aria-current={v.id === view}
-                    onClick={() => {
-                      setView(v.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <span>{v.label}</span>
-                    {badged.has(v.id) && (
-                      <span className="view-picker-new">NEW</span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="view-picker-dot"
-                    aria-pressed={isPinned}
-                    disabled={blocked !== null}
-                    title={
-                      blocked ??
-                      (isPinned
-                        ? `Unpin ${v.label} from the rail`
-                        : `Pin ${v.label} to the rail`)
-                    }
-                    aria-label={
-                      isPinned ? `Unpin ${v.label}` : `Pin ${v.label}`
-                    }
-                    onClick={() => togglePin(v.id)}
-                  >
-                    <span />
-                  </button>
-                </div>
-              );
-            })}
+            <ViewRosterRows
+              view={view}
+              pinned={pinned}
+              badged={badged}
+              togglePin={togglePin}
+              onRowClick={(v) => {
+                setView(v);
+                setOpen(false);
+              }}
+            />
             <div className="view-picker-note">
               Row = show · dot = keep in rail · max {PIN_CAP} pinned
             </div>
@@ -140,5 +175,85 @@ export function ViewPicker({
         </>
       )}
     </div>
+  );
+}
+
+// The mobile half of the same affordance (#700 unit 4): a "⋯" button riding
+// the dots row that opens the SAME roster as a bottom sheet. It renders its
+// own trigger, exactly as ViewPicker does, so opening — and therefore marking
+// the roster seen and snapshotting the NEW badges — has one implementation.
+//
+// The row gesture is the one real difference: here a row tap PINS/unpins,
+// like the desktop pin dot, and there is NO peek. A peeked page would be a
+// carousel page with no pin behind it, breaking the "pages = pinned + Info"
+// mapping (and every index compare in useMobileCarousel) for one gesture's
+// worth of convenience — the plan spells this out. So both row and dot toggle,
+// and both are inert for the same reason at the cap and at the floor of one.
+export function ViewSheet({
+  view,
+  pinned,
+  newIds,
+  togglePin,
+  markRosterSeen,
+}: {
+  view: View;
+  pinned: View[];
+  newIds: Set<View>;
+  togglePin: (v: View) => void;
+  markRosterSeen: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // Snapshotted as the sheet opens, for the same reason as the popover's:
+  // opening is what marks the roster seen, so live `newIds` would blank every
+  // badge in the frame the user opened the sheet to read them.
+  const [badged, setBadged] = useState<Set<View>>(new Set());
+
+  const toggleOpen = () => {
+    setOpen((was) => {
+      if (!was) {
+        setBadged(new Set(newIds));
+        markRosterSeen();
+      }
+      return !was;
+    });
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className="mobile-dots-more"
+        onClick={toggleOpen}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="All views"
+        title="Every output view — tap one to add or remove its page"
+      >
+        ⋯
+      </button>
+      {open && (
+        <>
+          <div className="view-sheet-backdrop" onClick={() => setOpen(false)} />
+          {/* No anchor measurement, unlike the popover: the sheet is pinned to
+              the viewport's bottom edge, which is also the only place a phone
+              can put a list this tall within thumb reach. */}
+          <div className="view-sheet" role="menu" aria-label="All views">
+            <ViewRosterRows
+              view={view}
+              pinned={pinned}
+              badged={badged}
+              togglePin={togglePin}
+              // Curating is a run of gestures — the sheet does NOT close on a
+              // tap, so several pages can be added or dropped in one visit.
+              onRowClick={togglePin}
+              rowBlocked={(id) => pinBlockedReason(pinned, id)}
+            />
+            <div className="view-picker-note">
+              Tap a view to add or remove its page · max {PIN_CAP} pages
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }

@@ -2906,6 +2906,64 @@ canvas {
   opacity: 1;
 }
 
+/* The overflow affordance at the end of the dots row (#700 unit 4). It is not
+   a page — it changes which pages exist — so it suppresses the dot pseudo and
+   draws its own glyph. */
+.mobile-dots-more::before {
+  display: none;
+}
+
+.mobile-dots-more {
+  color: var(--muted);
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+/* Dimmed, unlike the desktop picker's transparent catcher: the sheet covers
+   the bottom of the screen rather than sitting beside its button, so the
+   backdrop has to read as "this layer is above the carousel". */
+.view-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--shadow);
+}
+
+/* Bottom sheet: the phone form of the same roster popover. Full width and
+   pinned to the bottom edge — the only place a list this tall is in thumb
+   reach — and capped so the carousel stays visible behind it. */
+.view-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3) var(--space-5);
+  background: var(--bg);
+  border-top: 1px solid var(--border-control);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  box-shadow: 0 -6px 20px var(--shadow-strong);
+}
+
+/* Touch-sized rows (cf. the coarse-pointer block below): the popover's 24 px
+   dot and tight row padding are mouse dimensions. */
+.view-sheet .view-picker-name {
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--text-base);
+}
+
+.view-sheet .view-picker-dot {
+  width: 40px;
+  height: 40px;
+}
+
+.view-sheet .view-picker-name:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 /* The solve overlays are shared with the desktop stage. Most are absolutely
    positioned and just work inside .mobile-output; .solve-error is a flow
    child on desktop, so float it over the carousel here. */
