@@ -3,7 +3,13 @@
 // convergence sweep and the SWR/Smith-chart readouts.
 import { describe, it, expect } from "vitest";
 import { reflectionCoefficient } from "../lib/format";
-import { feedwiseRichardson, richardsonExtrap } from "../lib/math";
+import {
+  feedwiseRichardson,
+  gammaMagFromZ,
+  richardsonExtrap,
+  VSWR_CEILING,
+  vswrFromGammaMag,
+} from "../lib/math";
 
 describe("richardsonExtrap", () => {
   it("returns null for fewer than 3 points", () => {
@@ -122,5 +128,65 @@ describe("reflectionCoefficient", () => {
     expect(gRe).toBeCloseTo(0.2, 12);
     expect(gIm).toBeCloseTo(0.4, 12);
     expect(gMag).toBeCloseTo(0.447213595499958, 12);
+  });
+});
+
+// --- gammaMagFromZ / vswrFromGammaMag ---------------------------------------
+// Closed-form oracle values for the gamma/VSWR-vs-frequency sweep charts
+// (issue #700 unit 5). gammaMagFromZ is a wrapper over reflectionCoefficient,
+// but pinned independently here — a caller that swapped the gamma/VSWR
+// conversion (e.g. plotting VSWR numbers under the gamma label) must fail
+// against these, not just against reflectionCoefficient's own suite.
+describe("gammaMagFromZ", () => {
+  it("is zero at a matched load", () => {
+    expect(gammaMagFromZ(50, 0, 50)).toBeCloseTo(0, 12);
+  });
+
+  it("is 1/3 for a 2:1 real mismatch, either direction", () => {
+    expect(gammaMagFromZ(100, 0, 50)).toBeCloseTo(1 / 3, 12);
+    expect(gammaMagFromZ(25, 0, 50)).toBeCloseTo(1 / 3, 12);
+  });
+
+  // R == X == Z0: a real-part-only (or naive-magnitude) shortcut would read
+  // this as gRe alone (0.2) — the true value needs the reactive component
+  // folded in via Math.hypot, which is what distinguishes a complex |·|
+  // from real-part arithmetic.
+  it("is 1/sqrt(5) for a reactive load, not the real-part-only value", () => {
+    const g = gammaMagFromZ(50, 50, 50);
+    expect(g).toBeCloseTo(1 / Math.sqrt(5), 12);
+    expect(g).not.toBeCloseTo(0.2, 3);
+  });
+
+  it("is 1 at a dead short or dead open", () => {
+    expect(gammaMagFromZ(0, 0, 50)).toBeCloseTo(1, 12);
+  });
+});
+
+describe("vswrFromGammaMag", () => {
+  it("is 1 (perfectly matched) at |Γ| = 0", () => {
+    expect(vswrFromGammaMag(0)).toBeCloseTo(1, 12);
+  });
+
+  it("is 2 at |Γ| = 1/3 (the 2:1 real-mismatch oracle pair)", () => {
+    expect(vswrFromGammaMag(1 / 3)).toBeCloseTo(2, 12);
+  });
+
+  it("agrees with the gammaMagFromZ oracle pairs end to end", () => {
+    expect(vswrFromGammaMag(gammaMagFromZ(50, 0, 50))).toBeCloseTo(1, 12);
+    expect(vswrFromGammaMag(gammaMagFromZ(100, 0, 50))).toBeCloseTo(2, 12);
+    expect(vswrFromGammaMag(gammaMagFromZ(25, 0, 50))).toBeCloseTo(2, 12);
+  });
+
+  it("clamps to the finite ceiling at and beyond |Γ| = 1", () => {
+    expect(vswrFromGammaMag(1)).toBe(VSWR_CEILING);
+    expect(vswrFromGammaMag(1.5)).toBe(VSWR_CEILING);
+  });
+
+  it("stays under the ceiling and monotonic below the point it clamps", () => {
+    // (1+0.98)/(1-0.98) = 99 exactly, so 0.9 stays comfortably under the
+    // ceiling while still exercising the un-clamped branch of the formula.
+    const v = vswrFromGammaMag(0.9);
+    expect(v).toBeLessThan(VSWR_CEILING);
+    expect(v).toBeGreaterThan(vswrFromGammaMag(0.5));
   });
 });
