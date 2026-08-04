@@ -211,9 +211,14 @@ class Builder(AntennaBuilder):
             # Rope tension holding each arm's far end. LIVE under
             # rig_model="halyard" only; ignored entirely under
             # "anchored_rope", where tension is a rig_report() readout, not
-            # an input. ~9 lbf: a realistic hand-tensioned dacron halyard
-            # pull.
-            "tension_n": 40.0,
+            # an input. The default is deliberately LIGHT: this wire is only
+            # ~5 g/m, so a real hand-tensioned halyard (tens of newtons)
+            # pulls it straight to within a millimetre and the catenary —
+            # the design's whole point — becomes invisible. 0.3 N sags the
+            # stock arm ~7.5 cm (visibly bowed at stock zoom) and happens to
+            # sit near resonance at the stock length_factor; the slider's
+            # top end is the taut-halyard regime that straightens it.
+            "tension_n": 0.3,
             # Stake / ground-anchor position in the arm's vertical plane,
             # horizontal distance from the mast and height above ground.
             # Shared by both models (see the module docstring): model 1
@@ -249,7 +254,13 @@ class Builder(AntennaBuilder):
                     "rig_model": {
                         "enum_options": ("halyard", "anchored_rope"),
                     },
-                    "tension_n": {"min": 2.0, "max": 400.0},
+                    # 0.1 N (barely restrained, ~11 cm of sag on the stock
+                    # arm) up to 40 N (~9 lbf, a hand-tensioned dacron
+                    # halyard — visibly straight). The old 2–400 N range put
+                    # the ENTIRE visible-droop regime below the slider's
+                    # floor: at ~5 g/m of wire, sag is already under 2 cm at
+                    # 2 N and sub-millimetre at 400 N.
+                    "tension_n": {"min": 0.1, "max": 40.0},
                     "stake_dist": {"min": 1.0, "max": 6.0},
                     "stake_height": {"min": 0.0, "max": 3.0},
                     # 0.05 mm (near the taut/high-tension extreme a real

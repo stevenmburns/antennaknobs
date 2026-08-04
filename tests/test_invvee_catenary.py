@@ -174,11 +174,18 @@ def test_cut_length_invariant_under_tension():
             expected_arm_length, rel=1e-12
         )
 
-    # Total emitted polyline length ~= 2 arms + the short feed wire.
-    wires = b.build_wires()
-    total = sum(math.dist(w.p0, w.p1) for w in wires)
+    # Total emitted polyline length ~= 2 arms + the short feed wire. Chords
+    # under-measure a curved arc by O((sag/chord)^2), so the strict 1e-6
+    # check belongs in the taut limit, where the arm is straight; at the
+    # droopy stock default (0.3 N since the visible-droop default change)
+    # the chordal total must still come in just UNDER the true cut length,
+    # never over, and within the coarse bound the stock chord count sets.
     expected_total = 2.0 * expected_arm_length + 2.0 * _EPS
-    assert total == pytest.approx(expected_total, rel=1e-6)
+    taut = sum(math.dist(w.p0, w.p1) for w in _builder(tension_n=1.0e4).build_wires())
+    assert taut == pytest.approx(expected_total, rel=1e-6)
+    total = sum(math.dist(w.p0, w.p1) for w in b.build_wires())
+    assert total <= expected_total
+    assert total == pytest.approx(expected_total, rel=1e-3)
 
 
 # ---------------------------------------------------------------------------
