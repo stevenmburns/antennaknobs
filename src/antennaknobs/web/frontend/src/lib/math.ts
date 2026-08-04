@@ -1,3 +1,24 @@
+import { reflectionCoefficient } from "./format";
+
+// |Γ| from Z = re + j·im referenced to z0. A thin wrapper over
+// reflectionCoefficient's gMag (lib/format.ts) rather than a second copy of
+// the formula — the Smith chart and the gamma/VSWR sweep charts (issue #700
+// unit 5) must never disagree about what |Γ| is for a given Z.
+export function gammaMagFromZ(re: number, im: number, z0: number): number {
+  return reflectionCoefficient(re, im, z0).gMag;
+}
+
+// VSWR = (1+|Γ|)/(1-|Γ|) blows up as |Γ| → 1 (a dead open/short feed). A
+// finite ceiling keeps that one sample from stretching a chart's y-axis
+// into a straight line at the horizon; 99 matches formatSwr's own
+// three-nines display cutoff (lib/format.ts) so "off the chart" means the
+// same thing in both places.
+export const VSWR_CEILING = 99;
+export function vswrFromGammaMag(gMag: number): number {
+  if (gMag >= 1) return VSWR_CEILING;
+  return Math.min((1 + gMag) / (1 - gMag), VSWR_CEILING);
+}
+
 // Richardson-style extrapolation Z(1/N) → Z(N→∞). Fits Z = a₀ + a₁·h + a₂·h²
 // (h = 1/N) on the last `nLast` points via least squares and returns a₀.
 // Quadratic gives a sane answer for O(1/N) limit (BSpline without
