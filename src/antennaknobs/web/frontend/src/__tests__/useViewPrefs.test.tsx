@@ -1,9 +1,15 @@
 // Pins the view-preference model against the SHIPPED roster (unit 2 of
 // docs/plan-view-rail-scaling.md): the default pin set, what the desktop rail
-// derives from it, the arrow-key cycle, and the localStorage contract —
-// including every way the stored record can be garbage. The cap and the NEW
-// badge need a roster bigger than the five views we ship, so they live in
+// derives from it, the arrow-key cycle, the NEW badge, and the localStorage
+// contract — including every way the stored record can be garbage. The 6-pin
+// cap needs a roster bigger than the cap itself, so it lives in
 // ViewPicker.test.tsx, which mocks a larger one.
+//
+// Roster growth is the normal case here (|Γ| and VSWR landed while this file
+// was being written), so anything sized by the roster is DERIVED from VIEWS.
+// Two literals are deliberate: FOUNDING, because "the founding four are the
+// defaults and later views ship unpinned" is the claim itself, and
+// PRE_PICKER, which mirrors the frozen seed inside useViewPrefs.
 //
 // Isolation: the prefs store is module-level (one truth for every open
 // session), and it drops its cache when the last subscriber unmounts, so
@@ -11,7 +17,7 @@
 // whatever it wrote into localStorage.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import type { View } from "../lib/view";
+import { VIEWS, type View } from "../lib/view";
 import {
   PIN_CAP,
   VIEW_PREFS_KEY,
@@ -22,6 +28,15 @@ import {
 import { useViewState } from "../components/session/useViewState";
 
 const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
+const ROSTER = VIEWS.map((v) => v.id);
+// A deliberate mirror of useViewPrefs' SEEN_SEED (not exported: it records a
+// frozen historical fact rather than offering a knob). Copying it here means a
+// change to the production seed surfaces as a failure in the badge tests,
+// which is exactly where the seed's meaning lives.
+const PRE_PICKER: View[] = ["antenna", "azimuth", "elevation", "smith", "schematic"];
+// Views that shipped after the picker did — the population the NEW badge
+// exists for. Empty on the day the picker shipped, non-empty ever since.
+const POST_PICKER = ROSTER.filter((id) => !PRE_PICKER.includes(id));
 
 beforeEach(() => {
   localStorage.clear();
@@ -55,9 +70,16 @@ describe("defaults", () => {
     ]);
   });
 
-  it("badges nothing for a first-time user (seen is seeded, not empty)", () => {
+  // The seed's whole purpose, now firing for real: a first-time user is shown
+  // the pre-picker roster as already-seen and every view that shipped AFTER
+  // the picker as NEW. Seeding from the live VIEWS instead would badge none of
+  // them, ever, for exactly the users who have never seen any of it.
+  it("badges the views that shipped after the picker, and only those", () => {
     const { result } = renderHook(() => useViewPrefs());
-    expect([...result.current.newIds]).toEqual([]);
+    expect([...result.current.newIds]).toEqual(POST_PICKER);
+    expect(POST_PICKER).toContain("gamma");
+    expect(POST_PICKER).toContain("vswr");
+    for (const id of PRE_PICKER) expect(result.current.newIds.has(id)).toBe(false);
   });
 });
 
@@ -122,13 +144,20 @@ describe("persistence", () => {
 // --- 4. Nothing read back from storage is trusted ---------------------------
 
 describe("stored-record validation", () => {
+  // Ids no release will ever ship — a stale pin from a REMOVED view, or a
+  // hand-edited key. Asserted, not assumed: "gamma" was this file's stand-in
+  // for an unknown id until the day it became a real view.
+  it("uses id fixtures the registry really does not know", () => {
+    for (const id of ["bogus", "no-such-view"]) expect(ROSTER).not.toContain(id);
+  });
+
   const falls_back = [
     ["corrupt JSON", "{not json"],
     ["a bare array", '["antenna"]'],
     ["a null record", "null"],
     ["no pinned field", '{"seen":["antenna"]}'],
     ["a non-array pinned field", '{"pinned":"antenna"}'],
-    ["only unknown ids", '{"pinned":["bogus","gamma"]}'],
+    ["only unknown ids", '{"pinned":["bogus","no-such-view"]}'],
     ["an empty pin set", '{"pinned":[]}'],
   ] as const;
 
@@ -149,21 +178,21 @@ describe("stored-record validation", () => {
     expect(result.current.pinned).toEqual(["smith", "antenna"]);
   });
 
+  // A `seen` that sanitises to nothing is indistinguishable from an absent
+  // one, so it takes the seed — which leaves the same badges a first-time
+  // user gets, not a blank slate and not the whole roster.
   it("re-seeds `seen` when the stored one has nothing usable left", () => {
     localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["smith"],"seen":["bogus"]}');
     const { result } = renderHook(() => useViewPrefs());
-    expect([...result.current.newIds]).toEqual([]);
+    expect([...result.current.newIds]).toEqual(POST_PICKER);
   });
 
-  it("honours a partial `seen` — the unseen views badge", () => {
+  it("honours a partial `seen` — every other view badges", () => {
     localStorage.setItem(VIEW_PREFS_KEY, '{"pinned":["smith"],"seen":["antenna"]}');
     const { result } = renderHook(() => useViewPrefs());
-    expect([...result.current.newIds].sort()).toEqual([
-      "azimuth",
-      "elevation",
-      "schematic",
-      "smith",
-    ]);
+    expect([...result.current.newIds]).toEqual(
+      ROSTER.filter((id) => id !== "antenna"),
+    );
   });
 });
 
