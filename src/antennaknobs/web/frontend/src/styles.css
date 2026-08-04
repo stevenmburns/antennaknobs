@@ -1902,13 +1902,11 @@ input[type=checkbox] {
   z-index: 40;
 }
 
-/* Opens to the RIGHT of the rail, bottom-aligned with its button: the rail
-   hugs the window's left edge, so a menu dropping below would fall off the
-   short columns this whole feature exists to serve. */
+/* Placement (left/bottom) comes from the component's measurement of its
+   button — .thumbstrip is overflow:hidden, which would clip an absolutely
+   positioned child, and a fixed one escapes that. */
 .view-picker {
-  position: absolute;
-  bottom: 0;
-  left: calc(100% + var(--space-3));
+  position: fixed;
   z-index: 41;
   min-width: 200px;
   max-height: min(70vh, 460px);
