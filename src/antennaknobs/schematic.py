@@ -41,6 +41,12 @@ is drawn as two conductors, with the isolation barrier at the balun and no
 ground symbol past it. Drawing an implied ground there would assert a bond the
 hardware does not have, which is the one thing a schematic must not do.
 
+Nothing forces a network to be a *single* chain either. A corporate feed
+forks: the trunk carries one arm and every other arm is a `Branch` (issue
+#685) — its own chain, forked at a junction dot on the drawing and ending at
+its own named antenna. Ports a chain merely passes through (an LPDA's
+phasing line touches every element) are marked and named on the wire.
+
 Nothing forces a network to be a chain at all. A trap sits in a dipole leg and
 a Sterba curtain's risers bridge points on the structure; those are
 `Schematic.attachments`, drawn where they attach and named by the nodes they
@@ -75,6 +81,7 @@ __all__ = [
     "Element",
     "Schematic",
     "Block",
+    "Branch",
     "series",
     "retn",
     "shunt",
@@ -207,8 +214,39 @@ class Block:
 
 
 @dataclass
+class Branch:
+    """A feed branch (issue #685): a chain forked off another chain.
+
+    A corporate feed splits at a junction; past the trunk each split is its
+    own run of branches ending at its own antenna port. It is a *chain* —
+    drawn with the same symbols, owning its own ribs — not an attachment: an
+    attachment row says "wired into the antenna structure", which a feedline
+    emphatically is not.
+
+    ``parent`` is where it forks from: ``-1`` for the trunk, else an index
+    into ``Schematic.branches``. ``at`` is the block boundary on that parent
+    (0 = in front of its first block, ``len(blocks)`` = at its antenna end)
+    and ``origin`` names the junction node there.
+    """
+
+    origin: str
+    parent: int
+    at: int
+    blocks: list[Block] = field(default_factory=list)
+    balanced_start: bool = False  # forks off a floating pair, not a node
+    balanced_end: bool = False
+    antenna_name: str = ""
+    #: (block boundary, port name) — antenna ports this branch passes through.
+    marks: list[tuple[int, str]] = field(default_factory=list)
+
+
+@dataclass
 class Schematic:
     """A whole drawing: the source, the chain, and what it ends in.
+
+    ``branches`` are feed branches — the other arms of a corporate feed,
+    forked off the trunk (or off another branch) at a named junction and
+    ending at their own antenna ports.
 
     ``attachments`` are branches wired into the antenna structure rather than
     between the source and it — a trap in a dipole leg, a Sterba curtain's
@@ -238,6 +276,11 @@ class Schematic:
     plane_cut: int | None = None
     title: str = ""
     notes: list[str] = field(default_factory=list)
+    branches: list[Branch] = field(default_factory=list)
+    #: (block boundary, port name) — antenna ports the trunk passes through.
+    #: An LPDA's chain touches d8…d1 on the way to d0; without the marks they
+    #: draw as anonymous wire (issue #685).
+    marks: list[tuple[int, str]] = field(default_factory=list)
     attachments: list[Block] = field(default_factory=list)
 
 
@@ -508,7 +551,7 @@ def fragment_of(net, path):
 _WALK_BUDGET = 20000
 
 
-def _walk(branches, start, targets, is_datum):
+def _walk(branches, start, targets, is_datum, used=frozenset()):
     """The longest run of branches carrying the source's pair to an antenna.
 
     Depth-first over ``(signal, return)`` states, no branch used twice.
@@ -520,6 +563,11 @@ def _walk(branches, start, targets, is_datum):
     port, so a shortest-path walk would draw one section and stop, and the
     other eight would vanish. Walking to the end of the line is also what a
     person drawing it does.
+
+    ``start`` is a node name (paired with the datum) or a ``(hot, cold)``
+    pair-state — the latter is how a branch chain is walked from the junction
+    it forks at (issue #685). ``used`` masks branches other chains already
+    claimed, so two chains never draw the same branch.
     """
     best = []
     budget = [_WALK_BUDGET]
@@ -527,7 +575,7 @@ def _walk(branches, start, targets, is_datum):
     def canon(n):
         return DATUM if n in is_datum else n
 
-    def dfs(state, used, chain):
+    def dfs(state, taken, chain):
         nonlocal best
         if budget[0] <= 0:
             return
@@ -536,7 +584,7 @@ def _walk(branches, start, targets, is_datum):
             best = list(chain)
         hot, cold = state
         for idx, br in enumerate(branches):
-            if idx in used:
+            if idx in taken:
                 continue
             for nhot, ncold, orient, leg, bal in _moves(br, hot, cold, canon):
                 nhot, ncold = canon(nhot), canon(ncold)
@@ -544,10 +592,11 @@ def _walk(branches, start, targets, is_datum):
                     continue  # a step onto its own return is not a step
                 nxt = (nhot, ncold)
                 chain.append(Step(idx, orient, leg, bal, state, nxt))
-                dfs(nxt, used | {idx}, chain)
+                dfs(nxt, taken | {idx}, chain)
                 chain.pop()
 
-    dfs((canon(start), DATUM), frozenset(), [])
+    hot, cold = start if isinstance(start, tuple) else (start, DATUM)
+    dfs((canon(hot), canon(cold)), frozenset(used), [])
     return best
 
 
@@ -650,38 +699,82 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
         return total or None
 
     chain = _walk(branches, sch.source, targets, is_datum)
-    on_chain = {st.idx for st in chain}
+    used = {st.idx for st in chain}
     sch.balanced_end = bool(chain) and chain[-1].balanced
     if chain and len(set(targets.values())) > 1:
         # Several antenna ports: say which one this chain reached, so it can
-        # be told apart from a parallel feed drawn in the attachments.
+        # be told apart from a parallel feed drawn beside it.
         end_names = {targets[t] for t in chain[-1].pair_out if t in targets}
         sch.antenna_name = ", ".join(sorted(end_names))
 
+    # Branch chains (issue #685). A corporate feed forks: for every antenna
+    # port the trunk did not reach, walk again from each state the drawing
+    # already holds, over the branches no chain has claimed. Each hit is a
+    # feed branch — the other arm of the fan-out — recorded with the state it
+    # forked from so the junction can be marked. Walks aim only at antenna
+    # ports still unfed: a second path onto an antenna already drawn is not a
+    # feed structure, and hijacking ribs to draw one would fabricate a loop.
+    # New chains join the scan, so a depth-2 corporate tree forks off a fork.
+    def _ports_on(ch):
+        return {
+            targets[t]
+            for st in ch
+            for s in (st.pair_in, st.pair_out)
+            for t in s
+            if t in targets
+        }
+
+    chains = [chain]
+    forks: list[tuple[int, int, str] | None] = [None]  # (parent, state, node)
+    fed = _ports_on(chain)
+    grew = bool(chain)
+    while grew:
+        grew = False
+        for ci in range(len(chains)):
+            states_of = [chains[ci][0].pair_in]
+            states_of += [st.pair_out for st in chains[ci]]
+            for si, state in enumerate(states_of):
+                unfed = {n: p for n, p in targets.items() if p not in fed}
+                if not unfed:
+                    break
+                sub = _walk(branches, state, unfed, is_datum, used)
+                if not sub:
+                    continue
+                used |= {st.idx for st in sub}
+                chains.append(sub)
+                forks.append((ci, si, state[0]))
+                fed |= _ports_on(sub)
+                grew = True
+
     # Nodes the drawing reaches — what an off-chain branch can attach TO.
     reached = {sch.source}
-    for st in chain:
-        reached |= set(st.pair_in) | set(st.pair_out)
+    for ch in chains:
+        for st in ch:
+            reached |= set(st.pair_in) | set(st.pair_out)
     reached.discard(DATUM)
 
-    # Everything not on the chain is either a rib (it hangs at a node the
-    # chain passes through) or an attachment (it is wired into the antenna
+    # Everything not on a chain is either a rib (it hangs at a node a chain
+    # passes through) or an attachment (it is wired into the antenna
     # structure, not into the feed path). The distinction is the difference
     # between a matching stub and a Sterba curtain's riser, and collapsing it
     # is what let four disjoint risers draw as a plausible series chain.
-    # Pairs the chain occupies, so a rib can be asked whether it bridges the
+    # Pairs the chains occupy, so a rib can be asked whether it bridges the
     # two conductors or goes to the datum — see `rungs` below.
-    states = {frozenset(s) for st in chain for s in (st.pair_in, st.pair_out)}
+    states = {
+        frozenset(s) for ch in chains for st in ch for s in (st.pair_in, st.pair_out)
+    }
     # Nodes that are the RETURN conductor, so a rib hanging off one is drawn
     # leaving that conductor rather than the signal one.
-    cold = {s[1] for st in chain for s in (st.pair_in, st.pair_out)} - {DATUM}
+    cold = {s[1] for ch in chains for st in ch for s in (st.pair_in, st.pair_out)} - {
+        DATUM
+    }
 
     ribs: dict[str, list[int]] = {}
     rungs: set[int] = set()
     rib_leg: dict[int, str] = {}
     parallel: set[str] = set()
     for idx, br in enumerate(branches):
-        if idx in on_chain:
+        if idx in used:
             continue
         ts = [t for t in terminals_of(br) if t not in is_datum]
         if not ts:
@@ -769,21 +862,26 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
         return out
 
     # Group consecutive chain steps sharing an instance path.
-    groups = []  # [(steps, path, nodes)]
-    starts = []  # each group's first chain-step index, for the plane cut
-    i = 0
-    while i < len(chain):
-        starts.append(i)
-        path = paths[chain[i].idx]
-        group, nodes = [chain[i]], set(chain[i].pair_in)
-        while i + 1 < len(chain) and path and paths[chain[i + 1].idx] == path:
+    def group_steps(ch):
+        groups = []  # [(steps, path, nodes)]
+        starts = []  # each group's first chain-step index, for the plane cut
+        i = 0
+        while i < len(ch):
+            starts.append(i)
+            path = paths[ch[i].idx]
+            group, nodes = [ch[i]], set(ch[i].pair_in)
+            while i + 1 < len(ch) and path and paths[ch[i + 1].idx] == path:
+                i += 1
+                group.append(ch[i])
+                nodes |= set(ch[i].pair_in)
+            nodes |= set(group[-1].pair_out)
+            nodes.discard(DATUM)
+            groups.append((group, path, nodes))
             i += 1
-            group.append(chain[i])
-            nodes |= set(chain[i].pair_in)
-        nodes |= set(group[-1].pair_out)
-        nodes.discard(DATUM)
-        groups.append((group, path, nodes))
-        i += 1
+        return groups, starts
+
+    grouped = [group_steps(ch) for ch in chains]
+    groups, starts = grouped[0]
 
     if plane and plane != sch.source and chain:
         # Where the picked plane sits: in front of the first step whose
@@ -797,61 +895,110 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
             sch.plane = plane
             sch.plane_cut = sum(1 for s in starts if s < cut)
 
-    # Assign each rib to EXACTLY ONE block. A node the chain passes through
-    # can belong to two consecutive blocks, so keying a rib by node alone drew
-    # a balanced tuner's differential capacitor in both boxes at once, and put
-    # an unun's magnetising shunt in the feedline box as well as the unun.
-    # The block that owns it is the most specific one whose instance path the
-    # rib's own path lies under — a stub tuner's stub sits at "match.stub."
-    # under the section's "match.".
-    owner: dict[int, list[int]] = {}
+    # Assign each rib to EXACTLY ONE block, across every chain. A node a
+    # chain passes through can belong to two consecutive blocks, so keying a
+    # rib by node alone drew a balanced tuner's differential capacitor in
+    # both boxes at once, and put an unun's magnetising shunt in the feedline
+    # box as well as the unun. The block that owns it is the most specific
+    # one whose instance path the rib's own path lies under — a stub tuner's
+    # stub sits at "match.stub." under the section's "match.".
+    owner: dict[tuple[int, int], list[int]] = {}
     for node, idxs in ribs.items():
         for ridx in idxs:
-            cands = [g for g, (_s, _p, nodes) in enumerate(groups) if node in nodes]
+            cands = [
+                (ci, gi)
+                for ci, (gs, _starts) in enumerate(grouped)
+                for gi, (_s, _p, nodes) in enumerate(gs)
+                if node in nodes
+            ]
             if not cands:
                 continue
-            best = max(
-                cands,
-                key=lambda g: (
-                    len(groups[g][1]) if paths[ridx].startswith(groups[g][1]) else -1,
-                    -g,
-                ),
-            )
-            owner.setdefault(best, []).append(ridx)
 
-    balanced = False
-    for g, (group, path, _nodes) in enumerate(groups):
-        els = chain_elements(group, path, balanced)
-        balanced = group[-1].balanced
-        if fragment_of(net, path) is None:
-            # Ribs are already inside an author's fragment; only the default
-            # rendering needs them appended.
-            for rib in sorted(owner.get(g, [])):
-                # A rib crosses to the local reference whatever the branch's
-                # own default orientation says: a stub is a length of line,
-                # drawn in series on its own, used as a shunt here.
-                #
-                # WHICH reference is the rib's own wiring, not the section's.
-                # A `Shunt` is by definition R/L/C to the common, so it keeps
-                # its ground even inside a floating section — that is exactly
-                # what a 100 MΩ common-mode pin is, and drawing the ground is
-                # what explains why the resistor is there at all. Only a
-                # branch wired across both conductors is a rung between them.
-                els.extend(
-                    replace(
-                        e,
-                        orient="shunt",
-                        leg=rib_leg.get(rib, "signal"),
-                        balanced=rib in rungs,
+            def _rank(cg):
+                path = grouped[cg[0]][0][cg[1]][1]
+                depth = len(path) if paths[ridx].startswith(path) else -1
+                return (depth, -cg[0], -cg[1])
+
+            owner.setdefault(max(cands, key=_rank), []).append(ridx)
+
+    def build_blocks(ci, balanced0):
+        """One chain's steps → its blocks, ribs appended where they hang."""
+        out = []
+        balanced = balanced0
+        for gi, (group, path, _nodes) in enumerate(grouped[ci][0]):
+            els = chain_elements(group, path, balanced)
+            balanced = group[-1].balanced
+            if fragment_of(net, path) is None:
+                # Ribs are already inside an author's fragment; only the
+                # default rendering needs them appended.
+                for rib in sorted(owner.get((ci, gi), [])):
+                    # A rib crosses to the local reference whatever the
+                    # branch's own default orientation says: a stub is a
+                    # length of line, drawn in series on its own, used as a
+                    # shunt here.
+                    #
+                    # WHICH reference is the rib's own wiring, not the
+                    # section's. A `Shunt` is by definition R/L/C to the
+                    # common, so it keeps its ground even inside a floating
+                    # section — that is exactly what a 100 MΩ common-mode pin
+                    # is, and drawing the ground is what explains why the
+                    # resistor is there at all. Only a branch wired across
+                    # both conductors is a rung between them.
+                    els.extend(
+                        replace(
+                            e,
+                            orient="shunt",
+                            leg=rib_leg.get(rib, "signal"),
+                            balanced=rib in rungs,
+                        )
+                        for e in default_elements(branches[rib])
                     )
-                    for e in default_elements(branches[rib])
+            out.append(
+                Block(
+                    label=path[:-1] if path else type(branches[group[0].idx]).__name__,
+                    elements=tuple(els),
+                    path=path,
+                    watts=burned(path) if path else burned_bare(group[0].idx),
                 )
-        sch.blocks.append(
-            Block(
-                label=path[:-1] if path else type(branches[group[0].idx]).__name__,
-                elements=tuple(els),
-                path=path,
-                watts=burned(path) if path else burned_bare(group[0].idx),
+            )
+        return out
+
+    def marks_of(ci):
+        """Antenna ports chain ``ci`` passes through, at interior boundaries.
+
+        The end is the antenna symbol's own label and the start is the
+        source's (or the junction's), so only the boundaries between blocks
+        need naming — an LPDA's chain touches d8…d1 as anonymous wire
+        otherwise.
+        """
+        gs, sts = grouped[ci]
+        ch = chains[ci]
+        out = []
+        for b in range(1, len(gs)):
+            nodes = set(ch[sts[b]].pair_in) - {DATUM}
+            names = sorted({targets[n] for n in nodes if n in targets})
+            if names:
+                out.append((b, ", ".join(names)))
+        return out
+
+    sch.blocks = build_blocks(0, False)
+    sch.marks = marks_of(0)
+    for ci in range(1, len(chains)):
+        pci, si, node = forks[ci]
+        parent_starts = grouped[pci][1]
+        sub = chains[ci]
+        sch.branches.append(
+            Branch(
+                origin=node,
+                parent=pci - 1,
+                at=sum(1 for s in parent_starts if s < si),
+                blocks=build_blocks(ci, sub[0].pair_in[1] != DATUM),
+                balanced_start=sub[0].pair_in[1] != DATUM,
+                balanced_end=sub[-1].balanced,
+                antenna_name=", ".join(
+                    sorted({targets[t] for t in sub[-1].pair_out if t in targets})
+                ),
+                marks=marks_of(ci),
             )
         )
 
@@ -982,46 +1129,10 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     # displayed, and the page must not pretend it is.
     DIM = "gray"
 
-    def upstream(n: int) -> bool:
-        return sch.plane_cut is not None and n < sch.plane_cut
-
     def symbol(kind):
         return getattr(elm, _SCHEMDRAW_SYMBOLS.get(kind, "RBox"))
 
-    x, y = 0.0, 0.0
-    # The return conductor, when there is one, occupies the band the ground
-    # drops otherwise use; the datum then moves down out of its way, so a
-    # common-mode pin can drop past the return rail without appearing to
-    # touch it. A crossing with no junction dot is exactly how a schematic
-    # says "these are not connected".
-    yr = y - DY  # the return conductor, in a balanced section
-    balanced = False  # the section being drawn has no datum
-    xc = 0.0  # the return conductor's own cursor
-
-    def gnd_y():
-        return (yr - DY) if balanced else (y - DY)
-
-    def sync(drawn=None):
-        """Bring both conductors up to the same x, wiring whichever lags.
-
-        The two rails advance independently — a coil in one leg is one symbol
-        — so a column ends by squaring them up.
-        """
-        nonlocal x, xc
-        if not balanced:
-            return
-        at = max(x, xc)
-        for cur, ry in ((x, y), (xc, yr)):
-            if at - cur > 1e-9:
-                # `d.add`, not `d +=`: augmented assignment would make `d` a
-                # local of this function and raise on the first rail that
-                # actually needed squaring up.
-                line = d.add(elm.Line().at((cur, ry)).to((at, ry)))
-                if drawn is not None:
-                    drawn.append(line)
-        x = xc = at
-
-    def plane_marker(px):
+    def plane_marker(px, top, bot):
         """The picked measurement plane: a dash-dot line crossing the chain.
 
         Inherits the drawing colour from the config state on purpose — both
@@ -1030,13 +1141,414 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
         "currentColor", which only ``config`` passes through verbatim.
         `d.add`, not `d +=` — see `sync` for why.
         """
-        top, bot = y + 0.9, gnd_y() + 0.3
         d.add(elm.Line().at((px, top)).to((px, bot)).linestyle("-."))
         d.add(
             elm.Label()
             .at((px, top + 0.1))
             .label(f"plane: {sch.plane}", valign="bottom")
         )
+
+    def draw_blocks(
+        blocks,
+        x,
+        y,
+        balanced,
+        marks=None,
+        dim_until=None,
+        plane_at=None,
+        b0=None,
+        row_dim=False,
+    ):
+        """One chain's blocks, drawn left to right from ``(x, y)``.
+
+        The trunk and every branch row (issue #685) are the same drawing;
+        only where they start and end differs. Returns the two cursors, the
+        return rail's y, the balance state and ``bxs`` — the x of every block
+        boundary, which is where the chain's nodes live, so junction dots,
+        pass-through marks and the plane marker all land on actual nodes.
+        """
+        # `d += element` is a rebinding, so without this the whole body
+        # would see `d` as an unassigned local — the function-scope variant
+        # of the trap `sync` documents.
+        nonlocal d
+        # The return conductor, when there is one, occupies the band the
+        # ground drops otherwise use; the datum then moves down out of its
+        # way, so a common-mode pin can drop past the return rail without
+        # appearing to touch it. A crossing with no junction dot is exactly
+        # how a schematic says "these are not connected".
+        yr = y - DY  # the return conductor, in a balanced section
+        xc = x  # the return conductor's own cursor
+        bxs = [x if b0 is None else b0]
+
+        def gnd_y():
+            return (yr - DY) if balanced else (y - DY)
+
+        def sync(drawn=None):
+            """Bring both conductors up to the same x, wiring whichever lags.
+
+            The two rails advance independently — a coil in one leg is one
+            symbol — so a column ends by squaring them up.
+            """
+            nonlocal x, xc
+            if not balanced:
+                return
+            at = max(x, xc)
+            for cur, ry in ((x, y), (xc, yr)):
+                if at - cur > 1e-9:
+                    # `d.add`, not `d +=`: augmented assignment would make
+                    # `d` a local of this function and raise on the first
+                    # rail that actually needed squaring up.
+                    line = d.add(elm.Line().at((cur, ry)).to((at, ry)))
+                    if drawn is not None:
+                        drawn.append(line)
+            x = xc = at
+
+        for n, block in enumerate(blocks):
+            dim_n = row_dim or (dim_until is not None and n < dim_until)
+            if dim_until is not None:
+                d.config(color=DIM if n < dim_until else base_color)
+            if n:
+                d += elm.Line().at((x, y)).to((x + GAP, y))
+                x += GAP
+                if balanced:
+                    d += elm.Line().at((xc, yr)).to((xc + GAP, yr))
+                    xc += GAP
+                # The node between two blocks — where junction dots, marks and
+                # the plane marker land, so its x is recorded.
+                bxs.append(x - GAP / 2.0)
+                if marks and n in marks:
+                    # An antenna port the chain passes through (issue #685): an
+                    # LPDA's phasing line touches every element on the way to the
+                    # last one, and without the dot they are anonymous wire.
+                    d += elm.Dot().at((bxs[n], y))
+                    d += (
+                        elm.Label()
+                        .at((bxs[n], y - 0.35))
+                        .label(marks[n], fontsize=SUBFONT, valign="top")
+                    )
+            if plane_at == n:
+                # The cut sits at the node this block starts from — mid-gap
+                # between blocks, or on the lead-in for a cut at the first one.
+                plane_marker(bxs[n], y + 0.9, gnd_y() + 0.3)
+            x0 = x
+            drawn = []  # what the block's enclosure has to contain
+            tall = False  # the last symbol drawn reaches below the spine
+            for el in block.elements:
+                if el.orient == "pair":
+                    # A two-conductor line: both rails, drawn as the pair it is
+                    # rather than one line with the return taken on trust. It also
+                    # STARTS the pair when it is fed from a grounded shield, so
+                    # the return rail may have to be brought into existence here.
+                    sync(drawn)
+                    if not balanced:
+                        # Fed from a grounded shield: the pair's second conductor
+                        # IS the datum here, so it gets a ground symbol of its own
+                        # rather than a wire routed back to the source's. Repeating
+                        # the symbol is how a schematic draws a global net — and it
+                        # keeps the claim local, which is the honest form of it.
+                        balanced = True
+                        xc = x
+                        g = elm.Ground().at((x, yr))
+                        d += g
+                        drawn.append(g)
+                    x1 = x + PAIR_LEN
+                    for ry in (y, yr):
+                        rail = elm.Line().at((x, ry)).to((x1, ry))
+                        d += rail
+                        drawn.append(rail)
+                    for f in (0.3, 0.5, 0.7):  # spacers, the two-wire feeder idiom
+                        xt = x + (x1 - x) * f
+                        tick = (
+                            elm.Line()
+                            .at((xt, y))
+                            .to((xt, yr))
+                            .linestyle(":")
+                            .color("gray")
+                        )
+                        d += tick
+                        drawn.append(tick)
+                    for text, ty, size, va in (
+                        (el.label, y + 0.25, FONTSIZE, "bottom"),
+                        (el.sublabel, yr - 0.3, SUBFONT, "top"),
+                    ):
+                        if not text:
+                            continue
+                        lab = (
+                            elm.Label()
+                            .at(((x + x1) / 2.0, ty))
+                            .label(text, fontsize=size, valign=va)
+                        )
+                        d += lab
+                        drawn.append(lab)
+                    x = xc = x1
+                    tall = False
+                elif el.orient == "shunt" and el.balanced:
+                    # A rung between the conductors — a differential capacitor
+                    # across a floating tuner's output. Not a drop to ground:
+                    # there is no ground here to drop to.
+                    sync(drawn)
+                    e = symbol(el.kind)().at((x, y)).to((x, yr))
+                    d += e
+                    drawn.append(e)
+                    mid = (y + yr) / 2.0
+                    for text, dy, size in (
+                        (el.label, 0.2, FONTSIZE),
+                        (el.sublabel, -0.25, SUBFONT),
+                    ):
+                        if not text:
+                            continue
+                        lab = (
+                            elm.Label()
+                            .at((x - 0.5, mid + dy))
+                            .label(text, halign="right", fontsize=size)
+                        )
+                        d += lab
+                        drawn.append(lab)
+                    tall = False
+                elif el.orient == "series" and el.leg == "return":
+                    # A symbol in the return conductor. It shares a column with
+                    # the signal-side symbol it faces, so the two halves of a
+                    # split roller inductance line up instead of stepping.
+                    e = symbol(el.kind)().at((xc, yr)).right()
+                    if el.label:
+                        e.label(el.label, loc="bottom", ofst=0.4)
+                    d += e
+                    drawn.append(e)
+                    xc = _exit_x(e, xc + DX)
+                    sync(drawn)
+                    tall = False
+                elif el.orient == "shunt":
+                    sync(drawn)
+                    if tall and (el.label or el.sublabel):
+                        # Same reservation as LEADIN: a drop labels itself
+                        # leftward, and a transformer fills the whole band below
+                        # the spine, so step clear before dropping.
+                        pad = _label_room(el) + 0.4
+                        lead = elm.Line().at((x, y)).to((x + pad, y))
+                        d += lead
+                        drawn.append(lead)
+                        x += pad
+                        if balanced:
+                            lead2 = elm.Line().at((xc, yr)).to((xc + pad, yr))
+                            d += lead2
+                            drawn.append(lead2)
+                            xc += pad
+                    tall = False
+                    # Which conductor the drop leaves. A common-mode pin on the
+                    # return leg belongs on the return leg: drawing every drop
+                    # from the signal conductor stacks the pair's two pins on one
+                    # another and asserts a symmetry the circuit does not have.
+                    ytop = yr if (balanced and el.leg == "return") else y
+                    # Drawn to an explicit endpoint for the same reason as the
+                    # source, and so the termination lands *on* the end rather
+                    # than part-way up a symbol that is longer than DY.
+                    e = symbol(el.kind)().at((x, ytop)).to((x, gnd_y()))
+                    d += e
+                    drawn.append(e)
+                    # Placed absolutely and right-aligned rather than as labels
+                    # on the element: schemdraw's label locations are in the
+                    # element's own rotated frame, which puts "left" of a drop
+                    # straight through the symbol body. Stacked so a drop reads
+                    # like a series element turned on its side — value, then the
+                    # second line under it.
+                    # Where the drop really ends: a Coax ignores both `.to()` and
+                    # `.length()` and keeps its own 3.0-unit body, so terminating
+                    # at the requested DY draws the glyph over the symbol's own
+                    # trailing lead.
+                    bot = _exit_y(e, gnd_y())
+                    mid = (ytop + bot) / 2.0
+                    for text, dy, size in (
+                        (el.label, 0.2, FONTSIZE),
+                        (el.sublabel, -0.25, SUBFONT),
+                    ):
+                        if not text:
+                            continue
+                        lab = (
+                            elm.Label()
+                            .at((x - 0.5, mid + dy))
+                            .label(text, halign="right", fontsize=size)
+                        )
+                        d += lab
+                        drawn.append(lab)
+                    ey = bot - TERM
+                    d += elm.Line().at((x, bot)).to((x, ey))
+                    # A stub's far end is the whole point of it: shorted and open
+                    # are different matches, and they used to draw identically.
+                    # The word comes from the data, so every stub says it the
+                    # same way instead of each fragment spelling its own.
+                    if el.term:
+                        # A shorted stub is a bar across the far end of the cable,
+                        # not a connection to earth: a ground symbol there claims
+                        # a bond the hardware does not have. The word carries it.
+                        end_mark = (
+                            elm.Dot(open=True).at((x, ey))
+                            if el.term == "open"
+                            else elm.Line().at((x - 0.25, ey)).to((x + 0.25, ey))
+                        )
+                        d += end_mark
+                        drawn.append(end_mark)
+                        sub = (
+                            elm.Label()
+                            .at((x + 0.4, ey))
+                            .label(
+                                "open" if el.term == "open" else "shorted",
+                                halign="left",
+                                fontsize=SUBFONT,
+                            )
+                        )
+                        d += sub
+                        drawn.append(sub)
+                    else:
+                        d += elm.Ground().at((x, ey))
+                    # Step on. Two drops in a row otherwise land on the same x and
+                    # draw straight through each other — which is exactly what the
+                    # pair of common-mode pins on a balanced feed is.
+                    rails = [(x, y)] + ([(xc, yr)] if balanced else [])
+                    for cur, ry in rails:
+                        line = elm.Line().at((cur, ry)).to((cur + SHUNT_STEP, ry))
+                        d += line
+                        drawn.append(line)
+                    x += SHUNT_STEP
+                    if balanced:
+                        xc += SHUNT_STEP
+                else:
+                    wound = el.kind in ("transformer", "balun")
+                    sync(drawn)
+                    e = symbol(el.kind)().at((x, y)).right()
+                    # A winding pair's "top" is level with the conductor it enters
+                    # on, so the label lands across the symbol unless it is lifted.
+                    e.label(el.label, loc="top", ofst=0.8 if wound else 0)
+                    if wound:
+                        # Not a two-terminal symbol: schemdraw's Transformer is a
+                        # winding pair anchored at its primary, so it has no
+                        # start/end and is 1.0 units wide, not DX. Enter on the
+                        # primary top and leave from the secondary top, or the
+                        # spine steps DX and leaves a gap where the coupling is.
+                        e.anchor("p1")
+                    if el.sublabel:
+                        # Clear of the symbol body: a Coax is ~0.3 units tall, so
+                        # the default label offset lands the text inside it.
+                        e.label(el.sublabel, loc="bottom", ofst=0.5, fontsize=SUBFONT)
+                    d += e
+                    drawn.append(e)
+                    if wound:
+                        if el.kind == "balun":
+                            # THE isolation barrier. Past it there is no datum:
+                            # the secondary's lower terminal is not a loose end
+                            # and not a ground, it is where the return conductor
+                            # begins. Drawing that is the whole point of the
+                            # element — a floating balun exists to NOT bond the
+                            # two sides, and a schematic says so with a dashed
+                            # line through the coupling and a second rail out.
+                            balanced = True
+                            sx, sy = e.absanchors["s2"]
+                            start = elm.Line().at((sx, sy)).to((sx, yr))
+                            d += start
+                            drawn.append(start)
+                            xc = sx
+                            px, py = e.absanchors["p1"]
+                            bar = (
+                                elm.Line()
+                                .at(((px + sx) / 2.0, y + 0.45))
+                                .to(((px + sx) / 2.0, sy - 0.45))
+                                .linestyle("--")
+                                .color("gray")
+                            )
+                            d += bar
+                            drawn.append(bar)
+                        # The winding bottoms are terminals, not loose ends. A
+                        # `Transformer` spans BOTH windings node-to-datum, so both
+                        # return legs ground; a `FloatingBalun` grounds only its
+                        # primary, the secondary having just become the pair.
+                        returns = ["p2"] if el.kind == "balun" else ["p2", "s2"]
+                        for anchor in returns:
+                            if anchor not in e.absanchors:  # pragma: no cover
+                                continue
+                            px, py = e.absanchors[anchor]
+                            gy = min(py - TERM, gnd_y())
+                            lead = elm.Line().at((px, py)).to((px, gy))
+                            d += lead
+                            drawn.append(lead)
+                            g = elm.Ground().at((px, gy))
+                            d += g
+                            drawn.append(g)
+                    x = _exit_x(e, x + DX)
+                    tall = wound
+            sync(drawn)
+            if x == x0:  # a block of pure shunts still needs a step
+                e = elm.Line().at((x, y)).to((x + DX, y))
+                d += e
+                drawn.append(e)
+                x += DX
+                if balanced:
+                    e2 = elm.Line().at((xc, yr)).to((xc + DX, yr))
+                    d += e2
+                    drawn.append(e2)
+                    xc += DX
+            # An enclosure means "this is a box you named". A block with no path
+            # is a bare branch the flattening never grouped — drawing a dashed
+            # box round a lone TL and captioning it with its class name is noise,
+            # and two such boxes in a row visibly collide.
+            if block.path:
+                note = block.label
+                if block.watts:
+                    note = f"{note}  ({_burn_text(block.watts, sch.p_in)})"
+                # A dashed enclosure, not a floating caption: the label names a
+                # box in the design, so the drawing shows where that box stops.
+                box = (
+                    elm.EncircleBox(drawn, padx=0.35, pady=0.35)
+                    .linestyle("--")
+                    .color("gray")
+                )
+                if note:
+                    # The box's own colour is the de-emphasis gray; the label
+                    # re-asserts the drawing colour so it reads as content —
+                    # unless the block is upstream of a picked plane, in which
+                    # case dim is exactly what it should read as.
+                    box.label(note, loc="top", color=DIM if dim_n else base_color)
+                d += box
+            elif block.watts:
+                # A bare branch has no enclosure to caption, but its burn still
+                # belongs on the page — the issue's opening design is one bare
+                # TL. Centered under the block, below the symbol's own sublabel.
+                d += (
+                    elm.Label()
+                    .at(((x0 + x) / 2.0, y - 1.15))
+                    .label(
+                        f"({_burn_text(block.watts, sch.p_in)})",
+                        fontsize=SUBFONT,
+                        valign="top",
+                    )
+                )
+
+        bxs.append(max(x, xc))
+        return x, xc, yr, balanced, bxs
+
+    def draw_antenna_end(x, xc, y, yr, balanced, name, leadout):
+        """The chain's end: the antenna it feeds, named when there are several."""
+        nonlocal d  # `d +=` rebinds — see draw_blocks
+        antenna_text = f"antenna ({name})" if name else "antenna"
+        if balanced:
+            # A pair does not arrive at a one-terminal antenna symbol. Both
+            # conductors reach the structure — the two halves of a doublet —
+            # so the drawing ends in the two arms it actually feeds.
+            lead = max(leadout, SHUNT_STEP + LEADOUT)
+            d += elm.Line().at((x, y)).to((x + lead, y))
+            d += elm.Line().at((xc, yr)).to((xc + lead, yr))
+            tip = max(x, xc) + lead
+            arm = 1.1
+            d += elm.Line().at((tip, y)).to((tip + arm, y + arm))
+            d += elm.Line().at((tip, yr)).to((tip + arm, yr - arm))
+            d += (
+                elm.Label()
+                .at((tip + arm + 0.2, (y + yr) / 2.0))
+                .label(antenna_text, halign="left")
+            )
+        else:
+            d += elm.Line().at((x, y)).to((x + leadout, y))
+            # No `.up()`: Antenna pins its own theta=0 and already draws its
+            # mast upward, so rotating it lays the whole symbol on its side.
+            d += elm.Antenna().at((x + leadout, y)).label(antenna_text, loc="right")
 
     # A picked plane makes everything from the source to the cut a
     # disconnected stub of the drawing — the source glyph included.
@@ -1045,13 +1557,13 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     # `.to()` rather than `.up()`: an element's default length is one unit
     # (DX), so `.up()` from the datum overshoots the spine and leaves a bare
     # wire sticking out of the top of the source.
-    d += elm.SourceSin().at((x, y - DY)).to((x, y))
+    d += elm.SourceSin().at((0.0, -DY)).to((0.0, 0.0))
     d += (
         elm.Label()
-        .at((x - SRC_R - 0.15, y - DY / 2.0))
+        .at((-SRC_R - 0.15, -DY / 2.0))
         .label(sch.source or "source", halign="right")
     )
-    d += elm.Ground().at((x, y - DY))
+    d += elm.Ground().at((0.0, -DY))
 
     # A shunt on the first spine node labels itself leftward, into the source.
     # Reserve the room here rather than nudging the label, so the drop stays
@@ -1060,308 +1572,20 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     first = sch.blocks[0].elements[0] if sch.blocks and sch.blocks[0].elements else None
     if first is not None and first.orient == "shunt":
         leadin = max(leadin, SRC_R + 0.3 + _label_room(first) + 0.5)
-    d += elm.Line().at((x, y)).to((x + leadin, y))
-    x += leadin
+    d += elm.Line().at((0.0, 0.0)).to((leadin, 0.0))
 
-    for n, block in enumerate(sch.blocks):
-        if sch.plane_cut is not None:
-            d.config(color=DIM if upstream(n) else base_color)
-        if n:
-            d += elm.Line().at((x, y)).to((x + GAP, y))
-            x += GAP
-            if balanced:
-                d += elm.Line().at((xc, yr)).to((xc + GAP, yr))
-                xc += GAP
-        if sch.plane_cut == n:
-            # The cut sits at the node this block starts from — mid-gap
-            # between blocks, or on the lead-in for a cut at the first one.
-            plane_marker(x - (GAP if n else leadin) / 2.0)
-        x0 = x
-        drawn = []  # what the block's enclosure has to contain
-        tall = False  # the last symbol drawn reaches below the spine
-        for el in block.elements:
-            if el.orient == "pair":
-                # A two-conductor line: both rails, drawn as the pair it is
-                # rather than one line with the return taken on trust. It also
-                # STARTS the pair when it is fed from a grounded shield, so
-                # the return rail may have to be brought into existence here.
-                sync(drawn)
-                if not balanced:
-                    # Fed from a grounded shield: the pair's second conductor
-                    # IS the datum here, so it gets a ground symbol of its own
-                    # rather than a wire routed back to the source's. Repeating
-                    # the symbol is how a schematic draws a global net — and it
-                    # keeps the claim local, which is the honest form of it.
-                    balanced = True
-                    xc = x
-                    g = elm.Ground().at((x, yr))
-                    d += g
-                    drawn.append(g)
-                x1 = x + PAIR_LEN
-                for ry in (y, yr):
-                    rail = elm.Line().at((x, ry)).to((x1, ry))
-                    d += rail
-                    drawn.append(rail)
-                for f in (0.3, 0.5, 0.7):  # spacers, the two-wire feeder idiom
-                    xt = x + (x1 - x) * f
-                    tick = (
-                        elm.Line().at((xt, y)).to((xt, yr)).linestyle(":").color("gray")
-                    )
-                    d += tick
-                    drawn.append(tick)
-                for text, ty, size, va in (
-                    (el.label, y + 0.25, FONTSIZE, "bottom"),
-                    (el.sublabel, yr - 0.3, SUBFONT, "top"),
-                ):
-                    if not text:
-                        continue
-                    lab = (
-                        elm.Label()
-                        .at(((x + x1) / 2.0, ty))
-                        .label(text, fontsize=size, valign=va)
-                    )
-                    d += lab
-                    drawn.append(lab)
-                x = xc = x1
-                tall = False
-            elif el.orient == "shunt" and el.balanced:
-                # A rung between the conductors — a differential capacitor
-                # across a floating tuner's output. Not a drop to ground:
-                # there is no ground here to drop to.
-                sync(drawn)
-                e = symbol(el.kind)().at((x, y)).to((x, yr))
-                d += e
-                drawn.append(e)
-                mid = (y + yr) / 2.0
-                for text, dy, size in (
-                    (el.label, 0.2, FONTSIZE),
-                    (el.sublabel, -0.25, SUBFONT),
-                ):
-                    if not text:
-                        continue
-                    lab = (
-                        elm.Label()
-                        .at((x - 0.5, mid + dy))
-                        .label(text, halign="right", fontsize=size)
-                    )
-                    d += lab
-                    drawn.append(lab)
-                tall = False
-            elif el.orient == "series" and el.leg == "return":
-                # A symbol in the return conductor. It shares a column with
-                # the signal-side symbol it faces, so the two halves of a
-                # split roller inductance line up instead of stepping.
-                e = symbol(el.kind)().at((xc, yr)).right()
-                if el.label:
-                    e.label(el.label, loc="bottom", ofst=0.4)
-                d += e
-                drawn.append(e)
-                xc = _exit_x(e, xc + DX)
-                sync(drawn)
-                tall = False
-            elif el.orient == "shunt":
-                sync(drawn)
-                if tall and (el.label or el.sublabel):
-                    # Same reservation as LEADIN: a drop labels itself
-                    # leftward, and a transformer fills the whole band below
-                    # the spine, so step clear before dropping.
-                    pad = _label_room(el) + 0.4
-                    lead = elm.Line().at((x, y)).to((x + pad, y))
-                    d += lead
-                    drawn.append(lead)
-                    x += pad
-                    if balanced:
-                        lead2 = elm.Line().at((xc, yr)).to((xc + pad, yr))
-                        d += lead2
-                        drawn.append(lead2)
-                        xc += pad
-                tall = False
-                # Which conductor the drop leaves. A common-mode pin on the
-                # return leg belongs on the return leg: drawing every drop
-                # from the signal conductor stacks the pair's two pins on one
-                # another and asserts a symmetry the circuit does not have.
-                ytop = yr if (balanced and el.leg == "return") else y
-                # Drawn to an explicit endpoint for the same reason as the
-                # source, and so the termination lands *on* the end rather
-                # than part-way up a symbol that is longer than DY.
-                e = symbol(el.kind)().at((x, ytop)).to((x, gnd_y()))
-                d += e
-                drawn.append(e)
-                # Placed absolutely and right-aligned rather than as labels
-                # on the element: schemdraw's label locations are in the
-                # element's own rotated frame, which puts "left" of a drop
-                # straight through the symbol body. Stacked so a drop reads
-                # like a series element turned on its side — value, then the
-                # second line under it.
-                # Where the drop really ends: a Coax ignores both `.to()` and
-                # `.length()` and keeps its own 3.0-unit body, so terminating
-                # at the requested DY draws the glyph over the symbol's own
-                # trailing lead.
-                bot = _exit_y(e, gnd_y())
-                mid = (ytop + bot) / 2.0
-                for text, dy, size in (
-                    (el.label, 0.2, FONTSIZE),
-                    (el.sublabel, -0.25, SUBFONT),
-                ):
-                    if not text:
-                        continue
-                    lab = (
-                        elm.Label()
-                        .at((x - 0.5, mid + dy))
-                        .label(text, halign="right", fontsize=size)
-                    )
-                    d += lab
-                    drawn.append(lab)
-                ey = bot - TERM
-                d += elm.Line().at((x, bot)).to((x, ey))
-                # A stub's far end is the whole point of it: shorted and open
-                # are different matches, and they used to draw identically.
-                # The word comes from the data, so every stub says it the
-                # same way instead of each fragment spelling its own.
-                if el.term:
-                    # A shorted stub is a bar across the far end of the cable,
-                    # not a connection to earth: a ground symbol there claims
-                    # a bond the hardware does not have. The word carries it.
-                    end_mark = (
-                        elm.Dot(open=True).at((x, ey))
-                        if el.term == "open"
-                        else elm.Line().at((x - 0.25, ey)).to((x + 0.25, ey))
-                    )
-                    d += end_mark
-                    drawn.append(end_mark)
-                    sub = (
-                        elm.Label()
-                        .at((x + 0.4, ey))
-                        .label(
-                            "open" if el.term == "open" else "shorted",
-                            halign="left",
-                            fontsize=SUBFONT,
-                        )
-                    )
-                    d += sub
-                    drawn.append(sub)
-                else:
-                    d += elm.Ground().at((x, ey))
-                # Step on. Two drops in a row otherwise land on the same x and
-                # draw straight through each other — which is exactly what the
-                # pair of common-mode pins on a balanced feed is.
-                rails = [(x, y)] + ([(xc, yr)] if balanced else [])
-                for cur, ry in rails:
-                    line = elm.Line().at((cur, ry)).to((cur + SHUNT_STEP, ry))
-                    d += line
-                    drawn.append(line)
-                x += SHUNT_STEP
-                if balanced:
-                    xc += SHUNT_STEP
-            else:
-                wound = el.kind in ("transformer", "balun")
-                sync(drawn)
-                e = symbol(el.kind)().at((x, y)).right()
-                # A winding pair's "top" is level with the conductor it enters
-                # on, so the label lands across the symbol unless it is lifted.
-                e.label(el.label, loc="top", ofst=0.8 if wound else 0)
-                if wound:
-                    # Not a two-terminal symbol: schemdraw's Transformer is a
-                    # winding pair anchored at its primary, so it has no
-                    # start/end and is 1.0 units wide, not DX. Enter on the
-                    # primary top and leave from the secondary top, or the
-                    # spine steps DX and leaves a gap where the coupling is.
-                    e.anchor("p1")
-                if el.sublabel:
-                    # Clear of the symbol body: a Coax is ~0.3 units tall, so
-                    # the default label offset lands the text inside it.
-                    e.label(el.sublabel, loc="bottom", ofst=0.5, fontsize=SUBFONT)
-                d += e
-                drawn.append(e)
-                if wound:
-                    if el.kind == "balun":
-                        # THE isolation barrier. Past it there is no datum:
-                        # the secondary's lower terminal is not a loose end
-                        # and not a ground, it is where the return conductor
-                        # begins. Drawing that is the whole point of the
-                        # element — a floating balun exists to NOT bond the
-                        # two sides, and a schematic says so with a dashed
-                        # line through the coupling and a second rail out.
-                        balanced = True
-                        sx, sy = e.absanchors["s2"]
-                        start = elm.Line().at((sx, sy)).to((sx, yr))
-                        d += start
-                        drawn.append(start)
-                        xc = sx
-                        px, py = e.absanchors["p1"]
-                        bar = (
-                            elm.Line()
-                            .at(((px + sx) / 2.0, y + 0.45))
-                            .to(((px + sx) / 2.0, sy - 0.45))
-                            .linestyle("--")
-                            .color("gray")
-                        )
-                        d += bar
-                        drawn.append(bar)
-                    # The winding bottoms are terminals, not loose ends. A
-                    # `Transformer` spans BOTH windings node-to-datum, so both
-                    # return legs ground; a `FloatingBalun` grounds only its
-                    # primary, the secondary having just become the pair.
-                    returns = ["p2"] if el.kind == "balun" else ["p2", "s2"]
-                    for anchor in returns:
-                        if anchor not in e.absanchors:  # pragma: no cover
-                            continue
-                        px, py = e.absanchors[anchor]
-                        gy = min(py - TERM, gnd_y())
-                        lead = elm.Line().at((px, py)).to((px, gy))
-                        d += lead
-                        drawn.append(lead)
-                        g = elm.Ground().at((px, gy))
-                        d += g
-                        drawn.append(g)
-                x = _exit_x(e, x + DX)
-                tall = wound
-        sync(drawn)
-        if x == x0:  # a block of pure shunts still needs a step
-            e = elm.Line().at((x, y)).to((x + DX, y))
-            d += e
-            drawn.append(e)
-            x += DX
-            if balanced:
-                e2 = elm.Line().at((xc, yr)).to((xc + DX, yr))
-                d += e2
-                drawn.append(e2)
-                xc += DX
-        # An enclosure means "this is a box you named". A block with no path
-        # is a bare branch the flattening never grouped — drawing a dashed
-        # box round a lone TL and captioning it with its class name is noise,
-        # and two such boxes in a row visibly collide.
-        if block.path:
-            note = block.label
-            if block.watts:
-                note = f"{note}  ({_burn_text(block.watts, sch.p_in)})"
-            # A dashed enclosure, not a floating caption: the label names a
-            # box in the design, so the drawing shows where that box stops.
-            box = (
-                elm.EncircleBox(drawn, padx=0.35, pady=0.35)
-                .linestyle("--")
-                .color("gray")
-            )
-            if note:
-                # The box's own colour is the de-emphasis gray; the label
-                # re-asserts the drawing colour so it reads as content —
-                # unless the block is upstream of a picked plane, in which
-                # case dim is exactly what it should read as.
-                box.label(note, loc="top", color=DIM if upstream(n) else base_color)
-            d += box
-        elif block.watts:
-            # A bare branch has no enclosure to caption, but its burn still
-            # belongs on the page — the issue's opening design is one bare
-            # TL. Centered under the block, below the symbol's own sublabel.
-            d += (
-                elm.Label()
-                .at(((x0 + x) / 2.0, y - 1.15))
-                .label(
-                    f"({_burn_text(block.watts, sch.p_in)})",
-                    fontsize=SUBFONT,
-                    valign="top",
-                )
-            )
+    x, xc, yr, balanced, bxs = draw_blocks(
+        sch.blocks,
+        leadin,
+        0.0,
+        False,
+        marks=dict(sch.marks),
+        dim_until=sch.plane_cut,
+        plane_at=sch.plane_cut,
+        b0=leadin / 2.0,
+    )
+    y = 0.0
+    gy = (yr - DY) if balanced else (y - DY)
 
     leadout = LEADOUT
     if sch.plane_cut is not None:
@@ -1379,38 +1603,68 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             # the marker at leadout/2, so its right edge lands at
             # text_width/2 past centre and needs the difference clear.
             leadout = max(LEADOUT, _text_width(f"plane: {sch.plane}") + 1.5)
-            plane_marker(x + leadout / 2.0)
+            plane_marker(x + leadout / 2.0, y + 0.9, gy + 0.3)
 
     # "antenna (feed0)" when the chain's end carries a name — it only does
     # when the network has other antenna ports to confuse it with.
-    antenna_text = f"antenna ({sch.antenna_name})" if sch.antenna_name else "antenna"
-    if sch.ends_in_antenna and sch.balanced_end:
-        # A pair does not arrive at a one-terminal antenna symbol. Both
-        # conductors reach the structure — the two halves of a doublet — so
-        # the drawing ends in the two arms it actually feeds.
-        lead = max(leadout, SHUNT_STEP + LEADOUT)
-        d += elm.Line().at((x, y)).to((x + lead, y))
-        d += elm.Line().at((xc, yr)).to((xc + lead, yr))
-        tip = max(x, xc) + lead
-        arm = 1.1
-        d += elm.Line().at((tip, y)).to((tip + arm, y + arm))
-        d += elm.Line().at((tip, yr)).to((tip + arm, yr - arm))
-        d += (
-            elm.Label()
-            .at((tip + arm + 0.2, (y + yr) / 2.0))
-            .label(antenna_text, halign="left")
+    if sch.ends_in_antenna:
+        draw_antenna_end(x, xc, y, yr, sch.balanced_end, sch.antenna_name, leadout)
+
+    # Feed branches (issue #685): the other arms of a corporate feed. Each
+    # forks at a junction on a chain already drawn — a dot there, the mark a
+    # reader's cross-reference was missing — and draws as its own row below,
+    # wired down from the junction and ending at its own named antenna. Rows
+    # stack downward wherever the drawing so far ends, parent before child,
+    # so a depth-2 corporate tree hangs off a row that already exists.
+    rows = [(0.0, bxs, False)]  # per drawn chain: (y, boundary xs, dimmed)
+    for br in sch.branches:
+        py, pbxs, pdim = rows[br.parent + 1]
+        # Upstream of a picked plane the fork is disconnected too, and a
+        # branch inherits its parent's dimming transitively.
+        dim = pdim or (
+            br.parent == -1 and sch.plane_cut is not None and br.at < sch.plane_cut
         )
-    elif sch.ends_in_antenna:
-        d += elm.Line().at((x, y)).to((x + leadout, y))
-        # No `.up()`: Antenna pins its own theta=0 and already draws its mast
-        # upward, so rotating it lays the whole symbol on its side.
-        d += elm.Antenna().at((x + leadout, y)).label(antenna_text, loc="right")
+        px = pbxs[min(br.at, len(pbxs) - 1)]
+        row_y = d.get_bbox().ymin - 1.8
+        if dim:
+            d.config(color=DIM)
+        d += elm.Dot().at((px, py))
+        if br.origin != sch.source:
+            # The junction's name — the referent the "← JC1" cross-reference
+            # used to dangle without. The source's own label already names a
+            # fork at the source node.
+            d += (
+                elm.Label()
+                .at((px + 0.2, py + 0.15))
+                .label(br.origin, halign="left", valign="bottom", fontsize=SUBFONT)
+            )
+        d += elm.Line().at((px, py)).to((px, row_y))
+        lead = 1.0
+        bfirst = (
+            br.blocks[0].elements[0] if br.blocks and br.blocks[0].elements else None
+        )
+        if bfirst is not None and bfirst.orient == "shunt":
+            lead = max(lead, _label_room(bfirst) + 0.7)
+        d += elm.Line().at((px, row_y)).to((px + lead, row_y))
+        bx, bxc, byr, _bal, bbxs = draw_blocks(
+            br.blocks,
+            px + lead,
+            row_y,
+            br.balanced_start,
+            marks=dict(br.marks),
+            b0=px,
+            row_dim=dim,
+        )
+        draw_antenna_end(bx, bxc, row_y, byr, br.balanced_end, br.antenna_name, LEADOUT)
+        if dim:
+            d.config(color=base_color)
+        rows.append((row_y, bbxs, dim))
 
     # Attachments: branches wired into the antenna structure rather than into
     # the feed. They have no place on the chain, and inventing one for them is
     # exactly the fabrication this drawing is meant to stop making — so they
     # are drawn where they are, named by the nodes they bridge.
-    ay = gnd_y() - 1.4
+    ay = min(gy, d.get_bbox().ymin + 0.8) - 1.4
     if sch.attachments:
         d += (
             elm.Label()
