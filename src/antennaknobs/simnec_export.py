@@ -1,9 +1,11 @@
-"""Emit a SimNEC (``.ssn``) circuit for an antenna-only design (issue #600).
+"""Emit a SimNEC (``.ssn``) circuit for a design (issues #600 / #604).
 
 SimNEC (AE6TY) is a Java Smith-chart / station tool that embeds NEC2 behind an
 in-house MNA solver. Its native circuit file is ``.ssn`` (XML). This module
-lets any *antenna-only* antennaknobs design be round-tripped into SimNEC for
-cross-validation, without the fiddly UI step of hand-entering geometry.
+lets an antennaknobs design — antenna-only, or a differential-only *station*
+(antenna + feedline + tuner + transformer chain) — be round-tripped into
+SimNEC for cross-validation, without the fiddly UI step of hand-entering
+geometry or circuit values.
 
 How it works — the escape-hatch route
 -------------------------------------
@@ -34,10 +36,44 @@ that knob is exposed. ``FR`` is left in the deck too: a SimNEC 5.1a1-saved
 
 Scope
 -----
-**Antenna-only** designs (no ``build_network`` TL/virtual-driver station), matching
-issue #600. ``export_nec`` already raises ``NotImplementedError`` for reducer
-networks, and this module surfaces that. Emitting the *station network* too
-(via SimNEC's ``N`` / RUSE blocks) is a possible phase 2.
+Two export shapes:
+
+**Antenna-only** designs (no ``build_network`` TL/virtual-driver station) —
+issue #600, the original scope: the three-element LOAD / NETWORK / GENERATOR
+cascade above.
+
+**Differential-only stations** (issue #604, phase 2): designs whose
+``build_network`` is a single generator→antenna ladder of transmission lines,
+lumped L/C tuner arms, and ideal transformers. Each reducer branch maps to a
+SimNEC circuit element in cascade order — ``TL`` → ``SERIES_TLINE``,
+``TwoPort``/``Shunt`` L/C legs → ``SERIES_IND`` / ``SERIES_CAP`` /
+``SHUNT_IND`` / ``SHUNT_CAP``, ideal ``Transformer`` → ``TRANSFORMER2`` —
+and the antenna keeps the NEC-portal NETWORK block, driven at the station's
+``PortOnWire`` feed.
+
+**The fundamental limitation — enforced, not papered over.** SimNEC's
+``SERIES_TLINE`` is purely differential: there is no common-mode (``zcomm``)
+knob. Any design whose physics lives in the common mode — a
+``BalancedLine`` with ``zcomm`` (issue #576), a ``FloatingBalun``
+(issue #589), the balanced tuners built from them — **cannot be faithfully
+represented in SimNEC circuit elements**, and this module raises
+:class:`SsnUnsupported` (naming the offending branch) rather than silently
+dropping the common mode and emitting a confidently-wrong ``.ssn``. The
+Track-2 comparison (docs/status/2026-07-28-simnec-comparison-handoff.md) is
+the proof: breaking symmetry fans AntennaKNoBs across ``zcomm`` while SimNEC
+is stuck on one value.
+
+.. note::
+   The station element XML (parameter names ``Zo``/``VFnom``/``ft``/``k0``…,
+   ``F``/``H``/``Q``/``@MHz``, ``Mdl``/``N``) is authored from the schema
+   survey of a SimNEC 5.1a1-saved ``lastCircuit.ssn`` (issue #604); the
+   generated station ``.ssn`` has NOT yet been load-tested in SimNEC itself.
+   Validation caveats, in order of risk: (1) ``TRANSFORMER2``'s ``N``
+   orientation (emitted so generator-side Z = N²·antenna-side Z — flip if
+   SimNEC reads it the other way); (2) ``Q = 0`` is assumed to mean "ideal /
+   no loss" (the SimSmith convention); (3) the ``SERIES_TLINE`` ``material``
+   param is omitted on the assumption SimNEC then honours the explicit
+   ``k0``/``k1``/``k2`` loss coefficients.
 
 Licensing
 ---------
@@ -60,12 +96,40 @@ the documented NEC-portal API. The surrounding XML scaffold in
 
 from __future__ import annotations
 
+import math
 from xml.sax.saxutils import escape as _xml_escape
 
-from .engines.pynec import DEFAULT_GROUND
-from .nec_export import export_nec
+from .engines.pynec import DEFAULT_GROUND, PyNECEngine
+from .nec_export import _gw, _num, export_nec
+from .network import (
+    TL,
+    Admittance,
+    Autotransformer,
+    BalancedLine,
+    Driven,
+    FloatingBalun,
+    Load,
+    PortOnWire,
+    Shunt,
+    TouchstoneLoad,
+    TouchstoneTwoPort,
+    Transformer,
+    TwoPort,
+    _branch_port_refs,
+    as_wire,
+)
 
-__all__ = ["export_ssn", "build_nec_portal_script"]
+__all__ = ["export_ssn", "build_nec_portal_script", "SsnUnsupported"]
+
+
+class SsnUnsupported(NotImplementedError):
+    """The design (or one of its network branches) has no faithful SimNEC
+    representation — most importantly the common-mode constructs
+    (``BalancedLine.zcomm``, ``FloatingBalun``), which SimNEC's purely
+    differential elements cannot express (issue #604). Subclasses
+    ``NotImplementedError`` so phase-1 callers that treated "networked
+    design" errors as a capability probe keep working unchanged. The
+    message always names the offending construct and what to do about it."""
 
 
 def _fmt(x: float) -> str:
@@ -135,33 +199,22 @@ def _nec_cards_for_portal(deck: str) -> list[str]:
     return geom + fr + ex
 
 
-def build_nec_portal_script(
-    builder,
-    *,
-    freq_mhz: float,
-    ground=DEFAULT_GROUND,
-    seg_per_wl: int | None = None,
-    name: str | None = None,
-) -> str:
-    """Build the SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
-    antenna-only ``builder``. Reuses :func:`export_nec` for the geometry.
-    """
-    deck = export_nec(builder, ground=ground, freq=freq_mhz, include_rp=False)
-    cards = _nec_cards_for_portal(deck)
+def _default_block_name(builder) -> str:
+    """SimNEC shows the script's first //comment as the block's display name,
+    which only fits ~12 chars before the font shrinks to unreadable. So use
+    the SHORT leaf name: the design's module leaf (e.g. "invvee") for a real
+    design, or the class qualname for a script-defined (__main__) builder."""
+    mod = type(builder).__module__
+    qual = type(builder).__qualname__
+    if mod != "__main__" and qual == "Builder":
+        return mod.rsplit(".", 1)[-1]
+    return qual
 
-    if name is None:
-        mod = type(builder).__module__
-        qual = type(builder).__qualname__
-        # SimNEC shows this first //comment as the block's display name, which
-        # only fits ~12 chars before the font shrinks to unreadable. So use the
-        # SHORT leaf name: the design's module leaf (e.g. "invvee") for a real
-        # design, or the class qualname for a script-defined (__main__) builder.
-        if mod != "__main__" and qual == "Builder":
-            name = mod.rsplit(".", 1)[-1]
-        else:
-            name = qual
+
+def _portal_wrap(cards, *, name, ground, seg_per_wl) -> str:
+    """The NEC-portal daemon script (the ``<equ>`` body): comment header,
+    ports/units/ground/mesh directives, then ``cards`` between NEC2/NECEND."""
     ground_call, mhos = _ground_directive(ground)
-
     lines = [
         f"//{name}",
         "// generated by antennaknobs.simnec_export",
@@ -180,10 +233,344 @@ def build_nec_portal_script(
     return "\n".join(lines)
 
 
+def build_nec_portal_script(
+    builder,
+    *,
+    freq_mhz: float,
+    ground=DEFAULT_GROUND,
+    seg_per_wl: int | None = None,
+    name: str | None = None,
+) -> str:
+    """Build the SimNEC NEC-portal daemon script (the ``<equ>`` body) for an
+    antenna-only ``builder``. Reuses :func:`export_nec` for the geometry.
+    """
+    deck = export_nec(builder, ground=ground, freq=freq_mhz, include_rp=False)
+    cards = _nec_cards_for_portal(deck)
+    if name is None:
+        name = _default_block_name(builder)
+    return _portal_wrap(cards, name=name, ground=ground, seg_per_wl=seg_per_wl)
+
+
+# --- phase 2: networked (station) export — issue #604 -----------------------
+
+C_MHZ_M = 299.792458  # c in MHz·m: λ[m] = C_MHZ_M / f[MHz]
+M_PER_FT = 0.3048
+
+
+def _brname(br, path: str) -> str:
+    """Actionable branch name for rejection messages: instance path + type +
+    the ports it spans, e.g. ``tuner.FloatingBalun(rig, sL, sR)``."""
+    return f"{path}{type(br).__name__}({', '.join(_branch_port_refs(br))})"
+
+
+def _element_factory():
+    """Returns ``mk(typ, prefix, params)`` building one ``<element>`` XML
+    fragment at the scaffold's indentation, with per-prefix numbered
+    ``sweeperLabel``s (T1, C1, C2, L1, X1 …) in emission order. The LOAD /
+    NETWORK / GENERATOR labels are single letters (L/A/G), so numbered chain
+    labels can never collide with them."""
+    counts: dict[str, int] = {}
+
+    def mk(typ: str, prefix: str, params) -> str:
+        counts[prefix] = counts.get(prefix, 0) + 1
+        label = f"{prefix}{counts[prefix]}"
+        body = "".join(
+            f"\n                <p><n>{_xml_escape(str(n))}</n>"
+            f"<v>{_xml_escape(str(v))}</v></p>"
+            for n, v in params
+        )
+        return (
+            "            <element>\n"
+            f"                <type>{typ}</type>\n"
+            f"                <sweeperLabel>{label}</sweeperLabel>"
+            f"{body}\n"
+            "            </element>"
+        )
+
+    return mk
+
+
+def _q_params(q: float | None, freq_mhz: float):
+    """SimNEC quotes component Q at a frequency (``Q`` / ``@MHz``). Our
+    ``ql``/``qc`` are frequency-independent, so at the export frequency the
+    two models agree exactly. ``Q = 0`` is emitted for the ideal component
+    (no ``ql``/``qc``) — the SimSmith "loss model off" convention (see the
+    module-note validation caveats)."""
+    return [("Q", _fmt(q if q else 0.0)), ("@MHz", _fmt(freq_mhz))]
+
+
+def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
+    """SimNEC element(s) for one series (two-node) branch, in cascade order.
+    A branch may emit several elements (a TwoPort with both L and C legs is a
+    series pair — order between them is electrically irrelevant) or none (an
+    all-omitted TwoPort is an ideal short: a plain wire-through)."""
+    if isinstance(br, TL):
+        if br.transposed:
+            raise SsnUnsupported(
+                f"{name}: a transposed (half-twist) line has no SimNEC "
+                "cascade element — SERIES_TLINE cannot flip polarity"
+            )
+        # SimNEC's loss convention matches the cable-table one ours uses:
+        # dB/100 ft = k0 + k1·√f + k2·f, displayed as `/100f` at `@frq`.
+        # `~deg`/`@MHz` are the displayed electrical length, advisory (SimNEC
+        # recomputes them from Zo/VFnom/ft).
+        loss_100ft = br.k1 * math.sqrt(freq_mhz) + br.k2 * freq_mhz
+        deg = 360.0 * br.length * freq_mhz / (br.vf * C_MHZ_M)
+        return [
+            mk(
+                "SERIES_TLINE",
+                "T",
+                [
+                    ("Zo", _fmt(br.z0)),
+                    ("VFnom", _fmt(br.vf)),
+                    ("ft", _fmt(br.length / M_PER_FT)),
+                    ("~deg", _fmt(deg)),
+                    ("@MHz", _fmt(freq_mhz)),
+                    ("/100f", _fmt(loss_100ft)),
+                    ("@frq", _fmt(freq_mhz)),
+                    ("k0", "0"),
+                    ("k1", _fmt(br.k1)),
+                    ("k2", _fmt(br.k2)),
+                ],
+            )
+        ]
+    if isinstance(br, TwoPort):
+        if br.r is not None:
+            raise SsnUnsupported(
+                f"{name}: a plain series R is not in the captured SimNEC "
+                "element set; express the loss as a component Q (ql/qc)"
+            )
+        out = []
+        if br.l is not None:
+            out.append(
+                mk("SERIES_IND", "L", [("H", _fmt(br.l)), *_q_params(br.ql, freq_mhz)])
+            )
+        if br.c is not None:
+            out.append(
+                mk("SERIES_CAP", "C", [("F", _fmt(br.c)), *_q_params(br.qc, freq_mhz)])
+            )
+        return out
+    if isinstance(br, Transformer):
+        if br.r is not None or br.lmag is not None or br.core is not None:
+            raise SsnUnsupported(
+                f"{name}: only the IDEAL transformer maps to TRANSFORMER2 "
+                "(Mdl ideal); winding loss / magnetizing branches are not "
+                "exported — drop r/lmag/core or model them explicitly in "
+                "SimNEC after loading"
+            )
+        # Orientation: our Transformer(a, b, n) has v_a = n·v_b, so the
+        # impedance at a is n²·Z_b. Emit N as the generator-side:antenna-side
+        # ratio — entering the branch at `a` keeps n, entering at `b` inverts
+        # it. (Validation caveat: flip if SimNEC's N reads the other way.)
+        n_eff = br.n if entered_at == br.a else 1.0 / br.n
+        return [mk("TRANSFORMER2", "X", [("Mdl", "ideal"), ("N", _fmt(n_eff))])]
+    raise SsnUnsupported(f"{name}: no SimNEC mapping for this branch type")
+
+
+def _shunt_elements(br: Shunt, freq_mhz: float, mk, name: str):
+    """SimNEC element(s) for a Shunt-to-common. Adjacent shunt elements at
+    one node are electrically parallel, so a parallel-form L+C emits both;
+    a series-form L+C (a shunt series-LC trap) has no captured element."""
+    if br.r is not None:
+        raise SsnUnsupported(
+            f"{name}: a plain shunt R is not in the captured SimNEC element "
+            "set; express the loss as a component Q (ql/qc)"
+        )
+    if br.l is not None and br.c is not None and not br.parallel:
+        raise SsnUnsupported(
+            f"{name}: a series-LC shunt (trap to common) has no single "
+            "SimNEC element, and two stacked shunts would be parallel"
+        )
+    out = []
+    if br.l is not None:
+        out.append(
+            mk("SHUNT_IND", "L", [("H", _fmt(br.l)), *_q_params(br.ql, freq_mhz)])
+        )
+    if br.c is not None:
+        out.append(
+            mk("SHUNT_CAP", "C", [("F", _fmt(br.c)), *_q_params(br.qc, freq_mhz)])
+        )
+    return out
+
+
+def _station_chain(net, freq_mhz: float):
+    """Map the network's branches onto SimNEC's linear cascade.
+
+    Returns ``(feed_port, elements, deck_loads)``: the antenna-side
+    ``PortOnWire`` the walk terminates on, the chain's element XML fragments
+    in generator→antenna walk order, and the ``Load`` branches that belong in
+    the NEC deck (as LD cards) rather than the circuit.
+
+    Raises :class:`SsnUnsupported` for anything that is not a single
+    generator→antenna ladder of representable elements — most importantly
+    the common-mode constructs (see the module note)."""
+    # --- per-branch vetting; index the representable ones -------------------
+    series_at: dict[str, list] = {}
+    shunts_at: dict[str, list] = {}
+    deck_loads: list[Load] = []
+    for bi, br in enumerate(net.branches):
+        path = net.branch_paths[bi] if bi < len(net.branch_paths) else ""
+        name = _brname(br, path)
+        if isinstance(br, BalancedLine):
+            if br.zcomm is not None:
+                raise SsnUnsupported(
+                    f"{name}: this design's physics lives in the line's "
+                    f"common mode (zcomm={br.zcomm:g} Ω, issue #576), and "
+                    "SimNEC's SERIES_TLINE is purely differential — there is "
+                    "no zcomm knob, so no .ssn can represent it faithfully "
+                    "(the Track-2 divergence). Not exported."
+                )
+            raise SsnUnsupported(
+                f"{name}: a BalancedLine is a four-terminal conductor pair; "
+                "SimNEC's cascade elements are two-terminal, so there is no "
+                "faithful single-ended equivalent. Not exported."
+            )
+        if isinstance(br, FloatingBalun):
+            raise SsnUnsupported(
+                f"{name}: a FloatingBalun's secondary is a genuinely floating "
+                "differential pair (issue #589); SimNEC's datum-referenced "
+                "cascade cannot represent it (the balanced-tuner common-mode "
+                "limitation, issue #604). Not exported."
+            )
+        if isinstance(br, Autotransformer):
+            raise SsnUnsupported(
+                f"{name}: the autotransformer is a coupled-inductor model "
+                "(issue #594), not an ideal ratio — mapping it onto "
+                "TRANSFORMER2 (Mdl ideal) would misrepresent the common-"
+                "section current. Not exported."
+            )
+        if isinstance(br, (Admittance, TouchstoneLoad, TouchstoneTwoPort)):
+            raise SsnUnsupported(f"{name}: no SimNEC element mapping (yet)")
+        if isinstance(br, Load):
+            if br.z is not None:
+                raise SsnUnsupported(
+                    f"{name}: the fixed-Z load form (LD 4) is not exported"
+                )
+            if br.ql is not None or br.qc is not None:
+                raise SsnUnsupported(
+                    f"{name}: a finite-Q Load needs R = ωL/Q re-derived per "
+                    "frequency, which a deck LD card cannot express"
+                )
+            if not isinstance(net.ports.get(br.port), PortOnWire):
+                raise SsnUnsupported(
+                    f"{name}: a series Load on a virtual node has no SimNEC "
+                    "cascade element (use a TwoPort for an in-line series "
+                    "impedance)"
+                )
+            deck_loads.append(br)
+        elif isinstance(br, Shunt):
+            shunts_at.setdefault(br.port, []).append((bi, br, name))
+        elif isinstance(br, (TL, TwoPort, Transformer)):
+            series_at.setdefault(br.a, []).append((bi, br, name))
+            series_at.setdefault(br.b, []).append((bi, br, name))
+        else:
+            raise SsnUnsupported(f"{name}: no SimNEC mapping for this branch type")
+
+    # --- the generator end --------------------------------------------------
+    if len(net.sources) != 1:
+        raise SsnUnsupported(
+            f"{len(net.sources)} sources; SimNEC's cascade has exactly one "
+            "GENERATOR — multi-feed stations are not exported"
+        )
+    src = net.sources[0]
+    if not isinstance(src, Driven):
+        raise SsnUnsupported(
+            f"source {type(src).__name__} on {src.port!r}: SimNEC's GENERATOR "
+            "is a voltage source; current-forced feeds are not exported"
+        )
+
+    # --- walk the ladder from the generator to the antenna ------------------
+    mk = _element_factory()
+    elements: list[str] = []
+    visited: set[int] = set()
+    seen_nodes: set[str] = set()
+    node = src.port
+    while True:
+        seen_nodes.add(node)
+        for bi, br, name in shunts_at.pop(node, []):
+            visited.add(bi)
+            elements.extend(_shunt_elements(br, freq_mhz, mk, name))
+        if isinstance(net.ports.get(node), PortOnWire):
+            feed_port = node
+            break
+        avail = [
+            (bi, br, name)
+            for bi, br, name in series_at.get(node, [])
+            if bi not in visited
+        ]
+        if len(avail) != 1:
+            raise SsnUnsupported(
+                f"node {node!r} has {len(avail)} onward series branches; "
+                "SimNEC's circuit is a single generator→antenna cascade, so "
+                "only a simple ladder (series elements plus shunts to "
+                "common) is exported"
+            )
+        bi, br, name = avail[0]
+        visited.add(bi)
+        elements.extend(_series_elements(br, node, freq_mhz, mk, name))
+        node = br.b if br.a == node else br.a
+        if node in seen_nodes:
+            raise SsnUnsupported(
+                f"branch {name} loops back to {node!r}; the cascade must be "
+                "a simple generator→antenna path"
+            )
+
+    leftover = [
+        name
+        for lst in (*series_at.values(), *shunts_at.values())
+        for bi, _br, name in lst
+        if bi not in visited
+    ]
+    if leftover:
+        raise SsnUnsupported(
+            "branch(es) hang off the generator→antenna cascade: "
+            f"{sorted(set(leftover))}; SimNEC's circuit is a single ladder"
+        )
+    if getattr(net.ports[feed_port], "distributed", False):
+        raise SsnUnsupported(
+            f"feed port {feed_port!r} is a distributed (finite-gap) port "
+            "(issue #477); the NEC block's EX card is a single-segment delta "
+            "gap, which is a different feed model — not exported"
+        )
+    return feed_port, elements, deck_loads
+
+
+def _station_cards(eng, feed_port: str, deck_loads, freq_mhz: float):
+    """The station's NEC-block cards: geometry, trap/lumped LD loads on real
+    ports, FR, and an EX delta gap at the station's feed port (which the
+    portal wires to the block's circuit port — the cascade attaches there).
+    Same canonical GW → LD → FR → EX grouping as the antenna-only path."""
+    name_to_loc: dict[str, tuple[int, int]] = {}
+    geom: list[str] = []
+    for tag, t in enumerate(eng.tups, start=1):
+        geom.append(_gw(tag, t[2], t[0], t[1], eng._radius_for(t)))
+        w = as_wire(t)
+        if w.name is not None:
+            # PyNEC's delta-gap placement for a named wire (pynec.py):
+            # the middle segment.
+            name_to_loc[w.name] = (tag, (t[2] + 1) // 2)
+    for br in deck_loads:
+        r = float(br.r) if br.r is not None else 0.0
+        l = float(br.l) if br.l is not None else 0.0
+        c = float(br.c) if br.c is not None else 0.0
+        if r == 0.0 and l == 0.0 and c == 0.0:
+            continue
+        tag, seg = name_to_loc[br.port]
+        ldtyp = 1 if br.parallel else 0
+        geom.append(f"LD {ldtyp} {tag} {seg} {seg} {_num(r)} {_num(l)} {_num(c)}")
+    tag, seg = name_to_loc[feed_port]
+    return geom + [
+        f"FR 0 1 0 0 {_num(freq_mhz)} {_num(0.0)}",
+        f"EX 0 {tag} {seg} 0 {_num(1.0)} {_num(0.0)}",
+    ]
+
+
 # --- minimal .ssn XML scaffold (see module note) ----------------------------
-# Three-element cascade: LOAD (open, right end) — NETWORK (the antenna, in the
-# escape-hatch script) — GENERATOR (50 Ohm source, left end). Deliberately minimal
-# — SimNEC regenerates the display state (SPREADSHEET / charts / band menus) it
+# Cascade, listed right-to-left the way SimNEC saves it: LOAD (open, right
+# end) — NETWORK (the antenna, in the escape-hatch script) — {chain} (the
+# station's circuit elements, antenna side first; "" for antenna-only) —
+# GENERATOR (50 Ohm source, left end). Deliberately minimal — SimNEC
+# regenerates the display state (SPREADSHEET / charts / band menus) it
 # omits. The Generator's MHz carries an optional {gen_sweep} <sweepParam>.
 _SSN_TEMPLATE = """\
 <?xml version="1.0" encoding="utf-8"?>
@@ -201,7 +588,7 @@ _SSN_TEMPLATE = """\
                 <sweeperLabel>A</sweeperLabel>
                 <escapeHatch/>
                 <p><n>equ</n><v>{equ}</v></p>
-            </element>
+            </element>{chain}
             <element>
                 <type>GENERATOR</type>
                 <sweeperLabel>G</sweeperLabel>
@@ -250,7 +637,8 @@ def export_ssn(
     sweep: tuple[float, float] | None = None,
     name: str | None = None,
 ) -> str:
-    """Return a SimNEC ``.ssn`` (str) for an antenna-only ``builder``.
+    """Return a SimNEC ``.ssn`` (str) for ``builder`` — antenna-only, or a
+    differential-only station (issue #604; see the module Scope note).
 
     freq_mhz   : Generator frequency in MHz; defaults to ``builder.freq``.
     ground     : same spec as ``export_nec`` / PyNECEngine — None/"free",
@@ -266,18 +654,44 @@ def export_ssn(
                  the design's short leaf name; keep it ≤ ~12 chars — SimNEC
                  shrinks the font for longer names.
 
-    Raises ``NotImplementedError`` (via ``export_nec``) for networked designs.
+    Raises :class:`SsnUnsupported` (a ``NotImplementedError``) for networked
+    designs SimNEC cannot faithfully represent — common-mode constructs
+    (``BalancedLine.zcomm``, ``FloatingBalun``, balanced tuners), non-ladder
+    topologies, and unmapped branch types. Component ``Q`` values are quoted
+    at ``freq_mhz`` (SimNEC's ``Q``/``@MHz`` convention), so a station export
+    is exact at that frequency and Q-model-approximate across a sweep.
     """
     freq_mhz = builder.freq if freq_mhz is None else float(freq_mhz)
-    script = build_nec_portal_script(
-        builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
-    )
+    # PyNECEngine raises ValueError here for PortAtEnd (momwire-only) designs —
+    # NEC-2 (and therefore SimNEC's NEC block) has no junction-node port.
+    eng = PyNECEngine(builder, ground=ground)
+    if eng._use_reducer:
+        # Station path (issue #604): circuit elements from the reducer
+        # branches, the antenna alone in the NEC block, driven at the
+        # station's feed port.
+        feed_port, walk_elements, deck_loads = _station_chain(eng._network, freq_mhz)
+        cards = _station_cards(eng, feed_port, deck_loads, freq_mhz)
+        script = _portal_wrap(
+            cards,
+            name=name if name is not None else _default_block_name(builder),
+            ground=ground,
+            seg_per_wl=seg_per_wl,
+        )
+        # File order is right-to-left (LOAD … GENERATOR), so the chain lands
+        # after the antenna NETWORK element in antenna→generator order.
+        chain = "".join("\n" + el for el in reversed(walk_elements))
+    else:
+        script = build_nec_portal_script(
+            builder, freq_mhz=freq_mhz, ground=ground, seg_per_wl=seg_per_wl, name=name
+        )
+        chain = ""
     gen_sweep = (
         "" if sweep is None else _gen_sweep_block(float(sweep[0]), float(sweep[1]))
     )
     sweep_state = "" if sweep is None else _SWEEP_STATE
     return _SSN_TEMPLATE.format(
         equ=_xml_escape(script),
+        chain=chain,
         mhz=_fmt(freq_mhz),
         gen_sweep=gen_sweep,
         sweep_state=sweep_state,
@@ -292,7 +706,8 @@ def main(argv=None):
 
     ap = argparse.ArgumentParser(
         prog="antennaknobs.simnec_export",
-        description="Emit a SimNEC (.ssn) circuit for an antenna-only design.",
+        description="Emit a SimNEC (.ssn) circuit for a design — antenna-only,"
+        " or a differential-only station (antenna + feedline + tuner chain).",
     )
     ap.add_argument(
         "builder",
