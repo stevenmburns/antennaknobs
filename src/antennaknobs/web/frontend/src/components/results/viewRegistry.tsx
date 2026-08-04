@@ -4,6 +4,7 @@ import type { Projection, View } from "../../lib/view";
 import { CurrentCanvas } from "../charts/CurrentCanvas";
 import { FarFieldChart } from "../charts/FarFieldChart";
 import { SmithChart } from "../charts/SmithChart";
+import { SweepChart } from "../charts/SweepChart";
 import type { PatternData, PinnedPattern } from "../charts/types";
 import { SchematicPanel } from "./SchematicPanel";
 
@@ -112,6 +113,38 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       unavailable={p.schematicUnavailable}
       size={p.size}
       fill={p.fill}
+    />
+  ),
+  // |Γ| vs. frequency and VSWR vs. frequency (issue #700 unit 5): one
+  // component, `mode` prop, same split FarFieldChart uses for azimuth vs.
+  // elevation above. z0 fallback matches the Smith chart's exact fallback —
+  // both read the same result field for the same reason.
+  gamma: (p) => (
+    <SweepChart
+      mode="gamma"
+      r={p.result?.z_in_re ?? 0}
+      x={p.result?.z_in_im ?? 0}
+      z0={p.result?.z0_ohms ?? 50}
+      size={p.size}
+      sweep={p.sweep}
+      measFreqMhz={p.measFreqMhz}
+      running={p.sweepRunning}
+      feeds={p.result?.feeds}
+      multiFeed={p.multiFeed}
+    />
+  ),
+  vswr: (p) => (
+    <SweepChart
+      mode="vswr"
+      r={p.result?.z_in_re ?? 0}
+      x={p.result?.z_in_im ?? 0}
+      z0={p.result?.z0_ohms ?? 50}
+      size={p.size}
+      sweep={p.sweep}
+      measFreqMhz={p.measFreqMhz}
+      running={p.sweepRunning}
+      feeds={p.result?.feeds}
+      multiFeed={p.multiFeed}
     />
   ),
 };
