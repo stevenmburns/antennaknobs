@@ -1,10 +1,24 @@
 export type View = "antenna" | "azimuth" | "elevation" | "smith" | "schematic";
-export const VIEWS: { id: View; label: string }[] = [
-  { id: "antenna", label: "Antenna" },
-  { id: "azimuth", label: "Azimuth (xy)" },
-  { id: "elevation", label: "Elevation (yz)" },
-  { id: "smith", label: "Smith" },
-  { id: "schematic", label: "Schematic" },
+
+// The view registry's metadata half. The render half — one function per id —
+// lives in components/results/viewRegistry.tsx, keyed by these same ids:
+// lib/ stays component-free, so the two halves cannot be one object here.
+// Adding a view = one entry below + one render entry there (the render map is
+// a Record<View, …>, so the compiler names the gap).
+export type ViewMeta = {
+  id: View;
+  label: string;
+  // Whether the view starts in the user's pinned set. Dormant until the pin
+  // model lands — unit 2 of docs/plan-view-rail-scaling.md is the only
+  // consumer. Nothing reads it today.
+  defaultPinned: boolean;
+};
+export const VIEWS: ViewMeta[] = [
+  { id: "antenna", label: "Antenna", defaultPinned: true },
+  { id: "azimuth", label: "Azimuth (xy)", defaultPinned: true },
+  { id: "elevation", label: "Elevation (yz)", defaultPinned: true },
+  { id: "smith", label: "Smith", defaultPinned: true },
+  { id: "schematic", label: "Schematic", defaultPinned: false },
 ];
 
 // The mobile output carousel's screens: the 5 chart views plus a dedicated
