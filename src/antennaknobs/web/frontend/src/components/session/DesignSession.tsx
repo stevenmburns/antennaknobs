@@ -1097,6 +1097,7 @@ function DesignSessionBody({
       designFreq,
       measFreq,
       measLocked,
+      plane,
       groundEnabled,
       groundModel,
       terrainKey,
