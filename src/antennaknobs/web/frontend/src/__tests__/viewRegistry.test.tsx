@@ -67,7 +67,7 @@ describe("view metadata", () => {
       ["elevation", "Elevation (yz)"],
       ["smith", "Smith"],
       ["schematic", "Schematic"],
-      ["gamma", "|Γ| vs freq"],
+      ["gamma", "S11 (dB) vs freq"],
       ["vswr", "VSWR vs freq"],
     ]);
   });

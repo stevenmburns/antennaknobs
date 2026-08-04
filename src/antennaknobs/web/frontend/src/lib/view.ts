@@ -24,7 +24,10 @@ export const VIEWS: ViewMeta[] = [
   // items 6/7): the sweep data already flows to the Smith chart, so these
   // are a second and third presentation of it, not a new data path. Ship
   // unpinned like schematic — the founding four stay the only defaults.
-  { id: "gamma", label: "|Γ| vs freq", defaultPinned: false },
+  // "gamma" keeps its id (persisted pin sets store ids) but presents as S11
+  // in dB — the VNA/NanoVNA log-magnitude convention, which is what this
+  // audience reads; linear |Γ| only ever appears as a Smith-chart radius.
+  { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false },
   { id: "vswr", label: "VSWR vs freq", defaultPinned: false },
 ];
 
