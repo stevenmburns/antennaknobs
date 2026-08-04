@@ -1,12 +1,15 @@
-// Pins the "All views" overflow picker and the two rules that only bite on a
-// roster bigger than the five views we ship today: the 6-pin cap and the NEW
-// badge (unit 2 of docs/plan-view-rail-scaling.md).
+// Pins the "All views" overflow picker and the one rule that only bites on a
+// roster bigger than the cap: the 6-pin limit (unit 2 of
+// docs/plan-view-rail-scaling.md).
 //
 // The registry is mocked up to the plan's 9-view design target rather than
-// waiting for those views to exist — with 5 real views the cap is
-// unreachable, and every real view is in the picker's `seen` seed, so nothing
-// could ever badge. The mock is the roster of a NEAR-FUTURE release, which is
-// exactly the situation both rules are written for.
+// waiting for those views to exist: the cap cannot be reached while the
+// shipped roster is smaller than six. The mock is the roster of a NEAR-FUTURE
+// release, which is exactly the situation the rule is written for.
+//
+// Every expectation below is derived from the mocked VIEWS, so the roster
+// growing under this file (as it did when |Γ| and VSWR landed mid-unit)
+// changes nothing here.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, renderHook, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -14,14 +17,16 @@ import { useState } from "react";
 
 vi.mock("../lib/view", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/view")>();
-  // Ids outside the shipped `View` union, so they need the cast the real
-  // registry does not.
+  // Tops the shipped roster up past the cap with the plan's two still-unbuilt
+  // views (items 8/9). Ids already shipped are skipped — a sibling unit
+  // landing one of these for real must not produce a duplicate row, which is
+  // precisely how this mock broke when |Γ| and VSWR shipped. Their ids sit
+  // outside the shipped `View` union, hence the cast the real registry
+  // does not need.
   const soon = [
-    { id: "gamma", label: "|Γ| vs freq", defaultPinned: false },
-    { id: "vswr", label: "VSWR vs freq", defaultPinned: false },
     { id: "optim", label: "Optimization", defaultPinned: false },
     { id: "converge", label: "Convergence", defaultPinned: false },
-  ] as unknown as typeof actual.VIEWS;
+  ].filter((v) => !actual.VIEWS.some((a) => a.id === v.id)) as unknown as typeof actual.VIEWS;
   const VIEWS = [...actual.VIEWS, ...soon];
   return {
     ...actual,
@@ -31,14 +36,24 @@ vi.mock("../lib/view", async (importOriginal) => {
 });
 
 // Imported AFTER the mock declaration for readability only — vi.mock is
-// hoisted above every import in this file.
-import type { View } from "../lib/view";
-import { VIEW_PREFS_KEY, useViewPrefs } from "../components/session/useViewPrefs";
+// hoisted above every import in this file. VIEWS/VIEW_META here are the
+// mocked ones; PIN_CAP and the hook are real.
+import { VIEW_META, VIEWS, type View } from "../lib/view";
+import {
+  PIN_CAP,
+  VIEW_PREFS_KEY,
+  useViewPrefs,
+} from "../components/session/useViewPrefs";
 import { ViewPicker } from "../components/session/ViewPicker";
 
 const FOUNDING: View[] = ["antenna", "azimuth", "elevation", "smith"];
-const SHIPPED = [...FOUNDING, "schematic"];
-const SOON = ["gamma", "vswr", "optim", "converge"];
+const ROSTER = VIEWS.map((v) => v.id);
+// A deliberate mirror of useViewPrefs' SEEN_SEED (not exported: it is a
+// frozen historical fact, not a knob). Copying it here means a change to the
+// production seed shows up as a failure in the badge tests, which is where
+// the seed's whole meaning lives.
+const PRE_PICKER: View[] = ["antenna", "azimuth", "elevation", "smith", "schematic"];
+const label = (id: View) => VIEW_META[id].label;
 
 beforeEach(() => {
   localStorage.clear();
@@ -83,10 +98,9 @@ const rows = () =>
 describe("the All-views button", () => {
   it("counts the unpinned views", () => {
     render(<Harness />);
-    // 9 views, 4 pinned by default.
     expect(
       screen.getByRole("button", { name: /all views/i }).textContent,
-    ).toContain("+5");
+    ).toContain(`+${ROSTER.length - FOUNDING.length}`);
   });
 });
 
@@ -97,17 +111,9 @@ describe("the picker popover", () => {
     const user = userEvent.setup();
     render(<Harness />);
     await openPicker(user);
-    expect(rows()).toEqual([
-      "Antenna",
-      "Azimuth (xy)",
-      "Elevation (yz)",
-      "Smith",
-      "Schematic",
-      "|Γ| vs freq",
-      "VSWR vs freq",
-      "Optimization",
-      "Convergence",
-    ]);
+    // The WHOLE roster, pinned or not, in registry order — that is the
+    // picker's contract with every view that ships after it.
+    expect(rows()).toEqual(ROSTER.map(label));
   });
 
   it("marks the active row", async () => {
@@ -173,47 +179,63 @@ describe("pin-dot click", () => {
     const user = userEvent.setup();
     render(<Harness />);
     await openPicker(user);
-    await user.click(dot("Pin VSWR vs freq"));
-    await user.click(dot("Pin Schematic"));
-    expect(probe("pinned")).toBe([...FOUNDING, "vswr", "schematic"].join(","));
+    // Pinned bottom-up, so registry order would give the opposite answer.
+    const spare = ROSTER.filter((id) => !FOUNDING.includes(id));
+    const [first, last] = [spare[0], spare[spare.length - 1]];
+    await user.click(dot(`Pin ${label(last)}`));
+    await user.click(dot(`Pin ${label(first)}`));
+    expect(probe("pinned")).toBe([...FOUNDING, last, first].join(","));
   });
 });
 
 // --- 4. The cap -------------------------------------------------------------
 
 describe("the 6-pin cap", () => {
-  it("refuses a 7th pin and disables its dot", async () => {
+  // The mocked roster exists to make this reachable at all.
+  const spare = ROSTER.filter((id) => !FOUNDING.includes(id));
+  const capped = [...FOUNDING, ...spare.slice(0, PIN_CAP - FOUNDING.length)];
+  const refused = ROSTER.filter((id) => !capped.includes(id));
+
+  it("has a roster that can actually overrun the cap", () => {
+    expect(capped).toHaveLength(PIN_CAP);
+    expect(refused.length).toBeGreaterThan(0);
+  });
+
+  it(`refuses pin ${PIN_CAP + 1} and disables its dot`, async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await openPicker(user);
-    await user.click(dot("Pin Schematic"));
-    await user.click(dot("Pin |Γ| vs freq"));
-    const capped = [...FOUNDING, "schematic", "gamma"].join(",");
-    expect(probe("pinned")).toBe(capped);
+    for (const id of capped.filter((id) => !FOUNDING.includes(id))) {
+      await user.click(dot(`Pin ${label(id)}`));
+    }
+    expect(probe("pinned")).toBe(capped.join(","));
 
     // Every remaining unpinned dot is now inert, and says why.
-    for (const label of ["Pin VSWR vs freq", "Pin Optimization", "Pin Convergence"]) {
-      expect((dot(label) as HTMLButtonElement).disabled).toBe(true);
-      expect(dot(label).getAttribute("title")).toBe("Unpin a view first");
+    for (const id of refused) {
+      const d = dot(`Pin ${label(id)}`) as HTMLButtonElement;
+      expect(d.disabled).toBe(true);
+      expect(d.getAttribute("title")).toBe("Unpin a view first");
     }
     // Pointer events cannot reach a disabled button, so drive the model
     // directly to prove the refusal is the hook's, not just the DOM's.
     const { result } = renderHook(() => useViewPrefs());
-    act(() => result.current.togglePin("vswr" as View));
-    expect(result.current.pinned.join(",")).toBe(capped);
+    act(() => result.current.togglePin(refused[0]));
+    expect(result.current.pinned.join(",")).toBe(capped.join(","));
 
     // Unpinning frees exactly one slot.
-    await user.click(dot("Unpin Smith"));
-    expect((dot("Pin VSWR vs freq") as HTMLButtonElement).disabled).toBe(false);
+    await user.click(dot(`Unpin ${label(FOUNDING[3])}`));
+    expect((dot(`Pin ${label(refused[0])}`) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 
   it("clamps an over-full stored record on load", () => {
     localStorage.setItem(
       VIEW_PREFS_KEY,
-      JSON.stringify({ pinned: [...SHIPPED, ...SOON], seen: [] }),
+      JSON.stringify({ pinned: ROSTER, seen: [] }),
     );
     const { result } = renderHook(() => useViewPrefs());
-    expect(result.current.pinned).toEqual([...SHIPPED, "gamma"]);
+    expect(result.current.pinned).toEqual(ROSTER.slice(0, PIN_CAP));
   });
 });
 
@@ -222,24 +244,21 @@ describe("the 6-pin cap", () => {
 const badges = () =>
   screen.getAllByText("NEW").map((el) => el.parentElement?.textContent ?? "");
 
+const POST_PICKER = ROSTER.filter((id) => !PRE_PICKER.includes(id));
+
 describe("the NEW badge", () => {
   it("marks views the seed does not cover, and stops after the picker is opened", async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await openPicker(user);
-    // The five pre-picker views are seeded as seen; the four later ones are
-    // announced even though they ship unpinned.
-    expect(badges()).toEqual([
-      "|Γ| vs freqNEW",
-      "VSWR vs freqNEW",
-      "OptimizationNEW",
-      "ConvergenceNEW",
-    ]);
+    // The pre-picker views are seeded as seen; everything that shipped after
+    // is announced, even though it all ships unpinned.
+    expect(badges()).toEqual(POST_PICKER.map((id) => `${label(id)}NEW`));
     // Opening is what marks them seen — but the badges must survive the open
     // that revealed them.
     expect(JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) ?? "{}").seen).toEqual([
-      ...SHIPPED,
-      ...SOON,
+      ...PRE_PICKER,
+      ...POST_PICKER,
     ]);
 
     await user.click(screen.getByRole("button", { name: /all views/i }));
@@ -251,7 +270,7 @@ describe("the NEW badge", () => {
     const user = userEvent.setup();
     localStorage.setItem(
       VIEW_PREFS_KEY,
-      JSON.stringify({ pinned: FOUNDING, seen: [...SHIPPED, ...SOON] }),
+      JSON.stringify({ pinned: FOUNDING, seen: ROSTER }),
     );
     render(<Harness />);
     await openPicker(user);
