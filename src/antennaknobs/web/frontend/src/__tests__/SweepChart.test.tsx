@@ -17,8 +17,9 @@ HTMLCanvasElement.prototype.getContext =
   (() => null) as unknown as HTMLCanvasElement["getContext"];
 
 // Three points chosen from the closed-form oracle pairs pinned in
-// math.test.ts: Z=50+0j -> matched (|Γ|=0, VSWR=1); Z=100+0j and Z=25+0j ->
-// the 2:1 real mismatch (|Γ|=1/3, VSWR=2) from either side of Z0=50.
+// math.test.ts: Z=50+0j -> matched (S11 floored at -60 dB, VSWR=1);
+// Z=100+0j and Z=25+0j -> the 2:1 real mismatch (|Γ|=1/3 ⇒ S11 -9.5424 dB,
+// VSWR=2) from either side of Z0=50.
 const SWEEP: SweepData = {
   freqs_mhz: [10, 14, 18],
   z_re: [50, 100, 25],
@@ -79,15 +80,15 @@ describe("empty/loading state", () => {
 });
 
 describe("a synthetic 3-point sweep produces a trace", () => {
-  it("gamma mode: y-values are |Γ|, not VSWR, per sample", () => {
+  it("gamma mode: y-values are S11 in dB, not VSWR, per sample", () => {
     const { container } = renderChart("gamma", { sweep: SWEEP });
     const canvas = container.querySelector("canvas.sweep") as HTMLCanvasElement;
     expect(canvas.dataset.points).toBe("3");
     expect(canvas.dataset.feeds).toBe("1");
-    expect(canvas.dataset.yValues).toBe("0.0000,0.3333,0.3333");
+    expect(canvas.dataset.yValues).toBe("-60.0000,-9.5424,-9.5424");
   });
 
-  it("vswr mode: y-values are VSWR, not |Γ|, per sample", () => {
+  it("vswr mode: y-values are VSWR, not S11 dB, per sample", () => {
     const { container } = renderChart("vswr", { sweep: SWEEP });
     const canvas = container.querySelector("canvas.sweep") as HTMLCanvasElement;
     expect(canvas.dataset.points).toBe("3");
@@ -105,7 +106,7 @@ describe("a synthetic 3-point sweep produces a trace", () => {
   it("current-Z marker reflects the live result, converted by the chart's own mode", () => {
     const gamma = renderChart("gamma", { sweep: SWEEP, r: 100, x: 0, z0: 50 });
     const gCanvas = gamma.container.querySelector("canvas.sweep") as HTMLCanvasElement;
-    expect(gCanvas.dataset.current).toBe("0.3333");
+    expect(gCanvas.dataset.current).toBe("-9.5424");
 
     const vswr = renderChart("vswr", { sweep: SWEEP, r: 100, x: 0, z0: 50 });
     const vCanvas = vswr.container.querySelector("canvas.sweep") as HTMLCanvasElement;
@@ -136,7 +137,7 @@ describe("multi-feed sweeps (mirrors SmithChart's feeds_z_re/feeds_z_im policy)"
     // Feed-0's trace is what data-y-values reports (the legacy single-trace
     // convention), and it must come from feeds_z_re[*][0], not the
     // top-level z_re — same fallback order as SmithChart's zAt().
-    expect(canvas.dataset.yValues).toBe("0.0000,0.3333,0.3333");
+    expect(canvas.dataset.yValues).toBe("-60.0000,-9.5424,-9.5424");
   });
 
   it("falls back to the legacy single trace when feeds_z_re is absent or too short", () => {
