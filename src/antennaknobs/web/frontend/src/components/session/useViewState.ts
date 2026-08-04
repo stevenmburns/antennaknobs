@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type ExampleDescriptor } from "../../lib/params";
 import { type Projection, type View } from "../../lib/view";
-import { cycleOrder } from "./useViewPrefs";
+import { cycleOrder, gridCells, gridFix, type Layout } from "./useViewPrefs";
 
 // Which output view is on screen and how it is drawn: the two far-field cut
 // angles, the selected view + camera projection, the antenna-canvas display
@@ -14,12 +14,26 @@ export function useViewState({
   currentExample,
   active,
   pinned,
+  layout = "rail",
+  setLayout,
 }: {
   currentExample: ExampleDescriptor | undefined;
   active: boolean;
   // The user's pinned views (useViewPrefs). The arrow keys cycle these plus
   // the active view, not the whole registry — see cycleOrder.
   pinned: View[];
+  // Unit 3 (docs/plan-view-rail-scaling.md "Layout modes"): grid mode's
+  // arrows cycle the displayed cells only (gridCells), not pinned ∪ active
+  // — a ring that walked onto pin #5 would vanish. Chosen as the seam here
+  // (rather than a generic `cycle` override list) because the displayed set
+  // is already fully determined by `pinned`, which this hook already takes;
+  // a second, separately-passed list could disagree with it. Defaults to
+  // "rail" so this stays a pure addition — every existing call keeps
+  // cycling pinned ∪ active exactly as before.
+  layout?: Layout;
+  // Only the grid-mode off-grid-peek fix (see the effect below) ever calls
+  // this. Omit it and that one branch is simply inert.
+  setLayout?: (l: Layout) => void;
 }) {
   // Far-field cut angles. The azimuth plot slices the pattern at elevation
   // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
@@ -31,6 +45,22 @@ export function useViewState({
   const [elevAzDeg, setElevAzDeg] = useState(0);
 
   const [view, setView] = useState<View>("antenna");
+
+  // Keeps the grid-mode focus ring on a displayed cell — see gridFix's own
+  // comment for the full decision table. `wasGridRef` tracks the layout as
+  // of the last time this effect ran, which is how gridFix tells "just
+  // entered grid" from "already in grid, view just changed under it" apart;
+  // it is updated on every run regardless of which branch (or no branch)
+  // fires, so it always reflects the PREVIOUS render's layout.
+  const wasGridRef = useRef(layout === "grid");
+  useEffect(() => {
+    const fix = gridFix(layout, wasGridRef.current, view, pinned);
+    wasGridRef.current = layout === "grid";
+    if (!fix) return;
+    if ("view" in fix) setView(fix.view);
+    else setLayout?.("rail");
+  }, [layout, view, pinned, setLayout]);
+
   const [cameraProjection, setCameraProjection] = useState<Projection>("xy");
   // When the user switches antennas, reset the camera to that example's
   // natural starting view (declared on the backend via default_view).
@@ -76,7 +106,9 @@ export function useViewState({
       ) {
         return;
       }
-      const order = cycleOrder(pinned, view);
+      // Grid mode cycles the displayed cells only (unit 3's "Keyboard"
+      // section); rail mode keeps unit 2's pinned ∪ active cycle untouched.
+      const order = layout === "grid" ? gridCells(pinned) : cycleOrder(pinned, view);
       const idx = order.indexOf(view);
       const next =
         e.key === "ArrowDown"
@@ -86,7 +118,7 @@ export function useViewState({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view, active, pinned]);
+  }, [view, active, pinned, layout]);
 
   return {
     azElevDeg,

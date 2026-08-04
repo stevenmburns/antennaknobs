@@ -27,7 +27,7 @@ import {
   type SchemaItem,
   type SchemaParamSpec,
 } from "../../lib/params";
-import { mobileScreens, type View } from "../../lib/view";
+import { mobileScreens, VIEW_META, type View } from "../../lib/view";
 import type {
   MeasuredData,
   SolveRequest,
@@ -40,6 +40,7 @@ import type { PatternMetrics } from "../charts/types";
 import {
   ThemeContext,
   useFullscreen,
+  useGridCellSize,
   useIsMobile,
   useSlideSize,
   useThumbColumnSize,
@@ -50,8 +51,10 @@ import {
   CompareOverlay,
   CutAngleOverlay,
   FarFieldOverlayControls,
+  LayoutModeToggle,
   SmithOverlayControls,
 } from "../results/StageOverlays";
+import { ViewGrid } from "../results/ViewGrid";
 import { ViewPanel } from "../results/ViewPanel";
 import { fetchMetrics, PinsContext, SessionsContext, ThemeControlContext } from "./contexts";
 import { CatalogPanel } from "./CatalogPanel";
@@ -75,7 +78,7 @@ import { useOptimizer } from "./useOptimizer";
 import { useSchematic } from "./useSchematic";
 import { useSolveChannel } from "./useSolveChannel";
 import { useSolverSlots } from "./useSolverSlots";
-import { useViewPrefs } from "./useViewPrefs";
+import { gridCells, gridShape, useViewPrefs } from "./useViewPrefs";
 import { useViewState } from "./useViewState";
 import { ViewPicker } from "./ViewPicker";
 import { VfoPanel } from "./VfoPanel";
@@ -395,26 +398,9 @@ function DesignSessionBody({
     railViews,
     togglePin: toggleViewPin,
     markRosterSeen,
+    layout,
+    setLayout,
   } = useViewPrefs();
-  // Output view, camera and canvas display toggles (#642 seam 5b-3).
-  const {
-    azElevDeg,
-    setAzElevDeg,
-    elevAzDeg,
-    setElevAzDeg,
-    view,
-    setView,
-    cameraProjection,
-    setCameraProjection,
-    showHeatmap,
-    setShowHeatmap,
-    showEnvelope,
-    setShowEnvelope,
-    showWireLabels,
-    setShowWireLabels,
-    showFeedNames,
-    setShowFeedNames,
-  } = useViewState({ currentExample, active, pinned });
 
   // When linked, design and measurement freq move together.
   function updateDesignFreq(v: number) {
@@ -591,12 +577,65 @@ function DesignSessionBody({
   // reattach key, so no desktop viewport is affected; the key makes both
   // hooks re-measure if the window is resized across the breakpoint.
   const { isMobile, orientation } = useIsMobile();
+  // Grid mode is desktop-only (the segmented control never renders on
+  // mobile, so `setLayout("grid")` is never reachable there) — but `layout`
+  // itself is a global persisted flag, so a phone can still load a value of
+  // "grid" left over from a desktop session. Forcing "rail" here keeps the
+  // mobile carousel's arrow-key cycling (pinned ∪ active, unit 2) exactly as
+  // it was; nothing below the mobile branch ever sees "grid".
+  const effectiveLayout = isMobile ? "rail" : layout;
+  // Output view, camera and canvas display toggles (#642 seam 5b-3); the
+  // grid-mode off-grid snap (unit 3) lives inside this hook too, since it
+  // already owns `view` and now needs `layout`/`setLayout` alongside it.
+  const {
+    azElevDeg,
+    setAzElevDeg,
+    elevAzDeg,
+    setElevAzDeg,
+    view,
+    setView,
+    cameraProjection,
+    setCameraProjection,
+    showHeatmap,
+    setShowHeatmap,
+    showEnvelope,
+    setShowEnvelope,
+    showWireLabels,
+    setShowWireLabels,
+    showFeedNames,
+    setShowFeedNames,
+  } = useViewState({
+    currentExample,
+    active,
+    pinned,
+    layout: effectiveLayout,
+    setLayout,
+  });
   const { ref: slideRef, size: chartSize } = useSlideSize(720, isMobile);
   const thumbStripRef = useRef<HTMLDivElement>(null);
   // The rail is the pinned set minus whatever is on the stage; peeking an
   // unpinned view subtracts nothing, so the count the sizer needs varies.
   const rail = railViews(view);
   const thumbSize = useThumbColumnSize(thumbStripRef, rail.length, 280, isMobile);
+  // Grid mode's displayed cells (unit 3): the first ≤4 pins, in pin order.
+  // gridCells/gridShape are pure (useViewPrefs.ts) so this and useViewState's
+  // internal cycling can never disagree about "what's on screen".
+  const gridViewIds = gridCells(pinned);
+  const gridViews = gridViewIds.map((id) => VIEW_META[id]);
+  const { rows: gridRows, cols: gridCols } = gridShape(gridViewIds.length);
+  const { ref: gridRef, size: gridCellSize } = useGridCellSize(
+    gridRows,
+    gridCols,
+    560,
+    effectiveLayout,
+  );
+  // Maximize (glyph or double-click, Blender's cell↔full toggle): jump to
+  // rail mode with this view primary. The segmented control's rail button
+  // returns to grid.
+  const maximizeView = (v: View) => {
+    setView(v);
+    setLayout("rail");
+  };
 
   const {
     mobileIndex,
@@ -1518,92 +1557,129 @@ function DesignSessionBody({
 
       <main className="stage" aria-label="Antenna output views">
         {solveOverlays}
-        <div className="thumbstrip" ref={thumbStripRef}>
-          {rail.map((v) => (
-            <button
-              key={v.id}
-              className="thumb"
-              onClick={() => setView(v.id)}
-              title={`Switch to ${v.label}`}
-            >
-              <div
-                className="thumb-canvas"
-                style={{ width: thumbSize.width, height: thumbSize.height }}
-              >
-                {/* The chart draws at the column's full (3-thumb-era) width
-                    — where its fixed-px labels fit — and scales down
-                    uniformly into the shorter rectangle, a true miniature
-                    (issue #652; see useThumbColumnSize). */}
-                <div
-                  className="thumb-scale"
-                  style={{
-                    width: thumbSize.width,
-                    height: thumbSize.width,
-                    transform: `translate(-50%, -50%) scale(${
-                      thumbSize.height / thumbSize.width
-                    })`,
-                  }}
+        {/* Rail/grid presets over the same pinned set (unit 3) — visible in
+            both modes so either one can switch to the other. Desktop-only by
+            placement: this branch is never reached while isMobile. */}
+        <LayoutModeToggle layout={effectiveLayout} setLayout={setLayout} />
+        {effectiveLayout === "grid" ? (
+          <>
+            <ViewGrid
+              gridRef={gridRef}
+              cells={gridViews}
+              view={view}
+              setView={setView}
+              onMaximize={maximizeView}
+              cellSize={gridCellSize}
+              rows={gridRows}
+              cols={gridCols}
+              renderCell={(v, size) => renderOutput(v, size, v === "antenna")}
+            />
+            {/* Grid mode has no single primary slide to float the HUD over
+                (unit 3), so it anchors to the STAGE itself instead of one
+                cell — same look (stage-readout family), one instance rather
+                than per-cell. `.stage` is the positioned ancestor here, same
+                role `.carousel-slide` plays in rail mode below. */}
+            <SolveReadout
+              className="stage-readout"
+              result={result}
+              rttMs={rttMs}
+              currentExample={currentExample}
+              effectiveMultiFeed={effectiveMultiFeed}
+              normCheck={normCheck}
+              normCheckEnabled={normCheckEnabled}
+              onPlaneChange={pickPlane}
+            />
+          </>
+        ) : (
+          <>
+            <div className="thumbstrip" ref={thumbStripRef}>
+              {rail.map((v) => (
+                <button
+                  key={v.id}
+                  className="thumb"
+                  onClick={() => setView(v.id)}
+                  title={`Switch to ${v.label}`}
                 >
-                <ViewPanel
-                  view={v.id}
-                  size={thumbSize.width}
-                  fill={false}
-                  result={result}
-                  preview={preview}
-                  sweep={sweep}
-                  converge={converge}
-                  measured={measured}
-                  pattern={pattern}
-                  pinnedPatterns={[]}
-                  measFreqMhz={measFreq}
-                  sweepRunning={sweepRunning}
-                  convergeRunning={convergeRunning}
-                  azElevDeg={azElevDeg}
-                  elevAzDeg={elevAzDeg}
-                  cameraProjection={cameraProjection}
-                  showHeatmap={showHeatmap}
-                  showEnvelope={showEnvelope}
-                  multiFeed={effectiveMultiFeed}
-                  schematicSvg={schematicSvg}
-                  schematicUnavailable={schematicUnavailable}
-                />
-                </div>
-              </div>
-              <div className="thumb-label">{v.label}</div>
-            </button>
-          ))}
-          {/* Everything not pinned lives behind here. Fixed height by design:
-              useThumbColumnSize subtracts exactly this slot. */}
-          <ViewPicker
-            view={view}
-            setView={setView}
-            pinned={pinned}
-            newIds={newIds}
-            togglePin={toggleViewPin}
-            markRosterSeen={markRosterSeen}
-          />
-        </div>
-        <div
-          className={`carousel-slide${stale ? " stale" : ""}`}
-          ref={slideRef}
-        >
-          {renderOutput(view, chartSize, view === "antenna")}
-          {/* Solve readout, pinned to the lower-left of whichever view the
-              carousel is centered on. Floats over the canvas as a HUD so the
-              left input rail stays inputs-only. It sits INSIDE the slide, so
-              the slide's stale dim already covers it — no own stale class, or
-              the two opacities would compound. */}
-          <SolveReadout
-            className="stage-readout"
-            result={result}
-            rttMs={rttMs}
-            currentExample={currentExample}
-            effectiveMultiFeed={effectiveMultiFeed}
-            normCheck={normCheck}
-            normCheckEnabled={normCheckEnabled}
-            onPlaneChange={pickPlane}
-          />
-        </div>
+                  <div
+                    className="thumb-canvas"
+                    style={{ width: thumbSize.width, height: thumbSize.height }}
+                  >
+                    {/* The chart draws at the column's full (3-thumb-era) width
+                        — where its fixed-px labels fit — and scales down
+                        uniformly into the shorter rectangle, a true miniature
+                        (issue #652; see useThumbColumnSize). */}
+                    <div
+                      className="thumb-scale"
+                      style={{
+                        width: thumbSize.width,
+                        height: thumbSize.width,
+                        transform: `translate(-50%, -50%) scale(${
+                          thumbSize.height / thumbSize.width
+                        })`,
+                      }}
+                    >
+                    <ViewPanel
+                      view={v.id}
+                      size={thumbSize.width}
+                      fill={false}
+                      result={result}
+                      preview={preview}
+                      sweep={sweep}
+                      converge={converge}
+                      measured={measured}
+                      pattern={pattern}
+                      pinnedPatterns={[]}
+                      measFreqMhz={measFreq}
+                      sweepRunning={sweepRunning}
+                      convergeRunning={convergeRunning}
+                      azElevDeg={azElevDeg}
+                      elevAzDeg={elevAzDeg}
+                      cameraProjection={cameraProjection}
+                      showHeatmap={showHeatmap}
+                      showEnvelope={showEnvelope}
+                      multiFeed={effectiveMultiFeed}
+                      schematicSvg={schematicSvg}
+                      schematicUnavailable={schematicUnavailable}
+                    />
+                    </div>
+                  </div>
+                  <div className="thumb-label">{v.label}</div>
+                </button>
+              ))}
+              {/* Everything not pinned lives behind here. Fixed height by design:
+                  useThumbColumnSize subtracts exactly this slot. */}
+              <ViewPicker
+                view={view}
+                setView={setView}
+                pinned={pinned}
+                newIds={newIds}
+                togglePin={toggleViewPin}
+                markRosterSeen={markRosterSeen}
+              />
+            </div>
+            <div
+              className={`carousel-slide${stale ? " stale" : ""}`}
+              ref={slideRef}
+            >
+              {renderOutput(view, chartSize, view === "antenna")}
+              {/* Solve readout, pinned to the lower-left of whichever view the
+                  carousel is centered on. Floats over the canvas as a HUD so the
+                  left input rail stays inputs-only. It sits INSIDE the slide, so
+                  the slide's stale dim already covers it — no own stale class, or
+                  the two opacities would compound. */}
+              <SolveReadout
+                className="stage-readout"
+                result={result}
+                rttMs={rttMs}
+                currentExample={currentExample}
+                effectiveMultiFeed={effectiveMultiFeed}
+                normCheck={normCheck}
+                normCheckEnabled={normCheckEnabled}
+                onPlaneChange={pickPlane}
+              />
+            </div>
+          </>
+        )}
         <div className="status">
           ws: {status}
           {stale && <span className="status-busy"> · solving…</span>}

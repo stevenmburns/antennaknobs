@@ -4,9 +4,46 @@ import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
 import type { Projection, View } from "../../lib/view";
 import { PROJECTIONS } from "../../lib/view";
+import type { Layout } from "../session/useViewPrefs";
 import type { PatternMetrics, PinnedPattern } from "../charts/types";
 import { Knob } from "../params/Knob";
 import { PatternCompareTable } from "./PatternCompareTable";
+
+// The rail/grid segmented control (unit 3, docs/plan-view-rail-scaling.md
+// "Layout modes"): two presets over the same pinned set. Placed by the
+// caller in the stage's top-right corner, desktop only — it lives in
+// DesignSession's desktop return branch, which the mobile branch never
+// reaches, so "hidden on mobile" needs no prop here.
+export function LayoutModeToggle({
+  layout,
+  setLayout,
+}: {
+  layout: Layout;
+  setLayout: (l: Layout) => void;
+}) {
+  return (
+    <div className="layout-toggle" role="group" aria-label="Stage layout">
+      <button
+        type="button"
+        className={layout === "rail" ? "active" : ""}
+        aria-pressed={layout === "rail"}
+        title="Rail: one primary view plus the pinned thumbnails"
+        onClick={() => setLayout("rail")}
+      >
+        ▤
+      </button>
+      <button
+        type="button"
+        className={layout === "grid" ? "active" : ""}
+        aria-pressed={layout === "grid"}
+        title="Grid: equal cells over the first pinned views"
+        onClick={() => setLayout("grid")}
+      >
+        ⊞
+      </button>
+    </div>
+  );
+}
 
 export function AntennaOverlayControls({
   cameraProjection,
