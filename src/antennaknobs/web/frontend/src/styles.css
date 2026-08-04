@@ -1855,6 +1855,164 @@ input[type=checkbox] {
   letter-spacing: 0.03em;
 }
 
+/* ---- "All views" overflow picker (thumbstrip foot) ---------------------
+   The button's height is FIXED and mirrored by PICKER_SLOT in
+   components/hooks.ts, which subtracts it from the column before dividing
+   the rest among the thumbs — change one and the bottom thumb clips. */
+.view-picker-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.view-picker-btn {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: var(--inset);
+  color: var(--muted);
+  /* Dashed: this slot holds views that are NOT resident, unlike the solid
+     thumbs above it. */
+  border: 1px dashed var(--border-control);
+  border-radius: var(--r-md);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.view-picker-btn:hover {
+  color: var(--accent);
+  border-color: var(--border-hover);
+}
+
+.view-picker-count {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Transparent full-screen catcher so a click anywhere closes the popover
+   (same idiom as .gear-menu-backdrop). */
+.view-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+/* Opens to the RIGHT of the rail, bottom-aligned with its button: the rail
+   hugs the window's left edge, so a menu dropping below would fall off the
+   short columns this whole feature exists to serve. */
+.view-picker {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + var(--space-3));
+  z-index: 41;
+  min-width: 200px;
+  max-height: min(70vh, 460px);
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--bg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-md);
+  box-shadow: 0 6px 20px var(--shadow-strong);
+}
+
+.view-picker-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-sm);
+}
+
+.view-picker-row:hover {
+  background: var(--accent-soft);
+}
+
+.view-picker-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.view-picker-row.unpinned .view-picker-name {
+  color: var(--muted);
+}
+
+.view-picker-row.active .view-picker-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.view-picker-name:hover {
+  color: var(--accent);
+}
+
+/* The pin state IS the indicator (instrument channel-enable idiom): filled =
+   resident in the rail. The button is a 24 px hit target around a 12 px dot. */
+.view-picker-dot {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.view-picker-dot span {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-border);
+}
+
+.view-picker-row.pinned .view-picker-dot span {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.view-picker-dot:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.view-picker-new {
+  padding: 0 var(--space-2);
+  border-radius: var(--r-sm);
+  background: var(--hot);
+  color: var(--panel);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.view-picker-note {
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 .carousel-slide {
   flex: 1;
   min-width: 0;
