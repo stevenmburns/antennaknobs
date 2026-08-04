@@ -36,6 +36,8 @@ const EVERY_VIEW: Record<View, true> = {
   elevation: true,
   smith: true,
   schematic: true,
+  gamma: true,
+  vswr: true,
 };
 const ALL_VIEWS = Object.keys(EVERY_VIEW) as View[];
 
@@ -65,11 +67,14 @@ describe("view metadata", () => {
       ["elevation", "Elevation (yz)"],
       ["smith", "Smith"],
       ["schematic", "Schematic"],
+      ["gamma", "|Γ| vs freq"],
+      ["vswr", "VSWR vs freq"],
     ]);
   });
 
   // The founding four are pinned by default; schematic and every later view
-  // ship unpinned (docs/plan-view-rail-scaling.md, "The pin model").
+  // ship unpinned (docs/plan-view-rail-scaling.md, "The pin model") — gamma
+  // and vswr are the roster's first test of that rule beyond schematic.
   it("defaults exactly the founding four to pinned", () => {
     expect(VIEWS.filter((v) => v.defaultPinned).map((v) => v.id).sort()).toEqual(
       ["antenna", "azimuth", "elevation", "smith"],
@@ -114,6 +119,8 @@ const MARKERS: Record<View, string> = {
   elevation: 'canvas.farfield[data-cut="yz"]',
   smith: "canvas.smith",
   schematic: ".schematic-fill",
+  gamma: 'canvas.sweep[data-mode="gamma"]',
+  vswr: 'canvas.sweep[data-mode="vswr"]',
 };
 
 describe("dispatch", () => {
