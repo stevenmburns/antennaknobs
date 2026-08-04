@@ -57,6 +57,7 @@ looks right and is false.
 from __future__ import annotations
 
 import math
+import re
 from collections import namedtuple
 from dataclasses import dataclass, field, replace
 
@@ -241,6 +242,23 @@ class Branch:
 
 
 @dataclass
+class FeedGroup:
+    """Sources sharing one drive value, summarized as a row (issue #685).
+
+    A 16-source array models no feed network at all — every element carries
+    its own ideal generator. There is no chain to draw and inventing one (a
+    single source fanned to 16 antennas) would fabricate a corporate feed
+    the solve does not contain. What IS true is the grouping: N elements
+    driven identically. One row per distinct drive says exactly that, and a
+    phased multi-source design says it as one row per phase group.
+    """
+
+    count: int
+    drive: str  # "1 V", "0.7 V ∠90°" — the group's shared source value
+    ports: str  # "e0_0.feed … e15_0.feed" — first … last in natural order
+
+
+@dataclass
 class Schematic:
     """A whole drawing: the source, the chain, and what it ends in.
 
@@ -281,6 +299,9 @@ class Schematic:
     #: An LPDA's chain touches d8…d1 on the way to d0; without the marks they
     #: draw as anonymous wire (issue #685).
     marks: list[tuple[int, str]] = field(default_factory=list)
+    #: Multi-source summary (issue #685): set INSTEAD of a chain when several
+    #: sources drive the antenna directly — there is no feed network to walk.
+    feed_groups: list[FeedGroup] = field(default_factory=list)
     attachments: list[Block] = field(default_factory=list)
 
 
@@ -310,6 +331,19 @@ def terminals_of(branch) -> tuple[str, ...]:
     return tuple(
         v for v in (getattr(branch, f, None) for f in names) if isinstance(v, str)
     )
+
+
+def _natkey(s: str):
+    """Natural sort key, so a feed-group range reads e0_0 … e15_0 rather than
+    lexicographic order putting e15 before e2."""
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s)]
+
+
+def _drive_text(v: complex) -> str:
+    """A source value as it reads on the page: magnitude, phase if any."""
+    mag = abs(v)
+    ph = math.degrees(math.atan2(v.imag, v.real))
+    return f"{mag:g} V ∠{ph:g}°" if abs(ph) > 1e-9 else f"{mag:g} V"
 
 
 # --- default symbols for bare branches -------------------------------------
@@ -628,9 +662,31 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
         sch.notes.append("no source: nothing to draw a chain from")
         return sch
     if len(net.sources) > 1:
+        # A multi-feed antenna: there is no chain, and no feed network is
+        # modelled between the sources. What there IS to draw is the
+        # grouping — N elements driven identically — one summary row per
+        # distinct drive value (issue #685). Keyed by the complex voltage,
+        # so a phased design falls into one group per phase.
+        by_drive: dict[complex, list[str]] = {}
+        for src in net.sources:
+            v = complex(getattr(src, "voltage", None) or 1.0)
+            by_drive.setdefault(v, []).append(src.port)
+        for v, ports in by_drive.items():
+            names = sorted(ports, key=_natkey)
+            sch.feed_groups.append(
+                FeedGroup(
+                    count=len(names),
+                    drive=_drive_text(v),
+                    ports=(
+                        ", ".join(names)
+                        if len(names) <= 3
+                        else f"{names[0]} … {names[-1]}"
+                    ),
+                )
+            )
         sch.notes.append(
-            f"{len(net.sources)} driven ports — a multi-feed antenna rather "
-            "than a chain, so there is no single line to draw"
+            f"{len(net.sources)} driven ports — every element carries its own "
+            "source; no feed network between them is modelled"
         )
         return sch
 
@@ -1550,115 +1606,145 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             # mast upward, so rotating it lays the whole symbol on its side.
             d += elm.Antenna().at((x + leadout, y)).label(antenna_text, loc="right")
 
-    # A picked plane makes everything from the source to the cut a
-    # disconnected stub of the drawing — the source glyph included.
-    if sch.plane_cut is not None:
-        d.config(color=DIM)
-    # `.to()` rather than `.up()`: an element's default length is one unit
-    # (DX), so `.up()` from the datum overshoots the spine and leaves a bare
-    # wire sticking out of the top of the source.
-    d += elm.SourceSin().at((0.0, -DY)).to((0.0, 0.0))
-    d += (
-        elm.Label()
-        .at((-SRC_R - 0.15, -DY / 2.0))
-        .label(sch.source or "source", halign="right")
-    )
-    d += elm.Ground().at((0.0, -DY))
-
-    # A shunt on the first spine node labels itself leftward, into the source.
-    # Reserve the room here rather than nudging the label, so the drop stays
-    # on the node it is electrically attached to.
-    leadin = LEADIN
-    first = sch.blocks[0].elements[0] if sch.blocks and sch.blocks[0].elements else None
-    if first is not None and first.orient == "shunt":
-        leadin = max(leadin, SRC_R + 0.3 + _label_room(first) + 0.5)
-    d += elm.Line().at((0.0, 0.0)).to((leadin, 0.0))
-
-    x, xc, yr, balanced, bxs = draw_blocks(
-        sch.blocks,
-        leadin,
-        0.0,
-        False,
-        marks=dict(sch.marks),
-        dim_until=sch.plane_cut,
-        plane_at=sch.plane_cut,
-        b0=leadin / 2.0,
-    )
-    y = 0.0
-    gy = (yr - DY) if balanced else (y - DY)
-
-    leadout = LEADOUT
-    if sch.plane_cut is not None:
-        # Everything from here on — the antenna, attachments, notes — is on
-        # the live side of any cut; restore the drawing colour. A cut at the
-        # chain's very end marks the antenna terminals themselves — and its
-        # label is centered on the marker, so the lead must reserve room for
-        # the text or it draws straight through the antenna symbol. Same
-        # reservation idiom as LEADIN: widen the wire, never nudge the text
-        # off the thing it is electrically attached to.
-        d.config(color=base_color)
-        if sch.plane_cut == len(sch.blocks):
-            # The margin covers the antenna triangle's overhang LEFT of its
-            # mast (~0.5 unit) plus a visible gap; the label is centered on
-            # the marker at leadout/2, so its right edge lands at
-            # text_width/2 past centre and needs the difference clear.
-            leadout = max(LEADOUT, _text_width(f"plane: {sch.plane}") + 1.5)
-            plane_marker(x + leadout / 2.0, y + 0.9, gy + 0.3)
-
-    # "antenna (feed0)" when the chain's end carries a name — it only does
-    # when the network has other antenna ports to confuse it with.
-    if sch.ends_in_antenna:
-        draw_antenna_end(x, xc, y, yr, sch.balanced_end, sch.antenna_name, leadout)
-
-    # Feed branches (issue #685): the other arms of a corporate feed. Each
-    # forks at a junction on a chain already drawn — a dot there, the mark a
-    # reader's cross-reference was missing — and draws as its own row below,
-    # wired down from the junction and ending at its own named antenna. Rows
-    # stack downward wherever the drawing so far ends, parent before child,
-    # so a depth-2 corporate tree hangs off a row that already exists.
-    rows = [(0.0, bxs, False)]  # per drawn chain: (y, boundary xs, dimmed)
-    for br in sch.branches:
-        py, pbxs, pdim = rows[br.parent + 1]
-        # Upstream of a picked plane the fork is disconnected too, and a
-        # branch inherits its parent's dimming transitively.
-        dim = pdim or (
-            br.parent == -1 and sch.plane_cut is not None and br.at < sch.plane_cut
-        )
-        px = pbxs[min(br.at, len(pbxs) - 1)]
-        row_y = d.get_bbox().ymin - 1.8
-        if dim:
-            d.config(color=DIM)
-        d += elm.Dot().at((px, py))
-        if br.origin != sch.source:
-            # The junction's name — the referent the "← JC1" cross-reference
-            # used to dangle without. The source's own label already names a
-            # fork at the source node.
+    if sch.feed_groups:
+        # Multi-source summary (issue #685): no chain exists and no feed
+        # network is modelled, so the page shows the one true structure —
+        # N elements driven identically — as one row per drive group,
+        # instead of fabricating a fan-out the solve does not contain.
+        gy = math.inf  # no chain ground band; the notes key off the bbox
+        x = xc = 0.0
+        ry = 0.0
+        for fg in sch.feed_groups:
+            d += elm.SourceSin().at((0.0, ry - DY)).to((0.0, ry))
+            d += elm.Ground().at((0.0, ry - DY))
             d += (
                 elm.Label()
-                .at((px + 0.2, py + 0.15))
-                .label(br.origin, halign="left", valign="bottom", fontsize=SUBFONT)
+                .at((-SRC_R - 0.15, ry - DY / 2.0))
+                .label(fg.drive, halign="right")
             )
-        d += elm.Line().at((px, py)).to((px, row_y))
-        lead = 1.0
-        bfirst = (
-            br.blocks[0].elements[0] if br.blocks and br.blocks[0].elements else None
+            d += elm.Line().at((0.0, ry)).to((LEADIN, ry))
+            d += (
+                elm.Antenna()
+                .at((LEADIN, ry))
+                .label(f"antenna ×{fg.count}  ({fg.ports})", loc="right")
+            )
+            ry = d.get_bbox().ymin - 2.0
+    else:
+        # A picked plane makes everything from the source to the cut a
+        # disconnected stub of the drawing — the source glyph included.
+        if sch.plane_cut is not None:
+            d.config(color=DIM)
+        # `.to()` rather than `.up()`: an element's default length is one unit
+        # (DX), so `.up()` from the datum overshoots the spine and leaves a bare
+        # wire sticking out of the top of the source.
+        d += elm.SourceSin().at((0.0, -DY)).to((0.0, 0.0))
+        d += (
+            elm.Label()
+            .at((-SRC_R - 0.15, -DY / 2.0))
+            .label(sch.source or "source", halign="right")
         )
-        if bfirst is not None and bfirst.orient == "shunt":
-            lead = max(lead, _label_room(bfirst) + 0.7)
-        d += elm.Line().at((px, row_y)).to((px + lead, row_y))
-        bx, bxc, byr, _bal, bbxs = draw_blocks(
-            br.blocks,
-            px + lead,
-            row_y,
-            br.balanced_start,
-            marks=dict(br.marks),
-            b0=px,
-            row_dim=dim,
+        d += elm.Ground().at((0.0, -DY))
+
+        # A shunt on the first spine node labels itself leftward, into the source.
+        # Reserve the room here rather than nudging the label, so the drop stays
+        # on the node it is electrically attached to.
+        leadin = LEADIN
+        first = (
+            sch.blocks[0].elements[0] if sch.blocks and sch.blocks[0].elements else None
         )
-        draw_antenna_end(bx, bxc, row_y, byr, br.balanced_end, br.antenna_name, LEADOUT)
-        if dim:
+        if first is not None and first.orient == "shunt":
+            leadin = max(leadin, SRC_R + 0.3 + _label_room(first) + 0.5)
+        d += elm.Line().at((0.0, 0.0)).to((leadin, 0.0))
+
+        x, xc, yr, balanced, bxs = draw_blocks(
+            sch.blocks,
+            leadin,
+            0.0,
+            False,
+            marks=dict(sch.marks),
+            dim_until=sch.plane_cut,
+            plane_at=sch.plane_cut,
+            b0=leadin / 2.0,
+        )
+        y = 0.0
+        gy = (yr - DY) if balanced else (y - DY)
+
+        leadout = LEADOUT
+        if sch.plane_cut is not None:
+            # Everything from here on — the antenna, attachments, notes — is on
+            # the live side of any cut; restore the drawing colour. A cut at the
+            # chain's very end marks the antenna terminals themselves — and its
+            # label is centered on the marker, so the lead must reserve room for
+            # the text or it draws straight through the antenna symbol. Same
+            # reservation idiom as LEADIN: widen the wire, never nudge the text
+            # off the thing it is electrically attached to.
             d.config(color=base_color)
-        rows.append((row_y, bbxs, dim))
+            if sch.plane_cut == len(sch.blocks):
+                # The margin covers the antenna triangle's overhang LEFT of its
+                # mast (~0.5 unit) plus a visible gap; the label is centered on
+                # the marker at leadout/2, so its right edge lands at
+                # text_width/2 past centre and needs the difference clear.
+                leadout = max(LEADOUT, _text_width(f"plane: {sch.plane}") + 1.5)
+                plane_marker(x + leadout / 2.0, y + 0.9, gy + 0.3)
+
+        # "antenna (feed0)" when the chain's end carries a name — it only does
+        # when the network has other antenna ports to confuse it with.
+        if sch.ends_in_antenna:
+            draw_antenna_end(x, xc, y, yr, sch.balanced_end, sch.antenna_name, leadout)
+
+        # Feed branches (issue #685): the other arms of a corporate feed. Each
+        # forks at a junction on a chain already drawn — a dot there, the mark a
+        # reader's cross-reference was missing — and draws as its own row below,
+        # wired down from the junction and ending at its own named antenna. Rows
+        # stack downward wherever the drawing so far ends, parent before child,
+        # so a depth-2 corporate tree hangs off a row that already exists.
+        rows = [(0.0, bxs, False)]  # per drawn chain: (y, boundary xs, dimmed)
+        for br in sch.branches:
+            py, pbxs, pdim = rows[br.parent + 1]
+            # Upstream of a picked plane the fork is disconnected too, and a
+            # branch inherits its parent's dimming transitively.
+            dim = pdim or (
+                br.parent == -1 and sch.plane_cut is not None and br.at < sch.plane_cut
+            )
+            px = pbxs[min(br.at, len(pbxs) - 1)]
+            row_y = d.get_bbox().ymin - 1.8
+            if dim:
+                d.config(color=DIM)
+            d += elm.Dot().at((px, py))
+            if br.origin != sch.source:
+                # The junction's name — the referent the "← JC1" cross-reference
+                # used to dangle without. The source's own label already names a
+                # fork at the source node.
+                d += (
+                    elm.Label()
+                    .at((px + 0.2, py + 0.15))
+                    .label(br.origin, halign="left", valign="bottom", fontsize=SUBFONT)
+                )
+            d += elm.Line().at((px, py)).to((px, row_y))
+            lead = 1.0
+            bfirst = (
+                br.blocks[0].elements[0]
+                if br.blocks and br.blocks[0].elements
+                else None
+            )
+            if bfirst is not None and bfirst.orient == "shunt":
+                lead = max(lead, _label_room(bfirst) + 0.7)
+            d += elm.Line().at((px, row_y)).to((px + lead, row_y))
+            bx, bxc, byr, _bal, bbxs = draw_blocks(
+                br.blocks,
+                px + lead,
+                row_y,
+                br.balanced_start,
+                marks=dict(br.marks),
+                b0=px,
+                row_dim=dim,
+            )
+            draw_antenna_end(
+                bx, bxc, row_y, byr, br.balanced_end, br.antenna_name, LEADOUT
+            )
+            if dim:
+                d.config(color=base_color)
+            rows.append((row_y, bbxs, dim))
 
     # Attachments: branches wired into the antenna structure rather than into
     # the feed. They have no place on the chain, and inventing one for them is
