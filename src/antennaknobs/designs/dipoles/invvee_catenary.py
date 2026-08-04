@@ -11,8 +11,13 @@ the `specialty.faceted_helix` curved-wire idiom (`Wire(p_i, p_{i+1},
 n_seg=None)`, `auto_mesh` owning the electrical density — issue #630's
 lesson: never hand-freeze `n_seg` on a chorded curve).
 
-The model: tensioned halyard (catenary's "model 1")
-----------------------------------------------------
+Two rig models share the same wire and geometry idiom, picked by `rig_model`;
+`rig_solutions()` is the single method that solves either one, and
+`rig_report()` (issue #698 unit 3) reports the tension/sag readout for
+whichever model is active.
+
+Model 1 — tensioned halyard (catenary's "model 1", the default)
+-----------------------------------------------------------------
 Each arm is `catenary.solve_tensioned`: a wire of *fixed cut length*
 `0.25 * design_wavelength * length_factor` — the same length law
 `dipoles.invvee` uses for its straight arm — hangs from the apex, and its far
@@ -48,6 +53,76 @@ arm, a stake dragged close to directly under the apex) and the solver's own
 `ValueError` explains exactly why no rig exists; this design does not
 second-guess or clamp that error.
 
+Model 2 — anchored heavy rope (catenary's "model 2")
+------------------------------------------------------
+Each arm is `catenary.solve_anchored`: the SAME fixed-cut-length antenna
+wire (same `WireSpec` weight as model 1), followed by a second chain segment
+— a rope of its own length and weight, `rope_weight_g_per_m` — whose far end
+must land exactly on a fixed **ground anchor**. That anchor reuses
+`stake_dist` / `stake_height`, the same rig-point params model 1 calls a
+"stake": for this model they name where the rope is staked to the ground,
+not a pull direction.
+
+Fixed endpoints plus two inextensible fixed lengths leave **no tension
+freedom** — `tension_n` is ignored entirely in this model. The knob a winch
+actually turns is the rope's take-up, which raises the apex tension and
+lowers the sag as an **output**, not an input; `rig_report()` is where that
+readout surfaces (issue #698's "tension readout in N and lbf; sag reported"
+acceptance criterion, plus the derived `rope_length_m` — what you'd actually
+cut).
+
+The knob is SLACK, not absolute rope length
+----------------------------------------------
+`rope_slack_mm` — not a rope length — is the UI knob, for a reason a first
+pass at this design got wrong (an absolute `rope_length_m` knob failed
+review): the rope's cut length is derived inside `rig_solutions()` from the
+CURRENT geometry, not stored as its own param —
+
+    reach = hypot(stake_dist - EPS, base - stake_height)   # apex -> anchor
+    rope_length_m = (reach - arm_length_m) + rope_slack_mm * 1.0e-3
+
+An absolute `rope_length_m` param cannot span the geometry knobs' own
+ranges: `reach - arm_length_m` (the shortest rope that can possibly reach)
+moves with `length_factor`, `stake_dist`, and `stake_height`, so any single
+fixed length is infeasible across large parts of their sliders — scrub
+`length_factor` to its 0.8 UI minimum, or `stake_dist` to its 6.0 UI
+maximum, and a `rope_length_m` picked for the stock geometry raises "chain
+cannot reach the anchor" for every value in a reasonably sized UI range.
+Slack is feasible **by construction** instead: the total chain arc is always
+`reach + rope_slack_mm * 1e-3`, strictly more than `reach`, for every
+positive slack and every combination of the geometry knobs — the one
+remaining way to fail is `reach <= arm_length_m` (the wire ALONE already
+reaches past the anchor, so no rope length, slack or otherwise, rescues it);
+`rig_solutions()` raises a `ValueError` naming that constraint rather than
+clamping it away. It does not occur anywhere in the tested UI cross-product
+(`length_factor` in `{0.8, 1.25}` x `stake_dist` in `{1.0, 6.0}` x
+`stake_height` in `{0, 3}`, all eight corners, at stock `base`) — see the
+module tests — but a knob combination well outside those ranges (a stake
+dragged nearly under the apex, or a very long arm) can still reach it.
+
+This also turns the taut-limit's hypersensitivity from a liability into the
+slider's whole point: at the stock geometry the shortest feasible rope is
+~4.101182 m of arc, and (per the shallow-catenary relation
+`H ~ w*L^2/(8*sag)`) apex tension is only a fraction of a newton until slack
+shrinks to millimetre scale — not a numerical artifact, the ordinary
+behaviour of any lightly loaded near-taut catenary (see `catenary.py`'s own
+numerics discussion). `rope_slack_mm`'s range (0.05-200.0 mm) puts that
+whole taut-to-slack transition inside one slider: its low end is a
+hand-tensioned halyard's tens-of-newtons regime, its high end a visibly
+saggy rope carrying almost nothing. The stock default, 0.5 mm of slack,
+lands the stock apex tension at ~5.18 N (see the module tests for the exact
+number) — inside a real halyard's range without sitting at either the
+reach floor or the slider's own edge.
+
+Neither `tension_n` nor `rope_slack_mm` / `rope_weight_g_per_m` is hidden
+from the UI even though only one set is "live" per `rig_model`: the
+`ui_params` `hidden` hint (see `dipoles.invvee`'s `angle_deg` or
+`wire.doublet_ladder_tuner`) is an unconditional, per-param override applied
+once at schema-derivation time — it cannot key off another param's value, so
+there is no way to hide `tension_n` only when `rig_model == "anchored_rope"`.
+Both knobs stay visible; this docstring (and each param's own comment below)
+says which one is live in which model.
+
 Geometry
 --------
 The apex sits on the mast at `(0, 0, base)`. A short feed wire (the
@@ -69,8 +144,15 @@ move (the same one-knob-two-effects story as `dipoles.pota_invvee`, issue
 
 `chords_per_arm` (default 14) is the *geometric* fidelity knob, independent
 of the electrical mesh: it is passed straight through as
-`samples_per_segment = chords_per_arm + 1` to `solve_tensioned`, so the
-solver's own uniform-in-arc-length sampling IS the chord split.
+`samples_per_segment = chords_per_arm + 1` to the active model's solve, so
+the solver's own uniform-in-arc-length sampling IS the chord split.
+
+`build_wires()` emits ONLY the wire segment's chords as antenna geometry —
+`ChainSolution.segments[0].points` is always the wire, in both models. Under
+`rig_model="anchored_rope"` the rope is a second chain segment, but it is
+rigging, not a conductor: its shape is `rig_report()` diagnostics only and
+never reaches `build_wires()`, so the wire count emitted is identical
+between the two models.
 
 See also
 --------
@@ -80,11 +162,21 @@ conventions; `dipoles.invvee` for the base design and param conventions;
 Issue #698.
 """
 
+import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.catenary import ChainSolution, solve_tensioned, weight_n_per_m
+from antennaknobs.catenary import (
+    ChainSegment,
+    ChainSolution,
+    solve_anchored,
+    solve_tensioned,
+    weight_n_per_m,
+)
 from antennaknobs.network import WIRES, Wire
+
+# lbf per newton (exact: 1 lbf = 0.45359237 kg * 9.80665 m/s^2).
+_N_PER_LBF = 4.4482216152605
 
 # Half-gap either side of the mast centreline for the driven feed wire — the
 # same value `dipoles.invvee` and `wire.doublet_ladder_tuner` use.
@@ -110,16 +202,41 @@ class Builder(AntennaBuilder):
             "freq": 28.47,
             "base": 7.0,
             "length_factor": 0.9719,
-            # Rope tension holding each arm's far end (issue #698 model 1).
-            # ~9 lbf: a realistic hand-tensioned dacron halyard pull.
+            # Which rig closure solves each arm (issue #698 unit 3):
+            # "halyard" (model 1, tensioned massless rope, tension_n live) or
+            # "anchored_rope" (model 2, heavy rope to a ground anchor,
+            # rope_slack_mm/rope_weight_g_per_m live). See the module
+            # docstring for why both knob sets stay visible in both models.
+            "rig_model": "halyard",
+            # Rope tension holding each arm's far end. LIVE under
+            # rig_model="halyard" only; ignored entirely under
+            # "anchored_rope", where tension is a rig_report() readout, not
+            # an input. ~9 lbf: a realistic hand-tensioned dacron halyard
+            # pull.
             "tension_n": 40.0,
-            # Stake position in the arm's vertical plane, horizontal
-            # distance from the mast and height above ground. Defaults
-            # chosen so hypot(stake_dist, base - stake_height) clears the
-            # longest arm the length_factor UI range can produce (see the
-            # module docstring and the feasibility test).
+            # Stake / ground-anchor position in the arm's vertical plane,
+            # horizontal distance from the mast and height above ground.
+            # Shared by both models (see the module docstring): model 1
+            # calls it the stake the halyard runs to; model 2 calls it the
+            # ground anchor the rope's far end must land on. Defaults chosen
+            # so hypot(stake_dist, base - stake_height) clears the longest
+            # arm the length_factor UI range can produce (see the module
+            # docstring and the feasibility test).
             "stake_dist": 2.94,
             "stake_height": 1.0,
+            # Rope take-up (issue #698 model 2), in MILLIMETRES of slack
+            # above the shortest rope that can reach the anchor at all — the
+            # actual winch knob, and feasible by construction across the
+            # geometry knobs' full ranges (see the module docstring for why
+            # an absolute rope_length_m param cannot be). LIVE under
+            # rig_model="anchored_rope" only; unused under "halyard". 0.5 mm
+            # lands the stock apex tension at ~5.18 N, inside a real
+            # halyard's range (see the module docstring's derivation and the
+            # module tests for the exact number).
+            "rope_slack_mm": 0.5,
+            # Rope weight per metre (issue #698 model 2): typical 3 mm
+            # dacron. LIVE under rig_model="anchored_rope" only.
+            "rope_weight_g_per_m": 5.5,
             # Chord count per arm: geometric fidelity, orthogonal to the
             # electrical mesh density (nominal_nsegs / auto_mesh).
             "chords_per_arm": 14,
@@ -129,9 +246,19 @@ class Builder(AntennaBuilder):
             "ui_params": MappingProxyType(
                 {
                     "length_factor": {"min": 0.8, "max": 1.25},
+                    "rig_model": {
+                        "enum_options": ("halyard", "anchored_rope"),
+                    },
                     "tension_n": {"min": 2.0, "max": 400.0},
                     "stake_dist": {"min": 1.0, "max": 6.0},
                     "stake_height": {"min": 0.0, "max": 3.0},
+                    # 0.05 mm (near the taut/high-tension extreme a real
+                    # cleated halyard shows) to 200 mm (visibly saggy,
+                    # carrying almost nothing) — feasible for every value at
+                    # every combination of the geometry knobs above (see the
+                    # module docstring's feasibility derivation).
+                    "rope_slack_mm": {"min": 0.05, "max": 200.0},
+                    "rope_weight_g_per_m": {"min": 1.0, "max": 50.0},
                     "chords_per_arm": {"min": 6, "max": 32, "step": 1},
                     "wire_type": {"enum_options": tuple(sorted(WIRES))},
                 }
@@ -141,11 +268,12 @@ class Builder(AntennaBuilder):
 
     def rig_solutions(self) -> ChainSolution:
         """Solve one arm's catenary (both arms are mirror images in y, so
-        one solve in the shared vertical plane covers both).
-
-        `build_wires()` calls this same method for its geometry, so the
+        one solve in the shared vertical plane covers both) under whichever
+        `rig_model` is selected. Single source of truth for both models —
+        `build_wires()` and `rig_report()` both call this same method, so the
         rigged shape and any diagnostics a caller reads off it (sag,
-        tension, arc length) can never drift apart.
+        tension, arc length) can never drift apart, and the two models can
+        never disagree about the wire segment.
         """
         spec = self.build_wire_material()
         if spec is None or not spec.weight_g_per_m:
@@ -158,16 +286,100 @@ class Builder(AntennaBuilder):
 
         arm_length_m = 0.25 * self.design_wavelength * self.length_factor
         wire_weight = weight_n_per_m(spec.weight_g_per_m)
+        apex = (_EPS, self.base)
+        samples_per_segment = int(self.chords_per_arm) + 1
+
+        if self.rig_model == "anchored_rope":
+            anchor = (self.stake_dist, self.stake_height)
+            reach = math.hypot(anchor[0] - apex[0], anchor[1] - apex[1])
+            if reach <= arm_length_m:
+                raise ValueError(
+                    f"{type(self).__name__}: the wire alone (arc length "
+                    f"{arm_length_m:.6g} m) already reaches past the anchor "
+                    f"(straight-line distance {reach:.6g} m) -- no rope "
+                    "length, slack or otherwise, can rescue this; move the "
+                    "anchor farther out (larger stake_dist / lower "
+                    "stake_height) or shorten the arm (smaller "
+                    "length_factor)."
+                )
+            # SLACK is the knob, not the rope's cut length (issue #698 unit
+            # 3 review fix): the cut length is derived from the CURRENT
+            # geometry every solve, never stored as its own param, so it is
+            # feasible by construction for every combination of the
+            # geometry knobs above -- see the module docstring's "knob is
+            # slack" section.
+            rope_length_m = reach - arm_length_m + self.rope_slack_mm * 1.0e-3
+            rope_weight = weight_n_per_m(self.rope_weight_g_per_m)
+            segments = (
+                ChainSegment(
+                    length_m=arm_length_m,
+                    weight_n_per_m=wire_weight,
+                    name="invvee_catenary_arm",
+                ),
+                ChainSegment(
+                    length_m=rope_length_m,
+                    weight_n_per_m=rope_weight,
+                    name="rope",
+                ),
+            )
+            return solve_anchored(
+                apex=apex,
+                segments=segments,
+                anchor=anchor,
+                samples_per_segment=samples_per_segment,
+            )
+
+        if self.rig_model != "halyard":
+            raise ValueError(
+                f"{type(self).__name__}: unknown rig_model {self.rig_model!r}; "
+                "expected 'halyard' or 'anchored_rope'"
+            )
 
         return solve_tensioned(
-            apex=(_EPS, self.base),
+            apex=apex,
             wire_length_m=arm_length_m,
             wire_weight_n_per_m=wire_weight,
             stake=(self.stake_dist, self.stake_height),
             rope_tension_n=self.tension_n,
-            samples_per_segment=int(self.chords_per_arm) + 1,
+            samples_per_segment=samples_per_segment,
             name="invvee_catenary_arm",
         )
+
+    def rig_report(self) -> dict:
+        """Tension/sag readout for whichever `rig_model` is active (issue
+        #698's "tension readout in N and lbf; sag reported" acceptance
+        criterion) — the same shape for both models so a caller (the web
+        adapter's solve response, issue #318's `wire_length_m` precedent)
+        never has to branch on which model produced it.
+
+        `wire_end_height_m` is the z coordinate of the wire segment's own
+        far end — the wire/rope junction under "anchored_rope", or simply
+        the wire's end (there is nothing downstream of it) under "halyard".
+        `rope_sag_m` / `rope_length_m` are `None` under "halyard" (there is
+        no rope segment there — model 1's rope is massless and its length is
+        never solved for, only its direction). Under "anchored_rope",
+        `rope_length_m` is the CUT length `rig_solutions()` derived from
+        `rope_slack_mm` and the current geometry — what you would actually
+        cut and tie off, read back off the already-solved chain rather than
+        recomputed (so it can never drift from what was actually solved).
+        """
+        solution = self.rig_solutions()
+        wire_seg = solution.segments[0]
+        rope_seg = solution.segments[1] if len(solution.segments) > 1 else None
+        apex_tension_n = solution.apex_tension
+        end_tension_n = solution.end_tension
+        return {
+            "rig_model": self.rig_model,
+            "apex_tension_n": apex_tension_n,
+            "apex_tension_lbf": apex_tension_n / _N_PER_LBF,
+            "end_tension_n": end_tension_n,
+            "end_tension_lbf": end_tension_n / _N_PER_LBF,
+            "horizontal_tension_n": solution.horizontal_tension_n,
+            "wire_sag_m": wire_seg.max_sag_m,
+            "rope_sag_m": rope_seg.max_sag_m if rope_seg is not None else None,
+            "rope_length_m": rope_seg.arc_length_m if rope_seg is not None else None,
+            "wire_end_height_m": float(wire_seg.points[-1][1]),
+        }
 
     # build_wire_material() is intentionally NOT overridden: the inherited
     # AntennaBuilder default already resolves a `wire_type` param via

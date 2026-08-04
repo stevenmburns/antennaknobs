@@ -13,6 +13,7 @@ integration territory and want their own targeted tests.
 from __future__ import annotations
 
 import json
+import math
 import threading
 import time
 from copy import deepcopy
@@ -601,6 +602,61 @@ def test_solve_at_a_picked_plane_measures_the_bare_antenna():
     # An unknown plane is a bad request field, same as a bad freq.
     with pytest.raises(ValueError, match="measurement plane"):
         server.solve({**base, "plane": "vna"})
+
+
+def test_solve_carries_rig_report_only_for_designs_that_have_one():
+    """The rigging tension/sag readout (issue #698 unit 3) is surfaced under
+    "rig" for a design that defines `rig_report()` — dipoles.invvee_catenary,
+    stock rig_model="halyard" — and is entirely absent (no "rig" key) for a
+    design that doesn't, mirroring how `_wire_material_results` fields
+    (issue #318) only appear for wire-material designs."""
+    out = server.solve(
+        {
+            "geometry": "dipoles.invvee_catenary",
+            "measurement_freq_mhz": 28.47,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    assert out["rig"]["rig_model"] == "halyard"
+    assert math.isfinite(out["rig"]["apex_tension_n"])
+
+    bare = server.solve(
+        {
+            "geometry": "dipoles.invvee",
+            "measurement_freq_mhz": 28.47,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    assert "rig" not in bare
+
+
+def test_rig_report_failure_never_fails_the_solve(monkeypatch):
+    """The omit-on-error contract of `_rig_report_results` (issue #698 unit
+    3): the readout is garnish on a solve that stands on its own, so a
+    `rig_report()` that raises — a mid-scrub geometrically infeasible rig —
+    must yield a normal solve response with the "rig" key simply absent,
+    never a failed response or an error field."""
+    from antennaknobs.designs.dipoles.invvee_catenary import Builder
+
+    def boom(self):
+        raise ValueError("mid-scrub infeasible rig")
+
+    monkeypatch.setattr(Builder, "rig_report", boom)
+    out = server.solve(
+        {
+            "geometry": "dipoles.invvee_catenary",
+            # Deliberately NOT the request other tests in this file solve:
+            # _SOLVE_CACHE would otherwise serve their cached response —
+            # rig key and all — without ever calling the patched method.
+            "measurement_freq_mhz": 28.51,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    assert "rig" not in out
+    assert math.isfinite(out["z_in_re"])
 
 
 def _design_builder(dotted):
