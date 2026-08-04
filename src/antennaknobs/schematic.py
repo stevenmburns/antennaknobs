@@ -1363,13 +1363,23 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
                 )
             )
 
+    leadout = LEADOUT
     if sch.plane_cut is not None:
         # Everything from here on — the antenna, attachments, notes — is on
         # the live side of any cut; restore the drawing colour. A cut at the
-        # chain's very end marks the antenna terminals themselves.
+        # chain's very end marks the antenna terminals themselves — and its
+        # label is centered on the marker, so the lead must reserve room for
+        # the text or it draws straight through the antenna symbol. Same
+        # reservation idiom as LEADIN: widen the wire, never nudge the text
+        # off the thing it is electrically attached to.
         d.config(color=base_color)
         if sch.plane_cut == len(sch.blocks):
-            plane_marker(x + LEADOUT / 2.0)
+            # The margin covers the antenna triangle's overhang LEFT of its
+            # mast (~0.5 unit) plus a visible gap; the label is centered on
+            # the marker at leadout/2, so its right edge lands at
+            # text_width/2 past centre and needs the difference clear.
+            leadout = max(LEADOUT, _text_width(f"plane: {sch.plane}") + 1.5)
+            plane_marker(x + leadout / 2.0)
 
     # "antenna (feed0)" when the chain's end carries a name — it only does
     # when the network has other antenna ports to confuse it with.
@@ -1378,7 +1388,7 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
         # A pair does not arrive at a one-terminal antenna symbol. Both
         # conductors reach the structure — the two halves of a doublet — so
         # the drawing ends in the two arms it actually feeds.
-        lead = max(LEADOUT, SHUNT_STEP + LEADOUT)
+        lead = max(leadout, SHUNT_STEP + LEADOUT)
         d += elm.Line().at((x, y)).to((x + lead, y))
         d += elm.Line().at((xc, yr)).to((xc + lead, yr))
         tip = max(x, xc) + lead
@@ -1391,10 +1401,10 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             .label(antenna_text, halign="left")
         )
     elif sch.ends_in_antenna:
-        d += elm.Line().at((x, y)).to((x + LEADOUT, y))
+        d += elm.Line().at((x, y)).to((x + leadout, y))
         # No `.up()`: Antenna pins its own theta=0 and already draws its mast
         # upward, so rotating it lays the whole symbol on its side.
-        d += elm.Antenna().at((x + LEADOUT, y)).label(antenna_text, loc="right")
+        d += elm.Antenna().at((x + leadout, y)).label(antenna_text, loc="right")
 
     # Attachments: branches wired into the antenna structure rather than into
     # the feed. They have no place on the chain, and inventing one for them is
