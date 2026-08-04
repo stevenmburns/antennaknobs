@@ -45,6 +45,7 @@ export function useAnalysisRunners({
   designFreq,
   measFreq,
   measLocked,
+  plane,
   groundEnabled,
   groundModel,
   terrainKey,
@@ -72,6 +73,11 @@ export function useAnalysisRunners({
   designFreq: number;
   measFreq: number;
   measLocked: boolean;
+  /** The picked measurement plane (issue #652 c; null = natural). Every
+   *  analysis here reads the driving-point solve, so a plane flip
+   *  invalidates all four — without it in the dep arrays the previous
+   *  plane's sweep/convergence curves stay on screen as wrong data. */
+  plane: string | null;
   groundEnabled: boolean;
   groundModel: GroundModel;
   terrainKey: string;
@@ -149,6 +155,9 @@ export function useAnalysisRunners({
     // unlocked design — incl. fixed-geometry designs whose lock is inert),
     // so a meas-band change or dial turn re-runs the sweep.
     measFreq, measLocked,
+    // The measurement plane (issue #652 c): the sweep is the driving-point
+    // impedance vs freq, which a plane flip changes wholesale.
+    plane,
     // A variant can override sweep_policy (variant_ui) without changing any
     // param — e.g. a band-locked variant. currentValuesKey wouldn't move then,
     // so depend on currentVariant directly to re-run the sweep on switch.
@@ -185,7 +194,7 @@ export function useAnalysisRunners({
   }, [
     geometry, backend.name, backendOptsKey,
     currentValuesKey,
-    designFreq, measFreq,
+    designFreq, measFreq, plane,
     groundEnabled, groundModel,
     convergeEnabled,
     autoSim,
@@ -218,7 +227,7 @@ export function useAnalysisRunners({
   }, [
     geometry, backend.name, backendOptsKey,
     currentValuesKey,
-    designFreq, measFreq,
+    designFreq, measFreq, plane,
     groundEnabled, groundModel,
     // The pattern integral runs over the facets, so terrain knob changes
     // invalidate it (unlike the impedance-only sweep/converge effects,
@@ -259,7 +268,7 @@ export function useAnalysisRunners({
   }, [
     geometry, backend.name, backendOptsKey,
     currentValuesKey,
-    designFreq, measFreq,
+    designFreq, measFreq, plane,
     groundEnabled, groundModel,
     necOverlayEnabled,
     autoSim,
