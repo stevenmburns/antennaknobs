@@ -99,10 +99,36 @@ def test_a_box_without_a_fragment_still_draws():
     assert sch.blocks and sch.blocks[0].elements[0].kind == "coax"
 
 
-def test_a_multi_feed_antenna_says_so_instead_of_drawing_a_chain():
+def test_a_multi_feed_antenna_draws_grouped_summary_rows():
+    """16 ideal per-element generators contain no chain and no feed network;
+    fabricating a fan-out would lie. What IS true — N elements driven
+    identically — draws as one summary row per drive group (issue #685),
+    instead of the notes-only panel it used to be."""
     sch = lower(build("arrays.bowtie4x4").build_network())
     assert sch.blocks == []
-    assert any("multi-feed" in n for n in sch.notes)
+    (fg,) = sch.feed_groups
+    assert (fg.count, fg.drive) == (16, "1 V")
+    assert fg.ports == "e0_0.feed … e3_3.feed"  # natural order, first … last
+    assert any("no feed network" in n for n in sch.notes)
+    # bowtie16x1's natural sort: e15 comes after e2, not before
+    (fg,) = lower(build("arrays.bowtie16x1").build_network()).feed_groups
+    assert fg.ports == "e0_0.feed … e15_0.feed"
+
+
+def test_phased_sources_group_by_drive():
+    """A phased multi-source design is several groups, one row each."""
+    net = Network(
+        ports={f"e{i}": PortOnWire(f"e{i}") for i in range(4)},
+        branches=[],
+        sources=[
+            Driven(port=f"e{i}", voltage=(1 + 0j) if i < 2 else 1j) for i in range(4)
+        ],
+    )
+    groups = lower(net).feed_groups
+    assert [(g.count, g.drive, g.ports) for g in groups] == [
+        (2, "1 V", "e0, e1"),
+        (2, "1 V ∠90°", "e2, e3"),
+    ]
 
 
 def test_one_terminal_loads_still_appear():
@@ -437,6 +463,16 @@ def test_every_shape_in_the_corpus_renders(design, tmp_path):
     pytest.importorskip("schemdraw")
     svg = render_svg(lower(build(design).build_network()), tmp_path / "s.svg")
     assert "<svg" in svg
+
+
+def test_render_draws_the_multi_source_summary():
+    """The 16-source array's schematic shows the feed structure, not only a
+    note (issue #685's last acceptance item)."""
+    pytest.importorskip("schemdraw")
+    svg = render_svg(lower(build("arrays.bowtie16x1").build_network()))
+    assert "antenna ×16" in svg
+    assert "e0_0.feed … e15_0.feed" in svg
+    assert "1 V" in svg
 
 
 def test_render_draws_both_arms_and_the_marks():
