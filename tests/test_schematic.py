@@ -17,6 +17,7 @@ from antennaknobs.network import (
     FloatingBalun,
     Instance,
     Network,
+    PortOnWire,
     PortOnWireFloating,
     PortVirtual,
     Shunt,
@@ -258,10 +259,76 @@ def test_a_grounded_shield_is_the_datum():
 def test_a_second_antenna_is_not_drawn_in_line():
     """`bowtie1x2_bl` feeds two elements in parallel from one point. Drawing
     the second in the chain would say they are in series, which is the
-    opposite of what they are."""
+    opposite of what they are — it is a feed BRANCH (issue #685), forked at
+    the junction and drawn as its own chain to its own antenna."""
     sch = lower(build("arrays.bowtie1x2_bl").build_network())
-    assert any("feed1" in n and "parallel" in n for n in sch.notes)
-    assert any("feed1.p" in a.nodes for a in sch.attachments)
+    assert len(sch.blocks) == 1  # the trunk carries exactly one arm
+    (br,) = sch.branches
+    assert (br.origin, br.parent, br.at) == ("JC1", -1, 0)
+    assert br.antenna_name == "feed1" and br.balanced_end
+    assert [b.label for b in br.blocks] == ["BalancedLine"]
+    # The fork is a drawn chain now, so nothing is demoted to an attachment
+    # row and there is no note apologising for the drawing.
+    assert sch.attachments == [] and sch.notes == []
+
+
+def test_a_branch_owns_its_own_ribs():
+    """feed1's common-mode pins hang on feed1's chain exactly as feed0's hang
+    on the trunk — one per leg, to the datum. Before #685 they were opaque
+    attachment rows."""
+    sch = lower(build("arrays.bowtie1x2_bl").build_network())
+    (br,) = sch.branches
+    pins = [e for b in br.blocks for e in b.elements if e.kind == "resistor"]
+    assert len(pins) == 2
+    assert not any(e.balanced for e in pins)  # to the datum, not across
+    assert {e.leg for e in pins} == {"signal", "return"}
+
+
+def test_every_fan_out_design_grows_a_branch():
+    """The junction class is not one design: any array that models its
+    feedlines forks somewhere."""
+    for name, antenna in [
+        ("arrays.delta_looparray_network", "loop2"),
+        ("wire.expanded_lazy_h", "hi"),
+    ]:
+        sch = lower(build(name).build_network())
+        (br,) = sch.branches
+        assert br.antenna_name == antenna
+        assert sch.attachments == [] and sch.notes == []
+
+
+def test_the_chain_marks_the_ports_it_passes_through():
+    """An LPDA's chain touches d8…d1 on the way to d0; without marks they are
+    anonymous wire (issue #685)."""
+    sch = lower(build("broadband.lpda").build_network())
+    assert sch.marks == [(b, f"d{9 - b}") for b in range(1, 9)]
+    sch = lower(build("multiband.hexbeam_5band").build_network())
+    assert sch.marks == [(1, "feed1"), (2, "feed2"), (3, "feed3")]
+
+
+def test_a_branch_can_fork_mid_chain():
+    """A depth-2 corporate tree forks at an interior junction, not at the
+    source — the junction gets named, and the branch records which block
+    boundary it forks at."""
+    net = Network(
+        ports={
+            "rig": PortVirtual("rig"),
+            "J": PortVirtual("J"),
+            "ant0": PortOnWire("ant0"),
+            "ant1": PortOnWire("ant1"),
+        },
+        branches=[
+            TL(a="rig", b="J", z0=50.0, length=5.0),
+            TL(a="J", b="ant0", z0=75.0, length=3.0),
+            TL(a="J", b="ant1", z0=75.0, length=3.0),
+        ],
+        sources=[Driven(port="rig")],
+    )
+    sch = lower(net)
+    assert len(sch.blocks) == 2  # rig→J, J→ant0
+    (br,) = sch.branches
+    assert (br.origin, br.parent, br.at) == ("J", -1, 1)
+    assert br.antenna_name == "ant1"
 
 
 def test_a_chain_among_parallel_feeds_names_the_port_it_reached():
@@ -360,13 +427,27 @@ def test_render_produces_an_svg(tmp_path):
         "multiband.trap_dipole",
         "broadband.lpda",
         "arrays.bowtie4x4",
+        "arrays.bowtie1x2_bl",
+        "wire.expanded_lazy_h",
     ],
 )
 def test_every_shape_in_the_corpus_renders(design, tmp_path):
-    """Including the awkward ones: no chain, one-terminal loads, 16 sources."""
+    """Including the awkward ones: no chain, one-terminal loads, 16 sources,
+    corporate-feed forks."""
     pytest.importorskip("schemdraw")
     svg = render_svg(lower(build(design).build_network()), tmp_path / "s.svg")
     assert "<svg" in svg
+
+
+def test_render_draws_both_arms_and_the_marks():
+    """The fan-out renders as two named antenna ends — not one chain plus an
+    attachment footnote — and a marked chain writes the port names it passes."""
+    pytest.importorskip("schemdraw")
+    svg = render_svg(lower(build("arrays.bowtie1x2_bl").build_network()))
+    assert "antenna (feed0)" in svg and "antenna (feed1)" in svg
+    assert "wired into the antenna structure" not in svg
+    svg = render_svg(lower(build("broadband.lpda").build_network()))
+    assert all(f">d{i}</tspan>" in svg for i in range(1, 9))
 
 
 def test_a_picked_plane_marks_the_cut_but_keeps_the_whole_chain():
