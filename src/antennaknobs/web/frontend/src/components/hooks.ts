@@ -7,7 +7,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { VIEWS } from "../lib/view";
 
 // Shared between App.tsx (which owns the Provider and the theme-toggle
 // control) and the chart components under components/charts/ (which read it
@@ -108,18 +107,27 @@ export function useFullscreen() {
   };
 }
 
+// Height the "All views" picker button occupies at the foot of the strip:
+// its own fixed 28 px (see .view-picker-btn in styles.css) plus the one extra
+// strip gap it adds. Changing either number here or there desyncs the model
+// from the layout and the bottom thumb starts clipping.
+const PICKER_SLOT = 28 + 8;
+
 export function useThumbColumnSize(
   stripRef: React.RefObject<HTMLDivElement>,
+  nThumbs: number,
   maxThumb = 280,
   reattachKey?: unknown, // see useSlideSize
 ) {
-  // Vertical thumbstrip: the non-active views scaled so they ALWAYS fit (the
-  // strip never scrolls — overflow:hidden in CSS). Fixed overhead per the CSS:
-  //   strip padding (12+12) + (n-1) gaps of 8 +
+  // Vertical thumbstrip: the rail views scaled so they ALWAYS fit (the strip
+  // never scrolls — overflow:hidden in CSS). Fixed overhead per the CSS:
+  //   strip padding (12+12) + (n-1) gaps of 8 + the picker slot +
   //   per-thumb (button padding 8+6 + label ~14 + gap 6 + border 2) ≈ 36 each,
   // biased slightly high (26 base) so they fit with a hair of slack rather
   // than clip; floor low so a short window shrinks them instead of
-  // overflowing. n tracks the view registry: every view but the active one.
+  // overflowing. n comes from the CALLER because the rail is now the user's
+  // pinned set, not the registry: pinned−1 normally, pinned while peeking an
+  // unpinned view. Zero thumbs still has to divide by something.
   //
   // Two dimensions since the schematic view made it 4 thumbs (issue #652):
   // `width` stays what the column measured in its 3-thumb era — chart text
@@ -127,8 +135,11 @@ export function useThumbColumnSize(
   // collide their left/right labels. Each thumb is a width × height
   // rectangle; the chart renders at width and scales down uniformly to
   // height (a true miniature — text shrinks with it instead of colliding).
-  const nThumbs = VIEWS.length - 1;
-  const overhead = 26 + (nThumbs - 1) * 8 + nThumbs * 36;
+  // That reference column is the 3-thumb era's, picker and all — it is a
+  // fixed yardstick for text legibility, not a measurement of today's strip,
+  // so the picker slot deliberately stays out of it.
+  const n = Math.max(1, nThumbs);
+  const overhead = 26 + (n - 1) * 8 + n * 36 + PICKER_SLOT;
   const widthOverhead = 26 + 2 * 8 + 3 * 36;
   const [size, setSize] = useState({ width: 180, height: 180 });
   useEffect(() => {
@@ -139,7 +150,7 @@ export function useThumbColumnSize(
       const h = el.clientHeight;
       if (h <= 0) return;
       const width = clamp((h - widthOverhead) / 3);
-      const height = clamp((h - overhead) / nThumbs);
+      const height = clamp((h - overhead) / n);
       setSize((s) =>
         s.width === width && s.height === height ? s : { width, height },
       );
@@ -148,6 +159,6 @@ export function useThumbColumnSize(
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [stripRef, maxThumb, reattachKey]);
+  }, [stripRef, n, overhead, maxThumb, reattachKey]);
   return size;
 }

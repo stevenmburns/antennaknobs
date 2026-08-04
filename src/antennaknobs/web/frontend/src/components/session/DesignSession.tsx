@@ -27,7 +27,7 @@ import {
   type SchemaItem,
   type SchemaParamSpec,
 } from "../../lib/params";
-import { MOBILE_SCREENS, VIEWS, type View } from "../../lib/view";
+import { MOBILE_SCREENS, type View } from "../../lib/view";
 import type {
   MeasuredData,
   SolveRequest,
@@ -74,7 +74,9 @@ import { useOptimizer } from "./useOptimizer";
 import { useSchematic } from "./useSchematic";
 import { useSolveChannel } from "./useSolveChannel";
 import { useSolverSlots } from "./useSolverSlots";
+import { useViewPrefs } from "./useViewPrefs";
 import { useViewState } from "./useViewState";
+import { ViewPicker } from "./ViewPicker";
 import { VfoPanel } from "./VfoPanel";
 
 // One antenna design session: the entire left sidebar + right stage plus all
@@ -383,6 +385,16 @@ function DesignSessionBody({
   useEffect(() => {
     reportSummary(id, tabSummary);
   }, [id, tabSummary, reportSummary]);
+  // Which views are resident in the desktop rail (global, persisted) — read
+  // before useViewState because the arrow-key cycler walks the pinned set.
+  // (`togglePin` is renamed: the pattern-pin context below owns that name.)
+  const {
+    pinned,
+    newIds,
+    railViews,
+    togglePin: toggleViewPin,
+    markRosterSeen,
+  } = useViewPrefs();
   // Output view, camera and canvas display toggles (#642 seam 5b-3).
   const {
     azElevDeg,
@@ -401,7 +413,7 @@ function DesignSessionBody({
     setShowWireLabels,
     showFeedNames,
     setShowFeedNames,
-  } = useViewState({ currentExample, active });
+  } = useViewState({ currentExample, active, pinned });
 
   // When linked, design and measurement freq move together.
   function updateDesignFreq(v: number) {
@@ -580,7 +592,10 @@ function DesignSessionBody({
   const { isMobile, orientation } = useIsMobile();
   const { ref: slideRef, size: chartSize } = useSlideSize(720, isMobile);
   const thumbStripRef = useRef<HTMLDivElement>(null);
-  const thumbSize = useThumbColumnSize(thumbStripRef, 280, isMobile);
+  // The rail is the pinned set minus whatever is on the stage; peeking an
+  // unpinned view subtracts nothing, so the count the sizer needs varies.
+  const rail = railViews(view);
+  const thumbSize = useThumbColumnSize(thumbStripRef, rail.length, 280, isMobile);
 
   const {
     mobileIndex,
@@ -1499,7 +1514,7 @@ function DesignSessionBody({
       <main className="stage" aria-label="Antenna output views">
         {solveOverlays}
         <div className="thumbstrip" ref={thumbStripRef}>
-          {VIEWS.filter((v) => v.id !== view).map((v) => (
+          {rail.map((v) => (
             <button
               key={v.id}
               className="thumb"
@@ -1552,6 +1567,16 @@ function DesignSessionBody({
               <div className="thumb-label">{v.label}</div>
             </button>
           ))}
+          {/* Everything not pinned lives behind here. Fixed height by design:
+              useThumbColumnSize subtracts exactly this slot. */}
+          <ViewPicker
+            view={view}
+            setView={setView}
+            pinned={pinned}
+            newIds={newIds}
+            togglePin={toggleViewPin}
+            markRosterSeen={markRosterSeen}
+          />
         </div>
         <div
           className={`carousel-slide${stale ? " stale" : ""}`}
