@@ -1792,7 +1792,8 @@ input[type=checkbox] {
 }
 
 .smith,
-.farfield {
+.farfield,
+.sweep {
   display: block;
   border-radius: var(--r-sm);
 }

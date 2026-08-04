@@ -1,4 +1,4 @@
-export type View = "antenna" | "azimuth" | "elevation" | "smith" | "schematic";
+export type View = "antenna" | "azimuth" | "elevation" | "smith" | "schematic" | "gamma" | "vswr";
 
 // The view registry's metadata half. The render half — one function per id —
 // lives in components/results/viewRegistry.tsx, keyed by these same ids:
@@ -19,6 +19,12 @@ export const VIEWS: ViewMeta[] = [
   { id: "elevation", label: "Elevation (yz)", defaultPinned: true },
   { id: "smith", label: "Smith", defaultPinned: true },
   { id: "schematic", label: "Schematic", defaultPinned: false },
+  // Sweep-derived views (issue #700 unit 5, docs/plan-view-rail-scaling.md
+  // items 6/7): the sweep data already flows to the Smith chart, so these
+  // are a second and third presentation of it, not a new data path. Ship
+  // unpinned like schematic — the founding four stay the only defaults.
+  { id: "gamma", label: "|Γ| vs freq", defaultPinned: false },
+  { id: "vswr", label: "VSWR vs freq", defaultPinned: false },
 ];
 
 // The mobile output carousel's screens: the 5 chart views plus a dedicated
