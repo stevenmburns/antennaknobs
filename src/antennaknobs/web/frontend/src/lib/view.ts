@@ -39,15 +39,23 @@ export const VIEW_META = Object.fromEntries(
   VIEWS.map((v) => [v.id, v]),
 ) as Record<View, ViewMeta>;
 
-// The mobile output carousel's screens: the 5 chart views plus a dedicated
-// Info screen for the solve readout (which floats as a HUD on desktop but
-// deserves its own page on a phone). "info" stays out of the `View` union on
-// purpose — `view` (and every data effect keyed on it) only ever holds a
-// chart view; the Info screen leaves `view` parked on the last chart.
-export const MOBILE_SCREENS: { id: View | "info"; label: string }[] = [
-  ...VIEWS,
-  { id: "info", label: "Info" },
-];
+export type MobileScreen = { id: View | "info"; label: string };
+
+// The mobile output carousel's screens: the user's PINNED views, in pin order,
+// plus a dedicated Info screen for the solve readout (which floats as a HUD on
+// desktop but deserves its own page on a phone). "info" stays out of the
+// `View` union on purpose — `view` (and every data effect keyed on it) only
+// ever holds a chart view; the Info screen leaves `view` parked on the last
+// chart.
+//
+// Pinned, not the registry (#700 unit 4, docs/plan-view-rail-scaling.md): the
+// carousel index maps onto `pinned`, so an unpinned view has no page and no
+// dot, and the roster can grow past what a thumb-swipe stack can carry. Info
+// is always the TRAILING page, so its index moves with every pin — every
+// index compare in useMobileCarousel is against pinned.length for that reason.
+export function mobileScreens(pinned: View[]): MobileScreen[] {
+  return [...pinned.map((id) => VIEW_META[id]), { id: "info", label: "Info" }];
+}
 
 // Antenna-canvas camera projections. Pick two world axes to map to canvas
 // (horizontal, vertical) and project. The hidden axis is the camera ray.
