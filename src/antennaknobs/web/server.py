@@ -957,7 +957,9 @@ def _refuse_or_withhold(adm, req: dict) -> None:
 # Request fields that are pure metadata and never change the physics. Pop
 # them before hashing so noisy frontend additions (timestamps, request ids)
 # don't shred the hit rate. Anything else in `req` is treated as load-
-# bearing — preferring "extra miss" over "wrong hit".
+# bearing — preferring "extra miss" over "wrong hit". The client keys its
+# background-analysis effects the same way (frontend/src/lib/
+# solveSignature.ts, issue #692) — keep the metadata entries in lockstep.
 _CACHE_KEY_BLOCKLIST = frozenset(
     {
         "_request_id",
