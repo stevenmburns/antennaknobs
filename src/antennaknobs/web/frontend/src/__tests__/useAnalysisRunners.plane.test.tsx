@@ -66,10 +66,7 @@ function renderRunners() {
   return renderHook(
     (p: Props) =>
       useAnalysisRunners({
-        geometry: "dipoles.invvee_coax_station",
         backend: BACKEND,
-        backendOptsKey: "k",
-        currentValuesKey: "v1",
         currentVariant: "default",
         currentExample: undefined,
         currentBands: [],
@@ -77,10 +74,8 @@ function renderRunners() {
         designFreq: 28.47,
         measFreq: 28.47,
         measLocked: false,
-        plane: p.plane,
         groundEnabled: false,
         groundModel: "fast",
-        terrainKey: "",
         sweepEnabled: true,
         convergeEnabled: true,
         normCheckEnabled: false,

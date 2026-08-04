@@ -1086,10 +1086,7 @@ function DesignSessionBody({
   // behind the solve and preview effects above.
   const { sweep, sweepRunning, converge, convergeRunning, normCheck, pattern } =
     useAnalysisRunners({
-      geometry,
       backend,
-      backendOptsKey,
-      currentValuesKey,
       currentVariant,
       currentExample,
       currentBands,
@@ -1097,10 +1094,8 @@ function DesignSessionBody({
       designFreq,
       measFreq,
       measLocked,
-      plane,
       groundEnabled,
       groundModel,
-      terrainKey,
       sweepEnabled,
       convergeEnabled,
       normCheckEnabled,

@@ -14,6 +14,7 @@ import { type BackendEntry } from "../../lib/backends";
 import { type GroundModel } from "../../lib/ground";
 import { feedwiseRichardson, richardsonExtrap } from "../../lib/math";
 import { type BandSpec, type ExampleDescriptor } from "../../lib/params";
+import { solveSignature } from "../../lib/solveSignature";
 import { planSweepFreqs } from "../../lib/sweep";
 import type { PatternData } from "../charts/types";
 
@@ -24,20 +25,35 @@ import type { PatternData } from "../charts/types";
 // are directly comparable when the user switches slots.
 export const CONVERGE_N_VALUES: number[] = [8, 12, 17, 24, 34, 48, 68];
 
+// Deliberate physics non-deps (issue #692), mirroring the server's
+// _CACHE_KEY_BLOCKLIST (web/server.py) — the same idea at the other end of
+// the wire. Cut angles are attached per-request AFTER the solve (POST /cuts,
+// issue #547), so dragging a cut dial changes no analysis result: every
+// analysis exempts them, exactly as the server cache does.
+const CUT_ANGLE_EXEMPT = ["az_elev_deg", "elev_az_deg"] as const;
+
+// The freq sweep and convergence sweep are impedance-only, and every terrain
+// preset shares the crest medium the impedance solve uses — so the terrain
+// knobs are additionally exempt for those two. NOT for the norm check, whose
+// pattern integral runs over the facets.
+const IMPEDANCE_ANALYSIS_EXEMPT = [...CUT_ANGLE_EXEMPT, "terrain"] as const;
+
 // The four background analyses that shadow the live solve — the freq sweep,
 // the segments-per-wire convergence sweep, the far-field norm check and the
 // NEC rp_card pattern — with their debounce effects, timer/abort refs and
-// streaming runners (#642 seam 5b-3). The cluster moves whole, so the four
-// literal dep arrays and the runners' fresh-per-render closures are unchanged.
+// streaming runners (#642 seam 5b-3).
+//
+// Each effect's physics invalidation is one request-signature dependency
+// (issue #692): solveSignature(buildRequest()) minus the exemption lists
+// above. Only gating/UI state that is not a request field stays hand-listed.
 //
 // Every dep-array member arrives as a plain per-render value, and buildRequest
 // / solveWithheld as plain per-render functions: memoizing either would change
-// which closure a pending debounce timeout fires.
+// which closure a pending debounce timeout fires. The signatures are fresh
+// strings per render for the same reason — the string VALUE is what the dep
+// arrays compare, so an unchanged request still skips the effect.
 export function useAnalysisRunners({
-  geometry,
   backend,
-  backendOptsKey,
-  currentValuesKey,
   currentVariant,
   currentExample,
   currentBands,
@@ -45,10 +61,8 @@ export function useAnalysisRunners({
   designFreq,
   measFreq,
   measLocked,
-  plane,
   groundEnabled,
   groundModel,
-  terrainKey,
   sweepEnabled,
   convergeEnabled,
   normCheckEnabled,
@@ -62,10 +76,7 @@ export function useAnalysisRunners({
   seqRef,
   approvedComboRef,
 }: {
-  geometry: string;
   backend: BackendEntry;
-  backendOptsKey: string;
-  currentValuesKey: string;
   currentVariant: string;
   currentExample: ExampleDescriptor | undefined;
   currentBands: BandSpec[];
@@ -73,14 +84,8 @@ export function useAnalysisRunners({
   designFreq: number;
   measFreq: number;
   measLocked: boolean;
-  /** The picked measurement plane (issue #652 c; null = natural). Every
-   *  analysis here reads the driving-point solve, so a plane flip
-   *  invalidates all four — without it in the dep arrays the previous
-   *  plane's sweep/convergence curves stay on screen as wrong data. */
-  plane: string | null;
   groundEnabled: boolean;
   groundModel: GroundModel;
-  terrainKey: string;
   sweepEnabled: boolean;
   convergeEnabled: boolean;
   normCheckEnabled: boolean;
@@ -94,6 +99,15 @@ export function useAnalysisRunners({
   seqRef: MutableRefObject<number>;
   approvedComboRef: MutableRefObject<boolean>;
 }) {
+  // The physics dependency of each effect below (issue #692): a fresh
+  // buildRequest() per render, hashed down to a stable string. Anything that
+  // changes the request — a knob, the variant, the measurement plane, a
+  // NEW field someone adds next month — invalidates by default; the
+  // exemption lists at the top of this module are the only opt-outs.
+  const req = buildRequest();
+  const impedanceSig = solveSignature(req, { exempt: IMPEDANCE_ANALYSIS_EXEMPT });
+  const solveSig = solveSignature(req, { exempt: CUT_ANGLE_EXEMPT });
+
   const [sweep, setSweep] = useState<SweepData | null>(null);
   const [sweepRunning, setSweepRunning] = useState(false);
   const [converge, setConverge] = useState<ConvergeData | null>(null);
@@ -112,11 +126,8 @@ export function useAnalysisRunners({
   const normCheckTimerRef = useRef<number | null>(null);
   const normCheckAbortRef = useRef<AbortController | null>(null);
 
-  // Debounced sweep across measurement freq. Re-runs whenever any antenna
-  // parameter changes. Single-band geometries sweep around designFreq, so
-  // moving the measFreq slider doesn't re-sweep (the existing data already
-  // covers the new slider position). Fan dipole sweeps around measFreq,
-  // so measFreq is part of the deps there to re-anchor.
+  // Debounced sweep across measurement freq. Re-runs whenever the solve
+  // request changes (impedanceSig) or the freq planning inputs move.
   useEffect(() => {
     // Cancel any in-flight sweep fetch immediately. Without this the
     // previous sweep keeps streaming for hundreds of ms (PyNEC ground at
@@ -144,24 +155,16 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend.name, backendOptsKey,
-    currentValuesKey,
-    designFreq,
-    groundEnabled, groundModel,
+    // Everything physics — knobs, freqs, ground, backend, variant, the
+    // measurement plane (#652 c / #691) — arrives through the signature.
+    impedanceSig,
+    // Not a request field: measLocked steers planSweepFreqs' anchor policy
+    // (band-locked sweeps stay put; unlocked re-anchor on measFreq), so a
+    // lock toggle must re-plan the freqs even though the solve is unchanged.
+    measLocked,
     sweepEnabled,
     autoSim,
     active,
-    // measFreq/measLocked drive the anchor now (meas_freq policy, or any
-    // unlocked design — incl. fixed-geometry designs whose lock is inert),
-    // so a meas-band change or dial turn re-runs the sweep.
-    measFreq, measLocked,
-    // The measurement plane (issue #652 c): the sweep is the driving-point
-    // impedance vs freq, which a plane flip changes wholesale.
-    plane,
-    // A variant can override sweep_policy (variant_ui) without changing any
-    // param — e.g. a band-locked variant. currentValuesKey wouldn't move then,
-    // so depend on currentVariant directly to re-run the sweep on switch.
-    currentVariant,
     // The poor-match gate: while it withholds, runSweep declines to issue the
     // batch; approving ("Solve anyway") or a new recommendation re-fires this
     // effect (issue #382 — replaces the old 200 ms re-poll loop).
@@ -192,10 +195,7 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend.name, backendOptsKey,
-    currentValuesKey,
-    designFreq, measFreq, plane,
-    groundEnabled, groundModel,
+    impedanceSig,
     convergeEnabled,
     autoSim,
     active,
@@ -225,15 +225,10 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend.name, backendOptsKey,
-    currentValuesKey,
-    designFreq, measFreq, plane,
-    groundEnabled, groundModel,
-    // The pattern integral runs over the facets, so terrain knob changes
-    // invalidate it (unlike the impedance-only sweep/converge effects,
-    // which are legitimately terrain-param-independent — every preset
-    // shares the crest medium the impedance solve uses).
-    terrainKey,
+    // solveSig, not impedanceSig: the pattern integral runs over the facets,
+    // so terrain knob changes invalidate the norm check (unlike the
+    // impedance-only sweep/converge effects above).
+    solveSig,
     normCheckEnabled,
     autoSim,
     active,
@@ -266,10 +261,9 @@ export function useAnalysisRunners({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    geometry, backend.name, backendOptsKey,
-    currentValuesKey,
-    designFreq, measFreq, plane,
-    groundEnabled, groundModel,
+    // The backend/terrain gates above re-evaluate on the signature too:
+    // solver, momwire_model and ground_model are all request fields.
+    solveSig,
     necOverlayEnabled,
     autoSim,
     active,
