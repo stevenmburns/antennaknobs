@@ -5,8 +5,10 @@ import { describe, it, expect } from "vitest";
 import { reflectionCoefficient } from "../lib/format";
 import {
   feedwiseRichardson,
+  gammaDbFromMag,
   gammaMagFromZ,
   richardsonExtrap,
+  S11_DB_FLOOR,
   VSWR_CEILING,
   vswrFromGammaMag,
 } from "../lib/math";
@@ -188,5 +190,33 @@ describe("vswrFromGammaMag", () => {
     const v = vswrFromGammaMag(0.9);
     expect(v).toBeLessThan(VSWR_CEILING);
     expect(v).toBeGreaterThan(vswrFromGammaMag(0.5));
+  });
+});
+
+// S11 log-magnitude — the negative-dB VNA convention the gamma sweep view
+// plots (0 dB = total reflection, dips are good). Pinned against closed
+// forms so a sign flip (positive "return loss") or a base-10/ratio-20 slip
+// fails here, not just in a chart eyeball.
+describe("gammaDbFromMag", () => {
+  it("is 0 dB at total reflection (dead short/open)", () => {
+    expect(gammaDbFromMag(1)).toBeCloseTo(0, 12);
+  });
+
+  it("is 20·log10 of the magnitude, negative for any partial reflection", () => {
+    expect(gammaDbFromMag(1 / 3)).toBeCloseTo(20 * Math.log10(1 / 3), 12);
+    expect(gammaDbFromMag(1 / 3)).toBeCloseTo(-9.542425094393249, 12);
+    expect(gammaDbFromMag(0.1)).toBeCloseTo(-20, 12);
+  });
+
+  it("floors a perfect (or numerically zero) match instead of -Infinity", () => {
+    expect(gammaDbFromMag(0)).toBe(S11_DB_FLOOR);
+    expect(gammaDbFromMag(1e-9)).toBe(S11_DB_FLOOR);
+    expect(Number.isFinite(gammaDbFromMag(0))).toBe(true);
+  });
+
+  it("agrees with the gammaMagFromZ oracle pairs end to end", () => {
+    expect(gammaDbFromMag(gammaMagFromZ(50, 0, 50))).toBe(S11_DB_FLOOR);
+    expect(gammaDbFromMag(gammaMagFromZ(100, 0, 50))).toBeCloseTo(-9.5424, 4);
+    expect(gammaDbFromMag(gammaMagFromZ(25, 0, 50))).toBeCloseTo(-9.5424, 4);
   });
 });

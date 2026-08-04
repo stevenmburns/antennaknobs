@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef } from "react";
 import type { FeedEntry, SweepData } from "../../lib/api";
-import { gammaMagFromZ, vswrFromGammaMag } from "../../lib/math";
+import { gammaDbFromMag, gammaMagFromZ, vswrFromGammaMag } from "../../lib/math";
 import { ThemeContext } from "../hooks";
 import { feedColor, feedSweepColor, plotColors } from "./palette";
 
@@ -11,14 +11,16 @@ import { feedColor, feedSweepColor, plotColors } from "./palette";
 // conversion turns a swept Z into a y-value.
 export type SweepMode = "gamma" | "vswr";
 
-// y-domain per mode. gamma is bounded [0,1] by construction (|Γ| can't
-// exceed 1 for a passive Z0). VSWR is unbounded as |Γ| → 1; the ham-
-// instrument convention is a linear 1..10 scale with an off-scale
-// indication for anything hotter — matching a real SWR meter's needle
-// pinned at the peg rather than a y-axis that silently rescales every time
-// a knob drags through a bad match.
+// y-domain per mode. gamma plots S11 in negative dB (20·log₁₀|Γ|), the
+// VNA/NanoVNA convention: 0 dB at the top, a good match is a downward dip
+// toward −30; anything deeper clamps to the bottom edge (below −30 dB the
+// match is beyond caring, and beyond most VNAs' honesty). VSWR is unbounded
+// as |Γ| → 1; the ham-instrument convention is a linear 1..10 scale with an
+// off-scale indication for anything hotter — matching a real SWR meter's
+// needle pinned at the peg rather than a y-axis that silently rescales
+// every time a knob drags through a bad match.
 const DOMAIN: Record<SweepMode, { lo: number; hi: number; ticks: number[]; title: string }> = {
-  gamma: { lo: 0, hi: 1, ticks: [0, 0.2, 0.4, 0.6, 0.8, 1.0], title: "|Γ|" },
+  gamma: { lo: -30, hi: 0, ticks: [-30, -20, -10, 0], title: "S11 dB" },
   vswr: { lo: 1, hi: 10, ticks: [1, 2, 4, 6, 8, 10], title: "VSWR" },
 };
 
@@ -27,7 +29,7 @@ const DOMAIN: Record<SweepMode, { lo: number; hi: number; ticks: number[]; title
 // charts instead of two independently-wrong formulas.
 function valueFor(mode: SweepMode, re: number, im: number, z0: number): number {
   const g = gammaMagFromZ(re, im, z0);
-  return mode === "gamma" ? g : vswrFromGammaMag(g);
+  return mode === "gamma" ? gammaDbFromMag(g) : vswrFromGammaMag(g);
 }
 
 export function SweepChart({
@@ -130,7 +132,9 @@ export function SweepChart({
     const yOf = (v: number) => marginT + plotH * (1 - frac(v));
     // A value at/above the domain top for VSWR means "off the chart" (a real
     // SWR meter pins its needle rather than rescaling); gamma never needs
-    // this since |Γ| ≤ 1 always fits.
+    // this since S11 ≤ 0 dB for anything passive. Below the gamma floor the
+    // trace just clamps to the bottom edge — an over-deep dip is good news,
+    // not a hazard worth a pinned-needle glyph.
     const offScale = (v: number) => v > dom.hi;
 
     ctx.strokeStyle = PC.grid;
@@ -143,8 +147,7 @@ export function SweepChart({
       ctx.moveTo(marginL, y);
       ctx.lineTo(marginL + plotW, y);
       ctx.stroke();
-      const label = mode === "gamma" ? t.toFixed(1) : t.toFixed(0);
-      ctx.fillText(label, 2, y + 3);
+      ctx.fillText(t.toFixed(0), 2, y + 3);
     }
     // Axis frame.
     ctx.strokeStyle = PC.axis;
