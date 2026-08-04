@@ -53,7 +53,7 @@
 | src/antennaknobs/designs/dipoles/folded\_invvee.py                |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/folded\_invvee\_balun.py         |       10 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/invvee.py                        |       24 |        0 |    100% |           |
-| src/antennaknobs/designs/dipoles/invvee\_catenary.py              |       45 |        1 |     98% |       333 |
+| src/antennaknobs/designs/dipoles/invvee\_catenary.py              |       45 |        1 |     98% |       344 |
 | src/antennaknobs/designs/dipoles/invvee\_coax\_station.py         |        9 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/koch\_dipole.py                  |       36 |        0 |    100% |           |
 | src/antennaknobs/designs/dipoles/ocf\_dipole.py                   |       18 |        0 |    100% |           |
