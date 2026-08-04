@@ -50,6 +50,7 @@ skipped (no UI yet — the request can still override via re/im dict).
 from __future__ import annotations
 
 import importlib
+import logging
 import math
 import os
 import pathlib
@@ -105,6 +106,8 @@ from .examples._base import (
 )
 
 C_LIGHT = 299_792_458.0
+
+_logger = logging.getLogger(__name__)
 
 # Sentinel impedance for an open-circuited feed on the wire protocol. The
 # network core reports a true open (e.g. a series matchbox capacitor slider
@@ -1313,6 +1316,35 @@ def _wire_material_results(builder) -> dict:
     }
 
 
+def _rig_report_results(builder) -> dict:
+    """Rigging tension/sag readout (issue #698 unit 3), surfaced under "rig"
+    in the same solve responses that carry `_wire_material_results`. {} for
+    every design without a `rig_report()` (nearly all of them) — the
+    per-design method, not a registry flag, is the discovery mechanism, same
+    idiom as `build_wire_material()` for `_wire_material_results`.
+
+    A mid-scrub rig can be geometrically infeasible (e.g. the
+    `dipoles.invvee_catenary` anchored-rope model with a rope too short to
+    reach its anchor) independently of whether the antenna solve itself
+    succeeded or failed — the readout is garnish on top of a solve that
+    already stands on its own, so a `rig_report()` failure must never fail
+    the response.
+    Debug-logged and omitted rather than surfaced as an "error" key: the
+    solve response already carries no other per-field error slots, and the
+    solve's own success/failure is the signal that matters to the caller.
+    """
+    rig_report = getattr(builder, "rig_report", None)
+    if not callable(rig_report):
+        return {}
+    try:
+        return {"rig": rig_report()}
+    except Exception:
+        _logger.debug(
+            "rig_report() failed for %r", type(builder).__name__, exc_info=True
+        )
+        return {}
+
+
 def _make_momwire_engine(req: dict, builder, cancel=None):
     # "bspline" is the default and the fallback for unknown/retired model
     # names (a stale client may still send "triangular").
@@ -2239,6 +2271,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # ground losses live inside P_in, so no efficiency multiply).
             "input_power_w": float(eng.input_power()),
             **_wire_material_results(builder),
+            **_rig_report_results(builder),
         }
         if planes is not None:
             # Measurement plane (issue #652 c): which port this solve is
@@ -2419,6 +2452,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "power_budget": _budget_rows(eng, builder),
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
             **_wire_material_results(builder),
+            **_rig_report_results(builder),
         }
         if planes is not None:
             # Same plane fields as the momwire path (issue #652 c).
