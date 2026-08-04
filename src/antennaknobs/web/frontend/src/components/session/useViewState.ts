@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { type ExampleDescriptor } from "../../lib/params";
-import { VIEWS, type Projection, type View } from "../../lib/view";
+import { type Projection, type View } from "../../lib/view";
+import { cycleOrder } from "./useViewPrefs";
 
 // Which output view is on screen and how it is drawn: the two far-field cut
 // angles, the selected view + camera projection, the antenna-canvas display
@@ -12,9 +13,13 @@ import { VIEWS, type Projection, type View } from "../../lib/view";
 export function useViewState({
   currentExample,
   active,
+  pinned,
 }: {
   currentExample: ExampleDescriptor | undefined;
   active: boolean;
+  // The user's pinned views (useViewPrefs). The arrow keys cycle these plus
+  // the active view, not the whole registry — see cycleOrder.
+  pinned: View[];
 }) {
   // Far-field cut angles. The azimuth plot slices the pattern at elevation
   // `azElevDeg`; the elevation plot slices the vertical plane at azimuth
@@ -71,13 +76,17 @@ export function useViewState({
       ) {
         return;
       }
-      const idx = VIEWS.findIndex((v) => v.id === view);
-      const next = e.key === "ArrowDown" ? (idx + 1) % VIEWS.length : (idx - 1 + VIEWS.length) % VIEWS.length;
-      setView(VIEWS[next].id);
+      const order = cycleOrder(pinned, view);
+      const idx = order.indexOf(view);
+      const next =
+        e.key === "ArrowDown"
+          ? (idx + 1) % order.length
+          : (idx - 1 + order.length) % order.length;
+      setView(order[next]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view, active]);
+  }, [view, active, pinned]);
 
   return {
     azElevDeg,

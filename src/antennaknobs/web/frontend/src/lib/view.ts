@@ -8,9 +8,10 @@ export type View = "antenna" | "azimuth" | "elevation" | "smith" | "schematic" |
 export type ViewMeta = {
   id: View;
   label: string;
-  // Whether the view starts in the user's pinned set. Dormant until the pin
-  // model lands — unit 2 of docs/plan-view-rail-scaling.md is the only
-  // consumer. Nothing reads it today.
+  // Whether the view starts in the user's pinned set — the desktop rail is
+  // `pinned \ {active}`, not the whole roster (docs/plan-view-rail-scaling.md).
+  // Read once, by useViewPrefs, to seed a first run; after that the user's
+  // stored set wins, so flipping this only affects new users.
   defaultPinned: boolean;
 };
 export const VIEWS: ViewMeta[] = [
@@ -26,6 +27,14 @@ export const VIEWS: ViewMeta[] = [
   { id: "gamma", label: "|Γ| vs freq", defaultPinned: false },
   { id: "vswr", label: "VSWR vs freq", defaultPinned: false },
 ];
+
+// Id → metadata, for the consumers that hold a list of ids in the USER's
+// order (the pinned set) rather than registry order and still need labels.
+// The cast is the Record<View, …> exhaustiveness claim VIEWS already owes —
+// viewRegistry.test.tsx pins one entry per union member.
+export const VIEW_META = Object.fromEntries(
+  VIEWS.map((v) => [v.id, v]),
+) as Record<View, ViewMeta>;
 
 // The mobile output carousel's screens: the 5 chart views plus a dedicated
 // Info screen for the solve readout (which floats as a HUD on desktop but
