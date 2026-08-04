@@ -19,6 +19,18 @@ export function vswrFromGammaMag(gMag: number): number {
   return Math.min((1 + gMag) / (1 - gMag), VSWR_CEILING);
 }
 
+// S11 log-magnitude, 20·log₁₀|Γ| — the negative-dB convention every VNA
+// (including the NanoVNA this app's users own) plots: 0 dB = total
+// reflection, a good match is a downward dip. NOT the IEEE positive
+// "return loss"; pick one sign convention and keep it. |Γ| = 0 is −∞ dB, so
+// a floor keeps a perfect match plottable and its data-* readout finite;
+// −60 dB (|Γ| = 0.001) is far below anything an antenna sweep resolves.
+export const S11_DB_FLOOR = -60;
+export function gammaDbFromMag(gMag: number): number {
+  if (gMag <= 0) return S11_DB_FLOOR;
+  return Math.max(20 * Math.log10(gMag), S11_DB_FLOOR);
+}
+
 // Richardson-style extrapolation Z(1/N) → Z(N→∞). Fits Z = a₀ + a₁·h + a₂·h²
 // (h = 1/N) on the last `nLast` points via least squares and returns a₀.
 // Quadratic gives a sane answer for O(1/N) limit (BSpline without
