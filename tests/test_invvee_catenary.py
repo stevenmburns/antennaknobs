@@ -391,7 +391,7 @@ def test_anchored_model_solves_at_every_geometry_corner():
     already reaches past the anchor" guard, see the next test for a case
     that does)."""
     for length_factor in (0.8, 1.25):  # ui_params range
-        for stake_dist in (1.0, 6.0):  # ui_params range
+        for stake_dist in (1.0, 15.0):  # ui_params range
             for stake_height in (0.0, 3.0):  # ui_params range
                 b = _builder(
                     rig_model="anchored_rope",
