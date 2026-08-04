@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock: view rail scaling (issue #684)</title>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1d2129; --panel2: #232833; --line: #3a4150;
+    --text: #d7dce5; --dim: #8b93a3; --accent: #4da3ff; --pin: #ffb454;
+    --new: #46c98b;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.45 system-ui, sans-serif; margin: 0; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 28px 0 8px; color: var(--accent); }
+  p.note { color: var(--dim); max-width: 72em; margin: 4px 0 12px; }
+  .mock { display: inline-block; vertical-align: top; margin: 0 24px 24px 0; }
+  .caption { color: var(--dim); font-size: 12px; margin-top: 6px; max-width: 46em; }
+
+  /* ---- stage scaffolding ---- */
+  .stage { display: flex; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .rail { display: flex; flex-direction: column; gap: 8px; width: 132px; }
+  .thumb { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 4px; text-align: center; }
+  .thumb .cv { background: #10131a; border-radius: 5px; height: 88px; display: flex; align-items: center; justify-content: center; }
+  .thumb .lbl { font-size: 11px; color: var(--dim); margin-top: 4px; }
+  .primary { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; width: 430px; height: 430px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .hud { position: absolute; left: 10px; bottom: 10px; background: #10131add; border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; font-size: 11px; color: var(--dim); }
+  .hud b { color: var(--text); font-weight: 600; }
+  .modes { position: absolute; right: 10px; top: 10px; display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font-size: 12px; }
+  .modes span { padding: 3px 9px; background: var(--panel2); color: var(--dim); }
+  .modes span.on { background: var(--accent); color: #08111d; }
+
+  /* picker button */
+  .allviews { border: 1px dashed var(--line); border-radius: 8px; color: var(--dim); font-size: 12px; padding: 7px 6px; text-align: center; }
+  .allviews b { color: var(--text); font-weight: 600; }
+
+  /* ---- picker popover ---- */
+  .picker { width: 210px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 8px 28px #0009; }
+  .prow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; }
+  .prow:hover { background: #2c3342; }
+  .prow .name { flex: 1; }
+  .prow.unpinned .name { color: var(--dim); }
+  .prow .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--pin); }
+  .prow.pinned .dot { background: var(--pin); }
+  .prow .badge { font-size: 9px; font-weight: 700; color: #08110c; background: var(--new); border-radius: 4px; padding: 1px 4px; letter-spacing: .04em; }
+  .prow.capped { opacity: .95; }
+  .cap-note { color: var(--dim); font-size: 10px; padding: 4px 8px 2px; border-top: 1px solid var(--line); margin-top: 4px; }
+
+  /* ---- grid mode ---- */
+  .gridstage { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; width: 586px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; height: 430px; }
+  .cell { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; position: relative; display: flex; align-items: center; justify-content: center; }
+  .cell.focused { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cell .max { position: absolute; right: 6px; top: 6px; color: var(--dim); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: #10131a; }
+  .cell .clbl { position: absolute; left: 8px; top: 6px; font-size: 10px; color: var(--dim); }
+
+  /* ---- mobile ---- */
+  .phone { width: 200px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+  .phone .screen { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; height: 190px; display: flex; align-items: center; justify-content: center; }
+  .dots { display: flex; justify-content: center; gap: 8px; margin-top: 10px; align-items: center; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); font-style: normal; }
+  .dots i.on { background: var(--accent); }
+  .dots .more { width: auto; height: auto; background: none; color: var(--dim); font-size: 13px; line-height: 7px; letter-spacing: 1px; }
+
+  svg text { fill: var(--dim); font: 9px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+
+<h1>Mock — output-view rail at a 9-view roster (issue #684)</h1>
+<p class="note">Pinned set (max 6, default 4) + overflow picker; two layout modes as presets over
+the same pinned set. Thumb heights use the real <code>useThumbColumnSize</code> overhead model at a
+720&nbsp;px column: 4&nbsp;pins&nbsp;→&nbsp;3 rail thumbs ≈ 131&nbsp;px (shown to scale below at ~⅔).</p>
+
+<h2>A — Rail mode (default): primary + pinned thumbs + the “All views” button</h2>
+<div class="mock">
+  <div class="stage">
+    <div class="rail">
+      <div class="thumb"><div class="cv">
+        <svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><circle cx="40" cy="40" r="22" fill="none" stroke="#2c3342"/><path d="M40 40 C 55 10, 72 30, 40 6 C 30 26, 20 20, 40 40" fill="none" stroke="#4da3ff" stroke-width="1.5"/></svg>
+      </div><div class="lbl">Azimuth (xy)</div></div>
+      <div class="thumb"><div class="cv">
+        <svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><path d="M8 40 A 32 32 0 0 1 72 40" fill="none" stroke="#2c3342"/><path d="M40 40 C 20 25, 25 8, 40 8 C 55 8, 60 25, 40 40" fill="none" stroke="#4da3ff" stroke-width="1.5"/></svg>
+      </div><div class="lbl">Elevation (yz)</div></div>
+      <div class="thumb"><div class="cv">
+        <svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><circle cx="52" cy="40" r="22" fill="none" stroke="#2c3342"/><circle cx="58" cy="40" r="15" fill="none" stroke="#2c3342"/><path d="M20 44 C 34 28, 52 30, 66 40" fill="none" stroke="#4da3ff" stroke-width="1.5"/><circle cx="47" cy="34" r="2.5" fill="#ffb454"/></svg>
+      </div><div class="lbl">Smith</div></div>
+      <div class="allviews">All views ⌄ <b>+5</b></div>
+    </div>
+    <div class="primary">
+      <svg width="300" height="300" viewBox="0 0 300 300">
+        <path d="M40 150 L130 150 M170 150 L260 150" stroke="#d7dce5" stroke-width="2"/>
+        <path d="M130 150 L150 150 M150 150 L170 150" stroke="#4da3ff" stroke-width="3"/>
+        <circle cx="150" cy="150" r="4" fill="#ffb454"/>
+        <path d="M40 150 Q 95 120 150 148 Q 205 120 260 150" fill="none" stroke="#46c98b" stroke-dasharray="3 3"/>
+        <text x="150" y="175" text-anchor="middle">Antenna — active (primary)</text>
+      </svg>
+      <div class="modes"><span class="on">▤ rail</span><span>⊞ grid</span></div>
+      <div class="hud"><b>Z</b> 71.8 −j1.2 · <b>SWR</b> 1.44 · 9 ms</div>
+    </div>
+  </div>
+  <div class="caption">Pinned = Antenna, Azimuth, Elevation, Smith (defaults). Rail shows pinned
+  minus active, exactly today's behavior. The dashed “All views” button is a fixed-height slot —
+  thumbs stay ≥ ~96&nbsp;px even at the 6-pin cap.</div>
+</div>
+
+<h2>B — The picker (overflow affordance, channel-enable idiom)</h2>
+<div class="mock">
+  <div class="picker">
+    <div class="prow pinned"><span class="name">Antenna</span><span class="dot"></span></div>
+    <div class="prow pinned"><span class="name">Azimuth (xy)</span><span class="dot"></span></div>
+    <div class="prow pinned"><span class="name">Elevation (yz)</span><span class="dot"></span></div>
+    <div class="prow pinned"><span class="name">Smith</span><span class="dot"></span></div>
+    <div class="prow unpinned"><span class="name">Schematic</span><span class="dot"></span></div>
+    <div class="prow unpinned"><span class="name">|Γ| vs freq</span><span class="badge">NEW</span><span class="dot"></span></div>
+    <div class="prow unpinned"><span class="name">VSWR vs freq</span><span class="badge">NEW</span><span class="dot"></span></div>
+    <div class="prow unpinned"><span class="name">Optimization</span><span class="dot"></span></div>
+    <div class="prow unpinned"><span class="name">Convergence</span><span class="dot"></span></div>
+    <div class="cap-note">Row click = show (peek) · pin dot = keep in rail · max 6 pinned</div>
+  </div>
+  <div class="caption">Whole roster in registry order. Filled amber dot = pinned. Clicking a row
+  shows that view (a transient “peek” that costs no pin slot); clicking the dot pins/unpins.
+  “NEW” marks views added since the picker was last opened.</div>
+</div>
+
+<h2>C — Grid mode: equal 2×2 over the first four pins, no primary</h2>
+<div class="mock">
+  <div class="gridstage">
+    <div class="grid">
+      <div class="cell focused"><span class="clbl">Antenna</span><span class="max">⤢</span>
+        <svg width="150" height="150" viewBox="0 0 300 300"><path d="M40 150 L130 150 M170 150 L260 150" stroke="#d7dce5" stroke-width="4"/><circle cx="150" cy="150" r="7" fill="#ffb454"/></svg>
+      </div>
+      <div class="cell"><span class="clbl">Azimuth (xy)</span><span class="max">⤢</span>
+        <svg width="140" height="140" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><path d="M40 40 C 55 10, 72 30, 40 6 C 30 26, 20 20, 40 40" fill="none" stroke="#4da3ff"/></svg>
+      </div>
+      <div class="cell"><span class="clbl">Elevation (yz)</span><span class="max">⤢</span>
+        <svg width="140" height="140" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><path d="M40 40 C 20 25, 25 8, 40 8 C 55 8, 60 25, 40 40" fill="none" stroke="#4da3ff"/></svg>
+      </div>
+      <div class="cell"><span class="clbl">Smith</span><span class="max">⤢</span>
+        <svg width="140" height="140" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><circle cx="52" cy="40" r="22" fill="none" stroke="#2c3342"/><path d="M20 44 C 34 28, 52 30, 66 40" fill="none" stroke="#4da3ff"/><circle cx="47" cy="34" r="2.5" fill="#ffb454"/></svg>
+      </div>
+    </div>
+    <div class="modes" style="position:absolute; right:10px; top:-14px;"><span>▤ rail</span><span class="on">⊞ grid</span></div>
+    <div class="hud" style="position:absolute; left:18px; bottom:18px;"><b>Z</b> 71.8 −j1.2 · <b>SWR</b> 1.44 · 9 ms</div>
+  </div>
+  <div class="caption">Cells are full live views (no thumbnail scaling). The focus ring is the
+  “active” view — ArrowUp/Down moves it. ⤢ (or double-click) maximizes: jump to rail mode with
+  that view primary, Blender-style. 3 pins → the 4th cell shows a “pin a 4th view” hint;
+  pins 5–6 stay rail-only.</div>
+</div>
+
+<h2>D — Mobile: carousel = pinned + Info, picker behind the “⋯” dot</h2>
+<div class="mock">
+  <div class="phone">
+    <div class="screen">
+      <svg width="130" height="130" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#3a4150"/><path d="M40 40 C 55 10, 72 30, 40 6 C 30 26, 20 20, 40 40" fill="none" stroke="#4da3ff"/></svg>
+    </div>
+    <div class="dots">
+      <i></i><i class="on"></i><i></i><i></i><i title="Info"></i><i class="more">⋯</i>
+    </div>
+  </div>
+  <div class="caption">Pages = pinned views + Info (5 dots at the default pin set — same as
+  today). The trailing “⋯” opens the picker as a bottom sheet; on mobile a row tap pins
+  (no transient peek), keeping the carousel ↔ pinned mapping simple.</div>
+</div>
+
+</body>
+</html>
