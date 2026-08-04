@@ -29,12 +29,24 @@ export const VIEW_PREFS_KEY = "akb.viewPrefs.v1";
 // picker shipped", which is what the user reads it as.
 const SEEN_SEED: View[] = ["antenna", "azimuth", "elevation", "smith", "schematic"];
 
+// Unit 3 of docs/plan-view-rail-scaling.md: the desktop stage's two layout
+// presets over the same pinned set. "rail" is today's primary+thumbstrip;
+// "grid" is equal cells over the first GRID_CELL_CAP pins. Exported so
+// components (the segmented control, useViewState) share one type instead of
+// re-deriving the string union.
+export type Layout = "rail" | "grid";
+
 // The persisted record. Fields are independent and each is optional on read,
-// so unit 3 can add `layout: "rail" | "grid"` by extending this type and the
-// writer — no v2 key, and a build that predates a field simply ignores it.
+// so a field can be added by extending this type and the writer — no v2 key,
+// and a build that predates a field simply ignores it. `layout` (unit 3)
+// is also optional on WRITE: update() below omits it entirely while it's
+// "rail" (the default), so a session that never touches layout persists the
+// exact `{pinned, seen}` shape unit 2 shipped — see the exact-keys assertion
+// in useViewPrefs.test.tsx, which this deliberately keeps passing unedited.
 type ViewPrefs = {
   pinned: View[];
   seen: View[];
+  layout: Layout;
 };
 
 const KNOWN = new Set<string>(VIEWS.map((v) => v.id));
@@ -58,6 +70,15 @@ function sanitizeIds(raw: unknown): View[] {
   return out;
 }
 
+// Anything other than the literal "grid" reads as "rail" — an absent field
+// (pre-unit-3 storage or a rail session that never wrote it, see the type's
+// comment), a wrong type, or hand-edited garbage. A bad layout does not
+// condemn the whole record the way an empty `pinned` does: the other two
+// fields are still perfectly good, so only this one falls back.
+function sanitizeLayout(raw: unknown): Layout {
+  return raw === "grid" ? "grid" : "rail";
+}
+
 function loadPrefs(): ViewPrefs {
   try {
     const raw = localStorage.getItem(VIEW_PREFS_KEY);
@@ -73,14 +94,18 @@ function loadPrefs(): ViewPrefs {
         // corrupt rather than honour an empty rail, which is never what a user
         // meant and leaves no visible way back.
         if (pinned.length > 0) {
-          return { pinned, seen: seen.length > 0 ? seen : SEEN_SEED };
+          return {
+            pinned,
+            seen: seen.length > 0 ? seen : SEEN_SEED,
+            layout: sanitizeLayout(rec.layout),
+          };
         }
       }
     }
   } catch {
     /* corrupt JSON or storage disabled — the defaults below are the answer */
   }
-  return { pinned: defaultPins(), seen: SEEN_SEED };
+  return { pinned: defaultPins(), seen: SEEN_SEED, layout: "rail" };
 }
 
 // --- module store ------------------------------------------------------------
@@ -110,7 +135,19 @@ function subscribe(onChange: () => void): () => void {
 function update(next: ViewPrefs): void {
   cached = next;
   try {
-    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify(next));
+    // Sparse write: `layout` joins the JSON only when it is not the default
+    // — JSON.stringify drops a key whose value is `undefined`. A pin/unpin
+    // that never touches layout (the common case, and every case before
+    // unit 3) writes exactly `{pinned, seen}`, so existing stored records
+    // and the pre-unit-3 test fixture stay byte-shaped as before.
+    localStorage.setItem(
+      VIEW_PREFS_KEY,
+      JSON.stringify({
+        pinned: next.pinned,
+        seen: next.seen,
+        layout: next.layout === "rail" ? undefined : next.layout,
+      }),
+    );
   } catch {
     /* storage disabled — the in-memory prefs still work for this session,
        exactly as App.tsx's theme toggle degrades */
@@ -140,9 +177,67 @@ export function pinBlockedReason(pinned: View[], id: View): string | null {
   return pinned.length >= PIN_CAP ? "Unpin a view first" : null;
 }
 
+// --- grid layout mode (unit 3) ------------------------------------------
+
+// Grid mode never goes past 4 cells: below ~⅓-stage cells the antenna canvas
+// stops being steerable, which defeats the mode's whole point (plan doc
+// "Layout modes"), so pins #5/#6 stay rail-only rather than making a 3×2.
+export const GRID_CELL_CAP = 4;
+
+// Grid mode's displayed cells: the first ≤4 pins, in pin order. Pure slice —
+// used both for what renders (ViewGrid) and what the arrow keys cycle
+// (useViewState), so the two can never disagree about "what's on screen".
+export function gridCells(pinned: View[]): View[] {
+  return pinned.slice(0, GRID_CELL_CAP);
+}
+
+// The grid's row/column count for a given number of displayed cells:
+// 1 → one full cell, 2 → 1×2, 3–4 → 2×2 (3 leaves the 4th cell the "pin a
+// 4th view" hint — ViewGrid draws that, this only says the shape is square).
+export function gridShape(nCells: number): { rows: number; cols: number } {
+  if (nCells <= 1) return { rows: 1, cols: 1 };
+  if (nCells === 2) return { rows: 1, cols: 2 };
+  return { rows: 2, cols: 2 };
+}
+
+// What to do when the grid-mode focus ring (`view`) is not one of the
+// displayed cells — see docs/plan-view-rail-scaling.md "Layout modes" and
+// "Keyboard". There are two distinct causes, told apart by `wasGrid` (was
+// the layout already "grid" the last time this ran):
+//
+//   - `wasGrid` false: we just switched INTO grid (rail → grid). The view
+//     that was active carries over regardless of WHY it's off-grid — a peek
+//     or a pinned view beyond cell 4 (pin #5/#6) — either way there is
+//     nowhere to put the ring but cell 1, so grid mode itself is not
+//     disturbed.
+//   - `wasGrid` true and the view IS pinned: already in grid, and a picker
+//     row-click landed on a pinned-but-off-grid view (pin #5/#6) — same
+//     fix, snap the ring to cell 1.
+//   - `wasGrid` true and the view is NOT pinned: the row-click activated a
+//     peek. A peek has no cell by definition — it costs no pin slot (see
+//     the plan doc's "Peek" note), so it never gets one — there is nothing
+//     to snap the ring to. Leave grid for rail, where the peek becomes
+//     rail's primary instead of being stranded off-screen.
+//
+// Returns null when the ring is already on a displayed cell (the common
+// case on every render that isn't one of the above transitions).
+export type GridFix = { view: View } | { layout: "rail" } | null;
+export function gridFix(
+  layout: Layout,
+  wasGrid: boolean,
+  view: View,
+  pinned: View[],
+): GridFix {
+  if (layout !== "grid") return null;
+  const cells = gridCells(pinned);
+  if (cells.includes(view)) return null;
+  if (!wasGrid || pinned.includes(view)) return { view: cells[0] };
+  return { layout: "rail" };
+}
+
 export function useViewPrefs() {
   const prefs = useSyncExternalStore(subscribe, getSnapshot);
-  const { pinned, seen } = prefs;
+  const { pinned, seen, layout } = prefs;
 
   // Views the user has never been offered. Seeded (not empty) on a first run,
   // so the badge only ever fires for views added after the picker shipped.
@@ -183,5 +278,13 @@ export function useViewPrefs() {
     update({ ...cur, seen: [...cur.seen, ...missing] });
   }, []);
 
-  return { pinned, seen, newIds, railViews, togglePin, markRosterSeen };
+  // Unit 3: the desktop layout preset. No validation needed beyond the type
+  // itself — unlike pins, there is no cap or floor to enforce here.
+  const setLayout = useCallback((next: Layout) => {
+    const cur = getSnapshot();
+    if (cur.layout === next) return; // keeps snapshot identity, as markRosterSeen does
+    update({ ...cur, layout: next });
+  }, []);
+
+  return { pinned, seen, newIds, railViews, togglePin, markRosterSeen, layout, setLayout };
 }

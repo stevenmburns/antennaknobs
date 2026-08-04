@@ -2011,6 +2011,119 @@ input[type=checkbox] {
   font-size: var(--text-xs);
 }
 
+/* ---- Rail/grid segmented control (unit 3, docs/plan-view-rail-scaling.md
+   "Layout modes") — stage top-right, desktop only. Same look family as
+   .projection-toggle: a pill of plain buttons, one active. ---- */
+.layout-toggle {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  z-index: 3;
+  display: flex;
+  gap: var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-2);
+  box-shadow: 0 2px 10px var(--shadow);
+}
+
+.layout-toggle button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font: var(--text-sm) var(--font-mono);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.layout-toggle button:hover {
+  color: var(--fg);
+  background: var(--inset);
+}
+
+.layout-toggle button.active {
+  color: var(--accent);
+  background: var(--accent-active);
+}
+
+/* ---- Grid layout mode (unit 3): equal cells over the first ≤4 pins, no
+   primary. Row/column count comes from JS (useGridCellSize/ViewGrid share
+   gridShape's math) as an inline style, not fixed classes here — the shape
+   changes with the pin count. ---- */
+.view-grid {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.grid-cell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-md);
+  padding: var(--space-4);
+  box-sizing: border-box;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.grid-cell:hover {
+  border-color: var(--accent-border);
+}
+
+/* The active view's cell — Blender-quad-viewport focus ring: the arrow keys
+   and a cell-body click both move this, per-cell overlays anchor inside it
+   the same way they anchor inside .carousel-slide. */
+.grid-cell-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+/* The 3-pin "pin a 4th view" invitation cell (see ViewGrid) — dashed like
+   .view-picker-btn's own "this slot isn't resident yet" idiom. */
+.grid-cell-hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  border-style: dashed;
+  cursor: default;
+}
+
+/* Top-LEFT (not top-right, where AntennaOverlayControls/SmithOverlayControls/
+   FarFieldOverlayControls already anchor per cell) so the glyph never
+   overlaps a view's own overlay controls. */
+.grid-cell-maximize {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.grid-cell-maximize:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
 .carousel-slide {
   flex: 1;
   min-width: 0;

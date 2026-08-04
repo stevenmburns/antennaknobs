@@ -40,6 +40,43 @@ export function useSlideSize(maxSize = 720, reattachKey?: unknown) {
   return { ref, size };
 }
 
+// Grid mode's per-cell chart size (unit 3, docs/plan-view-rail-scaling.md):
+// same "measure the box, hand charts a square that fits it" idiom as
+// useSlideSize, but the box is the WHOLE grid (rows × cols of equal cells
+// with a CSS gap) rather than one slide. `rows`/`cols` must be the same
+// numbers the caller feeds `.view-grid`'s inline grid-template (ViewGrid and
+// DesignSession both derive them from useViewPrefs' gridShape), or the
+// divided-up size disagrees with the actual cell box.
+const GRID_GAP = 8; // mirrors .view-grid's `gap: var(--space-4)` in styles.css
+export function useGridCellSize(
+  rows: number,
+  cols: number,
+  maxSize = 560,
+  reattachKey?: unknown, // see useSlideSize
+) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState(maxSize);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      const cellW = (rect.width - GRID_GAP * (cols - 1)) / cols;
+      const cellH = (rect.height - GRID_GAP * (rows - 1)) / rows;
+      const s = Math.min(cellW, cellH, maxSize);
+      // -16 is the cell's own padding (8px each side, .grid-cell in
+      // styles.css) — same overhead subtraction useSlideSize does for the
+      // slide's padding.
+      setSize(Math.max(160, Math.floor(s) - 16));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rows, cols, maxSize, reattachKey]);
+  return { ref, size };
+}
+
 // Mirror of the stylesheet's phone breakpoint. The query string MUST stay
 // identical to the mobile `@media` prelude in styles.css so the JS layout
 // branch and the CSS rules can never disagree about which viewports are
