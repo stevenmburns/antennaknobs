@@ -44,11 +44,12 @@ no equilibrium at any tension. With the apex at `(0, base)` and the stake at
 
     hypot(stake_dist, base - stake_height) > 0.25 * design_wavelength * length_factor
 
-The stock `stake_dist` (~1.15x the default arm length) and `stake_height`
-(1.0 m) satisfy this with a comfortable margin even at the top of the
-`length_factor` UI range, because most of the reach comes from the mast
-height (`base - stake_height`) rather than the horizontal offset — see the
-module tests for the numeric check. Push the knobs hard enough (a very long
+The stock `stake_dist` (11.5 m, ~4.7x the default arm length — a realistic
+guyed-inv-vee footprint that hangs the chord at ~33 degrees from horizontal
+at the stock 1.0 N tension) and `stake_height` (1.0 m) satisfy this with a
+huge margin even at the top of the `length_factor` UI range; nearly all the
+reach comes from the horizontal offset — see the module tests for the
+numeric check. Push the knobs hard enough (a very long
 arm, a stake dragged close to directly under the apex) and the solver's own
 `ValueError` explains exactly why no rig exists; this design does not
 second-guess or clamp that error.
@@ -95,24 +96,23 @@ remaining way to fail is `reach <= arm_length_m` (the wire ALONE already
 reaches past the anchor, so no rope length, slack or otherwise, rescues it);
 `rig_solutions()` raises a `ValueError` naming that constraint rather than
 clamping it away. It does not occur anywhere in the tested UI cross-product
-(`length_factor` in `{0.8, 1.25}` x `stake_dist` in `{1.0, 6.0}` x
+(`length_factor` in `{0.8, 1.25}` x `stake_dist` in `{1.0, 15.0}` x
 `stake_height` in `{0, 3}`, all eight corners, at stock `base`) — see the
 module tests — but a knob combination well outside those ranges (a stake
 dragged nearly under the apex, or a very long arm) can still reach it.
 
 This also turns the taut-limit's hypersensitivity from a liability into the
 slider's whole point: at the stock geometry the shortest feasible rope is
-~4.101182 m of arc, and (per the shallow-catenary relation
-`H ~ w*L^2/(8*sag)`) apex tension is only a fraction of a newton until slack
-shrinks to millimetre scale — not a numerical artifact, the ordinary
+~10.5 m of arc (the 33-degree stake sits ~13 m of reach from the apex), and
+(per the shallow-catenary relation `H ~ w*L^2/(8*sag)`) apex tension falls
+off steeply as slack grows — not a numerical artifact, the ordinary
 behaviour of any lightly loaded near-taut catenary (see `catenary.py`'s own
 numerics discussion). `rope_slack_mm`'s range (0.05-200.0 mm) puts that
 whole taut-to-slack transition inside one slider: its low end is a
 hand-tensioned halyard's tens-of-newtons regime, its high end a visibly
 saggy rope carrying almost nothing. The stock default, 0.5 mm of slack,
-lands the stock apex tension at ~5.18 N (see the module tests for the exact
-number) — inside a real halyard's range without sitting at either the
-reach floor or the slider's own edge.
+lands the stock apex tension at ~22.5 N — inside a real halyard's range
+without sitting at either the reach floor or the slider's own edge.
 
 Neither `tension_n` nor `rope_slack_mm` / `rope_weight_g_per_m` is hidden
 from the UI even though only one set is "live" per `rig_model`: the
@@ -197,11 +197,16 @@ class Builder(AntennaBuilder):
 
     default_params = MappingProxyType(
         {
-            # Same band/height/length-law defaults as dipoles.invvee.
+            # Same band/height defaults as dipoles.invvee; length_factor is
+            # RE-TUNED here rather than inherited (invvee's 0.9719 belongs
+            # to its steep straight arms): at the stock 33-degree catenary
+            # rig below, 0.930 puts the feed at ~46 - 1j ohms at design_freq
+            # (SWR ~1.09) — resonance moved because the shallower, sagging
+            # arms couple differently than invvee's chords.
             "design_freq": 28.47,
             "freq": 28.47,
             "base": 7.0,
-            "length_factor": 0.9719,
+            "length_factor": 0.930,
             # Which rig closure solves each arm (issue #698 unit 3):
             # "halyard" (model 1, tensioned massless rope, tension_n live) or
             # "anchored_rope" (model 2, heavy rope to a ground anchor,
@@ -214,20 +219,29 @@ class Builder(AntennaBuilder):
             # an input. The default is deliberately LIGHT: this wire is only
             # ~5 g/m, so a real hand-tensioned halyard (tens of newtons)
             # pulls it straight to within a millimetre and the catenary —
-            # the design's whole point — becomes invisible. 0.3 N sags the
-            # stock arm ~7.5 cm (visibly bowed at stock zoom) and happens to
-            # sit near resonance at the stock length_factor; the slider's
-            # top end is the taut-halyard regime that straightens it.
-            "tension_n": 0.3,
+            # the design's whole point — becomes invisible. 1.0 N, with the
+            # stock stake below, hangs the arm's chord at ~33 degrees from
+            # horizontal (the classic inv-vee droop angle) with ~6.4 cm of
+            # visible sag; the slider's top end is the taut-halyard regime
+            # that straightens it. Angle and sag couple through tension —
+            # slacker than this and gravity wins (the chord steepens toward
+            # hanging no matter where the stake is), tauter and the bow
+            # disappears.
+            "tension_n": 1.0,
             # Stake / ground-anchor position in the arm's vertical plane,
             # horizontal distance from the mast and height above ground.
             # Shared by both models (see the module docstring): model 1
             # calls it the stake the halyard runs to; model 2 calls it the
-            # ground anchor the rope's far end must land on. Defaults chosen
-            # so hypot(stake_dist, base - stake_height) clears the longest
-            # arm the length_factor UI range can produce (see the module
-            # docstring and the feasibility test).
-            "stake_dist": 2.94,
+            # ground anchor the rope's far end must land on. 11.5 m out at
+            # 1 m up is a realistic guyed-inv-vee footprint, and with the
+            # 1.0 N default it hangs the arm's chord at ~33 degrees from
+            # horizontal (the original 2.94 m stake made a ~64-degree,
+            # nearly-vertical vee). Feasibility — hypot(stake_dist, base -
+            # stake_height) clearing the longest arm the length_factor UI
+            # range can produce — now comes overwhelmingly from the
+            # horizontal reach (see the module docstring and the
+            # feasibility test).
+            "stake_dist": 11.5,
             "stake_height": 1.0,
             # Rope take-up (issue #698 model 2), in MILLIMETRES of slack
             # above the shortest rope that can reach the anchor at all — the
@@ -235,9 +249,10 @@ class Builder(AntennaBuilder):
             # geometry knobs' full ranges (see the module docstring for why
             # an absolute rope_length_m param cannot be). LIVE under
             # rig_model="anchored_rope" only; unused under "halyard". 0.5 mm
-            # lands the stock apex tension at ~5.18 N, inside a real
-            # halyard's range (see the module docstring's derivation and the
-            # module tests for the exact number).
+            # lands the stock apex tension at ~22.5 N, inside a real
+            # halyard's range (the longer ~13 m reach of the 33-degree stake
+            # geometry makes the same slack proportionally tauter than the
+            # original close-in stake did — see the module docstring).
             "rope_slack_mm": 0.5,
             # Rope weight per metre (issue #698 model 2): typical 3 mm
             # dacron. LIVE under rig_model="anchored_rope" only.
@@ -254,14 +269,16 @@ class Builder(AntennaBuilder):
                     "rig_model": {
                         "enum_options": ("halyard", "anchored_rope"),
                     },
-                    # 0.1 N (barely restrained, ~11 cm of sag on the stock
+                    # 0.1 N (barely restrained, ~24 cm of sag on the stock
                     # arm) up to 40 N (~9 lbf, a hand-tensioned dacron
-                    # halyard — visibly straight). The old 2–400 N range put
-                    # the ENTIRE visible-droop regime below the slider's
-                    # floor: at ~5 g/m of wire, sag is already under 2 cm at
-                    # 2 N and sub-millimetre at 400 N.
+                    # halyard — visibly straight). The original 2–400 N
+                    # range put the ENTIRE visible-droop regime below the
+                    # slider's floor: at ~5 g/m of wire, sag is already
+                    # under 2 cm at 2 N and sub-millimetre at 400 N.
                     "tension_n": {"min": 0.1, "max": 40.0},
-                    "stake_dist": {"min": 1.0, "max": 6.0},
+                    # Max well past the stock 11.5 m so the 33-degree
+                    # default is not pinned at the slider's edge.
+                    "stake_dist": {"min": 1.0, "max": 15.0},
                     "stake_height": {"min": 0.0, "max": 3.0},
                     # 0.05 mm (near the taut/high-tension extreme a real
                     # cleated halyard shows) to 200 mm (visibly saggy,
