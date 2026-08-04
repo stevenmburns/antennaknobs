@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { VIEWS, type View } from "../../lib/view";
 import { PIN_CAP, pinBlockedReason } from "./useViewPrefs";
 
@@ -30,6 +30,14 @@ export function ViewPicker({
   markRosterSeen: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // The popover is position:FIXED and placed from a measurement, not
+  // position:absolute inside the strip: .thumbstrip is overflow:hidden by
+  // design (thumbs are scaled to fit and must never scroll), which would clip
+  // an absolutely-positioned child. Fixed elements escape that clip. Measured
+  // at open only — the stage layout doesn't scroll, and the backdrop swallows
+  // everything until the popover closes.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState({ left: 0, bottom: 0 });
   // The badges shown while the popover is open are snapshotted as it opens.
   // Opening MARKS the roster seen — that is what "since you last looked"
   // means — so rendering `newIds` live would blank every badge in the same
@@ -39,6 +47,11 @@ export function ViewPicker({
   const toggleOpen = () => {
     setOpen((was) => {
       if (!was) {
+        const r = wrapRef.current?.getBoundingClientRect();
+        // Opens to the RIGHT of its button and grows upward from the strip's
+        // foot: the rail hugs the window's left edge, and the short columns
+        // this whole feature exists for have no room below.
+        if (r) setAnchor({ left: r.right + 6, bottom: window.innerHeight - r.bottom });
         setBadged(new Set(newIds));
         markRosterSeen();
       }
@@ -49,7 +62,7 @@ export function ViewPicker({
   const unpinnedCount = VIEWS.length - pinned.length;
 
   return (
-    <div className="view-picker-wrap">
+    <div className="view-picker-wrap" ref={wrapRef}>
       <button
         type="button"
         className="view-picker-btn"
@@ -69,7 +82,11 @@ export function ViewPicker({
             className="view-picker-backdrop"
             onClick={() => setOpen(false)}
           />
-          <div className="view-picker" role="menu">
+          <div
+            className="view-picker"
+            role="menu"
+            style={{ left: anchor.left, bottom: anchor.bottom }}
+          >
             {VIEWS.map((v) => {
               const isPinned = pinned.includes(v.id);
               const blocked = pinBlockedReason(pinned, v.id);
