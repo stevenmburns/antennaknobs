@@ -177,6 +177,13 @@ function DesignSessionBody({
   } = useDesignCatalog({ geometry, setGeometry, setParamValues });
 
   const currentExample = examples.find((e) => e.name === geometry);
+  // currentValues is deliberately a fresh reference whenever paramValues[geometry]
+  // is unset (the `?? {}` fallback) — currentValuesKey (below) is the stable
+  // primitive signature every downstream effect/memo actually keys off, so the
+  // useMemo at currentValuesKey re-running every render here costs a
+  // JSON.stringify, not correctness: its *output* is a string, compared by
+  // value everywhere it's used as a dep, not by the identity of this object.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const currentValues = paramValues[geometry] ?? {};
 
   // Selector contents: filter by the search box (always keeping the current
@@ -572,7 +579,6 @@ function DesignSessionBody({
       setDesignFreq(linkedDesignFreq);
       if (linkMeas) setMeasFreq(linkedDesignFreq);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedDesignFreq, linkMeas]);
   // Layout branch. Desktop never reads isMobile except as the sizing hooks'
   // reattach key, so no desktop viewport is affected; the key makes both
@@ -882,6 +888,12 @@ function DesignSessionBody({
       setMeasFreq(snap.measFreq);
       setMeasBand(snap.measBandKey);
     }
+    // band/currentBands.length/linkMeas are read, not listed: this effect's
+    // whole point is re-snapping only "on geometry switch" (see above) — band
+    // and linkMeas are the very state the user can change by hand between
+    // switches, and listing them would re-fire the snap on every band pick or
+    // lock toggle instead of only on a new currentExample. currentBands.length
+    // is itself derived from currentExample, already covered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExample]);
 
@@ -1065,6 +1077,13 @@ function DesignSessionBody({
     }
     setSolverWarning(false);
     requestSolve();
+    // backendDisallowed/recommendedBackend derive from currentExample/preview/
+    // roster, not listed directly — geometry (which tracks currentExample) and
+    // previewReady (which tracks preview) are already deps, so those inputs
+    // are covered without duplicating them here; roster only changes once per
+    // session. buildRequest/requestSolve are plain closures over this same
+    // render's state, not memoized — calling them just reads whatever this
+    // effect's own already-listed deps last set, so they add nothing as deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     active,

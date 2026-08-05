@@ -31,7 +31,7 @@ export function SmithChart({
   convergeRunning: boolean;
   /** Multi-feed geometries pass the per-feed Z list from the latest
    *  solve so the chart can also render N centre dots, one per port. */
-  feeds?: FeedEntry[];
+  feeds?: FeedEntry[] | undefined;
   /** From the example descriptor's `multi_feed` flag — drives the
    *  per-feed summary rows. Decoupled from feeds[].length so the chart
    *  reflects antenna type rather than guessing from response shape. */

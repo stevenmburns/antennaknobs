@@ -150,6 +150,13 @@ export function useFullscreen() {
 // from the layout and the bottom thumb starts clipping.
 const PICKER_SLOT = 28 + 8;
 
+// The 3-thumb-era reference column's fixed overhead (see the width/height
+// split comment below) — a yardstick, not a per-render measurement, so it
+// lives at module scope: hoisted out of the hook body (rather than listed as
+// a useEffect dep) because it is a literal constant that can never change
+// between renders (react-hooks/exhaustive-deps, #736).
+const WIDTH_OVERHEAD = 26 + 2 * 8 + 3 * 36;
+
 export function useThumbColumnSize(
   stripRef: React.RefObject<HTMLDivElement>,
   nThumbs: number,
@@ -177,7 +184,6 @@ export function useThumbColumnSize(
   // so the picker slot deliberately stays out of it.
   const n = Math.max(1, nThumbs);
   const overhead = 26 + (n - 1) * 8 + n * 36 + PICKER_SLOT;
-  const widthOverhead = 26 + 2 * 8 + 3 * 36;
   const [size, setSize] = useState({ width: 180, height: 180 });
   useEffect(() => {
     const el = stripRef.current;
@@ -186,7 +192,7 @@ export function useThumbColumnSize(
     const update = () => {
       const h = el.clientHeight;
       if (h <= 0) return;
-      const width = clamp((h - widthOverhead) / 3);
+      const width = clamp((h - WIDTH_OVERHEAD) / 3);
       const height = clamp((h - overhead) / n);
       setSize((s) =>
         s.width === width && s.height === height ? s : { width, height },

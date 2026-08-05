@@ -243,6 +243,11 @@ export function useCutTraces(
       cancelled = true;
       window.clearTimeout(h);
     };
+    // results/azElevDeg/elevAzDeg are read but not listed: wantKey is their
+    // exact string encoding (see its definition above), the same stable-
+    // signature idiom used elsewhere in this codebase (e.g. currentValuesKey)
+    // — listing the raw inputs too would just re-fire on every render, since
+    // `results` is a fresh array from the caller each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantKey]);
   return results.map((r) => {

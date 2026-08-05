@@ -95,7 +95,6 @@ export function useOptimizer({
       setOptPausedBy({ kind: "load" });
     }
     // optEnabledRef is read (not a dep) on purpose — see its declaration.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry]);
 
   // Run the optimiser once: POST the current solve request + the free knobs

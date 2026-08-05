@@ -24,5 +24,13 @@ export default defineConfig({
     // without it, mounted components from earlier tests stay in document.body
     // and getBy* queries hit duplicate matches.
     setupFiles: ["src/__tests__/setup.ts"],
+    // `npm run test:coverage` only (#736) — not part of CI's plain `npm test`,
+    // which stays fast. No thresholds: this is a first measurement to find
+    // gaps (see the issue), not a gate to enforce yet.
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: ["src/__tests__/**", "src/**/*.config.ts"],
+    },
   },
 });

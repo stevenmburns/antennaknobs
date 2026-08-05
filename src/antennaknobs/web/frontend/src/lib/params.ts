@@ -157,7 +157,7 @@ export type ExampleDescriptor = {
   /** Informational note shown under the antenna selector — deck-backed
    *  designs list the NEC cards the import recorded but did not apply.
    *  null (the norm) renders nothing. */
-  notes?: string | null;
+  notes?: string | null | undefined;
   /** Per-variant UI-hint overrides, keyed by variant name. Only variants
    *  whose derived hints differ from the design-level values appear; look up
    *  the active variant and fall back to the top-level field (e.g.

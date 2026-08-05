@@ -74,6 +74,9 @@ export function useViewState({
     if (currentExample?.default_view) {
       setCameraProjection(currentExample.default_view);
     }
+    // Keyed on the name, not currentExample.default_view directly: a value
+    // change for the same example (e.g. a data refresh) must not override
+    // the user's camera pick — only an actual antenna switch should.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExample?.name]);
 
