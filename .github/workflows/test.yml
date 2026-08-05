@@ -71,10 +71,16 @@ jobs:
 
     - name: Install momwire (vendored MoM engine)
       # momwire is still a submodule; its C++ accelerator builds from source here.
-      # --remote tracks momwire's main; --no-build-isolation so setup.py sees the
-      # numpy + pybind11 installed above.
+      # --no-build-isolation so setup.py sees the numpy + pybind11 installed
+      # above.
       run: |
-        git submodule update --init --remote momwire
+        # NO --remote (dropped in #737): --remote checked out momwire's live
+        # remote main regardless of the pointer this branch RECORDS, which
+        # (a) meant CI never tested the recorded pointer (the exact gap that
+        # bit PRs #268/#270), and (b) made tests/test_momwire_pin.py go red
+        # on every unrelated PR the moment momwire released. The recorded
+        # pointer is the contract; the pin-triple test now enforces it.
+        git submodule update --init momwire
         pip install --no-build-isolation -e ./momwire
 
     - name: Install antennaknobs

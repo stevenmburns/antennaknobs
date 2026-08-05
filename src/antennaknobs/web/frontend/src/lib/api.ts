@@ -59,6 +59,14 @@ export type ReadoutRow = {
 
 export type SolveResponse = {
   geometry: string;
+  /** Which backend actually produced this response ("momwire" | "pynec").
+   *  Not a strict union — kept a plain string so a retired/renamed backend
+   *  echoed from an older cached response never fails to type-check. */
+  solver?: string;
+  /** True when this response was served from the server's solve cache
+   *  rather than freshly computed; solve_ms is still the real cost of this
+   *  particular lookup (see server.solve's cache-hit path). */
+  cache_hit?: boolean;
   wires: Wire[];
   feed_wire_index: number;
   feed_knot_index: number;
@@ -139,6 +147,10 @@ export type SolveResponse = {
    *  (issue #652). */
   power_budget?: { label: string; watts: number; path?: string; key?: string }[];
   input_power_w?: number;
+  /** Fraction of input power actually radiated (1.0 unless the design has
+   *  resistive loads, e.g. a terminated rhombic / T2FD, or a lossy network
+   *  branch) — current_distribution() populates this on the engine. */
+  radiation_efficiency?: number;
   /** Measurement plane (issue #652 c): the port this solve's Z/SWR/chart are
    *  referenced to, and every port the picker may offer (natural plane
    *  first). Absent for designs with no network or a multi-feed drive. */
@@ -149,6 +161,28 @@ export type SolveResponse = {
    *  no `readout_rows()`, and absent rather than empty when every row a
    *  design produced was malformed or its producer raised. */
   readouts?: ReadoutRow[];
+  /** Bespoke pre-#712 rigging tension/sag readout (issue #698 unit 3),
+   *  surfaced under "rig" for a design that defines `rig_report()` —
+   *  currently only dipoles.invvee_catenary. Kept alongside `readouts` for
+   *  compatibility; absent for every design without a `rig_report()`.
+   *  `rope_sag_m`/`rope_length_m` are null under the "halyard" rig_model
+   *  (there is no rope segment). */
+  rig?: {
+    rig_model: string;
+    apex_tension_n: number;
+    apex_tension_lbf: number;
+    end_tension_n: number;
+    end_tension_lbf: number;
+    horizontal_tension_n: number;
+    wire_sag_m: number;
+    rope_sag_m: number | null;
+    rope_length_m: number | null;
+    wire_end_height_m: number;
+  };
+  /** Wire-material totals (issue #318): absent for a design that doesn't
+   *  declare `build_wire_material()`. */
+  wire_length_m?: number;
+  wire_weight_g?: number;
   k_meas_m_inv?: number;
   // V-specific
   arm_len_m?: number;
