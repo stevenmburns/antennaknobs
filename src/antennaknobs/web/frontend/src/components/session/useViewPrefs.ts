@@ -79,33 +79,55 @@ function sanitizeLayout(raw: unknown): Layout {
   return raw === "grid" ? "grid" : "rail";
 }
 
+// What loadPrefs falls back to on any of: missing key, corrupt JSON, wrong
+// shape, or an empty pin set post-sanitisation.
+function defaultPrefs(): ViewPrefs {
+  return { pinned: defaultPins(), seen: SEEN_SEED, layout: "rail" };
+}
+
+// Parses and validates a raw stored string exactly as loadPrefs does, but
+// without touching localStorage — shared by the initial load (below) and by
+// the `storage` listener (further down), so a value ARRIVING from another
+// window is held to the same distrust as a value read from this window's own
+// storage: nothing surviving sanitisation ⇒ null, meaning "not usable",
+// never a thrown error and never a partially-applied record.
+function parseStoredPrefs(raw: string): ViewPrefs | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const rec = parsed as Record<string, unknown>;
+      // Clamp to the cap on the way in too: the cap can shrink between
+      // releases, and the picker's disabled dots can only refuse NEW pins.
+      const pinned = sanitizeIds(rec.pinned).slice(0, PIN_CAP);
+      const seen = sanitizeIds(rec.seen);
+      // Everything surviving sanitisation was garbage ⇒ treat the record as
+      // corrupt rather than honour an empty rail, which is never what a user
+      // meant and leaves no visible way back.
+      if (pinned.length > 0) {
+        return {
+          pinned,
+          seen: seen.length > 0 ? seen : SEEN_SEED,
+          layout: sanitizeLayout(rec.layout),
+        };
+      }
+    }
+  } catch {
+    /* corrupt JSON */
+  }
+  return null;
+}
+
 function loadPrefs(): ViewPrefs {
   try {
     const raw = localStorage.getItem(VIEW_PREFS_KEY);
     if (raw) {
-      const parsed: unknown = JSON.parse(raw);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        const rec = parsed as Record<string, unknown>;
-        // Clamp to the cap on the way in too: the cap can shrink between
-        // releases, and the picker's disabled dots can only refuse NEW pins.
-        const pinned = sanitizeIds(rec.pinned).slice(0, PIN_CAP);
-        const seen = sanitizeIds(rec.seen);
-        // Everything surviving sanitisation was garbage ⇒ treat the record as
-        // corrupt rather than honour an empty rail, which is never what a user
-        // meant and leaves no visible way back.
-        if (pinned.length > 0) {
-          return {
-            pinned,
-            seen: seen.length > 0 ? seen : SEEN_SEED,
-            layout: sanitizeLayout(rec.layout),
-          };
-        }
-      }
+      const parsed = parseStoredPrefs(raw);
+      if (parsed) return parsed;
     }
   } catch {
-    /* corrupt JSON or storage disabled — the defaults below are the answer */
+    /* storage disabled — the defaults below are the answer */
   }
-  return { pinned: defaultPins(), seen: SEEN_SEED, layout: "rail" };
+  return defaultPrefs();
 }
 
 // --- module store ------------------------------------------------------------
@@ -153,6 +175,51 @@ function update(next: ViewPrefs): void {
        exactly as App.tsx's theme toggle degrades */
   }
   for (const l of listeners) l();
+}
+
+// A `storage` event fires in every OTHER window/tab sharing this origin the
+// moment localStorage actually changes there — never in the window that
+// wrote it, and never for a write that doesn't change the value (MDN
+// StorageEvent). Sessions in the SAME window already share `cached` and
+// `listeners` directly (that's the whole module-store idiom above); this is
+// the one signal a second browser WINDOW gets, which is what #716 asks for —
+// #700 shipped the same-window half and left this as "converges on reload".
+//
+// Registered once, at module scope, rather than per hook mount: every mount
+// already shares the one `listeners` Set, so a listener per mount would just
+// be N redundant copies of the same dispatch. And unlike `listeners`, there
+// is no "last one out" moment to remove it at — a store with zero mounted
+// hooks is a normal, valid state (see `subscribe`'s comment: `cached` just
+// gets dropped and re-read on the next mount), not a teardown signal.
+function handleStorage(event: StorageEvent): void {
+  // Ignore writes to any other key. `event.key === null` is the browser's
+  // signal for `localStorage.clear()`, which did clear this key too, so it
+  // falls through to the same handling as an explicit removal below.
+  if (event.key !== null && event.key !== VIEW_PREFS_KEY) return;
+
+  // A null newValue means the key was removed (or storage.clear() ran) in
+  // the other window — the same situation loadPrefs sees as "nothing on
+  // disk", so it gets the same answer: the defaults.
+  const next = event.newValue === null ? defaultPrefs() : parseStoredPrefs(event.newValue);
+
+  // A corrupt or malformed value from another window is trusted no more than
+  // one read from OUR OWN storage on load: ignore it and keep whatever this
+  // window already has, rather than crashing or clobbering good state with
+  // garbage.
+  if (!next) return;
+
+  // Deliberately does NOT call update(): this window did not originate the
+  // change, so writing it back to localStorage here would only ever echo the
+  // value already sitting there. An identical write fires no further
+  // `storage` event (browsers dedupe on value), so it would be harmless, but
+  // it is also pure overhead and one more writer that could race a genuine
+  // write arriving from a THIRD window — simplest is to just not.
+  cached = next;
+  for (const l of listeners) l();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", handleStorage);
 }
 
 // --- pure helpers the UI and the key cycler share ----------------------------
