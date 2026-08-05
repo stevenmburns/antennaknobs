@@ -167,6 +167,11 @@ export function useAnalysisRunners({
     return () => {
       if (sweepTimerRef.current) window.clearTimeout(sweepTimerRef.current);
     };
+    // runSweep is read but not listed: it's a plain, unmemoized closure
+    // recreated every render, and impedanceSig is the deliberate stand-in
+    // signature for everything it would otherwise pull in (same idiom as
+    // currentValuesKey) — listing it would re-fire this effect on every
+    // render regardless of whether anything it reads actually changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     // Everything physics — knobs, freqs, ground, backend, variant, the
@@ -210,6 +215,9 @@ export function useAnalysisRunners({
     return () => {
       if (convergeTimerRef.current) window.clearTimeout(convergeTimerRef.current);
     };
+    // runConverge omitted — same reasoning as the sweep effect above: a
+    // plain unmemoized closure, with impedanceSig standing in for its actual
+    // inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     impedanceSig,
@@ -241,6 +249,8 @@ export function useAnalysisRunners({
     return () => {
       if (normCheckTimerRef.current) window.clearTimeout(normCheckTimerRef.current);
     };
+    // runNormCheck omitted — same reasoning as the sweep effect above; note
+    // this one stands in on solveSig, not impedanceSig (see below).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     // solveSig, not impedanceSig: the pattern integral runs over the facets,
@@ -278,6 +288,10 @@ export function useAnalysisRunners({
     return () => {
       if (patternTimerRef.current) window.clearTimeout(patternTimerRef.current);
     };
+    // runPattern omitted — same reasoning as the sweep effect above.
+    // backend.name/groundModel are read only in the guard above; solveSig
+    // (a request field for both) already re-fires this effect when either
+    // changes, so listing them too would be redundant.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     // The backend/terrain gates above re-evaluate on the signature too:
@@ -326,12 +340,14 @@ export function useAnalysisRunners({
       _approved: approvedComboRef.current,
     };
     setSweepRunning(true);
+    // feeds_z_re/feeds_z_im start OMITTED (not set to undefined): the type's
+    // doc comment says single-feed geometries omit them entirely, and
+    // exactOptionalPropertyTypes now enforces that distinction — `acc.feeds_z_re`
+    // still reads as undefined either way, so this is a no-op for behavior.
     const acc: SweepData = {
       freqs_mhz: [],
       z_re: [],
       z_im: [],
-      feeds_z_re: undefined,
-      feeds_z_im: undefined,
     };
     try {
       const resp = await fetch("/sweep", {
@@ -380,12 +396,15 @@ export function useAnalysisRunners({
               freqs_mhz: acc.freqs_mhz.slice(),
               z_re: acc.z_re.slice(),
               z_im: acc.z_im.slice(),
-              feeds_z_re: acc.feeds_z_re
-                ? acc.feeds_z_re.map((row) => row.slice())
-                : undefined,
-              feeds_z_im: acc.feeds_z_im
-                ? acc.feeds_z_im.map((row) => row.slice())
-                : undefined,
+              // Spread-conditional, not `: undefined`, so a single-feed sweep
+              // OMITS the key (matching SweepData's documented contract)
+              // rather than setting it to undefined.
+              ...(acc.feeds_z_re
+                ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
+                : {}),
+              ...(acc.feeds_z_im
+                ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
+                : {}),
             });
           }
         }
@@ -420,16 +439,13 @@ export function useAnalysisRunners({
       _approved: approvedComboRef.current,
     };
     setConvergeRunning(true);
+    // feeds_* fields start OMITTED, same reasoning as runSweep's acc above.
     const acc: ConvergeData = {
       n_values: [],
       z_re: [],
       z_im: [],
       z_re_extrap: null,
       z_im_extrap: null,
-      feeds_z_re: undefined,
-      feeds_z_im: undefined,
-      feeds_z_re_extrap: undefined,
-      feeds_z_im_extrap: undefined,
     };
     try {
       const resp = await fetch("/converge", {
@@ -488,18 +504,19 @@ export function useAnalysisRunners({
               z_im: acc.z_im.slice(),
               z_re_extrap: acc.z_re_extrap,
               z_im_extrap: acc.z_im_extrap,
-              feeds_z_re: acc.feeds_z_re
-                ? acc.feeds_z_re.map((row) => row.slice())
-                : undefined,
-              feeds_z_im: acc.feeds_z_im
-                ? acc.feeds_z_im.map((row) => row.slice())
-                : undefined,
-              feeds_z_re_extrap: acc.feeds_z_re_extrap
-                ? acc.feeds_z_re_extrap.slice()
-                : undefined,
-              feeds_z_im_extrap: acc.feeds_z_im_extrap
-                ? acc.feeds_z_im_extrap.slice()
-                : undefined,
+              // Spread-conditional, not `: undefined` — see runSweep's setSweep.
+              ...(acc.feeds_z_re
+                ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
+                : {}),
+              ...(acc.feeds_z_im
+                ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
+                : {}),
+              ...(acc.feeds_z_re_extrap
+                ? { feeds_z_re_extrap: acc.feeds_z_re_extrap.slice() }
+                : {}),
+              ...(acc.feeds_z_im_extrap
+                ? { feeds_z_im_extrap: acc.feeds_z_im_extrap.slice() }
+                : {}),
             });
           }
         }

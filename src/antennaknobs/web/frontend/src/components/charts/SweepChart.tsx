@@ -55,7 +55,7 @@ export function SweepChart({
   /** Multi-feed geometries pass the per-feed Z list from the latest solve so
    *  the chart can mark N current points, one per port (same prop SmithChart
    *  takes for the same reason). */
-  feeds?: FeedEntry[];
+  feeds?: FeedEntry[] | undefined;
   multiFeed: boolean;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)

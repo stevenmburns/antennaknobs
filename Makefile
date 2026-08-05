@@ -35,4 +35,4 @@ lint:
 	ruff format --check .
 
 frontend:
-	cd $(FRONTEND) && npx tsc --noEmit && npx vitest run
+	cd $(FRONTEND) && npx tsc --noEmit && npx eslint . --max-warnings=9999 && npx vitest run

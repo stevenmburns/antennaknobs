@@ -226,6 +226,16 @@ jobs:
       run: |
         npm ci
         npm run build
+    - name: Lint the frontend
+      # eslint.config.js (issue #736): typescript-eslint + react-hooks +
+      # testing-library, non-type-checked so this stays fast. Warnings don't
+      # gate (--max-warnings=9999) — testing-library's structure-coupled
+      # query rules are downgraded to warn for the pre-existing test suite,
+      # not silenced, so `npm run lint`'s warning count stays visible in the
+      # log without failing the build; only errors (rules-of-hooks,
+      # exhaustive-deps, ...) fail this step.
+      working-directory: src/antennaknobs/web/frontend
+      run: npm run lint -- --max-warnings=9999
     - name: Unit-test the frontend (lib logic + mounted components)
       # Vitest: the pure lib/ functions (issue #642) plus Testing Library
       # component tests (issue #673), run headless under jsdom (module-scope

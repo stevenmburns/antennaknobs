@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { formatMetres } from "../../lib/format";
 import { cross3, dot3, PROJECTIONS, type Projection, type Vec3 } from "../../lib/view";
@@ -41,10 +41,16 @@ export function CurrentCanvas({
   const vpRef = useRef({ zoom: 1, panX: 0, panY: 0 });
   const [vpZoom, setVpZoom] = useState(1);
   const redrawRef = useRef<() => void>(() => {});
-  const resetViewport = () => {
+  // useCallback with an empty dep array (react-hooks/exhaustive-deps, #736):
+  // the body only writes vpRef.current and calls setVpZoom, both of which
+  // React guarantees are stable for the life of the component, so this
+  // closure never goes stale — giving it a fixed identity lets the two
+  // effects below list it as a dependency without re-running on every
+  // render.
+  const resetViewport = useCallback(() => {
     vpRef.current = { zoom: 1, panX: 0, panY: 0 };
     setVpZoom(1);
-  };
+  }, []);
 
   // The fit frame of the last completed draw (projection + fit centre/scale).
   // A projection switch carries the viewport over through it — see draw() —
@@ -66,7 +72,7 @@ export function CurrentCanvas({
     frameRef.current = null;
     // The main draw effect below re-runs on any new result, so the re-fit
     // paints without an explicit redraw.
-  }, [geometryName]);
+  }, [geometryName, resetViewport]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -557,7 +563,7 @@ export function CurrentCanvas({
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [result, projection, showHeatmap, showEnvelope, showWireLabels, showFeedNames, theme, interactive]);
+  }, [result, projection, showHeatmap, showEnvelope, showWireLabels, showFeedNames, theme, interactive, resetViewport]);
 
   const zoomed = vpZoom > 1.001;
   return (

@@ -204,7 +204,7 @@ describe("gammaDbFromMag", () => {
 
   it("is 20·log10 of the magnitude, negative for any partial reflection", () => {
     expect(gammaDbFromMag(1 / 3)).toBeCloseTo(20 * Math.log10(1 / 3), 12);
-    expect(gammaDbFromMag(1 / 3)).toBeCloseTo(-9.542425094393249, 12);
+    expect(gammaDbFromMag(1 / 3)).toBeCloseTo(-9.54242509439325, 12);
     expect(gammaDbFromMag(0.1)).toBeCloseTo(-20, 12);
   });
 

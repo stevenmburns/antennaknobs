@@ -18,6 +18,15 @@ import {
 // as mixed content. Plain ws:// only works on http:// (local dev).
 const WS_URL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
+// Busy-chrome reveal thresholds (see the effect below). Module scope, not
+// component scope: they're literal constants that never change between
+// renders, so hoisting them out of the hook body — rather than adding them
+// to the effect's dep array — is a no-op for behavior and lets
+// react-hooks/exhaustive-deps see the effect's dependencies as complete
+// (#736).
+const BUSY_DWELL_MS = 1000;
+const BUSY_MIN_VISIBLE_MS = 400;
+
 // The /ws solve channel: the socket itself, the latest-wins `_seq` protocol,
 // the busy-chrome dwell, and the two imperative entry points the component
 // drives it with (#642 seam 5b-3). Lifted whole out of DesignSession so the
@@ -104,8 +113,6 @@ export function useSolveChannel({
   //  - min-visible: once shown, keep it up at least BUSY_MIN_VISIBLE_MS so a
   //    solve that lands just past the dwell can't make it sub-perceptibly
   //    flash.
-  const BUSY_DWELL_MS = 1000;
-  const BUSY_MIN_VISIBLE_MS = 400;
   useEffect(() => {
     if (solving) {
       const t = window.setTimeout(() => {
@@ -275,6 +282,15 @@ export function useSolveChannel({
       dropCutsSender(); // ws.close() fires onclose async; don't leave a dead sender up
       ws.close();
     };
+    // Deliberately scoped to [active] alone — the socket's lifecycle, not the
+    // request state. geometryRef/controlsRef/previewSigRef are refs (read via
+    // .current for whatever is freshest when the callback fires, never to
+    // react to identity); setResult/setSolveError are the parent's useState
+    // setters, stable for the session; requestSolve is a plain, unmemoized
+    // closure but only ever touches refs and setState setters itself, so a
+    // "stale" closure from an earlier render behaves identically to a fresh
+    // one. Reconnecting the WebSocket on every knob change (which listing any
+    // of these would cause) would drop every in-flight solve.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 

@@ -52,7 +52,7 @@ export function ParamForm({
   // depends on the active backend. Currently unused (kept as a general
   // mechanism); daisy_chain used to rely on it before build_network()
   // made the single-feed hexbeam engine-agnostic.
-  disabledFields?: Set<string>;
+  disabledFields?: Set<string> | undefined;
   // Optimiser integration (top-level rail only). `settings` overrides a knob's
   // effective min/max/step; `onContext` opens that knob's right-click menu;
   // `onToggleVary` flips a knob's "Optimize this knob" flag (the `o` shortcut,

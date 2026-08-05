@@ -28,7 +28,7 @@ export function FarFieldChart({
    *  the norm is a scalar multiplier, so it is the live trace shifted
    *  radially by 10·log10(fineNorm/liveNorm). Overlap ⇒ the solve conserves
    *  power; a visible gap ⇒ the solver's discretisation error. */
-  fineNorm?: number | null;
+  fineNorm?: number | null | undefined;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);

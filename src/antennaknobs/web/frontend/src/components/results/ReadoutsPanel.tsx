@@ -35,7 +35,7 @@ function formatRow(row: ReadoutRow): string {
   return row.unit && text !== "—" ? `${text} ${row.unit}` : text;
 }
 
-export function ReadoutsPanel({ rows }: { rows?: ReadoutRow[] | null }) {
+export function ReadoutsPanel({ rows }: { rows?: ReadoutRow[] | null | undefined }) {
   // Nothing to say -> nothing rendered, not an empty card: most designs
   // send no rows at all and their readout must look exactly as it did
   // before this feature existed.

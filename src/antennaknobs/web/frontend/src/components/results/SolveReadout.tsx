@@ -46,7 +46,7 @@ export function SolveReadout({
   normCheck: NormCheckData | null;
   normCheckEnabled: boolean;
   /** Measurement-plane pick (issue #652 c). Absent = picker never shown. */
-  onPlaneChange?: (plane: string) => void;
+  onPlaneChange?: ((plane: string) => void) | undefined;
   className?: string;
 }) {
   const planes = result?.planes;
