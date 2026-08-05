@@ -130,6 +130,14 @@ jobs:
     if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      # The workflow default is contents: read; the action pushes the badge/
+      # data to its python-coverage-comment-action-data branch, which the old
+      # inline step could do only because the BUILD job grants contents:
+      # write. A job does not inherit a sibling's grants — the first push
+      # run after #739 failed exactly here (GitError on git push).
+      contents: write
+      pull-requests: write
     steps:
     - uses: actions/checkout@v5
     - uses: actions/download-artifact@v4
