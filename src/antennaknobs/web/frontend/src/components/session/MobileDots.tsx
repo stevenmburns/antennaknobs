@@ -18,6 +18,7 @@ export function MobileDots({
   pinned,
   newIds,
   togglePin,
+  movePin,
   markRosterSeen,
 }: {
   screens: MobileScreen[];
@@ -27,6 +28,7 @@ export function MobileDots({
   pinned: View[];
   newIds: Set<View>;
   togglePin: (v: View) => void;
+  movePin: (id: View, direction: -1 | 1) => void;
   markRosterSeen: () => void;
 }) {
   return (
@@ -48,6 +50,7 @@ export function MobileDots({
         pinned={pinned}
         newIds={newIds}
         togglePin={togglePin}
+        movePin={movePin}
         markRosterSeen={markRosterSeen}
       />
     </div>

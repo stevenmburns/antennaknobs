@@ -77,6 +77,7 @@ function Harness({ initialView = "antenna" as View }) {
         pinned={prefs.pinned}
         newIds={prefs.newIds}
         togglePin={prefs.togglePin}
+        movePin={prefs.movePin}
         markRosterSeen={prefs.markRosterSeen}
       />
     </>
@@ -185,6 +186,82 @@ describe("pin-dot click", () => {
     await user.click(dot(`Pin ${label(last)}`));
     await user.click(dot(`Pin ${label(first)}`));
     expect(probe("pinned")).toBe([...FOUNDING, last, first].join(","));
+  });
+});
+
+// --- 3b. Reorder buttons (issue #714) ----------------------------------------
+
+describe("pin reorder buttons", () => {
+  it("appear only on pinned rows", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openPicker(user);
+    for (const id of FOUNDING) {
+      expect(screen.getByRole("button", { name: `Move ${label(id)} earlier` })).toBeTruthy();
+      expect(screen.getByRole("button", { name: `Move ${label(id)} later` })).toBeTruthy();
+    }
+    for (const id of ROSTER.filter((id) => !FOUNDING.includes(id))) {
+      expect(screen.queryByRole("button", { name: `Move ${label(id)} earlier` })).toBeNull();
+      expect(screen.queryByRole("button", { name: `Move ${label(id)} later` })).toBeNull();
+    }
+  });
+
+  it("are disabled at the boundaries only", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openPicker(user);
+    const up = (id: View) => dot(`Move ${label(id)} earlier`) as HTMLButtonElement;
+    const down = (id: View) => dot(`Move ${label(id)} later`) as HTMLButtonElement;
+    expect(up(FOUNDING[0]).disabled).toBe(true);
+    expect(down(FOUNDING[FOUNDING.length - 1]).disabled).toBe(true);
+    // Everything in between is live in both directions.
+    for (const id of FOUNDING.slice(1, -1)) {
+      expect(up(id).disabled).toBe(false);
+      expect(down(id).disabled).toBe(false);
+    }
+    expect(down(FOUNDING[0]).disabled).toBe(false);
+    expect(up(FOUNDING[FOUNDING.length - 1]).disabled).toBe(false);
+  });
+
+  it("moves the pin earlier and re-renders the new order", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openPicker(user);
+    await user.click(dot(`Move ${label(FOUNDING[2])} earlier`));
+    expect(probe("pinned")).toBe(["antenna", "elevation", "azimuth", "smith"].join(","));
+    // The rail derives straight from `pinned` — no separate reorder path.
+    expect(probe("rail")).toBe(["elevation", "azimuth", "smith"].join(","));
+  });
+
+  it("moves the pin later and re-renders the new order", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openPicker(user);
+    await user.click(dot(`Move ${label(FOUNDING[0])} later`));
+    expect(probe("pinned")).toBe(["azimuth", "antenna", "elevation", "smith"].join(","));
+  });
+
+  it("does not switch the view, close the popover, or toggle the pin", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openPicker(user);
+    await user.click(dot(`Move ${label(FOUNDING[1])} earlier`));
+    expect(probe("view")).toBe("antenna");
+    expect(screen.getByRole("menu")).not.toBeNull();
+    expect(probe("pinned")).toContain(FOUNDING[1]); // still pinned, just reordered
+  });
+
+  it("leaves the row's own click-to-show and pin-dot gestures intact", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openPicker(user);
+    // Reorder first, then prove the row's other two gestures still work.
+    await user.click(dot(`Move ${label(FOUNDING[2])} earlier`));
+    await user.click(dot(`Pin ${label("schematic")}`));
+    expect(probe("pinned")).toBe(["antenna", "elevation", "azimuth", "smith", "schematic"].join(","));
+    await user.click(screen.getByRole("menuitem", { name: "Smith" }));
+    expect(probe("view")).toBe("smith");
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
 

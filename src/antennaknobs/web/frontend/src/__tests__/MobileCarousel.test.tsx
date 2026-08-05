@@ -108,6 +108,7 @@ function Mobile({
         pinned={prefs.pinned}
         newIds={prefs.newIds}
         togglePin={prefs.togglePin}
+        movePin={prefs.movePin}
         markRosterSeen={prefs.markRosterSeen}
       />
     </>
@@ -326,6 +327,43 @@ describe("a sheet row tap", () => {
     await user.click(sheetRow("azimuth"));
     expect(probe("index")).toBe("3"); // Info, one page earlier
     expect(probe("view")).toBe("vswr"); // the new last chart page
+  });
+});
+
+// --- 3b. Reorder buttons (issue #714) — same rows, so the sheet inherits ----
+//     them for free; this proves the carousel's page order (mobileScreens,
+//     which `pages` above is built from) follows a reorder same as it
+//     follows a pin/unpin.
+
+describe("a sheet reorder", () => {
+  it("moves a page earlier and the carousel's page order follows", async () => {
+    const user = userEvent.setup();
+    seed(FOUR);
+    render(<Mobile initialView="smith" />);
+    await openSheet(user);
+    await user.click(dot(`Move ${label("vswr")} earlier`));
+    expect(probe("pages")).toBe(["smith", "vswr", "antenna", "azimuth", "info"].join(","));
+    const reordered: View[] = ["smith", "vswr", "antenna", "azimuth"];
+    expect(dots()).toEqual([...reordered.map(label), "Info"]);
+  });
+
+  it("is absent for an unpinned row", async () => {
+    const user = userEvent.setup();
+    seed(TWO);
+    render(<Mobile initialView="smith" />);
+    await openSheet(user);
+    expect(
+      screen.queryByRole("button", { name: `Move ${label("schematic")} earlier` }),
+    ).toBeNull();
+  });
+
+  it("is disabled at the boundaries", async () => {
+    const user = userEvent.setup();
+    seed(FOUR);
+    render(<Mobile initialView="smith" />);
+    await openSheet(user);
+    expect(dot(`Move ${label(FOUR[0])} earlier`).disabled).toBe(true);
+    expect(dot(`Move ${label(FOUR[FOUR.length - 1])} later`).disabled).toBe(true);
   });
 });
 
