@@ -63,6 +63,47 @@ change a knob:
 
 Every turn re-solves and redraws live (when **Live** is on — see below).
 
+## The output stage — views, pins, and layout
+
+The right-hand stage shows one **primary view** at full size with your other
+views as thumbnails beside it. The roster is:
+
+| View | What it draws |
+| --- | --- |
+| **Antenna** | the wires, current heat-map, standing-wave envelope |
+| **Azimuth (xy)** | far-field polar cut in azimuth |
+| **Elevation (yz)** | far-field polar cut in elevation |
+| **Smith** | feedpoint impedance, plus the sweep locus and any [measured overlay](#measured-overlay--your-vna-on-the-smith-chart) |
+| **Schematic** | the [feed network as a chain](#the-schematic-view) |
+| **S11 (dB) vs freq** | return loss against frequency, the log-magnitude form a VNA shows |
+| **VSWR vs freq** | SWR against frequency |
+
+Click a thumbnail to promote it to primary. The last two read the **same
+frequency sweep** the Smith chart plots — run a [sweep](#convergence-sweep)
+and all three fill in together; the marker on each rides the measurement
+frequency.
+
+- **Pin the views you watch.** The stage carries a *pinned set*, not the whole
+  roster — **Antenna, Azimuth, Elevation, Smith** to start, up to **six**
+  pins. Six is a hard cap: more thumbnails than that and none of them is
+  legible.
+- **The rest live in the picker.** **All views ⌄ +N** at the foot of the
+  thumbnail strip opens every view in the roster; the ⊕ / ⊖ beside each row
+  pins or unpins it, and a view added to the roster since you last looked
+  wears a **NEW** badge. At the cap, pinning is blocked with *"Unpin a view
+  first"* rather than silently dropping someone else's pin.
+- **Rail or grid.** The **▤ / ⊞** toggle on the stage switches between the
+  rail (one primary + thumbnails) and a **2×2 grid** of equal cells over your
+  first four pins, for watching several live at once. Each grid cell has a
+  maximize button back to the rail. Grid is desktop-only.
+- **On a phone** the output pages are the pinned set — swipe between them,
+  with a trailing **Info** page for the solve readout — and the **⋯** button
+  opens the same roster as a sheet, so pinning a view gives it a page and
+  unpinning takes it away.
+- **Pins are yours, not the design's**: the set (and the layout mode) is
+  stored in the browser and shared by every design session, since which views
+  you care about is a habit, not a property of the antenna.
+
 ## The antenna viewer
 
 The Antenna view draws the wires (with the current heat-map and standing-wave
@@ -149,7 +190,10 @@ without re-entering options — e.g. a fast dense basis, an accelerated array
 engine, and the PyNEC reference. The available engines are the momwire bases
 (**Sinusoidal**, **Sin-Galerkin**, **B-spline**), the accelerators
 (**H-matrix (ACA)**, **Array-block**), and the optional **PyNEC** backend — see
-[The solver & accuracy](/reference/solver/) for what each is good at.
+[The solver & accuracy](/reference/solver/) for what each is good at. The list
+is **served by the backend you're pointed at**, so a server built without
+PyNEC simply doesn't offer it, rather than offering a slot that fails on the
+first solve.
 
 The solver's gear menu also exposes **segments / wire (N)** — how finely each
 wire is discretized. More segments = more accurate (up to convergence) but a
@@ -346,6 +390,57 @@ in the antenna conductor itself, read from the solve's current
 distribution. It counts toward the reported efficiency the same way the
 network rows do, and the Info pane shows the matching **wire length**
 and **wire weight** rows.
+
+## The schematic view
+
+The **Schematic** view draws the design's feed network — feedline, tuner,
+balun, and the port the source sits on — as a circuit chain, the same drawing
+the CLI writes with
+[`schematic`](/reference/cli/#drawing-the-feed-network). The server renders it
+to themed SVG on every knob change; no solve is involved, so component labels
+(lengths, C and L values, turns ratios) always match the knobs on screen.
+
+- **The power budget is folded into the picture.** Each box carries the
+  fraction of input power it burns, drawn where the loss happens, so the
+  [budget rows](#power-budget) and the circuit are one artifact rather than
+  two. Elements that dissipate *nothing* — an ideal `TL`, a `bypass()` —
+  appear here and nowhere else.
+- **Balanced sections are drawn as two conductors.** Past a floating balun's
+  secondary or along a balanced line the return rides the partner wire, so
+  there is a second rail, the isolation barrier crosses the balun, and no
+  ground symbol appears beyond it.
+- **What isn't a chain isn't faked.** A trap in a dipole leg or a curtain's
+  risers draw beneath the antenna labelled with the nodes they bridge; a
+  parallel second antenna is noted rather than drawn in series; a 16-source
+  array summarizes its feeds instead of drawing sixteen identical branches.
+- Roughly two-thirds of the catalog is a bare antenna with no feed circuit at
+  all. Those say so — *"No feed circuit — this design is the bare antenna"* —
+  instead of showing an empty box.
+
+A local install needs the optional extra for this view:
+`pip install 'antennaknobs[schematic]'`.
+
+## The measurement plane
+
+Every number in the readout and every impedance chart is referenced to **one
+port**. For a bare antenna that's the feedpoint; for a
+[station design](/concepts/station-modelling/) whose chain runs from the rig
+through a tuner and feedline, it's the rig end — what a sweep taken in the
+shack sees.
+
+When a design's chain has more than one named port, the readout grows a
+**plane** selector, and the picked plane is marked on the schematic with the
+disconnected part of the chain dimmed. Picking a plane re-solves the design
+**as a VNA clipped on at that port would see it**: the chain upstream of the
+pick is *unscrewed*, not merely re-driven — leaving a length of open-ended
+coax dangling in parallel with the antenna would be neither what you asked for
+nor anything you could measure. Attachments that hang off the structure
+(traps, stubs wired into the antenna) are upstream of nothing, so they always
+stay.
+
+The frequency sweep, convergence ladder, and chart titles all follow the pick,
+so a measurement overlay is compared at the plane you actually calibrated at.
+The CLI has the same control on `fit` via `--plane`.
 
 ## Convergence sweep
 

@@ -25,21 +25,26 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.41.0" icon="star">
-  **The feed-model release: NEC-compatible or converged — your choice.** The
-  `sinusoidal-galerkin` backend (now on **momwire 0.22.0**) gains a
-  **feed-model control**: *NEC-compatible* reproduces NEC/EZNEC behaviour,
-  gap and all, while *Converged* drives a zero-width feed whose impedance
-  converges to the B-spline answer. On **near-open, high-Q designs**
-  (`lazy_h`, `vbeam`) the converged feed removes **two to three orders of
-  magnitude** of the apparent disagreement between solver bases — measured
-  out to 5 000+ segments — and the workbench now recommends it on the
-  designs that need it. Under the hood, an instrumented campaign settled
-  *why*: most of the historical "sinusoidal vs B-spline" gap was never the
-  basis — it was the feed. Also new: sin-Galerkin **junction ports over a
-  PEC ground**, and a sparse Galerkin assembly path. Details in
-  [Solvers & accuracy](/reference/solver/) and
-  [How many segments?](/advanced/convergence/).
+<Card title="New in v0.42.0" icon="star">
+  **The bench release: your VNA sweep, your feed network, your rope.**
+  Sweep an antenna straight off a USB **NanoVNA** into a `.s1p`
+  (`capture`), overlay it on any impedance chart — CLI or the workbench
+  Smith chart — and then invert the question with **`fit`**: solve for the
+  parameters a tape measure can't give you (site ground constants, as-built
+  length, buried feedline length), with a **residual** that tells you when
+  the measurement doesn't constrain what you asked
+  ([Calibrating against your VNA](/advanced/calibrating/)). The **feed
+  network is now drawn** — `schematic` renders feedline, tuner, balun and
+  source as a chain, in the CLI and as a workbench view, with the power
+  budget folded into it — and you can **pick the measurement plane**, so
+  the solve is what a VNA clipped on at that port would see. The output
+  stage scales too: **pin the views you watch**, reach the rest through an
+  overflow picker, switch to a 2×2 grid, and page the same set on a phone —
+  plus new **S11 (dB)** and **VSWR** sweep views. Station stdlib grows
+  **stubs and stub tuners**, balanced line from physical geometry, and
+  ferrite loss from **measured complex permeability** instead of one flat
+  Q; and `dipoles.invvee_catenary` hangs its arms with the sag real wire
+  takes under halyard tension.
   [All release notes →](/reference/releases/)
 </Card>
 
