@@ -67,6 +67,9 @@ export function useAnalysisRunners({
   convergeEnabled,
   normCheckEnabled,
   necOverlayEnabled,
+  sweepResident,
+  convergeResident,
+  patternResident,
   autoSim,
   active,
   comboApproved,
@@ -90,6 +93,17 @@ export function useAnalysisRunners({
   convergeEnabled: boolean;
   normCheckEnabled: boolean;
   necOverlayEnabled: boolean;
+  /** View residency (issue #715): true when any view that RENDERS the
+   *  analysis is pinned or active. DesignSession derives these from the
+   *  view-rail state so this hook stays layout-agnostic — they are pure
+   *  gating deps, exactly like the enable checkboxes, and join the gating
+   *  half of each dep array (never the physics/signature half). The norm
+   *  check has no residency prop on purpose: its consumer is the HUD
+   *  readout, resident in every layout (see docs/plan-view-residency-
+   *  gating.md). */
+  sweepResident: boolean;
+  convergeResident: boolean;
+  patternResident: boolean;
   autoSim: boolean;
   active: boolean;
   comboApproved: boolean;
@@ -144,7 +158,7 @@ export function useAnalysisRunners({
     // not keep solving while the user edits. Clearing above + returning here
     // blanks the overlay while paused; resuming Live re-runs this effect
     // (autoSim is a dep) and restarts the sweep from the current design.
-    if (!autoSim || !sweepEnabled || !active) {
+    if (!autoSim || !sweepEnabled || !sweepResident || !active) {
       return;
     }
     // The 500 ms dwell only debounces network churn; ordering against the
@@ -163,6 +177,9 @@ export function useAnalysisRunners({
     // lock toggle must re-plan the freqs even though the solve is unchanged.
     measLocked,
     sweepEnabled,
+    // Residency (issue #715): no smith/gamma/vswr view on screen means
+    // nobody can see the sweep — clear it and free the server lane.
+    sweepResident,
     autoSim,
     active,
     // The poor-match gate: while it withholds, runSweep declines to issue the
@@ -185,7 +202,7 @@ export function useAnalysisRunners({
     setConvergeRunning(false);
     // Held when Paused (issue #612) — see the sweep effect. autoSim is a dep so
     // resuming Live restarts the convergence sweep.
-    if (!autoSim || !convergeEnabled || !active) {
+    if (!autoSim || !convergeEnabled || !convergeResident || !active) {
       return;
     }
     // Debounce only; the server lane orders it behind the live solve.
@@ -197,6 +214,7 @@ export function useAnalysisRunners({
   }, [
     impedanceSig,
     convergeEnabled,
+    convergeResident, // issue #715: the smith view is the only consumer
     autoSim,
     active,
     // Poor-match gate (see the sweep effect).
@@ -248,6 +266,7 @@ export function useAnalysisRunners({
       backend.name !== "pynec" ||
       !active ||
       !necOverlayEnabled ||
+      !patternResident || // issue #715: gated on the azimuth/elevation cuts
       groundModel === "terrain"
     ) {
       return;
@@ -265,6 +284,7 @@ export function useAnalysisRunners({
     // solver, momwire_model and ground_model are all request fields.
     solveSig,
     necOverlayEnabled,
+    patternResident,
     autoSim,
     active,
   ]);
