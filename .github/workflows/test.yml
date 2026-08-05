@@ -26,7 +26,7 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - name: Set up Python 3.12
       uses: actions/setup-python@v6
       with:
@@ -153,7 +153,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - uses: actions/download-artifact@v4
       with:
         name: coverage-data
@@ -176,7 +176,7 @@ jobs:
     # existing, and the smoke only calls the solve path).
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
       # No `submodules:` — momwire MUST come from PyPI here; that's the test.
     - name: Set up Python 3.12
       uses: actions/setup-python@v6
@@ -223,7 +223,7 @@ jobs:
     name: frontend build + typecheck
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
       # No `submodules:` — the frontend build is pure Node, momwire is irrelevant.
     - uses: actions/setup-node@v5
       # Same pinning as publish.yml's frontend step: Node 20 with the built-in
