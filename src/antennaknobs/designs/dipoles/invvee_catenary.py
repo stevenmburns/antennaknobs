@@ -182,6 +182,44 @@ _N_PER_LBF = 4.4482216152605
 # same value `dipoles.invvee` and `wire.doublet_ladder_tuner` use.
 _EPS = 0.05
 
+# Group heading every `readout_rows()` row below is clustered under in the
+# workbench readout (issue #712).
+_RIG_GROUP = "rigging"
+
+
+def _tension_row(label: str, newtons: float) -> dict:
+    """One tension readout row carrying BOTH units in a single string value
+    ("22.5 N (5.06 lbf)"): issue #698's acceptance criterion asks for newtons
+    and pounds-force, and a rigger reads them together — two numeric rows
+    would double the height of a HUD that floats over the canvas, and a
+    "lbf" row alone reads as a different measurement rather than the same
+    one restated. The row is pre-formatted here because unit choice is the
+    server's job in this contract (the frontend prints strings verbatim)."""
+    n = float(newtons)
+    return {
+        "label": label,
+        "value": f"{n:.4g} N ({n / _N_PER_LBF:.3g} lbf)",
+        "unit": None,
+        "group": _RIG_GROUP,
+    }
+
+
+def _length_row(label: str, metres: float) -> dict:
+    """One length readout row, in whichever unit keeps it legible: sub-metre
+    lengths (the sags — a few centimetres at realistic tensions, sub-
+    millimetre on a taut halyard) go out in millimetres, everything else in
+    metres. The frontend has no notion of "a length" at all, so this choice
+    can only be made here."""
+    m = float(metres)
+    if abs(m) < 1.0:
+        return {
+            "label": label,
+            "value": m * 1.0e3,
+            "unit": "mm",
+            "group": _RIG_GROUP,
+        }
+    return {"label": label, "value": m, "unit": "m", "group": _RIG_GROUP}
+
 
 class Builder(AntennaBuilder):
     """A subclass of `AntennaBuilder` directly, not `dipoles.invvee`: the
@@ -408,6 +446,52 @@ class Builder(AntennaBuilder):
             "rope_length_m": rope_seg.arc_length_m if rope_seg is not None else None,
             "wire_end_height_m": float(wire_seg.points[-1][1]),
         }
+
+    def readout_rows(self) -> list[dict]:
+        """Workbench readout rows (issue #712): the same numbers `rig_report()`
+        returns, re-expressed as the generic self-describing row list the web
+        adapter surfaces under "readouts" and the frontend renders with no
+        design-specific code — `{label, value, unit, group}` per row, where
+        `value` is a number the client formats, a short string it prints
+        verbatim, or None (an em-dash).
+
+        `rig_report()` stays the machine-readable dict (its keys are a
+        response contract of their own); this method is the *display*
+        projection of it, so the two can disagree about presentation —
+        millimetres instead of metres for a sub-metre sag, one combined
+        "N (lbf)" string instead of two keys — without either one bending to
+        the other's audience. It is called once, and only rows that mean
+        something for the active `rig_model` are emitted (the rope rows exist
+        only under "anchored_rope"), which is exactly the freedom the dict's
+        fixed-key shape does not have.
+        """
+        r = self.rig_report()
+        rows: list[dict] = [
+            {
+                "label": "rig model",
+                "value": str(r["rig_model"]),
+                "unit": None,
+                "group": _RIG_GROUP,
+            },
+            _tension_row("apex tension", r["apex_tension_n"]),
+            _tension_row("end tension", r["end_tension_n"]),
+            {
+                "label": "horizontal tension",
+                "value": float(r["horizontal_tension_n"]),
+                "unit": "N",
+                "group": _RIG_GROUP,
+            },
+            _length_row("wire sag", r["wire_sag_m"]),
+        ]
+        if r["rope_sag_m"] is not None:
+            # Model 2 only: model 1's rope is massless and never solved, so
+            # a "rope sag: —" row there would imply a number that does not
+            # exist rather than one that is merely missing.
+            rows.append(_length_row("rope sag", r["rope_sag_m"]))
+        if r["rope_length_m"] is not None:
+            rows.append(_length_row("rope cut length", r["rope_length_m"]))
+        rows.append(_length_row("wire end height", r["wire_end_height_m"]))
+        return rows
 
     # build_wire_material() is intentionally NOT overridden: the inherited
     # AntennaBuilder default already resolves a `wire_type` param via

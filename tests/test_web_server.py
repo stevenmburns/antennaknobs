@@ -659,6 +659,126 @@ def test_rig_report_failure_never_fails_the_solve(monkeypatch):
     assert math.isfinite(out["z_in_re"])
 
 
+def _assert_readout_schema(rows):
+    """The issue #712 row contract, in one place: every readout row is
+    exactly {label, value, unit, group}, with `label` a non-empty string,
+    `value` a finite number / short string / None, and `unit`/`group`
+    strings or None. This is what the frontend's single generic renderer is
+    allowed to assume about rows it has never seen before, so it is asserted
+    on the wire rather than on a builder's return value."""
+    assert isinstance(rows, list) and rows
+    for row in rows:
+        assert set(row) == {"label", "value", "unit", "group"}, row
+        assert isinstance(row["label"], str) and row["label"], row
+        v = row["value"]
+        assert v is None or isinstance(v, str) or isinstance(v, (int, float)), row
+        assert not isinstance(v, bool), row
+        if isinstance(v, (int, float)):
+            assert math.isfinite(v), row
+        assert row["unit"] is None or isinstance(row["unit"], str), row
+        assert row["group"] is None or isinstance(row["group"], str), row
+
+
+def test_solve_carries_generic_readout_rows_for_designs_that_have_them():
+    """The generic readouts contract (issue #712): a design defining
+    `readout_rows()` — dipoles.invvee_catenary — ships its rows under
+    "readouts" in the solve response, schema-clean, and a design that
+    defines no such method ships no "readouts" key at all. Same duck-typed
+    discovery as `rig_report()` / `build_wire_material()`, which is what
+    makes a user design in ~/.antennaknobs/designs cost zero frontend
+    code."""
+    out = server.solve(
+        {
+            "geometry": "dipoles.invvee_catenary",
+            # Own freq (see test_rig_report_failure_never_fails_the_solve):
+            # _SOLVE_CACHE is keyed on the request.
+            "measurement_freq_mhz": 28.53,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    rows = out["readouts"]
+    _assert_readout_schema(rows)
+    assert len(rows) >= 4
+    # The rigging rows are grouped, and the design's own numbers are there.
+    assert {r["group"] for r in rows} == {"rigging"}
+    labels = [r["label"] for r in rows]
+    assert "apex tension" in labels and "wire sag" in labels
+    # The bespoke pre-#712 key is untouched (compatibility).
+    assert out["rig"]["rig_model"] == "halyard"
+
+    bare = server.solve(
+        {
+            "geometry": "dipoles.invvee",
+            "measurement_freq_mhz": 28.53,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    assert "readouts" not in bare
+
+
+def test_readout_rows_failure_never_fails_the_solve(monkeypatch):
+    """Omit-on-error extends to the row list (issue #712, inheriting #698's
+    contract): a `readout_rows()` that raises leaves a normal solve response
+    with the "readouts" key simply absent."""
+    from antennaknobs.designs.dipoles.invvee_catenary import Builder
+
+    def boom(self):
+        raise ValueError("mid-scrub infeasible rig")
+
+    monkeypatch.setattr(Builder, "readout_rows", boom)
+    out = server.solve(
+        {
+            "geometry": "dipoles.invvee_catenary",
+            "measurement_freq_mhz": 28.55,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    assert "readouts" not in out
+    assert math.isfinite(out["z_in_re"])
+
+
+def test_malformed_readout_rows_are_dropped_not_shipped(monkeypatch):
+    """Per-row validation (issue #712): rows come from arbitrary design code
+    (catalog AND ~/.antennaknobs/designs), so one author's typo must cost
+    that row alone — the malformed ones are dropped server-side, their valid
+    siblings still reach the client, and nothing the browser cannot render
+    (NaN, a bool, a dict value, an unknown key) is ever put on the wire."""
+    from antennaknobs.designs.dipoles.invvee_catenary import Builder
+
+    def mixed(self):
+        return [
+            {"label": "good", "value": 1.5, "unit": "N", "group": "g"},
+            {"label": "", "value": 1.0, "unit": None, "group": None},  # no label
+            {"value": 1.0, "unit": None, "group": None},  # label missing
+            {"label": "nan", "value": float("nan"), "unit": None, "group": None},
+            {"label": "bool", "value": True, "unit": None, "group": None},
+            {"label": "dict", "value": {"a": 1}, "unit": None, "group": None},
+            {"label": "unit", "value": 1.0, "unit": 7, "group": None},
+            {"label": "group", "value": 1.0, "unit": None, "group": 7},
+            {"label": "extra", "value": 1.0, "colour": "red"},  # unknown key
+            "not a mapping",
+            # Sparse but legal: the omitted keys default to None.
+            {"label": "sparse"},
+        ]
+
+    monkeypatch.setattr(Builder, "readout_rows", mixed)
+    out = server.solve(
+        {
+            "geometry": "dipoles.invvee_catenary",
+            "measurement_freq_mhz": 28.59,
+            "design_freq_mhz": 28.47,
+            "momwire_model": "bspline",
+        }
+    )
+    rows = out["readouts"]
+    _assert_readout_schema(rows)
+    assert [r["label"] for r in rows] == ["good", "sparse"]
+    assert rows[1] == {"label": "sparse", "value": None, "unit": None, "group": None}
+
+
 def _design_builder(dotted):
     import importlib
 

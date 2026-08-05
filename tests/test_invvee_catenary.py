@@ -414,3 +414,43 @@ def test_anchored_model_rejects_wire_that_already_overshoots_the_anchor():
     b = _builder(rig_model="anchored_rope", stake_dist=0.1, stake_height=6.9)
     with pytest.raises(ValueError, match="already reaches past the anchor"):
         b.rig_report()
+
+
+# ---------------------------------------------------------------------------
+# 15. Readout rows: the display projection of rig_report() (issue #712)
+# ---------------------------------------------------------------------------
+
+
+def test_readout_rows_project_the_report_for_both_models():
+    """`readout_rows()` is the generic-readouts (issue #712) display
+    projection of `rig_report()`: self-describing {label, value, unit,
+    group} rows the web adapter ships verbatim. Both models emit a schema-
+    clean, grouped list; only the anchored model — the only one with a real
+    rope — emits the rope rows, and sub-metre lengths come out in
+    millimetres because the unit choice is the design's, not the browser's.
+    """
+    for rig_model in ("halyard", "anchored_rope"):
+        rows = _builder(rig_model=rig_model).readout_rows()
+        for row in rows:
+            assert set(row) == {"label", "value", "unit", "group"}, row
+            assert isinstance(row["label"], str) and row["label"]
+            assert row["group"] == "rigging"
+            v = row["value"]
+            assert v is None or isinstance(v, str) or math.isfinite(v)
+        by_label = {r["label"]: r for r in rows}
+        assert "N" in by_label["apex tension"]["value"]
+        assert "lbf" in by_label["apex tension"]["value"]
+        assert by_label["rig model"]["value"] == rig_model
+        # Sub-metre sag reads in mm; the metre-scale height stays in metres.
+        assert by_label["wire sag"]["unit"] == "mm"
+        assert by_label["wire end height"]["unit"] == "m"
+        has_rope = rig_model == "anchored_rope"
+        assert ("rope sag" in by_label) is has_rope
+        assert ("rope cut length" in by_label) is has_rope
+        if has_rope:
+            # Read back off the same solve, in the same units rig_report()
+            # reported (metres) — this is a re-expression, not a re-solve.
+            report = _builder(rig_model=rig_model).rig_report()
+            assert by_label["rope cut length"]["value"] == pytest.approx(
+                report["rope_length_m"]
+            )

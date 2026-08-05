@@ -1791,6 +1791,20 @@ input[type=checkbox] {
   color: var(--muted);
 }
 
+/* Design-supplied readout rows (issue #712). The label is written by
+   arbitrary design code, so unlike every hand-authored row above it can be
+   longer than the HUD is wide: let it wrap under itself rather than squeeze
+   the value out of the card, and keep the value on one line hugging the
+   right edge (a wrapped "22.5 N (5.06 lbf)" reads as two numbers). */
+.readout .readout-row > span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.readout .readout-row .val {
+  white-space: nowrap;
+  text-align: right;
+}
+
 .smith,
 .farfield,
 .sweep {

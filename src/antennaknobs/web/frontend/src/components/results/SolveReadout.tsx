@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
 import { formatOhms, formatSwr } from "../../lib/format";
 import type { ExampleDescriptor } from "../../lib/params";
+import { ReadoutsPanel } from "./ReadoutsPanel";
 import { ResultPanel } from "./ResultPanel";
 
 function feedMag(r: SolveResponse): number {
@@ -228,6 +229,13 @@ export function SolveReadout({
           </div>
         );
       })()}
+      {/* Design-supplied readouts (issue #712): whatever rows the geometry's
+          own readout_rows() produced, rendered generically. They sit with
+          the antenna's other physical numbers, above the engine timing.
+          Mounted HERE rather than at DesignSession's three call sites so
+          every layout (mobile Info screen, desktop rail slide, grid stage
+          HUD) gets them with no layout-specific code. */}
+      <ReadoutsPanel rows={result?.readouts} />
       {/* Engine timing grouped last: solve/rtt describe how fast the answer
           arrived, not what the antenna is doing, so they sit below the RF
           readout (and below the power budget when one is shown). The
