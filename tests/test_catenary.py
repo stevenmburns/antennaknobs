@@ -32,6 +32,7 @@ from antennaknobs.catenary import (
     march_continuous,
     solve_anchored,
     solve_chain,
+    solve_sprung,
     solve_tensioned,
     weight_n_per_m,
 )
@@ -543,6 +544,254 @@ def test_tensioned_keeps_the_cut_length_fixed_as_tension_changes():
         sol = _tensioned(tension, samples=401)
         assert sol.segments[0].arc_length_m == WIRE_LEN
         assert sol.segments[0].polyline_length_m == pytest.approx(WIRE_LEN, rel=1e-6)
+
+
+# --------------------------------------------------------------------------
+# Model 3 — sprung (bungee) chain
+# --------------------------------------------------------------------------
+
+SPRUNG_APEX = (0.0, 12.0)
+SPRUNG_SEGMENTS = (
+    ChainSegment(12.0, W_WIRE, "wire"),
+    ChainSegment(14.0, W_ROPE, "rope"),
+)
+SPRUNG_ANCHOR = (20.0, 0.0)
+SPRUNG_TOTAL_LENGTH = 26.0
+
+
+def test_sprung_stiff_zero_l0_limit_matches_solve_anchored():
+    """k → ∞ with l0 = 0: the spring vanishes and this must BE solve_anchored.
+
+    The primary oracle for this closure — every field on ``ChainSolution``
+    that a rigid link would produce, reproduced by a spring stiff enough that
+    its stretch is metrologically zero.
+    """
+    anchored = solve_anchored(
+        apex=SPRUNG_APEX, segments=SPRUNG_SEGMENTS, anchor=SPRUNG_ANCHOR
+    )
+    sprung = solve_sprung(
+        apex=SPRUNG_APEX,
+        segments=SPRUNG_SEGMENTS,
+        anchor=SPRUNG_ANCHOR,
+        spring_l0_m=0.0,
+        spring_k_n_per_m=1.0e9,
+    )
+    assert sprung.horizontal_tension_n == pytest.approx(
+        anchored.horizontal_tension_n, rel=1e-6
+    )
+    assert sprung.apex_tension_vector == pytest.approx(
+        anchored.apex_tension_vector, rel=1e-6
+    )
+    assert sprung.end_tension_vector == pytest.approx(
+        anchored.end_tension_vector, rel=1e-6
+    )
+    assert sprung.apex_tension == pytest.approx(anchored.apex_tension, rel=1e-6)
+    assert sprung.end_tension == pytest.approx(anchored.end_tension, rel=1e-6)
+    assert sprung.end_point[0] == pytest.approx(anchored.end_point[0], abs=1e-5)
+    assert sprung.end_point[1] == pytest.approx(anchored.end_point[1], abs=1e-5)
+
+
+def test_sprung_stiff_limit_end_sits_l0_short_of_the_anchor():
+    """k → ∞ with l0 > 0: the chain's end sits exactly l0 short of the anchor.
+
+    ``hypot(anchor − end_point)`` IS the closure's stretched length
+    ``l0 + T/k``; in the stiff limit ``T/k`` vanishes and only ``l0``
+    survives.
+    """
+    l0 = 5.0
+    sol = solve_sprung(
+        apex=SPRUNG_APEX,
+        segments=SPRUNG_SEGMENTS,
+        anchor=SPRUNG_ANCHOR,
+        spring_l0_m=l0,
+        spring_k_n_per_m=1.0e9,
+    )
+    dist = math.hypot(
+        SPRUNG_ANCHOR[0] - sol.end_point[0], SPRUNG_ANCHOR[1] - sol.end_point[1]
+    )
+    assert dist == pytest.approx(l0, rel=1e-6)
+    assert dist == pytest.approx(l0 + sol.end_tension / 1.0e9, rel=1e-9)
+
+
+def test_sprung_single_segment_matches_solve_tensioned_at_the_same_tension():
+    """For a single-segment chain, the sprung end state IS a tensioned state.
+
+    The spring's direction constraint (``t̂_end`` points from the chain's end
+    at the anchor) is identical to :func:`solve_tensioned`'s rope-direction
+    constraint; only the *magnitude* is determined differently (implicitly by
+    ``k`` and ``l0`` here, versus supplied directly there).  So re-running
+    :func:`solve_tensioned` at the sprung solve's own converged ``T_end``,
+    toward a stake AT the anchor, must reproduce the same shape — this holds
+    for any ``k``, not just a soft one, but a soft, low-tension spring (the
+    rigging case the bungee exists for) is the illustrative setting.
+    """
+    wire_segments = (ChainSegment(WIRE_LEN, W_WIRE, "wire"),)
+    anchor = (9.0, -9.0)
+    sprung = solve_sprung(
+        apex=APEX,
+        segments=wire_segments,
+        anchor=anchor,
+        spring_l0_m=0.3,
+        spring_k_n_per_m=1.0,
+    )
+    tensioned = solve_tensioned(
+        apex=APEX,
+        wire_length_m=WIRE_LEN,
+        wire_weight_n_per_m=W_WIRE,
+        stake=anchor,
+        rope_tension_n=sprung.end_tension,
+    )
+    assert sprung.end_point[0] == pytest.approx(tensioned.end_point[0], rel=1e-9)
+    assert sprung.end_point[1] == pytest.approx(tensioned.end_point[1], rel=1e-9)
+    assert sprung.horizontal_tension_n == pytest.approx(
+        tensioned.horizontal_tension_n, rel=1e-9
+    )
+
+
+def test_sprung_support_reactions_sum_to_the_weight():
+    """Global statics still hold: the massless spring transmits force, not
+    weight, so F_apex + F_end must still equal the chain's own weight."""
+    for l0, k in ((0.0, 1e3), (2.0, 50.0), (5.0, 1e6)):
+        sol = solve_sprung(
+            apex=SPRUNG_APEX,
+            segments=SPRUNG_SEGMENTS,
+            anchor=SPRUNG_ANCHOR,
+            spring_l0_m=l0,
+            spring_k_n_per_m=k,
+        )
+        weight_oracle = 12.0 * W_WIRE + 14.0 * W_ROPE
+        assert sol.total_weight_n == pytest.approx(weight_oracle, rel=1e-15)
+        fx = sol.apex_tension_vector[0] + sol.end_tension_vector[0]
+        fz = sol.apex_tension_vector[1] + sol.end_tension_vector[1]
+        assert fx == pytest.approx(0.0, abs=1e-9 * weight_oracle)
+        assert fz == pytest.approx(weight_oracle, rel=1e-9)
+
+
+def test_sprung_tension_sensitivity_matches_the_spring_stiffness():
+    """dT/d(anchor distance) ≈ k for a taut rig — the regularization the
+    bungee exists for (issue #698 discussion): once the chain is pulled
+    taut, moving the anchor a hair further stretches the spring by almost
+    exactly that much, so the extra tension is k times the extra distance."""
+    apex = (0.0, 12.0)
+    anchor = (28.0, 10.0)
+    k = 1.0e3
+    l0 = 1.0
+    base = solve_sprung(
+        apex=apex,
+        segments=SPRUNG_SEGMENTS,
+        anchor=anchor,
+        spring_l0_m=l0,
+        spring_k_n_per_m=k,
+    )
+    reach = math.hypot(anchor[0] - apex[0], anchor[1] - apex[1])
+    ux, uz = (anchor[0] - apex[0]) / reach, (anchor[1] - apex[1]) / reach
+    delta = 1.0e-3
+    nudged_anchor = (anchor[0] + delta * ux, anchor[1] + delta * uz)
+    nudged = solve_sprung(
+        apex=apex,
+        segments=SPRUNG_SEGMENTS,
+        anchor=nudged_anchor,
+        spring_l0_m=l0,
+        spring_k_n_per_m=k,
+    )
+    dT_ddist = (nudged.end_tension - base.end_tension) / delta
+    assert dT_ddist == pytest.approx(k, rel=0.02)
+
+
+def test_sprung_rejects_non_positive_stiffness():
+    for bad_k in (0.0, -5.0):
+        with pytest.raises(ValueError, match="spring stiffness must be positive"):
+            solve_sprung(
+                apex=SPRUNG_APEX,
+                segments=SPRUNG_SEGMENTS,
+                anchor=SPRUNG_ANCHOR,
+                spring_l0_m=1.0,
+                spring_k_n_per_m=bad_k,
+            )
+
+
+def test_sprung_rejects_negative_natural_length():
+    with pytest.raises(ValueError, match="spring natural length must be non-negative"):
+        solve_sprung(
+            apex=SPRUNG_APEX,
+            segments=SPRUNG_SEGMENTS,
+            anchor=SPRUNG_ANCHOR,
+            spring_l0_m=-1.0,
+            spring_k_n_per_m=100.0,
+        )
+
+
+def test_sprung_rejects_a_weightless_chain():
+    with pytest.raises(ValueError, match="weightless chain has no catenary"):
+        solve_sprung(
+            apex=SPRUNG_APEX,
+            segments=(ChainSegment(14.0, 0.0), ChainSegment(14.0, 0.0)),
+            anchor=SPRUNG_ANCHOR,
+            spring_l0_m=1.0,
+            spring_k_n_per_m=100.0,
+        )
+
+
+def test_sprung_rejects_an_empty_chain():
+    with pytest.raises(ValueError, match="at least one segment"):
+        solve_sprung(
+            apex=(0.0, 0.0),
+            segments=(),
+            anchor=(1.0, -1.0),
+            spring_l0_m=1.0,
+            spring_k_n_per_m=100.0,
+        )
+
+
+def test_sprung_rejects_a_vertical_hanging_chain():
+    with pytest.raises(ValueError, match="horizontally beyond the apex"):
+        solve_sprung(
+            apex=SPRUNG_APEX,
+            segments=SPRUNG_SEGMENTS,
+            anchor=(0.0, 0.0),
+            spring_l0_m=1.0,
+            spring_k_n_per_m=100.0,
+        )
+
+
+def test_sprung_rejects_an_unreachable_geometry():
+    """A spring far too soft to ever pull the chain the required distance:
+    the shooting solve stalls and the error hints at the spring's stiffness."""
+    with pytest.raises(ValueError, match="no equilibrium found") as exc_info:
+        solve_sprung(
+            apex=(0.0, 12.0),
+            segments=(ChainSegment(12.0, W_WIRE),),
+            anchor=(1.0e6, 12.0),
+            spring_l0_m=0.0,
+            spring_k_n_per_m=1.0e-20,
+        )
+    assert "spring" in str(exc_info.value)
+    assert "stiffness" in str(exc_info.value)
+
+
+def test_sprung_solves_through_the_injected_marching_kernel():
+    """Kernel seam: solve_sprung routes every march through the injected
+    kernel, endpoint-only during the residual and full resolution once."""
+    calls = []
+
+    def counting_kernel(start, tension, segments, samples_per_segment=33):
+        calls.append(samples_per_segment)
+        return march_continuous(start, tension, segments, samples_per_segment)
+
+    sol = solve_sprung(
+        apex=SPRUNG_APEX,
+        segments=SPRUNG_SEGMENTS,
+        anchor=SPRUNG_ANCHOR,
+        spring_l0_m=2.0,
+        spring_k_n_per_m=500.0,
+        samples_per_segment=40,
+        kernel=counting_kernel,
+    )
+    assert calls
+    assert calls[-1] == 40
+    assert set(calls[:-1]) == {2}
+    assert sol.segments[0].points.shape == (40, 2)
+    assert sol.segments[1].points.shape == (40, 2)
 
 
 # --------------------------------------------------------------------------
