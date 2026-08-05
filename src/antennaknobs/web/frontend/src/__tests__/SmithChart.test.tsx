@@ -13,23 +13,14 @@
 // inspect. This is a from-scratch idiom — no prior SmithChart test and no
 // other chart test in this repo asserts drawn coordinates, only the
 // null-context no-crash path.
-import { beforeEach, describe, it, expect, vi } from "vitest";
-
-// jsdom ships no ResizeObserver; the sizing hook only needs it not to throw.
-// Stubbed HERE, per-file (the newBackend.test.tsx idiom), because vitest
-// workers do NOT guarantee another file's stub is present: this file passed
-// locally by inheriting a sibling's leaked stub and then failed on CI's
-// scheduling, which is exactly the trap a per-file stub closes.
-beforeEach(() => {
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
-});
+// A ResizeObserver stub was briefly added here while diagnosing #726's CI
+// failure — wrongly, it turned out: SmithChart takes `size` as a prop and
+// never touches the sizing hooks, and the failing file in that CI run was
+// DesignSession.mobile.test.tsx, whose OWN stub was torn down by afterEach's
+// unstubAllGlobals() before a late React passive-effect flush ran (#728's
+// real mechanism). setup.ts's unconditional defaults now close that race
+// for every file; nothing needs stubbing here.
+import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import { SmithChart } from "../components/charts/SmithChart";
 import { reflectionCoefficient } from "../lib/format";

@@ -51,30 +51,18 @@ beforeEach(() => {
     VIEW_PREFS_KEY,
     JSON.stringify({ pinned: PINNED, seen: VIEWS.map((v) => v.id) }),
   );
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
-  // Every query matches: this session is on a phone, in portrait.
+  // getContext/ResizeObserver/WebSocket provide-only defaults now live in
+  // setup.ts (#728) — every component test gets them unconditionally.
+  //
+  // matchMedia stays here: setup.ts's default never matches, but this
+  // session is on a phone, in portrait, so every query must match to force
+  // the mobile branch. That's behavioral (it decides which tree renders),
+  // not a gap-fill, so it's a per-file override rather than a migration.
   vi.stubGlobal("matchMedia", () => ({
     matches: true,
     addEventListener() {},
     removeEventListener() {},
   }));
-  vi.stubGlobal(
-    "WebSocket",
-    class {
-      static OPEN = 1;
-      readyState = 0;
-      close() {}
-      send() {}
-    },
-  );
   vi.stubGlobal("fetch", async (url: string) => {
     const path = String(url);
     if (path.startsWith("/capabilities"))
@@ -92,7 +80,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.restoreAllMocks();
 });
 
 describe("the session's mobile tree", () => {
