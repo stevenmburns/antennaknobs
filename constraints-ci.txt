@@ -1,0 +1,80 @@
+# CI-only version pins for the packages test.yml installs (build prereqs +
+# the `.[test]` extra's transitive closure). Wired in via `pip install -c
+# constraints-ci.txt` on every pip install step in test.yml EXCEPT
+# wheel-smoke, which deliberately stays unconstrained (see below).
+#
+# Why: pyproject.toml deliberately ships floors (numpy>=1.21, scipy>=1.7,
+# matplotlib>=3.5, fastapi/uvicorn/websockets fully unpinned) — that is real
+# runtime metadata for end users of `pip install antennaknobs`, not a CI
+# concern, and it must stay honest. But floors mean CI re-resolves the
+# latest release of every one of those on every run, so an unrelated PR goes
+# red the moment any of them ships a breaking release. This already happened
+# to ruff (see .github/workflows/ruff.yml's comment on the 0.16.0 incident,
+# 2026-07-23) — this file is the same fix applied to the Python dependency
+# graph instead of a single GitHub Action version.
+#
+# momwire and antennaknobs are deliberately NOT pinned here: momwire is
+# already pinned exactly in pyproject.toml (`momwire==0.22.0`), and
+# antennaknobs itself is installed editable from the checkout in every CI
+# job — a constraints file has no business naming either.
+#
+# Generated 2026-08-05 by resolving test.yml's install path (setuptools,
+# numpy, scipy, matplotlib, pybind11, then the `.[test]` extra's deps:
+# fastapi, uvicorn[standard], websockets, psutil, threadpoolctl, schemdraw,
+# pytest, coverage, httpx2) against a Python 3.12 target explicitly (`uv pip
+# install --python <a 3.12 interpreter> ...`) — NOT the contributor's local
+# .venv, which happens to run 3.14 here. Resolving against a real 3.12
+# interpreter (rather than freezing a 3.14 env and hoping the pins happen to
+# also ship 3.12 wheels) is what guarantees every pin below actually
+# installs on the 3.12 runner test.yml uses; spot-checked (numpy 2.5.1,
+# scipy 1.18.0, matplotlib 3.11.1, fastapi 0.141.1) confirms current
+# releases still publish cp312 wheels.
+#
+# Regenerate deliberately (never blindly) after confirming the new versions
+# work, from a Python 3.12 environment with the same packages installed:
+#   pip freeze | grep -vE '^(momwire|antennaknobs)==' > constraints-ci.txt
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+click==8.4.2
+contourpy==1.3.3
+coverage==7.15.3
+cycler==0.12.1
+fastapi==0.141.1
+fonttools==4.63.0
+h11==0.16.0
+httpcore2==2.9.1
+httptools==0.8.0
+httpx2==2.9.1
+idna==3.18
+iniconfig==2.3.0
+kiwisolver==1.5.0
+matplotlib==3.11.1
+numpy==2.5.1
+packaging==26.3
+pillow==12.3.0
+pluggy==1.6.0
+psutil==7.2.2
+pybind11==3.0.4
+pydantic==2.13.4
+pydantic-core==2.46.4
+pygments==2.20.0
+pyparsing==3.3.2
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+pyyaml==6.0.3
+schemdraw==0.23
+scipy==1.18.0
+setuptools==83.0.0
+six==1.17.0
+starlette==1.4.1
+threadpoolctl==3.6.0
+truststore==0.10.4
+typing-extensions==4.16.0
+typing-inspection==0.4.2
+uvicorn==0.52.1
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==17.0.1
+wheel==0.47.0

@@ -18,10 +18,11 @@
 # already present, which covers momwire's pybind11 + OpenMP build.
 FROM python:3.12-bookworm
 
-# Node 22 for the Vite 8 frontend dev server: copy the official binaries
-# rather than apt (bookworm's nodejs is far too old).
-COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+# Node 20 for the Vite 8 frontend dev server: copy the official binaries
+# rather than apt (bookworm's nodejs is far too old). Matches CI and the
+# release Dockerfile's frontend stage (#738) — see that file's comment.
+COPY --from=node:20-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:20-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
  && node --version && npm --version && g++ --version | head -1
