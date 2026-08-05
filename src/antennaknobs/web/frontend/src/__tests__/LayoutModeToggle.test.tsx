@@ -1,8 +1,7 @@
 // The rail/grid segmented control (unit 3, docs/plan-view-rail-scaling.md).
-// Placement (desktop only, stage top-right) is DesignSession's job, not
-// this component's — see the placement check in
-// gridLayoutPlacement.test.ts for why that's tested structurally rather
-// than by mounting this component through DesignSession.
+// Placement (desktop only, stage top-right) is DesignSession's job, not this
+// component's — see DesignSession.layoutPlacement.test.tsx (#718), which
+// mounts the real DesignSession to check it.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
