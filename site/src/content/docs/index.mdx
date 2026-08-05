@@ -25,27 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.42.0" icon="star">
-  **The bench release: your VNA sweep, your feed network, your rope.**
-  Sweep an antenna straight off a USB **NanoVNA** into a `.s1p`
-  (`capture`), overlay it on any impedance chart — CLI or the workbench
-  Smith chart — and then invert the question with **`fit`**: solve for the
-  parameters a tape measure can't give you (site ground constants, as-built
-  length, buried feedline length), with a **residual** that tells you when
-  the measurement doesn't constrain what you asked
-  ([Calibrating against your VNA](/advanced/calibrating/)). The **feed
-  network is now drawn** — `schematic` renders feedline, tuner, balun and
-  source as a chain, in the CLI and as a workbench view, with the power
-  budget folded into it — and you can **pick the measurement plane**, so
-  the solve is what a VNA clipped on at that port would see. The output
-  stage scales too: **pin the views you watch**, reach the rest through an
-  overflow picker, switch to a 2×2 grid, and page the same set on a phone —
-  plus new **S11 (dB)** and **VSWR** sweep views. Station stdlib grows
-  **stubs and stub tuners**, balanced line from physical geometry, and
-  ferrite loss from **measured complex permeability** instead of one flat
-  Q; and `dipoles.invvee_catenary` hangs its arms with the sag real wire
-  takes under halyard tension.
-  [All release notes →](/reference/releases/)
+<Card title="New in v0.43.0" icon="star">
+  **The visible-rigging release: your antenna's tension, on screen — and a
+  faster, tidier workbench.** The catenary inverted vee's physics now shows
+  its numbers: **rigging tension (N and lbf), sag, and the rope length
+  you'd actually cut** appear in the solve readout, via a new generic
+  readouts channel any design — including your own in
+  `~/.antennaknobs/designs/` — can feed with no frontend code. The library
+  grows **`solve_sprung`**, the bungee/shock-cord rig closure (exact at
+  every length where the other closures are, with the stiff- and soft-limit
+  identities proven in tests). The workbench got quicker twice over:
+  **momwire 0.23.0's dense assembly** (~1.9× on interactive solves — an
+  outside contribution, thanks @happykawayigt!) and **view-residency
+  gating** — background sweeps only run while a view that draws them is on
+  screen. Plus: **reorder your pinned views** from the picker (rail, grid,
+  and phone pages all follow), pin/layout changes now sync across browser
+  windows live, and the Smith chart marks the sweep point nearest your
+  measurement frequency — the Γ-plane's first frequency anchor.
 </Card>
 
 ## The whole pitch, in one line
