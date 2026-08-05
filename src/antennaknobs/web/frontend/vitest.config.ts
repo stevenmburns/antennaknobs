@@ -10,7 +10,10 @@ export default defineConfig({
     // #642), so importing it from a Node environment throws before any test
     // runs. jsdom supplies window/document without starting a real browser.
     environment: "jsdom",
-    include: ["src/__tests__/**/*.test.ts", "src/__tests__/**/*.test.tsx"],
+    // src-wide, not src/__tests__ only: a co-located test next to its
+    // component used to be silently ignored — never run, never reported,
+    // green CI (#735). The __tests__ layout keeps working verbatim.
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     // No `globals: true` — tests import describe/it/expect explicitly so
     // they typecheck under tsc without adding vitest's ambient types to
     // tsconfig (npm run build's tsc --noEmit covers all of src/).

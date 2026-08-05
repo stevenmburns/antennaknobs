@@ -1,5 +1,10 @@
 name: Ruff
-on: [push, pull_request]
+# pull_request + main-push only: `on: [push, pull_request]` fired BOTH events
+# for same-repo branches, running every PR's ruff twice (#734).
+on:
+  pull_request:
+  push:
+    branches: ["main"]
 jobs:
   ruff:
     runs-on: ubuntu-latest
