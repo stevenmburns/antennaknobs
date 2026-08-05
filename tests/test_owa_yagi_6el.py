@@ -39,7 +39,14 @@ def test_gain_pattern_and_forward_direction():
     m = pattern_metrics(ff)
     assert 9.7 < m["peak_gain_dbi"] < 10.7  # deck: 10.20 at 146
     assert m["front_to_back_db"] > 15  # deck: 35.7 at 146
-    assert m["azimuth_deg"] == pytest.approx(0.0, abs=10)  # fires +x
+    # Circular comparison: the phi grid samples BOTH 0 and 360 (duplicate
+    # seam direction), and which duplicate wins argmax is decided by
+    # noise-level current differences — a fresh numpy on the CI runner (or
+    # momwire 0.23.0's dense-dispatch tie-breaks) legally flips it. 360 IS
+    # +x; asserting raw equality to 0 made the seam a flake (both #742 and
+    # #745 went red on it while main stayed green).
+    az = m["azimuth_deg"] % 360.0
+    assert min(az, 360.0 - az) == pytest.approx(0.0, abs=10)  # fires +x
 
 
 def test_d1_is_the_matching_network():
