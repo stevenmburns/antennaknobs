@@ -38,6 +38,25 @@ export type PatternCuts = {
   elevation: number[];
 };
 
+/** One server-driven readout row (issue #712). Designs produce these from a
+ *  duck-typed `readout_rows()` on the builder and the adapter validates them,
+ *  so a NEW design feature — catalog or a user design in
+ *  ~/.antennaknobs/designs — reaches the workbench readout with zero
+ *  TypeScript. Nothing here may be interpreted per design:
+ *   - `label`: display text, printed as-is.
+ *   - `value`: a number (ReadoutsPanel formats it to fixed sig-figs), a short
+ *     string (printed verbatim — the server already chose its wording), or
+ *     null (an em-dash: a value that legitimately doesn't exist).
+ *   - `unit`: appended after the value; the server owns the unit choice
+ *     (mm vs m and so on), the client never converts.
+ *   - `group`: small heading rows cluster under; null = ungrouped (first). */
+export type ReadoutRow = {
+  label: string;
+  value: number | string | null;
+  unit: string | null;
+  group: string | null;
+};
+
 export type SolveResponse = {
   geometry: string;
   wires: Wire[];
@@ -125,6 +144,11 @@ export type SolveResponse = {
    *  first). Absent for designs with no network or a multi-feed drive. */
   plane?: string;
   planes?: string[];
+  /** Generic design-supplied readout rows (issue #712), rendered by
+   *  ReadoutsPanel. Absent for the designs (nearly all of them) that define
+   *  no `readout_rows()`, and absent rather than empty when every row a
+   *  design produced was malformed or its producer raised. */
+  readouts?: ReadoutRow[];
   k_meas_m_inv?: number;
   // V-specific
   arm_len_m?: number;

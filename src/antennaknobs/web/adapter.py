@@ -1345,6 +1345,105 @@ def _rig_report_results(builder) -> dict:
         return {}
 
 
+# Every key a readout row may carry, and nothing else (issue #712). The row
+# contract is deliberately tiny: `label` (display text), `value` (a number the
+# frontend formats, a short string it prints verbatim, or None -> em-dash),
+# `unit` (appended after the value), `group` (small heading rows cluster
+# under; None = ungrouped, rendered first).
+_READOUT_KEYS = frozenset({"label", "value", "unit", "group"})
+
+
+def _readout_row(raw, owner: str) -> dict | None:
+    """Validate one `readout_rows()` row, returning the normalised row (all
+    four keys present) or None if it is malformed.
+
+    Validation is server-side and per-row on purpose: these rows come from
+    arbitrary design code — catalog designs AND whatever is in
+    ~/.antennaknobs/designs — and the whole point of the contract is that a
+    design author writes Python and gets a readout with no TypeScript. The
+    other half of that bargain is that their typo cannot reach the client:
+    one bad row is dropped, its siblings still render, and the browser never
+    has to defend itself against a value it cannot display.
+    """
+
+    def bad(why: str) -> None:
+        _logger.debug("dropping readout row from %s: %s (%r)", owner, why, raw)
+        return None
+
+    if not isinstance(raw, Mapping):
+        return bad("not a mapping")
+    extra = set(raw) - _READOUT_KEYS
+    if extra:
+        return bad(f"unknown key(s) {sorted(extra)}")
+    label = raw.get("label")
+    if not isinstance(label, str) or not label:
+        return bad("label must be a non-empty string")
+    value = raw.get("value")
+    if isinstance(value, bool):
+        # bool is an int subclass; a True/False readout is a design bug, not
+        # a number to plot next to a tension.
+        return bad("value must not be a bool")
+    if isinstance(value, (int, float)):
+        value = float(value)
+        if not math.isfinite(value):
+            # NaN/Infinity are not JSON, and the browser's JSON.parse
+            # rejects them outright (same trap as the measured-open clamp).
+            return bad("value is not finite")
+    elif not (value is None or isinstance(value, str)):
+        return bad(
+            f"value must be a number, string or None, got {type(value).__name__}"
+        )
+    unit = raw.get("unit")
+    if not (unit is None or isinstance(unit, str)):
+        return bad("unit must be a string or None")
+    group = raw.get("group")
+    if not (group is None or isinstance(group, str)):
+        return bad("group must be a string or None")
+    return {"label": label, "value": value, "unit": unit, "group": group}
+
+
+def _readout_rows_results(builder) -> dict:
+    """Generic workbench readout rows (issue #712), surfaced under "readouts"
+    beside `_wire_material_results` / `_rig_report_results`. {} for every
+    design that defines no `readout_rows()` — the duck-typed per-design
+    method is the discovery mechanism, the same idiom `rig_report()` and
+    `build_wire_material()` use, so a user design in ~/.antennaknobs/designs
+    gets a readout the moment it grows the method, with no registry entry and
+    no frontend change.
+
+    This is the generic successor to `_rig_report_results`'s bespoke "rig"
+    key (which stays, unchanged, for compatibility): the rows are
+    self-describing, so every future construction feature that wants numbers
+    on screen is Python-only.
+
+    Same omit-on-error contract as `_rig_report_results` — the readout is
+    garnish on a solve that already stands on its own, so a producer that
+    raises (a mid-scrub infeasible rig) is debug-logged and omitted, never
+    surfaced as an error field and never allowed to fail the response. Rows
+    are additionally validated one by one: a malformed row is dropped while
+    its valid siblings survive, so one design-author typo cannot blank the
+    whole panel.
+    """
+    readout_rows = getattr(builder, "readout_rows", None)
+    if not callable(readout_rows):
+        return {}
+    owner = type(builder).__name__
+    try:
+        raw_rows = readout_rows()
+        if not isinstance(raw_rows, (list, tuple)):
+            _logger.debug(
+                "readout_rows() for %r returned %s, not a list",
+                owner,
+                type(raw_rows).__name__,
+            )
+            return {}
+        rows = [r for r in (_readout_row(raw, owner) for raw in raw_rows) if r]
+    except Exception:
+        _logger.debug("readout_rows() failed for %r", owner, exc_info=True)
+        return {}
+    return {"readouts": rows} if rows else {}
+
+
 def _make_momwire_engine(req: dict, builder, cancel=None):
     # "bspline" is the default and the fallback for unknown/retired model
     # names (a stale client may still send "triangular").
@@ -2272,6 +2371,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "input_power_w": float(eng.input_power()),
             **_wire_material_results(builder),
             **_rig_report_results(builder),
+            # Generic self-describing readout rows (issue #712): the same
+            # duck-typed discovery, rendered by one frontend component.
+            **_readout_rows_results(builder),
         }
         if planes is not None:
             # Measurement plane (issue #652 c): which port this solve is
@@ -2453,6 +2555,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
             **_wire_material_results(builder),
             **_rig_report_results(builder),
+            # Generic self-describing readout rows (issue #712): the same
+            # duck-typed discovery, rendered by one frontend component.
+            **_readout_rows_results(builder),
         }
         if planes is not None:
             # Same plane fields as the momwire path (issue #652 c).
