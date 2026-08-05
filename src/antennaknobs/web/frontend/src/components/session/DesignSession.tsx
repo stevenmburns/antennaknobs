@@ -791,8 +791,26 @@ function DesignSessionBody({
         : null,
     [result, geometry],
   );
+  // View residency (issue #715): an analysis only runs while some view that
+  // RENDERS it can be on screen — pinned (rail thumbs / grid cells / mobile
+  // carousel pages are all mounted from `pinned`) or the active view (which
+  // covers a picker peek at an unpinned view). Derived HERE, in the one
+  // component that already owns both the layout state and the analysis
+  // cluster, and handed down as plain booleans so useAnalysisRunners stays
+  // layout-agnostic. The norm check is deliberately NOT residency-gated:
+  // its consumer is the HUD readout, resident in every layout. Consumer
+  // census + semantics: docs/plan-view-residency-gating.md.
+  const isResident = (v: View) => pinned.includes(v) || view === v;
+  const sweepResident =
+    isResident("smith") || isResident("gamma") || isResident("vswr");
+  const convergeResident = isResident("smith");
+  const patternResident = isResident("azimuth") || isResident("elevation");
+
   const { schematicSvg, schematicUnavailable } = useSchematic({
-    active,
+    // Composed at the call site (the hook has a single gate): fetch the
+    // schematic only while the workbench tab is active AND the schematic
+    // view is somewhere on screen (issue #715).
+    active: active && isResident("schematic"),
     geometry,
     requestKey: JSON.stringify([
       currentValuesKey,
@@ -1160,6 +1178,9 @@ function DesignSessionBody({
       convergeEnabled,
       normCheckEnabled,
       necOverlayEnabled,
+      sweepResident,
+      convergeResident,
+      patternResident,
       autoSim,
       active,
       comboApproved,
