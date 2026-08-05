@@ -858,6 +858,186 @@ def solve_anchored(
     return _assemble(apex, (h, v0), segments, marched, iters, norm)
 
 
+def solve_sprung(
+    apex: tuple[float, float],
+    segments: Sequence[ChainSegment],
+    anchor: tuple[float, float],
+    spring_l0_m: float,
+    spring_k_n_per_m: float,
+    *,
+    samples_per_segment: int = 33,
+    kernel: MarchKernel = march_continuous,
+) -> ChainSolution:
+    """Model 3: a chain whose far end reaches the anchor through a bungee.
+
+    The chain hangs from ``apex`` as in the other two closures; its far end is
+    neither tied straight to ``anchor`` (:func:`solve_anchored`) nor pulled at
+    a caller-specified tension (:func:`solve_tensioned`).  Instead it is
+    coupled to the anchor through a *massless* linear spring of natural length
+    ``spring_l0_m`` and stiffness ``spring_k_n_per_m``: being massless, the
+    spring is straight and transmits the chain's own end tension unchanged, so
+    it stretches to exactly whatever length that tension demands,
+
+        L_s = spring_l0_m + T_end / spring_k_n_per_m,      T_end = |t(L)|
+
+    and the closure is that the chain's end, walked forward by ``L_s`` along
+    the tension direction, lands on the anchor:
+
+        end + L_s · t̂_end == anchor,      t̂_end = t(L) / T_end
+
+    The unknowns are again ``(H, V0)``.  A spring end can only pull —
+    ``T_end`` is always positive and ``L_s`` is always at least
+    ``spring_l0_m``, never less, so there is no "pushing" branch to guard
+    against.  The only way this closure can fail to have a solution is
+    geometric: no tension state closes the gap to the anchor, which the
+    shooting solve reports as the module's usual "no equilibrium found" error.
+
+    ``end_point`` on the returned :class:`ChainSolution` is the *chain's* end
+    — where the spring attaches, not the anchor — and ``end_tension_vector``
+    is the spring's pull on the chain, the same convention as the other two
+    closures.  The spring's own stretched geometry needs no extra fields to
+    recover: its stretched length is ``hypot(anchor − end_point)`` (that is
+    the closure itself) and its stretch beyond natural length is
+    ``end_tension / spring_k_n_per_m``.
+
+    Two limits recover the existing closures and are this one's oracles:
+
+      * ``spring_k_n_per_m → ∞`` is :func:`solve_anchored` to a rigid link of
+        length ``spring_l0_m``; taking ``spring_l0_m = 0`` shrinks that link
+        to nothing, so the whole solution — ``H``, ``V0``, both tensions, the
+        shape — converges to ``solve_anchored`` with the *same* anchor.
+      * ``spring_k_n_per_m → 0`` degenerates to :func:`solve_tensioned`: the
+        spring becomes so soft that its tension is set almost entirely by
+        geometry (``T_end ≈ spring_k_n_per_m · (reach − arc − l0)``), which is
+        exactly "how far you stretched the cord" — the same knob
+        :func:`solve_tensioned` takes as an explicit input.
+
+    Raises :class:`ValueError` for ``spring_k_n_per_m ≤ 0``, ``spring_l0_m <
+    0``, an empty or weightless chain, an anchor not horizontally beyond the
+    apex (same degenerate-vertical-chain rationale as the other two
+    closures), or a geometry the shooting solve cannot close — whose hint
+    calls out the spring's stiffness and natural length as the first things
+    to check.
+    """
+    segments = tuple(segments)
+    if not segments:
+        raise ValueError("a chain needs at least one segment")
+    if not (spring_k_n_per_m > 0.0):
+        raise ValueError(
+            f"spring stiffness must be positive, got {spring_k_n_per_m!r} N/m; "
+            "a non-positive stiffness is not a spring (zero transmits no "
+            "force, negative pushes)"
+        )
+    if spring_l0_m < 0.0:
+        raise ValueError(
+            f"spring natural length must be non-negative, got {spring_l0_m!r} m"
+        )
+
+    total_length = sum(s.length_m for s in segments)
+    total_weight = sum(s.length_m * s.weight_n_per_m for s in segments)
+    if total_weight <= 0.0:
+        raise ValueError(
+            "a weightless chain has no catenary: every segment has "
+            "weight_n_per_m = 0, so the shape is a straight line and no "
+            "tension can be recovered (pick a WireSpec with a real "
+            "weight_g_per_m)"
+        )
+
+    dx = anchor[0] - apex[0]
+    dz = anchor[1] - apex[1]
+    reach = math.hypot(dx, dz)
+    if dx <= 0.0:
+        raise ValueError(
+            f"anchor must be horizontally beyond the apex: apex x = {apex[0]!r} m, "
+            f"anchor x = {anchor[0]!r} m.  A chain hanging straight down needs "
+            "zero horizontal tension, a degenerate equilibrium this catenary "
+            "formulation cannot represent"
+        )
+
+    # Non-dimensionalise positions by the chain's own arc length plus the
+    # spring's unstretched length: the same "length that actually sets the
+    # geometry" idea as solve_anchored's total_length, extended to cover a
+    # rig where a long soft cord, not the short chain, dominates the scale.
+    scale = total_length + spring_l0_m
+    h_floor = _H_FLOOR_REL * total_weight
+
+    def residual(q: np.ndarray) -> np.ndarray:
+        h = math.exp(q[0])
+        if not math.isfinite(h) or h <= h_floor:
+            raise _Infeasible("horizontal tension collapsed to zero")
+        v0 = q[1] * h
+        marched = kernel(apex, (h, v0), segments, 2)
+        end = marched[-1].end_point
+        end_t = marched[-1].end_tension
+        t_end = math.hypot(*end_t)
+        ux, uz = end_t[0] / t_end, end_t[1] / t_end
+        stretch = spring_l0_m + t_end / spring_k_n_per_m
+        return np.array(
+            [
+                (anchor[0] - (end[0] + stretch * ux)) / scale,
+                (anchor[1] - (end[1] + stretch * uz)) / scale,
+            ],
+            dtype=float,
+        )
+
+    # Two limiting guesses bracket the physical range:
+    #
+    #  (a) the stiff-spring limit: the spring barely stretches beyond its
+    #      natural length, so pretend it is a rigid link of length
+    #      spring_l0_m and reuse solve_anchored's own straight-chord/parabola
+    #      guess, aimed at the pseudo-anchor that rigid link would attach to
+    #      — the real anchor pulled back toward the apex by spring_l0_m along
+    #      the apex-anchor line.
+    #  (b) the soft-spring limit: the spring supplies essentially all the
+    #      compliance, so estimate its tension from how far the chain's own
+    #      arc length falls short of the total reach, then guess the state a
+    #      massless rope at that tension would produce (solve_tensioned's own
+    #      guess), pulling along the apex-anchor line.
+    ux_chord, uz_chord = dx / reach, dz / reach
+    guesses: list[tuple[float, float]] = []
+
+    px = anchor[0] - spring_l0_m * ux_chord
+    pz = anchor[1] - spring_l0_m * uz_chord
+    pdx = px - apex[0]
+    pdz = pz - apex[1]
+    preach = math.hypot(pdx, pdz)
+    if pdx > 0.0 and 0.0 < preach < total_length:
+        slack = total_length - preach
+        sag_guess = math.sqrt(max(3.0 * preach * slack / 8.0, 1e-30))
+        w_mean = total_weight / total_length
+        chord_slope = pdz / pdx
+        guess_h_a = max(w_mean * pdx * preach / (8.0 * sag_guess), 1e-9 * total_weight)
+        guess_v0_a = guess_h_a * (chord_slope - 4.0 * sag_guess / preach)
+        guesses.append((guess_h_a, guess_v0_a))
+        guesses.append((guess_h_a, guess_h_a * chord_slope))
+
+    tension_guess = spring_k_n_per_m * max(
+        reach - total_length - spring_l0_m, 1.0e-6 * max(total_weight, 1.0)
+    )
+    guess_h_b = tension_guess * ux_chord
+    guess_v1_b = tension_guess * uz_chord
+    guess_v0_b = guess_v1_b - total_weight
+    guesses.append((guess_h_b, guess_v0_b))
+    guesses.append((0.1 * max(guess_h_b, total_weight), guess_v0_b))
+    guesses.append((10.0 * max(guess_h_b, total_weight), guess_v0_b))
+    guesses.append((total_weight, -total_weight))
+
+    hint = (
+        f"With a spring of natural length {spring_l0_m:g} m and stiffness "
+        f"{spring_k_n_per_m:g} N/m coupling a {total_length:.6g} m chain to an "
+        f"anchor {reach:.6g} m away, check that the stiffness and natural "
+        "length are not so small together that no tension state closes the "
+        "gap, and that the anchor is far enough beyond the apex to keep the "
+        "chain off the vertical."
+    )
+    q, iters, norm = _shoot(residual, guesses, "the sprung-chain rig (model 3)", hint)
+
+    h = math.exp(q[0])
+    v0 = q[1] * h
+    marched = kernel(apex, (h, v0), segments, samples_per_segment)
+    return _assemble(apex, (h, v0), segments, marched, iters, norm)
+
+
 def solve_chain(
     apex: tuple[float, float],
     tension: tuple[float, float],
@@ -890,6 +1070,7 @@ __all__ = [
     "march_continuous",
     "solve_anchored",
     "solve_chain",
+    "solve_sprung",
     "solve_tensioned",
     "weight_n_per_m",
 ]
