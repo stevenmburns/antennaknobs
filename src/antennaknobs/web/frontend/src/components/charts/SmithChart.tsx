@@ -191,6 +191,41 @@ export function SmithChart({
         drawEndpoint(fi, sweep.freqs_mhz.length - 1, false);
       }
 
+      // Frequency anchor (issue #719): measFreqMhz reached the chart only as
+      // a redraw dependency — the Γ-plane had nothing that actually pointed
+      // at "this frequency." Ring the sweep-trail point nearest measFreqMhz,
+      // found by a plain min-|Δf| scan rather than assuming freqs_mhz is
+      // sorted or uniformly spaced (it isn't, for a log sweep) — and with no
+      // special-casing for measFreqMhz outside the swept band: the endpoint
+      // simply wins that comparison, which is the correct answer there too.
+      // Drawn in the neutral "ink" color (PC.labelStrong) rather than a feed
+      // color or the violet spoke/measured family, since it needs to read as
+      // "pointing at the trail" and not be mistaken for another feed or the
+      // measured-overlay locus. Hollow (stroke only, no fill) and larger
+      // than both the endpoint dots (r=3) and the bright current-Z marker
+      // (r=4, drawn later/on top) so it reads as a ring around a point
+      // rather than a competing dot.
+      let nearestIdx = 0;
+      let nearestDiff = Math.abs(sweep.freqs_mhz[0] - measFreqMhz);
+      for (let i = 1; i < sweep.freqs_mhz.length; i++) {
+        const diff = Math.abs(sweep.freqs_mhz[i] - measFreqMhz);
+        if (diff < nearestDiff) {
+          nearestDiff = diff;
+          nearestIdx = i;
+        }
+      }
+      ctx.strokeStyle = PC.labelStrong;
+      ctx.lineWidth = 1.4;
+      for (let fi = 0; fi < nFeeds; fi++) {
+        const z = zAt(fi, nearestIdx);
+        const g = reflectionCoefficient(z.re, z.im, z0);
+        const px = cx + g.gRe * R;
+        const py = cy - g.gIm * R;
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+
       // Freq range label across the bottom of the panel.
       ctx.fillStyle = PC.labelBright;
       ctx.font = "10px ui-monospace, monospace";
