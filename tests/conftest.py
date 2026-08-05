@@ -14,8 +14,55 @@
 import importlib.util
 import os
 import tempfile
+import warnings
 
 os.environ.setdefault("MPLBACKEND", "Agg")
+
+
+def pytest_collection(session):
+    """Fail fast when the collected tests and the imported packages come from
+    different checkouts (issue #733).
+
+    The editable installs' `__editable__*.pth` files hard-code the MAIN
+    checkout's absolute path, so running this venv's pytest from a git
+    worktree collects the WORKTREE's tests while importing the main
+    checkout's code — every assertion then exercises the wrong source, and
+    nothing says so. Comparing each package's resolved location against
+    pytest's rootdir turns that silent wrong-code run into an immediate,
+    self-explanatory collection error. (Worktree escape hatch:
+    `PYTHONPATH=$PWD/src:$PWD/momwire/src` outranks the .pth entries.)
+    """
+    import pathlib
+
+    import antennaknobs
+    import momwire
+
+    root = pathlib.Path(str(session.config.rootpath)).resolve()
+    ak_file = pathlib.Path(antennaknobs.__file__).resolve()
+    if root not in ak_file.parents:
+        raise pytest.UsageError(
+            f"antennaknobs imports from {ak_file}, which is outside this "
+            f"checkout ({root}). You are almost certainly running from a git "
+            "worktree against the main checkout's editable install — the "
+            "tests here would silently exercise the OTHER checkout's code. "
+            "Fix: PYTHONPATH=$PWD/src (outranks the .pth entries), or a "
+            "per-worktree venv (issue #733)."
+        )
+    # momwire is an exact-pinned dependency, not this repo's own code: a
+    # worktree that never touches it can legitimately import the main
+    # checkout's copy (worktrees do not populate submodules). Warn — so a
+    # deliberate momwire-editing worktree isn't silently wrong — instead of
+    # failing the overwhelmingly common momwire-untouched case.
+    mw_file = pathlib.Path(momwire.__file__).resolve()
+    if root not in mw_file.parents:
+        warnings.warn(
+            f"momwire imports from {mw_file} (outside {root}); fine unless "
+            "this worktree modifies momwire — then run "
+            "`git submodule update --init` here and set "
+            "PYTHONPATH=$PWD/momwire/src (issue #733).",
+            stacklevel=1,
+        )
+
 
 import matplotlib  # noqa: E402
 

@@ -21,6 +21,7 @@ import asyncio
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 import math
 import os
 import time
@@ -2348,4 +2349,16 @@ async def ws_endpoint(ws: WebSocket):
 # built bundle as package data — serves the whole app from this one process.
 _FRONTEND_DIR = Path(__file__).resolve().parent / "static"
 if _FRONTEND_DIR.is_dir():
+    # One line of staleness signal (#733): the mount is unconditional, so a
+    # source checkout serves whatever bundle was last built — which can trail
+    # frontend/src by days with no other symptom than "my change isn't
+    # showing up". The build time in the log gives that failure a timestamp.
+    _index = _FRONTEND_DIR / "index.html"
+    if _index.is_file():
+        _built = datetime.fromtimestamp(_index.stat().st_mtime, tz=timezone.utc)
+        logging.getLogger(__name__).info(
+            "serving frontend bundle built %s (%s)",
+            _built.strftime("%Y-%m-%d %H:%M UTC"),
+            _FRONTEND_DIR,
+        )
     app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")

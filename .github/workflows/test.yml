@@ -55,7 +55,7 @@ jobs:
       # `pip install -e ".[test]"`.
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools numpy scipy matplotlib scikit-rf pybind11
+        pip install setuptools numpy scipy matplotlib pybind11
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Install PyNEC from the python-necpp release wheel
@@ -112,8 +112,30 @@ jobs:
       if: github.event_name == 'push'
       run: coverage run --source=src/ -m pytest -m "not heavy_mesh" --durations=15 tests/
 
-    - name: Coverage comment
+    - name: Upload coverage data (push to main only)
+      # The coverage-comment CONTAINER action used to live here as a step:
+      # container actions build their Docker image at job start even when the
+      # step's `if` is false, so every PR paid ~8 s building an image for a
+      # step that only runs on push (#734). The data ships to a push-gated
+      # job instead; include-hidden-files because `.coverage` is a dotfile.
       if: github.event_name == 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-data
+        path: .coverage
+        include-hidden-files: true
+
+  coverage-comment:
+    # Push-to-main only: PRs never build this action's container (#734).
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v4
+      with:
+        name: coverage-data
+    - name: Coverage comment
       uses: py-cov-action/python-coverage-comment-action@v3
       with:
         GITHUB_TOKEN: ${{ github.token }}
