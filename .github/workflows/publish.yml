@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         # No submodules: the dist is pure Python and does not build momwire.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm

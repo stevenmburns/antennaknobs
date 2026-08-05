@@ -225,7 +225,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
       # No `submodules:` — the frontend build is pure Node, momwire is irrelevant.
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@v7
       # Same pinning as publish.yml's frontend step: Node 20 with the built-in
       # npm cache keyed on the frontend lockfile. Keep the two in sync — publish
       # builds the very same bundle into the wheel, and a version split there
