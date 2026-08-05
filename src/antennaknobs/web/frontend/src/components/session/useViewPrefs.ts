@@ -244,6 +244,30 @@ export function pinBlockedReason(pinned: View[], id: View): string | null {
   return pinned.length >= PIN_CAP ? "Unpin a view first" : null;
 }
 
+// Issue #714: reorder a pin by swapping it with its neighbor toward
+// `direction` (-1 = earlier, +1 = later). Pin order IS rail/grid/carousel
+// order (railViews, gridCells, mobileScreens all derive from `pinned`
+// directly), so one swap is the whole reorder story for all three — nothing
+// downstream needs to know reordering happened.
+//
+// Returns the SAME array reference — not just an equal one — when there is
+// nothing to do: `id` is unpinned/unknown, or already at that end. movePin
+// below uses that identity to skip persisting a no-op change, the same way
+// setLayout skips writing when the layout didn't actually change.
+//
+// A future drag-to-reorder UI (out of scope for #714, see the issue) can call
+// this unchanged — dragging and the up/down buttons both just need "swap id
+// with its neighbor", which is all this function knows how to do.
+export function movePinned(pinned: View[], id: View, direction: -1 | 1): View[] {
+  const at = pinned.indexOf(id);
+  if (at < 0) return pinned;
+  const to = at + direction;
+  if (to < 0 || to >= pinned.length) return pinned;
+  const next = [...pinned];
+  [next[at], next[to]] = [next[to], next[at]];
+  return next;
+}
+
 // --- grid layout mode (unit 3) ------------------------------------------
 
 // Grid mode never goes past 4 cells: below ~⅓-stage cells the antenna canvas
@@ -330,9 +354,27 @@ export function useViewPrefs() {
     if (pinBlockedReason(cur.pinned, id)) return;
     const pins = cur.pinned.includes(id)
       ? cur.pinned.filter((v) => v !== id)
-      : // Pin order is order-pinned; no drag-to-reorder in v1.
+      : // A new pin always joins at the end — movePin (issue #714) is the
+        // separate action that reorders after the fact.
         [...cur.pinned, id];
     update({ ...cur, pinned: pins });
+  }, []);
+
+  // Issue #714: the picker's up/down reorder buttons. Reads the store rather
+  // than closing over `pinned`, for the same reason togglePin does. Skips the
+  // update()/persist call entirely when movePinned hands back the identical
+  // array (id unpinned/unknown, or already at that end) — no write means no
+  // localStorage churn and no spurious `storage` event in other windows.
+  //
+  // Persistence goes through the normal update() path, so a reorder gets
+  // cross-window sync for free via the #716 storage listener — the window
+  // that reordered writes it, and every OTHER open window picks it up the
+  // same way it would a pin/unpin.
+  const movePin = useCallback((id: View, direction: -1 | 1) => {
+    const cur = getSnapshot();
+    const next = movePinned(cur.pinned, id, direction);
+    if (next === cur.pinned) return;
+    update({ ...cur, pinned: next });
   }, []);
 
   // Opening the picker is what "you have now been shown the roster" means.
@@ -353,5 +395,15 @@ export function useViewPrefs() {
     update({ ...cur, layout: next });
   }, []);
 
-  return { pinned, seen, newIds, railViews, togglePin, markRosterSeen, layout, setLayout };
+  return {
+    pinned,
+    seen,
+    newIds,
+    railViews,
+    togglePin,
+    movePin,
+    markRosterSeen,
+    layout,
+    setLayout,
+  };
 }

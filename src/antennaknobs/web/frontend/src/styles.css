@@ -2006,6 +2006,43 @@ input[type=checkbox] {
   opacity: 0.4;
 }
 
+/* Issue #714: the pinned-row reorder buttons. A tight 2-up stack rather than
+   two more 24 px hit targets — the row is already busy with the name and the
+   pin dot, and a reorder is a fine-motor action a user reaches for less often
+   than either of those. */
+.view-picker-move {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.view-picker-move-btn {
+  width: 18px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.view-picker-move-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.view-picker-move-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.25;
+}
+
 .view-picker-new {
   padding: 0 var(--space-2);
   border-radius: var(--r-sm);
@@ -3084,6 +3121,14 @@ canvas {
 .view-sheet .view-picker-dot {
   width: 40px;
   height: 40px;
+}
+
+/* The popover's 18×14 reorder buttons are mouse-scaled like its dot — a thumb
+   needs the same touch-sized bump here. */
+.view-sheet .view-picker-move-btn {
+  width: 32px;
+  height: 24px;
+  font-size: var(--text-sm);
 }
 
 .view-sheet .view-picker-name:disabled {

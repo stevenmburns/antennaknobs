@@ -16,6 +16,7 @@ function ViewRosterRows({
   badged,
   onRowClick,
   togglePin,
+  movePin,
   rowBlocked,
 }: {
   view: View;
@@ -23,12 +24,14 @@ function ViewRosterRows({
   badged: Set<View>;
   onRowClick: (v: View) => void;
   togglePin: (v: View) => void;
+  movePin: (id: View, direction: -1 | 1) => void;
   rowBlocked?: (v: View) => string | null;
 }) {
   return (
     <>
       {VIEWS.map((v) => {
-        const isPinned = pinned.includes(v.id);
+        const pinIndex = pinned.indexOf(v.id);
+        const isPinned = pinIndex >= 0;
         const blocked = pinBlockedReason(pinned, v.id);
         const rowStop = rowBlocked ? rowBlocked(v.id) : null;
         return (
@@ -66,6 +69,42 @@ function ViewRosterRows({
             >
               <span />
             </button>
+            {/* Issue #714: reorder buttons. Unpinned rows get none — there is
+                no rail/grid/carousel position to move, and pinning already
+                has its own "where it lands" rule (the end). stopPropagation
+                is defensive: this row has no click handler of its own today,
+                but the buttons sit between two that do, and a future row
+                gesture must not inherit a click meant for one of these. */}
+            {isPinned && (
+              <div className="view-picker-move">
+                <button
+                  type="button"
+                  className="view-picker-move-btn"
+                  disabled={pinIndex === 0}
+                  aria-label={`Move ${v.label} earlier`}
+                  title={`Move ${v.label} earlier`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    movePin(v.id, -1);
+                  }}
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  className="view-picker-move-btn"
+                  disabled={pinIndex === pinned.length - 1}
+                  aria-label={`Move ${v.label} later`}
+                  title={`Move ${v.label} later`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    movePin(v.id, 1);
+                  }}
+                >
+                  ▼
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
@@ -91,6 +130,7 @@ export function ViewPicker({
   pinned,
   newIds,
   togglePin,
+  movePin,
   markRosterSeen,
 }: {
   view: View;
@@ -98,6 +138,7 @@ export function ViewPicker({
   pinned: View[];
   newIds: Set<View>;
   togglePin: (v: View) => void;
+  movePin: (id: View, direction: -1 | 1) => void;
   markRosterSeen: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -163,6 +204,7 @@ export function ViewPicker({
               pinned={pinned}
               badged={badged}
               togglePin={togglePin}
+              movePin={movePin}
               onRowClick={(v) => {
                 setView(v);
                 setOpen(false);
@@ -194,12 +236,14 @@ export function ViewSheet({
   pinned,
   newIds,
   togglePin,
+  movePin,
   markRosterSeen,
 }: {
   view: View;
   pinned: View[];
   newIds: Set<View>;
   togglePin: (v: View) => void;
+  movePin: (id: View, direction: -1 | 1) => void;
   markRosterSeen: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -243,6 +287,7 @@ export function ViewSheet({
               pinned={pinned}
               badged={badged}
               togglePin={togglePin}
+              movePin={movePin}
               // Curating is a run of gestures — the sheet does NOT close on a
               // tap, so several pages can be added or dropped in one visit.
               onRowClick={togglePin}

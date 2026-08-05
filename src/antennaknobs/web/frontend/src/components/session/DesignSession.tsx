@@ -397,6 +397,7 @@ function DesignSessionBody({
     newIds,
     railViews,
     togglePin: toggleViewPin,
+    movePin,
     markRosterSeen,
     layout,
     setLayout,
@@ -1544,6 +1545,7 @@ function DesignSessionBody({
             pinned={pinned}
             newIds={newIds}
             togglePin={toggleViewPin}
+            movePin={movePin}
             markRosterSeen={markRosterSeen}
           />
         </section>
@@ -1654,6 +1656,7 @@ function DesignSessionBody({
                 pinned={pinned}
                 newIds={newIds}
                 togglePin={toggleViewPin}
+                movePin={movePin}
                 markRosterSeen={markRosterSeen}
               />
             </div>
