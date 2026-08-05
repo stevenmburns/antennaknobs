@@ -102,7 +102,16 @@ frequency.
   unpinning takes it away.
 - **Pins are yours, not the design's**: the set (and the layout mode) is
   stored in the browser and shared by every design session, since which views
-  you care about is a habit, not a property of the antenna.
+  you care about is a habit, not a property of the antenna. Since v0.43.0
+  the picker's **▲/▼ buttons reorder** the pinned set — pin order IS rail
+  order, grid-cell order, and phone-page order, so one reorder serves all
+  three — and a second browser **window** picks up pin/order/layout changes
+  live instead of on reload.
+- **Analyses follow the views** (v0.43.0): the freq sweep, convergence
+  sweep, and NEC pattern overlay only run while a view that renders them is
+  pinned or open — an enabled sweep with no Smith/S11/VSWR view on screen
+  costs nothing, and pinning one starts it. The norm check is the deliberate
+  exception (its number lives in the always-present solve readout).
 
 ## The antenna viewer
 
@@ -348,6 +357,13 @@ connection physical over **PEC** ground only (finite-ground contact is a
 NEC-4 feature), so solve ground-connected designs with PEC selected;
 elevated designs are unaffected.
 
+Designs can add their own rows to the solve readout (v0.43.0): a builder
+that computes physical diagnostics — the catenary inverted vee reports its
+**rigging tension in N and lbf**, sag, and derived rope cut length — sends
+them as self-describing rows the readout renders generically, so a new
+design idea (including a user design in `~/.antennaknobs/designs/`) gets its
+numbers on screen with no frontend change.
+
 ## Power budget
 
 Designs with a lossy feed network — a real coax or ladder-line run, a
@@ -447,7 +463,9 @@ The CLI has the same control on `fit` via `--plane`.
 To check that your chosen N is **converged** — i.e. adding more segments no
 longer moves the impedance — run a **convergence sweep**. It re-solves the
 current antenna across a range of N values and plots the resulting feed-point
-impedance, so you can see where the curve flattens out. Basics:
+impedance, so you can see where the curve flattens out. (Like the freq
+sweep, it runs only while the Smith view that draws it is on screen —
+v0.43.0's view-residency gating.) Basics:
 [Segments & convergence](/reference/solver/#segments--convergence); the full
 method (ladders, cross-basis validation with a second solver slot, and what a
 non-settling curve is telling you): [How many segments?](/advanced/convergence/).
