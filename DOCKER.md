@@ -68,7 +68,7 @@ uncomment and `docker compose up` builds it for you.)
 
 There's a second image for that: **`stevenmburns/antennaknobs-dev`** —
 the full dev toolchain (Python 3.12, the C++ compiler momwire's
-accelerator needs, Node 22 for the Vite frontend) with **no sources**.
+accelerator needs, Node 20 for the Vite frontend) with **no sources**.
 Mount your checkout and follow the README's dev flow inside it:
 
 ```bash

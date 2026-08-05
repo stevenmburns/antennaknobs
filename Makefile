@@ -12,11 +12,14 @@
 #                          minus coverage instrumentation). Run once before
 #                          /create-pr, not per edit.
 #   make frontend ~15 s — tsc --noEmit + vitest, the frontend half of CI.
+#   make hooks    installs a pre-push hook (ruff check + format --check,
+#                          issue #738) — opt-in per checkout, not run by
+#                          anything above automatically.
 
 PY = python -m
 FRONTEND = src/antennaknobs/web/frontend
 
-.PHONY: test gates frontend test-all lint
+.PHONY: test gates frontend test-all lint hooks
 
 # The PR fast lane, verbatim from .github/workflows/test.yml.
 test:
@@ -36,3 +39,8 @@ lint:
 
 frontend:
 	cd $(FRONTEND) && npx tsc --noEmit && npx eslint . --max-warnings=9999 && npx vitest run
+
+# Opt-in: installs a pre-push hook running the lint gate locally (issue
+# #738). Not run by any other target — no checkout gets this without asking.
+hooks:
+	bash scripts/install-hooks.sh

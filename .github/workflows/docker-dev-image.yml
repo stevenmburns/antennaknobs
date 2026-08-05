@@ -1,5 +1,5 @@
 # Publish the DEV-environment image (Dockerfile.dev: Python 3.12 + C++
-# toolchain + Node 22 — no sources) to Docker Hub as
+# toolchain + Node 20 — no sources) to Docker Hub as
 # <DOCKERHUB_USERNAME>/antennaknobs-dev:latest.
 #
 # Manual-dispatch only, on purpose: the toolchain is stable, so this is

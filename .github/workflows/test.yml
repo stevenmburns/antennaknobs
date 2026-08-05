@@ -32,7 +32,9 @@ jobs:
       with:
         python-version: "3.12"
         cache: pip
-        cache-dependency-path: pyproject.toml
+        cache-dependency-path: |
+          pyproject.toml
+          constraints-ci.txt
     - name: Set up ccache
       # Caches object files for the momwire C++ accelerator (built from source in
       # the "Install momwire" step). The action masquerades gcc/g++ on PATH, so
@@ -53,10 +55,14 @@ jobs:
       # httpx2) are NOT pinned here — they come from the declared `.[test]`
       # extra at "Install antennaknobs" so a clean clone reproduces CI with
       # `pip install -e ".[test]"`.
+      # -c constraints-ci.txt pins these (and the `.[test]` extra's
+      # transitive closure below) to known-good versions — see that file's
+      # header for why (the ruff-0.16.0-class incident) and how to
+      # regenerate it.
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools numpy scipy matplotlib pybind11
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install -c constraints-ci.txt setuptools numpy scipy matplotlib pybind11
+        if [ -f requirements.txt ]; then pip install -c constraints-ci.txt -r requirements.txt; fi
 
     - name: Install PyNEC from the python-necpp release wheel
       # PyNEC is no longer built from a submodule — install the self-contained
@@ -81,13 +87,15 @@ jobs:
         # on every unrelated PR the moment momwire released. The recorded
         # pointer is the contract; the pin-triple test now enforces it.
         git submodule update --init momwire
-        pip install --no-build-isolation -e ./momwire
+        pip install -c constraints-ci.txt --no-build-isolation -e ./momwire
 
     - name: Install antennaknobs
       # `.[test]` pulls in pytest + coverage + the web extra (fastapi, uvicorn,
       # …) + httpx2 for Starlette's TestClient, so the full suite — including the
       # web-server tests — runs without any ad-hoc pip installs.
-      run: pip install -e ".[test]"
+      # -c constraints-ci.txt pins the resolved versions of that extra's
+      # transitive closure (see the file's header).
+      run: pip install -c constraints-ci.txt -e ".[test]"
 
     - name: Fast lane (PRs) — no per-design solver catalog, no coverage
       # Skips the antenna_computation_check tests (the per-design solver
@@ -177,6 +185,12 @@ jobs:
     - name: Build the wheel
       run: pipx run build --wheel
     - name: Install from the wheel (PyPI deps only)
+      # Deliberately NOT constrained by constraints-ci.txt: this lane's whole
+      # purpose is to reproduce what `pip install antennaknobs[web]` gets a
+      # real user on the day they run it, floors and all. Pinning it would
+      # defeat the job — it exists precisely to catch a floor that has gone
+      # stale (the v0.13.0 momwire incident referenced above), which a
+      # constrained install can never do.
       run: |
         WHL=$(ls dist/*.whl)
         pip install "${WHL}[web]"

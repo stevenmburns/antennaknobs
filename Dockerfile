@@ -9,8 +9,12 @@
 # See docs/deploy.md for the build/run/deploy runbook.
 
 # ---- Stage 1: build the frontend -------------------------------------------
-# Vite 8 needs Node >=22.12 (or >=20.19); node:22 satisfies it.
-FROM node:22-bookworm-slim AS frontend
+# Vite 8 needs Node >=22.12 (or >=20.19); node:20-bookworm-slim satisfies the
+# latter. Matches CI's actions/setup-node "20" pin deliberately (#738) — CI is
+# the tested configuration, so the shipped bundle should be built by the same
+# major it was validated against. A move to Node 22 should be a coordinated
+# bump of this line and CI's pin together, not just this one.
+FROM node:20-bookworm-slim AS frontend
 
 # Mirror the repo path so vite's outDir ("../static") lands at
 # /app/src/antennaknobs/web/static — exactly where server.py looks for it.

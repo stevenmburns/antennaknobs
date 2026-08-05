@@ -1,0 +1,25 @@
+# Monthly dependency-version currency for the ecosystems this repo can
+# safely auto-update:
+#   - github-actions: keeps workflow action versions (checkout, setup-python,
+#     setup-node, ...) from drifting apart the way they had before (#222,
+#     see momwire's dependabot.yml for the same shape).
+#   - npm, scoped to the workbench frontend directory: the only package.json
+#     in this repo that ships a runtime bundle (the docs site under site/ has
+#     its own, separately maintained lockfile and is out of scope here).
+#
+# Deliberately NOT pip: the pyproject.toml floors (numpy>=1.21, scipy>=1.7,
+# matplotlib>=3.5, fastapi/uvicorn/websockets unpinned) are intentional
+# runtime metadata for `pip install antennaknobs` users, not something a bot
+# should bump on a schedule. CI's own exposure to that instability is handled
+# separately by constraints-ci.txt (see its header comment).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  - package-ecosystem: "npm"
+    directory: "/src/antennaknobs/web/frontend"
+    schedule:
+      interval: "monthly"
