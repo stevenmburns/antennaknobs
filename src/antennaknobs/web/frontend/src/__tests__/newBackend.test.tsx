@@ -75,33 +75,10 @@ function jsonResponse(body: unknown) {
 beforeEach(() => {
   geometryPosts = [];
   servedRoster = [...SERVED_ROSTER, FAKE];
-  // jsdom has neither a 2D canvas context nor ResizeObserver; the charts and
-  // the sizing hooks only need them not to throw.
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
-  // jsdom ships no matchMedia; the mobile-layout hook only needs a
-  // never-matching query so the desktop tree renders.
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  vi.stubGlobal(
-    "WebSocket",
-    class {
-      static OPEN = 1;
-      readyState = 0;
-      close() {}
-      send() {}
-    },
-  );
+  // getContext/ResizeObserver/matchMedia/WebSocket provide-only defaults now
+  // live in setup.ts (#728) — every component test gets them unconditionally,
+  // including the never-matching matchMedia this file used to stub itself
+  // (this session doesn't care about layout, so the desktop tree is fine).
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     const path = String(url);
     if (path.startsWith("/capabilities"))
@@ -122,7 +99,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.restoreAllMocks();
 });
 
 describe("a solver that exists only in the served roster (#628)", () => {
