@@ -505,6 +505,9 @@ export function useAnalysisRunners({
       designFreq,
       currentBands,
       freqWindowCeiling,
+      // Lean base grid when refinement will polish it; the historical
+      // dense grid when the toggle says the base IS the rendering.
+      refineEnabled,
     });
 
     const body = {

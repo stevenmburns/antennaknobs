@@ -153,7 +153,9 @@ describe("adaptive sweep refinement (issue #744)", () => {
     expect(sweepBodies).toHaveLength(1);
     expect(sweepBodies[0]._refine).toBeUndefined();
     const planned = result.current.sweep!.freqs_mhz.length;
-    expect(planned).toBe(41);
+    // Lean base grid: refinement is on (the default), so the plan starts at
+    // 17 and the rounds below buy the rest where the curve bends.
+    expect(planned).toBe(17);
 
     await settle();
     expect(refineBodies().length).toBeGreaterThan(0);
@@ -202,15 +204,15 @@ describe("adaptive sweep refinement (issue #744)", () => {
     await settle();
     await settle();
     expect(refineBodies().length).toBeGreaterThan(0);
-    expect(result.current.sweep!.freqs_mhz.length).toBeGreaterThan(41);
+    expect(result.current.sweep!.freqs_mhz.length).toBeGreaterThan(17);
 
     rerender({ ...BASE, req: { geometry: "g", length_factor: 1.01 } });
     // Refined points live in the same state the signature effect clears —
     // no separate lifetime to get wrong (issue #692).
     expect(result.current.sweep).toBeNull();
     await settle();
-    // The fresh sweep carries exactly the planned grid: nothing survived.
-    expect(result.current.sweep!.freqs_mhz).toHaveLength(41);
+    // The fresh sweep carries exactly the planned lean grid: nothing survived.
+    expect(result.current.sweep!.freqs_mhz).toHaveLength(17);
   });
 
   it("a non-resident sweep receives no refinement solves", async () => {
@@ -244,9 +246,9 @@ describe("adaptive sweep refinement (issue #744)", () => {
     // Whatever it managed is on screen and consistent — budget exhaustion
     // degrades to "less refined", never to a blank or torn curve.
     const sweep = result.current.sweep!;
-    expect(sweep.freqs_mhz).toHaveLength(41 + total);
-    expect(sweep.z_re).toHaveLength(41 + total);
-    expect(sweep.z_im).toHaveLength(41 + total);
+    expect(sweep.freqs_mhz).toHaveLength(17 + total);
+    expect(sweep.z_re).toHaveLength(17 + total);
+    expect(sweep.z_im).toHaveLength(17 + total);
   });
 
   it("a smooth sweep is left alone", async () => {
