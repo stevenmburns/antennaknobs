@@ -158,7 +158,7 @@ const PICKER_SLOT = 28 + 8;
 const WIDTH_OVERHEAD = 26 + 2 * 8 + 3 * 36;
 
 export function useThumbColumnSize(
-  stripRef: React.RefObject<HTMLDivElement>,
+  stripRef: React.RefObject<HTMLDivElement | null>,
   nThumbs: number,
   maxThumb = 280,
   reattachKey?: unknown, // see useSlideSize

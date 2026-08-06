@@ -25,7 +25,7 @@ export function ViewGrid({
   // Attached to the measured element (components/hooks.ts useGridCellSize) —
   // rows/cols must be the exact numbers that hook was called with, or the
   // measured cell size disagrees with the grid-template below.
-  gridRef: RefObject<HTMLDivElement>;
+  gridRef: RefObject<HTMLDivElement | null>;
   cells: ViewMeta[];
   view: View;
   setView: (v: View) => void;
