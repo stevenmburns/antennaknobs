@@ -18,6 +18,12 @@ const METADATA_EXEMPT = [
   "_session",
   "_gen",
   "_approved",
+  // Adaptive refinement's lane-kind marker (issue #744) — scheduling, not
+  // physics. Never reaches a signature today (it is attached to the sweep
+  // BODY, not to buildRequest's output), but the two blocklists are kept in
+  // lockstep on purpose: the next field to travel both paths should not
+  // have to rediscover this.
+  "_refine",
 ] as const;
 
 /** Stable stringification of a solve request minus the metadata fields and

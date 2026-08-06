@@ -878,6 +878,97 @@ def _polyline_knots(polyline: np.ndarray, npe_list: list[int]) -> np.ndarray:
 _SOLVE_CACHE: "OrderedDict[str, dict]" = OrderedDict()
 _SOLVE_CACHE_MAX = 100
 
+# Per-frequency sweep impedance cache (issue #744). /sweep deliberately
+# bypasses _SOLVE_CACHE — a sweep point is a Z, not a whole solve response,
+# and caching 41 full responses per drag would blow that cache out — so
+# until now every sweep re-solved every point from scratch. Adaptive
+# refinement makes that expensive in a new way: it re-visits the SAME design
+# repeatedly, adding a handful of frequencies each round, and would
+# otherwise pay for the whole grid again on each re-dwell.
+#
+# Keyed by (design, freq): the design half is _canonical_solve_key of the
+# request MINUS the freq list, so it inherits the blocklist — refinement
+# metadata and cut angles don't shred it, while any genuine physics field
+# (including one added next month) invalidates by default. That makes
+# server-side invalidation the same object as the client's #692 signature,
+# not a parallel hand-maintained list.
+#
+# ASYMMETRIC on purpose: every sweep WRITES, only a refinement request READS.
+#   - Writing from every sweep keeps entries fresh, so what refinement reads
+#     was produced by the very base sweep it is refining. A read-through base
+#     sweep would instead let a stale entry (a user design edited on disk
+#     under an unchanged request key — the same exposure _SOLVE_CACHE has)
+#     survive in the PRIMARY curve, with no way to force a re-solve.
+#   - Not reading on the base sweep also keeps the endpoint's compute path
+#     for a plain sweep exactly what it was, which the #382 lane tests
+#     depend on: two sessions issuing the same sweep concurrently must both
+#     compute (a cross-session read-through would answer one from cache and
+#     the lane's per-session serialization would go untested).
+# The acceptance criterion this cache exists for — "refinement requests hit
+# the cache on re-dwell" — is satisfied either way, since the refinement
+# plan is deterministic in the settled sweep.
+#
+# Entries are 2–4 floats plus per-feed lists; 4096 of them is well under a
+# megabyte, and holds ~50 full sweeps of design history.
+_SWEEP_Z_CACHE: "OrderedDict[tuple[str, int], tuple]" = OrderedDict()
+_SWEEP_Z_CACHE_MAX = 4096
+# Hit/miss counters — observability, and the only honest way to assert "this
+# request performed zero engine solves" in a test.
+_SWEEP_Z_STATS = {"hits": 0, "misses": 0}
+
+# Frequencies land back from JSON as the exact float the client sent, but
+# quantise anyway (same reasoning as _CACHE_FLOAT_QUANT): a re-plan that
+# recomputes 28.470000000000002 must still hit.
+_SWEEP_FREQ_QUANT = 1e-9
+
+
+def _sweep_design_key(req: dict) -> str:
+    """Cache namespace for a sweep request: everything about the design
+    except which frequencies were asked for.
+
+    ``measurement_freq_mhz`` stays IN the key even though the sweep
+    overrides the frequency per point. It is a request field, and the house
+    rule for this cache key is "extra miss beats wrong hit" — a builder that
+    reads the measurement frequency for anything but the excitation would
+    otherwise be silently mis-cached.
+    """
+    return _canonical_solve_key({k: v for k, v in req.items() if k != "freqs_mhz"})
+
+
+def _sweep_z_get(design_key: str, freq: float) -> tuple | None:
+    key = (design_key, round(freq / _SWEEP_FREQ_QUANT))
+    hit = _SWEEP_Z_CACHE.get(key)
+    if hit is None:
+        _SWEEP_Z_STATS["misses"] += 1
+        return None
+    _SWEEP_Z_CACHE.move_to_end(key)
+    _SWEEP_Z_STATS["hits"] += 1
+    return hit
+
+
+def _sweep_record(freq: float, value: tuple, solver_name: str) -> dict:
+    """One NDJSON sweep line from a cache value. Per-feed fields stay OMITTED
+    for single-feed geometries — the frontend allocates its per-feed buffers
+    on first sight of them."""
+    z_re, z_im, feeds_re, feeds_im = value
+    record = {
+        "freq_mhz": freq,
+        "z_re": z_re,
+        "z_im": z_im,
+        "solver": solver_name,
+    }
+    if feeds_re is not None:
+        record["feeds_z_re"] = feeds_re
+        record["feeds_z_im"] = feeds_im
+    return record
+
+
+def _sweep_z_put(design_key: str, freq: float, value: tuple) -> None:
+    _SWEEP_Z_CACHE[(design_key, round(freq / _SWEEP_FREQ_QUANT))] = value
+    _SWEEP_Z_CACHE.move_to_end((design_key, round(freq / _SWEEP_FREQ_QUANT)))
+    while len(_SWEEP_Z_CACHE) > _SWEEP_Z_CACHE_MAX:
+        _SWEEP_Z_CACHE.popitem(last=False)
+
 
 # --- Live-engine size guard (hosted only) ----------------------------------
 # A solve builds a method-of-moments system whose dimension N ≈ the total wire
@@ -976,6 +1067,11 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         "_session",
         "_gen",
         "_approved",
+        # Adaptive-refinement marker (issue #744): selects the sweep's lane
+        # kind and nothing else. It MUST be blocklisted — a refinement
+        # request asks for extra frequencies of the same design, so it has
+        # to land on the same per-freq cache entries a base sweep would.
+        "_refine",
         # Polar-cut angles (issue #547): cuts are attached per-request AFTER
         # the cache, so the cached entry is angle-independent by design.
         # Leaving these in the key meant every cut-dial drag silently
@@ -1168,6 +1264,18 @@ async def sweep_endpoint(req: dict, request: Request):
         _admit(req, kind="sweep", use_pynec=use_pynec, points=len(freqs)), req
     )
     session, lane_gen = _lane_key(req)
+    # Adaptive refinement (issue #744) rides this same endpoint — the freq
+    # list has always been caller-chosen — but takes its OWN lane kind. If it
+    # shared "sweep", lane.SAME_KIND_SUPERSEDES would have the refinement
+    # request kill the base sweep whose curve it is refining, regardless of
+    # generation. It also sorts below "sweep" so a genuinely new sweep goes
+    # first; refinement runs mostly out of the per-freq cache anyway.
+    lane_kind = "sweep_refine" if req.get("_refine") else "sweep"
+    # (design, freq) impedance cache: refinement reads it (a re-dwell asks
+    # for the same deterministic plan it asked for last time), every sweep
+    # writes it. See _SWEEP_Z_CACHE for why the read side is asymmetric.
+    design_key = _sweep_design_key(req)
+    read_cache = lane_kind == "sweep_refine"
     # Validate the client's solver kwargs up front: this endpoint streams, so
     # an error surfacing mid-generator can't become a clean status code.
     # Imported here (like /optimize's optimizer import): adapter ↔ examples
@@ -1194,49 +1302,51 @@ async def sweep_endpoint(req: dict, request: Request):
             for f in freqs:
                 if await request.is_disconnected():
                     return
-                try:
-                    # One lane turn per point: a queued live solve gets the
-                    # lane at the next point boundary. PyNEC has no mid-solve
-                    # abort, so a supersession trips the token but the point
-                    # runs out; the post-turn check stops the stream there.
-                    async with _LANES.turn(session, "sweep", lane_gen) as token:
-                        if is_multifeed:
-                            primary, feeds_z = await run_in_threadpool(
-                                _shed, pynec_backend._sweep_at_multifeed, req, f
+                cached = _sweep_z_get(design_key, f) if read_cache else None
+                superseded_mid_point = False
+                if cached is None:
+                    try:
+                        # One lane turn per point: a queued live solve gets
+                        # the lane at the next point boundary. PyNEC has no
+                        # mid-solve abort, so a supersession trips the token
+                        # but the point runs out; the post-turn check stops
+                        # the stream there. A cache hit takes no turn at all
+                        # — there is no engine work to serialize.
+                        async with _LANES.turn(session, lane_kind, lane_gen) as token:
+                            if is_multifeed:
+                                primary, feeds_z = await run_in_threadpool(
+                                    _shed, pynec_backend._sweep_at_multifeed, req, f
+                                )
+                                cached = (
+                                    float(primary.real),
+                                    float(primary.imag),
+                                    [float(z_.real) for z_ in feeds_z],
+                                    [float(z_.imag) for z_ in feeds_z],
+                                )
+                            else:
+                                z = await run_in_threadpool(
+                                    _shed, pynec_backend._sweep_at, req, f
+                                )
+                                cached = (float(z.real), float(z.imag), None, None)
+                            superseded_mid_point = token.cancelled
+                    except Superseded:
+                        return
+                    except Exception as exc:  # noqa: BLE001 — solver can fail per point
+                        yield (
+                            json.dumps(
+                                {
+                                    "error": user_designs.format_solve_error(exc),
+                                    "solver": solver_name,
+                                }
                             )
-                            record = {
-                                "freq_mhz": f,
-                                "z_re": float(primary.real),
-                                "z_im": float(primary.imag),
-                                "feeds_z_re": [float(z_.real) for z_ in feeds_z],
-                                "feeds_z_im": [float(z_.imag) for z_ in feeds_z],
-                                "solver": solver_name,
-                            }
-                        else:
-                            z = await run_in_threadpool(
-                                _shed, pynec_backend._sweep_at, req, f
-                            )
-                            record = {
-                                "freq_mhz": f,
-                                "z_re": float(z.real),
-                                "z_im": float(z.imag),
-                                "solver": solver_name,
-                            }
-                        superseded_mid_point = token.cancelled
-                except Superseded:
-                    return
-                except Exception as exc:  # noqa: BLE001 — solver can fail per point
-                    yield (
-                        json.dumps(
-                            {
-                                "error": user_designs.format_solve_error(exc),
-                                "solver": solver_name,
-                            }
+                            + "\n"
                         )
-                        + "\n"
-                    )
-                    return
-                yield json.dumps(record) + "\n"
+                        return
+                    # Store only a point that ran to completion: a superseded
+                    # PyNEC point still produced a real Z (no mid-solve
+                    # abort), so it is cached like any other.
+                    _sweep_z_put(design_key, f, cached)
+                yield json.dumps(_sweep_record(f, cached, solver_name)) + "\n"
                 if superseded_mid_point:
                     return
         else:
@@ -1265,62 +1375,76 @@ async def sweep_endpoint(req: dict, request: Request):
                 if await request.is_disconnected():
                     return
                 chunk = freqs[start : start + chunk_size]
-                t0 = time.perf_counter()
-                try:
-                    # One lane turn per chunk; the token reaches the solver's
-                    # checkpoints, so a knob drag (newer generation) or a
-                    # dropped connection (the watcher) aborts THIS chunk in
-                    # ~ms instead of after minutes on a benchmark mesh.
-                    async with _LANES.turn(session, "sweep", lane_gen) as token:
-                        async with cancel_on_disconnect(request, token):
-                            sweep_result = await run_in_threadpool(
-                                _shed, sweep_fn, req, chunk, cancel=token
+                # Solve only what the (design, freq) cache doesn't already
+                # hold. On a refinement round that is the handful of new
+                # frequencies; on a re-dwell of an unchanged design it is
+                # nothing at all, and the chunk streams without ever taking
+                # a lane turn.
+                known = {
+                    f: (_sweep_z_get(design_key, f) if read_cache else None)
+                    for f in chunk
+                }
+                pending = [f for f, v in known.items() if v is None]
+                if pending:
+                    t0 = time.perf_counter()
+                    try:
+                        # One lane turn per chunk; the token reaches the
+                        # solver's checkpoints, so a knob drag (newer
+                        # generation) or a dropped connection (the watcher)
+                        # aborts THIS chunk in ~ms instead of after minutes
+                        # on a benchmark mesh.
+                        async with _LANES.turn(session, lane_kind, lane_gen) as token:
+                            async with cancel_on_disconnect(request, token):
+                                sweep_result = await run_in_threadpool(
+                                    _shed, sweep_fn, req, pending, cancel=token
+                                )
+                    except (Superseded, momwire.SolveAborted):
+                        return
+                    except Exception as exc:  # noqa: BLE001 — a chunk can fail honestly
+                        # e.g. an approved poor-match combo whose dense fill
+                        # can't allocate: end the stream with the cause
+                        # instead of tearing the NDJSON connection down
+                        # mid-line.
+                        yield (
+                            json.dumps(
+                                {
+                                    "error": user_designs.format_solve_error(exc),
+                                    "solver": solver_name,
+                                }
                             )
-                except (Superseded, momwire.SolveAborted):
-                    return
-                except Exception as exc:  # noqa: BLE001 — a chunk can fail honestly
-                    # e.g. an approved poor-match combo whose dense fill can't
-                    # allocate: end the stream with the cause instead of
-                    # tearing the NDJSON connection down mid-line.
-                    yield (
-                        json.dumps(
-                            {
-                                "error": user_designs.format_solve_error(exc),
-                                "solver": solver_name,
-                            }
+                            + "\n"
                         )
-                        + "\n"
-                    )
-                    return
-                # Multi-feed sweeps (bowtie array) return a 4-tuple with
-                # per-feed Z appended. Everything else stays on the
-                # original 2-tuple shape; the legacy z_re / z_im fields
-                # always carry the primary feed for back-compat.
-                feeds_re_chunk: list[list[float]] | None = None
-                feeds_im_chunk: list[list[float]] | None = None
-                if len(sweep_result) == 4:
-                    z_re, z_im, feeds_re_chunk, feeds_im_chunk = sweep_result
-                else:
-                    z_re, z_im = sweep_result
-                chunk_ms = (time.perf_counter() - t0) * 1000
-                for i, f in enumerate(chunk):
-                    record: dict = {
-                        "freq_mhz": f,
-                        "z_re": z_re[i],
-                        "z_im": z_im[i],
-                        "solver": solver_name,
-                    }
-                    if feeds_re_chunk is not None:
-                        record["feeds_z_re"] = feeds_re_chunk[i]
-                        record["feeds_z_im"] = feeds_im_chunk[i]
-                    yield json.dumps(record) + "\n"
+                        return
+                    # Multi-feed sweeps (bowtie array) return a 4-tuple with
+                    # per-feed Z appended. Everything else stays on the
+                    # original 2-tuple shape; the legacy z_re / z_im fields
+                    # always carry the primary feed for back-compat.
+                    if len(sweep_result) == 4:
+                        z_re, z_im, feeds_re_chunk, feeds_im_chunk = sweep_result
+                    else:
+                        z_re, z_im = sweep_result
+                        feeds_re_chunk = feeds_im_chunk = None
+                    for i, f in enumerate(pending):
+                        value = (
+                            z_re[i],
+                            z_im[i],
+                            None if feeds_re_chunk is None else feeds_re_chunk[i],
+                            None if feeds_im_chunk is None else feeds_im_chunk[i],
+                        )
+                        known[f] = value
+                        _sweep_z_put(design_key, f, value)
+                    chunk_ms = (time.perf_counter() - t0) * 1000
+                    # Adapt for the next chunk: target _CHUNK_TARGET_MS per
+                    # batch. Per-freq cost is a weak function of chunk size
+                    # (bowl curve), so this converges quickly. Timed against
+                    # the SOLVED points only — cached ones cost nothing and
+                    # would otherwise inflate the next chunk without bound.
+                    if chunk_ms > 0:
+                        per_freq_ms = chunk_ms / len(pending)
+                        chunk_size = max(1, round(_CHUNK_TARGET_MS / per_freq_ms))
+                for f in chunk:
+                    yield json.dumps(_sweep_record(f, known[f], solver_name)) + "\n"
                 start += len(chunk)
-                # Adapt for the next chunk: target _CHUNK_TARGET_MS per
-                # batch. Per-freq cost is a weak function of chunk size
-                # (bowl curve), so this converges quickly.
-                if chunk_ms > 0 and len(chunk) > 0:
-                    per_freq_ms = chunk_ms / len(chunk)
-                    chunk_size = max(1, round(_CHUNK_TARGET_MS / per_freq_ms))
 
         yield json.dumps({"done": True, "solver": solver_name}) + "\n"
 
