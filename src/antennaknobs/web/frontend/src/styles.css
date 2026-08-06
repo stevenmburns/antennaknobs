@@ -2077,6 +2077,16 @@ input[type=checkbox] {
   border-radius: var(--r-md);
   padding: var(--space-2);
   box-shadow: 0 2px 10px var(--shadow);
+  transition: opacity 0.35s ease;
+}
+
+/* Faded after LAYOUT_TOGGLE_IDLE_MS without mouse activity (the control
+   floats OVER chart content). pointer-events off so the data underneath is
+   hoverable while faded — any mouse movement brings the control back, so
+   nothing is ever more than a wiggle away. */
+.layout-toggle-idle {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .layout-toggle button {
@@ -2421,9 +2431,23 @@ input[type=checkbox] {
   z-index: 2;
   min-width: 172px;
   max-width: 240px;
+  /* Never taller than the stage it floats over: a long readout (multi-feed
+     Z table + a design's own rows) used to grow past the top edge. The cap
+     clips; the .readout-overflowing escape hatch below restores access. */
+  max-height: calc(100% - 2 * var(--space-6));
+  overflow-y: hidden;
   line-height: 1.6;
   box-shadow: 0 4px 16px var(--shadow-strong);
   pointer-events: none; /* a passive HUD — never intercept drags on the view */
+}
+
+/* When the height cap actually bit (SolveReadout's ResizeObserver sets
+   this), the HUD becomes scrollable — which requires taking pointer-events
+   back. Drag-through over the card is sacrificed only while there is
+   hidden content to reach; the normal-sized readout stays fully passive. */
+.stage-readout.readout-overflowing {
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 /* The one interactive thing in the HUD: the measurement-plane picker
@@ -3014,10 +3038,19 @@ canvas {
 }
 
 .mobile-screen-info {
-  /* The readout can exceed a ~400px landscape pane (per-feed Z table), so
-     this screen scrolls vertically; y-scroll inside an x-snap carousel
-     coexists fine. Column: the readout with the ws status row under it. */
+  /* The readout can exceed a ~400px landscape pane (per-feed Z table, a
+     design's own readout rows — invvee_catenary's rigging group), so this
+     screen scrolls vertically; y-scroll inside an x-snap carousel coexists
+     fine. Column: the readout with the ws status row under it.
+
+     justify-content MUST be flex-start here, overriding .mobile-screen's
+     center: a centered column taller than its scrollport overflows both
+     ends, and the half above the scroll origin is UNREACHABLE — no amount
+     of panning shows the first readout rows. Top-aligned, scrolling reaches
+     everything. (Pinch-zoom needs nothing from us: the viewport meta does
+     not disable user scaling.) */
   flex-direction: column;
+  justify-content: flex-start;
   overflow-y: auto;
   align-items: stretch;
   padding: var(--space-7) 0;
@@ -3103,12 +3136,50 @@ canvas {
   bottom: 0;
   z-index: 41;
   max-height: 70vh;
+  /* dvh where supported: 70vh is 70% of the LAYOUT viewport, which on a
+     phone with the URL bar collapsed can be taller than what's actually on
+     screen — the sheet's top edge (and the backdrop above it) ended up
+     under browser chrome. dvh tracks the visible viewport. */
+  max-height: 70dvh;
   overflow-y: auto;
   padding: var(--space-2) var(--space-3) var(--space-5);
   background: var(--bg);
   border-top: 1px solid var(--border-control);
   border-radius: var(--r-md) var(--r-md) 0 0;
   box-shadow: 0 -6px 20px var(--shadow-strong);
+}
+
+/* Sticky header: the title and the explicit close stay reachable however
+   far the roster scrolls — dismissal must never depend on scroll position
+   or on how much backdrop the list left uncovered. */
+.view-sheet-head {
+  position: sticky;
+  top: calc(-1 * var(--space-2)); /* cancel the sheet's own top padding */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  padding: var(--space-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+
+.view-sheet-title {
+  color: var(--muted);
+  font: var(--text-sm) var(--font-mono);
+}
+
+.view-sheet-close {
+  /* Thumb-sized like the sheet's other targets. */
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  color: var(--fg);
+  font-size: var(--text-base);
+  cursor: pointer;
 }
 
 /* Touch-sized rows (cf. the coarse-pointer block below): the popover's 24 px

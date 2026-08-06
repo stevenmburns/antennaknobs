@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { VIEWS, type View } from "../../lib/view";
 import { PIN_CAP, pinBlockedReason } from "./useViewPrefs";
 
@@ -275,30 +276,58 @@ export function ViewSheet({
       >
         ⋯
       </button>
-      {open && (
-        <>
-          <div className="view-sheet-backdrop" onClick={() => setOpen(false)} />
-          {/* No anchor measurement, unlike the popover: the sheet is pinned to
-              the viewport's bottom edge, which is also the only place a phone
-              can put a list this tall within thumb reach. */}
-          <div className="view-sheet" role="menu" aria-label="All views">
-            <ViewRosterRows
-              view={view}
-              pinned={pinned}
-              badged={badged}
-              togglePin={togglePin}
-              movePin={movePin}
-              // Curating is a run of gestures — the sheet does NOT close on a
-              // tap, so several pages can be added or dropped in one visit.
-              onRowClick={togglePin}
-              rowBlocked={(id) => pinBlockedReason(pinned, id)}
+      {open &&
+        // PORTALED to <body>, not rendered in place: this component lives
+        // inside .mobile-dots, whose translateX(-50%) centering makes it a
+        // CONTAINING BLOCK for fixed-position descendants (any transformed
+        // ancestor is — CSS transforms spec). Rendered in place, the sheet
+        // and its backdrop were "fixed" relative to the dots strip: the
+        // sheet clipped to a sliver and the tap-to-dismiss backdrop covered
+        // almost nothing of the screen it was supposed to catch.
+        createPortal(
+          <>
+            <div
+              className="view-sheet-backdrop"
+              onClick={() => setOpen(false)}
             />
-            <div className="view-picker-note">
-              Tap a view to add or remove its page · max {PIN_CAP} pages
+            {/* No anchor measurement, unlike the popover: the sheet is pinned
+                to the viewport's bottom edge, which is also the only place a
+                phone can put a list this tall within thumb reach. */}
+            <div className="view-sheet" role="menu" aria-label="All views">
+              {/* An explicit close: the backdrop only exists ABOVE the sheet,
+                  and a tall roster leaves little of it — dismissal must not
+                  depend on how much screen the list happened to spare. */}
+              <div className="view-sheet-head">
+                <span className="view-sheet-title">Views</span>
+                <button
+                  type="button"
+                  className="view-sheet-close"
+                  aria-label="Close"
+                  title="Close"
+                  onClick={() => setOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              <ViewRosterRows
+                view={view}
+                pinned={pinned}
+                badged={badged}
+                togglePin={togglePin}
+                movePin={movePin}
+                // Curating is a run of gestures — the sheet does NOT close on
+                // a tap, so several pages can be added or dropped in one
+                // visit.
+                onRowClick={togglePin}
+                rowBlocked={(id) => pinBlockedReason(pinned, id)}
+              />
+              <div className="view-picker-note">
+                Tap a view to add or remove its page · max {PIN_CAP} pages
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>,
+          document.body,
+        )}
     </>
   );
 }

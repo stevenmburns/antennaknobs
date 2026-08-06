@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { NormCheckData, SolveResponse } from "../../lib/api";
 import { formatOhms, formatSwr } from "../../lib/format";
 import type { ExampleDescriptor } from "../../lib/params";
@@ -50,8 +50,38 @@ export function SolveReadout({
   className?: string;
 }) {
   const planes = result?.planes;
+  // Overflow guard for the floating stage HUD: with enough content (a
+  // multi-feed Z table plus a design's own readout rows), the card can
+  // outgrow the stage. CSS caps its height; this effect detects that the
+  // cap actually bit (scrollHeight > clientHeight) and flips a class that
+  // makes the card scrollable — which also requires giving it back the
+  // pointer-events the passive HUD normally renounces, so drag-through is
+  // sacrificed only when there is hidden content worth scrolling to.
+  // Watched with a ResizeObserver rather than computed per render: the
+  // readout grows on solve responses and dwell results, not renders.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+  const check = () => {
+    const el = rootRef.current;
+    if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1);
+  };
+  // Re-measure on every render (content changes arrive as renders)…
+  useEffect(check);
+  // …and on container resizes, which happen with no render at all.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `check` reads
+    // only refs/setState; recreating the observer per render buys nothing.
+  }, []);
   return (
-    <div className={`readout${className ? " " + className : ""}`}>
+    <div
+      ref={rootRef}
+      className={`readout${className ? " " + className : ""}${overflowing ? " readout-overflowing" : ""}`}
+    >
       {onPlaneChange && planes && planes.length > 1 && (
         <div
           className="row"
