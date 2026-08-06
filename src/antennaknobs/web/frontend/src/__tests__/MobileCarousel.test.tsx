@@ -246,10 +246,37 @@ describe("the ⋯ affordance", () => {
   it("closes on a backdrop click", async () => {
     const user = userEvent.setup();
     seed(TWO);
-    const { container } = render(<Mobile initialView="smith" />);
+    render(<Mobile initialView="smith" />);
     await openSheet(user);
-    await user.click(container.querySelector(".view-sheet-backdrop") as Element);
+    // document, not container: the sheet portals to <body> (a transformed
+    // ancestor — .mobile-dots — would otherwise hijack its fixed
+    // positioning), so it is deliberately NOT in the render container.
+    await user.click(document.querySelector(".view-sheet-backdrop") as Element);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("closes on the sheet's own ✕ — dismissal must not depend on backdrop real estate", async () => {
+    const user = userEvent.setup();
+    seed(TWO);
+    render(<Mobile initialView="smith" />);
+    await openSheet(user);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("portals the sheet out of the transformed dots row", async () => {
+    const user = userEvent.setup();
+    seed(TWO);
+    render(<Mobile initialView="smith" />);
+    await openSheet(user);
+    // The regression this pins: .mobile-dots centers itself with a CSS
+    // transform, and a transformed ancestor is the containing block for
+    // position:fixed descendants — a sheet rendered inside it was "fixed"
+    // to the dots strip (clipped, backdrop useless). The sheet must never
+    // again be a DOM descendant of the dots row.
+    const sheet = document.querySelector(".view-sheet") as Element;
+    expect(sheet).toBeTruthy();
+    expect(sheet.closest(".mobile-dots")).toBeNull();
   });
 });
 

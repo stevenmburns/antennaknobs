@@ -1,4 +1,5 @@
 
+import { useEffect, useRef, useState } from "react";
 import type { MeasuredData, NormCheckData, SolveResponse } from "../../lib/api";
 import type { GroundModel } from "../../lib/ground";
 import type { ExampleDescriptor } from "../../lib/params";
@@ -9,11 +10,24 @@ import type { PatternMetrics, PinnedPattern } from "../charts/types";
 import { Knob } from "../params/Knob";
 import { PatternCompareTable } from "./PatternCompareTable";
 
+// How long the mouse must be still before the layout toggle fades. Long
+// enough that it never flickers during normal pointer travel toward it,
+// short enough that reading the chart under it is never blocked.
+export const LAYOUT_TOGGLE_IDLE_MS = 1200;
+
 // The rail/grid segmented control (unit 3, docs/plan-view-rail-scaling.md
 // "Layout modes"): two presets over the same pinned set. Placed by the
 // caller in the stage's top-right corner, desktop only — it lives in
 // DesignSession's desktop return branch, which the mobile branch never
 // reaches, so "hidden on mobile" needs no prop here.
+//
+// It sits ON TOP of chart content (the stage corner is not reserved), so it
+// fades out after LAYOUT_TOGGLE_IDLE_MS without mouse activity and comes
+// back on any movement — present while the user is driving, gone while they
+// are reading. While faded it also drops pointer-events, so the data under
+// it is hoverable, not just visible. Hover and keyboard focus hold it
+// visible: a cursor resting on the control (or a Tab stop inside it) is
+// intent, not idleness.
 export function LayoutModeToggle({
   layout,
   setLayout,
@@ -21,8 +35,43 @@ export function LayoutModeToggle({
   layout: Layout;
   setLayout: (l: Layout) => void;
 }) {
+  const [idle, setIdle] = useState(false);
+  const holdRef = useRef(false); // hovered or focus-within: never fade
+  const timerRef = useRef<number | null>(null);
+  useEffect(() => {
+    const arm = () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => {
+        if (!holdRef.current) setIdle(true);
+      }, LAYOUT_TOGGLE_IDLE_MS);
+    };
+    const wake = () => {
+      setIdle(false);
+      arm();
+    };
+    window.addEventListener("mousemove", wake);
+    window.addEventListener("pointerdown", wake);
+    arm();
+    return () => {
+      window.removeEventListener("mousemove", wake);
+      window.removeEventListener("pointerdown", wake);
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+  const hold = (v: boolean) => {
+    holdRef.current = v;
+    if (v) setIdle(false);
+  };
   return (
-    <div className="layout-toggle" role="group" aria-label="Stage layout">
+    <div
+      className={`layout-toggle${idle ? " layout-toggle-idle" : ""}`}
+      role="group"
+      aria-label="Stage layout"
+      onMouseEnter={() => hold(true)}
+      onMouseLeave={() => hold(false)}
+      onFocus={() => hold(true)}
+      onBlur={() => hold(false)}
+    >
       <button
         type="button"
         className={layout === "rail" ? "active" : ""}
