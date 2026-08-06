@@ -36,6 +36,14 @@ export type PatternCuts = {
   floor_dbi: number;
   azimuth: number[];
   elevation: number[];
+  /** Explicit per-sample angles in degrees, present only when that cut was
+   *  sampled NON-uniformly (adaptive refinement, issue #744). Absent means
+   *  the uniform `t = 2π·i/n` parameterisation above — the contract every
+   *  pre-#744 response and client relies on, so it must stay the default
+   *  rather than become a required field. `n_dir` keeps reporting the
+   *  uniform base resolution; a refined trace's own length governs. */
+  az_angles_deg?: number[];
+  elev_angles_deg?: number[];
 };
 
 /** One server-driven readout row (issue #712). Designs produce these from a

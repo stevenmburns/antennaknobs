@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
+import { cutDbiTop, cutDbiToFrac } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import { traceFor, useCutTraces } from "./cuts";
 import { ghostRgb, plotColors } from "./palette";
@@ -44,9 +45,16 @@ export function FarFieldChart({
     elevAzDeg,
   );
   // Draw-effect dep: changes when a fetched trace replaces a stale one (the
-  // solve identities and angles are already deps of their own).
+  // solve identities and angles are already deps of their own). Sample
+  // counts are part of it because a refinement round (issue #744) replaces
+  // a trace with a DENSER one at the same angles — identical on the angle
+  // pair alone, and the redraw is the whole point of the round.
   const cutTracesKey = cutTraces
-    .map((t) => (t ? `${t.az_elev_deg},${t.elev_az_deg}` : "-"))
+    .map((t) =>
+      t
+        ? `${t.az_elev_deg},${t.elev_az_deg},${t.azimuth.length},${t.elevation.length}`
+        : "-",
+    )
     .join("|");
 
   useEffect(() => {
@@ -99,7 +107,6 @@ export function FarFieldChart({
     // lobe renders in full instead of drawing past the edge and clipping — the
     // thumbnails escaped this only because their tiny radius left slack inside
     // the margin. Labeled rings sit at +6/0/−6/−12/−18 (all inside any top).
-    const DBI_FLOOR = -20;
     const peaks: number[] = [];
     if (liveTrace) peaks.push(liveTrace.peakDbi);
     for (const gh of ghosts) if (gh.trace) peaks.push(gh.trace.peakDbi);
@@ -113,13 +120,12 @@ export function FarFieldChart({
         : null;
     // Let the radial scale grow to fit the shifted overlay when it lands higher.
     if (liveTrace && gridDeltaDb != null) peaks.push(liveTrace.peakDbi + gridDeltaDb);
-    const maxPeak = peaks.filter(Number.isFinite).reduce((a, b) => Math.max(a, b), 10);
-    const DBI_TOP = Math.max(10, Math.ceil(maxPeak + 1));
-    const DB_SPAN = DBI_TOP - DBI_FLOOR;
     // Clamp to [0, 1]: a lobe at/above the top sits on the rim instead of
-    // drawing past R and clipping against the canvas edge.
-    const dbiToFrac = (db: number) =>
-      Math.max(0, Math.min(1, (db - DBI_FLOOR) / DB_SPAN));
+    // drawing past R and clipping against the canvas edge. The map itself
+    // lives in lib/refine.ts so the refinement planner (issue #744) judges
+    // curvature against the exact geometry drawn here.
+    const dbiTop = cutDbiTop(peaks);
+    const dbiToFrac = cutDbiToFrac(dbiTop);
     ctx.strokeStyle = PC.grid;
     ctx.lineWidth = 0.6;
     ctx.fillStyle = PC.labelDim;
@@ -234,18 +240,30 @@ export function FarFieldChart({
       }
     }
 
-    // Draw one dBi trace around the polar cut (sample i at t = 2π·i/n, the
-    // server cuts' parameterisation). The live lobe closes + fills; pinned
+    // Draw one dBi trace around the polar cut. Sample i sits at t = 2π·i/n —
+    // the server cuts' default parameterisation — unless the trace carries
+    // explicit per-sample angles, which adaptive refinement (issue #744)
+    // needs because a densified cut is no longer uniform and the index no
+    // longer determines the angle. The live lobe closes + fills; pinned
     // ghosts are an open dashed stroke so the live trace reads on top.
     const strokeTrace = (
       dbi: number[],
-      o: { stroke: string; fill?: string; width: number; dash?: number[] },
+      o: {
+        stroke: string;
+        fill?: string;
+        width: number;
+        dash?: number[];
+        anglesDeg?: number[] | undefined;
+      },
     ) => {
       const n = dbi.length;
       ctx.beginPath();
       for (let pi = 0; pi <= n; pi++) {
-        const t = (2 * Math.PI * pi) / n;
-        const frac = dbiToFrac(dbi[pi % n]);
+        const i = pi % n;
+        const t = o.anglesDeg
+          ? (o.anglesDeg[i] * Math.PI) / 180
+          : (2 * Math.PI * pi) / n;
+        const frac = dbiToFrac(dbi[i]);
         const px = cx + Math.cos(t) * frac * R;
         // Canvas y flips: +y on canvas is down, so we negate to put +y at top.
         const py = cy - Math.sin(t) * frac * R;
@@ -273,6 +291,7 @@ export function FarFieldChart({
         stroke: `rgba(${ghostRgb(gh.colorIdx)}, 0.8)`,
         width: 1,
         dash: [5, 3],
+        anglesDeg: gh.trace.anglesDeg,
       });
     }
 
@@ -282,6 +301,7 @@ export function FarFieldChart({
       stroke: `rgba(${PC.lobeRgb}, 0.9)`,
       fill: `rgba(${PC.lobeRgb}, 0.12)`,
       width: 1.5,
+      anglesDeg: liveTrace.anglesDeg,
     });
 
     // Fine-grid norm overlay (dotted, same lobe hue): the live trace shifted
@@ -289,10 +309,12 @@ export function FarFieldChart({
     // the adaptive grid was fine enough; a visible gap is the grid error. Drawn
     // open (no fill) so the solid lobe still reads underneath.
     if (gridDeltaDb != null) {
-      strokeTrace(
-        liveTrace.dbi.map((d) => d + gridDeltaDb),
-        { stroke: `rgba(${PC.lobeRgb}, 0.85)`, width: 1, dash: [2, 2] },
-      );
+      strokeTrace(liveTrace.dbi.map((d) => d + gridDeltaDb), {
+        stroke: `rgba(${PC.lobeRgb}, 0.85)`,
+        width: 1,
+        dash: [2, 2],
+        anglesDeg: liveTrace.anglesDeg,
+      });
     }
 
     // NEC exact-pattern overlay (dashed cyan line) when available. Bilinear

@@ -492,6 +492,40 @@ _CUT_N_DIR = 180
 # dBi floor sentinel for below-horizon samples (JSON can't carry -Infinity).
 _CUT_FLOOR_DBI = -999.0
 
+# Ceiling on a caller-specified cut parameterisation (issue #744). Adaptive
+# refinement sends the base grid plus its extra angles; ~4× the uniform
+# resolution is far past what any budget asks for and bounds the per-request
+# far-field evaluation the way MAX_SWEEP_POINTS bounds a sweep.
+_CUT_MAX_ANGLES = 720
+
+
+def _cut_angles(raw, default_n: int = _CUT_N_DIR) -> np.ndarray:
+    """Sanitised cut parameterisation in RADIANS.
+
+    ``None`` gives the uniform circle the charts have always drawn (sample i
+    at t = 2π·i/n). A caller-supplied list (issue #744) is validated, wrapped
+    into [0, 360), deduped and SORTED here rather than trusted: the chart
+    strokes these in order, so an out-of-order angle would draw a chord
+    across the pattern.
+    """
+    if raw is None:
+        return 2.0 * np.pi * np.arange(default_n) / default_n
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError("cut angles must be a list of numbers")
+    if len(raw) > _CUT_MAX_ANGLES:
+        raise ValueError(f"cut angle list is over the {_CUT_MAX_ANGLES}-point limit")
+    vals = []
+    for a in raw:
+        if isinstance(a, bool) or not isinstance(a, (int, float)):
+            raise ValueError("cut angles must be numbers")
+        f = float(a)
+        if not math.isfinite(f):
+            raise ValueError("cut angles must be finite")
+        vals.append(f % 360.0)
+    if not vals:
+        return 2.0 * np.pi * np.arange(default_n) / default_n
+    return np.radians(np.unique(np.asarray(vals, dtype=float)))
+
 
 def _pattern_cuts(
     out: dict,
@@ -501,17 +535,28 @@ def _pattern_cuts(
     mid=None,
     dr=None,
     i_mid=None,
+    az_angles_deg=None,
+    elev_angles_deg=None,
 ) -> dict | None:
     """The two polar-chart traces (issue #547): the azimuth cut at elevation
     `az_elev_deg` and the great-circle elevation cut through azimuth
-    `elev_az_deg`, each _CUT_N_DIR samples of absolute dBi.
+    `elev_az_deg`, each a run of absolute-dBi samples.
 
-    Both circles are parameterised as the frontend chart draws them:
-    sample i sits at t = 2π·i/N_DIR; the azimuth cut runs the horizon circle
-    at the given elevation, the elevation cut is the vertical circle whose
-    t ∈ (180°, 360°) half dips below the horizon. With ground on, below-
-    horizon samples clamp to _CUT_FLOOR_DBI. Returns None when the response
-    can't support cuts (no wires or no positive gain norm).
+    Both circles are parameterised as the frontend chart draws them: by
+    default sample i sits at t = 2π·i/N_DIR, the azimuth cut running the
+    horizon circle at the given elevation and the elevation cut the vertical
+    circle whose t ∈ (180°, 360°) half dips below the horizon. With ground
+    on, below-horizon samples clamp to _CUT_FLOOR_DBI. Returns None when the
+    response can't support cuts (no wires or no positive gain norm).
+
+    Adaptive refinement (issue #744) may replace either circle's uniform
+    parameterisation with an explicit angle list. The response then carries
+    that list back as ``az_angles_deg`` / ``elev_angles_deg``: with
+    non-uniform sampling the chart can no longer DERIVE the angle from the
+    index, so the parameterisation has to travel with the data. The fields
+    stay ABSENT for the uniform case, which keeps every pre-#744 response
+    and client valid — absent means "t = 2π·i/n", the contract that has
+    always held.
 
     Callers that already hold the moment set (the solve_id cache, issue
     #551) pass it via mid/dr/i_mid; `out` then only needs the scalar/ground
@@ -520,17 +565,27 @@ def _pattern_cuts(
     norm = float(out.get("directivity_norm") or 0.0)
     if norm <= 0.0 or (mid is None and not out.get("wires")):
         return None
-    t = 2.0 * np.pi * np.arange(_CUT_N_DIR) / _CUT_N_DIR
-    ct, st = np.cos(t), np.sin(t)
+    t_az = _cut_angles(az_angles_deg)
+    t_el = _cut_angles(elev_angles_deg)
 
     az = np.radians(az_elev_deg)
     az_rhat = np.stack(
-        [np.cos(az) * ct, np.cos(az) * st, np.full_like(t, np.sin(az))], axis=-1
+        [
+            np.cos(az) * np.cos(t_az),
+            np.cos(az) * np.sin(t_az),
+            np.full_like(t_az, np.sin(az)),
+        ],
+        axis=-1,
     )
     el = np.radians(elev_az_deg)
-    el_rhat = np.stack([np.cos(el) * ct, np.sin(el) * ct, st], axis=-1)
+    el_rhat = np.stack(
+        [np.cos(el) * np.cos(t_el), np.sin(el) * np.cos(t_el), np.sin(t_el)], axis=-1
+    )
 
-    rhat = np.stack([az_rhat, el_rhat])  # (2, N_DIR, 3)
+    # Concatenated, not stacked: refinement can leave the two cuts with
+    # different sample counts, and one evaluation over (n_az + n_el, 3) is
+    # the same work as two.
+    rhat = np.concatenate([az_rhat, el_rhat], axis=0)
     mag2 = _mag2_at_directions(out, rhat, mid=mid, dr=dr, i_mid=i_mid)
     if bool(out.get("ground", False)):
         mag2 = np.where(rhat[..., 2] < 0.0, 0.0, mag2)
@@ -538,14 +593,19 @@ def _pattern_cuts(
     with np.errstate(divide="ignore"):
         dbi = 10.0 * np.log10(np.maximum(norm * mag2, 0.0))
     dbi = np.where(np.isfinite(dbi), dbi, _CUT_FLOOR_DBI)
-    return {
+    cuts = {
         "az_elev_deg": float(az_elev_deg),
         "elev_az_deg": float(elev_az_deg),
         "n_dir": _CUT_N_DIR,
         "floor_dbi": _CUT_FLOOR_DBI,
-        "azimuth": [round(float(v), 3) for v in dbi[0]],
-        "elevation": [round(float(v), 3) for v in dbi[1]],
+        "azimuth": [round(float(v), 3) for v in dbi[: len(t_az)]],
+        "elevation": [round(float(v), 3) for v in dbi[len(t_az) :]],
     }
+    if az_angles_deg is not None:
+        cuts["az_angles_deg"] = [round(float(a), 6) for a in np.degrees(t_az)]
+    if elev_angles_deg is not None:
+        cuts["elev_angles_deg"] = [round(float(a), 6) for a in np.degrees(t_el)]
+    return cuts
 
 
 # Server-side cuts sources (issue #551): solve_id → the pre-extracted data
@@ -599,12 +659,24 @@ def _remember_cuts_source(solve_id: str, out: dict) -> None:
 
 
 def _cuts_from_source(
-    solve_id: str, az_elev_deg: float, elev_az_deg: float
+    solve_id: str,
+    az_elev_deg: float,
+    elev_az_deg: float,
+    az_angles_deg=None,
+    elev_angles_deg=None,
 ) -> dict | None:
     """Cuts computed from the server-side source for `solve_id`, or None on
     a cache miss (callers map that to 404 / ok=false). Only sources with a
     positive norm are ever cached, so None never means "can't support cuts"
-    here."""
+    here.
+
+    The cached source is the moment set — angle-independent by construction
+    — so a refinement request for extra angles against a live solve_id costs
+    one far-field evaluation and no solve at all. That is why cut refinement
+    (issue #744) does NOT take a lane turn the way sweep refinement does:
+    there is no solve to serialize, only the existing pattern re-evaluated
+    at more directions, on the same no-lane latest-wins channel cut-dial
+    drags already use."""
     src = _CUTS_SRC_CACHE.get(solve_id)
     if src is None:
         return None
@@ -616,6 +688,8 @@ def _cuts_from_source(
         mid=src["_mid"],
         dr=src["_dr"],
         i_mid=src["_i_mid"],
+        az_angles_deg=az_angles_deg,
+        elev_angles_deg=elev_angles_deg,
     )
 
 
@@ -1861,10 +1935,17 @@ def cuts_endpoint(req: dict):
       ``solve`` (wires + k_meas_m_inv + ground constants + directivity_norm
       — the client already holds all of them).
 
+    Either shape may add ``az_angles_deg`` / ``elev_angles_deg`` (issue
+    #744) to sample that cut at an explicit, possibly non-uniform, list of
+    angles instead of the uniform circle; the response then echoes the
+    parameterisation it used.
+
     Returns the same ``cuts`` object the live solve attaches. Sync def →
     FastAPI threadpool, so a big-mesh cut (~100 ms at 4k segments) never
     blocks the event loop.
     """
+    az_angles = req.get("az_angles_deg")
+    elev_angles = req.get("elev_angles_deg")
     solve_out = req.get("solve")
     if not isinstance(solve_out, dict):
         solve_id = req.get("solve_id")
@@ -1875,6 +1956,8 @@ def cuts_endpoint(req: dict):
                 solve_id,
                 float(req.get("az_elev_deg", 15.0)),
                 float(req.get("elev_az_deg", 0.0)),
+                az_angles_deg=az_angles,
+                elev_angles_deg=elev_angles,
             )
         except (KeyError, TypeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"bad cuts request: {e}") from e
@@ -1886,6 +1969,8 @@ def cuts_endpoint(req: dict):
             solve_out,
             float(req.get("az_elev_deg", 15.0)),
             float(req.get("elev_az_deg", 0.0)),
+            az_angles_deg=az_angles,
+            elev_angles_deg=elev_angles,
         )
     except (KeyError, TypeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=f"bad cuts request: {e}") from e
@@ -2305,7 +2390,17 @@ async def ws_endpoint(ws: WebSocket):
                     # running solve.
                     sid = req.get("solve_id")
                     if isinstance(sid, str) and sid:
-                        cuts_box[sid] = req
+                        # Latest-wins per solve — EXCEPT that a refinement
+                        # request (issue #744) gets its own slot. It asks
+                        # for a different thing (the same dial angles at
+                        # more sample directions), so squashing it against
+                        # a dial drag would lose it every time the user is
+                        # still moving.
+                        refined = (
+                            req.get("az_angles_deg") is not None
+                            or req.get("elev_angles_deg") is not None
+                        )
+                        cuts_box[f"{sid}|{int(refined)}"] = req
                         cuts_newer.set()
                     continue
                 mailbox[:] = [req]  # overwrite → squash anything unsolved
@@ -2340,13 +2435,19 @@ async def ws_endpoint(ws: WebSocket):
             while cuts_box:
                 if closed.is_set():
                     return
-                sid = next(iter(cuts_box))
-                creq = cuts_box.pop(sid)
+                slot = next(iter(cuts_box))
+                creq = cuts_box.pop(slot)
+                sid = creq["solve_id"]
+                az_angles = creq.get("az_angles_deg")
+                elev_angles = creq.get("elev_angles_deg")
                 resp: dict = {
                     "_kind": "cuts",
                     "solve_id": sid,
                     "az_elev_deg": creq.get("az_elev_deg"),
                     "elev_az_deg": creq.get("elev_az_deg"),
+                    # Echoed so the client can tell a refinement reply from a
+                    # plain dial reply for the same solve and angles.
+                    "refined": slot.endswith("|1"),
                 }
                 try:
                     cuts = await run_in_threadpool(
@@ -2354,6 +2455,8 @@ async def ws_endpoint(ws: WebSocket):
                         sid,
                         float(creq.get("az_elev_deg", 15.0)),
                         float(creq.get("elev_az_deg", 0.0)),
+                        az_angles,
+                        elev_angles,
                     )
                 except Exception:  # noqa: BLE001 — junk angles must not kill the socket
                     _logger.exception("ws cuts request failed")
@@ -2363,7 +2466,7 @@ async def ws_endpoint(ws: WebSocket):
                 resp["ok"] = cuts is not None
                 if cuts is not None:
                     resp["cuts"] = cuts
-                if sid in cuts_box:
+                if slot in cuts_box:
                     # Newer angles for this solve arrived while we computed —
                     # skip the doomed send; the fresh response supersedes it.
                     continue

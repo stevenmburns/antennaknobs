@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PatternCuts, SolveResponse } from "../../lib/api";
+import { cutDbiTop, refineCutAngles } from "../../lib/refine";
 import type { FarFieldCut } from "./types";
 
 // --- Server-side polar cuts (issue #547) -----------------------------------
@@ -38,11 +39,17 @@ function cutsKey(
 }
 
 // The cuts for a solve at exactly these angles, or null if not yet known.
+// The cache is consulted BEFORE the solve's attached cuts: a refinement pass
+// (issue #744) writes its densified trace back under the same key, and it is
+// the same cut at the same angles — only sampled better — so it must win
+// over the uniform copy the solve arrived with.
 function cachedCuts(
   result: SolveResponse,
   azElevDeg: number,
   elevAzDeg: number,
 ): PatternCuts | null {
+  const cached = cutsCache.get(cutsKey(result, azElevDeg, elevAzDeg));
+  if (cached) return cached;
   const attached = result.cuts;
   if (
     attached &&
@@ -51,7 +58,7 @@ function cachedCuts(
   ) {
     return attached;
   }
-  return cutsCache.get(cutsKey(result, azElevDeg, elevAzDeg)) ?? null;
+  return null;
 }
 
 // Cuts over the live /ws socket (issue #551): when the socket is open it
@@ -81,18 +88,36 @@ const cutsWsPending = new Map<string, (reply: CutsWsReply) => void>();
 // delivers — slower, never wrong.
 const CUTS_WS_TIMEOUT_MS = 1500;
 
-function cutsWsPendingKey(solveId: string, az: number, el: number): string {
-  return `${solveId}:${az}:${el}`;
+/** Explicit per-cut sampling angles for a refinement request (issue #744).
+ *  Absent on a plain dial request, which keeps the uniform circle. */
+type CutAngles = { az_angles_deg?: number[]; elev_angles_deg?: number[] };
+
+const isRefined = (extra: CutAngles | undefined): boolean =>
+  !!(extra?.az_angles_deg || extra?.elev_angles_deg);
+
+// The refined flag is part of the pending key (and echoed by the server):
+// a refinement and a dial request can be in flight for the same solve at
+// the same angles, and answering one with the other's trace would either
+// throw the densified samples away or hand them to a caller expecting the
+// uniform circle.
+function cutsWsPendingKey(
+  solveId: string,
+  az: number,
+  el: number,
+  refined: boolean,
+): string {
+  return `${solveId}:${az}:${el}:${refined ? 1 : 0}`;
 }
 
 function requestCutsViaWs(
   solveId: string,
   azElevDeg: number,
   elevAzDeg: number,
+  extra?: CutAngles,
 ): Promise<CutsWsReply> {
   const send = cutsWsSend;
   if (!send) return Promise.resolve({ status: "unavailable" });
-  const key = cutsWsPendingKey(solveId, azElevDeg, elevAzDeg);
+  const key = cutsWsPendingKey(solveId, azElevDeg, elevAzDeg, isRefined(extra));
   return new Promise((resolve) => {
     const timer = window.setTimeout(() => {
       cutsWsPending.delete(key);
@@ -110,6 +135,7 @@ function requestCutsViaWs(
           solve_id: solveId,
           az_elev_deg: azElevDeg,
           elev_az_deg: elevAzDeg,
+          ...(extra ?? {}),
         }),
       )
     ) {
@@ -127,12 +153,21 @@ export type CutsWsMessage = {
   solve_id: string;
   az_elev_deg: number;
   elev_az_deg: number;
+  /** Server echo of "this reply carries an explicitly-sampled cut" (issue
+   *  #744). Absent from a pre-#744 server, which only ever sent uniform
+   *  cuts — so undefined reads as false, the right answer for it. */
+  refined?: boolean;
   ok: boolean;
   cuts?: PatternCuts;
 };
 
 export function resolveCutsWsMessage(data: CutsWsMessage): void {
-  const key = cutsWsPendingKey(data.solve_id, data.az_elev_deg, data.elev_az_deg);
+  const key = cutsWsPendingKey(
+    data.solve_id,
+    data.az_elev_deg,
+    data.elev_az_deg,
+    !!data.refined,
+  );
   const pending = cutsWsPending.get(key);
   if (!pending) return; // timed out / superseded — fallback already running
   pending(data.ok && data.cuts ? { status: "ok", cuts: data.cuts } : { status: "miss" });
@@ -148,14 +183,31 @@ export function flushCutsWsPending(): void {
   }
 }
 
-function fetchCuts(
+function cacheCuts(key: string, cuts: PatternCuts): void {
+  if (cutsCache.size >= CUTS_CACHE_MAX) {
+    // Evict the oldest half (Maps iterate in insertion order).
+    let drop = CUTS_CACHE_MAX >> 1;
+    for (const k of Array.from(cutsCache.keys())) {
+      if (drop-- <= 0) break;
+      cutsCache.delete(k);
+    }
+  }
+  cutsCache.set(key, cuts);
+}
+
+/** One cuts round trip down the transport ladder (issue #551): ws id →
+ *  HTTP id → HTTP full body. Every rung is strictly a fallback of the one
+ *  above; the full-body POST remains the correctness backstop (it's how
+ *  pre-#551 responses and pins from dead server sessions resolve).
+ *  `extra` carries a refinement's explicit angles (issue #744) — it rides
+ *  every rung, so a refined cut resolves even for a pin whose server
+ *  session is long gone. */
+function requestCuts(
   result: SolveResponse,
   azElevDeg: number,
   elevAzDeg: number,
+  extra?: CutAngles,
 ): Promise<PatternCuts | null> {
-  const key = cutsKey(result, azElevDeg, elevAzDeg);
-  const inFlight = cutsInFlight.get(key);
-  if (inFlight) return inFlight;
   const postCuts = (body: object): Promise<Response> =>
     fetch("/cuts", {
       method: "POST",
@@ -164,16 +216,13 @@ function fetchCuts(
         ...body,
         az_elev_deg: azElevDeg,
         elev_az_deg: elevAzDeg,
+        ...(extra ?? {}),
       }),
     });
-  const p = (async (): Promise<PatternCuts | null> => {
-    // Transport ladder (issue #551): ws id → HTTP id → HTTP full body.
-    // Every rung is strictly a fallback of the one above; the full-body
-    // POST remains the correctness backstop (it's how pre-#551 responses
-    // and pins from dead server sessions resolve).
+  return (async (): Promise<PatternCuts | null> => {
     const solveId = result.solve_id;
     if (solveId) {
-      const viaWs = await requestCutsViaWs(solveId, azElevDeg, elevAzDeg);
+      const viaWs = await requestCutsViaWs(solveId, azElevDeg, elevAzDeg, extra);
       if (viaWs.status === "ok") return viaWs.cuts;
       if (viaWs.status === "unavailable") {
         const r = await postCuts({ solve_id: solveId });
@@ -185,24 +234,115 @@ function fetchCuts(
     }
     const r = await postCuts({ solve: result });
     return r.ok ? ((await r.json()) as PatternCuts) : null;
-  })()
+  })().catch(() => null);
+}
+
+function fetchCuts(
+  result: SolveResponse,
+  azElevDeg: number,
+  elevAzDeg: number,
+): Promise<PatternCuts | null> {
+  const key = cutsKey(result, azElevDeg, elevAzDeg);
+  const inFlight = cutsInFlight.get(key);
+  if (inFlight) return inFlight;
+  const p = requestCuts(result, azElevDeg, elevAzDeg)
     .then((cuts) => {
-      if (cuts) {
-        if (cutsCache.size >= CUTS_CACHE_MAX) {
-          // Evict the oldest half (Maps iterate in insertion order).
-          let drop = CUTS_CACHE_MAX >> 1;
-          for (const k of Array.from(cutsCache.keys())) {
-            if (drop-- <= 0) break;
-            cutsCache.delete(k);
-          }
-        }
-        cutsCache.set(key, cuts);
-      }
+      if (cuts) cacheCuts(key, cuts);
       return cuts;
     })
-    .catch(() => null)
     .finally(() => cutsInFlight.delete(key));
   cutsInFlight.set(key, p);
+  return p;
+}
+
+// --- Adaptive cut refinement (issue #744) ----------------------------------
+// Extra sample angles where the POLAR trace corners, once the cut dials have
+// settled. Deliberately NOT on the solve lane, unlike sweep refinement: the
+// cuts-source cache (issue #551) holds the moment set, so extra angles are
+// the EXISTING solve's pattern re-evaluated at more directions — no solve to
+// serialize, and the same no-lane latest-wins channel a dial drag uses.
+
+/** Total extra angles per cut, summed across rounds. 180 uniform + 120
+ *  refined stays well under the server's 720-angle ceiling, and a far-field
+ *  evaluation at 300 directions is still ~1 ms on a typical mesh. */
+export const CUT_REFINE_BUDGET = 120;
+export const CUT_REFINE_ROUND_BUDGET = 40;
+/** Dwell after the cuts for the current dial angles resolve. A dial drag
+ *  must not spend evaluations on angles the user is about to leave. */
+const CUT_REFINE_DWELL_MS = 400;
+
+// Both polar charts share one solve, so both would otherwise start the same
+// refinement chain. Keyed like cutsInFlight.
+const cutsRefineInFlight = new Map<string, Promise<void>>();
+// Keys whose refinement has run to completion (or its budget), so a
+// re-render never restarts it.
+const cutsRefineDone = new Set<string>();
+
+function peakOf(dbi: readonly number[]): number {
+  let peak = -Infinity;
+  for (const d of dbi) if (d > peak) peak = d;
+  return peak;
+}
+
+const mergeAngles = (
+  held: readonly number[] | undefined,
+  n: number,
+  added: readonly number[],
+): number[] =>
+  [
+    ...(held ?? Array.from({ length: n }, (_, i) => (360 * i) / n)),
+    ...added,
+  ].sort((a, b) => a - b);
+
+/** Densify both cuts of one solve where the polar trace corners, in rounds,
+ *  writing each round back under the plain cuts key so the charts pick it
+ *  up. Any failure just stops — the uniform trace stays on screen. */
+function refineCuts(
+  result: SolveResponse,
+  azElevDeg: number,
+  elevAzDeg: number,
+): Promise<void> {
+  const key = cutsKey(result, azElevDeg, elevAzDeg);
+  const running = cutsRefineInFlight.get(key);
+  if (running) return running;
+  if (cutsRefineDone.has(key)) return Promise.resolve();
+  const p = (async () => {
+    let cur = cachedCuts(result, azElevDeg, elevAzDeg);
+    let spent = 0;
+    while (cur && spent < CUT_REFINE_BUDGET) {
+      const budget = Math.min(
+        CUT_REFINE_ROUND_BUDGET,
+        CUT_REFINE_BUDGET - spent,
+      );
+      const azAdd = refineCutAngles(
+        cur.azimuth,
+        cur.az_angles_deg,
+        cutDbiTop([peakOf(cur.azimuth)]),
+        budget,
+      );
+      const elAdd = refineCutAngles(
+        cur.elevation,
+        cur.elev_angles_deg,
+        cutDbiTop([peakOf(cur.elevation)]),
+        budget,
+      );
+      if (azAdd.length === 0 && elAdd.length === 0) break;
+      spent += Math.max(azAdd.length, elAdd.length);
+      const next = await requestCuts(result, azElevDeg, elevAzDeg, {
+        az_angles_deg: mergeAngles(cur.az_angles_deg, cur.azimuth.length, azAdd),
+        elev_angles_deg: mergeAngles(
+          cur.elev_angles_deg,
+          cur.elevation.length,
+          elAdd,
+        ),
+      });
+      if (!next) break;
+      cacheCuts(key, next);
+      cur = next;
+    }
+    cutsRefineDone.add(key);
+  })().finally(() => cutsRefineInFlight.delete(key));
+  cutsRefineInFlight.set(key, p);
   return p;
 }
 
@@ -224,8 +364,33 @@ export function useCutTraces(
     const missing = results.filter(
       (r): r is SolveResponse => !!r && !cachedCuts(r, azElevDeg, elevAzDeg),
     );
-    if (missing.length === 0) return;
+    const live = results[0] ?? null;
     let cancelled = false;
+    let refineTimer: number | null = null;
+    // Adaptive refinement (issue #744) of the LIVE trace only. Pinned
+    // ghosts are dashed comparison references, and refining each of them
+    // would multiply the far-field evaluations by the pin count for a line
+    // nobody reads geometry off. The dwell is what makes this
+    // scrub-safe: a cut-dial drag re-fires this effect, the cleanup below
+    // clears the pending timer, and no refinement request is ever issued
+    // for an angle the user passed through.
+    const scheduleRefine = () => {
+      if (!live) return;
+      refineTimer = window.setTimeout(() => {
+        refineCuts(live, azElevDeg, elevAzDeg).then(() => {
+          if (!cancelled) setFetchTick((t) => t + 1);
+        });
+      }, CUT_REFINE_DWELL_MS);
+    };
+    if (missing.length === 0) {
+      // Already drawable at these angles (the solve shipped with them, or a
+      // previous fetch cached them) — straight to the refinement dwell.
+      scheduleRefine();
+      return () => {
+        cancelled = true;
+        if (refineTimer) window.clearTimeout(refineTimer);
+      };
+    }
     // When every missing trace can go over the ws id path (~100 bytes, and
     // the server squashes per-solve latest-wins), a much tighter debounce
     // makes cut drags feel live; the original 120 ms guard stays for the
@@ -235,13 +400,16 @@ export function useCutTraces(
     const h = window.setTimeout(() => {
       Promise.all(missing.map((r) => fetchCuts(r, azElevDeg, elevAzDeg))).then(
         () => {
-          if (!cancelled) setFetchTick((t) => t + 1);
+          if (cancelled) return;
+          setFetchTick((t) => t + 1);
+          scheduleRefine();
         },
       );
     }, delay);
     return () => {
       cancelled = true;
       window.clearTimeout(h);
+      if (refineTimer) window.clearTimeout(refineTimer);
     };
     // results/azElevDeg/elevAzDeg are read but not listed: wantKey is their
     // exact string encoding (see its definition above), the same stable-
@@ -262,16 +430,25 @@ export function useCutTraces(
 }
 
 // One chart's trace from a cuts payload: the dBi samples for the requested
-// cut plus their peak (for the adaptive radial scale and the annotation).
-// Null when there's nothing to draw (no cuts, or everything at the floor).
+// cut, their explicit angles when the cut was refined (issue #744), and
+// their peak (for the adaptive radial scale and the annotation). Null when
+// there's nothing to draw (no cuts, or everything at the floor).
 export function traceFor(
   cuts: PatternCuts | null,
   cut: FarFieldCut,
-): { dbi: number[]; peakDbi: number } | null {
+): { dbi: number[]; anglesDeg?: number[]; peakDbi: number } | null {
   if (!cuts) return null;
   const dbi = cut === "xy" ? cuts.azimuth : cuts.elevation;
+  const anglesDeg = cut === "xy" ? cuts.az_angles_deg : cuts.elev_angles_deg;
   let peak = -Infinity;
   for (const d of dbi) if (d > peak) peak = d;
   if (!(peak > cuts.floor_dbi)) return null;
-  return { dbi, peakDbi: peak };
+  // A mismatched angle list is a server/client disagreement, not something
+  // to draw through: fall back to the uniform parameterisation rather than
+  // index past the end of it.
+  return {
+    dbi,
+    ...(anglesDeg && anglesDeg.length === dbi.length ? { anglesDeg } : {}),
+    peakDbi: peak,
+  };
 }
