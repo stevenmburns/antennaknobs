@@ -34,14 +34,20 @@ export default tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
-      // Pinned to 5.2.0, deliberately not latest: 6.x/7.x folded the React
-      // Compiler's whole diagnostic suite (set-state-in-effect, immutability,
-      // refs, purity, ...) into `recommended`, which turned this repo's
-      // expected ~4 exhaustive-deps violations into 80 errors + 166 warnings
-      // spread across files nobody set out to touch here — exactly what the
-      // semantic-diff guardrail on this issue rules out. 5.2.0's
-      // `recommended` is just the two rules the issue asks for.
+      // react-hooks was pinned to 5.2.0 while eslint 9 allowed it, because
+      // 6.x/7.x fold the React Compiler's diagnostic suite into
+      // `recommended`. eslint 10 forced the 7.x major (5.2.0 peer-depends on
+      // eslint <=9), so the containment moved from the version pin to rule
+      // severity: the four compiler diagnostics below run at `warn` — visible
+      // in `npm run lint`, not failing the `--max-warnings` CI gate. At
+      // adoption time they flagged 28 sites, dominated by the deliberate
+      // sync-setState clear/dwell idiom in useAnalysisRunners and
+      // DesignSession; migrating those is a real project, not a deps bump.
       ...reactHooks.configs.recommended.rules,
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/purity": "warn",
       // The issue calls for exhaustive-deps at error (the plugin default is
       // "warn"); rules-of-hooks is already "error" in `recommended`.
       "react-hooks/exhaustive-deps": "error",
