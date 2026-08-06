@@ -4,11 +4,12 @@
 // itself is pinned independently of the transport that carries it.
 import { describe, it, expect } from "vitest";
 import {
-  KINK_TOLERANCE_RAD,
-  MIN_SEGMENT,
+  DEVIATION_TOLERANCE,
+  chordDeviations,
   cutDbiToFrac,
   cutDbiTop,
   cutProjection,
+  maxChordDeviation,
   maxKinkRad,
   planRefinement,
   refineCutAngles,
@@ -65,6 +66,59 @@ describe("turnAngles / maxKinkRad", () => {
   });
 });
 
+describe("chordDeviations / maxChordDeviation", () => {
+  it("a straight polyline deviates nowhere", () => {
+    expect(maxChordDeviation(line(9))).toBe(0);
+  });
+
+  it("measures the perpendicular miss of the chord across a vertex", () => {
+    // Dropping the apex would draw the chord y=0; the apex is 0.25 above it.
+    const pts = [
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.25 },
+      { x: 1, y: 0 },
+    ];
+    expect(chordDeviations(pts)[1]).toBeCloseTo(0.25, 12);
+    expect(chordDeviations(pts)[0]).toBe(0);
+  });
+
+  it("falls as O(h^2) on a smooth curve — the property that lets it terminate", () => {
+    const arc = (n: number) =>
+      Array.from({ length: n }, (_, i) => {
+        const a = (Math.PI * i) / (n - 1);
+        return { x: Math.cos(a), y: Math.sin(a) };
+      });
+    const coarse = maxChordDeviation(arc(9));
+    const fine = maxChordDeviation(arc(17));
+    expect(fine / coarse).toBeGreaterThan(0.15);
+    expect(fine / coarse).toBeLessThan(0.35);
+  });
+
+  it("a spike whose neighbours coincide still reports its full miss", () => {
+    const pts = [
+      { x: 0, y: 0 },
+      { x: 0.2, y: 0.4 },
+      { x: 0, y: 0 },
+    ];
+    expect(chordDeviations(pts)[1]).toBeCloseTo(Math.hypot(0.2, 0.4), 12);
+  });
+
+  it("stays finite where the turn angle does not converge (a true spike)", () => {
+    // A V with slope +-20: sampling it perfectly still turns ~174 deg at the
+    // vertex, so a turn-angle criterion would refine forever. The chord
+    // deviation of the same V halves with the sample spacing.
+    const v = (h: number) => [
+      { x: 0.5 - h, y: 20 * h },
+      { x: 0.5, y: 0 },
+      { x: 0.5 + h, y: 20 * h },
+    ];
+    expect(maxKinkRad(v(0.01))).toBeCloseTo(maxKinkRad(v(0.0001)), 3);
+    expect(maxChordDeviation(v(0.0001))).toBeLessThan(
+      maxChordDeviation(v(0.01)) / 50,
+    );
+  });
+});
+
 describe("planRefinement", () => {
   const t5 = [0, 1, 2, 3, 4];
 
@@ -113,21 +167,21 @@ describe("planRefinement", () => {
     expect(a).toEqual([...a].sort((p, q) => p - q));
   });
 
-  it("never re-splits an interval already below the display floor", () => {
-    // A right-angle corner whose left arm is already sub-pixel: interval
-    // [1,2] carries the full 90° kink but is shorter than MIN_SEGMENT, so
-    // splitting it can never change what is drawn.
+  it("a discontinuity costs a bounded handful of points, not the budget", () => {
+    // A step no amount of sampling removes. The per-split estimate
+    // (deviation is O(h^2)) has to fall fast enough that the plan gives up
+    // on it — otherwise one clamp edge on a VSWR trace eats every point.
     const step: DisplayPoint[] = [
       { x: 0, y: 0 },
-      { x: 0.5, y: 0 },
-      { x: 0.5 + MIN_SEGMENT / 4, y: 0 },
-      { x: 0.5 + MIN_SEGMENT / 4, y: 1 },
+      { x: 0.4, y: 0 },
+      { x: 0.4, y: 1 },
+      { x: 1, y: 1 },
     ];
+    // The estimate falls 4x per split, so an interval is abandoned after
+    // ~log4(dev/tolerance) levels — a bound independent of the budget.
     const got = planRefinement([0, 1, 2, 3], [step], { budget: 100 });
-    // Terminates strictly inside the budget instead of grinding the corner
-    // forever, and never touches the sub-pixel interval [1,2] itself.
-    expect(got.length).toBeLessThan(100);
-    for (const v of got) expect(v > 1 && v < 2).toBe(false);
+    expect(got.length).toBeGreaterThan(0);
+    expect(got.length).toBeLessThan(60);
   });
 
   it("takes the union across projections: a bend in EITHER earns points", () => {
@@ -165,17 +219,21 @@ describe("planRefinement", () => {
     expect(got).toEqual([45, 135, 225, 315]);
   });
 
-  it("refinement provably lowers the worst kink on a smooth curve", () => {
+  it("refinement drives the drawn error under tolerance on a smooth curve", () => {
     // Sample a Lorentzian-shaped notch coarsely, then at the refined
-    // parameter set, and compare the rendered polylines' worst corner.
+    // parameter set, and compare how far each rendered polyline misses.
     const yOf = (f: number) => 1 - 1 / (1 + 400 * (f - 0.5) * (f - 0.5));
     const ptsOf = (fs: number[]) => fs.map((f) => ({ x: f, y: yOf(f) }));
-    const coarse = Array.from({ length: 21 }, (_, i) => i / 20);
-    const before = maxKinkRad(ptsOf(coarse));
-    const added = planRefinement(coarse, [ptsOf(coarse)], { budget: 24 });
-    const after = maxKinkRad(ptsOf([...coarse, ...added].sort((a, b) => a - b)));
-    expect(before).toBeGreaterThan(KINK_TOLERANCE_RAD);
-    expect(after).toBeLessThan(before);
+    let fs = Array.from({ length: 21 }, (_, i) => i / 20);
+    const before = maxChordDeviation(ptsOf(fs));
+    expect(before).toBeGreaterThan(DEVIATION_TOLERANCE);
+    for (let round = 0; round < 6; round++) {
+      const added = planRefinement(fs, [ptsOf(fs)], { budget: 12 });
+      if (added.length === 0) break;
+      fs = [...fs, ...added].sort((a, b) => a - b);
+    }
+    expect(maxChordDeviation(ptsOf(fs))).toBeLessThan(DEVIATION_TOLERANCE);
+    expect(fs.length).toBeLessThan(21 + 6 * 12);
   });
 });
 
@@ -258,7 +316,7 @@ describe("cut projection / refineCutAngles", () => {
     expect(explicit[1].y).toBeCloseTo(0, 12);
   });
 
-  it("densifies a multi-lobed cut's nulls and lowers its worst corner", () => {
+  it("densifies a multi-lobed cut's nulls and lowers its drawn error", () => {
     // Six lobes over the circle, sampled at 24 points — the nulls are where
     // the polar trace corners.
     const n = 24;
@@ -266,7 +324,7 @@ describe("cut projection / refineCutAngles", () => {
       10 + 20 * Math.log10(Math.abs(Math.cos((6 * deg * Math.PI) / 180)) + 1e-3);
     const base = Array.from({ length: n }, (_, i) => dbiAt((360 * i) / n));
     const top = cutDbiTop([Math.max(...base)]);
-    const before = maxKinkRad(cutProjection(base, undefined, top), true);
+    const before = maxChordDeviation(cutProjection(base, undefined, top), true);
     const added = refineCutAngles(base, undefined, top, 40);
     expect(added.length).toBeGreaterThan(0);
     for (const a of added) expect(a).toBeGreaterThanOrEqual(0);
@@ -276,7 +334,7 @@ describe("cut projection / refineCutAngles", () => {
       ...Array.from({ length: n }, (_, i) => (360 * i) / n),
       ...added,
     ].sort((p, q) => p - q);
-    const after = maxKinkRad(
+    const after = maxChordDeviation(
       cutProjection(angles.map(dbiAt), angles, top),
       true,
     );
