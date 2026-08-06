@@ -34,6 +34,19 @@ class Builder(AntennaBuilder):
                         "min": 0.0,
                         "max": 60.0,
                     },
+                    # The auto ±50% window around 7 m tops out at 10.5 m,
+                    # which is barely one wavelength up on 10 m — below the
+                    # height where ground interference splits the elevation
+                    # pattern into the multi-lobe fan a user needs to see to
+                    # understand takeoff angle (5–6 lobes near 1.4λ, i.e.
+                    # ~15 m on 28 MHz). 16 m also covers a full half
+                    # wavelength on 40 m and the top of a typical push-up
+                    # mast, so the slider spans "on a mast" instead of
+                    # stopping just short of it.
+                    "base": {
+                        "min": 1.0,
+                        "max": 16.0,
+                    },
                 }
             ),
         }
