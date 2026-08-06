@@ -23,8 +23,18 @@ import type { SweepData } from "./api";
  *  so the PLOT EXTENT is 1 on each axis — the sweep charts map to [0,1]²,
  *  the polar cut to [-0.5, 0.5]² — which makes one tolerance and one
  *  minimum-segment constant meaningful for both. Assumes a square-ish plot
- *  rect; a wildly non-square chart would want its own aspect factor. */
-export type DisplayPoint = { x: number; y: number };
+ *  rect; a wildly non-square chart would want its own aspect factor.
+ *
+ *  `clamped` marks a vertex whose value was PINNED to the chart's domain
+ *  edge (a VSWR above the axis ceiling, a cut sample at the radial floor).
+ *  Its drawn position is exact — the chart really does put it on the edge —
+ *  so subdividing around it cannot improve the picture: the corner where
+ *  the curve enters the clamp is an artifact of clamping, not of sampling,
+ *  and chasing it O(h) down to MIN_SEGMENT spends solves on a segment that
+ *  redraws identically. The planner zeroes a clamped vertex's deviation in
+ *  that projection; the crossing still gets ONE look via its unclamped
+ *  neighbour's deviation, which is the visible part of the corner. */
+export type DisplayPoint = { x: number; y: number; clamped?: boolean };
 
 /** Display-space error, as a fraction of the plot extent, below which the
  *  drawn polyline is indistinguishable from the true curve. 0.003 is ~1 px
@@ -194,7 +204,12 @@ export function planRefinement(
   const devs = new Array<number>(n).fill(0);
   for (const p of usable) {
     const d = chordDeviations(p, closed);
-    for (let i = 0; i < n; i++) devs[i] = Math.max(devs[i], d[i]);
+    for (let i = 0; i < n; i++) {
+      // A clamped vertex sits exactly where the chart draws it (on the
+      // domain edge) — see DisplayPoint.clamped. Another projection where
+      // the same sample is NOT clamped still scores it via the max below.
+      if (!p[i].clamped) devs[i] = Math.max(devs[i], d[i]);
+    }
   }
 
   const nIv = closed ? n : n - 1;
@@ -249,15 +264,36 @@ const GAMMA_DB_DOMAIN = { lo: -30, hi: 0 };
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+/** Which of the three sweep-consuming charts are actually on screen. All
+ *  true is the pre-residency behavior; the planner refines only for the
+ *  projections listed true, because polishing a chart nobody can see spends
+ *  real solves for zero visible change (a view pinned LATER gets its own
+ *  refinement pass — the dwell machinery re-plans, and the server's per-freq
+ *  cache makes the shared points free). */
+export type SweepProjectionSet = {
+  vswr: boolean;
+  gamma: boolean;
+  smith: boolean;
+};
+
+export const ALL_SWEEP_PROJECTIONS: SweepProjectionSet = {
+  vswr: true,
+  gamma: true,
+  smith: true,
+};
+
 /** The display polylines a sweep feeds: VSWR vs f, S11 dB vs f, and the
- *  Smith Γ locus. x for the two scalar charts is LINEAR in MHz over the
- *  swept span — that is what SweepChart's `xOf` does, whatever the freq
- *  PLAN's spacing was. Out-of-domain samples clamp exactly as the charts
- *  draw them (a VSWR of 40 sits pinned at the top edge), so refinement
- *  never chases curvature that is off screen. */
+ *  Smith Γ locus — only those `include` lists, in that order. x for the two
+ *  scalar charts is LINEAR in MHz over the swept span — that is what
+ *  SweepChart's `xOf` does, whatever the freq PLAN's spacing was.
+ *  Out-of-domain samples clamp exactly as the charts draw them (a VSWR of
+ *  40 sits pinned at the top edge) and carry the `clamped` mark, so
+ *  refinement neither chases curvature that is off screen nor sharpens the
+ *  corner where the curve meets the edge. */
 export function sweepProjections(
   sweep: SweepData,
   z0: number,
+  include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
 ): DisplayPoint[][] {
   const f = sweep.freqs_mhz;
   const n = f.length;
@@ -266,25 +302,37 @@ export function sweepProjections(
   const vswr: DisplayPoint[] = [];
   const gamma: DisplayPoint[] = [];
   const smith: DisplayPoint[] = [];
+  // y and its clamp mark in one place, so the two can never disagree.
+  const edge = (x: number, raw: number): DisplayPoint => ({
+    x,
+    y: clamp01(raw),
+    ...(raw <= 0 || raw >= 1 ? { clamped: true } : {}),
+  });
   for (let i = 0; i < n; i++) {
     const x = (f[i] - f[0]) / span;
     const g = reflectionCoefficient(sweep.z_re[i], sweep.z_im[i], z0);
-    const v = vswrFromGammaMag(g.gMag);
-    vswr.push({
-      x,
-      y: clamp01((v - VSWR_DOMAIN.lo) / (VSWR_DOMAIN.hi - VSWR_DOMAIN.lo)),
-    });
-    const db = gammaDbFromMag(g.gMag);
-    gamma.push({
-      x,
-      y: clamp01(
-        (db - GAMMA_DB_DOMAIN.lo) / (GAMMA_DB_DOMAIN.hi - GAMMA_DB_DOMAIN.lo),
-      ),
-    });
-    // Γ plane on the unit disc → the [0,1]² box the chart's circle inscribes.
-    smith.push({ x: (g.gRe + 1) / 2, y: (g.gIm + 1) / 2 });
+    if (include.vswr) {
+      const v = vswrFromGammaMag(g.gMag);
+      vswr.push(
+        edge(x, (v - VSWR_DOMAIN.lo) / (VSWR_DOMAIN.hi - VSWR_DOMAIN.lo)),
+      );
+    }
+    if (include.gamma) {
+      const db = gammaDbFromMag(g.gMag);
+      gamma.push(
+        edge(
+          x,
+          (db - GAMMA_DB_DOMAIN.lo) /
+            (GAMMA_DB_DOMAIN.hi - GAMMA_DB_DOMAIN.lo),
+        ),
+      );
+    }
+    // Γ plane on the unit disc → the [0,1]² box the chart's circle
+    // inscribes. Never clamped: |Γ| ≤ 1 for a passive port, so the locus
+    // is on screen by construction.
+    if (include.smith) smith.push({ x: (g.gRe + 1) / 2, y: (g.gIm + 1) / 2 });
   }
-  return [vswr, gamma, smith];
+  return [vswr, gamma, smith].filter((p) => p.length > 0);
 }
 
 /** Frequencies (MHz) to add to an existing sweep. Deduped against what is
@@ -294,10 +342,13 @@ export function refineSweepFreqs(
   sweep: SweepData,
   z0: number,
   budget: number,
+  include: SweepProjectionSet = ALL_SWEEP_PROJECTIONS,
 ): number[] {
-  const planned = planRefinement(sweep.freqs_mhz, sweepProjections(sweep, z0), {
-    budget,
-  });
+  const planned = planRefinement(
+    sweep.freqs_mhz,
+    sweepProjections(sweep, z0, include),
+    { budget },
+  );
   // Relative tolerance: sweep spans run 1.8–54 MHz, so an absolute epsilon
   // would be meaningless at one end of that range.
   const span = sweep.freqs_mhz[sweep.freqs_mhz.length - 1] - sweep.freqs_mhz[0];
@@ -342,14 +393,26 @@ export function cutProjection(
 ): DisplayPoint[] {
   const toFrac = cutDbiToFrac(dbiTop);
   const n = dbi.length;
+  const span = dbiTop - CUT_DBI_FLOOR;
   return Array.from({ length: n }, (_, i) => {
     const t = anglesDeg
       ? (anglesDeg[i] * Math.PI) / 180
       : (2 * Math.PI * i) / n;
     const frac = 0.5 * toFrac(dbi[i]);
+    // Radial-clamp mark (same contract as the sweep charts' domain edges):
+    // a sample at/below the −20 dBi floor draws at the origin and one
+    // at/above the adaptive top draws on the rim, wherever the true value
+    // sits — the below-horizon floor sentinel is the common case, and
+    // sharpening the corner where a null dives under the floor redraws
+    // nothing.
+    const raw = (dbi[i] - CUT_DBI_FLOOR) / span;
     // Canvas flips y, but a reflection changes no turn ANGLE — the planner
     // only reads |turn|, so the sign convention here is free.
-    return { x: Math.cos(t) * frac, y: Math.sin(t) * frac };
+    return {
+      x: Math.cos(t) * frac,
+      y: Math.sin(t) * frac,
+      ...(raw <= 0 || raw >= 1 ? { clamped: true } : {}),
+    };
   });
 }
 
