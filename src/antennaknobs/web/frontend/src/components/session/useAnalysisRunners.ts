@@ -472,8 +472,14 @@ export function useAnalysisRunners({
         // Adaptive refinement (issue #744) rides the tail of the base
         // sweep rather than its own effect: reaching here IS the dwell
         // signal — the design settled long enough for a whole sweep to
-        // stream without a knob aborting it. Only after a clean run; a
-        // torn-off partial curve is not what the user is looking at.
+        // stream without a knob aborting it. `planned` is null exactly
+        // when the stream threw (abort, transport failure), which is the
+        // case that must not refine; a stream that ended on a per-chunk
+        // {error} line still leaves a real curve worth polishing.
+        //
+        // sweepRunning stays false throughout: refinement adds points to a
+        // curve that is already drawn, and flickering the chart's busy
+        // indicator back on would read as "this result is provisional".
         const settled = planned;
         if (settled && !controller.signal.aborted) {
           sweepRefineTimerRef.current = window.setTimeout(
