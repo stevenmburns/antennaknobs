@@ -1,4 +1,5 @@
 import type { SweepData } from "./api";
+import { tunedInt } from "./tuning";
 import { backendSupportsGround, type BackendEntry } from "./backends";
 import type { GroundModel } from "./ground";
 import type { BandSpec, ExampleDescriptor } from "./params";
@@ -66,7 +67,7 @@ export function planSweepFreqs(params: {
     backendSupportsGround(backend) &&
     groundEnabled &&
     groundModel === "sommerfeld";
-  const N = refineEnabled ? 17 : slowGround ? 21 : 41;
+  const N = refineEnabled ? SWEEP_BASE_N : slowGround ? 21 : 41;
   const policy =
     currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
     currentExample?.sweep_policy;
@@ -91,11 +92,21 @@ export function planSweepFreqs(params: {
   );
 }
 
+// The lean base grid used when refinement will polish the curve (see
+// planSweepFreqs). Overridable without a rebuild (lib/tuning.ts) for the
+// design that manages to straddle a feature at ~6% spacing.
+const SWEEP_BASE_N = tunedInt("antennaknobs.sweepBaseN", 17, 101);
+
 // Point budget for adaptive sweep refinement (issue #744), summed across
-// rounds. 41 planned + 48 refined = 89 points, an order of magnitude under
+// rounds. 17 planned + 48 refined = 65 points, an order of magnitude under
 // the hosted MAX_SWEEP_POINTS=500 cap (web/cost.py) and — thanks to the
 // server's per-freq Z cache — nearly free to re-request on a later dwell.
-export const SWEEP_REFINE_BUDGET = 48;
+// Overridable without a rebuild (lib/tuning.ts).
+export const SWEEP_REFINE_BUDGET = tunedInt(
+  "antennaknobs.sweepRefineBudget",
+  48,
+  400,
+);
 // Per round, so one round's plan (which cannot re-evaluate its own inserted
 // points) never commits the whole budget on an estimate.
 export const SWEEP_REFINE_ROUND_BUDGET = 12;

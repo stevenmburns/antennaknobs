@@ -1,6 +1,7 @@
 import { reflectionCoefficient } from "./format";
 import { gammaDbFromMag, vswrFromGammaMag } from "./math";
 import type { SweepData } from "./api";
+import { tunedFloat } from "./tuning";
 
 // Adaptive sampling refinement (issue #744).
 //
@@ -50,7 +51,10 @@ export type DisplayPoint = { x: number; y: number; clamped?: boolean };
  *  vanishes as O(h²) for any smooth stretch and as O(h) even across a cusp,
  *  so "the picture is right to within a pixel" is a reachable stopping
  *  condition. */
-export const DEVIATION_TOLERANCE = 0.003;
+export const DEVIATION_TOLERANCE = tunedFloat(
+  "antennaknobs.refineTolerance",
+  0.003,
+);
 
 /** Intervals shorter than this (in normalized display units) are never
  *  split again. Two reasons, both about not burning the budget on
