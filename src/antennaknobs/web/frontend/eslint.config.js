@@ -37,17 +37,26 @@ export default tseslint.config(
       // react-hooks was pinned to 5.2.0 while eslint 9 allowed it, because
       // 6.x/7.x fold the React Compiler's diagnostic suite into
       // `recommended`. eslint 10 forced the 7.x major (5.2.0 peer-depends on
-      // eslint <=9), so the containment moved from the version pin to rule
-      // severity: the four compiler diagnostics below run at `warn` — visible
-      // in `npm run lint`, not failing the `--max-warnings` CI gate. At
-      // adoption time they flagged 28 sites, dominated by the deliberate
-      // sync-setState clear/dwell idiom in useAnalysisRunners and
-      // DesignSession; migrating those is a real project, not a deps bump.
+      // eslint <=9), so containment moved from the version pin to rule
+      // severity — the four compiler diagnostics ran at `warn` while the
+      // ~30 pre-existing sites were triaged (#756, #768).
+      //
+      // That triage is done, so they are `error` now. A rule at `warn` with
+      // 30 standing warnings does not contain anything: nobody sees number
+      // 31. Every remaining site carries an inline disable stating WHY it is
+      // intentional, which is the artifact worth having — the audit in #768
+      // found the two real defects hiding among them (an eager
+      // `useRef(f())` minting a discarded UUID and rebuilding a discarded
+      // SolveRequest every render) precisely because each site had to be
+      // justified one at a time.
+      //
+      // Deliberately per-site disables rather than a file- or rule-level
+      // exemption: a new violation in these same files still fails.
       ...reactHooks.configs.recommended.rules,
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/refs": "warn",
-      "react-hooks/immutability": "warn",
-      "react-hooks/purity": "warn",
+      "react-hooks/set-state-in-effect": "error",
+      "react-hooks/refs": "error",
+      "react-hooks/immutability": "error",
+      "react-hooks/purity": "error",
       // The issue calls for exhaustive-deps at error (the plugin default is
       // "warn"); rules-of-hooks is already "error" in `recommended`.
       "react-hooks/exhaustive-deps": "error",
@@ -70,6 +79,14 @@ export default tseslint.config(
       "testing-library": testingLibrary,
     },
     rules: {
+      // The compiler's ref diagnostic does not apply to a test harness
+      // component (#768): a harness exists precisely to surface a hook's
+      // internals — it renders `car.mobileCarouselRef` into the tree so an
+      // assertion can reach it. That is reading a ref during render on
+      // purpose, and it ships to nobody. Scoped off here rather than
+      // disabled at each of the four call sites, because in this tree it is
+      // the rule that is wrong, not the code.
+      "react-hooks/refs": "off",
       ...testingLibrary.configs.react.rules,
       // 42 legacy `container.querySelector`/`.contains` sites predate this
       // config (role-based queries already lead 138-to-42). Downgraded to

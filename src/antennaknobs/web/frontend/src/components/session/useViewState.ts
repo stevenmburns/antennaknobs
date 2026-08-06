@@ -72,6 +72,10 @@ export function useViewState({
   // snapping to a wrong provisional view and flipping when the preview arrives.
   useEffect(() => {
     if (currentExample?.default_view) {
+      // Sets the camera to the new antenna's declared default view on an
+      // actual antenna switch; the user's later pick must survive re-renders
+      // (#768).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCameraProjection(currentExample.default_view);
     }
     // Keyed on the name, not currentExample.default_view directly: a value

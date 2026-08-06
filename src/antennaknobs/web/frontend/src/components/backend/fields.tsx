@@ -1,4 +1,25 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+// A text draft of a numeric prop, re-synced whenever the prop changes from
+// outside (backend swap, auto-seed, reset) but left alone while you type.
+//
+// Adjusted DURING RENDER rather than in an effect (issue #768). The effect
+// spelling — `useEffect(() => setDraft(String(value)), [value])` — is the
+// anti-pattern React's "You Might Not Need an Effect" is about: it paints the
+// stale draft first and corrects it on a second pass. Comparing against the
+// last-synced value here means React re-renders before committing to the DOM,
+// so the stale text is never shown. Behaviour is otherwise identical: the
+// guard is false while typing (committing a parsed value leaves `value`
+// unchanged), which is what keeps a half-typed "1.50" from snapping to "1.5".
+function useNumericDraft(value: number) {
+  const [draft, setDraft] = useState(String(value));
+  const [synced, setSynced] = useState(value);
+  if (value !== synced) {
+    setSynced(value);
+    setDraft(String(value));
+  }
+  return [draft, setDraft] as const;
+}
 
 // Bare numeric input with the same clear-without-snapping-to-0 draft treatment
 // as NumberField (which carries its own label/value chrome and doesn't fit the
@@ -10,10 +31,7 @@ export function KnobMenuNumber({
   value: number;
   onChange: (v: number) => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
-  useEffect(() => {
-    setDraft(String(value));
-  }, [value]);
+  const [draft, setDraft] = useNumericDraft(value);
   return (
     <input
       type="number"
@@ -51,12 +69,8 @@ export function NumberField({
   // Local text draft so the field can be emptied mid-edit. Binding the input
   // straight to the number coerced "" → 0 on backspace (you couldn't clear it,
   // and the forced 0 left a leading zero when you typed again). The draft holds
-  // raw text; a value is only committed when it parses, and re-syncs whenever
-  // `value` changes from outside (backend swap, auto-seed, reset).
-  const [draft, setDraft] = useState(String(value));
-  useEffect(() => {
-    setDraft(String(value));
-  }, [value]);
+  // raw text; a value is only committed when it parses.
+  const [draft, setDraft] = useNumericDraft(value);
   return (
     <div className="field">
       <label>
