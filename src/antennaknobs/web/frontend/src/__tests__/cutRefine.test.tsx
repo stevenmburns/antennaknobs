@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
   CUT_REFINE_BUDGET,
+  setCutRefineEnabled,
   traceFor,
   useCutTraces,
 } from "../components/charts/cuts";
@@ -176,7 +177,7 @@ const refineBodies = () =>
 describe("cut refinement transport (issue #744)", () => {
   it("refines only after the dwell, at explicit angles, within budget", async () => {
     const solve = makeSolve();
-    const { result } = renderHook(() => useCutTraces([solve], 15, 0));
+    const { result } = renderHook(() => useCutTraces("xy", [solve], 15, 0));
     // The solve already carries cuts at these angles, so nothing is fetched
     // and nothing is refined until the dwell elapses.
     await settle(300);
@@ -206,7 +207,7 @@ describe("cut refinement transport (issue #744)", () => {
   it("a cut-dial drag inside the dwell issues no refinement", async () => {
     const solve = makeSolve();
     const { rerender } = renderHook(
-      (p: { az: number }) => useCutTraces([solve], p.az, 0),
+      (p: { az: number }) => useCutTraces("xy", [solve], p.az, 0),
       { initialProps: { az: 15 } },
     );
     // Drag through a run of angles, each well inside the refinement dwell.
@@ -227,7 +228,7 @@ describe("cut refinement transport (issue #744)", () => {
   it("a new solve leaves no refined sample behind", async () => {
     const first = makeSolve();
     const { result, rerender } = renderHook(
-      (p: { solve: SolveResponse }) => useCutTraces([p.solve], 15, 0),
+      (p: { solve: SolveResponse }) => useCutTraces("xy", [p.solve], 15, 0),
       { initialProps: { solve: first } },
     );
     await settle(1000);
@@ -254,8 +255,52 @@ describe("cut refinement transport (issue #744)", () => {
       solve_id: "solve-round",
       cuts: round,
     } as unknown as SolveResponse;
-    renderHook(() => useCutTraces([solve], 15, 0));
+    renderHook(() => useCutTraces("xy", [solve], 15, 0));
     await settle(1000);
     expect(refineBodies()).toHaveLength(0);
+  });
+
+  it("buys angles only for the cut whose chart is mounted", async () => {
+    // Faithful mock: echo an explicit list only for the cut that asked for
+    // one, exactly like the real server ("absent means uniform").
+    fetchMock.mockImplementation((url: string, init?: { body?: string }) => {
+      const body = JSON.parse(init?.body ?? "{}");
+      if (url === "/cuts") cutsBodies.push(body);
+      const az: number[] | undefined = body.az_angles_deg;
+      const el: number[] | undefined = body.elev_angles_deg;
+      const at = (a: number[] | undefined) =>
+        a ? [...a].sort((x, y) => x - y).map(dbiAt) : uniformCuts(24).azimuth;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            ...uniformCuts(24),
+            azimuth: at(az),
+            elevation: at(el),
+            ...(az ? { az_angles_deg: [...az].sort((x, y) => x - y) } : {}),
+            ...(el ? { elev_angles_deg: [...el].sort((x, y) => x - y) } : {}),
+          }),
+      });
+    });
+    // Only the azimuth chart is mounted (the hook registers its cut).
+    renderHook(() => useCutTraces("xy", [makeSolve()], 15, 0));
+    await settle(1000);
+    const rounds = refineBodies();
+    expect(rounds.length).toBeGreaterThan(0);
+    // Not one request spent an angle on the elevation cut: its chart is not
+    // on screen, so its uniform parameterisation travels as ABSENT.
+    for (const b of cutsBodies) expect(b.elev_angles_deg).toBeUndefined();
+  });
+
+  it("the adaptive-resolution toggle gates cut refinement entirely", async () => {
+    setCutRefineEnabled(false);
+    try {
+      renderHook(() => useCutTraces("xy", [makeSolve()], 15, 0));
+      await settle(1500);
+      expect(refineBodies()).toHaveLength(0);
+    } finally {
+      setCutRefineEnabled(true);
+    }
   });
 });

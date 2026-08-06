@@ -262,6 +262,35 @@ function fetchCuts(
 // the EXISTING solve's pattern re-evaluated at more directions — no solve to
 // serialize, and the same no-lane latest-wins channel a dial drag uses.
 
+// Master switch, set by DesignSession from the same "adaptive resolution"
+// setting the sweep side reads as a prop. A module flag rather than plumbing
+// through FarFieldChart's props because everything else about refinement
+// already lives at this module's scope (caches, in-flight maps).
+let cutRefineEnabled = true;
+export function setCutRefineEnabled(v: boolean): void {
+  cutRefineEnabled = v;
+}
+
+// Which cut charts are on screen right now. A chart's useCutTraces registers
+// its own cut while mounted; refinement consults this PER ROUND so it only
+// buys angles for a cut somebody can see — the polar charts are one view
+// each, and "show only the azimuth cut" used to densify the elevation cut
+// anyway. Ref-counted so a transient double-mount (layout switches) can't
+// unregister a cut the other instance still shows.
+const mountedCutCharts = new Map<FarFieldCut, number>();
+function registerCutChart(cut: FarFieldCut): () => void {
+  mountedCutCharts.set(cut, (mountedCutCharts.get(cut) ?? 0) + 1);
+  return () => {
+    const n = (mountedCutCharts.get(cut) ?? 1) - 1;
+    if (n <= 0) mountedCutCharts.delete(cut);
+    else mountedCutCharts.set(cut, n);
+  };
+}
+const wantedCuts = () => ({
+  az: mountedCutCharts.has("xy"),
+  elev: mountedCutCharts.has("yz"),
+});
+
 /** Total extra angles per cut, summed across rounds. 180 uniform + 120
  *  refined stays well under the server's 720-angle ceiling, and a far-field
  *  evaluation at 300 directions is still ~1 ms on a typical mesh. */
@@ -306,9 +335,13 @@ const mergeAngles = (
     ...added,
   ].sort((a, b) => a - b);
 
-/** Densify both cuts of one solve where the polar trace corners, in rounds,
- *  writing each round back under the plain cuts key so the charts pick it
- *  up. Any failure just stops — the uniform trace stays on screen. */
+/** Densify the ON-SCREEN cuts of one solve where the polar trace corners,
+ *  in rounds, writing each round back under the plain cuts key so the
+ *  charts pick it up. Which cuts to buy angles for comes from the mounted-
+ *  chart registry, re-read per round — a cut whose chart nobody shows gets
+ *  no angles (and gets its own pass later if its chart mounts, because the
+ *  done-marker records WHAT was refined, not just that something was). Any
+ *  failure just stops — the uniform trace stays on screen. */
 function refineCuts(
   result: SolveResponse,
   azElevDeg: number,
@@ -317,42 +350,63 @@ function refineCuts(
   const key = cutsKey(result, azElevDeg, elevAzDeg);
   const running = cutsRefineInFlight.get(key);
   if (running) return running;
-  if (cutsRefineDone.has(key)) return Promise.resolve();
+  const wantKey = (w: { az: boolean; elev: boolean }) =>
+    `${key}|${w.az ? "az" : ""}${w.elev ? "el" : ""}`;
+  if (cutsRefineDone.has(wantKey(wantedCuts()))) return Promise.resolve();
   const p = (async () => {
     let cur = cachedCuts(result, azElevDeg, elevAzDeg);
     let spent = 0;
-    while (cur && spent < CUT_REFINE_BUDGET) {
+    let want = wantedCuts();
+    while (cur && spent < CUT_REFINE_BUDGET && cutRefineEnabled) {
+      want = wantedCuts();
       const budget = Math.min(
         CUT_REFINE_ROUND_BUDGET,
         CUT_REFINE_BUDGET - spent,
       );
-      const azAdd = refineCutAngles(
-        cur.azimuth,
-        cur.az_angles_deg,
-        cutDbiTop([peakOf(cur.azimuth)]),
-        budget,
-      );
-      const elAdd = refineCutAngles(
-        cur.elevation,
-        cur.elev_angles_deg,
-        cutDbiTop([peakOf(cur.elevation)]),
-        budget,
-      );
+      const azAdd = want.az
+        ? refineCutAngles(
+            cur.azimuth,
+            cur.az_angles_deg,
+            cutDbiTop([peakOf(cur.azimuth)]),
+            budget,
+          )
+        : [];
+      const elAdd = want.elev
+        ? refineCutAngles(
+            cur.elevation,
+            cur.elev_angles_deg,
+            cutDbiTop([peakOf(cur.elevation)]),
+            budget,
+          )
+        : [];
       if (azAdd.length === 0 && elAdd.length === 0) break;
       spent += Math.max(azAdd.length, elAdd.length);
-      const next = await requestCuts(result, azElevDeg, elevAzDeg, {
-        az_angles_deg: mergeAngles(cur.az_angles_deg, cur.azimuth.length, azAdd),
-        elev_angles_deg: mergeAngles(
+      // A cut getting no new angles keeps what it already has: its held
+      // refined list travels unchanged, and a still-uniform cut is OMITTED
+      // from the request entirely — "absent means uniform" is the wire
+      // contract, and forcing an explicit list would make the response
+      // (and every cached copy of it) carry 180 angles for nothing.
+      const extra: CutAngles = {};
+      if (azAdd.length > 0 || cur.az_angles_deg) {
+        extra.az_angles_deg = mergeAngles(
+          cur.az_angles_deg,
+          cur.azimuth.length,
+          azAdd,
+        );
+      }
+      if (elAdd.length > 0 || cur.elev_angles_deg) {
+        extra.elev_angles_deg = mergeAngles(
           cur.elev_angles_deg,
           cur.elevation.length,
           elAdd,
-        ),
-      });
+        );
+      }
+      const next = await requestCuts(result, azElevDeg, elevAzDeg, extra);
       if (!next) break;
       cacheCuts(key, next);
       cur = next;
     }
-    markRefineDone(key);
+    markRefineDone(wantKey(want));
   })().finally(() => cutsRefineInFlight.delete(key));
   cutsRefineInFlight.set(key, p);
   return p;
@@ -363,12 +417,18 @@ function refineCuts(
 // right angles; otherwise the freshest known trace is returned immediately
 // (stale-while-refetch) and a debounced POST /cuts brings the real one — the
 // debounce eats the flood of intermediate angles a slider drag produces.
+//
+// `cut` is which polar chart this hook instance serves; while mounted it
+// registers that cut so refinement (below) buys angles only for cuts that
+// are actually on screen.
 export function useCutTraces(
+  cut: FarFieldCut,
   results: readonly (SolveResponse | null)[],
   azElevDeg: number,
   elevAzDeg: number,
 ): (PatternCuts | null)[] {
   const [, setFetchTick] = useState(0); // re-render when a fetch lands
+  useEffect(() => registerCutChart(cut), [cut]);
   const wantKey = results
     .map((r) => (r ? cutsKey(r, azElevDeg, elevAzDeg) : "-"))
     .join("|");
@@ -387,7 +447,7 @@ export function useCutTraces(
     // clears the pending timer, and no refinement request is ever issued
     // for an angle the user passed through.
     const scheduleRefine = () => {
-      if (!live) return;
+      if (!live || !cutRefineEnabled) return;
       refineTimer = window.setTimeout(() => {
         refineCuts(live, azElevDeg, elevAzDeg).then(() => {
           if (!cancelled) setFetchTick((t) => t + 1);

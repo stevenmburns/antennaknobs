@@ -36,6 +36,7 @@ import type {
 import type { TerrainPresetSchema } from "../../lib/ground";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
+import { setCutRefineEnabled } from "../charts/cuts";
 import type { PatternMetrics } from "../charts/types";
 import {
   ThemeContext,
@@ -511,6 +512,20 @@ function DesignSessionBody({
   // convergence on slow geometries) without leaving the Smith view.
   const [sweepEnabled, setSweepEnabled] = useState(true);
   const [convergeEnabled, setConvergeEnabled] = useState(false);
+  // Adaptive resolution (issue #744): dwell-triggered display-space
+  // refinement of the sweep and cut plots. Persisted, unlike the overlay
+  // checkboxes above: turning it off is a per-machine capacity decision
+  // ("this laptop, that 4k-segment design"), not a per-session view choice,
+  // and it should survive a reload the same way the theme does.
+  const [refineEnabled, setRefineEnabled] = useState(
+    () => localStorage.getItem("antennaknobs.refineEnabled") !== "0",
+  );
+  useEffect(() => {
+    localStorage.setItem("antennaknobs.refineEnabled", refineEnabled ? "1" : "0");
+    // The cuts side reads a module flag (charts/cuts.ts) rather than a prop
+    // — same setting, kept in lockstep here.
+    setCutRefineEnabled(refineEnabled);
+  }, [refineEnabled]);
   // Measured overlay (issue #595): a VNA .s1p the user picks from their own
   // machine, drawn against the modeled locus. Deliberately client-side state —
   // the file is posted once to be parsed and is never stored server-side, which
@@ -809,6 +824,15 @@ function DesignSessionBody({
   const isResident = (v: View) => pinned.includes(v) || view === v;
   const sweepResident =
     isResident("smith") || isResident("gamma") || isResident("vswr");
+  // Per-view split of sweepResident, for refinement only (issue #744): the
+  // BASE sweep serves all three charts from one array, but refinement buys
+  // extra solves per PROJECTION, so it needs to know which of the three is
+  // actually on screen rather than merely "any".
+  const residentSweepViews = {
+    vswr: isResident("vswr"),
+    gamma: isResident("gamma"),
+    smith: isResident("smith"),
+  };
   const convergeResident = isResident("smith");
   const patternResident = isResident("azimuth") || isResident("elevation");
 
@@ -1208,6 +1232,8 @@ function DesignSessionBody({
       // `result?.z0_ohms ?? 50`), so refinement judges curvature on the
       // curve the user is actually looking at.
       z0: result?.z0_ohms ?? 50,
+      refineEnabled,
+      residentSweepViews,
       buildRequest,
       solveWithheld,
       seqRef,
@@ -1250,6 +1276,8 @@ function DesignSessionBody({
           onClearMeasured={() => setMeasured(null)}
           normCheckEnabled={normCheckEnabled}
           setNormCheckEnabled={setNormCheckEnabled}
+          refineEnabled={refineEnabled}
+          setRefineEnabled={setRefineEnabled}
           theme={theme}
           applyTheme={applyTheme}
         />
@@ -1520,6 +1548,7 @@ function DesignSessionBody({
             showFeedNames={showFeedNames}
             multiFeed={effectiveMultiFeed}
             fineNorm={normCheck?.pattern_norm ?? null}
+            refineEnabled={refineEnabled}
             schematicSvg={schematicSvg}
             schematicUnavailable={schematicUnavailable}
           />
