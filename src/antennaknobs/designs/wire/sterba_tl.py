@@ -32,11 +32,13 @@ Differences from the all-wires `sterba`:
     construction (the all-wires version achieves the same end by current
     cancellation in the offset pair).
 
-Note on the half-wave TL: this engine's nodal TL admittance
-1/(jZ0 sin βl)·[[cos βl,-1],[-1,cos βl]] is SINGULAR at βl = π (length =
-λ/2). The phasing lines are nominally λ/2, so `length_factor` defaults to
-0.99 (TL length ≈ 0.495 λ) to sit just off the singularity. lf = 1.0
-exactly will raise in `network_reduce.tl_admittance_2x2`; keep lf away from 1.0.
+Note on the half-wave TL (amended 2026-08-06, issue #746): the reducer used
+to stamp a line as its nodal admittance 1/(jZ0 sin βl)·[[cos βl,-1],
+[-1,cos βl]], which is SINGULAR at βl = π (length = λ/2) — so `length_factor`
+defaults to 0.99 (TL length ≈ 0.495 λ) to sit just off it. It now stamps the
+chain matrix, which at βl = π is simply [[-1,0],[0,-1]], and lf = 1.0 solves.
+The 0.99 default stays for continuity with the published numbers; it is no
+longer a workaround.
 """
 
 from antennaknobs import AntennaBuilder

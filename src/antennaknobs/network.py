@@ -691,17 +691,22 @@ class BalancedLine:
     radiate; a structure whose riser antenna-mode current matters beyond its
     boundary condition needs real wires.
 
-    Stamped through the shared `NetworkReducer` as a frequency-dependent 4×4
-    Group-1 admittance block (see ``network_reduce.balanced_admittance_4x4``):
-    in differential variables it is an ordinary 2-port TL with z0 = zdiff, so
-    the 4×4 is ``tl_admittance_2x2(zdiff, …)`` expanded through the pair
-    incidence — each 2×2 entry ``y`` becomes the block ``y·[[1,−1],[−1,1]]``;
-    ``zcomm`` adds ``kron(tl_admittance_2x2(zcomm, …), ¼·ones)``, which
-    annihilates differential vectors — the exact even/odd decomposition, no
-    cross-terms, so the differential behaviour is untouched. It reuses that
-    helper's matched-loss model and half-wave singularity guard: a lossless
-    line at exactly k·vf·λ/2 raises, and real open-wire ``k1`` loss
-    regularises the exactly-λ/2 riser physically (no length-factor fudge).
+    Stamped through the shared `NetworkReducer` as one chain-matrix 2-port
+    per mode (issue #746): in differential variables it is an ordinary 2-port
+    TL with z0 = zdiff, carried on the pair incidence (+1, −1) at each end;
+    ``zcomm`` adds a second, orthogonal 2-port on the (½, ½) common-mode
+    incidence — the exact even/odd decomposition, no cross-terms, so the
+    differential behaviour is untouched. ``network_reduce.
+    balanced_admittance_4x4`` is the closed 4×4 form of the same thing, kept
+    as the oracle. A lossless line at exactly k·vf·λ/2 is an ordinary
+    through-line here (the addendum below); real open-wire ``k1`` loss is
+    still worth giving the exactly-λ/2 riser, but for its physics rather than
+    to dodge a pole.
+
+    Addendum 2026-08-06 (issue #746): before the chain-matrix stamp, a
+    lossless k·vf·λ/2 line RAISED — the 4×4 admittance form has a pole
+    there — and designs carried length fudges to avoid it. That is gone; the
+    half-wave case is now the best-conditioned length there is.
 
     **No ``transposed`` flag**: with four explicit terminals a crossover (the
     Sterba's half-twist) is just wiring port B as ``(b2, b1)`` — visible in

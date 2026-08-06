@@ -393,8 +393,10 @@ def shunt_shorted_stub(
     `shunt_open_stub`, and the flavor real installations prefer (DC-grounded,
     weatherable, adjustable with a shorting bar). The quarter-wave shorted
     stub is an open — the "metal insulator" / RF choke — and needs no guard,
-    being a plain zero admittance; the half-wave one is a dead short and
-    trips `TL`'s own half-wave singularity guard at stamp time. Lengths in
+    being a plain zero admittance; the half-wave one really is a dead short
+    across the port, which an ideal voltage source cannot drive, so the SOLVE
+    reports it (issue #746 retired the stamp-time half-wave guard that used
+    to fire first, on every half-wave line whether shorted or not). Lengths in
     wavelengths at ``freq_mhz`` (section header). Formal: ``port``."""
     z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
     return Composite(
