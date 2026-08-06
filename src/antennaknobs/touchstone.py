@@ -21,6 +21,7 @@ Only 1- and 2-port ``S`` / ``Y`` / ``Z`` files are supported (the VNA case);
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -34,8 +35,28 @@ __all__ = [
     "format_s1p",
 ]
 
+_logger = logging.getLogger(__name__)
+
 # Touchstone frequency-unit keywords → multiplier to Hz.
 _FUNIT = {"HZ": 1.0, "KHZ": 1e3, "MHZ": 1e6, "GHZ": 1e9}
+
+
+def _reciprocal_condition(m: np.ndarray, scale: float) -> float:
+    """How far ``m`` sits from rank-deficient, measured against ``scale``.
+
+    The textbook σ_min/σ_max is blind to the 1-port case: a 1×1 matrix has one
+    singular value and therefore condition 1 however close to zero it sits, so
+    a ``.s1p`` at S11 = −1 + 1e-16 would look perfectly healthy. Every matrix
+    inverted in this module has a known natural scale instead — 1 for the
+    I ± S family (‖S‖ ≤ 1 for a passive network), z0 for an impedance matrix,
+    1/z0 for an admittance one — so σ_min divided by that scale is the number
+    that means "singular" at either port count. Taking max(σ_max, scale) keeps
+    it the ordinary reciprocal condition whenever the matrix is larger than
+    its own reference.
+    """
+    s = np.linalg.svd(m, compute_uv=False)
+    denom = max(float(s[0]), float(scale))
+    return 0.0 if denom == 0.0 else float(s[-1]) / denom
 
 
 @dataclass(frozen=True, eq=False)
@@ -53,10 +74,56 @@ class Touchstone:
     params: np.ndarray
     ptype: str
     z0: float
+    name: str = ""  # source filename, for error messages; "" when parsed inline
 
     @property
     def nports(self) -> int:
         return self.params.shape[1]
+
+    def _inv(self, m: np.ndarray, f_hz: float, scale: float, what: str, cause: str):
+        """``m⁻¹``, refusing when ``m`` is too close to rank-deficient.
+
+        Every parameter conversion below is a Möbius transform with a pole,
+        and a bare ``np.linalg.inv`` reports that pole two useless ways: an
+        untyped ``LinAlgError`` exactly on it, and enormous finite numbers
+        just off it (a matched half-wave coax ``.s2p`` reaches I + S ≈ 0 and
+        stamps |y11| ~ 1e14 into the reducer's G with no complaint at all).
+        Both become one house error naming the file, the frequency and the
+        physics — the pole of a network parameter is always a short or an
+        open, and saying which is what makes the message actionable.
+
+        The threshold is the reducer's, not a second policy: `network_reduce`
+        is imported here at call time rather than at module scope because
+        network_reduce → network → touchstone would close an import cycle,
+        and touchstone is otherwise a leaf.
+        """
+        from .network_reduce import (
+            RCOND_SINGULAR,
+            RCOND_SUSPECT,
+            SingularNetworkError,
+        )
+
+        rc = _reciprocal_condition(m, scale)
+        where = f"{self.name}: " if self.name else "Touchstone data: "
+        if rc < RCOND_SINGULAR:
+            raise SingularNetworkError(
+                f"{where}{what} has no inverse at {f_hz / 1e6:.6g} MHz "
+                f"(reciprocal condition {rc:.2e}) — {cause}. Ask for the "
+                "parameter set the file already carries (S is always finite), "
+                "or move off this frequency."
+            )
+        if rc < RCOND_SUSPECT:
+            _logger.warning(
+                "%s%s is nearly singular at %.6g MHz (reciprocal condition "
+                "%.2e) — %s, so the converted value is dominated by proximity "
+                "to that pole and its leading digits are unreliable.",
+                where,
+                what,
+                f_hz / 1e6,
+                rc,
+                cause,
+            )
+        return np.linalg.inv(m)
 
     def _interp(self, f_hz: float) -> np.ndarray:
         """Linear-interpolate the parameter matrix onto ``f_hz`` (Hz).
@@ -83,14 +150,36 @@ class Touchstone:
         return m
 
     def s_at(self, f_hz: float) -> np.ndarray:
-        """S-parameter matrix at ``f_hz`` (converting from Y/Z if needed)."""
+        """S-parameter matrix at ``f_hz`` (converting from Y/Z if needed).
+
+        S is bounded for every passive network, so the Y route goes
+        ``S = (I − z0·Y)(I + z0·Y)⁻¹`` directly rather than through Z: an
+        open-circuit Y (whose Z does not exist) still has the perfectly
+        ordinary S = I, and the detour would have refused it.
+        """
         m = self._interp(f_hz)
         if self.ptype == "S":
             return m
         n = self.nports
         eye = np.eye(n)
-        z = m if self.ptype == "Z" else np.linalg.inv(m)
-        return (z - self.z0 * eye) @ np.linalg.inv(z + self.z0 * eye)
+        if self.ptype == "Y":
+            zy = self.z0 * m
+            return (eye - zy) @ self._inv(
+                eye + zy,
+                f_hz,
+                1.0,
+                "I + z0·Y",
+                "z0·Y → −I is a negative-resistance network with no "
+                "scattering description at this reference impedance",
+            )
+        return (m - self.z0 * eye) @ self._inv(
+            m + self.z0 * eye,
+            f_hz,
+            self.z0,
+            "Z + z0·I",
+            f"Z → −{self.z0:g} Ω is a negative-resistance network with no "
+            "scattering description at this reference impedance",
+        )
 
     def y_at(self, f_hz: float) -> np.ndarray:
         """Admittance matrix (siemens) at ``f_hz`` — what the reducer stamps."""
@@ -98,11 +187,28 @@ class Touchstone:
         if self.ptype == "Y":
             return m
         if self.ptype == "Z":
-            return np.linalg.inv(m)
+            return self._inv(
+                m,
+                f_hz,
+                self.z0,
+                "Z",
+                "a Z matrix with no inverse is a short circuit, whose "
+                "admittance is unbounded",
+            )
         n = self.nports
         eye = np.eye(n)
         # real reference z0:  Y = (1/z0)·(I − S)·(I + S)⁻¹
-        return (1.0 / self.z0) * (eye - m) @ np.linalg.inv(eye + m)
+        return (
+            (1.0 / self.z0)
+            * (eye - m)
+            @ self._inv(
+                eye + m,
+                f_hz,
+                1.0,
+                "I + S",
+                "S → −1 is a short circuit, whose admittance is unbounded",
+            )
+        )
 
     def z_at(self, f_hz: float) -> np.ndarray:
         """Impedance matrix (ohms) at ``f_hz``."""
@@ -110,10 +216,27 @@ class Touchstone:
         if self.ptype == "Z":
             return m
         if self.ptype == "Y":
-            return np.linalg.inv(m)
+            return self._inv(
+                m,
+                f_hz,
+                1.0 / self.z0,
+                "Y",
+                "a Y matrix with no inverse is an open circuit, whose "
+                "impedance is unbounded",
+            )
         n = self.nports
         eye = np.eye(n)
-        return self.z0 * (eye + m) @ np.linalg.inv(eye - m)
+        return (
+            self.z0
+            * (eye + m)
+            @ self._inv(
+                eye - m,
+                f_hz,
+                1.0,
+                "I − S",
+                "S → +1 is an open circuit, whose impedance is unbounded",
+            )
+        )
 
 
 def _nports_from_name(name: str) -> int:
@@ -128,8 +251,13 @@ def _nports_from_name(name: str) -> int:
     )
 
 
-def parse_touchstone(text: str, *, nports: int | None = None) -> Touchstone:
+def parse_touchstone(
+    text: str, *, nports: int | None = None, name: str = ""
+) -> Touchstone:
     """Parse Touchstone ``text`` into a :class:`Touchstone`.
+
+    ``name`` is carried purely so a conversion that hits a pole can say which
+    file it was reading; :func:`read_touchstone` fills it in.
 
     ``nports`` is taken from the file extension by :func:`read_touchstone`; when
     omitted here it is inferred from the first data record's width
@@ -210,7 +338,11 @@ def parse_touchstone(text: str, *, nports: int | None = None) -> Touchstone:
 
     order = np.argsort(freqs)
     return Touchstone(
-        freqs=freqs[order], params=params[order], ptype=ptype, z0=float(z0)
+        freqs=freqs[order],
+        params=params[order],
+        ptype=ptype,
+        z0=float(z0),
+        name=name,
     )
 
 
@@ -248,4 +380,4 @@ def read_touchstone(builder, name: str) -> Touchstone:
         return Network(..., branches=[TouchstoneLoad("ant", s), ...])
     """
     nports = _nports_from_name(name)  # validate extension before touching disk
-    return parse_touchstone(read_data(builder, name), nports=nports)
+    return parse_touchstone(read_data(builder, name), nports=nports, name=name)
