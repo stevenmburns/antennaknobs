@@ -151,7 +151,7 @@ export function Knob({
       setEditing(true);
       return true;
     }
-    let next: number | null = null;
+    let next: number;
     switch (key) {
       case "ArrowUp":
       case "ArrowRight":
