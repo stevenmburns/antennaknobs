@@ -118,22 +118,38 @@ def test_the_poisoned_sample_is_logged_with_its_reason(caplog):
     assert "stub" in text
 
 
-def test_a_lossless_half_wave_line_mid_sweep_also_degrades():
-    """The other pole: a plain TL at k·λ/2, caught by the stamp-time guard.
+def test_a_half_wave_line_mid_sweep_fails_for_its_real_reason_now():
+    """Rewritten for issue #746, which retired this test's original premise.
 
-    That guard raises from inside the stamp, so before this change it aborted
-    the entire sweep rather than one sample of it. `wire.doublet_balanced_tuner`
-    walks its lossless line through exactly this.
+    A plain TL at k·λ/2 used to trip a stamp-time guard, from inside the
+    stamp, so it aborted the whole sweep rather than one sample of it; #647's
+    fix was to poison the sample. The chain-matrix stamp is finite at every
+    length, so the line is no longer the complaint — and what the old guard
+    was hiding at this exact frequency turns out to be a genuinely singular
+    topology. `wire.doublet_balanced_tuner`'s common-mode return runs through
+    that same line, open-terminated at the doublet's floating gap, and an
+    open-terminated lossless line at k·λ/2 presents an OPEN. The floating
+    tuner section is then referenced to nothing at all.
+
+    Measured 2026-08-06: the sample dies at 16.0387 MHz — the line's own
+    half-wave, 14.1 · ½ · 0.91 / 0.40 — for zcomm = 100, 250 and 400 Ω alike.
+    Insensitivity to the value is what makes it topological rather than a
+    near-pole; the surrounding samples solve normally.
     """
     from antennaknobs.designs.wire.doublet_balanced_tuner import Builder
 
     b = Builder()
+    f_half = b.freq * 0.5 * b.line_vf / b.line_len_factor
     zs = MomwireEngine(b, ground=None).impedance_sweep(
-        np.linspace(b.freq * 0.8, b.freq * 1.25, 9)
+        np.array([f_half * 0.99, f_half, f_half * 1.01])
     )[:, 0]
-    finite = np.isfinite(zs)
-    assert finite.sum() >= zs.size - 2  # at most the pole samples are lost
-    assert finite.sum() >= 1  # ...and the sweep is not a total loss
+    assert np.isfinite(zs[[0, 2]]).all()
+    assert not np.isfinite(zs[1])
+
+    with pytest.raises(SingularNetworkError, match="assembled system"):
+        MomwireEngine(
+            Builder(dict(Builder.default_params, freq=f_half)), ground=None
+        ).impedance()
 
 
 # ---------------------------------------------------------------------------

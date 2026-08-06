@@ -23,7 +23,11 @@ from antennaknobs.network import (
     PortVirtual,
     Shunt,
 )
-from antennaknobs.network_reduce import C_LIGHT, NetworkReducer
+from antennaknobs.network_reduce import (
+    C_LIGHT,
+    NetworkReducer,
+    SingularNetworkError,
+)
 from antennaknobs.station import (
     double_stub_tuner,
     series_open_stub,
@@ -198,10 +202,17 @@ def test_loss_is_the_escape_hatch_for_the_quarter_wave_open_stub():
     assert z.real > 0.0 and abs(z.imag) < 1e-9
 
 
-def test_half_wave_shorted_stub_trips_the_tl_guard_at_stamp_time():
-    """The other face of the same coin is TL's own: a lossless k·λ/2 line has
-    no finite admittance, so the reducer raises when it stamps."""
-    with pytest.raises(ValueError, match="sinh γl"):
+def test_half_wave_shorted_stub_is_a_dead_short_across_the_port():
+    """A k·λ/2 shorted stub repeats its short, so it really does put 0 Ω
+    across the port — and an ideal voltage source cannot drive that.
+
+    Rewritten for issue #746: the failure used to come from TL's stamp-time
+    admittance guard, which raised on ANY lossless half-wave line whether or
+    not it was shorted. The chain-matrix stamp is finite there, so the line
+    itself is no longer the complaint; what is left is the genuine topological
+    short, reported by the solve.
+    """
+    with pytest.raises(SingularNetworkError, match="assembled system"):
         z_shunt(shunt_shorted_stub(F_MHZ, 0.5, z0=Z0))
 
 

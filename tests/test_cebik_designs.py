@@ -2424,17 +2424,27 @@ def test_t2fd_broadband_gain_agrees_across_engines():
         assert abs(g - g_ref) < 0.8
 
 
-def test_g5rv_ideal_halfwave_line_is_singular_on_every_engine():
-    """An ideal lossless TL is singular at exactly k*lambda/2 (sin betaL = 0);
-    the guard fires identically on PyNEC and every momwire basis -- a shared
-    network-layer limitation, not a momwire-specific hole. The default sits just
-    off the half wave to avoid it."""
-    import pytest
+def test_g5rv_ideal_halfwave_line_repeats_on_every_engine():
+    """Rewritten for issue #746, which retired this test's premise.
 
+    An ideal lossless TL used to be SINGULAR at exactly k·λ/2 (sin βl = 0 — the
+    pole of the ADMITTANCE form the reducer stamped), and this pinned the guard
+    firing identically on PyNEC and every momwire basis. The reducer now stamps
+    the chain matrix, which at k·λ/2 is [[−1, 0], [0, −1]], so the matching
+    line is simply the impedance repeater it physically is: the half-wave and
+    full-wave lines hand the shack the SAME impedance — the doublet's own
+    feedpoint, carried down unchanged — and both engines agree on it."""
     from antennaknobs.designs.broadband.g5rv import Builder
+    from antennaknobs.engines import MomwireEngine
 
-    with pytest.raises(ValueError):
-        _z(Builder(dict(Builder.default_params, match_len_frac=0.5)))
+    z_half = _z(Builder(dict(Builder.default_params, match_len_frac=0.5)))
+    z_full = _z(Builder(dict(Builder.default_params, match_len_frac=1.0)))
+    assert np.isfinite(z_half)
+    assert abs(z_half - z_full) / abs(z_full) < 1e-9
+    z_mw = MomwireEngine(
+        Builder(dict(Builder.default_params, match_len_frac=0.5)), ground=None
+    ).impedance()[0]
+    assert np.isfinite(z_mw)
 
 
 def test_bruce_high_z_feed_is_well_conditioned_across_bases():

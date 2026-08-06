@@ -89,9 +89,50 @@ RCOND_SINGULAR = 1e-12
 RCOND_SUSPECT = 1e-9
 
 
+def _tl_gamma_l(length, wavelength, vf, k1, k2):
+    """Complex propagation γ·length = (α + jβ)·length.
+
+    β = 2π/(vf·λ); α comes from the cable-table matched-loss model
+    k1·√f_MHz + k2·f_MHz in dB per 100 ft (see `network.TL`). Shared by the
+    admittance and chain-matrix forms so the two can never disagree about
+    what line they describe.
+    """
+    beta = 2.0 * np.pi / (vf * wavelength)
+    f_mhz = C_LIGHT / wavelength / 1e6
+    loss_db_per_100ft = k1 * np.sqrt(f_mhz) + k2 * f_mhz
+    alpha = loss_db_per_100ft * NEPER_PER_DB * FEET_PER_M / 100.0  # nepers/m
+    return (alpha + 1j * beta) * length
+
+
+def tl_abcd(z0, length, wavelength, vf=1.0, k1=0.0, k2=0.0):
+    """Ideal-TL chain (ABCD) matrix ``(A, B, C, D)`` — the reducer's stamp
+    (issue #746).
+
+        [v_a; i_a] = [[cosh γl, Z0 sinh γl], [sinh γl / Z0, cosh γl]] · [v_b; i_b]
+
+    with i_a into port A and i_b out of port B. Every entry is an entire
+    function of γl, so unlike `tl_admittance_2x2` — the same line, written as
+    the ratio 1/(Z0 sinh γl) — this has no pole anywhere: at the lossless
+    k·λ/2 point it is exactly [[±1, 0], [0, ±1]], the through-line the
+    admittance description cannot spell because its currents are unconstrained
+    by its voltages there. That is the whole reason the reducer carries two
+    Group-2 currents per line instead of a 2×2 Group-1 block.
+
+    A crossed ("half-twist") line is NOT a flag here: it is port B's weights
+    negated where the pair is stamped, which is what a polarity inversion is.
+    """
+    gl = _tl_gamma_l(length, wavelength, vf, k1, k2)
+    sh, ch = np.sinh(gl), np.cosh(gl)
+    return ch, z0 * sh, sh / z0, ch
+
+
 def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, k2=0.0):
     """Ideal-TL nodal admittance between its two terminals — lossless or
     lossy (issue #297).
+
+    No longer what the reducer stamps (issue #746 moved that to `tl_abcd`);
+    kept as the closed-form 2×2 that composition oracles and the balanced
+    4×4's even/odd decomposition are written against.
 
     For complex propagation γl = (α + jβ)·length with β = 2π/(vf·λ):
         Y_TL = 1/(Z0 sinh γl) · [[cosh γl, -1], [-1, cosh γl]]
@@ -101,8 +142,10 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, 
     model k1·√f_MHz + k2·f_MHz in dB per 100 ft (see `network.TL`).
 
     Singular only for an exactly-lossless half-wavelength multiple
-    (sinh γl = 0 requires α = 0); raise rather than return garbage so
-    callers can pick a different length. Any nonzero loss regularizes it.
+    (sinh γl = 0 requires α = 0), where the line HAS no admittance matrix;
+    raise rather than return garbage. This is a statement about the
+    description, not about the physics — the reducer solves that same line
+    through `tl_abcd` without complaint.
 
     `transposed=True` models a crossed ("half-twist") line: port B's
     polarity is inverted, which flips the sign of the off-diagonal
@@ -111,17 +154,16 @@ def tl_admittance_2x2(z0, length, wavelength, transposed=False, vf=1.0, k1=0.0, 
     ZL-Special). Note it is NOT the same as a negative z0, which would
     (wrongly) negate the diagonal self terms too.
     """
-    beta = 2.0 * np.pi / (vf * wavelength)
-    f_mhz = C_LIGHT / wavelength / 1e6
-    loss_db_per_100ft = k1 * np.sqrt(f_mhz) + k2 * f_mhz
-    alpha = loss_db_per_100ft * NEPER_PER_DB * FEET_PER_M / 100.0  # nepers/m
-    gl = (alpha + 1j * beta) * length
+    gl = _tl_gamma_l(length, wavelength, vf, k1, k2)
     sh, ch = np.sinh(gl), np.cosh(gl)
     if abs(sh) < 1e-12:
+        f_mhz = C_LIGHT / wavelength / 1e6
         raise SingularNetworkError(
             f"lossless TL length {length} is ~k·vf·λ/2 at "
-            f"f={f_mhz:.4f} MHz (sinh γl ≈ 0); admittance is singular — give "
-            "the line the loss it really has (k1/k2, or cable=...)"
+            f"f={f_mhz:.4f} MHz (sinh γl ≈ 0); the admittance is singular "
+            "there because the line has no admittance matrix at all — ask for "
+            "its chain matrix (`tl_abcd`) instead, which is what the reducer "
+            "stamps and which stays finite"
         )
     scale = 1.0 / (z0 * sh)
     off = 1.0 if transposed else -1.0
@@ -146,8 +188,12 @@ def balanced_admittance_4x4(
     zdiff, length, wavelength, vf=1.0, k1=0.0, k2=0.0, zcomm=None
 ):
     """Balanced two-conductor TL nodal admittance (issues #575/#576) — a 4×4
-    Group-1 block over the terminal order ``(a1, a2, b1, b2)`` (port A =
-    (a1, a2), port B = (b1, b2)).
+    block over the terminal order ``(a1, a2, b1, b2)`` (port A = (a1, a2),
+    port B = (b1, b2)).
+
+    The closed form of the even/odd decomposition, and the oracle the
+    reducer's per-mode chain-matrix stamp is checked against; it is no longer
+    itself the stamp (issue #746).
 
     In differential variables the element is an ordinary 2-port TL with
     z0 = ``zdiff``, so the differential block is that 2×2 expanded through the
@@ -173,8 +219,9 @@ def balanced_admittance_4x4(
     when (and how honestly) a CM path can be modelled at all.
 
     Inherits `tl_admittance_2x2`'s matched-loss model and its half-wave
-    singularity guard — a lossless line at exactly k·vf·λ/2 raises; real
-    open-wire ``k1`` loss regularises it. Grounding conductor 2 at both ends
+    singularity — a lossless line at exactly k·vf·λ/2 has no admittance
+    matrix, so this raises there while the reducer solves it. Grounding
+    conductor 2 at both ends
     (dropping rows/cols a2, b2) collapses the ``zcomm=None`` stamp exactly
     back to that 2×2."""
     y2 = tl_admittance_2x2(zdiff, length, wavelength, vf=vf, k1=k1, k2=k2)
@@ -235,6 +282,15 @@ class _Group2Element:
     pins kc = c_vc = −n (the row equals the current column, as for a/b), so
     the ideal element is lossless. ``c=None`` (the default) is a plain
     two-terminal branch, bit-identical to before.
+
+    Arbitrary arity (issue #746, the chain-matrix lines): ``terms`` — a
+    sequence of ``(node, k, c_v)`` triples with the same meanings (``k·j``
+    leaves ``node``; ``c_v·v_node`` appears in the constitutive row) —
+    REPLACES a/b/c entirely when set. A `BalancedLine`'s differential
+    chain-matrix row spans four terminals (a1, a2, b1, b2), one more than
+    the a/b/c form can name, and a chain matrix also needs terminals whose
+    voltage it senses without drawing current (k = 0) — neither fits the
+    two-scaling shape above.
     """
 
     a: int | None
@@ -249,6 +305,59 @@ class _Group2Element:
     c: int | None = None
     kc: complex = 0j
     c_vc: complex = 0j
+    terms: tuple[tuple[int, complex, complex], ...] | None = None
+
+
+def _stamp_abcd(elements, couplings, port_a, port_b, abcd):
+    """Stamp a 2-port given by its chain matrix; return its power-probe leg.
+
+    ``port_a`` / ``port_b`` are ``[(node, weight), ...]``: the port voltage is
+    ``Σ w·v_node`` and the port current ``j`` leaves each node as ``w·j``. One
+    weight list per port is a congruence, so the port pair carries exactly the
+    power ``v·j`` however many terminals it spans — which is what lets the
+    same routine stamp a coax (``[(a, 1)]`` / ``[(b, 1)]``), a crossed line
+    (``[(b, −1)]`` — a polarity inversion IS a negated weight), and a balanced
+    pair's differential (``[(a1, 1), (a2, −1)]``) and common (``[(a1, ½),
+    (a2, ½)]``) modes, whose incidences are orthogonal.
+
+    Two auxiliary currents, j₁ into port A and j₂ out of port B, with the
+    chain relations as their constitutive rows::
+
+        v_a − A·v_b − B·j₂ = 0
+        j₁  − C·v_b − D·j₂ = 0
+
+    Both rows stay finite for every line length, which the 2×2 admittance
+    block they replace does not (issue #746). The j₂ terms are the only
+    off-diagonal entries in the branch-current block, so they ride the
+    ``couplings`` channel added for the Autotransformer (issue #594).
+    """
+    a_, b_, c_, d_ = abcd
+    i1, i2 = len(elements), len(elements) + 1
+    elements.append(
+        _Group2Element(
+            None,
+            None,
+            c_v=0j,
+            c_j=0j,
+            e=0j,
+            # v_a with its own current's incidence; v_b sensed, no current.
+            terms=tuple([(n, w, w) for n, w in port_a])
+            + tuple((n, 0j, -a_ * w) for n, w in port_b),
+        )
+    )
+    elements.append(
+        _Group2Element(
+            None,
+            None,
+            c_v=0j,
+            c_j=-d_,
+            e=0j,
+            terms=tuple((n, -w, -c_ * w) for n, w in port_b),
+        )
+    )
+    couplings.append((i1, i2, -b_))
+    couplings.append((i2, i1, 1.0 + 0j))
+    return (i1, i2, tuple(port_a), tuple(port_b))
 
 
 def magnetizing_impedance(br, omega):
@@ -314,15 +423,22 @@ class MNASystem:
         rhs = np.zeros(n + m, dtype=np.complex128)
         for x, el in enumerate(elements):
             col = n + x
-            if el.a is not None:
-                A[el.a, col] += el.ka  # ka·j leaves node a
-                A[col, el.a] += -el.c_v if el.c_va is None else el.c_va
-            if el.b is not None:
-                A[el.b, col] -= el.kb  # kb·j enters node b
-                A[col, el.b] += el.c_v if el.c_vb is None else el.c_vb
-            if el.c is not None:
-                A[el.c, col] += el.kc  # kc·j leaves node c (third terminal)
-                A[col, el.c] += el.c_vc
+            if el.terms is not None:
+                # Arbitrary-arity form (issue #746): the a/b/c fields are not
+                # consulted at all.
+                for node, k, c_v in el.terms:
+                    A[node, col] += k  # k·j leaves this node
+                    A[col, node] += c_v
+            else:
+                if el.a is not None:
+                    A[el.a, col] += el.ka  # ka·j leaves node a
+                    A[col, el.a] += -el.c_v if el.c_va is None else el.c_va
+                if el.b is not None:
+                    A[el.b, col] -= el.kb  # kb·j enters node b
+                    A[col, el.b] += el.c_v if el.c_vb is None else el.c_vb
+                if el.c is not None:
+                    A[el.c, col] += el.kc  # kc·j leaves node c (third terminal)
+                    A[col, el.c] += el.c_vc
             A[col, col] = el.c_j
             rhs[col] = el.e
         # Mutual coupling between two Group-2 rows (issue #594): an
@@ -382,6 +498,19 @@ class MNASystem:
             if el.c is not None:
                 p += v[el.c] * np.conj(el.kc * j[payload])
             return 0.5 * float(np.real(p))
+        if kind == "group2abcd":
+            # Chain-matrix 2-port (issue #746): power IN at port A minus power
+            # OUT at port B, ½Re(v_a·j₁* − v_b·j₂*), with the port voltages
+            # read through the same weights that distribute the port currents.
+            # A lossless line reports ~0; a lossy one its attenuation. The
+            # payload is a tuple of legs because a BalancedLine carrying a
+            # common-mode path is TWO orthogonal 2-ports under one label.
+            total = 0.0
+            for i1, i2, port_a, port_b in payload:
+                va = sum(w * v[node] for node, w in port_a)
+                vb = sum(w * v[node] for node, w in port_b)
+                total += 0.5 * float(np.real(va * np.conj(j[i1]) - vb * np.conj(j[i2])))
+            return total
         if kind == "group2r":
             # Resistive dissipation ONLY (issue #594). The generic "group2"
             # probe reads ½Re((v_a − v_b)·j*), which for a mutually-coupled
@@ -568,11 +697,14 @@ class NetworkReducer:
 
         Attribution rather than a bare "matrix is singular": a lossless line
         is singular at a *specific* electrical length, so the walk asks each
-        lossless line how close it sits to its own pole — k·λ/2 for a line
-        between two live nodes (no finite admittance), odd λ/4 for one hanging
-        open (Z_in = 0, a dead short across the port it hangs on). Anything
-        with real loss is skipped, because loss is exactly what regularises
-        both, and that is also the remedy the message recommends.
+        lossless line how close it sits to its own pole — an odd λ/4 for one
+        hanging open (Z_in = 0, a dead short across the port it hangs on).
+        Anything with real loss is skipped, because loss is what regularises
+        it, and that is also the remedy the message recommends.
+
+        The k·λ/2 half of this walk is gone (issue #746): a line between two
+        live nodes is now stamped as its chain matrix, which is finite at
+        every length, so a half-wave line is no longer a cause of anything.
         """
         f_mhz = C_LIGHT / wavelength / 1e6
         open_nodes = self._open_ended_nodes()
@@ -591,33 +723,24 @@ class NetworkReducer:
                 continue
             if k1 or k2:
                 continue  # a lossy line has no pole to sit on
-            wl_line = wavelength * vf
-            n_half = br.length / (0.5 * wl_line)  # length in half-wavelengths
             hanging = any(
                 self.port_to_idx.get(e) in open_nodes
                 for e in ends
                 if isinstance(e, str)
             )
-            name = f"{path[:-1]}: " if path else ""
-            if hanging:
-                # Odd quarter-waves: n_half at an odd multiple of 0.5.
-                off = abs(n_half % 1.0 - 0.5)
-                if off < 0.02:
-                    suspects.append(
-                        f"  {name}open-ended line {'→'.join(str(e) for e in ends)} "
-                        f"is {n_half / 2:.4f} λ at {f_mhz:.4f} MHz — an odd "
-                        "multiple of λ/4, where an open stub's Z_in = 0 shorts "
-                        f"the port it hangs on (z0 = {z0:g} Ω)"
-                    )
-            else:
-                off = min(n_half % 1.0, 1.0 - n_half % 1.0)
-                if off < 0.02:
-                    suspects.append(
-                        f"  {name}line {'→'.join(str(e) for e in ends)} is "
-                        f"{n_half / 2:.4f} λ at {f_mhz:.4f} MHz — a multiple of "
-                        f"λ/2, where a lossless line has no finite admittance "
-                        f"(z0 = {z0:g} Ω)"
-                    )
+            if not hanging:
+                continue
+            wl_line = wavelength * vf
+            n_half = br.length / (0.5 * wl_line)  # length in half-wavelengths
+            # Odd quarter-waves: n_half at an odd multiple of 0.5.
+            if abs(n_half % 1.0 - 0.5) < 0.02:
+                name = f"{path[:-1]}: " if path else ""
+                suspects.append(
+                    f"  {name}open-ended line {'→'.join(str(e) for e in ends)} "
+                    f"is {n_half / 2:.4f} λ at {f_mhz:.4f} MHz — an odd "
+                    "multiple of λ/4, where an open stub's Z_in = 0 shorts "
+                    f"the port it hangs on (z0 = {z0:g} Ω)"
+                )
         if not suspects:
             return (
                 "No lossless line sits on a pole at this frequency, so the "
@@ -639,14 +762,16 @@ class NetworkReducer:
         Group 1 (node-admittance block G):
           - the antenna's dense multiport short-circuit Y at the real-feed
             nodes vs. datum;
-          - TL branches (their 2×2 has shunt legs, so it is a natural
-            admittance stamp; the half-wave singularity still raises);
           - parallel-mode Shunt (the tank admittance is the natural finite
             quantity, → 0 at trap resonance).
 
         Group 2 (auxiliary branch currents):
           - TwoPort and series-mode Shunt — series elements, exact for the
             ideal short z = 0 and the 0 F open;
+          - TL and BalancedLine as chain-matrix 2-ports, two currents each
+            (issue #746): every entry of an ABCD matrix is entire, so the
+            k·λ/2 line that has no admittance matrix at all stamps as the
+            ordinary through-line it is;
           - one TERMINATION branch per port that is driven and/or loaded:
             an EMF (0 if undriven) in series with the port's Load impedance
             (0 if unloaded) from the datum into the node. Its constitutive
@@ -697,44 +822,60 @@ class NetworkReducer:
             lab = lambda s, p=_bpath: f"{p[:-1]}: {s}" if p else s  # noqa: E731
             if isinstance(br, TL):
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
-                y_tl = tl_admittance_2x2(
-                    br.z0,
-                    br.length,
-                    wavelength,
-                    transposed=br.transposed,
-                    vf=br.vf,
-                    k1=br.k1,
-                    k2=br.k2,
+                leg = _stamp_abcd(
+                    elements,
+                    couplings,
+                    [(a, 1.0 + 0j)],
+                    [(b, -1.0 + 0j if br.transposed else 1.0 + 0j)],
+                    tl_abcd(br.z0, br.length, wavelength, vf=br.vf, k1=br.k1, k2=br.k2),
                 )
-                G[np.ix_([a, b], [a, b])] += y_tl
                 probes.append(
-                    (lab(f"TL {_short(br.a)}→{_short(br.b)}"), "group1", ([a, b], y_tl))
+                    (lab(f"TL {_short(br.a)}→{_short(br.b)}"), "group2abcd", (leg,))
                 )
             elif isinstance(br, BalancedLine):
-                # Balanced 4-terminal line (issues #575/#576): a frequency-
-                # dependent 4×4 Group-1 block, the differential 2×2 TL expanded
-                # through the pair incidence. Common mode is structurally open
-                # (rank 2) unless the element declares a `zcomm` CM path; the
-                # half-wave singularity guard is inherited.
-                idxs = [self.port_to_idx[p] for p in (br.a1, br.a2, br.b1, br.b2)]
-                yb = balanced_admittance_4x4(
-                    br.zdiff,
-                    br.length,
-                    wavelength,
-                    vf=br.vf,
-                    k1=br.k1,
-                    k2=br.k2,
-                    zcomm=br.zcomm,
+                # Balanced 4-terminal line (issues #575/#576/#746): the same
+                # even/odd decomposition `balanced_admittance_4x4` writes as a
+                # 4×4 Group-1 block, stamped instead as one chain-matrix
+                # 2-port per mode. The differential mode's port weights
+                # (+1, −1) force I(a1) = −I(a2) at each end, so with
+                # `zcomm=None` the common mode remains STRUCTURALLY open
+                # (rank 2) exactly as before — that is a topological property
+                # of the incidence, not of which description carries it.
+                a1, a2, b1, b2 = (
+                    self.port_to_idx[p] for p in (br.a1, br.a2, br.b1, br.b2)
                 )
-                G[np.ix_(idxs, idxs)] += yb
+                kw = dict(vf=br.vf, k1=br.k1, k2=br.k2)
+                legs = [
+                    _stamp_abcd(
+                        elements,
+                        couplings,
+                        [(a1, 1.0 + 0j), (a2, -1.0 + 0j)],
+                        [(b1, 1.0 + 0j), (b2, -1.0 + 0j)],
+                        tl_abcd(br.zdiff, br.length, wavelength, **kw),
+                    )
+                ]
+                if br.zcomm is not None:
+                    # The pair driven as ONE conductor: voltage the pair
+                    # average, current the total, splitting equally. Its
+                    # ½-weights annihilate differential vectors, so the two
+                    # legs never cross-couple.
+                    legs.append(
+                        _stamp_abcd(
+                            elements,
+                            couplings,
+                            [(a1, 0.5 + 0j), (a2, 0.5 + 0j)],
+                            [(b1, 0.5 + 0j), (b2, 0.5 + 0j)],
+                            tl_abcd(br.zcomm, br.length, wavelength, **kw),
+                        )
+                    )
                 probes.append(
                     (
                         lab(
                             f"BalancedLine {_short(br.a1)},{_short(br.a2)}"
                             f"→{_short(br.b1)},{_short(br.b2)}"
                         ),
-                        "group1",
-                        (idxs, yb),
+                        "group2abcd",
+                        tuple(legs),
                     )
                 )
             elif isinstance(br, Admittance):
