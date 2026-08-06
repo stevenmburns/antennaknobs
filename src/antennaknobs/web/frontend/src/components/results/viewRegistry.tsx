@@ -36,6 +36,11 @@ export type ViewRenderProps = {
   showFeedNames: boolean;
   multiFeed: boolean;
   fineNorm?: number | null;
+  /** Adaptive resolution (issue #744) is ON for this session — the Smith
+   *  chart uses it to draw the sweep as a connected locus (the refined,
+   *  frequency-sorted samples finally support one). Optional: thumbnail
+   *  call sites omit it and keep the dot trail. */
+  refineEnabled?: boolean;
   schematicSvg: string | null;
   schematicUnavailable: boolean;
 };
@@ -105,6 +110,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       convergeRunning={p.convergeRunning}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
+      connectSweep={p.refineEnabled ?? false}
     />
   ),
   schematic: (p) => (
