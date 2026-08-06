@@ -14,7 +14,11 @@ import { type BackendEntry } from "../../lib/backends";
 import { type GroundModel } from "../../lib/ground";
 import { feedwiseRichardson, richardsonExtrap } from "../../lib/math";
 import { type BandSpec, type ExampleDescriptor } from "../../lib/params";
-import { refineSweepFreqs } from "../../lib/refine";
+import {
+  ALL_SWEEP_PROJECTIONS,
+  refineSweepFreqs,
+  type SweepProjectionSet,
+} from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
 import {
   mergeSweepPoints,
@@ -164,6 +168,8 @@ export function useAnalysisRunners({
   comboApproved,
   recommendedBackend,
   z0 = 50,
+  refineEnabled = true,
+  residentSweepViews = ALL_SWEEP_PROJECTIONS,
   buildRequest,
   solveWithheld,
   seqRef,
@@ -207,6 +213,18 @@ export function useAnalysisRunners({
    *  effect — z0 is a display reference, not physics, and re-planning the
    *  whole sweep when it changes would re-solve for nothing. */
   z0?: number;
+  /** Master switch for adaptive refinement (sweep side; the cuts side reads
+   *  the module flag in charts/cuts.ts — same setting, two consumers). Off
+   *  means the base sweep is the final word: no second-dwell rounds, no
+   *  extra solves — the escape hatch for large designs where even
+   *  cache-warmed refinement rounds are real work. */
+  refineEnabled?: boolean;
+  /** Which sweep-consuming charts are on screen (finer than the boolean
+   *  sweepResident above, which gates the BASE sweep): refinement plans
+   *  against only these projections, so a VSWR-only session stops spending
+   *  solves flattening a Smith locus nobody can see. Read per refinement
+   *  ROUND via a ref, so mid-chain pin changes take effect immediately. */
+  residentSweepViews?: SweepProjectionSet;
   buildRequest: () => SolveRequest;
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
@@ -238,6 +256,13 @@ export function useAnalysisRunners({
   // handle the next knob change has to abort through.
   const sweepRefineTimerRef = useRef<number | null>(null);
   const sweepRefineAbortRef = useRef<AbortController | null>(null);
+  // Live mirrors of the refinement props, read per refinement ROUND rather
+  // than captured at chain start — a mid-chain toggle-off or pin change
+  // must not run a stale plan to the end of its budget.
+  const refineEnabledRef = useRef(refineEnabled);
+  refineEnabledRef.current = refineEnabled;
+  const residentSweepViewsRef = useRef(residentSweepViews);
+  residentSweepViewsRef.current = residentSweepViews;
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
   const convergeTimerRef = useRef<number | null>(null);
@@ -309,6 +334,41 @@ export function useAnalysisRunners({
     // effect (issue #382 — replaces the old 200 ms re-poll loop).
     comboApproved, recommendedBackend,
   ]);
+
+  // A sweep chart pinned AFTER the sweep settled (or refinement switched
+  // back on) still deserves its refinement pass — the base flow's trigger
+  // (the tail of runSweep) has already come and gone. This effect fills
+  // that gap: on a growth of the resident-projection set, re-enter the
+  // refinement dwell against the CURRENT accumulated sweep. No base
+  // re-sweep (the data is fine, only the polish is missing), and already-
+  // refined projections converge immediately (their plan comes back empty
+  // or tiny, and the server's per-freq cache answers any overlap), so the
+  // marginal cost is the new projection's points alone.
+  const residentSweepKey = `${residentSweepViews.vswr},${residentSweepViews.gamma},${residentSweepViews.smith}`;
+  const sweepRef = useRef<SweepData | null>(null);
+  sweepRef.current = sweep;
+  useEffect(() => {
+    if (!refineEnabled || !sweepRef.current || sweepRunning) return;
+    if (sweepRefineTimerRef.current) {
+      window.clearTimeout(sweepRefineTimerRef.current);
+    }
+    const settled = sweepRef.current;
+    sweepRefineTimerRef.current = window.setTimeout(
+      () => runSweepRefine(settled),
+      SWEEP_REFINE_DWELL_MS,
+    );
+    return () => {
+      if (sweepRefineTimerRef.current) {
+        window.clearTimeout(sweepRefineTimerRef.current);
+      }
+    };
+    // sweep/sweepRunning are read via ref/guard, deliberately not deps: a
+    // COMPLETING sweep must not re-fire this effect (the runSweep tail owns
+    // that trigger); only the projection set growing or the toggle flipping
+    // on re-arms it. runSweepRefine: same unmemoized-closure idiom as
+    // runSweep above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [residentSweepKey, refineEnabled]);
 
   // Debounced convergence sweep over segments-per-wire. Independent of the
   // freq sweep above: re-runs on any antenna/backend change, gated by its
@@ -481,7 +541,7 @@ export function useAnalysisRunners({
         // curve that is already drawn, and flickering the chart's busy
         // indicator back on would read as "this result is provisional".
         const settled = planned;
-        if (settled && !controller.signal.aborted) {
+        if (settled && !controller.signal.aborted && refineEnabledRef.current) {
           sweepRefineTimerRef.current = window.setTimeout(
             () => runSweepRefine(settled),
             SWEEP_REFINE_DWELL_MS,
@@ -502,6 +562,7 @@ export function useAnalysisRunners({
   // screen; nothing here is load-bearing for correctness of the curve.
   async function runSweepRefine(base: SweepData) {
     sweepRefineTimerRef.current = null;
+    if (!refineEnabledRef.current) return;
     if (solveWithheld()) return;
     sweepRefineAbortRef.current?.abort();
     const controller = new AbortController();
@@ -510,10 +571,16 @@ export function useAnalysisRunners({
     let spent = 0;
     try {
       while (spent < SWEEP_REFINE_BUDGET && !controller.signal.aborted) {
+        // The toggle and the resident-projection set are read per ROUND:
+        // switching refinement off (or unpinning the last chart that wanted
+        // a projection) takes effect at the next round boundary instead of
+        // finishing the whole budget.
+        if (!refineEnabledRef.current) break;
         const want = refineSweepFreqs(
           acc,
           z0,
           Math.min(SWEEP_REFINE_ROUND_BUDGET, SWEEP_REFINE_BUDGET - spent),
+          residentSweepViewsRef.current,
         );
         if (want.length === 0) break; // no visible kink left to remove
         spent += want.length;

@@ -40,6 +40,7 @@ export function FarFieldChart({
   // Disabled pins draw no ghost and don't stretch the radial scale.
   const enabledPins = pinned.filter((p) => p.enabled);
   const cutTraces = useCutTraces(
+    cut,
     [result, ...enabledPins.map((p) => p.result)],
     azElevDeg,
     elevAzDeg,

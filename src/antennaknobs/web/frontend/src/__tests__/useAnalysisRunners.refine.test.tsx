@@ -81,7 +81,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-type Props = { req: Record<string, unknown>; sweepResident: boolean };
+type Props = {
+  req: Record<string, unknown>;
+  sweepResident: boolean;
+  refineEnabled?: boolean;
+  residentSweepViews?: {
+    vswr: boolean;
+    gamma: boolean;
+    smith: boolean;
+  };
+};
 
 function renderRunners(initial: Props) {
   return renderHook(
@@ -109,6 +118,10 @@ function renderRunners(initial: Props) {
         comboApproved: false,
         recommendedBackend: null,
         z0: 50,
+        ...(p.refineEnabled === undefined ? {} : { refineEnabled: p.refineEnabled }),
+        ...(p.residentSweepViews === undefined
+          ? {}
+          : { residentSweepViews: p.residentSweepViews }),
         buildRequest: () => ({ ...p.req }) as SolveRequest,
         solveWithheld: () => false,
         seqRef: { current: 0 },
@@ -250,6 +263,69 @@ describe("adaptive sweep refinement (issue #744)", () => {
       );
     });
     renderRunners(BASE);
+    await settle();
+    await settle();
+    expect(refineBodies()).toHaveLength(0);
+  });
+
+  it("the adaptive-resolution toggle off means the base sweep is final", async () => {
+    const { result } = renderRunners({ ...BASE, refineEnabled: false });
+    await settle();
+    expect(sweepBodies).toHaveLength(1); // base sweep ran normally
+    const planned = result.current.sweep!.freqs_mhz.length;
+    await settle();
+    await settle();
+    // No refinement request, no extra points — not "refined but hidden".
+    expect(refineBodies()).toHaveLength(0);
+    expect(result.current.sweep!.freqs_mhz.length).toBe(planned);
+  });
+
+  it("switching the toggle ON refines the sweep already on screen — no base re-sweep", async () => {
+    const { result, rerender } = renderRunners({
+      ...BASE,
+      refineEnabled: false,
+    });
+    await settle();
+    await settle();
+    expect(refineBodies()).toHaveLength(0);
+    const baseCount = sweepBodies.length;
+    rerender({ ...BASE, refineEnabled: true });
+    await settle();
+    expect(refineBodies().length).toBeGreaterThan(0);
+    // Only refinement requests were added — the settled base data was reused.
+    expect(sweepBodies.length - baseCount).toBe(refineBodies().length);
+    expect(result.current.sweep!.freqs_mhz.length).toBeGreaterThan(41);
+  });
+
+  it("plans only for the resident projections (a VSWR-only session ignores Smith-only curvature)", async () => {
+    // Constant-|Γ| phase arc: VSWR/S11 flat, Smith locus curved — the same
+    // separator refine.test.ts pins at the planner level, held here through
+    // the whole runner chain.
+    fetchMock.mockImplementation((url: string, init?: { body?: string }) => {
+      if (url !== "/sweep")
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      const body = JSON.parse(init?.body ?? "{}");
+      sweepBodies.push(body);
+      const freqs: number[] = body.freqs_mhz ?? [];
+      const g = 0.6;
+      return ndjson(
+        freqs.map((f) => {
+          const th = Math.PI * Math.pow((f - 10) / 4, 2);
+          const re = g * Math.cos(th);
+          const im = g * Math.sin(th);
+          const d = (1 - re) * (1 - re) + im * im;
+          return JSON.stringify({
+            freq_mhz: f,
+            z_re: (50 * (1 - re * re - im * im)) / d,
+            z_im: (50 * 2 * im) / d,
+          });
+        }),
+      );
+    });
+    renderRunners({
+      ...BASE,
+      residentSweepViews: { vswr: true, gamma: true, smith: false },
+    });
     await settle();
     await settle();
     expect(refineBodies()).toHaveLength(0);

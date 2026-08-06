@@ -32,6 +32,8 @@ export function SessionGearMenu({
   onClearMeasured,
   normCheckEnabled,
   setNormCheckEnabled,
+  refineEnabled,
+  setRefineEnabled,
   theme,
   applyTheme,
 }: {
@@ -60,6 +62,8 @@ export function SessionGearMenu({
   onClearMeasured: () => void;
   normCheckEnabled: boolean;
   setNormCheckEnabled: (v: boolean) => void;
+  refineEnabled: boolean;
+  setRefineEnabled: (v: boolean) => void;
   theme: Theme;
   applyTheme: (t: Theme) => void;
 }) {
@@ -240,6 +244,18 @@ export function SessionGearMenu({
                       onChange={(e) => setNormCheckEnabled(e.target.checked)}
                     />
                     norm check
+                  </label>
+                  <div className="gear-menu-section">charts</div>
+                  <label
+                    className="gear-menu-check"
+                    title="After the knobs settle, add sample points where the sweep and pattern-cut plots still show corners (adaptive resolution, issue #744). Off = the base grids are final — no extra solves, the escape hatch for large designs where refinement rounds are real work."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={refineEnabled}
+                      onChange={(e) => setRefineEnabled(e.target.checked)}
+                    />
+                    adaptive resolution
                   </label>
                 </div>
               </>
