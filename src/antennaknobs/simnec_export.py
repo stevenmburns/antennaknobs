@@ -347,7 +347,9 @@ def main(argv=None):
         name=args.name,
     )
     if args.out:
-        with open(args.out, "w") as fh:
+        # --name is echoed verbatim into the script's first //comment; pin
+        # the encoding rather than trust the platform default (issue #772).
+        with open(args.out, "w", encoding="utf-8") as fh:
             fh.write(ssn)
         print(f"wrote {args.out}")
     else:

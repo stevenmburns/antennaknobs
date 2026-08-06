@@ -129,3 +129,26 @@ def test_cli_default_engine_works_without_pynec(monkeypatch):
     monkeypatch.delitem(cli_mod.ENGINE_CLASSES, "pynec", raising=False)
     dipole = "dipoles.invvee:dipole"
     ant.cli(f"pattern --builder {dipole} --ground free{o}".split())
+
+
+def test_cli_export_writes_utf8_even_under_a_non_utf8_default(
+    tmp_path, monkeypatch, cp1252_default_open
+):
+    """`export` writes the NEC deck verbatim; NEC decks are ASCII by spec and
+    `export`'s CLI has no --title flag to inject through, so there is no live
+    user-facing vector today (issue #772 says as much). export_nec's return
+    value is the only thing stubbed here — the CLI dispatch and the
+    open(args.out, "w") write site both run for real — so this still fails
+    against an unpinned write site, guarding the case a future --title (or
+    similar) flag opens up.
+
+    Deliberately NOT @needs_pynec: `export` builds a deck and never solves,
+    so requiring the reference engine would skip this guard on exactly the
+    bare checkout the issue blames for the bug staying hidden."""
+    monkeypatch.setattr("antennaknobs.nec_export.export_nec", lambda *a, **k: "CM Ω\n")
+
+    out = tmp_path / "deck.nec"
+    ant.cli(f"export --builder dipoles.invvee --out {out}".split())
+
+    text = out.read_text(encoding="utf-8")
+    assert "Ω" in text

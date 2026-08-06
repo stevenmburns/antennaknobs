@@ -441,7 +441,22 @@ def test_render_produces_an_svg(tmp_path):
     out = tmp_path / "s.svg"
     svg = render_svg(lower(build("wire.doublet_ladder_tuner").build_network()), out)
     assert svg.lstrip().startswith("<?xml") or "<svg" in svg
-    assert out.read_text() == svg
+    assert out.read_text(encoding="utf-8") == svg
+
+
+def test_render_svg_writes_utf8_even_under_a_non_utf8_default(
+    tmp_path, cp1252_default_open
+):
+    """schemdraw emits Ω in every impedance label; an unpinned write site
+    would fall back to cp1252 on stock Windows and raise UnicodeEncodeError
+    (issue #772). cp1252_default_open reproduces that platform default here
+    on Linux, so this fails against `open(path, "w")` without
+    `encoding="utf-8"`."""
+    pytest.importorskip("schemdraw")
+    out = tmp_path / "s.svg"
+    svg = render_svg(lower(build("wire.doublet_ladder_tuner").build_network()), out)
+    assert "Ω" in svg
+    assert "Ω" in out.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
