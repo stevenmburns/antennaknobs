@@ -1,3 +1,4 @@
+import type { SweepData } from "./api";
 import { backendSupportsGround, type BackendEntry } from "./backends";
 import type { GroundModel } from "./ground";
 import type { BandSpec, ExampleDescriptor } from "./params";
@@ -76,4 +77,62 @@ export function planSweepFreqs(params: {
   return Array.from({ length: N }, (_, i) =>
     Math.exp(Math.log(fLo) + (i / (N - 1)) * (Math.log(fHi) - Math.log(fLo))),
   );
+}
+
+// Point budget for adaptive sweep refinement (issue #744), summed across
+// rounds. 41 planned + 48 refined = 89 points, an order of magnitude under
+// the hosted MAX_SWEEP_POINTS=500 cap (web/cost.py) and — thanks to the
+// server's per-freq Z cache — nearly free to re-request on a later dwell.
+export const SWEEP_REFINE_BUDGET = 48;
+// Per round, so one round's plan (which cannot re-evaluate its own inserted
+// points) never commits the whole budget on an estimate.
+export const SWEEP_REFINE_ROUND_BUDGET = 12;
+
+/** Merge refinement points into an accumulated sweep, re-sorted by
+ *  frequency for display.
+ *
+ * Every row array is permuted by the SAME ordering — the per-feed Z rows
+ * (bowtie arrays) are index-aligned with `freqs_mhz` by SweepData's
+ * contract, and a chart that reads `feeds_z_re[i]` next to `freqs_mhz[i]`
+ * would otherwise plot one feed's impedance at another frequency's x. A
+ * frequency already present wins over the incoming duplicate: the existing
+ * value came from the same cached solve, so preferring it keeps the merge
+ * idempotent.
+ */
+export function mergeSweepPoints(base: SweepData, extra: SweepData): SweepData {
+  const eps =
+    Math.abs(
+      (base.freqs_mhz[base.freqs_mhz.length - 1] ?? 0) -
+        (base.freqs_mhz[0] ?? 0),
+    ) * 1e-9;
+  type Row = { from: "base" | "extra"; i: number };
+  const rows: Row[] = base.freqs_mhz.map((_, i) => ({ from: "base", i }));
+  for (let i = 0; i < extra.freqs_mhz.length; i++) {
+    const f = extra.freqs_mhz[i];
+    if (base.freqs_mhz.some((have) => Math.abs(have - f) <= eps)) continue;
+    rows.push({ from: "extra", i });
+  }
+  const freqAt = (r: Row) =>
+    (r.from === "base" ? base : extra).freqs_mhz[r.i];
+  rows.sort((a, b) => freqAt(a) - freqAt(b));
+  // Per-feed rows survive the merge only when every contributing row has
+  // one. A half-populated feeds array would be worse than none: the chart
+  // indexes it positionally, so a hole reads as another feed's impedance.
+  const pick = (
+    get: (s: SweepData) => number[][] | undefined,
+  ): number[][] | undefined => {
+    const got = rows.map((r) => get(r.from === "base" ? base : extra)?.[r.i]);
+    return got.length > 0 && got.every((row) => Array.isArray(row))
+      ? (got as number[][])
+      : undefined;
+  };
+  const feedsRe = pick((s) => s.feeds_z_re);
+  const feedsIm = pick((s) => s.feeds_z_im);
+  return {
+    freqs_mhz: rows.map(freqAt),
+    z_re: rows.map((r) => (r.from === "base" ? base : extra).z_re[r.i]),
+    z_im: rows.map((r) => (r.from === "base" ? base : extra).z_im[r.i]),
+    ...(feedsRe ? { feeds_z_re: feedsRe } : {}),
+    ...(feedsIm ? { feeds_z_im: feedsIm } : {}),
+  };
 }
