@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import type { FeedEntry, SweepData } from "../../lib/api";
 import { gammaDbFromMag, gammaMagFromZ, vswrFromGammaMag } from "../../lib/math";
+import { s11DbTop } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
 import { feedColor, feedSweepColor, plotColors } from "./palette";
 
@@ -60,8 +61,6 @@ export function SweepChart({
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const dom = DOMAIN[mode];
-
   // Pure derivation from props, computed outside the canvas effect so it's
   // available for the data-* attributes below even when there is no 2-D
   // context to draw with (jsdom in tests). This is also the one place the
@@ -99,6 +98,29 @@ export function SweepChart({
         ? [{ v: valueFor(mode, r, x, z0), fi: 0 }]
         : [];
 
+  // The S11 axis top ADAPTS when any drawn value crosses 0 dB (a driven
+  // array's active Γ is not bounded by 1 — see s11DbTop, which is also what
+  // the refinement planner uses, so axis and planner cannot drift). The rule
+  // runs over every feed's trail plus the current-Z markers: whichever trace
+  // carries the over-unity port pushes the top up, headroom included, and
+  // the 0 dB boundary stays as a tick — the line a healthy port never
+  // crosses. VSWR keeps its fixed pinned-needle scale.
+  const dom = (() => {
+    const base = DOMAIN[mode];
+    if (mode !== "gamma") return base;
+    const all: number[] = markerPoints.map((m) => m.v);
+    if (hasSweep) {
+      for (let fi = 0; fi < nFeeds; fi++) {
+        for (let i = 0; i < sweep!.freqs_mhz.length; i++) {
+          const z = zAt(fi, i);
+          all.push(valueFor(mode, z.re, z.im, z0));
+        }
+      }
+    }
+    const hi = s11DbTop(all);
+    return hi > 0 ? { ...base, hi, ticks: [...base.ticks, hi] } : base;
+  })();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -131,10 +153,11 @@ export function SweepChart({
       Math.max(0, Math.min(1, (v - dom.lo) / (dom.hi - dom.lo)));
     const yOf = (v: number) => marginT + plotH * (1 - frac(v));
     // A value at/above the domain top for VSWR means "off the chart" (a real
-    // SWR meter pins its needle rather than rescaling); gamma never needs
-    // this since S11 ≤ 0 dB for anything passive. Below the gamma floor the
-    // trace just clamps to the bottom edge — an over-deep dip is good news,
-    // not a hazard worth a pinned-needle glyph.
+    // SWR meter pins its needle rather than rescaling); gamma instead GROWS
+    // its top when a driven-array port crosses 0 dB (see `dom` above), so
+    // nothing is ever pinned there. Below the gamma floor the trace just
+    // clamps to the bottom edge — an over-deep dip is good news, not a
+    // hazard worth a pinned-needle glyph.
     const offScale = (v: number) => v > dom.hi;
 
     ctx.strokeStyle = PC.grid;

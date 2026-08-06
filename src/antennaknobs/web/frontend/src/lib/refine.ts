@@ -266,6 +266,24 @@ export function planRefinement(
 const VSWR_DOMAIN = { lo: 1, hi: 10 };
 const GAMMA_DB_DOMAIN = { lo: -30, hi: 0 };
 
+/** Top of the S11 axis for a set of dB samples: 0 for anything passive, and
+ *  ceil(max + 1 dB headroom) when any sample crosses 0 dB. A driven-array
+ *  port's ACTIVE reflection is not bounded by |Γ| ≤ 1 — mutual coupling can
+ *  push more power into a detuned element than its own generator supplies
+ *  (bowtiearray2x4 with length_otop pulled 10% reads +1.3 dB) — and
+ *  clamping that onto the 0 dB line hid over-unity behind near-unity, the
+ *  most interesting single fact a sweep can tell you about an array tuning.
+ *  Exported for SweepChart, exactly as cutDbiTop is for FarFieldChart, so
+ *  the chart and the refinement planner cannot disagree about the axis. The
+ *  headroom also means no sample sits AT the adaptive top, so over-unity
+ *  peaks are never clamp-marked and refinement resolves them like any other
+ *  feature. */
+export function s11DbTop(dbSamples: readonly number[]): number {
+  let m = 0;
+  for (const d of dbSamples) if (Number.isFinite(d) && d > m) m = d;
+  return m > 0 ? Math.ceil(m + 1) : 0;
+}
+
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** Which of the three sweep-consuming charts are actually on screen. All
@@ -312,9 +330,17 @@ export function sweepProjections(
     y: clamp01(raw),
     ...(raw <= 0 || raw >= 1 ? { clamped: true } : {}),
   });
+  const gs = f.map((_, i) =>
+    reflectionCoefficient(sweep.z_re[i], sweep.z_im[i], z0),
+  );
+  // The S11 axis top adapts to over-unity samples (see s11DbTop) — computed
+  // over the whole sweep first, the same number SweepChart derives, so the
+  // planner refines against the geometry actually drawn.
+  const dbs = include.gamma ? gs.map((g) => gammaDbFromMag(g.gMag)) : [];
+  const dbHi = s11DbTop(dbs);
   for (let i = 0; i < n; i++) {
     const x = (f[i] - f[0]) / span;
-    const g = reflectionCoefficient(sweep.z_re[i], sweep.z_im[i], z0);
+    const g = gs[i];
     if (include.vswr) {
       const v = vswrFromGammaMag(g.gMag);
       vswr.push(
@@ -322,19 +348,21 @@ export function sweepProjections(
       );
     }
     if (include.gamma) {
-      const db = gammaDbFromMag(g.gMag);
       gamma.push(
-        edge(
-          x,
-          (db - GAMMA_DB_DOMAIN.lo) /
-            (GAMMA_DB_DOMAIN.hi - GAMMA_DB_DOMAIN.lo),
-        ),
+        edge(x, (dbs[i] - GAMMA_DB_DOMAIN.lo) / (dbHi - GAMMA_DB_DOMAIN.lo)),
       );
     }
-    // Γ plane on the unit disc → the [0,1]² box the chart's circle
-    // inscribes. Never clamped: |Γ| ≤ 1 for a passive port, so the locus
-    // is on screen by construction.
-    if (include.smith) smith.push({ x: (g.gRe + 1) / 2, y: (g.gIm + 1) / 2 });
+    // Γ plane: the [0,1]² box the chart's circle inscribes, clamp-marked
+    // outside it — |Γ| ≤ 1 for a passive port, but a driven-array port's
+    // ACTIVE Γ can exceed 1 (see s11DbTop) and the chart clips the disc.
+    if (include.smith) {
+      const outside = g.gMag > 1;
+      smith.push({
+        x: (g.gRe + 1) / 2,
+        y: (g.gIm + 1) / 2,
+        ...(outside ? { clamped: true } : {}),
+      });
+    }
   }
   return [vswr, gamma, smith].filter((p) => p.length > 0);
 }
