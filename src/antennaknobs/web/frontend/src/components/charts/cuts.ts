@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PatternCuts, SolveResponse } from "../../lib/api";
 import { cutDbiTop, refineCutAngles } from "../../lib/refine";
+import { tunedInt } from "../../lib/tuning";
 import type { FarFieldCut } from "./types";
 
 // --- Server-side polar cuts (issue #547) -----------------------------------
@@ -294,7 +295,13 @@ const wantedCuts = () => ({
 /** Total extra angles per cut, summed across rounds. 180 uniform + 120
  *  refined stays well under the server's 720-angle ceiling, and a far-field
  *  evaluation at 300 directions is still ~1 ms on a typical mesh. */
-export const CUT_REFINE_BUDGET = 120;
+// Overridable without a rebuild (lib/tuning.ts); capped under the server's
+// 720-angle request ceiling with the 180-point base already inside it.
+export const CUT_REFINE_BUDGET = tunedInt(
+  "antennaknobs.cutRefineBudget",
+  120,
+  500,
+);
 export const CUT_REFINE_ROUND_BUDGET = 40;
 /** Dwell after the cuts for the current dial angles resolve. A dial drag
  *  must not spend evaluations on angles the user is about to leave. */
