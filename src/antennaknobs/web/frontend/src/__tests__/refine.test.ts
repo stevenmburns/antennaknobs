@@ -286,6 +286,79 @@ describe("sweepProjections / refineSweepFreqs", () => {
   it("declines to plan for a sweep too short to have curvature", () => {
     expect(refineSweepFreqs(notchSweep([10, 11]), 50, 12)).toEqual([]);
   });
+
+  // A constant-|Γ| phase rotation: VSWR and S11-dB are FLAT (both are
+  // functions of |Γ| alone) while the Smith locus sweeps a wide arc — the
+  // cleanest separator between "the scalar charts need points" and "only
+  // the Smith chart does".
+  function arcSweep(n = 41): SweepData {
+    const freqs = Array.from({ length: n }, (_, i) => 10 + (i * 4) / (n - 1));
+    const g = 0.6;
+    return {
+      freqs_mhz: freqs,
+      // Γ = 0.6·e^{jθ}, θ swept non-uniformly so the arc has display-space
+      // curvature variation worth refining. Z = z0(1+Γ)/(1−Γ).
+      z_re: freqs.map((_f, i) => {
+        const th = Math.PI * Math.pow(i / (n - 1), 2);
+        const re = g * Math.cos(th);
+        const im = g * Math.sin(th);
+        const d = (1 - re) * (1 - re) + im * im;
+        return (50 * (1 - re * re - im * im)) / d;
+      }),
+      z_im: freqs.map((_f, i) => {
+        const th = Math.PI * Math.pow(i / (n - 1), 2);
+        const re = g * Math.cos(th);
+        const im = g * Math.sin(th);
+        const d = (1 - re) * (1 - re) + im * im;
+        return (50 * 2 * im) / d;
+      }),
+    };
+  }
+
+  it("residency filter: Smith-only curvature is skipped when Smith is not on screen (#763 follow-up era)", () => {
+    const s = arcSweep();
+    const withSmith = refineSweepFreqs(s, 50, 12, {
+      vswr: true,
+      gamma: true,
+      smith: true,
+    });
+    const withoutSmith = refineSweepFreqs(s, 50, 12, {
+      vswr: true,
+      gamma: true,
+      smith: false,
+    });
+    // The arc demands points for the Smith locus…
+    expect(withSmith.length).toBeGreaterThan(0);
+    // …and none at all once Smith is the only chart that would show them:
+    // VSWR and S11 are constant for constant |Γ|.
+    expect(withoutSmith).toEqual([]);
+  });
+
+  it("clamped vertices score zero: the corner where the curve meets the chart edge is not chased", () => {
+    // A spike clipping through the VSWR ceiling: mid samples pinned at y=1.
+    const freqs = Array.from({ length: 9 }, (_, i) => 14 + i * 0.05);
+    const s: SweepData = {
+      freqs_mhz: freqs,
+      z_re: freqs.map(() => 50),
+      // |X| huge in the middle third → VSWR far above 10, clamped flat.
+      z_im: freqs.map((_, i) => (i >= 3 && i <= 5 ? 5000 : 100)),
+    };
+    const [vswr] = sweepProjections(s, 50);
+    // The middle third really is clamped…
+    expect(vswr[4].clamped).toBe(true);
+    expect(vswr[4].y).toBe(1);
+    // …and the planner assigns those vertices no deviation: only the VSWR
+    // projection is offered, so any planned point must come from UNCLAMPED
+    // vertices' deviations, never from sharpening the ceiling corner
+    // between two clamped samples.
+    const planned = planRefinement(freqs, [vswr], { budget: 8 });
+    for (const f of planned) {
+      // No midpoint may land strictly inside the clamped run (between
+      // samples 3 and 5): both endpoints of those intervals are clamped
+      // and their drawn segment is the ceiling regardless of the truth.
+      expect(f < freqs[3] || f > freqs[5]).toBe(true);
+    }
+  });
 });
 
 describe("cut projection / refineCutAngles", () => {
