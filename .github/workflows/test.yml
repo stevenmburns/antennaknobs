@@ -133,7 +133,7 @@ jobs:
       # step that only runs on push (#734). The data ships to a push-gated
       # job instead; include-hidden-files because `.coverage` is a dotfile.
       if: github.event_name == 'push'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-data
         path: .coverage
