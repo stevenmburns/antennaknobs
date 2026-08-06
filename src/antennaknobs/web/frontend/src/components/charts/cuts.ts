@@ -275,8 +275,20 @@ const CUT_REFINE_DWELL_MS = 400;
 // refinement chain. Keyed like cutsInFlight.
 const cutsRefineInFlight = new Map<string, Promise<void>>();
 // Keys whose refinement has run to completion (or its budget), so a
-// re-render never restarts it.
+// re-render never restarts it. Bounded like cutsCache: a long session of
+// dial drags mints a key per angle pair per solve, and a key whose cached
+// trace has already been evicted is worth nothing anyway.
 const cutsRefineDone = new Set<string>();
+function markRefineDone(key: string): void {
+  if (cutsRefineDone.size >= CUTS_CACHE_MAX) {
+    let drop = CUTS_CACHE_MAX >> 1;
+    for (const k of Array.from(cutsRefineDone)) {
+      if (drop-- <= 0) break;
+      cutsRefineDone.delete(k);
+    }
+  }
+  cutsRefineDone.add(key);
+}
 
 function peakOf(dbi: readonly number[]): number {
   let peak = -Infinity;
@@ -340,7 +352,7 @@ function refineCuts(
       cacheCuts(key, next);
       cur = next;
     }
-    cutsRefineDone.add(key);
+    markRefineDone(key);
   })().finally(() => cutsRefineInFlight.delete(key));
   cutsRefineInFlight.set(key, p);
   return p;
