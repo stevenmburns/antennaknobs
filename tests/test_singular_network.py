@@ -16,7 +16,16 @@ import pytest
 
 from antennaknobs import AntennaBuilder
 from antennaknobs.engines import MomwireEngine
-from antennaknobs.network import Driven, Instance, Network, PortOnWire, Wire
+from antennaknobs.network import (
+    Driven,
+    Instance,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    Shunt,
+    TwoPort,
+    Wire,
+)
 from antennaknobs.network_reduce import (
     RCOND_SINGULAR,
     RCOND_SUSPECT,
@@ -62,30 +71,61 @@ def engine(**knobs):
 
 
 # ---------------------------------------------------------------------------
-# detection + attribution
+# the λ/4 open stub: an answer, not a pole (issue #746)
+#
+# These four tests premised that the exact quarter-wave was unanswerable. It
+# never was: Z_in = 0 shorts the port, and only an IDEAL generator — Z_s = 0 —
+# cannot drive a short. The reducer's impedance path now stamps the source
+# behind `Z_REF_DEFAULT`, so the same stub returns Z = 0 / Γ = −1 with the
+# conditioning it has everywhere else. Rewritten to pin that, since a test
+# asserting the old refusal would now be asserting a bug.
 # ---------------------------------------------------------------------------
-def test_a_single_point_on_the_pole_raises_with_the_element_named():
-    """The whole value of the guard is the sentence it prints."""
-    with pytest.raises(SingularNetworkError) as exc:
-        engine(freq=POLE_MHZ).impedance()
-    msg = str(exc.value)
-    assert "stub" in msg  # the instance path, so you know WHICH element
-    assert "λ/4" in msg and f"{POLE_MHZ:.4f}" in msg
-    assert "k1/k2" in msg or "cable=" in msg  # ...and what to do about it
+def _rcond_at(freq, *, z_ref, **knobs):
+    """The equilibrated reciprocal condition of the assembled system."""
+    from scipy.linalg.lapack import zgesvx
+
+    e = engine(freq=freq, **knobs)
+    wl = e._wavelength_for(freq)
+    system = e._reducer.apply_branches(e._compute_y_matrix(wl), wl, z_ref=z_ref)
+    return float(zgesvx(system.A, system.rhs.reshape(-1, 1))[8])
 
 
-def test_the_message_says_the_stamps_were_individually_fine():
-    """This is the distinguishing feature of the reducer-level case: no single
-    branch is singular, so the user should not go looking for one."""
-    with pytest.raises(SingularNetworkError) as exc:
-        engine(freq=POLE_MHZ).impedance()
-    assert "assembled system" in str(exc.value)
+def test_a_single_point_on_the_pole_is_a_dead_short_and_says_so():
+    """The quarter-wave open stub is the harmonic-notch trap: it puts 0 Ω
+    across the feed. That is an answer."""
+    z = engine(freq=POLE_MHZ).impedance()[0]
+    assert abs(z) < 1e-9, z
 
 
-def test_real_loss_dissolves_the_singularity():
-    """The remedy the message recommends has to actually work."""
+def test_the_shorted_port_reads_as_total_reflection():
+    """Γ = −1 to within a rounding error — the sign that says short, not open.
+
+    (The issue text asked for Γ ≈ +1 here; that is the OPEN. A λ/4 open stub is
+    a short across the port, and the measured value is −1 + 1.2e-16j.)"""
+    e = engine(freq=POLE_MHZ)
+    wl = e._wavelength_for(POLE_MHZ)
+    g = e._reducer.driven_reflection(e._compute_y_matrix(wl), wl)[0]
+    assert abs(g + 1.0) < 1e-6, g
+
+
+def test_the_pole_is_no_worse_conditioned_than_any_other_frequency():
+    """The strong form of the claim: not "survivable at the pole" but "there
+    is no pole". Measured 2026-08-06 — the ideal-generator stamp collapses
+    from 3.2e-2 at 30 MHz to 1.0e-17 at 35, while the Γ-referenced stamp holds
+    0.0649 → 0.0656 across the same span."""
+    rc_pole = _rcond_at(POLE_MHZ, z_ref=50.0)
+    rc_off = _rcond_at(POLE_MHZ * 0.857, z_ref=50.0)  # 30 MHz
+    assert rc_pole > 0.05
+    assert abs(rc_pole - rc_off) / rc_off < 0.05
+    # ...and the thing it replaced really was singular there.
+    assert _rcond_at(POLE_MHZ, z_ref=0j) < RCOND_SINGULAR
+
+
+def test_real_loss_still_gives_the_lossy_answer():
+    """Loss used to be the escape hatch; it is now just loss. The stub's own
+    copper makes Z_in real and small instead of exactly zero."""
     z = engine(freq=POLE_MHZ, stub_k1=0.2).impedance()[0]
-    assert np.isfinite(z)
+    assert np.isfinite(z) and z.real > 0.0
     assert abs(z) < 1e6
 
 
@@ -95,27 +135,52 @@ def test_off_the_pole_solves_normally():
 
 
 # ---------------------------------------------------------------------------
-# a sweep loses one sample, not the sweep
+# a sweep across the λ/4 keeps every sample
 # ---------------------------------------------------------------------------
-def test_sweep_across_the_pole_poisons_only_that_sample():
-    """The acceptance criterion: a lossless open stub swept across its λ/4."""
+def test_sweep_across_the_pole_loses_nothing():
+    """Was: "poisons only that sample". The poisoning machinery stays for
+    topologies that are genuinely singular (below); this stub is not one."""
     freqs = np.array([33.0, 34.0, POLE_MHZ, 36.0, 37.0])
     zs = engine().impedance_sweep(freqs)[:, 0]
 
-    assert not np.isfinite(zs[2])  # the pole
-    assert np.all(np.isfinite(np.delete(zs, 2)))  # everything either side
-    # ...and the surviving samples are the real answer, not garbage: an open
+    assert np.all(np.isfinite(zs))
+    assert abs(zs[2]) < 1e-9  # the short, in the middle of the sweep
+    # ...and the samples either side are the real answer, not garbage: an open
     # stub is capacitive below λ/4 and inductive above.
     assert zs[1].imag < 0 < zs[3].imag
 
 
-def test_the_poisoned_sample_is_logged_with_its_reason(caplog):
-    """NaN with no explanation would be its own kind of silent failure."""
+class FloatingNode(StubbedDipole):
+    """A dipole with a virtual node reachable only through opens.
+
+    The remaining shape of genuine singularity, now that the lossless-line
+    poles are gone: a 0 F series capacitor (the inert end of a
+    matching-network slider) into a node whose only other branch is another
+    open, so nothing in the system determines its voltage. No source impedance
+    fixes this and no loss regularises it — the equation is simply missing.
+    """
+
+    def build_network(self):
+        return Network(
+            ports={"feed": PortOnWire("feed"), "dead": PortVirtual("dead")},
+            branches=[TwoPort(a="feed", b="dead", c=0.0), Shunt(port="dead", c=0.0)],
+            sources=[Driven(port="feed")],
+        )
+
+
+def floating_engine():
+    return MomwireEngine(FloatingNode(dict(FloatingNode.default_params)), ground=None)
+
+
+def test_a_genuinely_singular_topology_still_poisons_its_sample(caplog):
+    """The machinery, exercised on something that really has no solution.
+    NaN with no explanation would be its own kind of silent failure."""
     with caplog.at_level("WARNING"):
-        engine().impedance_sweep(np.array([34.0, POLE_MHZ, 36.0]))
-    text = caplog.text
-    assert "singular network" in text and f"{POLE_MHZ:g}" in text
-    assert "stub" in text
+        zs = floating_engine().impedance_sweep(np.array([28.0, 30.0]))[:, 0]
+    assert not np.isfinite(zs).any()
+    assert "singular network" in caplog.text
+    with pytest.raises(SingularNetworkError, match="assembled system"):
+        floating_engine().impedance()
 
 
 def test_a_half_wave_line_mid_sweep_fails_for_its_real_reason_now():
@@ -204,7 +269,9 @@ def test_web_sweep_stays_json_clean_through_a_singular_sample():
     import antennaknobs.web.examples  # noqa: F401
     from antennaknobs.web.adapter import Z_OPEN_OHMS
 
-    zs = engine().impedance_sweep(np.array([34.0, POLE_MHZ, 36.0]))
+    # Retargeted (issue #746) onto `FloatingNode`: the λ/4 open stub this used
+    # to sweep no longer produces a NaN to serialise.
+    zs = floating_engine().impedance_sweep(np.array([28.0, 30.0]))
     # This is the clamp the /sweep adapter applies before serialising.
     clamped = np.where(np.isfinite(zs), zs, complex(Z_OPEN_OHMS, 0.0))
     body = json.dumps({"z_re": clamped[:, 0].real.tolist()})

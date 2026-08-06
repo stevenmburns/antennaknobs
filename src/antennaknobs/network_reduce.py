@@ -23,6 +23,16 @@ multiport Y already assumes. Elements that a bare admittance matrix cannot
 represent — ideal voltage sources, ideal shorts, 0 Ω / 0 H series elements —
 become Group-2 unknowns: the branch current joins the solution vector with a
 constitutive row, so no element value is ever inverted.
+
+Issue #746 pushed that principle through the two places it was still being
+violated. Transmission lines are stamped as their CHAIN matrix rather than
+their admittance (two branch currents each), because a k·λ/2 line has no
+admittance matrix at all while its ABCD is [[±1, 0], [0, ±1]]. And the
+impedance/Γ solve stamps each driven port's EMF behind a reference impedance
+rather than pinning the node, because Z_s = 0 is what made a short across the
+port unsolvable — Z = E/j − z_ref is the same answer, Γ comes out natively,
+and an open reads a finite +1 instead of ∞. The excited / far-field solve
+keeps the ideal generator, deliberately: see `excited_state`.
 """
 
 from __future__ import annotations
@@ -66,11 +76,20 @@ NEPER_PER_DB = 1.0 / (20.0 / np.log(10.0))  # 1/8.6859: dB → nepers
 class SingularNetworkError(ValueError):
     """The network has no finite solution at this frequency (issue #647).
 
-    Raised by the construction-time guards (a lossless k·λ/2 line, whose
-    admittance itself is infinite) and by the solve (a network the branches
-    made singular *as a system* — the classic case being a lossless quarter-
-    wave open stub, whose Z_in = 0 shorts the port it hangs on, with every
-    individual stamp perfectly finite).
+    Raised by the solve, when the branches made the system singular even
+    though every individual stamp was finite: a node reachable only through
+    open-circuited branches, or a subnetwork with no return path. Also by the
+    Touchstone conversions, whose poles are the same fact about a description
+    rather than about a circuit.
+
+    Addendum 2026-08-06 (issue #746): the two cases this type was WRITTEN for
+    are gone. A lossless k·λ/2 line raised because the reducer stamped its
+    admittance, which does not exist there; it now stamps the chain matrix,
+    which does. A lossless λ/4 open stub raised because Z_in = 0 shorts the
+    port and an IDEAL generator cannot drive a short; the driven port now sits
+    behind `Z_REF_DEFAULT` and the short is simply the answer. What remains is
+    genuine rank deficiency — and the far-field path, which keeps the ideal
+    generator on purpose and so can still meet the second case.
 
     A `ValueError` subclass so the guards that predate it keep their contract;
     a distinct type so `impedance_sweep` can poison one sample and carry on
@@ -79,14 +98,22 @@ class SingularNetworkError(ValueError):
 
 
 # Reciprocal condition number below which the MNA solve is called singular.
-# 1e-12 is the same threshold the stamp-time guards use for |sinh γl| — one
-# policy for "this is a pole, not a stiff problem".
+# 1e-12 is the same threshold `tl_admittance_2x2` uses for |sinh γl| and the
+# Touchstone conversions for their own inverses — one policy across the
+# package for "this is a pole, not a stiff problem".
 _logger = logging.getLogger(__name__)
 
 RCOND_SINGULAR = 1e-12
 # Between the two, the answer exists but its leading digits are being eaten by
 # the pole; worth saying so, not worth refusing.
 RCOND_SUSPECT = 1e-9
+
+# Source impedance the impedance/Γ solve stamps behind each driven port
+# (issue #746). Z is algebraically independent of it — the readout subtracts
+# it back out — so this is not a physical constant of any design; it is the
+# reference Γ is quoted against, and 50 Ω is the reference every VNA, every
+# `.s1p` and every SWR number in this package already uses.
+Z_REF_DEFAULT = 50.0
 
 
 def _tl_gamma_l(length, wavelength, vf, k1, k2):
@@ -408,13 +435,21 @@ class MNASystem:
     z_chain)`` for the per-port source/load termination branch (see
     ``NetworkReducer.apply_branches``); its current ``j[column]`` is the
     current the termination delivers INTO the node. Kind "v": value is
-    the EMF and the driven impedance is ``emf / j[column]``; kind "i"
-    (forced current, issue #442): value is the forced amps and the
+    the EMF and the driven impedance is ``emf / j[column] − z_ref_at[k]``;
+    kind "i" (forced current, issue #442): value is the forced amps and the
     impedance is ``v_k / j[column] + z_chain``.
     """
 
     def __init__(
-        self, G, elements, terminations, probes=None, diagnose=None, couplings=()
+        self,
+        G,
+        elements,
+        terminations,
+        probes=None,
+        diagnose=None,
+        couplings=(),
+        z_ref=0j,
+        z_ref_at=None,
     ):
         n = G.shape[0]
         m = len(elements)
@@ -452,6 +487,14 @@ class MNASystem:
         self.A = A
         self.rhs = rhs
         self.terminations = terminations
+        # The source impedance the DRIVEN terminations were stamped behind
+        # (issue #746); 0 is the ideal generator. Readouts subtract it back
+        # out, so nothing about the answers depends on the value. `z_ref_at`
+        # is the per-node truth — an undriven, load-only termination gets
+        # none, because a fictitious 50 Ω inside a real load chain would
+        # change the design rather than reference it.
+        self.z_ref = complex(z_ref)
+        self.z_ref_at = dict(z_ref_at or {})
         self.elements = elements
         # (label, kind, payload) probes for the power budget (issue #299):
         # kind "group1" → payload (node_idx_list, stamped Y block);
@@ -520,21 +563,24 @@ class MNASystem:
             # dissipation and the other half negative.
             idx, r = payload
             return 0.5 * float(r) * float(abs(j[idx])) ** 2
-        # termination: the Load part of the source/load branch at node k.
+        # termination: the Load part of the source/load branch at node k. The
+        # z_ref the driven stamp sits behind is a modelling reference, not a
+        # resistor in the design, so its share of the drop comes back out.
         col, e, tkind, z_chain = self.terminations[payload]
         if tkind == "i":
             return 0.5 * float(np.real(z_chain)) * float(abs(j[col])) ** 2
-        return 0.5 * float(np.real((e - v[payload]) * np.conj(j[col])))
+        drop = e - v[payload] - self.z_ref_at.get(payload, 0j) * j[col]
+        return 0.5 * float(np.real(drop * np.conj(j[col])))
 
     def solve(self):
         """Solve once (cached); returns ``(v, j)``.
 
         Uses LAPACK's expert driver rather than a bare ``np.linalg.solve``,
         because the failure this guards against is usually not an exception
-        (issue #647). A lossless quarter-wave open stub puts a dead short
-        across its port: exactly on the pole the system is singular, but a few
-        kHz off it is merely *nearly* singular, and a plain solve answers with
-        enormous, meaningless numbers and no complaint at all.
+        (issue #647): a nearly-singular system answers with enormous,
+        meaningless numbers and no complaint at all. That is worth catching
+        for any cause — a floating subnetwork, contradictory sources, or the
+        ideal-generator excitation the far-field path still uses.
 
         The subtlety is that a raw condition number is useless here. An MNA
         matrix mixes admittance rows with unit-valued constitutive rows, so a
@@ -581,9 +627,13 @@ class MNASystem:
 def poison_singular_sample(fn, *args, where="", **kwargs):
     """Run a per-frequency reduction, returning NaNs if it is singular (#647).
 
-    A sweep is a series of independent questions, and one of them landing
-    exactly on a lossless line's pole is no reason to lose the answers to the
-    other forty. The bad sample becomes NaN — which the web adapter already
+    A sweep is a series of independent questions, and one of them landing on a
+    topology with no solution is no reason to lose the answers to the other
+    forty. (Issue #746 removed the lossless-line poles that used to be the
+    common cause; what is left is genuine rank deficiency — a node reachable
+    only through opens — which no frequency shift dissolves, so a whole sweep
+    of a broken design now poisons every sample rather than one.) The bad
+    sample becomes NaN — which the web adapter already
     converts to its ``Z_OPEN_OHMS`` JSON sentinel, and which every plotting
     path already skips — and the reason is logged once, with the same
     attribution a single-point solve would have raised.
@@ -702,9 +752,13 @@ class NetworkReducer:
         Anything with real loss is skipped, because loss is what regularises
         it, and that is also the remedy the message recommends.
 
-        The k·λ/2 half of this walk is gone (issue #746): a line between two
-        live nodes is now stamped as its chain matrix, which is finite at
-        every length, so a half-wave line is no longer a cause of anything.
+        Issue #746 narrowed this to one caller and one branch. The k·λ/2 half
+        of the walk is gone: a line between two live nodes is stamped as its
+        chain matrix now, finite at every length. The odd-λ/4 half survives
+        because the EXCITED path keeps the ideal generator, which still cannot
+        drive the dead short an open stub puts across the feed — so when this
+        text appears it is a far-field / power-budget solve talking, and the
+        impedance of that same design is a perfectly good Z = 0.
         """
         f_mhz = C_LIGHT / wavelength / 1e6
         open_nodes = self._open_ended_nodes()
@@ -739,7 +793,9 @@ class NetworkReducer:
                     f"  {name}open-ended line {'→'.join(str(e) for e in ends)} "
                     f"is {n_half / 2:.4f} λ at {f_mhz:.4f} MHz — an odd "
                     "multiple of λ/4, where an open stub's Z_in = 0 shorts "
-                    f"the port it hangs on (z0 = {z0:g} Ω)"
+                    f"the port it hangs on (z0 = {z0:g} Ω), which no IDEAL "
+                    "source can drive — the impedance of this same design is "
+                    "a perfectly ordinary Z = 0"
                 )
         if not suspects:
             return (
@@ -753,11 +809,53 @@ class NetworkReducer:
             + "\n".join(suspects)
             + "\nGive the line the loss it really has (k1/k2, or cable=...): "
             "any real attenuation moves the pole off the real axis and the "
-            "solve becomes well-posed."
+            "excitation becomes well-posed."
         )
 
-    def apply_branches(self, Y_real, wavelength):
+    def _reference_node(self):
+        """The one port node a ``z_ref`` may be stamped behind, or ``None``.
+
+        A reference plane is a one-port idea: it needs the rest of the network,
+        seen from this port, to be PASSIVE. Then moving the generator behind an
+        impedance changes the operating point but not the ratio, and
+        Z = E/j − z_ref is exactly the ideal generator's answer.
+
+        A second *active* source breaks that, and not subtly. With two voltage
+        generators, port 0's mutual term y01·E1 is a current injection fixed
+        independently of v0, so any source impedance at port 0 changes v0/i0
+        itself — measured 23 % on the two-source fixture in test_network_mna.
+        A `DrivenCurrent` elsewhere does the same. This package's contract is
+        the classical driven-array Z_k = V_k/I_k at the ideal operating point,
+        so a network with more than one active source keeps the ideal stamp
+        and converts Γ from Z the way `sweep` already does.
+
+        A source at exactly 0 V is not active: `Driven(port, 0)` is the datum
+        trick, a hard V = 0 pin, and it leaves the rest passive. It also never
+        gets the reference itself — with no EMF there is no incident wave, so
+        its Γ is undefined rather than badly conditioned.
+        """
+        active = [
+            (k, kind)
+            for k, kind, val in zip(
+                self.driven_port_idx, self._source_kinds, self._source_values
+            )
+            if val != 0
+        ]
+        if len(active) != 1 or active[0][1] != "v":
+            return None
+        return active[0][0]
+
+    def apply_branches(self, Y_real, wavelength, *, z_ref=0j):
         """Stamp the antenna Y and every network branch into one MNA system.
+
+        ``z_ref`` is the source impedance the driven port's EMF sits behind
+        (issue #746). The default 0 is the historical ideal generator, which
+        the excited / far-field path keeps because its port voltages ARE the
+        excitation; the impedance and Γ paths pass ``Z_REF_DEFAULT``. See
+        :meth:`excited_state` for why the two solves are separate and
+        :meth:`_reference_node` for the one network shape it applies to — a
+        request to reference a network that has no reference plane is honored
+        as "quote Γ against this z0", not stamped.
 
         Group 1 (node-admittance block G):
           - the antenna's dense multiport short-circuit Y at the real-feed
@@ -775,11 +873,12 @@ class NetworkReducer:
           - one TERMINATION branch per port that is driven and/or loaded:
             an EMF (0 if undriven) in series with the port's Load impedance
             (0 if unloaded) from the datum into the node. Its constitutive
-            row v_k + Z_L·j = E is the Thevenin boundary condition, and its
-            current j is the delivered port current — so the driven-point
-            impedance E/j and the load dissipation (E − v_k)·j* both read
-            off the solution. Driven-only ports (Z_L = 0) degenerate to the
-            ideal voltage-source pin v_k = E; loaded-only ports (E = 0) to
+            row v_k + (z_ref + Z_L)·j = E is the Thevenin boundary condition,
+            and its current j is the delivered port current — so the
+            driven-point impedance E/j − z_ref and the load dissipation
+            (E − v_k − z_ref·j)·j* both read off the solution. With the
+            ideal-generator z_ref = 0 a driven-only port (Z_L = 0) degenerates
+            to the voltage-source pin v_k = E; loaded-only ports (E = 0) to
             the series load termination v_k = −Z_L·j. A `Load` is thus a
             series impedance between the antenna gap and the common return,
             matching NEC2's ld_card physics.
@@ -1130,6 +1229,8 @@ class NetworkReducer:
                 "current source is contradictory — drive the port one way"
             )
         terminations = {}
+        z_ref_at = {}
+        z_ref_node = self._reference_node() if z_ref else None
         for k in sorted(set(emf) | set(forced) | set(loads_by_node)):
             loads = loads_by_node.get(k, [])
             zs = [load_impedance(br, omega) for br in loads]
@@ -1153,18 +1254,35 @@ class NetworkReducer:
                     probes.append((f"Load {'+'.join(names)}", "termination", k))
                 continue
             e = emf.get(k, 0j)
+            # Γ-referenced source (issue #746): a DRIVEN port's EMF sits behind
+            # z_ref instead of pinning its node, which is the difference
+            # between an ideal generator and a real one on a real feedline. The
+            # answer Z = E/j − z_ref is algebraically independent of z_ref;
+            # what changes is the conditioning, because Z_s = 0 is what made a
+            # dead short across the port (a lossless λ/4 open stub, a k·λ/2
+            # shorted one) unsolvable rather than simply Γ = −1. Undriven,
+            # load-only terminations get NO z_ref — a fictitious 50 Ω inside a
+            # real load chain would be a modelling error, not a reference —
+            # and neither does any port but the one reference node.
+            zr = complex(z_ref) if k == z_ref_node else 0j
+            if zr:
+                z_ref_at[k] = zr
             if len(loads) == 1 and loads[0].parallel:
                 # Parallel-LC trap: the tank admittance is the finite
                 # quantity (→ 0 at resonance, the intended open circuit);
-                # the impedance form would blow up there.
+                # the impedance form would blow up there. Putting z_ref in
+                # series is y → y/(1 + z_ref·y), which stays finite at both
+                # ends (→ 0 at resonance, → 1/z_ref for a shorted tank).
                 y = load_series_admittance(loads[0], omega)
+                y = y / (1.0 + zr * y)
                 el = _Group2Element(None, k, c_v=y, c_j=1.0 + 0j, e=y * e)
             elif all(np.isfinite(z) for z in zs):
                 # Series composition of every load (plus the EMF). Includes
                 # the no-load case z = 0: an ideal voltage-source pin.
-                el = _Group2Element(None, k, c_v=1.0 + 0j, c_j=sum(zs, 0j), e=e)
+                el = _Group2Element(None, k, c_v=1.0 + 0j, c_j=sum(zs, zr), e=e)
             else:
-                # A chain containing an at-resonance trap is an open.
+                # A chain containing an at-resonance trap is an open — z_ref in
+                # series with an open is still an open, and its Γ is +1.
                 el = _Group2Element(None, k, c_v=0j, c_j=1.0 + 0j, e=0j)
             terminations[k] = (len(elements), e, "v", 0j)
             elements.append(el)
@@ -1179,6 +1297,8 @@ class NetworkReducer:
             probes=probes,
             diagnose=lambda wl=wavelength: self._singularity_report(wl),
             couplings=couplings,
+            z_ref=z_ref,
+            z_ref_at=z_ref_at,
         )
 
     def _physical_port_voltages(self, v):
@@ -1236,6 +1356,25 @@ class NetworkReducer:
 
             p_in   = ½ Σ Re(E_k · j_k*)          (E = 0 terms vanish)
 
+        This path deliberately keeps the IDEAL-generator stamp (``z_ref = 0``)
+        while the impedance/Γ path uses `Z_REF_DEFAULT` — a second solve, not
+        an rcond-triggered fallback (issue #746). Two reasons. The port
+        voltages here *are* the excitation forced into the MoM solver and the
+        normaliser p_in = ½ΣRe(E·j*) is defined at the source terminals, so a
+        source impedance would divide the drive and rescale every gain in the
+        package. And a fallback would make those numbers depend on a
+        conditioning threshold — the same design at two frequencies either
+        side of it would report gains normalised differently, silently. The
+        cost is one extra (n_ports + n_branches)-sized zgesvx per solve, which
+        is nothing beside the MoM factorisation that produced Y, and the two
+        systems were already assembled separately anyway.
+
+        The consequence to know: a topology that shorts the driven port (a
+        lossless λ/4 open stub across the feed) now has a perfectly good
+        impedance answer, Z = 0 / Γ = −1, and still has no far field — the
+        current an ideal source drives into a dead short is unbounded, so
+        there is nothing to normalise against. That asymmetry is physical.
+
         Reactive elements burn nothing and report ~0 in the budget.
         Efficiency counts EVERY dissipative network branch — resistive
         TwoPort/Shunt elements and lossy TLs included (issue #299; the
@@ -1269,9 +1408,10 @@ class NetworkReducer:
 
     def impedance_from_y(self, system):
         """Driven-point impedance per Driven source from an `apply_branches`
-        result: Z = E / j_term, the termination EMF over its delivered
-        current — read straight off the solution vector, no Y·V
-        post-multiply."""
+        result: Z = E / j_term − z_ref, the termination EMF over its delivered
+        current less the source impedance it was stamped behind — read
+        straight off the solution vector, no Y·V post-multiply. ``z_ref`` is 0
+        for the ideal-generator stamp, so this is the historical E/j there."""
         v, j = system.solve()
         out = []
         for k, kind in zip(self.driven_port_idx, self._source_kinds):
@@ -1280,7 +1420,8 @@ class NetworkReducer:
                 # Forced-current port (issue #442): the source impedance is
                 # the gap voltage over the forced current, plus the series
                 # load chain it drives through — mirroring how the voltage
-                # form's E/j includes its series loads.
+                # form's E/j includes its series loads. A current source is
+                # its own reference (Z_s = ∞), so z_ref never applies here.
                 if j[col] == 0:
                     out.append(complex(float("inf"), 0.0))
                 else:
@@ -1292,13 +1433,78 @@ class NetworkReducer:
                 # which is an open, not an absent element). The physical
                 # driving-point impedance is ∞; report it as a clean real
                 # infinity instead of dividing by zero (numpy would warn
-                # and produce inf+nanj). Issue #289.
+                # and produce inf+nanj). Issue #289. Its Γ is a finite +1,
+                # which is the whole argument for emitting Γ as well.
                 out.append(complex(float("inf"), 0.0))
             else:
-                out.append(complex(e / j[col]))
+                out.append(complex(e / j[col] - system.z_ref_at.get(k, 0j)))
         return out
 
-    def driven_impedance(self, Y_real, wavelength):
+    def reflection_from_y(self, system):
+        """Driven-port reflection coefficient Γ, referenced to the ``z_ref``
+        the system was stamped with (issue #746).
+
+        Γ = (2·v_ref − E)/E with v_ref = E − z_ref·j the voltage at the
+        reference plane — the junction between the source impedance and
+        whatever the port drives. For an unloaded port that plane IS the port
+        node, so this is literally (2·v_k − E)/E; with a series `Load` the
+        plane sits ahead of the load, matching `impedance_from_y`'s contract
+        that Z includes the load chain.
+
+        Read this way Γ never has a pole. The two cases that break Z break it
+        by dividing: a shorted port (a lossless λ/4 open stub, a k·λ/2 shorted
+        one) is Γ = −1, and an open port — where j is exactly 0 and Z is
+        reported as ∞ — is Γ = +1 exactly, no sentinel and no clamp.
+
+        A forced-current port has no z_ref (Z_s = ∞ is its reference), so its
+        Γ is converted from Z; that conversion is the one that can still meet
+        an infinity, and it maps to Γ = +1 by the same limit.
+        """
+        z_ref = system.z_ref
+        if z_ref == 0:
+            raise ValueError(
+                "Γ is undefined for an ideal-generator solve (z_ref = 0): the "
+                "reference plane has no impedance to reflect against. Stamp "
+                "with apply_branches(..., z_ref=...) — driven_reflection() does"
+            )
+        _v, j = system.solve()
+        out = []
+        for k, kind, z in zip(
+            self.driven_port_idx, self._source_kinds, self.impedance_from_y(system)
+        ):
+            col, e, _tkind, _z_chain = system.terminations[k]
+            zr = system.z_ref_at.get(k)
+            if kind == "i" or zr is None:
+                # No reference plane at this port: a forced-current source is
+                # its own reference (Z_s = ∞), and a 0 V pin has no incident
+                # wave. Fall back to the definition, which meets an infinity
+                # only at a true open — Γ = +1 by the same limit.
+                out.append(
+                    complex(1.0, 0.0)
+                    if not np.isfinite(z)
+                    else complex((z - z_ref) / (z + z_ref))
+                )
+                continue
+            out.append(complex((2.0 * (e - zr * j[col]) - e) / e))
+        return out
+
+    def driven_impedance(self, Y_real, wavelength, *, z_ref=None):
         """Convenience: stamp branches onto the raw real-port Y and reduce
-        to the driven-port impedance(s) in one call."""
-        return self.impedance_from_y(self.apply_branches(Y_real, wavelength))
+        to the driven-port impedance(s) in one call.
+
+        Uses the Γ-referenced source stamp by default (issue #746). Z is
+        algebraically independent of ``z_ref`` — what it buys is a system that
+        stays well-conditioned when the port is shorted or opened, which the
+        ideal generator does not.
+        """
+        z_ref = Z_REF_DEFAULT if z_ref is None else z_ref
+        return self.impedance_from_y(
+            self.apply_branches(Y_real, wavelength, z_ref=z_ref)
+        )
+
+    def driven_reflection(self, Y_real, wavelength, *, z_ref=None):
+        """Convenience: driven-port Γ referenced to ``z_ref`` in one call."""
+        z_ref = Z_REF_DEFAULT if z_ref is None else z_ref
+        return self.reflection_from_y(
+            self.apply_branches(Y_real, wavelength, z_ref=z_ref)
+        )

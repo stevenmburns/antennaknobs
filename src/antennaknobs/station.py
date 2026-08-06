@@ -30,7 +30,6 @@ import math
 
 from .builder import C_LIGHT_MHZ_M
 from .schematic import series, shunt
-from .network_reduce import SingularNetworkError
 from .network import (
     Autotransformer,
     TL,
@@ -314,34 +313,22 @@ def _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable):
     return z0, length_wl * vf * C_LIGHT_MHZ_M / freq_mhz, vf, k1, k2
 
 
-def _guard_open_stub(freq_mhz, length_wl, k1, k2):
-    """The open stub's odd-quarter-wave singularity, guarded with the SAME
-    policy (and the same 1e-12 threshold) as the half-wave guard in
-    ``network_reduce.tl_admittance_2x2`` — raise rather than hand the solver
-    a singular matrix, and let any real loss regularize it.
-
-    Same coin, other face: that guard trips when ``sinh γl`` → 0 (a lossless
-    k·λ/2 line has no finite admittance); an open stub goes singular when
-    ``cosh γl`` → 0, i.e. at an odd multiple of λ/4, where Z_in = 0 puts a
-    dead short across the port and no ideal source can drive it. Lossless is
-    the precondition for both (with α > 0 neither function reaches zero), so
-    a lossy ``k1``/``k2`` — or ``cable=`` — buys the exact λ/4 open stub.
-    The shorted flavors need nothing here: their λ/4 is Z_in = ∞, a
-    perfectly well-behaved zero admittance.
-
-    Checked at construction, not at stamp time, because ``freq_mhz`` and
-    ``length_wl`` are exactly the pair that makes it decidable; a sweep can
-    still walk a lossless stub onto a λ/4 point elsewhere, where the TL guard
-    (half-wave) or a singular solve reports it."""
-    if k1 or k2:
-        return
-    if abs(math.cos(2.0 * math.pi * length_wl)) < 1e-12:
-        raise SingularNetworkError(
-            f"lossless open stub of {length_wl} λ is an odd multiple of λ/4 at "
-            f"f={freq_mhz:.4f} MHz (cos βl ≈ 0); Z_in = 0 shorts the port and "
-            "the admittance is singular — pick a different length, or give the "
-            "stub the loss it really has (k1/k2, or cable=...)"
-        )
+# Retired 2026-08-06 (issue #746): `_guard_open_stub` refused a lossless open
+# stub at an odd multiple of λ/4 at construction, because Z_in = 0 there puts a
+# dead short across the port and NO IDEAL SOURCE CAN DRIVE A SHORT. That was
+# always a statement about the source model, not about the stub — the reducer
+# now stamps the driven port as an EMF behind `Z_REF_DEFAULT`, so the same stub
+# solves with the equilibrated condition it has at every other length (measured
+# flat at 0.065 across 30–40 MHz on the test_singular_network fixture, against
+# 1e-17 for the ideal generator at the pole) and reports the answer: Z = 0,
+# Γ = −1. The quarter-wave open stub is a short, and a short is a perfectly
+# ordinary thing for a network to be.
+#
+# What does NOT follow it: the FAR-FIELD path, which keeps the ideal generator
+# because its port voltages are the excitation (see
+# `network_reduce.excited_state`). Driving a dead short with an ideal source
+# takes unbounded current, so a design that shorts its own feed has an
+# impedance and no pattern — reported by the solve, with attribution.
 
 
 def shunt_open_stub(
@@ -363,10 +350,10 @@ def shunt_open_stub(
     — capacitive below λ/4, inductive between λ/4 and λ/2, and repeating: the
     quarter-wave open stub is a short (the harmonic-notch trap), the half-wave
     open stub an open. Lengths in wavelengths at ``freq_mhz``; see this
-    section's header for the convention and `_guard_open_stub` for why an
-    exactly-λ/4 LOSSLESS open stub raises. Formal: ``port``."""
+    section's header for the convention, and the note above it for why an
+    exactly-λ/4 LOSSLESS open stub used to be refused and no longer is.
+    Formal: ``port``."""
     z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
-    _guard_open_stub(freq_mhz, length_wl, k1, k2)
     return Composite(
         ports=("port",),
         branches=(TL(a="port", b="far", z0=z0, length=length, vf=vf, k1=k1, k2=k2),),
@@ -436,10 +423,11 @@ def series_open_stub(
     ZERO current — the differential stamp forces I(far2) = −I(far1) and
     ``far1`` is open — so it is a common-mode reference pin, not a
     termination, and the element stays genuinely floating at ``a``/``b``.
-    Same lossless-λ/4 guard as `shunt_open_stub` (there it shorts the port;
-    here it shorts the line's two halves together). Formals: ``a``, ``b``."""
+    A lossless odd-λ/4 length shorts the element's two terminals together
+    rather than the port to the datum, and — like `shunt_open_stub`'s — is now
+    an ordinary answer rather than a refusal (issue #746). Formals: ``a``,
+    ``b``."""
     z0, length, vf, k1, k2 = _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable)
-    _guard_open_stub(freq_mhz, length_wl, k1, k2)
     return Composite(
         ports=("a", "b"),
         branches=(

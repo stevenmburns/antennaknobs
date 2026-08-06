@@ -23,11 +23,7 @@ from antennaknobs.network import (
     PortVirtual,
     Shunt,
 )
-from antennaknobs.network_reduce import (
-    C_LIGHT,
-    NetworkReducer,
-    SingularNetworkError,
-)
+from antennaknobs.network_reduce import C_LIGHT, NetworkReducer
 from antennaknobs.station import (
     double_stub_tuner,
     series_open_stub,
@@ -177,13 +173,19 @@ def test_quarter_wave_shorted_stub_is_an_open_and_needs_no_guard():
     assert abs(z) > 1e12
 
 
-def test_lossless_quarter_wave_open_stub_raises_like_the_tl_guard():
-    """λ/4 open = a dead short across the port: singular, and refused at
-    construction with the TL guard's message shape and escape hatch."""
-    with pytest.raises(ValueError, match=r"odd multiple of λ/4"):
-        shunt_open_stub(F_MHZ, 0.25, z0=Z0)
-    with pytest.raises(ValueError, match=r"odd multiple of λ/4"):
-        series_open_stub(F_MHZ, 0.75, z0=Z0)  # every odd multiple, not just λ/4
+@pytest.mark.parametrize("length_wl", [0.25, 0.75, 1.25])
+def test_lossless_quarter_wave_open_stub_is_a_short_at_every_odd_multiple(length_wl):
+    """λ/4 open = a dead short across the port. Rewritten for issue #746:
+    `station._guard_open_stub` refused this at construction because an IDEAL
+    generator cannot drive a short — a fact about the source model, not the
+    stub. The driven port is now stamped behind a reference impedance, so the
+    answer comes back: 0 Ω."""
+    assert abs(z_shunt(shunt_open_stub(F_MHZ, length_wl, z0=Z0))) < 1e-9
+    # In series it shorts the element's two terminals to each other instead,
+    # so the driven port sees the load alone.
+    assert z_series(series_open_stub(F_MHZ, length_wl, z0=Z0)) == pytest.approx(
+        Z0, rel=1e-9
+    )
 
 
 def test_loss_is_the_escape_hatch_for_the_quarter_wave_open_stub():
@@ -203,17 +205,16 @@ def test_loss_is_the_escape_hatch_for_the_quarter_wave_open_stub():
 
 
 def test_half_wave_shorted_stub_is_a_dead_short_across_the_port():
-    """A k·λ/2 shorted stub repeats its short, so it really does put 0 Ω
-    across the port — and an ideal voltage source cannot drive that.
+    """A k·λ/2 shorted stub repeats its short, so it puts 0 Ω across the port.
 
-    Rewritten for issue #746: the failure used to come from TL's stamp-time
-    admittance guard, which raised on ANY lossless half-wave line whether or
-    not it was shorted. The chain-matrix stamp is finite there, so the line
-    itself is no longer the complaint; what is left is the genuine topological
-    short, reported by the solve.
-    """
-    with pytest.raises(SingularNetworkError, match="assembled system"):
-        z_shunt(shunt_shorted_stub(F_MHZ, 0.5, z0=Z0))
+    Rewritten for issue #746, in two steps. The failure used to come from TL's
+    stamp-time admittance guard, which fired on ANY lossless half-wave line
+    whether or not it was shorted; the chain-matrix stamp is finite there, so
+    what was left was the genuine topological short, which an ideal generator
+    could not drive. Now the driven port sits behind a reference impedance and
+    the short is simply the answer — the same one the λ/4 OPEN stub gives, as
+    it must, the two being the same circuit."""
+    assert abs(z_shunt(shunt_shorted_stub(F_MHZ, 0.5, z0=Z0))) < 1e-9
 
 
 # ---------------------------------------------------------------------------

@@ -756,10 +756,13 @@ class MomwireEngine(SimulationEngine):
         return [complex(zi) for zi in z_arr]
 
     def _reduce_at(self, y_real, wavelength):
-        """One frequency's branch stamp + driven-port reduction."""
-        return self._reducer.impedance_from_y(
-            self._reducer.apply_branches(y_real, wavelength)
-        )
+        """One frequency's branch stamp + driven-port reduction.
+
+        Γ-referenced (issue #746) — a sweep is where a design most often walks
+        its own port onto a short or an open, which is exactly what the
+        ideal-generator stamp cannot survive.
+        """
+        return self._reducer.driven_impedance(y_real, wavelength)
 
     def impedance_sweep(self, freqs):
         freqs = np.asarray(freqs, dtype=float)
