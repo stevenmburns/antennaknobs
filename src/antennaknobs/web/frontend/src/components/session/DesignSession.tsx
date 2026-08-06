@@ -688,6 +688,9 @@ function DesignSessionBody({
   // onmessage handler can drop responses for an antenna the user already
   // switched away from. Updated every render — cheap and always current.
   const geometryRef = useRef(geometry);
+  // geometry mirrored for the mount-once WebSocket handler, which must drop
+  // responses for an antenna the user has already switched away from (#768).
+  // eslint-disable-next-line react-hooks/refs
   geometryRef.current = geometry;
 
   // Solve-lane session id (issue #382): one per workbench tab (A/B compare
@@ -889,6 +892,10 @@ function DesignSessionBody({
   useEffect(() => {
     if (!currentExample) return;
     if (currentBands.length === 0) {
+      // Derived state cleared when its inputs change — the reset IS the
+      // effect's purpose, not a sync that could be computed during render
+      // (#768).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (band !== "") setBand("");
       return;
     }
@@ -1021,6 +1028,10 @@ function DesignSessionBody({
   const comparing = pinCount > 0 && (view === "azimuth" || view === "elevation");
   useEffect(() => {
     if (!comparing || !result || !active) {
+      // Derived state cleared when its inputs change — the reset IS the
+      // effect's purpose, not a sync that could be computed during render
+      // (#768).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLiveMetrics(null);
       return;
     }
@@ -1047,6 +1058,9 @@ function DesignSessionBody({
   // stale approval. Defined before the solve effect so it runs first.
   useEffect(() => {
     approvedComboRef.current = false;
+    // Derived state cleared when its inputs change — the reset IS the effect's
+    // purpose, not a sync that could be computed during render (#768).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setComboApproved(false);
   }, [geometry, backend, backendOptsKey]);
 
@@ -1057,12 +1071,19 @@ function DesignSessionBody({
     // antenna keep solving freely — previewReady stays equal to geometry until
     // the next switch resets it to null.
     if (previewReady !== geometry) return;
+    // Writing the latest request into controlsRef is this effect's whole job;
+    // the channel reads it on send (#768).
+    // eslint-disable-next-line react-hooks/immutability
     controlsRef.current = buildRequest();
     // Paused: keep controlsRef fresh (so resuming sends the latest design) but
     // don't solve, and suppress the combo warning — nothing is running to warn
     // about. Toggling Live back on re-runs this effect (autoSim is a dep) and
     // solves the current state.
     if (!autoSim) {
+      // Derived state cleared when its inputs change — the reset IS the
+      // effect's purpose, not a sync that could be computed during render
+      // (#768).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSolverWarning(false);
       // Live is off, so no solve will run to redraw the geometry. Keep the
       // preview wireframe in sync with the knobs ourselves: a variant switch
@@ -1157,6 +1178,9 @@ function DesignSessionBody({
     // — building and rendering a geometry nobody asked for, only to be replaced a
     // beat later. Bail here so the first preview is the real default.
     if (!geometry) return;
+    // Derived state cleared when its inputs change — the reset IS the effect's
+    // purpose, not a sync that could be computed during render (#768).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setResult(null);
     setPreview(null);
     setSolveError(null);

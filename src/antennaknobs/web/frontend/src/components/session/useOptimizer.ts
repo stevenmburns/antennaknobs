@@ -78,6 +78,9 @@ export function useOptimizer({
   // running — to show the pause cue only then — without taking optEnabled as a
   // dep (which would re-run the reset on every toggle).
   const optEnabledRef = useRef(false);
+  // optEnabled mirrored so the design-load reset can tell whether the
+  // optimizer was actually running, without taking it as a dep (#768).
+  // eslint-disable-next-line react-hooks/refs
   optEnabledRef.current = optEnabled; // mirror latest for the design-load reset
   // Per-knob settings persist per geometry (knobOpt is keyed by geometry); just
   // close any open menu / clear the last result / abort any in-flight run when
@@ -87,6 +90,9 @@ export function useOptimizer({
   // running toggle is switched off. Show the cue only if it was actually on.
   useEffect(() => {
     optAbortRef.current?.abort();
+    // Design-load reset: clears the optimizer's result/menu and shows the
+    // pause cue. A reset on input change, not a derivable value (#768).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setKnobMenu(null);
     setOptResult(null);
     setOptError(null);

@@ -260,8 +260,16 @@ export function useAnalysisRunners({
   // than captured at chain start — a mid-chain toggle-off or pin change
   // must not run a stale plan to the end of its budget.
   const refineEnabledRef = useRef(refineEnabled);
+  // Mirrored every render so each refinement ROUND reads the current value;
+  // capturing at chain start would let a mid-chain toggle-off run a stale plan
+  // to the end of its budget (#768).
+  // eslint-disable-next-line react-hooks/refs
   refineEnabledRef.current = refineEnabled;
   const residentSweepViewsRef = useRef(residentSweepViews);
+  // Mirrored every render so each refinement ROUND reads the current value;
+  // capturing at chain start would let a mid-chain toggle-off run a stale plan
+  // to the end of its budget (#768).
+  // eslint-disable-next-line react-hooks/refs
   residentSweepViewsRef.current = residentSweepViews;
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
@@ -291,6 +299,11 @@ export function useAnalysisRunners({
     if (sweepRefineTimerRef.current) {
       window.clearTimeout(sweepRefineTimerRef.current);
     }
+    // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
+    // the instant its inputs change, or a stale curve reads as current while
+    // the new one dwells. Synchronous blanking is what makes 'stale'
+    // unrepresentable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSweep(null);
     setSweepRunning(false);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
@@ -302,6 +315,9 @@ export function useAnalysisRunners({
     }
     // The 500 ms dwell only debounces network churn; ordering against the
     // live solve is the server lane's job now (live outranks sweeps).
+    // `runSweep` is an async function DECLARATION, so the binding is live
+    // before this effect runs; the compiler cannot see hoisting (#768).
+    // eslint-disable-next-line react-hooks/immutability
     sweepTimerRef.current = window.setTimeout(runSweep, 500);
     return () => {
       if (sweepTimerRef.current) window.clearTimeout(sweepTimerRef.current);
@@ -346,6 +362,10 @@ export function useAnalysisRunners({
   // marginal cost is the new projection's points alone.
   const residentSweepKey = `${residentSweepViews.vswr},${residentSweepViews.gamma},${residentSweepViews.smith}`;
   const sweepRef = useRef<SweepData | null>(null);
+  // Mirrored every render so each refinement ROUND reads the current value;
+  // capturing at chain start would let a mid-chain toggle-off run a stale plan
+  // to the end of its budget (#768).
+  // eslint-disable-next-line react-hooks/refs
   sweepRef.current = sweep;
   useEffect(() => {
     if (!refineEnabled || !sweepRef.current || sweepRunning) return;
@@ -354,6 +374,9 @@ export function useAnalysisRunners({
     }
     const settled = sweepRef.current;
     sweepRefineTimerRef.current = window.setTimeout(
+      // `runSweepRefine` is an async function DECLARATION, so the binding is
+      // live before this effect runs; the compiler cannot see hoisting (#768).
+      // eslint-disable-next-line react-hooks/immutability
       () => runSweepRefine(settled),
       SWEEP_REFINE_DWELL_MS,
     );
@@ -380,6 +403,11 @@ export function useAnalysisRunners({
     if (convergeTimerRef.current) {
       window.clearTimeout(convergeTimerRef.current);
     }
+    // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
+    // the instant its inputs change, or a stale curve reads as current while
+    // the new one dwells. Synchronous blanking is what makes 'stale'
+    // unrepresentable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConverge(null);
     setConvergeRunning(false);
     // Held when Paused (issue #612) — see the sweep effect. autoSim is a dep so
@@ -388,6 +416,9 @@ export function useAnalysisRunners({
       return;
     }
     // Debounce only; the server lane orders it behind the live solve.
+    // `runConverge` is an async function DECLARATION, so the binding is live
+    // before this effect runs; the compiler cannot see hoisting (#768).
+    // eslint-disable-next-line react-hooks/immutability
     convergeTimerRef.current = window.setTimeout(runConverge, 500);
     return () => {
       if (convergeTimerRef.current) window.clearTimeout(convergeTimerRef.current);
@@ -416,12 +447,20 @@ export function useAnalysisRunners({
     if (normCheckTimerRef.current) {
       window.clearTimeout(normCheckTimerRef.current);
     }
+    // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
+    // the instant its inputs change, or a stale curve reads as current while
+    // the new one dwells. Synchronous blanking is what makes 'stale'
+    // unrepresentable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNormCheck(null);
     // Held when Paused (issue #612): the norm check re-solves, so it must not
     // run while the engine is held. autoSim is a dep — resuming Live re-runs it.
     if (!autoSim || !normCheckEnabled || !active) {
       return;
     }
+    // `runNormCheck` is an async function DECLARATION, so the binding is live
+    // before this effect runs; the compiler cannot see hoisting (#768).
+    // eslint-disable-next-line react-hooks/immutability
     normCheckTimerRef.current = window.setTimeout(runNormCheck, 500);
     return () => {
       if (normCheckTimerRef.current) window.clearTimeout(normCheckTimerRef.current);
@@ -447,6 +486,11 @@ export function useAnalysisRunners({
   // when the user switches the overlay off.
   useEffect(() => {
     if (patternTimerRef.current) window.clearTimeout(patternTimerRef.current);
+    // Cancel-then-blank is the contract (#692/#715): the overlay must go blank
+    // the instant its inputs change, or a stale curve reads as current while
+    // the new one dwells. Synchronous blanking is what makes 'stale'
+    // unrepresentable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPattern(null);
     if (
       !autoSim || // Paused holds the engine (issue #612) — no NEC re-solve.
@@ -459,6 +503,9 @@ export function useAnalysisRunners({
       return;
     }
     patternTimerRef.current = window.setTimeout(() => {
+      // `runPattern` is an async function DECLARATION, so the binding is live
+      // before this effect runs; the compiler cannot see hoisting (#768).
+      // eslint-disable-next-line react-hooks/immutability
       runPattern();
       patternTimerRef.current = null;
     }, 500);

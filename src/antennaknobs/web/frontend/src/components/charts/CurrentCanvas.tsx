@@ -68,6 +68,10 @@ export function CurrentCanvas({
   // (Projection switches within a design carry the viewport — see draw().)
   const geometryName = result?.geometry ?? "";
   useEffect(() => {
+    // Re-fit on a DESIGN switch: the viewport was aimed at the old geometry.
+    // Deliberate — projection switches within a design carry the viewport
+    // instead (#768).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetViewport();
     frameRef.current = null;
     // The main draw effect below re-runs on any new result, so the re-fit

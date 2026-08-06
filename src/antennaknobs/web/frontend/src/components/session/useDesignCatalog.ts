@@ -67,6 +67,9 @@ export function useDesignCatalog({
   }, []);
 
   useEffect(() => {
+    // Fetch-on-mount; the setState happens in the async result, not as a
+    // render-derivable value (#768).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadExamples();
   }, [loadExamples]);
 
