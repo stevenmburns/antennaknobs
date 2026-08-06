@@ -224,6 +224,20 @@ def test_cli_sweep_auto_band(capsys):
     assert got["from"] == "9" and got["to"] == "11" and got["doSweep"] == "y"
 
 
+def test_cli_writes_utf8_even_under_a_non_utf8_default(tmp_path, cp1252_default_open):
+    """``--name`` is echoed verbatim into the script's first //comment; a
+    name outside cp1252 reproduces the Windows failure mode here on Linux
+    (issue #772). Real CLI, real export_ssn, no mocking — the write site is
+    exercised exactly as a user hits it."""
+    from antennaknobs.simnec_export import main
+
+    out = tmp_path / "deck.ssn"
+    main(["dipoles.invvee", "--freq", "14.1", "--name", "Ω-tuned", "--out", str(out)])
+
+    text = out.read_text(encoding="utf-8")
+    assert "Ω-tuned" in text
+
+
 def test_networked_design_raises():
     from antennaknobs.designs.wire.zepp import Builder as Zepp
 

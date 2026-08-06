@@ -133,3 +133,41 @@ def pytest_terminal_summary(terminalreporter):
 def pytest_sessionfinish(session, exitstatus):
     if _time_budget_offenders and os.environ.get("ANTENNAKNOBS_ENFORCE_TIME_BUDGET"):
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+# --------------------------------------------------------------------------
+# UTF-8 write-site regression guard (issue #772)
+# --------------------------------------------------------------------------
+@pytest.fixture
+def cp1252_default_open(monkeypatch):
+    """Make unpinned text-mode ``open()`` calls land on cp1252 — the stock
+    Windows default — for the duration of a test.
+
+    ``monkeypatch.setattr(locale, "getencoding", lambda: "cp1252")`` looks
+    like it should work and does not: CPython's ``open()`` resolves its
+    default text encoding in C (``io.TextIOWrapper`` calls
+    ``_Py_GetLocaleEncoding``/``PyUnicode_GetLocaleEncoding`` internally)
+    without consulting the Python-level ``locale`` module, so patching
+    ``locale.getencoding`` leaves ``open()`` writing UTF-8 regardless and a
+    "regression" test built on it would pass even against unfixed code.
+    ``locale.setlocale(locale.LC_CTYPE, "C")`` does reproduce the bug, but it
+    mutates global process (not test) state.
+
+    Wrapping ``builtins.open`` itself is the one mechanism that actually
+    forces the codec an unpinned write site would get on Windows: any
+    ``open(path, "w")`` without an explicit ``encoding=`` — anywhere in the
+    call stack, not just at the immediate write site — falls back to cp1252
+    for the fixture's lifetime, so a write site missing
+    ``encoding="utf-8"`` raises ``UnicodeEncodeError`` here on Linux too.
+    Do not "simplify" this back to a ``locale`` patch — see above.
+    """
+    import builtins
+
+    real_open = builtins.open
+
+    def cp1252_default(file, mode="r", *args, encoding=None, **kwargs):
+        if "b" not in mode and encoding is None:
+            encoding = "cp1252"
+        return real_open(file, mode, *args, encoding=encoding, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", cp1252_default)

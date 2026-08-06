@@ -14,6 +14,7 @@ import antennaknobs as ant
 from antennaknobs.touchstone import format_s1p, parse_touchstone
 from antennaknobs.vna import (
     DRIVERS,
+    Driver,
     NanoVNADriver,
     VNAError,
     capture,
@@ -235,6 +236,35 @@ def test_cli_capture_writes_a_file(tmp_path, monkeypatch):
     text = out.read_text()
     assert text.startswith("! captured by antennaknobs")
     assert parse_touchstone(text, nports=1).freqs.size == 11
+
+
+def test_cli_capture_writes_utf8_even_under_a_non_utf8_default(
+    tmp_path, monkeypatch, cp1252_default_open
+):
+    """The Touchstone header comment interpolates ``--driver`` verbatim; a
+    driver name outside cp1252 reproduces the Windows failure mode here on
+    Linux (issue #772). Real driver-registry dispatch, no live hardware —
+    only the transport (SerialTransport) is stubbed, exactly as
+    test_cli_capture_writes_a_file does."""
+
+    class Fake(Driver):
+        def __init__(self, transport):
+            pass
+
+        def sweep(self, start_hz, stop_hz, points):
+            f = np.linspace(start_hz, stop_hz, points)
+            return f, np.full(points, 0.25 + 0j)
+
+    monkeypatch.setitem(DRIVERS, "fakeΩ", Fake)
+    monkeypatch.setattr("antennaknobs.vna.SerialTransport", lambda *a, **k: object())
+    out = tmp_path / "bench.s1p"
+    ant.cli(
+        f"capture --out {out} --start 28 --stop 29 --points 11 "
+        "--driver fakeΩ --port /dev/fake".split()
+    )
+
+    text = out.read_text(encoding="utf-8")
+    assert "fakeΩ" in text
 
 
 def test_cli_capture_needs_a_span():

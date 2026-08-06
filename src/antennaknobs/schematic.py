@@ -1795,6 +1795,9 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
     d.draw(show=False)
     svg = d.get_imagedata("svg").decode("utf-8")
     if path is not None:
-        with open(path, "w") as fh:
+        # schemdraw emits Ω in every impedance label; an unpinned encoding
+        # falls back to the platform default, which is cp1252 on stock
+        # Windows and has no code point for it (issue #772).
+        with open(path, "w", encoding="utf-8") as fh:
             fh.write(svg)
     return svg

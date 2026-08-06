@@ -883,7 +883,9 @@ def cli(arguments=None):
             ),
         )
         if args.out:
-            with open(args.out, "w") as fh:
+            # The header comment interpolates --driver verbatim; pin the
+            # encoding rather than trust the platform default (issue #772).
+            with open(args.out, "w", encoding="utf-8") as fh:
                 fh.write(text)
             print(
                 f"wrote {args.out}: {trace.freqs.size} points, "
@@ -1056,7 +1058,9 @@ def cli(arguments=None):
             kwargs["freq"] = args.freq
         deck = export_nec(builder(), **kwargs)
         if args.out:
-            with open(args.out, "w") as fh:
+            # NEC decks are ASCII by spec, but pin the encoding rather than
+            # trust the platform default (issue #772).
+            with open(args.out, "w", encoding="utf-8") as fh:
                 fh.write(deck)
             print(f"wrote {args.out}")
         else:
