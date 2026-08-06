@@ -1204,6 +1204,10 @@ function DesignSessionBody({
       active,
       comboApproved,
       recommendedBackend,
+      // Same reference the sweep/Smith charts plot against (viewRegistry's
+      // `result?.z0_ohms ?? 50`), so refinement judges curvature on the
+      // curve the user is actually looking at.
+      z0: result?.z0_ohms ?? 50,
       buildRequest,
       solveWithheld,
       seqRef,

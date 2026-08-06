@@ -14,8 +14,14 @@ import { type BackendEntry } from "../../lib/backends";
 import { type GroundModel } from "../../lib/ground";
 import { feedwiseRichardson, richardsonExtrap } from "../../lib/math";
 import { type BandSpec, type ExampleDescriptor } from "../../lib/params";
+import { refineSweepFreqs } from "../../lib/refine";
 import { solveSignature } from "../../lib/solveSignature";
-import { planSweepFreqs } from "../../lib/sweep";
+import {
+  mergeSweepPoints,
+  planSweepFreqs,
+  SWEEP_REFINE_BUDGET,
+  SWEEP_REFINE_ROUND_BUDGET,
+} from "../../lib/sweep";
 import type { PatternData } from "../charts/types";
 
 // Log-spaced segments-per-wire ladder for the convergence sweep. Hentenna's
@@ -37,6 +43,89 @@ const CUT_ANGLE_EXEMPT = ["az_elev_deg", "elev_az_deg"] as const;
 // knobs are additionally exempt for those two. NOT for the norm check, whose
 // pattern integral runs over the facets.
 const IMPEDANCE_ANALYSIS_EXEMPT = [...CUT_ANGLE_EXEMPT, "terrain"] as const;
+
+// Extra dwell between a completed base sweep and the first refinement round
+// (issue #744). The base sweep is already post-dwell — the 500 ms debounce
+// below gates it and a knob change aborts it — so this is a second settling
+// window, not the first: it buys the stretch where the user has stopped
+// dragging but is still deciding, during which the *next* knob move should
+// find the lane empty. Same 500 ms as every other dwell in this module.
+const SWEEP_REFINE_DWELL_MS = 500;
+
+/** Accumulate a /sweep NDJSON stream into a SweepData, publishing a fresh
+ *  snapshot per point so the charts fill in as they land. Shared by the
+ *  base sweep and its refinement rounds — they differ only in which freqs
+ *  they ask for and what the caller does with the snapshots. Throws
+ *  AbortError (via fetch) when the controller is tripped; the callers own
+ *  that. */
+async function streamSweep(
+  body: object,
+  controller: AbortController,
+  onPoint: (snapshot: SweepData) => void,
+): Promise<SweepData> {
+  // feeds_z_re/feeds_z_im start OMITTED (not set to undefined): the type's
+  // doc comment says single-feed geometries omit them entirely, and
+  // exactOptionalPropertyTypes now enforces that distinction — `acc.feeds_z_re`
+  // still reads as undefined either way, so this is a no-op for behavior.
+  const acc: SweepData = { freqs_mhz: [], z_re: [], z_im: [] };
+  const snapshot = (): SweepData => ({
+    freqs_mhz: acc.freqs_mhz.slice(),
+    z_re: acc.z_re.slice(),
+    z_im: acc.z_im.slice(),
+    // Spread-conditional, not `: undefined`, so a single-feed sweep OMITS
+    // the key (matching SweepData's documented contract).
+    ...(acc.feeds_z_re
+      ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
+      : {}),
+    ...(acc.feeds_z_im
+      ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
+      : {}),
+  });
+  const resp = await fetch("/sweep", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+  if (!resp.ok || !resp.body) throw new Error(`sweep failed: ${resp.status}`);
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      const pt = JSON.parse(line);
+      if (pt.done) continue;
+      // A failed point/chunk ends the stream with {error} instead of
+      // tearing the connection down (e.g. an approved poor-match combo
+      // whose dense fill can't allocate). Keep whatever points landed.
+      if (pt.error) {
+        console.error("sweep error", pt.error);
+        continue;
+      }
+      acc.freqs_mhz.push(pt.freq_mhz);
+      acc.z_re.push(pt.z_re);
+      acc.z_im.push(pt.z_im);
+      // Multi-feed sweep records (bowtie) ship per-feed Z alongside the
+      // primary. Allocate the per-feed buffers lazily on first sight so
+      // single-feed sweeps stay on the original code path.
+      if (Array.isArray(pt.feeds_z_re) && Array.isArray(pt.feeds_z_im)) {
+        if (!acc.feeds_z_re) acc.feeds_z_re = [];
+        if (!acc.feeds_z_im) acc.feeds_z_im = [];
+        acc.feeds_z_re.push(pt.feeds_z_re);
+        acc.feeds_z_im.push(pt.feeds_z_im);
+      }
+      if (!controller.signal.aborted) onPoint(snapshot());
+    }
+  }
+  return snapshot();
+}
 
 // The four background analyses that shadow the live solve — the freq sweep,
 // the segments-per-wire convergence sweep, the far-field norm check and the
@@ -74,6 +163,7 @@ export function useAnalysisRunners({
   active,
   comboApproved,
   recommendedBackend,
+  z0 = 50,
   buildRequest,
   solveWithheld,
   seqRef,
@@ -108,6 +198,15 @@ export function useAnalysisRunners({
   active: boolean;
   comboApproved: boolean;
   recommendedBackend: BackendEntry | null;
+  /** Reference impedance the sweep charts plot against — the only thing
+   *  refinement (issue #744) needs beyond the sweep itself, since VSWR /
+   *  S11 / Smith are all functions of Γ(Z, z0). Optional with the charts'
+   *  own `result?.z0_ohms ?? 50` fallback: a caller that doesn't pass it
+   *  gets refinement against the 50 Ω reference, which is right for every
+   *  design that doesn't declare otherwise. Deliberately NOT a dep of any
+   *  effect — z0 is a display reference, not physics, and re-planning the
+   *  whole sweep when it changes would re-solve for nothing. */
+  z0?: number;
   buildRequest: () => SolveRequest;
   solveWithheld: () => boolean;
   seqRef: MutableRefObject<number>;
@@ -133,6 +232,12 @@ export function useAnalysisRunners({
 
   const sweepTimerRef = useRef<number | null>(null);
   const sweepAbortRef = useRef<AbortController | null>(null);
+  // Refinement gets its own timer/abort pair rather than sharing the base
+  // sweep's: the base sweep's finally-block clears its own ref, and a
+  // refinement scheduled from inside that block would immediately lose the
+  // handle the next knob change has to abort through.
+  const sweepRefineTimerRef = useRef<number | null>(null);
+  const sweepRefineAbortRef = useRef<AbortController | null>(null);
   const patternTimerRef = useRef<number | null>(null);
   const patternAbortRef = useRef<AbortController | null>(null);
   const convergeTimerRef = useRef<number | null>(null);
@@ -152,6 +257,15 @@ export function useAnalysisRunners({
     if (sweepTimerRef.current) {
       window.clearTimeout(sweepTimerRef.current);
     }
+    // Refinement points live in the same `sweep` state, so the clear below
+    // drops them with everything else — signature invalidation (issue #692)
+    // covers refined points for free, and must keep doing so. Killing the
+    // pending round and its in-flight stream here is what stops a
+    // superseded refinement from re-publishing them a moment later.
+    sweepRefineAbortRef.current?.abort();
+    if (sweepRefineTimerRef.current) {
+      window.clearTimeout(sweepRefineTimerRef.current);
+    }
     setSweep(null);
     setSweepRunning(false);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
@@ -166,6 +280,9 @@ export function useAnalysisRunners({
     sweepTimerRef.current = window.setTimeout(runSweep, 500);
     return () => {
       if (sweepTimerRef.current) window.clearTimeout(sweepTimerRef.current);
+      if (sweepRefineTimerRef.current) {
+        window.clearTimeout(sweepRefineTimerRef.current);
+      }
     };
     // runSweep is read but not listed: it's a plain, unmemoized closure
     // recreated every render, and impedanceSig is the deliberate stand-in
@@ -340,75 +457,11 @@ export function useAnalysisRunners({
       _approved: approvedComboRef.current,
     };
     setSweepRunning(true);
-    // feeds_z_re/feeds_z_im start OMITTED (not set to undefined): the type's
-    // doc comment says single-feed geometries omit them entirely, and
-    // exactOptionalPropertyTypes now enforces that distinction — `acc.feeds_z_re`
-    // still reads as undefined either way, so this is a no-op for behavior.
-    const acc: SweepData = {
-      freqs_mhz: [],
-      z_re: [],
-      z_im: [],
-    };
+    let planned: SweepData | null = null;
     try {
-      const resp = await fetch("/sweep", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      if (!resp.ok || !resp.body) throw new Error(`sweep failed: ${resp.status}`);
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl).trim();
-          buf = buf.slice(nl + 1);
-          if (!line) continue;
-          const pt = JSON.parse(line);
-          if (pt.done) continue;
-          // A failed point/chunk ends the stream with {error} instead of
-          // tearing the connection down (e.g. an approved poor-match combo
-          // whose dense fill can't allocate). Keep whatever points landed.
-          if (pt.error) {
-            console.error("sweep error", pt.error);
-            continue;
-          }
-          acc.freqs_mhz.push(pt.freq_mhz);
-          acc.z_re.push(pt.z_re);
-          acc.z_im.push(pt.z_im);
-          // Multi-feed sweep records (bowtie) ship per-feed Z alongside
-          // the primary. Allocate the per-feed buffers lazily on first
-          // sight so single-feed sweeps stay on the original code path.
-          if (Array.isArray(pt.feeds_z_re) && Array.isArray(pt.feeds_z_im)) {
-            if (!acc.feeds_z_re) acc.feeds_z_re = [];
-            if (!acc.feeds_z_im) acc.feeds_z_im = [];
-            acc.feeds_z_re.push(pt.feeds_z_re);
-            acc.feeds_z_im.push(pt.feeds_z_im);
-          }
-          if (!controller.signal.aborted) {
-            // New object so React re-renders the Smith chart per point.
-            setSweep({
-              freqs_mhz: acc.freqs_mhz.slice(),
-              z_re: acc.z_re.slice(),
-              z_im: acc.z_im.slice(),
-              // Spread-conditional, not `: undefined`, so a single-feed sweep
-              // OMITS the key (matching SweepData's documented contract)
-              // rather than setting it to undefined.
-              ...(acc.feeds_z_re
-                ? { feeds_z_re: acc.feeds_z_re.map((row) => row.slice()) }
-                : {}),
-              ...(acc.feeds_z_im
-                ? { feeds_z_im: acc.feeds_z_im.map((row) => row.slice()) }
-                : {}),
-            });
-          }
-        }
-      }
+      // New object per point so React re-renders the Smith chart as the
+      // sweep fills in.
+      planned = await streamSweep(body, controller, setSweep);
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("sweep error", e);
@@ -416,6 +469,75 @@ export function useAnalysisRunners({
       if (sweepAbortRef.current === controller) {
         sweepAbortRef.current = null;
         setSweepRunning(false);
+        // Adaptive refinement (issue #744) rides the tail of the base
+        // sweep rather than its own effect: reaching here IS the dwell
+        // signal — the design settled long enough for a whole sweep to
+        // stream without a knob aborting it. Only after a clean run; a
+        // torn-off partial curve is not what the user is looking at.
+        const settled = planned;
+        if (settled && !controller.signal.aborted) {
+          sweepRefineTimerRef.current = window.setTimeout(
+            () => runSweepRefine(settled),
+            SWEEP_REFINE_DWELL_MS,
+          );
+        }
+      }
+    }
+  }
+
+  // Densify the settled sweep where the rendered curve corners (issue
+  // #744). Iterative: each round asks the pure planner for the worst
+  // intervals, streams those freqs, merges them in, and re-plans against
+  // the densified curve — the planner cannot evaluate its own insertions,
+  // so re-evaluation only exists across rounds.
+  //
+  // Every round is optional. Running out of budget, an abort, or a plan
+  // that comes back empty all just stop, leaving the best-so-far merge on
+  // screen; nothing here is load-bearing for correctness of the curve.
+  async function runSweepRefine(base: SweepData) {
+    sweepRefineTimerRef.current = null;
+    if (solveWithheld()) return;
+    sweepRefineAbortRef.current?.abort();
+    const controller = new AbortController();
+    sweepRefineAbortRef.current = controller;
+    let acc = base;
+    let spent = 0;
+    try {
+      while (spent < SWEEP_REFINE_BUDGET && !controller.signal.aborted) {
+        const want = refineSweepFreqs(
+          acc,
+          z0,
+          Math.min(SWEEP_REFINE_ROUND_BUDGET, SWEEP_REFINE_BUDGET - spent),
+        );
+        if (want.length === 0) break; // no visible kink left to remove
+        spent += want.length;
+        const settled = acc; // merge target for this round's snapshots
+        const extra = await streamSweep(
+          {
+            ...buildRequest(),
+            freqs_mhz: want,
+            // Lane metadata (issue #382) + the refinement marker the server
+            // reads for its lane kind (issue #744). `_refine` is pure
+            // scheduling — it is on the server's cache-key blocklist, so a
+            // refinement request hits the same per-freq entries a base
+            // sweep would.
+            _gen: seqRef.current,
+            _approved: approvedComboRef.current,
+            _refine: true,
+          },
+          controller,
+          (snapshot) => setSweep(mergeSweepPoints(settled, snapshot)),
+        );
+        acc = mergeSweepPoints(acc, extra);
+        if (controller.signal.aborted) return;
+        setSweep(acc);
+      }
+    } catch (e: unknown) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      console.error("sweep refine error", e);
+    } finally {
+      if (sweepRefineAbortRef.current === controller) {
+        sweepRefineAbortRef.current = null;
       }
     }
   }

@@ -32,6 +32,11 @@ PRIORITY = {
     "pattern_metrics": 1,
     "sweep": 2,
     "converge": 2,
+    # Adaptive refinement (issue #744) is cosmetic — the curve is already
+    # drawn, refinement only removes its corners — so it sorts BELOW the
+    # batches that produce data nobody has yet. It also runs mostly out of
+    # the per-freq Z cache, so yielding costs it almost nothing.
+    "sweep_refine": 3,
 }
 _PRIORITY_DEFAULT = 9
 
@@ -39,6 +44,15 @@ _PRIORITY_DEFAULT = 9
 # client holds at most one of each (re-issuing means the old stream is
 # abandoned). pattern_metrics is deliberately absent — the compare table
 # legitimately runs one request per design row at once.
+#
+# sweep_refine is absent for a sharper reason: it is a DIFFERENT kind from
+# "sweep" precisely so a refinement request cannot kill the base sweep that
+# produced the curve it is refining (same-kind supersession ignores
+# generations, so sharing the kind would have made refinement self-
+# defeating). Successive refinement rounds carry the same generation and
+# are purely additive, so they queue rather than cancel each other; a
+# genuinely newer knob generation still supersedes them by the generation
+# rule, like every other batch.
 SAME_KIND_SUPERSEDES = frozenset({"live", "sweep", "converge", "norm_check", "pattern"})
 
 

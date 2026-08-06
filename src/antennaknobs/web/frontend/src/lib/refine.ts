@@ -26,10 +26,21 @@ import type { SweepData } from "./api";
  *  rect; a wildly non-square chart would want its own aspect factor. */
 export type DisplayPoint = { x: number; y: number };
 
-/** Turn angle above which a vertex reads as a corner rather than a curve.
- *  0.12 rad ≈ 6.9°: at typical chart sizes (300–450 px) that is the point
- *  where a 1.3–1.5 px stroke stops looking like a smooth bend. */
-export const KINK_TOLERANCE_RAD = 0.12;
+/** Display-space error, as a fraction of the plot extent, below which the
+ *  drawn polyline is indistinguishable from the true curve. 0.003 is ~1 px
+ *  at the 350 px charts this app draws — one stroke width.
+ *
+ *  This, not the turn angle, is what refinement drives on. A turn angle
+ *  says "there is a corner here", but a corner is not automatically a
+ *  SAMPLING artifact: a VSWR notch resolved to the last decimal still turns
+ *  ~177° at the vertex, because the true curve genuinely spikes at that
+ *  aspect ratio. Refining on turn angle therefore never terminates on the
+ *  exact features that motivated it. The chord deviation instead measures
+ *  how far the drawn line is from where the curve actually goes — it
+ *  vanishes as O(h²) for any smooth stretch and as O(h) even across a cusp,
+ *  so "the picture is right to within a pixel" is a reachable stopping
+ *  condition. */
+export const DEVIATION_TOLERANCE = 0.003;
 
 /** Intervals shorter than this (in normalized display units) are never
  *  split again. Two reasons, both about not burning the budget on
@@ -70,9 +81,8 @@ export function turnAngles(
   return out;
 }
 
-/** The worst display-space corner on a polyline, in radians. The acceptance
- *  measure for "no visible kink" — refinement is judged by whether this
- *  number falls. */
+/** The worst display-space corner on a polyline, in radians. A diagnostic,
+ *  not the refinement criterion — see DEVIATION_TOLERANCE for why. */
 export function maxKinkRad(
   pts: readonly DisplayPoint[],
   closed = false,
@@ -80,16 +90,53 @@ export function maxKinkRad(
   return turnAngles(pts, closed).reduce((a, b) => Math.max(a, b), 0);
 }
 
-type Interval = { a: number; b: number; kink: number; len: number };
-
-// score = kink × length. The kink says how bad the corner at this
-// interval's ends is; the length says how much of it THIS interval is
-// responsible for. Between a long and a short interval flanking the same
-// corner, splitting the long one removes most of the bend — the short one
-// scores lower and is left alone.
-function score(iv: Interval): number {
-  return iv.kink * iv.len;
+/** Per-vertex chord deviation: the perpendicular distance from each vertex
+ *  to the chord joining its two neighbours, in the same normalized display
+ *  units as the points.
+ *
+ *  Read it as "how wrong the picture would be here at half this
+ *  resolution": it is exactly the error the polyline would acquire if this
+ *  vertex were dropped, which makes it a direct estimate of the error the
+ *  polyline HAS between the samples it does carry. Boundary vertices of an
+ *  open polyline have no chord (0); a closed one wraps. */
+export function chordDeviations(
+  pts: readonly DisplayPoint[],
+  closed = false,
+): number[] {
+  const n = pts.length;
+  const out = new Array<number>(n).fill(0);
+  if (n < 3) return out;
+  for (let i = 0; i < n; i++) {
+    const prev = i === 0 ? (closed ? pts[n - 1] : null) : pts[i - 1];
+    const next = i === n - 1 ? (closed ? pts[0] : null) : pts[i + 1];
+    if (!prev || !next) continue;
+    const cx = next.x - prev.x;
+    const cy = next.y - prev.y;
+    const chord = Math.hypot(cx, cy);
+    const ax = pts[i].x - prev.x;
+    const ay = pts[i].y - prev.y;
+    // Degenerate chord (the neighbours coincide — a doubling-back spike):
+    // fall back to the distance from the vertex to that shared point, which
+    // is what the drawn line would miss by.
+    out[i] =
+      chord === 0
+        ? Math.hypot(ax, ay)
+        : Math.abs(ax * cy - ay * cx) / chord;
+  }
+  return out;
 }
+
+/** The worst display-space error on a polyline, as a fraction of the plot
+ *  extent. The acceptance measure: refinement is judged by whether this
+ *  number falls below DEVIATION_TOLERANCE (or at least falls). */
+export function maxChordDeviation(
+  pts: readonly DisplayPoint[],
+  closed = false,
+): number {
+  return chordDeviations(pts, closed).reduce((a, b) => Math.max(a, b), 0);
+}
+
+type Interval = { a: number; b: number; dev: number; len: number };
 
 export type RefineOptions = {
   /** Hard cap on how many new parameter values this plan may contain. */
@@ -108,20 +155,27 @@ export type RefineOptions = {
  * in degrees); `projections` are one display polyline per plot that
  * consumes this SAME data array, each index-aligned with `t`. The interval
  * score is the max across projections, because there is only one data array
- * to refine: picking a single projection would leave the others kinked. For
+ * to refine: picking a single projection would leave the others coarse. For
  * the freq sweep that union is VSWR ∪ S11-dB ∪ Smith, which is not
- * redundant — VSWR's steepest bend is off resonance where S11-dB is flat,
- * and the Smith locus bends where neither scalar projection does.
+ * redundant — VSWR's steepest bend is off resonance where S11-dB has
+ * clamped flat, and the Smith locus moves fastest where neither scalar
+ * projection does.
+ *
+ * An interval's score is the chord deviation at its two endpoints: the
+ * display-space error the drawn line already carries there. Intervals below
+ * `tolerance` are left alone (the picture is right to within a pixel) and
+ * so are intervals already shorter than `minSegment` (no subdivision can
+ * change what is drawn, and a genuine discontinuity would otherwise eat the
+ * whole budget).
  *
  * Returns midpoints of the worst intervals, sorted ascending, never more
  * than `budget` of them. Within one round the newly inserted points cannot
- * be evaluated, so an interval that is split gets its children scored by
- * the smooth-curve estimate "turn angle is O(h)": halving the interval
- * halves the kink and the length, quartering the score. That keeps one
- * pathological interval from swallowing the whole budget while still
- * concentrating points where the curve actually bends. The true re-
- * evaluation happens across ROUNDS — the caller solves this plan, then asks
- * again with the densified data.
+ * be evaluated, so a split interval's children are scored by the
+ * smooth-curve estimate "deviation is O(h²)": halving the interval quarters
+ * it. That keeps one interval from swallowing the whole budget while still
+ * concentrating points where the picture is worst. Real re-evaluation
+ * happens across ROUNDS — the caller solves this plan, then asks again with
+ * the densified data.
  */
 export function planRefinement(
   t: readonly number[],
@@ -131,16 +185,16 @@ export function planRefinement(
   const budget = Math.max(0, Math.floor(opts.budget));
   if (budget === 0 || t.length < 3) return [];
   const closed = opts.closed ?? false;
-  const tolerance = opts.tolerance ?? KINK_TOLERANCE_RAD;
+  const tolerance = opts.tolerance ?? DEVIATION_TOLERANCE;
   const minSegment = opts.minSegment ?? MIN_SEGMENT;
   const usable = projections.filter((p) => p.length === t.length);
   if (usable.length === 0) return [];
 
   const n = t.length;
-  const turns = new Array<number>(n).fill(0);
+  const devs = new Array<number>(n).fill(0);
   for (const p of usable) {
-    const ta = turnAngles(p, closed);
-    for (let i = 0; i < n; i++) turns[i] = Math.max(turns[i], ta[i]);
+    const d = chordDeviations(p, closed);
+    for (let i = 0; i < n; i++) devs[i] = Math.max(devs[i], d[i]);
   }
 
   const nIv = closed ? n : n - 1;
@@ -156,7 +210,7 @@ export function planRefinement(
     for (const p of usable) {
       len = Math.max(len, Math.hypot(p[k].x - p[j].x, p[k].y - p[j].y));
     }
-    work.push({ a: t[j], b, kink: Math.max(turns[j], turns[k]), len });
+    work.push({ a: t[j], b, dev: Math.max(devs[j], devs[k]), len });
   }
 
   const out: number[] = [];
@@ -165,20 +219,19 @@ export function planRefinement(
     let bestScore = 0;
     for (let i = 0; i < work.length; i++) {
       const iv = work[i];
-      if (iv.kink <= tolerance || iv.len <= minSegment) continue;
-      const s = score(iv);
+      if (iv.dev <= tolerance || iv.len <= minSegment) continue;
       // Strict > keeps ties on the lowest index: the plan must be
       // deterministic for the same input, regardless of iteration order.
-      if (s > bestScore) {
-        bestScore = s;
+      if (iv.dev > bestScore) {
+        bestScore = iv.dev;
         best = i;
       }
     }
-    if (best < 0) break; // every interval is smooth enough (or unsplittable)
+    if (best < 0) break; // every interval is accurate enough (or unsplittable)
     const iv = work[best];
     const mid = 0.5 * (iv.a + iv.b);
     out.push(period > 0 ? ((mid % period) + period) % period : mid);
-    const child = { kink: iv.kink / 2, len: iv.len / 2 };
+    const child = { dev: iv.dev / 4, len: iv.len / 2 };
     work[best] = { a: iv.a, b: mid, ...child };
     work.push({ a: mid, b: iv.b, ...child });
   }
