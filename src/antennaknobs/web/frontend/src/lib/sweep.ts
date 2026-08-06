@@ -37,6 +37,17 @@ export function planSweepFreqs(params: {
   designFreq: number;
   currentBands: BandSpec[];
   freqWindowCeiling: number;
+  /** Adaptive resolution is on for this session (the default): the base
+   *  grid's job is then DETECTION, not resolution — it only has to land
+   *  samples in a feature's tails for the refinement planner to dig in —
+   *  so it starts lean and lets refinement spend points where the curve
+   *  actually bends. 17 log-spaced (~6% spacing) keeps every plausible
+   *  resonance signature within reach of at least one sample; much below
+   *  15 the straddled-feature blindspot (a notch no sample touches at
+   *  all) becomes a real risk. With refinement OFF the base grid IS the
+   *  final rendering, so the historical 41 (21 on Sommerfeld ground)
+   *  stays — the toggle must mean "today's behavior", not "coarser". */
+  refineEnabled?: boolean;
 }): number[] {
   const {
     backend,
@@ -49,12 +60,13 @@ export function planSweepFreqs(params: {
     designFreq,
     currentBands,
     freqWindowCeiling,
+    refineEnabled = true,
   } = params;
   const slowGround =
     backendSupportsGround(backend) &&
     groundEnabled &&
     groundModel === "sommerfeld";
-  const N = slowGround ? 21 : 41;
+  const N = refineEnabled ? 17 : slowGround ? 21 : 41;
   const policy =
     currentExample?.variant_ui?.[currentVariant]?.sweep_policy ??
     currentExample?.sweep_policy;

@@ -48,26 +48,45 @@ function baseParams(overrides: Partial<Parameters<typeof planSweepFreqs>[0]> = {
 }
 
 describe("planSweepFreqs", () => {
-  it("uses 41 points when ground is off or the model isn't Sommerfeld", () => {
-    expect(planSweepFreqs(baseParams())).toHaveLength(41);
+  it("starts lean (17 points) when adaptive resolution will refine the curve", () => {
+    // The default: the base grid only has to DETECT features (land samples
+    // in their tails); the refinement planner spends the real points.
+    expect(planSweepFreqs(baseParams())).toHaveLength(17);
     expect(
-      planSweepFreqs(baseParams({ groundEnabled: true, groundModel: "fast" })),
+      planSweepFreqs(
+        baseParams({ groundEnabled: true, groundModel: "sommerfeld" }),
+      ),
+    ).toHaveLength(17);
+  });
+
+  it("keeps the historical 41 points when refinement is off — the base grid is then the rendering", () => {
+    expect(planSweepFreqs(baseParams({ refineEnabled: false }))).toHaveLength(41);
+    expect(
+      planSweepFreqs(
+        baseParams({ refineEnabled: false, groundEnabled: true, groundModel: "fast" }),
+      ),
     ).toHaveLength(41);
   });
 
-  it("halves to 21 points for a ground-capable backend on Sommerfeld ground", () => {
+  it("refinement off + Sommerfeld ground keeps the historical 21", () => {
     expect(
       planSweepFreqs(
-        baseParams({ backend: entry("bspline"), groundEnabled: true, groundModel: "sommerfeld" }),
+        baseParams({
+          refineEnabled: false,
+          backend: entry("bspline"),
+          groundEnabled: true,
+          groundModel: "sommerfeld",
+        }),
       ),
     ).toHaveLength(21);
   });
 
-  it("stays at 41 points on Sommerfeld ground if the backend doesn't support ground", () => {
+  it("refinement off on Sommerfeld ground stays at 41 if the backend doesn't support ground", () => {
     // Every backend the server registers supports ground; a roster entry
     // carrying supports_ground: false exercises the branch (issue #628).
     const freqs = planSweepFreqs(
       baseParams({
+        refineEnabled: false,
         backend: backendEntry({ name: "future-solver", supports_ground: false }),
         groundEnabled: true,
         groundModel: "sommerfeld",
