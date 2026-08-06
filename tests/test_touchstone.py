@@ -14,16 +14,21 @@ import pytest
 
 from antennaknobs import AntennaBuilder, read_touchstone
 from antennaknobs.network import (
+    TL,
     Driven,
     Network,
     PortOnWire,
     PortVirtual,
-    TL,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Wire,
 )
-from antennaknobs.network_reduce import C_LIGHT, NetworkReducer, tl_admittance_2x2
+from antennaknobs.network_reduce import (
+    C_LIGHT,
+    NetworkReducer,
+    SingularNetworkError,
+    tl_admittance_2x2,
+)
 from antennaknobs.touchstone import parse_touchstone
 
 FREQ_MHZ = 14.0
@@ -139,6 +144,105 @@ def test_infer_port_count_from_width():
 def test_gh_parameters_rejected():
     with pytest.raises(ValueError, match="not supported"):
         parse_touchstone("# HZ G RI R 50\n1 0 0\n")
+
+
+# ---------------------------------------------------------------------------
+# 1b. the poles of the parameter conversions (issue #746)
+#
+# S is bounded for every passive network; Y and Z are not. Each conversion is
+# a Möbius transform whose pole is a physical short (S = −1) or open (S = +1),
+# and the two ways a bare `np.linalg.inv` used to report that pole — an
+# untyped LinAlgError exactly on it, astronomical finite numbers just off it —
+# were both useless to the person holding the file.
+# ---------------------------------------------------------------------------
+def _s1p(s11, *, name=""):
+    return parse_touchstone(
+        f"# HZ S RI R 50\n1e7 {s11.real!r} {s11.imag!r}\n"
+        f"2e7 {s11.real!r} {s11.imag!r}\n",
+        name=name,
+    )
+
+
+def test_s1p_at_a_dead_short_raises_the_house_error():
+    """S11 = −1 exactly: `inv(I + S)` used to raise a bare LinAlgError."""
+    with pytest.raises(SingularNetworkError) as exc:
+        _s1p(-1.0 + 0j, name="shorted.s1p").y_at(1.5e7)
+    msg = str(exc.value)
+    assert "shorted.s1p" in msg  # which file
+    assert "15 MHz" in msg  # ...at which frequency
+    assert "I + S" in msg and "short circuit" in msg  # ...and why
+
+
+def test_s1p_a_hair_off_the_short_raises_too():
+    """The silent half of the bug: just off the pole there was no exception at
+    all, only a 1e13-siemens admittance stamped into the reducer's G."""
+    with pytest.raises(SingularNetworkError, match="I \\+ S"):
+        _s1p(-1.0 + 1e-13j).y_at(1.5e7)
+
+
+def test_s1p_near_but_not_at_the_short_is_finite_and_says_so(caplog):
+    """1e-10 from the pole is a legitimate near-short, not a singularity: the
+    admittance is enormous but correct, and the warning is the whole report."""
+    with caplog.at_level("WARNING"):
+        y = _s1p(-1.0 + 1e-10j, name="near.s1p").y_at(1.5e7)[0, 0]
+    # Y = (1/z0)(1 − S)/(1 + S) with S = −1 + 1e-10j
+    assert y == pytest.approx((1.0 / 50.0) * (2.0 - 1e-10j) / 1e-10j, rel=1e-6)
+    assert "near.s1p" in caplog.text and "nearly singular" in caplog.text
+
+
+def test_s1p_at_an_open_raises_from_z_at():
+    """The dual pole: S11 = +1 is an open, and it is `z_at` that hits it."""
+    with pytest.raises(SingularNetworkError) as exc:
+        _s1p(1.0 + 0j).z_at(1.5e7)
+    assert "I − S" in str(exc.value) and "open circuit" in str(exc.value)
+    # ...while the admittance of that same open is a perfectly ordinary zero.
+    assert _s1p(1.0 + 0j).y_at(1.5e7)[0, 0] == pytest.approx(0.0, abs=1e-15)
+
+
+def test_matched_coax_at_half_wave_s2p_no_longer_stamps_1e14():
+    """The case the issue names: a 50 Ω coax measured into a 50 Ω reference at
+    exactly 180° electrical has S = [[0, −1], [−1, 0]], so I + S is rank 1.
+    Nothing about the file is unusual and nothing about the physics is
+    singular — the *admittance description* of a half-wave line is what does
+    not exist."""
+    s21 = np.exp(-1j * np.pi)  # −1 to within one ulp, as a real file records it
+    s = np.array([[0.0, s21], [s21, 0.0]], dtype=complex)
+    t = parse_touchstone(
+        _s2p_from_matrix([13e6, 15e6], lambda f: s), nports=2, name="coax180.s2p"
+    )
+    # What the unguarded conversion produced: no exception, just an absurdity.
+    # The ulp is exactly what kept `inv` from noticing.
+    eye = np.eye(2)
+    y_unguarded = (1.0 / 50.0) * (eye - s) @ np.linalg.inv(eye + s)
+    assert np.isfinite(y_unguarded).all() and abs(y_unguarded[0, 0]) > 1e13
+
+    with pytest.raises(SingularNetworkError) as exc:
+        t.y_at(14e6)
+    assert "coax180.s2p" in str(exc.value) and "I + S" in str(exc.value)
+
+    # And exactly on it, where `inv` raised an untyped LinAlgError instead.
+    exact = parse_touchstone(
+        _s2p_from_matrix([13e6, 15e6], lambda f: np.array([[0.0, -1.0], [-1.0, 0.0]])),
+        nports=2,
+    )
+    with pytest.raises(SingularNetworkError):
+        exact.y_at(14e6)
+
+
+def test_an_open_y_file_still_has_an_ordinary_s():
+    """`s_at` goes Y → S directly rather than through Z, because S exists where
+    Z does not: a zero admittance is an open, whose reflection is simply +1."""
+    t = parse_touchstone("# HZ Y RI R 50\n1e7 0 0\n2e7 0 0\n")
+    assert t.s_at(1.5e7)[0, 0] == pytest.approx(1.0, rel=1e-12)
+    with pytest.raises(SingularNetworkError, match="open circuit"):
+        t.z_at(1.5e7)
+
+
+def test_a_shorted_z_file_reports_the_short():
+    t = parse_touchstone("# HZ Z RI R 50\n1e7 0 0\n2e7 0 0\n")
+    with pytest.raises(SingularNetworkError, match="short circuit"):
+        t.y_at(1.5e7)
+    assert t.s_at(1.5e7)[0, 0] == pytest.approx(-1.0, rel=1e-12)
 
 
 # ---------------------------------------------------------------------------
