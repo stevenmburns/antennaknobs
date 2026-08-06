@@ -14,6 +14,7 @@ import {
   planRefinement,
   refineCutAngles,
   refineSweepFreqs,
+  s11DbTop,
   sweepProjections,
   turnAngles,
   type DisplayPoint,
@@ -264,6 +265,44 @@ describe("sweepProjections / refineSweepFreqs", () => {
     // Perfect match at the notch: VSWR 1 (bottom) and S11 below −30 (bottom).
     expect(vswr[1].y).toBe(0);
     expect(gamma[1].y).toBe(0);
+  });
+
+  it("s11DbTop: 0 for anything passive, ceil(max+1) once a sample crosses 0 dB", () => {
+    expect(s11DbTop([-30, -4, -0.2])).toBe(0);
+    expect(s11DbTop([])).toBe(0);
+    expect(s11DbTop([-3, 0.6])).toBe(2); // ceil(1.6)
+    expect(s11DbTop([1.28])).toBe(3); // ceil(2.28)
+    expect(s11DbTop([NaN, Infinity, -1])).toBe(0); // garbage never grows the axis
+  });
+
+  it("an over-unity active port draws ABOVE the 0 dB line, unclamped, and refinable", () => {
+    // Negative active resistance (a detuned driven-array element eating its
+    // neighbours' power): |Γ| > 1, S11 ≈ +2.8 dB.
+    const s: SweepData = {
+      freqs_mhz: [10, 12, 14, 16, 18],
+      z_re: [150, 80, -45, 80, 150],
+      z_im: [100, 100, 100, 100, 100],
+    };
+    const [gamma] = sweepProjections(s, 50, {
+      vswr: false,
+      gamma: true,
+      smith: false,
+    });
+    // The headroom (s11DbTop) means the over-unity sample sits INSIDE the
+    // axis — below the top, above where 0 dB now maps — and is not
+    // clamp-marked, so refinement resolves the crossing like any feature.
+    expect(gamma[2].clamped).toBeUndefined();
+    expect(gamma[2].y).toBeLessThan(1);
+    expect(gamma[2].y).toBeGreaterThan(gamma[0].y);
+    // On the Smith disc the same sample is OUTSIDE |Γ| = 1, which the chart
+    // clips — marked clamped so the planner doesn't chase an invisible arc.
+    const [smith] = sweepProjections(s, 50, {
+      vswr: false,
+      gamma: false,
+      smith: true,
+    });
+    expect(smith[2].clamped).toBe(true);
+    expect(smith[0].clamped).toBeUndefined();
   });
 
   it("adds points around the notch and skips the flat wings", () => {
