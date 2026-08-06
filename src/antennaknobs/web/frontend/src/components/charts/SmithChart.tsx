@@ -17,6 +17,7 @@ export function SmithChart({
   convergeRunning,
   feeds,
   multiFeed,
+  connectSweep = false,
 }: {
   r: number;
   x: number;
@@ -36,6 +37,14 @@ export function SmithChart({
    *  per-feed summary rows. Decoupled from feeds[].length so the chart
    *  reflects antenna type rather than guessing from response shape. */
   multiFeed: boolean;
+  /** Draw the sweep trail as a CONNECTED locus instead of a point cloud.
+   *  On when adaptive resolution (issue #744) is on: the merged sweep is
+   *  sorted by frequency and refinement has smoothed the display-space
+   *  curvature, so a polyline finally reads as the curve it is — the
+   *  original objection to lines here ("sparse samples make a piecewise
+   *  polyline read as artificial kinks") is exactly what refinement
+   *  removes. Off (refinement disabled) keeps the honest dot cloud. */
+  connectSweep?: boolean;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -152,19 +161,38 @@ export function SmithChart({
       ctx.arc(cx, cy, R, 0, 2 * Math.PI);
       ctx.clip();
       for (let fi = 0; fi < nFeeds; fi++) {
-        // Darkened color so the sweep cloud reads as a trail underneath
-        // the bright current-Z primary marker (drawn later, full color).
-        // Same convention for single- and multi-feed so the chart's
-        // visual grammar is uniform.
-        ctx.fillStyle = feedSweepColor(fi);
-        for (let i = 0; i < sweep.freqs_mhz.length; i++) {
-          const z = zAt(fi, i);
-          const g = reflectionCoefficient(z.re, z.im, z0);
-          const px = cx + g.gRe * R;
-          const py = cy - g.gIm * R;
+        // Darkened color so the sweep trail reads underneath the bright
+        // current-Z primary marker (drawn later, full color). Same
+        // convention for single- and multi-feed so the chart's visual
+        // grammar is uniform.
+        if (connectSweep) {
+          // Connected locus (adaptive resolution on): freqs_mhz arrives
+          // sorted (mergeSweepPoints re-sorts on every refinement round),
+          // so drawing in array order IS drawing in frequency order — no
+          // chord ever jumps across the chart.
+          ctx.strokeStyle = feedSweepColor(fi);
+          ctx.lineWidth = 1.2;
           ctx.beginPath();
-          ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
-          ctx.fill();
+          for (let i = 0; i < sweep.freqs_mhz.length; i++) {
+            const z = zAt(fi, i);
+            const g = reflectionCoefficient(z.re, z.im, z0);
+            const px = cx + g.gRe * R;
+            const py = cy - g.gIm * R;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = feedSweepColor(fi);
+          for (let i = 0; i < sweep.freqs_mhz.length; i++) {
+            const z = zAt(fi, i);
+            const g = reflectionCoefficient(z.re, z.im, z0);
+            const px = cx + g.gRe * R;
+            const py = cy - g.gIm * R;
+            ctx.beginPath();
+            ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
+            ctx.fill();
+          }
         }
       }
       ctx.restore();
@@ -554,7 +582,7 @@ export function SmithChart({
     // initial false to the real /examples value (true for bowtie /
     // hexbeam_5band) — the user saw only one Z* annotation in the
     // legend because the closure stayed wedged on the single-feed branch.
-  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, theme]);
+  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, theme]);
 
   return <canvas ref={canvasRef} className="smith" />;
 }
