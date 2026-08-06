@@ -694,7 +694,12 @@ function DesignSessionBody({
   // tabs are separate App instances, hence separate sessions). The server
   // keys its single-lane scheduler on this — everything this tab asks for
   // runs one-at-a-time server-side, live solve first.
-  const sessionIdRef = useRef<string>(
+  //
+  // useState's LAZY initializer, not useRef(makeSessionId()): a bare
+  // useRef argument is evaluated on every render and discarded after the
+  // first, so that spelling minted — and threw away — a fresh UUID on every
+  // knob frame. The lazy form runs the impure call exactly once (issue #768).
+  const [sessionId] = useState(() =>
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `s-${Math.random().toString(36).slice(2)}`,
@@ -708,7 +713,7 @@ function DesignSessionBody({
     // ships the real εr/σ for the pattern either way).
     const groundActive = groundEnabled && backendSupportsGround(backend);
     const base: SolveRequest = {
-      _session: sessionIdRef.current,
+      _session: sessionId,
       geometry,
       variant: currentVariant,
       solver: backend.kind === "pynec" ? "pynec" : "momwire",
@@ -954,7 +959,15 @@ function DesignSessionBody({
 
   // The latest control values, used to send a new request when the prior one
   // completes (drops intermediate values rather than queuing them all up).
-  const controlsRef = useRef<SolveRequest>(buildRequest());
+  //
+  // Starts null rather than seeded with buildRequest(): a useRef argument is
+  // evaluated every render and discarded after the first, so seeding it here
+  // rebuilt a whole 59-line SolveRequest per knob frame to throw it away
+  // (issue #768). Null means "nothing decided to solve yet" — every writer
+  // (the solve effect, solveAnyway) fills it before asking to send, and
+  // useSolveChannel defers a send it cannot fill, exactly as it already
+  // defers one it cannot deliver down a closed socket.
+  const controlsRef = useRef<SolveRequest | null>(null);
 
   // The /ws solve channel (#642 seam 5b-3): the socket, the latest-wins `_seq`
   // protocol and the busy-chrome dwell. Called right after controlsRef — the
@@ -990,9 +1003,14 @@ function DesignSessionBody({
   }
 
   function pinCurrentPattern() {
-    if (!result) return;
+    // A result exists only because a solve was sent, which fills controlsRef —
+    // so the second test never fires in practice. It is here because the pin
+    // stores the request that PRODUCED this result; pinning a result against
+    // a missing request would silently mislabel the ghost trace (issue #768).
+    const controls = controlsRef.current;
+    if (!result || !controls) return;
     const label = `${currentExample?.label ?? geometry} @ ${measFreq.toFixed(2)} MHz`;
-    addPin(label, result, controlsRef.current);
+    addPin(label, result, controls);
   }
 
   // Keep the live antenna's metrics fresh for the table, but only while a
@@ -1008,7 +1026,12 @@ function DesignSessionBody({
     }
     let cancelled = false;
     const h = window.setTimeout(() => {
-      fetchMetrics(controlsRef.current).then((m) => {
+      // Read at fire time, not at schedule time: the dwell is 300 ms and the
+      // metrics must describe the design as it now stands. Null only before
+      // the first solve, which `result` above already excludes (issue #768).
+      const controls = controlsRef.current;
+      if (!controls) return;
+      fetchMetrics(controls).then((m) => {
         if (!cancelled) setLiveMetrics(m);
       });
     }, 300);

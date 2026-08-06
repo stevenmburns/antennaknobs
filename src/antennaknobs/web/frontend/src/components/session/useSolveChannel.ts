@@ -36,7 +36,9 @@ const BUSY_MIN_VISIBLE_MS = 400;
 //
 // `controlsRef` stays owned by the component: the solve effect writes the
 // latest request into it and this hook only ever reads `.current`, so a
-// reconnect resends whatever the component last decided to solve.
+// reconnect resends whatever the component last decided to solve. It is null
+// until the component has decided anything (issue #768) — a send with nothing
+// to send is deferred, not faked.
 export function useSolveChannel({
   active,
   controlsRef,
@@ -46,7 +48,7 @@ export function useSolveChannel({
   setSolveError,
 }: {
   active: boolean;
-  controlsRef: MutableRefObject<SolveRequest>;
+  controlsRef: MutableRefObject<SolveRequest | null>;
   geometryRef: MutableRefObject<string>;
   previewSigRef: MutableRefObject<string | null>;
   setResult: (r: SolveResponse | null) => void;
@@ -166,15 +168,22 @@ export function useSolveChannel({
       solveRafRef.current = null;
       const sock = wsRef.current;
       if (!sock || sock.readyState !== WebSocket.OPEN) return;
+      // Nothing decided to solve yet (issue #768). onopen calls requestSolve
+      // unconditionally, and on a first connect it can win the race against
+      // the solve effect that fills this — so deferring here is the same
+      // "can't send now" the closed-socket branch above takes, not a new
+      // failure mode: the solve effect sends as soon as it has a request.
+      const controls = controlsRef.current;
+      if (!controls) return;
       const seq = ++seqRef.current;
       lastSentSeqRef.current = seq;
       sentAtRef.current.set(seq, performance.now());
-      sock.send(JSON.stringify({ ...controlsRef.current, _seq: seq }));
+      sock.send(JSON.stringify({ ...controls, _seq: seq }));
       // Keep the preview signature current so that toggling Live *off* right
       // after a solve doesn't see a stale signature and needlessly refetch the
       // wireframe / drop the just-solved result — the solved geometry already
       // matches these controls.
-      previewSigRef.current = JSON.stringify(controlsRef.current);
+      previewSigRef.current = JSON.stringify(controls);
       syncSolving();
     });
   }
