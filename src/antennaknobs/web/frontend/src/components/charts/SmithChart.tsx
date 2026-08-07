@@ -18,6 +18,7 @@ export function SmithChart({
   feeds,
   multiFeed,
   connectSweep = false,
+  trial = false,
 }: {
   r: number;
   x: number;
@@ -45,6 +46,10 @@ export function SmithChart({
    *  polyline read as artificial kinks") is exactly what refinement
    *  removes. Off (refinement disabled) keeps the honest dot cloud. */
   connectSweep?: boolean;
+  /** `r`/`x` are a PROPOSED point (a streamed optimizer eval, #773), not a
+   *  settled solve: draw a hollow ring and ignore `feeds`, which still holds
+   *  the previous solve's per-port dots. */
+  trial?: boolean;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -474,8 +479,16 @@ export function SmithChart({
     // (freq sweep), bright = "you are here." The previous golden +
     // glow + line-from-centre treatment for single-feed is gone —
     // single-feed and feed-0-of-multi-feed now look identical.
-    const markerPoints: Array<{ re: number; im: number; fi: number }> =
-      feeds && feeds.length > 0
+    // `trial` overrides the feed list rather than joining it: a proposed
+    // point is one driven-port impedance, while `feeds` still holds the LAST
+    // SOLVE's per-port dots. Letting those win would leave a multi-feed
+    // design showing stale dots and no trial point at all — the frozen-dot
+    // bug this prop exists to fix, hiding in the multi-feed branch.
+    const markerPoints: Array<{ re: number; im: number; fi: number }> = trial
+      ? r > 0 || x !== 0
+        ? [{ re: r, im: x, fi: 0 }]
+        : []
+      : feeds && feeds.length > 0
         ? feeds.map((f, fi) => ({ re: f.z_re, im: f.z_im, fi }))
         : r > 0 || x !== 0
           ? [{ re: r, im: x, fi: 0 }]
@@ -485,6 +498,20 @@ export function SmithChart({
       const { gRe, gIm } = reflectionCoefficient(m.re, m.im, z0);
       const px = cx + gRe * R;
       const py = cy - gIm * R;
+      if (trial) {
+        // Hollow ring, not a filled dot. The chart's grammar is already
+        // filled = settled / hollow = the other end of a trail, so a ring
+        // reads as "being tried" rather than "this is your antenna" — which
+        // matters because nothing else on the chart has caught up yet: the
+        // sweep locus and any measured overlay still describe the geometry
+        // as it was before the run started.
+        ctx.strokeStyle = feedColor(m.fi);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, 2 * Math.PI);
+        ctx.stroke();
+        continue;
+      }
       ctx.fillStyle = feedColor(m.fi);
       ctx.beginPath();
       ctx.arc(px, py, 4, 0, 2 * Math.PI);
@@ -582,7 +609,10 @@ export function SmithChart({
     // initial false to the real /examples value (true for bowtie /
     // hexbeam_5band) — the user saw only one Z* annotation in the
     // legend because the closure stayed wedged on the single-feed branch.
-  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, theme]);
+    // `trial` is in the deps for the same reason: it decides both the marker
+    // shape and whether `feeds` is consulted at all, so a stale closure would
+    // leave the last trial ring on screen after a run settled.
+  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, trial, theme]);
 
   return <canvas ref={canvasRef} className="smith" />;
 }
