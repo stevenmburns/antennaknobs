@@ -171,6 +171,39 @@ def _seed_defaults_from_deck(cls):
     cls.default_params = MappingProxyType(params)
 ```
 
+### Loading a SimNEC circuit (`.ssn`)
+
+`read_ssn(self, name)` loads a **SimNEC** (AE6TY) circuit file with the same
+folder confinement as `read_nec`. The antenna lives in the file's NEC-portal
+block; `read_ssn` extracts it and returns an `SsnCircuit` whose `.deck` is the
+same `NecDeck` a `.nec` import produces — so the recipe is the `.nec` one with
+one extra hop, and the frozen-geometry expectations above apply unchanged:
+
+```python
+from antennaknobs import AntennaBuilder, read_ssn
+
+class Builder(AntennaBuilder):
+    def build_wires(self):
+        return read_ssn(self, "station.ssn", network=True).deck.wire_tuples(
+            specs=True
+        )
+
+    def build_network(self):
+        return read_ssn(self, "station.ssn", network=True).deck.network()
+```
+
+Circuit-level settings SimNEC keeps outside the deck surface on the
+`SsnCircuit`: `freq_mhz` is the Generator's solve frequency (use it to seed
+`freq` — the deck's FR card is advisory in SimNEC), `sweep` an armed Generator
+sweep (seed `ui_params["meas_freq_range"]`), `ground` the file's ground model
+(free / `"pec"` / `("finite", eps_r, sigma)` — tell the user to set the app
+ground to match), and `conductivity` the wire material for `WireSpec`.
+`NECUnits` in feet/inches/cm/mm is converted to metres automatically. Only the
+antenna block is imported: station elements (tuner, feedline, transformer
+blocks) are recorded in `other_elements`, and `circuit.skipped_note()` renders
+everything left behind as the same one-sentence note as `deck.skipped_note()` —
+put it under `ui_params["notes"]`.
+
 ## `default_params`
 
 Every key becomes a slider in the UI, accessed in `build_wires` as

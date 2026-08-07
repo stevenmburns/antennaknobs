@@ -6,6 +6,9 @@ lets an antennaknobs design — antenna-only, or a differential-only *station*
 (antenna + feedline + tuner + transformer chain) — be round-tripped into
 SimNEC for cross-validation, without the fiddly UI step of hand-entering
 geometry or circuit values.
+The read-side twin is :mod:`antennaknobs.simnec_import` (``parse_ssn`` /
+``read_ssn``), which loads a ``.ssn`` back as wire geometry and station
+branches.
 
 How it works — the escape-hatch route
 -------------------------------------
