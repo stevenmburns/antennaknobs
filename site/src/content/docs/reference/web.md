@@ -185,6 +185,17 @@ fast **momwire** engine — never PyNEC, which is too slow for an interactive lo
 It's a tuning aid, not a global optimizer: give it sensible ranges and a couple
 of free knobs, not a dozen.
 
+**Multi-feed designs score their worst feed.** On a design with several
+independently driven ports (a bowtie array, a pair of phased verticals), the
+objective is evaluated per feed and the optimizer minimizes the *worst* one —
+so "SWR 1.4" after a run means *no* element sits worse than 1.4, and one bad
+feed can't hide behind several good ones. The SWR shown while optimizing is
+that worst feed's. A design that feeds its elements from a single source
+through a network is different: there the match that matters is the network's
+input, so the optimizer scores the driven plane — the same impedance the
+readout shows. The CLI's `optimize` aggregates feeds the same way (it differs
+only in scoring |Z − Z₀| distance rather than SWR).
+
 **Loading a design pauses Optimize.** Switching antenna or picking a variant
 turns Optimize off — its objective and marks belong to the design you left —
 and briefly says so. Switching antenna *keeps* that design's marks (they're

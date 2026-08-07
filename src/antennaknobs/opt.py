@@ -125,11 +125,14 @@ def optimize(
                     % (str(antenna_builder), z.real, z.imag, rho, swr, rho_db)
                 )
 
+        # Multi-feed designs score their WORST feed (minimax, issue #785): a
+        # sum lets one badly mismatched element hide behind several good ones.
+        # Same aggregation as the web optimizer; single-feed is unchanged.
         res = 0
         if resonance:
-            res += sum([abs(z.imag) for z in zs])
+            res += max((abs(z.imag) for z in zs), default=0.0)
         else:
-            res += sum([abs(z - z0) for z in zs])
+            res += max((abs(z - z0) for z in zs), default=0.0)
 
         if opt_gain:
             res -= 100 * max_gain
