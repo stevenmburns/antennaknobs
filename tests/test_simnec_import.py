@@ -355,9 +355,9 @@ def test_station_ideal_transformer2():
     extra = _el("TRANSFORMER2", {"Mdl": "ideal", "N": 2}, label="X1")
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
     (x,) = [b for b in c.network().branches if isinstance(b, Transformer)]
-    # N is the generator:antenna voltage ratio; entered generator-side,
-    # Transformer(a, b, n) with v_a = n·v_b matches directly.
-    assert (x.a, x.b, x.n) == ("rig", "feed", 2.0)
+    # SimNEC's N is the antenna:generator voltage ratio (validated on 6p4d6,
+    # PR #696), so entered generator-side, Transformer n = 1/N.
+    assert (x.a, x.b, x.n) == ("rig", "feed", 0.5)
 
 
 def test_station_non_ideal_transformer2_rejected():
