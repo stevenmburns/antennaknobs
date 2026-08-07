@@ -66,13 +66,15 @@ is stuck on one value.
 .. note::
    The station element XML (parameter names ``Zo``/``VFnom``/``ft``/``k0``…,
    ``F``/``H``/``Q``/``@MHz``, ``Mdl``/``N``) is authored from the schema
-   survey of a SimNEC 5.1a1-saved ``lastCircuit.ssn`` (issue #604); the
-   generated station ``.ssn`` has NOT yet been load-tested in SimNEC itself.
-   Validation caveats, in order of risk: (1) ``TRANSFORMER2``'s ``N``
-   orientation (emitted so generator-side Z = N²·antenna-side Z — flip if
-   SimNEC reads it the other way); (2) ``Q = 0`` is assumed to mean "ideal /
-   no loss" (the SimSmith convention); (3) the ``SERIES_TLINE`` ``material``
-   param is omitted on the assumption SimNEC then honours the explicit
+   survey of a SimNEC 5.1a1-saved ``lastCircuit.ssn`` (issue #604), and
+   load-validated in SimNEC 6p4d6 (2026-08-07): the ladder-tuner cascade
+   loads with correct element values and reproduces the Track-1 rig-side
+   impedance at 7.1 MHz. ``TRANSFORMER2``'s ``N`` was found to read
+   antenna-side:generator-side — the inverse of our ``Transformer`` ``n`` —
+   so the exporter emits the reciprocal (see the emission comment).
+   Remaining caveats: (1) ``Q = 0`` is assumed to mean "ideal / no loss"
+   (the SimSmith convention); (2) the ``SERIES_TLINE`` ``material`` param is
+   omitted on the assumption SimNEC then honours the explicit
    ``k0``/``k1``/``k2`` loss coefficients.
 
 Licensing
@@ -359,11 +361,13 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
                 "SimNEC after loading"
             )
         # Orientation: our Transformer(a, b, n) has v_a = n·v_b, so the
-        # impedance at a is n²·Z_b. Emit N as the generator-side:antenna-side
+        # impedance at a is n²·Z_b; n_eff is that generator-side:antenna-side
         # ratio — entering the branch at `a` keeps n, entering at `b` inverts
-        # it. (Validation caveat: flip if SimNEC's N reads the other way.)
+        # it. SimNEC's TRANSFORMER2 N reads the OTHER way (measured on 6p4d6,
+        # 2026-08-07: an n=2 step-up emitted as N=2 read Z/4 at the generator
+        # instead of 4Z), so the emitted value is 1/n_eff.
         n_eff = br.n if entered_at == br.a else 1.0 / br.n
-        return [mk("TRANSFORMER2", "X", [("Mdl", "ideal"), ("N", _fmt(n_eff))])]
+        return [mk("TRANSFORMER2", "X", [("Mdl", "ideal"), ("N", _fmt(1.0 / n_eff))])]
     raise SsnUnsupported(f"{name}: no SimNEC mapping for this branch type")
 
 

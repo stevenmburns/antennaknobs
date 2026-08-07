@@ -353,7 +353,7 @@ def test_station_ideal_transformer_maps_to_transformer2():
 
     ssn = export_ssn(_Xfmr(), freq_mhz=14.0, ground=None)
     x = _params_of(ssn, "TRANSFORMER2")
-    assert x["Mdl"] == "ideal" and x["N"] == "2"
+    assert x["Mdl"] == "ideal" and x["N"] == "0.5"
 
     class _XfmrFlipped(_NamedDipole):
         def build_network(self):
@@ -365,7 +365,7 @@ def test_station_ideal_transformer_maps_to_transformer2():
 
     # Entered at b: the generator-side ratio inverts.
     ssn = export_ssn(_XfmrFlipped(), freq_mhz=14.0, ground=None)
-    assert _params_of(ssn, "TRANSFORMER2")["N"] == "0.5"
+    assert _params_of(ssn, "TRANSFORMER2")["N"] == "2"
 
 
 def test_station_lossy_transformer_rejected():
