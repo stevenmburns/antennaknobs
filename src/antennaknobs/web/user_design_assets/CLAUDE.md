@@ -189,8 +189,20 @@ class Builder(AntennaBuilder):
         )
 
     def build_network(self):
-        return read_ssn(self, "station.ssn", network=True).deck.network()
+        # deck loads/feed PLUS the file's station chain (see below)
+        return read_ssn(self, "station.ssn", network=True).network()
 ```
+
+A **station** `.ssn` — tuner, feedline, transformer elements between the
+Generator and the antenna — imports too: `circuit.network()` translates the
+cascade back into the app's own branches (`SERIES_TLINE` → `TL` with the same
+Zo/vf/k1/k2 loss convention, `SERIES_IND`/`SERIES_CAP` → `TwoPort`,
+`SHUNT_IND`/`SHUNT_CAP` → `Shunt`, ideal `TRANSFORMER2` → `Transformer`;
+component `Q` becomes `ql`/`qc`, exact at the frequency SimNEC quoted it at),
+hung between a virtual `"rig"` node (where the `Driven` moves) and the deck's
+fed wire. An element outside that set makes `network()` raise rather than
+silently drop part of the circuit — it also shows up in `other_elements`, so
+you can tell the user before they hit it.
 
 Circuit-level settings SimNEC keeps outside the deck surface on the
 `SsnCircuit`: `freq_mhz` is the Generator's solve frequency (use it to seed
@@ -198,11 +210,10 @@ Circuit-level settings SimNEC keeps outside the deck surface on the
 sweep (seed `ui_params["meas_freq_range"]`), `ground` the file's ground model
 (free / `"pec"` / `("finite", eps_r, sigma)` — tell the user to set the app
 ground to match), and `conductivity` the wire material for `WireSpec`.
-`NECUnits` in feet/inches/cm/mm is converted to metres automatically. Only the
-antenna block is imported: station elements (tuner, feedline, transformer
-blocks) are recorded in `other_elements`, and `circuit.skipped_note()` renders
-everything left behind as the same one-sentence note as `deck.skipped_note()` —
-put it under `ui_params["notes"]`.
+`NECUnits` in feet/inches/cm/mm is converted to metres automatically.
+Whatever the import leaves behind (untranslatable elements, unknown
+directives) is rendered by `circuit.skipped_note()` as the same one-sentence
+note as `deck.skipped_note()` — put it under `ui_params["notes"]`.
 
 ## `default_params`
 

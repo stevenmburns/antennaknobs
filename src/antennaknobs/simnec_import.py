@@ -34,14 +34,40 @@ The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
 (``doSweep y``) Generator sweep surfaces as ``sweep=(lo, hi)``.
 
-Scope mirrors the exporter: **the antenna block only**. A full-station ``.ssn``
-(tuner elements, transmission lines, transformers between the Generator and the
-antenna) is not translated into the app's port-network system; those elements
-are recorded in ``SsnCircuit.other_elements`` — and daemon statements the
-importer does not understand in ``ignored_directives`` — so a caller can tell
-the user what the file carries that the import leaves behind (see
-``skipped_note()``). The exporter's own scaffold (the open LOAD termination and
-the 50 Ohm GENERATOR) is recognised and not reported.
+Station circuits (issue #604's element set)
+-------------------------------------------
+A station ``.ssn`` carries circuit elements between the antenna NETWORK block
+and the GENERATOR — SimNEC's cascade, saved right-to-left (LOAD … antenna …
+chain … GENERATOR). Those elements land in ``SsnCircuit.chain`` in
+generator→antenna order, and ``SsnCircuit.network()`` translates them back
+into the app's port-network branches — the inverse of the station exporter's
+branch→element mapping, element for element:
+
+    SERIES_TLINE                      -> TL       (Zo / VFnom / ft, and the
+                                         k1·sqrt(f) + k2·f dB/100 ft matched-loss
+                                         coefficients — the same convention)
+    SERIES_IND / SERIES_CAP           -> TwoPort  (H / F, Q -> ql / qc)
+    SHUNT_IND / SHUNT_CAP             -> Shunt    (H / F, Q -> ql / qc)
+    TRANSFORMER2 (Mdl ideal)          -> Transformer (N as the generator:antenna
+                                         voltage ratio, matching the exporter)
+
+The chain hangs between a virtual generator-side node (``"rig"``, the
+``Driven`` source) and the deck's fed wire; trap ``Load``s ride in the deck as
+LD cards and translate through ``parse_nec`` as usual. Semantics notes, shared
+with the exporter: SimNEC quotes component ``Q`` at a frequency (``@MHz``)
+while ``ql``/``qc`` are frequency-independent, so the import is exact at the
+quoted frequency and Q-model-approximate across a sweep; ``Q = 0`` reads as
+the ideal (lossless) component; ``VFnom`` is taken at face value (SimNEC's
+"simplified" line model can compute a different effective vf from its
+dielectric params — the handoff doc's gotcha 2).
+
+A chain element outside that set is recorded in ``other_elements`` (see
+``skipped_note()``), and ``network()`` refuses to build a station around it —
+importing the antenna while silently dropping a tuner element would be a
+confidently-wrong circuit. Elements outside the generator→antenna span, and
+daemon statements the importer does not understand (``ignored_directives``),
+are recorded the same way. The exporter's own scaffold (the open LOAD
+termination and the 50 Ohm GENERATOR) is recognised and not reported.
 """
 
 from __future__ import annotations
@@ -50,10 +76,11 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, replace
 
+from . import network as _net
 from .design_data import read_data
 from .nec_import import NecDeck, parse_nec
 
-__all__ = ["SsnCircuit", "parse_ssn", "read_ssn"]
+__all__ = ["SsnCircuit", "SsnElement", "parse_ssn", "read_ssn"]
 
 # NECUnits values, in metres. The directive names a unit per argument:
 # (coordinates, wire radius) — the exporter writes "NECUnits meters, meters".
@@ -79,6 +106,13 @@ _UNIT_M = {
 # "no termination" rather than a circuit element worth reporting.
 _OPEN_OHMS = 1e8
 
+M_PER_FT = 0.3048
+
+# Station chain elements network() can translate (issue #604's captured set).
+_SHUNT_CHAIN = frozenset({"SHUNT_IND", "SHUNT_CAP"})
+_SERIES_CHAIN = frozenset({"SERIES_TLINE", "SERIES_IND", "SERIES_CAP", "TRANSFORMER2"})
+_CHAIN_TYPES = _SHUNT_CHAIN | _SERIES_CHAIN
+
 _NEC2_LINE = re.compile(r"^NEC2\s*$")
 _NECEND_LINE = re.compile(r"^NECEND\s*$")
 _PORT_DECL = re.compile(r"^P\d+\s+\S", re.IGNORECASE)
@@ -88,6 +122,90 @@ _SOMMERFELD = re.compile(
 _PERFECT = re.compile(r"^PerfectGround\s*\(\s*\)$", re.IGNORECASE)
 _NECUNITS = re.compile(r"^NECUnits\s+(.+)$", re.IGNORECASE)
 _NECOPTION = re.compile(r"^NECOptions\.(\w+)\s*=\s*(\S+)$", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class SsnElement:
+    """One circuit element from the station chain: its SimNEC ``<type>``,
+    ``<sweeperLabel>``, and top-level params as (name, value) text pairs."""
+
+    typ: str
+    label: str | None
+    params: tuple[tuple[str, str | None], ...]
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        for n, v in self.params:
+            if n == key:
+                return v
+        return default
+
+
+def _chain_f(el: SsnElement, key: str, default: float | None = None) -> float:
+    """A chain element's numeric parameter; ``default`` for an absent one
+    (None = required)."""
+    raw = el.get(key)
+    where = f"{el.typ} element" + (f" {el.label}" if el.label else "")
+    if raw is None:
+        if default is None:
+            raise ValueError(f"{where}: missing its {key!r} parameter")
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(f"{where}: bad {key!r} value {raw!r}") from None
+
+
+def _chain_q(el: SsnElement) -> float | None:
+    """SimNEC's component ``Q`` (quoted at ``@MHz``) as ``ql``/``qc``:
+    frequency-independent, so exact at the quoted frequency. ``Q = 0`` (or
+    absent) is the ideal component -> None, the SimSmith convention the
+    exporter also uses."""
+    q = _chain_f(el, "Q", default=0.0)
+    return q if q > 0.0 else None
+
+
+def _shunt_branch(el: SsnElement, node: str):
+    if el.typ == "SHUNT_IND":
+        return _net.Shunt(port=node, l=_chain_f(el, "H"), ql=_chain_q(el))
+    return _net.Shunt(port=node, c=_chain_f(el, "F"), qc=_chain_q(el))
+
+
+def _series_branch(el: SsnElement, a: str, b: str):
+    """The network branch for one series chain element, entered generator-side
+    at ``a`` — the inverse of the station exporter's ``_series_elements``."""
+    if el.typ == "SERIES_TLINE":
+        k0 = _chain_f(el, "k0", default=0.0)
+        if k0 != 0.0:
+            raise ValueError(
+                f"SERIES_TLINE {el.label or ''}: a constant k0 loss term has "
+                f"no TL equivalent — TL matched loss is k1*sqrt(f) + k2*f "
+                f"(dB/100 ft)"
+            )
+        return _net.TL(
+            a=a,
+            b=b,
+            z0=_chain_f(el, "Zo"),
+            length=_chain_f(el, "ft") * M_PER_FT,
+            vf=_chain_f(el, "VFnom", default=1.0),
+            k1=_chain_f(el, "k1", default=0.0),
+            k2=_chain_f(el, "k2", default=0.0),
+        )
+    if el.typ == "SERIES_IND":
+        return _net.TwoPort(a=a, b=b, l=_chain_f(el, "H"), ql=_chain_q(el))
+    if el.typ == "SERIES_CAP":
+        return _net.TwoPort(a=a, b=b, c=_chain_f(el, "F"), qc=_chain_q(el))
+    # TRANSFORMER2 — only the ideal ratio maps onto Transformer, exactly as
+    # only the ideal Transformer maps onto TRANSFORMER2 on export.
+    mdl = (el.get("Mdl") or "").strip().lower()
+    if mdl != "ideal":
+        raise ValueError(
+            f"TRANSFORMER2 {el.label or ''}: model {el.get('Mdl')!r} is not "
+            f"the ideal ratio; only 'Mdl ideal' translates to Transformer"
+        )
+    # The exporter emits N as the generator-side:antenna-side voltage ratio
+    # (generator-side Z = N^2 * antenna-side Z); entering at the generator
+    # side, Transformer(a, b, n) with v_a = n*v_b matches directly.
+    return _net.Transformer(a=a, b=b, n=_chain_f(el, "N"))
 
 
 @dataclass(frozen=True)
@@ -114,8 +232,13 @@ class SsnCircuit:
     gen_zo: float | None
     # The block display name — the script's first // comment.
     name: str | None
-    # Circuit element types the import leaves behind (tuner elements,
-    # extra blocks — anything beyond the antenna + exporter scaffold).
+    # The station chain: circuit elements between the GENERATOR and the
+    # antenna NETWORK block, in generator→antenna order. Translated into
+    # port-network branches by network(); empty for an antenna-only file.
+    chain: tuple[SsnElement, ...] = ()
+    # Circuit element types the import cannot translate (chain elements
+    # outside the captured set, extra blocks — anything beyond the antenna,
+    # the station chain, and the exporter scaffold).
     other_elements: tuple[str, ...] = ()
     # Daemon statements not understood, verbatim.
     ignored_directives: tuple[str, ...] = ()
@@ -129,7 +252,7 @@ class SsnCircuit:
         parts = []
         if self.other_elements:
             parts.append(
-                "SimNEC circuit elements not imported (antenna block only): "
+                "SimNEC circuit elements not imported: "
                 + ", ".join(self.other_elements)
             )
         if self.ignored_directives:
@@ -145,6 +268,74 @@ class SsnCircuit:
         if note and deck_note:
             return f"{note} {deck_note}"
         return note or deck_note
+
+    def network(self, *, rig_port: str = "rig"):
+        """The full circuit as a ``network.Network``, ready to return from
+        ``build_network()``: the deck's translated branches and feed (via
+        ``NecDeck.network()``, so parse with ``network=True``), plus the
+        station chain re-hung between a virtual generator-side ``rig_port``
+        node — where the ``Driven`` source moves to — and the deck's fed
+        wire. An antenna-only file returns the deck network unchanged.
+
+        Raises ``ValueError`` for a chain the app cannot faithfully rebuild:
+        an element outside the captured set (see ``other_elements``), a
+        non-ideal TRANSFORMER2, a k0 loss term, or a deck without exactly
+        one voltage feed to attach the chain to."""
+        net = self.deck.network()
+        if not self.chain:
+            return net
+        bad = sorted({el.typ for el in self.chain if el.typ not in _CHAIN_TYPES})
+        if bad:
+            raise ValueError(
+                f"station chain carries element(s) with no network "
+                f"translation: {', '.join(bad)} — importing the antenna "
+                f"while dropping them would misrepresent the circuit"
+            )
+        if len(net.sources) != 1 or not isinstance(net.sources[0], _net.Driven):
+            raise ValueError(
+                "a station chain attaches between the generator and one "
+                "voltage-driven feed; this deck does not have exactly one "
+                "EX voltage source"
+            )
+        src = net.sources[0]
+        feed_port = src.port
+        ports = dict(net.ports)
+        branches = list(net.branches)
+
+        series_left = sum(1 for el in self.chain if el.typ in _SERIES_CHAIN)
+        if series_left == 0:
+            # Shunt-only chain: nothing separates the generator from the
+            # feed, so the shunts hang straight across the feed terminals
+            # and the source stays where the deck put it.
+            branches.extend(_shunt_branch(el, feed_port) for el in self.chain)
+            return _net.Network(ports=ports, branches=branches, sources=[src])
+
+        if rig_port in ports:
+            raise ValueError(
+                f"rig_port {rig_port!r} collides with a deck port name — "
+                f"pass a different rig_port"
+            )
+        node = rig_port
+        ports[node] = _net.PortVirtual(node)
+        k = 0
+        for el in self.chain:
+            if el.typ in _SHUNT_CHAIN:
+                branches.append(_shunt_branch(el, node))
+                continue
+            series_left -= 1
+            if series_left == 0:
+                nxt = feed_port  # the last series element lands on the feed
+            else:
+                k += 1
+                nxt = f"chain{k}"
+                ports[nxt] = _net.PortVirtual(nxt)
+            branches.append(_series_branch(el, node, nxt))
+            node = nxt
+        return _net.Network(
+            ports=ports,
+            branches=branches,
+            sources=[_net.Driven(port=rig_port, voltage=src.voltage)],
+        )
 
 
 def _unit_scale(token: str, where: str) -> float:
@@ -273,8 +464,9 @@ def parse_ssn(
 
     ``network`` and ``virtualize_anchors`` forward to :func:`parse_nec` for the
     embedded NEC cards — ``network=True`` makes ``circuit.deck.wire_tuples()``
-    and ``circuit.deck.network()`` ready to return from ``build_wires`` /
-    ``build_network``, with the deck's lumped LD loads translated.
+    and ``circuit.network()`` ready to return from ``build_wires`` /
+    ``build_network``, with the deck's lumped LD loads and the file's station
+    chain (see the module note) translated.
 
     Raises ``ValueError`` (prefixed with ``name``) on malformed XML, on a file
     with no NEC-portal antenna block or more than one, and on anything
@@ -285,24 +477,50 @@ def parse_ssn(
     except ET.ParseError as e:
         raise ValueError(f"{name}: not well-formed .ssn XML ({e})") from None
 
-    nec_blocks: list[str] = []
-    generator = None
-    other: list[str] = []
     elements = root.findall(".//CIRCUIT/element")
     if not elements:
         raise ValueError(f"{name}: no <CIRCUIT> elements — is this a .ssn file?")
-    for el in elements:
-        typ = (el.findtext("type") or "?").strip()
-        params = _params(el)
-        if typ == "NETWORK" and "equ" in params:
-            equ = params["equ"] or ""
-            if re.search(r"(?m)^\s*NEC2\s*$", equ):
-                nec_blocks.append(equ)
-            else:
-                other.append("NETWORK (non-NEC script)")
+    infos = [((el.findtext("type") or "?").strip(), _params(el), el) for el in elements]
+
+    nec_positions = [
+        i
+        for i, (typ, params, _) in enumerate(infos)
+        if typ == "NETWORK"
+        and "equ" in params
+        and re.search(r"(?m)^\s*NEC2\s*$", params["equ"] or "")
+    ]
+    if not nec_positions:
+        raise ValueError(
+            f"{name}: no NEC-portal antenna block (a NETWORK element whose "
+            f"<equ> script carries NEC2 cards)"
+        )
+    if len(nec_positions) > 1:
+        raise ValueError(
+            f"{name}: {len(nec_positions)} NEC-portal blocks — antennaknobs "
+            f"imports a single-antenna circuit"
+        )
+    nec_pos = nec_positions[0]
+    gen_pos = next(
+        (i for i, (typ, _, _) in enumerate(infos) if typ == "GENERATOR"), None
+    )
+    generator = elements[gen_pos] if gen_pos is not None else None
+
+    # The station chain is whatever sits between the antenna block and the
+    # Generator (SimNEC saves the cascade right-to-left: LOAD … antenna …
+    # chain … GENERATOR, so that document span reads antenna→generator).
+    if gen_pos is not None:
+        lo, hi = sorted((nec_pos, gen_pos))
+        span = range(lo + 1, hi)
+    else:
+        span = range(0)
+
+    chain_doc: list[SsnElement] = []
+    other: list[str] = []
+    for i, (typ, params, el) in enumerate(infos):
+        if i == nec_pos or i == gen_pos:
             continue
-        if typ == "GENERATOR" and generator is None:
-            generator = el
+        if typ == "NETWORK" and "equ" in params:
+            other.append("NETWORK (non-NEC script)")
             continue
         if typ == "LOAD":
             try:
@@ -311,20 +529,28 @@ def parse_ssn(
                 is_open = False
             if is_open:
                 continue  # the exporter's scaffold open termination
+        if i in span:
+            chain_doc.append(
+                SsnElement(
+                    typ=typ,
+                    label=el.findtext("sweeperLabel"),
+                    params=tuple(
+                        (p.findtext("n"), p.findtext("v")) for p in el.findall("p")
+                    ),
+                )
+            )
+            if typ not in _CHAIN_TYPES:
+                # In the cascade but not translatable: report it, and
+                # network() will refuse to build a station around it.
+                other.append(typ)
+            continue
         other.append(typ)
+    # Orient the chain generator→antenna, whichever way the file ran.
+    if gen_pos is not None and nec_pos < gen_pos:
+        chain_doc.reverse()
+    chain = tuple(chain_doc)
 
-    if not nec_blocks:
-        raise ValueError(
-            f"{name}: no NEC-portal antenna block (a NETWORK element whose "
-            f"<equ> script carries NEC2 cards)"
-        )
-    if len(nec_blocks) > 1:
-        raise ValueError(
-            f"{name}: {len(nec_blocks)} NEC-portal blocks — antennaknobs "
-            f"imports a single-antenna circuit"
-        )
-
-    script = _Script(nec_blocks[0], name)
+    script = _Script(infos[nec_pos][1]["equ"] or "", name)
 
     deck_lines = list(script.cards)
     if script.coord_scale != 1.0:
@@ -372,6 +598,7 @@ def parse_ssn(
         seg_per_wl=script.seg_per_wl,
         gen_zo=gen_zo,
         name=script.name,
+        chain=chain,
         other_elements=tuple(other),
         ignored_directives=tuple(script.ignored),
     )
