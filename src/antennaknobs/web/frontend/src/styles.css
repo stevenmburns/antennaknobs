@@ -2893,6 +2893,11 @@ canvas {
 .opt-readout-err {
   color: var(--danger, #c0392b);
 }
+/* Live progress (#773 unit 4): accent color, same family as opt-pip, marks
+   the readout as updating mid-run rather than the settled post-run figure. */
+.opt-readout-progress {
+  color: var(--accent);
+}
 /* Auto-pause cue: the optimizer stepped aside because the user grabbed a
    marked knob. Use the "hot" accent so it reads as a deliberate, momentary
    state change rather than an error. */

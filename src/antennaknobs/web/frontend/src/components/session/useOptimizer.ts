@@ -11,7 +11,56 @@ import {
   type OptimizeResult,
   type OptObjective,
   type OptPause,
+  type OptProgress,
 } from "./VfoPanel";
+
+// One decoded `event: X\ndata: Y` frame off an SSE byte stream.
+type SseFrame = { event: string; data: string };
+
+// Frames `event:`/`data:` lines separated by a blank line (issue #773 unit
+// 4's pinned contract: progress/result/error, exactly one terminal event per
+// stream). Multi-line `data:` fields join with `\n` per the SSE spec, though
+// this contract only ever sends one JSON line per field.
+//
+// `signal`'s abort cancels the reader directly rather than relying on the
+// fetch's own abort propagation: a stubbed test transport's stream has no
+// such propagation, and canceling a reader with a read pending resolves that
+// read as done (WHATWG streams), which is what unblocks the loop below.
+async function* readSseFrames(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal,
+): AsyncGenerator<SseFrame> {
+  const reader = body.getReader();
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
+  signal.addEventListener("abort", onAbort);
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let sep = buf.indexOf("\n\n");
+      while (sep !== -1) {
+        const block = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        let event = "message";
+        const dataLines: string[] = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+        }
+        if (dataLines.length > 0) yield { event, data: dataLines.join("\n") };
+        sep = buf.indexOf("\n\n");
+      }
+    }
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+    reader.releaseLock();
+  }
+}
 
 // --- Reactive knob optimiser (POST /optimize) ---
 //
@@ -66,6 +115,9 @@ export function useOptimizer({
   );
   const [optRunning, setOptRunning] = useState(false);
   const [optResult, setOptResult] = useState<OptimizeResult | null>(null);
+  // Latest `progress` frame of the in-flight run; reset to null at the start
+  // of every runOptimize call so a stale frame never outlives its run.
+  const [optProgress, setOptProgress] = useState<OptProgress | null>(null);
   const [optError, setOptError] = useState<string | null>(null);
   // When something auto-pauses the optimizer, this holds *why* for a brief cue
   // (cleared on re-enable / after a few seconds): grabbing a knob marked for
@@ -95,6 +147,7 @@ export function useOptimizer({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setKnobMenu(null);
     setOptResult(null);
+    setOptProgress(null);
     setOptError(null);
     if (optEnabledRef.current) {
       setOptEnabled(false);
@@ -103,11 +156,27 @@ export function useOptimizer({
     // optEnabledRef is read (not a dep) on purpose — see its declaration.
   }, [geometry]);
 
+  // Apply a settled /optimize outcome exactly as before: stash it for the
+  // readout, and push every returned param through the normal onChange path
+  // (which re-solves). Shared by the streaming `result` event and the
+  // non-streaming JSON body.
+  function applyOptimizeResult(data: OptimizeResult) {
+    setOptResult(data);
+    for (const [name, val] of Object.entries(data.params)) {
+      setParamAtPath([name], val);
+    }
+  }
+
   // Run the optimiser once: POST the current solve request + the free knobs
   // (from each knob's menu) and objective, then apply the returned params to the
   // knobs (re-solving via the normal onChange path). Warm-started from the
   // current values; a newer run aborts the previous so stale results are
   // dropped. Always uses the momwire engine server-side.
+  //
+  // Requests `text/event-stream` (issue #773's pinned contract) to get live
+  // `progress` frames; a server that doesn't stream yet ignores the header
+  // and answers with today's plain JSON, which the content-type check below
+  // routes to the unchanged single-shot path.
   async function runOptimize() {
     const settings = knobOpt[geometry] ?? {};
     const free = Object.entries(settings)
@@ -119,10 +188,14 @@ export function useOptimizer({
     optAbortRef.current = ctrl;
     setOptRunning(true);
     setOptError(null);
+    setOptProgress(null);
     try {
       const resp = await fetch("/optimize", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         signal: ctrl.signal,
         body: JSON.stringify({
           ...buildRequest(),
@@ -130,14 +203,28 @@ export function useOptimizer({
           optimize: { free, objective: optObjective, max_evals: 40 },
         }),
       });
-      const data = await resp.json();
       if (ctrl.signal.aborted) return; // superseded by a newer run
-      if (data.error) {
-        setOptError(String(data.error));
+      const streaming = (resp.headers.get("content-type") ?? "").includes(
+        "text/event-stream",
+      );
+      if (streaming && resp.body) {
+        for await (const { event, data } of readSseFrames(resp.body, ctrl.signal)) {
+          if (ctrl.signal.aborted) break; // superseded mid-stream
+          if (event === "progress") {
+            setOptProgress(JSON.parse(data) as OptProgress);
+          } else if (event === "result") {
+            applyOptimizeResult(JSON.parse(data) as OptimizeResult);
+          } else if (event === "error") {
+            setOptError(String((JSON.parse(data) as { detail: string }).detail));
+          }
+        }
       } else {
-        setOptResult(data as OptimizeResult);
-        for (const [name, val] of Object.entries((data as OptimizeResult).params)) {
-          setParamAtPath([name], val);
+        const data = await resp.json();
+        if (ctrl.signal.aborted) return; // superseded while the body was read
+        if (data.error) {
+          setOptError(String(data.error));
+        } else {
+          applyOptimizeResult(data as OptimizeResult);
         }
       }
     } catch (e) {
@@ -245,6 +332,7 @@ export function useOptimizer({
     setKnobMenu,
     optRunning,
     optResult,
+    optProgress,
     optError,
     optPausedBy,
     setOptPausedBy,
