@@ -11,7 +11,15 @@ import pytest
 
 from antennaknobs import user_designs
 from antennaknobs.builder import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import (
+    TL,
+    Driven,
+    PortVirtual,
+    Shunt,
+    Transformer,
+    TwoPort,
+    Wire,
+)
 from antennaknobs.simnec_export import export_ssn
 from antennaknobs.simnec_import import parse_ssn, read_ssn
 
@@ -181,24 +189,6 @@ def test_wire_conductivity_directive():
     assert parse_ssn(_ssn(script), name="t.ssn").conductivity is None
 
 
-def test_station_elements_are_recorded_not_translated():
-    extra = """
-            <element>
-                <type>SERIES_TLINE</type>
-                <p><n>Zo</n><v>450</v></p>
-            </element>
-            <element>
-                <type>SHUNT_CAP</type>
-                <p><n>pF</n><v>74</v></p>
-            </element>"""
-    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn")
-    assert c.other_elements == ("SERIES_TLINE", "SHUNT_CAP")
-    note = c.skipped_note()
-    assert "SERIES_TLINE" in note and "antenna block only" in note
-    # the antenna still imported
-    assert len(c.deck.wires) == 1
-
-
 def test_non_open_load_is_recorded():
     ssn = _ssn(_SCRIPT_M).replace("1000000000", "50")
     c = parse_ssn(ssn, name="t.ssn")
@@ -271,6 +261,164 @@ def test_stray_en_card_does_not_defeat_units_or_ground():
     assert c.ground == "pec" and c.deck.ground is True
 
 
+# --- station chains (the read side of the #604 station export) ---------------
+
+
+def _el(typ, params, label=None):
+    """One chain <element> in the station exporter's emission shape."""
+    lbl = f"<sweeperLabel>{label}</sweeperLabel>" if label else ""
+    ps = "".join(f"<p><n>{n}</n><v>{v}</v></p>" for n, v in params.items())
+    return f"""
+            <element>
+                <type>{typ}</type>{lbl}{ps}
+            </element>"""
+
+
+# The Track-1 ladder tuner's cascade, in .ssn file order (right-to-left saves
+# put the antenna-side element first): openwire line, 500 pF line-side cap,
+# tee coil, 81.2 pF rig-side cap — exactly what the station exporter emits
+# for wire.doublet_ladder_tuner.
+_LADDER = (
+    _el(
+        "SERIES_TLINE",
+        {
+            "Zo": 600,
+            "VFnom": 0.95,
+            "ft": 100,
+            "k0": 0,
+            "k1": 0.02,
+            "k2": 0.0001,
+        },
+        label="T1",
+    )
+    + _el("SERIES_CAP", {"F": "5e-10", "Q": 0, "@MHz": 7.1}, label="C2")
+    + _el("SHUNT_IND", {"H": "4.218e-06", "Q": 200, "@MHz": 7.1}, label="L1")
+    + _el("SERIES_CAP", {"F": "8.12e-11", "Q": 0, "@MHz": 7.1}, label="C1")
+)
+
+
+def test_station_chain_is_parsed_generator_to_antenna():
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=_LADDER), name="t.ssn")
+    assert [el.typ for el in c.chain] == [
+        "SERIES_CAP",
+        "SHUNT_IND",
+        "SERIES_CAP",
+        "SERIES_TLINE",
+    ]
+    assert [el.label for el in c.chain] == ["C1", "L1", "C2", "T1"]
+    # every chain element is translatable — nothing to warn about
+    assert c.other_elements == ()
+    assert c.skipped_note() is None
+
+
+def test_station_network_rebuilds_the_full_ladder():
+    """network() is the inverse of the station exporter's cascade walk: the
+    Driven moves to a virtual rig node and the chain hangs rig → … → feed."""
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=_LADDER), name="t.ssn", network=True)
+    net = c.network()
+    (src,) = net.sources
+    assert isinstance(src, Driven) and src.port == "rig"
+    assert isinstance(net.ports["rig"], PortVirtual)
+
+    tl = next(b for b in net.branches if isinstance(b, TL))
+    assert (tl.a, tl.b) == ("chain2", "feed")
+    assert tl.z0 == pytest.approx(600.0)
+    assert tl.length == pytest.approx(100 * 0.3048)
+    assert tl.vf == pytest.approx(0.95)
+    assert tl.k1 == pytest.approx(0.02) and tl.k2 == pytest.approx(0.0001)
+
+    caps = [b for b in net.branches if isinstance(b, TwoPort)]
+    assert [(b.a, b.b) for b in caps] == [("rig", "chain1"), ("chain1", "chain2")]
+    assert caps[0].c == pytest.approx(8.12e-11)  # rig-side C1
+    assert caps[1].c == pytest.approx(5e-10)  # line-side C2
+    assert caps[0].qc is None  # Q = 0 -> the ideal component
+
+    (coil,) = [b for b in net.branches if isinstance(b, Shunt)]
+    assert coil.port == "chain1"  # the tee node, between the caps
+    assert coil.l == pytest.approx(4.218e-6) and coil.ql == pytest.approx(200.0)
+
+
+def test_station_deck_trap_loads_ride_along():
+    """Trap Loads travel as deck LD cards on export; they come back as Load
+    branches next to the chain."""
+    from antennaknobs.network import Load
+
+    script = _SCRIPT_M.replace("FR 0", "LD 0 1 3 3 10 2.5e-6 0\nFR 0")
+    c = parse_ssn(_ssn(script, extra_elements=_LADDER), name="t.ssn", network=True)
+    net = c.network()
+    assert any(isinstance(b, Load) for b in net.branches)
+    (src,) = net.sources
+    assert src.port == "rig"
+
+
+def test_station_ideal_transformer2():
+    extra = _el("TRANSFORMER2", {"Mdl": "ideal", "N": 2}, label="X1")
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    (x,) = [b for b in c.network().branches if isinstance(b, Transformer)]
+    # N is the generator:antenna voltage ratio; entered generator-side,
+    # Transformer(a, b, n) with v_a = n·v_b matches directly.
+    assert (x.a, x.b, x.n) == ("rig", "feed", 2.0)
+
+
+def test_station_non_ideal_transformer2_rejected():
+    extra = _el("TRANSFORMER2", {"Mdl": "lossy", "N": 2})
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    with pytest.raises(ValueError, match="ideal"):
+        c.network()
+
+
+def test_station_k0_loss_rejected():
+    extra = _el("SERIES_TLINE", {"Zo": 50, "ft": 100, "k0": 0.5})
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    with pytest.raises(ValueError, match="k0"):
+        c.network()
+
+
+def test_station_shunt_only_chain_hangs_across_the_feed():
+    """With no series element between generator and feed, the shunts sit
+    straight across the feed terminals and the Driven stays at the feed."""
+    extra = _el("SHUNT_CAP", {"F": "1e-10"})
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    net = c.network()
+    (sh,) = [b for b in net.branches if isinstance(b, Shunt)]
+    assert sh.port == "feed" and sh.c == pytest.approx(1e-10)
+    (src,) = net.sources
+    assert src.port == "feed"
+    assert "rig" not in net.ports
+
+
+def test_station_unknown_chain_element_recorded_and_refused():
+    """An untranslatable element inside the cascade is reported, and
+    network() refuses rather than silently dropping it from the circuit."""
+    extra = _el("SERIES_RES", {"ohms": 10}) + _el("SHUNT_CAP", {"F": "1e-10"})
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    assert c.other_elements == ("SERIES_RES",)
+    assert "SERIES_RES" in c.skipped_note()
+    with pytest.raises(ValueError, match="SERIES_RES"):
+        c.network()
+
+
+def test_station_missing_param_names_the_element():
+    extra = _el("SERIES_IND", {"Q": 100}, label="L1")
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
+    with pytest.raises(ValueError, match="SERIES_IND element L1.*'H'"):
+        c.network()
+
+
+def test_antenna_only_network_is_the_deck_network():
+    c = parse_ssn(_ssn(_SCRIPT_M), name="t.ssn", network=True)
+    net = c.network()
+    (src,) = net.sources
+    assert src.port == "feed"
+    assert "rig" not in net.ports
+
+
+def test_station_network_requires_network_mode():
+    c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=_LADDER), name="t.ssn")
+    with pytest.raises(ValueError, match="network=True"):
+        c.network()
+
+
 # --- the design-stub consumption path ----------------------------------------
 
 SSN_DESIGN = """
@@ -286,7 +434,7 @@ class Builder(AntennaBuilder):
         )
 
     def build_network(self):
-        return read_ssn(self, "antenna.ssn", network=True).deck.network()
+        return read_ssn(self, "antenna.ssn", network=True).network()
 """
 
 
