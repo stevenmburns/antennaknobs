@@ -5,6 +5,10 @@ on:
   pull_request:
   push:
     branches: ["main"]
+  # Manual re-trigger — see test.yml's workflow_dispatch note (the 2026-08-06
+  # outage). Nothing here is event-gated, so a dispatched run is identical to
+  # a PR run.
+  workflow_dispatch:
 jobs:
   ruff:
     runs-on: ubuntu-latest
