@@ -782,6 +782,7 @@ function DesignSessionBody({
     setKnobMenu,
     optRunning,
     optResult,
+    optProgress,
     optError,
     optPausedBy,
     setOptPausedBy,
@@ -1425,6 +1426,7 @@ function DesignSessionBody({
           optObjective={optObjective}
           setOptObjective={setOptObjective}
           optResult={optResult}
+          optProgress={optProgress}
           optError={optError}
           optPausedBy={optPausedBy}
         />
