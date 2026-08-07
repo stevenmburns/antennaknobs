@@ -105,6 +105,71 @@ def test_unknown_objective_falls_back_to_swr():
     assert res["objective"] == "swr"
 
 
+def test_on_progress_none_is_byte_identical_to_no_callback():
+    # A fixed, order-independent stub: same req in, same dict out, always.
+    def solve(req: dict) -> dict:
+        x = float(req["x"])
+        return {"z_in_re": 50.0, "z_in_im": 100.0 * (x - 1.05), "z0_ohms": 50.0}
+
+    kwargs = dict(
+        base_req={"x": 0.80},
+        free=[{"name": "x", "min": 0.5, "max": 1.5}],
+        objective="resonance",
+        solve_fn=solve,
+        max_evals=15,
+    )
+    res_default = optimize(**kwargs)
+    res_explicit_none = optimize(**kwargs, on_progress=None)
+    assert res_default == res_explicit_none
+
+
+def test_on_progress_fires_once_per_solve_with_contiguous_n_evals():
+    # 2-param probe: Nelder-Mead's initial simplex needs 3 vertices (N+1 for
+    # N=2), so this exercises the dead zone scipy's own callback= misses.
+    def solve(req: dict) -> dict:
+        a, b = float(req["a"]), float(req["b"])
+        x_im = 100.0 * (a - 1.10) + 80.0 * (b - 0.90)
+        return {"z_in_re": 50.0, "z_in_im": x_im, "z0_ohms": 50.0}
+
+    calls = []
+    res = optimize(
+        {"a": 1.0, "b": 1.0},
+        [{"name": "a", "min": 0.8, "max": 1.3}, {"name": "b", "min": 0.7, "max": 1.1}],
+        "resonance",
+        solve_fn=solve,
+        max_evals=25,
+        on_progress=calls.append,
+    )
+
+    # Gate 1: exactly one callback per _solve_at call.
+    assert len(calls) == res["n_evals"]
+
+    # Gate 2 (the important one): n_evals values are gapless 1..N, proving
+    # per-eval (not per-iteration) granularity and initial-simplex coverage.
+    seen = [c["n_evals"] for c in calls]
+    assert seen == list(range(1, len(calls) + 1))
+
+    # Payload shape: objective/metrics come from the same helpers optimize()
+    # itself uses, keyed by the params passed for that particular solve.
+    first = calls[0]
+    assert set(first["params"]) == {"a", "b"}
+    assert first["objective"] == pytest.approx(
+        _objective_value_for_test(first["params"], "resonance")
+    )
+    assert set(first["metrics"]) == {"z_in_re", "z_in_im", "z0_ohms", "swr"}
+
+
+def _objective_value_for_test(params: dict, objective: str) -> float:
+    """Recompute the same |X| the stub in the contiguity test would report,
+    to cross-check the callback's reported objective independently of the
+    module's own _objective_value (avoids the test trivially re-deriving the
+    exact call under test)."""
+    a, b = params["a"], params["b"]
+    x_im = 100.0 * (a - 1.10) + 80.0 * (b - 0.90)
+    assert objective == "resonance"
+    return abs(x_im)
+
+
 @pytest.mark.antenna_computation_check
 def test_optimize_real_geometry_improves_resonance():
     """End-to-end through a real momwire solve (slow): tuning a length knob
