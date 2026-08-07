@@ -12,7 +12,7 @@ import math
 
 import pytest
 
-from antennaknobs.web.optimize import _swr, optimize
+from antennaknobs.web.optimize import _metrics, _objective_value, _swr, optimize
 
 
 def test_swr_helper():
@@ -188,6 +188,101 @@ def _objective_value_for_test(params: dict, objective: str) -> float:
     x_im = 100.0 * (a - 1.10) + 80.0 * (b - 0.90)
     assert objective == "resonance"
     return abs(x_im)
+
+
+# --- Multi-feed aggregation (issue #785) -----------------------------------
+# A bare multi-feed solve response carries a per-feed table in `feeds`; the
+# objective must score the WORST feed (minimax), not feed 0 and not a sum.
+# Responses without `feeds` (single feed, or a networked design measured at
+# its driven plane) score z_in exactly as before.
+
+
+def _two_feed_out(z_a: complex, z_b: complex) -> dict:
+    """A solve response as adapter.momwire_solve shapes it for multi-feed:
+    z_in mirrors feed 0, and `feeds` carries every port."""
+    return {
+        "z_in_re": z_a.real,
+        "z_in_im": z_a.imag,
+        "z0_ohms": 50.0,
+        "feeds": [
+            {"z_re": z_a.real, "z_im": z_a.imag, "v_re": 1.0, "v_im": 0.0},
+            {"z_re": z_b.real, "z_im": z_b.imag, "v_re": 1.0, "v_im": 0.0},
+        ],
+    }
+
+
+def test_multifeed_objective_scores_the_worst_feed():
+    # Feed 0 is perfectly matched; feed 1 is 2:1. Scoring feed 0 alone (the
+    # old behaviour) would report 1.0 for swr and 0.0 for the others.
+    out = _two_feed_out(complex(50.0, 0.0), complex(100.0, 0.0))
+    assert _objective_value(out, "swr") == pytest.approx(2.0)
+    assert _objective_value(out, "match_z0") == pytest.approx(50.0)
+    out = _two_feed_out(complex(50.0, -5.0), complex(50.0, 40.0))
+    assert _objective_value(out, "resonance") == pytest.approx(40.0)
+
+
+def test_objective_without_feeds_scores_z_in():
+    # No `feeds` key -> single feed or a networked design's driven plane;
+    # unchanged single-Z scoring.
+    out = {"z_in_re": 100.0, "z_in_im": 0.0, "z0_ohms": 50.0}
+    assert _objective_value(out, "swr") == pytest.approx(2.0)
+    assert _objective_value(out, "match_z0") == pytest.approx(50.0)
+
+
+def test_multifeed_metrics_report_worst_feed_swr():
+    out = _two_feed_out(complex(50.0, 0.0), complex(100.0, 0.0))
+    m = _metrics(out)
+    assert m["swr"] == pytest.approx(2.0)  # the worst feed, not feed 0's 1.0
+    assert m["worst_feed"] == 1
+    assert m["n_feeds"] == 2
+    assert m["z_in_re"] == pytest.approx(50.0)  # Z stays feed 0 (the readout)
+    # Single-feed metrics keep the exact four-key shape the frontend types.
+    single = _metrics({"z_in_re": 50.0, "z_in_im": 0.0, "z0_ohms": 50.0})
+    assert set(single) == {"z_in_re", "z_in_im", "z0_ohms", "swr"}
+
+
+def test_optimize_minimax_balances_opposed_feeds():
+    """End-to-end discriminator: two feeds whose reactances cross zero at
+    different knob values (1.0 and 1.2). Scoring feed 0 alone would drive x
+    to 1.0; a minimax objective settles where the two |X| curves cross —
+    x = 1.1, the point that makes the WORST feed as good as possible."""
+
+    def solve(req: dict) -> dict:
+        x = float(req["x"])
+        z_a = complex(50.0, 100.0 * (x - 1.0))
+        z_b = complex(50.0, 100.0 * (1.2 - x))
+        return _two_feed_out(z_a, z_b)
+
+    res = optimize(
+        {"x": 0.9},
+        [{"name": "x", "min": 0.8, "max": 1.4}],
+        "resonance",
+        solve_fn=solve,
+    )
+    assert res["params"]["x"] == pytest.approx(1.1, abs=1e-2)
+    assert res["objective_after"] == pytest.approx(10.0, abs=0.5)  # both feeds ~10j
+
+
+@pytest.mark.antenna_computation_check
+def test_multifeed_real_geometry_objective_covers_every_feed():
+    """The issue's fixture: arrays.bowtiearray2x4 has 8 feeds with real spread
+    (4 distinct impedances). One real solve, then pin that the objective equals
+    the max over the response's own per-feed table — i.e. the wiring from
+    adapter `feeds` to the minimax objective holds on a genuine geometry."""
+    from antennaknobs.web.examples import REGISTRY
+
+    ex = REGISTRY["arrays.bowtiearray2x4"]
+    freq = ex.default_freq or 14.0
+    out = ex.momwire_solve(
+        {"geometry": "arrays.bowtiearray2x4", "measurement_freq_mhz": freq}
+    )
+    assert len(out.get("feeds", [])) > 1  # the fixture really is multi-feed
+    z0 = out["z0_ohms"]
+    per_feed_swr = [_swr(f["z_re"], f["z_im"], z0) for f in out["feeds"]]
+    assert _objective_value(out, "swr") == pytest.approx(max(per_feed_swr))
+    assert (
+        _objective_value(out, "swr") > _swr(out["z_in_re"], out["z_in_im"], z0) - 1e-9
+    )
 
 
 @pytest.mark.antenna_computation_check

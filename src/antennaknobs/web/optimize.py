@@ -44,28 +44,62 @@ def _swr(z_re: float, z_im: float, z0: float) -> float:
     return (1.0 + gamma) / (1.0 - gamma)
 
 
+def _feed_zs(out: dict) -> list[complex]:
+    """The impedances a solve response puts up for scoring, one per feed.
+
+    Bare multi-feed designs (several independently driven ports, no common
+    network) carry a per-feed table in ``feeds`` — every port needs a match,
+    so every entry is scored. Everything else carries only ``z_in_re``/
+    ``z_in_im``: single-feed designs trivially, and networked designs whose
+    one source drives the elements through a splitter/harness — there the
+    meaningful match is the network's driven plane, which is exactly what
+    ``z_in`` is referenced to (issues #652/#785)."""
+    feeds = out.get("feeds")
+    if feeds:
+        return [complex(float(f["z_re"]), float(f["z_im"])) for f in feeds]
+    return [complex(float(out["z_in_re"]), float(out["z_in_im"]))]
+
+
 def _objective_value(out: dict, key: str) -> float:
+    """The scalar to minimise. Multi-feed designs score their WORST feed
+    (minimax, issue #785): a sum lets one badly mismatched element hide behind
+    several good ones, and the guarantee a driven array actually wants is "no
+    element is badly matched". The CLI optimiser aggregates the same way; the
+    two still differ in *form* (CLI default: |Z−Z0| distance, web default:
+    SWR) — deliberate, each matches what its surface displays."""
     z0 = float(out.get("z0_ohms", 50.0))
-    z_re = float(out["z_in_re"])
-    z_im = float(out["z_in_im"])
+    zs = _feed_zs(out)
     if key == "resonance":
-        return abs(z_im)  # cancel reactance
+        return max(abs(z.imag) for z in zs)  # cancel reactance
     if key == "match_z0":
-        return abs(complex(z_re, z_im) - z0)  # complex distance to Z0
-    return _swr(z_re, z_im, z0)  # default: minimise SWR
+        return max(abs(z - z0) for z in zs)  # complex distance to Z0
+    return max(_swr(z.real, z.imag, z0) for z in zs)  # default: minimise SWR
 
 
 def _metrics(out: dict) -> dict:
-    """The handful of numbers the UI shows before/after, derived from one solve."""
+    """The handful of numbers the UI shows before/after, derived from one solve.
+
+    On a multi-feed design ``swr`` is the WORST feed's — the number the
+    objective drives (#785) — while ``z_in_re``/``z_in_im`` stay feed 0 to
+    match the primary readout; ``worst_feed``/``n_feeds`` say which and how
+    many. Single-feed responses keep the exact four-key shape."""
     z0 = float(out.get("z0_ohms", 50.0))
     z_re = float(out["z_in_re"])
     z_im = float(out["z_in_im"])
-    return {
+    m = {
         "z_in_re": z_re,
         "z_in_im": z_im,
         "z0_ohms": z0,
         "swr": _swr(z_re, z_im, z0),
     }
+    zs = _feed_zs(out)
+    if len(zs) > 1:
+        swrs = [_swr(z.real, z.imag, z0) for z in zs]
+        worst = max(range(len(swrs)), key=swrs.__getitem__)
+        m["swr"] = swrs[worst]
+        m["worst_feed"] = worst
+        m["n_feeds"] = len(zs)
+    return m
 
 
 def optimize(
