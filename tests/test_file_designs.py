@@ -1,16 +1,28 @@
-"""``@file`` builder specs: NEC card decks as CLI designs.
+"""``@file`` builder specs: NEC decks and SimNEC circuits as CLI designs.
 
-``get_builder("@path/to/file.nec")`` synthesizes a frozen-geometry builder on
-the fly (``file_designs.builder_from_file``) — pure data, no trust gate — so
-every subcommand that takes a builder spec can consume a deck directly, and
-decks mix freely with named designs in ``--builders`` lists.
+``get_builder("@path/to/file.nec|.ssn")`` synthesizes a frozen-geometry
+builder on the fly (``file_designs.builder_from_file``) — pure data, no trust
+gate — so every subcommand that takes a builder spec can consume a file
+directly, and files mix freely with named designs in ``--builders`` lists.
 """
+
+from types import MappingProxyType
 
 import pytest
 
 import antennaknobs as ant
+from antennaknobs.builder import AntennaBuilder
 from antennaknobs.cli import emit_params_name, get_builder
-from antennaknobs.network import Load, Wire
+from antennaknobs.network import TL, Load, Wire
+from antennaknobs.simnec_export import export_ssn
+
+
+class _Dipole(AntennaBuilder):
+    default_params = MappingProxyType({"freq": 14.0, "design_freq": 14.0})
+
+    def build_wires(self):
+        return [Wire((0.0, -5.0, 10.0), (0.0, 5.0, 10.0), n_seg=11, ex=1 + 0j)]
+
 
 DECK = """\
 CM a 20 m dipole at 10 m
@@ -66,6 +78,62 @@ def test_at_nec_without_fr_defaults_and_notes(tmp_path):
     b = get_builder(f"@{p}")()
     assert b.freq == pytest.approx(14.0)
     assert "names no frequency" in b.ui_params["notes"]
+
+
+# --- .ssn specs --------------------------------------------------------------
+
+
+def test_at_ssn_seeds_from_the_generator(tmp_path):
+    p = tmp_path / "dip.ssn"
+    p.write_text(export_ssn(_Dipole(), freq_mhz=14.1, ground=None, sweep=(13.0, 15.0)))
+    b = get_builder(f"@{p}")()
+    assert b.freq == pytest.approx(14.1)  # Generator MHz, not the FR card
+    # an armed Generator sweep wins over the FR range
+    assert b.ui_params["meas_freq_range"] == (pytest.approx(13.0), pytest.approx(15.0))
+    assert b.build_wires()
+    assert b.build_network().sources
+
+
+def test_at_ssn_ground_note_points_at_the_flag(tmp_path):
+    p = tmp_path / "dip.ssn"
+    p.write_text(export_ssn(_Dipole(), freq_mhz=14.1, ground=("finite", 13.0, 0.005)))
+    b = get_builder(f"@{p}")()
+    assert "--ground finite:13,0.005" in b.ui_params["notes"]
+
+
+def test_at_ssn_conductivity_reaches_the_wire_specs(tmp_path):
+    ssn = export_ssn(_Dipole(), freq_mhz=14.1, ground=None)
+    ssn = ssn.replace(
+        "NECOptions.mhosPerMeter = 0;", "NECOptions.mhosPerMeter = 5.8e7;"
+    )
+    p = tmp_path / "dip.ssn"
+    p.write_text(ssn)
+    wires = get_builder(f"@{p}")().build_wires()
+    assert all(w.spec.conductivity == pytest.approx(5.8e7) for w in wires)
+
+
+def test_at_ssn_station_chain_acts(tmp_path):
+    """A station .ssn's chain lands in build_network(): the Driven moves to
+    the rig node and the cascade hangs rig -> ... -> feed."""
+    from test_simnec_import import _SCRIPT_M, _el, _ssn
+
+    extra = _el("SERIES_TLINE", {"Zo": 450, "VFnom": 0.91, "ft": 50})
+    p = tmp_path / "station.ssn"
+    p.write_text(_ssn(_SCRIPT_M, extra_elements=extra))
+    net = get_builder(f"@{p}")().build_network()
+    (src,) = net.sources
+    assert src.port == "rig"
+    (tl,) = [br for br in net.branches if isinstance(br, TL)]
+    assert tl.z0 == pytest.approx(450.0) and tl.length == pytest.approx(50 * 0.3048)
+
+
+def test_cli_export_converts_at_ssn(tmp_path, capsys):
+    """antennaknobs export --builder @dip.ssn — .ssn -> .nec card deck."""
+    p = tmp_path / "dip.ssn"
+    p.write_text(export_ssn(_Dipole(), freq_mhz=14.1, ground=None))
+    ant.cli(f"export --builder @{p} --ground free".split())
+    out = capsys.readouterr().out
+    assert "GW " in out and "EX " in out
 
 
 # --- error paths -------------------------------------------------------------

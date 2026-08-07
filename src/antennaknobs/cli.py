@@ -206,11 +206,11 @@ def list_variants(cls):
 def get_builder(nm):
     """Resolve a builder spec into a zero-arg factory.
 
-    Spec is "name", "name:variant", or "@path/to/file.nec". A variant binds
-    the named '<variant>_params' class attribute as the builder's params;
-    absent or ':default' uses default_params. An "@" spec loads an antenna
-    data file directly (see ``file_designs``) — pure data, no trust step —
-    and takes no variant suffix, so colons in the path (Windows drive
+    Spec is "name", "name:variant", or "@path/to/file.nec|.ssn". A variant
+    binds the named '<variant>_params' class attribute as the builder's
+    params; absent or ':default' uses default_params. An "@" spec loads an
+    antenna data file directly (see ``file_designs``) — pure data, no trust
+    step — and takes no variant suffix, so colons in the path (Windows drive
     letters) pass through untouched.
     """
     if nm.startswith("@"):
@@ -383,8 +383,8 @@ def cli(arguments=None):
                 nargs="+",
                 default=["dipoles.invvee:dipole", "dipoles.invvee"],
                 help="Use this list of antenna builders. Each spec is "
-                '"family.design[:variant]", "user.<name>", or "@file.nec" '
-                "to load a NEC card deck directly.",
+                '"family.design[:variant]", "user.<name>", or "@file.nec" / '
+                '"@file.ssn" to load a card deck / SimNEC circuit directly.',
             )
         else:
             p.add_argument(
@@ -392,8 +392,8 @@ def cli(arguments=None):
                 type=str,
                 default="dipoles.invvee:dipole",
                 help='Use this antenna builder: "family.design[:variant]", '
-                '"user.<name>", or "@file.nec" to load a NEC card deck '
-                "directly.",
+                '"user.<name>", or "@file.nec" / "@file.ssn" to load a card '
+                "deck / SimNEC circuit directly.",
             )
 
     def add_engine_args(p, plural=False):
@@ -648,7 +648,7 @@ def cli(arguments=None):
         "--builder",
         type=str,
         default="dipoles.invvee:dipole",
-        help="Antenna builder (name, name:variant, or @file.nec) to dump.",
+        help="Antenna builder (name, name:variant, or @file.nec/@file.ssn) to dump.",
     )
     p.add_argument(
         "--name",
@@ -1039,7 +1039,9 @@ def cli(arguments=None):
         "--builder",
         type=str,
         default="dipoles.invvee:dipole",
-        help="Antenna builder to export (name, name:variant, or @file.nec).",
+        help="Antenna builder to export (name, name:variant, or "
+        "@file.nec/@file.ssn — so '@dip.ssn' converts a SimNEC circuit "
+        "to a card deck).",
     )
     p.add_argument(
         "--ground",
