@@ -1502,6 +1502,19 @@ function DesignSessionBody({
     />
   );
 
+  // Is what's on the stage describing something other than what the numbers
+  // say? Two independent causes, same honest answer — dim it (#773).
+  //
+  //  - a solve is in flight (`stale` from the channel): the old answer is
+  //    still up while a new one computes;
+  //  - an optimizer run is in flight: the knobs are untouched until it
+  //    finishes, so every pre-run view keeps describing the pre-run design
+  //    while the readout ticks through candidates. Per view, because the
+  //    Smith chart follows the run live and the schematic stays accurate —
+  //    dimming those would be the same lie in the other direction.
+  const outputStale =
+    stale || (optRunning && VIEW_META[view].staleWhileOptimizing);
+
   // One output view: the per-view overlays plus the main <ViewPanel>. A
   // closure (not a component) so the ~30 captured locals need no props. The
   // solve-readout HUD stays OUT of it — mobile chart screens must not
@@ -1626,7 +1639,7 @@ function DesignSessionBody({
         >
           {solveOverlays}
           <div
-            className={`mobile-carousel${stale ? " stale" : ""}`}
+            className={`mobile-carousel${outputStale ? " stale" : ""}`}
             ref={mobileCarouselRef}
             onScroll={onMobileCarouselScroll}
           >
@@ -1792,7 +1805,7 @@ function DesignSessionBody({
               />
             </div>
             <div
-              className={`carousel-slide${stale ? " stale" : ""}`}
+              className={`carousel-slide${outputStale ? " stale" : ""}`}
               ref={slideRef}
             >
               {renderOutput(view, chartSize, view === "antenna")}

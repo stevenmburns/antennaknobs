@@ -7,7 +7,7 @@
 // renderer) typechecks fine, so only a mounted probe catches it.
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
-import { VIEWS, type View } from "../lib/view";
+import { VIEWS, VIEW_META, type View } from "../lib/view";
 import { VIEW_RENDERERS, type ViewRenderProps } from "../components/results/viewRegistry";
 import { ViewPanel } from "../components/results/ViewPanel";
 
@@ -79,6 +79,21 @@ describe("view metadata", () => {
     expect(VIEWS.filter((v) => v.defaultPinned).map((v) => v.id).sort()).toEqual(
       ["antenna", "azimuth", "elevation", "smith"],
     );
+  });
+
+  // An optimizer run leaves the knobs alone until it finishes, so anything
+  // drawn from the last solve describes the PRE-RUN design while the readout
+  // ticks through candidates (#773). Those views dim; the two that stay
+  // honest must not, and that is the half worth pinning — dimming the Smith
+  // chart would hide the one live thing on screen, and dimming the schematic
+  // would disown a drawing that is still exactly right.
+  it("marks every pre-run view stale while optimizing, and only those", () => {
+    const stale = VIEWS.filter((v) => v.staleWhileOptimizing).map((v) => v.id);
+    expect(stale.sort()).toEqual(
+      ["antenna", "azimuth", "elevation", "gamma", "vswr"],
+    );
+    expect(VIEW_META.smith.staleWhileOptimizing).toBe(false);
+    expect(VIEW_META.schematic.staleWhileOptimizing).toBe(false);
   });
 });
 
