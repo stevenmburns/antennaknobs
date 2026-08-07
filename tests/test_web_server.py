@@ -12,11 +12,13 @@ integration territory and want their own targeted tests.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import threading
 import time
 from copy import deepcopy
+from types import SimpleNamespace
 
 import momwire
 import numpy as np
@@ -25,6 +27,7 @@ from fastapi.testclient import TestClient
 
 from antennaknobs.web import server, user_designs
 from antennaknobs.web.examples import REGISTRY
+from antennaknobs.web.progress_stream import ProgressStream, ProgressStreamClosed
 
 
 # ---------------------------------------------------------------------------
@@ -3167,3 +3170,433 @@ def test_schematic_ignores_a_malformed_budget(client: TestClient):
     assert resp.status_code == 200
     data = resp.json()
     assert data["available"] is True and "%" not in data["svg"]
+
+
+# ---------------------------------------------------------------------------
+# Streamed /optimize (issue #773 unit 3).
+#
+# `Accept: text/event-stream` reports a run as it happens — one `progress`
+# event per eval, then exactly one terminal `result` or `error`; every other
+# Accept keeps today's single JSON object. The two representations share the
+# validation, the hosted caps and the _shed dispatch, so the tests below pin
+# BOTH the stream's shape and the JSON path's unchanged bytes.
+#
+# The stub example makes an optimizer run arithmetic (no MoM solve), which is
+# what lets eval counts, frame counts and the disconnect handshake be asserted
+# rather than timed.
+# ---------------------------------------------------------------------------
+
+_SSE_HEADERS = {"Accept": "text/event-stream"}
+
+
+def _sse_frames(text: str) -> list[tuple[str, dict]]:
+    """Parse an SSE body the way the frontend's reader does (issue #773 unit
+    4): frames separated by a blank line, `data` decoded, comment lines
+    (keepalives) contributing nothing."""
+    frames = []
+    for block in text.split("\n\n"):
+        if not block.strip():
+            continue
+        kind, data = None, None
+        for line in block.split("\n"):
+            if line.startswith("event:"):
+                kind = line[len("event:") :].strip()
+            elif line.startswith("data:"):
+                data = json.loads(line[len("data:") :])
+        if data is not None:
+            frames.append((kind, data))
+    return frames
+
+
+def _stub_optimize_example():
+    """A registry stand-in whose solve is arithmetic: R = 50 + 400·(lf−1)²,
+    so the SWR objective has one clean minimum at length_factor = 1 and the
+    whole run is deterministic and instant. Returns (example, calls)."""
+    calls: list[dict] = []
+
+    def momwire_solve(req, cancel=None):
+        calls.append(dict(req))
+        lf = float(req.get("length_factor", 1.0))
+        return {
+            "z_in_re": 50.0 + 400.0 * (lf - 1.0) ** 2,
+            "z_in_im": 0.0,
+            "z0_ohms": 50.0,
+        }
+
+    ex = SimpleNamespace(
+        multi_feed=False,
+        count_basis=lambda req: 100,
+        momwire_solve=momwire_solve,
+    )
+    return ex, calls
+
+
+def _opt_req(**opt) -> dict:
+    o = {
+        "free": [{"name": "length_factor", "min": 0.9, "max": 1.1}],
+        "objective": "swr",
+    }
+    o.update(opt)
+    # Start off the optimum so the run has somewhere to go.
+    return {"geometry": "fake.opt", "length_factor": 1.08, "optimize": o}
+
+
+class _FakeRequest:
+    """The one method _sse_progress_body asks of a Request, plus a flag the
+    test flips to make the client vanish silently."""
+
+    def __init__(self, disconnected: bool = False) -> None:
+        self.disconnected = disconnected
+        self.polls = 0
+
+    async def is_disconnected(self) -> bool:
+        self.polls += 1
+        return self.disconnected
+
+
+def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
+    client: TestClient, monkeypatch
+):
+    ex, calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    resp = client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+
+    frames = _sse_frames(resp.text)
+    kinds = [k for k, _ in frames]
+    # Exactly one terminal event, and it is last.
+    assert kinds.count("result") + kinds.count("error") == 1
+    assert kinds[-1] == "result"
+    assert set(kinds[:-1]) == {"progress"}
+    # One progress event per eval, in order, none dropped — and the count
+    # agrees with both the result payload and the engine's own call log.
+    assert [d["n_evals"] for _, d in frames[:-1]] == list(range(1, len(frames)))
+    assert len(calls) == frames[-1][1]["n_evals"] == len(frames) - 1
+    for _, d in frames[:-1]:
+        assert set(d) == {"n_evals", "params", "objective", "metrics"}
+        assert set(d["params"]) == {"length_factor"}
+
+
+def test_optimize_without_the_sse_header_is_todays_json_response(
+    client: TestClient, monkeypatch
+):
+    """Opting in is the ONLY thing that changes the response. Key order is
+    asserted, not membership: the JSON path's bytes are the contract."""
+    ex, _calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    for headers in ({}, {"Accept": "application/json"}, {"Accept": "*/*"}):
+        resp = client.post("/optimize", json=_opt_req(), headers=headers)
+        assert resp.headers["content-type"] == "application/json"
+        body = resp.json()
+        assert list(body) == [
+            "objective",
+            "params",
+            "objective_before",
+            "objective_after",
+            "metrics_before",
+            "metrics_after",
+            "n_evals",
+            "improved",
+            "geometry",
+        ]
+        assert list(body["metrics_before"]) == ["z_in_re", "z_in_im", "z0_ohms", "swr"]
+        assert body["geometry"] == "fake.opt"
+        assert body["improved"] is True
+        assert body["objective_after"] < body["objective_before"]
+
+
+def test_the_result_event_is_the_json_response_verbatim(
+    client: TestClient, monkeypatch
+):
+    """Same run, two representations: the terminal frame's payload must be the
+    single-shot response byte for byte, including its trailing blank line."""
+    ex, _calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    body = client.post("/optimize", json=_opt_req()).json()
+    text = client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS).text
+    assert _sse_frames(text)[-1] == ("result", body)
+    # The blank line is load-bearing (unit 4's parser emits on "\n\n"); a
+    # terminal frame without it would never be delivered.
+    assert text.endswith("event: result\ndata: " + json.dumps(body) + "\n\n")
+
+
+def test_every_sse_frame_is_two_lines_and_a_blank_one(client: TestClient, monkeypatch):
+    ex, _calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    text = client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS).text
+    assert text.endswith("\n\n")
+    # Splitting on the separator must leave nothing but well-formed frames and
+    # one empty tail — a missing blank line would fuse two frames into one.
+    blocks = text.split("\n\n")
+    assert blocks[-1] == ""
+    for block in blocks[:-1]:
+        lines = block.split("\n")
+        assert len(lines) == 2, block
+        assert lines[0].startswith("event: ")
+        assert lines[1].startswith("data: ")
+
+
+def test_optimize_sse_reports_a_failed_run_as_one_error_event(
+    client: TestClient, monkeypatch
+):
+    ex, calls = _stub_optimize_example()
+
+    def boom(req, cancel=None):
+        calls.append(dict(req))
+        raise ValueError("build_wires exploded")
+
+    ex.momwire_solve = boom
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    frames = _sse_frames(
+        client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS).text
+    )
+    assert len(frames) == 1
+    kind, data = frames[0]
+    assert kind == "error"
+    assert set(data) == {"detail"}
+    assert "build_wires exploded" in data["detail"]
+    # The same failure on the JSON path keeps its own shape.
+    body = client.post("/optimize", json=_opt_req()).json()
+    assert body["geometry"] == "fake.opt"
+    assert "build_wires exploded" in body["error"]
+
+
+def test_optimize_sse_failure_mid_run_still_ends_in_exactly_one_terminal(
+    client: TestClient, monkeypatch
+):
+    ex, calls = _stub_optimize_example()
+    inner = ex.momwire_solve
+
+    def fails_on_the_third(req, cancel=None):
+        if len(calls) >= 2:
+            raise RuntimeError("solver gave up")
+        return inner(req)
+
+    ex.momwire_solve = fails_on_the_third
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    frames = _sse_frames(
+        client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS).text
+    )
+    kinds = [k for k, _ in frames]
+    assert kinds == ["progress", "progress", "error"]
+    assert "solver gave up" in frames[-1][1]["detail"]
+
+
+def test_optimize_sse_rejects_a_request_with_no_free_knobs(client: TestClient):
+    frames = _sse_frames(
+        client.post(
+            "/optimize",
+            json={"geometry": "fake.opt", "optimize": {"free": []}},
+            headers=_SSE_HEADERS,
+        ).text
+    )
+    assert frames == [("error", {"detail": "select at least one knob to vary"})]
+
+
+def test_optimize_sse_rejects_oversized_request_when_hosted(hosted, client: TestClient):
+    """The hosted matrix cap gates the streaming path too — a request that
+    would be refused as JSON must not become a stream that starts solving."""
+    req = _oversized_req(
+        optimize={
+            "free": [{"name": "length_factor", "min": 0.9, "max": 1.1}],
+            "objective": "swr",
+        }
+    )
+    resp = client.post("/optimize", json=req, headers=_SSE_HEADERS)
+    assert resp.status_code == 200
+    frames = _sse_frames(resp.text)
+    assert len(frames) == 1
+    kind, data = frames[0]
+    assert kind == "error" and "segments / wire" in data["detail"]
+
+
+def test_optimize_sse_max_evals_clamped_when_hosted(
+    hosted, client: TestClient, monkeypatch
+):
+    """The eval budget is clamped on the streaming path as well (issue #346).
+
+    The ceiling bounds the OPTIMIZER's evals; optimize() also runs a baseline
+    and a confirmation solve outside that budget, so the honest bound is
+    clamp + 2 — asserted here against the engine's call log, the progress
+    frames and the result payload at once.
+    """
+    monkeypatch.setattr(server, "_MAX_OPT_EVALS", 3)
+    ex, calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    frames = _sse_frames(
+        client.post(
+            "/optimize", json=_opt_req(max_evals=10**9), headers=_SSE_HEADERS
+        ).text
+    )
+    kind, result = frames[-1]
+    assert kind == "result"
+    assert result["n_evals"] <= 3 + 2
+    assert len(calls) == result["n_evals"]
+    assert len(frames) - 1 == result["n_evals"]
+
+
+def test_the_streaming_path_still_dispatches_through_shed(
+    client: TestClient, monkeypatch
+):
+    """_shed drops the exception frame chain at the thread boundary; without
+    it a failed solve pins its arrays for the life of the process (issue
+    #382). A streaming path that dispatched around it would reintroduce that,
+    so assert the call itself rather than the symptom."""
+    ex, _calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    dispatched = []
+    real_shed = server._shed
+
+    def spy(fn, *args, **kwargs):
+        dispatched.append(fn)
+        return real_shed(fn, *args, **kwargs)
+
+    monkeypatch.setattr(server, "_shed", spy)
+    frames = _sse_frames(
+        client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS).text
+    )
+    assert frames[-1][0] == "result"
+    assert [fn.__name__ for fn in dispatched] == ["optimize"]
+
+
+def test_sse_body_keepalives_while_the_producer_is_thinking(monkeypatch):
+    """An idle stream must still write. The comment frame is what discovers a
+    dead socket (Starlette finalises a streaming body only at its next send)
+    and what stops a proxy reaping a connection between evals."""
+    monkeypatch.setattr(server, "_SSE_KEEPALIVE_S", 0.01)
+
+    async def main():
+        stream = ProgressStream()
+        request = _FakeRequest()
+
+        async def drive():
+            await asyncio.sleep(0.06)  # one long "solve"
+            stream.finish({"ok": True})
+
+        chunks = [c async for c in server._sse_progress_body(request, stream, drive)]
+        return chunks, request
+
+    chunks, request = asyncio.run(asyncio.wait_for(main(), 10))
+    assert ": keepalive\n\n" in chunks
+    assert request.polls >= 1
+    assert chunks[-1] == 'event: result\ndata: {"ok": true}\n\n'
+
+
+def test_sse_body_stops_a_producer_whose_client_vanished(monkeypatch):
+    """A client that disappears without closing the socket must still be
+    noticed promptly: the body polls on the same tick as the keepalive, and
+    closing the stream makes the producer's next publish raise."""
+    monkeypatch.setattr(server, "_SSE_KEEPALIVE_S", 0.01)
+
+    async def main():
+        stream = ProgressStream()
+        request = _FakeRequest()
+        aborted = asyncio.Event()
+
+        async def drive():
+            try:
+                for i in range(100):
+                    stream.publish({"n_evals": i})
+                    await asyncio.sleep(0.02)
+            except ProgressStreamClosed:
+                aborted.set()
+
+        chunks = []
+        async for chunk in server._sse_progress_body(request, stream, drive):
+            chunks.append(chunk)
+            request.disconnected = True  # the client goes away, silently
+        await asyncio.wait_for(aborted.wait(), 5)
+        return chunks
+
+    chunks = asyncio.run(asyncio.wait_for(main(), 10))
+    # It stopped at the first frame — not after all 100 the producer offered.
+    assert len(chunks) == 1
+    assert chunks[0].startswith("event: progress\n")
+
+
+def test_a_vanished_client_stops_the_optimizer_mid_run(monkeypatch):
+    """The gate, end to end: a browser closed mid-run must not leave a worker
+    burning solves.
+
+    Driven at the ASGI layer because TestClient's receive channel never
+    reports a disconnect, and at spec_version 2.4 Starlette runs no disconnect
+    watcher of its own — so the body's own poll is the only thing that can
+    notice. The stub blocks inside the second eval, which is the window the
+    client disappears in; a run that ignored the disconnect would sail on
+    through the remaining evals instead of raising at the next publish.
+    """
+    monkeypatch.setattr(server, "_SSE_KEEPALIVE_S", 0.01)
+    ex, calls = _stub_optimize_example()
+    inner = ex.momwire_solve
+    in_second_solve = threading.Event()
+    release = threading.Event()
+
+    def gated(req, cancel=None):
+        out = inner(req)
+        if len(calls) == 2:
+            in_second_solve.set()
+            release.wait(10)
+        return out
+
+    ex.momwire_solve = gated
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+
+    raw = json.dumps(_opt_req()).encode()
+    gone = threading.Event()
+    sent: list[dict] = []
+
+    async def main():
+        state = {"body_sent": False}
+
+        async def receive():
+            if not state["body_sent"]:
+                state["body_sent"] = True
+                return {"type": "http.request", "body": raw, "more_body": False}
+            if gone.is_set():
+                return {"type": "http.disconnect"}
+            # Still here: is_disconnected() polls this channel and has to be
+            # able to get a non-disconnect answer without blocking.
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.4"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/optimize",
+            "raw_path": b"/optimize",
+            "query_string": b"",
+            "root_path": "",
+            "headers": [
+                (b"host", b"testserver"),
+                (b"content-type", b"application/json"),
+                (b"accept", b"text/event-stream"),
+                (b"content-length", str(len(raw)).encode()),
+            ],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 80),
+        }
+        task = asyncio.create_task(server.app(scope, receive, send))
+        await asyncio.to_thread(in_second_solve.wait, 10)
+        gone.set()
+        # The response must end on its own: nothing cancels this task, so a
+        # body that never noticed the disconnect would still be parked here.
+        await asyncio.wait_for(task, 5)
+        release.set()
+        # A run that ignored the disconnect blows through its remaining evals
+        # (all arithmetic) well inside this window.
+        await asyncio.sleep(0.5)
+
+    asyncio.run(asyncio.wait_for(main(), 40))
+    assert len(calls) == 2
+    body = "".join(
+        m.get("body", b"").decode() for m in sent if m["type"] == "http.response.body"
+    )
+    # The first eval's progress frame made it to the wire; no terminal event
+    # follows, because there was nobody left to send one to.
+    assert [k for k, _ in _sse_frames(body)] == ["progress"]
