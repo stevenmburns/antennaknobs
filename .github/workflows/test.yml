@@ -12,6 +12,14 @@ on:
   push:
     branches:
       - "main"
+  # Manual re-trigger. Earned during the 2026-08-06 Actions outage: the
+  # `pull_request` events for three open PRs fired while runners were
+  # unavailable and produced ZERO runs, and GitHub does not backfill them.
+  # Auto-merge then waits forever on checks that will never arrive, which is
+  # indistinguishable from "still queueing" in the UI. Without this trigger
+  # the only remedies are closing/reopening each PR or pushing a commit; on
+  # a rebase-merge repo the latter lands a junk commit on main verbatim.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -101,7 +109,15 @@ jobs:
       # Skips the antenna_computation_check tests (the per-design solver
       # catalogs). Keeps representative engine/solver coverage + all
       # load/schema/unit tests. No coverage instrumentation on PRs.
-      if: github.event_name == 'pull_request'
+      #
+      # Gated on "not a merge to main" rather than "is a pull_request": the
+      # two lanes must between them cover EVERY event this workflow accepts.
+      # Listing events instead means a newly added trigger — workflow_dispatch
+      # was exactly this — matches neither lane, so the job installs
+      # dependencies, runs no tests at all, and reports GREEN. An unnecessary
+      # fast-lane run is the harmless direction to be wrong in; a green run
+      # that tested nothing is not.
+      if: github.event_name != 'push'
       # `python -m pytest` (not bare `pytest`) keeps CWD on sys.path, the
       # conventional form shared with the main-lane command below. The web
       # server now lives at src/antennaknobs/web and imports as the installed
