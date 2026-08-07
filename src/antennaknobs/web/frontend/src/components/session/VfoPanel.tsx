@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { BandSpec, ExampleDescriptor } from "../../lib/params";
 
 // Response from POST /optimize.
-type OptMetrics = { z_in_re: number; z_in_im: number; z0_ohms: number; swr: number };
+export type OptMetrics = { z_in_re: number; z_in_im: number; z0_ohms: number; swr: number };
 export type OptimizeResult = {
   objective: string;
   params: Record<string, number>;
@@ -14,6 +14,15 @@ export type OptimizeResult = {
   metrics_after: OptMetrics;
   n_evals: number;
   improved: boolean;
+};
+// One `event: progress` frame from the streamed /optimize (issue #773 unit
+// 4) — a mid-run snapshot, not a final outcome; `objective` is the raw
+// scalar being minimised, unlike OptimizeResult's before/after pair.
+export type OptProgress = {
+  n_evals: number;
+  params: Record<string, number>;
+  objective: number;
+  metrics: OptMetrics;
 };
 export type OptObjective = "swr" | "resonance" | "match_z0";
 const OPT_OBJECTIVE_LABELS: Record<OptObjective, string> = {
@@ -44,6 +53,7 @@ function SimControls({
   optObjective,
   setOptObjective,
   optResult,
+  optProgress,
   optError,
   optPausedBy,
 }: {
@@ -56,6 +66,7 @@ function SimControls({
   optObjective: OptObjective;
   setOptObjective: (v: OptObjective) => void;
   optResult: OptimizeResult | null;
+  optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
 }) {
@@ -129,7 +140,20 @@ function SimControls({
           </>
         )}
       </div>
-      {optEnabled && optResult && (
+      {/* Live progress (#773 unit 4): while a run is in flight, the eval
+          count/objective/Z-SWR readout tracks the latest `progress` frame
+          instead of the previous run's settled result — optProgress is reset
+          to null at the start of every run, so this only shows once the
+          first frame lands. */}
+      {optEnabled && optRunning && optProgress && (
+        <span
+          className="opt-readout opt-readout-progress"
+          title={`eval ${optProgress.n_evals} — objective ${optProgress.objective.toFixed(4)}, Z ${optProgress.metrics.z_in_re.toFixed(1)} ${optProgress.metrics.z_in_im >= 0 ? "+" : "−"} j${Math.abs(optProgress.metrics.z_in_im).toFixed(1)} Ω`}
+        >
+          #{optProgress.n_evals} SWR {optProgress.metrics.swr.toFixed(2)}
+        </span>
+      )}
+      {optEnabled && !optRunning && optResult && (
         <span className="opt-readout" title="SWR after optimisation">
           SWR {optResult.metrics_after.swr.toFixed(2)}
         </span>
@@ -188,6 +212,7 @@ export function VfoPanel({
   optObjective,
   setOptObjective,
   optResult,
+  optProgress,
   optError,
   optPausedBy,
 }: {
@@ -213,6 +238,7 @@ export function VfoPanel({
   optObjective: OptObjective;
   setOptObjective: (v: OptObjective) => void;
   optResult: OptimizeResult | null;
+  optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
 }) {
@@ -262,6 +288,7 @@ export function VfoPanel({
             optObjective={optObjective}
             setOptObjective={setOptObjective}
             optResult={optResult}
+            optProgress={optProgress}
             optError={optError}
             optPausedBy={optPausedBy}
           />
