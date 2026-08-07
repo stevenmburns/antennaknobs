@@ -13,13 +13,34 @@ export type ViewMeta = {
   // Read once, by useViewPrefs, to seed a first run; after that the user's
   // stored set wins, so flipping this only affects new users.
   defaultPinned: boolean;
+  // Whether this view goes STALE for the duration of an optimizer run (#773).
+  //
+  // A run never touches the knobs until it finishes, so anything drawn from
+  // the last solve keeps describing the pre-run design while the readout
+  // ticks through candidates — a screen of mixed provenance, where the number
+  // and the picture disagree and nothing says so. Views that are entirely
+  // pre-run dim (the same `.stale` treatment a slow solve already uses);
+  // views carrying live or still-accurate content must not.
+  //
+  // Required, not defaulted: a new view's answer is never obviously false, so
+  // the compiler should make someone decide.
+  staleWhileOptimizing: boolean;
 };
 export const VIEWS: ViewMeta[] = [
-  { id: "antenna", label: "Antenna", defaultPinned: true },
-  { id: "azimuth", label: "Azimuth (xy)", defaultPinned: true },
-  { id: "elevation", label: "Elevation (yz)", defaultPinned: true },
-  { id: "smith", label: "Smith", defaultPinned: true },
-  { id: "schematic", label: "Schematic", defaultPinned: false },
+  // Geometry and currents are both drawn from the last solve, i.e. the knobs
+  // as they stand — which is not the candidate being evaluated.
+  { id: "antenna", label: "Antenna", defaultPinned: true, staleWhileOptimizing: true },
+  { id: "azimuth", label: "Azimuth (xy)", defaultPinned: true, staleWhileOptimizing: true },
+  { id: "elevation", label: "Elevation (yz)", defaultPinned: true, staleWhileOptimizing: true },
+  // NOT stale: the dot follows the run's per-eval frames (ViewRenderProps'
+  // liveZ), so this is the one view that is live. Its sweep locus is still
+  // pre-run, which is why the live point draws as a hollow ring rather than
+  // claiming to be a settled solve.
+  { id: "smith", label: "Smith", defaultPinned: true, staleWhileOptimizing: false },
+  // NOT stale: built from `build_network()` on the CURRENT knob values, and
+  // an optimizer run leaves those alone until it applies its result — so the
+  // drawing on screen stays accurate for the whole run.
+  { id: "schematic", label: "Schematic", defaultPinned: false, staleWhileOptimizing: false },
   // Sweep-derived views (issue #700 unit 5, docs/plan-view-rail-scaling.md
   // items 6/7): the sweep data already flows to the Smith chart, so these
   // are a second and third presentation of it, not a new data path. Ship
@@ -27,8 +48,10 @@ export const VIEWS: ViewMeta[] = [
   // "gamma" keeps its id (persisted pin sets store ids) but presents as S11
   // in dB — the VNA/NanoVNA log-magnitude convention, which is what this
   // audience reads; linear |Γ| only ever appears as a Smith-chart radius.
-  { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false },
-  { id: "vswr", label: "VSWR vs freq", defaultPinned: false },
+  // Frequency sweeps of the pre-run geometry: the whole curve is stale for
+  // the duration, and unlike the Smith chart there is no live point on them.
+  { id: "gamma", label: "S11 (dB) vs freq", defaultPinned: false, staleWhileOptimizing: true },
+  { id: "vswr", label: "VSWR vs freq", defaultPinned: false, staleWhileOptimizing: true },
 ];
 
 // Id → metadata, for the consumers that hold a list of ids in the USER's
