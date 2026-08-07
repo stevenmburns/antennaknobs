@@ -25,23 +25,24 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.43.0" icon="star">
-  **The visible-rigging release: your antenna's tension, on screen — and a
-  faster, tidier workbench.** The catenary inverted vee's physics now shows
-  its numbers: **rigging tension (N and lbf), sag, and the rope length
-  you'd actually cut** appear in the solve readout, via a new generic
-  readouts channel any design — including your own in
-  `~/.antennaknobs/designs/` — can feed with no frontend code. The library
-  grows **`solve_sprung`**, the bungee/shock-cord rig closure (exact at
-  every length where the other closures are, with the stiff- and soft-limit
-  identities proven in tests). The workbench got quicker twice over:
-  **momwire 0.23.0's dense assembly** (~1.9× on interactive solves — an
-  outside contribution, thanks @happykawayigt!) and **view-residency
-  gating** — background sweeps only run while a view that draws them is on
-  screen. Plus: **reorder your pinned views** from the picker (rail, grid,
-  and phone pages all follow), pin/layout changes now sync across browser
-  windows live, and the Smith chart marks the sweep point nearest your
-  measurement frequency — the Γ-plane's first frequency anchor.
+<Card title="New in v0.44.0" icon="star">
+  **The watch-it-tune release: the optimizer shows its work, and the charts
+  sharpen themselves.** Turn on Optimize and the workbench now **streams
+  every evaluation live** — the readout ticks through candidates, the Smith
+  dot follows the search, and the views describing the pre-run design dim
+  until the result lands. Multi-feed arrays are scored honestly: the
+  objective now drives the **worst feed**, so an optimized array means *no*
+  element is badly matched. Sweeps and pattern cuts gained **adaptive
+  resolution** — hold still a moment and the charts refine themselves where
+  the curve actually bends (a sharp SWR notch resolves to sub-pixel instead
+  of hiding between samples), which also lets the base sweep start ~2×
+  faster and the Smith locus draw as a connected curve. The S11 chart now
+  shows **active-port reflection above 0 dB** instead of clamping it — on a
+  detuned array element, arguably the most important fact a sweep can show.
+  Plus: point any CLI subcommand straight at a NEC deck with
+  **`@file.nec`** builder specs, transmission-line stamps and a
+  Γ-referenced readout in the network reducer, and a Windows fix for the
+  schematic writer's Ω.
 </Card>
 
 ## The whole pitch, in one line
