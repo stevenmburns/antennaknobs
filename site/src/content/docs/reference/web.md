@@ -159,6 +159,41 @@ and raised when off:
   Live back on. Useful when you want to set several knobs before paying for a
   solve, or when a heavy design makes continuous solving sluggish.
 
+## Adaptive resolution
+
+The frequency sweep and the far-field cuts sample **where the curve actually
+bends**, not just on a fixed grid. Hold the design still for a moment after a
+sweep settles and the workbench quietly buys extra samples where the drawn
+polyline still misses the true curve — a sharp SWR notch that a uniform grid
+would step right over resolves down to sub-pixel, and a pattern lobe's edge
+gets angles a uniform circle wouldn't spend there.
+
+What you'll notice:
+
+- **Sweeps start faster.** With refinement on, the base grid's job is only to
+  *detect* features, so it opens at 17 log-spaced points instead of 41 and the
+  S11/VSWR/Smith views fill in sooner; the refinement rounds then sharpen
+  whatever the base grid straddled.
+- **The Smith locus is a connected curve.** Refinement removes the sparse-
+  sample kinks that made a polyline dishonest, so the per-feed sweep trail
+  draws as a stroke instead of a dot cloud.
+- **Only what's on screen refines.** Like the sweeps themselves
+  (view-residency gating, above), refinement spends solves only on the
+  projections and cuts whose views are pinned or open.
+- **It's a setting.** The gear menu's **adaptive resolution** toggle (default
+  on, stored per browser like the theme) turns the whole machinery off, and
+  the base grids revert to their historical sizes (41-point sweeps) and become
+  final. For unusually difficult designs the budgets can be nudged via
+  `localStorage` overrides (`antennaknobs.sweepBaseN`,
+  `antennaknobs.sweepRefineBudget`, `antennaknobs.cutRefineBudget`,
+  `antennaknobs.refineTolerance`) — deliberately not knobs in the menu.
+
+Relatedly, the **S11 chart no longer clamps at 0 dB**: a driven-array port's
+*active* reflection is not bounded by |Γ| ≤ 1 (mutual coupling can push more
+power into a detuned element than its own generator supplies), so when any
+drawn value crosses zero the axis top rises to show it, with the 0 dB line
+kept as the tick a healthy passive port never crosses.
+
 ## Optimizing
 
 Next to Live is an **Optimize** toggle (same depressed-when-on look), with a
@@ -178,6 +213,15 @@ knobs you've marked to hit a target:
    time you change a *fixed* knob, it re-tunes the *marked* knobs (a short
    debounce, then a few dozen solves) and writes the best values back, so the
    antenna stays on target as you explore.
+
+**A run shows its work.** Progress streams back per evaluation: the VFO
+panel's readout ticks through each candidate's eval count, impedance, and SWR
+as the search moves, and the **Smith chart follows the run live** — its dot
+walks the Γ-plane with every trial. Every other view keeps describing the
+design you started from (the knobs aren't touched until the run finishes), so
+those views **dim** for the duration — the same stale-fade a mid-solve view
+wears — and light up when the result lands. The schematic stays bright: it's
+drawn from the current knob values and stays right throughout.
 
 Under the hood it's a derivative-free **Nelder–Mead** search (each evaluation is
 a full MoM solve), bounded by your Optimize ranges, and it always runs on the

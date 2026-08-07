@@ -22,6 +22,13 @@ is worth porting to a real `AntennaBuilder`.
 
 ## Quick start
 
+For one-off CLI work you don't need a stub at all: every subcommand accepts
+an **`@file.nec`** builder spec that loads the deck on the fly —
+`python -m antennaknobs draw --builder @my_yagi.nec` — and decks mix with
+named designs in `--builders` lists (see
+[Naming a design](/reference/cli/#naming-a-design)). Write the stub when the
+deck should live in your design catalog:
+
 Drop the deck next to a small design stub in `~/.antennaknobs/designs/`:
 
 ```python
