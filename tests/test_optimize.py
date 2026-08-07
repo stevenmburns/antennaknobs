@@ -105,7 +105,17 @@ def test_unknown_objective_falls_back_to_swr():
     assert res["objective"] == "swr"
 
 
-def test_on_progress_none_is_byte_identical_to_no_callback():
+def test_on_progress_never_perturbs_the_result():
+    """Observing a run must not change it.
+
+    Three ways of asking for the same optimisation — omitted, explicit None,
+    and a live callback — must return the identical dict. The third is the
+    one with teeth: the hook runs arbitrary caller code between the solve and
+    the return, inside the choke point every eval passes through, so a hook
+    that mutated the request, the params dict, or the eval count would steer
+    the search. Omitted-vs-None alone would not catch that.
+    """
+
     # A fixed, order-independent stub: same req in, same dict out, always.
     def solve(req: dict) -> dict:
         x = float(req["x"])
@@ -120,7 +130,17 @@ def test_on_progress_none_is_byte_identical_to_no_callback():
     )
     res_default = optimize(**kwargs)
     res_explicit_none = optimize(**kwargs, on_progress=None)
+
+    # A callback that both reads and writes what it is handed — the hostile
+    # case. Mutating the payload must not reach the optimiser's own state.
+    def meddle(ev: dict) -> None:
+        ev["params"].clear()
+        ev["n_evals"] = -1
+
+    res_observed = optimize(**kwargs, on_progress=meddle)
+
     assert res_default == res_explicit_none
+    assert res_default == res_observed
 
 
 def test_on_progress_fires_once_per_solve_with_contiguous_n_evals():
