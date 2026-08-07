@@ -15,6 +15,7 @@ __all__ = [
     "read_data",
     "read_json",
     "read_nec",
+    "read_ssn",
     "read_touchstone",
     "read_measured",
     "MeasuredTrace",
@@ -63,6 +64,7 @@ from .builder import (
 )
 from .design_data import read_data, read_json
 from .nec_import import read_nec
+from .simnec_import import read_ssn
 from .touchstone import read_touchstone
 from .measured import MeasuredTrace, read_measured
 from .network import Composite, Instance, Wire, WireSpec, as_wire
