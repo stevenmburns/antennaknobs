@@ -26,6 +26,7 @@ import math
 import os
 import time
 from collections import OrderedDict
+from collections.abc import AsyncIterator
 from copy import deepcopy
 from pathlib import Path
 
@@ -45,6 +46,7 @@ from . import cost as _cost
 from . import pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
+from .progress_stream import ProgressStream, ProgressStreamClosed
 
 _logger = logging.getLogger(__name__)
 
@@ -2042,8 +2044,118 @@ async def geometry_endpoint(req: dict):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Streamed /optimize (issue #773): one endpoint, two representations, chosen
+# by Accept. `text/event-stream` reports the run per eval; anything else (and
+# no Accept at all) gets today's single JSON object, unchanged. Validation,
+# the hosted caps and the _shed dispatch are shared — the stream changes only
+# how a run is *reported*, never what it computes.
+# ---------------------------------------------------------------------------
+
+_SSE_MEDIA_TYPE = "text/event-stream"
+
+# Idle gap before the stream writes a comment frame. The write is what
+# discovers a silently-vanished client (see _sse_progress_body), and it also
+# keeps a proxy from reaping a connection that is merely thinking. Shorter
+# than an eval on any mesh worth streaming, so a live run's own progress
+# frames usually pre-empt it.
+_SSE_KEEPALIVE_S = 5.0
+
+# create_task alone leaves the loop holding a weak reference: a producer whose
+# consumer has already been finalised would be collectable mid-run.
+_OPT_STREAM_TASKS: set[asyncio.Task] = set()
+
+
+def _sse_frame(kind: str, data: dict) -> str:
+    """One SSE frame, contract C2's wire form.
+
+    The trailing BLANK LINE is load-bearing: an SSE parser emits on "\\n\\n",
+    so a terminal frame written without it sits in the client's buffer and is
+    never delivered. `default=str` is a fuse, not a converter — every payload
+    this endpoint builds is already plain floats/ints/strings, and a stream
+    must not die mid-flight over one odd value in a user design's metrics.
+    """
+    return f"event: {kind}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+def _sse_response(gen) -> StreamingResponse:
+    return StreamingResponse(
+        gen,
+        media_type=_SSE_MEDIA_TYPE,
+        # no-store: progress is never replayable. X-Accel-Buffering: a
+        # buffering reverse proxy would hold every frame until the run ended,
+        # which is precisely what streaming exists to avoid.
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
+
+
+def _sse_terminal_only(kind: str, data: dict) -> StreamingResponse:
+    """A stream that is nothing but its one terminal event — the SSE form of a
+    request rejected before any work started."""
+
+    async def gen():
+        yield _sse_frame(kind, data)
+
+    return _sse_response(gen())
+
+
+async def _next_event(events):
+    """`anext` with exhaustion as a value, so the wait below can hold the
+    pending pull in a Future without StopAsyncIteration crossing it."""
+    try:
+        return await events.__anext__()
+    except StopAsyncIteration:
+        return None
+
+
+async def _sse_progress_body(
+    request: Request, stream: ProgressStream, drive
+) -> AsyncIterator[str]:
+    """Frame `stream`'s events as SSE for as long as the client is there.
+
+    Starts `drive` (the producer, an argument-free coroutine function) when
+    the body starts, and closes the stream on the way out however the body
+    ends — terminal event, disconnect, cancellation. Closing is what stops the
+    run: the producer's next publish() raises, unwinding the optimiser at its
+    next eval instead of computing solves nobody will read.
+
+    The idle tick is not decoration. This loop parks awaiting the next event
+    for as long as one MoM solve takes, and Starlette only finalises a
+    streaming body at its next send — so without a probe, a browser closed at
+    eval 3 would keep burning solves until eval 4 landed. The tick both polls
+    the receive channel and writes a comment, so either half alone catches it.
+    """
+    task = asyncio.create_task(drive())
+    _OPT_STREAM_TASKS.add(task)
+    task.add_done_callback(_OPT_STREAM_TASKS.discard)
+    events = stream.events().__aiter__()
+    pending = None
+    try:
+        while True:
+            if pending is None:
+                # Carried across ticks rather than re-issued per tick:
+                # cancelling an __anext__ tears the iterator's generator down,
+                # so the pull must never be the thing that times out.
+                pending = asyncio.ensure_future(_next_event(events))
+            done, _ = await asyncio.wait({pending}, timeout=_SSE_KEEPALIVE_S)
+            if not done:
+                if await request.is_disconnected():
+                    return
+                yield ": keepalive\n\n"
+                continue
+            event = pending.result()
+            pending = None
+            if event is None:
+                return  # closed without a terminal event: the consumer left
+            yield _sse_frame(event.kind, event.data)
+    finally:
+        if pending is not None:
+            pending.cancel()
+        stream.close()
+
+
 @app.post("/optimize")
-async def optimize_endpoint(req: dict):
+async def optimize_endpoint(req: dict, request: Request):
     """Tune a chosen subset of knobs to optimise an electrical objective.
 
     The request is a normal solve request plus an `optimize` block:
@@ -2057,22 +2169,38 @@ async def optimize_endpoint(req: dict):
     impedance-only momwire_solve (cheap — no far field), so a run is dozens of
     quick solves rather than a far-field sweep. Always uses the momwire engine
     regardless of the request's `solver` (PyNEC would be far too slow per eval).
+
+    With `Accept: text/event-stream` the same run is streamed instead: one
+    `progress` event per eval, then exactly one terminal `result` (that same
+    JSON object) or `error`. Every other Accept keeps the single-response form.
     """
     from .optimize import OBJECTIVES, optimize as _optimize
+
+    wants_sse = _SSE_MEDIA_TYPE in (request.headers.get("accept") or "")
+
+    def _reject(payload: dict):
+        """One rejection, rendered either way: the JSON path returns exactly
+        the payload it always did, the stream turns it into its one terminal
+        event. Neither ever emits progress — nothing ran."""
+        if not wants_sse:
+            return payload
+        return _sse_terminal_only("error", {"detail": payload["error"]})
 
     opt = req.get("optimize") or {}
     free = opt.get("free") or []
     if not free:
-        return {"error": "select at least one knob to vary"}
+        return _reject({"error": "select at least one knob to vary"})
     objective = opt.get("objective", "swr")
     if objective not in OBJECTIVES:
-        return {"error": f"unknown objective {objective!r}"}
+        return _reject({"error": f"unknown objective {objective!r}"})
     max_evals = opt.get("max_evals")
     if max_evals is not None:
         try:
             max_evals = int(max_evals)
         except (TypeError, ValueError):
-            return {"error": f"max_evals must be an integer (got {max_evals!r})"}
+            return _reject(
+                {"error": f"max_evals must be an integer (got {max_evals!r})"}
+            )
         if max_evals <= 0:
             max_evals = None
         elif _HOSTED:
@@ -2090,9 +2218,14 @@ async def optimize_endpoint(req: dict):
     try:
         _check_solve_size(base, use_pynec=False)
     except SolveTooLargeError as e:
-        return {"geometry": geometry, "error": str(e)}
-    try:
-        result = await run_in_threadpool(
+        return _reject({"geometry": geometry, "error": str(e)})
+
+    def _run(on_progress):
+        # THE dispatch, shared by both representations so _shed can never be
+        # on one path and not the other: it formats the error while the
+        # traceback exists and drops the frame chain before the exception
+        # crosses the thread boundary (issue #382's multi-GiB retention).
+        return run_in_threadpool(
             _shed,
             _optimize,
             base,
@@ -2100,11 +2233,40 @@ async def optimize_endpoint(req: dict):
             objective,
             solve_fn=ex.momwire_solve,
             max_evals=max_evals,
+            on_progress=on_progress,
         )
-    except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
-        return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
-    result["geometry"] = geometry
-    return result
+
+    if not wants_sse:
+        try:
+            result = await _run(None)
+        except Exception as exc:  # noqa: BLE001 — a user design's build_wires can raise
+            return {"geometry": geometry, "error": user_designs.format_solve_error(exc)}
+        result["geometry"] = geometry
+        return result
+
+    stream = ProgressStream()
+
+    async def _drive() -> None:
+        try:
+            # sealed() is the guarantee that the consumer can never be left
+            # awaiting a producer that already died: a body that returns or
+            # raises without a terminal event gets one anyway.
+            with stream.sealed():
+                try:
+                    result = await _run(stream.publish)
+                except ProgressStreamClosed:
+                    # The consumer left and publish() aborted the run. Not an
+                    # error — and not reportable, there is nobody to report to.
+                    raise
+                except Exception as exc:  # noqa: BLE001 — user design build_wires
+                    stream.fail(user_designs.format_solve_error(exc))
+                    return
+                result["geometry"] = geometry
+                stream.finish(result)
+        except ProgressStreamClosed:
+            pass
+
+    return _sse_response(_sse_progress_body(request, stream, _drive))
 
 
 @app.get("/healthz")
