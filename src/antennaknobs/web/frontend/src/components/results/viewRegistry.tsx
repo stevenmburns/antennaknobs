@@ -41,6 +41,17 @@ export type ViewRenderProps = {
    *  frequency-sorted samples finally support one). Optional: thumbnail
    *  call sites omit it and keep the dot trail. */
   refineEnabled?: boolean;
+  // A trial impedance to plot INSTEAD of `result`'s, while something drives
+  // the design faster than the solve channel can follow — today the streamed
+  // optimizer (#773), whose per-eval frames carry Z but do not touch the
+  // knobs until the run ends, so `result` sits at the last real solve for the
+  // whole run and the dot appears frozen.
+  //
+  // Structural rather than the optimizer's own type: the view layer does not
+  // care who is proposing the point. REQUIRED, not defaulted — a new view
+  // surface that forgot it would silently show a frozen dot again, which is
+  // the defect this exists to fix, so the compiler names every call site.
+  liveZ: { z_in_re: number; z_in_im: number; z0_ohms: number } | null;
   schematicSvg: string | null;
   schematicUnavailable: boolean;
 };
@@ -96,11 +107,16 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       fineNorm={p.fineNorm}
     />
   ),
+  // liveZ wins over result while it is set: during an optimizer run it is the
+  // only current impedance there is (see ViewRenderProps.liveZ). The z0
+  // fallback chain still ends at result's, so a trial point is plotted on the
+  // same reference the settled dot uses.
   smith: (p) => (
     <SmithChart
-      r={p.result?.z_in_re ?? 0}
-      x={p.result?.z_in_im ?? 0}
-      z0={p.result?.z0_ohms ?? 50}
+      r={p.liveZ?.z_in_re ?? p.result?.z_in_re ?? 0}
+      x={p.liveZ?.z_in_im ?? p.result?.z_in_im ?? 0}
+      z0={p.liveZ?.z0_ohms ?? p.result?.z0_ohms ?? 50}
+      trial={p.liveZ != null}
       size={p.size}
       sweep={p.sweep}
       converge={p.converge}

@@ -88,6 +88,7 @@ const PROPS: Omit<ViewRenderProps, "showWireLabels" | "showFeedNames" | "schemat
   size: 180,
   fill: true,
   result: null,
+  liveZ: null,
   preview: null,
   sweep: null,
   converge: null,

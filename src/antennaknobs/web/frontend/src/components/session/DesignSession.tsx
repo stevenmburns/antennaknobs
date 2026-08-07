@@ -1579,6 +1579,11 @@ function DesignSessionBody({
             size={size}
             fill={fill}
             result={result}
+            // An optimizer run never touches the knobs until it finishes, so
+            // `result` holds the pre-run solve for its whole duration and the
+            // Smith dot would sit frozen while the readout ticks (#773). The
+            // per-eval frames carry the trial Z, so hand it to the chart.
+            liveZ={optRunning && optProgress ? optProgress.metrics : null}
             preview={preview}
             sweep={sweep}
             converge={converge}
@@ -1747,6 +1752,10 @@ function DesignSessionBody({
                       size={thumbSize.width}
                       fill={false}
                       result={result}
+                      // Same live trial point as the primary stage: the
+                      // thumbnail is the same chart, so a frozen dot there
+                      // would be the same defect at a smaller size.
+                      liveZ={optRunning && optProgress ? optProgress.metrics : null}
                       preview={preview}
                       sweep={sweep}
                       converge={converge}
