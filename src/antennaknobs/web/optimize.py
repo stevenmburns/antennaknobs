@@ -75,12 +75,17 @@ def optimize(
     *,
     solve_fn: Callable[[dict], dict],
     max_evals: int | None = None,
+    on_progress: Callable[[dict], None] | None = None,
 ) -> dict:
     """Optimise ``objective`` over the ``free`` params within their bounds.
 
     ``free`` is a list of ``{"name", "min", "max"}``. ``solve_fn`` takes a solve
     request and returns a response carrying ``z_in_re``/``z_in_im``/``z0_ohms``.
     Returns the best params found plus before/after objective + metrics.
+
+    ``on_progress``, if given, is called once per solve (see ``_solve_at``) with
+    ``{"n_evals", "params", "objective", "metrics"}``. ``None`` (the default)
+    leaves behaviour identical to no callback support at all.
     """
     if not free:
         raise ValueError("no free params selected to optimise")
@@ -102,10 +107,31 @@ def optimize(
     def _solve_at(x) -> dict:
         nonlocal n_evals
         req = dict(base_req)
+        params = {}
         for name, v in zip(names, x):
-            req[name] = float(v)
+            val = float(v)
+            req[name] = val
+            params[name] = val
         n_evals += 1
-        return solve_fn(req)
+        out = solve_fn(req)
+        # Emitted here, not via scipy's minimize(callback=...): that callback
+        # fires once per Nelder-Mead ITERATION (a reflection/expansion/contraction
+        # that itself costs 1-2 evals), not once per eval — e.g. ~30 callbacks for
+        # 60 evals — and it doesn't fire at all until the initial simplex (N+1
+        # evals) is built, leaving a dead zone at the start of every run. Every
+        # solve, in every phase (baseline, simplex, confirmation), goes through
+        # this one choke point, so hooking here is the only way to get gapless
+        # per-eval granularity that also covers the initial-simplex evals.
+        if on_progress is not None:
+            on_progress(
+                {
+                    "n_evals": n_evals,
+                    "params": params,
+                    "objective": _objective_value(out, objective),
+                    "metrics": _metrics(out),
+                }
+            )
+        return out
 
     def f(x) -> float:
         return _objective_value(_solve_at(x), objective)
