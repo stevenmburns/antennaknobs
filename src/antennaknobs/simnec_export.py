@@ -294,7 +294,11 @@ def main(argv=None):
         prog="antennaknobs.simnec_export",
         description="Emit a SimNEC (.ssn) circuit for an antenna-only design.",
     )
-    ap.add_argument("builder", help="Design name, e.g. dipoles.invvee[:variant]")
+    ap.add_argument(
+        "builder",
+        help="Design name, e.g. dipoles.invvee[:variant] — or @file.nec to "
+        "convert a NEC card deck straight to a SimNEC circuit",
+    )
     ap.add_argument(
         "--freq", type=float, default=None, help="MHz (default: builder.freq)"
     )
