@@ -320,6 +320,10 @@ def test_station_ladder_tuner_full_cascade():
     tl = _params_of(ssn, "SERIES_TLINE")
     assert tl["Zo"] == "600" and tl["VFnom"] == "0.95" and tl["ft"] == "100"
     assert tl["k1"] == "0.02" and tl["k2"] == "0.0001"
+    # Pinned explicitly: SimNEC's default "simplified" model reads only the
+    # single /100f@frq point; k0k1k2 drives loss from the coefficients
+    # across a SimNEC-side sweep (validated on 6p4d6).
+    assert tl["Mdl"] == "k0k1k2"
     coil = _params_of(ssn, "SHUNT_IND")
     assert coil["H"] == "4.218e-06"
     assert coil["Q"] == "200" and coil["@MHz"] == "7.1"

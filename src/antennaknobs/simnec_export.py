@@ -72,10 +72,14 @@ is stuck on one value.
    impedance at 7.1 MHz. ``TRANSFORMER2``'s ``N`` was found to read
    antenna-side:generator-side — the inverse of our ``Transformer`` ``n`` —
    so the exporter emits the reciprocal (see the emission comment).
-   Remaining caveats: (1) ``Q = 0`` is assumed to mean "ideal / no loss"
-   (the SimSmith convention); (2) the ``SERIES_TLINE`` ``material`` param is
-   omitted on the assumption SimNEC then honours the explicit
-   ``k0``/``k1``/``k2`` loss coefficients.
+   Also validated on 6p4d6: ``Q = 0`` means "ideal / no loss" (the SimSmith
+   convention), and the ``k0``/``k1``/``k2`` loss coefficients round-trip a
+   load/save intact with the recomputed ``/100f`` matching the coefficient
+   formula. The ``SERIES_TLINE`` ``Mdl`` is pinned to ``k0k1k2`` explicitly:
+   left unset it defaults to ``simplified``, which drives loss from the
+   single ``/100f @frq`` point (right at the export frequency, wrong across
+   a SimNEC-side sweep). The ``material`` params 6p4d6 adds on save are
+   inert defaults for the physical-geometry loss models.
 
 Licensing
 ---------
@@ -315,7 +319,11 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
         # SimNEC's loss convention matches the cable-table one ours uses:
         # dB/100 ft = k0 + k1·√f + k2·f, displayed as `/100f` at `@frq`.
         # `~deg`/`@MHz` are the displayed electrical length, advisory (SimNEC
-        # recomputes them from Zo/VFnom/ft).
+        # recomputes them from Zo/VFnom/ft). `Mdl` pins the loss model to
+        # "k0k1k2" (option string verified against SimNEC 6p4d6): the default
+        # "simplified" model reads the single `/100f @frq` point instead of
+        # the coefficients, which agrees at the export frequency but not
+        # across a SimNEC-side sweep.
         loss_100ft = br.k1 * math.sqrt(freq_mhz) + br.k2 * freq_mhz
         deg = 360.0 * br.length * freq_mhz / (br.vf * C_MHZ_M)
         return [
@@ -323,6 +331,7 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
                 "SERIES_TLINE",
                 "T",
                 [
+                    ("Mdl", "k0k1k2"),
                     ("Zo", _fmt(br.z0)),
                     ("VFnom", _fmt(br.vf)),
                     ("ft", _fmt(br.length / M_PER_FT)),
