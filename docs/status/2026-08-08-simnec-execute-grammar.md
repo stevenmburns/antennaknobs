@@ -1393,3 +1393,32 @@ declines; it is also the live example in
 
 The plane-wave `EX 1 …` excitation `PT` used to be lumped with remains
 unsupported and unchanged: `EX` type != 0 is refused by name.
+
+## §17 — EK, found the hard way (the first live-session failure)
+
+The live `NECSource` path ALWAYS emits a bare `EK` (format string `"EK\n"`,
+confirmed in the jar) — a card in none of the PDF's lists and none of the
+first 36 fixtures, so the daemon refused every live deck and SimNEC
+fabricated readouts from the failures (Windows session, 2026-08-08:
+"NEC Failure Code 1", rig Z read 4−j280 vs the real ~40−j5.7).
+
+Pinned behaviour (fixtures `dipole_ek_extended`, `dipole_ek_rearm`):
+
+- `EK` / `EK 0` = extended thin-wire kernel on; `EK -1` = standard. Echoed
+  as a normal DATA CARD line.
+- When on at a full (FR-driven) preamble: one extra line, 24-space indent,
+  `THE EXTENDED THIN WIRE KERNEL WILL BE USED`, directly after the
+  APPROXIMATE INTEGRATION note.
+- A kernel CHANGE between execute cards arms a re-execution with a PARTIAL
+  refill preamble: LOADING / ENVIRONMENT / MATRIX TIMING but no FREQUENCY
+  block and no announcement.
+- That re-execution also corrected a §11 rule: NEC RETAINS excitation
+  across an execute card — `dipole_ek_rearm`'s second AIP repeats the
+  retained source. The first EX after an execution replaces the set;
+  §11's "cleared at every XQ" described decks that always supplied
+  fresh EX cards, not the engine.
+- For momwire the kernel choice is advisory (our kernel is our own);
+  layout is reproduced exactly, values are ours.
+- Build note: the 1.17 corpus oracle aborts noisily at EOF after the last
+  NX ("Error reading input file") — post-sentinel noise, also present in
+  pre-EK fixtures, harmless to `Execute` which stops at the sentinel.

@@ -362,7 +362,7 @@ _DEFERRED_CARDS = MappingProxyType(
 _EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
 
 # Cards that make the next execute card a real run rather than a no-op.
-_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "YY"})
+_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "YY", "EK"})
 
 
 @dataclass(frozen=True)
@@ -706,6 +706,19 @@ class ExecuteGroup:
     # reason, and because ``PT`` is a TOGGLE: ``dipole_pt_toggle`` suppresses
     # the first run's table and restores the second's from one deck.
     pt: PrintControl | None = None
+    # EK in force when this group fired. Advisory for momwire (our kernel is
+    # our kernel), but the refilled preamble must announce it exactly as the
+    # oracle does — and only there: an EK between two XQs re-arms execution
+    # without a refill, and the oracle prints no announcement for it
+    # (measured: XQ / EK / XQ shows two AIP sections, one preamble, zero
+    # announcements).
+    ek: bool = False
+    # A kernel change between execute cards refills the matrix WITHOUT a new
+    # FR: the oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING
+    # part of the preamble but no FREQUENCY block and no kernel announcement
+    # (fixture dipole_ek_rearm). Advisory refill for us — the cached factors
+    # are already momwire's — but the printout must walk the same sections.
+    refilled_partial: bool = False
 
 
 @dataclass
@@ -799,6 +812,9 @@ def parse_deck(body: str) -> PortalDeck:
     reduced_field: int | None = None
     multiprocessing: Multiprocessing | None = None
     print_control: PrintControl | None = None
+    extended_kernel = False
+    kernel_dirty = False
+    sources_stale = False
 
     for line in body.splitlines():
         card = parse_card(line)
@@ -846,6 +862,20 @@ def parse_deck(body: str) -> PortalDeck:
             # new card is an MP (measured — the second XQ of `... XQ / MP 4 8 /
             # XQ` prints no block at all).
             multiprocessing = Multiprocessing.from_card(card)
+        elif card.mnemonic == "EK":
+            if card.i(0) not in (0, -1):
+                raise PortalError(
+                    f"EK {card.i(0)} is neither 0 (extended kernel) nor -1 "
+                    f"(standard kernel)"
+                )
+            if (
+                card.i(0) == 0
+                and not extended_kernel
+                or card.i(0) == -1
+                and extended_kernel
+            ):
+                kernel_dirty = executed > 0
+            extended_kernel = card.i(0) == 0
         elif card.mnemonic == "PT":
             # Also not an arming card: it changes what a run PRINTS, not what
             # a run computes, so it cannot make an XQ into a fresh execution.
@@ -865,6 +895,14 @@ def parse_deck(body: str) -> PortalDeck:
                     f"EX type {card.i(0)} is not a voltage source; this engine "
                     f"drives EX 0 only"
                 )
+            # NEC RETAINS the excitation across an execute card: a re-run
+            # with no new EX re-drives the previous set (dipole_ek_rearm's
+            # second AIP repeats tag 1 seg 5), while the first EX after an
+            # execution replaces it (every multi-group fixture). So the list
+            # is cleared lazily here, not at the execute card.
+            if sources_stale:
+                sources.clear()
+                sources_stale = False
             sources.append((card.i(1), card.i(2), complex(card.f(4), card.f(5))))
         elif card.mnemonic in _EXECUTE_CARDS:
             if not armed and executed:
@@ -882,10 +920,13 @@ def parse_deck(body: str) -> PortalDeck:
                     report=None if card.mnemonic == "XQ" else card,
                     mp=multiprocessing,
                     pt=print_control,
+                    ek=extended_kernel,
+                    refilled_partial=kernel_dirty and not (fresh_fr or not executed),
                 )
             )
+            kernel_dirty = False
             executed += 1
-            sources.clear()
+            sources_stale = True
             fresh_fr = False
             armed = False
         else:
@@ -2199,10 +2240,16 @@ def _run_block(
             f"                                WAVELENGTH: {wavelength:10.4E} Mtr",
             "",
             *_APPROX_INTEGRATION,
+            *(
+                ["                        THE EXTENDED THIN WIRE KERNEL WILL BE USED"]
+                if group.ek
+                else []
+            ),
             "",
             "",
-            _LOADING_HEADER,
         ]
+    if group.refilled or group.refilled_partial:
+        out += [_LOADING_HEADER]
         rows = _loading_rows(deck)
         if rows:
             out += [*_LOADING_TABLE_HEADER, *rows]
@@ -2411,9 +2458,12 @@ def run_deck(body: str) -> tuple[str, str]:
 _SELFTEST_DECKS = (
     # A free-space dipole, the two-source Y probe, and a TL station — the
     # three deck shapes a live SimNEC session leans on hardest.
+    # EK rides in deck 1 because the live NECSource path ALWAYS sends it —
+    # the card whose absence from the bench corpus caused the first live
+    # failure (Windows session, 2026-08-08).
     "CE selftest 1\n"
     "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
-    "GE 0\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    "GE 0\nEK\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
     "CE selftest 2\n"
     "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
     "GW 2 11 3. -5. 10. 3. 5. 10. 0.001\n"
@@ -2453,6 +2503,7 @@ def _selftest(stdout) -> int:
     checks = {
         "process exited 0": proc.returncode == 0,
         "banner present": "VERSION:" in proc.stdout,
+        "EK accepted": "EXTENDED THIN WIRE KERNEL" in proc.stdout,
         "4 solve groups answered": proc.stdout.count("ANTENNA INPUT PARAMETERS") == 4,
         "3 NX sentinels": sum(
             1

@@ -73,6 +73,20 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "dipole_ek_extended",
+      "returncode": 253,
+      "deck_sha256": "a17f68e92bb680b4d1d2d32e652930c7614e56ae141dab15677dc393c8207d25",
+      "out_sha256": "9a627b3ae7f3fe2f1528cdea53f8edc5e3b0089b2d779ba4e1882d18e1eb486d",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_ek_rearm",
+      "returncode": 253,
+      "deck_sha256": "a505e8624c94a0481f421775e83fdf0b396ffa70e58bca48608850b0676cc76a",
+      "out_sha256": "2a0bf81e3d01d0b0e1816fcc96829fc9f206a23b6dc2a5cb2a68436b87c592ea",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "dipole_fr_sweep",
       "returncode": 253,
       "deck_sha256": "9231eaeda66dc09a63b1760b92d87de9e4210c8201aa98f192ad7cea7c21fc3e",
