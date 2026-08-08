@@ -152,6 +152,25 @@ work for us, and we would rather spend it where your users actually are: is the
 near-field block a corner feature, or does it get used enough that lossy-ground
 near fields matter?
 
+## Two bugs we found in the process (yours to keep)
+
+Reporting these regardless of where the engine conversation goes, since they
+can freeze SimNEC with the *bundled* engine:
+
+**A negative `#Proc` on the MP card hangs nec2c forever.** `MP -1 32` (and
+`MP -3 -9`) never return — no output, no exit; we killed them at 12 s and
+25 s. The advisory's own printing test is unsigned (`{0,1}` silent,
+everything else printed, including negatives), so nothing catches the value
+on the way in. Combined with the second item, this is a UI freeze.
+
+**`Execute.processResponse` has no read timeout.** The Java side blocks in
+`readLine()` until the NX data-card echo arrives; an engine that dies
+mid-deck (or hangs, as above — or the `GN 2` + radial-screen refusal, where
+nec2c aborts *without* the NX echo) leaves SimNEC waiting forever with no
+recovery path we could find. A watchdog around the daemon read — or accepting
+EOF as "engine gone, restart it" — would turn all of these into an error
+dialog instead of a frozen session.
+
 ## What momwire would offer your users
 
 - **A genuinely independent second opinion.** Different basis (B-spline
