@@ -36,19 +36,22 @@ Three spec forms work anywhere a `--builder` / `--builders` argument does:
 - **`family.name`** — a catalog or user design.
 - **`family.name:variant`** — a stored knob-set overlay
   (see [Variants are overlays](#variants-are-overlays)).
-- **`@path/to/deck.nec`** — a NEC card deck, loaded on the fly as a
-  frozen-geometry design via [`read_nec`](/reference/nec-import/). No
-  user-design stub to write: `draw`, `sweep`, `pattern`, `schematic`, and
-  `export` all take it directly, and decks mix freely with named designs in
-  `--builders` lists —
+- **`@path/to/file.nec`** or **`@path/to/file.ssn`** — a NEC card deck (via
+  [`read_nec`](/reference/nec-import/)) or a SimNEC circuit (via the
+  [SimNEC importer](/reference/simnec/#importing-ssn--design)), loaded on
+  the fly as a frozen-geometry design. No user-design stub to write:
+  `draw`, `sweep`, `pattern`, `schematic`, and `export` all take it
+  directly, and files mix freely with named designs in `--builders` lists —
 
   ```bash
   python -m antennaknobs compare_patterns --builders dipoles.invvee @measured/invvee.nec
   ```
 
-  The `@` sigil keeps the grammar unambiguous (a bare `foo.nec` would parse
-  as family `foo`, design `nec`), and an `@` spec never splits off a
-  `:variant` suffix, so colons in paths (Windows drive letters) pass through.
+  A station `.ssn`'s tuner chain rides along as the design's feed network,
+  and its Generator sets the frequency. The `@` sigil keeps the grammar
+  unambiguous (a bare `foo.nec` would parse as family `foo`, design `nec`),
+  and an `@` spec never splits off a `:variant` suffix, so colons in paths
+  (Windows drive letters) pass through.
 
 ## Patterns
 
