@@ -43,9 +43,11 @@ loading coil cancelling the feed reactance), each pinned by a test asserting
 the identity that makes it benign. The comparison also caught one real bug in
 our own mapping before it could ship, which is why we did it this way.
 
-**Live sessions: not yet.** Everything above is bench-tested against your
-engine's output; driving a real SimNEC session end to end is our next step,
-and we'll report what breaks before suggesting anyone else try it.
+**Live session: [RESULTS PENDING — fill from the ritual's outcome table
+(docs/status/2026-08-08-simnec-live-session-ritual.md) before sending; this
+placeholder must not survive to Ward].** Everything above is bench-tested
+against your engine's output through the same resident-process framing
+`NEC2Daemon` uses.
 
 ## Asks, smallest first
 
