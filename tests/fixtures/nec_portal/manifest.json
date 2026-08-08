@@ -129,6 +129,13 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "dipole_nh_nearfield",
+      "returncode": 253,
+      "deck_sha256": "1257034b0763ff83588dd7f0f10c69e4a8905eec066fd0fab89d9ac36c3c5158",
+      "out_sha256": "4671e8539a7f793f72b556e0cc48e804a8bc114eef3967890df1595daebe15b5",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "dipole_nt_network",
       "returncode": 253,
       "deck_sha256": "4116d7e58177156d47e3cf3a9b683969ef99f930e5e75df072e465a8e185bd7a",
@@ -147,6 +154,13 @@
       "returncode": 253,
       "deck_sha256": "10d698037cfd72deeb1ae6a0317b40392ddc245f889f9da6ca11f687a066e285",
       "out_sha256": "cd0f1c73fbcf5496af00b76d5d874bacb77f2572810dca8db10f041d29423847",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_rp_crossed_quadrature",
+      "returncode": 253,
+      "deck_sha256": "b6fa228f847a7e6744046681353dd19a33519e8e4e5cf2837c6a209d91411923",
+      "out_sha256": "8975c50a4fbda9c8efccb9d843e92c32fc650cbe39a24768208ba38ffc8cb3fa",
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
