@@ -872,6 +872,182 @@ def test_an_undriven_nt_port_floats_instead_of_shorting():
 
 
 # --------------------------------------------------------------------------
+# issue #799: TL transmission lines
+# --------------------------------------------------------------------------
+
+
+def _network_data_rows(text: str) -> list[str]:
+    """The NETWORK DATA block: every line between the banner and the blank
+    run that ends it, headers included."""
+    lines = text.splitlines()
+    start = next(i for i, ln in enumerate(lines) if "NETWORK DATA" in ln)
+    out = []
+    for line in lines[start + 1 :]:
+        if not line.strip():
+            break
+        out.append(line)
+    return out
+
+
+def test_tl_prints_its_own_column_header_and_line_type():
+    """The TL row is NOT an NT row: nec2c describes the CARD (z0, length, the
+    two end shunts) under a header of its own, and closes the row with the
+    LINE TYPE word. Both are checked against the committed oracle bytes rather
+    than against a copy of our own constants."""
+    ours = _network_data_rows(run_deck(fixture_deck("dipole_tl_network"))[0])
+    theirs = _network_data_rows(fixture_out("dipole_tl_network"))
+    assert ours[:3] == theirs[:3], "TL column header differs from the oracle's"
+    assert "TRANSMISSION LINE" in ours[0]
+    assert ours[3].endswith(" STRAIGHT")
+    # The card's own numbers are echoed verbatim, so this row IS byte-equal.
+    assert ours[3] == theirs[3]
+
+
+def test_a_crossed_tl_is_a_negative_z0_echoed_as_its_magnitude():
+    """``TL … -450. …`` prints ``4.5000E+02`` and ``CROSSED`` — the sign is a
+    polarity inversion, not part of the impedance."""
+    rows = _network_data_rows(run_deck(fixture_deck("dipole_tl_shunt_crossed"))[0])
+    line = next(r for r in rows if r.rstrip().endswith("CROSSED"))
+    assert line == next(
+        r
+        for r in _network_data_rows(fixture_out("dipole_tl_shunt_crossed"))
+        if r.rstrip().endswith("CROSSED")
+    )
+    assert "4.5000E+02" in line and "-4.5" not in line
+
+
+def test_a_mixed_deck_re_emits_the_header_when_the_row_kind_changes():
+    """One NETWORK DATA banner, two header blocks, interleaved in CARD order.
+
+    ``dipole_tl_shunt_crossed`` is TL then NT; nec2c carries the previous
+    row's kind and re-prints the matching header whenever it changes.
+    """
+    ours = _network_data_rows(run_deck(fixture_deck("dipole_tl_shunt_crossed"))[0])
+    assert ours == _network_data_rows(fixture_out("dipole_tl_shunt_crossed"))
+    assert [i for i, r in enumerate(ours) if "-- FROM -" in r] == [0, 4]
+    assert "TRANSMISSION LINE" in ours[0]
+    assert "ADMITTANCE MATRIX ELEMENTS" in ours[4]
+
+
+def test_a_zero_length_tl_echoes_the_distance_between_its_connection_points():
+    """NEC reads length 0 as "the straight-line distance", and the printout
+    echoes the RESOLVED number — probed against the oracle, whose row for this
+    deck reads ``6.0000E+02  1.0000E+00`` for wires 1 m apart."""
+    deck = fixture_deck("dipole_tl_network").replace(
+        "TL 1 5 2 5 600. 2.5 0. 0. 0. 0.", "TL 1 5 2 5 600. 0. 0. 0. 0. 0."
+    )
+    row = _network_data_rows(run_deck(deck)[0])[3]
+    assert row.split()[4:6] == ["6.0000E+02", "1.0000E+00"]
+
+
+def test_the_portal_and_nec_import_translate_tl_the_same_way():
+    """Two readers of the same card in one repo, held against each other.
+
+    ``nec_import.NecTL`` is the network-mode translation the workbench uses;
+    ``nec_portal.LineBranch`` is the daemon's. Crossed-means-negative-z0,
+    zero-length-means-distance, and the end admittances have to mean the same
+    thing in both or a deck imported one way and run the other silently
+    disagrees.
+    """
+    from antennaknobs.nec_import import parse_nec
+    from antennaknobs.nec_portal import DeckSolver, parse_deck
+
+    body = (
+        "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
+        "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "TL 1 5 2 5 -450. 0. 1.e-3 0. 3.e-3 0.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
+    solver = DeckSolver(parse_deck("CE tl\n" + body))
+    (_a, _b, branch, length) = solver.line_rows[0]
+    imported = parse_nec(body, name="tl", network=True).tls[0]
+    assert branch.z0 == imported.z0 == 450.0
+    assert branch.crossed is imported.transposed is True
+    assert length == pytest.approx(imported.length)
+    assert length == pytest.approx(1.0)  # the wire spacing, not the card's 0
+    assert (1.0 / branch.y_a.real, 1.0 / branch.y_b.real) == pytest.approx(
+        (imported.shunt_r_a, imported.shunt_r_b)
+    )
+
+
+def test_tl_source_current_is_the_segment_current_plus_the_line_current():
+    """The NT identity again, this time through a line's equivalent network.
+
+    ANTENNA INPUT PARAMETERS reports what the SOURCE delivers, CURRENTS AND
+    LOCATION what flows in the segment, and the difference is exactly what the
+    line draws at that node — ``Y11·V1 + Y12·V2`` for the card's own 2×2. This
+    is where the electrical length of the line has to be right: a
+    quarter-wave 600 Ω line at 30 MHz has ``Y11 ≈ 0`` (cot βl ≈ 0) and
+    ``|Y12| ≈ 1.7 mS``, so essentially the whole difference is the FAR end's
+    voltage coming back through the line.
+    """
+    from antennaknobs.network_reduce import tl_admittance_2x2
+
+    text = run_deck(fixture_deck("dipole_tl_network"))[0]
+    source = complex(*(float(v) for v in aip_tables(text)[-1][0][4:6]))
+    excitation = aip_tables(text)[0]
+    v_far = complex(float(excitation[0][2]), float(excitation[0][3]))
+    near = excitation[1]
+    v_near = complex(float(near[2]), float(near[3]))
+    segment = complex(float(near[4]), float(near[5]))
+
+    wavelength = 299_792_458.0 / 30e6
+    y = tl_admittance_2x2(600.0, 2.5, wavelength)
+    assert abs(y[0, 0]) < 0.02 * abs(y[0, 1]), "not the quarter-wave case any more"
+    branch = y[0, 0] * v_near + y[0, 1] * v_far
+    # 1e-4 is the printout's own resolution: five significant digits.
+    assert source == pytest.approx(segment + branch, rel=1e-4)
+
+
+def test_a_lossless_tl_absorbs_nothing_but_shunt_conductance_does():
+    """NETWORK LOSS is the whole TL power identity: an ideal line is a pure
+    reactance chain and cannot absorb, while the card's end admittances can —
+    and the budget must charge them rather than crediting radiation."""
+    lossless = _power_budget(run_deck(fixture_deck("dipole_tl_network"))[0])
+    assert abs(lossless["NETWORK LOSS"]) < 1e-9 * lossless["INPUT POWER"]
+    assert lossless["EFFICIENCY"] == pytest.approx(100.0, abs=0.01)
+
+    lossy = _power_budget(run_deck(fixture_deck("dipole_tl_shunt_crossed"))[0])
+    assert lossy["NETWORK LOSS"] > 0
+    assert lossy["RADIATED POWER"] == pytest.approx(
+        lossy["INPUT POWER"] - lossy["STRUCTURE LOSS"] - lossy["NETWORK LOSS"],
+        rel=1e-3,
+    )
+
+
+def _power_budget(text: str) -> dict[str, float]:
+    return {
+        line.split("=")[0].strip(): float(line.split("=")[1].split()[0])
+        for line in text.splitlines()
+        if "=" in line and ("POWER" in line or "LOSS" in line or "EFFICIENCY" in line)
+    }
+
+
+def test_a_half_wave_lossless_tl_is_refused_by_name():
+    """The one TL shape that has no admittance matrix at all: at k·λ/2 the
+    line is a through-connection its nodal description cannot spell (sinh γl =
+    0), and nec2c's netwk() divides by the same sinh. Refusing it names the
+    card; guessing would print a table of infinities.
+
+    The bar is deliberately at machine zero, not at "near a half wave": a line
+    a part in 10^7 off length has a large but perfectly finite admittance, and
+    printing it is the honest answer.
+    """
+    half_wave = 299_792_458.0 / 30e6 / 2  # 4.996540966666666 m
+    deck = fixture_deck("dipole_tl_network").replace(
+        "TL 1 5 2 5 600. 2.5 0. 0. 0. 0.",
+        f"TL 1 5 2 5 600. {half_wave!r} 0. 0. 0. 0.",
+    )
+    text = run_deck(deck)[0]
+    assert "ERROR-NEC2C: " in text
+    assert "TL" in text
+    assert NX_ECHO.search(text), "no NX sentinel on the error path"
+
+
+# --------------------------------------------------------------------------
 # unit 3: robustness — the daemon must survive anything on stdin
 # --------------------------------------------------------------------------
 

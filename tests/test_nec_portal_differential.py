@@ -18,8 +18,9 @@ matrix.  The bar is that a design tuned against one engine behaves the same
 against the other, so the default tolerance is **5 % relative** on impedances
 and port currents and **±0.5 dB** on pattern gain.
 
-Measured at authoring time (2026-08-08, momwire 0.23.0, nec2c 5b4az.ae6ty.1.17)
-— worst case over every row of every table in each fixture:
+Measured at authoring time (2026-08-08, momwire 0.23.0, nec2c 5b4az.ae6ty.1.17;
+the two ``dipole_tl_*`` rows added 2026-08-09 for issue #799) — worst case over
+every row of every table in each fixture:
 
 ===================================  ======  ======  ======  ======  =====
 fixture                               Z err   I err  YY err  I curve  dGain
@@ -49,6 +50,8 @@ dipole_reflection_ground              2.23%   2.23%       -   4.36%      -
 dipole_rp_crossed_quadrature          0.76%   0.76%       -   0.96%   0.09
 dipole_rp_pattern                     0.76%   0.76%       -   0.96%   0.12
 dipole_sommerfeld_ground              2.24%   2.23%       -   4.35%      -
+dipole_tl_network                     0.27%   0.26%       -   1.01%      -   (d)
+dipole_tl_shunt_crossed               1.14%   1.14%       -   0.89%      -
 jar_testdeck                         12.02%  12.02%  12.02%   6.00%      -   (c)
 jar_testdeck_daemon_framed           12.02%  12.02%  12.02%   6.00%      -   (c)
 resident_two_decks                    0.77%   0.77%       -   0.96%      -
@@ -85,6 +88,18 @@ a small residual between two large, nearly cancelling numbers:
 Each of those is asserted at its own tolerance below, WITH the identity that
 makes it benign, so a future regression that is not this phenomenon still
 fails.
+
+(d) is a *near* miss worth recording rather than an outlier. ``TL`` decks are
+    exposed to the same cancellation the three above are: a line at an odd
+    quarter wave is an impedance INVERTER, so a small basis difference at the
+    far end comes back magnified at the near one, and two branches across one
+    pair of gaps make a loop whose port admittance is a residual. The first
+    draft of ``dipole_tl_shunt_crossed`` hung its NT back across the same pair
+    as the TL and measured 6.6 % — 5× the same deck with the NT chained onto a
+    third dipole (1.14 %), for a structure whose printout layout is identical
+    either way. The committed decks are the chained ones; nothing here needs a
+    widened bar, and if a future TL fixture does, this is the mechanism to
+    check first.
 """
 
 from __future__ import annotations
@@ -443,6 +458,48 @@ def test_the_nt_networks_source_current_agrees_even_though_the_segment_does_not(
     assert relative(z_a, z_b) <= Z_TOL
     # ... and the segment current it is built from is genuinely the small one.
     assert abs(ours.network[1][0]) < 0.5 * abs(i_a)
+
+
+TL_FIXTURES = ("dipole_tl_network", "dipole_tl_shunt_crossed")
+
+
+def _network_gap_voltages(text: str) -> list[complex]:
+    """The VOLTAGE column of STRUCTURE EXCITATION DATA — fields 2 and 3, which
+    ``read_printout`` does not keep because ``Execute`` never reads them."""
+    out: list[complex] = []
+    armed = False
+    for line in text.splitlines():
+        if "STRUCTURE EXCITATION DATA" in line:
+            armed = True
+            continue
+        if not armed:
+            continue
+        parts = line.split()
+        if len(parts) != 11 or not parts[0].isdigit():
+            if out:
+                break
+            continue
+        out.append(complex(float(parts[2]), float(parts[3])))
+    return out
+
+
+@pytest.mark.parametrize("name", TL_FIXTURES)
+def test_tl_far_end_gap_voltages_agree(name):
+    """The number a TL card's electrical length actually decides.
+
+    A ``TL`` end that nothing drives floats to whatever balances the node
+    through the line, so its gap voltage is the reading that would move if βl,
+    the crossed-line sign, or the end shunts were wrong — and it is invisible
+    to every other assertion here, because ``Execute`` never reads this table
+    and the port test only sees the driven end. Both engines must agree at the
+    ordinary bar; a quarter-wave line's inversion would amplify anything that
+    did not.
+    """
+    ours = _network_gap_voltages(our_printout(name))
+    theirs = _network_gap_voltages(oracle_printout(name))
+    assert len(ours) == len(theirs) >= 2
+    for row, (a, b) in enumerate(zip(ours, theirs, strict=True)):
+        assert relative(a, b) <= Z_TOL, f"{name} network row {row}: {a} vs {b}"
 
 
 @pytest.mark.parametrize("name", NAMES)
