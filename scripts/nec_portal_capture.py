@@ -304,6 +304,26 @@ def _synthetic_decks() -> dict[str, str]:
     # toggle in one run — the first XQ suppressed, the second restored — and,
     # because it carries a YY card, that Ward's `-YY` report SURVIVES the
     # suppression and is printed where the table would have been.
+    decks["dipole_ek_extended"] = (
+        "CE ek extended thin-wire kernel, as the live NECSource path sends it\n"
+        + _DIPOLE_GW
+        + "GE 0\n"
+        "EK\n"
+        "FR 0 1 0 0 30. 1\n"
+        "EX 0 1 5 0 1.\n"
+        "XQ\n"
+    )
+    decks["dipole_ek_rearm"] = (
+        "CE ek -1 echo form, and an EK between XQs re-arming without a refill\n"
+        + _DIPOLE_GW
+        + "GE 0\n"
+        "EK -1\n"
+        "FR 0 1 0 0 30. 1\n"
+        "EX 0 1 5 0 1.\n"
+        "XQ\n"
+        "EK\n"
+        "XQ\n"
+    )
     decks["dipole_pt_toggle"] = (
         "CE pt suppresses then restores the currents table\n"
         + _DIPOLE_GW
@@ -453,6 +473,7 @@ PORTAL_CARDS = frozenset(
     {
         "CM",
         "CE",  # comments
+        "EK",  # extended thin-wire kernel — the live NECSource path sends it
         "GW",
         "GM",
         "GS",

@@ -362,7 +362,7 @@ _DEFERRED_CARDS = MappingProxyType(
 _EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
 
 # Cards that make the next execute card a real run rather than a no-op.
-_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "YY"})
+_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "YY", "EK"})
 
 
 @dataclass(frozen=True)
@@ -706,6 +706,19 @@ class ExecuteGroup:
     # reason, and because ``PT`` is a TOGGLE: ``dipole_pt_toggle`` suppresses
     # the first run's table and restores the second's from one deck.
     pt: PrintControl | None = None
+    # EK in force when this group fired. Advisory for momwire (our kernel is
+    # our kernel), but the refilled preamble must announce it exactly as the
+    # oracle does — and only there: an EK between two XQs re-arms execution
+    # without a refill, and the oracle prints no announcement for it
+    # (measured: XQ / EK / XQ shows two AIP sections, one preamble, zero
+    # announcements).
+    ek: bool = False
+    # A kernel change between execute cards refills the matrix WITHOUT a new
+    # FR: the oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING
+    # part of the preamble but no FREQUENCY block and no kernel announcement
+    # (fixture dipole_ek_rearm). Advisory refill for us — the cached factors
+    # are already momwire's — but the printout must walk the same sections.
+    refilled_partial: bool = False
 
 
 @dataclass
@@ -799,6 +812,9 @@ def parse_deck(body: str) -> PortalDeck:
     reduced_field: int | None = None
     multiprocessing: Multiprocessing | None = None
     print_control: PrintControl | None = None
+    extended_kernel = False
+    kernel_dirty = False
+    sources_stale = False
 
     for line in body.splitlines():
         card = parse_card(line)
@@ -846,6 +862,20 @@ def parse_deck(body: str) -> PortalDeck:
             # new card is an MP (measured — the second XQ of `... XQ / MP 4 8 /
             # XQ` prints no block at all).
             multiprocessing = Multiprocessing.from_card(card)
+        elif card.mnemonic == "EK":
+            if card.i(0) not in (0, -1):
+                raise PortalError(
+                    f"EK {card.i(0)} is neither 0 (extended kernel) nor -1 "
+                    f"(standard kernel)"
+                )
+            if (
+                card.i(0) == 0
+                and not extended_kernel
+                or card.i(0) == -1
+                and extended_kernel
+            ):
+                kernel_dirty = executed > 0
+            extended_kernel = card.i(0) == 0
         elif card.mnemonic == "PT":
             # Also not an arming card: it changes what a run PRINTS, not what
             # a run computes, so it cannot make an XQ into a fresh execution.
@@ -865,6 +895,14 @@ def parse_deck(body: str) -> PortalDeck:
                     f"EX type {card.i(0)} is not a voltage source; this engine "
                     f"drives EX 0 only"
                 )
+            # NEC RETAINS the excitation across an execute card: a re-run
+            # with no new EX re-drives the previous set (dipole_ek_rearm's
+            # second AIP repeats tag 1 seg 5), while the first EX after an
+            # execution replaces it (every multi-group fixture). So the list
+            # is cleared lazily here, not at the execute card.
+            if sources_stale:
+                sources.clear()
+                sources_stale = False
             sources.append((card.i(1), card.i(2), complex(card.f(4), card.f(5))))
         elif card.mnemonic in _EXECUTE_CARDS:
             if not armed and executed:
@@ -882,10 +920,13 @@ def parse_deck(body: str) -> PortalDeck:
                     report=None if card.mnemonic == "XQ" else card,
                     mp=multiprocessing,
                     pt=print_control,
+                    ek=extended_kernel,
+                    refilled_partial=kernel_dirty and not (fresh_fr or not executed),
                 )
             )
+            kernel_dirty = False
             executed += 1
-            sources.clear()
+            sources_stale = True
             fresh_fr = False
             armed = False
         else:
@@ -2199,10 +2240,16 @@ def _run_block(
             f"                                WAVELENGTH: {wavelength:10.4E} Mtr",
             "",
             *_APPROX_INTEGRATION,
+            *(
+                ["                        THE EXTENDED THIN WIRE KERNEL WILL BE USED"]
+                if group.ek
+                else []
+            ),
             "",
             "",
-            _LOADING_HEADER,
         ]
+    if group.refilled or group.refilled_partial:
+        out += [_LOADING_HEADER]
         rows = _loading_rows(deck)
         if rows:
             out += [*_LOADING_TABLE_HEADER, *rows]
@@ -2408,6 +2455,74 @@ def run_deck(body: str) -> tuple[str, str]:
 # --------------------------------------------------------------------------
 
 
+_SELFTEST_DECKS = (
+    # A free-space dipole, the two-source Y probe, and a TL station — the
+    # three deck shapes a live SimNEC session leans on hardest.
+    # EK rides in deck 1 because the live NECSource path ALWAYS sends it —
+    # the card whose absence from the bench corpus caused the first live
+    # failure (Windows session, 2026-08-08).
+    "CE selftest 1\n"
+    "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+    "GE 0\nEK\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    "CE selftest 2\n"
+    "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+    "GW 2 11 3. -5. 10. 3. 5. 10. 0.001\n"
+    "GE 0\nYY 1 6 2 6\n"
+    "EX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\n"
+    "EX 0 2 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    "CE selftest 3\n"
+    "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+    "GW 2 3 20. -0.5 10. 20. 0.5 10. 0.001\n"
+    "GE 0\nTL 2 2 1 6 600. 20.\n"
+    "EX 0 2 2 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+)
+
+
+def _selftest(stdout) -> int:
+    """Deployment smoke with no files needed (``momwire-nec2c --selftest``).
+
+    The unit suite proves the printout; this proves the PROCESS on the box it
+    will actually run on — the resident loop under a real OS pipe, which is
+    what a SimNEC session depends on and what matters when the install is a
+    bare ``pip install`` with no checkout (e.g. the Windows box, where SimNEC
+    launches engines through ``cmd.exe`` and text I/O is CRLF). It spawns
+    itself exactly once, feeds three embedded decks down the one process, and
+    requires per deck: the banner (first deck only), an ANTENNA INPUT
+    PARAMETERS section, and the NX data-card echo sentinel — miss that and a
+    live SimNEC hangs forever, which is the failure this exists to catch.
+    """
+    import subprocess
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "antennaknobs.nec_portal"],
+        input="".join(_SELFTEST_DECKS),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    checks = {
+        "process exited 0": proc.returncode == 0,
+        "banner present": "VERSION:" in proc.stdout,
+        "EK accepted": "EXTENDED THIN WIRE KERNEL" in proc.stdout,
+        "4 solve groups answered": proc.stdout.count("ANTENNA INPUT PARAMETERS") == 4,
+        "3 NX sentinels": sum(
+            1
+            for ln in proc.stdout.splitlines()
+            if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
+        )
+        == 3,
+        "-YY row present": "    -YY " in proc.stdout,
+        "TL network row present": "STRAIGHT" in proc.stdout,
+        "stderr quiet": proc.stderr.strip() == "",
+    }
+    for name, ok in checks.items():
+        stdout.write(f"  {'ok  ' if ok else 'FAIL'} {name}\n")
+    passed = all(checks.values())
+    stdout.write("PASS\n" if passed else "FAIL\n")
+    stdout.flush()
+    return 0 if passed else 1
+
+
 def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) -> int:
     """The daemon. ``-version`` probes; otherwise read decks until stdin ends.
 
@@ -2424,6 +2539,9 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
         stdout.write(f"{PROBE_VERSION}\n")
         stdout.flush()
         return 0
+
+    if any(a.lstrip("-").lower() == "selftest" for a in argv):
+        return _selftest(stdout)
 
     # The banner belongs to process start-up; every later one trails an NX.
     stdout.write("\n".join(_BANNER) + "\n")

@@ -7,6 +7,30 @@ end. This is the script for that session. Run it at the box with SimNEC
 installed; record the outcome in the table at the bottom. **This is the last
 gate before the notes in `2026-08-08-ward-simnec-momwire-notes.md` go out.**
 
+## 0a. Running this on a Windows box instead
+
+The ritual works unchanged on any machine with SimNEC — and Windows is
+arguably the stronger test (SimNEC's user base, the `cmd.exe /c` launch
+path, CRLF through `Execute.readLine()`). Windows translation of the setup:
+
+```bat
+py -3.12 -m venv %USERPROFILE%\momwire-portal
+%USERPROFILE%\momwire-portal\Scripts\pip install https://github.com/stevenmburns/antennaknobs/archive/refs/heads/main.zip
+%USERPROFILE%\momwire-portal\Scripts\momwire-nec2c.exe -version
+%USERPROFILE%\momwire-portal\Scripts\momwire-nec2c.exe --selftest
+```
+
+(momwire ships `win_amd64` wheels for CPython 3.10–3.14; the zip install
+needs no git client; the `.exe` name still contains `nec2c` so the portal's
+filename check passes.) `--selftest` replaces the bash smoke script — it
+needs no checkout: it spawns one resident copy of itself, runs three
+embedded decks (plain dipole, two-source Y probe, TL station) down the one
+process, and PASSes only if every solve answered with its NX sentinel. In
+step 1, paste the full `...\Scripts\momwire-nec2c.exe` path into the portal
+dialog; SimNEC's per-user state lives under `%USERPROFILE%\.SimNEC`. If the
+box has less RAM than 16 GB, drop `necCrewSize` accordingly (~90 MB per
+resident engine before solve data). Everything from step 2 on is identical.
+
 ## 0. Pre-flight (no GUI needed)
 
 ```bash
