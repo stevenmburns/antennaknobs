@@ -2,15 +2,15 @@
 
 Status doc for issue #792 ("momwire as a SimNEC engine").  §1–§10 are unit
 1's survey; §11 is what unit 2 resolved, §12 unit 3, §13 what was still open
-after it, §14 what unit 4 resolved, and §15 the `TL` layout issue #799 pinned
-(§15.5 is the live open list).
+after it, §14 what unit 4 resolved, §15 the `TL` layout issue #799 pinned, and
+§16 the `MP` and `PT` layouts issue #800 pinned (§16.6 is the live open list).
 
 This is the empirical contract later units are written against. Two independent
 sources:
 
 1. **The oracle.** `nec2c-ubuntu-x86` (banner `VERSION:5b4az.ae6ty.1.17`), the
    NEC-2 build SimNEC 2/3 ships under
-   `~/.SimNEC/2/3/Examples/nec2c.ae6ty/bin/`. 32 deck/printout pairs captured
+   `~/.SimNEC/2/3/Examples/nec2c.ae6ty/bin/`. 36 deck/printout pairs captured
    by `scripts/nec_portal_capture.py` live in `tests/fixtures/nec_portal/`.
 2. **The parser.** `nec2/Execute`, `nec2/NEC2Daemon`, `nec2/NEC5Daemon` and
    `nec2/NECSource` inside `~/SimNEC/SimNEC.jar`, decompiled with CFR
@@ -579,15 +579,15 @@ Other messages in the binary: `nec2c: Bad YY card format`,
 ## 9. The fixture corpus
 
 `scripts/nec_portal_capture.py` regenerates
-`tests/fixtures/nec_portal/` — 32 `<name>.deck` / `<name>.out` pairs plus
+`tests/fixtures/nec_portal/` — 36 `<name>.deck` / `<name>.out` pairs plus
 `manifest.json` (per-deck exit code, both SHA-256s, and the captured stderr).
 
 * `jar_testdeck`, `jar_testdeck_daemon_framed` — the deck embedded in
   `nec2/NEC2Daemon`, raw and with the daemon's `CM FF 2` prefix.
-* 19 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
+* 23 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
   / Sommerfeld grounds, `LD 0` / `LD 4` / `LD 5`, `GS`, `GM`, `NT`, two `TL`
-  decks (§15), `RP`, `NE`, the 2-port sensor-line probe and the 2-port `YY`
-  probe.
+  decks (§15), two `MP` decks and two `PT` decks (§16), `RP`, `NE`, the 2-port
+  sensor-line probe and the 2-port `YY` probe.
 * 10 catalog designs through `antennaknobs.nec_export.export_nec`, massaged
   into the portal dialect (`EN` dropped, `NX` appended).
 * `resident_two_decks` — two decks down one process, the residency pin.
@@ -973,7 +973,9 @@ Item 5 shrank but did not close: `RP`, `NE`, `NH` and `NT` are now pinned; `PT`
 (and the plane-wave `EX i1 …` / `PT -1` / `XQ` / `PT -2` sequence), `MP` and
 `IS` are not. `TL` joined them here — the portal emits it, `nec_import` can
 translate it, and only the printout layout was missing. **Closed by issue #799,
-§15.**
+§15.** `PT` and `MP` **closed by issue #800, §16** — and `PT` turned out not to
+be entangled with the plane-wave sequence at all; only `IS` and the plane-wave
+`EX` itself are left of item 5.
 
 New for unit 4:
 
@@ -1193,3 +1195,201 @@ identical; chaining the `NT` onto a third dipole dropped it to 1.14 %.
 `checkNEC42Fields`, `processExcitation`'s caller, patch/surface support, the
 multi-point-`FR` blank lines, `PT`/`MP`/`IS` printout layouts, `RP` modes 1-6,
 spherical `NE`/`NH`, and the `FieldStore` gain-vs-directivity convention.
+(`PT` and `MP` came off this list in §16; the live open list is §16.6.)
+
+## 16. Resolved by issue #800 — the `MP` and `PT` printout layouts
+
+Two of the three cards left on §15.6's list. `IS` stays deferred (§16.6).
+
+### 16.1 `MP` is an ae6ty extension, and SimNEC emits it by itself
+
+`MP` is not a stock NEC-2 card. `nec2/NECSource.constructNECFile` writes it
+from the format string
+
+```
+MP %d %d\n
+```
+
+with the two integers taken from `NEC2PortalDialog.getMPInfo()[1]` and `[2]` —
+the last two fields of the `necMP #segs #Proc blockSize` preference, whose
+default is `256 16 32`. So the card is **`MP <#Proc> <blockSize>`**, two
+integer fields and nothing else. Fractional fields are refused by the oracle:
+
+```
+  COMMAND DATA CARD "MP" ERROR:
+  NON-NUMERICAL CHARACTER '.' IN INTEGER FIELD AT CHAR. 5
+```
+
+The emission condition, read off the same method's bytecode, is the important
+part:
+
+```java
+totalSegments += wire.numSegments;        // over Task.allWiresForNEC()
+...
+if (necEngine == NECEngine.NEC2C && totalSegments >= getMPInfo()[0])
+    deck.append(String.format("MP %d %d\n", info[1], info[2]));
+deck.append(String.format("FR 0 1 0 0 %s 1\n", freq));
+```
+
+**Nobody asks for it.** It arrives on structure SIZE — 256 segments by
+default — and it arrives immediately before the `FR` card. Any array past that
+threshold therefore reaches the engine carrying one in ordinary use, which is
+why refusing the card refused exactly the decks worth running.
+
+It is also a *data* card, not a geometry one: `MP` before `GE` is a
+`GEOMETRY DATA CARD ERROR(3)`.
+
+### 16.2 What `MP` changes in the printout: one line
+
+`dipole_mp_multiprocessor` is `dipole_free_space`'s deck with `MP 16 32`
+inserted. The entire diff:
+
+```diff
+-  DATA CARD No:   2 FR   0     1     0     0  3.00000E+01  ...
+-  DATA CARD No:   3 XQ   0     0     0     0  0.00000E+00  ...
++  DATA CARD No:   2 MP  16    32     0     0  0.00000E+00  ...
++  DATA CARD No:   3 FR   0     1     0     0  3.00000E+01  ...
++  DATA CARD No:   4 XQ   0     0     0     0  0.00000E+00  ...
+                             -------- ANTENNA ENVIRONMENT --------
+                             FREE SPACE
++MP: multiProcessor 16 32
++
+-  DATA CARD No:   4 NX   0     0     0     0  0.00000E+00  ...
++  DATA CARD No:   5 NX   0     0     0     0  0.00000E+00  ...
+```
+
+That is all of it: the ordinary four-integer/six-real card echo, and one line
+at **column 0** immediately after the whole `ANTENNA ENVIRONMENT` block —
+after the `COMPLEX DIELECTRIC CONSTANT` row over a finite ground, checked
+separately — carrying **one blank line of its own**, so a multiprocessing run
+shows three blanks before `MATRIX TIMING` where a plain one shows two. Every
+number in the run is byte identical. (`FILL`/`FACTOR` differ run to run and are
+canonicalised by the capture script, as always.)
+
+The line reprints in **every block that rebuilds the matrix**, so a three-point
+`FR` sweep shows it three times, and a second `XQ` under the same `FR` — which
+prints no preamble at all — shows it zero more times.
+
+`MP` does **not** arm an execute card: `… XQ / MP 4 8 / XQ` runs once.
+
+### 16.3 The advisory's threshold is an unsigned comparison
+
+Measured, holding `blockSize` irrelevant throughout:
+
+| card | `MP: multiProcessor` line |
+| --- | --- |
+| `MP 0 32`, `MP 0 0`, bare `MP` | no |
+| `MP 1 32`, `MP 1 0` | no |
+| `MP 2 0`, `MP 2 1`, `MP 16 32` | yes |
+| `MP -1 32`, `MP -2 32`, `MP -3 -9` | **yes** |
+
+So it is not `#Proc >= 2`. `{0, 1}` are silent and everything else prints,
+which is what a C `if (nproc > 1)` on an **unsigned** field does — and the same
+unsigned reading is the likeliest cause of the other measured fact:
+
+> **A negative `#Proc` hangs the oracle.** `MP -1 32` and `MP -3 -9` print
+> their advisory line and then spin forever; both runs had to be killed
+> (SIGTERM at 12 s and 25 s). Since `Execute.processResponse` blocks in
+> `readLine()` with no timeout (§2, §10.1), a deck with a mistyped `MP` would
+> hang the SimNEC UI outright.
+
+### 16.4 What this engine does with `MP`
+
+Parses it, echoes it, reproduces the advisory line and its blank, and **ignores
+`#Proc` and `blockSize`**.
+
+That is not a shortcut, it is the faithful reading. The card describes how the
+oracle fills and factors its matrix; it is not physics, and the fixtures prove
+it — both `MP` captures reproduce `dipole_free_space`'s numbers to the digit,
+on the oracle's side and ours (asserted in
+`test_nec_portal_differential.py::test_mp_moves_no_number_on_either_engine`).
+momwire's parallelism is decided elsewhere and earlier: the BLAS/OpenMP pools
+behind numpy, scipy and pynec_accel are configured once per process at import
+time through `threadpoolctl` (see `web/server.py`'s thread-policy block and
+issue #377 — environment pins applied after the package `__init__` are already
+too late, because every pool snapshots its environment at load). A per-deck
+card arriving on stdin cannot reach back into that decision, and honouring it
+would mean re-limiting live pools mid-solve for a hint the sender never meant
+as a request.
+
+A hostile field is harmless here for the same reason: `MP -3 -9` is echoed,
+annotated, and solved through.
+
+### 16.5 `PT` is a toggle on one table — and nothing else
+
+`PT` looked entangled with an excitation this engine does not model, because
+SimNEC only ever emits it inside the `planeWaveExcitation` branch of
+`constructNECFile`:
+
+```
+EX 1 …          (plane wave)
+PT -1
+XQ
+PT -2
+```
+
+It is not entangled at all. Diffed against the same deck carrying no `PT`, the
+card touches `CURRENTS AND LOCATION` and leaves every other section — the data
+card echoes aside — byte identical.
+
+**`PT -1`** removes the *whole section*: banner, `DISTANCES IN WAVELENGTHS`
+note, blank, both column-header lines and every row. What is left in its place
+is Ward's `-YY` report, printed immediately after the last
+`ANTENNA INPUT PARAMETERS` row with **no blank between them**:
+
+```
+    1     5  1.0000E+00  0.0000E+00  9.5048E-03 -5.4414E-03  …
+    -YY  9.5048E-03 -5.4414E-03
+
+
+                               ---------- POWER BUDGET ---------
+```
+
+That the `-YY` line survives is the load-bearing detail: it is the row
+`addYYLine` parses (§6), so a suppression that swallowed it would break the Y
+path on exactly the decks SimNEC suppresses.
+
+**`PT -2`** restores the table, and it is a *state change*, not a per-run flag:
+`dipole_pt_toggle` suppresses its first run and restores its second from one
+deck. Like `MP`, `PT` does not arm an execute card.
+
+**`PT 0 <tag> <first> <last>`** keeps the table and prints only those segments,
+addressed exactly as an `EX` card addresses one — tag-relative, `tag = 0`
+meaning absolute segment numbers:
+
+| card (two 9-segment wires) | rows printed (seg/tag) |
+| --- | --- |
+| `PT 0 2 1 3` | `10/2 11/2 12/2` |
+| `PT 0 0 3 5` | `3/1 4/1 5/1` |
+| `PT 0 1 0 0`, `PT 0 2 0 0` | all 18 |
+
+So an all-zero range is "no restriction", not "no rows".
+
+**`PT 1`, `PT 2`, `PT 3`** are stock NEC-2's receiving-pattern and
+normalised-current formats. This ae6ty build prints the ordinary full table for
+all three (and for `PT -2`), diffed byte for byte against the card-free deck —
+so the whole card reduces to one boolean and one segment range.
+
+Two fixtures pin it: `dipole_pt_toggle` (both halves of the toggle, with a `YY`
+card so the surviving `-YY` row is visible) and `dipole_pt_segment_range`
+(`PT 0 2 1 3`).
+
+### 16.6 Still open after #800
+
+§15.6 minus `PT` and `MP`: `processResponse`'s missing timeout, `MATRIX_LINE`,
+`checkNEC42Fields`, `processExcitation`'s caller, patch/surface support, the
+multi-point-`FR` blank lines, `IS`, `RP` modes 1-6, spherical `NE`/`NH`, and
+the `FieldStore` gain-vs-directivity convention.
+
+`IS` stays deferred on purpose rather than for want of a capture. The card is
+`IS 0 <tag> <first> <last> <eps_r> <thickness>` (`NECSource` writes it as
+`"IS 0 %d %d %d  %e %e %e\n"` out of `Wire.getInsulation`), and it is NEC-4.2
+insulated-wire semantics — a distributed sheath changing the propagation
+constant along the wire, which momwire has no model for. Running such a deck as
+a bare wire would be a wrong answer rather than a refusal, so it keeps the error
+path. It is now the only card the portal dialect can carry that this engine
+declines; it is also the live example in
+`test_an_unsupported_card_still_emits_the_sentinel`.
+
+The plane-wave `EX 1 …` excitation `PT` used to be lumped with remains
+unsupported and unchanged: `EX` type != 0 is refused by name.

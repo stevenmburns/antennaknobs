@@ -6,7 +6,7 @@ Java side blocks in ``readLine()`` until it sees the ``NX`` data-card echo.
 This module is that process, with momwire behind it instead of nec2c.
 
 The contract is pinned in ``docs/status/2026-08-08-simnec-execute-grammar.md``
-(issue #792 units 1-3) and in the 30 oracle deck/printout pairs under
+(issue #792 units 1-3) and in the 36 oracle deck/printout pairs under
 ``tests/fixtures/nec_portal/``. Everything here — column widths, header
 strings, section order, the ``-YY`` row, the stderr discipline — is copied out
 of those two sources. **Layout is the contract; the numbers are momwire's.**
