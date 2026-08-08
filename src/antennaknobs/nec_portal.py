@@ -85,13 +85,31 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import numpy as np
-from momwire import BSplineSolver
+from momwire import BSplineSolver, SinusoidalGalerkinSolver
+
 
 from .builder import AntennaBuilder
 from .engines.momwire import MomwireEngine
 from .nec_import import parse_nec
 from .network import _series_rlc_impedance
 from .network_reduce import SingularNetworkError, tl_admittance_2x2
+
+# --basis choices (mirrors the CLI's MOMWIRE_BASES/VARIANTS subset that makes
+# sense behind SimNEC): name -> (solver class, solver kwargs, banner suffix).
+# Two portal-dialog entries differing only in --basis give a SimNEC user
+# cross-basis validation inside SimNEC itself; `-converged` is the
+# recommended setting for near-open high-Q feeds (momwire#213), the class
+# where the live session measured the largest cross-engine gap.
+_BASES = {
+    "bspline": (BSplineSolver, {}, ""),
+    "sinusoidal-galerkin": (SinusoidalGalerkinSolver, {}, "+sg"),
+    "sinusoidal-galerkin-converged": (
+        SinusoidalGalerkinSolver,
+        {"feed_model": "point"},
+        "+sgc",
+    ),
+}
+_active_basis = _BASES["bspline"]
 
 __all__ = [
     "BANNER_VERSION",
@@ -152,6 +170,23 @@ _BANNER = (
     "",
     f"VERSION:{BANNER_VERSION}",
 )
+
+
+def _banner_lines() -> tuple:
+    """The process banner, with the basis recorded in the version tail.
+
+    The default basis keeps the exact historical banner (fixture-pinned);
+    a non-default one appends its suffix (`+sg` / `+sgc`) so a session
+    transcript records which physics answered. Only the PRINTOUT banner —
+    the `-version` probe line never changes, since SimNEC Double-parses it.
+    """
+    suffix = _active_basis[2]
+    if not suffix:
+        return _BANNER
+    return tuple(
+        line if not line.startswith("VERSION:") else line + suffix for line in _BANNER
+    )
+
 
 _COMMENTS_HEADER = (
     "                               ---------------- COMMENTS ----------------"
@@ -1404,6 +1439,29 @@ def _y_and_port_coeffs(solver):
     the solver class NAME, so a subclass would silently drop a Sommerfeld deck
     back onto a PEC image.
     """
+    if not hasattr(solver, "_solve_with_kcl_ports"):
+        # Sinusoidal-Galerkin family: no KCL-port solve to spy on, but
+        # compute_y_matrix's own algebra IS the (Y, X) pair — alphas is the
+        # per-port coefficient matrix it computes and throws away. Kept
+        # verbatim from momwire's compute_y_matrix so the two can never
+        # disagree; the private reach is the same momwire#232 debt as the
+        # shim below.
+        import scipy.linalg
+
+        solver._refuse_junction_port_solve()
+        geom = solver._build_geometry()
+        G, seg_view = solver._assemble_Z_ported(geom, solver.k)
+        U = solver._drive_columns(geom, seg_view, solver.k)
+        alphas = scipy.linalg.solve(G, U)
+        y = np.stack(
+            [
+                solver._port_currents(alphas[:, j], geom, seg_view, U)
+                for j in range(solver.n_ports)
+            ],
+            axis=1,
+        )
+        return y, alphas
+
     captured: dict[str, np.ndarray] = {}
     original = solver._solve_with_kcl_ports
 
@@ -1754,8 +1812,13 @@ class DeckSolver:
                 return network
 
         ground = self.portal_deck.ground.momwire_spec()
+        cls, kwargs, _ = _active_basis
         return MomwireEngine(
-            _DeckBuilder(), solver=BSplineSolver, ground=ground, ground_z=0.0
+            _DeckBuilder(),
+            solver=cls,
+            solver_kwargs=dict(kwargs) or None,
+            ground=ground,
+            ground_z=0.0,
         )
 
     # -- per-frequency operator -------------------------------------------
@@ -2542,7 +2605,7 @@ def deck_frame(body: str) -> tuple[list[str], list[str]]:
     # The oracle reprints its banner right after consuming NX, in anticipation
     # of the next deck; SEEKING ignores it. Reproduced so a resident
     # transcript frames identically (grammar doc §1, §10.8).
-    out += list(_BANNER[1:])
+    out += list(_banner_lines()[1:])
     return out, err
 
 
@@ -2551,7 +2614,7 @@ def run_deck(body: str) -> tuple[str, str]:
     start-up banner, the deck's frame, and whatever went to stderr."""
     out, err = deck_frame(body)
     return (
-        "\n".join([*_BANNER, *out]) + "\n",
+        "\n".join([*_banner_lines(), *out]) + "\n",
         ("\n".join(err) + "\n" if err else ""),
     )
 
@@ -2635,6 +2698,24 @@ def _selftest(stdout) -> int:
         "TL network row present": "STRAIGHT" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
     }
+    alt = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "antennaknobs.nec_portal",
+            "--basis",
+            "sinusoidal-galerkin-converged",
+        ],
+        input=_SELFTEST_DECKS[0],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    checks["alt basis answers (+sgc)"] = (
+        alt.returncode == 0
+        and "+sgc" in alt.stdout
+        and "ANTENNA INPUT PARAMETERS" in alt.stdout
+    )
     for name, ok in checks.items():
         stdout.write(f"  {'ok  ' if ok else 'FAIL'} {name}\n")
     passed = all(checks.values())
@@ -2655,6 +2736,31 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
     stdout = sys.stdout if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
 
+    # --basis rides the necCommand line itself: SimNEC launches engines via
+    # `sh -c <command>` / `cmd.exe /c`, so the portal-dialog string can carry
+    # arguments — two entries differing only in --basis are two engines. An
+    # unknown basis fails FAST and nonzero so the -version probe surfaces the
+    # mistake at configure time instead of a silent wrong default.
+    global _active_basis
+    _active_basis = _BASES["bspline"]  # per-invocation default, never sticky
+    rest = list(argv)
+    while "--basis" in rest or any(a.startswith("--basis=") for a in rest):
+        if "--basis" in rest:
+            k = rest.index("--basis")
+            name = rest[k + 1] if k + 1 < len(rest) else ""
+            del rest[k : k + 2]
+        else:
+            k = next(i for i, a in enumerate(rest) if a.startswith("--basis="))
+            name = rest.pop(k).split("=", 1)[1]
+        if name not in _BASES:
+            stdout.write(
+                f"unknown --basis {name!r}; choices: {', '.join(sorted(_BASES))}\n"
+            )
+            stdout.flush()
+            return 3
+        _active_basis = _BASES[name]
+    argv = rest
+
     if any(a.lstrip("-").lower() == "version" for a in argv):
         stdout.write(f"{PROBE_VERSION}\n")
         stdout.flush()
@@ -2664,7 +2770,7 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
         return _selftest(stdout)
 
     # The banner belongs to process start-up; every later one trails an NX.
-    stdout.write("\n".join(_BANNER) + "\n")
+    stdout.write("\n".join(_banner_lines()) + "\n")
     stdout.flush()
 
     body: list[str] = []

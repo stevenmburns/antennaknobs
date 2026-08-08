@@ -1682,3 +1682,64 @@ def test_selftest_passes_and_reports(tmp_path, monkeypatch):
     assert rc == 0
     assert text.rstrip().endswith("PASS")
     assert "FAIL" not in text
+
+
+# --- the --basis flag --------------------------------------------------------
+
+
+def _run_main(argv, deck=""):
+    import io
+
+    from antennaknobs import nec_portal
+
+    out = io.StringIO()
+    err = io.StringIO()
+    rc = nec_portal.main(argv, stdin=io.StringIO(deck), stdout=out, stderr=err)
+    return rc, out.getvalue(), err.getvalue()
+
+
+def test_basis_flag_unknown_name_fails_fast_and_nonzero():
+    """A typo'd basis must fail the -version probe at configure time, not
+    silently serve the default."""
+    rc, out, _ = _run_main(["--basis", "nope", "-version"])
+    assert rc == 3 and "choices:" in out
+
+
+def test_basis_flag_rides_the_version_probe():
+    """SimNEC probes `<full command line> -version`; the probe line must be
+    unchanged (Double-parsed by Execute) with any valid --basis present."""
+    from antennaknobs.nec_portal import PROBE_VERSION
+
+    rc, out, _ = _run_main(["--basis", "sinusoidal-galerkin-converged", "-version"])
+    assert rc == 0 and out == f"{PROBE_VERSION}\n"
+
+
+def test_basis_flag_solves_and_stamps_the_banner():
+    """The alternate basis answers a deck, and the PRINTOUT banner records
+    which physics answered (+sgc) — the -version line never does."""
+    deck = (
+        "CE basis\n"
+        "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+        "GE 0\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n"
+    )
+    rc, out, err = _run_main(["--basis=sinusoidal-galerkin-converged"], deck=deck)
+    assert rc == 0 and err == ""
+    assert "VERSION:nec2c.ae6ty.momwire.9.1+sgc" in out
+    assert "ANTENNA INPUT PARAMETERS" in out
+    rows = [
+        ln
+        for ln in out.splitlines()
+        if ln.startswith("    1 ") and len(ln.split()) == 11
+    ]
+    assert rows, "no AIP data row under the alternate basis"
+
+
+def test_default_basis_banner_is_unchanged():
+    deck = (
+        "CE basis\n"
+        "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+        "GE 0\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n"
+    )
+    rc, out, _ = _run_main([], deck=deck)
+    assert rc == 0
+    assert "VERSION:nec2c.ae6ty.momwire.9.1\n" in out and "+sg" not in out
