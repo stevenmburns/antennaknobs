@@ -1743,3 +1743,132 @@ def test_default_basis_banner_is_unchanged():
     rc, out, _ = _run_main([], deck=deck)
     assert rc == 0
     assert "VERSION:nec2c.ae6ty.momwire.9.1\n" in out and "+sg" not in out
+
+
+# --- --basis sinusoidal: the NEC-closest rung (issue #822) -------------------
+
+# Point-matched sinusoidal has neither the B-spline family's KCL-port solve nor
+# the Galerkin family's ported operator, so `_y_and_port_coeffs` grows a third
+# branch that reproduces `compute_y_matrix`'s algebra. These pin the copy to
+# momwire's own: if either drifts, the daemon's single fill and the library's
+# per-source refill stop being the same solve.
+
+
+def _sin_solver(**kwargs):
+    """A 9-segment 5 m dipole on plain SinusoidalSolver, fed at its centre."""
+    import numpy as np
+    from momwire import SinusoidalSolver
+
+    return SinusoidalSolver(
+        wires=[np.array([[0.0, 0.0, -2.5], [0.0, 0.0, 2.5]])],
+        n_per_edge_per_wire=[[9]],
+        feeds=[(0, 2.5, 1.0)],
+        wavelength=nec_portal.C_LIGHT / 14.0e6,
+        wire_radius=0.001,
+        **kwargs,
+    )
+
+
+def test_the_sinusoidal_shim_reproduces_momwires_own_y_matrix():
+    import numpy as np
+
+    y_shim, _x = nec_portal._y_and_port_coeffs(_sin_solver())
+    y_lib = np.asarray(_sin_solver().compute_y_matrix(), dtype=np.complex128)
+    assert np.allclose(y_shim, y_lib, rtol=1e-10, atol=0.0)
+
+
+def test_the_sinusoidal_shim_columns_are_the_one_volt_drive_coefficients():
+    """Column j of X must be the solve momwire would do for a 1 V drive at
+    port j — that identity is what lets `solve_group` reuse one fill for
+    every excitation (``coeffs = X @ V``)."""
+    import numpy as np
+
+    _y, x = nec_portal._y_and_port_coeffs(_sin_solver())
+    _z, alpha = _sin_solver().compute_impedance()
+    driven = x @ np.array([1.0 + 0.0j])
+    assert np.allclose(driven, alpha, rtol=1e-10, atol=0.0)
+
+
+# The classes that exercise everything the shim's coefficients feed: a
+# Sommerfeld and a two-medium ground (solver-name-gated in engines/momwire.py),
+# both network branch types, a lumped load (power budget), the PT/YY readout,
+# and a pattern (which resamples the solved current through
+# `currents_at_knots`).
+_SIN_HARD_FIXTURES = (
+    "dipole_sommerfeld_ground",
+    "dipole_gd_second_medium",
+    "dipole_tl_network",
+    "dipole_nt_network",
+    "dipole_load_ld4",
+    "dipole_pt_toggle",
+    "dipole_rp_pattern",
+)
+
+
+def _aip_rows(text: str) -> list[list[float]]:
+    """Every ANTENNA INPUT PARAMETERS data row, as floats past the tag/seg
+    pair."""
+    rows, inside = [], False
+    for line in text.splitlines():
+        if line.strip(" -") == "ANTENNA INPUT PARAMETERS":
+            inside = True
+            continue
+        if not inside:
+            continue
+        tokens = line.split()
+        if len(tokens) == 11 and tokens[0].isdigit() and tokens[1].isdigit():
+            rows.append([float(t) for t in tokens[2:]])
+        elif rows and not line.strip():
+            inside = False
+    return rows
+
+
+@pytest.mark.parametrize("name", _SIN_HARD_FIXTURES)
+def test_sinusoidal_basis_answers_the_hard_fixture_classes(name):
+    import math
+
+    deck = (FIXTURE_DIR / f"{name}.deck").read_text()
+    rc, out, err = _run_main(["--basis", "sinusoidal"], deck=deck)
+    assert rc == 0 and err == ""
+    assert "ERROR-NEC2C" not in out, f"{name} took the error path under +sin"
+    missing = set(section_walk(fixture_out(name))) - set(section_walk(out))
+    assert not missing, f"{name} lost sections under +sin: {sorted(missing)}"
+    rows = _aip_rows(out)
+    assert rows, f"no AIP data row for {name} under +sin"
+    assert all(math.isfinite(v) for row in rows for v in row), (
+        f"non-finite AIP value for {name} under +sin"
+    )
+
+
+def test_sinusoidal_basis_impedance_tracks_the_nec2c_fixture():
+    """The point-matched sinusoidal basis is the closest of the roster to
+    NEC-2's own formulation, so the free-space dipole's driving-point
+    impedance has to sit near the oracle's — a looser bound than a digit
+    match, but tight enough to catch a wrong RHS scaling or a dropped
+    ``-1/h``."""
+    deck = (FIXTURE_DIR / "dipole_free_space.deck").read_text()
+    rc, out, err = _run_main(["--basis", "sinusoidal"], deck=deck)
+    assert rc == 0 and err == ""
+    ours = complex(*_aip_rows(out)[0][4:6])
+    theirs = complex(*_aip_rows(fixture_out("dipole_free_space"))[0][4:6])
+    assert abs(ours - theirs) / abs(theirs) < 0.05, f"{ours} vs {theirs}"
+
+
+def test_sinusoidal_basis_stamps_the_banner():
+    deck = (
+        "CE basis\n"
+        "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+        "GE 0\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n"
+    )
+    rc, out, err = _run_main(["--basis", "sinusoidal"], deck=deck)
+    assert rc == 0 and err == ""
+    assert "VERSION:nec2c.ae6ty.momwire.9.1+sin" in out
+    assert _aip_rows(out)
+
+
+def test_sinusoidal_has_no_converged_variant():
+    """The zero-width point gap has no collocation RHS (momwire#212), so the
+    flag must not offer a name the solver would refuse — same constraint the
+    CLI's MOMWIRE_BASIS_VARIANTS records."""
+    rc, out, _ = _run_main(["--basis", "sinusoidal-converged", "-version"])
+    assert rc == 3 and "sinusoidal-converged" not in out.split("choices:")[1]
