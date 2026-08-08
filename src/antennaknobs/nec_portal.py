@@ -107,8 +107,12 @@ from .network_reduce import SingularNetworkError, tl_admittance_2x2
 # zero-width point gap has no collocation RHS (momwire#212) and the solver
 # refuses it rather than silently serving the segment gap, which is the same
 # constraint the CLI's MOMWIRE_BASIS_VARIANTS records.
+# `bspline-d1` (issue #821) is the degree axis instead: same BSplineSolver
+# class as `bspline`, degree=1 bound — a d1-vs-d2 convergence check a SimNEC
+# user can run as two portal entries, zero new physics.
 _BASES = {
     "bspline": (BSplineSolver, {}, ""),
+    "bspline-d1": (BSplineSolver, {"degree": 1}, "+bs1"),
     "sinusoidal": (SinusoidalSolver, {}, "+sin"),
     "sinusoidal-galerkin": (SinusoidalGalerkinSolver, {}, "+sg"),
     "sinusoidal-galerkin-converged": (
@@ -2746,6 +2750,7 @@ def _selftest(stdout) -> int:
     for basis, suffix in (
         ("sinusoidal-galerkin-converged", "+sgc"),
         ("sinusoidal", "+sin"),
+        ("bspline-d1", "+bs1"),
     ):
         alt = subprocess.run(
             [sys.executable, "-m", "antennaknobs.nec_portal", "--basis", basis],
