@@ -1,13 +1,15 @@
 # SimNEC's `nec2/Execute` printout grammar — the contract a momwire engine must meet
 
-Status doc for issue #792 ("momwire as a SimNEC engine"), unit 1.
+Status doc for issue #792 ("momwire as a SimNEC engine").  §1–§10 are unit
+1's survey; §11 is what unit 2 resolved, §12 what unit 3 resolved, and §13 is
+what is still open.
 
 This is the empirical contract later units are written against. Two independent
 sources:
 
 1. **The oracle.** `nec2c-ubuntu-x86` (banner `VERSION:5b4az.ae6ty.1.17`), the
    NEC-2 build SimNEC 2/3 ships under
-   `~/.SimNEC/2/3/Examples/nec2c.ae6ty/bin/`. 28 deck/printout pairs captured
+   `~/.SimNEC/2/3/Examples/nec2c.ae6ty/bin/`. 30 deck/printout pairs captured
    by `scripts/nec_portal_capture.py` live in `tests/fixtures/nec_portal/`.
 2. **The parser.** `nec2/Execute`, `nec2/NEC2Daemon`, `nec2/NEC5Daemon` and
    `nec2/NECSource` inside `~/SimNEC/SimNEC.jar`, decompiled with CFR
@@ -573,12 +575,12 @@ Other messages in the binary: `nec2c: Bad YY card format`,
 ## 9. The fixture corpus
 
 `scripts/nec_portal_capture.py` regenerates
-`tests/fixtures/nec_portal/` — 28 `<name>.deck` / `<name>.out` pairs plus
+`tests/fixtures/nec_portal/` — 30 `<name>.deck` / `<name>.out` pairs plus
 `manifest.json` (per-deck exit code, both SHA-256s, and the captured stderr).
 
 * `jar_testdeck`, `jar_testdeck_daemon_framed` — the deck embedded in
   `nec2/NEC2Daemon`, raw and with the daemon's `CM FF 2` prefix.
-* 15 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
+* 17 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
   / Sommerfeld grounds, `LD 0` / `LD 4` / `LD 5`, `GS`, `GM`, `NT`, `RP`, `NE`,
   the 2-port sensor-line probe and the 2-port `YY` probe.
 * 10 catalog designs through `antennaknobs.nec_export.export_nec`, massaged
