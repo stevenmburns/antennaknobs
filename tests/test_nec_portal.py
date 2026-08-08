@@ -1854,6 +1854,21 @@ def test_sinusoidal_basis_impedance_tracks_the_nec2c_fixture():
     assert abs(ours - theirs) / abs(theirs) < 0.05, f"{ours} vs {theirs}"
 
 
+def test_sinusoidal_basis_answer_differs_from_the_default_basis():
+    """Disabled-path probe: every other +sin test would still pass if the
+    ``_BASES`` entry silently served the default B-spline solver (its answer
+    is inside the 5% oracle bound too, and the banner stamps regardless of
+    what solved). The two bases genuinely disagree on this deck — measured
+    79.205+45.150j (+sin) vs 79.524+46.003j (default), 1.0% apart — so a
+    collapse to the default is detectable."""
+    deck = (FIXTURE_DIR / "dipole_free_space.deck").read_text()
+    _rc, out_sin, _err = _run_main(["--basis", "sinusoidal"], deck=deck)
+    _rc, out_default, _err = _run_main([], deck=deck)
+    z_sin = complex(*_aip_rows(out_sin)[0][4:6])
+    z_default = complex(*_aip_rows(out_default)[0][4:6])
+    assert abs(z_sin - z_default) / abs(z_default) > 0.003, (z_sin, z_default)
+
+
 def test_sinusoidal_basis_stamps_the_banner():
     deck = (
         "CE basis\n"
