@@ -1494,3 +1494,20 @@ def test_the_entry_point_runs_from_an_unrelated_cwd(tmp_path):
     assert NX_ECHO.search(solve.stdout), "no sentinel — SimNEC would block forever"
     assert "ANTENNA INPUT PARAMETERS" in solve.stdout
     assert f"VERSION:{nec_portal.BANNER_VERSION}" in solve.stdout
+
+
+def test_selftest_passes_and_reports(tmp_path, monkeypatch):
+    """`momwire-nec2c --selftest` is the deployment smoke for boxes with no
+    checkout (the Windows live-session path): it must pass here, from an
+    unrelated cwd, and print the PASS verdict on its own line."""
+    import io
+
+    from antennaknobs.nec_portal import main
+
+    monkeypatch.chdir(tmp_path)
+    out = io.StringIO()
+    rc = main(["--selftest"], stdout=out)
+    text = out.getvalue()
+    assert rc == 0
+    assert text.rstrip().endswith("PASS")
+    assert "FAIL" not in text

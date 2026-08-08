@@ -2408,6 +2408,70 @@ def run_deck(body: str) -> tuple[str, str]:
 # --------------------------------------------------------------------------
 
 
+_SELFTEST_DECKS = (
+    # A free-space dipole, the two-source Y probe, and a TL station — the
+    # three deck shapes a live SimNEC session leans on hardest.
+    "CE selftest 1\n"
+    "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+    "GE 0\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    "CE selftest 2\n"
+    "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+    "GW 2 11 3. -5. 10. 3. 5. 10. 0.001\n"
+    "GE 0\nYY 1 6 2 6\n"
+    "EX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\n"
+    "EX 0 2 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    "CE selftest 3\n"
+    "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+    "GW 2 3 20. -0.5 10. 20. 0.5 10. 0.001\n"
+    "GE 0\nTL 2 2 1 6 600. 20.\n"
+    "EX 0 2 2 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+)
+
+
+def _selftest(stdout) -> int:
+    """Deployment smoke with no files needed (``momwire-nec2c --selftest``).
+
+    The unit suite proves the printout; this proves the PROCESS on the box it
+    will actually run on — the resident loop under a real OS pipe, which is
+    what a SimNEC session depends on and what matters when the install is a
+    bare ``pip install`` with no checkout (e.g. the Windows box, where SimNEC
+    launches engines through ``cmd.exe`` and text I/O is CRLF). It spawns
+    itself exactly once, feeds three embedded decks down the one process, and
+    requires per deck: the banner (first deck only), an ANTENNA INPUT
+    PARAMETERS section, and the NX data-card echo sentinel — miss that and a
+    live SimNEC hangs forever, which is the failure this exists to catch.
+    """
+    import subprocess
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "antennaknobs.nec_portal"],
+        input="".join(_SELFTEST_DECKS),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    checks = {
+        "process exited 0": proc.returncode == 0,
+        "banner present": "VERSION:" in proc.stdout,
+        "4 solve groups answered": proc.stdout.count("ANTENNA INPUT PARAMETERS") == 4,
+        "3 NX sentinels": sum(
+            1
+            for ln in proc.stdout.splitlines()
+            if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
+        )
+        == 3,
+        "-YY row present": "    -YY " in proc.stdout,
+        "TL network row present": "STRAIGHT" in proc.stdout,
+        "stderr quiet": proc.stderr.strip() == "",
+    }
+    for name, ok in checks.items():
+        stdout.write(f"  {'ok  ' if ok else 'FAIL'} {name}\n")
+    passed = all(checks.values())
+    stdout.write("PASS\n" if passed else "FAIL\n")
+    stdout.flush()
+    return 0 if passed else 1
+
+
 def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) -> int:
     """The daemon. ``-version`` probes; otherwise read decks until stdin ends.
 
@@ -2424,6 +2488,9 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
         stdout.write(f"{PROBE_VERSION}\n")
         stdout.flush()
         return 0
+
+    if any(a.lstrip("-").lower() == "selftest" for a in argv):
+        return _selftest(stdout)
 
     # The banner belongs to process start-up; every later one trails an NX.
     stdout.write("\n".join(_BANNER) + "\n")
