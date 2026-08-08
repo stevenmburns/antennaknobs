@@ -15,22 +15,28 @@ SimNEC does not need it to: it reads exactly two numbers per
 ``ANTENNA INPUT PARAMETERS`` row (the CURRENT real/imaginary columns, fields 4
 and 5 of an 11-token row) and builds its Y matrix from them.
 
-Scope (unit 2 — the load-bearing core):
+Scope (units 2 and 3 — the whole portal dialect bar the long tail):
 
 * the version probe, the resident stdin loop, the ``NX`` sentinel;
 * ``CM``/``CE`` directives ``QQ`` (quiet) and ``FF`` (the one stderr line);
 * geometry ``GW``/``GM``/``GS``/``GX``/``GR``/``GA``/``GH``/``GE``, environment
   ``GN 0/1/2``, loading ``LD 0/1/4/5``, excitation ``EX 0``, ``FR``, ``XQ``,
   and Ward's ``YY`` report card;
+* unit 3: ``RP 0`` radiation patterns, ``NE``/``NH`` near-field grids, and
+  ``NT`` two-port networks — each of which is also an *execute* card in its
+  own right (``RP``/``NE``/``NH`` run the pending group, so a bare ``XQ``
+  after one of them re-runs nothing);
 * the printout sections SimNEC's state machine walks: banner, comments, data
   cards, structure specification, segmentation data, frequency, structure
-  impedance loading, antenna environment, matrix timing, antenna input
-  parameters, currents and location, power budget.
+  impedance loading, antenna environment, network data, matrix timing, antenna
+  input parameters, currents and location, power budget, radiation patterns,
+  near electric/magnetic fields.
 
-Deferred to unit 3: ``RP`` patterns, ``NE``/``NH`` near fields, ``NT``/``TL``
-networks, ``PT``/``MP``, surface patches, and the cross-engine differential
-harness. Those cards take the error path below rather than crashing the
-daemon.
+Still deferred (unit 4 / out of scope): ``TL`` transmission lines, ``PT``,
+``MP``, ``IS``, surface patches, ``RP`` modes other than 0, spherical
+``NE``/``NH`` grids, and ``GN`` radial-wire ground screens. Those cards take
+the error path below rather than crashing the daemon — the printout says which
+card and why, and the ``NX`` sentinel is still emitted.
 
 The architectural win over the oracle
 -------------------------------------
@@ -95,6 +101,18 @@ BANNER_VERSION = "nec2c.ae6ty.momwire.9.1"
 
 C_LIGHT = 299_792_458.0
 EPS0 = 8.854_187_817e-12
+ETA0 = 376.730_313_668
+
+# nec2c's degenerate-field threshold, in V/m (or A/m) SQUARED at the requested
+# range. A pattern component at or below it prints as the -999.99 gain floor,
+# and a row whose BOTH components are below it prints a blank SENSE column —
+# which is exactly what makes that row 11 tokens instead of 12. Read off
+# ``dipole_rp_pattern.out`` (E_theta = 5.4196E-15 at theta = 180 -> -999.99 and
+# blank) and confirmed against ``dipole_rp_crossed_quadrature.out``
+# (E_theta = 2.7098E-15 -> VERTC -999.99 but SENSE still LINEAR, because
+# E_phi is large). Grammar doc §4.14.
+_FIELD_FLOOR2 = 1.0e-20
+_GAIN_FLOOR_DB = -999.99
 
 # --------------------------------------------------------------------------
 # fixed printout chrome (verbatim from tests/fixtures/nec_portal/*.out)
@@ -205,6 +223,81 @@ _CURRENTS_TABLE_HEADER = (
 
 _POWER_HEADER = "                               ---------- POWER BUDGET ---------"
 
+# ---------------------------------------------------------------------------
+# unit 3 chrome — copied byte for byte out of dipole_nt_network.out,
+# dipole_rp_pattern.out, dipole_ne_nearfield.out and dipole_nh_nearfield.out.
+# ---------------------------------------------------------------------------
+
+_NETWORK_HEADER = (
+    "                                            ---------- NETWORK DATA ----------"
+)
+_NETWORK_TABLE_HEADER = (
+    "  -- FROM -  --- TO --            -------- ADMITTANCE MATRIX ELEMENTS"
+    " (MHOS) ---------",
+    "  TAG   SEG  TAG   SEG   ----- (ONE,ONE) ------   ----- (ONE,TWO) -----"
+    "   ----- (TWO,TWO) -------",
+    "  No:   No:  No:   No:      REAL      IMAGINARY      REAL     IMAGINARY"
+    "       REAL      IMAGINARY",
+)
+_NETWORK_EXCITATION_HEADER = (
+    "                          --------- STRUCTURE EXCITATION DATA AT NETWORK"
+    " CONNECTION POINTS --------"
+)
+# Same 11-token row shape as ANTENNA INPUT PARAMETERS, but the oracle's header
+# spacing differs by a column here and there — copy it, do not reuse.
+_NETWORK_EXCITATION_TABLE_HEADER = (
+    "  TAG   SEG       VOLTAGE (VOLTS)          CURRENT (AMPS)         IMPEDANCE"
+    " (OHMS)       ADMITTANCE (MHOS)     POWER",
+    "  No:   No:     REAL      IMAGINARY     REAL      IMAGINARY     REAL     "
+    " IMAGINARY     REAL      IMAGINARY   (WATTS)",
+)
+
+_PATTERN_HEADER = (
+    "                             ---------- RADIATION PATTERNS -----------"
+)
+_PATTERN_TABLE_HEADER = (
+    " ---- ANGLES -----     ----- POWER GAINS -----       ---- POLARIZATION ----"
+    "   ---- E(THETA) ----    ----- E(PHI) ------",
+    "  THETA      PHI       VERTC    HORIZ    TOTAL       AXIAL      TILT  SENSE"
+    "   MAGNITUDE    PHASE    MAGNITUDE     PHASE",
+    " DEGREES   DEGREES        DB       DB       DB       RATIO   DEGREES        "
+    "    VOLTS/M   DEGREES     VOLTS/M   DEGREES",
+)
+_PATTERN_TIME = "    Radiation Compute Time 0"
+
+_NEAR_E_HEADER = "                             -------- NEAR ELECTRIC FIELDS --------"
+# NOTE the magnetic banner is NOT the electric one with a word swapped: the
+# indent and the trailing dash run both differ. Both arm the same
+# WAITINGFORMETERSMETERSMETERS state, so the difference is cosmetic — but it is
+# still bytes, and bytes are the contract.
+_NEAR_H_HEADER = (
+    "                                   -------- NEAR MAGNETIC FIELDS ---------"
+)
+_NEAR_E_TABLE_HEADER = (
+    "     ------- LOCATION -------     ------- EX ------    ------- EY ------"
+    "    ------- EZ ------",
+    "      X         Y         Z       MAGNITUDE   PHASE    MAGNITUDE   PHASE"
+    "    MAGNITUDE   PHASE",
+    "    METERS    METERS    METERS     VOLTS/M  DEGREES    VOLTS/M   DEGREES"
+    "     VOLTS/M  DEGREES",
+)
+_NEAR_H_TABLE_HEADER = (
+    "     ------- LOCATION -------     ------- HX ------    ------- HY ------"
+    "    ------- HZ ------",
+    "      X         Y         Z       MAGNITUDE   PHASE    MAGNITUDE   PHASE"
+    "    MAGNITUDE   PHASE",
+    "    METERS    METERS    METERS      AMPS/M  DEGREES      AMPS/M  DEGREES"
+    "      AMPS/M  DEGREES",
+)
+_NEAR_FIELD_TIME = "    Near Field Compute Time 0"
+
+# Elements per momwire mesh segment when evaluating a near field. The far-field
+# sum needs one dipole per segment because only the radiation-zone limit
+# matters; a near field a metre from a half-metre segment does not, so each
+# segment is resampled through ``currents_at_knots(coeffs, s_array=...)`` and
+# summed as a finer chain of Hertzian elements.
+_NEAR_FIELD_SUBDIV = 8
+
 # The oracle writes this to both stdout and stderr when its input ends; the
 # grammar doc's error table (§8) makes it the one error shape SimNEC tolerates
 # without tripping the `ERROR:` warning frame (that test is on token 0 alone).
@@ -223,14 +316,10 @@ class PortalError(Exception):
 # Cards echoed inside STRUCTURE SPECIFICATION rather than as DATA CARD lines.
 _GEOMETRY_CARDS = frozenset({"GW", "GA", "GH", "GM", "GX", "GR", "GS", "GE"})
 
-# Cards the portal dialect can carry that unit 2 does not model yet. They are
+# Cards the portal dialect can carry that this build does not model. They are
 # named so the error path can say WHICH card, instead of "unrecognised".
 _DEFERRED_CARDS = MappingProxyType(
     {
-        "RP": "radiation-pattern request",
-        "NE": "near-electric-field request",
-        "NH": "near-magnetic-field request",
-        "NT": "two-port network",
         "TL": "transmission line",
         "PT": "current print control",
         "MP": "multiprocessing hint",
@@ -239,6 +328,16 @@ _DEFERRED_CARDS = MappingProxyType(
         "SM": "multiple-patch surface",
     }
 )
+
+# Cards that RUN the pending excitation group. ``RP``/``NE``/``NH`` are not
+# just report requests: nec2c executes on reading them and then prints their
+# table after the power budget, which is why ``dipole_rp_pattern.out`` echoes
+# EX / FR / RP, runs, and only then echoes the trailing ``XQ`` — an ``XQ`` with
+# nothing new since the last execution produces no output at all.
+_EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
+
+# Cards that make the next execute card a real run rather than a no-op.
+_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "YY"})
 
 
 @dataclass(frozen=True)
@@ -308,6 +407,19 @@ class Ground:
         if code == -1:
             return cls("free")
         if code in (0, 2):
+            # I2 is NRADL, the radial-wire ground-screen count. nec2c models a
+            # screen as a surface impedance on the reflection-coefficient
+            # ground only; momwire has no screen model at all, so ignoring the
+            # field would silently change the physics. Reject it by name.
+            # (For GN 2 the oracle refuses it too, with
+            # "RADIAL WIRE G.S. APPROXIMATION MAY NOT BE USED WITH SOMMERFELD
+            # GROUND OPTION" — and then aborts WITHOUT the NX echo. Grammar
+            # doc §11.)
+            if card.i(1) != 0:
+                raise PortalError(
+                    f"GN {code} with a {card.i(1)}-wire radial ground screen is "
+                    f"not supported by this engine"
+                )
             kind = "refl" if code == 0 else "sommerfeld"
             return cls(kind, card.f(4), card.f(5))
         raise PortalError(f"GN type {code} is not supported by this engine")
@@ -326,12 +438,42 @@ class Ground:
         )
 
 
+@dataclass(frozen=True)
+class NetworkBranch:
+    """One ``NT`` card: a reciprocal two-port admittance across two segments.
+
+    NEC's card gives ``Y11``, ``Y12`` and ``Y22`` (real + imaginary each) and
+    takes ``Y21 = Y12``. The branch hangs off the two segments' gaps, in
+    parallel with the structure, so its current adds to the segment current at
+    the same node — which is why the driven port's ANTENNA INPUT PARAMETERS
+    current is the SOURCE current (segment + network) and not the segment
+    current the CURRENTS AND LOCATION table prints.
+    """
+
+    a: tuple[int, int]  # (tag, segment) of port one
+    b: tuple[int, int]  # (tag, segment) of port two
+    y11: complex
+    y12: complex
+    y22: complex
+
+    @classmethod
+    def from_card(cls, card: Card) -> NetworkBranch:
+        return cls(
+            (card.i(0), card.i(1)),
+            (card.i(2), card.i(3)),
+            complex(card.f(4), card.f(5)),
+            complex(card.f(6), card.f(7)),
+            complex(card.f(8), card.f(9)),
+        )
+
+
 @dataclass
 class ExecuteGroup:
-    """One ``XQ``'s worth of state: the sources armed when it fired, and the
-    frequency card in force. NEC clears the source list at every ``XQ``, which
-    is why ``two_source_sensor_lines`` drives the same segment twice with
-    different voltages and ``jar_testdeck``'s second group shows one row."""
+    """One execute card's worth of state: the sources armed when it fired, and
+    the frequency card in force. NEC clears the source list at every execute
+    card, which is why ``two_source_sensor_lines`` drives the same segment
+    twice with different voltages and ``jar_testdeck``'s second group shows one
+    row."""
 
     sources: tuple[tuple[int, int, complex], ...]  # (tag, seg, voltage)
     freqs_mhz: tuple[float, ...]
@@ -342,6 +484,9 @@ class ExecuteGroup:
     # (fixture: two_source_sensor_lines, two XQs under one FR card). Our
     # cached factorisation makes that the honest report as well.
     refilled: bool = True
+    # The ``RP``/``NE``/``NH`` card that fired this group, if any. Its table is
+    # printed after the power budget; a plain ``XQ`` leaves it None.
+    report: Card | None = None
 
 
 @dataclass
@@ -351,7 +496,10 @@ class PortalDeck:
     comments: tuple[str, ...] = ()
     geometry: tuple[Card, ...] = ()
     data_cards: tuple[Card, ...] = ()
-    groups: tuple[ExecuteGroup, ...] = ()
+    # One entry per EXECUTE card in ``data_cards`` order; None marks an execute
+    # card that ran nothing (a bare ``XQ`` trailing an ``RP``/``NE``/``NH``).
+    groups: tuple[ExecuteGroup | None, ...] = ()
+    networks: tuple[NetworkBranch, ...] = ()
     loads: tuple[Card, ...] = ()
     ground: Ground = field(default_factory=Ground)
     ground_plane_flag: bool = False
@@ -381,17 +529,48 @@ def _directive(text: str, keyword: str) -> int | None:
     return None
 
 
+def _validate_rp(card: Card) -> None:
+    """Reject the ``RP`` shapes this engine does not compute.
+
+    ``nec2/NECSource`` only ever writes ``RP 0 <nth> <nph> 1001 0 0 <dth> <dph>
+    1000``, so mode 0 at a finite range is the whole live contract. Modes 1-6
+    (surface wave, linear/conical/bistatic scans) and the ``RFLD = 0``
+    gain-only form print a DIFFERENT table — refusing them is honest; guessing
+    their layout is not.
+    """
+    if card.i(0) != 0:
+        raise PortalError(
+            f"RP mode {card.i(0)} is not supported by this engine (mode 0 only)"
+        )
+    if card.f(8) <= 0.0:
+        raise PortalError("RP with RFLD = 0 (gain-only form) is not supported")
+
+
+def _validate_near_field(card: Card) -> None:
+    """``NE``/``NH`` in rectangular coordinates only (``I1 = 0``)."""
+    if card.i(0) != 0:
+        raise PortalError(
+            f"{card.mnemonic} coordinate system {card.i(0)} (spherical) is not "
+            f"supported by this engine; rectangular (0) only"
+        )
+
+
 def parse_deck(body: str) -> PortalDeck:
     """A deck body's cards, grouped the way the engine executes them."""
     comments: list[str] = []
     geometry: list[Card] = []
     data_cards: list[Card] = []
-    groups: list[ExecuteGroup] = []
+    groups: list[ExecuteGroup | None] = []
+    networks: list[NetworkBranch] = []
     loads: list[Card] = []
     sources: list[tuple[int, int, complex]] = []
     yy_points: list[tuple[int, int]] = []
     freqs: tuple[float, ...] = (0.0,)
     fresh_fr = False
+    # True when something has changed since the last execution, so the next
+    # execute card is a real run rather than a no-op echo.
+    armed = True
+    executed = 0
     ground = Ground()
     ground_plane_flag = False
     quiet = False
@@ -427,11 +606,15 @@ def parse_deck(body: str) -> PortalDeck:
                 f"supported by this engine yet"
             )
         data_cards.append(card)
+        if card.mnemonic in _ARMING_CARDS:
+            armed = True
         if card.mnemonic == "LD":
             if card.i(0) == -1:
                 loads.clear()
             else:
                 loads.append(card)
+        elif card.mnemonic == "NT":
+            networks.append(NetworkBranch.from_card(card))
         elif card.mnemonic == "FR":
             freqs = _fr_frequencies(card)
             fresh_fr = True
@@ -448,16 +631,26 @@ def parse_deck(body: str) -> PortalDeck:
                     f"drives EX 0 only"
                 )
             sources.append((card.i(1), card.i(2), complex(card.f(4), card.f(5))))
-        elif card.mnemonic == "XQ":
+        elif card.mnemonic in _EXECUTE_CARDS:
+            if not armed and executed:
+                groups.append(None)
+                continue
+            if card.mnemonic == "RP":
+                _validate_rp(card)
+            elif card.mnemonic in ("NE", "NH"):
+                _validate_near_field(card)
             groups.append(
                 ExecuteGroup(
                     tuple(sources),
                     freqs if fresh_fr else freqs[-1:],
-                    refilled=fresh_fr or not groups,
+                    refilled=fresh_fr or not executed,
+                    report=None if card.mnemonic == "XQ" else card,
                 )
             )
+            executed += 1
             sources.clear()
             fresh_fr = False
+            armed = False
         else:
             raise PortalError(f"unrecognised NEC card {card.mnemonic!r}")
 
@@ -466,6 +659,7 @@ def parse_deck(body: str) -> PortalDeck:
         geometry=tuple(geometry),
         data_cards=tuple(data_cards),
         groups=tuple(groups),
+        networks=tuple(networks),
         loads=tuple(loads),
         ground=ground,
         ground_plane_flag=ground_plane_flag,
@@ -544,12 +738,255 @@ def fmt_yy_row(currents) -> str:
     return f"    -YY{body}"
 
 
+def fmt_network_row(tag_a, seg_a, tag_b, seg_b, y11, y12, y22) -> str:
+    """A NETWORK DATA row: the two connection points and the card's Y matrix.
+
+    The oracle pads this line out to 106 columns with nine trailing spaces —
+    reproduced, because ``layout_signature`` compares token END columns and a
+    reader diffing bytes should see none.
+    """
+    return (
+        f" {tag_a:4d} {seg_a:5d} {tag_b:4d} {seg_b:5d}"
+        f" {y11.real:12.4E} {y11.imag:11.4E}"
+        f" {y12.real:12.4E} {y12.imag:11.4E}"
+        f" {y22.real:12.4E} {y22.imag:11.4E}" + " " * 9
+    )
+
+
+def fmt_pattern_row(
+    theta, phi, vertc_db, horiz_db, total_db, axial, tilt, sense, e_theta, e_phi
+) -> str:
+    """One RADIATION PATTERNS row.
+
+    ``Execute.processResponse``'s ``PROCESSINGPATTERN`` state reads ``theta =
+    parts[0]``, ``phi = parts[1]`` and the four E-field fields at ``ptr`` —
+    ``ptr = 8`` for a 12-token row, ``7`` for an 11-token one. **The SENSE
+    column is the whole difference**: it is a fixed-width field holding
+    ``LINEAR`` / ``LEFT`` / ``RIGHT`` when the direction carries a field and
+    six blanks when it does not, so a blank one vanishes under
+    ``split("\\s+")`` and the row loses a token. Both forms address the same
+    columns; an engine that always printed a word, or never did, would still
+    parse — but it would stop matching the oracle line for line.
+
+    VERTC is ``%10.2g``, not ``%.2f``: this ae6ty build prints the vertical
+    gain to two SIGNIFICANT figures, which is why the floor shows as
+    ``-1e+03`` while TOTAL on the same row shows ``-999.99``.
+    """
+    return (
+        f"{theta:8.2f}{phi:10.2f}{vertc_db:10.2g}{horiz_db:9.2f}{total_db:9.2f}"
+        f"{axial:12.4f}{tilt:10.2f} {sense:<6s}"
+        f"{abs(e_theta):12.4E}{_phase_deg(e_theta):10.2f}"
+        f"{abs(e_phi):12.4E}{_phase_deg(e_phi):10.2f}"
+    )
+
+
+def fmt_near_field_row(point, fx, fy, fz) -> str:
+    """One NEAR ELECTRIC/MAGNETIC FIELDS row: location then magnitude/phase per
+    Cartesian component. Exactly nine tokens — anything else ends the table for
+    ``Execute``'s ``PROCESSINGNEARFIELD`` state."""
+    return (
+        f"{point[0]:10.4f}{point[1]:10.4f}{point[2]:10.4f}"
+        f"{abs(fx):13.4E}{_phase_deg(fx):8.2f}"
+        f"{abs(fy):13.4E}{_phase_deg(fy):8.2f}"
+        f"{abs(fz):13.4E}{_phase_deg(fz):8.2f}"
+    )
+
+
+def _phase_deg(value: complex) -> float:
+    return math.degrees(math.atan2(value.imag, value.real))
+
+
 def _loading_cell(value: float | None) -> str:
     """A loading-table numeric cell — 12 blank columns when the leg is absent
     or zero, which is how the oracle prints an omitted R/L/C."""
     if value is None or value == 0.0:
         return " " * 12
     return f"{value:12.4E}"
+
+
+# --------------------------------------------------------------------------
+# fields — the same segment-dipole decomposition, near zone and far zone
+# --------------------------------------------------------------------------
+
+
+def _image_moments(mid, moment, ground_z):
+    """The geometric PEC image of a set of current moments across ``z = z0``.
+
+    Horizontal components flip, the vertical one does not — the standard
+    image, and the same convention ``engines/momwire.py::_evaluate_M_perp``
+    uses, so the finite-ground Fresnel step below can be written as a
+    correction to it.
+    """
+    mid_img = mid.copy()
+    mid_img[:, 2] = 2.0 * ground_z - mid[:, 2]
+    return mid_img, moment * np.array([-1.0, -1.0, 1.0])
+
+
+def _far_moments(mid, moment, k, theta, phi, ground, ground_z, freq_hz):
+    """Complex ``(M_theta, M_phi)`` on the ``theta`` x ``phi`` grids (radians).
+
+    ``M = Σ I_n dl_n exp(+j k r̂·r_n)`` is the far-field current moment; the
+    radiated field is ``E = -j η k /(4π) · e^(-jkr)/r · M_perp``. The engine's
+    ``_evaluate_M_perp`` computes ``|M_perp|²`` for the gain plot and throws
+    the components away; a NEC printout needs them, because it reports
+    E(THETA) and E(PHI) magnitude AND phase and splits the gain into VERTC
+    (theta) and HORIZ (phi). Same physics, same ground handling, components
+    kept.
+    """
+    sin_t, cos_t = np.sin(theta), np.cos(theta)
+    cos_p, sin_p = np.cos(phi), np.sin(phi)
+    rx = sin_t[:, None] * cos_p[None, :]
+    ry = sin_t[:, None] * sin_p[None, :]
+    rz = np.broadcast_to(cos_t[:, None], rx.shape)
+    rhat = np.stack([rx, ry, rz], axis=-1)
+
+    cos_p_g = np.broadcast_to(cos_p[None, :], rx.shape)
+    sin_p_g = np.broadcast_to(sin_p[None, :], rx.shape)
+    cos_t_g = np.broadcast_to(cos_t[:, None], rx.shape)
+    sin_t_g = np.broadcast_to(sin_t[:, None], rx.shape)
+    # NEC's spherical basis: theta_hat points away from +z, phi_hat is
+    # azimuthal. Both are already perpendicular to rhat, so projecting M onto
+    # them IS projecting M_perp onto them.
+    theta_hat = np.stack([cos_t_g * cos_p_g, cos_t_g * sin_p_g, -sin_t_g], axis=-1)
+    phi_hat = np.stack([-sin_p_g, cos_p_g, np.zeros_like(rx)], axis=-1)
+
+    def moments_of(centres, weights):
+        phase = k * np.einsum("ijc,nc->ijn", rhat, centres)
+        return np.einsum("ijn,nc->ijc", np.exp(1j * phase), weights)
+
+    m_direct = moments_of(mid, moment)
+    if ground is None or ground.kind == "free":
+        total = m_direct
+    else:
+        mid_img, moment_img = _image_moments(mid, moment, ground_z)
+        m_img = moments_of(mid_img, moment_img)
+        if ground.kind == "pec":
+            total = m_direct + m_img
+        else:
+            # Fresnel on the reflected wave, written as a correction to the
+            # PEC image exactly as the engine does: PEC is rho_h = -1,
+            # rho_v = +1, so the reflected wave is (-rho_h)·h + (rho_v)·v.
+            h_hat = phi_hat
+            v_hat = np.stack([-cos_p_g * cos_t_g, -sin_p_g * cos_t_g, sin_t_g], axis=-1)
+            m_img_h = np.sum(m_img * h_hat, axis=-1)
+            m_img_v = np.sum(m_img * v_hat, axis=-1)
+            omega = 2.0 * math.pi * freq_hz
+            eps_c = ground.eps_r - 1j * ground.sigma / (omega * EPS0)
+            q = np.sqrt(eps_c - rx * rx - ry * ry)
+            rho_h = (rz - q) / (rz + q)
+            rho_v = (eps_c * rz - q) / (eps_c * rz + q)
+            m_refl = (rho_v * m_img_v)[..., None] * v_hat - (rho_h * m_img_h)[
+                ..., None
+            ] * h_hat
+            total = m_direct + m_refl
+    return np.sum(total * theta_hat, axis=-1), np.sum(total * phi_hat, axis=-1)
+
+
+def _element_fields(points, elements, k, radius, magnetic):
+    """E (or H) at ``points`` from the solved current, in MIXED-POTENTIAL form.
+
+    ``elements`` is ``(mid, moment, nodes, delta)``: element midpoints, their
+    current moments ``p = I·dl``, the mesh NODES between them, and the current
+    STEP ``ΔI = I_in - I_out`` at each node — the discrete continuity charge
+    ``q = ΔI/(jω)``. With ``G = e^{-jkR}/R``,
+
+        E = -j·ηk/(4π)·Σ p_n G_n  -  j·η/(4πk)·Σ ΔI_m (1+jkR_m)/R_m² · G_m·R̂_m
+        H = 1/(4π)·Σ (p_n × R̂_n)·(jk/R_n + 1/R_n²)·G_n
+
+    the first E term being ``-jωA`` and the second ``-∇Φ``. In the radiation
+    zone the pair collapses to ``-j·ηk/(4πr)·e^(-jkr)·M_perp``, the same
+    prefactor :func:`_far_moments` is normalised against, so the near-field and
+    pattern tables are one physics.
+
+    **Why not a chain of Hertzian point dipoles.** That form is algebraically
+    simpler and agrees with this one everywhere off the structure — but each
+    element carries its own ±q pair separated by dl, and a sample point a
+    fraction of an element away sees that pair's 1/R³ term with nothing to
+    cancel it: an observation point ON the wire came out at 1.7E+05 V/m
+    against nec2c's 1.2E-02. Splitting current and charge puts the charge
+    where it physically is (the nodes) and makes ΔI small wherever the current
+    is smooth, so adjacent nodes cancel the way the continuous integral does.
+
+    ``R`` is still the thin-wire regularised ``sqrt(|R|² + a²)``: the sample is
+    taken on the conductor SURFACE rather than its axis, momwire's own
+    convention (``rho_eval`` in the sinusoidal kernel). Grammar doc §11.
+    """
+    mid, moment, nodes, delta = elements
+
+    def geometry(sources):
+        rvec = points[:, None, :] - sources[None, :, :]
+        r = np.sqrt(np.sum(rvec * rvec, axis=-1) + radius * radius)
+        return rvec / r[..., None], r, np.exp(-1j * k * r) / (4.0 * math.pi * r)
+
+    rhat, r, green = geometry(mid)
+    if magnetic:
+        cross = np.cross(np.broadcast_to(moment, (len(points),) + moment.shape), rhat)
+        weight = (1j * k + 1.0 / r) * green
+        return np.sum(weight[..., None] * cross, axis=1)
+
+    e_vector = -1j * ETA0 * k * np.sum(green[..., None] * moment[None, :, :], axis=1)
+    q_rhat, q_r, q_green = geometry(nodes)
+    scalar = -1j * ETA0 / k * (delta[None, :] * (1.0 + 1j * k * q_r) / q_r * q_green)
+    return e_vector + np.sum(scalar[..., None] * q_rhat, axis=1)
+
+
+def _polarisation(e_theta: complex, e_phi: complex) -> tuple[float, float, str]:
+    """``(axial_ratio, tilt_deg, sense)`` for one direction's polarisation
+    ellipse — the AXIAL RATIO / TILT / SENSE columns.
+
+    With ``a = |E_theta|``, ``b = |E_phi|`` and ``δ = arg(E_phi) - arg(E_theta)``
+    wrapped to ±180°, the ellipse semi-axes are
+    ``0.5·[a²+b² ± sqrt(a⁴+b⁴+2a²b²cos2δ)]`` and the tilt is
+    ``½·atan2(2ab·cosδ, a²-b²)`` — the same ``atan2`` pair nec2c forms.
+    The axial ratio is minor/major, signed by ``sinδ``, so linear
+    polarisation prints 0.0000 and circular ±1.0000.
+
+    Sense is calibrated against the oracle, not derived: a crossed pair fed
+    ``EX ... 1. 0.`` / ``EX ... 0. 1.`` gives ``δ = +90°`` at the zenith and
+    nec2c prints ``AXIAL RATIO 1.0000 ... LEFT``
+    (``dipole_rp_crossed_quadrature``), so positive ``sinδ`` is LEFT here.
+    """
+    a, b = abs(e_theta), abs(e_phi)
+    if a * a <= _FIELD_FLOOR2 and b * b <= _FIELD_FLOOR2:
+        return 0.0, 0.0, ""
+    delta = _phase_deg(e_phi) - _phase_deg(e_theta)
+    delta = (delta + 180.0) % 360.0 - 180.0
+    a2, b2 = a * a, b * b
+    root = math.sqrt(
+        max(
+            a2 * a2 + b2 * b2 + 2.0 * a2 * b2 * math.cos(math.radians(2.0 * delta)), 0.0
+        )
+    )
+    major2 = 0.5 * (a2 + b2 + root)
+    minor2 = max(0.5 * (a2 + b2 - root), 0.0)
+    tilt = 0.5 * math.degrees(
+        math.atan2(2.0 * a * b * math.cos(math.radians(delta)), a2 - b2)
+    )
+    if major2 <= 0.0:
+        return 0.0, tilt, "LINEAR"
+    ratio = math.sqrt(minor2 / major2)
+    sin_d = math.sin(math.radians(delta))
+    if ratio < 1e-8:
+        return 0.0, tilt, "LINEAR"
+    return (
+        ratio if sin_d >= 0 else -ratio,
+        tilt,
+        "LEFT" if sin_d >= 0 else "RIGHT",
+    )
+
+
+def _gain_db(power_gain: float, field2: float) -> float:
+    """A gain column in dB, with nec2c's degenerate floor.
+
+    The floor is NOT a log clamp: ``dipole_rp_pattern`` prints -999.99 for a
+    direction whose E(THETA) is 5.4196E-15 (a true gain around -220 dB), and
+    prints a real number for one whose field is only a little larger. The test
+    is on the FIELD, ``|E|² <= 1e-20`` at the requested range, and it is the
+    same test that blanks the SENSE column.
+    """
+    if field2 <= _FIELD_FLOOR2 or power_gain <= 0.0:
+        return _GAIN_FLOOR_DB
+    return 10.0 * math.log10(power_gain)
 
 
 # --------------------------------------------------------------------------
@@ -745,9 +1182,18 @@ class DeckSolver:
         self.portal_deck = deck
         ports: list[tuple[int, int]] = []
         for group in deck.groups:
+            if group is None:
+                continue
             for tag, seg, _v in group.sources:
                 if (tag, seg) not in ports:
                     ports.append((tag, seg))
+        # An NT endpoint is a port too: NEC cuts the segment to hang the
+        # network off it, so it needs a gap in the momwire model whether or not
+        # anything drives it.
+        for branch in deck.networks:
+            for point in (branch.a, branch.b):
+                if point not in ports:
+                    ports.append(point)
         if not ports:
             raise PortalError("deck has no EX card — nothing drives the structure")
         self.ports = ports
@@ -779,7 +1225,40 @@ class DeckSolver:
             self.global_segment(feed.wire, feed.seg): port
             for feed, port in zip(self.deck.feeds, self.feed_index)
         }
+
+        # NT branches, stamped onto the port index set. The matrix is
+        # frequency-independent (the card gives constant admittances), so it is
+        # built once here rather than per group.
+        lookup = {point: self.feed_index[i] for i, point in enumerate(self.ports)}
+        self.y_network = np.zeros((self.n_ports, self.n_ports), dtype=np.complex128)
+        self.network_ports: set[int] = set()
+        self.network_rows: list[tuple[int, int, NetworkBranch]] = []
+        for branch in deck.networks:
+            a, b = lookup[branch.a], lookup[branch.b]
+            self.y_network[a, a] += branch.y11
+            self.y_network[a, b] += branch.y12
+            self.y_network[b, a] += branch.y12
+            self.y_network[b, b] += branch.y22
+            self.network_ports.update((a, b))
+            self.network_rows.append((a, b, branch))
+        # NEC lists the network connection points with the far end first —
+        # ``dipole_nt_network.out`` prints (2, 14) before (1, 5) for
+        # ``NT 1 5 2 5``. Row order only; the numbers are per port.
+        self.network_report_ports: list[int] = []
+        for a, b, _branch in self.network_rows:
+            for port in (b, a):
+                if port not in self.network_report_ports:
+                    self.network_report_ports.append(port)
+
+        self._smallest_radius = min(w.radius for w in self.wires)
         self._cache: dict[float, dict] = {}
+
+    def segment_of_port(self, port: int) -> int:
+        """The global NEC segment number carrying momwire port ``port``."""
+        for number, idx in self.port_by_segment.items():
+            if idx == port:
+                return number
+        raise PortalError(f"port {port} has no segment")
 
     def global_segment(self, wire: int, local: int) -> int:
         """NEC's absolute segment number for 1-based local segment ``local``
@@ -883,8 +1362,23 @@ class DeckSolver:
                     driven.append((port, self.global_segment(wire, local), volts))
         z_load = self._load_impedances(omega)
         system = np.eye(self.n_ports, dtype=np.complex128) + (z_load[:, None] * y)
-        v_gap = np.linalg.solve(system, v_source)
+        rhs = v_source.copy()
+        # A network port that nothing drives is not a shorted gap: its voltage
+        # floats to whatever makes the node's currents balance, so its row
+        # becomes KCL — antenna current plus network current is zero. A network
+        # port that IS driven keeps the ideal-source row (V = V_ex) and the
+        # source supplies the difference. Grammar doc §11.
+        driven_ports = {port for port, _seg, _v in driven}
+        for port in sorted(self.network_ports - driven_ports):
+            system[port, :] = y[port, :] + self.y_network[port, :]
+            rhs[port] = 0.0
+        v_gap = np.linalg.solve(system, rhs)
         i_port = y @ v_gap
+        i_network = self.y_network @ v_gap
+        # What the source delivers: the segment current plus whatever the
+        # network draws at the same node. With no NT card the second term is
+        # zero and this is the unit-2 reading unchanged.
+        i_source = i_port + i_network
 
         w_matrix = self.engine._feed_W
         v_sub = v_gap if w_matrix is None else w_matrix @ v_gap
@@ -892,25 +1386,82 @@ class DeckSolver:
         seg_currents = self._segment_currents(entry["solver"], coeffs)
 
         p_in = 0.5 * float(
-            sum((volts * np.conj(i_port[p])).real for p, _s, volts in driven)
+            sum((volts * np.conj(i_source[p])).real for p, _s, volts in driven)
         )
         p_load = 0.5 * float(np.sum(np.real(z_load) * np.abs(i_port) ** 2))
         p_wire = 0.0
         if self.engine._loading_kwargs:
             p_wire = float(entry["solver"].wire_loss_power(coeffs)[0])
         p_structure = p_load + p_wire
-        p_rad = p_in - p_structure
+        p_network = 0.5 * float(np.sum(np.real(v_gap * np.conj(i_network))))
+        p_rad = p_in - p_structure - p_network
         return {
             "driven": driven,
+            "v_gap": v_gap,
             "i_port": i_port,
+            "i_network": i_network,
+            "i_source": i_source,
             "segment_currents": seg_currents,
+            "coeffs": coeffs,
+            "solver": entry["solver"],
             "p_in": p_in,
             "p_structure": p_structure,
+            "p_network": p_network,
             "p_radiated": p_rad,
             "efficiency": (100.0 * p_rad / p_in) if p_in > 0 else 0.0,
             "fill_ms": entry["fill_ms"],
             "wavelength": entry["wavelength"],
         }
+
+    # -- field sources -----------------------------------------------------
+
+    def current_elements(self, result: dict, subdiv: int = 1):
+        """``(mid, moment, nodes, delta)`` for the whole structure.
+
+        ``mid``/``moment`` are the element midpoints and their complex current
+        moments ``I·dl`` — the far-field sum's terms. ``nodes``/``delta`` are
+        the mesh knots and the current STEP across each, which is the discrete
+        continuity charge the near-field scalar potential needs. Wire ends get
+        the full element current as their step (nothing carries current past
+        them), and knots two wires share coincide, so their steps simply add.
+
+        ``subdiv > 1`` resamples the solved B-spline current at intermediate
+        arc positions (``currents_at_knots(coeffs, s_array=...)``) instead of
+        only at the mesh knots. The far field does not need it — every element
+        is electrically small and only the radiation-zone limit matters — but a
+        near field a metre from a half-metre segment does.
+        """
+        solver, coeffs = result["solver"], result["coeffs"]
+        engine = self.engine
+        fine: list[np.ndarray] = []
+        arcs: list[np.ndarray] = []
+        for w_idx, polyline in enumerate(engine._polylines):
+            parts = []
+            for i, n_e in enumerate(engine._edge_segments[w_idx]):
+                seg = np.linspace(polyline[i], polyline[i + 1], n_e * subdiv + 1)
+                parts.append(seg if i == 0 else seg[1:])
+            knots = np.vstack(parts)
+            fine.append(knots)
+            step = np.linalg.norm(knots[1:] - knots[:-1], axis=1)
+            arcs.append(np.concatenate([[0.0], np.cumsum(step)]))
+        currents = solver.currents_at_knots(coeffs, None if subdiv == 1 else arcs)
+        mids, moments, nodes, deltas = [], [], [], []
+        for knots, cur in zip(fine, currents, strict=True):
+            cur = np.asarray(cur)
+            element = 0.5 * (cur[1:] + cur[:-1])
+            mids.append(0.5 * (knots[1:] + knots[:-1]))
+            moments.append(element[:, None] * (knots[1:] - knots[:-1]))
+            nodes.append(knots)
+            zero = np.zeros(1, dtype=np.complex128)
+            deltas.append(
+                np.concatenate([zero, element]) - np.concatenate([element, zero])
+            )
+        return (
+            np.concatenate(mids, axis=0),
+            np.concatenate(moments, axis=0),
+            np.concatenate(nodes, axis=0),
+            np.concatenate(deltas, axis=0),
+        )
 
     def _segment_currents(self, solver, coeffs) -> np.ndarray:
         """Per NEC segment (global order), the midpoint current signed along
@@ -1074,6 +1625,199 @@ def _environment_lines(ground: Ground, freq_mhz: float) -> list[str]:
     return lines
 
 
+def _network_lines(solver: DeckSolver, result: dict) -> list[str]:
+    """NETWORK DATA plus STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS.
+
+    Both are *(ignored)* by ``Execute`` — its state machine only arms on the
+    ``ANTENNA INPUT PARAMETERS`` banner, and the excitation table's rows have
+    the same 11-token shape but are never reached. They are printed because the
+    layout is the contract and a reader diffing against the oracle would
+    otherwise see a missing section.
+    """
+    out = [_NETWORK_HEADER, *_NETWORK_TABLE_HEADER]
+    for a, b, branch in solver.network_rows:
+        seg_a, seg_b = solver.segment_of_port(a), solver.segment_of_port(b)
+        out.append(
+            fmt_network_row(
+                solver.segments[seg_a - 1].tag,
+                seg_a,
+                solver.segments[seg_b - 1].tag,
+                seg_b,
+                branch.y11,
+                branch.y12,
+                branch.y22,
+            )
+        )
+    out += ["", "", _NETWORK_EXCITATION_HEADER, *_NETWORK_EXCITATION_TABLE_HEADER]
+    for port in solver.network_report_ports:
+        number = solver.segment_of_port(port)
+        volts = complex(result["v_gap"][port])
+        current = complex(result["i_port"][port])
+        out.append(
+            fmt_aip_row(
+                solver.segments[number - 1].tag,
+                number,
+                volts,
+                current,
+                volts / current if current != 0 else 0j,
+                current / volts if volts != 0 else 0j,
+                0.5 * (volts * np.conj(current)).real,
+            )
+        )
+    return out
+
+
+def _pattern_lines(
+    card: Card, solver: DeckSolver, result: dict, freq_mhz: float
+) -> list[str]:
+    """The RADIATION PATTERNS table for one ``RP 0`` request."""
+    n_theta, n_phi = max(card.i(1), 1), max(card.i(2), 1)
+    theta0, phi0, d_theta, d_phi = card.f(4), card.f(5), card.f(6), card.f(7)
+    rng = card.f(8)
+
+    thetas = theta0 + d_theta * np.arange(n_theta)
+    phis = phi0 + d_phi * np.arange(n_phi)
+    k = 2.0 * math.pi / result["wavelength"]
+    mid, moment, _nodes, _delta = solver.current_elements(result)
+    m_theta, m_phi = _far_moments(
+        mid,
+        moment,
+        k,
+        np.radians(thetas),
+        np.radians(phis),
+        solver.portal_deck.ground,
+        solver.engine._ground_z,
+        freq_mhz * 1e6,
+    )
+    # E = -j·ηk/(4π)·e^(-jkr)/r·M_perp. The gain that follows is
+    # 4π·U/P_in = ηk²/(8π·P_in)·|M|², the same normaliser the web solve and
+    # MomwireEngine.far_field use — so a pattern read out of this printout and
+    # one read off the workbench are the same number.
+    prop = np.exp(-1j * k * rng) / rng
+    e_theta = -1j * ETA0 * k / (4.0 * math.pi) * prop * m_theta
+    e_phi = -1j * ETA0 * k / (4.0 * math.pi) * prop * m_phi
+    p_in = result["p_in"]
+    norm = ETA0 * k * k / (8.0 * math.pi * p_in) if p_in > 0 else 0.0
+    g_v = norm * np.abs(m_theta) ** 2
+    g_h = norm * np.abs(m_phi) ** 2
+
+    out = [
+        _PATTERN_HEADER,
+        "",
+        f"                             RANGE:{rng:14.6E} METERS",
+        f"                             EXP(-JKR)/R:{1.0 / rng:13.5E} AT PHASE:"
+        f"{math.degrees(math.atan2(prop.imag, prop.real)):8.2f} DEGREES",
+        "",
+        *_PATTERN_TABLE_HEADER,
+    ]
+    for j in range(n_phi):
+        for i in range(n_theta):
+            et, ep = complex(e_theta[i, j]), complex(e_phi[i, j])
+            et2, ep2 = abs(et) ** 2, abs(ep) ** 2
+            axial, tilt, sense = _polarisation(et, ep)
+            out.append(
+                fmt_pattern_row(
+                    thetas[i],
+                    phis[j],
+                    _gain_db(float(g_v[i, j]), et2),
+                    _gain_db(float(g_h[i, j]), ep2),
+                    _gain_db(float(g_v[i, j] + g_h[i, j]), et2 + ep2),
+                    axial,
+                    tilt,
+                    sense,
+                    et,
+                    ep,
+                )
+            )
+    out += ["", ""]
+    if card.i(3) % 10:  # XNDA's A digit: 1 asks for the average power gain
+        out.append(_average_gain_line(g_v + g_h, thetas, d_theta, d_phi, n_phi))
+    out.append(_PATTERN_TIME)
+    return out
+
+
+def _average_gain_line(gain, thetas, d_theta, d_phi, n_phi) -> str:
+    """``AVERAGE POWER GAIN`` over the sampled solid angle.
+
+    The quadrature is nec2c's, recovered from two fixtures: each theta sample
+    owns the solid-angle band between its half-step neighbours, CLIPPED to the
+    requested theta range, so the bands telescope to exactly
+    ``(cosθ_start - cosθ_end)·Δφ`` and the printed solid angle comes out at a
+    round ``(+4.0000)*PI`` for a full sphere and ``(+2.0000)*PI`` for a
+    hemisphere. Phi contributes ``n_phi - 1`` columns — the last sample of a
+    0..360 sweep is the first one again and must not be counted twice.
+    """
+    lo = np.radians(np.maximum(thetas - 0.5 * d_theta, thetas[0]))
+    hi = np.radians(np.minimum(thetas + 0.5 * d_theta, thetas[-1]))
+    band = np.cos(lo) - np.cos(hi)
+    columns = max(n_phi - 1, 1)
+    step = math.radians(d_phi) if d_phi else 2.0 * math.pi
+    total = float(np.sum(gain[:, :columns] * band[:, None])) * step
+    solid = float(np.sum(band)) * columns * step
+    average = total / solid if solid else 0.0
+    return (
+        f"  AVERAGE POWER GAIN:{average:12.4E} - SOLID ANGLE USED IN AVERAGING: "
+        f"({solid / math.pi:+7.4f})*PI STERADIANS"
+    )
+
+
+def _near_field_lines(card: Card, solver: DeckSolver, result: dict) -> list[str]:
+    """The NEAR ELECTRIC / MAGNETIC FIELDS table for one ``NE``/``NH`` grid."""
+    magnetic = card.mnemonic == "NH"
+    n_x, n_y, n_z = (max(card.i(k), 1) for k in (1, 2, 3))
+    start = np.array([card.f(4), card.f(5), card.f(6)])
+    step = np.array([card.f(7), card.f(8), card.f(9)])
+    # NEC varies X fastest, then Y, then Z (dipole_ne_nearfield.out).
+    points = np.array(
+        [
+            start + np.array([ix, iy, iz]) * step
+            for iz in range(n_z)
+            for iy in range(n_y)
+            for ix in range(n_x)
+        ]
+    )
+    ground = solver.portal_deck.ground
+    if ground.kind in ("refl", "sommerfeld"):
+        raise PortalError(
+            f"{card.mnemonic} over a finite ground is not supported by this "
+            f"engine (the near field of a Sommerfeld half-space is not an image)"
+        )
+    k = 2.0 * math.pi / result["wavelength"]
+    radius = solver._smallest_radius
+    mid, moment, nodes, delta = solver.current_elements(
+        result, subdiv=_NEAR_FIELD_SUBDIV
+    )
+    field = _element_fields(points, (mid, moment, nodes, delta), k, radius, magnetic)
+    if ground.kind == "pec":
+        # The PEC image mirrors the current moments (horizontal components
+        # flip) and NEGATES the charge, which is the same statement: reversing
+        # a horizontal current reverses dI/ds, and mirroring a vertical one
+        # reverses the arc direction.
+        ground_z = solver.engine._ground_z
+        mid_img, moment_img = _image_moments(mid, moment, ground_z)
+        nodes_img = nodes.copy()
+        nodes_img[:, 2] = 2.0 * ground_z - nodes[:, 2]
+        field = field + _element_fields(
+            points,
+            (mid_img, moment_img, nodes_img, -delta),
+            k,
+            radius,
+            magnetic,
+        )
+
+    header = _NEAR_H_HEADER if magnetic else _NEAR_E_HEADER
+    table = _NEAR_H_TABLE_HEADER if magnetic else _NEAR_E_TABLE_HEADER
+    out = [header, "", *table] if magnetic else [header, *table]
+    for point, value in zip(points, field, strict=True):
+        out.append(
+            fmt_near_field_row(
+                point, complex(value[0]), complex(value[1]), complex(value[2])
+            )
+        )
+    out.append(_NEAR_FIELD_TIME)
+    return out
+
+
 def _run_block(
     deck: PortalDeck, solver: DeckSolver, group: ExecuteGroup, freq_mhz: float
 ) -> list[str]:
@@ -1106,10 +1850,13 @@ def _run_block(
             "",
             "",
         ]
+    if solver.network_rows:
+        out += _network_lines(solver, result)
+        out += ["", ""]
     out += [_AIP_HEADER, *_AIP_TABLE_HEADER]
-    i_port = result["i_port"]
+    i_source = result["i_source"]
     for port, global_seg, volts in result["driven"]:
-        current = i_port[port]
+        current = i_source[port]
         impedance = volts / current if current != 0 else complex(0.0, 0.0)
         admittance = current / volts if volts != 0 else complex(0.0, 0.0)
         power = 0.5 * (volts * np.conj(current)).real
@@ -1150,9 +1897,19 @@ def _run_block(
         f"{pad}INPUT POWER   ={result['p_in']:12.4E} Watts",
         f"{pad}RADIATED POWER={result['p_radiated']:12.4E} Watts",
         f"{pad}STRUCTURE LOSS={result['p_structure']:12.4E} Watts",
-        f"{pad}NETWORK LOSS  ={0.0:12.4E} Watts",
+        f"{pad}NETWORK LOSS  ={result['p_network']:12.4E} Watts",
         f"{pad}EFFICIENCY    ={result['efficiency']:8.2f} Percent",
     ]
+    if group.report is not None:
+        report = group.report
+        if report.mnemonic == "RP":
+            body = _pattern_lines(report, solver, result, freq_mhz)
+        else:
+            body = _near_field_lines(report, solver, result)
+        # Two blanks before the report, and one MORE after it than a plain XQ
+        # block carries — render_deck's own three make the four the oracle
+        # prints between the compute-time line and the trailing XQ echo.
+        out += ["", "", *body, ""]
     return out
 
 
@@ -1219,10 +1976,14 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     for card in deck.data_cards:
         number += 1
         out.append(fmt_data_card(number, card))
-        if card.mnemonic != "XQ":
+        if card.mnemonic not in _EXECUTE_CARDS:
             continue
         group = deck.groups[group_index]
         group_index += 1
+        if group is None:
+            # A bare XQ trailing an RP/NE/NH: echoed, runs nothing, prints
+            # nothing — not even the blank lines a real run is wrapped in.
+            continue
         out += ["", ""]
         try:
             for i, freq in enumerate(group.freqs_mhz):

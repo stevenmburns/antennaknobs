@@ -333,11 +333,26 @@ def test_two_decks_through_one_loop_produce_two_frames():
 
 
 def test_an_unsupported_card_still_emits_the_sentinel():
-    """A deck we cannot run must not leave SimNEC blocked in readLine()."""
-    out, err = deck_frame(fixture_deck("dipole_rp_pattern"))
+    """A deck we cannot run must not leave SimNEC blocked in readLine().
+
+    ``TL`` is the live example after unit 3: the portal dialect can carry it,
+    ``nec_import`` can even translate it, but no fixture pins how nec2c lays
+    its rows out inside NETWORK DATA — so it takes the error path rather than
+    a guessed layout.
+    """
+    out, err = deck_frame(
+        "CE transmission line\n"
+        "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
+        "GW 2 9 1. 0. -2.5 1. 0. 2.5 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "TL 1 5 2 5 50. 2.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
     text = "\n".join(out)
     assert NX_ECHO.search(text), "the NX sentinel is missing on the error path"
-    assert "ERROR-NEC2C: RP" in text
+    assert "ERROR-NEC2C: TL" in text
     # `ERROR:` as token 0 is what trips Execute's warning frame; the oracle's
     # own prefix deliberately does not.
     assert not any(line.split()[:1] == ["ERROR:"] for line in text.splitlines())

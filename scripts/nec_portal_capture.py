@@ -271,6 +271,25 @@ def _synthetic_decks() -> dict[str, str]:
         "XQ\n"
     )
 
+    # RP again, but with a CIRCULARLY polarised pattern: two orthogonal
+    # dipoles fed in quadrature.  dipole_rp_pattern only ever prints SENSE
+    # "LINEAR" or blank, which leaves the 11-vs-12-token rule in
+    # nec2/Execute's PROCESSINGPATTERN state half-pinned (grammar doc §4.14,
+    # §10).  This deck forces the third form and shows what the column really
+    # is: a fixed-width field, blank exactly when BOTH E components fall under
+    # nec2c's 1e-20 threshold.
+    decks["dipole_rp_crossed_quadrature"] = (
+        "CE crossed dipoles in quadrature\n"
+        "GW 1 9 -2.5 0. 0. 2.5 0. 0. 0.001\n"
+        "GW 2 9 0. -2.5 0. 0. 2.5 0. 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1. 0.\n"
+        "EX 0 2 5 0 0. 1.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "RP 0 3 5 1001 0 0 45 90 1000\n"
+        "XQ\n"
+    )
+
     # NE — rectangular near-field grid, the non-polar branch of
     # nec2/NECSource.generateNENH.
     decks["dipole_ne_nearfield"] = (
@@ -278,6 +297,17 @@ def _synthetic_decks() -> dict[str, str]:
         "EX 0 1 5 0 1.\n"
         "FR 0 1 0 0 30. 0\n"
         "NE 0 3 1 3 -1. 0. -1. 1. 0. 1.\n"
+        "XQ\n"
+    )
+
+    # NH — the magnetic twin.  Captured because its banner is NOT the electric
+    # one with a word swapped: the indent and the trailing dash run both
+    # differ, and the units row reads AMPS/M on a different column pitch.
+    decks["dipole_nh_nearfield"] = (
+        "CE dipole with near magnetic field grid\n" + _DIPOLE_GW + "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "NH 0 3 1 3 -1. 0. -1. 1. 0. 1.\n"
         "XQ\n"
     )
 
