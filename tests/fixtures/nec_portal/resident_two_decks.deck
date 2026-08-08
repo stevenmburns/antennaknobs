@@ -1,0 +1,14 @@
+CE resident deck one
+GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001
+GE 0
+EX 0 1 5 0 1.
+FR 0 1 0 0 30. 0
+XQ
+NX
+CE resident deck two
+GW 1 9 0. 0. -3.0 0. 0. 3.0 0.001
+GE 0
+EX 0 1 5 0 1.
+FR 0 1 0 0 25. 0
+XQ
+NX

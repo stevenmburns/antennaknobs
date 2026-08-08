@@ -1,0 +1,8 @@
+CE dipole scaled by GS
+GW 1 9 0. 0. -250. 0. 0. 250. 0.1
+GS 0 0 0.01
+GE 0
+EX 0 1 5 0 1.
+FR 0 1 0 0 30. 0
+XQ
+NX
