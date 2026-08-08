@@ -416,7 +416,8 @@ Etheta = (parts[ptr], parts[ptr+1]);  Ephi = (parts[ptr+2], parts[ptr+3]);
 **The `SENSE` column is what makes a row 12 tokens instead of 11**, and both
 occur in the same table (`dipole_rp_pattern.out`: 63 rows with `LINEAR`,
 25 without). A replacement engine must reproduce that blank-when-degenerate
-behaviour, or half the pattern is read off by one column.
+behaviour, or half the pattern is read off by one column. **What decides it is
+resolved in §12.1.**
 
 `theta` and `phi` are parsed as `Double` then **cast to `int`** for the
 `FieldStore` key, so fractional angles collapse.
@@ -699,3 +700,286 @@ reproduced by the momwire engine and pinned in `tests/test_nec_portal.py`:
    momwire's — must print the port's Galerkin current in BOTH, or the two Y
    paths disagree; `nec_portal.py` reads a `YY` point that carries a gap from
    the port and one that does not from the segment.
+
+## 12. Resolved by unit 3 (`RP`, `NE`/`NH`, `NT`, the differential harness)
+
+Unit 3 implements the three cards unit 2 left on the error path and adds
+`tests/test_nec_portal_differential.py`, which compares parsed VALUES between
+the two engines. The corpus grew to **30** fixtures: `dipole_rp_crossed_quadrature`
+and `dipole_nh_nearfield` were captured specifically to close items below.
+
+### 12.1 The `SENSE` column — §4.14's 11-vs-12-token rule, resolved
+
+`SENSE` is a **fixed-width field**, ` %-6s` followed by the `%12.4E` E(THETA)
+magnitude, so a row is 19 columns wide either way and the token count is the
+only visible difference. It holds:
+
+| printed | when |
+|---|---|
+| `LINEAR` | the polarisation ellipse is degenerate (axial ratio ≈ 0) |
+| `LEFT` / `RIGHT` | elliptical or circular |
+| six blanks | **both** `\|E_theta\|²` and `\|E_phi\|²` are ≤ `1e-20` (V/m)² at the requested range |
+
+The blank case is **the same test that produces the `-999.99` gain floor**, and
+that is the part §4.14 could not see. The floor is *not* a log clamp:
+`dipole_rp_pattern.out` prints `-999.99` for a direction whose E(THETA) is
+`5.4196E-15` — a true gain near −220 dB, not −1000 — while printing a real
+number one row away. Per column:
+
+```
+VERTC = -999.99 if |E_theta|^2 <= 1e-20 else 10*log10(G_theta)
+HORIZ = -999.99 if |E_phi|^2   <= 1e-20 else 10*log10(G_phi)
+TOTAL = -999.99 if BOTH are     <= 1e-20 else 10*log10(G_theta + G_phi)
+SENSE = blank   if BOTH are     <= 1e-20
+```
+
+`dipole_rp_crossed_quadrature` (two orthogonal dipoles fed `EX … 1. 0.` and
+`EX … 0. 1.`) is the deck that pins the rest. It shows all three facts the
+linear fixture cannot:
+
+* the circular form really is a word, `LEFT`, not a symbol — so 12 tokens
+  either way and `Execute`'s `ptr = 8` branch is right for both;
+* `δ = arg(E_phi) − arg(E_theta) = +90°` at the zenith prints
+  `AXIAL RATIO 1.0000 … LEFT`, so **positive `sin δ` is LEFT** in this build;
+* a row can have `VERTC = -999.99` and still carry a named sense
+  (θ = 90°, where `E_theta = 2.7098E-15` but `E_phi` is large) — proving the
+  two thresholds are per-component and per-row respectively, not one flag.
+
+`nec_portal.py` reproduces all of it; `test_nec_portal_differential.py::
+test_the_sense_column_is_what_makes_a_row_twelve_tokens` asserts the
+blank↔floor equivalence on both sides of both pattern fixtures.
+
+### 12.2 `RP`/`NE`/`NH` are execute cards, not report requests
+
+nec2c **runs on reading them**. `dipole_rp_pattern` is `EX / FR / RP / XQ` and
+the printout is: the `EX`, `FR`, `RP` echoes, then the entire run (frequency
+preamble, `ANTENNA INPUT PARAMETERS`, `CURRENTS AND LOCATION`, `POWER BUDGET`,
+`RADIATION PATTERNS`), then the `XQ` echo **immediately followed by the `NX`
+echo** — the `XQ` produces nothing at all, not even the blank lines a real run
+is wrapped in. The rule that reproduces every fixture: an execute card runs
+only if something (`EX`, `FR`, `LD`, `GN`, `NT`, `YY`) has arrived since the
+last execution. An engine that ran the trailing `XQ` too would hand SimNEC a
+2×1 sensor matrix where it expects 1×1, i.e. the `"NO SENSORS"` path (§8).
+
+Blank-line detail: the report block ends with **four** blank lines before the
+next data-card echo, where a plain `XQ` block ends with three.
+
+### 12.3 The pattern block's other numbers
+
+* `RANGE:%14.6E METERS` and
+  `EXP(-JKR)/R:%13.5E AT PHASE:%8.2f DEGREES` come straight off the card's
+  `RFLD` field: the phase is `-k·r` reduced mod 360 (r = 1000 m at 30 MHz
+  gives −24.02°).
+* **VERTC is `%10.2g`, not `%.2f`.** This ae6ty build prints the vertical gain
+  to two SIGNIFICANT figures, which is why the floor reads `-1e+03` while
+  TOTAL on the same row reads `-999.99` and 2.15 dB reads `2.1`. Missing this
+  keeps the row parseable and silently changes its column geometry.
+* `AVERAGE POWER GAIN: %12.4E - SOLID ANGLE USED IN AVERAGING: (%+7.4f)*PI
+  STERADIANS` is emitted when XNDA's `A` digit is 1. The quadrature was
+  recovered from two fixtures: each theta sample owns the solid-angle band
+  between its half-step neighbours, **clipped to the requested theta range**,
+  and phi contributes `NPH − 1` columns (the last sample of a 0–360 sweep is
+  the first one again). The bands then telescope to exactly
+  `(cos θ_start − cos θ_end)·(NPH−1)·Δφ`, which is why a full sphere prints a
+  round `(+4.0000)*PI` and a hemisphere `(+2.0000)*PI` — a plain midpoint sum
+  gives 3.86 and 1.93 instead.
+* The E-field phase convention is nec2c's:
+  `E = -j·η·k/(4π)·e^(-jkr)/r·M_perp`. Verified rather than assumed — with it,
+  our E(THETA) PHASE lands within 1.4° of the oracle's on
+  `dipole_rp_pattern`; a missing `-j` would be 90° out.
+  One residue: where a component is *exactly* zero we print phase `0.00` and
+  nec2c prints the reference phase (`-24.02`), because its "zero" is a
+  denormal that still carries `arg(e^(-jkr))`. Magnitude `0.0000E+00` either
+  way, and nothing reads the column.
+
+### 12.4 `NE`/`NH`
+
+* Grid order is **X fastest, then Y, then Z** (`dipole_ne_nearfield.out`,
+  `NE 0 3 1 3 …`).
+* The magnetic banner is **not** the electric one with a word swapped:
+
+```
+                             -------- NEAR ELECTRIC FIELDS --------
+                                   -------- NEAR MAGNETIC FIELDS ---------
+```
+
+  Different indent, different trailing dash run, and the units row changes
+  `VOLTS/M` to `AMPS/M` on a different column pitch. `dipole_nh_nearfield` was
+  captured for exactly this.
+* Rows are `%10.4f`×3 then `(%13.4E, %8.2f)`×3 — nine tokens, which is what
+  `Execute`'s `PROCESSINGNEARFIELD` state requires.
+
+**Does momwire have a near-field API? No.** `BSplineSolver` exposes
+`compute_impedance`, `compute_y_matrix`, `currents_at_knots` and
+`wire_loss_power` and nothing else; the only field evaluator anywhere in the
+library is `SinusoidalSolver._field_components_bcast`, which is private,
+sinusoidal-basis-only, and cannot consume a B-spline coefficient vector. The
+near field is therefore computed **in `nec_portal.py`, from the solved
+current**, in mixed-potential form:
+
+```
+E = -j·ηk/(4π)·Σ_n p_n·G_n  -  j·η/(4πk)·Σ_m ΔI_m·(1 + jkR_m)/R_m²·G_m·R̂_m
+H =        1/(4π)·Σ_n (p_n × R̂_n)·(jk/R_n + 1/R_n²)·G_n           G = e^(-jkR)/R
+```
+
+with `p = I·dl` at element midpoints (the `-jωA` term) and `ΔI = I_in − I_out`
+at the mesh NODES as the discrete continuity charge `q = ΔI/(jω)` (the `-∇Φ`
+term). Each momwire mesh segment is resampled into 8 elements through
+`currents_at_knots(coeffs, s_array=…)`. In the radiation zone the pair
+collapses to the same `-j·ηk/(4πr)·e^(-jkr)·M_perp` the RP table is normalised
+against, so the two tables are one physics.
+
+**Why not a chain of Hertzian point dipoles.** That form is simpler and agrees
+with this one everywhere off the structure, but each element carries its own
+±q pair separated by `dl`; a sample point a fraction of an element away sees
+that pair's 1/R³ term with nothing to cancel it. Measured on
+`dipole_ne_nearfield`: a grid point lying **on** the wire came out at
+`1.7E+05 V/m` against nec2c's `1.2E-02`. Splitting current and charge puts the
+charge where it physically is and makes `ΔI` small wherever the current is
+smooth, so adjacent nodes cancel the way the continuous integral does.
+
+Accuracy, measured against the oracle fixtures:
+
+| where | agreement |
+|---|---|
+| off the conductor (1 m from a 5 m dipole) | **0.7 % magnitude, 0.4° phase** (E); 0.3 % / 0.5° (H) |
+| on the driven segment | `1.14 V/m ∠-176.9°` against nec2c's `1.80 V/m ∠-180°` |
+| on a non-driven segment | `1.0E+01` against nec2c's `1.2E-02` — **not a field** |
+
+The last row is the honest limit and is pinned as such rather than hidden: `R`
+is regularised as `sqrt(|R|² + a²)` (the thin-wire convention — the sample is
+taken on the conductor surface, matching momwire's own `rho_eval`), and a
+point-source quadrature evaluated inside its own source is not a field
+anybody should read. nec2c sidesteps the question entirely: on a driven
+segment it prints the **impressed source field**, `1 V / 0.5559 m = 1.8 V/m`,
+which is a different quantity from the one the rest of its table reports.
+
+`NE`/`NH` over a finite (reflection-coefficient or Sommerfeld) ground takes the
+error path — the near field of a lossy half-space is not an image. PEC ground
+is supported (image current mirrored, image charge negated).
+
+### 12.5 `NT`
+
+The card gives `Y11`, `Y12`, `Y22` and takes `Y21 = Y12`. The branch hangs
+across the two segments' gaps, in parallel with the structure, and
+`dipole_nt_network.out` pins the consequence exactly:
+
+* **`ANTENNA INPUT PARAMETERS` reports the SOURCE current — segment plus
+  network — not the segment current.** For the fixture, `I_source =
+  1.1534E-02 + 1.0275E-03j`, `I_segment = -2.7287E-03 - 4.3690E-03j` (which is
+  what `CURRENTS AND LOCATION` prints for segment 5), and the difference is
+  exactly `Y·V` at that port. Reading the segment current into the impedance
+  table gives a *negative* driving-point resistance.
+* An undriven network port is **not** a shorted gap: its row is KCL
+  (`(Y_antenna + Y_network)·V = 0`), so its voltage floats. In the fixture the
+  parasitic dipole's gap sits at `7.3017E-01 + 7.1313E-01j` V.
+* `NETWORK LOSS` in the power budget is `½·Σ Re(V·conj(I_network))`, which is
+  identically zero for the fixture's purely reactive branch.
+* Row order in `STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS` is the
+  far end first: `NT 1 5 2 5` prints `(2, 14)` then `(1, 5)`.
+* `NETWORK DATA` rows are padded to 106 columns with nine trailing spaces.
+* Both network sections are *(ignored)* by `Execute` — its state machine arms
+  on the `ANTENNA INPUT PARAMETERS` banner alone, and the excitation table
+  repeats the `No: No: REAL` header with the same 11-token rows without ever
+  being reached. They are emitted because the layout is the contract.
+
+`TL` remains on the error path: no fixture pins how nec2c lays a transmission
+line out inside `NETWORK DATA`, and guessing a layout is worse than refusing
+the card.
+
+### 12.6 The `GN` long tail
+
+Probed directly against the oracle rather than left as a question:
+
+* **`GN 2` + a radial screen is refused by NEC-2 itself.** `GN 2 16 0 0 13.
+  0.005 5.0` makes the oracle print
+
+  ```
+    RADIAL WIRE G.S. APPROXIMATION MAY NOT BE USED WITH SOMMERFELD GROUND OPTION
+  ```
+
+  and stop — **no `NX` echo**, which is precisely the `readLine()` stall §10.1
+  worries about, arriving from the oracle rather than from a replacement.
+  There is no long tail to implement here.
+* **`GN 0` + a radial screen** does work and prints an extra
+  `RADIAL WIRE GROUND SCREEN / n WIRES / WIRE LENGTH: / WIRE RADIUS: /
+  MEDIUM UNDER SCREEN -` block ahead of the usual medium description. momwire
+  has no screen model, so `nec_portal.py` **rejects `NRADL ≠ 0` by name**
+  rather than silently dropping the screen and reporting a different antenna.
+* **`GN 2`'s second-medium fields are silently ignored by this build.**
+  `GN 2 0 0 0 13. 0.005 80. 5.0 50. -2.` prints the primary medium only, with
+  no second-medium block and no warning. Our engine may — and does — ignore
+  them too and stay byte-identical.
+
+No fixture was committed for any of these: two of the three produce printouts
+that violate corpus invariants every other fixture upholds (an abort with no
+`ANTENNA INPUT PARAMETERS` and no sentinel), and the third would pin a section
+we deliberately refuse. The error paths are tested from synthesised decks in
+`test_nec_portal_differential.py::test_unsupported_cards_take_the_documented_error_path`.
+
+### 12.7 A defect the differential harness found
+
+`_segment_currents` mapped each NEC segment to the nearest momwire element by
+**position alone**. Two wires that cross share a segment midpoint *exactly*, so
+the crossed-quadrature deck printed wire 1's port current on wire 2's segment
+14 — a 90° error behind a perfectly plausible magnitude, invisible to every
+layout test and to every single-wire fixture. The match now requires the
+element to run along the segment as well, falling back to pure distance if
+nothing does. This is the class of bug a differential harness exists to catch:
+no self-consistency check could have seen it.
+
+### 12.8 Cross-engine agreement, measured
+
+Worst case over every row of every table, momwire 0.23.0 against
+nec2c 5b4az.ae6ty.1.17; the full per-fixture table is the module docstring of
+`tests/test_nec_portal_differential.py`.
+
+| quantity | bar | corpus worst | notes |
+|---|---|---|---|
+| `ANTENNA INPUT PARAMETERS` Z and I | 5 % | 2.83 % | plus three justified outliers |
+| `-YY` report currents | 5 % | 2.83 % | 12.02 % on `jar_testdeck`'s near-open port |
+| current distribution (peak-normalised) | 8 % | 6.00 % | |
+| `RADIATION PATTERNS` TOTAL gain | 0.5 dB | **0.12 dB** | |
+| peak-gain direction | 1 step | **0 steps** | |
+| near field, off the conductor | — | 0.7 % / 0.4° | |
+
+The three fixtures over 5 % are all the same phenomenon — a small residual
+between two large, nearly cancelling numbers — and each carries a test
+asserting the identity that makes it benign:
+`catalog_dipoles_short_dipole_loaded` (a +818 Ω coil cancelling the antenna's
+reactance; `Re(Z)` agrees to 1.8 % and the reactance gap is 1.0 % of the coil),
+`jar_testdeck` port 1 (the centre gap of a full-wave split dipole at
+`|Z| ≈ 3.5 kΩ` — the known high-|Z| basis-sensitive class, antennaknobs #459;
+the other two ports agree to 0.4 %), and `dipole_nt_network`'s network-table
+segment current (12 %, while the source current SimNEC actually reads agrees
+to 1.3 %).
+
+## 13. Still unknown after unit 3
+
+From §10, still open: items 1 (`processResponse` has no timeout — what, if
+anything, on the Java side notices a stalled engine), 2 (`MATRIX_LINE`),
+3 (`checkNEC42Fields`), 4/11 (`SimNEC.minimumNEC2CVersion`, and whether SimNEC
+has anywhere else to record an engine's name), 6 (`processExcitation`'s
+caller), 7 (patch/surface support), and 10 (what drops the blank lines around a
+multi-point `FR`'s `NX` echo).
+
+Item 5 shrank but did not close: `RP`, `NE`, `NH` and `NT` are now pinned; `PT`
+(and the plane-wave `EX i1 …` / `PT -1` / `XQ` / `PT -2` sequence), `MP` and
+`IS` are not. `TL` joins them — the portal emits it, `nec_import` can translate
+it, and only the printout layout is missing.
+
+New for unit 4:
+
+1. **`RP` modes 1–6 and the `RFLD = 0` gain-only form.** `nec2/NECSource` only
+   ever writes `RP 0 … 1000`, so refusing the rest costs nothing today, but
+   their tables are a different shape and nobody has looked.
+2. **Spherical `NE`/`NH` (`I1 = 1`).** The header switches to
+   `METERS DEGREES DEGREES`, which `Execute`'s
+   `WAITINGFORMETERSMETERSMETERS` state explicitly accepts (§4.15) — so SimNEC
+   expects to see it, and we refuse it.
+3. **Whether SimNEC ever reads a near-field or pattern table at all.**
+   `PROCESSINGPATTERN` and `PROCESSINGNEARFIELD` fill `FieldStore`, but who
+   consumes `FieldStore` — and with what convention — is unread. Our pattern
+   is normalised by source input power, which is the antennaknobs convention;
+   if SimNEC assumes directivity instead, the plots will differ by the
+   efficiency even though every number here is self-consistent.
