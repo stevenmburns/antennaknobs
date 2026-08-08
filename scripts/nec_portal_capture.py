@@ -296,6 +296,44 @@ def _synthetic_decks() -> dict[str, str]:
         "XQ\n"
     )
 
+    # PT — current print control (issue #800). SimNEC emits it only around a
+    # plane-wave run (`EX 1 ...` / `PT -1` / `XQ` / `PT -2`, the
+    # planeWaveExcitation branch of NECSource.constructNECFile), but the card
+    # itself is independent of that sequence: it is a persistent toggle on the
+    # CURRENTS AND LOCATION table alone. This deck shows both halves of the
+    # toggle in one run — the first XQ suppressed, the second restored — and,
+    # because it carries a YY card, that Ward's `-YY` report SURVIVES the
+    # suppression and is printed where the table would have been.
+    decks["dipole_pt_toggle"] = (
+        "CE pt suppresses then restores the currents table\n"
+        + _DIPOLE_GW
+        + "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
+        "GE 0\n"
+        "YY 1 5 2 5\n"
+        "FR 0 1 0 0 30. 1\n"
+        "EX 0 1 5 0 1.\n"
+        "PT -1\n"
+        "XQ\n"
+        "PT -2\n"
+        "EX 0 2 5 0 1.\n"
+        "XQ\n"
+    )
+
+    # PT's other live form: `PT 0 <tag> <first> <last>` keeps the table but
+    # prints only those segments. The addressing is EX's — tag-relative, with
+    # tag 0 meaning absolute segment numbers — so tag 2 segments 1-3 are global
+    # 10-12 here, which an absolute reading would get wrong.
+    decks["dipole_pt_segment_range"] = (
+        "CE pt limits the currents table to one tag\n"
+        + _DIPOLE_GW
+        + "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "PT 0 2 1 3\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
+
     # The Y-matrix probe SimNEC actually emits for a 2-source circuit: one XQ
     # per source, every source carrying an EX card — 1 V on the driven one and
     # 1e-10 V on the others so that every port shows up as a row of the
