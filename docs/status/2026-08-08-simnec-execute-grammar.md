@@ -642,3 +642,60 @@ Later units must resolve these:
    `NEC5Daemon` drains it). A momwire engine that writes much to stderr could
    fill the pipe buffer and deadlock. The safe rule is: write nothing to stderr
    except what `CM FF` already produces.
+10. **Blank lines around the `NX` echo after a multi-point `FR`.** Every
+    single-point fixture puts three blank lines between the last
+    `EFFICIENCY` line and the next data-card echo (`dipole_free_space`,
+    `two_source_yy_card`, `jar_testdeck`). `dipole_fr_sweep` — the one deck
+    with `nfrq > 1` — puts **zero** before its `NX` echo, while still putting
+    two before each repeated `FREQUENCY` header. What in nec2c's frequency
+    loop drops them is unread. Blank lines are invisible to `Execute`, so
+    `nec_portal.py` emits the consistent three and accepts the mismatch.
+11. **The engine name a replacement may claim.** Unresolved from item 4 above,
+    but with a hard consequence found in unit 2: `versionA`'s `(.*)` is
+    greedy, so a probe line of `nec2c.ae6ty.momwire.9.1` yields group(1) =
+    `"momwire.9.1"`, `Double.valueOf` throws, and SimNEC reports "nec2c
+    version too old". **The `-version` tail must be a bare one-dot number**,
+    so `nec_portal.py` probes as `nec2c.ae6ty.9.1` and carries its real
+    identity in the printout banner (`VERSION:nec2c.ae6ty.momwire.9.1`),
+    which no regex is anchored to reach. Whether SimNEC has any other place
+    to record an engine's name is still unknown.
+
+## 11. Resolved by unit 2 (`src/antennaknobs/nec_portal.py`)
+
+Empirical rules the fixture corpus carries that §4 did not state, all now
+reproduced by the momwire engine and pinned in `tests/test_nec_portal.py`:
+
+1. **The `EX` list is cleared at every `XQ`.** `jar_testdeck`'s second group
+   prints one `ANTENNA INPUT PARAMETERS` row, not two, and
+   `two_source_sensor_lines` drives the same segment at 1 V and then at
+   1e-10 V without complaint. Sources accumulate within a group only.
+2. **The frequency preamble is printed only when the matrix is rebuilt.** A
+   second `XQ` with no intervening `FR` card emits `ANTENNA INPUT PARAMETERS`
+   straight away — no `FREQUENCY`, `STRUCTURE IMPEDANCE LOADING`,
+   `ANTENNA ENVIRONMENT` or `MATRIX TIMING` (fixture:
+   `two_source_sensor_lines`, two `XQ`s under one `FR`). With a fresh `FR`
+   per group the preamble repeats (`two_source_yy_card`, `jar_testdeck`).
+3. **`ANTENNA INPUT PARAMETERS` `SEG No:` is the GLOBAL segment number**, not
+   the tag-local one on the `EX` card: `EX 0 2 4` on `jar_testdeck` prints
+   `2    11`.
+4. **`GROUND PLANE SPECIFIED.` comes from the `GE` flag alone.** The catalog
+   decks carry `GE 0` + `GN 1` and the oracle prints no annotation; only
+   `GE -1` / `GE 1` produces it.
+5. **`---------- MULTIPLE WIRE JUNCTIONS ----------`** sits between
+   `TOTAL SEGMENTS USED` and `SEGMENTATION DATA` whenever three or more
+   segment ends meet at a node, listing signed segment numbers (− for end 1,
+   + for end 2). One fixture has it: `catalog_verticals_vertical`.
+6. **The `STRUCTURE SPECIFICATION` table echoes the geometry CARDS**, not the
+   resolved wire list: a `GM`-doubled deck shows one `GW` row plus
+   `THE STRUCTURE HAS BEEN MOVED, MOVE DATA CARD IS:`, and `TOTAL SEGMENTS
+   USED` reports the post-transform count (`dipole_gm_translated_pair`:
+   one row, 18 segments). `GS` likewise prints the pre-scale coordinates plus
+   `STRUCTURE SCALED BY FACTOR:`.
+7. **The oracle blanks a zero loading cell.** `LD 1 2 1 1 0.0 5e-6 6.46e-12`
+   prints an empty RESISTANCE column, not `0.0000E+00`.
+8. **`-YY` and `ANTENNA INPUT PARAMETERS` are the same measurement.** For the
+   oracle they are trivially equal (a pulse basis makes the segment current
+   and the driving-point current one number). A basis where they differ —
+   momwire's — must print the port's Galerkin current in BOTH, or the two Y
+   paths disagree; `nec_portal.py` reads a `YY` point that carries a gap from
+   the port and one that does not from the segment.
