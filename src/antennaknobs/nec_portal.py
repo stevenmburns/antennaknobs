@@ -30,16 +30,19 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
   network — same ``NETWORK DATA`` banner as ``NT``, a different three-line
   column header, and a trailing ``STRAIGHT``/``CROSSED`` type word;
 * issue #800: ``MP``, the ae6ty multicore hint SimNEC emits automatically past
-  256 segments. Parsed, echoed, and its one advisory line reproduced; the
-  ``#Proc``/``blockSize`` numbers are deliberately not acted on (see
-  :class:`Multiprocessing`);
+  256 segments — parsed, echoed, and its one advisory line reproduced, with the
+  ``#Proc``/``blockSize`` numbers deliberately not acted on (see
+  :class:`Multiprocessing`) — and ``PT``, which turned out to be a plain
+  toggle on the ``CURRENTS AND LOCATION`` table rather than anything entangled
+  with the plane-wave excitation SimNEC wraps it in (see
+  :class:`PrintControl`);
 * the printout sections SimNEC's state machine walks: banner, comments, data
   cards, structure specification, segmentation data, frequency, structure
   impedance loading, antenna environment, network data, matrix timing, antenna
   input parameters, currents and location, power budget, radiation patterns,
   near electric/magnetic fields.
 
-Still deferred (unit 4 / out of scope): ``PT``, ``IS``, surface
+Still deferred (unit 4 / out of scope): ``IS``, surface
 patches, ``RP`` modes other than 0, spherical
 ``NE``/``NH`` grids, and ``GN`` radial-wire ground screens. Those cards take
 the error path below rather than crashing the daemon — the printout says which
@@ -345,7 +348,6 @@ _GEOMETRY_CARDS = frozenset({"GW", "GA", "GH", "GM", "GX", "GR", "GS", "GE"})
 # named so the error path can say WHICH card, instead of "unrecognised".
 _DEFERRED_CARDS = MappingProxyType(
     {
-        "PT": "current print control",
         "IS": "NEC-4.2 wire insulation",
         "SP": "surface patch",
         "SM": "multiple-patch surface",
@@ -545,6 +547,60 @@ class LineBranch:
 
 
 @dataclass(frozen=True)
+class PrintControl:
+    """One ``PT`` card: which ``CURRENTS AND LOCATION`` rows get printed.
+
+    SimNEC only ever emits ``PT`` around a plane-wave run — the
+    ``planeWaveExcitation`` branch of ``nec2/NECSource.constructNECFile``
+    writes ``EX 1 …``, ``PT -1``, ``XQ``, ``PT -2`` — which made it look
+    entangled with an excitation this engine does not model. It is not. The
+    card is a persistent toggle on ONE table, and every other section is
+    untouched. Measured against the oracle, form by form:
+
+    ``PT -1``
+        the whole ``CURRENTS AND LOCATION`` section disappears — banner, note,
+        blank, both column-header lines and every row. What is left in its
+        place is Ward's ``-YY`` report, printed immediately after the last
+        ``ANTENNA INPUT PARAMETERS`` row with no blank between them
+        (fixture: ``dipole_pt_toggle``). That the ``-YY`` line survives is the
+        load-bearing detail: it is the row SimNEC's ``addYYLine`` parses, so a
+        suppression that swallowed it would break the Y path.
+    ``PT -2``
+        restores the table. It is a state change, not a per-run flag: the
+        toggle holds across execute cards until another ``PT`` moves it.
+    ``PT 0 <tag> <first> <last>``
+        keeps the table and prints only those segments, addressed exactly as
+        an ``EX`` card addresses one — tag-relative, ``tag = 0`` meaning
+        absolute segment numbers. ``PT 0 1 0 0`` and ``PT 0 2 0 0`` both print
+        everything, so an all-zero range is "no restriction" rather than "no
+        rows" (fixture: ``dipole_pt_segment_range``).
+    ``PT 1`` / ``PT 2`` / ``PT 3``
+        stock NEC-2's receiving-pattern and normalised-current formats. This
+        ae6ty build prints the ordinary full table for all three — diffed
+        against the same deck without the card, byte for byte — so they are
+        read here as "no restriction" too.
+    """
+
+    flag: int
+    tag: int = 0
+    first: int = 0
+    last: int = 0
+
+    @classmethod
+    def from_card(cls, card: Card) -> PrintControl:
+        return cls(card.i(0), card.i(1), card.i(2), card.i(3))
+
+    @property
+    def suppressed(self) -> bool:
+        return self.flag == -1
+
+    @property
+    def restricted(self) -> bool:
+        """True for the ``PT 0`` form with a real range on it."""
+        return self.flag == 0 and bool(self.first or self.last)
+
+
+@dataclass(frozen=True)
 class Multiprocessing:
     """One ``MP`` card: the ae6ty engine's multicore hint. Echoed, then ignored.
 
@@ -646,6 +702,10 @@ class ExecuteGroup:
     # preamble: an ``MP`` read after an execute card must not retro-annotate
     # the block before it.
     mp: Multiprocessing | None = None
+    # The ``PT`` card in force when this group fired — per group for the same
+    # reason, and because ``PT`` is a TOGGLE: ``dipole_pt_toggle`` suppresses
+    # the first run's table and restores the second's from one deck.
+    pt: PrintControl | None = None
 
 
 @dataclass
@@ -738,6 +798,7 @@ def parse_deck(body: str) -> PortalDeck:
     quiet = False
     reduced_field: int | None = None
     multiprocessing: Multiprocessing | None = None
+    print_control: PrintControl | None = None
 
     for line in body.splitlines():
         card = parse_card(line)
@@ -785,6 +846,10 @@ def parse_deck(body: str) -> PortalDeck:
             # new card is an MP (measured — the second XQ of `... XQ / MP 4 8 /
             # XQ` prints no block at all).
             multiprocessing = Multiprocessing.from_card(card)
+        elif card.mnemonic == "PT":
+            # Also not an arming card: it changes what a run PRINTS, not what
+            # a run computes, so it cannot make an XQ into a fresh execution.
+            print_control = PrintControl.from_card(card)
         elif card.mnemonic == "FR":
             freqs = _fr_frequencies(card)
             fresh_fr = True
@@ -816,6 +881,7 @@ def parse_deck(body: str) -> PortalDeck:
                     refilled=fresh_fr or not executed,
                     report=None if card.mnemonic == "XQ" else card,
                     mp=multiprocessing,
+                    pt=print_control,
                 )
             )
             executed += 1
@@ -2105,6 +2171,21 @@ def _near_field_lines(card: Card, solver: DeckSolver, result: dict) -> list[str]
     return out
 
 
+def _printed_segments(pt: PrintControl | None, solver: DeckSolver) -> list[_Segment]:
+    """The CURRENTS AND LOCATION rows a ``PT`` card leaves standing.
+
+    Only the ``PT 0 <tag> <first> <last>`` form restricts anything, and its
+    range is addressed the way an ``EX`` card addresses a segment: relative to
+    the tag, with ``tag = 0`` meaning absolute segment numbers. ``PT 0 <tag> 0
+    0`` prints everything (measured), so an all-zero range is "no restriction".
+    """
+    if pt is None or not pt.restricted:
+        return solver.segments
+    first = solver.global_segment(*_locate(solver.wires, pt.tag, pt.first))
+    last = solver.global_segment(*_locate(solver.wires, pt.tag, pt.last))
+    return [s for s in solver.segments if first <= s.number <= last]
+
+
 def _run_block(
     deck: PortalDeck, solver: DeckSolver, group: ExecuteGroup, freq_mhz: float
 ) -> list[str]:
@@ -2164,24 +2245,31 @@ def _run_block(
                 float(power),
             )
         )
-    out += ["", "", _CURRENTS_HEADER, _CURRENTS_NOTE, "", *_CURRENTS_TABLE_HEADER]
+    suppressed = group.pt is not None and group.pt.suppressed
+    if not suppressed:
+        out += ["", "", _CURRENTS_HEADER, _CURRENTS_NOTE, "", *_CURRENTS_TABLE_HEADER]
     currents = result["segment_currents"]
+    # The ``-YY`` report is printed either way — under ``PT -1`` it lands
+    # directly after the last ANTENNA INPUT PARAMETERS row, with no blank and
+    # no table around it (fixture: dipole_pt_toggle). It is the row SimNEC's
+    # addYYLine parses, so suppression must not take it with the table.
     if deck.yy_points:
         out.append(
             fmt_yy_row(
                 [solver.report_current(tag, seg, result) for tag, seg in deck.yy_points]
             )
         )
-    for seg in solver.segments:
-        out.append(
-            fmt_current_row(
-                seg.number,
-                seg.tag,
-                seg.centre / wavelength,
-                float(np.linalg.norm(seg.direction)) / wavelength,
-                complex(currents[seg.number - 1]),
+    if not suppressed:
+        for seg in _printed_segments(group.pt, solver):
+            out.append(
+                fmt_current_row(
+                    seg.number,
+                    seg.tag,
+                    seg.centre / wavelength,
+                    float(np.linalg.norm(seg.direction)) / wavelength,
+                    complex(currents[seg.number - 1]),
+                )
             )
-        )
     pad = " " * 31
     out += [
         "",

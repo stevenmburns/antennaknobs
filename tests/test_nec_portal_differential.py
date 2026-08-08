@@ -48,6 +48,8 @@ dipole_ne_nearfield                   0.76%   0.76%       -   0.96%      -
 dipole_nh_nearfield                   0.76%   0.76%       -   0.96%      -
 dipole_nt_network                     1.31%   1.31%       -   3.46%      -   (b)
 dipole_pec_ground                     2.23%   2.23%       -   4.35%      -
+dipole_pt_segment_range               2.47%   2.47%       -   0.52%      -
+dipole_pt_toggle                      2.47%   2.47%   2.83%   1.10%      -
 dipole_reflection_ground              2.23%   2.23%       -   4.36%      -
 dipole_rp_crossed_quadrature          0.76%   0.76%       -   0.96%   0.09
 dipole_rp_pattern                     0.76%   0.76%       -   0.96%   0.12
@@ -331,15 +333,16 @@ SUPPORTED = NAMES
 
 # Portal-dialect cards no fixture covers, with the substring the error path
 # must name. Written as decks rather than fixtures because the oracle's own
-# printout for them is either unpinnable (PT) or a bare abort (GN 2 with a
+# printout for them is either unpinnable or a bare abort (GN 2 with a
 # radial screen prints "RADIAL WIRE G.S. APPROXIMATION MAY NOT BE USED WITH
 # SOMMERFELD GROUND OPTION" and exits WITHOUT the NX echo — see grammar doc
 # §11, which is exactly the readLine() stall §10.1 worries about).
 # ``TL`` left this table in issue #799: two fixtures now pin its NETWORK DATA
-# layout, so it runs instead of refusing.
+# layout, so it runs instead of refusing. ``PT`` and ``MP`` left it in #800,
+# for the same reason. ``IS`` stays: nothing here models NEC-4.2 insulation,
+# and running the deck as a bare wire would be a wrong answer, not a refusal.
 _GEOM = "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGW 2 9 1. 0. -2.5 1. 0. 2.5 0.001\n"
 UNSUPPORTED = {
-    "PT": f"CE pt\n{_GEOM}GE 0\nEX 0 1 5 0 1.\nPT -1\nFR 0 1 0 0 30. 0\nXQ\n",
     "IS": f"CE is\n{_GEOM}GE 0\nEX 0 1 5 0 1.\nIS 0 1 1 9 2.3 0.001\nFR 0 1 0 0 30. 0\nXQ\n",
     "SP": f"CE sp\n{_GEOM}GE 0\nEX 0 1 5 0 1.\nSP 0 0 0. 0. 0. 0. 0. 1.\nFR 0 1 0 0 30. 0\nXQ\n",
     "radial ground screen": (
