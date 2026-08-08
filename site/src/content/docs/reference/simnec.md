@@ -182,9 +182,18 @@ portal dialog can carry arguments. The portal accepts a `--basis` flag:
 
 ```text
 momwire-nec2c --basis bspline                        # the default
-momwire-nec2c --basis sinusoidal-galerkin            # closest to NEC's own formulation
+momwire-nec2c --basis sinusoidal                     # closest to NEC-2's own formulation
+momwire-nec2c --basis sinusoidal-galerkin            # the same basis, tested variationally
 momwire-nec2c --basis sinusoidal-galerkin-converged  # recommended for near-open high-Q feeds
 ```
+
+Those four are a ladder: NEC-2 itself, then `sinusoidal` — the three-term
+basis, point matched, with NEC's own delta-gap source, so it answers "does
+this reproduce NEC-2's behaviour, mesh walk and all" — then the Galerkin
+variants and the B-spline default, which answer "what does a better-converged
+basis say". There is no `sinusoidal-converged`: a zero-width gap cannot be
+expressed under point matching (momwire#212), and the flag does not offer a
+name the solver would refuse.
 
 **Paste two portal entries that differ only in `--basis` and you have
 cross-basis validation inside SimNEC itself** — switch engines from the
