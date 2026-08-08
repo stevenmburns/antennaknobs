@@ -1,7 +1,8 @@
-"""The momwire SimNEC portal daemon (issue #792, units 2 and 3).
+"""The momwire SimNEC portal daemon (issue #792, units 2 to 4).
 
-Everything here runs in-process against the committed oracle fixtures — no
-``nec2c`` binary, no subprocess. The oracle's *numbers* are not the contract
+Everything here runs against the committed oracle fixtures — no ``nec2c``
+binary — and, bar the one cwd-independence test at the foot of the file, in
+process. The oracle's *numbers* are not the contract
 (a different basis and kernel will never match digit for digit); its *layout*
 is, so the fixtures are compared structurally: same section sequence, same
 column geometry, same token arity — for every deck in the corpus, not just a
@@ -15,13 +16,23 @@ execute-card semantics of ``RP``/``NE``/``NH``, the pattern and near-field
 tables, ``NT`` port algebra, and the robustness contract — a malformed deck
 must be REPORTED and stepped over, never swallowed and never fatal, because
 ``Execute.processResponse`` blocks in ``readLine()`` with no timeout.
+
+Unit 4 adds the packaging contract: the ``momwire-nec2c`` console script whose
+NAME is what SimNEC's portal dialog accepts an engine on, and the fact that the
+daemon runs from any working directory (SimNEC launches it via ``sh -c`` with
+cwd=$HOME).
 """
 
 from __future__ import annotations
 
+import importlib
 import io
 import json
+import os
 import re
+import subprocess
+import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -951,3 +962,87 @@ def test_a_blank_deck_still_frames():
     out, err = deck_frame("")
     assert NX_ECHO.search("\n".join(out))
     assert err == []
+
+
+# --------------------------------------------------------------------------
+# packaging: the console script SimNEC is pointed at (unit 4)
+# --------------------------------------------------------------------------
+
+ENTRY_POINT_NAME = "momwire-nec2c"
+
+
+def _console_scripts() -> dict[str, str]:
+    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    return tomllib.loads(text)["project"]["scripts"]
+
+
+def test_the_console_script_name_passes_simnecs_filename_check():
+    """``nec2/NEC2PortalDialog`` accepts an engine on its FILENAME alone.
+
+    The check is a lowercased substring test for ``nec2c`` on the configured
+    command's file name — nothing inside the file is consulted until the
+    ``-version`` probe. Renaming the entry point to something tidier
+    (``momwire-portal``) makes SimNEC refuse it outright, so the name is
+    contract, not cosmetics.
+    """
+    scripts = _console_scripts()
+    assert ENTRY_POINT_NAME in scripts, (
+        f"pyproject [project.scripts] must ship {ENTRY_POINT_NAME!r}; has {sorted(scripts)}"
+    )
+    assert "nec2c" in ENTRY_POINT_NAME.lower()
+    # The sibling dialect prefixes select a DIFFERENT column layout
+    # (checkNEC42Fields, samplesWidth 12) that this engine does not emit.
+    assert "nec5" not in ENTRY_POINT_NAME.lower()
+    assert "nec42" not in ENTRY_POINT_NAME.lower()
+
+
+def test_the_console_script_target_resolves():
+    """The ``module:attr`` string must actually import — a typo here is only
+    discovered by a user whose SimNEC session dies at the version probe."""
+    target = _console_scripts()[ENTRY_POINT_NAME]
+    module_name, _, attr = target.partition(":")
+    assert attr, f"{target!r} names no callable"
+    entry = getattr(importlib.import_module(module_name), attr)
+    assert entry is nec_portal.main
+    assert callable(entry)
+
+
+def test_the_entry_point_runs_from_an_unrelated_cwd(tmp_path):
+    """SimNEC launches the engine via ``sh -c`` with cwd=$HOME.
+
+    Nothing in the daemon may resolve a relative path — not the fixtures, not
+    the momwire import, not a config file. Both halves of the protocol are
+    exercised out of a directory that has no relationship to the checkout: the
+    ``-version`` probe SimNEC gates on, and one real deck framed by ``NX``.
+    """
+    src_root = str(Path(nec_portal.__file__).resolve().parents[2])
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join([src_root, os.environ.get("PYTHONPATH", "")]),
+    }
+    argv = [sys.executable, "-m", "antennaknobs.nec_portal"]
+
+    probe = subprocess.run(
+        [*argv, "-version"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert probe.returncode == 0, probe.stderr
+    assert probe.stdout.splitlines() == [nec_portal.PROBE_VERSION]
+
+    solve = subprocess.run(
+        argv,
+        cwd=tmp_path,
+        env=env,
+        input=fixture_deck("dipole_free_space") + "\nNX\n",
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert solve.returncode == 0, solve.stderr
+    assert NX_ECHO.search(solve.stdout), "no sentinel — SimNEC would block forever"
+    assert "ANTENNA INPUT PARAMETERS" in solve.stdout
+    assert f"VERSION:{nec_portal.BANNER_VERSION}" in solve.stdout
