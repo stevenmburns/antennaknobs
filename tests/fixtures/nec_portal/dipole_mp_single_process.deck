@@ -1,0 +1,8 @@
+CE dipole free space
+GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001
+GE 0
+EX 0 1 5 0 1.
+MP 1 32
+FR 0 1 0 0 30. 0
+XQ
+NX
