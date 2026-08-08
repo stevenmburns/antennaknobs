@@ -146,6 +146,14 @@ markers = [
     # anything heavier goes here and is run manually after nec-import or
     # engine changes: `python -m pytest -m heavy_mesh`.
     "heavy_mesh: benchmark-sized solve, excluded from CI; run manually",
+    # Tests that shell out to the NEC-2 oracle binary SimNEC ships
+    # (nec2c-ubuntu-x86, under ~/.SimNEC/<major>/<minor>/Examples/). CI has no
+    # such binary — that is exactly why tests/fixtures/nec_portal/ is
+    # committed. The marked tests also carry a skipif keyed on the binary
+    # actually existing (not on CI detection), so a developer who has SimNEC
+    # installed runs them by default and everyone else skips cleanly.
+    # Deselect explicitly with `-m \"not oracle_binary\"`.
+    "oracle_binary: shells out to SimNEC's nec2c oracle; skipped when it is not installed",
 ]
 
 [tool.ruff]
