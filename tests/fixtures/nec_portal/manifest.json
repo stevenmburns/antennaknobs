@@ -164,6 +164,20 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "dipole_pt_segment_range",
+      "returncode": 253,
+      "deck_sha256": "7c089b2c255a33debdc93b17cf97d04b5b0f8dd2affcd964b5027c672eb882ca",
+      "out_sha256": "be204dcef9c36690d09e57aabf309c510c2728918f696636fa8ed22d16420fdb",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_pt_toggle",
+      "returncode": 253,
+      "deck_sha256": "9ce5223b209cd358219ec1b45a8aaddf2798925b265e36ac0a2983d43cb57dbb",
+      "out_sha256": "819d7e37d5a0f714118bc1d1404c6ca9f6bce65da3f76b07fef7597ac21d9dc4",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "dipole_reflection_ground",
       "returncode": 253,
       "deck_sha256": "10d698037cfd72deeb1ae6a0317b40392ddc245f889f9da6ca11f687a066e285",
