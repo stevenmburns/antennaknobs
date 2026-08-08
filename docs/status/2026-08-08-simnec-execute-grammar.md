@@ -1,8 +1,8 @@
 # SimNEC's `nec2/Execute` printout grammar — the contract a momwire engine must meet
 
 Status doc for issue #792 ("momwire as a SimNEC engine").  §1–§10 are unit
-1's survey; §11 is what unit 2 resolved, §12 what unit 3 resolved, and §13 is
-what is still open.
+1's survey; §11 is what unit 2 resolved, §12 unit 3, §13 what was still open
+after it, and §14 what unit 4 resolved (§14.5 is the live open list).
 
 This is the empirical contract later units are written against. Two independent
 sources:
@@ -960,10 +960,9 @@ to 1.3 %).
 
 From §10, still open: items 1 (`processResponse` has no timeout — what, if
 anything, on the Java side notices a stalled engine), 2 (`MATRIX_LINE`),
-3 (`checkNEC42Fields`), 4/11 (`SimNEC.minimumNEC2CVersion`, and whether SimNEC
-has anywhere else to record an engine's name), 6 (`processExcitation`'s
-caller), 7 (patch/surface support), and 10 (what drops the blank lines around a
-multi-point `FR`'s `NX` echo).
+3 (`checkNEC42Fields`), 6 (`processExcitation`'s caller), 7 (patch/surface
+support), and 10 (what drops the blank lines around a multi-point `FR`'s `NX`
+echo). Items 4/11 closed in unit 4 — see §14.
 
 Item 5 shrank but did not close: `RP`, `NE`, `NH` and `NT` are now pinned; `PT`
 (and the plane-wave `EX i1 …` / `PT -1` / `XQ` / `PT -2` sequence), `MP` and
@@ -985,3 +984,78 @@ New for unit 4:
    is normalised by source input power, which is the antennaknobs convention;
    if SimNEC assumes directivity instead, the plots will differ by the
    efficiency even though every number here is self-consistent.
+
+## 14. Resolved by unit 4 (packaging, and two reads of the installed jar)
+
+### 14.1 `SimNEC.minimumNEC2CVersion` = **1.23** (§10 item 4, closed)
+
+Read straight out of the installed jar's static initialiser:
+
+```
+$ javap -p -c -constants -classpath ~/SimNEC/SimNEC.jar ae6ty.SimNEC
+  public static double minimumNEC2CVersion;
+  ...
+      13: ldc2_w   #49    // double 1.23d
+      16: putstatic #51   // Field minimumNEC2CVersion:D
+```
+
+`Execute.testCommand` parses group(1) of whichever of `versionA`/`versionB`/
+`versionC` matches, and accepts iff `value >= minimumNEC2CVersion`; below it,
+`NEC2PortalDialog.setVersion("<none>")` and the user is told "nec2c version too
+old". `nec_portal.PROBE_VERSION`'s tail is `9.1`, which clears it with room.
+
+The floor is not arbitrary: **it is exactly the version of the nec2c SimNEC
+currently ships**. This machine has two locale trees — the stale
+`~/.SimNEC/2/3` the corpus was captured from (`5b4az.ae6ty.1.17`) and the live
+`~/.SimNEC/5/1` belonging to SimNEC 6p4d6 (`5b4az.ae6ty.1.23`). So the floor
+moves with the shipped oracle, and a future SimNEC could in principle raise it
+past 9.1 — one more reason to ask Ward for a blessed convention rather than to
+squat on a number (see `2026-08-08-ward-simnec-momwire-notes.md`).
+
+### 14.2 There is still nowhere to put an engine's *name* (§10 item 11, closed)
+
+`testCommand` ends with `NEC2PortalDialog.setVersion(line)` — the **whole
+trimmed first line**, not group(1) — so SimNEC does record and display the
+probe string verbatim. That is the only such place. It does not help: the line
+still has to satisfy a regex whose greedy `(.*)` runs to end-of-line and is
+then handed to `Double.valueOf`, so any name anywhere after `nec2c.ae6ty.`
+fails the parse. The printout banner (`VERSION:nec2c.ae6ty.momwire.9.1`)
+remains the only place we can say who we are.
+
+### 14.3 The corpus is portable across the oracle's own versions
+
+Re-capturing all 30 fixtures with the live 1.23 oracle
+(`NEC_PORTAL_ORACLE=~/.SimNEC/5/1/Examples/nec2c.ae6ty/bin/nec2c-ubuntu-x86
+python scripts/nec_portal_capture.py`) and diffing against the committed 1.17
+set gives, over the whole corpus, **only**:
+
+* the `VERSION:` banner line itself;
+* signed zero on three `CURRENTS AND LOCATION` coordinate cells
+  (`-0.0000` → `0.0000`, `jar_testdeck` and its daemon-framed twin);
+* one denormal (`NETWORK LOSS = 0.0000E+00` → `-2.6021E-18`,
+  `dipole_nt_network`).
+
+No section, column, header or token count moves. The fixtures were therefore
+left as captured — re-capturing would churn 30 files to buy nothing, and the
+1.17 set is now known to be layout-representative of at least 1.17 through
+1.23.
+
+### 14.4 Packaging
+
+The daemon ships as the `momwire-nec2c` console script
+(`[project.scripts]` → `antennaknobs.nec_portal:main`). The name is contract:
+`NEC2PortalDialog` picks the engine dialect off the lowercased **filename**,
+and the sibling substrings `nec5`/`nec42` would select a different column
+layout. `NEC2Daemon` launches it via `sh -c` with cwd=`$HOME`, so the entry
+point is working-directory independent; both properties are pinned in
+`tests/test_nec_portal.py` (the cwd test is the file's one subprocess).
+`scripts/nec_portal_smoke.sh` is the hand check for the process contract —
+three decks down one resident process from an unrelated cwd, PASS/FAIL.
+
+### 14.5 Still open after unit 4
+
+Unchanged from §13 bar items 4/11: `processResponse`'s missing timeout,
+`MATRIX_LINE`, `checkNEC42Fields`, `processExcitation`'s caller, patch/surface
+support, the multi-point-`FR` blank lines, `TL`/`PT`/`MP`/`IS` printout
+layouts, `RP` modes 1-6, spherical `NE`/`NH`, and the `FieldStore`
+gain-vs-directivity convention. The last four are asks on Ward's desk.
