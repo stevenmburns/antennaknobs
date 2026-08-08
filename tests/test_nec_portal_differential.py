@@ -42,6 +42,8 @@ dipole_gs_scaled                      0.76%   0.76%       -   0.96%      -
 dipole_load_ld0                       1.79%   1.79%       -   1.95%      -
 dipole_load_ld4                       1.64%   1.64%       -   1.62%      -
 dipole_load_ld5_conductivity          0.76%   0.76%       -   0.97%      -
+dipole_mp_multiprocessor              0.76%   0.76%       -   0.96%      -   (e)
+dipole_mp_single_process              0.76%   0.76%       -   0.96%      -   (e)
 dipole_ne_nearfield                   0.76%   0.76%       -   0.96%      -
 dipole_nh_nearfield                   0.76%   0.76%       -   0.96%      -
 dipole_nt_network                     1.31%   1.31%       -   3.46%      -   (b)
@@ -100,6 +102,14 @@ fails.
     either way. The committed decks are the chained ones; nothing here needs a
     widened bar, and if a future TL fixture does, this is the mechanism to
     check first.
+
+(e) is a control rather than a measurement (issue #800). Both ``MP`` fixtures
+    are ``dipole_free_space``'s geometry plus one card, and both reproduce its
+    row to the digit on BOTH engines — which is the claim the card's whole
+    treatment rests on: ``MP`` describes how the oracle fills and factors, not
+    what it computes, so there is nothing in it for momwire to honour. If these
+    rows ever drift away from ``dipole_free_space``'s, the card has stopped
+    being advisory and this engine is wrong to ignore it.
 """
 
 from __future__ import annotations
@@ -458,6 +468,28 @@ def test_the_nt_networks_source_current_agrees_even_though_the_segment_does_not(
     assert relative(z_a, z_b) <= Z_TOL
     # ... and the segment current it is built from is genuinely the small one.
     assert abs(ours.network[1][0]) < 0.5 * abs(i_a)
+
+
+MP_FIXTURES = ("dipole_mp_multiprocessor", "dipole_mp_single_process")
+
+
+@pytest.mark.parametrize("name", MP_FIXTURES)
+def test_mp_moves_no_number_on_either_engine(name, pair):
+    """Justifies treating ``MP`` as advisory (issue #800).
+
+    The card tells the oracle how many processors to fill and factor with. If
+    that were physics, the fixture would differ from ``dipole_free_space`` —
+    same geometry, same drive, same frequency, one extra card. It does not, on
+    the oracle's side OR ours, so momwire ignoring ``#Proc``/``blockSize`` is a
+    faithful reading and not a shortcut.
+    """
+    ours, theirs = pair(name)
+    base_ours, base_theirs = pair("dipole_free_space")
+    for mine, base in ((ours, base_ours), (theirs, base_theirs)):
+        assert [len(t) for t in mine.ports] == [len(t) for t in base.ports]
+        for table, reference in zip(mine.ports, base.ports, strict=True):
+            assert table == reference, f"{name}: MP moved an impedance row"
+        assert mine.currents == base.currents, f"{name}: MP moved a segment current"
 
 
 TL_FIXTURES = ("dipole_tl_network", "dipole_tl_shunt_crossed")

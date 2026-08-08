@@ -566,8 +566,9 @@ class Multiprocessing:
     **What it changes in the printout.** One line, at column 0, straight after
     the ``ANTENNA ENVIRONMENT`` block and followed by one extra blank —
     ``MP: multiProcessor <#Proc> <blockSize>`` — printed only when the card
-    actually asks for parallelism (``#Proc >= 2``; ``MP 1 32`` and ``MP 0 0``
-    echo and say nothing). It reprints in every block that rebuilds the matrix,
+    actually asks for parallelism (``MP 1 32`` and ``MP 0 0`` echo and say
+    nothing; see :meth:`parallel` for the exact, slightly odd, test).
+    It reprints in every block that rebuilds the matrix,
     so an ``FR`` sweep shows it once per frequency. Everything else in the
     printout is byte identical: the fixtures ``dipole_mp_multiprocessor`` and
     ``dipole_mp_single_process`` are ``dipole_free_space``'s geometry, and the
@@ -606,9 +607,15 @@ class Multiprocessing:
 
     @property
     def parallel(self) -> bool:
-        """True when the card asks for more than one processor — the exact
-        condition under which the oracle prints its advisory line."""
-        return self.processors >= 2
+        """The exact condition under which the oracle prints its advisory.
+
+        Not ``>= 2``: ``MP -1 32`` and ``MP -3 -9`` print it too. The measured
+        set is ``{0, 1} -> silent, everything else -> printed``, which is what
+        a C ``if (nproc > 1)`` on an UNSIGNED field does — and the same
+        unsigned reading is the likeliest cause of the infinite spin a negative
+        field sends the oracle into.
+        """
+        return self.processors not in (0, 1)
 
     def line(self) -> str:
         return f"MP: multiProcessor {self.processors} {self.block_size}"

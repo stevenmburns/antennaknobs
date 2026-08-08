@@ -1048,6 +1048,153 @@ def test_a_half_wave_lossless_tl_is_refused_by_name():
 
 
 # --------------------------------------------------------------------------
+# issue #800: MP, the multicore hint SimNEC emits by itself
+# --------------------------------------------------------------------------
+
+MP_ADVISORY = "MP: multiProcessor 16 32"
+
+
+def test_mp_deck_runs_instead_of_being_refused():
+    """The reason the card had to land: SimNEC appends MP on structure SIZE
+    alone (``NECSource.constructNECFile``, once ``sum(Wire.numSegments)``
+    reaches ``getMPInfo()[0]``, default 256), so a big array arrives carrying
+    one whether or not anybody asked. Refusing it refused the deck."""
+    text = printout("dipole_mp_multiprocessor")
+    assert "ERROR-NEC2C" not in text
+    assert "ANTENNA INPUT PARAMETERS" in text
+
+
+def test_mp_echo_and_advisory_are_the_oracles_bytes():
+    """Both lines the card produces, against the committed oracle printout.
+
+    The echo is layout — four integer fields, ``16`` and ``32`` in the first
+    two — and the advisory is a literal, at column 0, so both can be compared
+    verbatim rather than structurally.
+    """
+    ours = printout("dipole_mp_multiprocessor")
+    theirs = fixture_out("dipole_mp_multiprocessor")
+
+    echo = next(ln for ln in theirs.splitlines() if " MP" in ln.split("No:")[-1])
+    assert echo in ours, f"our echo differs from the oracle's:\n  {echo!r}"
+    assert echo.split()[4:6] == ["MP", "16"], echo
+
+    assert MP_ADVISORY in theirs.splitlines(), "the fixture lost its advisory"
+    assert MP_ADVISORY in ours.splitlines()
+
+
+def test_mp_advisory_sits_between_the_environment_and_matrix_timing():
+    """Its position — and the extra blank it carries — are the contract.
+
+    nec2c prints the line straight after the ANTENNA ENVIRONMENT block with
+    one blank of its own, so a multiprocessing run shows THREE blanks before
+    MATRIX TIMING where a plain one shows two. Checked on both sides.
+    """
+    for text in (
+        printout("dipole_mp_multiprocessor"),
+        fixture_out("dipole_mp_multiprocessor"),
+    ):
+        lines = text.splitlines()
+        index = lines.index(MP_ADVISORY)
+        assert lines[index - 1].strip() == "FREE SPACE"
+        assert lines[index + 1 : index + 4] == ["", "", ""]
+        assert "MATRIX TIMING" in lines[index + 4]
+
+
+def test_a_single_processor_mp_echoes_but_says_nothing():
+    """``MP 1 32`` is still a card: it echoes, and prints no advisory. That
+    threshold is why the corpus carries both forms."""
+    ours = printout("dipole_mp_single_process")
+    theirs = fixture_out("dipole_mp_single_process")
+    assert "multiProcessor" not in ours
+    assert "multiProcessor" not in theirs
+    assert any(" MP" in ln and "DATA CARD No:" in ln for ln in ours.splitlines())
+
+
+def test_mp_changes_nothing_but_the_card_lines():
+    """The whole point of treating it as advisory, asserted rather than
+    assumed: ``dipole_mp_multiprocessor`` IS ``dipole_free_space`` plus one
+    card, and once the echo, the advisory and the shifted card ordinals are
+    removed the two printouts are identical — ours and the oracle's alike.
+    """
+
+    def stripped(text: str) -> list[str]:
+        """``body_lines`` — so the live FILL timing goes with the blanks and
+        the banner — minus the MP card's own two lines and the card ordinals."""
+        out = []
+        for line in body_lines(text):
+            if "multiProcessor" in line:
+                continue
+            if "DATA CARD No:" in line:
+                # Inserting a card renumbers every echo after it, so the
+                # ordinal goes; the MP echo itself goes with it.
+                _ordinal, rest = line.split("No:")[1].strip().split(maxsplit=1)
+                if rest.split()[0] != "MP":
+                    out.append(rest)
+                continue
+            out.append(line)
+        return out
+
+    for plain, with_mp in (
+        (printout("dipole_free_space"), printout("dipole_mp_multiprocessor")),
+        (fixture_out("dipole_free_space"), fixture_out("dipole_mp_multiprocessor")),
+    ):
+        assert stripped(with_mp) == stripped(plain)
+
+
+def test_mp_reprints_once_per_matrix_rebuild():
+    """An FR sweep rebuilds per frequency, and the advisory goes with it."""
+    deck = fixture_deck("dipole_fr_sweep").replace(
+        "FR 0 3 0 0 28. 1.", "MP 16 32\nFR 0 3 0 0 28. 1."
+    )
+    text = run_deck(deck)[0]
+    assert text.count("MATRIX TIMING") == 3
+    assert text.count(MP_ADVISORY) == 3
+
+
+def test_mp_is_not_an_arming_card():
+    """Measured on the oracle: ``... XQ / MP 4 8 / XQ`` prints one block, not
+    two. An MP alone does not make the next execute card a real run."""
+    text = run_deck(
+        "CE mp arming\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\nMP 4 8\nXQ\n"
+    )[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 1
+    assert text.count("MATRIX TIMING") == 1
+    # ...and both execute cards are still echoed.
+    assert len(re.findall(r"DATA CARD No:\s+\d+ XQ", text)) == 2
+
+
+@pytest.mark.parametrize(
+    ("card", "advisory"),
+    [
+        ("MP -3 -9", "MP: multiProcessor -3 -9"),
+        # Measured on the oracle: -1 is NOT the silent single-processor case.
+        # Its advisory test reads the field unsigned, so every negative prints
+        # (and every negative also hangs it).
+        ("MP -1 32", "MP: multiProcessor -1 32"),
+    ],
+)
+def test_a_hostile_mp_never_hangs_the_daemon(card, advisory):
+    """``MP -3 -9`` makes the ORACLE spin forever (measured: killed at 25 s).
+
+    ``Execute.processResponse`` has no timeout, so an engine that inherited
+    that behaviour would hang the SimNEC UI. This one echoes the card, prints
+    its advisory with the numbers as given, finishes the run, and emits the
+    sentinel.
+    """
+    out, err = deck_frame(
+        "CE hostile mp\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        f"EX 0 1 5 0 1.\n{card}\nFR 0 1 0 0 30. 0\nXQ\n"
+    )
+    text = "\n".join(out)
+    assert "ERROR-NEC2C" not in text
+    assert advisory in text
+    assert "ANTENNA INPUT PARAMETERS" in text
+    assert NX_ECHO.search(text)
+    assert err == []
+
+
+# --------------------------------------------------------------------------
 # unit 3: robustness — the daemon must survive anything on stdin
 # --------------------------------------------------------------------------
 
@@ -1080,6 +1227,19 @@ BAD_DECKS = {
     "no excitation at all": (
         "CE undriven\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\nFR 0 1 0 0 30. 0\nXQ\n",
         "no EX card",
+    ),
+    "a fractional MP field": (
+        # The oracle refuses this one too, with NON-NUMERICAL CHARACTER '.' IN
+        # INTEGER FIELD — MP's two fields are #Proc and blockSize and neither
+        # has a fractional reading.
+        "CE bad mp\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nMP 2.7 8.3\nFR 0 1 0 0 30. 0\nXQ\n",
+        "MP field",
+    ),
+    "an MP with a word in it": (
+        "CE worded mp\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nMP lots fast\nFR 0 1 0 0 30. 0\nXQ\n",
+        "lots",
     ),
     "a current source we do not model": (
         "CE ex type 6\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
