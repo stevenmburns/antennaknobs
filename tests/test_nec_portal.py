@@ -1307,6 +1307,167 @@ def test_pt_is_not_an_arming_card():
 
 
 # --------------------------------------------------------------------------
+# issue #800 (tail): GD, the additional-ground-parameters card
+# --------------------------------------------------------------------------
+
+# The two committed pairs: (with the card, the identical deck without it).
+GD_PAIRS = (
+    ("dipole_gd_second_medium", "dipole_pec_ground"),
+    ("dipole_gd_cliff_sommerfeld", "dipole_sommerfeld_ground"),
+)
+
+
+def test_gd_deck_runs_instead_of_being_refused():
+    """The reason the card had to land: SimNEC's EZNEC-derived examples
+    (``Cardioid (EZNEC).ssn``, ``4-square (EZNEC).ssn``) carry a ``GD`` and
+    ``NECSource`` forwards it, so refusing it failed those decks outright and
+    the live session read back fabricated R = 0 / X = 0."""
+    for name, _base in GD_PAIRS:
+        text = printout(name)
+        assert "ERROR-NEC2C" not in text, name
+        assert "ANTENNA INPUT PARAMETERS" in text, name
+
+
+@pytest.mark.parametrize(("name", "_base"), GD_PAIRS)
+def test_gd_echo_is_the_oracles_bytes(name, _base):
+    """The whole of the card's printed output, verbatim.
+
+    ``dipole_gd_cliff_sommerfeld`` is the one that matters here: its card
+    carries all four reals (``5. .001 20. -2.``), so the echo pins EPSR2,
+    SIG2, CLT *and* CHT in their card-order columns. The Cardioid's own form
+    leaves the last two at zero and would not.
+    """
+    ours = printout(name)
+    theirs = fixture_out(name)
+    echo = next(ln for ln in theirs.splitlines() if " GD" in ln.split("No:")[-1])
+    assert echo in ours, f"our echo differs from the oracle's:\n  {echo!r}"
+    assert echo.split()[4] == "GD"
+
+
+def test_the_cliff_gd_echo_carries_all_four_reals_in_card_order():
+    """``GD 0 0 0 0 5. .001 20. -2.`` -> EPSR2, SIG2, CLT, CHT, then zeros.
+
+    Read off the oracle's own ``RP 2`` printout, which names them:
+    ``EDGE DISTANCE= 20.00 METERS`` / ``HEIGHT= -2.00 METERS`` /
+    ``RELATIVE DIELECTRIC CONST= 5.000`` / ``GROUND CONDUCTIVITY= 0.001``.
+    """
+    for text in (
+        printout("dipole_gd_cliff_sommerfeld"),
+        fixture_out("dipole_gd_cliff_sommerfeld"),
+    ):
+        echo = next(ln for ln in text.splitlines() if " GD" in ln.split("No:")[-1])
+        reals = [float(v) for v in echo.split()[9:]]
+        assert reals == [5.0, 0.001, 20.0, -2.0, 0.0, 0.0], echo
+        assert [int(v) for v in echo.split()[5:9]] == [0, 0, 0, 0], echo
+
+
+@pytest.mark.parametrize(("name", "_base"), GD_PAIRS)
+def test_gd_adds_no_line_to_the_antenna_environment_block(name, _base):
+    """Probed for and not there — including under ``GN 2``, where a second
+    medium is the likeliest place an announcement would have appeared."""
+    for text in (printout(name), fixture_out(name)):
+        lines = text.splitlines()
+        start = next(i for i, ln in enumerate(lines) if "ANTENNA ENVIRONMENT" in ln)
+        end = next(i for i, ln in enumerate(lines) if "MATRIX TIMING" in ln)
+        block = " ".join(lines[start:end]).upper()
+        assert "SECOND MEDIUM" not in block, block
+        assert "CLIFF" not in block, block
+        assert "MEDIUM 2" not in block, block
+
+
+@pytest.mark.parametrize(("name", "base"), GD_PAIRS)
+def test_gd_changes_nothing_but_its_own_echo(name, base):
+    """Asserted rather than assumed, exactly as ``MP`` is.
+
+    Each fixture IS its base deck plus one card. Strip the ``GD`` echo and
+    the ordinals it shifts and the two printouts are identical — ours and the
+    oracle's alike. If that ever stops being true, ``GD`` has become physics
+    and this engine is wrong to record it and move on.
+    """
+
+    def stripped(text: str) -> list[str]:
+        out = []
+        for line in body_lines(text):
+            if "DATA CARD No:" in line:
+                _ordinal, rest = line.split("No:")[1].strip().split(maxsplit=1)
+                if rest.split()[0] != "GD":
+                    out.append(rest)
+                continue
+            out.append(line)
+        return out
+
+    for plain, with_gd in (
+        (printout(base), printout(name)),
+        (fixture_out(base), fixture_out(name)),
+    ):
+        assert stripped(with_gd) == stripped(plain)
+
+
+def test_gd_is_not_an_arming_card():
+    """Measured on the oracle: ``... XQ / GD 2 0 0 0 13. .005 0. 0. / XQ``
+    prints one block, not two."""
+    text = run_deck(
+        "CE gd arming\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\nGN 1\n"
+        "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\nXQ\nGD 2 0 0 0 13. .005 0. 0.\nXQ\n"
+    )[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 1
+    assert text.count("MATRIX TIMING") == 1
+    # ...and both execute cards are still echoed.
+    assert len(re.findall(r"DATA CARD No:\s+\d+ XQ", text)) == 2
+
+
+def test_the_comma_delimited_gd_simnec_sends_parses_like_the_spaced_form():
+    """``NECSource`` writes the card comma-delimited — ``GD
+    2,0,0,0,13.,.005,0.,0.`` is the literal Cardioid line. Measured identical
+    to the spaced form on the oracle; identical here too."""
+    head = "CE gd commas\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\nGN 1\n"
+    tail = "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\nXQ\n"
+    commas = run_deck(head + "GD 2,0,0,0,13.,.005,0.,0.\n" + tail)[0]
+    spaces = run_deck(head + "GD 2 0 0 0 13. .005 0. 0.\n" + tail)[0]
+    assert body_lines(commas) == body_lines(spaces)
+    assert "ERROR-NEC2C" not in commas
+
+
+def test_a_bare_gd_is_a_card_like_any_other():
+    """The oracle echoes ``GD`` with four zero integers and six zero reals and
+    runs the deck; nothing here may trip over the missing fields."""
+    text = run_deck(
+        "CE bare gd\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\nGN 1\nGD\n"
+        "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\nXQ\n"
+    )[0]
+    assert "ERROR-NEC2C" not in text
+    echo = next(ln for ln in text.splitlines() if " GD" in ln.split("No:")[-1])
+    assert [float(v) for v in echo.split()[5:]] == [0.0] * 10, echo
+
+
+def test_the_rp_modes_that_would_use_a_gd_are_still_refused():
+    """The fidelity gate — why accepting ``GD`` is not a silent lie.
+
+    NEC-2 reaches the second medium in the far field ALONE, and there only
+    through ``RP``'s cliff and ground-screen modes. Measured on the oracle
+    with the cliff card of ``dipole_gd_cliff_sommerfeld``: under ``RP 0`` the
+    pattern table is byte-identical with and without it; under ``RP 2`` a
+    ``FAR FIELD GROUND PARAMETERS`` block appears and every gain moves. So
+    the deck shapes where ``GD`` is inert are the shapes this engine runs,
+    and the shapes where it is not are refused by name (issue #802) — this
+    engine can never be asked a cliff question and answer it as flat ground.
+    """
+    head = (
+        "CE gd cliff pattern\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\n"
+        "GN 0 0 0 0 13. .005\nGD 0 0 0 0 5. .001 20. -2.\n"
+        "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\n"
+    )
+    for mode in (1, 2, 3, 4, 5, 6):
+        text = run_deck(head + f"RP {mode} 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
+        assert f"RP mode {mode} is not supported" in text, mode
+        assert NX_ECHO.search(text), mode
+    # ...and the mode SimNEC actually writes runs, second medium or not.
+    text = run_deck(head + "RP 0 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
+    assert "ERROR-NEC2C" not in text
+    assert "RADIATION PATTERNS" in text
+
+
+# --------------------------------------------------------------------------
 # unit 3: robustness — the daemon must survive anything on stdin
 # --------------------------------------------------------------------------
 
@@ -1352,6 +1513,16 @@ BAD_DECKS = {
         "CE worded mp\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
         "EX 0 1 5 0 1.\nMP lots fast\nFR 0 1 0 0 30. 0\nXQ\n",
         "lots",
+    ),
+    "a GD with a word in it": (
+        # The ORACLE's free-format reader silently SKIPS a non-numeric token
+        # and shifts the rest left, so `GD 2 0 0 0 marsh .005 0. 0.` echoes
+        # .005 as EPSR2 — a wrong answer dressed as a right one. This engine
+        # names the token instead, on the same error path every other card
+        # uses, and still emits the sentinel.
+        "CE worded gd\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\nGN 1\n"
+        "GD 2 0 0 0 marsh .005 0. 0.\nEX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\nXQ\n",
+        "marsh",
     ),
     "a current source we do not model": (
         "CE ex type 6\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
