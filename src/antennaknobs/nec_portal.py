@@ -29,13 +29,17 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
 * issue #799: ``TL`` transmission lines, which nec2c prints as an equivalent
   network — same ``NETWORK DATA`` banner as ``NT``, a different three-line
   column header, and a trailing ``STRAIGHT``/``CROSSED`` type word;
+* issue #800: ``MP``, the ae6ty multicore hint SimNEC emits automatically past
+  256 segments. Parsed, echoed, and its one advisory line reproduced; the
+  ``#Proc``/``blockSize`` numbers are deliberately not acted on (see
+  :class:`Multiprocessing`);
 * the printout sections SimNEC's state machine walks: banner, comments, data
   cards, structure specification, segmentation data, frequency, structure
   impedance loading, antenna environment, network data, matrix timing, antenna
   input parameters, currents and location, power budget, radiation patterns,
   near electric/magnetic fields.
 
-Still deferred (unit 4 / out of scope): ``PT``, ``MP``, ``IS``, surface
+Still deferred (unit 4 / out of scope): ``PT``, ``IS``, surface
 patches, ``RP`` modes other than 0, spherical
 ``NE``/``NH`` grids, and ``GN`` radial-wire ground screens. Those cards take
 the error path below rather than crashing the daemon — the printout says which
@@ -342,7 +346,6 @@ _GEOMETRY_CARDS = frozenset({"GW", "GA", "GH", "GM", "GX", "GR", "GS", "GE"})
 _DEFERRED_CARDS = MappingProxyType(
     {
         "PT": "current print control",
-        "MP": "multiprocessing hint",
         "IS": "NEC-4.2 wire insulation",
         "SP": "surface patch",
         "SM": "multiple-patch surface",
@@ -541,6 +544,76 @@ class LineBranch:
         )
 
 
+@dataclass(frozen=True)
+class Multiprocessing:
+    """One ``MP`` card: the ae6ty engine's multicore hint. Echoed, then ignored.
+
+    **What the card is.** ``MP <#Proc> <blockSize>`` — two INTEGER fields, and
+    nothing else; a fractional one is refused by the oracle
+    (``NON-NUMERICAL CHARACTER '.' IN INTEGER FIELD``) and is refused here.
+    ``nec2/NECSource.constructNECFile`` writes it as ``"MP %d %d\\n"`` from
+    ``NEC2PortalDialog.getMPInfo()[1:]`` — the last two fields of the
+    ``necMP #segs #Proc blockSize`` preference, default ``256 16 32``.
+
+    **When SimNEC emits it.** Automatically, and on structure SIZE alone:
+    ``constructNECFile`` accumulates ``Wire.numSegments`` over
+    ``Task.allWiresForNEC()`` and appends the card — immediately before the
+    ``FR`` — when that total reaches ``getMPInfo()[0]`` and the selected engine
+    is ``NECEngine.NEC2C``. No user ever asks for it, so any array past 256
+    segments simply arrives carrying one. That is why refusing it was not
+    tenable: it made the portal fail on exactly the decks worth running.
+
+    **What it changes in the printout.** One line, at column 0, straight after
+    the ``ANTENNA ENVIRONMENT`` block and followed by one extra blank —
+    ``MP: multiProcessor <#Proc> <blockSize>`` — printed only when the card
+    actually asks for parallelism (``#Proc >= 2``; ``MP 1 32`` and ``MP 0 0``
+    echo and say nothing). It reprints in every block that rebuilds the matrix,
+    so an ``FR`` sweep shows it once per frequency. Everything else in the
+    printout is byte identical: the fixtures ``dipole_mp_multiprocessor`` and
+    ``dipole_mp_single_process`` are ``dipole_free_space``'s geometry, and the
+    only other differences are the card echo and the ordinals after it.
+
+    **Why ignoring #Proc and blockSize is correct.** The card describes how the
+    ORACLE fills and factors its matrix; it is not physics, and it cannot be —
+    the printed numbers are identical with and without it. momwire's
+    parallelism is decided elsewhere and earlier: the BLAS/OpenMP pools behind
+    numpy, scipy and pynec_accel are configured once per process at import time
+    via ``threadpoolctl`` (see ``web/server.py``'s thread-policy block and
+    issue #377 — env pins set after the package ``__init__`` are already too
+    late, because every pool snapshots its environment at load). A per-deck
+    card arriving on stdin cannot reach back into that decision, and honouring
+    it would mean re-limiting live pools mid-solve for a hint the sender did
+    not mean as a request. It is advisory: we say we saw it, and solve the way
+    the process was configured to solve.
+
+    A hostile field is still harmless here. ``MP -3 -9`` makes the oracle
+    itself hang forever (measured: SIGTERM at 25 s); this engine just echoes it
+    and carries on, which is the difference between a stalled SimNEC and a
+    printout.
+    """
+
+    processors: int
+    block_size: int
+
+    @classmethod
+    def from_card(cls, card: Card) -> Multiprocessing:
+        for k in (0, 1):
+            if card.f(k) != float(card.i(k)):
+                raise PortalError(
+                    f"MP field {k + 1} must be an integer, not {card.f(k)!r}"
+                )
+        return cls(card.i(0), card.i(1))
+
+    @property
+    def parallel(self) -> bool:
+        """True when the card asks for more than one processor — the exact
+        condition under which the oracle prints its advisory line."""
+        return self.processors >= 2
+
+    def line(self) -> str:
+        return f"MP: multiProcessor {self.processors} {self.block_size}"
+
+
 @dataclass
 class ExecuteGroup:
     """One execute card's worth of state: the sources armed when it fired, and
@@ -561,6 +634,11 @@ class ExecuteGroup:
     # The ``RP``/``NE``/``NH`` card that fired this group, if any. Its table is
     # printed after the power budget; a plain ``XQ`` leaves it None.
     report: Card | None = None
+    # The ``MP`` card in force when this group fired. Carried per group rather
+    # than per deck because the advisory line is printed inside the refill
+    # preamble: an ``MP`` read after an execute card must not retro-annotate
+    # the block before it.
+    mp: Multiprocessing | None = None
 
 
 @dataclass
@@ -652,6 +730,7 @@ def parse_deck(body: str) -> PortalDeck:
     ground_plane_flag = False
     quiet = False
     reduced_field: int | None = None
+    multiprocessing: Multiprocessing | None = None
 
     for line in body.splitlines():
         card = parse_card(line)
@@ -694,6 +773,11 @@ def parse_deck(body: str) -> PortalDeck:
             networks.append(NetworkBranch.from_card(card))
         elif card.mnemonic == "TL":
             networks.append(LineBranch.from_card(card))
+        elif card.mnemonic == "MP":
+            # Not an arming card: the oracle runs nothing for an XQ whose only
+            # new card is an MP (measured — the second XQ of `... XQ / MP 4 8 /
+            # XQ` prints no block at all).
+            multiprocessing = Multiprocessing.from_card(card)
         elif card.mnemonic == "FR":
             freqs = _fr_frequencies(card)
             fresh_fr = True
@@ -724,6 +808,7 @@ def parse_deck(body: str) -> PortalDeck:
                     freqs if fresh_fr else freqs[-1:],
                     refilled=fresh_fr or not executed,
                     report=None if card.mnemonic == "XQ" else card,
+                    mp=multiprocessing,
                 )
             )
             executed += 1
@@ -2037,6 +2122,12 @@ def _run_block(
             out.append(_LOADING_NONE)
         out += ["", ""]
         out += _environment_lines(deck.ground, freq_mhz)
+        # The MP advisory sits at column 0 between the environment block and
+        # the blanks before MATRIX TIMING, and carries one blank of its own —
+        # so a multiprocessing deck shows THREE blanks there and a plain one
+        # shows two (fixtures dipole_mp_multiprocessor / dipole_free_space).
+        if group.mp is not None and group.mp.parallel:
+            out += [group.mp.line(), ""]
         out += ["", ""]
         out += [
             _MATRIX_TIMING_HEADER,
