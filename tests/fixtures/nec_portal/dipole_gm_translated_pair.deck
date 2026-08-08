@@ -1,0 +1,8 @@
+CE dipole plus GM-translated copy
+GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001
+GM 1 1 0. 0. 0. 2.0 0. 0. 1.
+GE 0
+EX 0 1 5 0 1.
+FR 0 1 0 0 30. 0
+XQ
+NX

@@ -1,0 +1,9 @@
+CE two dipoles joined by an NT network
+GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001
+GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001
+GE 0
+EX 0 1 5 0 1.
+NT 1 5 2 5 0. 0.02 0. -0.02 0. 0.02
+FR 0 1 0 0 30. 0
+XQ
+NX
