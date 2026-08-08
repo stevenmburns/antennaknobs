@@ -1,6 +1,6 @@
 ---
 title: SimNEC round-trip
-description: Export any design — antenna or whole station — as a SimNEC .ssn circuit, and load .ssn files back as designs, for cross-validation against an independent solver.
+description: Export any design — antenna or whole station — as a SimNEC .ssn circuit, load .ssn files back as designs, or run momwire as the NEC engine behind SimNEC itself.
 ---
 
 [SimNEC](https://ae6ty.com/smith_charts/) (AE6TY) is the successor to
@@ -112,8 +112,133 @@ loss coefficients, both capacitors, coil and its Q) survive the full cycle
 unchanged. If the two sides ever disagree about a convention, the suite
 fails rather than the circuits quietly diverging.
 
+## Using momwire as SimNEC's engine
+
+The round-trip above hands SimNEC a file and lets SimNEC's own bundled NEC2
+solve it. There is a second, tighter connection: **momwire can be the solver
+SimNEC calls.**
+
+SimNEC does not link NEC2 — it shells out to a `nec2c` executable, starts one
+copy, and keeps it. Decks go down that process's stdin framed by an `NX` card,
+printouts come back on stdout, and SimNEC's MNA circuit solver reads two
+numbers per feedpoint out of each printout to build the antenna's Y matrix.
+`antennaknobs.nec_portal` is a drop-in for that process, with momwire's
+B-spline Galerkin solver behind it. Your Smith chart, tuner, and sweeps stay
+SimNEC's; the electromagnetics become momwire's.
+
+:::caution[Experimental, and unblessed upstream]
+This is validated against a real SimNEC installation's own NEC2 — 30 captured
+deck/printout pairs, reproduced layout-identically, with the numbers agreeing
+to better than 5% on impedance and 0.12 dB on pattern gain — but it is not
+something SimNEC's author has reviewed or endorsed, and no part of SimNEC
+knows momwire exists. Treat it as a cross-check you can run yourself, not as a
+supported configuration.
+:::
+
+### Pointing SimNEC at it
+
+Install antennaknobs anywhere with a Python environment; the package ships a
+console script:
+
+```bash
+pip install antennaknobs
+which momwire-nec2c          # e.g. ~/.venvs/ak/bin/momwire-nec2c
+momwire-nec2c -version       # nec2c.ae6ty.9.1
+```
+
+Then open SimNEC's NEC portal dialog and paste that path in as the NEC
+command. Two rules decide whether SimNEC accepts it, and both are worth
+knowing because the failure modes look nothing like their causes:
+
+- **The filename must contain `nec2c`.** SimNEC picks the engine's dialect off
+  the command's file name, lowercased — a name with none of `nec2c` / `nec5` /
+  `nec42` in it is refused outright with *NO NEC Command Available*. That is
+  why the script is called `momwire-nec2c` and not something tidier; if you
+  wrap it in a shell script or a symlink, keep `nec2c` in the name.
+- **The version probe must answer.** SimNEC runs `<command> -version` and reads
+  the first line, which has to be `nec2c.ae6ty.` followed by a plain number it
+  can parse as a decimal. The portal answers `nec2c.ae6ty.9.1`. It cannot say
+  "momwire" there — an extra dot makes the parse fail and SimNEC reports
+  *nec2c version too old* — so the engine puts its real identity in the
+  printout banner instead, where every SimNEC session logs it:
+  `VERSION:nec2c.ae6ty.momwire.9.1`.
+
+Before a live session, the repo's smoke script runs three decks through one
+resident process the way SimNEC does and prints PASS or FAIL:
+
+```bash
+bash scripts/nec_portal_smoke.sh
+```
+
+### What works
+
+Everything SimNEC's portal actually emits for wire antennas:
+
+| | |
+| --- | --- |
+| Feedpoint impedance | `EX 0` voltage sources, one or many, and the `YY` report card SimNEC probes multi-port antennas with |
+| Frequency sweeps | multi-point `FR`, the whole sweep in one deck |
+| Geometry | `GW` wires with `GM` / `GX` / `GR` / `GS` / `GA` / `GH` transforms |
+| Ground | free space, `GE ±1` perfect ground, `GN 0` reflection-coefficient and `GN 2` Sommerfeld finite ground |
+| Loading | `LD 0` / `1` / `4` / `5` — series RLC traps, distributed loading, wire conductivity |
+| Patterns | `RP 0` far-field grids, gain and polarisation, normalised to input power |
+| Near fields | `NE` / `NH` rectangular grids in free space or over perfect ground |
+| Networks | `NT` two-port admittance branches between segments |
+
+One thing is faster than the engine it replaces, structurally. SimNEC probes an
+N-port antenna by sending N excitation groups in one deck, and a stock nec2c
+refills and refactors the whole moment matrix for each — N fills for one
+matrix. The portal takes the union of every group's ports, fills and factors
+**once** per geometry and frequency, and answers each group by back-substitution
+on the cached factors. A three-port deck costs one fill, not three.
+
+### What refuses — cleanly
+
+A deck the engine cannot model is *reported and stepped over*, never guessed
+at: the printout names the offending card and why, and still carries the `NX`
+sentinel that SimNEC blocks in `readLine()` waiting for. (An engine that dies
+or forgets the sentinel hangs SimNEC's UI with no timeout, which is strictly
+worse than an error message.) The daemon survives it and runs the next deck.
+
+Refused today:
+
+- **Surface patches** (`SP`, `SM`) — momwire is a wire solver.
+- **`PT`, `MP`, `IS`** — print control, the multiprocessing hint SimNEC emits
+  on large structures, and NEC-4.2 wire insulation. Their printout shapes are
+  unpinned, so they are refused rather than approximated.
+- **`TL` transmission lines** — momwire models the network fine; it is the
+  NETWORK DATA table's column layout for `TL` that has never been observed.
+  Use `NT`, or keep the line on the SimNEC side as a `SERIES_TLINE` element,
+  which is where a station's feedline belongs anyway.
+- **`RP` modes 1–6 and the gain-only form** — mode 0 is the only one SimNEC
+  emits; the others print a different table.
+- **Spherical `NE` / `NH` grids** (`I1 = 1`) — rectangular only.
+- **Near fields over finite ground** — the near field of a Sommerfeld
+  half-space is not an image, and pretending otherwise would be quietly wrong.
+  Far-field patterns over finite ground are fine.
+- **`GN` radial-wire ground screens** (a non-zero radial count) — momwire has
+  no screen model, and ignoring the field would silently change the answer.
+
+### How many engines to run
+
+SimNEC keeps a crew of engine processes and hands decks out among them. A
+momwire process is not a 2 MB C binary: each one carries NumPy, SciPy and
+momwire — about 90 MB resident before it solves anything — plus the dense
+complex matrix and its factors, which grow as the square of the segment count.
+It is also much quicker per deck once warm (a 106-segment design solves in
+~130 ms, a small dipole in ~2 ms), so a smaller crew keeps up with a larger one
+of the C engine.
+
+**On a 16 GB machine, set the NEC crew size to 4.** Larger crews buy little,
+because the win here is the single fill per geometry rather than parallelism
+across decks, and they multiply the per-process floor by the segment count you
+are least expecting.
+
 ## Licensing
 
 SimNEC is proprietary freeware. antennaknobs emits and parses its *open file
 format* for interoperability — like emitting a NEC deck or a Touchstone
-file — and copies none of SimNEC's bundled assets.
+file — and copies none of SimNEC's bundled assets. The engine portal is the
+same kind of interoperability in the other direction: it reproduces the
+printout *layout* SimNEC's reader expects, worked out from observed output,
+and contains no nec2c code.
