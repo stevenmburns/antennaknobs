@@ -85,7 +85,8 @@ def test_manifest_matches_files_on_disk():
     extra = {
         p.name
         for p in FIXTURE_DIR.iterdir()
-        if p.suffix not in (".deck", ".out") and p.name != CAPTURE.MANIFEST_NAME
+        if p.suffix not in (".deck", ".out")
+        and p.name not in (CAPTURE.MANIFEST_NAME, "README.md")
     }
     assert not extra, f"unexpected files in the fixture dir: {sorted(extra)}"
 
