@@ -255,6 +255,21 @@ def build_nec_portal_script(
     """
     deck = export_nec(builder, ground=ground, freq=freq_mhz, include_rp=False)
     cards = _nec_cards_for_portal(deck)
+    n_feeds = sum(1 for c in cards if c.startswith("EX"))
+    if n_feeds > 1:
+        # SimNEC's cascade template has ONE generator, so a multi-feed deck's
+        # relative drive phasing is silently lost on load — SimNEC ties every
+        # EX to the one source and drives them in phase. Measured live on
+        # wire.w8jk (issue #815): the out-of-phase design read the IN-phase
+        # impedance (384.7+505.3j vs the true 23.7+515.7j). A wrong-but-
+        # plausible circuit is exactly what this exporter promises never to
+        # emit, so refuse until per-feed SimNEC sources are modeled.
+        raise SsnUnsupported(
+            f"{n_feeds} feedpoints: SimNEC's cascade has one GENERATOR, so "
+            "the deck's relative drive phasing would be silently lost "
+            "(every feed driven in phase — issue #815); multi-feed designs "
+            "are not exported until per-feed sources are modeled"
+        )
     if name is None:
         name = _default_block_name(builder)
     return _portal_wrap(cards, name=name, ground=ground, seg_per_wl=seg_per_wl)
