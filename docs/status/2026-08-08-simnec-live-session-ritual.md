@@ -1,0 +1,90 @@
+# The live SimNEC session ritual (issue #804)
+
+Everything in `antennaknobs.nec_portal` is bench-tested against committed
+oracle printout (32/32 byte-layout, differential harness green). What has
+never happened is a real SimNEC session driving the momwire engine end to
+end. This is the script for that session. Run it at the box with SimNEC
+installed; record the outcome in the table at the bottom. **This is the last
+gate before the notes in `2026-08-08-ward-simnec-momwire-notes.md` go out.**
+
+## 0. Pre-flight (no GUI needed)
+
+```bash
+cd ~/antennas/antennaknobs
+bash scripts/nec_portal_smoke.sh          # must say PASS
+.venv/bin/python -m antennaknobs.nec_portal -version   # nec2c.ae6ty.9.1
+ls -la .venv/bin/momwire-nec2c            # the script SimNEC will run
+```
+
+If `momwire-nec2c` is missing, the editable install predates the entry
+point: `.venv/bin/pip install -e . --no-deps` once, then re-check.
+
+## 1. Point SimNEC at momwire
+
+Launch SimNEC (`/home/smburns/SimNEC/SimNEC`). Open **view → NEC2 Portal**.
+Note the current `necCommand` (write it down — this is the revert path),
+then click the field and select:
+
+```
+/home/smburns/antennas/antennaknobs/.venv/bin/momwire-nec2c
+```
+
+Expected: SimNEC accepts it (the filename contains `nec2c`; the `-version`
+probe answers `nec2c.ae6ty.9.1`, above its 1.23 floor). The portal dialog
+should display the probe string. If it refuses with "version too old" or
+"NO NEC SERVICE FOUND", capture the exact message — that's a finding, not a
+failure to shrug at.
+
+Set `necCrewSize` to **4** (momwire processes are faster but heavier than
+nec2c's; 16 Python+numpy residents on a 16 GB box is asking for trouble).
+
+## 2. The session
+
+Use the ladder-tuner circuit from the .ssn round-trip validation
+(`~/antennas/simnec_696_validation/doublet_ladder_tuner.ssn`) — its
+correct answer is already known from three sources (our engine, SimNEC's
+MNA over its own nec2c, and the antennaknobs workbench).
+
+1. **Load it.** The NEC block should solve on momwire. Rig-side Z at
+   7.1 MHz should land near **41.9 − j5.8 Ω** (the Track-1 number; a few
+   percent of drift vs the nec2c-backed session is the cross-basis gap the
+   differential harness bounds at ≤ ~3%).
+2. **Turn a knob** (a tuner cap). The readout must track — this exercises
+   the resident-process loop under SimNEC's own cadence, which no bench
+   test reproduces.
+3. **Run a frequency sweep.** Watch for: both progress wheels behaving,
+   no stalls (a stall = the sentinel contract failed under some deck we
+   never captured — grab `~/.SimNEC/…/badNEC.nec` if SimNEC writes one),
+   and a smooth SWR curve.
+4. **Open the NEC display** and look at the far-field pattern. Shape
+   should match the antennaknobs workbench's pattern for the same design;
+   absolute dB should agree within ~0.3 dB (bench-measured worst 0.12).
+   If the absolute level is off by exactly the antenna's efficiency,
+   that's the FieldStore gain-vs-directivity question (#803) answering
+   itself — record the number.
+5. **Multi-feed check.** Load any 2+ source design (or the jar's own test
+   circuit): per-source runs are where one-fill-N-sources pays off; verify
+   the Y-driven readouts look sane and nothing hangs between XQ groups.
+6. **Abuse it once.** Load a design the portal refuses (anything with
+   surface patches, or a GN radial screen). SimNEC must show an engine
+   error and stay alive — not hang. This validates the error path + NX
+   sentinel under the real parser.
+7. **Revert** `necCommand` to the bundled nec2c and confirm SimNEC still
+   works (leave no surprises for the next session).
+
+## 3. Record the outcome
+
+| Step | Result | Notes |
+| --- | --- | --- |
+| Pre-flight smoke | | |
+| Portal accepts command + version | | |
+| Ladder tuner Z @ 7.1 MHz | | ours vs nec2c-backed session |
+| Knob tracking | | |
+| Sweep completes, no stalls | | crew size used: |
+| Pattern shape / level | | Δ dB — note if = efficiency (#803) |
+| Multi-source design | | |
+| Refusal stays alive | | |
+| Reverted cleanly | | |
+
+Findings that need code changes get filed as issues; the outcome table and
+date get appended here; when every row is green, send the Ward notes.
