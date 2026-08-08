@@ -25,21 +25,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.45.0" icon="star">
-  **The SimNEC round-trip release: your station, checked by a second
-  solver.** antennaknobs now speaks SimNEC's `.ssn` circuit format in
-  **both directions**. Export any design — the antenna alone, or a whole
-  station with feedline, tuner tee, and transformer — as a circuit SimNEC
-  opens natively, element values and cable-loss coefficients intact; the
-  mapping is **validated against a real SimNEC installation**, load-tested
-  element by element. Designs whose physics lives in the common mode
-  (balanced tuners, floating baluns) refuse to export with a clear reason
-  instead of producing a confidently-wrong circuit. Coming back, `.ssn`
-  files load as designs — geometry, ground, and the matching chain as a
-  real feed network — and every CLI subcommand takes **`@file.ssn`**
-  directly, just like `@file.nec`. Round-trip identity tests pin the two
-  sides together so they can never drift apart. Start at the new
-  [SimNEC round-trip](/reference/simnec/) reference page.
+<Card title="New in v0.46.0" icon="star">
+  **The engine-for-hire release: momwire now runs *inside* SimNEC.** Point
+  SimNEC's NEC-portal dialog at the new **`momwire-nec2c`** drop-in and its
+  Smith chart, tuners, and sweeps run on momwire's solver — no change to
+  SimNEC needed. The protocol was reverse-engineered against SimNEC's own
+  bundled engine (40 captured printout pairs, reproduced column-for-column)
+  and then **validated in a live SimNEC session**: a real station circuit
+  within a few percent through a high-Q tuner, pattern levels agreeing to
+  ~0.01 dB, and SimNEC's own 4-source phased-array example matching to 1 Ω
+  of reactance. A **`--basis`** flag picks the physics from the portal
+  dialog itself — paste two entries and you have cross-basis validation
+  inside SimNEC, with `sinusoidal-galerkin-converged` on call for near-open
+  high-Q feeds. Structurally faster where it counts: N-port probes cost one
+  matrix fill, not N. Plus: multi-feed \`.ssn\` exports now refuse rather
+  than silently losing their drive phasing. Start at
+  [Using momwire as SimNEC's engine](/reference/simnec/#using-momwire-as-simnecs-engine).
 </Card>
 
 ## The whole pitch, in one line

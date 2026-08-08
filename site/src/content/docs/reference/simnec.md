@@ -126,13 +126,17 @@ numbers per feedpoint out of each printout to build the antenna's Y matrix.
 B-spline Galerkin solver behind it. Your Smith chart, tuner, and sweeps stay
 SimNEC's; the electromagnetics become momwire's.
 
-:::caution[Experimental, and unblessed upstream]
-This is validated against a real SimNEC installation's own NEC2 — 30 captured
-deck/printout pairs, reproduced layout-identically, with the numbers agreeing
-to better than 5% on impedance and 0.12 dB on pattern gain — but it is not
-something SimNEC's author has reviewed or endorsed, and no part of SimNEC
-knows momwire exists. Treat it as a cross-check you can run yourself, not as a
-supported configuration.
+:::caution[Validated live — but unblessed upstream]
+This has driven a real SimNEC session end to end (Windows, SimNEC 6p4d6):
+knob tracking, sweeps, patterns, and multi-source phased-array examples, with
+a validated station circuit reading within a few percent of the bundled
+nec2c through a high-Q tuner, pattern levels agreeing to ~0.01 dB once the
+gain/directivity conventions are lined up, and SimNEC's own 4-source
+Lindenblad example matching to 1 Ω of reactance. Under the session sits a
+bench corpus of 40 captured deck/printout pairs reproduced
+layout-identically. It is still not something SimNEC's author has reviewed
+or endorsed, and no part of SimNEC knows momwire exists — treat it as a
+cross-check you can run yourself, not a supported configuration.
 :::
 
 ### Pointing SimNEC at it
@@ -163,12 +167,32 @@ knowing because the failure modes look nothing like their causes:
   printout banner instead, where every SimNEC session logs it:
   `VERSION:nec2c.ae6ty.momwire.9.1`.
 
-Before a live session, the repo's smoke script runs three decks through one
-resident process the way SimNEC does and prints PASS or FAIL:
+Before a live session, run the built-in smoke — it needs no checkout, spawns
+one resident copy of itself, runs embedded decks through it the way SimNEC
+does, and prints PASS or FAIL:
 
 ```bash
-bash scripts/nec_portal_smoke.sh
+momwire-nec2c --selftest
 ```
+
+### Choosing the physics: `--basis`
+
+SimNEC launches engines through the shell, so the command you paste into the
+portal dialog can carry arguments. The portal accepts a `--basis` flag:
+
+```text
+momwire-nec2c --basis bspline                        # the default
+momwire-nec2c --basis sinusoidal-galerkin            # closest to NEC's own formulation
+momwire-nec2c --basis sinusoidal-galerkin-converged  # recommended for near-open high-Q feeds
+```
+
+**Paste two portal entries that differ only in `--basis` and you have
+cross-basis validation inside SimNEC itself** — switch engines from the
+dialog and watch whether the answer holds. The printout banner records which
+physics answered (`VERSION:...momwire.9.1+sgc`), a mistyped basis fails the
+version probe loudly at configure time, and the `-converged` variant is the
+documented setting for feeds near a current null — the one antenna class
+where bases legitimately disagree at coarse segmentation.
 
 ### What works
 
@@ -183,7 +207,8 @@ Everything SimNEC's portal actually emits for wire antennas:
 | Loading | `LD 0` / `1` / `4` / `5` — series RLC traps, distributed loading, wire conductivity |
 | Patterns | `RP 0` far-field grids, gain and polarisation, normalised to input power |
 | Near fields | `NE` / `NH` rectangular grids in free space or over perfect ground |
-| Networks | `NT` two-port admittance branches between segments |
+| Networks | `NT` two-port admittance branches and `TL` transmission lines between segments |
+| Housekeeping | `EK` extended-kernel, `MP` multicore hints, `PT` print control, `GD` second-medium parameters — accepted and echoed exactly as nec2c does (advisory where momwire's own physics governs) |
 
 One thing is faster than the engine it replaces, structurally. SimNEC probes an
 N-port antenna by sending N excitation groups in one deck, and a stock nec2c
@@ -203,15 +228,12 @@ worse than an error message.) The daemon survives it and runs the next deck.
 Refused today:
 
 - **Surface patches** (`SP`, `SM`) — momwire is a wire solver.
-- **`PT`, `MP`, `IS`** — print control, the multiprocessing hint SimNEC emits
-  on large structures, and NEC-4.2 wire insulation. Their printout shapes are
-  unpinned, so they are refused rather than approximated.
-- **`TL` transmission lines** — momwire models the network fine; it is the
-  NETWORK DATA table's column layout for `TL` that has never been observed.
-  Use `NT`, or keep the line on the SimNEC side as a `SERIES_TLINE` element,
-  which is where a station's feedline belongs anyway.
-- **`RP` modes 1–6 and the gain-only form** — mode 0 is the only one SimNEC
-  emits; the others print a different table.
+- **`IS`** — NEC-4.2 wire insulation; momwire's insulation model is not
+  wired through the portal.
+- **`RP` modes 1–6 and the gain-only form** — mode 0 is the only one
+  SimNEC's own path emits; the others print different tables (they are what
+  the `GD` cliff parameters feed, so a deck asking a cliff question refuses
+  rather than answering it as flat ground).
 - **Spherical `NE` / `NH` grids** (`I1 = 1`) — rectangular only.
 - **Near fields over finite ground** — the near field of a Sommerfeld
   half-space is not an image, and pretending otherwise would be quietly wrong.
