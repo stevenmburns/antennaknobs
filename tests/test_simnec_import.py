@@ -457,3 +457,53 @@ def test_read_ssn_confined_to_design_folder(tmp_path, monkeypatch):
     b = user_designs.resolve_user_design("ssn_design")()
     with pytest.raises(ValueError, match="absolute"):
         read_ssn(b, "/etc/passwd")
+
+
+# --- full round-trip: export_ssn -> parse_ssn, both sides on one branch ------
+
+
+class _XfmrStation(AntennaBuilder):
+    """n=2 ideal transformer between rig and dipole — pins the reciprocal
+    TRANSFORMER2 N convention END TO END (export emits N=1/n, import reads
+    n=1/N; the SimNEC 6p4d6 validation finding from PR #696), so the pair
+    cannot drift apart again."""
+
+    default_params = MappingProxyType({"freq": 14.0, "design_freq": 14.0})
+
+    def build_wires(self):
+        return [Wire((0.0, -5.0, 10.0), (0.0, 5.0, 10.0), n_seg=11, name="feed")]
+
+    def build_network(self):
+        from antennaknobs.network import Network, PortOnWire
+
+        return Network(
+            ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
+            branches=[Transformer(a="rig", b="feed", n=2.0)],
+            sources=[Driven(port="rig")],
+        )
+
+
+def test_roundtrip_transformer_n_identity():
+    ssn = export_ssn(_XfmrStation(), freq_mhz=14.0, ground=None)
+    net = parse_ssn(ssn, name="rt.ssn", network=True).network()
+    (x,) = [b for b in net.branches if isinstance(b, Transformer)]
+    assert x.n == pytest.approx(2.0)
+
+
+def test_roundtrip_ladder_tuner_values():
+    """The catalog station whose cascade was load-validated in SimNEC:
+    every element value survives export -> import unchanged."""
+    from antennaknobs.designs.wire.doublet_ladder_tuner import Builder
+
+    ssn = export_ssn(Builder(), ground=None)
+    net = parse_ssn(ssn, name="rt.ssn", network=True).network()
+    (tl,) = [b for b in net.branches if isinstance(b, TL)]
+    assert tl.z0 == pytest.approx(600.0) and tl.vf == pytest.approx(0.95)
+    assert tl.k1 == pytest.approx(0.02) and tl.k2 == pytest.approx(0.0001)
+    assert tl.length == pytest.approx(30.48)  # 100 ft
+    caps = sorted(
+        (b.c for b in net.branches if isinstance(b, TwoPort) and b.c is not None)
+    )
+    assert caps == [pytest.approx(8.12e-11), pytest.approx(5e-10)]
+    (coil,) = [b for b in net.branches if isinstance(b, Shunt)]
+    assert coil.l == pytest.approx(4.218e-6) and coil.ql == pytest.approx(200.0)
