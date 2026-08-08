@@ -10,7 +10,7 @@ prints.
 
 This script builds a small, deterministic corpus of decks in SimNEC's *portal
 dialect* (the card subset ``nec2/NECSource`` actually emits — CM/CE, GW, GM,
-GS, GE, GN, LD, IS, EX, NT, FR, RP, NE, NH, PT, MP, XQ, plus Ward's custom
+GS, GE, GN, LD, IS, EX, NT, TL, FR, RP, NE, NH, PT, MP, XQ, plus Ward's custom
 ``YY`` — terminated by ``NX``), runs each one through the oracle binary, and
 commits the deck/printout pairs as fixtures under
 ``tests/fixtures/nec_portal/``.
@@ -225,6 +225,48 @@ def _synthetic_decks() -> dict[str, str]:
         "XQ\n"
     )
 
+    # TL — a transmission line between two segments. nec2c prints it as an
+    # EQUIVALENT NETWORK: the same NETWORK DATA banner an NT gets, a different
+    # three-line column header describing the card's own fields, and a
+    # trailing STRAIGHT/CROSSED word in the LINE TYPE column. 2.5 m at 30 MHz
+    # is 0.2502 wavelengths, i.e. the quarter-wave transformer case (issue
+    # #799).
+    decks["dipole_tl_network"] = (
+        "CE two dipoles joined by a TL\n"
+        + _DIPOLE_GW
+        + "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "TL 1 5 2 5 600. 2.5 0. 0. 0. 0.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
+
+    # The rest of the TL card's surface in one deck: a CROSSED line (NEC spells
+    # that a NEGATIVE z0, and echoes |z0| with "CROSSED" in the type column),
+    # non-zero COMPLEX shunt admittances at both ends — which is the only way
+    # a TL contributes NETWORK LOSS — and an NT card alongside it, because the
+    # header block is re-emitted every time the row KIND changes and a
+    # TL-only deck cannot show that.
+    #
+    # The NT deliberately hangs on a THIRD dipole rather than back across the
+    # same pair: two branches between one pair of gaps makes a resonant loop
+    # whose port admittance is a 3:1 cancellation, and cross-basis noise comes
+    # out of it multiplied. Chained (1 --TL-- 2 --NT-- 3) it does not, and the
+    # layout under test is identical either way.
+    decks["dipole_tl_shunt_crossed"] = (
+        "CE crossed TL with shunt ends alongside an NT\n"
+        + _DIPOLE_GW
+        + "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
+        "GW 3 9 2.0 0. -2.5 2.0 0. 2.5 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "TL 1 5 2 5 -450. 3.0 1.e-3 2.e-3 3.e-3 -4.e-3\n"
+        "NT 2 5 3 5 0. 0.005 0. -0.005 0. 0.005\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
+
     # The Y-matrix probe SimNEC actually emits for a 2-source circuit: one XQ
     # per source, every source carrying an EX card — 1 V on the driven one and
     # 1e-10 V on the others so that every port shows up as a row of the
@@ -353,7 +395,8 @@ PORTAL_CARDS = frozenset(
         "IS",  # environment / loading / insulation
         "EX",
         "NT",
-        "FR",  # excitation, networks, frequency
+        "TL",
+        "FR",  # excitation, networks, transmission lines, frequency
         "RP",
         "NE",
         "NH",  # far field, near E field, near H field
