@@ -376,24 +376,24 @@ def test_two_decks_through_one_loop_produce_two_frames():
 def test_an_unsupported_card_still_emits_the_sentinel():
     """A deck we cannot run must not leave SimNEC blocked in readLine().
 
-    ``PT`` is the live example after issue #799 took ``TL`` off this list: the
-    portal dialect can carry it, but no fixture pins what a ``PT``-suppressed
-    CURRENTS AND LOCATION table looks like — so it takes the error path rather
-    than a guessed layout.
+    ``IS`` is the live example after issue #800 took ``PT`` and ``MP`` off
+    this list (#799 took ``TL``): the portal dialect can carry it, but its
+    semantics are NEC-4.2's insulated-wire model, which momwire does not have —
+    so it takes the error path rather than silently solving a bare wire.
     """
     out, err = deck_frame(
-        "CE print control\n"
+        "CE insulation\n"
         "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
         "GW 2 9 1. 0. -2.5 1. 0. 2.5 0.001\n"
         "GE 0\n"
         "EX 0 1 5 0 1.\n"
-        "PT -1\n"
+        "IS 0 1 1 9 2.3 0.001\n"
         "FR 0 1 0 0 30. 0\n"
         "XQ\n"
     )
     text = "\n".join(out)
     assert NX_ECHO.search(text), "the NX sentinel is missing on the error path"
-    assert "ERROR-NEC2C: PT" in text
+    assert "ERROR-NEC2C: IS" in text
     # `ERROR:` as token 0 is what trips Execute's warning frame; the oracle's
     # own prefix deliberately does not.
     assert not any(line.split()[:1] == ["ERROR:"] for line in text.splitlines())
@@ -1192,6 +1192,118 @@ def test_a_hostile_mp_never_hangs_the_daemon(card, advisory):
     assert "ANTENNA INPUT PARAMETERS" in text
     assert NX_ECHO.search(text)
     assert err == []
+
+
+# --------------------------------------------------------------------------
+# issue #800: PT, the current-print toggle
+# --------------------------------------------------------------------------
+
+
+def currents_tables(text: str) -> list[list[list[str]]]:
+    """The CURRENTS AND LOCATION rows, tokenised, one list per table.
+
+    Ten tokens per row, which is what ends the table for a reader; the seg and
+    tag numbers are fields 0 and 1. A ``YY`` deck puts its ``-YY`` row inside
+    this table, ahead of the segments, so that one line is stepped over rather
+    than read as the end of it.
+    """
+    tables: list[list[list[str]]] = []
+    collecting = False
+    for line in text.splitlines():
+        parts = line.split()
+        if parts[:1] == ["-YY"]:
+            continue
+        if parts[1:4] == ["CURRENTS", "AND", "LOCATION"]:
+            tables.append([])
+            collecting = False
+            continue
+        if parts[:3] == ["No:", "No:", "X"]:
+            collecting = True
+            continue
+        if not collecting:
+            continue
+        if len(parts) != 10:
+            collecting = False
+            continue
+        tables[-1].append(parts)
+    return tables
+
+
+def test_pt_minus_one_removes_the_whole_currents_section():
+    """Not just the rows: the banner, the note, the blank and both column
+    headers go too — which is why ``dipole_pt_toggle`` has one CURRENTS AND
+    LOCATION section for its two runs, on both engines."""
+    for text in (printout("dipole_pt_toggle"), fixture_out("dipole_pt_toggle")):
+        assert text.count("CURRENTS AND LOCATION") == 1
+        assert text.count("ANTENNA INPUT PARAMETERS") == 2
+
+
+def test_the_yy_report_survives_pt_minus_one():
+    """The load-bearing detail. ``-YY`` is the row ``addYYLine`` parses, so a
+    suppression that swallowed it would break SimNEC's Y path — and the oracle
+    does not swallow it: the line lands directly after the last ANTENNA INPUT
+    PARAMETERS row, with no blank and no table around it."""
+    for text in (printout("dipole_pt_toggle"), fixture_out("dipole_pt_toggle")):
+        lines = text.splitlines()
+        index = next(i for i, ln in enumerate(lines) if ln.split()[:1] == ["-YY"])
+        # The row above is an 11-token ANTENNA INPUT PARAMETERS row, not a
+        # currents-table header.
+        assert len(lines[index - 1].split()) == 11
+        assert lines[index + 1] == ""
+        assert len(yy_rows(text)) == 2, "one -YY row per run, suppressed or not"
+
+
+def test_pt_minus_two_restores_the_table():
+    """``PT`` is a toggle held across execute cards, not a per-run flag: the
+    second run of ``dipole_pt_toggle`` prints the full 18-segment table."""
+    ours = currents_tables(printout("dipole_pt_toggle"))
+    theirs = currents_tables(fixture_out("dipole_pt_toggle"))
+    assert [len(t) for t in ours] == [len(t) for t in theirs] == [18]
+
+
+def test_pt_zero_limits_the_table_to_the_named_tags_segments():
+    """``PT 0 2 1 3`` prints tag 2's segments 1-3 — global 10 to 12. The
+    addressing is EX's, so an absolute reading would print 1-3 instead and
+    still look perfectly plausible."""
+    ours = currents_tables(printout("dipole_pt_segment_range"))
+    theirs = currents_tables(fixture_out("dipole_pt_segment_range"))
+    assert len(ours) == len(theirs) == 1
+    for rows in (ours[0], theirs[0]):
+        assert [(r[0], r[1]) for r in rows] == [("10", "2"), ("11", "2"), ("12", "2")]
+
+
+def test_an_all_zero_pt_range_prints_everything():
+    """Measured on the oracle: ``PT 0 1 0 0`` and ``PT 0 2 0 0`` both print the
+    whole table, so an empty range is "no restriction", not "no rows"."""
+    for tag in (1, 2):
+        deck = fixture_deck("dipole_pt_segment_range").replace(
+            "PT 0 2 1 3", f"PT 0 {tag} 0 0"
+        )
+        assert len(currents_tables(run_deck(deck)[0])[0]) == 18
+
+
+@pytest.mark.parametrize("flag", [-2, 1, 2, 3])
+def test_the_other_pt_flags_print_the_ordinary_table(flag):
+    """Stock NEC-2's receiving-pattern and normalised-current formats. This
+    ae6ty build prints the plain full table for all of them — diffed against
+    the same deck with no PT card at all — so they are read as no restriction
+    rather than as a layout nobody has seen."""
+    base = fixture_deck("dipole_pt_segment_range").replace("PT 0 2 1 3\n", "")
+    deck = fixture_deck("dipole_pt_segment_range").replace("PT 0 2 1 3", f"PT {flag}")
+    plain = [ln for ln in body_lines(run_deck(base)[0]) if "DATA CARD" not in ln]
+    ours = [ln for ln in body_lines(run_deck(deck)[0]) if "DATA CARD" not in ln]
+    assert ours == plain
+
+
+def test_pt_is_not_an_arming_card():
+    """It changes what a run prints, not what a run computes, so it cannot
+    make a spent ``XQ`` into a fresh execution."""
+    text = run_deck(
+        "CE pt arming\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\nPT -1\nXQ\n"
+    )[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 1
+    assert text.count("CURRENTS AND LOCATION") == 1
 
 
 # --------------------------------------------------------------------------
