@@ -1,18 +1,26 @@
-"""The momwire SimNEC portal daemon (issue #792, unit 2).
+"""The momwire SimNEC portal daemon (issue #792, units 2 and 3).
 
 Everything here runs in-process against the committed oracle fixtures — no
 ``nec2c`` binary, no subprocess. The oracle's *numbers* are not the contract
 (a different basis and kernel will never match digit for digit); its *layout*
 is, so the fixtures are compared structurally: same section sequence, same
-column geometry, same token arity. Values are checked against momwire itself
+column geometry, same token arity — for every deck in the corpus, not just a
+representative handful. Values are checked against momwire itself
 (self-consistency and reciprocity), plus one loose cross-engine smoke bound on
-the free-space dipole's impedance. Cross-engine value agreement is unit 3's
-differential harness.
+the free-space dipole's impedance. Cross-engine value agreement is
+``test_nec_portal_differential.py``.
+
+Unit 3 adds, below the unit-2 sections: the whole-corpus layout gate, the
+execute-card semantics of ``RP``/``NE``/``NH``, the pattern and near-field
+tables, ``NT`` port algebra, and the robustness contract — a malformed deck
+must be REPORTED and stepped over, never swallowed and never fatal, because
+``Execute.processResponse`` blocks in ``readLine()`` with no timeout.
 """
 
 from __future__ import annotations
 
 import io
+import json
 import re
 from pathlib import Path
 
@@ -22,6 +30,10 @@ from antennaknobs import nec_portal
 from antennaknobs.nec_portal import deck_frame, main, run_deck
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "nec_portal"
+ALL_NAMES = tuple(
+    entry["name"]
+    for entry in json.loads((FIXTURE_DIR / "manifest.json").read_text())["decks"]
+)
 
 # nec2/Execute.versionA — the regex SimNEC applies to `<cmd> -version`.
 VERSION_A = re.compile(r"nec2c\.ae6ty\.(.*)")
@@ -41,10 +53,15 @@ _SECTION_MARKERS = (
     "FREQUENCY",
     "STRUCTURE IMPEDANCE LOADING",
     "ANTENNA ENVIRONMENT",
+    "NETWORK DATA",
+    "STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS",
     "MATRIX TIMING",
     "ANTENNA INPUT PARAMETERS",
     "CURRENTS AND LOCATION",
     "POWER BUDGET",
+    "RADIATION PATTERNS",
+    "NEAR ELECTRIC FIELDS",
+    "NEAR MAGNETIC FIELDS",
 )
 
 # Small decks only — the whole file has to stay in the fast lane.
@@ -62,6 +79,19 @@ REPRESENTATIVE = (
 def fixture_deck(name: str) -> str:
     """The deck body: the fixture minus its framing ``NX`` card."""
     return (FIXTURE_DIR / f"{name}.deck").read_text().split("\nNX")[0]
+
+
+def printout(name: str) -> str:
+    """Our printout for a fixture, through the daemon loop when the fixture is
+    a multi-deck residency transcript."""
+    deck = (FIXTURE_DIR / f"{name}.deck").read_text()
+    if deck.count("\nNX") > 1:
+        buffer = io.StringIO()
+        assert (
+            main([], stdin=io.StringIO(deck), stdout=buffer, stderr=io.StringIO()) == 0
+        )
+        return buffer.getvalue()
+    return run_deck(deck.split("\nNX")[0])[0]
 
 
 def fixture_out(name: str) -> str:
@@ -453,3 +483,471 @@ def test_loaded_deck_spends_power_in_the_load():
     assert budget["RADIATED POWER"] == pytest.approx(
         budget["INPUT POWER"] - budget["STRUCTURE LOSS"], rel=1e-3
     )
+
+
+# --------------------------------------------------------------------------
+# unit 3: the whole corpus, byte layout
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ALL_NAMES)
+def test_every_fixture_matches_the_oracle_column_layout(name):
+    """The score the unit reports: every committed oracle printout, line for
+    line and column for column.
+
+    ``REPRESENTATIVE`` above keeps the diagnostics readable for the decks a
+    reader is likely to be debugging; this one is the gate. Both are cheap —
+    the whole corpus solves in about a second and a half.
+    """
+    ours = body_lines(printout(name))
+    theirs = body_lines(fixture_out(name))
+    assert len(ours) == len(theirs), (
+        f"{name}: {len(ours)} body lines against the oracle's {len(theirs)}"
+    )
+    for i, (a, b) in enumerate(zip(ours, theirs, strict=True)):
+        if "DIELECTRIC CONSTANT" in b:
+            # The oracle glues the real and imaginary parts into one token, so
+            # this line's "shape" is its value. It is an ignored section.
+            continue
+        assert layout_signature(a) == layout_signature(b), (
+            f"{name} line {i}\n  ours   {a!r}\n  oracle {b!r}"
+        )
+
+
+@pytest.mark.parametrize("name", ALL_NAMES)
+def test_every_fixture_walks_the_oracle_section_order(name):
+    assert section_walk(printout(name)) == section_walk(fixture_out(name))
+
+
+# --------------------------------------------------------------------------
+# unit 3: RP / NE / NH are execute cards
+# --------------------------------------------------------------------------
+
+
+def test_rp_runs_the_group_and_the_trailing_xq_runs_nothing():
+    """nec2c executes on reading RP, so the deck's own ``XQ`` is a bare echo.
+
+    ``dipole_rp_pattern`` is EX / FR / RP / XQ and the oracle prints ONE run:
+    the RP echo, the whole solve, the pattern, then the XQ echo immediately
+    followed by NX. An engine that ran the XQ too would print a second
+    ANTENNA INPUT PARAMETERS table and a second pattern, and SimNEC would read
+    a 2x1 sensor matrix where it expected 1x1.
+    """
+    text = run_deck(fixture_deck("dipole_rp_pattern"))[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 1
+    assert text.count("RADIATION PATTERNS") == 1
+    echoes = re.findall(r"DATA CARD No:\s+\d+ (\w\w)", text)
+    assert echoes == ["EX", "FR", "RP", "XQ", "NX"]
+    # The XQ echo is followed straight away by the NX echo — no blank-line
+    # wrapper, because nothing ran.
+    lines = [ln for ln in text.splitlines() if "DATA CARD No:" in ln]
+    body = text.splitlines()
+    xq = next(i for i, ln in enumerate(body) if ln == lines[-2])
+    assert body[xq + 1] == lines[-1]
+
+
+@pytest.mark.parametrize(
+    ("name", "cards"),
+    [
+        ("dipole_ne_nearfield", ["EX", "FR", "NE", "XQ", "NX"]),
+        ("dipole_nh_nearfield", ["EX", "FR", "NH", "XQ", "NX"]),
+    ],
+)
+def test_near_field_cards_execute_too(name, cards):
+    text = run_deck(fixture_deck(name))[0]
+    assert re.findall(r"DATA CARD No:\s+\d+ (\w\w)", text) == cards
+    assert text.count("ANTENNA INPUT PARAMETERS") == 1
+
+
+def test_a_second_xq_after_a_fresh_ex_still_runs():
+    """The no-op rule must not swallow a legitimate second group."""
+    text = run_deck(fixture_deck("two_source_sensor_lines"))[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 2
+
+
+# --------------------------------------------------------------------------
+# unit 3: patterns
+# --------------------------------------------------------------------------
+
+
+def pattern_rows(text: str) -> list[list[str]]:
+    rows, armed = [], False
+    for line in text.splitlines():
+        parts = line.split()
+        if parts[:2] == ["DEGREES", "DEGREES"]:
+            armed = True
+            continue
+        if not armed:
+            continue
+        if len(parts) not in (11, 12):
+            armed = False
+            continue
+        rows.append(parts)
+    return rows
+
+
+def test_pattern_grid_follows_the_rp_card():
+    """``RP 0 7 13 1001 0 0 30 30 1000``: 7 thetas x 13 phis, theta fastest."""
+    rows = pattern_rows(run_deck(fixture_deck("dipole_rp_pattern"))[0])
+    assert len(rows) == 7 * 13
+    assert [float(r[0]) for r in rows[:7]] == [0, 30, 60, 90, 120, 150, 180]
+    assert {float(r[1]) for r in rows} == {30.0 * i for i in range(13)}
+    assert float(rows[7][1]) == 30.0 and float(rows[7][0]) == 0.0
+
+
+def test_pattern_peak_gain_matches_the_engines_far_field():
+    """The printout's gain is the workbench's gain.
+
+    ``MomwireEngine.far_field`` normalises by source input power —
+    ``eta0*k^2/(8*pi*P_in)`` — and so does this printout. If the two ever
+    drift apart, a user comparing a SimNEC pattern against the antennaknobs
+    plot for the same design sees two different antennas.
+    """
+    rows = pattern_rows(run_deck(fixture_deck("dipole_rp_pattern"))[0])
+    peak = max(float(r[4]) for r in rows)
+    # A half-wave dipole in free space: 2.15 dBi, and momwire's 9-segment
+    # B-spline reads a shade under.
+    assert 1.9 <= peak <= 2.3, peak
+
+
+def test_a_pattern_null_prints_the_floor_and_blanks_the_sense_column():
+    """Both come from nec2c's |E|^2 <= 1e-20 test, and both must agree.
+
+    A row that keeps its SENSE word but floors its gain (or the reverse) means
+    the two thresholds have drifted apart, and ``Execute``'s ptr arithmetic
+    then reads the E-field columns off by one on exactly the rows where the
+    field is real.
+    """
+    for name in ("dipole_rp_pattern", "dipole_rp_crossed_quadrature"):
+        for row in pattern_rows(run_deck(fixture_deck(name))[0]):
+            floored = float(row[4]) <= -900.0
+            assert floored == (len(row) == 11), f"{name}: {row}"
+
+
+def test_average_power_gain_is_about_unity_for_a_lossless_antenna():
+    """A free-space dipole radiates everything it is fed, so the pattern
+    averaged over 4*pi steradians has to come out near 1 — which is only true
+    if the gain normaliser, the solid-angle quadrature and the E-field
+    prefactor all agree with each other."""
+    for name in ("dipole_rp_pattern", "dipole_rp_crossed_quadrature"):
+        line = next(
+            ln
+            for ln in run_deck(fixture_deck(name))[0].splitlines()
+            if "AVERAGE POWER GAIN" in ln
+        )
+        average = float(line.split(":")[1].split()[0])
+        solid = float(line.split("(")[1].split(")")[0])
+        assert 0.9 <= average <= 1.1, line
+        # A full sphere is 4*PI; the crossed deck only sweeps the upper
+        # hemisphere, so 2*PI.
+        assert solid == (4.0 if name == "dipole_rp_pattern" else 2.0)
+
+
+def test_pattern_e_field_scales_with_the_requested_range():
+    """RFLD is a real range, not decoration: doubling it halves every E field
+    and moves the EXP(-JKR)/R line with it."""
+    deck = fixture_deck("dipole_rp_pattern")
+    near = pattern_rows(run_deck(deck)[0])
+    far = pattern_rows(run_deck(deck.replace("30 30 1000", "30 30 2000"))[0])
+    for a, b in zip(near, far, strict=True):
+        if float(a[4]) <= -900.0:
+            continue
+        assert float(b[-4]) == pytest.approx(0.5 * float(a[-4]), rel=1e-3)
+        # ...while the GAIN, which is range-independent, does not move.
+        assert float(b[4]) == pytest.approx(float(a[4]), abs=0.01)
+
+
+# --------------------------------------------------------------------------
+# unit 3: near fields
+# --------------------------------------------------------------------------
+
+
+def near_field_rows(text: str) -> list[list[str]]:
+    rows, armed = [], False
+    for line in text.splitlines():
+        parts = line.split()
+        if parts[:3] == ["METERS", "METERS", "METERS"]:
+            armed = True
+            continue
+        if not armed:
+            continue
+        if len(parts) != 9:
+            armed = False
+            continue
+        rows.append(parts)
+    return rows
+
+
+def test_near_field_grid_varies_x_fastest_then_y_then_z():
+    rows = near_field_rows(run_deck(fixture_deck("dipole_ne_nearfield"))[0])
+    points = [(float(r[0]), float(r[1]), float(r[2])) for r in rows]
+    assert points == [(x, 0.0, z) for z in (-1.0, 0.0, 1.0) for x in (-1.0, 0.0, 1.0)]
+
+
+def test_near_field_off_the_conductor_tracks_the_oracle():
+    """The claim the mixed-potential form is here to support.
+
+    Every grid point a metre off the wire must match nec2c to a few percent in
+    magnitude and a degree in phase — that is a real cross-engine near-field
+    agreement, not a layout check. Points ON the conductor are excluded and
+    documented (grammar doc §11): a point-source quadrature has no business
+    being evaluated inside the source.
+    """
+    for name in ("dipole_ne_nearfield", "dipole_nh_nearfield"):
+        ours = near_field_rows(run_deck(fixture_deck(name))[0])
+        theirs = near_field_rows(fixture_out(name))
+        assert len(ours) == len(theirs)
+        checked = 0
+        for a, b in zip(ours, theirs, strict=True):
+            if float(a[0]) == 0.0:  # on the wire (the dipole lies on the z axis)
+                continue
+            live = max(float(b[3 + 2 * c]) for c in range(3))
+            for component in range(3):
+                magnitude = 3 + 2 * component
+                mine, oracle = float(a[magnitude]), float(b[magnitude])
+                if oracle <= 1e-4 * live:
+                    # A component the symmetry kills. Both engines print their
+                    # own numerical zero there (nec2c 2.4E-09 against our
+                    # 1.1E-16) and neither number means anything; all that is
+                    # testable is that the component IS dead.
+                    assert mine <= 1e-4 * live, f"{name}: {a} / {b}"
+                    continue
+                assert mine == pytest.approx(oracle, rel=0.02), f"{name}: {a} / {b}"
+                assert float(a[magnitude + 1]) == pytest.approx(
+                    float(b[magnitude + 1]), abs=1.0
+                ), f"{name} phase: {a} / {b}"
+                checked += 1
+        assert checked >= 6, f"{name}: only {checked} components compared"
+
+
+def test_near_field_on_the_conductor_is_documented_not_trusted():
+    """The one place the near field does NOT track the oracle.
+
+    nec2c prints the impressed source field on a driven segment (1.8 V/m =
+    1 V over a 0.5559 m segment). We evaluate the same integral the rest of
+    the table uses, at a point inside the source. It lands in the same decade
+    and with the same sign, which is as much as a regularised point-source sum
+    can claim — pinned here so the limitation stays visible rather than
+    drifting silently.
+    """
+    row = next(
+        r
+        for r in near_field_rows(run_deck(fixture_deck("dipole_ne_nearfield"))[0])
+        if (float(r[0]), float(r[2])) == (0.0, 0.0)
+    )
+    assert 0.5 <= float(row[7]) <= 5.0, row  # oracle prints 1.8000E+00
+    assert abs(float(row[8])) > 150.0  # ...at -180 degrees
+
+
+def test_a_pec_ground_doubles_the_near_field_sources():
+    """A near-field grid over PEC ground must see the image, and it can only
+    do that if the image's CHARGE is negated along with its current."""
+    deck = (
+        "CE dipole over pec ground with a near field grid\n"
+        "GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001\n"
+        "GE -1\nGN 1\nEX 0 1 5 0 1.\nFR 0 1 0 0 14.1 0\n"
+        "NE 0 1 1 1 5. 0. 4.5 0. 0. 0.\n"
+        "XQ\n"
+    )
+    with_ground = near_field_rows(run_deck(deck)[0])
+    free = near_field_rows(run_deck(deck.replace("GE -1\nGN 1\n", "GE 0\n"))[0])
+    assert len(with_ground) == len(free) == 1
+    assert float(with_ground[0][7]) != pytest.approx(float(free[0][7]), rel=1e-3)
+
+
+# --------------------------------------------------------------------------
+# unit 3: NT networks
+# --------------------------------------------------------------------------
+
+
+def test_nt_source_current_is_the_segment_current_plus_the_network_current():
+    """The identity the NT fixture exists to pin.
+
+    ANTENNA INPUT PARAMETERS reports what the SOURCE delivers; CURRENTS AND
+    LOCATION reports what flows in the segment; the difference is exactly what
+    the NT branch draws. Reading the segment current into the impedance table
+    (the obvious mistake) makes the driven-point impedance come out negative,
+    which is what the oracle's own -1.0284E+02 network row looks like — and
+    that row is a DIFFERENT table.
+    """
+    text = run_deck(fixture_deck("dipole_nt_network"))[0]
+    # STRUCTURE EXCITATION DATA repeats the "No: No: REAL" header, so it is
+    # ALSO an "aip table" to a header-only reader — and it comes first. The
+    # deck has one execute group, so the real one is last. (Execute itself is
+    # not fooled: it arms on the ANTENNA INPUT PARAMETERS banner, and the
+    # differential harness's reader does the same.)
+    source = complex(*(float(v) for v in aip_tables(text)[-1][0][4:6]))
+    port_row = aip_tables(text)[0][1]  # STRUCTURE EXCITATION DATA, port one
+    segment = complex(float(port_row[4]), float(port_row[5]))
+    # NT 1 5 2 5 with Y11 = Y22 = j0.02 and Y12 = -j0.02, so the branch current
+    # at port one is j0.02*(V1 - V2).
+    v1, v2 = 1.0 + 0j, _network_port_voltage(text)
+    branch = 0.02j * (v1 - v2)
+    # 1e-4 is the printout's own resolution: five significant digits.
+    assert source == pytest.approx(segment + branch, rel=1e-4)
+
+    # The same current read off CURRENTS AND LOCATION is the INTERPOLATED
+    # midpoint of the B-spline, not the Galerkin port unknown, so it agrees
+    # only to about a percent (grammar doc §11.8). nec2c's pulse basis makes
+    # the two one number and hides the distinction entirely.
+    midpoint = next(
+        complex(float(p[6]), float(p[7]))
+        for p in (ln.split() for ln in text.splitlines())
+        if len(p) == 10 and p[:2] == ["5", "1"]
+    )
+    assert abs(midpoint - segment) <= 0.01 * abs(source)
+
+
+def _network_port_voltage(text: str) -> complex:
+    """The gap voltage of the undriven NT port, off the network table."""
+    rows = []
+    armed = False
+    for line in text.splitlines():
+        if "STRUCTURE EXCITATION DATA" in line:
+            armed = True
+            continue
+        if not armed:
+            continue
+        parts = line.split()
+        # The header row is also 11 tokens ("TAG SEG VOLTAGE (VOLTS) ..."), so
+        # arity alone does not identify a data row here.
+        if len(parts) != 11 or not parts[0].isdigit():
+            if rows:
+                break
+            continue
+        rows.append(complex(float(parts[2]), float(parts[3])))
+    return rows[0]
+
+
+def test_nt_network_loss_is_zero_for_a_lossless_branch():
+    """``NT`` with a purely imaginary Y absorbs nothing, so NETWORK LOSS must
+    be zero and the whole input power must radiate."""
+    text = run_deck(fixture_deck("dipole_nt_network"))[0]
+    budget = {
+        line.split("=")[0].strip(): float(line.split("=")[1].split()[0])
+        for line in text.splitlines()
+        if "=" in line and ("POWER" in line or "LOSS" in line or "EFFICIENCY" in line)
+    }
+    assert abs(budget["NETWORK LOSS"]) < 1e-9 * budget["INPUT POWER"]
+    assert budget["EFFICIENCY"] == pytest.approx(100.0, abs=0.01)
+
+
+def test_a_lossy_nt_branch_shows_up_as_network_loss():
+    """The sign convention: a real Y in the branch absorbs power, and the
+    budget must say so rather than crediting it to radiation."""
+    deck = fixture_deck("dipole_nt_network").replace(
+        "NT 1 5 2 5 0. 0.02 0. -0.02 0. 0.02",
+        "NT 1 5 2 5 0.02 0. -0.02 0. 0.02 0.",
+    )
+    budget = {
+        line.split("=")[0].strip(): float(line.split("=")[1].split()[0])
+        for line in run_deck(deck)[0].splitlines()
+        if "=" in line and ("POWER" in line or "LOSS" in line or "EFFICIENCY" in line)
+    }
+    assert budget["NETWORK LOSS"] > 0
+    assert budget["EFFICIENCY"] < 100.0
+    assert budget["RADIATED POWER"] == pytest.approx(
+        budget["INPUT POWER"] - budget["STRUCTURE LOSS"] - budget["NETWORK LOSS"],
+        rel=1e-3,
+    )
+
+
+def test_an_undriven_nt_port_floats_instead_of_shorting():
+    """A segment with a network on it is CUT: its gap voltage is whatever
+    balances the node, not zero. Shorting it (the unit-2 behaviour for any
+    undriven port) would make the whole branch invisible."""
+    text = run_deck(fixture_deck("dipole_nt_network"))[0]
+    assert abs(_network_port_voltage(text)) > 0.1
+
+
+# --------------------------------------------------------------------------
+# unit 3: robustness — the daemon must survive anything on stdin
+# --------------------------------------------------------------------------
+
+BAD_DECKS = {
+    "a card nobody has ever seen": (
+        "CE bogus\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "ZZ 1 2 3\nEX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\n",
+        "ZZ",
+    ),
+    "a non-numeric field": (
+        "CE malformed\nGW 1 9 0. 0. -2.5 0. 0. banana 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\n",
+        "banana",
+    ),
+    "a one-letter mnemonic": (
+        "CE short mnemonic\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "G\nEX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\n",
+        "MNEMONIC",
+    ),
+    "a zero-segment wire": (
+        "CE zero segments\nGW 1 0 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\n",
+        "ERROR-NEC2C",
+    ),
+    "a segment that does not exist": (
+        "CE bad segment\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 99 0 1.\nFR 0 1 0 0 30. 0\nXQ\n",
+        "out of range",
+    ),
+    "no excitation at all": (
+        "CE undriven\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\nFR 0 1 0 0 30. 0\nXQ\n",
+        "no EX card",
+    ),
+    "a current source we do not model": (
+        "CE ex type 6\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 6 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\n",
+        "EX type 6",
+    ),
+}
+
+
+@pytest.mark.parametrize(("label", "case"), sorted(BAD_DECKS.items()))
+def test_a_bad_deck_reports_and_still_emits_the_sentinel(label, case):
+    """Whatever is wrong, the NX echo goes out.
+
+    ``Execute.processResponse`` blocks in ``readLine()`` with no timeout
+    (grammar doc §2, §10.1). A replacement engine that dies, or that reports
+    an error and forgets the sentinel, hangs the SimNEC UI rather than showing
+    a message — which is strictly worse than a wrong answer.
+    """
+    deck, marker = case
+    out, err = deck_frame(deck)
+    text = "\n".join(out)
+    assert NX_ECHO.search(text), f"{label}: no NX sentinel"
+    assert marker in text, f"{label}: error does not mention {marker!r}:\n{text[-500:]}"
+    # `ERROR:` as token 0 is what trips Execute's warning frame; the oracle's
+    # own prefix deliberately does not.
+    assert not any(line.split()[:1] == ["ERROR:"] for line in text.splitlines())
+    assert err == []
+
+
+def test_the_daemon_survives_a_bad_deck_and_runs_the_next_one():
+    """Residency is the whole point: one broken deck must not end the process.
+
+    SimNEC never restarts the engine between decks (``NEC2Daemon.destroy()``
+    is the only teardown), so a deck that raises has to be reported and
+    stepped over, leaving the loop ready for the next ``NX``.
+    """
+    stdin = io.StringIO(
+        "CE bogus\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\nZZ 1\nNX\n"
+        + fixture_deck("dipole_free_space")
+        + "\nNX\n"
+        + fixture_deck("dipole_rp_pattern")
+        + "\nNX\n"
+    )
+    out = io.StringIO()
+    assert main([], stdin=stdin, stdout=out, stderr=io.StringIO()) == 0
+    text = out.getvalue()
+    assert len(NX_ECHO.findall(text)) == 3, "one sentinel per deck, bad ones included"
+    assert text.count("ERROR-NEC2C") == 1
+    # ...and the decks after the bad one really ran.
+    assert text.count("ANTENNA INPUT PARAMETERS") == 2
+    assert text.count("RADIATION PATTERNS") == 1
+
+
+def test_a_blank_deck_still_frames():
+    """An empty body between two NX cards is legal input and must not hang."""
+    out, err = deck_frame("")
+    assert NX_ECHO.search("\n".join(out))
+    assert err == []

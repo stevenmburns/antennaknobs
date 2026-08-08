@@ -1490,8 +1490,25 @@ class DeckSolver:
         vals = np.concatenate(vals, axis=0)
 
         wanted = np.array([s.centre for s in self.segments])
+        wanted_dir = np.array([s.direction for s in self.segments])
         d2 = ((wanted[:, None, :] - mids[None, :, :]) ** 2).sum(axis=2)
-        nearest = np.argmin(d2, axis=1)
+        # Position alone is not enough to name an element: two wires that CROSS
+        # share a segment midpoint exactly, and a plain nearest-midpoint search
+        # then reads both NEC segments off whichever polyline came first —
+        # dipole_rp_crossed_quadrature printed wire 1's port current on wire
+        # 2's segment 14, a 90-degree error hidden behind a perfectly plausible
+        # magnitude. Require the element to run along the NEC segment too, and
+        # fall back to pure distance if nothing does (a curved GA arc, where
+        # momwire's chord may sit at an angle to the card's).
+        unit_e = dirs / np.maximum(np.linalg.norm(dirs, axis=1, keepdims=True), 1e-30)
+        unit_s = wanted_dir / np.maximum(
+            np.linalg.norm(wanted_dir, axis=1, keepdims=True), 1e-30
+        )
+        aligned = np.abs(unit_s @ unit_e.T) >= 0.5
+        cost = np.where(aligned, d2, np.inf)
+        fallback = ~np.isfinite(cost).any(axis=1)
+        cost[fallback] = d2[fallback]
+        nearest = np.argmin(cost, axis=1)
         out = np.empty(len(self.segments), dtype=np.complex128)
         for i, seg in enumerate(self.segments):
             j = nearest[i]
