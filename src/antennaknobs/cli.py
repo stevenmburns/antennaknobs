@@ -50,21 +50,27 @@ MOMWIRE_BASES = {
     "arrayblock": ArrayBlockSolver,
 }
 
-# Roster variants: a basis name bound to solver kwargs. The one entry is the
-# feed-model axis (issue #640): the plain `sinusoidal-galerkin` keeps NEC's
-# segment-wide gap (NEC-compatible — reproduces NEC/EZNEC behaviour, including
-# the reactance walk with mesh density), while `-converged` opts into the
-# zero-width point gap that converges to the B-spline answer (momwire#192) and
-# is the recommended setting for near-open high-Q designs — up to 992× tighter
-# cross-basis agreement on the antennaknobs#478 class (momwire#213). No such
-# variant exists for plain `sinusoidal`: the point gap has no collocation RHS
-# (momwire#212), and the solver refuses it rather than silently serving the
-# segment gap.
+# Roster variants: a basis name bound to solver kwargs. The `-converged` entry
+# is the feed-model axis (issue #640): the plain `sinusoidal-galerkin` keeps
+# NEC's segment-wide gap (NEC-compatible — reproduces NEC/EZNEC behaviour,
+# including the reactance walk with mesh density), while `-converged` opts
+# into the zero-width point gap that converges to the B-spline answer
+# (momwire#192) and is the recommended setting for near-open high-Q designs —
+# up to 992× tighter cross-basis agreement on the antennaknobs#478 class
+# (momwire#213). No such variant exists for plain `sinusoidal`: the point gap
+# has no collocation RHS (momwire#212), and the solver refuses it rather than
+# silently serving the segment gap.
+#
+# `bspline-d1` is the degree axis, not the feed-model axis: same BSplineSolver
+# class as plain `bspline` (d=2) with `degree=1` bound, so an intra-family
+# d1-vs-d2 comparison is one flag away (issue #821) — it's the basis half the
+# convergence census ran on.
 MOMWIRE_BASIS_VARIANTS = {
     "sinusoidal-galerkin-converged": (
         SinusoidalGalerkinSolver,
         {"feed_model": "point"},
     ),
+    "bspline-d1": (BSplineSolver, {"degree": 1}),
 }
 
 
@@ -314,8 +320,10 @@ def parse_engine_spec(spec):
 
     Forms: "pynec", "momwire",
     "momwire:sinusoidal|sinusoidal-galerkin|sinusoidal-galerkin-converged|
-    bspline|hmatrix|arrayblock". The `-converged` variant is sinusoidal-galerkin
-    with the point-gap feed model (issue #640; see MOMWIRE_BASIS_VARIANTS).
+    bspline|bspline-d1|hmatrix|arrayblock". The `-converged` variant is
+    sinusoidal-galerkin with the point-gap feed model (issue #640); `bspline-d1`
+    is bspline with degree=1 bound (issue #821). Both are in
+    MOMWIRE_BASIS_VARIANTS.
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -405,12 +413,14 @@ def cli(arguments=None):
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
                 '"momwire[:sinusoidal|sinusoidal-galerkin|'
-                "sinusoidal-galerkin-converged|bspline|"
+                "sinusoidal-galerkin-converged|bspline|bspline-d1|"
                 'hmatrix|arrayblock]" or "pynec". '
                 "The -converged variant uses the point-gap feed model — "
                 "converges to the B-spline answer instead of reproducing "
                 "NEC's segment gap; recommended for near-open high-Q "
-                "designs. Cross-products with --builders.",
+                "designs. bspline-d1 is bspline with degree=1 (tent basis) "
+                "instead of the default degree=2. Cross-products with "
+                "--builders.",
             )
         else:
             p.add_argument(
@@ -420,13 +430,14 @@ def cli(arguments=None):
                 help="Simulation backend: momwire | "
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
                 "momwire:sinusoidal-galerkin-converged | "
-                "momwire:bspline | momwire:hmatrix | "
+                "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
                 "momwire:arrayblock | pynec (default: momwire). The "
                 "-converged variant uses the point-gap feed model "
                 "(converges to the B-spline answer; recommended for "
-                "near-open high-Q designs). pynec needs "
-                "the optional pynec-accel package; momwire is always "
-                "available.",
+                "near-open high-Q designs). bspline-d1 is bspline with "
+                "degree=1 (tent basis) instead of the default degree=2. "
+                "pynec needs the optional pynec-accel package; momwire is "
+                "always available.",
             )
         p.add_argument(
             "--ground",
