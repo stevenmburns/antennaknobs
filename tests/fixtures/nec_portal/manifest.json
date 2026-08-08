@@ -122,6 +122,20 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "dipole_mp_multiprocessor",
+      "returncode": 253,
+      "deck_sha256": "ddf88c9ce9735d3bd8a068f6414b82dab65738206fcfddf3045299bfec2be71b",
+      "out_sha256": "2a27191f94d3bfd57cb9925f2cb213b689df2873d2a2860c59192ceb6e7f685f",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_mp_single_process",
+      "returncode": 253,
+      "deck_sha256": "2ad31f32b751fff3b6495f71594b444a6ad1967c1c5c09b46981e6b0d78647b4",
+      "out_sha256": "ddfc192dca5ace12d2c2a3d7f1dc5b842a2b8c42067aecb7e47fec67b7545480",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "dipole_ne_nearfield",
       "returncode": 253,
       "deck_sha256": "4c3f8c564a3f8c74541eea41de4b6d5038cd61984c6ba2f8bc5450982199fe2b",

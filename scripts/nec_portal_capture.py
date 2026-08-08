@@ -267,6 +267,35 @@ def _synthetic_decks() -> dict[str, str]:
         "XQ\n"
     )
 
+    # MP — the ae6ty multiprocessing hint (issue #800). SimNEC emits it
+    # AUTOMATICALLY once a structure's segment count reaches
+    # NEC2PortalDialog.getMPInfo()[0] (prefs `necMP #segs #Proc blockSize`,
+    # default "256 16 32"), so it arrives on structure SIZE and not on user
+    # intent — any big array trips it in normal use. The card is
+    # `MP <#Proc> <blockSize>`, two integer fields, and the oracle honours it
+    # at ANY segment count: this 9-segment dipole is the same geometry as
+    # `dipole_free_space`, so the pair is a clean with/without diff of the
+    # card's entire observable effect.
+    decks["dipole_mp_multiprocessor"] = (
+        "CE dipole free space\n" + _DIPOLE_GW + "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "MP 16 32\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
+
+    # The same card asking for ONE processor. The DATA CARD echo is there, but
+    # the `MP: multiProcessor` line is not — the oracle prints it only when it
+    # is actually going parallel (#Proc >= 2), so a fixture that only carried
+    # the 16-processor form would leave the threshold unpinned.
+    decks["dipole_mp_single_process"] = (
+        "CE dipole free space\n" + _DIPOLE_GW + "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "MP 1 32\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\n"
+    )
+
     # The Y-matrix probe SimNEC actually emits for a 2-source circuit: one XQ
     # per source, every source carrying an EX card — 1 V on the driven one and
     # 1e-10 V on the others so that every port shows up as a row of the
