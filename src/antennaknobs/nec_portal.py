@@ -85,7 +85,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import numpy as np
-from momwire import BSplineSolver, SinusoidalGalerkinSolver
+from momwire import BSplineSolver, SinusoidalGalerkinSolver, SinusoidalSolver
 
 
 from .builder import AntennaBuilder
@@ -100,8 +100,16 @@ from .network_reduce import SingularNetworkError, tl_admittance_2x2
 # cross-basis validation inside SimNEC itself; `-converged` is the
 # recommended setting for near-open high-Q feeds (momwire#213), the class
 # where the live session measured the largest cross-engine gap.
+# `sinusoidal` is the NEC-closest rung of that ladder — three-term basis,
+# collocation testing, Eq-187 delta gap — so it answers "does momwire
+# reproduce NEC-2's behaviour, mesh walk and all" rather than "what does a
+# better-converged basis say". It has no `-converged` twin on purpose: the
+# zero-width point gap has no collocation RHS (momwire#212) and the solver
+# refuses it rather than silently serving the segment gap, which is the same
+# constraint the CLI's MOMWIRE_BASIS_VARIANTS records.
 _BASES = {
     "bspline": (BSplineSolver, {}, ""),
+    "sinusoidal": (SinusoidalSolver, {}, "+sin"),
     "sinusoidal-galerkin": (SinusoidalGalerkinSolver, {}, "+sg"),
     "sinusoidal-galerkin-converged": (
         SinusoidalGalerkinSolver,
@@ -1438,8 +1446,13 @@ def _y_and_port_coeffs(solver):
     ``engines/momwire.py`` gates ground models and distributed wire loading on
     the solver class NAME, so a subclass would silently drop a Sommerfeld deck
     back onto a PEC image.
+
+    The three branches are keyed on the port algebra each family owns, not on
+    the class: ``_assemble_Z_ported`` exists only on the Galerkin subclass and
+    ``_solve_with_kcl_ports`` only on the B-spline family, so a basis added to
+    ``_BASES`` lands on the branch whose algebra it actually has.
     """
-    if not hasattr(solver, "_solve_with_kcl_ports"):
+    if hasattr(solver, "_assemble_Z_ported"):
         # Sinusoidal-Galerkin family: no KCL-port solve to spy on, but
         # compute_y_matrix's own algebra IS the (Y, X) pair — alphas is the
         # per-port coefficient matrix it computes and throws away. Kept
@@ -1459,6 +1472,38 @@ def _y_and_port_coeffs(solver):
                 for j in range(solver.n_ports)
             ],
             axis=1,
+        )
+        return y, alphas
+
+    if not hasattr(solver, "_solve_with_kcl_ports"):
+        # Point-matched sinusoidal: neither a KCL-port solve to spy on nor the
+        # Galerkin port algebra — its ports ARE the Eq-187 delta gaps, so the
+        # RHS is -1/h at each feed segment and column j of the solution is
+        # already the 1 V drive at port j (``compute_impedance`` builds the
+        # same column, scaled by V). Kept verbatim from momwire's
+        # ``compute_y_matrix``, same momwire#232 debt as the branches around
+        # it. No junction-port refusal belongs here: this solver rejects
+        # ``junction_ports=`` at CONSTRUCTION (momwire#177 — the basis
+        # enforces KCL identically, so a node-current port is outside its
+        # span), and a deck's ports are all EX segment gaps anyway.
+        import scipy.linalg
+
+        geom = solver._build_geometry()
+        G, seg_view = solver._assemble_Z(geom, solver.k)
+        feed_segs = geom["feed_segs"]
+        B = np.zeros((geom["n_segs"], len(feed_segs)), dtype=np.complex128)
+        for j, fi in enumerate(feed_segs):
+            B[fi, j] = -1.0 / geom["seg_h"][fi]
+        alphas = scipy.linalg.solve(G, B)
+        y = np.array(
+            [
+                [
+                    solver._feed_segment_current(alphas[:, j], seg_view, fi)
+                    for j in range(len(feed_segs))
+                ]
+                for fi in feed_segs
+            ],
+            dtype=np.complex128,
         )
         return y, alphas
 
@@ -2698,24 +2743,22 @@ def _selftest(stdout) -> int:
         "TL network row present": "STRAIGHT" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
     }
-    alt = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "antennaknobs.nec_portal",
-            "--basis",
-            "sinusoidal-galerkin-converged",
-        ],
-        input=_SELFTEST_DECKS[0],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    checks["alt basis answers (+sgc)"] = (
-        alt.returncode == 0
-        and "+sgc" in alt.stdout
-        and "ANTENNA INPUT PARAMETERS" in alt.stdout
-    )
+    for basis, suffix in (
+        ("sinusoidal-galerkin-converged", "+sgc"),
+        ("sinusoidal", "+sin"),
+    ):
+        alt = subprocess.run(
+            [sys.executable, "-m", "antennaknobs.nec_portal", "--basis", basis],
+            input=_SELFTEST_DECKS[0],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        checks[f"alt basis answers ({suffix})"] = (
+            alt.returncode == 0
+            and suffix in alt.stdout
+            and "ANTENNA INPUT PARAMETERS" in alt.stdout
+        )
     for name, ok in checks.items():
         stdout.write(f"  {'ok  ' if ok else 'FAIL'} {name}\n")
     passed = all(checks.values())
