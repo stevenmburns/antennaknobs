@@ -2,14 +2,15 @@
 
 Status doc for issue #792 ("momwire as a SimNEC engine").  §1–§10 are unit
 1's survey; §11 is what unit 2 resolved, §12 unit 3, §13 what was still open
-after it, and §14 what unit 4 resolved (§14.5 is the live open list).
+after it, §14 what unit 4 resolved, and §15 the `TL` layout issue #799 pinned
+(§15.5 is the live open list).
 
 This is the empirical contract later units are written against. Two independent
 sources:
 
 1. **The oracle.** `nec2c-ubuntu-x86` (banner `VERSION:5b4az.ae6ty.1.17`), the
    NEC-2 build SimNEC 2/3 ships under
-   `~/.SimNEC/2/3/Examples/nec2c.ae6ty/bin/`. 30 deck/printout pairs captured
+   `~/.SimNEC/2/3/Examples/nec2c.ae6ty/bin/`. 32 deck/printout pairs captured
    by `scripts/nec_portal_capture.py` live in `tests/fixtures/nec_portal/`.
 2. **The parser.** `nec2/Execute`, `nec2/NEC2Daemon`, `nec2/NEC5Daemon` and
    `nec2/NECSource` inside `~/SimNEC/SimNEC.jar`, decompiled with CFR
@@ -265,7 +266,10 @@ Present only with `NT`/`TL` cards, and followed by
 whose table has the *same* `TAG SEG VOLTAGE… / No: No: REAL…` header and the
 same 11-field row shape as the impedance table below. **It is not consumed**,
 because the state machine only arms on the `ANTENNA INPUT PARAMETERS` banner
-line. Fixture: `dipole_nt_network.out`.
+line. Fixtures: `dipole_nt_network.out` (the `NT` form), `dipole_tl_network.out`
+and `dipole_tl_shunt_crossed.out` (the `TL` form and the two-form mix) — the
+banner is one per run, but the *column header* under it depends on the row
+kind. §15 has the whole layout.
 
 ### 4.10 `---------- MATRIX TIMING ----------`
 
@@ -575,14 +579,15 @@ Other messages in the binary: `nec2c: Bad YY card format`,
 ## 9. The fixture corpus
 
 `scripts/nec_portal_capture.py` regenerates
-`tests/fixtures/nec_portal/` — 30 `<name>.deck` / `<name>.out` pairs plus
+`tests/fixtures/nec_portal/` — 32 `<name>.deck` / `<name>.out` pairs plus
 `manifest.json` (per-deck exit code, both SHA-256s, and the captured stderr).
 
 * `jar_testdeck`, `jar_testdeck_daemon_framed` — the deck embedded in
   `nec2/NEC2Daemon`, raw and with the daemon's `CM FF 2` prefix.
-* 17 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
-  / Sommerfeld grounds, `LD 0` / `LD 4` / `LD 5`, `GS`, `GM`, `NT`, `RP`, `NE`,
-  the 2-port sensor-line probe and the 2-port `YY` probe.
+* 19 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
+  / Sommerfeld grounds, `LD 0` / `LD 4` / `LD 5`, `GS`, `GM`, `NT`, two `TL`
+  decks (§15), `RP`, `NE`, the 2-port sensor-line probe and the 2-port `YY`
+  probe.
 * 10 catalog designs through `antennaknobs.nec_export.export_nec`, massaged
   into the portal dialect (`EN` dropped, `NX` appended).
 * `resident_two_decks` — two decks down one process, the residency pin.
@@ -885,9 +890,9 @@ across the two segments' gaps, in parallel with the structure, and
   repeats the `No: No: REAL` header with the same 11-token rows without ever
   being reached. They are emitted because the layout is the contract.
 
-`TL` remains on the error path: no fixture pins how nec2c lays a transmission
-line out inside `NETWORK DATA`, and guessing a layout is worse than refusing
-the card.
+`TL` remained on the error path after unit 3 — no fixture pinned how nec2c
+lays a transmission line out inside `NETWORK DATA`, and guessing a layout is
+worse than refusing the card. **Issue #799 captured it; see §15.**
 
 ### 12.6 The `GN` long tail
 
@@ -966,8 +971,9 @@ echo). Items 4/11 closed in unit 4 — see §14.
 
 Item 5 shrank but did not close: `RP`, `NE`, `NH` and `NT` are now pinned; `PT`
 (and the plane-wave `EX i1 …` / `PT -1` / `XQ` / `PT -2` sequence), `MP` and
-`IS` are not. `TL` joins them — the portal emits it, `nec_import` can translate
-it, and only the printout layout is missing.
+`IS` are not. `TL` joined them here — the portal emits it, `nec_import` can
+translate it, and only the printout layout was missing. **Closed by issue #799,
+§15.**
 
 New for unit 4:
 
@@ -1059,3 +1065,131 @@ Unchanged from §13 bar items 4/11: `processResponse`'s missing timeout,
 support, the multi-point-`FR` blank lines, `TL`/`PT`/`MP`/`IS` printout
 layouts, `RP` modes 1-6, spherical `NE`/`NH`, and the `FieldStore`
 gain-vs-directivity convention. The last four are asks on Ward's desk.
+(`TL` came off this list in §15; the live open list is §15.6.)
+
+## 15. Resolved by issue #799 — the `TL` printout layout
+
+`TL` was the last card the portal dialect could carry that this engine refused.
+Two captures close it: `dipole_tl_network` (a 600 Ω, 2.5 m — 0.2502 λ at
+30 MHz — line between two dipoles) and `dipole_tl_shunt_crossed` (a crossed
+450 Ω line with complex shunt ends, chained through an `NT` onto a third
+dipole).
+
+### 15.1 nec2c prints a `TL` as an **equivalent network**
+
+Same `---------- NETWORK DATA ----------` banner an `NT` gets — one per run,
+at the same indent, arming nothing on the Java side. What changes is the
+three-line **column header** under it, and it describes the *card*, not a Y
+matrix:
+
+```
+                                            ---------- NETWORK DATA ----------
+  -- FROM -  --- TO --      TRANSMISSION LINE        --------- SHUNT ADMITTANCES (MHOS) ---------   LINE
+  TAG   SEG  TAG   SEG    IMPEDANCE      LENGTH     ----- END ONE -----      ----- END TWO -----   TYPE
+  No:   No:  No:   No:         OHMS      METERS      REAL      IMAGINARY      REAL      IMAGINARY
+    1     5    2    14   6.0000E+02  2.5000E+00   0.0000E+00  0.0000E+00   0.0000E+00  0.0000E+00 STRAIGHT
+```
+
+(`dipole_tl_network.out`, verbatim.) The **row layout is identical to an `NT`
+row** — ` %4d %5d %4d %5d` then six alternating `%12.4E`/`%11.4E` fields — and
+only the *meaning* of the six differs:
+
+| column pair | `NT` row | `TL` row |
+| --- | --- | --- |
+| 1–2 | `Re/Im(Y11)` | `\|z0\|` (Ω), resolved `length` (m) |
+| 3–4 | `Re/Im(Y12)` | `Re/Im` of the END ONE shunt admittance |
+| 5–6 | `Re/Im(Y22)` | `Re/Im` of the END TWO shunt admittance |
+| tail | nine blanks (pad to col 106) | `STRAIGHT` / `CROSSED`, right-aligned in the same nine |
+
+An `NT` row's nine trailing spaces and a `TL` row's ` STRAIGHT` occupy exactly
+the same nine columns, so one `%9s` serves both. There is **no** separate
+"LINE LENGTH" or impedance echo line anywhere else in the printout: the card's
+`DATA CARD No:` echo (which prints the *signed* z0 and the *unresolved*
+length) and this row are the only places a `TL`'s numbers appear.
+
+### 15.2 The three card rules the row exposes
+
+* **A crossed line is a NEGATIVE `z0`.** The row echoes `|z0|` and says
+  `CROSSED`; `-450.` prints as `4.5000E+02`. Right-aligned in the same nine
+  columns, so the row is ` …  CROSSED` (two spaces) against ` … STRAIGHT`
+  (one). Physically it is port B's polarity inverted — the off-diagonal
+  transfer terms change sign, the diagonal self terms do not — which is
+  `network.TL(transposed=True)` and `nec_import.NecTL.transposed`.
+* **Length `0` means the straight-line distance between the connection
+  points** (the segment CENTRES), and the row echoes the RESOLVED number.
+  Probed directly: `TL 1 5 2 5 600. 0. …` between wires 1 m apart prints
+  `6.0000E+02  1.0000E+00`.
+* **The end admittances shunt onto the diagonal** (`Y11 += y_end1`,
+  `Y22 += y_end2`), which is the only way a `TL` contributes `NETWORK LOSS`.
+  An ideal line is a pure reactance chain: `dipole_tl_network` reports
+  `NETWORK LOSS = -6.0715E-18 Watts` and 100 % efficiency, while
+  `dipole_tl_shunt_crossed`'s conductive ends take `9.0220E-04` of `4.2873E-03`
+  W (78.96 %).
+
+### 15.3 One banner, a header block **per row kind**
+
+nec2c carries the previous row's kind and re-prints the matching column header
+whenever it changes, so a deck mixing the two shows two header blocks under one
+banner, interleaved in **card order**. Straight and crossed lines are one kind
+and share a block. From `dipole_tl_shunt_crossed.out` (`TL` then `NT`):
+
+```
+                                            ---------- NETWORK DATA ----------
+  -- FROM -  --- TO --      TRANSMISSION LINE        --------- SHUNT ADMITTANCES (MHOS) ---------   LINE
+  TAG   SEG  TAG   SEG    IMPEDANCE      LENGTH     ----- END ONE -----      ----- END TWO -----   TYPE
+  No:   No:  No:   No:         OHMS      METERS      REAL      IMAGINARY      REAL      IMAGINARY
+    1     5    2    14   4.5000E+02  3.0000E+00   1.0000E-03  2.0000E-03   3.0000E-03 -4.0000E-03  CROSSED
+  -- FROM -  --- TO --            -------- ADMITTANCE MATRIX ELEMENTS (MHOS) ---------
+  TAG   SEG  TAG   SEG   ----- (ONE,ONE) ------   ----- (ONE,TWO) -----   ----- (TWO,TWO) -------
+  No:   No:  No:   No:      REAL      IMAGINARY      REAL     IMAGINARY       REAL      IMAGINARY
+    2    14    3    23   0.0000E+00  5.0000E-03   0.0000E+00 -5.0000E-03   0.0000E+00  5.0000E-03
+```
+
+Writing the same two cards the other way round emits the `NT` header first.
+There is **no** blank line between the blocks.
+
+### 15.4 `STRUCTURE EXCITATION DATA` row order, generalised
+
+§12.5 recorded "the far end first" from the one `NT` fixture. The real rule
+(nec2c's `netwk()`) is a two-list sort done while walking the cards: a
+connection point that is **not** also an excitation segment goes on one list,
+one that **is** goes on the other, and the first list prints before the second.
+Within each, order is discovery — card by card, end one before end two.
+
+That reproduces `dipole_nt_network` unchanged (`NT 1 5 2 5` driven at 1/5 →
+`(2,14)` then `(1,5)`) and is the only reading that gets a mixed deck right:
+`dipole_tl_shunt_crossed` prints `(2,14)`, `(3,23)`, `(1,5)` — the `TL`'s far
+end, then both `NT` ends, then the driven `TL` end last. The list is
+per-execute-group, because the excitation set is.
+
+### 15.5 What the engine does with it
+
+`src/antennaknobs/nec_portal.py` stamps each `TL` as
+`network_reduce.tl_admittance_2x2(|z0|, length, λ, transposed=crossed)` plus
+the end admittances on the diagonal — antennaknobs' own TL branch, the closed
+form its composition oracles are written against — rebuilt **per frequency**,
+because unlike an `NT` the card's admittance depends on βl. Everything else is
+the `NT` path unchanged: the endpoints become gaps, an undriven one floats on a
+KCL row, and `ANTENNA INPUT PARAMETERS` reports segment + branch current.
+
+The one refusal left inside `TL`: an exactly-lossless **k·λ/2** line has no
+admittance matrix at all (`sinh γl = 0` — it is a through-connection the nodal
+description cannot spell), and nec2c's `netwk()` divides by the same `sinh`.
+That is named on the error path rather than printed as infinities. A line a
+part in 10⁷ off length is large but finite and prints normally.
+
+Cross-engine agreement (`tests/test_nec_portal_differential.py`):
+`dipole_tl_network` 0.27 % on Z and port current, `dipole_tl_shunt_crossed`
+1.14 % — both inside the ordinary 5 % bar, no widening. One trap is worth
+carrying forward: a quarter-wave line is an impedance INVERTER, and two
+branches across the *same* pair of gaps make a loop whose port admittance is a
+residual. The first draft of `dipole_tl_shunt_crossed` hung its `NT` back
+across the `TL`'s own pair and measured 6.6 % for a printout that looks
+identical; chaining the `NT` onto a third dipole dropped it to 1.14 %.
+
+### 15.6 Still open after #799
+
+§14.5 minus `TL`: `processResponse`'s missing timeout, `MATRIX_LINE`,
+`checkNEC42Fields`, `processExcitation`'s caller, patch/surface support, the
+multi-point-`FR` blank lines, `PT`/`MP`/`IS` printout layouts, `RP` modes 1-6,
+spherical `NE`/`NH`, and the `FieldStore` gain-vs-directivity convention.
