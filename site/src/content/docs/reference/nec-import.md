@@ -4,7 +4,8 @@ description: read_nec imports a NEC2 card deck — from xnec2c, 4nec2, EZNEC, or
 ---
 
 antennaknobs can [export any design as a NEC2 card deck](/reference/cli/#exporting-to-nec);
-`read_nec` is the reverse direction. It parses a `.nec` file — the format
+`read_nec` is the reverse direction. (SimNEC `.ssn` circuits have their own
+matching pair — see [SimNEC round-trip](/reference/simnec/).) It parses a `.nec` file — the format
 xnec2c, 4nec2, EZNEC, and fifty years of antenna handbooks all speak — into
 wire geometry a design can return from `build_wires`, so you can solve, sweep,
 and view a deck someone published without retyping its coordinates.
