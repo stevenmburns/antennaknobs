@@ -598,7 +598,13 @@ def check(oracle: Path) -> int:
         tmp_dir = Path(tmp)
         capture(oracle, tmp_dir)
         fresh = {p.name: p.read_text() for p in sorted(tmp_dir.iterdir())}
-        committed = {p.name: p.read_text() for p in sorted(FIXTURE_DIR.iterdir())}
+        # README.md documents the corpus' provenance (issue #805); it is
+        # hand-written, not generated, so it is exempt from the drift diff.
+        committed = {
+            p.name: p.read_text()
+            for p in sorted(FIXTURE_DIR.iterdir())
+            if p.name != "README.md"
+        }
 
     drift = []
     for name in sorted(set(fresh) | set(committed)):
