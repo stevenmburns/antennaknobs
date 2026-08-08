@@ -26,14 +26,17 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
   ``NT`` two-port networks — each of which is also an *execute* card in its
   own right (``RP``/``NE``/``NH`` run the pending group, so a bare ``XQ``
   after one of them re-runs nothing);
+* issue #799: ``TL`` transmission lines, which nec2c prints as an equivalent
+  network — same ``NETWORK DATA`` banner as ``NT``, a different three-line
+  column header, and a trailing ``STRAIGHT``/``CROSSED`` type word;
 * the printout sections SimNEC's state machine walks: banner, comments, data
   cards, structure specification, segmentation data, frequency, structure
   impedance loading, antenna environment, network data, matrix timing, antenna
   input parameters, currents and location, power budget, radiation patterns,
   near electric/magnetic fields.
 
-Still deferred (unit 4 / out of scope): ``TL`` transmission lines, ``PT``,
-``MP``, ``IS``, surface patches, ``RP`` modes other than 0, spherical
+Still deferred (unit 4 / out of scope): ``PT``, ``MP``, ``IS``, surface
+patches, ``RP`` modes other than 0, spherical
 ``NE``/``NH`` grids, and ``GN`` radial-wire ground screens. Those cards take
 the error path below rather than crashing the daemon — the printout says which
 card and why, and the ``NX`` sentinel is still emitted.
@@ -70,6 +73,7 @@ from .builder import AntennaBuilder
 from .engines.momwire import MomwireEngine
 from .nec_import import parse_nec
 from .network import _series_rlc_impedance
+from .network_reduce import SingularNetworkError, tl_admittance_2x2
 
 __all__ = [
     "BANNER_VERSION",
@@ -239,6 +243,23 @@ _NETWORK_TABLE_HEADER = (
     "  No:   No:  No:   No:      REAL      IMAGINARY      REAL     IMAGINARY"
     "       REAL      IMAGINARY",
 )
+# issue #799 — copied byte for byte out of dipole_tl_network.out. nec2c prints
+# a TL card as an *equivalent network*: same NETWORK DATA banner, but the three
+# column-header lines describe the card's own fields (Z0, length, the two end
+# shunt admittances) instead of a Y matrix, and the row carries a trailing LINE
+# TYPE word. nec2c re-emits whichever header block matches the row it is about
+# to print whenever the KIND changes, so a deck mixing TL and NT shows two
+# header blocks under one banner — in card order, straight and crossed lines
+# sharing one block (fixture: dipole_tl_shunt_crossed.out).
+_LINE_TABLE_HEADER = (
+    "  -- FROM -  --- TO --      TRANSMISSION LINE        --------- SHUNT"
+    " ADMITTANCES (MHOS) ---------   LINE",
+    "  TAG   SEG  TAG   SEG    IMPEDANCE      LENGTH     ----- END ONE -----"
+    "      ----- END TWO -----   TYPE",
+    "  No:   No:  No:   No:         OHMS      METERS      REAL      IMAGINARY"
+    "      REAL      IMAGINARY",
+)
+
 _NETWORK_EXCITATION_HEADER = (
     "                          --------- STRUCTURE EXCITATION DATA AT NETWORK"
     " CONNECTION POINTS --------"
@@ -320,7 +341,6 @@ _GEOMETRY_CARDS = frozenset({"GW", "GA", "GH", "GM", "GX", "GR", "GS", "GE"})
 # named so the error path can say WHICH card, instead of "unrecognised".
 _DEFERRED_CARDS = MappingProxyType(
     {
-        "TL": "transmission line",
         "PT": "current print control",
         "MP": "multiprocessing hint",
         "IS": "NEC-4.2 wire insulation",
@@ -337,7 +357,7 @@ _DEFERRED_CARDS = MappingProxyType(
 _EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
 
 # Cards that make the next execute card a real run rather than a no-op.
-_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "YY"})
+_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "YY"})
 
 
 @dataclass(frozen=True)
@@ -467,6 +487,60 @@ class NetworkBranch:
         )
 
 
+@dataclass(frozen=True)
+class LineBranch:
+    """One ``TL`` card: an ideal transmission line across two segments.
+
+    NEC solves a ``TL`` by substituting the line's *equivalent network* — the
+    same 2×2 short-circuit admittance an ``NT`` card states directly — so
+    everything unit 3 pinned about ``NT`` (the gap cut, the floating undriven
+    port, the source-vs-segment current split, ``NETWORK LOSS``) holds here
+    unchanged. Only three things are the card's own:
+
+    * **crossed lines are a NEGATIVE z0.** The printout echoes ``|z0|`` and
+      says ``CROSSED`` in the LINE TYPE column; the physics is port B's
+      polarity inverted, which flips the sign of the off-diagonal transfer
+      terms ONLY — not a negative z0 in the formula, which would wrongly
+      negate the diagonal self terms too.
+    * **length 0 means the straight-line distance** between the two
+      connection points (the segment centres). The printout echoes the
+      RESOLVED length, so a zero-length card never prints a zero.
+    * **the two end admittances shunt onto the diagonal**, Y11 += y_a and
+      Y22 += y_b, which is what makes a lossy line's ``NETWORK LOSS``
+      non-zero.
+
+    Those three rules are ``nec_import.NecTL``'s as well — the same card read
+    by the same repo's other translator — and
+    ``tests/test_nec_portal.py::test_the_portal_and_nec_import_translate_tl_the_same_way``
+    holds the two readings against each other. The admittance itself comes
+    from ``network_reduce.tl_admittance_2x2``: antennaknobs' own TL branch,
+    the closed form the reducer's composition oracles are written against.
+    """
+
+    a: tuple[int, int]  # (tag, segment) of end one
+    b: tuple[int, int]  # (tag, segment) of end two
+    z0: float  # |z0|, as the printout echoes it
+    length: float  # card length; 0.0 means "the straight-line distance"
+    crossed: bool
+    y_a: complex  # shunt admittance at end one
+    y_b: complex  # shunt admittance at end two
+
+    @classmethod
+    def from_card(cls, card: Card) -> LineBranch:
+        z0 = card.f(4)
+        if z0 == 0.0:
+            raise PortalError("TL characteristic impedance must be non-zero")
+        return cls(
+            (card.i(0), card.i(1)),
+            (card.i(2), card.i(3)),
+            abs(z0),
+            card.f(5),
+            z0 < 0.0,
+            complex(card.f(6), card.f(7)),
+            complex(card.f(8), card.f(9)),
+        )
+
+
 @dataclass
 class ExecuteGroup:
     """One execute card's worth of state: the sources armed when it fired, and
@@ -499,7 +573,10 @@ class PortalDeck:
     # One entry per EXECUTE card in ``data_cards`` order; None marks an execute
     # card that ran nothing (a bare ``XQ`` trailing an ``RP``/``NE``/``NH``).
     groups: tuple[ExecuteGroup | None, ...] = ()
-    networks: tuple[NetworkBranch, ...] = ()
+    # Every ``NT`` and ``TL`` card, in CARD ORDER — which is the order nec2c
+    # prints NETWORK DATA rows in, and the order that decides where it
+    # re-emits a column header (see ``_network_lines``).
+    networks: tuple[NetworkBranch | LineBranch, ...] = ()
     loads: tuple[Card, ...] = ()
     ground: Ground = field(default_factory=Ground)
     ground_plane_flag: bool = False
@@ -561,7 +638,7 @@ def parse_deck(body: str) -> PortalDeck:
     geometry: list[Card] = []
     data_cards: list[Card] = []
     groups: list[ExecuteGroup | None] = []
-    networks: list[NetworkBranch] = []
+    networks: list[NetworkBranch | LineBranch] = []
     loads: list[Card] = []
     sources: list[tuple[int, int, complex]] = []
     yy_points: list[tuple[int, int]] = []
@@ -615,6 +692,8 @@ def parse_deck(body: str) -> PortalDeck:
                 loads.append(card)
         elif card.mnemonic == "NT":
             networks.append(NetworkBranch.from_card(card))
+        elif card.mnemonic == "TL":
+            networks.append(LineBranch.from_card(card))
         elif card.mnemonic == "FR":
             freqs = _fr_frequencies(card)
             fresh_fr = True
@@ -738,18 +817,26 @@ def fmt_yy_row(currents) -> str:
     return f"    -YY{body}"
 
 
-def fmt_network_row(tag_a, seg_a, tag_b, seg_b, y11, y12, y22) -> str:
-    """A NETWORK DATA row: the two connection points and the card's Y matrix.
+def fmt_network_row(tag_a, seg_a, tag_b, seg_b, values, tail: str = "") -> str:
+    """A NETWORK DATA row: the two connection points, six numbers, a tail word.
 
-    The oracle pads this line out to 106 columns with nine trailing spaces —
+    ``NT`` and ``TL`` rows share this layout EXACTLY — six alternating
+    ``%12.4E``/``%11.4E`` fields and a nine-column right-aligned tail — and
+    only the meaning of the six changes: an ``NT`` row is
+    ``Re/Im(Y11), Re/Im(Y12), Re/Im(Y22)`` under an empty tail, a ``TL`` row is
+    ``|z0|, length, Re/Im(y_end1), Re/Im(y_end2)`` under ``STRAIGHT`` or
+    ``CROSSED``. The oracle pads the ``NT`` form out to 106 columns with nine
+    trailing spaces, which is the same nine columns ``STRAIGHT`` occupies —
     reproduced, because ``layout_signature`` compares token END columns and a
     reader diffing bytes should see none.
     """
+    v1, v2, v3, v4, v5, v6 = values
     return (
         f" {tag_a:4d} {seg_a:5d} {tag_b:4d} {seg_b:5d}"
-        f" {y11.real:12.4E} {y11.imag:11.4E}"
-        f" {y12.real:12.4E} {y12.imag:11.4E}"
-        f" {y22.real:12.4E} {y22.imag:11.4E}" + " " * 9
+        f" {v1:12.4E} {v2:11.4E}"
+        f" {v3:12.4E} {v4:11.4E}"
+        f" {v5:12.4E} {v6:11.4E}"
+        f"{tail:>9s}"
     )
 
 
@@ -1187,7 +1274,7 @@ class DeckSolver:
             for tag, seg, _v in group.sources:
                 if (tag, seg) not in ports:
                     ports.append((tag, seg))
-        # An NT endpoint is a port too: NEC cuts the segment to hang the
+        # An NT or TL endpoint is a port too: NEC cuts the segment to hang the
         # network off it, so it needs a gap in the momwire model whether or not
         # anything drives it.
         for branch in deck.networks:
@@ -1226,32 +1313,92 @@ class DeckSolver:
             for feed, port in zip(self.deck.feeds, self.feed_index)
         }
 
-        # NT branches, stamped onto the port index set. The matrix is
-        # frequency-independent (the card gives constant admittances), so it is
-        # built once here rather than per group.
+        # NT and TL branches, stamped onto the port index set, in card order.
+        # An NT matrix is frequency-independent (the card gives constant
+        # admittances) so it is accumulated once here; a TL's is not — its
+        # electrical length is βl — so the line rows are kept and stamped per
+        # frequency by ``y_network_at``.
         lookup = {point: self.feed_index[i] for i, point in enumerate(self.ports)}
-        self.y_network = np.zeros((self.n_ports, self.n_ports), dtype=np.complex128)
+        self.y_constant = np.zeros((self.n_ports, self.n_ports), dtype=np.complex128)
         self.network_ports: set[int] = set()
-        self.network_rows: list[tuple[int, int, NetworkBranch]] = []
+        # (port a, port b, branch, resolved TL length or None for an NT).
+        self.network_rows: list[
+            tuple[int, int, NetworkBranch | LineBranch, float | None]
+        ] = []
+        self.line_rows: list[tuple[int, int, LineBranch, float]] = []
         for branch in deck.networks:
             a, b = lookup[branch.a], lookup[branch.b]
-            self.y_network[a, a] += branch.y11
-            self.y_network[a, b] += branch.y12
-            self.y_network[b, a] += branch.y12
-            self.y_network[b, b] += branch.y22
+            length: float | None = None
+            if isinstance(branch, LineBranch):
+                length = self._line_length(branch, a, b)
+                self.line_rows.append((a, b, branch, length))
+            else:
+                self.y_constant[a, a] += branch.y11
+                self.y_constant[a, b] += branch.y12
+                self.y_constant[b, a] += branch.y12
+                self.y_constant[b, b] += branch.y22
             self.network_ports.update((a, b))
-            self.network_rows.append((a, b, branch))
-        # NEC lists the network connection points with the far end first —
-        # ``dipole_nt_network.out`` prints (2, 14) before (1, 5) for
-        # ``NT 1 5 2 5``. Row order only; the numbers are per port.
-        self.network_report_ports: list[int] = []
-        for a, b, _branch in self.network_rows:
-            for port in (b, a):
-                if port not in self.network_report_ports:
-                    self.network_report_ports.append(port)
+            self.network_rows.append((a, b, branch, length))
 
         self._smallest_radius = min(w.radius for w in self.wires)
         self._cache: dict[float, dict] = {}
+
+    def _line_length(self, branch: LineBranch, a: int, b: int) -> float:
+        """A ``TL`` card's resolved length: its own, or — when the card says
+        zero — the straight-line distance between the two connection points,
+        which NEC takes to be the segment CENTRES. The printout echoes THIS
+        number, so a zero-length card never prints a zero."""
+        if branch.length:
+            return branch.length
+        centre_a = self.segments[self.segment_of_port(a) - 1].centre
+        centre_b = self.segments[self.segment_of_port(b) - 1].centre
+        return float(np.linalg.norm(centre_a - centre_b))
+
+    def y_network_at(self, wavelength: float) -> np.ndarray:
+        """The whole deck's network admittance at one wavelength.
+
+        The constant ``NT`` part plus every ``TL``'s equivalent network:
+        ``tl_admittance_2x2`` — antennaknobs' own TL branch — with the card's
+        end admittances added onto the diagonal, which is where a lossy line's
+        ``NETWORK LOSS`` comes from.
+        """
+        y = self.y_constant.copy()
+        for a, b, branch, length in self.line_rows:
+            try:
+                block = tl_admittance_2x2(
+                    branch.z0, length, wavelength, transposed=branch.crossed
+                )
+            except SingularNetworkError as exc:
+                # An exactly-lossless k·λ/2 line HAS no admittance matrix, and
+                # nec2c's netwk() divides by the same sinh. Refuse it by name
+                # rather than emit a table of infinities.
+                raise PortalError(f"TL {branch.a} -> {branch.b}: {exc}") from None
+            y[a, a] += block[0, 0] + branch.y_a
+            y[a, b] += block[0, 1]
+            y[b, a] += block[1, 0]
+            y[b, b] += block[1, 1] + branch.y_b
+        return y
+
+    def network_report_order(self, driven_ports: set[int]) -> list[int]:
+        """Row order for STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS.
+
+        NEC's ``netwk()`` sorts the connection points into two lists as it
+        walks the cards — the ones that are NOT also excitation segments, then
+        the ones that are — and prints the first list followed by the second.
+        Within each list the order is discovery: card by card, end one before
+        end two. So ``dipole_nt_network`` (``NT 1 5 2 5``, driven on 1/5)
+        prints ``(2, 14)`` then ``(1, 5)``, and the mixed
+        ``dipole_tl_shunt_crossed`` prints the TL's far end, then both NT ends,
+        then the driven TL end last.
+        """
+        undriven: list[int] = []
+        driven: list[int] = []
+        for a, b, _branch, _length in self.network_rows:
+            for port in (a, b):
+                if port in undriven or port in driven:
+                    continue
+                (driven if port in driven_ports else undriven).append(port)
+        return undriven + driven
 
     def segment_of_port(self, port: int) -> int:
         """The global NEC segment number carrying momwire port ``port``."""
@@ -1361,6 +1508,7 @@ class DeckSolver:
                     wire, local = _locate(self.wires, tag, seg)
                     driven.append((port, self.global_segment(wire, local), volts))
         z_load = self._load_impedances(omega)
+        y_network = self.y_network_at(entry["wavelength"])
         system = np.eye(self.n_ports, dtype=np.complex128) + (z_load[:, None] * y)
         rhs = v_source.copy()
         # A network port that nothing drives is not a shorted gap: its voltage
@@ -1370,11 +1518,11 @@ class DeckSolver:
         # source supplies the difference. Grammar doc §11.
         driven_ports = {port for port, _seg, _v in driven}
         for port in sorted(self.network_ports - driven_ports):
-            system[port, :] = y[port, :] + self.y_network[port, :]
+            system[port, :] = y[port, :] + y_network[port, :]
             rhs[port] = 0.0
         v_gap = np.linalg.solve(system, rhs)
         i_port = y @ v_gap
-        i_network = self.y_network @ v_gap
+        i_network = y_network @ v_gap
         # What the source delivers: the segment current plus whatever the
         # network draws at the same node. With no NT card the second term is
         # zero and this is the unit-2 reading unchanged.
@@ -1651,22 +1799,52 @@ def _network_lines(solver: DeckSolver, result: dict) -> list[str]:
     layout is the contract and a reader diffing against the oracle would
     otherwise see a missing section.
     """
-    out = [_NETWORK_HEADER, *_NETWORK_TABLE_HEADER]
-    for a, b, branch in solver.network_rows:
+    out = [_NETWORK_HEADER]
+    # nec2c carries the PREVIOUS row's kind and re-emits the matching column
+    # header whenever it changes, so a deck mixing TL and NT cards shows two
+    # header blocks under one banner, interleaved in card order. Straight and
+    # crossed lines are one kind and share a block.
+    kind: type | None = None
+    for a, b, branch, length in solver.network_rows:
         seg_a, seg_b = solver.segment_of_port(a), solver.segment_of_port(b)
+        if isinstance(branch, LineBranch):
+            values = (
+                branch.z0,
+                length,
+                branch.y_a.real,
+                branch.y_a.imag,
+                branch.y_b.real,
+                branch.y_b.imag,
+            )
+            tail = "CROSSED" if branch.crossed else "STRAIGHT"
+            header = _LINE_TABLE_HEADER
+        else:
+            values = (
+                branch.y11.real,
+                branch.y11.imag,
+                branch.y12.real,
+                branch.y12.imag,
+                branch.y22.real,
+                branch.y22.imag,
+            )
+            tail = ""
+            header = _NETWORK_TABLE_HEADER
+        if kind is not type(branch):
+            kind = type(branch)
+            out += list(header)
         out.append(
             fmt_network_row(
                 solver.segments[seg_a - 1].tag,
                 seg_a,
                 solver.segments[seg_b - 1].tag,
                 seg_b,
-                branch.y11,
-                branch.y12,
-                branch.y22,
+                values,
+                tail,
             )
         )
     out += ["", "", _NETWORK_EXCITATION_HEADER, *_NETWORK_EXCITATION_TABLE_HEADER]
-    for port in solver.network_report_ports:
+    driven_ports = {port for port, _seg, _v in result["driven"]}
+    for port in solver.network_report_order(driven_ports):
         number = solver.segment_of_port(port)
         volts = complex(result["v_gap"][port])
         current = complex(result["i_port"][port])
