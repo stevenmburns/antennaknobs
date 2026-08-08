@@ -1967,3 +1967,18 @@ def test_bspline_d1_free_space_impedance_within_loose_bound_of_committed_oracle(
     r_theirs, x_theirs = float(theirs[6]), float(theirs[7])
     assert abs(r_ours - r_theirs) / r_theirs < 0.05, (r_ours, r_theirs)
     assert abs(x_ours - x_theirs) / abs(x_theirs) < 0.15, (x_ours, x_theirs)
+
+
+def test_bspline_d1_answer_differs_from_the_default_degree():
+    """Disabled-path probe: if `_build_engine` dropped the `{"degree": 1}`
+    kwargs and served the default degree-2 solver, every other +bs1 test
+    would still pass — the d2 answer is inside both oracle bounds and the
+    banner stamps regardless of what solved. The two degrees genuinely
+    disagree here — measured X=40.27 (d1) vs X=46.00 (d2), 12% apart — so a
+    silently-ignored kwarg is detectable."""
+    deck = fixture_deck("dipole_free_space") + "\nNX\n"
+    _rc, out_d1, _err = _run_main(["--basis", "bspline-d1"], deck=deck)
+    _rc, out_d2, _err = _run_main([], deck=deck)
+    x_d1 = float(aip_tables(out_d1)[0][0][7])
+    x_d2 = float(aip_tables(out_d2)[0][0][7])
+    assert abs(x_d1 - x_d2) / abs(x_d2) > 0.05, (x_d1, x_d2)
