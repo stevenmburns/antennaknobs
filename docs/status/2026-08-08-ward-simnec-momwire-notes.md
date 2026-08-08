@@ -17,7 +17,7 @@ with a different electromagnetics kernel underneath.
 
 ## What we validated
 
-**Layout: 36 of 36.** We captured 36 deck/printout pairs from your bundled
+**Layout: 40 of 40.** We captured 40 deck/printout pairs from your bundled
 `nec2c` — its own `NEC2Daemon` test deck, hand-written decks for every card
 class the portal emits, ten real designs, and a two-decks-one-process
 residency case. Our engine reproduces all 36 section for section, column for
@@ -27,7 +27,7 @@ card renumbering, and the matrix-rebuild-only frequency preamble.
 **Numbers: inside engineering tolerance.** momwire is a B-spline Galerkin
 solver and `nec2c` uses NEC-2's sinusoidal basis with point matching, so they
 will never agree digit for digit — and SimNEC doesn't need them to. Worst
-case over every row of every table in all 36 fixtures:
+case over every row of every table in all 40 fixtures:
 
 | quantity | corpus worst |
 | --- | --- |
@@ -133,6 +133,16 @@ of 4 keeps up on a 16 GB machine. We refuse, with the sentinel intact, what
 we don't model: surface patches (`SP`/`SM` — momwire is a wire solver), `IS`,
 `RP` modes other than 0, spherical `NE`/`NH`, near fields over finite ground,
 and `GN` radial-wire screens. The live session also showed user decks carry
-cards the portal documentation's card list doesn't (`EK`, now supported;
-`GD` and `RP 3` from the EZNEC-derived examples, in progress) — each has
-been about an hour's turnaround with your engine on hand as the oracle.
+cards the portal documentation's card list doesn't — `EK` (sent
+unconditionally by `NECSource`) and `GD` (your EZNEC-derived examples all
+carry one) are both supported now; each was about an hour's turnaround with
+your engine on hand as the oracle. `RP 3` — where those examples' cliff
+parameters actually land — is the remaining gap.
+
+One more thing the launch mechanism makes possible: since the portal command
+runs through the shell, a `--basis` flag on the command line picks the
+solver's basis (`bspline`, `sinusoidal-galerkin`, or the
+`sinusoidal-galerkin-converged` setting for near-open feeds). **Two portal
+entries differing only in `--basis` give your users cross-basis validation
+inside SimNEC** — an engine-side second opinion no single-basis NEC build
+can offer, with your nec2c as the third.
