@@ -101,6 +101,20 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "dipole_gd_cliff_sommerfeld",
+      "returncode": 253,
+      "deck_sha256": "bb26c229132d96e327ac610911ab6dac27915e06ede7078b7c91a330e04022e8",
+      "out_sha256": "4ac26d86becb0c8d05a871cd81be90c5e7984b0d6cb8a32469771cde10a754c3",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_gd_second_medium",
+      "returncode": 253,
+      "deck_sha256": "a18d1cdf5bfbdfaf67bec22416fd27dcbb01242804d25720c3d06bced9d68673",
+      "out_sha256": "1e9e7f2cdac699985b6bcbd4414ddf88b29f075724adc535486a0bba84447701",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "dipole_gm_translated_pair",
       "returncode": 253,
       "deck_sha256": "2ef6e978f4f18e467826c62e53a9454932ad39ccc367ba854608377411879033",

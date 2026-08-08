@@ -37,6 +37,8 @@ catalog_verticals_vertical            2.79%   2.79%       -   0.18%      -
 catalog_wire_w8jk                     1.98%   1.99%       -   0.84%      -
 dipole_fr_sweep                       1.29%   1.29%       -   0.96%      -
 dipole_free_space                     0.76%   0.76%       -   0.96%      -
+dipole_gd_cliff_sommerfeld            2.24%   2.23%       -   4.35%      -   (f)
+dipole_gd_second_medium               2.23%   2.23%       -   4.35%      -   (f)
 dipole_gm_translated_pair             1.10%   1.10%       -   1.13%      -
 dipole_gs_scaled                      0.76%   0.76%       -   0.96%      -
 dipole_load_ld0                       1.79%   1.79%       -   1.95%      -
@@ -112,6 +114,15 @@ fails.
     what it computes, so there is nothing in it for momwire to honour. If these
     rows ever drift away from ``dipole_free_space``'s, the card has stopped
     being advisory and this engine is wrong to ignore it.
+
+(f) is the same kind of control, for ``GD`` (issue #800's tail). Each fixture
+    is its ground fixture plus one card — ``dipole_pec_ground`` and
+    ``dipole_sommerfeld_ground`` respectively — and each reproduces its base
+    row to the digit on BOTH engines. That is the claim GD's treatment rests
+    on: NEC-2 uses the second medium in the FAR FIELD only, and there only in
+    ``RP``'s cliff modes, so nothing in the matrix can see it. If these rows
+    ever drift away from their bases', the card has stopped being inert for
+    the impedance path and this engine is wrong to record it and move on.
 """
 
 from __future__ import annotations
@@ -493,6 +504,33 @@ def test_mp_moves_no_number_on_either_engine(name, pair):
         for table, reference in zip(mine.ports, base.ports, strict=True):
             assert table == reference, f"{name}: MP moved an impedance row"
         assert mine.currents == base.currents, f"{name}: MP moved a segment current"
+
+
+GD_FIXTURES = (
+    ("dipole_gd_second_medium", "dipole_pec_ground"),
+    ("dipole_gd_cliff_sommerfeld", "dipole_sommerfeld_ground"),
+)
+
+
+@pytest.mark.parametrize(("name", "base"), GD_FIXTURES)
+def test_gd_moves_no_number_on_either_engine(name, base, pair):
+    """Justifies accepting ``GD`` and computing nothing from it.
+
+    The card names a SECOND ground medium and the cliff edge between the two.
+    If the moment method saw it, these fixtures would differ from their bases
+    — same geometry, same ground, same drive, same frequency, one extra card.
+    They do not, on the oracle's side OR ours, which is the measured form of
+    "NEC-2 uses GD in the far field alone". The far-field half of the claim
+    lives in ``test_nec_portal.py`` (``RP 0`` byte-identical, ``RP 1``-``6``
+    refused by name).
+    """
+    ours, theirs = pair(name)
+    base_ours, base_theirs = pair(base)
+    for mine, reference in ((ours, base_ours), (theirs, base_theirs)):
+        assert [len(t) for t in mine.ports] == [len(t) for t in reference.ports]
+        for table, expected in zip(mine.ports, reference.ports, strict=True):
+            assert table == expected, f"{name}: GD moved an impedance row"
+        assert mine.currents == reference.currents, f"{name}: GD moved a current"
 
 
 TL_FIXTURES = ("dipole_tl_network", "dipole_tl_shunt_crossed")

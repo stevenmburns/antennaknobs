@@ -9,9 +9,10 @@ momwire, so we first need byte-level ground truth for what the real engine
 prints.
 
 This script builds a small, deterministic corpus of decks in SimNEC's *portal
-dialect* (the card subset ``nec2/NECSource`` actually emits — CM/CE, GW, GM,
-GS, GE, GN, LD, IS, EX, NT, TL, FR, RP, NE, NH, PT, MP, XQ, plus Ward's custom
-``YY`` — terminated by ``NX``), runs each one through the oracle binary, and
+dialect* (the card subset ``nec2/NECSource`` actually emits — CM/CE, EK, GW,
+GM, GS, GE, GN, GD, LD, IS, EX, NT, TL, FR, RP, NE, NH, PT, MP, XQ, plus
+Ward's custom ``YY`` — terminated by ``NX``), runs each one through the oracle
+binary, and
 commits the deck/printout pairs as fixtures under
 ``tests/fixtures/nec_portal/``.
 
@@ -148,6 +149,42 @@ def _synthetic_decks() -> dict[str, str]:
         "GW 1 9 0. 0. 5.0 0. 0. 10.0 0.001\n"
         "GE -1\n"
         "GN 2 0 0 0 13. 0.005\n"
+        "EX 0 1 5 0 1.\n"
+        "FR 0 1 0 0 14.1 0\n"
+        "XQ\n"
+    )
+
+    # GD — NEC-2's "additional ground parameters" card (issue #800's tail).
+    # SimNEC's EZNEC-derived examples (`Cardioid (EZNEC).ssn`,
+    # `4-square (EZNEC).ssn`) carry one and NECSource forwards it verbatim, so
+    # refusing it failed every one of those decks live. This deck is
+    # `dipole_pec_ground` plus the card, written in the COMMA-delimited form
+    # SimNEC actually emits (`GD 2,0,0,0,13.,.005,0.,0.`) — measured identical
+    # to the space-separated form on the oracle — so the pair is a clean
+    # with/without diff of the card's entire observable effect.
+    decks["dipole_gd_second_medium"] = (
+        "CE dipole over perfect ground\n"
+        "GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001\n"
+        "GE -1\n"
+        "GN 1\n"
+        "GD 2,0,0,0,13.,.005,0.,0.\n"
+        "EX 0 1 5 0 1.\n"
+        "FR 0 1 0 0 14.1 0\n"
+        "XQ\n"
+    )
+
+    # The same card with all four REAL fields non-zero, over the Sommerfeld
+    # ground. The Cardioid's own card leaves CLT and CHT at zero, which would
+    # leave the last two columns of the echo unpinned; this one is a genuine
+    # linear cliff (edge 20 m out, second medium 2 m below) and is
+    # `dipole_sommerfeld_ground` plus the card, for the second with/without
+    # pair.
+    decks["dipole_gd_cliff_sommerfeld"] = (
+        "CE dipole over sommerfeld ground\n"
+        "GW 1 9 0. 0. 5.0 0. 0. 10.0 0.001\n"
+        "GE -1\n"
+        "GN 2 0 0 0 13. 0.005\n"
+        "GD 0 0 0 0 5. .001 20. -2.\n"
         "EX 0 1 5 0 1.\n"
         "FR 0 1 0 0 14.1 0\n"
         "XQ\n"
@@ -479,8 +516,9 @@ PORTAL_CARDS = frozenset(
         "GS",
         "GE",  # geometry
         "GN",
+        "GD",
         "LD",
-        "IS",  # environment / loading / insulation
+        "IS",  # environment / second medium / loading / insulation
         "EX",
         "NT",
         "TL",

@@ -579,15 +579,16 @@ Other messages in the binary: `nec2c: Bad YY card format`,
 ## 9. The fixture corpus
 
 `scripts/nec_portal_capture.py` regenerates
-`tests/fixtures/nec_portal/` — 36 `<name>.deck` / `<name>.out` pairs plus
+`tests/fixtures/nec_portal/` — 40 `<name>.deck` / `<name>.out` pairs plus
 `manifest.json` (per-deck exit code, both SHA-256s, and the captured stderr).
 
 * `jar_testdeck`, `jar_testdeck_daemon_framed` — the deck embedded in
   `nec2/NEC2Daemon`, raw and with the daemon's `CM FF 2` prefix.
-* 23 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
+* 27 hand-authored decks: free space, `FR` sweep, PEC / reflection-coefficient
   / Sommerfeld grounds, `LD 0` / `LD 4` / `LD 5`, `GS`, `GM`, `NT`, two `TL`
-  decks (§15), two `MP` decks and two `PT` decks (§16), `RP`, `NE`, the 2-port
-  sensor-line probe and the 2-port `YY` probe.
+  decks (§15), two `MP` decks and two `PT` decks (§16), two `EK` decks (§17),
+  two `GD` decks (§18), `RP`, `NE`, `NH`, the 2-port sensor-line probe and the
+  2-port `YY` probe.
 * 10 catalog designs through `antennaknobs.nec_export.export_nec`, massaged
   into the portal dialect (`EN` dropped, `NX` appended).
 * `resident_two_decks` — two decks down one process, the residency pin.
@@ -1422,3 +1423,85 @@ Pinned behaviour (fixtures `dipole_ek_extended`, `dipole_ek_rearm`):
 - Build note: the 1.17 corpus oracle aborts noisily at EOF after the last
   NX ("Error reading input file") — post-sentinel noise, also present in
   pre-EK fixtures, harmless to `Execute` which stops at the sentinel.
+
+## §18 — GD, the second-medium card SimNEC's EZNEC examples carry
+
+The second live-session refusal, and the same shape as §17: SimNEC's
+EZNEC-derived examples — `Cardioid (EZNEC).ssn`, `4-square (EZNEC).ssn` —
+carry a `GD` card, `NECSource` forwards it verbatim, and a daemon that
+refused it failed every one of those decks with fabricated R = 0 / X = 0
+readouts.
+
+The live line is comma-delimited: `GD 2,0,0,0,13.,.005,0.,0.`, alongside
+`GN 1`, `NT` cards and an `RP 3`.
+
+### The fields, read off the oracle rather than a manual
+
+`GD` is `GD <i1> <i2> <i3> <i4> <EPSR2> <SIG2> <CLT> <CHT>`. The four
+integer columns are echoed and used by nothing (the Cardioid writes `2` in
+the first, mirroring `GN`'s type field; a bare `GD` echoes four zeros and
+runs identically). The four reals are:
+
+| field | name    | meaning                                              |
+| ----- | ------- | ---------------------------------------------------- |
+| `F1`  | `EPSR2` | relative dielectric constant of the SECOND medium     |
+| `F2`  | `SIG2`  | conductivity of the second medium, mhos/metre         |
+| `F3`  | `CLT`   | distance from the origin to the edge joining the media |
+| `F4`  | `CHT`   | height of medium 2's surface relative to medium 1's, signed |
+
+That mapping is the oracle's own naming, recovered by running
+`GD 0 0 0 0 5. .001 20. -2.` under `RP 2`, which prints:
+
+```
+                               ------ FAR FIELD GROUND PARAMETERS ------
+
+
+                               --- LINEAR CLIFF ---
+                               EDGE DISTANCE=     20.00 METERS
+                                      HEIGHT=     -2.00 METERS
+                               --- SECOND MEDIUM ---
+                               RELATIVE DIELECTRIC CONST=      5.000
+                                     GROUND CONDUCTIVITY=      0.001 MHOS
+```
+
+### What the card changes in the printout: its own echo, and nothing else
+
+- One ordinary `DATA CARD No:` line, four integers then six `%13.5E` reals,
+  the generic layout every data card gets. Comma- and space-delimited forms
+  produce byte-identical output (measured).
+- **No line anywhere in the `ANTENNA ENVIRONMENT` block.** Probed for
+  explicitly under `GN 1` and under `GN 2`, where a "second medium"
+  announcement was the likeliest place one would appear. There is none.
+- **No change to any number.** Fixtures `dipole_gd_second_medium` and
+  `dipole_gd_cliff_sommerfeld` are `dipole_pec_ground` and
+  `dipole_sommerfeld_ground` plus one card; each printout differs from its
+  base only in the echo and the card ordinals it shifts.
+- **Not an arming card.** Measured: `... XQ / GD 2 0 0 0 13. .005 0. 0. /
+  XQ` prints one block, not two — the same rule `MP` and `PT` follow (§16).
+- A non-numeric field is where this engine deliberately parts company with
+  the oracle: nec2c's free-format reader SKIPS the bad token and shifts the
+  remaining fields left (`GD 2 0 0 0 marsh .005 0. 0.` echoes `.005` as
+  EPSR2), which is a wrong answer dressed as a right one. This engine names
+  the token on the ordinary error path and still emits the sentinel (§8).
+
+### Fidelity — where the second medium WOULD matter
+
+NEC-2 uses `GD` in the FAR FIELD alone; the moment method never sees it,
+which is why every impedance and segment current is unchanged. In the far
+field it is reached only through `RP`'s cliff and ground-screen modes.
+Measured both ways with the cliff card above:
+
+- `RP 0` — the only mode `nec2/NECSource` ever writes, and the only one this
+  engine computes — the `RADIATION PATTERNS` table is **byte-identical** with
+  and without the card;
+- `RP 2` (linear cliff) — the `FAR FIELD GROUND PARAMETERS` block above
+  appears and every gain moves.
+
+So the deck shapes in which `GD` is inert are exactly the deck shapes this
+engine runs, and the shapes in which it is not are already refused by name at
+the `RP` card (`RP mode <n> is not supported`, issue #802). Accepting `GD`
+therefore cannot make this engine answer a cliff question as if the ground
+were flat — it never gets asked one. A `GD` deck whose `RP` is mode 3, like
+the Cardioid's, still refuses on the `RP`, which is correct until #802 lands.
+
+Corpus 38 -> 40; layout gate 40/40.

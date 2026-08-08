@@ -113,7 +113,8 @@ MNA over its own nec2c, and the antennaknobs workbench).
 **Session date: 2026-08-08, Windows box, SimNEC 6p4d6, crew 4.** Live
 discoveries: `EK` sent unconditionally by `NECSource` (fixed same-day,
 PR #814, selftest now gates on it); `GD` + `RP 3` in EZNEC-derived examples
-still refused (cardioid / 4-square blocked; GD fix queued, RP 3 = #802);
+still refused (cardioid / 4-square blocked; GD fix has since landed —
+grammar doc §18, selftest now gates on it too; RP 3 = #802);
 multi-feed `.ssn` export loses drive phasing (#815). Every row green —
 the Ward notes are cleared to send.
 

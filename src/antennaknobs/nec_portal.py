@@ -36,6 +36,17 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
   toggle on the ``CURRENTS AND LOCATION`` table rather than anything entangled
   with the plane-wave excitation SimNEC wraps it in (see
   :class:`PrintControl`);
+* issue #800 (tail): ``GD``, NEC-2's additional-ground-parameters card, which
+  SimNEC's EZNEC-derived examples carry and forward — parsed, echoed, and
+  otherwise inert. **Fidelity note:** ``GD``'s second medium reaches NEC only
+  through the far field, and only through the ``RP`` card's cliff and
+  ground-screen modes (``RP 1``-``RP 6``); it never enters the matrix, so
+  every impedance and current is unchanged by it, and the ``RP 0`` pattern
+  this engine computes is byte-identical with and without the card (measured
+  both ways on the oracle). The modes where it WOULD move the pattern are
+  already refused by name at the ``RP`` card, so nothing here answers a
+  second-medium question by pretending the medium is not there
+  (see :class:`SecondMedium`);
 * the printout sections SimNEC's state machine walks: banner, comments, data
   cards, structure specification, segmentation data, frequency, structure
   impedance loading, antenna environment, network data, matrix timing, antenna
@@ -464,6 +475,90 @@ class Ground:
 
 
 @dataclass(frozen=True)
+class SecondMedium:
+    """One ``GD`` card: NEC-2's *additional ground parameters*. Echoed, and
+    then genuinely inert for everything this engine computes.
+
+    **What the card is.** ``GD`` states a SECOND ground medium and the edge
+    where medium 1 stops: four real fields, and — measured against the oracle
+    — nothing else. The four integer columns of the echo are read as integers
+    and used by nothing; a bare ``GD`` echoes four zero integers and six zero
+    reals and runs the deck exactly as a fully populated one does.
+
+    ==========  =========================================================
+    field       meaning
+    ==========  =========================================================
+    ``F1``      ``EPSR2`` — relative dielectric constant of medium 2
+    ``F2``      ``SIG2`` — conductivity of medium 2, mhos/metre
+    ``F3``      ``CLT`` — distance from the origin to the edge where the
+                two media join (the cliff's EDGE DISTANCE)
+    ``F4``      ``CHT`` — height of medium 2's surface relative to
+                medium 1's, signed (negative = the far side is lower)
+    ==========  =========================================================
+
+    The readings come from the oracle's own printout, not from a manual: a
+    deck carrying ``GD 0 0 0 0 5. .001 20. -2.`` under ``RP 2`` prints
+
+    .. code-block:: text
+
+                                       --- LINEAR CLIFF ---
+                                       EDGE DISTANCE=     20.00 METERS
+                                              HEIGHT=     -2.00 METERS
+                                       --- SECOND MEDIUM ---
+                                       RELATIVE DIELECTRIC CONST=      5.000
+                                             GROUND CONDUCTIVITY=      0.001 MHOS
+
+    which names all four fields in card order.
+
+    **Why it had to land.** SimNEC's EZNEC-derived examples — ``Cardioid
+    (EZNEC).ssn``, ``4-square (EZNEC).ssn`` — carry a ``GD`` and ``NECSource``
+    forwards it verbatim, so refusing the card failed those decks outright and
+    SimNEC fabricated readouts from the failure (R = 0, X = 0; the same shape
+    of live failure the ``EK`` card caused, grammar doc §17).
+
+    **What it changes in the printout: nothing.** No ``DATA CARD`` line beyond
+    its own echo, no line in the ``ANTENNA ENVIRONMENT`` block — not even
+    under ``GN 2``, where a second medium might plausibly have announced
+    itself — and no change to any number. Fixtures
+    ``dipole_gd_second_medium`` and ``dipole_gd_cliff_sommerfeld`` are
+    ``dipole_pec_ground`` and ``dipole_sommerfeld_ground`` plus one card, and
+    the only differences in either printout are the echo itself and the
+    ordinals it shifts.
+
+    It is also **not an arming card**: measured on the oracle, ``... XQ / GD
+    2 0 0 0 13. .005 0. 0. / XQ`` prints one block, not two. A ``GD`` alone
+    does not make the next execute card a real run.
+
+    **Fidelity — where the second medium WOULD matter, and why ignoring it
+    here is not a silent lie.** NEC-2 uses ``GD`` in the far field alone; the
+    moment method never sees it, which is why every impedance and every
+    segment current above is unchanged. In the far field it is reached only
+    through the ``RP`` card's cliff and ground-screen modes (``RP 1``-``RP
+    6``). Measured both ways on the oracle with the cliff card above:
+
+    * under ``RP 0`` — the only mode ``nec2/NECSource`` ever writes, and the
+      only one this engine computes — the ``RADIATION PATTERNS`` table is
+      byte-identical with and without the card;
+    * under ``RP 2`` (linear cliff) it is not: the block quoted above appears
+      and every gain moves.
+
+    So the deck shapes where ``GD`` is inert are exactly the deck shapes this
+    engine runs, and the deck shapes where it is not are already refused by
+    name at the ``RP`` card (issue #802). Accepting ``GD`` cannot make this
+    engine answer a cliff question wrongly, because it never gets asked one.
+    """
+
+    eps_r2: float = 0.0
+    sigma2: float = 0.0
+    edge_distance: float = 0.0  # CLT
+    height: float = 0.0  # CHT
+
+    @classmethod
+    def from_card(cls, card: Card) -> SecondMedium:
+        return cls(card.f(4), card.f(5), card.f(6), card.f(7))
+
+
+@dataclass(frozen=True)
 class NetworkBranch:
     """One ``NT`` card: a reciprocal two-port admittance across two segments.
 
@@ -737,6 +832,9 @@ class PortalDeck:
     networks: tuple[NetworkBranch | LineBranch, ...] = ()
     loads: tuple[Card, ...] = ()
     ground: Ground = field(default_factory=Ground)
+    # The deck's ``GD`` card, if it carried one. Kept so the deck is a full
+    # record of what arrived; it moves no number here (see :class:`SecondMedium`).
+    second_medium: SecondMedium | None = None
     ground_plane_flag: bool = False
     yy_points: tuple[tuple[int, int], ...] = ()
     quiet: bool = False
@@ -807,6 +905,7 @@ def parse_deck(body: str) -> PortalDeck:
     armed = True
     executed = 0
     ground = Ground()
+    second_medium: SecondMedium | None = None
     ground_plane_flag = False
     quiet = False
     reduced_field: int | None = None
@@ -857,6 +956,12 @@ def parse_deck(body: str) -> PortalDeck:
             networks.append(NetworkBranch.from_card(card))
         elif card.mnemonic == "TL":
             networks.append(LineBranch.from_card(card))
+        elif card.mnemonic == "GD":
+            # Also not an arming card (measured: `... XQ / GD ... / XQ` prints
+            # one block). The second medium reaches NEC's far field only
+            # through RP's cliff modes, which this engine refuses by name, so
+            # the card is recorded and nothing else — see SecondMedium.
+            second_medium = SecondMedium.from_card(card)
         elif card.mnemonic == "MP":
             # Not an arming card: the oracle runs nothing for an XQ whose only
             # new card is an MP (measured — the second XQ of `... XQ / MP 4 8 /
@@ -940,6 +1045,7 @@ def parse_deck(body: str) -> PortalDeck:
         networks=tuple(networks),
         loads=tuple(loads),
         ground=ground,
+        second_medium=second_medium,
         ground_plane_flag=ground_plane_flag,
         yy_points=tuple(yy_points),
         quiet=quiet,
@@ -2456,8 +2562,9 @@ def run_deck(body: str) -> tuple[str, str]:
 
 
 _SELFTEST_DECKS = (
-    # A free-space dipole, the two-source Y probe, and a TL station — the
-    # three deck shapes a live SimNEC session leans on hardest.
+    # A free-space dipole, the two-source Y probe, a TL station, and a
+    # grounded vertical carrying GD — the four deck shapes a live SimNEC
+    # session leans on hardest.
     # EK rides in deck 1 because the live NECSource path ALWAYS sends it —
     # the card whose absence from the bench corpus caused the first live
     # failure (Windows session, 2026-08-08).
@@ -2475,6 +2582,15 @@ _SELFTEST_DECKS = (
     "GW 2 3 20. -0.5 10. 20. 0.5 10. 0.001\n"
     "GE 0\nTL 2 2 1 6 600. 20.\n"
     "EX 0 2 2 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    # Deck 4 is the EZNEC-example shape, comma-delimited exactly as
+    # NECSource writes it: a ground card followed by GD, the second card
+    # whose refusal broke a live session (see SecondMedium). It rides here
+    # for the same reason EK rides in deck 1 — so a deployment gate can never
+    # pass while a card the live path sends is being refused.
+    "CE selftest 4\n"
+    "GW 1 11 0. 0. 0.5 0. 0. 10.5 0.001\n"
+    "GE -1\nGN 1\nGD 2,0,0,0,13.,.005,0.,0.\n"
+    "EX 0 1 1 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
 )
 
 
@@ -2486,7 +2602,7 @@ def _selftest(stdout) -> int:
     what a SimNEC session depends on and what matters when the install is a
     bare ``pip install`` with no checkout (e.g. the Windows box, where SimNEC
     launches engines through ``cmd.exe`` and text I/O is CRLF). It spawns
-    itself exactly once, feeds three embedded decks down the one process, and
+    itself exactly once, feeds four embedded decks down the one process, and
     requires per deck: the banner (first deck only), an ANTENNA INPUT
     PARAMETERS section, and the NX data-card echo sentinel — miss that and a
     live SimNEC hangs forever, which is the failure this exists to catch.
@@ -2504,13 +2620,17 @@ def _selftest(stdout) -> int:
         "process exited 0": proc.returncode == 0,
         "banner present": "VERSION:" in proc.stdout,
         "EK accepted": "EXTENDED THIN WIRE KERNEL" in proc.stdout,
-        "4 solve groups answered": proc.stdout.count("ANTENNA INPUT PARAMETERS") == 4,
-        "3 NX sentinels": sum(
+        "GD accepted": any(
+            ln.lstrip().startswith("DATA CARD No:") and " GD " in ln
+            for ln in proc.stdout.splitlines()
+        ),
+        "5 solve groups answered": proc.stdout.count("ANTENNA INPUT PARAMETERS") == 5,
+        "4 NX sentinels": sum(
             1
             for ln in proc.stdout.splitlines()
             if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
         )
-        == 3,
+        == 4,
         "-YY row present": "    -YY " in proc.stdout,
         "TL network row present": "STRAIGHT" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
