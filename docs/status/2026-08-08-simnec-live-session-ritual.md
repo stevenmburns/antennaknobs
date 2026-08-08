@@ -100,15 +100,22 @@ MNA over its own nec2c, and the antennaknobs workbench).
 
 | Step | Result | Notes |
 | --- | --- | --- |
-| Pre-flight smoke | | |
-| Portal accepts command + version | | |
-| Ladder tuner Z @ 7.1 MHz | | ours vs nec2c-backed session |
-| Knob tracking | | |
-| Sweep completes, no stalls | | crew size used: |
-| Pattern shape / level | | Δ dB — note if = efficiency (#803) |
-| Multi-source design | | |
-| Refusal stays alive | | |
-| Reverted cleanly | | |
+| Pre-flight smoke | **PASS** | `--selftest` 8/8, after the EK fix (PR #814) |
+| Portal accepts command + version | **PASS** | `nec2c.ae6ty.9.1` accepted, above the 1.23 floor |
+| Ladder tuner Z @ 7.1 MHz | **42.56 − j4.765** | vs ~40 − j5.7 nec2c-backed; few-% through the high-Q tee |
+| Knob tracking | **PASS** | |
+| Sweep completes, no stalls | **PASS** | (first run slowed by nec logging — that was the log, not the engine) |
+| Pattern shape / level | **PASS** | 2.431 dBi / 2.044 dB split = 0.387 dB = the coil-loss efficiency (ours: 0.378 dB) — #803 empirically resolved |
+| Multi-source design | **PASS** | SimNEC's own `lindenblad.ssn` (4 quadrature sources): momwire 27 − j4 vs nec2c 27 − j3. (Our w8jk export exposed exporter gap #815, not an engine fault: live 384.7 + j505.3 = in-phase drive, predicted 379.3 + j504.8 from our own Y.) |
+| Refusal stays alive | **PASS with a finding** | patch deck: session healthy, doublet loaded fine after — but the refusal was SILENT in the UI (→ Ward ask 2) |
+| Reverted cleanly | **PASS** | nec2c re-verified on the lindenblad |
+
+**Session date: 2026-08-08, Windows box, SimNEC 6p4d6, crew 4.** Live
+discoveries: `EK` sent unconditionally by `NECSource` (fixed same-day,
+PR #814, selftest now gates on it); `GD` + `RP 3` in EZNEC-derived examples
+still refused (cardioid / 4-square blocked; GD fix queued, RP 3 = #802);
+multi-feed `.ssn` export loses drive phasing (#815). Every row green —
+the Ward notes are cleared to send.
 
 Findings that need code changes get filed as issues; the outcome table and
 date get appended here; when every row is green, send the Ward notes.

@@ -43,11 +43,28 @@ loading coil cancelling the feed reactance), each pinned by a test asserting
 the identity that makes it benign. The comparison also caught one real bug in
 our own mapping before it could ship, which is why we did it this way.
 
-**Live session: [RESULTS PENDING — fill from the ritual's outcome table
-(docs/status/2026-08-08-simnec-live-session-ritual.md) before sending; this
-placeholder must not survive to Ward].** Everything above is bench-tested
-against your engine's output through the same resident-process framing
-`NEC2Daemon` uses.
+**Live session: run on a Windows SimNEC installation, 2026-08-08.** The
+engine drove a full session — load, knob tracking, sweeps, patterns,
+multi-source — with these results:
+
+- **Station impedance**: our validated ladder-tuner circuit read
+  42.56 − j4.765 Ω at the rig side on momwire vs ~40 − j5.7 on your nec2c —
+  a few percent through a high-Q tee match, i.e. tight agreement underneath.
+- **Pattern**: the display's 2.431 dBi and 2.044 dB readouts straddle by
+  0.387 dB — exactly the antenna's coil-loss efficiency (we compute
+  −0.378 dB independently). Directivity, gain, and both engines' loss
+  bookkeeping agree to a hundredth of a dB, which also answers our
+  gain-vs-directivity question empirically: your display handles both,
+  consistently.
+- **Multi-source**: your own `lindenblad.ssn` example (4 phase-quadrature
+  sources) read 27 − j4 per element on momwire vs 27 − j3 on nec2c.
+- **One live failure, found and fixed same-day**: `NECSource`
+  unconditionally emits a bare `EK` — a card absent from the portal
+  documentation's card list — which our engine initially refused, and
+  SimNEC then showed fabricated readouts with a NEC Failure Code. EK is
+  now accepted and pinned against your engine's output (including the
+  partial refill preamble a kernel change triggers, and the fact that NEC
+  retains excitation across an execute card).
 
 ## Asks, smallest first
 
@@ -61,14 +78,15 @@ recognise a third-party engine, tell us what to emit and we'll change to it.
 **2. The error convention.** For anything we don't model we print
 `ERROR-NEC2C: <card> is not supported by this engine` and **always** still
 emit the `NX` data-card echo, since an engine that goes quiet hangs the UI.
-Is that the shape you want, or should a third-party engine trip the
-`NEC ERROR` warning frame so the user sees a dialog?
+The live session showed the consequence: loading a patch antenna left the
+session healthy but showed the user **nothing** — no data, no message. We
+suspect an unsupported deck *should* trip your `NEC ERROR` warning frame so
+the user sees why. Is that the convention you'd want?
 
-**3. Gain or directivity?** Our `RADIATION PATTERNS` block normalises to the
-source's input power — *gain*, matching NEC-2's own `RP 0`. If whatever
-consumes `FieldStore` assumes *directivity*, a lossy antenna plots off by
-exactly its efficiency (2.2 dB at 60 %) with both engines self-consistent.
-Which does SimNEC assume?
+**3. Gain or directivity?** Largely answered by the live session (above):
+your display shows both, self-consistently. Remaining one-liner: confirm
+which convention `FieldStore` holds internally, so we label our numbers to
+match rather than infer it.
 
 **4. Near fields.** We support `NE`/`NH` rectangular grids in free space and
 over perfect ground, and refuse them over finite ground (a Sommerfeld
@@ -114,4 +132,7 @@ binary (~90 MB resident) but much faster per deck once warm — a NEC crew size
 of 4 keeps up on a 16 GB machine. We refuse, with the sentinel intact, what
 we don't model: surface patches (`SP`/`SM` — momwire is a wire solver), `IS`,
 `RP` modes other than 0, spherical `NE`/`NH`, near fields over finite ground,
-and `GN` radial-wire screens.
+and `GN` radial-wire screens. The live session also showed user decks carry
+cards the portal documentation's card list doesn't (`EK`, now supported;
+`GD` and `RP 3` from the EZNEC-derived examples, in progress) — each has
+been about an hour's turnaround with your engine on hand as the oracle.
