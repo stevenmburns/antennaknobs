@@ -25,24 +25,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.44.0" icon="star">
-  **The watch-it-tune release: the optimizer shows its work, and the charts
-  sharpen themselves.** Turn on Optimize and the workbench now **streams
-  every evaluation live** — the readout ticks through candidates, the Smith
-  dot follows the search, and the views describing the pre-run design dim
-  until the result lands. Multi-feed arrays are scored honestly: the
-  objective now drives the **worst feed**, so an optimized array means *no*
-  element is badly matched. Sweeps and pattern cuts gained **adaptive
-  resolution** — hold still a moment and the charts refine themselves where
-  the curve actually bends (a sharp SWR notch resolves to sub-pixel instead
-  of hiding between samples), which also lets the base sweep start ~2×
-  faster and the Smith locus draw as a connected curve. The S11 chart now
-  shows **active-port reflection above 0 dB** instead of clamping it — on a
-  detuned array element, arguably the most important fact a sweep can show.
-  Plus: point any CLI subcommand straight at a NEC deck with
-  **`@file.nec`** builder specs, transmission-line stamps and a
-  Γ-referenced readout in the network reducer, and a Windows fix for the
-  schematic writer's Ω.
+<Card title="New in v0.45.0" icon="star">
+  **The SimNEC round-trip release: your station, checked by a second
+  solver.** antennaknobs now speaks SimNEC's `.ssn` circuit format in
+  **both directions**. Export any design — the antenna alone, or a whole
+  station with feedline, tuner tee, and transformer — as a circuit SimNEC
+  opens natively, element values and cable-loss coefficients intact; the
+  mapping is **validated against a real SimNEC installation**, load-tested
+  element by element. Designs whose physics lives in the common mode
+  (balanced tuners, floating baluns) refuse to export with a clear reason
+  instead of producing a confidently-wrong circuit. Coming back, `.ssn`
+  files load as designs — geometry, ground, and the matching chain as a
+  real feed network — and every CLI subcommand takes **`@file.ssn`**
+  directly, just like `@file.nec`. Round-trip identity tests pin the two
+  sides together so they can never drift apart. Start at the new
+  [SimNEC round-trip](/reference/simnec/) reference page.
 </Card>
 
 ## The whole pitch, in one line
