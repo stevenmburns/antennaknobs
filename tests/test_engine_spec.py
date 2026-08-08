@@ -131,6 +131,33 @@ def test_no_converged_variant_for_plain_sinusoidal():
         parse_engine_spec("momwire:sinusoidal-converged")
 
 
+def test_parse_bspline_d1_variant_binds_degree():
+    """`momwire:bspline-d1` (issue #821) is the degree axis, not the
+    feed-model axis: same BSplineSolver class as plain `bspline`, with
+    degree=1 bound as solver kwargs — an intra-family d1-vs-d2 check
+    reachable from the CLI."""
+    name, kw = parse_engine_spec("momwire:bspline-d1")
+    assert name == "momwire"
+    assert kw == {"solver": BSplineSolver, "solver_kwargs": {"degree": 1}}
+
+
+def test_parse_bspline_unchanged_by_d1_variant():
+    """Plain `bspline` still binds no solver_kwargs (degree=2 default)."""
+    assert parse_engine_spec("momwire:bspline") == (
+        "momwire",
+        {"solver": BSplineSolver},
+    )
+
+
+def test_make_factory_binds_bspline_d1_variant():
+    factory = make_engine_factory("momwire:bspline-d1", _GROUND_UNSET)
+    assert factory.func is MomwireEngine
+    assert factory.keywords == {
+        "solver": BSplineSolver,
+        "solver_kwargs": {"degree": 1},
+    }
+
+
 O = " --fn /dev/null"
 
 
@@ -151,6 +178,14 @@ def test_cli_compare_patterns_single_engine_still_works():
 def test_cli_compare_patterns_momwire_basis():
     ant.cli(
         f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bspline momwire:sinusoidal{O}".split()
+    )
+
+
+def test_cli_compare_patterns_bspline_d1_intra_family():
+    """d1-vs-d2 convergence check from the command line (issue #821): same
+    family, different degree, both reachable as engine specs."""
+    ant.cli(
+        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bspline momwire:bspline-d1{O}".split()
     )
 
 
