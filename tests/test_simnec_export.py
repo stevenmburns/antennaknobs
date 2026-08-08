@@ -552,3 +552,13 @@ def test_smoke_real_builtin_antenna_only():
     ET.fromstring(ssn)  # well-formed
     assert "SommerfeldGround(0.005, 13);" in ssn
     assert "segmentsPerWavelength = 80;" in ssn
+
+
+def test_multifeed_antenna_refuses_with_phasing_message():
+    """A multi-feed design must refuse rather than export a circuit whose
+    single generator drives every feed in phase (issue #815, found live:
+    w8jk read the in-phase impedance in SimNEC, not the W8JK drive)."""
+    from antennaknobs.designs.wire.w8jk import Builder as W8JK
+
+    with pytest.raises(NotImplementedError, match="phasing"):
+        export_ssn(W8JK(), ground=None)
