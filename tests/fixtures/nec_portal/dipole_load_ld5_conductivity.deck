@@ -1,0 +1,8 @@
+CE dipole with finite wire conductivity
+GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001
+GE 0
+LD 5 1 1 9 5.8e7
+EX 0 1 5 0 1.
+FR 0 1 0 0 30. 0
+XQ
+NX
