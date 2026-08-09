@@ -213,10 +213,45 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "dipole_rp2_cliff_on_the_gn_card",
+      "returncode": 253,
+      "deck_sha256": "ed49db3139d65fa4b1332a3d1b5212263bed912abcad7adc70efc9c18eb08e61",
+      "out_sha256": "c2ff435988dcb1d2ade66f7f01020718fcbd7776f1d9c9b5a81519092c212dd5",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_rp2_linear_cliff",
+      "returncode": 253,
+      "deck_sha256": "146a72dcf727fbdf19b660cfadfa95100f7d63428e9d519073184ffa21147003",
+      "out_sha256": "7db5921bf4f882149e56882cead2c414d00d020a974f256bbcd7c6b35e1fa715",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_rp3_circular_cliff",
+      "returncode": 253,
+      "deck_sha256": "ec79860934848c72b9f990a6e22a8c5bbecddea8f1bc3cbecbb67e2839e131d6",
+      "out_sha256": "9355c63f32aab1c4bbb42865db552f534086259c96ae110cb8585ac1d56fc2e3",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_rp3_cliff_sommerfeld",
+      "returncode": 253,
+      "deck_sha256": "c1a770a8f9a66f14076c8bc420e1f69936cff40653c45e0082f5617e1ae54ba5",
+      "out_sha256": "018205c98149b5644bf0d33a8f346d5046d04cdae43af48285402902bff38e4c",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "dipole_rp_crossed_quadrature",
       "returncode": 253,
       "deck_sha256": "b6fa228f847a7e6744046681353dd19a33519e8e4e5cf2837c6a209d91411923",
       "out_sha256": "8975c50a4fbda9c8efccb9d843e92c32fc650cbe39a24768208ba38ffc8cb3fa",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "dipole_rp_gain_only",
+      "returncode": 253,
+      "deck_sha256": "3bd7b4789d5fde5eb8ab9db499b56a14700c6418378639556ccbb47acdf70ce6",
+      "out_sha256": "d97936f85d0fb27d3abb5ea50e17f924a7fe46fb9042d0255d6480c170b1673f",
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {

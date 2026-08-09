@@ -456,6 +456,107 @@ def _synthetic_decks() -> dict[str, str]:
         "XQ\n"
     )
 
+    # ------------------------------------------------------------------
+    # RP's cliff modes (issue #802) — the shapes a GD card is FOR
+    # ------------------------------------------------------------------
+    #
+    # The cliff decks share one geometry: a 5 m vertical from z = 2 m to
+    # z = 7 m at 14.1 MHz, over a cliff whose edge is 10 m out and whose far
+    # side is 2 m lower, with a poor second medium (eps 5, sigma 0.001).
+    #
+    # The numbers are chosen so the pattern grid STRADDLES the edge three
+    # different ways, which is the physics under test. NEC picks the medium
+    # per SEGMENT, at that segment's own specular reflection point
+    # `d = z*tan(theta)` measured out along the ray's azimuth, so with
+    # segment heights running 2.28-6.72 m and CLT = 10 m:
+    #
+    #   theta <= 50    every segment reflects inside the edge  (medium 1)
+    #   theta 60, 70   the low segments are inside and the high ones beyond
+    #   theta = 80     every segment is beyond it              (medium 2)
+    #
+    # ...and, under the LINEAR cliff, the azimuth decides as well: the edge
+    # is the line x = CLT, so phi = 0 crosses it, phi = 90 runs parallel to
+    # it and never does, and phi = 180 walks away from it. Under the CIRCULAR
+    # cliff the edge is a circle of radius CLT and every azimuth crosses it
+    # alike, which is exactly the pair's diff.
+    #
+    # theta stops at 80 deliberately. At theta = 90 the selection is decided
+    # by `tan(90 deg)` — 1.6e16 in double precision — against a `cos(phi)`
+    # that is 6.1e-17 at phi = 90, so which medium a segment lands in is
+    # settled by the last bits of two library functions rather than by any
+    # physics. That is a fine thing for the oracle to do and a terrible one
+    # to hold a second engine to.
+    _CLIFF_VERTICAL = "GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001\n"
+    _CLIFF_GD = "GD 0 0 0 0 5. .001 10. -2.\n"
+    _CLIFF_DRIVE = "EX 0 1 5 0 1.\nFR 0 1 0 0 14.1 0\n"
+
+    # RP 2 — the linear cliff. Over PEC, so medium 1 is the ideal mirror and
+    # every moved number is the second medium's alone.
+    decks["dipole_rp2_linear_cliff"] = (
+        "CE vertical over a linear cliff\n" + _CLIFF_VERTICAL + "GE -1\n"
+        "GN 1\n" + _CLIFF_GD + _CLIFF_DRIVE + "RP 2 9 5 1001 0 0 10 45 1000\n"
+        "XQ\n"
+    )
+
+    # RP 3 — the circular cliff, on the same deck. This is where Ward's
+    # EZNEC-derived examples land their cliff parameters, and the pair with
+    # the deck above is a clean diff of LINEAR against CIRCULAR: identical
+    # geometry, identical ground, one digit of the RP card apart.
+    decks["dipole_rp3_circular_cliff"] = (
+        "CE vertical over a circular cliff\n" + _CLIFF_VERTICAL + "GE -1\n"
+        "GN 1\n" + _CLIFF_GD + _CLIFF_DRIVE + "RP 3 9 5 1001 0 0 10 45 1000\n"
+        "XQ\n"
+    )
+
+    # The circular cliff over a SOMMERFELD ground, which is the combination
+    # an EZNEC import actually arrives in. Worth its own fixture because the
+    # far field treats GN 2 as an ordinary reflection-coefficient medium —
+    # ffld() only special-cases iperf == 1 — so medium 1 here is a Fresnel
+    # coefficient rather than the mirror, and the two coefficients this deck
+    # switches between are both finite.
+    decks["dipole_rp3_cliff_sommerfeld"] = (
+        "CE vertical over a circular cliff, sommerfeld ground\n"
+        + _CLIFF_VERTICAL
+        + "GE -1\n"
+        "GN 2 0 0 0 13. 0.005\n"
+        + _CLIFF_GD
+        + _CLIFF_DRIVE
+        + "RP 3 9 5 1001 0 0 10 45 1000\n"
+        "XQ\n"
+    )
+
+    # The second medium and the cliff geometry do NOT have to arrive on a GD
+    # card: a GN whose radial-wire count is zero carries the same four fields
+    # in F3-F6, and main.c writes them into the same fpat slots the GD case
+    # does. A deck that sets the cliff this way and never sends a GD is a
+    # valid cliff deck, so an engine that only watched for GD would answer it
+    # as flat ground.
+    decks["dipole_rp2_cliff_on_the_gn_card"] = (
+        "CE vertical over a linear cliff set on the gn card\n"
+        + _CLIFF_VERTICAL
+        + "GE -1\n"
+        "GN 0 0 0 0 13. .005 5. .001 10. -2.\n"
+        + _CLIFF_DRIVE
+        + "RP 2 9 5 1001 0 0 10 45 1000\n"
+        "XQ\n"
+    )
+
+    # RFLD = 0 — the gain-only form. The RP card's F5 is the range the E
+    # columns are reported at; zero means "do not scale them", and the
+    # printout changes shape as well as value: the RANGE / EXP(-JKR)/R pair
+    # (and the blank line above it) is not printed at all, and the E columns
+    # carry the raw far-field amplitude instead of the field at a range.
+    # The GAIN columns are untouched — they never depended on the range —
+    # which is what makes this deck a control on the pair as well as a
+    # capture of the shape.
+    decks["dipole_rp_gain_only"] = (
+        "CE dipole with a gain-only radiation pattern\n" + _DIPOLE_GW + "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "RP 0 5 3 1001 0 0 45 45 0\n"
+        "XQ\n"
+    )
+
     # NE — rectangular near-field grid, the non-polar branch of
     # nec2/NECSource.generateNENH.
     decks["dipole_ne_nearfield"] = (
