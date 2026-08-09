@@ -2863,27 +2863,26 @@ def test_a_cached_entry_is_re_sized_by_the_fills_it_grew():
     assert nec_portal._cache_sizes[key] > at_insert
 
 
-def test_a_repeated_probe_costs_less_than_the_solve_it_skips():
+def test_a_repeated_probe_skips_the_solve_it_paid_for():
     """The reason the feature exists. Measured at authoring time on
     `catalog_wire_w8jk`, the biggest committed deck (106 segments): 154 ms cold
-    against 11 ms served, a factor of fourteen. What is left in the served pass
-    is the readout algebra and the printout itself, which no cache can skip —
-    so the ratio is bounded by the FORMATTING, not by the physics, and it grows
-    with the structure. The bar is deliberately loose: the claim is "much
-    cheaper", and a tight ratio on a shared box is a flaky test, not a better
-    one."""
-    import time
-
+    against 11 ms served, a factor of fourteen — what is left in the served
+    pass is the readout algebra and the printout itself, which no cache can
+    skip. The ASSERT is on the counters, not the clock: even a "deliberately
+    loose" wall-clock ratio proved flaky under full-suite load (warm BLAS
+    shrinks the cold fill, a GC pause inflates the served one), and the
+    deterministic form of "costs less than the solve it skips" is that the
+    second pass performs zero geometry parses and zero fills."""
     body = fixture_deck("catalog_wire_w8jk")
     nec_portal._reset_solver_cache()
-    started = time.perf_counter()
     cache_render(body)
-    cold = time.perf_counter() - started
-    started = time.perf_counter()
+    after_cold = dict(nec_portal._cache_stats)
+    assert (after_cold["misses"], after_cold["fills"]) == (1, 1)
     cache_render(body)
-    served = time.perf_counter() - started
-    assert nec_portal._cache_stats["hits"] == 1
-    assert served < 0.5 * cold, (cold * 1e3, served * 1e3)
+    after_served = nec_portal._cache_stats
+    assert after_served["hits"] == 1
+    assert after_served["misses"] == after_cold["misses"], "second pass re-parsed"
+    assert after_served["fills"] == after_cold["fills"], "second pass re-filled"
 
 
 def _bound_deck(z: float) -> str:
