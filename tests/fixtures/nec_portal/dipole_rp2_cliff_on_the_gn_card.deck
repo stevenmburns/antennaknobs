@@ -1,0 +1,9 @@
+CE vertical over a linear cliff set on the gn card
+GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001
+GE -1
+GN 0 0 0 0 13. .005 5. .001 10. -2.
+EX 0 1 5 0 1.
+FR 0 1 0 0 14.1 0
+RP 2 9 5 1001 0 0 10 45 1000
+XQ
+NX
