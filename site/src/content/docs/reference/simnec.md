@@ -208,6 +208,17 @@ hierarchical solve on a deck with no repeated structure, so it is safe to
 leave on. Their answers should match `bspline`'s — if they do not, the deck is
 telling you something about conditioning, not about basis choice.
 
+How much it buys, measured on a 2017 quad-core laptop over a square lattice of
+half-wave dipoles at 0.6 λ pitch: a 24×24 array (576 elements, 5184 unknowns)
+takes 8.0 s and 5.3 GB with the dense fill and **0.77 s and 137 MB on
+`arrayblock`**, and a 32×32 array will not solve at all inside an 8 GB budget
+— it needs about 15 GB — while `arrayblock` answers it in 1.3 s and 173 MB. At
+48×48 (2304 elements) `arrayblock` takes 3.0 s and 272 MB where `hmatrix`
+needs 158 s and 2.0 GB. The crossover is around 8×8; below that the dense fill
+is the cheaper tool. Agreement with the dense solve stays better than 1e-06
+relative everywhere dense can still be run. Full ladder, method and caveats:
+[`docs/status/2026-08-09-arrayblock-lattice-benchmark.md`](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-08-09-arrayblock-lattice-benchmark.md).
+
 **Paste two portal entries that differ only in `--basis` and you have
 cross-basis validation inside SimNEC itself** — switch engines from the
 dialog and watch whether the answer holds. The printout banner records which

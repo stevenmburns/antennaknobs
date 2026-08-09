@@ -394,7 +394,8 @@ def print_report(rows, solvers):
 
     # Ratios — the portable finding; absolute times drift with hardware.
     print("\n" + "=" * 96)
-    print("RATIOS vs dense (wall clock / peak RSS), where dense ran")
+    print("RATIOS vs dense, where dense ran — dense cost / accelerator cost")
+    print("(above 1.00x the accelerator wins; below 1.00x dense is the cheaper tool)")
     print("=" * 96)
     for row in rows:
         d = row["solvers"].get("dense") or {}
@@ -408,8 +409,8 @@ def print_report(rows, solvers):
             if "wall_s" not in res:
                 continue
             parts.append(
-                f"{key}: {d['wall_s'] / res['wall_s']:5.1f}x faster, "
-                f"{d['peak_rss_mb'] / res['peak_rss_mb']:4.2f}x RSS"
+                f"{key}: {d['wall_s'] / res['wall_s']:6.2f}x wall, "
+                f"{d['peak_rss_mb'] / res['peak_rss_mb']:5.2f}x RSS"
             )
         print(f"  {row['grid']}x{row['grid']:<4} " + "   ".join(parts))
 
