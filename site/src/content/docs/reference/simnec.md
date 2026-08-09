@@ -184,8 +184,8 @@ momwire-nec2c --selftest
 
 ### Choosing the physics: `--basis`
 
-SimNEC launches engines through the shell, so the command you paste into the
-portal dialog can carry arguments. The portal accepts a `--basis` flag:
+SimNEC launches engines through the shell, so the engine command can carry
+arguments. The portal accepts a `--basis` flag:
 
 ```text
 momwire-nec2c --basis bspline                        # the default
@@ -196,6 +196,25 @@ momwire-nec2c --basis sinusoidal-galerkin-converged  # recommended for near-open
 momwire-nec2c --basis hmatrix                        # same physics, hierarchical (ACA) solve
 momwire-nec2c --basis arrayblock                     # same physics, element-block/FFT solve — large arrays
 ```
+
+:::note[If your SimNEC build sets the engine with a file picker]
+Current SimNEC builds select the NEC command through a **file dialog**, which
+leaves nowhere to type arguments. The fix is a wrapper script per flag
+combination — the dialog picks a file, so make the flags *be* a file:
+
+```bash
+mkdir -p ~/nec-wrappers
+cat > ~/nec-wrappers/momwire-nec2c-sin <<'SH'
+#!/bin/sh
+exec /path/to/momwire-nec2c --basis sinusoidal "$@"
+SH
+chmod +x ~/nec-wrappers/momwire-nec2c-sin
+```
+
+Two hard rules carried over from the filename check: the wrapper's **name
+must contain `nec2c`**, and its **path must not contain the substring
+`out`** — either mistake and SimNEC refuses the command outright.
+:::
 
 Four of those are a ladder: NEC-2 itself, then `sinusoidal` — the three-term
 basis, point matched, with NEC's own delta-gap source, so it answers "does
@@ -294,8 +313,17 @@ at exit is never written) and holds one small JSON object:
  "fills": 412, "evictions": 0, "bytes": 0, "entries": 0}
 ```
 
-`hits` against `decks_rendered` is the saving on offer. If it is worth having,
-turn serving on:
+`hits` against `decks_rendered` is the saving on offer. One live session has
+been measured this way (2026-08-09, the v0.47.0 verification session): of 16
+decks sent, **62% were fully servable** — identical operator *and* frequency,
+zero fills needed — and 75% would have reused the parsed geometry and mesh;
+one identical solve request was sent five times in ordinary clicking. Two
+caveats travel with those numbers: a verification session is reload-heavy
+compared to design work, and SimNEC runs a **crew of engine processes**, so
+each process caches (and counts) only its own stream — give each portal entry
+its own stats path (e.g. `--cache-stats /tmp/nec-stats.$$.json` in a wrapper)
+or the crew members overwrite one file. If your numbers look like the
+measured ones, turn serving on:
 
 ```text
 momwire-nec2c --cache
@@ -324,7 +352,20 @@ shows up as a visible warning instead of a session that quietly loaded
 nothing. (Earlier builds used a differently-shaped prefix specifically to
 avoid tripping that frame; issue #829 reversed that on Ward's own say-so
 after a live session hit it — a refused patch-antenna design left the user
-staring at an empty result with no indication why.)
+staring at an empty result with no indication why.) Verified live
+(2026-08-09): SimNEC surfaces the refusal as an actual **error dialog**.
+
+Two script-layer behaviors discovered in the same live session, both
+upstream of any engine:
+
+- **SimNEC deletes `SP` cards from an N-element script silently** before the
+  deck reaches a NEC-2-class engine — a pasted patch model solves as bare
+  wire with no warning from anyone, because the engine never sees the cards.
+  (SimNEC's own *Surface elements* are properly wire-gridded instead, and
+  those run on momwire fine.) Until that changes upstream, don't paste raw
+  `SP` decks and trust the numbers.
+- **No apostrophes in `CM`/`CE` lines** pasted into the script editor —
+  SimNEC's script parser reads `'` as a quote and errors.
 
 Refused today:
 

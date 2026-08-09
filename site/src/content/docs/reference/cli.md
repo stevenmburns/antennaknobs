@@ -238,6 +238,7 @@ The `--engine` flag selects the solver:
 --engine momwire:sinusoidal-galerkin            # same basis, Galerkin testing
 --engine momwire:sinusoidal-galerkin-converged  # …with the converged feed model
 --engine momwire:bspline         # B-spline Galerkin basis
+--engine momwire:bspline-d1      # …at degree 1 (bs1) — the cheapest d1-vs-d2 convergence check
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
