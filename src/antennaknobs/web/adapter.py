@@ -241,8 +241,10 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     ),
     # Hierarchical (H-matrix / ACA) accelerator — same B-spline basis as
     # bspline; model_options forward verbatim (degree, aca_eta,
-    # aca_leaf_size, aca_tol, solve_tol, …). Ground/enrichment fall back to
-    # the dense bspline solve inside HMatrixSolver.
+    # aca_leaf_size, aca_tol, solve_tol, …). Only singular enrichment falls
+    # back to the dense bspline solve inside HMatrixSolver
+    # (`_hmatrix_unsupported`); every ground model — PEC image, reflection
+    # coefficient, Sommerfeld — rides the accelerated path (measured, #830).
     _BackendSpec(
         name="hmatrix",
         label="H-matrix (ACA)",
