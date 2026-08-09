@@ -144,6 +144,7 @@ _active_basis = _BASES["bspline"]
 
 __all__ = [
     "BANNER_VERSION",
+    "LEGACY_PROBE_VERSION",
     "PROBE_VERSION",
     "deck_frame",
     "main",
@@ -156,13 +157,39 @@ __all__ = [
 # --------------------------------------------------------------------------
 
 # ``Execute.testCommand()`` matches the FIRST LINE of `<cmd> -version`, trimmed,
-# against ``versionA = nec2c\.ae6ty\.(.*)`` and then feeds group(1) to
-# ``Double.valueOf``.  The group is greedy, so ANY non-numeric text after
-# ``nec2c.ae6ty.`` — including the word "momwire" — makes the parse throw and
-# SimNEC reports "nec2c version too old:".  The probe string therefore has to
-# end in a bare one-dot number.  (Grammar doc §1 "Version probe"; issue #792
-# unit 1 flagged the same trap for ``1.17.2``.)
-PROBE_VERSION = "nec2c.ae6ty.9.1"
+# against four anchored regexes. We answer the FOURTH, ``versionNECd =
+# (NEC\d+\D.*)`` — honest identity, sanctioned by Ward (2026-08-08: "If you
+# respond with something like NEC2text#.# things will work") and verified
+# against the 6p4d6 bytecode (issue #828; grammar doc, 2026-08-09 addendum):
+# a versionNECd match calls ``setVersion(line)`` and returns success — group(1)
+# is never read, nothing is Double-parsed, there is no version floor, and NO
+# engine state is set. The engine enum (and with it the daemon class, the
+# sensor-row offsets, and every dialect switch) comes from the EXECUTABLE
+# FILENAME alone, so the binary must keep ``nec2c`` in its name (and its path
+# must not contain the substring ``out``). The string SimNEC stores is shown
+# in the portal dialog's NECVersion row, echoed back to us as a ``CM version``
+# card on every deck, and re-read once by ``Options.getEngine()``, whose
+# ``[a-zA-Z]*([0-9])+?(.*)`` must extract "2" (the W7EL insulation gate tests
+# it) — which is why the identity must start with ``NEC2`` (exact case, and a
+# non-digit right after the 2) and why the tail after it is genuinely free.
+# The #.# tail is genuinely free on the NECd path, so it carries the real
+# package version. installed-metadata caveat: an editable install reports the
+# version recorded at `pip install -e` time, so a dev box that skipped the
+# reinstall after a bump probes the stale number — cosmetic there, and always
+# correct on a wheel install.
+try:
+    from importlib.metadata import version as _pkg_version
+
+    _MAJ, _MIN = _pkg_version("antennaknobs").split(".")[:2]
+except Exception:  # pragma: no cover - no installed metadata (source tree)
+    _MAJ, _MIN = "0", "0"
+PROBE_VERSION = f"NEC2momwire.{_MAJ}.{_MIN}"
+
+# The masquerade this build used through v0.46 — versionA's shape, whose tail
+# rides ``Double.valueOf`` against the 1.23 floor. Kept behind ``--legacy-probe``
+# for SimNEC builds old enough to predate versionNECd, until one is confirmed
+# not to exist; the flag rides the portal-dialog command line like --basis.
+LEGACY_PROBE_VERSION = "nec2c.ae6ty.9.1"
 
 # The banner inside a printout is NOT version-checked: the four regexes are
 # ``lookingAt()``, i.e. anchored, and the banner line is prefixed ``VERSION:``
@@ -2895,8 +2922,15 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
         _active_basis = _BASES[name]
     argv = rest
 
+    # --legacy-probe swaps the honest versionNECd identity for the pre-#828
+    # versionA masquerade — for a SimNEC build old enough to predate
+    # versionNECd, should one surface. Deck behavior is identical either way
+    # (the probe response sets no engine state; see PROBE_VERSION).
+    legacy_probe = "--legacy-probe" in argv
+    argv = [a for a in argv if a != "--legacy-probe"]
+
     if any(a.lstrip("-").lower() == "version" for a in argv):
-        stdout.write(f"{PROBE_VERSION}\n")
+        stdout.write(f"{LEGACY_PROBE_VERSION if legacy_probe else PROBE_VERSION}\n")
         stdout.flush()
         return 0
 
