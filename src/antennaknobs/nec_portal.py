@@ -384,10 +384,35 @@ _NEAR_FIELD_TIME = "    Near Field Compute Time 0"
 # summed as a finer chain of Hertzian elements.
 _NEAR_FIELD_SUBDIV = 8
 
-# The oracle writes this to both stdout and stderr when its input ends; the
-# grammar doc's error table (§8) makes it the one error shape SimNEC tolerates
-# without tripping the `ERROR:` warning frame (that test is on token 0 alone).
+# Reversed by issue #829 on Ward's explicit sanction (his 2026-08-08 reply):
+# refusals used to hide behind this prefix specifically to AVOID tripping
+# Execute's `"NEC ERROR (1)"` warning frame (grammar doc §8 — the frame fires
+# on token 0 being exactly `ERROR:`, an equality test, not a substring one).
+# Ward said the frame "should be fine" and that he intends to make the reader
+# bail on it, so every refusal now leads with an `_ERROR_TOKEN` line to fire
+# that frame today and anchor his future bail-fix tomorrow. This prefix stays
+# as the line right after it: it is not our own invention but the oracle's
+# own genuine stdin-EOF string (§8, "Oracle-side error strings observed"),
+# so keeping it gives grep a byte-identical, oracle-shaped needle for "this
+# was our engine's refusal" without colliding with the new warning token.
+_ERROR_TOKEN = "ERROR: "
 _ERROR_PREFIX = "ERROR-NEC2C: "
+
+
+def _append_error(out: list[str], exc: BaseException) -> None:
+    """Append the two-line refusal frame and nothing else.
+
+    Line 1 is what SimNEC's ``Execute.processResponse`` keys on — token 0
+    exactly ``ERROR:`` trips the ``"NEC ERROR (1)"`` warning and (today)
+    keeps parsing; Ward's planned reader fix anchors to the same token.
+    Line 2 repeats the message under the oracle's own ``ERROR-NEC2C:``
+    shape for our tests/logs to grep. Every caller still appends the ``NX``
+    echo itself — that sentinel is mandatory on every path, see
+    ``PortalError``'s docstring, or SimNEC blocks in ``readLine()`` forever.
+    """
+    detail = str(exc)
+    out.append(f"{_ERROR_TOKEN}{detail}")
+    out.append(f"{_ERROR_PREFIX}{detail}")
 
 
 class PortalError(Exception):
@@ -2576,7 +2601,7 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     try:
         deck = parse_deck(body)
     except PortalError as exc:
-        out.append(f"{_ERROR_PREFIX}{exc}")
+        _append_error(out, exc)
         return out, err
 
     if deck.reduced_field is not None:
@@ -2592,10 +2617,10 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     try:
         solver = DeckSolver(deck)
     except PortalError as exc:
-        out.append(f"{_ERROR_PREFIX}{exc}")
+        _append_error(out, exc)
         return out, err
     except (ValueError, np.linalg.LinAlgError) as exc:
-        out.append(f"{_ERROR_PREFIX}{exc}")
+        _append_error(out, exc)
         return out, err
 
     out.append(_STRUCTURE_HEADER)
@@ -2637,7 +2662,7 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
                     out += ["", ""]
                 out += _run_block(deck, solver, group, freq)
         except (PortalError, ValueError, np.linalg.LinAlgError) as exc:
-            out.append(f"{_ERROR_PREFIX}{exc}")
+            _append_error(out, exc)
         out += ["", "", ""]
     return out, err
 
