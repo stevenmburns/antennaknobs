@@ -201,16 +201,37 @@ C_LIGHT = 299_792_458.0
 EPS0 = 8.854_187_817e-12
 ETA0 = 376.730_313_668
 
-# nec2c's degenerate-field threshold, in V/m (or A/m) SQUARED at the requested
-# range. A pattern component at or below it prints as the -999.99 gain floor,
-# and a row whose BOTH components are below it prints a blank SENSE column —
-# which is exactly what makes that row 11 tokens instead of 12. Read off
-# ``dipole_rp_pattern.out`` (E_theta = 5.4196E-15 at theta = 180 -> -999.99 and
-# blank) and confirmed against ``dipole_rp_crossed_quadrature.out``
+# nec2c's two degenerate-value thresholds. They are both spelt 1e-20 and they
+# are NOT the same test — a fact that hides completely while every pattern
+# fixture is taken at one range and one wavelength, and stops hiding the
+# moment an ``RFLD = 0`` deck arrives (issue #802).
+#
+# * ``_GAIN_FLOOR2`` is ``db10()``'s: it clamps the LINEAR POWER GAIN, the
+#   number about to be logged, so a direction below -200 dB prints -999.99.
+#   Gain never depended on the range, so this floor is range-free too.
+# * ``_FIELD_FLOOR2`` is the polarisation block's: ``(ethm2 <= 1e-20) &&
+#   (ephm2 <= 1e-20)`` blanks AXIAL/TILT/SENSE, and a blank SENSE is exactly
+#   what makes a row 11 tokens instead of 12. It is applied to the field as
+#   ``ffld`` returns it — BEFORE the ``*wlam`` and the ``*1/RFLD`` that turn
+#   it into the volts-per-metre the table prints — so it is a fixed bar on
+#   the antenna, not on the reading. :func:`_pattern_lines` rescales the
+#   printed field back to that basis before testing it.
+#
+# Read off ``dipole_rp_pattern.out`` (E_theta = 5.4196E-15 at theta = 180 ->
+# -999.99 and blank) and confirmed against ``dipole_rp_crossed_quadrature.out``
 # (E_theta = 2.7098E-15 -> VERTC -999.99 but SENSE still LINEAR, because
 # E_phi is large). Grammar doc §4.14.
 _FIELD_FLOOR2 = 1.0e-20
+_GAIN_FLOOR2 = 1.0e-20
 _GAIN_FLOOR_DB = -999.99
+
+# The ``RP`` modes this engine computes: space wave, linear cliff, circular
+# cliff. See :func:`_validate_rp` for what the rest ask for and why they are
+# refused rather than approximated.
+_RP_MODES = frozenset({0, 2, 3})
+# ...and the two that consume a second medium, keyed to the word nec2c prints
+# in the FAR FIELD GROUND PARAMETERS block.
+_CLIFF_KIND = {2: "LINEAR", 3: "CIRCULAR"}
 
 # --------------------------------------------------------------------------
 # fixed printout chrome (verbatim from tests/fixtures/nec_portal/*.out)
@@ -386,6 +407,11 @@ _NETWORK_EXCITATION_TABLE_HEADER = (
 
 _PATTERN_HEADER = (
     "                             ---------- RADIATION PATTERNS -----------"
+)
+# Printed by ``rdpat`` ahead of the pattern banner whenever the RP mode is > 1,
+# on the POWER BUDGET block's 31-column indent rather than the pattern's 29.
+_FAR_FIELD_GROUND_HEADER = (
+    "                               ------ FAR FIELD GROUND PARAMETERS ------"
 )
 _PATTERN_TABLE_HEADER = (
     " ---- ANGLES -----     ----- POWER GAINS -----       ---- POLARIZATION ----"
@@ -594,14 +620,20 @@ class Ground:
 
 @dataclass(frozen=True)
 class SecondMedium:
-    """One ``GD`` card: NEC-2's *additional ground parameters*. Echoed, and
-    then genuinely inert for everything this engine computes.
+    """NEC-2's *additional ground parameters*: a SECOND ground medium and the
+    edge where medium 1 stops.
 
-    **What the card is.** ``GD`` states a SECOND ground medium and the edge
-    where medium 1 stops: four real fields, and — measured against the oracle
+    **What the card is.** Four real fields, and — measured against the oracle
     — nothing else. The four integer columns of the echo are read as integers
     and used by nothing; a bare ``GD`` echoes four zero integers and six zero
     reals and runs the deck exactly as a fully populated one does.
+
+    **Which card carries it.** ``GD`` is the obvious one, and the only one
+    ``nec2/NECSource`` writes. It is not the only one that works: a ``GN``
+    whose ``NRADL`` count is zero carries the same four values in ``F3``-``F6``
+    and ``main.c`` writes them into the same four slots, so a deck can state a
+    whole cliff without ever sending a ``GD``. Both routes land here, and a
+    later card overwrites an earlier one exactly as it does in the oracle.
 
     ==========  =========================================================
     field       meaning
@@ -634,36 +666,36 @@ class SecondMedium:
     SimNEC fabricated readouts from the failure (R = 0, X = 0; the same shape
     of live failure the ``EK`` card caused, grammar doc §17).
 
-    **What it changes in the printout: nothing.** No ``DATA CARD`` line beyond
-    its own echo, no line in the ``ANTENNA ENVIRONMENT`` block — not even
-    under ``GN 2``, where a second medium might plausibly have announced
-    itself — and no change to any number. Fixtures
+    **What it changes outside the far field: nothing.** No ``DATA CARD`` line
+    beyond its own echo, no line in the ``ANTENNA ENVIRONMENT`` block — not
+    even under ``GN 2``, where a second medium might plausibly have announced
+    itself — and no change to any number in the matrix path. Fixtures
     ``dipole_gd_second_medium`` and ``dipole_gd_cliff_sommerfeld`` are
     ``dipole_pec_ground`` and ``dipole_sommerfeld_ground`` plus one card, and
     the only differences in either printout are the echo itself and the
-    ordinals it shifts.
+    ordinals it shifts. NEC-2 uses the second medium in the FAR FIELD alone;
+    the moment method never sees it, so every impedance and every segment
+    current is the flat-ground one.
 
     It is also **not an arming card**: measured on the oracle, ``... XQ / GD
     2 0 0 0 13. .005 0. 0. / XQ`` prints one block, not two. A ``GD`` alone
     does not make the next execute card a real run.
 
-    **Fidelity — where the second medium WOULD matter, and why ignoring it
-    here is not a silent lie.** NEC-2 uses ``GD`` in the far field alone; the
-    moment method never sees it, which is why every impedance and every
-    segment current above is unchanged. In the far field it is reached only
-    through the ``RP`` card's cliff and ground-screen modes (``RP 1``-``RP
-    6``). Measured both ways on the oracle with the cliff card above:
+    **Where it does bite: the ``RP`` card's cliff modes.** The far field
+    reaches this record only through ``RP 2`` and ``RP 3`` (and the screen
+    combinations 5 and 6, which this engine refuses for the screen's sake, not
+    the cliff's). Measured both ways on the oracle:
 
-    * under ``RP 0`` — the only mode ``nec2/NECSource`` ever writes, and the
-      only one this engine computes — the ``RADIATION PATTERNS`` table is
-      byte-identical with and without the card;
-    * under ``RP 2`` (linear cliff) it is not: the block quoted above appears
-      and every gain moves.
+    * under ``RP 0`` the ``RADIATION PATTERNS`` table is byte-identical with
+      and without the card — the property ``dipole_gd_*`` still pins;
+    * under ``RP 2`` and ``RP 3`` it is not: a ``FAR FIELD GROUND PARAMETERS``
+      block appears and the gains move by several dB at grazing angles.
 
-    So the deck shapes where ``GD`` is inert are exactly the deck shapes this
-    engine runs, and the deck shapes where it is not are already refused by
-    name at the ``RP`` card (issue #802). Accepting ``GD`` cannot make this
-    engine answer a cliff question wrongly, because it never gets asked one.
+    Those two modes were refused outright until issue #802, which is what made
+    accepting the card safe in the first place. They now run —
+    :func:`_cliff_image_moments` implements the medium selection — so this
+    record is load-bearing rather than a receipt, and the honesty argument has
+    moved from "we are never asked" to "we answer it the way ``ffld`` does".
     """
 
     eps_r2: float = 0.0
@@ -983,18 +1015,38 @@ def _directive(text: str, keyword: str) -> int | None:
 def _validate_rp(card: Card) -> None:
     """Reject the ``RP`` shapes this engine does not compute.
 
-    ``nec2/NECSource`` only ever writes ``RP 0 <nth> <nph> 1001 0 0 <dth> <dph>
-    1000``, so mode 0 at a finite range is the whole live contract. Modes 1-6
-    (surface wave, linear/conical/bistatic scans) and the ``RFLD = 0``
-    gain-only form print a DIFFERENT table — refusing them is honest; guessing
-    their layout is not.
+    ``nec2/NECSource`` only ever writes ``RP 0 <nth> <nph> 1001 0 0 <dth>
+    <dph> 1000``, but a user-pasted deck reaches the portal too, so the mode
+    field is a real input. Modes 0, 2 and 3 run (issue #802); the rest are
+    refused by name, because their tables are a different shape and guessing
+    one is worse than saying no.
+
+    ==========  ================================================  ========
+    ``I1``      what it asks for                                  here
+    ==========  ================================================  ========
+    ``0``       space wave over the ground plane                  runs
+    ``1``       surface wave — ``RADIATED FIELDS NEAR GROUND``,   refused
+                a different banner and a different row shape
+                (nine columns including ``E(RADIAL)``), reached
+                through ``gfld`` rather than ``ffld``
+    ``2``       linear cliff: second medium beyond ``x = CLT``    runs
+    ``3``       circular cliff: second medium beyond ``r = CLT``  runs
+    ``4``       radial wire ground screen                         refused
+    ``5``       screen inside, then a LINEAR cliff beyond it      refused
+    ``6``       screen inside, then a CIRCULAR cliff beyond it    refused
+    ==========  ================================================  ========
+
+    4-6 stay refused for the reason ``GN``'s ``NRADL`` field is: the screen is
+    a surface impedance ``Z = t1·d·ln(d/t2)`` folded into the reflection
+    coefficient, momwire has no screen model at all, and running the deck as
+    bare ground would be a wrong answer rather than a refusal. 1 stays refused
+    because nothing here computes a surface wave.
     """
-    if card.i(0) != 0:
+    if card.i(0) not in _RP_MODES:
         raise PortalError(
-            f"RP mode {card.i(0)} is not supported by this engine (mode 0 only)"
+            f"RP mode {card.i(0)} is not supported by this engine "
+            f"(modes {', '.join(str(m) for m in sorted(_RP_MODES))} only)"
         )
-    if card.f(8) <= 0.0:
-        raise PortalError("RP with RFLD = 0 (gain-only form) is not supported")
 
 
 def _validate_near_field(card: Card) -> None:
@@ -1055,6 +1107,15 @@ def parse_deck(body: str) -> PortalDeck:
             # from the GE flag alone: the catalog decks carry `GE 0` + `GN 1`
             # and the oracle prints no "GROUND PLANE SPECIFIED." for them.
             ground = Ground.from_card(card)
+            # ...and, when no radial screen claims F3-F6, the card carries a
+            # whole second medium in them — the same four values a GD would
+            # set, written to the same four slots by main.c. A GN that reaches
+            # here always rewrites them, so a bare `GN 1` clears an earlier
+            # cliff exactly as the oracle does; a screen count keeps them,
+            # because the oracle takes the F3/F4 pair as the screen's geometry
+            # and returns before the assignment.
+            if card.i(1) == 0:
+                second_medium = SecondMedium(card.f(6), card.f(7), card.f(8), card.f(9))
             data_cards.append(card)
             continue
         if card.mnemonic in _DEFERRED_CARDS:
@@ -1077,8 +1138,8 @@ def parse_deck(body: str) -> PortalDeck:
         elif card.mnemonic == "GD":
             # Also not an arming card (measured: `... XQ / GD ... / XQ` prints
             # one block). The second medium reaches NEC's far field only
-            # through RP's cliff modes, which this engine refuses by name, so
-            # the card is recorded and nothing else — see SecondMedium.
+            # through RP's cliff modes, so this moves nothing until an RP 2 or
+            # RP 3 asks for it — see SecondMedium.
             second_medium = SecondMedium.from_card(card)
         elif card.mnemonic == "MP":
             # Not an arming card: the oracle runs nothing for an XQ whose only
@@ -1332,7 +1393,120 @@ def _image_moments(mid, moment, ground_z):
     return mid_img, moment * np.array([-1.0, -1.0, 1.0])
 
 
-def _far_moments(mid, moment, k, theta, phi, ground, ground_z, freq_hz):
+def _image_coeffs(eps_r, sigma, freq_hz, rx, ry, rz):
+    """``(rho_h, rho_v)`` — the IMAGE-CURRENT multipliers for one medium.
+
+    These are ``ffld``'s ``rrh`` and ``-rrv``, not the textbook Fresnel pair:
+    they multiply the geometric image (horizontal components already flipped
+    by :func:`_image_moments`), which is why perfect ground is ``(-1, +1)``
+    here and ``(-1, -1)`` in the C. Algebraically identical — nec2c writes the
+    ratio ``zrati = 1/sqrt(eps_c)`` where this writes ``q = sqrt(eps_c -
+    sin²θ)``, and ``zrati·zrsin`` reduces to ``q/eps_c`` — but the sign
+    convention is ours, and the mapping is the thing to check first if a
+    reflected field ever comes out inverted.
+
+    Passing ``eps_r = sigma = 0`` (a ``GD`` with an empty second medium) makes
+    ``q`` collapse to ``j·sinθ`` and the vertical ratio a 0/0 at the zenith.
+    The oracle does the same thing from the other side — ``zrati2`` goes to
+    infinity and its whole pattern table prints ``nan`` — so nothing here
+    tries to rescue a deck that asks for a cliff into vacuum.
+    """
+    omega = 2.0 * math.pi * freq_hz
+    eps_c = eps_r - 1j * sigma / (omega * EPS0)
+    q = np.sqrt(eps_c - rx * rx - ry * ry)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return (rz - q) / (rz + q), (eps_c * rz - q) / (eps_c * rz + q)
+
+
+def _cliff_medium_2(mid, theta, phi, ground_z, mode, edge_distance):
+    """``(n_theta, n_phi, n_element)`` mask: is this element's reflection point
+    on the FAR side of the cliff?
+
+    NEC picks the medium per SEGMENT and per DIRECTION, at that segment's own
+    specular point on the ground. For an element at height ``z`` radiating
+    towards ``theta``, the reflection point is ``dr = z·tan(theta)`` out along
+    the azimuth, so its ground coordinates are ``(x + dr·cosφ, y + dr·sinφ)``
+    — and the edge it is compared against is
+
+    * ``RP 2``, LINEAR cliff: the line ``x = CLT``, so only the x coordinate
+      counts. An azimuth parallel to the edge never crosses it and an azimuth
+      pointing away from it never does either (``d`` goes negative).
+    * ``RP 3``, CIRCULAR cliff: the circle ``r = CLT``, so the radius counts
+      and every azimuth crosses alike.
+
+    The comparison is ``ffld``'s exactly, including its tie-break: ``(cl - d) >
+    0`` keeps medium 1, so a point landing precisely ON the edge takes medium
+    2.
+
+    **Validity.** This is NEC-2's own cliff model, and it is a geometric-optics
+    one: a single specular bounce off whichever flat half-plane the reflection
+    point happens to sit on, with no diffraction at the edge and no shadowing
+    by the step. It is trustworthy where the edge is many wavelengths from
+    both the antenna and the reflection point, and it is visibly discontinuous
+    across the angle where the reflection point crosses — which is a property
+    of the model, not of this implementation, and shows up identically in the
+    oracle's own table.
+    """
+    height = mid[:, 2] - ground_z
+    dr = np.tan(theta)[:, None] * height[None, :]  # (n_theta, n_element)
+    along = dr[:, None, :] * np.cos(phi)[None, :, None] + mid[None, None, :, 0]
+    if mode == 3:
+        across = mid[None, None, :, 1] + dr[:, None, :] * np.sin(phi)[None, :, None]
+        along = np.hypot(along, across)
+    return along >= edge_distance
+
+
+def _cliff_image_moments(
+    mid, moment, k, theta, phi, basis, ground, ground_z, freq_hz, mode, cliff
+):
+    """The reflected far-field moment under ``RP 2`` / ``RP 3``.
+
+    The flat-ground path applies one reflection coefficient to the whole image
+    sum. A cliff cannot: two elements of the same antenna can reflect off
+    different media in the same direction, so the sum has to be split first
+    and weighted after. That is ``ffld``'s inner loop, vectorised — split the
+    image carrier by :func:`_cliff_medium_2`, give each half its own
+    ``(rho_h, rho_v)``, add.
+
+    The far side also carries an extra phase. Its surface is ``CHT`` below
+    medium 1's (signed, negative = lower), so its image sits ``2·CHT`` further
+    along the vertical and the ray to it is ``2·CHT·cos(theta)`` longer:
+    nec2c spells that ``darg = -2π·2·ch·roz`` on the image phase, which is the
+    same ``exp(-2jk·CHT·cosθ)`` applied here.
+    """
+    rhat, h_hat, v_hat = basis
+    rx, ry, rz = rhat[..., 0], rhat[..., 1], rhat[..., 2]
+    mid_img, moment_img = _image_moments(mid, moment, ground_z)
+    carrier = np.exp(1j * k * np.einsum("ijc,nc->ijn", rhat, mid_img))
+
+    beyond = _cliff_medium_2(mid, theta, phi, ground_z, mode, cliff.edge_distance)
+    step = np.exp(-2j * k * cliff.height * np.cos(theta))
+    far = np.einsum(
+        "ijn,nc->ijc", carrier * np.where(beyond, step[:, None, None], 0.0), moment_img
+    )
+    carrier *= ~beyond
+    near = np.einsum("ijn,nc->ijc", carrier, moment_img)
+
+    # Medium 1 is whatever the GN card said. Perfect ground is the one case
+    # ffld does not run through the Fresnel formula at all, and the second
+    # medium never gets that shortcut: a GD states eps/sigma and nothing else,
+    # so it is always a reflection coefficient even under GN 1.
+    if ground.kind == "pec":
+        near_coeffs = (-1.0, 1.0)
+    else:
+        near_coeffs = _image_coeffs(ground.eps_r, ground.sigma, freq_hz, rx, ry, rz)
+    far_coeffs = _image_coeffs(cliff.eps_r2, cliff.sigma2, freq_hz, rx, ry, rz)
+
+    total = np.zeros_like(near)
+    for half, (rho_h, rho_v) in ((near, near_coeffs), (far, far_coeffs)):
+        half_h = np.sum(half * h_hat, axis=-1)
+        half_v = np.sum(half * v_hat, axis=-1)
+        total += (rho_v * half_v)[..., None] * v_hat
+        total -= (rho_h * half_h)[..., None] * h_hat
+    return total
+
+
+def _far_moments(mid, moment, k, theta, phi, ground, ground_z, freq_hz, cliff=None):
     """Complex ``(M_theta, M_phi)`` on the ``theta`` x ``phi`` grids (radians).
 
     ``M = Σ I_n dl_n exp(+j k r̂·r_n)`` is the far-field current moment; the
@@ -1342,6 +1516,12 @@ def _far_moments(mid, moment, k, theta, phi, ground, ground_z, freq_hz):
     E(THETA) and E(PHI) magnitude AND phase and splits the gain into VERTC
     (theta) and HORIZ (phi). Same physics, same ground handling, components
     kept.
+
+    ``cliff`` is ``(mode, SecondMedium)`` when the ``RP`` card asked for one of
+    the cliff modes, and ``None`` otherwise. It only ever reaches the image
+    term — a cliff with no ground image is not a cliff, which is why NEC still
+    prints the FAR FIELD GROUND PARAMETERS block for an ``RP 2`` in free space
+    and still moves no number.
     """
     sin_t, cos_t = np.sin(theta), np.cos(theta)
     cos_p, sin_p = np.cos(phi), np.sin(phi)
@@ -1364,27 +1544,42 @@ def _far_moments(mid, moment, k, theta, phi, ground, ground_z, freq_hz):
         phase = k * np.einsum("ijc,nc->ijn", rhat, centres)
         return np.einsum("ijn,nc->ijc", np.exp(1j * phase), weights)
 
+    # The reflected wave's own polarisation basis: h along phi_hat, v the
+    # in-plane partner. PEC is rho_h = -1, rho_v = +1, so the Fresnel step
+    # below is written as a correction to the PEC image exactly as the engine
+    # does.
+    h_hat = phi_hat
+    v_hat = np.stack([-cos_p_g * cos_t_g, -sin_p_g * cos_t_g, sin_t_g], axis=-1)
+
     m_direct = moments_of(mid, moment)
     if ground is None or ground.kind == "free":
         total = m_direct
+    elif cliff is not None:
+        mode, second = cliff
+        total = m_direct + _cliff_image_moments(
+            mid,
+            moment,
+            k,
+            theta,
+            phi,
+            (rhat, h_hat, v_hat),
+            ground,
+            ground_z,
+            freq_hz,
+            mode,
+            second,
+        )
     else:
         mid_img, moment_img = _image_moments(mid, moment, ground_z)
         m_img = moments_of(mid_img, moment_img)
         if ground.kind == "pec":
             total = m_direct + m_img
         else:
-            # Fresnel on the reflected wave, written as a correction to the
-            # PEC image exactly as the engine does: PEC is rho_h = -1,
-            # rho_v = +1, so the reflected wave is (-rho_h)·h + (rho_v)·v.
-            h_hat = phi_hat
-            v_hat = np.stack([-cos_p_g * cos_t_g, -sin_p_g * cos_t_g, sin_t_g], axis=-1)
             m_img_h = np.sum(m_img * h_hat, axis=-1)
             m_img_v = np.sum(m_img * v_hat, axis=-1)
-            omega = 2.0 * math.pi * freq_hz
-            eps_c = ground.eps_r - 1j * ground.sigma / (omega * EPS0)
-            q = np.sqrt(eps_c - rx * rx - ry * ry)
-            rho_h = (rz - q) / (rz + q)
-            rho_v = (eps_c * rz - q) / (eps_c * rz + q)
+            rho_h, rho_v = _image_coeffs(
+                ground.eps_r, ground.sigma, freq_hz, rx, ry, rz
+            )
             m_refl = (rho_v * m_img_v)[..., None] * v_hat - (rho_h * m_img_h)[
                 ..., None
             ] * h_hat
@@ -1440,9 +1635,17 @@ def _element_fields(points, elements, k, radius, magnetic):
     return e_vector + np.sum(scalar[..., None] * q_rhat, axis=1)
 
 
-def _polarisation(e_theta: complex, e_phi: complex) -> tuple[float, float, str]:
+def _polarisation(
+    e_theta: complex, e_phi: complex, floor_scale: float = 1.0
+) -> tuple[float, float, str]:
     """``(axial_ratio, tilt_deg, sense)`` for one direction's polarisation
     ellipse — the AXIAL RATIO / TILT / SENSE columns.
+
+    ``floor_scale`` converts the PRINTED field back to the amplitude ``ffld``
+    returned, which is the basis nec2c's blank-column test is written in (see
+    ``_FIELD_FLOOR2``). It is 1 for a table read out at the wavelength's own
+    scale and ``RFLD/lambda`` for one read out at a range; everything else
+    here is scale-free, so it reaches the floor test and nothing more.
 
     With ``a = |E_theta|``, ``b = |E_phi|`` and ``δ = arg(E_phi) - arg(E_theta)``
     wrapped to ±180°, the ellipse semi-axes are
@@ -1457,7 +1660,8 @@ def _polarisation(e_theta: complex, e_phi: complex) -> tuple[float, float, str]:
     (``dipole_rp_crossed_quadrature``), so positive ``sinδ`` is LEFT here.
     """
     a, b = abs(e_theta), abs(e_phi)
-    if a * a <= _FIELD_FLOOR2 and b * b <= _FIELD_FLOOR2:
+    raw2 = floor_scale * floor_scale
+    if a * a * raw2 <= _FIELD_FLOOR2 and b * b * raw2 <= _FIELD_FLOOR2:
         return 0.0, 0.0, ""
     delta = _phase_deg(e_phi) - _phase_deg(e_theta)
     delta = (delta + 180.0) % 360.0 - 180.0
@@ -1485,16 +1689,19 @@ def _polarisation(e_theta: complex, e_phi: complex) -> tuple[float, float, str]:
     )
 
 
-def _gain_db(power_gain: float, field2: float) -> float:
+def _gain_db(power_gain: float) -> float:
     """A gain column in dB, with nec2c's degenerate floor.
 
-    The floor is NOT a log clamp: ``dipole_rp_pattern`` prints -999.99 for a
-    direction whose E(THETA) is 5.4196E-15 (a true gain around -220 dB), and
-    prints a real number for one whose field is only a little larger. The test
-    is on the FIELD, ``|E|² <= 1e-20`` at the requested range, and it is the
-    same test that blanks the SENSE column.
+    This is ``db10()``: ``x < 1e-20 -> -999.99``, applied to the LINEAR POWER
+    GAIN about to be logged rather than to the field. ``dipole_rp_pattern``
+    prints the floor for a direction whose E(THETA) is 5.4196E-15 because that
+    direction's gain is around -220 dB, not because the field is small — a
+    distinction the fixtures could not show while every pattern was taken at
+    one range, and one that ``dipole_rp_gain_only`` now pins: the gain columns
+    of an ``RFLD = 0`` table are identical to the same deck's at 1000 m, while
+    every E column moves by three decades (issue #802).
     """
-    if field2 <= _FIELD_FLOOR2 or power_gain <= 0.0:
+    if power_gain < _GAIN_FLOOR2:
         return _GAIN_FLOOR_DB
     return 10.0 * math.log10(power_gain)
 
@@ -2387,14 +2594,31 @@ def _network_lines(solver: DeckSolver, result: dict) -> list[str]:
 def _pattern_lines(
     card: Card, solver: DeckSolver, result: dict, freq_mhz: float
 ) -> list[str]:
-    """The RADIATION PATTERNS table for one ``RP 0`` request."""
+    """The RADIATION PATTERNS table for one ``RP 0`` / ``RP 2`` / ``RP 3``.
+
+    Two of the card's fields change the table's SHAPE rather than its values,
+    and both are issue #802's:
+
+    * ``I1 > 1`` (a cliff mode) prepends the FAR FIELD GROUND PARAMETERS
+      block. It is printed whenever the mode asks for one, even in free space
+      where it can move nothing;
+    * ``F5 = RFLD = 0`` is the gain-only form. The two-line RANGE /
+      EXP(-JKR)/R header is not printed at all, and the E columns carry the
+      far-field amplitude itself instead of the field at a range — the same
+      numbers scaled by ``RFLD/lambda``. The GAIN columns never depended on
+      the range and do not move.
+    """
+    mode = card.i(0)
     n_theta, n_phi = max(card.i(1), 1), max(card.i(2), 1)
     theta0, phi0, d_theta, d_phi = card.f(4), card.f(5), card.f(6), card.f(7)
     rng = card.f(8)
+    at_range = rng >= _FIELD_FLOOR2
 
     thetas = theta0 + d_theta * np.arange(n_theta)
     phis = phi0 + d_phi * np.arange(n_phi)
-    k = 2.0 * math.pi / result["wavelength"]
+    wavelength = result["wavelength"]
+    k = 2.0 * math.pi / wavelength
+    second = solver.portal_deck.second_medium
     mid, moment, _nodes, _delta = solver.current_elements(result)
     m_theta, m_phi = _far_moments(
         mid,
@@ -2405,40 +2629,46 @@ def _pattern_lines(
         solver.portal_deck.ground,
         solver.engine._ground_z,
         freq_mhz * 1e6,
+        cliff=(mode, second) if mode in _CLIFF_KIND and second is not None else None,
     )
     # E = -j·ηk/(4π)·e^(-jkr)/r·M_perp. The gain that follows is
     # 4π·U/P_in = ηk²/(8π·P_in)·|M|², the same normaliser the web solve and
     # MomwireEngine.far_field use — so a pattern read out of this printout and
     # one read off the workbench are the same number.
-    prop = np.exp(-1j * k * rng) / rng
+    prop = np.exp(-1j * k * rng) / rng if at_range else complex(1.0)
     e_theta = -1j * ETA0 * k / (4.0 * math.pi) * prop * m_theta
     e_phi = -1j * ETA0 * k / (4.0 * math.pi) * prop * m_phi
     p_in = result["p_in"]
     norm = ETA0 * k * k / (8.0 * math.pi * p_in) if p_in > 0 else 0.0
     g_v = norm * np.abs(m_theta) ** 2
     g_h = norm * np.abs(m_phi) ** 2
+    # The printed field over the amplitude ffld returns, which is the basis
+    # nec2c's blank-SENSE threshold is written in.
+    floor_scale = 1.0 / (wavelength * abs(prop))
 
-    out = [
-        _PATTERN_HEADER,
-        "",
-        f"                             RANGE:{rng:14.6E} METERS",
-        f"                             EXP(-JKR)/R:{1.0 / rng:13.5E} AT PHASE:"
-        f"{math.degrees(math.atan2(prop.imag, prop.real)):8.2f} DEGREES",
-        "",
-        *_PATTERN_TABLE_HEADER,
-    ]
+    out = []
+    if mode in _CLIFF_KIND:
+        out += _far_field_ground_lines(mode, second)
+    out += [_PATTERN_HEADER]
+    if at_range:
+        out += [
+            "",
+            f"                             RANGE:{rng:14.6E} METERS",
+            f"                             EXP(-JKR)/R:{1.0 / rng:13.5E} AT PHASE:"
+            f"{math.degrees(math.atan2(prop.imag, prop.real)):8.2f} DEGREES",
+        ]
+    out += ["", *_PATTERN_TABLE_HEADER]
     for j in range(n_phi):
         for i in range(n_theta):
             et, ep = complex(e_theta[i, j]), complex(e_phi[i, j])
-            et2, ep2 = abs(et) ** 2, abs(ep) ** 2
-            axial, tilt, sense = _polarisation(et, ep)
+            axial, tilt, sense = _polarisation(et, ep, floor_scale)
             out.append(
                 fmt_pattern_row(
                     thetas[i],
                     phis[j],
-                    _gain_db(float(g_v[i, j]), et2),
-                    _gain_db(float(g_h[i, j]), ep2),
-                    _gain_db(float(g_v[i, j] + g_h[i, j]), et2 + ep2),
+                    _gain_db(float(g_v[i, j])),
+                    _gain_db(float(g_h[i, j])),
+                    _gain_db(float(g_v[i, j] + g_h[i, j])),
                     axial,
                     tilt,
                     sense,
@@ -2451,6 +2681,32 @@ def _pattern_lines(
         out.append(_average_gain_line(g_v + g_h, thetas, d_theta, d_phi, n_phi))
     out.append(_PATTERN_TIME)
     return out
+
+
+def _far_field_ground_lines(mode: int, second: SecondMedium | None) -> list[str]:
+    """The FAR FIELD GROUND PARAMETERS block, plus the two blanks under it.
+
+    ``rdpat`` prints this for any mode above 1, whether or not there is a
+    ground for it to describe and whether or not the deck ever sent a card to
+    fill it in — a cliff mode with no ``GD`` and no second medium on the ``GN``
+    prints the block with four zeros in it, which is what a missing ``second``
+    renders here.
+    """
+    pad = " " * 31
+    fields = second or SecondMedium()
+    return [
+        _FAR_FIELD_GROUND_HEADER,
+        "",
+        "",
+        f"{pad}--- {_CLIFF_KIND[mode]} CLIFF ---",
+        f"{pad}EDGE DISTANCE= {fields.edge_distance:9.2f} METERS",
+        f"{pad}       HEIGHT= {fields.height:9.2f} METERS",
+        f"{pad}--- SECOND MEDIUM ---",
+        f"{pad}RELATIVE DIELECTRIC CONST= {fields.eps_r2:10.3f}",
+        f"{pad}      GROUND CONDUCTIVITY= {fields.sigma2:10.3f} MHOS",
+        "",
+        "",
+    ]
 
 
 def _average_gain_line(gain, thetas, d_theta, d_phi, n_phi) -> str:
