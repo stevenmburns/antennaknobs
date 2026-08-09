@@ -86,6 +86,16 @@ back-substitution that produces the short-circuit Y matrix. Every execute
 group after that is linear algebra on cached factors: the group's port
 voltages give ``coeffs = X @ V`` and its currents ``I = Y @ V``. N sources
 cost one fill, not N.
+
+And the deck is not the boundary either. The protocol is stateless — a sweep
+arrives as N independent decks, each re-sending the whole geometry — but the
+ENGINE may remember, so a solver is kept ACROSS decks under a key that is the
+operator's own identity (``_operator_key``, ``_solver_for``). A knob returned
+to a value already probed, a restarted sweep, a crew member handed the same
+structure at a different frequency: geometry parse, mesh, port maps and every
+fill already paid are reused, bounded by an LRU cap on estimated resident
+bytes. The printout is identical either way — that is the whole correctness
+claim, and it is what the tests assert.
 """
 
 from __future__ import annotations
@@ -93,6 +103,7 @@ from __future__ import annotations
 import math
 import sys
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
@@ -1884,6 +1895,33 @@ def _synthesize_union_deck(deck: PortalDeck, ports: list[tuple[int, int]]) -> st
     return "\n".join(lines) + "\n"
 
 
+def _union_ports(deck: PortalDeck) -> list[tuple[int, int]]:
+    """Every ``(tag, segment)`` the deck needs a gap at, in discovery order:
+    the union of every execute group's ``EX`` segments, then every ``NT``/``TL``
+    endpoint (NEC cuts the segment to hang the network off it, so it needs a
+    gap whether or not anything drives it).
+
+    Lifted out of :class:`DeckSolver` so the cross-deck cache key is built from
+    the SAME walk the solver's port columns come from. The port set is part of
+    the operator — it decides the union deck's gaps, the drive columns B, and
+    the column order of X — so two decks alike but for a moved ``EX`` are two
+    different operators, and a key that computed the set its own way could
+    drift from the one the solver actually built.
+    """
+    ports: list[tuple[int, int]] = []
+    for group in deck.groups:
+        if group is None:
+            continue
+        for tag, seg, _v in group.sources:
+            if (tag, seg) not in ports:
+                ports.append((tag, seg))
+    for branch in deck.networks:
+        for point in (branch.a, branch.b):
+            if point not in ports:
+                ports.append(point)
+    return ports
+
+
 def _locate(wires, tag: int, seg: int) -> tuple[int, int]:
     """NEC (tag, segment) → (wire index, 1-based local segment); ``tag`` 0
     means an absolute segment number. Mirrors ``nec_import._locate_segment``
@@ -2019,20 +2057,7 @@ class DeckSolver:
 
     def __init__(self, deck: PortalDeck):
         self.portal_deck = deck
-        ports: list[tuple[int, int]] = []
-        for group in deck.groups:
-            if group is None:
-                continue
-            for tag, seg, _v in group.sources:
-                if (tag, seg) not in ports:
-                    ports.append((tag, seg))
-        # An NT or TL endpoint is a port too: NEC cuts the segment to hang the
-        # network off it, so it needs a gap in the momwire model whether or not
-        # anything drives it.
-        for branch in deck.networks:
-            for point in (branch.a, branch.b):
-                if point not in ports:
-                    ports.append(point)
+        ports = _union_ports(deck)
         if not ports:
             raise PortalError("deck has no EX card — nothing drives the structure")
         self.ports = ports
@@ -2213,10 +2238,17 @@ class DeckSolver:
     # -- per-frequency operator -------------------------------------------
 
     def at(self, freq_mhz: float) -> dict:
-        """The cached (Y, X, solver) for a frequency — one fill, one factor."""
+        """The cached (Y, X, solver) for a frequency — one fill, one factor.
+
+        When this instance came out of the cross-deck cache (``_solver_for``)
+        these entries came with it, so a re-probed deck answers with no fill at
+        all, and the same structure at a NEW frequency pays one fill on top of
+        a geometry parse and mesh it did not repeat.
+        """
         cached = self._cache.get(freq_mhz)
         if cached is not None:
             return cached
+        _cache_stats["fills"] += 1
         wavelength = C_LIGHT / (freq_mhz * 1e6)
         started = time.perf_counter()
         solver = self.engine._make_solver(wavelength=wavelength)
@@ -2420,6 +2452,218 @@ class DeckSolver:
             sign = 1.0 if float(np.dot(dirs[j], seg.direction)) >= 0 else -1.0
             out[i] = sign * vals[j]
         return out
+
+
+# --------------------------------------------------------------------------
+# the cross-deck solver cache
+# --------------------------------------------------------------------------
+#
+# The protocol is stateless per deck — every deck re-sends its whole geometry
+# and a sweep arrives as N independent decks — but nothing in it forbids the
+# ENGINE remembering. ``DeckSolver`` already caches (geometry, frequency) →
+# factors WITHIN a deck; this keeps the whole ``DeckSolver`` across decks, so a
+# re-probed structure reuses the parse, the mesh, the port maps, the network
+# rows AND the per-frequency fills, and the same structure at a new frequency
+# pays only the new fill (issue #823).
+#
+# What a hit must guarantee is that the cached instance is the operator the
+# arriving deck asks for. That makes the key the whole contract: it is built
+# from the parsed deck rather than its text (so comments, whitespace and card
+# formatting cannot split it) and it carries EVERYTHING that moves a number in
+# the operator — see ``_operator_key``.
+
+# A few hundred MB is inside the machine budget for a crew of four engines and
+# holds a working set of tens of structures; the cache degrades to exactly the
+# pre-#823 behaviour when it is full (every arrival misses and re-solves).
+# Deliberately a constant and not a knob: a per-process daemon with a tunable
+# memory cap is a support surface nobody asked for.
+_CACHE_BYTES_CAP = 384 * 1024 * 1024
+
+# operator key → the solver built for it, least-recently-used first.
+_solver_cache: OrderedDict[tuple, DeckSolver] = OrderedDict()
+
+# operator key → its last measured size in bytes. Kept alongside rather than
+# recomputed per sweep because sizing an entry costs a graph walk (~1 ms) and
+# only ONE entry can have grown since the last arrival: the one the previous
+# deck rendered through. Re-walking the whole cache per deck would put the
+# eviction pass in front of the physics it exists to save.
+_cache_sizes: dict[tuple, int] = {}
+
+# The instrument. Tests read these instead of parsing timing text — the point
+# of the cache is that the printout is IDENTICAL either way, so the printout
+# cannot be the evidence. Nothing here is ever printed to SimNEC.
+_cache_stats = {"hits": 0, "misses": 0, "evictions": 0, "fills": 0, "bytes": 0}
+
+
+def _reset_solver_cache() -> None:
+    """Empty the cache and zero the instrument. Called by ``main`` for the same
+    reason it re-reads ``--basis``: engine state is per invocation, never
+    sticky, and a fresh process must be indistinguishable from a fresh call."""
+    _solver_cache.clear()
+    _cache_sizes.clear()
+    for key in _cache_stats:
+        _cache_stats[key] = 0
+
+
+def _operator_key(deck: PortalDeck) -> tuple:
+    """The identity of the linear operator this deck describes.
+
+    Everything that changes the matrix, the drive columns, or their ordering:
+
+    * the geometry cards after nothing — ``GW``/``GA``/``GH``/``GM``/``GX``/
+      ``GR``/``GS``/``GE`` by mnemonic and numeric fields, which is what
+      ``_synthesize_union_deck`` hands the translator (endpoints, segment
+      counts, radii, transforms, and the ``GE`` ground-plane flag);
+    * the ground — ``GN``'s kind and its parameters, and its ABSENCE (a
+      free-space :class:`Ground` is a distinct value, not a missing one);
+    * the loads — ``LD`` cards by fields, in force at the end of the deck,
+      which is the set ``_synthesize_union_deck`` writes and the set
+      ``_load_impedances`` stamps;
+    * the port set, in order — the walk in :func:`_union_ports`;
+    * the ``NT``/``TL`` branches — they stamp ``y_constant`` and the line rows,
+      and their endpoints are ports;
+    * the kernel flag, per execute group — see below;
+    * the basis: solver class, solver kwargs and banner suffix. One process has
+      one ``--basis``, so this can never differ between two live decks; it is in
+      the key anyway because a self-contained key cannot be read wrong.
+
+    Deliberately NOT in the key, because none of them move the operator:
+
+    * ``FR`` — frequency is the key of ``DeckSolver.at``, one level down. Two
+      decks alike but for their ``FR`` SHARE this entry and that is the point.
+    * ``EX`` VOLTAGES — X's columns are per-1 V and the voltage applies at
+      readout (``solve_group``). Only an EX's PLACEMENT is in the key, via the
+      port set.
+    * ``RP``/``NE``/``NH``/``PT``/``YY``/``XQ``/``MP`` — readout and print
+      control, computed from the result after the solve.
+    * ``CM``/``CE`` comments, and card formatting — the key is built from the
+      parsed deck, so a re-sent deck that differs only in whitespace hits.
+    * ``GD`` — the second medium reaches NEC's far field only through ``RP``'s
+      cliff modes and moves nothing in the operator (grammar doc §12.6). It is
+      excluded so a GD knob-drag HITS, which is safe because a hit rebinds
+      ``portal_deck`` to the arriving deck (``_solver_for``): no cached
+      instance ever carries a stale ``GD``, whatever a later far-field path
+      chooses to read. ``test_a_gd_card_change_hits_and_still_answers_fresh``
+      is the proof, and it compares against a FRESH PROCESS rather than
+      against itself, so it stays a proof if ``GD`` ever grows a far field.
+
+    ``EK`` is the conservative entry. Our kernel is momwire's kernel, so today
+    the flag is advisory and could be left out for a better hit rate — but it
+    is a kernel SELECTION, the one card in this list whose whole meaning is
+    "compute the operator differently", and a wrong hit here would be silent.
+    One bool per group is not a hit rate worth spending.
+    """
+    cls, kwargs, suffix = _active_basis
+    return (
+        tuple((c.mnemonic, c.values) for c in deck.geometry),
+        (deck.ground.kind, deck.ground.eps_r, deck.ground.sigma),
+        tuple((c.mnemonic, c.values) for c in deck.loads),
+        tuple(_union_ports(deck)),
+        deck.networks,
+        tuple(g.ek for g in deck.groups if g is not None),
+        (cls.__name__, tuple(sorted(kwargs.items())), suffix),
+    )
+
+
+def _resident_bytes(root: object, limit: int = 50_000) -> int:
+    """A cache entry's honest size: every distinct object reachable from it,
+    numpy arrays at their ``nbytes`` and everything else at ``getsizeof``.
+
+    Walked rather than computed because the entry's cost is not one formula:
+    ``X`` is ``n_basis × n_ports`` complex128 per cached frequency, ``Y`` is
+    small, and whatever the momwire solver retains after its solve (geometry,
+    basis polynomials, any factor it holds) is momwire's business and changes
+    between releases. The per-object term is in there because it MEASURES as
+    the bigger half — a mid-size fixture's entry is ~30 kB of array against
+    ~900 Python objects — so an arrays-only estimate would let the cache hold
+    several times the memory the cap names.
+
+    Distinct objects only (id-keyed), and the object count is bounded: this is
+    accounting, not a measurement, and it runs once per cached deck.
+    """
+    seen: set[int] = set()
+    total = 0
+    stack: list[object] = [root]
+    while stack and len(seen) < limit:
+        obj = stack.pop()
+        if id(obj) in seen:
+            continue
+        seen.add(id(obj))
+        if isinstance(obj, np.ndarray):
+            total += obj.nbytes
+            continue
+        total += sys.getsizeof(obj)
+        if isinstance(obj, dict):
+            stack += list(obj.values())
+        elif isinstance(obj, (list, tuple, set, frozenset)):
+            stack += list(obj)
+        elif hasattr(obj, "__dict__"):
+            stack += list(vars(obj).values())
+    return total
+
+
+def _cache_measure(key: tuple) -> None:
+    """(Re)size one entry. An entry GROWS after it is stored — every new
+    frequency adds an ``at()`` fill to the instance the cache is holding — so
+    the size taken at insertion drifts low exactly on the sweep the cache
+    exists to serve, and the entry that just rendered is re-walked."""
+    solver = _solver_cache.get(key)
+    if solver is not None:
+        _cache_sizes[key] = _resident_bytes(solver)
+
+
+def _cache_evict() -> None:
+    """Drop least-recently-used entries until the estimate is under the cap.
+
+    The most recent entry is never evicted: one structure too big for the cap
+    should still answer its own second execute group from its own factors,
+    which is what a cache that "degrades to today's behaviour" means — a full
+    cache costs a re-solve per arrival and nothing else.
+    """
+    total = sum(_cache_sizes.values())
+    while total > _CACHE_BYTES_CAP and len(_solver_cache) > 1:
+        key, _solver = _solver_cache.popitem(last=False)
+        total -= _cache_sizes.pop(key, 0)
+        _cache_stats["evictions"] += 1
+    _cache_stats["bytes"] = total
+
+
+def _solver_for(deck: PortalDeck) -> DeckSolver:
+    """The :class:`DeckSolver` for this deck — the cached one when its operator
+    has been seen in this process, a fresh one otherwise.
+
+    A hit rebinds ``portal_deck`` to the ARRIVING deck. Everything the cached
+    instance derived from the old one is in the key and therefore identical,
+    but the attribute is a live reference the printout reads through
+    (``_pattern_lines``, ``_near_field_lines``), and the arriving deck is the
+    honest answer to "which deck is being rendered" for anything read from it
+    later — the ``GD`` exclusion above rests on exactly this.
+
+    The cap is enforced HERE, at deck arrival: the entry the PREVIOUS deck
+    rendered through is re-sized (its fills are done now), the arriving deck's
+    entry is sized or created, and the oldest go. So the deck about to be
+    rendered is always resident, and the overshoot is one deck's worth of new
+    frequencies.
+    """
+    if _solver_cache:
+        _cache_measure(next(reversed(_solver_cache)))
+    key = _operator_key(deck)
+    cached = _solver_cache.get(key)
+    if cached is not None:
+        _cache_stats["hits"] += 1
+        _solver_cache.move_to_end(key)
+        cached.portal_deck = deck
+        _cache_evict()
+        return cached
+    # Construction first, and the counter after it: a deck this engine refuses
+    # raises here and moves NOTHING — no entry, no statistic — so a refusal is
+    # neither served from the cache nor recorded in it.
+    solver = DeckSolver(deck)
+    _cache_stats["misses"] += 1
+    _solver_cache[key] = solver
+    _cache_measure(key)
+    _cache_evict()
+    return solver
 
 
 # --------------------------------------------------------------------------
@@ -2980,7 +3224,7 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     out += ["", "", ""]
 
     try:
-        solver = DeckSolver(deck)
+        solver = _solver_for(deck)
     except PortalError as exc:
         _append_error(out, exc)
         return out, err
@@ -3189,6 +3433,11 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
     # mistake at configure time instead of a silent wrong default.
     global _active_basis
     _active_basis = _BASES["bspline"]  # per-invocation default, never sticky
+    # The cross-deck cache is per invocation for the same reason, and because
+    # entries built under one basis must not outlive it (the key carries the
+    # basis, so they could not be served anyway — this just stops them
+    # occupying the cap).
+    _reset_solver_cache()
     rest = list(argv)
     while "--basis" in rest or any(a.startswith("--basis=") for a in rest):
         if "--basis" in rest:
