@@ -2074,3 +2074,261 @@ def test_bspline_d1_answer_differs_from_the_default_degree():
     x_d1 = float(aip_tables(out_d1)[0][0][7])
     x_d2 = float(aip_tables(out_d2)[0][0][7])
     assert abs(x_d1 - x_d2) / abs(x_d2) > 0.05, (x_d1, x_d2)
+
+
+# --- hmatrix / arrayblock (issue #830): the large-array accelerators --------
+
+# These two entries are NOT a physics axis: HMatrixSolver and ArrayBlockSolver
+# are BSplineSolver subclasses that solve the SAME operator with a compressed
+# representation and GMRES instead of a dense fill and an LU. That makes the
+# roster's usual disabled-path probe (differ-from-default) useless — a silent
+# collapse to plain `bspline` would print the same digits — so the armour here
+# is two-sided: the printout must AGREE with the default basis, and a spy must
+# see the accelerated solve actually run.
+
+
+def _accel_pair(cls, volts=(1.0, 0.0), **kwargs):
+    """Two 9-segment 5 m dipoles 3 m apart, both centre-fed — a two-port
+    structure small enough to solve densely for comparison."""
+    import numpy as np
+
+    return cls(
+        wires=[
+            np.array([[0.0, 0.0, -2.5], [0.0, 0.0, 2.5]]),
+            np.array([[3.0, 0.0, -2.5], [3.0, 0.0, 2.5]]),
+        ],
+        n_per_edge_per_wire=[[9], [9]],
+        feeds=[(0, 2.5, volts[0]), (1, 2.5, volts[1])],
+        wavelength=nec_portal.C_LIGHT / 14.0e6,
+        wire_radius=0.001,
+        **kwargs,
+    )
+
+
+def _route_spy(solver):
+    """Record which of the two B-spline solve routes momwire takes, without
+    disturbing either. Installed BEFORE the shim, so the shim wraps these and
+    its own ``del`` on the instance attribute tidies them away."""
+    routes: list[str] = []
+    dense = solver._solve_with_kcl_ports
+
+    def spy_dense(z, v, kcl_a, overwrite=False):
+        routes.append("dense")
+        return dense(z, v, kcl_a, overwrite=overwrite)
+
+    solver._solve_with_kcl_ports = spy_dense
+    accel = getattr(solver, "_solve_hmatrix", None)
+    if accel is not None:
+
+        def spy_accel(h, kcl_a, b):
+            routes.append(f"accel:{type(h).__name__}")
+            return accel(h, kcl_a, b)
+
+        solver._solve_hmatrix = spy_accel
+    return routes
+
+
+def _accel_classes():
+    from momwire import ArrayBlockSolver, HMatrixSolver
+
+    return {"hmatrix": HMatrixSolver, "arrayblock": ArrayBlockSolver}
+
+
+@pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
+def test_the_accelerated_shim_reproduces_momwires_own_y_matrix(basis):
+    """The accelerated subclasses never reach `_solve_with_kcl_ports` — their
+    `compute_y_matrix` runs the constrained GMRES in `_solve_hmatrix` — so the
+    shim spies that instead, and the Y it hands back has to be the library's
+    own to the iterative tolerance."""
+    import numpy as np
+
+    cls = _accel_classes()[basis]
+    y_shim, _x = nec_portal._y_and_port_coeffs(_accel_pair(cls))
+    y_lib = np.asarray(_accel_pair(cls).compute_y_matrix(), dtype=np.complex128)
+    assert np.allclose(y_shim, y_lib, rtol=1e-8, atol=0.0)
+
+
+@pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
+def test_the_accelerated_shim_captures_the_gmres_solve_not_a_dense_fallback(basis):
+    """The one thing no printout test can see: WHICH solve answered. Without
+    it, `_BASES` could name the accelerated class while every deck quietly
+    took the dense path (`_hmatrix_unsupported`) and nothing would fail."""
+    cls = _accel_classes()[basis]
+    solver = _accel_pair(cls)
+    assert not solver._hmatrix_unsupported()
+    routes = _route_spy(solver)
+    _y, x = nec_portal._y_and_port_coeffs(solver)
+    assert routes and all(r.startswith("accel:") for r in routes), routes
+    assert x.shape[1] == 2
+
+
+@pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
+def test_the_accelerated_shim_columns_are_the_one_volt_drive_coefficients(basis):
+    """Column j of X must be the coefficients momwire would solve for a 1 V
+    drive at port j and nothing else on — the identity `solve_group` leans on
+    when it turns one fill into every excitation (``coeffs = X @ V``). Checked
+    against the DENSE B-spline solve of the same mesh, which is the answer the
+    accelerator approximates (measured max relative deviation 8e-16 for
+    hmatrix, 2e-11 for arrayblock, both far inside the 1e-6 solve_tol)."""
+    import numpy as np
+    from momwire import BSplineSolver
+
+    cls = _accel_classes()[basis]
+    _y, x = nec_portal._y_and_port_coeffs(_accel_pair(cls))
+    for j, volts in enumerate([(1.0, 0.0), (0.0, 1.0)]):
+        _z, alpha = _accel_pair(BSplineSolver, volts=volts).compute_impedance()
+        assert np.allclose(x[:, j], alpha, rtol=1e-6, atol=1e-9 * np.abs(alpha).max())
+
+
+def test_the_dense_fallback_route_is_still_captured():
+    """`_hmatrix_unsupported()` is singular enrichment and nothing else — not
+    mesh size, not ground — so this is the ONLY way to reach the dense path on
+    an accelerated class. The portal never asks for enrichment, but the shim
+    keeps the dense spy wired so a momwire that grows a new fallback degrades
+    to a slower answer rather than a `PortalError`."""
+    import numpy as np
+    from momwire import HMatrixSolver
+
+    solver = _accel_pair(HMatrixSolver, use_singular_enrichment=True)
+    assert solver._hmatrix_unsupported()
+    routes = _route_spy(solver)
+    y_shim, x = nec_portal._y_and_port_coeffs(solver)
+    assert routes == ["dense"], routes
+    y_lib = np.asarray(
+        _accel_pair(HMatrixSolver, use_singular_enrichment=True).compute_y_matrix(),
+        dtype=np.complex128,
+    )
+    assert np.allclose(y_shim, y_lib, rtol=1e-8, atol=0.0)
+    assert x.shape == (18, 2)
+
+
+# The seven classes the roster gates on (#826/#827): a Sommerfeld and a
+# two-medium ground, both network branch types, a lumped load, the PT/YY
+# readout, and a pattern. MEASURED: all seven take the ACCELERATED route under
+# both bases — the ground decks included, because `_hmatrix_unsupported()`
+# tests only `use_singular_enrichment` and every ground model the portal emits
+# (PEC image, reflection coefficient, Sommerfeld) is carried on the fast path.
+# No fixture class reaches the dense fallback.
+_ACCEL_HARD_FIXTURES = (
+    "dipole_sommerfeld_ground",
+    "dipole_gd_second_medium",
+    "dipole_tl_network",
+    "dipole_nt_network",
+    "dipole_load_ld4",
+    "dipole_pt_toggle",
+    "dipole_rp_pattern",
+)
+
+
+@pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
+@pytest.mark.parametrize("name", _ACCEL_HARD_FIXTURES)
+def test_the_accelerators_answer_the_hard_fixture_classes(name, basis):
+    rc, out, err = _run_main(["--basis", basis], deck=fixture_deck(name) + "\nNX\n")
+    assert rc == 0 and err == ""
+    assert "ERROR-NEC2C" not in out, f"{name} took the error path under {basis}"
+    missing = set(section_walk(fixture_out(name))) - set(section_walk(out))
+    assert not missing, f"{name} lost sections under {basis}: {sorted(missing)}"
+    tables = aip_tables(out)
+    assert tables and tables[0], f"no AIP data rows for {name} under {basis}"
+    for table in tables:
+        for row in table:
+            for tok in row:
+                assert math.isfinite(float(tok)), f"{name}: non-finite token {tok!r}"
+
+
+@pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
+def test_the_accelerators_agree_with_the_default_basis_and_the_oracle(basis):
+    """Agreement, not difference, is the probe here: same physics as
+    `bspline`, so the accelerated answer must land on the default's to the
+    iterative solve tolerance (measured: identical to every printed digit,
+    79.524+46.003j) while still clearing the 5% oracle bound (measured 0.77%
+    from nec2c's 79.240+45.364j). A collapse to a DIFFERENT basis is what this
+    catches; a collapse to dense `bspline` is caught by the spy test above."""
+    deck = fixture_deck("dipole_free_space") + "\nNX\n"
+    rc, out, err = _run_main(["--basis", basis], deck=deck)
+    assert rc == 0 and err == ""
+    _rc, out_default, _err = _run_main([], deck=deck)
+    ours = aip_tables(out)[0][0]
+    theirs = aip_tables(out_default)[0][0]
+    oracle = aip_tables(fixture_out("dipole_free_space"))[0][0]
+    z_ours = complex(float(ours[6]), float(ours[7]))
+    z_default = complex(float(theirs[6]), float(theirs[7]))
+    z_oracle = complex(float(oracle[6]), float(oracle[7]))
+    assert abs(z_ours - z_default) / abs(z_default) < 0.005, (z_ours, z_default)
+    assert abs(z_ours - z_oracle) / abs(z_oracle) < 0.05, (z_ours, z_oracle)
+
+
+@pytest.mark.parametrize("basis,suffix", [("hmatrix", "+hm"), ("arrayblock", "+ab")])
+def test_the_accelerators_stamp_the_banner(basis, suffix):
+    deck = (
+        "CE basis\n"
+        "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
+        "GE 0\nEX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n"
+    )
+    rc, out, err = _run_main(["--basis", basis], deck=deck)
+    assert rc == 0 and err == ""
+    assert f"VERSION:nec2c.ae6ty.momwire.9.1{suffix}" in out
+    assert aip_tables(out)[0]
+
+
+@pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
+def test_the_accelerators_ride_the_version_probe_unchanged(basis):
+    from antennaknobs.nec_portal import PROBE_VERSION
+
+    rc, out, _err = _run_main(["--basis", basis, "-version"])
+    assert rc == 0 and out == f"{PROBE_VERSION}\n"
+
+
+def test_the_lattice_fft_path_engages_and_the_shim_still_agrees():
+    """The engaged-path probe for `arrayblock`'s reason to exist. A 4x4 grid
+    of identical 3-segment half-wave dipoles meets every FFT gate (one block
+    shape, a regular lattice, P >= 16), and `require_lattice_fft=True` turns a
+    miss into `LatticeFFTUnavailable` naming the unmet gate rather than a
+    silent degradation to the parent H-matrix. The spy then pins that the
+    operator the shim's X came out of really is the spectral one, and the
+    answer is checked against the dense solve of the same mesh.
+
+    Runtime ~0.4 s (48 bases): the lattice gate is about the FFT bookkeeping,
+    not about size, so 16 three-segment elements engage it and this stays a
+    normal-suite test rather than a `heavy_mesh` one."""
+    import numpy as np
+    from momwire import ArrayBlockSolver, BSplineSolver
+
+    wavelength = nec_portal.C_LIGHT / 14.0e6
+    arm = 0.25 * wavelength
+    pitch = 0.5 * wavelength
+    wires = [
+        np.array([[ix * pitch, iy * pitch, -arm], [ix * pitch, iy * pitch, arm]])
+        for ix in range(4)
+        for iy in range(4)
+    ]
+
+    def build(cls, **kwargs):
+        return cls(
+            wires=wires,
+            n_per_edge_per_wire=[[3]] * len(wires),
+            feeds=[(0, arm, 1.0), (5, arm, 0.0)],
+            wavelength=wavelength,
+            wire_radius=0.001,
+            **kwargs,
+        )
+
+    solver = build(ArrayBlockSolver, require_lattice_fft=True)
+    routes = _route_spy(solver)
+    y_fft, x_fft = nec_portal._y_and_port_coeffs(solver)
+    assert routes == ["accel:LatticeArrayBlock"], routes
+
+    y_dense, x_dense = nec_portal._y_and_port_coeffs(build(BSplineSolver))
+    assert np.allclose(y_fft, y_dense, rtol=1e-6, atol=0.0)
+    assert np.allclose(x_fft, x_dense, rtol=1e-5, atol=1e-8 * np.abs(x_dense).max())
+
+
+def test_require_lattice_fft_names_the_unmet_gate_on_a_single_pair():
+    """The other half of the engaged-path proof: on a deck with nothing to
+    exploit the FFT gate is genuinely unmet and momwire says which one — so
+    the passing case above cannot be a vacuous assertion."""
+    from momwire import ArrayBlockSolver, LatticeFFTUnavailable
+
+    solver = _accel_pair(ArrayBlockSolver, require_lattice_fft=True)
+    with pytest.raises(LatticeFFTUnavailable):
+        nec_portal._y_and_port_coeffs(solver)
