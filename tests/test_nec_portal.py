@@ -2536,7 +2536,16 @@ def cache_render(body: str) -> str:
 
 
 def cold_render(body: str) -> str:
-    """The same deck from an EMPTY cache — what a fresh process prints."""
+    """The same deck from an EMPTY cache — what a fresh process prints.
+
+    That claim needs the DEFAULT basis too: ``main()`` resets
+    ``_active_basis`` at the START of its next invocation, not on exit, so a
+    ``--basis`` probe test leaves its basis behind for every direct
+    ``deck_frame`` render that follows. A fresh-subprocess comparison after
+    such a test would then diff two different physics — an ordering hazard,
+    not a cache bug (it predates the cache; the subprocess-identity tests are
+    just the first to be sensitive to it)."""
+    nec_portal._active_basis = nec_portal._BASES["bspline"]
     nec_portal._reset_solver_cache()
     return cache_render(body)
 
@@ -2843,6 +2852,40 @@ def test_a_hit_rebinds_the_arriving_deck_onto_the_cached_solver():
     assert (
         solver.portal_deck.second_medium == nec_portal.parse_deck(moved).second_medium
     )
+
+
+def test_a_second_medium_change_through_a_warm_cache_moves_the_cliff_pattern():
+    """The combined pin for #823 × #842. The cliff modes made the second
+    medium load-bearing in the far field, and it is read through
+    ``solver.portal_deck.second_medium`` — exactly the attribute a cache hit
+    rebinds. So a GD edit through a WARM cache must (a) hit, (b) move the
+    RADIATION PATTERNS rows, and (c) match a fresh process byte for byte. A
+    stale second medium would pass (a) and fail (b) or (c)."""
+    base = fixture_deck("dipole_rp2_linear_cliff")
+    moved = base.replace("GD 0 0 0 0 5. .001 10. -2.", "GD 0 0 0 0 80. .04 10. -2.")
+    assert moved != base
+    first = cold_render(base)
+    before = cache_counts()
+    served = cache_render(moved)
+    assert cache_counts()["hits"] == before["hits"] + 1
+    pattern_rows = lambda text: [  # noqa: E731 - two-line local helper
+        ln for ln in text.splitlines() if len(ln.split()) == 12 and "." in ln
+    ]
+    assert pattern_rows(served) != pattern_rows(first), (
+        "the warm-cache answer ignored the new second medium"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-m", "antennaknobs.nec_portal"],
+        # fixture_deck strips the framing NX AND the trailing newline.
+        input=moved + "\nNX\n",
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0 and proc.stderr == ""
+    fresh = frame_lines(proc.stdout)
+    assert fresh, "the fresh process rendered nothing — deck framing bug"
+    assert frame_lines(served) == fresh
 
 
 def test_a_cached_entry_is_re_sized_by_the_fills_it_grew():
