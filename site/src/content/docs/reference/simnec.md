@@ -258,6 +258,17 @@ matrix. The portal takes the union of every group's ports, fills and factors
 **once** per geometry and frequency, and answers each group by back-substitution
 on the cached factors. A three-port deck costs one fill, not three.
 
+The deck is not the boundary either. The protocol is stateless — a sweep
+arrives as N separate decks, each re-sending the whole geometry — but the
+engine remembers: a solved structure is kept under a key built from everything
+that decides its moment matrix (geometry after transforms, ground, loading,
+port placement, network branches, kernel flag, basis), so a knob dragged back
+to a value already probed, a restarted sweep, or the same antenna handed to
+another engine in the crew is answered without parsing, meshing or filling
+anything. The same structure at a *new* frequency reuses the mesh and pays only
+the fill. The biggest bench deck (106 segments) takes ~150 ms cold and ~11 ms
+on the repeat, and what is left in the repeat is the printout itself.
+
 ### What refuses — cleanly
 
 A deck the engine cannot model is *reported and stepped over*, never guessed
@@ -301,6 +312,12 @@ complex matrix and its factors, which grow as the square of the segment count.
 It is also much quicker per deck once warm (a 106-segment design solves in
 ~130 ms, a small dipole in ~2 ms), so a smaller crew keeps up with a larger one
 of the C engine.
+
+Its memory of past structures is capped, per process, at a few hundred MB, and
+a full cache costs a re-solve rather than a failure — so the worst case for a
+crew of four stays well inside a 16 GB machine. In practice a bench-sized
+design's entry measures tens of kilobytes, so the cap is a safety net for
+array-scale work rather than something a session reaches.
 
 **On a 16 GB machine, set the NEC crew size to 4.** Larger crews buy little,
 because the win here is the single fill per geometry rather than parallelism
