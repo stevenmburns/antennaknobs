@@ -186,6 +186,8 @@ momwire-nec2c --basis bspline-d1                     # degree 1 (tent basis) —
 momwire-nec2c --basis sinusoidal                     # closest to NEC-2's own formulation
 momwire-nec2c --basis sinusoidal-galerkin            # the same basis, tested variationally
 momwire-nec2c --basis sinusoidal-galerkin-converged  # recommended for near-open high-Q feeds
+momwire-nec2c --basis hmatrix                        # same physics, hierarchical (ACA) solve
+momwire-nec2c --basis arrayblock                     # same physics, element-block/FFT solve — large arrays
 ```
 
 Four of those are a ladder: NEC-2 itself, then `sinusoidal` — the three-term
@@ -196,7 +198,15 @@ basis say". There is no `sinusoidal-converged`: a zero-width gap cannot be
 expressed under point matching (momwire#212), and the flag does not offer a
 name the solver would refuse. `bspline-d1` sits on a different axis — the
 same B-spline physics at degree 1, so pairing it with the default is the
-cheapest d1-vs-d2 convergence check a SimNEC user can run.
+cheapest d1-vs-d2 convergence check a SimNEC user can run. `hmatrix` and
+`arrayblock` are another axis again — not different physics but a different
+*solve*: the same B-spline operator held compressed and solved iteratively, so
+a large array answers without a dense fill. `arrayblock` is the one to reach
+for on a repeated-element array (identical elements on a regular lattice
+become an FFT convolution over the element grid); it degrades to `hmatrix`'s
+hierarchical solve on a deck with no repeated structure, so it is safe to
+leave on. Their answers should match `bspline`'s — if they do not, the deck is
+telling you something about conditioning, not about basis choice.
 
 **Paste two portal entries that differ only in `--basis` and you have
 cross-basis validation inside SimNEC itself** — switch engines from the
