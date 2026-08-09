@@ -215,8 +215,8 @@ takes 8.0 s and 5.3 GB with the dense fill and **0.77 s and 137 MB on
 — it needs about 15 GB — while `arrayblock` answers it in 1.3 s and 173 MB. At
 48×48 (2304 elements) `arrayblock` takes 3.0 s and 272 MB where `hmatrix`
 needs 158 s and 2.0 GB. The crossover is around 8×8; below that the dense fill
-is the cheaper tool. Agreement with the dense solve stays better than 1e-06
-relative everywhere dense can still be run. Full ladder, method and caveats:
+is the cheaper tool. Agreement with the dense solve stays within a few parts
+in 10⁶ relative everywhere dense can still be run. Full ladder, method and caveats:
 [`docs/status/2026-08-09-arrayblock-lattice-benchmark.md`](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-08-09-arrayblock-lattice-benchmark.md).
 
 **Paste two portal entries that differ only in `--basis` and you have
