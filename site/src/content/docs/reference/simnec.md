@@ -258,16 +258,57 @@ matrix. The portal takes the union of every group's ports, fills and factors
 **once** per geometry and frequency, and answers each group by back-substitution
 on the cached factors. A three-port deck costs one fill, not three.
 
-The deck is not the boundary either. The protocol is stateless — a sweep
+The deck need not be the boundary either. The protocol is stateless — a sweep
 arrives as N separate decks, each re-sending the whole geometry — but the
-engine remembers: a solved structure is kept under a key built from everything
-that decides its moment matrix (geometry after transforms, ground, loading,
-port placement, network branches, kernel flag, basis), so a knob dragged back
-to a value already probed, a restarted sweep, or the same antenna handed to
-another engine in the crew is answered without parsing, meshing or filling
-anything. The same structure at a *new* frequency reuses the mesh and pays only
-the fill. The biggest bench deck (106 segments) takes ~150 ms cold and ~11 ms
-on the repeat, and what is left in the repeat is the printout itself.
+engine *can* remember: with `--cache`, a solved structure is kept under a key
+built from everything that decides its moment matrix (geometry after
+transforms, ground, loading, port placement, network branches, kernel flag,
+basis), so a knob dragged back to a value already probed, a restarted sweep, or
+the same antenna handed to another engine in the crew is answered without
+parsing, meshing or filling anything. The same structure at a *new* frequency
+reuses the mesh and pays only the fill. The biggest bench deck (106 segments)
+takes ~150 ms cold and ~11 ms on the repeat, and what is left in the repeat is
+the printout itself.
+
+### Measure before you cache
+
+That is **off by default**, and the reason is that the bench is not the
+workload. What the cache exploits is how often a real session re-sends a
+structure it has already sent, and nobody has measured a real session. So the
+shipped default stays the behaviour that has been validated, and the engine
+offers to answer the question instead:
+
+```text
+momwire-nec2c --cache-stats /tmp/nec-cache-stats.json
+```
+
+Put that in the portal dialog's engine command and run a normal session. Every
+deck is solved exactly as it is today — nothing is cached, nothing is retained,
+the answers are the stock answers — but the engine computes each deck's key and
+counts how many decks a cache *would* have served. The file is rewritten after
+every deck (SimNEC ends a session by killing the process, so anything written
+at exit is never written) and holds one small JSON object:
+
+```json
+{"mode": "dry-run", "decks_rendered": 412, "hits": 273, "misses": 139,
+ "fills": 412, "evictions": 0, "bytes": 0, "entries": 0}
+```
+
+`hits` against `decks_rendered` is the saving on offer. If it is worth having,
+turn serving on:
+
+```text
+momwire-nec2c --cache
+momwire-nec2c --cache --cache-stats /tmp/nec-cache-stats.json
+```
+
+The first serves; the second serves *and* keeps measuring, which is the one to
+run for a while after switching over — `entries` and `bytes` then report what
+the process is actually holding.
+
+Neither flag changes a byte of the printout, and neither writes anything to the
+session — the transcript is identical in all three modes, which is what the
+test suite asserts deck by deck against a process carrying no flags at all.
 
 ### What refuses — cleanly
 
@@ -313,11 +354,14 @@ It is also much quicker per deck once warm (a 106-segment design solves in
 ~130 ms, a small dipole in ~2 ms), so a smaller crew keeps up with a larger one
 of the C engine.
 
-Its memory of past structures is capped, per process, at a few hundred MB, and
-a full cache costs a re-solve rather than a failure — so the worst case for a
-crew of four stays well inside a 16 GB machine. In practice a bench-sized
-design's entry measures tens of kilobytes, so the cap is a safety net for
-array-scale work rather than something a session reaches.
+Without `--cache` that is the whole budget — a process keeps nothing between
+decks. With it, its memory of past structures is capped per process at a few
+hundred MB, and a full cache costs a re-solve rather than a failure, so the
+worst case for a crew of four stays well inside a 16 GB machine. In practice a
+bench-sized design's entry measures tens of kilobytes, so the cap is a safety
+net for array-scale work rather than something a session reaches; run
+`--cache --cache-stats` for a while and the `bytes` field says exactly what
+yours is holding.
 
 **On a 16 GB machine, set the NEC crew size to 4.** Larger crews buy little,
 because the win here is the single fill per geometry rather than parallelism
