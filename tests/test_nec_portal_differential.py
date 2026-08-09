@@ -390,11 +390,26 @@ def test_unsupported_cards_take_the_documented_error_path(marker, deck):
     The oracle's own failure mode for one of these (GN 2 + radials) is to stop
     printing entirely — no NX echo, so ``Execute.processResponse`` blocks in
     ``readLine()`` forever. This engine must not inherit that.
+
+    Issue #829 (Ward's 2026-08-08 reply) added a second requirement across
+    this same class: the refusal must also lead with a line whose first
+    token is exactly ``ERROR:`` — an equality test on token 0, not a
+    substring one — because that is what trips ``Execute``'s
+    ``"NEC ERROR (1)"`` warning frame and is what Ward's planned reader
+    fix will anchor to. The oracle-shaped ``ERROR-NEC2C:`` line stays right
+    behind it, for grep.
     """
     text = run_deck(deck)[0]
     assert "ERROR-NEC2C: " in text
     assert marker in text, f"the error does not name {marker!r}:\n{text[-400:]}"
     assert NX_ECHO.search(text), "no NX sentinel on the error path"
+    error_lines = [ln for ln in text.splitlines() if ln.split()[:1] == ["ERROR:"]]
+    assert error_lines, (
+        f"no line trips Execute's token-0 `ERROR:` warning frame:\n{text[-400:]}"
+    )
+    assert marker in error_lines[0], (
+        f"the `ERROR:` line does not name {marker!r}: {error_lines[0]!r}"
+    )
 
 
 # --------------------------------------------------------------------------

@@ -381,6 +381,14 @@ def test_an_unsupported_card_still_emits_the_sentinel():
     this list (#799 took ``TL``): the portal dialect can carry it, but its
     semantics are NEC-4.2's insulated-wire model, which momwire does not have —
     so it takes the error path rather than silently solving a bare wire.
+
+    Issue #829 (Ward's 2026-08-08 reply): the refusal now leads with an
+    ``ERROR:`` line — token 0 exactly, which is what trips Execute's
+    ``"NEC ERROR (1)"`` warning frame — with the oracle-shaped
+    ``ERROR-NEC2C:`` line kept right after it for grep. Before #829 the
+    prefix was chosen specifically to dodge that frame; Ward has since said
+    the frame "should be fine" and that he intends to make the reader bail
+    on it, so this test now pins the opposite of what it used to.
     """
     out, err = deck_frame(
         "CE insulation\n"
@@ -394,11 +402,85 @@ def test_an_unsupported_card_still_emits_the_sentinel():
     )
     text = "\n".join(out)
     assert NX_ECHO.search(text), "the NX sentinel is missing on the error path"
+    assert "ERROR: IS" in text
     assert "ERROR-NEC2C: IS" in text
-    # `ERROR:` as token 0 is what trips Execute's warning frame; the oracle's
-    # own prefix deliberately does not.
-    assert not any(line.split()[:1] == ["ERROR:"] for line in text.splitlines())
+    assert any(line.split()[:1] == ["ERROR:"] for line in text.splitlines()), (
+        "no line trips Execute's token-0 `ERROR:` warning frame"
+    )
     assert err == []
+
+
+# --------------------------------------------------------------------------
+# issue #829: the `ERROR:` line must trip and ONLY trip on a real refusal
+# --------------------------------------------------------------------------
+
+
+def _first_tokens(text: str) -> list[str]:
+    return [line.split()[0] for line in text.splitlines() if line.split()]
+
+
+@pytest.mark.parametrize("name", ALL_NAMES)
+def test_no_clean_fixture_carries_a_token_0_error_line(name):
+    """The corpus-wide half of the token-0 pin: a healthy deck must never
+    show Execute's warning frame — a stray ``ERROR:`` on a clean run would be
+    a false alarm in the SimNEC UI.
+
+    Walked against the committed oracle ``.out`` bytes themselves, not our
+    own printout, because that is the file most exposed to accidental
+    real-string drift (e.g. a future oracle capture, a hand edit) and the one
+    a corpus-wide gate is for. The oracle's own literal ``ERROR-NEC2C:``
+    stdin-EOF string (grammar doc §8) is a DIFFERENT token — it never
+    collides with ``ERROR:`` — which is exactly why that shape was safe to
+    reuse here.
+    """
+    assert "ERROR:" not in _first_tokens(fixture_out(name)), (
+        f"{name}: a clean oracle fixture carries a token-0 `ERROR:` line"
+    )
+
+
+@pytest.mark.parametrize("name", REPRESENTATIVE)
+def test_no_clean_regenerated_printout_carries_a_token_0_error_line(name):
+    """Same pin, our side: a handful of clean decks run back through this
+    engine must not produce the warning frame either."""
+    assert "ERROR:" not in _first_tokens(printout(name)), (
+        f"{name}: our own clean printout carries a token-0 `ERROR:` line"
+    )
+
+
+def test_patch_antenna_refusal_shows_why_nothing_loaded():
+    """Stand-in for the issue's live-session gate (no SimNEC on this box).
+
+    The live case (issue #829) was an EZNEC patch-antenna design: SimNEC
+    forwarded an ``SP``/``SM`` surface-patch deck, the daemon refused it
+    silently under the pre-#829 ``ERROR-NEC2C:``-only shape, and the user was
+    left staring at an empty session with no indication why. This synthesizes
+    the same refusal class — ``SP`` — through ``main`` exactly as the daemon
+    receives it on stdin, and pins the three things that scenario needs:
+    the deck exits cleanly (rc 0, daemon stays resident — no reason for a
+    live session to die over one bad deck), the refusal names the offending
+    card, and the ``ERROR:`` token-0 line is present to trip SimNEC's own
+    warning frame instead of leaving the UI blank.
+    """
+    deck = (
+        "CE patch antenna\n"
+        "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
+        "GE 0\n"
+        "EX 0 1 5 0 1.\n"
+        "SP 0 0 0. 0. 0. 0. 0. 1.\n"
+        "FR 0 1 0 0 30. 0\n"
+        "XQ\nNX\n"
+    )
+    rc, out, err = _run_main([], deck=deck)
+    assert rc == 0, "the daemon must exit cleanly, not die on the bad deck"
+    assert err == ""
+    error_lines = [ln for ln in out.splitlines() if ln.split()[:1] == ["ERROR:"]]
+    assert error_lines, "no token-0 `ERROR:` line — the user sees nothing again"
+    assert "SP" in error_lines[0], f"the refusal does not name SP: {error_lines[0]!r}"
+    assert NX_ECHO.search(out), "no NX sentinel on the error path"
+    # Follow-up: re-run this scenario against a live SimNEC session on the
+    # Windows box once Ward ships his reader bail-fix, to confirm the frame
+    # actually surfaces to the user end to end (tracked as a note in #829,
+    # not re-testable here — no SimNEC install on this machine).
 
 
 # --------------------------------------------------------------------------
@@ -1452,6 +1534,9 @@ def test_the_rp_modes_that_would_use_a_gd_are_still_refused():
     the deck shapes where ``GD`` is inert are the shapes this engine runs,
     and the shapes where it is not are refused by name (issue #802) — this
     engine can never be asked a cliff question and answer it as flat ground.
+
+    Issue #829: every refused mode must also lead with a token-0 ``ERROR:``
+    line so SimNEC's ``"NEC ERROR (1)"`` warning frame fires.
     """
     head = (
         "CE gd cliff pattern\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\n"
@@ -1462,6 +1547,7 @@ def test_the_rp_modes_that_would_use_a_gd_are_still_refused():
         text = run_deck(head + f"RP {mode} 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
         assert f"RP mode {mode} is not supported" in text, mode
         assert NX_ECHO.search(text), mode
+        assert any(line.split()[:1] == ["ERROR:"] for line in text.splitlines()), mode
     # ...and the mode SimNEC actually writes runs, second medium or not.
     text = run_deck(head + "RP 0 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
     assert "ERROR-NEC2C" not in text
@@ -1541,15 +1627,21 @@ def test_a_bad_deck_reports_and_still_emits_the_sentinel(label, case):
     (grammar doc §2, §10.1). A replacement engine that dies, or that reports
     an error and forgets the sentinel, hangs the SimNEC UI rather than showing
     a message — which is strictly worse than a wrong answer.
+
+    Issue #829 (Ward's 2026-08-08 reply): every refusal now also trips
+    Execute's ``"NEC ERROR (1)"`` warning frame on purpose (token 0 exactly
+    ``ERROR:``), so the user sees *why* nothing loaded instead of staring at
+    a session that looks like it just did nothing. That used to be exactly
+    what this test forbade; #829 reverses the call.
     """
     deck, marker = case
     out, err = deck_frame(deck)
     text = "\n".join(out)
     assert NX_ECHO.search(text), f"{label}: no NX sentinel"
     assert marker in text, f"{label}: error does not mention {marker!r}:\n{text[-500:]}"
-    # `ERROR:` as token 0 is what trips Execute's warning frame; the oracle's
-    # own prefix deliberately does not.
-    assert not any(line.split()[:1] == ["ERROR:"] for line in text.splitlines())
+    assert any(line.split()[:1] == ["ERROR:"] for line in text.splitlines()), (
+        f"{label}: no line trips Execute's token-0 `ERROR:` warning frame"
+    )
     assert err == []
 
 
