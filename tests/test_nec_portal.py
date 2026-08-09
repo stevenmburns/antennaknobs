@@ -2514,3 +2514,505 @@ def test_require_lattice_fft_names_the_unmet_gate_on_a_single_pair():
     solver = _accel_pair(ArrayBlockSolver, require_lattice_fft=True)
     with pytest.raises(LatticeFFTUnavailable):
         nec_portal._y_and_port_coeffs(solver)
+
+
+# --- the cross-deck solver cache (issue #823) --------------------------------
+#
+# The cache's whole claim is that the printout is IDENTICAL whether a deck was
+# solved or served — so the printout cannot be the evidence that it WAS served.
+# These tests read `nec_portal._cache_stats` for that half and hold the
+# printout to the other half: that a served answer is the answer the arriving
+# deck asked for, byte for byte against the same deck rendered from an empty
+# cache. Nothing here parses a timing line.
+#
+# A stale factor would be silent and wrong, so the battery below is the point
+# of the feature: one mutation per class of card that moves the operator, each
+# asserting a MISS, and one per class that does not, each asserting a HIT.
+
+
+def cache_render(body: str) -> str:
+    """One deck through the daemon's own per-deck path, cache as it stands."""
+    return "\n".join(deck_frame(body)[0])
+
+
+def cold_render(body: str) -> str:
+    """The same deck from an EMPTY cache — what a fresh process prints."""
+    nec_portal._reset_solver_cache()
+    return cache_render(body)
+
+
+def cache_counts() -> dict:
+    return dict(nec_portal._cache_stats)
+
+
+def deck_chunks(transcript: str) -> list[str]:
+    """A daemon transcript split after each ``NX`` echo — one chunk per deck."""
+    chunks: list[str] = []
+    current: list[str] = []
+    for line in transcript.splitlines():
+        current.append(line)
+        if NX_ECHO.match(line):
+            chunks.append("\n".join(current))
+            current = []
+    return chunks
+
+
+def fill_lines(text: str) -> list[str]:
+    """The MATRIX TIMING lines `body_lines` drops. A hit reuses the cached
+    entry's measured fill, so between two passes of one process even these
+    repeat to the digit — the token arity never moves either way."""
+    return [line for line in text.splitlines() if "FILL:" in line]
+
+
+def frame_lines(text: str) -> list[str]:
+    """`body_lines` minus the ASCII banner box, so ONE deck's in-process frame
+    and a whole process's transcript of the same deck compare."""
+    return [
+        line
+        for line in body_lines(text)
+        if "|" not in line and set(line.strip()) != {"_"}
+    ]
+
+
+def aip_impedances(text: str) -> list[tuple[str, str]]:
+    """The impedance columns of every ANTENNA INPUT PARAMETERS row."""
+    return [(row[6], row[7]) for table in aip_tables(text) for row in table]
+
+
+@pytest.mark.parametrize("name", ALL_NAMES)
+def test_a_second_pass_of_every_fixture_prints_what_the_first_did(name):
+    """The identity gate, over the whole corpus: every fixture sent TWICE down
+    one process, compared under the harness's own canonicalisation.
+
+    Fixtures that are multi-deck residency transcripts are compared deck for
+    deck, first half against second. `misses` may not grow on the second pass —
+    that is the assertion that the second half was SERVED rather than re-solved
+    into an identical answer, which is what makes the identity meaningful.
+    """
+    text = (FIXTURE_DIR / f"{name}.deck").read_text()
+    if not text.endswith("\n"):
+        text += "\n"
+    buffer = io.StringIO()
+    rc = main([], stdin=io.StringIO(text * 2), stdout=buffer, stderr=io.StringIO())
+    assert rc == 0
+    chunks = deck_chunks(buffer.getvalue())
+    half = len(chunks) // 2
+    assert half >= 1 and len(chunks) == 2 * half
+    for first, second in zip(chunks[:half], chunks[half:]):
+        assert body_lines(second) == body_lines(first)
+        assert fill_lines(second) == fill_lines(first)
+    assert nec_portal._cache_stats["hits"] >= half
+    assert nec_portal._cache_stats["misses"] <= half
+
+
+@pytest.mark.parametrize("name", ("dipole_free_space", "dipole_rp_pattern"))
+def test_a_served_deck_matches_a_genuinely_fresh_process(name):
+    """And the served printout is not merely self-consistent: it is what a
+    process that never saw the deck before prints. `dipole_rp_pattern` carries
+    the far-field path, where a stale solver would show up as a wrong pattern
+    table rather than a wrong impedance."""
+    text = fixture_deck(name) + "\nNX\n"
+    proc = subprocess.run(
+        [sys.executable, "-m", "antennaknobs.nec_portal"],
+        input=text,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0 and proc.stderr == ""
+    buffer = io.StringIO()
+    assert (
+        main([], stdin=io.StringIO(text * 2), stdout=buffer, stderr=io.StringIO()) == 0
+    )
+    chunks = deck_chunks(buffer.getvalue())
+    assert len(chunks) == 2 and nec_portal._cache_stats["hits"] == 1
+    assert frame_lines(chunks[1]) == frame_lines(proc.stdout)
+
+
+# A deck carrying one of everything the key has to watch, so each mutation
+# below is a single-token edit against the same base: a wire over a
+# reflection-coefficient ground, scaled, loaded, driven off-centre.
+CACHE_BASE = (
+    "CM cross-deck cache probe\n"
+    "CE\n"
+    "GW 1 9 0. 0. 5.0 0. 0. 10.0 0.001\n"
+    "GS 0 0 1.0\n"
+    "GE -1\n"
+    "GN 0 0 0 0 13. 0.005\n"
+    "LD 0 1 3 3 50. 1.e-6 0.\n"
+    "EX 0 1 5 0 1.\n"
+    "FR 0 1 0 0 14.1 0\n"
+    "XQ\n"
+)
+
+
+def mutate(old: str, new: str, base: str = CACHE_BASE) -> str:
+    """A deck with one substring replaced — asserted unique, so a mutant can
+    never silently edit a card it did not mean to."""
+    assert base.count(old) == 1, old
+    return base.replace(old, new)
+
+
+# The same base with both network branch types hung across the same pair of
+# segments, so a branch's VALUES can be mutated without moving the port set —
+# the case the port component of the key cannot catch.
+CACHE_NET_BASE = mutate(
+    "EX 0 1 5 0 1.\n",
+    "EX 0 1 5 0 1.\nTL 1 3 1 7 600. 2.5 0. 0. 0. 0.\nNT 1 3 1 7 0. 0.02 0. 0. 0. 0.02\n",
+)
+
+
+# (label, base deck, mutant deck, does this move the printed numbers?)
+_OPERATOR_MUTATIONS = (
+    ("GW endpoint", CACHE_BASE, mutate("0. 0. 10.0 0.001", "0. 0. 10.4 0.001"), True),
+    ("wire radius", CACHE_BASE, mutate("0.001", "0.0025"), True),
+    ("segment count", CACHE_BASE, mutate("GW 1 9", "GW 1 11"), True),
+    ("GS scale", CACHE_BASE, mutate("GS 0 0 1.0", "GS 0 0 1.1"), True),
+    # The GE flag is the ground-plane ANNOTATION on this deck (the wire is well
+    # clear of z = 0, and GN carries the physics), so it moves the printout
+    # without moving a number. It is in the key because on a deck whose wire
+    # touches the plane it moves both.
+    ("GE flag", CACHE_BASE, mutate("GE -1", "GE 0"), False),
+    ("GN parameter", CACHE_BASE, mutate("13. 0.005", "20. 0.005"), True),
+    ("GN removed", CACHE_BASE, mutate("GN 0 0 0 0 13. 0.005\n", ""), True),
+    ("LD value", CACHE_BASE, mutate("50. 1.e-6", "150. 1.e-6"), True),
+    ("LD removed", CACHE_BASE, mutate("LD 0 1 3 3 50. 1.e-6 0.\n", ""), True),
+    ("EX moved", CACHE_BASE, mutate("EX 0 1 5", "EX 0 1 4"), True),
+    (
+        "NT added",
+        CACHE_BASE,
+        mutate("EX 0 1 5 0 1.\n", "EX 0 1 5 0 1.\nNT 1 3 1 7 0. 0.02 0. 0. 0. 0.02\n"),
+        True,
+    ),
+    (
+        "TL added",
+        CACHE_BASE,
+        mutate("EX 0 1 5 0 1.\n", "EX 0 1 5 0 1.\nTL 1 3 1 7 600. 2.5 0. 0. 0. 0.\n"),
+        True,
+    ),
+    # Branch VALUES across an unchanged pair of segments: the port set is
+    # identical, so only the `networks` component of the key can catch these.
+    (
+        "NT admittance",
+        CACHE_NET_BASE,
+        mutate("0. 0.02 0. 0. 0. 0.02", "0. 0.03 0. 0. 0. 0.03", CACHE_NET_BASE),
+        True,
+    ),
+    (
+        "TL impedance",
+        CACHE_NET_BASE,
+        mutate("600. 2.5", "450. 2.5", CACHE_NET_BASE),
+        True,
+    ),
+    ("TL length", CACHE_NET_BASE, mutate("600. 2.5", "600. 3.5", CACHE_NET_BASE), True),
+    (
+        "TL crossed",
+        CACHE_NET_BASE,
+        mutate("600. 2.5", "-600. 2.5", CACHE_NET_BASE),
+        True,
+    ),
+    # EK is the conservative key entry: momwire's kernel is momwire's kernel, so
+    # the flag moves no number here — the gate is that it still MISSES, because
+    # a card whose meaning is "compute the operator differently" must never be
+    # answered from an entry built without it.
+    ("EK toggled", CACHE_BASE, mutate("EX 0 1 5 0 1.\n", "EK\nEX 0 1 5 0 1.\n"), False),
+)
+
+
+@pytest.mark.parametrize(
+    "base,mutant,moves_numbers",
+    [(m[1], m[2], m[3]) for m in _OPERATOR_MUTATIONS],
+    ids=[m[0] for m in _OPERATOR_MUTATIONS],
+)
+def test_an_operator_change_misses_the_cross_deck_cache(base, mutant, moves_numbers):
+    """The care point. One mutation per class of card that moves the operator;
+    each must be a MISS and each must answer with its own physics, checked
+    against the same deck rendered from an empty cache."""
+    baseline = cold_render(base)
+    assert "ERROR-NEC2C" not in baseline, baseline
+    before = cache_counts()
+    served = cache_render(mutant)
+    after = cache_counts()
+    assert after["hits"] == before["hits"], "served a stale operator"
+    assert after["misses"] == before["misses"] + 1
+    assert "ERROR-NEC2C" not in served, served
+    assert body_lines(served) == body_lines(cold_render(mutant))
+    if moves_numbers:
+        assert aip_impedances(served) != aip_impedances(baseline)
+
+
+# Cards that change what is PRINTED or how the answer is read out, never the
+# operator behind it. Each must be served from the base's entry.
+_READOUT_MUTATIONS = (
+    ("CM text", mutate("CM cross-deck cache probe", "CM something else entirely")),
+    (
+        "card formatting",
+        mutate(
+            "GW 1 9 0. 0. 5.0 0. 0. 10.0 0.001",
+            "GW,1,9,0.,0.,5.,0.,0.,10.,.001",
+        ),
+    ),
+    ("EX voltage", mutate("EX 0 1 5 0 1.", "EX 0 1 5 0 2.5")),
+    ("RP grid", mutate("XQ\n", "RP 0 7 13 1001 0 0 30 30 1000\nXQ\n")),
+    ("YY card", mutate("EX 0 1 5 0 1.\n", "YY 1 3 1 7\nEX 0 1 5 0 1.\n")),
+    ("PT card", mutate("XQ\n", "PT -1\nXQ\n")),
+    ("MP card", mutate("XQ\n", "MP 16 32\nXQ\n")),
+)
+
+
+@pytest.mark.parametrize(
+    "mutant",
+    [m[1] for m in _READOUT_MUTATIONS],
+    ids=[m[0] for m in _READOUT_MUTATIONS],
+)
+def test_a_readout_change_hits_the_cross_deck_cache_and_answers_fresh(mutant):
+    """The other half of the care point: a deck that differs only in what it
+    prints must be SERVED — no parse, no mesh, no fill — and must still print
+    exactly what a cold cache prints for it."""
+    cold_render(CACHE_BASE)
+    before = cache_counts()
+    served = cache_render(mutant)
+    after = cache_counts()
+    assert after["hits"] == before["hits"] + 1, "re-solved an operator it had"
+    assert after["misses"] == before["misses"]
+    assert after["fills"] == before["fills"], "a hit at one frequency must not fill"
+    assert "ERROR-NEC2C" not in served, served
+    assert body_lines(served) == body_lines(cold_render(mutant))
+
+
+def test_a_new_frequency_reuses_the_geometry_and_pays_only_the_fill():
+    """The issue's third bullet: a crew member handed the same structure at
+    another frequency skips the parse and the mesh — a solver-level HIT — and
+    pays exactly one new fill inside it."""
+    mutant = mutate("14.1", "21.1")
+    cold_render(CACHE_BASE)
+    before = cache_counts()
+    served = cache_render(mutant)
+    after = cache_counts()
+    assert after["hits"] == before["hits"] + 1
+    assert after["misses"] == before["misses"]
+    assert after["fills"] == before["fills"] + 1
+    assert body_lines(served) == body_lines(cold_render(mutant))
+
+
+# The GD proof. The second medium reaches NEC's far field only through RP's
+# cliff modes, so it is deliberately OUT of the key and a GD knob-drag HITS.
+# What makes that safe is that a hit rebinds `portal_deck` to the arriving
+# deck, and the comparison here is against a FRESH PROCESS rather than against
+# the served run itself — so this stays a proof if GD ever grows a far field.
+GD_BASE = (
+    "CE gd probe\n"
+    "GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001\n"
+    "GE -1\nGN 1\nGD 2,0,0,0,13.,.005,0.,0.\n"
+    "EX 0 1 5 0 1.\nFR 0 1 0 0 14.1 0\nXQ\n"
+)
+
+
+def test_a_gd_card_change_hits_the_cache_and_still_answers_fresh():
+    moved = GD_BASE.replace("13.,.005", "80.,.01")
+    assert moved != GD_BASE
+    cold_render(GD_BASE)
+    before = cache_counts()
+    served = cache_render(moved)
+    assert cache_counts()["hits"] == before["hits"] + 1
+    assert "ERROR-NEC2C" not in served, served
+    proc = subprocess.run(
+        [sys.executable, "-m", "antennaknobs.nec_portal"],
+        input=moved + "NX\n",
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0 and proc.stderr == ""
+    assert frame_lines(served) == frame_lines(proc.stdout)
+
+
+def test_a_hit_rebinds_the_arriving_deck_onto_the_cached_solver():
+    """The invariant the GD exclusion rests on. Everything a cached instance
+    derived from its original deck is in the key and therefore identical, but
+    `portal_deck` is a live reference the printout reads through — so a hit
+    hands it the deck actually being rendered, and no cached instance can carry
+    a stale card that the key deliberately does not watch."""
+    cold_render(GD_BASE)
+    solver = next(iter(nec_portal._solver_cache.values()))
+    assert (
+        solver.portal_deck.second_medium == nec_portal.parse_deck(GD_BASE).second_medium
+    )
+    moved = GD_BASE.replace("13.,.005", "80.,.01")
+    cache_render(moved)
+    assert (
+        solver.portal_deck.second_medium == nec_portal.parse_deck(moved).second_medium
+    )
+
+
+def test_a_cached_entry_is_re_sized_by_the_fills_it_grew():
+    """An entry GROWS after it is stored — a sweep adds an `at()` fill per
+    frequency — so the size taken at insertion drifts low exactly on the deck
+    the cache exists to serve. The entry that just rendered is re-walked when
+    the next deck arrives, which is what keeps the cap honest."""
+    nec_portal._reset_solver_cache()
+    cache_render(CACHE_BASE)
+    key = next(iter(nec_portal._solver_cache))
+    at_insert = nec_portal._cache_sizes[key]
+    for mhz in ("18.1", "21.1", "24.1", "28.1", "50.1"):
+        cache_render(mutate("14.1", mhz))
+    cache_render(_bound_deck(99.0))
+    # Six frequencies through one geometry, plus the arrival that re-sized it.
+    counts = cache_counts()
+    assert (counts["hits"], counts["misses"], counts["fills"]) == (5, 2, 7)
+    assert nec_portal._cache_sizes[key] > at_insert
+
+
+def test_a_repeated_probe_costs_less_than_the_solve_it_skips():
+    """The reason the feature exists. Measured at authoring time on
+    `catalog_wire_w8jk`, the biggest committed deck (106 segments): 154 ms cold
+    against 11 ms served, a factor of fourteen. What is left in the served pass
+    is the readout algebra and the printout itself, which no cache can skip —
+    so the ratio is bounded by the FORMATTING, not by the physics, and it grows
+    with the structure. The bar is deliberately loose: the claim is "much
+    cheaper", and a tight ratio on a shared box is a flaky test, not a better
+    one."""
+    import time
+
+    body = fixture_deck("catalog_wire_w8jk")
+    nec_portal._reset_solver_cache()
+    started = time.perf_counter()
+    cache_render(body)
+    cold = time.perf_counter() - started
+    started = time.perf_counter()
+    cache_render(body)
+    served = time.perf_counter() - started
+    assert nec_portal._cache_stats["hits"] == 1
+    assert served < 0.5 * cold, (cold * 1e3, served * 1e3)
+
+
+def _bound_deck(z: float) -> str:
+    return (
+        "CE bound probe\n"
+        f"GW 1 9 0. 0. {z} 0. 0. {z + 5.0} 0.001\n"
+        "GE 0\nEX 0 1 5 0 1.\nFR 0 1 0 0 14.1 0\nXQ\n"
+    )
+
+
+def test_the_cache_evicts_by_bytes_and_an_evicted_geometry_re_solves(monkeypatch):
+    """The bound. The cap is patched to about two and a half entries rather
+    than filling the shipped few hundred MB, because what needs proving is the
+    eviction ORDER and that an evicted structure comes back correct — not the
+    value of a constant."""
+    nec_portal._reset_solver_cache()
+    assert "ERROR-NEC2C" not in cache_render(_bound_deck(10.0))
+    first_key = next(iter(nec_portal._solver_cache))
+    # The second arrival re-sizes the first entry now that its fill is done, so
+    # this is a grown entry's size and not an empty one's.
+    cache_render(_bound_deck(20.0))
+    monkeypatch.setattr(
+        nec_portal, "_CACHE_BYTES_CAP", int(nec_portal._cache_sizes[first_key] * 2.5)
+    )
+    for z in (30.0, 40.0, 50.0, 60.0):
+        cache_render(_bound_deck(z))
+    assert nec_portal._cache_stats["evictions"] >= 2
+    assert nec_portal._cache_stats["bytes"] <= nec_portal._CACHE_BYTES_CAP
+    assert len(nec_portal._solver_cache) <= 3
+    assert first_key not in nec_portal._solver_cache
+    assert first_key not in nec_portal._cache_sizes
+
+    # Newest still resident.
+    before = cache_counts()
+    cache_render(_bound_deck(60.0))
+    assert cache_counts()["hits"] == before["hits"] + 1
+
+    # Oldest gone — and it re-solves to the same printout it gave when it was
+    # resident, which is what "degrades to today's behaviour" has to mean.
+    before = cache_counts()
+    served = cache_render(_bound_deck(10.0))
+    assert cache_counts()["misses"] == before["misses"] + 1
+    assert body_lines(served) == body_lines(cold_render(_bound_deck(10.0)))
+
+
+def test_the_cache_evicts_the_least_RECENTLY_used_not_the_oldest(monkeypatch):
+    """A knob returned to a value probed long ago is the hit this feature is
+    for, so a re-used entry has to be young again. Without the reorder on a
+    hit this is a FIFO and the entry just served would be the next to go."""
+    nec_portal._reset_solver_cache()
+    for z in (10.0, 20.0, 30.0):
+        cache_render(_bound_deck(z))
+    oldest, middle, _newest = list(nec_portal._solver_cache)
+    monkeypatch.setattr(
+        nec_portal, "_CACHE_BYTES_CAP", int(nec_portal._cache_sizes[oldest] * 2.5)
+    )
+    before = cache_counts()
+    cache_render(_bound_deck(10.0))  # touched: the oldest becomes the newest
+    assert cache_counts()["hits"] == before["hits"] + 1
+    cache_render(_bound_deck(40.0))
+    assert oldest in nec_portal._solver_cache
+    assert middle not in nec_portal._solver_cache
+
+
+@pytest.mark.parametrize(
+    "refused",
+    [
+        # Refused while PARSING — never reaches the cache at all.
+        CACHE_BASE.replace("EX 0 1 5 0 1.\n", "SP 0 0 0. 0. 0. 0. 0.\n"),
+        # Refused while BUILDING the solver: tag 2 does not exist, and a deck
+        # with no EX has no ports. Both raise out of `DeckSolver.__init__`,
+        # after the key has been computed and before anything is stored.
+        CACHE_BASE.replace("EX 0 1 5", "EX 0 2 5"),
+        CACHE_BASE.replace("EX 0 1 5 0 1.\n", ""),
+    ],
+    ids=["parse refusal", "unknown tag", "no EX card"],
+)
+def test_a_refused_deck_neither_poisons_nor_consults_the_cache(refused):
+    """#829's error path against #823's cache. A refusal must move nothing —
+    no entry, no statistic — and the same structure sent valid afterwards must
+    solve fresh and print what a cold cache prints for it."""
+    nec_portal._reset_solver_cache()
+    before = cache_counts()
+    out = cache_render(refused)
+    assert "ERROR-NEC2C" in out, out
+    assert cache_counts() == before
+    assert not nec_portal._solver_cache
+    assert not nec_portal._cache_sizes
+
+    served = cache_render(CACHE_BASE)
+    assert "ERROR-NEC2C" not in served, served
+    assert cache_counts()["misses"] == before["misses"] + 1
+    assert body_lines(served) == body_lines(cold_render(CACHE_BASE))
+
+
+def test_a_refusal_after_a_hit_leaves_the_hit_entry_intact():
+    """The other order: a good deck, a refused one, then the good deck again —
+    the refusal must not have disturbed the entry standing behind it."""
+    cold_render(CACHE_BASE)
+    cache_render(CACHE_BASE.replace("EX 0 1 5", "EX 0 2 5"))
+    before = cache_counts()
+    served = cache_render(CACHE_BASE)
+    assert cache_counts()["hits"] == before["hits"] + 1
+    assert body_lines(served) == body_lines(cold_render(CACHE_BASE))
+
+
+def test_the_cache_is_per_invocation_like_the_basis():
+    """`main` empties the cache exactly where it re-reads `--basis`: engine
+    state is per invocation, so a second call cannot be served from the
+    first's — which is also what keeps entries built under one basis from
+    occupying the cap under another."""
+    deck = fixture_deck("dipole_free_space") + "\nNX\n"
+    for _ in range(2):
+        _rc, _out, _err = _run_main([], deck=deck)
+        counts = cache_counts()
+        assert (counts["hits"], counts["misses"], counts["fills"]) == (0, 1, 1)
+        assert len(nec_portal._solver_cache) == 1
+
+
+def test_the_operator_key_carries_the_basis():
+    """One process has one `--basis`, so this can never differ between two live
+    decks — the key carries it anyway so it cannot be read wrong, and so a
+    future in-process basis switch cannot serve the wrong physics."""
+    deck = nec_portal.parse_deck(CACHE_BASE)
+    default = nec_portal._operator_key(deck)
+    original = nec_portal._active_basis
+    try:
+        nec_portal._active_basis = nec_portal._BASES["sinusoidal"]
+        assert nec_portal._operator_key(deck) != default
+    finally:
+        nec_portal._active_basis = original
+    assert nec_portal._operator_key(deck) == default
