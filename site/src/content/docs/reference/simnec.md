@@ -147,25 +147,32 @@ console script:
 ```bash
 pip install antennaknobs
 which momwire-nec2c          # e.g. ~/.venvs/ak/bin/momwire-nec2c
-momwire-nec2c -version       # nec2c.ae6ty.9.1
+momwire-nec2c -version       # NEC2momwire.<major>.<minor>
 ```
 
 Then open SimNEC's NEC portal dialog and paste that path in as the NEC
 command. Two rules decide whether SimNEC accepts it, and both are worth
 knowing because the failure modes look nothing like their causes:
 
-- **The filename must contain `nec2c`.** SimNEC picks the engine's dialect off
-  the command's file name, lowercased — a name with none of `nec2c` / `nec5` /
-  `nec42` in it is refused outright with *NO NEC Command Available*. That is
-  why the script is called `momwire-nec2c` and not something tidier; if you
-  wrap it in a shell script or a symlink, keep `nec2c` in the name.
-- **The version probe must answer.** SimNEC runs `<command> -version` and reads
-  the first line, which has to be `nec2c.ae6ty.` followed by a plain number it
-  can parse as a decimal. The portal answers `nec2c.ae6ty.9.1`. It cannot say
-  "momwire" there — an extra dot makes the parse fail and SimNEC reports
-  *nec2c version too old* — so the engine puts its real identity in the
-  printout banner instead, where every SimNEC session logs it:
-  `VERSION:nec2c.ae6ty.momwire.9.1`.
+- **The filename must contain `nec2c`.** SimNEC picks the engine — the deck
+  dialect, the daemon protocol, the printout parse offsets, all of it — off
+  the command's file name, lowercased. A name with none of `nec2c` / `nec5` /
+  `nec42` in it is refused outright with *NO NEC Command Available*, and the
+  version probe cannot override the choice. That is why the script is called
+  `momwire-nec2c` and not something tidier; if you wrap it in a shell script
+  or a symlink, keep `nec2c` in the name (and keep the substring `out` out of
+  the path — SimNEC refuses any command path containing it).
+- **The version probe answers with our real name.** SimNEC runs
+  `<command> -version` and reads the first line. The portal answers
+  `NEC2momwire.<major>.<minor>` — SimNEC's own engine-family form, whose
+  `NEC2` prefix declares the deck dialect while leaving the rest of the text
+  free (sanctioned by SimNEC's author). SimNEC shows that string in the
+  portal dialog's NECVersion row, stamps it as a `CM version` comment card on
+  every deck it sends, and stores it in saved circuits — so a momwire session
+  is identifiable as one everywhere the version travels. For a SimNEC build
+  too old to know the `NEC2…` form, `--legacy-probe` on the portal command
+  line restores the old `nec2c.ae6ty.9.1` masquerade; nothing else about the
+  session changes either way.
 
 Before a live session, run the built-in smoke — it needs no checkout, spawns
 one resident copy of itself, runs embedded decks through it the way SimNEC
