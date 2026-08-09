@@ -2528,6 +2528,27 @@ def test_require_lattice_fft_names_the_unmet_gate_on_a_single_pair():
 # A stale factor would be silent and wrong, so the battery below is the point
 # of the feature: one mutation per class of card that moves the operator, each
 # asserting a MISS, and one per class that does not, each asserting a HIT.
+#
+# Serving is OFF in the shipped default and opted into with `--cache`, so a
+# test OF the cache has to ask for it: `cache_reset` is the state every test
+# here starts from, and the `main()`-driven ones pass the flag. The default-off
+# and dry-run modes get their own tests further down.
+
+
+def cache_reset(serving: bool = True) -> None:
+    """Empty cache, default basis, no stats file, serving as asked.
+
+    The basis pin is not decoration: ``main()`` resets ``_active_basis`` at the
+    START of its next invocation, not on exit, so a ``--basis`` probe test
+    leaves its basis behind for every direct ``deck_frame`` render that
+    follows. A fresh-subprocess comparison after such a test would then diff
+    two different physics — an ordering hazard, not a cache bug (it predates
+    the cache; the subprocess-identity tests are just the first to be sensitive
+    to it)."""
+    nec_portal._active_basis = nec_portal._BASES["bspline"]
+    nec_portal._cache_serving = serving
+    nec_portal._cache_stats_path = None
+    nec_portal._reset_solver_cache()
 
 
 def cache_render(body: str) -> str:
@@ -2536,17 +2557,8 @@ def cache_render(body: str) -> str:
 
 
 def cold_render(body: str) -> str:
-    """The same deck from an EMPTY cache — what a fresh process prints.
-
-    That claim needs the DEFAULT basis too: ``main()`` resets
-    ``_active_basis`` at the START of its next invocation, not on exit, so a
-    ``--basis`` probe test leaves its basis behind for every direct
-    ``deck_frame`` render that follows. A fresh-subprocess comparison after
-    such a test would then diff two different physics — an ordering hazard,
-    not a cache bug (it predates the cache; the subprocess-identity tests are
-    just the first to be sensitive to it)."""
-    nec_portal._active_basis = nec_portal._BASES["bspline"]
-    nec_portal._reset_solver_cache()
+    """The same deck from an EMPTY cache — what a fresh process prints."""
+    cache_reset()
     return cache_render(body)
 
 
@@ -2602,7 +2614,9 @@ def test_a_second_pass_of_every_fixture_prints_what_the_first_did(name):
     if not text.endswith("\n"):
         text += "\n"
     buffer = io.StringIO()
-    rc = main([], stdin=io.StringIO(text * 2), stdout=buffer, stderr=io.StringIO())
+    rc = main(
+        ["--cache"], stdin=io.StringIO(text * 2), stdout=buffer, stderr=io.StringIO()
+    )
     assert rc == 0
     chunks = deck_chunks(buffer.getvalue())
     half = len(chunks) // 2
@@ -2630,8 +2644,16 @@ def test_a_served_deck_matches_a_genuinely_fresh_process(name):
     )
     assert proc.returncode == 0 and proc.stderr == ""
     buffer = io.StringIO()
+    # The subprocess is deliberately STOCK — no `--cache` — so this compares a
+    # served answer against the shipped default's, not against itself.
     assert (
-        main([], stdin=io.StringIO(text * 2), stdout=buffer, stderr=io.StringIO()) == 0
+        main(
+            ["--cache"],
+            stdin=io.StringIO(text * 2),
+            stdout=buffer,
+            stderr=io.StringIO(),
+        )
+        == 0
     )
     chunks = deck_chunks(buffer.getvalue())
     assert len(chunks) == 2 and nec_portal._cache_stats["hits"] == 1
@@ -2893,7 +2915,7 @@ def test_a_cached_entry_is_re_sized_by_the_fills_it_grew():
     frequency — so the size taken at insertion drifts low exactly on the deck
     the cache exists to serve. The entry that just rendered is re-walked when
     the next deck arrives, which is what keeps the cap honest."""
-    nec_portal._reset_solver_cache()
+    cache_reset()
     cache_render(CACHE_BASE)
     key = next(iter(nec_portal._solver_cache))
     at_insert = nec_portal._cache_sizes[key]
@@ -2917,7 +2939,7 @@ def test_a_repeated_probe_skips_the_solve_it_paid_for():
     deterministic form of "costs less than the solve it skips" is that the
     second pass performs zero geometry parses and zero fills."""
     body = fixture_deck("catalog_wire_w8jk")
-    nec_portal._reset_solver_cache()
+    cache_reset()
     cache_render(body)
     after_cold = dict(nec_portal._cache_stats)
     assert (after_cold["misses"], after_cold["fills"]) == (1, 1)
@@ -2941,7 +2963,7 @@ def test_the_cache_evicts_by_bytes_and_an_evicted_geometry_re_solves(monkeypatch
     than filling the shipped few hundred MB, because what needs proving is the
     eviction ORDER and that an evicted structure comes back correct — not the
     value of a constant."""
-    nec_portal._reset_solver_cache()
+    cache_reset()
     assert "ERROR-NEC2C" not in cache_render(_bound_deck(10.0))
     first_key = next(iter(nec_portal._solver_cache))
     # The second arrival re-sizes the first entry now that its fill is done, so
@@ -2975,7 +2997,7 @@ def test_the_cache_evicts_the_least_RECENTLY_used_not_the_oldest(monkeypatch):
     """A knob returned to a value probed long ago is the hit this feature is
     for, so a re-used entry has to be young again. Without the reorder on a
     hit this is a FIFO and the entry just served would be the next to go."""
-    nec_portal._reset_solver_cache()
+    cache_reset()
     for z in (10.0, 20.0, 30.0):
         cache_render(_bound_deck(z))
     oldest, middle, _newest = list(nec_portal._solver_cache)
@@ -3007,7 +3029,7 @@ def test_a_refused_deck_neither_poisons_nor_consults_the_cache(refused):
     """#829's error path against #823's cache. A refusal must move nothing —
     no entry, no statistic — and the same structure sent valid afterwards must
     solve fresh and print what a cold cache prints for it."""
-    nec_portal._reset_solver_cache()
+    cache_reset()
     before = cache_counts()
     out = cache_render(refused)
     assert "ERROR-NEC2C" in out, out
@@ -3039,7 +3061,7 @@ def test_the_cache_is_per_invocation_like_the_basis():
     occupying the cap under another."""
     deck = fixture_deck("dipole_free_space") + "\nNX\n"
     for _ in range(2):
-        _rc, _out, _err = _run_main([], deck=deck)
+        _rc, _out, _err = _run_main(["--cache"], deck=deck)
         counts = cache_counts()
         assert (counts["hits"], counts["misses"], counts["fills"]) == (0, 1, 1)
         assert len(nec_portal._solver_cache) == 1
@@ -3058,3 +3080,217 @@ def test_the_operator_key_carries_the_basis():
     finally:
         nec_portal._active_basis = original
     assert nec_portal._operator_key(deck) == default
+
+
+# --- the three cache modes: off, dry-run, serving -----------------------------
+#
+# Serving is opt-in and the shipped default is OFF, because the workload the
+# cache exploits is a live SimNEC session's re-probe rate and nobody has
+# measured one. So the default path has to be provably the pre-#823 path — not
+# "the cache with nothing in it" — and there has to be a way to measure the
+# session without serving anything, which is what `--cache-stats` alone is.
+#
+# The evidence here is a spy on the two things the off path may not do:
+# construct fewer solvers than there are decks, and compute an operator key.
+
+
+def _spy_cache_machinery(monkeypatch) -> tuple[list, list]:
+    """(solver constructions, operator-key computations) for one test.
+
+    A counter cannot prove the off path, because the off path does not count —
+    that is the property under test. These do, from outside."""
+    built: list[str] = []
+    keyed: list[str] = []
+    real_init = nec_portal.DeckSolver.__init__
+    real_key = nec_portal._operator_key
+
+    def init_spy(self, deck):
+        built.append("build")
+        real_init(self, deck)
+
+    def key_spy(deck):
+        keyed.append("key")
+        return real_key(deck)
+
+    monkeypatch.setattr(nec_portal.DeckSolver, "__init__", init_spy)
+    monkeypatch.setattr(nec_portal, "_operator_key", key_spy)
+    return built, keyed
+
+
+def _twice(name: str = "dipole_free_space") -> str:
+    """One fixture deck, framed and sent twice — the repeat probe in miniature."""
+    text = fixture_deck(name) + "\nNX\n"
+    return text * 2
+
+
+def _stream_main(argv: list[str], stdin_text: str) -> list[str]:
+    """`main` over a stdin stream, returning one chunk per deck."""
+    buffer = io.StringIO()
+    rc = main(argv, stdin=io.StringIO(stdin_text), stdout=buffer, stderr=io.StringIO())
+    assert rc == 0
+    return deck_chunks(buffer.getvalue())
+
+
+def test_the_cache_is_off_unless_the_command_line_asks(monkeypatch):
+    """The shipped default. Two identical decks, and the second is genuinely
+    re-solved: two constructions, and NO key computed — the off branch is the
+    pre-#823 path to the byte, not a cache that happens to be empty."""
+    built, keyed = _spy_cache_machinery(monkeypatch)
+    chunks = _stream_main([], _twice())
+    assert len(chunks) == 2
+    assert body_lines(chunks[1]) == body_lines(chunks[0])
+    assert len(built) == 2, "the second deck was served rather than re-solved"
+    assert keyed == [], "the off path computed a cache key"
+    assert nec_portal._cache_mode() == "off"
+    assert not nec_portal._solver_cache and not nec_portal._cache_sizes
+    assert set(nec_portal._cache_stats.values()) == {0}
+
+
+def test_the_cache_flag_turns_serving_on(monkeypatch):
+    """And `--cache` is all it takes: one construction for two decks, the
+    second answered from the first's factors, same printout."""
+    built, keyed = _spy_cache_machinery(monkeypatch)
+    chunks = _stream_main(["--cache"], _twice())
+    assert len(chunks) == 2
+    assert body_lines(chunks[1]) == body_lines(chunks[0])
+    assert len(built) == 1 and len(keyed) == 2
+    assert nec_portal._cache_mode() == "serving"
+    counts = cache_counts()
+    assert (counts["hits"], counts["misses"], counts["fills"]) == (1, 1, 1)
+
+
+def test_cache_stats_alone_counts_the_hits_without_serving(monkeypatch, tmp_path):
+    """The zero-risk live experiment. `--cache-stats` on its own solves every
+    deck fresh — stock behaviour, stock answers, nothing retained — and records
+    how many of them a cache WOULD have served. That is the number the
+    default-off decision is waiting on, obtainable from a real session without
+    putting a served answer anywhere near it."""
+    path = tmp_path / "stats.json"
+    built, keyed = _spy_cache_machinery(monkeypatch)
+    chunks = _stream_main(["--cache-stats", str(path)], _twice())
+    assert len(chunks) == 2
+    assert body_lines(chunks[1]) == body_lines(chunks[0])
+    assert nec_portal._cache_mode() == "dry-run"
+    assert len(built) == 2, "a dry run served a deck"
+    assert len(keyed) == 2, "a dry run has to key every deck to count it"
+    assert not nec_portal._solver_cache and not nec_portal._cache_sizes
+
+    stats = json.loads(path.read_text())
+    assert stats["mode"] == "dry-run"
+    assert (stats["hits"], stats["misses"]) == (1, 1)
+    assert stats["decks_rendered"] == 2
+    assert stats["fills"] == 2, "a dry run still pays every fill — that is the point"
+    assert (stats["entries"], stats["bytes"], stats["evictions"]) == (0, 0, 0)
+
+
+def test_a_dry_run_answers_exactly_what_a_stock_process_answers(tmp_path):
+    """Counting may not perturb the physics: a dry-run deck is compared to the
+    same deck through a process carrying no flags at all."""
+    path = tmp_path / "stats.json"
+    text = fixture_deck("dipole_rp_pattern") + "\nNX\n"
+    proc = subprocess.run(
+        [sys.executable, "-m", "antennaknobs.nec_portal"],
+        input=text,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0 and proc.stderr == ""
+    chunks = _stream_main(["--cache-stats", str(path)], text)
+    assert len(chunks) == 1
+    assert frame_lines(chunks[0]) == frame_lines(proc.stdout)
+
+
+def test_both_flags_together_count_the_real_cache(tmp_path):
+    """`--cache --cache-stats PATH` is serve AND measure — the mode to run once
+    the dry run says the hit rate is worth having."""
+    path = tmp_path / "stats.json"
+    chunks = _stream_main(["--cache", "--cache-stats", str(path)], _twice())
+    assert len(chunks) == 2
+    stats = json.loads(path.read_text())
+    assert stats["mode"] == "serving"
+    assert (stats["hits"], stats["misses"], stats["fills"]) == (1, 1, 1)
+    assert stats["entries"] == 1 and stats["bytes"] > 0
+
+
+def test_the_stats_file_is_rewritten_after_every_deck(tmp_path):
+    """SimNEC ends a session with `Process.destroy()` — a kill, not an EOF — so
+    a file written at exit is a file that never appears. It is written at every
+    deck boundary instead, which this reads BETWEEN the two decks by holding up
+    the stdin stream."""
+    path = tmp_path / "stats.json"
+    text = fixture_deck("dipole_free_space") + "\nNX\n"
+    midway: list[dict] = []
+
+    def stream():
+        yield from io.StringIO(text)
+        # `main` asks for this line only after deck one has been framed.
+        midway.append(json.loads(path.read_text()))
+        yield from io.StringIO(text)
+
+    buffer = io.StringIO()
+    rc = main(
+        [f"--cache-stats={path}"],
+        stdin=stream(),
+        stdout=buffer,
+        stderr=io.StringIO(),
+    )
+    assert rc == 0
+    assert midway and midway[0]["decks_rendered"] == 1
+    assert midway[0]["mode"] == "dry-run"
+    assert json.loads(path.read_text())["decks_rendered"] == 2
+    # And the transcript is untouched by any of it.
+    assert len(deck_chunks(buffer.getvalue())) == 2
+
+
+def test_a_refused_deck_still_counts_in_the_stats_denominator(tmp_path):
+    """The hit rate needs an honest denominator, and a refused deck is a deck
+    the session sent. It moves no cache statistic — that is the #829 contract —
+    but it is counted as rendered."""
+    path = tmp_path / "stats.json"
+    good = fixture_deck("dipole_free_space") + "\nNX\n"
+    bad = "CE refused\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\nSP 0 0\nNX\n"
+    chunks = _stream_main(["--cache-stats", str(path)], good + bad)
+    assert len(chunks) == 2 and "ERROR-NEC2C" in chunks[1]
+    stats = json.loads(path.read_text())
+    assert stats["decks_rendered"] == 2
+    assert (stats["hits"], stats["misses"]) == (0, 1)
+
+
+def test_the_cache_flags_ride_the_version_probe_unchanged():
+    """SimNEC probes `<full command line> -version`, so every flag the portal
+    dialog can carry has to leave that line alone."""
+    for argv in (
+        ["--cache", "-version"],
+        ["--cache-stats", "/nonexistent/dir/stats.json", "-version"],
+        ["--cache", "--cache-stats=/nonexistent/dir/stats.json", "-version"],
+        ["--basis", "sinusoidal", "--cache", "-version"],
+    ):
+        rc, out, _err = _run_main(argv)
+        assert (rc, out) == (0, f"{nec_portal.PROBE_VERSION}\n"), argv
+
+
+def test_cache_stats_without_a_path_fails_fast_and_nonzero():
+    """Same contract as an unknown `--basis`: a malformed portal-dialog line is
+    caught by the configure-time probe, not by the first deck of a session."""
+    for argv in (["--cache-stats"], ["--cache-stats", "--cache"], ["--cache-stats="]):
+        rc, out, _err = _run_main([*argv, "-version"])
+        assert rc == 3 and "--cache-stats" in out, argv
+
+
+def test_an_unwritable_stats_path_costs_the_measurement_not_the_session(tmp_path):
+    """This engine may write NOTHING to stdout or stderr, so a bad path can
+    only be allowed to lose the file. The decks still answer."""
+    path = tmp_path / "no-such-dir" / "stats.json"
+    buffer = io.StringIO()
+    errors = io.StringIO()
+    rc = main(
+        ["--cache-stats", str(path)],
+        stdin=io.StringIO(_twice()),
+        stdout=buffer,
+        stderr=errors,
+    )
+    assert rc == 0 and errors.getvalue() == ""
+    assert not path.exists()
+    chunks = deck_chunks(buffer.getvalue())
+    assert len(chunks) == 2 and "ERROR-NEC2C" not in buffer.getvalue()
