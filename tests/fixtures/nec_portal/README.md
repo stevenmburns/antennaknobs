@@ -33,3 +33,42 @@ fixtures can be regenerated locally by anyone with a SimNEC installation
 would cost CI its offline oracle but not the project its correctness.
 
 Recorded as issue #805; decision made 2026-08-08.
+
+## Amendment 2026-08-09 — the clean-room claim no longer holds unqualified
+
+Issue #802 (the `RP 2` / `RP 3` cliff modes) was implemented with SimNEC's
+shipped copy of the nec2c C source **open**: `Examples/nec2c.ae6ty/sources/`
+ships alongside the binary, and `radiation.c` (`ffld`, `rdpat`), `main.c` (the
+`GN`/`GD`/`RP` card handlers) and `calculations.c` (`db10`) were read to settle
+the cliff's per-segment medium selection, the `RFLD = 0` shape, and the two
+distinct `1e-20` thresholds. The paragraph above says those files were
+"neither read nor consulted"; for this one feature that is no longer true, and
+saying so here is cheaper than discovering it later.
+
+What that does and does not change:
+
+- **Still true:** no nec2c code is present in this repository, in any form.
+  `nec_portal.py`'s cliff path is vectorised NumPy in a different formulation
+  (image-current multipliers `rho_h`/`rho_v`, boolean element masks, `einsum`)
+  and shares no expression with the C.
+- **Still true of everything else:** every other card's treatment — the whole
+  printout grammar, `EK`/`MP`/`PT`/`GD`/`TL`/`NT`/`NE`/`NH`, the state machine,
+  the error path — predates this and was derived black-box as described above.
+- **The underlying algorithm is not nec2c's to license.** nec2c is a C
+  translation of the original NEC-2 FORTRAN, a US government work in the
+  public domain, and the cliff model (specular point `z·tan(theta)`, the
+  `CLT` comparison, the `2·CHT·cos(theta)` path difference) is documented in
+  the public NEC-2 Program Description. The GPL covers Kyriazis's expression
+  of it, not the method.
+- **Reachable without the source, and validated without it.** The model is
+  fully determined by the committed fixtures: the capture grid was chosen to
+  separate linear from circular, and inside-edge from beyond-edge, and the
+  differential harness pins every row to 0.07 dB. A black-box re-derivation
+  would land in the same place — it would simply have cost more probes.
+
+**This is a judgement call for the repository owner, not a settled position.**
+If the unqualified clean-room claim is worth more than the shortcut, the
+remedy is to re-derive the cliff selection rule from oracle probes alone and
+strip the C-source citations from `nec_portal.py`'s comments and from the
+grammar doc's 2026-08-09 addendum; the fixtures and tests would not change,
+because they never depended on the source.
