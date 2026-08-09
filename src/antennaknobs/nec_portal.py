@@ -87,20 +87,31 @@ group after that is linear algebra on cached factors: the group's port
 voltages give ``coeffs = X @ V`` and its currents ``I = Y @ V``. N sources
 cost one fill, not N.
 
-And the deck is not the boundary either. The protocol is stateless — a sweep
-arrives as N independent decks, each re-sending the whole geometry — but the
-ENGINE may remember, so a solver is kept ACROSS decks under a key that is the
-operator's own identity (``_operator_key``, ``_solver_for``). A knob returned
-to a value already probed, a restarted sweep, a crew member handed the same
-structure at a different frequency: geometry parse, mesh, port maps and every
-fill already paid are reused, bounded by an LRU cap on estimated resident
-bytes. The printout is identical either way — that is the whole correctness
-claim, and it is what the tests assert.
+And the deck need not be the boundary either. The protocol is stateless — a
+sweep arrives as N independent decks, each re-sending the whole geometry — but
+the ENGINE may remember, so with ``--cache`` a solver is kept ACROSS decks
+under a key that is the operator's own identity (``_operator_key``,
+``_solver_for``). A knob returned to a value already probed, a restarted
+sweep, a crew member handed the same structure at a different frequency:
+geometry parse, mesh, port maps and every fill already paid are reused,
+bounded by an LRU cap on estimated resident bytes. The printout is identical
+either way — that is the whole correctness claim, and it is what the tests
+assert.
+
+That is OFF by default. The saving is real and measured on the bench, but the
+workload it exploits is a live SimNEC session's re-probe rate, which nobody
+has measured — so the shipped default stays the behaviour that has been
+validated, and ``--cache-stats PATH`` answers the question first: it counts
+what a cache WOULD have served while solving every deck fresh, and writes the
+tally to a file after every deck. Nothing about either flag reaches stdout or
+stderr; the protocol is byte-identical in all three modes.
 """
 
 from __future__ import annotations
 
+import json
 import math
+import os
 import sys
 import time
 from collections import OrderedDict
@@ -2248,7 +2259,11 @@ class DeckSolver:
         cached = self._cache.get(freq_mhz)
         if cached is not None:
             return cached
-        _cache_stats["fills"] += 1
+        if _cache_serving or _cache_stats_path is not None:
+            # Counted only when something asked to be measured: with the cache
+            # off the instrument is off too, so its zeros are evidence rather
+            # than an unread accumulator.
+            _cache_stats["fills"] += 1
         wavelength = C_LIGHT / (freq_mhz * 1e6)
         started = time.perf_counter()
         solver = self.engine._make_solver(wavelength=wavelength)
@@ -2471,6 +2486,10 @@ class DeckSolver:
 # from the parsed deck rather than its text (so comments, whitespace and card
 # formatting cannot split it) and it carries EVERYTHING that moves a number in
 # the operator — see ``_operator_key``.
+#
+# Serving is opt-in (``--cache``) and off by default; ``--cache-stats PATH``
+# measures the hit rate a live session would see without serving anything.
+# ``_solver_for`` is where the three modes part company.
 
 # A few hundred MB is inside the machine budget for a crew of four engines, and
 # the cache degrades to exactly the pre-#823 behaviour when it is full (every
@@ -2498,15 +2517,87 @@ _cache_sizes: dict[tuple, int] = {}
 # cannot be the evidence. Nothing here is ever printed to SimNEC.
 _cache_stats = {"hits": 0, "misses": 0, "evictions": 0, "fills": 0, "bytes": 0}
 
+# Serving is OFF unless the portal-dialog command line asks for it (``--cache``).
+# The cache is an optimisation for a workload nobody has measured yet: a live
+# SimNEC session's real re-probe rate is an empirical question, and until it is
+# answered the default has to be the behaviour that has been shipped and
+# validated. `--cache-stats PATH` answers it at zero risk — see `_solver_for`.
+_cache_serving = False
+_cache_stats_path: str | None = None
+
+# The keys seen this invocation in DRY-RUN mode. A key-set, never solvers: the
+# point of the dry run is to measure the hit rate without retaining a single
+# byte of physics, so there is no memory growth and no way for a stale answer
+# to be served by a mode that is only supposed to be counting.
+_dry_run_keys: set[tuple] = set()
+
+# Decks framed this invocation — the DENOMINATOR of the hit rate, and not a
+# cache statistic: a refused deck moves nothing in `_cache_stats` but is still
+# a deck the session sent.
+_decks_rendered = 0
+
+
+def _cache_mode() -> str:
+    """``serving`` / ``dry-run`` / ``off`` — what the command line asked for."""
+    if _cache_serving:
+        return "serving"
+    return "dry-run" if _cache_stats_path is not None else "off"
+
 
 def _reset_solver_cache() -> None:
     """Empty the cache and zero the instrument. Called by ``main`` for the same
     reason it re-reads ``--basis``: engine state is per invocation, never
     sticky, and a fresh process must be indistinguishable from a fresh call."""
+    global _decks_rendered
     _solver_cache.clear()
     _cache_sizes.clear()
+    _dry_run_keys.clear()
+    _decks_rendered = 0
     for key in _cache_stats:
         _cache_stats[key] = 0
+
+
+def _write_cache_stats() -> None:
+    """The measurement file, rewritten after EVERY deck.
+
+    After every deck because SimNEC ends a session with ``Process.destroy()``
+    — a kill, not an EOF — so an exit-time write is a write that never happens.
+    The file is tiny (one flat object), so the cost is a few hundred bytes of
+    I/O against seconds of physics, and it goes out through a temp file and a
+    rename so a reader never catches a half-written object.
+
+    Read it as: ``hits`` is the answer to "would a cache have helped" —
+    decks whose operator had already been solved in this session. In dry-run
+    mode ``fills`` is what the stock engine actually paid, so ``hits`` against
+    ``decks_rendered`` is the saving on offer; ``entries`` and ``bytes`` are
+    zero there because nothing is retained.
+
+    Failures are swallowed on purpose. This engine may write NOTHING to stdout
+    (it would corrupt the transcript) and nothing to stderr (NEC2Daemon never
+    drains it, so a full pipe buffer deadlocks the UI — grammar doc §10.9), so
+    an unwritable path can only be allowed to cost the measurement, never the
+    session.
+    """
+    if _cache_stats_path is None:
+        return
+    payload = {
+        "mode": _cache_mode(),
+        "decks_rendered": _decks_rendered,
+        "hits": _cache_stats["hits"],
+        "misses": _cache_stats["misses"],
+        "fills": _cache_stats["fills"],
+        "evictions": _cache_stats["evictions"],
+        "bytes": _cache_stats["bytes"],
+        "entries": len(_solver_cache),
+    }
+    tmp = f"{_cache_stats_path}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+            handle.write("\n")
+        os.replace(tmp, _cache_stats_path)
+    except OSError:
+        pass
 
 
 def _operator_key(deck: PortalDeck) -> tuple:
@@ -2633,22 +2724,53 @@ def _cache_evict() -> None:
 
 
 def _solver_for(deck: PortalDeck) -> DeckSolver:
-    """The :class:`DeckSolver` for this deck — the cached one when its operator
-    has been seen in this process, a fresh one otherwise.
+    """The :class:`DeckSolver` for this deck, in whichever of the three modes
+    the command line asked for.
+
+    **off** (the default). A fresh solver, and nothing else happens: no key is
+    computed, no counter moves, no reference is kept. This branch is the
+    pre-#823 code path to the byte, which is the point — the cache is opt-in
+    until a live session says it earns its keep, and "opt-in" has to mean the
+    default costs nothing rather than costs a little.
+
+    **dry-run** (``--cache-stats PATH`` alone). The key IS computed and
+    counted against the keys already seen, so the stats file answers "how many
+    of this session's decks would a cache have served" — but the solver is
+    built fresh every time and never retained. Nothing can be served from a
+    mode that is only measuring, and the process grows no memory for it. This
+    is the zero-risk live experiment.
+
+    **serving** (``--cache``). The cached instance when its operator has been
+    seen, a fresh one otherwise.
 
     A hit rebinds ``portal_deck`` to the ARRIVING deck. Everything the cached
     instance derived from the old one is in the key and therefore identical,
     but the attribute is a live reference the printout reads through
     (``_pattern_lines``, ``_near_field_lines``), and the arriving deck is the
     honest answer to "which deck is being rendered" for anything read from it
-    later — the ``GD`` exclusion above rests on exactly this.
+    later — the ``GD`` exclusion above rests on exactly this, and #842's cliff
+    modes made it load-bearing.
 
-    The cap is enforced HERE, at deck arrival: the entry the PREVIOUS deck
-    rendered through is re-sized (its fills are done now), the arriving deck's
-    entry is sized or created, and the oldest go. So the deck about to be
-    rendered is always resident, and the overshoot is one deck's worth of new
-    frequencies.
+    The cap is enforced in the serving branch, at deck arrival: the entry the
+    PREVIOUS deck rendered through is re-sized (its fills are done now), the
+    arriving deck's entry is sized or created, and the oldest go. So the deck
+    about to be rendered is always resident, and the overshoot is one deck's
+    worth of new frequencies.
     """
+    if not _cache_serving:
+        if _cache_stats_path is None:
+            return DeckSolver(deck)
+        key = _operator_key(deck)
+        # Construction first here too, so a refused deck moves no statistic in
+        # dry-run either — the counts stay comparable with serving mode's.
+        solver = DeckSolver(deck)
+        if key in _dry_run_keys:
+            _cache_stats["hits"] += 1
+        else:
+            _cache_stats["misses"] += 1
+            _dry_run_keys.add(key)
+        return solver
+
     if _solver_cache:
         _cache_measure(next(reversed(_solver_cache)))
     key = _operator_key(deck)
@@ -3285,7 +3407,12 @@ def deck_frame(body: str) -> tuple[list[str], list[str]]:
 
     Card numbering restarts at 1 inside every deck, so the sentinel's ordinal
     is the deck's own card count plus one (grammar doc §1).
+
+    This is also the frame boundary the measurement file is written at (a deck
+    is done, its fills are paid), and the boundary a REFUSED deck still counts
+    at — it is a deck the session sent, so it belongs in the denominator.
     """
+    global _decks_rendered
     out, err = render_deck(body)
     echoed = sum(1 for line in out if line.startswith("  DATA CARD No:"))
     out.append(fmt_data_card(echoed + 1, Card("NX", (), "NX")))
@@ -3293,6 +3420,8 @@ def deck_frame(body: str) -> tuple[list[str], list[str]]:
     # of the next deck; SEEKING ignores it. Reproduced so a resident
     # transcript frames identically (grammar doc §1, §10.8).
     out += list(_banner_lines()[1:])
+    _decks_rendered += 1
+    _write_cache_stats()
     return out, err
 
 
@@ -3435,12 +3564,14 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
     # arguments — two entries differing only in --basis are two engines. An
     # unknown basis fails FAST and nonzero so the -version probe surfaces the
     # mistake at configure time instead of a silent wrong default.
-    global _active_basis
+    global _active_basis, _cache_serving, _cache_stats_path
     _active_basis = _BASES["bspline"]  # per-invocation default, never sticky
-    # The cross-deck cache is per invocation for the same reason, and because
-    # entries built under one basis must not outlive it (the key carries the
-    # basis, so they could not be served anyway — this just stops them
-    # occupying the cap).
+    # The cross-deck cache and its two flags are per invocation for the same
+    # reason, and the cache also because entries built under one basis must not
+    # outlive it (the key carries the basis, so they could not be served anyway
+    # — this just stops them occupying the cap).
+    _cache_serving = False
+    _cache_stats_path = None
     _reset_solver_cache()
     rest = list(argv)
     while "--basis" in rest or any(a.startswith("--basis=") for a in rest):
@@ -3458,7 +3589,35 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
             stdout.flush()
             return 3
         _active_basis = _BASES[name]
-    argv = rest
+
+    # --cache-stats PATH writes the measurement file (see `_write_cache_stats`)
+    # and, on its own, turns the daemon into a COUNTER: every deck is solved
+    # fresh exactly as today and the file records how many of them a cache
+    # would have served. That is the live experiment the default-off decision
+    # is waiting on, and it cannot change an answer because nothing is
+    # retained. `--cache` on top of it serves as well as counts.
+    #
+    # A missing path fails fast and nonzero for the same reason an unknown
+    # --basis does: the -version probe is the configure-time moment to catch
+    # a malformed portal-dialog line, not the first deck of a live session.
+    while "--cache-stats" in rest or any(a.startswith("--cache-stats=") for a in rest):
+        if "--cache-stats" in rest:
+            k = rest.index("--cache-stats")
+            path = rest[k + 1] if k + 1 < len(rest) else ""
+            del rest[k : k + 2]
+        else:
+            k = next(i for i, a in enumerate(rest) if a.startswith("--cache-stats="))
+            path = rest.pop(k).split("=", 1)[1]
+        if not path or path.startswith("-"):
+            stdout.write("--cache-stats needs a file path\n")
+            stdout.flush()
+            return 3
+        _cache_stats_path = path
+
+    # --cache is a bare flag on purpose: it has no parameter to get wrong, and
+    # the cap is a constant rather than a knob (see `_CACHE_BYTES_CAP`).
+    _cache_serving = "--cache" in rest
+    argv = [a for a in rest if a != "--cache"]
 
     # --legacy-probe swaps the honest versionNECd identity for the pre-#828
     # versionA masquerade — for a SimNEC build old enough to predate
