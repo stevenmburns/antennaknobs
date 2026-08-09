@@ -2472,11 +2472,15 @@ class DeckSolver:
 # formatting cannot split it) and it carries EVERYTHING that moves a number in
 # the operator — see ``_operator_key``.
 
-# A few hundred MB is inside the machine budget for a crew of four engines and
-# holds a working set of tens of structures; the cache degrades to exactly the
-# pre-#823 behaviour when it is full (every arrival misses and re-solves).
-# Deliberately a constant and not a knob: a per-process daemon with a tunable
-# memory cap is a support surface nobody asked for.
+# A few hundred MB is inside the machine budget for a crew of four engines, and
+# the cache degrades to exactly the pre-#823 behaviour when it is full (every
+# arrival misses and re-solves). It is a SAFETY NET rather than a working
+# limit: momwire drops the factored operator after its solve, so what an entry
+# retains is X (n_basis × n_ports per cached frequency) and the solver's own
+# geometry — the whole bench corpus MEASURES at 44 to 111 kB an entry, which is
+# thousands of structures before the cap binds. It bites where it should, on
+# array-scale meshes. Deliberately a constant and not a knob: a per-process
+# daemon with a tunable memory cap is a support surface nobody asked for.
 _CACHE_BYTES_CAP = 384 * 1024 * 1024
 
 # operator key → the solver built for it, least-recently-used first.
