@@ -511,7 +511,7 @@ def _synthetic_decks() -> dict[str, str]:
     # The circular cliff over a SOMMERFELD ground, which is the combination
     # an EZNEC import actually arrives in. Worth its own fixture because the
     # far field treats GN 2 as an ordinary reflection-coefficient medium —
-    # ffld() only special-cases iperf == 1 — so medium 1 here is a Fresnel
+    # FFLD only special-cases IPERF == 1 — so medium 1 here is a Fresnel
     # coefficient rather than the mirror, and the two coefficients this deck
     # switches between are both finite.
     decks["dipole_rp3_cliff_sommerfeld"] = (
@@ -527,7 +527,8 @@ def _synthetic_decks() -> dict[str, str]:
 
     # The second medium and the cliff geometry do NOT have to arrive on a GD
     # card: a GN whose radial-wire count is zero carries the same four fields
-    # in F3-F6, and main.c writes them into the same fpat slots the GD case
+    # in F3-F6, and NEC's card reader writes them into the same /FPAT/ slots
+    # (nec2dx.f main program, label 23) the GD case
     # does. A deck that sets the cliff this way and never sends a GD is a
     # valid cliff deck, so an engine that only watched for GD would answer it
     # as flat ground.

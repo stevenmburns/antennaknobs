@@ -1577,33 +1577,54 @@ Captured against the same binary as the rest of the corpus
 A newer build ships under SimNEC 5/1 (`5b4az.ae6ty.1.23`); it was deliberately
 NOT used, because a corpus captured against two vintages cannot be diffed.
 
-### The mode field, from the oracle's own sources
+### The mode field, from NEC-2's own source
 
-`sources/radiation.c` ships with the binary, so the cliff is not inferred from
-the printout — `ffld()` was read. `gnd.ifar` is the `RP` card's `I1`:
+The cliff is not inferred from the printout. It is read out of the original
+NEC-2 FORTRAN — a US government work in the public domain — specifically
+`nec2dx.f` (NEC-2D, Lawrence Livermore National Laboratory, "FILE CREATED
+4/11/80", double-precision revision 6/4/85), `SUBROUTINE FFLD`, cross-checked
+against the single-precision `nec2-1.2.1.2.f` of the same lineage (the two
+agree statement for statement across this block). `IFAR` in `COMMON /GND/` is
+the `RP` card's `I1`, assigned at label 36 of the main program's card reader:
 
-| `I1` | what it does in `ffld` | here |
+| `I1` | what it does in `FFLD` | here |
 | --- | --- | --- |
 | 0 | one reflection coefficient for the whole image sum | runs |
-| 1 | `gfld` instead of `ffld` — a different banner and row shape | refused |
+| 1 | `GFLD` instead of `FFLD` — a different banner and row shape | refused |
 | 2 | linear cliff: medium chosen per segment against `x = CLT` | **runs** |
 | 3 | circular cliff: same, against `r = CLT` | **runs** |
-| 4 | radial screen: surface impedance `t1·d·ln(d/t2)` | refused |
-| 5 | screen, then a LINEAR cliff beyond `scrwl` | refused |
-| 6 | screen, then a CIRCULAR cliff beyond `scrwl` | refused |
+| 4 | radial screen: surface impedance `T1*D*LOG(D/T2)` | refused |
+| 5 | screen, then a LINEAR cliff beyond `SCRWL` | refused |
+| 6 | screen, then a CIRCULAR cliff beyond `SCRWL` | refused |
+
+The screen's surface impedance is theory-manual `Z_g(ρ) = jμ₀ωρ/N·ln(ρ/NC₀)`
+(Part I §IV.3, p. 59); the Fresnel pair `FFLD` builds `RRV`/`RRH` from is
+eqs. 179–180 with `ZRATI = 1./SQRT(EPSC)` the `Z_R` of eq. 179, composed onto
+the image by eq. 181.
 
 ### What the cliff actually is
 
-Per SEGMENT and per DIRECTION, not per antenna. For a segment at height `z`:
+Per SEGMENT and per DIRECTION, not per antenna. For a segment at height `z`,
+`FFLD`'s own statements (`TTHET=TAN(THET)`, `PHX=-SIN(PHI)`, `PHY=COS(PHI)`,
+`ROZ=COS(THET)` are set at the head of the routine):
 
+```fortran
+   11 DR= Z(I)* TTHET                         specular distance along the ray
+      D= DR* PHY+ X(I)                        RP 2 — the abscissa alone
+      IF( IFAR.EQ.2) GOTO 13
+      D= SQRT( D* D+( Y(I)- DR* PHX)**2)      RP 3 — the radius
+   13 IF(( CL- D).LE.0.) GOTO 15               beyond the edge?
+   14 RRV= RRV1                                medium 1
+      RRH= RRH1
+      GOTO 16
+   15 RRV= RRV2                                medium 2 ...
+      RRH= RRH2
+      ARG= ARG+ DARG                           ... and the extra path
 ```
-dr = z * tan(theta)                       specular distance along the ray
-d  = dr*cos(phi) + x                      RP 2 — the abscissa alone
-d  = hypot(dr*cos(phi) + x,               RP 3 — the radius
-           dr*sin(phi) + y)
-(cl - d) > 0  ?  medium 1  :  medium 2 and arg += darg
-darg = -2*k*CHT*cos(theta)
-```
+
+with `DARG=-TP*2.*CH*ROZ` set once per direction (`TP` = 2π, `CH = CHT/WLAM`),
+i.e. `-2k·CHT·cos(theta)`, and `CL = CLT/WLAM` set in `RDPAT`. `PHX = -sin(phi)`
+is why the circular radius reads `Y(I) - DR*PHX` rather than a plus.
 
 Three consequences worth recording:
 
@@ -1612,42 +1633,53 @@ Three consequences worth recording:
    source of a several-dB grazing error and it did not materialise: over both
    cliff fixtures every row at theta >= 50 agrees to a constant **-0.070 dB**,
    the same offset as the rows where no element crosses at all.
-2. **`GN` carries a second medium too.** `main.c`'s `GN` handler writes
-   `fpat.epsr2/sig2/clt/cht` from `F3`-`F6` whenever `NRADL` is zero — the
-   same four slots the `GD` handler writes. A deck can therefore state a whole
-   cliff without ever sending a `GD`, and an engine watching only for `GD`
-   would answer it as flat ground. Fixture
-   `dipole_rp2_cliff_on_the_gn_card`.
-3. **The block prints on the MODE, not on the card.** `rdpat` emits
-   `FAR FIELD GROUND PARAMETERS` for any `ifar > 1`, so a cliff mode with no
-   second medium anywhere in the deck prints it with four zeros in it — and
-   then divides by them: `zrati2 = sqrt(1/0)` is infinite and the oracle's
+2. **`GN` carries a second medium too.** The main program's `GN` branch
+   (label 23) writes `EPSR2`/`SIG2`/`CLT`/`CHT` in `COMMON /FPAT/` from
+   `F3`-`F6` whenever `NRADL` is zero — the same four slots the `GD` branch
+   (label 34) writes, and it reaches them only because `IF (NRADL.EQ.0) GO TO
+   23` skips the screen assignment. A deck can therefore state a whole cliff
+   without ever sending a `GD`, and an engine watching only for `GD` would
+   answer it as flat ground. Fixture `dipole_rp2_cliff_on_the_gn_card`.
+3. **The block prints on the MODE, not on the card.** `RDPAT` emits
+   `FAR FIELD GROUND PARAMETERS` on `IF (IFAR.LT.2) GO TO 2` alone, so a cliff
+   mode with no second medium anywhere in the deck prints it with four zeros
+   in it — and then divides by them:
+   `ZRATI2=SQRT(1./DCMPLX(EPSR2,-SIG2*WLAM*59.96))` is infinite and the oracle's
    whole pattern table comes out `nan`. Measured, recorded, not reproduced;
    nothing here rescues a deck that asks for a cliff into vacuum.
 
 ### `RFLD = 0` — the gain-only form
 
-Two shape changes, both in `rdpat`:
+Two shape changes, both in `RDPAT`, both hanging off the same guard
+`IF (RFLD.LT.1.D-20)`:
 
 - the `RANGE:` / `EXP(-JKR)/R:` pair (and the blank above it — three lines)
-  is guarded by `fpat.rfld >= 1.0e-20` and simply is not printed;
-- the E columns lose `*exrm` and `+exra`, so they carry `|E|*wlam` rather
-  than the field at a range. Measured ratio between the two forms of one deck:
-  exactly `RFLD`.
+  sits behind the first one and simply is not printed;
+- at label 26 the second one skips `ETHM=ETHM*EXRM` / `ETHA=ETHA+EXRA` (and
+  the `EPH` pair), so the E columns carry `|E|*WLAM` rather than the field at
+  a range. Measured ratio between the two forms of one deck: exactly `RFLD`.
 
-### The two thresholds nec2c spells `1e-20`
+### The two thresholds NEC-2 spells `1e-20`
 
 They are different tests, and only an `RFLD = 0` deck separates them. §4.14
 read the gain floor off `dipole_rp_pattern` and described both as one test on
-the field at the requested range; `calculations.c` and `radiation.c` say
+the field at the requested range; `FUNCTION DB10` and `SUBROUTINE RDPAT` say
 otherwise:
 
-- `db10(x)` — `x < 1e-20 -> -999.99` — is applied to the LINEAR POWER GAIN,
-  which never depended on the range. The gain columns of an `RFLD = 0` table
-  are identical to the same deck's at 1000 m.
-- the polarisation block's `(ethm2 <= 1e-20) && (ephm2 <= 1e-20)`, which
-  blanks `SENSE` and is what makes a row 11 tokens instead of 12, is applied
-  to the field as `ffld` returns it — before `*wlam` and before `*1/RFLD`.
+- `DB10(X)` — `IF (X.LT.1.D-20) ... DB10=-999.99` — is applied to the LINEAR
+  POWER GAIN (`GNMJ=DB10(GCON*EMAJR2)` and its four siblings), which never
+  depended on the range. The gain columns of an `RFLD = 0` table are identical
+  to the same deck's at 1000 m.
+- the polarisation block's
+  `IF (ETHM2.GT.1.D-20.OR.EPHM2.GT.1.D-20) GO TO 11` — whose fall-through sets
+  `ISENS=HBLK`, blanking `SENSE` and making a row 11 tokens instead of 12 — is
+  applied to the field as `FFLD` returns it, at label 10, before the `*WLAM`
+  and the `*EXRM` at label 26.
+
+(`RDPAT` in fact spells `1e-20` four times: the two above, the `RFLD` guard of
+the previous section, and `IF (ABS(GNOR).GT.1.D-20)` on the normalisation
+factor. Only the first two decide row shape, which is why §4.14 conflated
+exactly those.)
 
 At one range and one wavelength the two coincide, which is why 40 fixtures did
 not notice. §4.14's 11-vs-12-token rule is unaffected; only its stated

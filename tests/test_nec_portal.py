@@ -1579,7 +1579,7 @@ def test_the_rp_modes_that_would_use_a_gd_are_still_refused():
 
     * ``RP 1`` is the surface wave — a different banner (``RADIATED FIELDS
       NEAR GROUND``), a different row shape carrying ``E(RADIAL)``, and a
-      ``gfld`` this engine has no equivalent of;
+      ``GFLD`` this engine has no equivalent of;
     * ``RP 4``-``6`` all want a radial wire ground screen, which momwire
       cannot model. That is the same reason ``GN``'s ``NRADL`` field is
       refused, and running one as bare ground would be a wrong answer rather
@@ -1662,7 +1662,7 @@ def test_the_second_medium_actually_moves_the_cliff_modes_gains():
 
 
 def test_a_cliff_mode_with_no_second_medium_still_prints_the_block():
-    """``rdpat`` prints FAR FIELD GROUND PARAMETERS on the MODE, not on the
+    """``RDPAT`` prints FAR FIELD GROUND PARAMETERS on the MODE, not on the
     card. A cliff mode whose deck never sent a ``GD`` and never put the
     fields on its ``GN`` gets the block with four zeros in it — measured on
     the oracle, and the reason :func:`_far_field_ground_lines` renders a
@@ -1699,10 +1699,10 @@ def _pattern_rows(text: str) -> list[list[str]]:
 def test_rfld_zero_drops_the_range_header_and_keeps_the_gain():
     """The gain-only form, against the same deck read out at 1000 m.
 
-    Two nec2c thresholds are both spelt ``1e-20`` and only come apart here.
-    ``db10()`` clamps the LINEAR POWER GAIN, which never depended on the
+    Two NEC-2 thresholds are both spelt ``1e-20`` and only come apart here.
+    ``DB10`` clamps the LINEAR POWER GAIN, which never depended on the
     range — so the three gain columns must be identical between the two runs,
-    to the printed digit. The blank-SENSE test clamps the field as ``ffld``
+    to the printed digit. The blank-SENSE test clamps the field as ``FFLD``
     returns it, BEFORE the range scaling — so it must reach the same verdict
     on both runs even though the printed E columns differ by a factor of
     ``RFLD``, three decades here.
