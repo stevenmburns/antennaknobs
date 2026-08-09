@@ -254,8 +254,8 @@ array answers in 0.77 seconds and 137 MB, and the 32×32 that dense cannot reach
 takes 1.3 seconds and 173 MB. A 48×48 array — 2304 elements, 20736 unknowns,
 where the dense matrix alone is 6.9 GB and the dense solve around it needs an
 estimated 77 GB — solves in 3.0 seconds and 272 MB.
-The answers agree with the dense solve to better than 1e-06 relative wherever
-dense can still be run, so nothing is being traded away for the speed: it is
+The answers agree with the dense solve to within a few parts in 10⁶ relative
+wherever dense can still be run, so nothing is being traded away for the speed: it is
 the same physics and the same operator, reorganised as an FFT convolution over
 the element grid. The generic hierarchical solver (`--basis hmatrix`) also
 survives past the dense wall, but on a repeated-element lattice it is roughly
