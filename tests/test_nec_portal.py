@@ -71,6 +71,7 @@ _SECTION_MARKERS = (
     "ANTENNA INPUT PARAMETERS",
     "CURRENTS AND LOCATION",
     "POWER BUDGET",
+    "FAR FIELD GROUND PARAMETERS",
     "RADIATION PATTERNS",
     "NEAR ELECTRIC FIELDS",
     "NEAR MAGNETIC FIELDS",
@@ -82,6 +83,7 @@ REPRESENTATIVE = (
     "dipole_pec_ground",
     "dipole_load_ld0",
     "dipole_gs_scaled",
+    "dipole_rp2_linear_cliff",
     "jar_testdeck",
     "two_source_yy_card",
     "two_source_sensor_lines",
@@ -1560,35 +1562,178 @@ def test_a_bare_gd_is_a_card_like_any_other():
     assert [float(v) for v in echo.split()[5:]] == [0.0] * 10, echo
 
 
+_CLIFF_HEAD = (
+    "CE gd cliff pattern\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\n"
+    "GN 0 0 0 0 13. .005\nGD 0 0 0 0 5. .001 20. -2.\n"
+    "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\n"
+)
+
+
 def test_the_rp_modes_that_would_use_a_gd_are_still_refused():
-    """The fidelity gate — why accepting ``GD`` is not a silent lie.
+    """The fidelity gate, narrowed by issue #802 to the modes still out.
 
     NEC-2 reaches the second medium in the far field ALONE, and there only
-    through ``RP``'s cliff and ground-screen modes. Measured on the oracle
-    with the cliff card of ``dipole_gd_cliff_sommerfeld``: under ``RP 0`` the
-    pattern table is byte-identical with and without it; under ``RP 2`` a
-    ``FAR FIELD GROUND PARAMETERS`` block appears and every gain moves. So
-    the deck shapes where ``GD`` is inert are the shapes this engine runs,
-    and the shapes where it is not are refused by name (issue #802) — this
-    engine can never be asked a cliff question and answer it as flat ground.
+    through ``RP``'s cliff and ground-screen modes. Two of those five now run
+    (see the tests below); these four do not, and for reasons that are not the
+    cliff's:
+
+    * ``RP 1`` is the surface wave — a different banner (``RADIATED FIELDS
+      NEAR GROUND``), a different row shape carrying ``E(RADIAL)``, and a
+      ``gfld`` this engine has no equivalent of;
+    * ``RP 4``-``6`` all want a radial wire ground screen, which momwire
+      cannot model. That is the same reason ``GN``'s ``NRADL`` field is
+      refused, and running one as bare ground would be a wrong answer rather
+      than a refusal. 5 and 6 carry a cliff too, but the screen is what stops
+      them.
 
     Issue #829: every refused mode must also lead with a token-0 ``ERROR:``
     line so SimNEC's ``"NEC ERROR (1)"`` warning frame fires.
     """
-    head = (
-        "CE gd cliff pattern\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\n"
-        "GN 0 0 0 0 13. .005\nGD 0 0 0 0 5. .001 20. -2.\n"
-        "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\n"
-    )
-    for mode in (1, 2, 3, 4, 5, 6):
-        text = run_deck(head + f"RP {mode} 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
+    for mode in (1, 4, 5, 6):
+        text = run_deck(_CLIFF_HEAD + f"RP {mode} 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
         assert f"RP mode {mode} is not supported" in text, mode
         assert NX_ECHO.search(text), mode
-        assert any(line.split()[:1] == ["ERROR:"] for line in text.splitlines()), mode
+        error_lines = [ln for ln in text.splitlines() if ln.split()[:1] == ["ERROR:"]]
+        assert error_lines, mode
+        assert f"RP mode {mode}" in error_lines[0], mode
+        # A refusal must not leave half a report behind it either.
+        assert "FAR FIELD GROUND PARAMETERS" not in text, mode
     # ...and the mode SimNEC actually writes runs, second medium or not.
-    text = run_deck(head + "RP 0 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
+    text = run_deck(_CLIFF_HEAD + "RP 0 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
     assert "ERROR-NEC2C" not in text
     assert "RADIATION PATTERNS" in text
+    assert "FAR FIELD GROUND PARAMETERS" not in text
+
+
+def test_the_rp_cliff_modes_consume_the_gd_instead_of_refusing_it():
+    """Issue #802: the two modes a ``GD`` is FOR now run.
+
+    They were refused with 1 and 4-6 until #802, which was honest but left
+    Ward's EZNEC-derived examples — whose cliff parameters land on ``RP 3`` —
+    with no answer at all. Each must now print the block the oracle prints,
+    name the right cliff in it, and echo the card's own four numbers into it
+    in card order.
+    """
+    for mode, word in ((2, "LINEAR"), (3, "CIRCULAR")):
+        text = run_deck(_CLIFF_HEAD + f"RP {mode} 3 3 1001 0 0 30 30 1000\nXQ\n")[0]
+        assert "ERROR-NEC2C" not in text, mode
+        assert "FAR FIELD GROUND PARAMETERS" in text, mode
+        assert f"--- {word} CLIFF ---" in text, mode
+        assert "RADIATION PATTERNS" in text, mode
+        assert "EDGE DISTANCE=     20.00 METERS" in text, mode
+        assert "HEIGHT=     -2.00 METERS" in text, mode
+        assert "RELATIVE DIELECTRIC CONST=      5.000" in text, mode
+        assert "GROUND CONDUCTIVITY=      0.001 MHOS" in text, mode
+
+
+def test_the_second_medium_actually_moves_the_cliff_modes_gains():
+    """Lifting the refusal is only worth it if the card now changes an answer.
+
+    Same deck, same geometry, same ground — one digit of the ``RP`` card
+    apart. ``RP 0`` cannot see the second medium at all, so its table is the
+    control; ``RP 2`` and ``RP 3`` must both differ from it, and from EACH
+    OTHER, because a straight edge and a circular one only agree along the
+    azimuth that crosses both.
+
+    The theta grid has to reach grazing to say anything. The reflection point
+    of a segment at height ``z`` is ``z·tan(theta)`` out, so this 5 m vertical
+    does not reach a 20 m edge until about 76 degrees — a 0/30/60 sweep sees a
+    flat world and would pass this test with the card ignored.
+    """
+
+    def gains(mode):
+        text = run_deck(_CLIFF_HEAD + f"RP {mode} 4 3 1001 0 0 28 30 1000\nXQ\n")[0]
+        rows, armed = {}, False
+        for line in text.splitlines():
+            parts = line.split()
+            if parts[:2] == ["DEGREES", "DEGREES"]:
+                armed = True
+            elif armed and len(parts) in (11, 12):
+                rows[(float(parts[0]), float(parts[1]))] = float(parts[4])
+            elif armed:
+                armed = False
+        return rows
+
+    flat, linear, circular = gains(0), gains(2), gains(3)
+    assert set(flat) == set(linear) == set(circular)
+    assert linear != flat, "RP 2 read the second medium and nothing moved"
+    assert circular != flat, "RP 3 read the second medium and nothing moved"
+    assert linear != circular, "a linear and a circular cliff cannot agree everywhere"
+
+
+def test_a_cliff_mode_with_no_second_medium_still_prints_the_block():
+    """``rdpat`` prints FAR FIELD GROUND PARAMETERS on the MODE, not on the
+    card. A cliff mode whose deck never sent a ``GD`` and never put the
+    fields on its ``GN`` gets the block with four zeros in it — measured on
+    the oracle, and the reason :func:`_far_field_ground_lines` renders a
+    missing record rather than skipping the block."""
+    text = run_deck(
+        "CE cliff mode with no gd\nGW 1 9 0. 0. 0.5 0. 0. 5.0 0.001\nGE 1\nGN 1\n"
+        "EX 0 1 1 0 1.\nFR 0 1 0 0 14.1 0\nRP 2 3 2 1001 0 0 30 90 1000\nXQ\n"
+    )[0]
+    assert "ERROR-NEC2C" not in text
+    assert "--- LINEAR CLIFF ---" in text
+    assert "EDGE DISTANCE=      0.00 METERS" in text
+    assert "RELATIVE DIELECTRIC CONST=      0.000" in text
+
+
+# --------------------------------------------------------------------------
+# issue #802: RFLD = 0, the gain-only form
+# --------------------------------------------------------------------------
+
+
+def _pattern_rows(text: str) -> list[list[str]]:
+    """Every RADIATION PATTERNS data row, as raw token lists."""
+    rows, armed = [], False
+    for line in text.splitlines():
+        parts = line.split()
+        if parts[:2] == ["DEGREES", "DEGREES"]:
+            armed = True
+        elif armed and len(parts) in (11, 12):
+            rows.append(parts)
+        elif armed:
+            armed = False
+    return rows
+
+
+def test_rfld_zero_drops_the_range_header_and_keeps_the_gain():
+    """The gain-only form, against the same deck read out at 1000 m.
+
+    Two nec2c thresholds are both spelt ``1e-20`` and only come apart here.
+    ``db10()`` clamps the LINEAR POWER GAIN, which never depended on the
+    range — so the three gain columns must be identical between the two runs,
+    to the printed digit. The blank-SENSE test clamps the field as ``ffld``
+    returns it, BEFORE the range scaling — so it must reach the same verdict
+    on both runs even though the printed E columns differ by a factor of
+    ``RFLD``, three decades here.
+
+    An engine that floored on the printed field instead would pass at 1000 m
+    and quietly grow lobes in its own nulls at ``RFLD = 0``.
+    """
+    head = (
+        "CE gain only\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGE 0\n"
+        "EX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\n"
+    )
+    at_range = run_deck(head + "RP 0 5 3 1001 0 0 45 45 1000\nXQ\n")[0]
+    gain_only = run_deck(head + "RP 0 5 3 1001 0 0 45 45 0\nXQ\n")[0]
+
+    # Shape: the RANGE / EXP(-JKR)/R pair is printed at a range and not at all
+    # without one, and it is the ONLY line that leaves.
+    assert "RANGE:" in at_range and "EXP(-JKR)/R:" in at_range
+    assert "RANGE:" not in gain_only and "EXP(-JKR)/R:" not in gain_only
+    assert "RADIATION PATTERNS" in gain_only
+    assert len(at_range.splitlines()) - len(gain_only.splitlines()) == 3
+
+    ranged, bare = _pattern_rows(at_range), _pattern_rows(gain_only)
+    assert len(ranged) == len(bare) == 15
+    for a, b in zip(ranged, bare, strict=True):
+        assert len(a) == len(b), f"the SENSE column changed with the range: {a} / {b}"
+        # theta, phi, VERTC, HORIZ, TOTAL — none of them see the range.
+        assert a[:5] == b[:5], f"a gain column moved with the range: {a} / {b}"
+        # ...and E goes up by exactly RFLD, the 1/r the range header carried.
+        e_at, e_bare = float(a[-4]), float(b[-4])
+        if e_at:
+            assert e_bare / e_at == pytest.approx(1000.0, rel=1e-3), (a, b)
 
 
 # --------------------------------------------------------------------------
