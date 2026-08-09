@@ -325,8 +325,14 @@ def sweep(sizes, solvers, segs, pitch_lambda, freq_mhz, cap_gb, timeout):
         # Agreement: dense while it ran, hmatrix as the reference beyond it.
         y_dense = _y_of(results.get("dense"))
         y_hm = _y_of(results.get("hmatrix"))
-        ref_key = "dense" if y_dense is not None else ("hmatrix" if y_hm else None)
-        y_ref = y_dense if y_dense is not None else y_hm
+        # `is not None` throughout — these are numpy arrays, and a bare truth
+        # test on one raises rather than answering.
+        if y_dense is not None:
+            ref_key, y_ref = "dense", y_dense
+        elif y_hm is not None:
+            ref_key, y_ref = "hmatrix", y_hm
+        else:
+            ref_key, y_ref = None, None
         for key in solvers:
             if key == ref_key:
                 continue
