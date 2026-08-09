@@ -1505,3 +1505,58 @@ were flat — it never gets asked one. A `GD` deck whose `RP` is mode 3, like
 the Cardioid's, still refuses on the `RP`, which is correct until #802 lands.
 
 Corpus 38 -> 40; layout gate 40/40.
+
+---
+
+## Addendum 2026-08-09 — the versionNECd path, traced (issue #828)
+
+Ward's reply (2026-08-08) sanctioned probing as `NEC2text#.#`; a full bytecode
+trace of the 6p4d6 jar (CFR + `javap -c -p`, plus executing the four verbatim
+patterns under Java 21) settled the questions §1 and item 11 left open. The
+portal now probes as `NEC2momwire.<major>.<minor>` (`--legacy-probe` restores
+the old versionA masquerade).
+
+**The versionNECd branch sets no state.** `Execute.testCommand`'s NECd match
+is `setVersion(line); return null` — `Matcher.group` is never invoked
+(offset 436–460: no `group`, no `Double`), so nothing is Double-parsed and
+`minimumNEC2CVersion` (1.23) is read only inside the shared A/B/C branch.
+Case-sensitive, `lookingAt()`-anchored; the character after the digit run
+must be a non-digit (`NEC\d+\D.*`).
+
+**The engine enum comes from the filename alone.** The jar's only
+`putstatic necEngine` is in `NEC2PortalDialog.safeNecCommand()`:
+`indexOf("nec2c")` → `NEC2C`, else `nec5` → `NEC5`, else `nec42` → `NEC42`,
+else the *NO NEC Command Available* refusal. Every daemon choice
+(`Workforce.eval`, `manageCrew`, `NewLocalConsumer.run`) tests
+`necEngine == NECEngine.NEC2C` → `NEC2Daemon` (stdin/stdout NX residency);
+anything else → the file-based `NEC5Daemon`. The probe response cannot reach
+any of it. Enum ctor args decoded: `samplesWidth` (sensor-row token count,
+11 for NEC2C), `samplesOffset` (index of Re(I), 4), `thetaFirst` (NEC4/5
+near-field angular convention, false).
+
+**One consumer parses the stored version text**: `Options.getEngine()`
+(`[a-zA-Z]*([0-9])+?(.*)`) — group(1) must be `"2"` or the scripting layer
+reclassifies the engine (`Insulation`'s `W7EL` gate requires `Complex.TWO`;
+NEC5-only source placements test for 5). `NEC2momwire.…` and
+`nec2c.ae6ty.9.1` both yield `"2"`.
+
+**Where the text surfaces**: the portal dialog's `NECVersion` row, a
+`CM version <text>` comment card `NECSource` prepends to every deck, and the
+saved-circuit XML via `toXMLLikeWorker`.
+
+**Corrections to the body above**:
+- §1's `versionB // <- what we ship` annotation described the *oracle*;
+  `nec_portal.py` shipped versionA's shape (`nec2c.ae6ty.9.1`) through
+  v0.46, and rides versionNECd from #828 on.
+- A first line matching *no* regex is not an error: `testCommand` falls
+  through to `setVersion(rawCommand); return null` — the probe was never
+  load-bearing for acceptance, only a matching-but-unparseable A/B/C tail
+  can refuse.
+- Item 11 (the engine name a replacement may claim) is resolved by the
+  above; the printout banner remains unparsed by the live protocol (the only
+  `NUMERICAL ELECTROMAGNETICS CODE (nec2c)` regex in the jar is
+  `ae6ty/FileStuff`, the offline `.out` import), so `BANNER_VERSION` stays
+  fixture-pinned on purpose.
+- One more filename trap found beside the `nec2c` rule: `testCommand`
+  refuses any command whose full path contains the substring `out`
+  ("Can't execute 'out' file:").
