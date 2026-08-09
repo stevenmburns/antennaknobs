@@ -64,8 +64,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_6210b0e8046423da_owa_yagi_6el_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-09 14:08 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-09 14:24 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -80,34 +80,34 @@
     </div>
 </header>
 <main id="source">
-    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">"""OWA Yagi: 4 elements, whole-band flat 50-ohm feed (NW3Z/WA3FET concept,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">&quot;&quot;&quot;OWA Yagi: 4 elements, whole-band flat 50-ohm feed (NW3Z/WA3FET concept,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="str">systematized by L. B. Cebik, W4RNL).</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">The Optimized Wideband Antenna is a Yagi with one deliberately "wasted"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">The Optimized Wideband Antenna is a Yagi with one deliberately &quot;wasted&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">element: a FIRST DIRECTOR parked unusually close to the driver (~0.05 wl</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">here, vs ~0.18 wl to the next director). That element barely adds gain --</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">it is a COUPLED RESONATOR that flattens the driving-point impedance at</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">50 ohm across an entire band: the matching network IS an element, so the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="str">feed is direct coax with no beta/gamma/stub hardware. Cebik published OWA</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">families for 20/10/6/2 m; this is his 10 m 4-element on a 13.5' boom</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">(reflector 17.68', driver 17.20' @ 5.12', D1 16.14' @ 6.87', D2 15.20'</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">@ 13.0', 1" tubing), with lengths held as wavelength fractions so the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">families for 20/10/6/2 m; this is his 10 m 4-element on a 13.5&#x27; boom</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">(reflector 17.68&#x27;, driver 17.20&#x27; @ 5.12&#x27;, D1 16.14&#x27; @ 6.87&#x27;, D2 15.20&#x27;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">@ 13.0&#x27;, 1&quot; tubing), with lengths held as wavelength fractions so the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str">design scales with `design_freq`.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="str">What the model reproduces (free space, length_factor 0.985 to centre the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="str">band for this segmentation): SWR(50) stays 1.10-1.32 over ALL of</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="str">28.0-29.0 MHz while gain runs ~8.3-8.7 dBi and F/B ~12-14 dB. The two</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="str">contrasts that make the point:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="str">  - the catalog's `beams.yagi` (a conventional driver-reflector-directors</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="str">  - the catalog&#x27;s `beams.yagi` (a conventional driver-reflector-directors</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="str">    design) swings past 5:1 SWR over the same span;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">  - delete D1 (or drag `d1_length_factor` off unity) and the OWA's own</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">  - delete D1 (or drag `d1_length_factor` off unity) and the OWA&#x27;s own</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="str">    match collapses to 2.7-5.9 -- the wideband feed lives in that one</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="str">    close-coupled element, not in the driver.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="str">The trade Cebik documents: ~0.2 dB of peak gain given up for total-band</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t"><span class="str">consistency, and fat elements matter (thin-wire OWAs narrow; the 1" tubing</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t"><span class="str">consistency, and fat elements matter (thin-wire OWAs narrow; the 1&quot; tubing</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t"><span class="str">is part of the published design, modelled via the wire-material spec).</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="str">Geometry, in the framework's (x, y, z) convention:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="str">Geometry, in the framework&#x27;s (x, y, z) convention:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t"><span class="str">  - y : element axis (all four elements parallel to y)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t"><span class="str">  - x : boom / firing axis; the beam fires +x (toward the directors)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t"><span class="str">  - z : constant height `base`</span>&nbsp;</span><span class="r"></span></p>
@@ -118,7 +118,7 @@
     <p class="pln"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t"><span class="str">       |          |     |                |</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t"><span class="str">    x= 0        .148  .198             .375  (wl)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t"><span class="str">                     ^^ the OWA coupled resonator</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t"><span class="str">&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span> <span class="key">import</span> <span class="nam">AntennaBuilder</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span><span class="op">.</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Wire</span><span class="op">,</span> <span class="nam">WireSpec</span>&nbsp;</span><span class="r"></span></p>
@@ -126,7 +126,7 @@
     <p class="pln"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t"><span class="key">class</span> <span class="nam">Builder</span><span class="op">(</span><span class="nam">AntennaBuilder</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t">    <span class="com"># Cebik's 10 m 4-el OWA (ant36), feet -> fractions of the 28.4 MHz</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t">    <span class="com"># Cebik&#x27;s 10 m 4-el OWA (ant36), feet -&gt; fractions of the 28.4 MHz</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">    <span class="com"># wavelength: (element half-length, boom position).</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t">    <span class="nam">TABLE</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">        <span class="op">(</span><span class="num">0.255250</span><span class="op">,</span> <span class="num">0.0</span><span class="op">)</span><span class="op">,</span>  <span class="com"># reflector</span>&nbsp;</span><span class="r"></span></p>
@@ -139,30 +139,30 @@
     <p class="pln"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">    <span class="nam">default_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">        <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">            <span class="str">"design_freq"</span><span class="op">:</span> <span class="num">28.4</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">            <span class="str">"freq"</span><span class="op">:</span> <span class="num">28.4</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">            <span class="str">"base"</span><span class="op">:</span> <span class="num">10.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">            <span class="str">&quot;design_freq&quot;</span><span class="op">:</span> <span class="num">28.4</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">            <span class="str">&quot;freq&quot;</span><span class="op">:</span> <span class="num">28.4</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">            <span class="str">&quot;base&quot;</span><span class="op">:</span> <span class="num">10.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">            <span class="com"># Overall element-length scale. 0.985 centres the published</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">            <span class="com"># design's flat-SWR window on 28.0-29.0 MHz for this</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">            <span class="com"># segmentation (Cebik's feet assume his NEC model's meshing).</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">            <span class="str">"length_factor"</span><span class="op">:</span> <span class="num">0.985</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">            <span class="com"># design&#x27;s flat-SWR window on 28.0-29.0 MHz for this</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">            <span class="com"># segmentation (Cebik&#x27;s feet assume his NEC model&#x27;s meshing).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">            <span class="str">&quot;length_factor&quot;</span><span class="op">:</span> <span class="num">0.985</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">            <span class="com"># Scale on D1 alone -- the knob that shows the OWA mechanism:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">            <span class="com"># off unity, the whole-band match collapses while the pattern</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">            <span class="com"># barely moves.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">            <span class="str">"d1_length_factor"</span><span class="op">:</span> <span class="num">1.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">            <span class="str">"ui_params"</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">            <span class="str">&quot;d1_length_factor&quot;</span><span class="op">:</span> <span class="num">1.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">            <span class="str">&quot;ui_params&quot;</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t">                <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">                    <span class="str">"target_z0"</span><span class="op">:</span> <span class="num">50.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">                    <span class="str">&quot;target_z0&quot;</span><span class="op">:</span> <span class="num">50.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">                    <span class="com"># Single-band 10 m beam: snap the GUI sweep to the band.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">                    <span class="str">"sweep_policy"</span><span class="op">:</span> <span class="op">{</span><span class="str">"band_locked"</span><span class="op">:</span> <span class="key">True</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">                    <span class="str">"default_view"</span><span class="op">:</span> <span class="str">"xy"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">                    <span class="str">"length_factor"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">                        <span class="str">"min"</span><span class="op">:</span> <span class="num">0.95</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">                        <span class="str">"max"</span><span class="op">:</span> <span class="num">1.02</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">                    <span class="str">&quot;sweep_policy&quot;</span><span class="op">:</span> <span class="op">{</span><span class="str">&quot;band_locked&quot;</span><span class="op">:</span> <span class="key">True</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">                    <span class="str">&quot;default_view&quot;</span><span class="op">:</span> <span class="str">&quot;xy&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">                    <span class="str">&quot;length_factor&quot;</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">                        <span class="str">&quot;min&quot;</span><span class="op">:</span> <span class="num">0.95</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">                        <span class="str">&quot;max&quot;</span><span class="op">:</span> <span class="num">1.02</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t">                    <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">                    <span class="str">"d1_length_factor"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">                        <span class="str">"min"</span><span class="op">:</span> <span class="num">0.9</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">                        <span class="str">"max"</span><span class="op">:</span> <span class="num">1.1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">                    <span class="str">&quot;d1_length_factor&quot;</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">                        <span class="str">&quot;min&quot;</span><span class="op">:</span> <span class="num">0.9</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">                        <span class="str">&quot;max&quot;</span><span class="op">:</span> <span class="num">1.1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">                    <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">                <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">            <span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -170,9 +170,9 @@
     <p class="run run2"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">    <span class="key">def</span> <span class="nam">build_wire_material</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">        <span class="com"># 1" aluminum tubing idealized as PEC, held as a wavelength fraction</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">        <span class="com"># 1&quot; aluminum tubing idealized as PEC, held as a wavelength fraction</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">        <span class="com"># (0.0127 m at 28.4 MHz) so the fat-element behaviour -- which the</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">        <span class="com"># OWA's bandwidth depends on -- survives rescaling to other bands.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">        <span class="com"># OWA&#x27;s bandwidth depends on -- survives rescaling to other bands.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">        <span class="nam">wavelength</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">design_wavelength</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t">        <span class="key">return</span> <span class="nam">WireSpec</span><span class="op">(</span><span class="nam">radius</span><span class="op">=</span><span class="num">0.001203</span> <span class="op">*</span> <span class="nam">wavelength</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -203,8 +203,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_6210b0e8046423da_owa_yagi_6el_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-09 14:08 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-09 14:24 +0000
         </p>
     </div>
 </footer>

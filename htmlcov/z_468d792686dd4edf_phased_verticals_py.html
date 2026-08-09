@@ -64,8 +64,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_468d792686dd4edf_pota_performer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-09 14:08 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-09 14:24 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -80,7 +80,7 @@
     </div>
 </header>
 <main id="source">
-    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">"""Two-element phased vertical array -- the 90-degree cardioid (L. B. Cebik,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">&quot;&quot;&quot;Two-element phased vertical array -- the 90-degree cardioid (L. B. Cebik,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="str">W4RNL).</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">Two vertical radiators spaced a quarter wavelength apart and fed 90 degrees</span>&nbsp;</span><span class="r"></span></p>
@@ -91,7 +91,7 @@
     <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="str">(Cebik / Christman models reach 15-25+ dB front-to-back). This is the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">canonical steered VP array and the basis of the four-square.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">This fills the "phased vertical / cardioid" gap: the catalog's other VP wire</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">This fills the &quot;phased vertical / cardioid&quot; gap: the catalog&#x27;s other VP wire</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str">antennas (half_square, bobtail) are fixed broadside curtains; here the pattern</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">is steered by FEED PHASE. We model each radiator as a self-contained vertical</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="str">half-wave DIPOLE (so the array needs no ground plane and the cardioid is</span>&nbsp;</span><span class="r"></span></p>
@@ -103,7 +103,7 @@
     <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="str">the FRONT element 90 degrees LAGGING (voltage -j) steers the main lobe to +x</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="str">and nulls -x.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="str">Geometry, in the framework's (x, y, z) convention:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="str">Geometry, in the framework&#x27;s (x, y, z) convention:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t"><span class="str">  - z : the radiator (vertical) axis -- VERTICALLY POLARISED</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t"><span class="str">  - x : array/firing axis; rear element at x = 0, front at x = +spacing,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t"><span class="str">        cardioid main lobe toward +x with the null toward -x</span>&nbsp;</span><span class="r"></span></p>
@@ -113,8 +113,8 @@
     <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t"><span class="str">        |                   |</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="str">        |  V = 1            |  V = -j      (front lags 90 deg)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="str">        F                   F</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="str">        |                   |       cardioid main lobe --> +x</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="str">        |                   |       cardioid main lobe --&gt; +x</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="str">&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span> <span class="key">import</span> <span class="nam">AntennaBuilder</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span><span class="op">.</span><span class="nam">network</span> <span class="key">import</span> <span class="nam">Wire</span>&nbsp;</span><span class="r"></span></p>
@@ -124,36 +124,36 @@
     <p class="run"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t"><span class="key">class</span> <span class="nam">Builder</span><span class="op">(</span><span class="nam">AntennaBuilder</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t">    <span class="nam">default_params</span> <span class="op">=</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t">        <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t">            <span class="str">"design_freq"</span><span class="op">:</span> <span class="num">28.57</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t">            <span class="str">"freq"</span><span class="op">:</span> <span class="num">28.57</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t">            <span class="str">&quot;design_freq&quot;</span><span class="op">:</span> <span class="num">28.57</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t">            <span class="str">&quot;freq&quot;</span><span class="op">:</span> <span class="num">28.57</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t">            <span class="com"># Height of the lower tip of each vertical dipole.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">            <span class="str">"base"</span><span class="op">:</span> <span class="num">5.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">            <span class="str">&quot;base&quot;</span><span class="op">:</span> <span class="num">5.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t">            <span class="com"># Radiator length as a fraction of a wavelength (~half-wave</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">            <span class="com"># vertical dipole; the monopole version is half this over ground).</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">            <span class="str">"elem_frac"</span><span class="op">:</span> <span class="num">0.5</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t">            <span class="com"># Element spacing as a fraction of a wavelength (~1/4 -> cardioid).</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">            <span class="str">"spacing_frac"</span><span class="op">:</span> <span class="num">0.25</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">            <span class="str">&quot;elem_frac&quot;</span><span class="op">:</span> <span class="num">0.5</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t">            <span class="com"># Element spacing as a fraction of a wavelength (~1/4 -&gt; cardioid).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">            <span class="str">&quot;spacing_frac&quot;</span><span class="op">:</span> <span class="num">0.25</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">            <span class="com"># Complex drive on the FRONT element relative to the rear (which is</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">            <span class="com"># 1+0j). Ideal theory wants -j (90 deg lag, equal magnitude); the</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">            <span class="com"># value here is tuned against the modelled mutual coupling so the</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">            <span class="com"># currents -- not just the voltages -- come out 90 deg apart and</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">            <span class="com"># equal, which is what actually deepens the rearward null. The 1.2</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">            <span class="com"># magnitude compensates the front element's lower driving-point</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">            <span class="com"># magnitude compensates the front element&#x27;s lower driving-point</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">            <span class="com"># current (from the mutual coupling) so the null deepens past the</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">            <span class="com"># ~5 dB a naive equal-voltage feed gives.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">            <span class="str">"front_voltage"</span><span class="op">:</span> <span class="op">-</span><span class="num">1.2j</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">            <span class="str">"ui_params"</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">            <span class="str">&quot;front_voltage&quot;</span><span class="op">:</span> <span class="op">-</span><span class="num">1.2j</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">            <span class="str">&quot;ui_params&quot;</span><span class="op">:</span> <span class="nam">MappingProxyType</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">                <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">                    <span class="str">"target_z0"</span><span class="op">:</span> <span class="num">50.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">                    <span class="com"># Array axis x, radiators along z -> the xz view is face-on.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">                    <span class="str">"default_view"</span><span class="op">:</span> <span class="str">"xz"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">                    <span class="str">"elem_frac"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">                        <span class="str">"min"</span><span class="op">:</span> <span class="num">0.4</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">                        <span class="str">"max"</span><span class="op">:</span> <span class="num">0.6</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">                    <span class="str">&quot;target_z0&quot;</span><span class="op">:</span> <span class="num">50.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">                    <span class="com"># Array axis x, radiators along z -&gt; the xz view is face-on.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">                    <span class="str">&quot;default_view&quot;</span><span class="op">:</span> <span class="str">&quot;xz&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">                    <span class="str">&quot;elem_frac&quot;</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">                        <span class="str">&quot;min&quot;</span><span class="op">:</span> <span class="num">0.4</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">                        <span class="str">&quot;max&quot;</span><span class="op">:</span> <span class="num">0.6</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">                    <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t">                    <span class="str">"spacing_frac"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">                        <span class="str">"min"</span><span class="op">:</span> <span class="num">0.15</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">                        <span class="str">"max"</span><span class="op">:</span> <span class="num">0.35</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t">                    <span class="str">&quot;spacing_frac&quot;</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">                        <span class="str">&quot;min&quot;</span><span class="op">:</span> <span class="num">0.15</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">                        <span class="str">&quot;max&quot;</span><span class="op">:</span> <span class="num">0.35</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">                    <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">                <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">            <span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -170,7 +170,7 @@
     <p class="run"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">        <span class="nam">zc</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span> <span class="op">+</span> <span class="nam">half</span>  <span class="com"># geometric centre height of each vertical</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">        <span class="key">def</span> <span class="nam">vertical</span><span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="nam">voltage</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">            <span class="str">"""A vertical (z-axis) half-wave dipole at x, centre-fed."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">            <span class="str">&quot;&quot;&quot;A vertical (z-axis) half-wave dipole at x, centre-fed.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">            <span class="nam">B</span> <span class="op">=</span> <span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">zc</span> <span class="op">-</span> <span class="nam">half</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">            <span class="nam">T</span> <span class="op">=</span> <span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">zc</span> <span class="op">+</span> <span class="nam">half</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">            <span class="nam">C0</span> <span class="op">=</span> <span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="num">0.0</span><span class="op">,</span> <span class="nam">zc</span> <span class="op">-</span> <span class="nam">eps</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -193,8 +193,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_468d792686dd4edf_pota_performer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-09 14:08 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-09 14:24 +0000
         </p>
     </div>
 </footer>

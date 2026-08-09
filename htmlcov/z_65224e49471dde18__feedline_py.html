@@ -64,8 +64,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_lane_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-09 14:08 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-09 14:24 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -80,20 +80,20 @@
     </div>
 </header>
 <main id="source">
-    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">"""Feedline-network utilities used by multi-band antennas in daisy-chain</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">&quot;&quot;&quot;Feedline-network utilities used by multi-band antennas in daisy-chain</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="str">drive mode.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">The single function `daisy_chain_z_in` takes the antenna's open-circuit</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">The single function `daisy_chain_z_in` takes the antenna&#x27;s open-circuit</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">N-port Z matrix and stitches it together with N-1 50&#937; transmission-line</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">jumpers, returning the single driving-point impedance the rig sees at</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">the main-feed end. Port 0 is the main-feed connection; ports 1..N-1</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">are subsequent stops along the chain; port N-1 is the open end.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">Usage from momwire: build Y_sc via `BSplineSolver.compute_y_matrix`,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">invert to get Z_oc, pass to `daisy_chain_z_in`. PyNEC's TL card path</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">invert to get Z_oc, pass to `daisy_chain_z_in`. PyNEC&#x27;s TL card path</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">solves the same problem natively (no Python-side math) &#8212; this helper</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str">is just for the momwire half.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="key">from</span> <span class="nam">__future__</span> <span class="key">import</span> <span class="nam">annotations</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -107,8 +107,8 @@
     <p class="run run2"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">    <span class="nam">jumper_lengths_m</span><span class="op">:</span> <span class="nam">list</span><span class="op">[</span><span class="nam">float</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">    <span class="nam">freq_mhz</span><span class="op">:</span> <span class="nam">float</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">    <span class="nam">z0_ohms</span><span class="op">:</span> <span class="nam">float</span> <span class="op">=</span> <span class="num">50.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">complex</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">    <span class="str">"""Driving-point impedance at port 0 with the chain feedline applied.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="op">)</span> <span class="op">-&gt;</span> <span class="nam">complex</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">    <span class="str">&quot;&quot;&quot;Driving-point impedance at port 0 with the chain feedline applied.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t"><span class="str">    z_oc: N&#215;N open-circuit impedance matrix of the antenna (V = Z&#183;I).</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="str">    jumper_lengths_m: length-(N-1) sequence of lossless 50&#937; jumpers</span>&nbsp;</span><span class="r"></span></p>
@@ -126,14 +126,14 @@
     <p class="pln"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t"><span class="str">    inv(Y_combined)[0, 0] when the input current is at node 0 and</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t"><span class="str">    all other nodes have no external excitation (open end at N-1</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t46" href="#t46">46</a></span><span class="t"><span class="str">    is implicit &#8212; its KCL row has zero external current).</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t"><span class="str">    &quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">    <span class="nam">n_ports</span> <span class="op">=</span> <span class="nam">z_oc</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t">    <span class="key">if</span> <span class="nam">z_oc</span><span class="op">.</span><span class="nam">shape</span> <span class="op">!=</span> <span class="op">(</span><span class="nam">n_ports</span><span class="op">,</span> <span class="nam">n_ports</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="fst">f"</span><span class="fst">z_oc must be square; got shape </span><span class="op">{</span><span class="nam">z_oc</span><span class="op">.</span><span class="nam">shape</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="fst">f&quot;</span><span class="fst">z_oc must be square; got shape </span><span class="op">{</span><span class="nam">z_oc</span><span class="op">.</span><span class="nam">shape</span><span class="op">}</span><span class="fst">&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">    <span class="key">if</span> <span class="nam">len</span><span class="op">(</span><span class="nam">jumper_lengths_m</span><span class="op">)</span> <span class="op">!=</span> <span class="nam">n_ports</span> <span class="op">-</span> <span class="num">1</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">            <span class="fst">f"</span><span class="fst">need </span><span class="op">{</span><span class="nam">n_ports</span> <span class="op">-</span> <span class="num">1</span><span class="op">}</span><span class="fst"> jumper lengths for </span><span class="op">{</span><span class="nam">n_ports</span><span class="op">}</span><span class="fst"> ports, </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">            <span class="fst">f"</span><span class="fst">got </span><span class="op">{</span><span class="nam">len</span><span class="op">(</span><span class="nam">jumper_lengths_m</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">            <span class="fst">f&quot;</span><span class="fst">need </span><span class="op">{</span><span class="nam">n_ports</span> <span class="op">-</span> <span class="num">1</span><span class="op">}</span><span class="fst"> jumper lengths for </span><span class="op">{</span><span class="nam">n_ports</span><span class="op">}</span><span class="fst"> ports, </span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">            <span class="fst">f&quot;</span><span class="fst">got </span><span class="op">{</span><span class="nam">len</span><span class="op">(</span><span class="nam">jumper_lengths_m</span><span class="op">)</span><span class="op">}</span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">    <span class="key">if</span> <span class="nam">n_ports</span> <span class="op">==</span> <span class="num">1</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">        <span class="key">return</span> <span class="nam">complex</span><span class="op">(</span><span class="nam">z_oc</span><span class="op">[</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -150,7 +150,7 @@
     <p class="pln"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">            <span class="com"># Quarter-wave-multiple &#8212; the line shorts/opens through;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">            <span class="com"># numerically catastrophic and physically degenerate. Nudge</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t">            <span class="com"># the length a hair to dodge the singularity. Real antennas</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">            <span class="com"># don't sit exactly here either; this only matters if the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">            <span class="com"># don&#x27;t sit exactly here either; this only matters if the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t">            <span class="com"># user dials the slider onto it.</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">            <span class="nam">bl</span> <span class="op">+=</span> <span class="num">1e-9</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">            <span class="nam">sin_bl</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">sin</span><span class="op">(</span><span class="nam">bl</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -173,8 +173,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_6ee79fb480cc3008_lane_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-08-09 14:08 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-09 14:24 +0000
         </p>
     </div>
 </footer>
