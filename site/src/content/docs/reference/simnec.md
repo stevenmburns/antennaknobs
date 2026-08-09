@@ -237,6 +237,14 @@ sentinel that SimNEC blocks in `readLine()` waiting for. (An engine that dies
 or forgets the sentinel hangs SimNEC's UI with no timeout, which is strictly
 worse than an error message.) The daemon survives it and runs the next deck.
 
+The refusal leads with a line whose first word is exactly `ERROR:` — that is
+what trips SimNEC's own `"NEC ERROR (1)"` warning frame, so a refused deck
+shows up as a visible warning instead of a session that quietly loaded
+nothing. (Earlier builds used a differently-shaped prefix specifically to
+avoid tripping that frame; issue #829 reversed that on Ward's own say-so
+after a live session hit it — a refused patch-antenna design left the user
+staring at an empty result with no indication why.)
+
 Refused today:
 
 - **Surface patches** (`SP`, `SM`) — momwire is a wire solver.
