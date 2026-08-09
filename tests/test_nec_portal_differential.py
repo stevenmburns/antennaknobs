@@ -19,8 +19,9 @@ against the other, so the default tolerance is **5 % relative** on impedances
 and port currents and **±0.5 dB** on pattern gain.
 
 Measured at authoring time (2026-08-08, momwire 0.23.0, nec2c 5b4az.ae6ty.1.17;
-the two ``dipole_tl_*`` rows added 2026-08-09 for issue #799) — worst case over
-every row of every table in each fixture:
+the two ``dipole_tl_*`` rows added 2026-08-09 for issue #799, the five
+``dipole_rp*`` cliff/gain-only rows the same day for issue #802) — worst case
+over every row of every table in each fixture:
 
 ===================================  ======  ======  ======  ======  =====
 fixture                               Z err   I err  YY err  I curve  dGain
@@ -53,7 +54,12 @@ dipole_pec_ground                     2.23%   2.23%       -   4.35%      -
 dipole_pt_segment_range               2.47%   2.47%       -   0.52%      -
 dipole_pt_toggle                      2.47%   2.47%   2.83%   1.10%      -
 dipole_reflection_ground              2.23%   2.23%       -   4.36%      -
+dipole_rp2_cliff_on_the_gn_card       2.23%   2.23%       -   4.35%   0.08   (g)
+dipole_rp2_linear_cliff               2.23%   2.23%       -   4.35%   0.08   (g)
+dipole_rp3_circular_cliff             2.23%   2.23%       -   4.35%   0.08   (g)
+dipole_rp3_cliff_sommerfeld           2.23%   2.23%       -   4.35%   0.08   (g)
 dipole_rp_crossed_quadrature          0.76%   0.76%       -   0.96%   0.09
+dipole_rp_gain_only                   0.76%   0.76%       -   0.96%   0.10   (h)
 dipole_rp_pattern                     0.76%   0.76%       -   0.96%   0.12
 dipole_sommerfeld_ground              2.24%   2.23%       -   4.35%      -
 dipole_tl_network                     0.27%   0.26%       -   1.01%      -   (d)
@@ -115,6 +121,29 @@ fails.
     rows ever drift away from ``dipole_free_space``'s, the card has stopped
     being advisory and this engine is wrong to ignore it.
 
+(g) are the ``RP`` cliff modes (issue #802), and they are the quietest rows in
+    this table rather than the loudest — which was not the expected result.
+    The medium selection is a per-SEGMENT, per-DIRECTION discrete choice, and
+    the two engines do not share a discretisation: nec2c partitions nine pulse
+    segments, momwire partitions its own B-spline elements, so near the angle
+    where the reflection point crosses the edge the two engines put slightly
+    different amounts of current on each side. The fear was a few dB at
+    grazing, where a wrong medium shows up worst. Measured, every grazing row
+    of both fixtures sits at **exactly -0.070 dB** — one constant offset,
+    identical to the offset on the rows where no segment crosses at all, so
+    it is the pair's ordinary basis difference and the cliff contributes
+    nothing on top of it. The straddle band was deliberately placed inside the
+    grid (theta 60 and 70 of a 0-80 sweep) so that this could be read rather
+    than assumed; see ``scripts/nec_portal_capture.py`` for how the numbers
+    were chosen.
+
+(h) ``dipole_rp_gain_only`` is the ``RFLD = 0`` form, and it is a control on
+    the range as well as a capture of the shape: its gain columns must — and
+    do — reproduce the same deck's at 1000 m to the digit, because gain never
+    depended on the range, while every E column moves by three decades. The
+    two thresholds nec2c spells 1e-20 come apart exactly here, which is what
+    ``test_nec_portal.py``'s gain-only pair asserts directly.
+
 (f) is the same kind of control, for ``GD`` (issue #800's tail). Each fixture
     is its ground fixture plus one card — ``dipole_pec_ground`` and
     ``dipole_sommerfeld_ground`` respectively — and each reproduces its base
@@ -123,6 +152,9 @@ fails.
     ``RP``'s cliff modes, so nothing in the matrix can see it. If these rows
     ever drift away from their bases', the card has stopped being inert for
     the impedance path and this engine is wrong to record it and move on.
+    Since #802 the far-field half is no longer "and there we refuse": the
+    cliff modes run, so the same control is asserted on them too, by
+    ``test_the_cliff_never_reaches_the_matrix``.
 """
 
 from __future__ import annotations
@@ -650,7 +682,61 @@ def test_current_distributions_track(name, pair):
             )
 
 
-PATTERN_FIXTURES = ("dipole_rp_pattern", "dipole_rp_crossed_quadrature")
+PATTERN_FIXTURES = (
+    "dipole_rp_pattern",
+    "dipole_rp_crossed_quadrature",
+    "dipole_rp_gain_only",
+    "dipole_rp2_linear_cliff",
+    "dipole_rp2_cliff_on_the_gn_card",
+    "dipole_rp3_circular_cliff",
+    "dipole_rp3_cliff_sommerfeld",
+)
+
+# The two cliff fixtures that differ by one digit of the RP card, and the
+# azimuth along which a straight edge and a circular one are the same edge.
+CLIFF_PAIR = ("dipole_rp2_linear_cliff", "dipole_rp3_circular_cliff")
+
+
+@pytest.mark.parametrize("name", CLIFF_PAIR)
+def test_the_cliff_never_reaches_the_matrix(name, pair):
+    """Same control ``GD`` gets, now that the far field acts on the card.
+
+    ``RP`` is read after the solve; the second medium is a far-field construct
+    and nothing in the impedance path may notice it. Both cliff fixtures are
+    the same structure over the same ``GN 1``, so every ANTENNA INPUT
+    PARAMETERS row and every segment current must equal ``dipole_pec_ground``'s
+    — on the oracle's side and ours alike. If one of these ever drifts, the
+    cliff has leaked backwards out of the pattern.
+    """
+    ours, theirs = pair(name)
+    base_ours, base_theirs = pair("dipole_pec_ground")
+    for mine, reference in ((ours, base_ours), (theirs, base_theirs)):
+        assert mine.ports == reference.ports, f"{name}: the cliff moved an impedance"
+        assert mine.currents == reference.currents, f"{name}: the cliff moved a current"
+
+
+def test_the_linear_and_circular_cliffs_agree_only_where_they_are_one_edge():
+    """The discriminator between ``RP 2`` and ``RP 3``, pinned on both engines.
+
+    The edge of a LINEAR cliff is the line ``x = CLT``; the edge of a CIRCULAR
+    one is the circle ``r = CLT``. For an antenna standing on the axis they
+    are the same edge along ``phi = 0`` and nowhere else, so the two tables
+    must be identical down that column and must differ off it. Getting the two
+    modes the wrong way round, or reading the radius where the abscissa was
+    meant, passes every other assertion in this file and fails this one.
+    """
+    linear, circular = CLIFF_PAIR
+    for source in (our_printout, oracle_printout):
+        a = read_printout(source(linear)).pattern[0]
+        b = read_printout(source(circular)).pattern[0]
+        on_axis = [(x, y) for x, y in zip(a, b, strict=True) if x[1] == 0.0]
+        off_axis = [(x, y) for x, y in zip(a, b, strict=True) if x[1] != 0.0]
+        assert on_axis and off_axis
+        for x, y in on_axis:
+            assert x[4] == y[4], f"phi=0 theta={x[0]}: {x[4]} vs {y[4]}"
+        assert any(x[4] != y[4] for x, y in off_axis), (
+            "the circular cliff matched the linear one at every azimuth"
+        )
 
 
 @pytest.mark.parametrize("name", PATTERN_FIXTURES)
@@ -700,19 +786,37 @@ def test_pattern_polarisation_split_sums_to_the_total(name, pair):
 
     Reading the two polarisations out of the wrong pair of columns still
     produces a plausible-looking table; only this identity notices.
+
+    The bar has to admit the VERTC column's own rounding. That column is
+    ``%10.2g`` — two SIGNIFICANT figures, which is why a -21.07 dB direction
+    prints ``-21`` — so above 10 dB in magnitude the printed value cannot
+    resolve the identity better than half a dB however right the physics is.
+    The cliff fixtures reach that range and the flat ones never did (issue
+    #802). Half the column's last-place step is added to the bar rather than
+    the bar being widened flat, so every well-resolved row stays at the
+    original 0.06 and only the coarsely printed ones relax.
     """
+    import math
+
+    def halfstep(value: float) -> float:
+        """Half the last place of a ``%.2g`` rendering of ``value``."""
+        if value == 0.0:
+            return 0.0
+        return 0.5 * 10.0 ** (math.floor(math.log10(abs(value))) - 1)
+
     ours, _theirs = pair(name)
     for table in ours.pattern:
         for theta, phi, vertc, horiz, total, _et, _ep in table:
             if total <= -900.0:
                 continue
             linear = 0.0
+            slack = 0.06
             for value in (vertc, horiz):
                 if value > -900.0:
                     linear += 10.0 ** (value / 10.0)
-            import math
+                    slack += halfstep(value)
 
-            assert abs(10.0 * math.log10(linear) - total) <= 0.06, (
+            assert abs(10.0 * math.log10(linear) - total) <= slack, (
                 f"{name} at theta={theta} phi={phi}: {vertc} + {horiz} != {total} dB"
             )
 
