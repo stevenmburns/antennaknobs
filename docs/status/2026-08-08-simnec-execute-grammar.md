@@ -1560,3 +1560,100 @@ saved-circuit XML via `toXMLLikeWorker`.
 - One more filename trap found beside the `nec2c` rule: `testCommand`
   refuses any command whose full path contains the substring `out`
   ("Can't execute 'out' file:").
+
+---
+
+## Addendum 2026-08-09 — the `RP` cliff modes, measured (issue #802)
+
+§12.6's fidelity note closes with "the shapes in which it is not are already
+refused by name at the `RP` card... which is correct until #802 lands". It has
+landed. Nothing measured above is retracted; this extends it. The pressure was
+Ward's: the notes doc sent 2026-08-08 named "`RP 3` — where those examples'
+cliff parameters actually land" as the remaining gap, and user-pasted decks
+reach the portal even though the dialog itself only ever writes `RP 0`.
+
+Captured against the same binary as the rest of the corpus
+(`/home/smburns/.SimNEC/2/3/…/nec2c-ubuntu-x86`, `VERSION:5b4az.ae6ty.1.17`).
+A newer build ships under SimNEC 5/1 (`5b4az.ae6ty.1.23`); it was deliberately
+NOT used, because a corpus captured against two vintages cannot be diffed.
+
+### The mode field, from the oracle's own sources
+
+`sources/radiation.c` ships with the binary, so the cliff is not inferred from
+the printout — `ffld()` was read. `gnd.ifar` is the `RP` card's `I1`:
+
+| `I1` | what it does in `ffld` | here |
+| --- | --- | --- |
+| 0 | one reflection coefficient for the whole image sum | runs |
+| 1 | `gfld` instead of `ffld` — a different banner and row shape | refused |
+| 2 | linear cliff: medium chosen per segment against `x = CLT` | **runs** |
+| 3 | circular cliff: same, against `r = CLT` | **runs** |
+| 4 | radial screen: surface impedance `t1·d·ln(d/t2)` | refused |
+| 5 | screen, then a LINEAR cliff beyond `scrwl` | refused |
+| 6 | screen, then a CIRCULAR cliff beyond `scrwl` | refused |
+
+### What the cliff actually is
+
+Per SEGMENT and per DIRECTION, not per antenna. For a segment at height `z`:
+
+```
+dr = z * tan(theta)                       specular distance along the ray
+d  = dr*cos(phi) + x                      RP 2 — the abscissa alone
+d  = hypot(dr*cos(phi) + x,               RP 3 — the radius
+           dr*sin(phi) + y)
+(cl - d) > 0  ?  medium 1  :  medium 2 and arg += darg
+darg = -2*k*CHT*cos(theta)
+```
+
+Three consequences worth recording:
+
+1. **The medium switch is a discrete per-element choice**, so the two engines
+   partition different meshes near the crossing angle. This was the expected
+   source of a several-dB grazing error and it did not materialise: over both
+   cliff fixtures every row at theta >= 50 agrees to a constant **-0.070 dB**,
+   the same offset as the rows where no element crosses at all.
+2. **`GN` carries a second medium too.** `main.c`'s `GN` handler writes
+   `fpat.epsr2/sig2/clt/cht` from `F3`-`F6` whenever `NRADL` is zero — the
+   same four slots the `GD` handler writes. A deck can therefore state a whole
+   cliff without ever sending a `GD`, and an engine watching only for `GD`
+   would answer it as flat ground. Fixture
+   `dipole_rp2_cliff_on_the_gn_card`.
+3. **The block prints on the MODE, not on the card.** `rdpat` emits
+   `FAR FIELD GROUND PARAMETERS` for any `ifar > 1`, so a cliff mode with no
+   second medium anywhere in the deck prints it with four zeros in it — and
+   then divides by them: `zrati2 = sqrt(1/0)` is infinite and the oracle's
+   whole pattern table comes out `nan`. Measured, recorded, not reproduced;
+   nothing here rescues a deck that asks for a cliff into vacuum.
+
+### `RFLD = 0` — the gain-only form
+
+Two shape changes, both in `rdpat`:
+
+- the `RANGE:` / `EXP(-JKR)/R:` pair (and the blank above it — three lines)
+  is guarded by `fpat.rfld >= 1.0e-20` and simply is not printed;
+- the E columns lose `*exrm` and `+exra`, so they carry `|E|*wlam` rather
+  than the field at a range. Measured ratio between the two forms of one deck:
+  exactly `RFLD`.
+
+### The two thresholds nec2c spells `1e-20`
+
+They are different tests, and only an `RFLD = 0` deck separates them. §4.14
+read the gain floor off `dipole_rp_pattern` and described both as one test on
+the field at the requested range; `calculations.c` and `radiation.c` say
+otherwise:
+
+- `db10(x)` — `x < 1e-20 -> -999.99` — is applied to the LINEAR POWER GAIN,
+  which never depended on the range. The gain columns of an `RFLD = 0` table
+  are identical to the same deck's at 1000 m.
+- the polarisation block's `(ethm2 <= 1e-20) && (ephm2 <= 1e-20)`, which
+  blanks `SENSE` and is what makes a row 11 tokens instead of 12, is applied
+  to the field as `ffld` returns it — before `*wlam` and before `*1/RFLD`.
+
+At one range and one wavelength the two coincide, which is why 40 fixtures did
+not notice. §4.14's 11-vs-12-token rule is unaffected; only its stated
+threshold basis is corrected.
+
+Corpus 40 -> 45; layout gate 45/45. New fixtures:
+`dipole_rp2_linear_cliff`, `dipole_rp3_circular_cliff`,
+`dipole_rp3_cliff_sommerfeld`, `dipole_rp2_cliff_on_the_gn_card`,
+`dipole_rp_gain_only`. The existing 40 re-captured byte-identical.

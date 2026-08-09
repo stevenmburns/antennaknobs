@@ -245,10 +245,11 @@ Everything SimNEC's portal actually emits for wire antennas:
 | Geometry | `GW` wires with `GM` / `GX` / `GR` / `GS` / `GA` / `GH` transforms |
 | Ground | free space, `GE ±1` perfect ground, `GN 0` reflection-coefficient and `GN 2` Sommerfeld finite ground |
 | Loading | `LD 0` / `1` / `4` / `5` — series RLC traps, distributed loading, wire conductivity |
-| Patterns | `RP 0` far-field grids, gain and polarisation, normalised to input power |
+| Patterns | `RP 0` far-field grids, gain and polarisation, normalised to input power, at a range or in the gain-only `RFLD = 0` form |
+| Cliffs | `RP 2` linear and `RP 3` circular cliffs — the second medium and edge geometry from a `GD` card (or from `GN`'s own `F3`–`F6`), selected per segment at its own reflection point |
 | Near fields | `NE` / `NH` rectangular grids in free space or over perfect ground |
 | Networks | `NT` two-port admittance branches and `TL` transmission lines between segments |
-| Housekeeping | `EK` extended-kernel, `MP` multicore hints, `PT` print control, `GD` second-medium parameters — accepted and echoed exactly as nec2c does (advisory where momwire's own physics governs) |
+| Housekeeping | `EK` extended-kernel, `MP` multicore hints, `PT` print control — accepted and echoed exactly as nec2c does (advisory where momwire's own physics governs) |
 
 One thing is faster than the engine it replaces, structurally. SimNEC probes an
 N-port antenna by sending N excitation groups in one deck, and a stock nec2c
@@ -278,10 +279,12 @@ Refused today:
 - **Surface patches** (`SP`, `SM`) — momwire is a wire solver.
 - **`IS`** — NEC-4.2 wire insulation; momwire's insulation model is not
   wired through the portal.
-- **`RP` modes 1–6 and the gain-only form** — mode 0 is the only one
-  SimNEC's own path emits; the others print different tables (they are what
-  the `GD` cliff parameters feed, so a deck asking a cliff question refuses
-  rather than answering it as flat ground).
+- **`RP` mode 1** — the surface wave. It prints a different table altogether
+  (`RADIATED FIELDS NEAR GROUND`, with an `E(RADIAL)` column) and needs a
+  surface-wave kernel this engine does not have.
+- **`RP` modes 4–6** — radial-wire ground screens, refused for the same
+  reason `GN`'s radial count is. Modes 5 and 6 carry a cliff as well, but the
+  screen is what stops them.
 - **Spherical `NE` / `NH` grids** (`I1 = 1`) — rectangular only.
 - **Near fields over finite ground** — the near field of a Sommerfeld
   half-space is not an image, and pretending otherwise would be quietly wrong.
