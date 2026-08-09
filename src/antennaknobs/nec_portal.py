@@ -85,7 +85,13 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import numpy as np
-from momwire import BSplineSolver, SinusoidalGalerkinSolver, SinusoidalSolver
+from momwire import (
+    ArrayBlockSolver,
+    BSplineSolver,
+    HMatrixSolver,
+    SinusoidalGalerkinSolver,
+    SinusoidalSolver,
+)
 
 
 from .builder import AntennaBuilder
@@ -110,9 +116,22 @@ from .network_reduce import SingularNetworkError, tl_admittance_2x2
 # `bspline-d1` (issue #821) is the degree axis instead: same BSplineSolver
 # class as `bspline`, degree=1 bound — a d1-vs-d2 convergence check a SimNEC
 # user can run as two portal entries, zero new physics.
+# `hmatrix` and `arrayblock` (issue #830, on Ward's ask for large arrays) are
+# a third axis again: the SAME B-spline physics as `bspline`, solved by an
+# accelerated operator instead of a dense fill — hierarchical ACA compression
+# for `hmatrix`, and for `arrayblock` the element-aware block decomposition
+# that becomes an FFT convolution over a regular same-shape lattice. Neither
+# is a fidelity choice, so neither has a `-converged` twin and neither can be
+# read against `bspline` as a physics A/B: they answer "can this deck be
+# solved at array scale", and their answers must AGREE with `bspline` to the
+# iterative solve tolerance. `arrayblock` degrades to the parent H-matrix on
+# a deck with no repeated-block structure (momwire#143 `_degenerate_partition`)
+# rather than refusing, so both entries are safe on arbitrary decks.
 _BASES = {
     "bspline": (BSplineSolver, {}, ""),
     "bspline-d1": (BSplineSolver, {"degree": 1}, "+bs1"),
+    "hmatrix": (HMatrixSolver, {}, "+hm"),
+    "arrayblock": (ArrayBlockSolver, {}, "+ab"),
     "sinusoidal": (SinusoidalSolver, {}, "+sin"),
     "sinusoidal-galerkin": (SinusoidalGalerkinSolver, {}, "+sg"),
     "sinusoidal-galerkin-converged": (
@@ -1479,7 +1498,9 @@ def _y_and_port_coeffs(solver):
     The three branches are keyed on the port algebra each family owns, not on
     the class: ``_assemble_Z_ported`` exists only on the Galerkin subclass and
     ``_solve_with_kcl_ports`` only on the B-spline family, so a basis added to
-    ``_BASES`` lands on the branch whose algebra it actually has.
+    ``_BASES`` lands on the branch whose algebra it actually has. Inside the
+    B-spline branch the same rule picks the SOLVE: the accelerated subclasses
+    own ``_solve_hmatrix``, so that is what gets spied for them.
     """
     if hasattr(solver, "_assemble_Z_ported"):
         # Sinusoidal-Galerkin family: no KCL-port solve to spy on, but
@@ -1536,22 +1557,54 @@ def _y_and_port_coeffs(solver):
         )
         return y, alphas
 
+    # B-spline family, and TWO solve routes to spy on (issue #830). The dense
+    # path back-substitutes in `_solve_with_kcl_ports`. The accelerated
+    # subclasses — HMatrixSolver and ArrayBlockSolver, both `_BASES` entries —
+    # never reach it: their `compute_y_matrix` builds the same source columns
+    # B and runs the constrained block-GMRES in `_solve_hmatrix`, returning
+    # ``Bᵀ·X`` and dropping X on the floor exactly as the dense path does.
+    # ``_solve_hmatrix``'s X is the same object under the same convention —
+    # (n_basis, n_ports), Lagrange rows already stripped — so the two captures
+    # are interchangeable downstream.
+    #
+    # Which route runs is `_hmatrix_unsupported()`, i.e. singular enrichment
+    # ONLY (momwire hmatrix.py / array_block.py): mesh size does not select it,
+    # and every ground model the portal can emit — PEC image, reflection
+    # coefficient, Sommerfeld — is carried on the accelerated path. The portal
+    # never asks for enrichment, so in practice the accelerated bases always
+    # take `_solve_hmatrix`; the dense capture stays wired anyway so a momwire
+    # that grows a new fallback degrades to a slower answer, not an error.
     captured: dict[str, np.ndarray] = {}
-    original = solver._solve_with_kcl_ports
+    dense = solver._solve_with_kcl_ports
 
-    def spy(z, v, kcl_a, overwrite=False):
-        x = original(z, v, kcl_a, overwrite=overwrite)
-        captured["X"] = x
+    def spy_dense(z, v, kcl_a, overwrite=False):
+        x = dense(z, v, kcl_a, overwrite=overwrite)
+        captured["dense"] = x
         return x
 
-    solver._solve_with_kcl_ports = spy
+    solver._solve_with_kcl_ports = spy_dense
+    accel = getattr(solver, "_solve_hmatrix", None)
+    if accel is not None:
+
+        def spy_accel(h, kcl_a, b):
+            x = accel(h, kcl_a, b)
+            captured["accel"] = x
+            return x
+
+        solver._solve_hmatrix = spy_accel
     try:
         y = np.asarray(solver.compute_y_matrix(), dtype=np.complex128)
     finally:
         del solver._solve_with_kcl_ports
-    if "X" not in captured:  # pragma: no cover - momwire internals moved
+        if accel is not None:
+            del solver._solve_hmatrix
+    # Accelerated first: a solve that reached `_solve_hmatrix` never touched
+    # the dense route, so the two keys are mutually exclusive in practice and
+    # the preference only decides a hypothetical future hybrid.
+    x = captured.get("accel", captured.get("dense"))
+    if x is None:  # pragma: no cover - momwire internals moved
         raise PortalError("momwire did not expose the per-port solution")
-    return y, captured["X"]
+    return y, x
 
 
 def _synthesize_union_deck(deck: PortalDeck, ports: list[tuple[int, int]]) -> str:
@@ -2772,10 +2825,18 @@ def _selftest(stdout) -> int:
         "TL network row present": "STRAIGHT" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
     }
+    # One deck per alternate basis: the point is that the entry is wired and
+    # answers on THIS box, not that it is fast or converged. The selftest deck
+    # is a single small dipole, which for `hmatrix`/`arrayblock` means a
+    # near-field-only operator and (for arrayblock) a degenerate element
+    # partition that degrades to the parent — the graceful-degradation path,
+    # which is exactly the one a smoke test wants to prove never raises.
     for basis, suffix in (
         ("sinusoidal-galerkin-converged", "+sgc"),
         ("sinusoidal", "+sin"),
         ("bspline-d1", "+bs1"),
+        ("hmatrix", "+hm"),
+        ("arrayblock", "+ab"),
     ):
         alt = subprocess.run(
             [sys.executable, "-m", "antennaknobs.nec_portal", "--basis", basis],
