@@ -188,30 +188,67 @@ def yy_rows(text: str) -> list[list[float]]:
 # --------------------------------------------------------------------------
 
 
-def test_version_probe_matches_executes_versionA_regex():
+# Execute.testCommand's four probe regexes, verbatim from the 6p4d6 bytecode
+# (issue #828 research; grammar doc 2026-08-09 addendum). A/B/C Double-parse
+# group(1) against the 1.23 floor; NECd reads no group and sets no state.
+VERSION_B = re.compile(r"5b4az\.ae6ty\.(.*)")
+VERSION_C = re.compile(r"necpp\.nec2c\.(.*)")
+VERSION_NECD = re.compile(r"(NEC\d+\D.*)")
+# Options.getEngine()'s re-read of the stored version text: group(1) must be
+# "2" or SimNEC's scripting layer reclassifies the engine (W7EL insulation
+# refuses anything but Complex.TWO).
+OPTIONS_ENGINE_PIECE = re.compile(r"[a-zA-Z]*([0-9])+?(.*)")
+
+
+def test_version_probe_matches_executes_versionNECd_regex():
+    """The honest identity (issue #828, Ward-sanctioned): the probe answers
+    the versionNECd path, whose match sets no engine state — the engine enum,
+    daemon class, and parse offsets all come from the executable FILENAME.
+    The gates below replicate every constraint the bytecode research found
+    load-bearing, so a probe edit that would break a live SimNEC fails here.
+    """
     out = io.StringIO()
     assert main(["-version"], stdin=io.StringIO(""), stdout=out) == 0
     lines = out.getvalue().splitlines()
     assert len(lines) == 1, f"the probe must print exactly one line: {lines}"
+    probe = lines[0].strip()
 
-    match = VERSION_A.fullmatch(lines[0].strip())
-    assert match, f"{lines[0]!r} does not match nec2c\\.ae6ty\\.(.*)"
+    # lookingAt() semantics = re.match, anchored at the start only.
+    assert VERSION_NECD.match(probe), f"{probe!r} does not match (NEC\\d+\\D.*)"
+    # Must NOT match A/B/C: those branches Double-parse the tail and a
+    # non-numeric tail there is rejected as "nec2c version too old".
+    for pat in (VERSION_A, VERSION_B, VERSION_C):
+        assert not pat.match(probe), f"{probe!r} would take the {pat.pattern} path"
+    # Case-sensitive NEC2 at position 0, non-digit right after the 2 (the
+    # regex needs \D after the digit run), and Options.getEngine must read 2.
+    assert probe.startswith("NEC2") and not probe[4].isdigit(), probe
+    assert OPTIONS_ENGINE_PIECE.match(probe).group(1) == "2", probe
+    assert probe.startswith("NEC2momwire.")
 
-    # Execute.testCommand feeds group(1) straight to Double.valueOf. A greedy
-    # (.*) means ANY non-numeric tail — "momwire.9.1" included — throws and is
-    # reported as "nec2c version too old:". One dot, nothing else.
-    tail = match.group(1)
-    assert tail.count(".") == 1, f"version tail {tail!r} is not Double-parseable"
-    assert float(tail) > 0
+
+def test_legacy_probe_flag_answers_the_versionA_masquerade():
+    """``--legacy-probe`` keeps the pre-#828 identity available for a SimNEC
+    build that might predate versionNECd. That path Double-parses the tail
+    against the 1.23 floor, so the shape constraints are the old ones: one
+    dot, a bare number above the floor."""
+    out = io.StringIO()
+    assert main(["--legacy-probe", "-version"], stdin=io.StringIO(""), stdout=out) == 0
+    probe = out.getvalue().strip()
+    assert probe == nec_portal.LEGACY_PROBE_VERSION
+    tail = VERSION_A.match(probe).group(1)
+    assert tail.count(".") == 1 and float(tail) >= 1.23, tail
 
 
 def test_printout_banner_carries_the_momwire_identity():
     """The banner is not version-checked (the regexes are anchored and it is
-    prefixed ``VERSION:``), so it is where the engine says who it really is."""
+    prefixed ``VERSION:``), so it stays fixture-pinned while the PROBE now
+    carries the honest identity too (#828). The banner keeps its historical
+    shape on purpose: 40 committed fixtures pin it, and the offline .out
+    import path (``ae6ty/FileStuff``) greps the ``(nec2c)`` box line."""
     text, _err = run_deck(fixture_deck("dipole_free_space"))
     assert f"VERSION:{nec_portal.BANNER_VERSION}" in text
     assert "momwire" in nec_portal.BANNER_VERSION
-    assert "momwire" not in nec_portal.PROBE_VERSION
+    assert "momwire" in nec_portal.PROBE_VERSION
 
 
 # --------------------------------------------------------------------------
