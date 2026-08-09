@@ -34,41 +34,63 @@ would cost CI its offline oracle but not the project its correctness.
 
 Recorded as issue #805; decision made 2026-08-08.
 
-## Amendment 2026-08-09 — the clean-room claim no longer holds unqualified
+## Amendment 2026-08-09 — the clean-room claim, qualified and then re-grounded
 
 Issue #802 (the `RP 2` / `RP 3` cliff modes) was implemented with SimNEC's
 shipped copy of the nec2c C source **open**: `Examples/nec2c.ae6ty/sources/`
-ships alongside the binary, and `radiation.c` (`ffld`, `rdpat`), `main.c` (the
-`GN`/`GD`/`RP` card handlers) and `calculations.c` (`db10`) were read to settle
-the cliff's per-segment medium selection, the `RFLD = 0` shape, and the two
-distinct `1e-20` thresholds. The paragraph above says those files were
-"neither read nor consulted"; for this one feature that is no longer true, and
-saying so here is cheaper than discovering it later.
+ships alongside the binary, and its translations of `FFLD`, `RDPAT`, `DB10`
+and the `GN`/`GD`/`RP` card handlers were read to settle the cliff's
+per-segment medium selection, the `RFLD = 0` shape, and the two distinct
+`1e-20` thresholds. The paragraph above says those files were "neither read
+nor consulted"; for this one feature that was no longer true, and saying so
+here is cheaper than discovering it later.
+
+**Every borrowed fact has since been verified against, and re-cited to, the
+public-domain NEC-2 FORTRAN original**, so no shipped artifact cites the GPL
+translation and the algorithmic provenance is public-domain end to end. The
+original is `nec2dx.f` (NEC-2D, Lawrence Livermore National Laboratory, "FILE
+CREATED 4/11/80", double-precision revision 6/4/85, carrying the LLNL US
+government notice), cross-checked against the single-precision
+`nec2-1.2.1.2.f` of the same lineage, plus the public Program Description
+(Burke & Poggio, *NEC-2 Part I: Theory*):
+
+| fact | confirmed in |
+| --- | --- |
+| per-segment, per-direction cliff medium selection (`DR=Z(I)*TTHET`, the linear `D` and the circular `SQRT`, `IF ((CL-D).LE.0.)`, `ARG=ARG+DARG` with `DARG=-TP*2.*CH*ROZ`) | `nec2dx.f`, `SUBROUTINE FFLD`, statement labels 11–15 |
+| a `GN` with `NRADL = 0` writing the second medium into the same four `/FPAT/` slots as `GD` | `nec2dx.f` main program, `GN` branch label 23 vs `GD` branch label 34 |
+| `FAR FIELD GROUND PARAMETERS` printing on the mode; the `RFLD = 0` gain-only shape; the blank-`SENSE` field test | `nec2dx.f`, `SUBROUTINE RDPAT` — `IF (IFAR.LT.2)`, the two `IF (RFLD.LT.1.D-20)` guards, `IF (ETHM2.GT.1.D-20.OR.EPHM2.GT.1.D-20)` |
+| the `-999.99` gain floor on the LINEAR POWER GAIN | `nec2dx.f`, `FUNCTION DB10` |
+| the Fresnel pair and how it is composed onto the image | theory manual eqs. 179–181; `FFLD`'s `ZRATI`/`RRV`/`RRH`/`CDP` lines |
+| the far-zone field integral the moments implement, and `G_p`/`G_d` | theory manual eqs. 207 and §V.5, pp. 76–77 |
+
+The C was a faithful translation on every one of these points — no fact
+survived only in it, and no fact had to be dropped.
 
 What that does and does not change:
 
 - **Still true:** no nec2c code is present in this repository, in any form.
   `nec_portal.py`'s cliff path is vectorised NumPy in a different formulation
   (image-current multipliers `rho_h`/`rho_v`, boolean element masks, `einsum`)
-  and shares no expression with the C.
+  and shares no expression with either the C or the FORTRAN.
 - **Still true of everything else:** every other card's treatment — the whole
   printout grammar, `EK`/`MP`/`PT`/`GD`/`TL`/`NT`/`NE`/`NH`, the state machine,
   the error path — predates this and was derived black-box as described above.
-- **The underlying algorithm is not nec2c's to license.** nec2c is a C
-  translation of the original NEC-2 FORTRAN, a US government work in the
-  public domain, and the cliff model (specular point `z·tan(theta)`, the
-  `CLT` comparison, the `2·CHT·cos(theta)` path difference) is documented in
-  the public NEC-2 Program Description. The GPL covers Kyriazis's expression
-  of it, not the method.
-- **Reachable without the source, and validated without it.** The model is
-  fully determined by the committed fixtures: the capture grid was chosen to
-  separate linear from circular, and inside-edge from beyond-edge, and the
+- **The underlying algorithm was never nec2c's to license.** nec2c is a C
+  translation of NEC-2, a US government work in the public domain. The GPL
+  covers Kyriazis's expression of the method, not the method; the citations
+  now point at the expression that is in the public domain.
+- **Reachable without either source, and validated without them.** The model
+  is fully determined by the committed fixtures: the capture grid was chosen
+  to separate linear from circular, and inside-edge from beyond-edge, and the
   differential harness pins every row to 0.07 dB. A black-box re-derivation
   would land in the same place — it would simply have cost more probes.
 
-**This is a judgement call for the repository owner, not a settled position.**
-If the unqualified clean-room claim is worth more than the shortcut, the
-remedy is to re-derive the cliff selection rule from oracle probes alone and
-strip the C-source citations from `nec_portal.py`'s comments and from the
-grammar doc's 2026-08-09 addendum; the fixtures and tests would not change,
-because they never depended on the source.
+One limit, stated plainly: the cliff's edge test and the `1e-20` constants are
+implementation facts of the FORTRAN, not results derived in *Part I: Theory*,
+which documents the specular-reflection assumption and the Fresnel/image
+composition but never the two-media geometry itself (that lives in Part III,
+the User's Guide, which is not held here). The FORTRAN is the public-domain
+authority for them, and it is sufficient.
+
+Recorded as issue #802; provenance decision made by the repository owner
+2026-08-09.
