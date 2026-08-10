@@ -1763,132 +1763,26 @@ def _gain_db(power_gain: float) -> float:
 
 def _y_and_port_coeffs(solver):
     """``(Y, X)`` from ONE momwire fill: the short-circuit port admittance
-    matrix and the per-port basis-coefficient columns behind it.
+    matrix and the per-port basis-coefficient columns behind it — momwire's
+    public ``compute_port_solution()`` (momwire#232, momwire 0.24.0).
 
-    ``compute_y_matrix`` already computes ``X = solve(Z, B)`` — one LU of the
-    KCL-augmented operator, one back-substitution per port — and then throws X
-    away, returning only ``Y = Bᵀ·X``. Column j of X is the solution for a 1 V
-    drive at port j, so keeping it turns ANY later excitation into
-    ``coeffs = X @ V`` with no second fill. That is the whole single-fill
-    architecture: the alternative (``compute_impedance`` once per execute
-    group) refills and refactors per source, which is exactly what the oracle
-    does and what this daemon exists to avoid.
+    Until 0.24.0 this function was a four-branch dispatch keyed on each
+    family's private port algebra: verbatim copies of the Galerkin and
+    point-matched Y paths, plus an instance-level dual spy on
+    ``_solve_with_kcl_ports`` / ``_solve_hmatrix`` for the spline families —
+    the private-API debt momwire#232 tracked. The public API returns the same
+    ``(y, coeffs)`` pair from the same one-fill-all-ports solve; the swap was
+    verified bit-identical on all four branches before landing (momwire
+    PR #250's sufficiency check: dY = dX = 0 exactly, and this repo's
+    420-test portal battery passed unchanged against it).
 
-    The capture is an instance-level shim rather than a subclass on purpose:
-    ``engines/momwire.py`` gates ground models and distributed wire loading on
-    the solver class NAME, so a subclass would silently drop a Sommerfeld deck
-    back onto a PEC image.
-
-    The three branches are keyed on the port algebra each family owns, not on
-    the class: ``_assemble_Z_ported`` exists only on the Galerkin subclass and
-    ``_solve_with_kcl_ports`` only on the B-spline family, so a basis added to
-    ``_BASES`` lands on the branch whose algebra it actually has. Inside the
-    B-spline branch the same rule picks the SOLVE: the accelerated subclasses
-    own ``_solve_hmatrix``, so that is what gets spied for them.
+    Family refusals (the point-matched junction-port span rule, Galerkin
+    junction ports over finite ground) surface from momwire with the same
+    exception types and messages the branches raised — pinned momwire-side
+    in ``tests/test_port_solution.py``.
     """
-    if hasattr(solver, "_assemble_Z_ported"):
-        # Sinusoidal-Galerkin family: no KCL-port solve to spy on, but
-        # compute_y_matrix's own algebra IS the (Y, X) pair — alphas is the
-        # per-port coefficient matrix it computes and throws away. Kept
-        # verbatim from momwire's compute_y_matrix so the two can never
-        # disagree; the private reach is the same momwire#232 debt as the
-        # shim below.
-        import scipy.linalg
-
-        solver._refuse_junction_port_solve()
-        geom = solver._build_geometry()
-        G, seg_view = solver._assemble_Z_ported(geom, solver.k)
-        U = solver._drive_columns(geom, seg_view, solver.k)
-        alphas = scipy.linalg.solve(G, U)
-        y = np.stack(
-            [
-                solver._port_currents(alphas[:, j], geom, seg_view, U)
-                for j in range(solver.n_ports)
-            ],
-            axis=1,
-        )
-        return y, alphas
-
-    if not hasattr(solver, "_solve_with_kcl_ports"):
-        # Point-matched sinusoidal: neither a KCL-port solve to spy on nor the
-        # Galerkin port algebra — its ports ARE the Eq-187 delta gaps, so the
-        # RHS is -1/h at each feed segment and column j of the solution is
-        # already the 1 V drive at port j (``compute_impedance`` builds the
-        # same column, scaled by V). Kept verbatim from momwire's
-        # ``compute_y_matrix``, same momwire#232 debt as the branches around
-        # it. No junction-port refusal belongs here: this solver rejects
-        # ``junction_ports=`` at CONSTRUCTION (momwire#177 — the basis
-        # enforces KCL identically, so a node-current port is outside its
-        # span), and a deck's ports are all EX segment gaps anyway.
-        import scipy.linalg
-
-        geom = solver._build_geometry()
-        G, seg_view = solver._assemble_Z(geom, solver.k)
-        feed_segs = geom["feed_segs"]
-        B = np.zeros((geom["n_segs"], len(feed_segs)), dtype=np.complex128)
-        for j, fi in enumerate(feed_segs):
-            B[fi, j] = -1.0 / geom["seg_h"][fi]
-        alphas = scipy.linalg.solve(G, B)
-        y = np.array(
-            [
-                [
-                    solver._feed_segment_current(alphas[:, j], seg_view, fi)
-                    for j in range(len(feed_segs))
-                ]
-                for fi in feed_segs
-            ],
-            dtype=np.complex128,
-        )
-        return y, alphas
-
-    # B-spline family, and TWO solve routes to spy on (issue #830). The dense
-    # path back-substitutes in `_solve_with_kcl_ports`. The accelerated
-    # subclasses — HMatrixSolver and ArrayBlockSolver, both `_BASES` entries —
-    # never reach it: their `compute_y_matrix` builds the same source columns
-    # B and runs the constrained block-GMRES in `_solve_hmatrix`, returning
-    # ``Bᵀ·X`` and dropping X on the floor exactly as the dense path does.
-    # ``_solve_hmatrix``'s X is the same object under the same convention —
-    # (n_basis, n_ports), Lagrange rows already stripped — so the two captures
-    # are interchangeable downstream.
-    #
-    # Which route runs is `_hmatrix_unsupported()`, i.e. singular enrichment
-    # ONLY (momwire hmatrix.py / array_block.py): mesh size does not select it,
-    # and every ground model the portal can emit — PEC image, reflection
-    # coefficient, Sommerfeld — is carried on the accelerated path. The portal
-    # never asks for enrichment, so in practice the accelerated bases always
-    # take `_solve_hmatrix`; the dense capture stays wired anyway so a momwire
-    # that grows a new fallback degrades to a slower answer, not an error.
-    captured: dict[str, np.ndarray] = {}
-    dense = solver._solve_with_kcl_ports
-
-    def spy_dense(z, v, kcl_a, overwrite=False):
-        x = dense(z, v, kcl_a, overwrite=overwrite)
-        captured["dense"] = x
-        return x
-
-    solver._solve_with_kcl_ports = spy_dense
-    accel = getattr(solver, "_solve_hmatrix", None)
-    if accel is not None:
-
-        def spy_accel(h, kcl_a, b):
-            x = accel(h, kcl_a, b)
-            captured["accel"] = x
-            return x
-
-        solver._solve_hmatrix = spy_accel
-    try:
-        y = np.asarray(solver.compute_y_matrix(), dtype=np.complex128)
-    finally:
-        del solver._solve_with_kcl_ports
-        if accel is not None:
-            del solver._solve_hmatrix
-    # Accelerated first: a solve that reached `_solve_hmatrix` never touched
-    # the dense route, so the two keys are mutually exclusive in practice and
-    # the preference only decides a hypothetical future hybrid.
-    x = captured.get("accel", captured.get("dense"))
-    if x is None:  # pragma: no cover - momwire internals moved
-        raise PortalError("momwire did not expose the per-port solution")
-    return y, x
+    sol = solver.compute_port_solution()
+    return sol.y, sol.coeffs
 
 
 def _synthesize_union_deck(deck: PortalDeck, ports: list[tuple[int, int]]) -> str:
