@@ -37,10 +37,11 @@ Caveats, stated up front so the tables aren't misread:
     three bases ride the accelerated path on ground already, which is a
     separate question.
   - **The dense column has a wall and we find it by estimate.** Dense peak RSS
-    runs about 12x the n_basis^2 * 16 bytes of Z itself (see
-    `DENSE_FOOTPRINT_FACTOR` — the batched assembly's quadrature gather, not
-    the matrix, sets the peak), so a rung whose estimate exceeds the cap is
-    recorded `skipped (est > cap)` rather than discovered the hard way. Once a
+    follows the measured piecewise model at `dense_estimate_gb` (momwire >=
+    0.24.0: ~10.6x Z in the small-n tensor regime, ~1.5x Z + 0.55 GB chunked
+    — issue #847; it was a flat 12x before momwire#235), so a rung whose
+    estimate exceeds the cap is recorded `skipped (est > cap)` rather than
+    discovered the hard way. Once a
     column caps, times out, or is skipped, that column is CLOSED — larger
     rungs are not probed.
 
@@ -90,15 +91,22 @@ DEFAULT_FREQ_MHZ = 14.0
 DEFAULT_CAP_GB = 8.0
 DEFAULT_TIMEOUT = 600.0
 
-# Dense live-footprint estimate, as a multiple of Z itself (n^2 complex128).
-# The obvious arithmetic — Z plus the LU's working copy — says ~2.2x, and that
-# is WRONG by a factor of five: the batched C++ assembly materialises a
-# per-pair quadrature gather before it reduces to Z, so the peak lands well
-# above the matrix. Measured on the 2026-08-09 run (peak RSS minus the ~91 MB
-# import floor, divided by n^2*16): 12.3x at n=1296, 12.1x at n=2304, 12.1x at
-# n=5184. Flat enough across a 4x span in n to extrapolate with, so this is the
-# measurement, not the arithmetic.
-DENSE_FOOTPRINT_FACTOR = 12.0
+# Dense live-footprint model (momwire >= 0.24.0, issue #847). The flat 12x
+# this constant used to hold was compute_y_matrix bypassing the issue-#136
+# chunked fill — the full (d+1, d+1, N, N) moment tensor, momwire#235, fixed
+# in momwire PR #237. Post-fix the peak is piecewise (measured 2026-08-09 on
+# 0.24.0, peak RSS net of the ~80 MB import floor):
+#   - tensor regime (9 * n^2 * 16 B fits swept_mem_mb, i.e. n <~ 1365 at the
+#     default 256 MB): the tensor path still runs — 10.61x at n=1296;
+#   - chunked regime: affine in Z, 1.44 * n^2 * 16 B + 515 MB, fitting the
+#     measured 637 MB / 1134 MB / 2469 MB at n = 2304 / 5184 / 9216 to
+#     better than 0.1%. The 0.44 * Z excess over Z itself plus the fixed
+#     transient are measured shape, not derived arithmetic — re-measure if
+#     the assembly changes (probe: this file's worker on the dense solver).
+DENSE_TENSOR_REGIME_FACTOR = 10.7  # tensor-path factor, small margin over 10.61
+DENSE_CHUNKED_SLOPE = 1.5  # margin over the fitted 1.44
+DENSE_CHUNKED_FIXED_GB = 0.55  # margin over the fitted 515 MB
+_SWEPT_MEM_MB_DEFAULT = 256  # momwire's default fill-transient budget
 
 # Agreement bound the accelerated columns are held to (issue #833 gate 3).
 AGREEMENT_BOUND = 1e-4
@@ -142,8 +150,18 @@ def n_basis_of(grid: int, segs: int) -> int:
 
 
 def dense_estimate_gb(n_basis: int) -> float:
-    """Estimated live footprint (GB) of the dense fill + factor at `n_basis`."""
-    return n_basis**2 * 16 * DENSE_FOOTPRINT_FACTOR / 1024**3
+    """Estimated live footprint (GB) of the dense fill + factor at `n_basis`.
+
+    Piecewise per the measured model above: the tensor path while the moment
+    tensor fits momwire's default budget, the chunked affine model beyond it.
+    Deliberately a slight over-estimate (the constants carry margin) — this
+    gates whether a dense rung is attempted under the address-space cap, and
+    a skipped-but-feasible rung is a cheaper mistake than an OOM-killed one.
+    """
+    z_gb = n_basis**2 * 16 / 1024**3
+    if 9 * n_basis**2 * 16 <= _SWEPT_MEM_MB_DEFAULT * 1024**2:
+        return z_gb * DENSE_TENSOR_REGIME_FACTOR
+    return z_gb * DENSE_CHUNKED_SLOPE + DENSE_CHUNKED_FIXED_GB
 
 
 # --------------------------------------------------------------------------

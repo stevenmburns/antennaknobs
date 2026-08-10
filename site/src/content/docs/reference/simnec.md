@@ -236,9 +236,11 @@ telling you something about conditioning, not about basis choice.
 
 How much it buys, measured on a 2017 quad-core laptop over a square lattice of
 half-wave dipoles at 0.6 λ pitch: a 24×24 array (576 elements, 5184 unknowns)
-takes 8.0 s and 5.3 GB with the dense fill and **0.77 s and 137 MB on
-`arrayblock`**, and a 32×32 array will not solve at all inside an 8 GB budget
-— it needs about 15 GB — while `arrayblock` answers it in 1.3 s and 173 MB. At
+takes 9.0 s and 1.1 GB with the dense fill and **0.77 s and 137 MB on
+`arrayblock`**. (Dense memory improved a lot in momwire 0.24.0 — the same
+rung needed 5.3 GB before, and a 32×32 array that previously would not solve
+inside an 8 GB budget now fits dense in ~2.5 GB — but `arrayblock` still
+answers the 32×32 in 1.3 s and 173 MB against dense's minutes.) At
 48×48 (2304 elements) `arrayblock` takes 3.0 s and 272 MB where `hmatrix`
 needs 158 s and 2.0 GB. The crossover is around 8×8; below that the dense fill
 is the cheaper tool. Agreement with the dense solve stays within a few parts

@@ -273,3 +273,28 @@ python scripts/bench_arrayblock_lattice.py --worker dense 32 9 0.6 14.0 8.0
 
 Manual-only. The benchmark is a script, never wired into CI, per the repo test
 policy (no per-design certs in CI; PR #392 precedent).
+
+---
+
+## Addendum 2026-08-10 — the dense wall moved (momwire 0.24.0, issue #847)
+
+momwire#235 (momwire PR #237, in 0.24.0) routed `compute_y_matrix` through
+the chunked dense fill, and the flat 12× above is history. Re-measured with
+the same probe method on 0.24.0 (peak RSS net of the ~80 MB import floor):
+
+| n_basis | peak | factor over n²·16 B |
+|---|---|---|
+| 1296 | 272 MB | 10.61× (tensor still fits the 256 MB budget) |
+| 2304 | 637 MB | 7.87× |
+| 5184 | 1134 MB | 2.77× |
+| 9216 | 2469 MB | 1.91× |
+
+The chunked regime fits an affine model, peak ≈ 1.44 × n²·16 B + 515 MB
+(predicts the n=5184 point to 0.1%). `dense_estimate_gb` in the bench script
+now implements the piecewise model with margin (`10.7×` tensor regime /
+`1.5× + 0.55 GB` chunked); `DENSE_FOOTPRINT_FACTOR = 12.0` is retired. The
+32×32 rung this run recorded as `skipped (est 15.19 GB > cap)` now solves
+dense in 2.47 GB — the dense wall under an 8 GB cap moves from ~9.2k to
+~18k bases. The 24×24 rung's dense column re-measures at 9.0 s / 1.1 GB
+(was 8.0 s / 5.3 GB): the chunked fill trades ~13% wall clock for 4.7×
+memory. Timings and the `arrayblock` column are otherwise unchanged.
