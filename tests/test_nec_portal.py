@@ -2168,9 +2168,9 @@ def test_sinusoidal_has_no_converged_variant():
 
 
 def test_bspline_d1_basis_flag_solves_and_stamps_the_banner():
-    """`bspline-d1` is BSplineSolver with degree=1 bound — same one-fill shim
-    as plain `bspline` (dispatch is on `hasattr(solver, "_solve_with_kcl_ports")`,
-    not on degree), so it answers a deck and stamps +bs1 in the banner."""
+    """`bspline-d1` is BSplineSolver with degree=1 bound — same public
+    `compute_port_solution()` path as plain `bspline` (momwire#232; degree is
+    just a constructor knob), so it answers a deck and stamps +bs1."""
     deck = (
         "CE basis\n"
         "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
@@ -2289,8 +2289,10 @@ def _accel_pair(cls, volts=(1.0, 0.0), **kwargs):
 
 def _route_spy(solver):
     """Record which of the two B-spline solve routes momwire takes, without
-    disturbing either. Installed BEFORE the shim, so the shim wraps these and
-    its own ``del`` on the instance attribute tidies them away."""
+    disturbing either. Instance-attribute spies intercept the calls
+    ``compute_port_solution()`` makes internally (momwire#232 replaced the
+    portal's own spy shim, but the route question is still observable from
+    outside the public API this way)."""
     routes: list[str] = []
     dense = solver._solve_with_kcl_ports
 
