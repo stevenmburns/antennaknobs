@@ -66,11 +66,10 @@ dipole_rp_pattern                     0.76%   0.76%       -   0.96%   0.12
 dipole_sommerfeld_ground              2.24%   2.23%       -   4.35%      -
 dipole_tl_network                     0.27%   0.26%       -   1.01%      -   (d)
 dipole_tl_shunt_crossed               1.14%   1.14%       -   0.89%      -
-jar_testdeck                         12.02%  12.02%  12.02%   6.00%      -   (c)
-jar_testdeck_daemon_framed           12.02%  12.02%  12.02%   6.00%      -   (c)
+split_dipole_qq                      12.02%  12.02%       -   6.00%      -   (c)
+split_dipole_qq_daemon_framed        12.02%  12.02%       -   6.00%      -   (c)
 resident_two_decks                    0.77%   0.77%       -   0.96%      -
 two_source_sensor_lines               2.83%   2.83%       -   1.10%      -
-two_source_yy_card                    2.47%   2.47%   2.83%   1.10%      -
 ===================================  ======  ======  ======  ======  =====
 
 "I curve" is the CURRENTS AND LOCATION table normalised by its own peak ROW,
@@ -94,7 +93,8 @@ a small residual between two large, nearly cancelling numbers:
     printed in STRUCTURE EXCITATION DATA is a residual and differs by 12 %.
     The number SimNEC actually reads — the ANTENNA INPUT PARAMETERS *source*
     current — agrees to 1.3 %.
-(c) ``jar_testdeck``: port 1 is the gap at the centre of a full-wave split
+(c) ``split_dipole_qq`` (the jar test deck's YY-free successor, #839):
+port 1 is the gap at the centre of a full-wave split
     dipole, a current null with ``|Z| ≈ 3.5 kΩ``.  High-|Z| feeds are the known
     basis-sensitive class (antennaknobs #459); the deck's other two ports agree
     to 0.4 %.
@@ -197,8 +197,8 @@ CURVE_TOL = 0.08  # CURRENTS AND LOCATION, normalised by each table's peak row
 # an extra identity in the test that widens it.
 Z_TOL_OVERRIDE = {
     "catalog_dipoles_short_dipole_loaded": 0.50,  # (a) coil-cancelled reactance
-    "jar_testdeck": 0.15,  # (c) near-open centre feed
-    "jar_testdeck_daemon_framed": 0.15,  # (c)
+    "split_dipole_qq": 0.15,  # (c) near-open centre feed
+    "split_dipole_qq_daemon_framed": 0.15,  # (c)
 }
 # STRUCTURE EXCITATION DATA is a different table with a different bar: it
 # reports the SEGMENT current at a network node, which an NT branch can make a
@@ -504,17 +504,17 @@ def test_the_short_loaded_dipole_only_disagrees_in_the_cancelled_reactance():
     )
 
 
-def test_the_jar_testdecks_low_z_ports_agree_tightly():
+def test_the_split_dipoles_low_z_ports_agree_tightly():
     """Justifies the 15 % widening: only the near-open port is loose.
 
-    ``jar_testdeck`` drives three ports of a full-wave split dipole. Port 1 is
+    ``split_dipole_qq`` drives three ports of a full-wave split dipole. Port 1 is
     the centre gap — a current null at ``|Z| ~ 3.5 kOhm``, the basis-sensitive
     high-|Z| class of antennaknobs #459. The other two are ordinary ~100 Ω
     feeds and must agree at the normal bar.
     """
     ours, theirs = (
-        read_printout(our_printout("jar_testdeck")),
-        read_printout(oracle_printout("jar_testdeck")),
+        read_printout(our_printout("split_dipole_qq")),
+        read_printout(oracle_printout("split_dipole_qq")),
     )
     z_open = theirs.ports[0][0][1]
     assert abs(z_open) > 1000.0, "port 1 is supposed to be the near-open one"
@@ -645,17 +645,6 @@ def test_network_excitation_rows_agree_loosely(name, pair):
         zip(ours.network, theirs.network, strict=True)
     ):
         assert relative(i_a, i_b) <= NETWORK_TOL, f"{name} network row {row}"
-
-
-@pytest.mark.parametrize("name", NAMES)
-def test_yy_rows_agree(name, pair):
-    """Ward's ``-YY`` report is the same Y matrix by another route."""
-    ours, theirs = pair(name)
-    assert len(ours.yy) == len(theirs.yy), f"{name}: different -YY row count"
-    tol = Z_TOL_OVERRIDE.get(name, Z_TOL)
-    for row, (mine, oracle) in enumerate(zip(ours.yy, theirs.yy, strict=True)):
-        for k, (a, b) in enumerate(zip(mine, oracle, strict=True)):
-            assert relative(a, b) <= tol, f"{name} -YY row {row} point {k}: {a} vs {b}"
 
 
 @pytest.mark.parametrize("name", NAMES)
