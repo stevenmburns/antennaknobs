@@ -1836,6 +1836,24 @@ def parse_nec(
                     f"{where}: EX excitation type {ex_type} is not a voltage "
                     f"source; antennaknobs can only drive voltage feeds"
                 )
+            # NEC-5 edge-source dialect detection (#824, semantics pinned by
+            # the NEC-5 Users Manual during #825): NEC-5 places a source at a
+            # segment END — I4 = 1/2 picks the end, and with I4 = 0 the SIGN
+            # of I3 does (negative → end 1). NEC-2's EX I4 is a print-control
+            # field instead (legal values 0/1/10/11), so a negative segment
+            # or I4 = 2 can only be the NEC-5 form — refuse it precisely
+            # rather than silently shifting the feed half a segment to the
+            # NEC-2 center-gap reading. I4 = 1 is genuinely ambiguous
+            # (legal NEC-2 print flag) and keeps its NEC-2 meaning.
+            if card.i(2) < 0 or card.i(3) == 2:
+                raise card.error(
+                    "this is the NEC-5 edge-source form (a source at a "
+                    "segment END — I4 selects the end, or a negative "
+                    "segment number selects end 1): antennaknobs' port "
+                    "model has no wire-end port yet, so the feed cannot "
+                    "be represented faithfully (issue #824). NEC5Engine "
+                    "solves such decks directly."
+                )
             feeds_raw.append(
                 (
                     card.i(1),
