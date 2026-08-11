@@ -33,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..engine import SimulationEngine, WireCurrents
+from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import as_wire
 
 C_LIGHT = 299_792_458.0
@@ -42,6 +42,10 @@ NEC5_EXE_ENV = "NEC5_EXE"
 
 _AIP_HEADER = "ANTENNA INPUT PARAMETERS"
 _CURRENTS_HEADER = "- - - Wire Currents - - -"
+_PATTERN_HEADER = "- - - RADIATION PATTERNS - - -"
+
+# NEC-5 prints -999.99 dB for a true pattern null (zero field on axis).
+NULL_GAIN_DB = -999.99
 
 
 def find_nec5(explicit: str | None = None) -> str | None:
@@ -76,7 +80,7 @@ class NEC5Engine(SimulationEngine):
     NEC-5-specific physics are later stages and refuse loudly here.
     """
 
-    supports_far_field = False  # stage 3: RP parsing
+    supports_far_field = True  # stage 3: RP parsing
     # NEC-5 sources sit at segment ends; an even count puts a knot at the
     # fed wire's midpoint (see module docstring).
     segment_parity = "even"
@@ -196,11 +200,16 @@ class NEC5Engine(SimulationEngine):
 
     # ---------- deck ----------
 
-    def deck(self, freqs) -> str:
+    def deck(self, freqs, *, rp=None) -> str:
         """The NEC-5 input deck for this model at the given frequencies
         (MHz). Multiple frequencies must be uniformly spaced (NEC-5's FR
         does linear stepping); callers with a ragged grid run one deck per
-        frequency."""
+        frequency.
+
+        ``rp=(n_theta, n_phi, del_theta, del_phi)`` swaps the plain ``XQ``
+        execution for an ``RP`` request on the antennaknobs pattern grid
+        (theta 0..90-del from zenith, phi 0..360 inclusive of the seam
+        duplicate — the same grid PyNECEngine collects)."""
         freqs = np.atleast_1d(np.asarray(freqs, dtype=float))
         if freqs.size > 1:
             steps = np.diff(freqs)
@@ -229,7 +238,16 @@ class NEC5Engine(SimulationEngine):
                 f"EX 0 {i + 1} {w.n_seg // 2} 2 {_num(ex.real)} {_num(ex.imag)}"
             )
         lines.append(f"FR 0 {freqs.size} 0 0 {_num(freqs[0])} {_num(df)}")
-        lines.append("XQ 0")
+        if rp is None:
+            lines.append("XQ 0")
+        else:
+            n_theta, n_phi, del_theta, del_phi = rp
+            # RP initiates execution itself (manual: RP card). XNDA=0:
+            # major/minor/total columns, no normalized table, power gain.
+            lines.append(
+                f"RP 0 {n_theta} {n_phi + 1} 0 0.0 0.0 "
+                f"{_num(del_theta)} {_num(del_phi)}"
+            )
         lines.append("EN")
         return "\n".join(lines) + "\n"
 
@@ -327,6 +345,76 @@ class NEC5Engine(SimulationEngine):
         if not out:
             raise NEC5Error("no Wire Currents section in NEC-5 printout")
         return out
+
+    @staticmethod
+    def _parse_radiation_patterns(text: str) -> dict[tuple[float, float], float]:
+        """The RADIATION PATTERNS section as {(theta, phi): total_gain_dB}.
+        Row layout (pinned by fixtures): THETA PHI MAJOR MINOR TOTAL AXIAL
+        TILT [SENSE] E(TH)mag phase E(PHI)mag phase — 12 tokens when the
+        SENSE word (LINEAR/RIGHT/LEFT) is present, 11 when it is BLANK on a
+        true null row; angles and the TOTAL column sit at fixed leading
+        positions either way. Null rows print -999.99 dB (kept verbatim:
+        it is already a dB floor)."""
+        try:
+            chunk = text.split(_PATTERN_HEADER, 1)[1]
+        except IndexError:
+            raise NEC5Error(
+                "no RADIATION PATTERNS in NEC-5 printout; tail: " + text[-500:]
+            ) from None
+        gains: dict[tuple[float, float], float] = {}
+        started = False
+        for line in chunk.splitlines():
+            toks = line.split()
+            if len(toks) not in (11, 12, 13):
+                if started:
+                    break
+                continue
+            try:
+                theta, phi = float(toks[0]), float(toks[1])
+                total = float(toks[4])
+            except ValueError:
+                if started:
+                    break
+                continue
+            started = True
+            gains[(round(theta, 2), round(phi, 2))] = total
+        if not gains:
+            raise NEC5Error("unparseable RADIATION PATTERNS section")
+        return gains
+
+    def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
+        # Same grid contract as PyNECEngine._collect_pattern: the upper
+        # hemisphere in theta (0 .. 90-del from zenith), full circle in phi
+        # with the 360-degree seam duplicated.
+        assert 90 % n_theta == 0 and 90 == del_theta * n_theta
+        assert 360 % n_phi == 0 and 360 == del_phi * n_phi
+        text = self._run(
+            self.deck([self.builder.freq], rp=(n_theta, n_phi, del_theta, del_phi))
+        )
+        gains = self._parse_radiation_patterns(text)
+        thetas = np.linspace(0, 90 - del_theta, n_theta)
+        phis = np.linspace(0, 360, n_phi + 1)
+        rings = []
+        for th in thetas:
+            ring = []
+            for ph in phis:
+                # NEC-5 loops phi to 360 inclusive as requested; every grid
+                # point must exist or the parse misread the section.
+                key = (round(float(th), 2), round(float(ph), 2))
+                if key not in gains:
+                    raise NEC5Error(f"pattern grid point {key} missing from printout")
+                ring.append(gains[key])
+            rings.append(ring)
+        flat = [g for ring in rings for g in ring if g > NULL_GAIN_DB]
+        max_gain = max(flat) if flat else NULL_GAIN_DB
+        min_gain = min(flat) if flat else NULL_GAIN_DB
+        return FarField(
+            rings=rings,
+            max_gain=max_gain,
+            min_gain=min_gain,
+            thetas=thetas,
+            phis=phis,
+        )
 
     def _impedances_from(self, rows: list[tuple[int, int, complex]]) -> list[complex]:
         """Match one frequency's AIP rows against this model's feeds, in
