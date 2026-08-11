@@ -36,6 +36,8 @@ catalog_multiband_trap_dipole         2.66%   2.66%       -   0.68%      -
 catalog_specialty_bowtie              1.25%   1.25%       -   0.54%      -
 catalog_verticals_vertical            2.79%   2.79%       -   0.18%      -
 catalog_wire_w8jk                     1.98%   1.99%       -   0.84%      -
+dipole_ek_extended                    0.74%   0.75%       -   0.96%      -   (i)
+dipole_ek_rearm                       0.76%   0.76%       -   0.96%      -   (i)
 dipole_fr_sweep                       1.29%   1.29%       -   0.96%      -
 dipole_free_space                     0.76%   0.76%       -   0.96%      -
 dipole_gd_cliff_sommerfeld            2.24%   2.23%       -   4.35%      -   (f)
@@ -155,6 +157,19 @@ fails.
     Since #802 the far-field half is no longer "and there we refuse": the
     cliff modes run, so the same control is asserted on them too, by
     ``test_the_cliff_never_reaches_the_matrix``.
+
+(i) are the two ``EK`` fixtures, added to this table in issue #849 when the
+    card stopped being advisory (momwire 0.26.0 ships NEC's extended thin-wire
+    kernel; the portal now builds the group's solver with it). Both moved, and
+    both moved the way the card's own arithmetic says they must: these are
+    0.001 m wires at ``Δ/a ≈ 500``, where the O(a²) term the extended kernel
+    restores is worth **0.017 %** — measured, on both — and agreement with
+    nec2c went from 0.761 % to 0.745 %. ``dipole_ek_rearm``'s FIRST group is
+    ``EK -1`` and did not move at all, to the digit, which is the reduced path
+    still being the reduced path. The card's real magnitude cannot be read off
+    this corpus at all (no committed deck is fat enough); it is measured
+    against the oracle in ``test_nec_portal.py``'s fat-wire pair, where
+    ``Δ/a = 2.27`` and both engines move ~8 %.
 """
 
 from __future__ import annotations
