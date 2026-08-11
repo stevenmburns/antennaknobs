@@ -86,6 +86,15 @@ needs_pynec = pytest.mark.skipif(
     not HAS_PYNEC, reason="PyNEC not installed (engine unavailable on this platform)"
 )
 
+# NEC-5 is licensed, user-supplied software (issue #825): live-engine tests
+# run only where $NEC5_EXE points at a binary; parser tests run everywhere
+# off the committed fixtures.
+from antennaknobs.engines import find_nec5  # noqa: E402
+
+needs_nec5 = pytest.mark.skipif(
+    find_nec5() is None, reason="no licensed NEC-5 binary ($NEC5_EXE unset)"
+)
+
 
 # --------------------------------------------------------------------------
 # Test time-budget guardrail (issue #393)

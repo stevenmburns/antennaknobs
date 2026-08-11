@@ -1,0 +1,8 @@
+CM antennaknobs NEC5Engine error fixture: zero-segment wire
+CE
+GW 1 0 -1 0 10 1 0 10 .001
+GE 0 0
+EX 0 1 1 2 1 0
+FR 0 1 0 0 28.5 0
+XQ 0
+EN

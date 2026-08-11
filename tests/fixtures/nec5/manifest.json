@@ -1,0 +1,21 @@
+{
+  "citation": "NEC-5 printouts captured as End-User Reports; NEC-5 is (c) LLNL, LLNL-CODE-746721. The binary is user-licensed and never distributed with antennaknobs.",
+  "captured": "2026-08-10",
+  "fixtures": {
+    "invvee_dipole_single": {
+      "deck": "invvee_dipole_single.nec",
+      "printout": "invvee_dipole_single.out",
+      "stdout_tail": " Enter INPUT file name (or RETURN) > Enter OUTPUT file name (or RETURN) >Fill complete, FMHZ=  2.8470E+01\n"
+    },
+    "invvee_dipole_sweep3": {
+      "deck": "invvee_dipole_sweep3.nec",
+      "printout": "invvee_dipole_sweep3.out",
+      "stdout_tail": " Enter INPUT file name (or RETURN) > Enter OUTPUT file name (or RETURN) >Fill complete, FMHZ=  2.7500E+01\nFill complete, FMHZ=  2.8000E+01\nFill complete, FMHZ=  2.8500E+01\n"
+    },
+    "faulty_deck_error": {
+      "deck": "faulty_deck_error.nec",
+      "printout": "faulty_deck_error.out",
+      "note": "GW with NS=0: pins the no-ANTENNA-INPUT-PARAMETERS failure path"
+    }
+  }
+}

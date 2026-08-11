@@ -1,0 +1,36 @@
+1
+ x13
+
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-5)    *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          antennaknobs NEC5Engine error fixture: zero-segment wire                     
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+                                 - - - STRUCTURE SPECIFICATION - - -
+
+                                     COORDINATES MUST BE INPUT IN
+                                     METERS OR BE SCALED TO METERS
+                                     BEFORE STRUCTURE INPUT IS ENDED
+
+ Model definition commands:
+
+ GW    1     0 -1.00000E+00  0.00000E+00  1.00000E+01  1.00000E+00  0.00000E+00  1.00000E+01  1.00000E-03
+ GE    0    0
+ Error: No model data
