@@ -258,6 +258,28 @@ disagreement between solver bases — see
 engine to reach for — including when the accelerated `hmatrix` / `arrayblock`
 solvers pay off.
 
+### The extended kernel
+
+`--extended-kernel` applies NEC's extended thin-wire kernel (the `EK` card) on
+the momwire engine, wherever `--engine` is accepted:
+
+```bash
+python -m antennaknobs sweep --builder wire.dipole --extended-kernel
+```
+
+It matters for **fat wires** — segments not much longer than the wire radius —
+and is a fraction of a percent on ordinary thin wire; see
+[the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
+Every momwire basis serves it except `sinusoidal-galerkin`, which refuses
+(momwire#246), as does the combination with `use_singular_enrichment`
+(momwire#271) — both exit with a named message rather than a reduced-kernel
+answer under an extended-kernel request. The flag applies only to momwire:
+passing it with `--engine pynec` is an error.
+
+An imported deck brings its own: a `@file.nec` design whose deck carries an
+`EK` card is solved with the kernel on without the flag, and either source
+turns it on (`EK -1`, like an absent card, leaves it off).
+
 ## Comparing engines
 
 Solve the same design two ways and overlay the patterns — the built-in

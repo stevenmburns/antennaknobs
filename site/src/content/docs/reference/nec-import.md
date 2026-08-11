@@ -242,8 +242,12 @@ Real-world decks are mostly written *for 4nec2*, and the importer reads that
 dialect natively: `SY` symbolic variables with full expressions (BASIC-style
 — trig in degrees, `^` power, unit suffixes like `1.5*mm` or `36.6pF`),
 `'`-comments, fused mnemonics (`GW1,8,…`), and `#14`-style AWG wire-gauge
-radii. A deck's `EK` card (extended thin-wire kernel) is honoured by the
-PyNEC engine so fat-wire decks solve kernel-for-kernel with NEC. A remote
+radii. A deck's `EK` card (extended thin-wire kernel) is honoured on both
+engines — momwire builds the solver with its own O(a²) tube expansion, PyNEC
+with NEC's — so fat-wire decks solve kernel-for-kernel with NEC without a flag
+(`EK -1`, like an absent card, stays reduced; see
+[the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek)).
+A remote
 1-segment wire parked hundreds of wavelengths away purely to terminate a
 `TL` card is recognised and replaced by a virtual circuit node (the deck
 solves in seconds instead of meshing an electrically irrelevant wire; the

@@ -145,6 +145,18 @@ growth up the ladder). The d=2 basis is immune — a Galerkin method
 regularizes the reduced-kernel ill-posedness — which is also why a flat
 bs2 next to an exploding sin curve is the tell.
 
+When the low Δ/a is the *design* rather than a meshing slip — tubing,
+cages, a fat-wire imported deck — the fix is not a finer mesh but a
+better kernel:
+[the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek)
+(the **extended kernel (EK)** check in a solver slot's gear menu,
+`--extended-kernel` on the CLI) integrates the O(a²) term the filament
+approximation drops. It is worth several percent below Δ/a ≈ 3 and a
+fraction of a percent above Δ/a ≈ 10 — so it moves a genuinely fat wire
+and tells you nothing about a thin one. It does not rescue a segment
+shorter than its own radius: below Δ/a ≈ 1 the discretization is
+ill-posed whichever kernel fills it.
+
 One genuine residue survives the Δ/a accounting, and it is now pinned
 ([issue #484](https://github.com/stevenmburns/antennaknobs/issues/484)):
 **multi-wire fan feeds** — several dipole pairs sharing one feed wire —

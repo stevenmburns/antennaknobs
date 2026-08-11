@@ -52,6 +52,42 @@ Plus two **accelerated** solvers for large problems:
 - **`arrayblock`** — element-aware block-low-rank, near-linear on arrays of
   identical / few-shape elements.
 
+## The extended thin-wire kernel (EK)
+
+Every basis above solves a *thin-wire* integral equation: the current is
+treated as a filament on the wire axis, and the field is matched on the
+surface. That approximation is excellent while each segment is long compared
+to the wire's radius, and it degrades as the ratio **Δ/a** falls — the same
+axis that produces
+[convergence failure class 4](/advanced/convergence/#the-four-ways-a-curve-refuses-to-settle).
+NEC's answer is the **extended thin-wire kernel** — the `EK` card — which
+replaces the on-axis Green's function with an O(a²) expansion integrated over
+the tube. The correction is a fraction of a percent at Δ/a > 10 and several
+percent below Δ/a ≈ 3, and it moves the answer *toward* NEC's: on a Δ/a = 2.27
+dipole, nec2c reads 123.7+28.6 j reduced and 113.6+29.0 j extended — an 8 %
+step — and momwire's sinusoidal basis tracks both sides of the card to 0.5 %
+and 3.1 % respectively.
+
+momwire serves it on four of its five solver families — **`sinusoidal`**,
+**`bspline`**, **`hmatrix`** and **`arrayblock`**, in free space and over
+every ground model, at about 1.0–1.3× the reduced-kernel solve. Two
+combinations refuse, loudly rather than silently:
+
+- **`sinusoidal-galerkin`** — NEC's `EKSCX` has no counterpart for the
+  Galerkin fill's folded third source shape (momwire#246). Reach for the
+  point-matched `sinusoidal` sibling instead.
+- **singular enrichment** — the enrichment degrees of freedom carry their own
+  quadrature and bypass the moment kernels the extended kernel corrects
+  (momwire#271).
+
+Three ways to ask for it: the **extended kernel (EK)** check in a solver
+slot's gear menu (per slot, so you can put the same basis and mesh in two
+slots and read the difference); `--extended-kernel` on the CLI; or an `EK`
+card in an imported deck, which is honoured on its own. Reach for it on thick
+elements — tubing, cages, fat-wire imported decks — and when cross-checking a
+NEC model whose deck carries the card. On ordinary thin wire, leave it off:
+it changes the answer by less than the mesh does.
+
 ## Which solver should I use?
 
 The choice turns on two axes — total problem size, and single-structure vs.
