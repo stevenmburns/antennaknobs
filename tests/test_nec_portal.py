@@ -2518,6 +2518,247 @@ def test_require_lattice_fft_names_the_unmet_gate_on_a_single_pair():
         nec_portal._y_and_port_coeffs(solver)
 
 
+# --- the EK card, honoured for real (issue #849) ------------------------------
+#
+# Until momwire 0.26.0 the portal parsed `EK`, threaded it through the execute
+# groups, and printed its announcement — but momwire had one kernel, so the
+# card moved no number and the grammar doc called it advisory. It is real now,
+# and the tests below are the four halves of "real": the operator moves, it
+# moves to MOMWIRE's own extended kernel and not to something this file invented
+# on the way, it moves in nec2c's direction and by nec2c's amount, and the
+# bases that cannot serve it say so.
+#
+# Every EK deck in the fixture corpus is a 0.001 m wire at Δ/a ≈ 500, where the
+# extended kernel is a 0.02 % correction by construction — the card's whole
+# subject is the O(a²) term the reduced kernel drops. So the decks here are
+# FAT: 11 segments of a 5 m dipole at a = 0.2 m is Δ/a = 2.27, and both engines
+# move by ~8 % across the card.
+
+# λ = 10 m at 30 MHz; 11 segments over 5 m is Δ = 0.4545 m, so Δ/a = 2.27.
+_FAT_WIRE = "GW 1 11 0. 0. -2.5 0. 0. 2.5 0.2\n"
+
+
+def _fat_deck(kernel_card: str = "") -> str:
+    card = f"{kernel_card}\n" if kernel_card else ""
+    return (
+        f"CE ek fat wire\n{_FAT_WIRE}GE 0\n{card}"
+        "FR 0 1 0 0 30. 1\nEX 0 1 6 0 1.\nXQ\nNX\n"
+    )
+
+
+# nec2c 5b4az.ae6ty.1.23 (SimNEC 5.1's shipped `nec2c-ubuntu-x86` — the version
+# the repo pins as `minimumNEC2CVersion`), on `_fat_deck()` and
+# `_fat_deck("EK")` respectively. Captured 2026-08-10 the same way
+# scripts/nec_portal_capture.py captures the corpus: the deck on stdin, the
+# ANTENNA INPUT PARAMETERS row read off stdout.
+NEC2C_FAT_REDUCED = complex(1.2368e02, 2.8585e01)
+NEC2C_FAT_EXTENDED = complex(1.1357e02, 2.8980e01)
+
+
+def _first_z(text: str) -> complex:
+    """The impedance of the first ANTENNA INPUT PARAMETERS row."""
+    columns = aip_impedances(text)
+    assert columns, f"no AIP row:\n{text[-800:]}"
+    return complex(float(columns[0][0]), float(columns[0][1]))
+
+
+def _relative(a: complex, b: complex) -> float:
+    return abs(a - b) / max(abs(a), abs(b))
+
+
+@pytest.fixture
+def restore_basis():
+    """`--basis` is a process-global (`_active_basis`), set by `main` and never
+    reset by `run_deck` — the ordering hazard `cache_reset` documents. A test
+    that asks for an alternate basis puts it back, so it cannot decide what a
+    later test's `run_deck`/`printout` call solves with."""
+    from antennaknobs import nec_portal
+
+    saved = nec_portal._active_basis
+    yield
+    nec_portal._active_basis = saved
+
+
+def test_the_ek_card_moves_the_impedance_on_a_fat_wire(restore_basis):
+    """The card is no longer advisory: same deck, one card, a different answer.
+
+    Asserted on the DEFAULT basis as well as the NEC-closest one, because the
+    passthrough is the engine's and every basis in the roster but Galerkin has
+    to carry it.
+    """
+    for basis in ([], ["--basis", "sinusoidal"]):
+        rc_off, off, err_off = _run_main(basis, deck=_fat_deck())
+        rc_on, on, err_on = _run_main(basis, deck=_fat_deck("EK"))
+        assert (rc_off, rc_on) == (0, 0) and not err_off and not err_on
+        assert "ERROR-NEC2C" not in off and "ERROR-NEC2C" not in on
+        shift = _relative(_first_z(off), _first_z(on))
+        assert shift >= 0.02, f"{basis}: EK moved the impedance by only {shift:.3%}"
+
+
+def test_the_ek_answer_is_momwires_own_extended_kernel_solve(restore_basis):
+    """Which extended kernel — the identity behind the number.
+
+    A deck through the portal under `--basis sinusoidal` must be the same solve
+    as `SinusoidalSolver(extended_kernel=...)` built straight off the deck's own
+    mesh: one straight wire, 11 uniform segments, the gap at the centre. The
+    only slack allowed is the printout's own `%13.5E` rounding, so this catches
+    a kernel flag that reached a DIFFERENT constructor, a mesh the portal built
+    differently under EK, or an announcement printed over a reduced-kernel fill.
+    """
+    import numpy as np
+    from momwire import SinusoidalSolver
+
+    for card, kwargs in (("", {}), ("EK", {"extended_kernel": True})):
+        solver = SinusoidalSolver(
+            wires=[np.array([[0.0, 0.0, -2.5], [0.0, 0.0, 2.5]])],
+            n_per_edge_per_wire=[[11]],
+            feeds=[(0, 2.5, 1.0)],
+            wavelength=299_792_458.0 / 30e6,
+            wire_radius=0.2,
+            **kwargs,
+        )
+        direct, _coeffs = solver.compute_impedance()
+        _rc, out, _err = _run_main(["--basis", "sinusoidal"], deck=_fat_deck(card))
+        assert _relative(_first_z(out), direct) <= 1e-4, (
+            f"EK={card!r}: portal {_first_z(out)} vs direct {direct}"
+        )
+
+
+def test_the_fat_wire_ek_pair_tracks_nec2c_on_both_sides_of_the_card(restore_basis):
+    """The card's physics, against the reference engine rather than ourselves.
+
+    Both kernels are held at the differential harness's ordinary 5 % bar, and
+    the SHIFT is held too — a passthrough that quietly did nothing would keep
+    the reduced side inside 5 % and fail here, which is the mode this exists
+    to catch. The sinusoidal basis is used because it is the roster's
+    NEC-closest rung (issue #822); on this deck it lands 0.5 % from nec2c
+    reduced and 3.1 % extended.
+    """
+    _rc, off, _e = _run_main(["--basis", "sinusoidal"], deck=_fat_deck())
+    _rc, on, _e = _run_main(["--basis", "sinusoidal"], deck=_fat_deck("EK"))
+    z_off, z_on = _first_z(off), _first_z(on)
+    assert _relative(z_off, NEC2C_FAT_REDUCED) <= 0.05, f"{z_off} vs nec2c reduced"
+    assert _relative(z_on, NEC2C_FAT_EXTENDED) <= 0.05, f"{z_on} vs nec2c extended"
+    # nec2c's own move across the card is -10.1 Ω of resistance (8.0 %); ours
+    # must be the same sign and the same order, not merely "different".
+    theirs = NEC2C_FAT_EXTENDED - NEC2C_FAT_REDUCED
+    ours = z_on - z_off
+    assert ours.real < 0 and theirs.real < 0, f"{ours} vs {theirs}"
+    assert 0.5 <= abs(ours) / abs(theirs) <= 2.0, f"{ours} vs {theirs}"
+
+
+@pytest.mark.parametrize("card", ["EK", "EK 0", "EK 1", "EK 2", "EK -2"])
+def test_every_ek_field_but_minus_one_is_the_extended_kernel(card):
+    """What the oracle actually does with the card's one field.
+
+    Measured on nec2c 5b4az.ae6ty.1.23: `EK`, `EK 0`, `EK 1`, `EK 2` and even
+    `EK -2` all print THE EXTENDED THIN WIRE KERNEL WILL BE USED, and only
+    `EK -1` does not — NEC-2's card reader sets the flag on an EK card and
+    clears it for `-1` alone. The portal used to REFUSE anything outside
+    {0, -1}, which is the #814 failure class exactly: a deck the reference
+    engine runs, turned into a fabricated SimNEC readout by our refusal.
+    """
+    rc, out, err = _run_main([], deck=_fat_deck(card))
+    assert rc == 0 and err == ""
+    assert "ERROR-NEC2C" not in out, out[-600:]
+    assert "THE EXTENDED THIN WIRE KERNEL WILL BE USED" in out
+    assert _first_z(out) == _first_z(_run_main([], deck=_fat_deck("EK"))[1])
+
+
+def test_ek_minus_one_is_the_reduced_kernel():
+    """The other side of the same rule, and the no-card default with it."""
+    z_bare = _first_z(_run_main([], deck=_fat_deck())[1])
+    rc, out, _err = _run_main([], deck=_fat_deck("EK -1"))
+    assert rc == 0 and "THE EXTENDED THIN WIRE KERNEL WILL BE USED" not in out
+    assert _first_z(out) == z_bare
+
+
+def test_two_groups_of_one_deck_under_two_kernels_get_two_operators():
+    """`dipole_ek_rearm`'s shape, on a wire fat enough to show it.
+
+    One deck, one frequency, two execute groups — the second under a kernel the
+    first was not. The per-deck fill cache is keyed on the frequency ALONE
+    unless the kernel is in the key too, so this is the intra-deck half of the
+    staleness gate: getting it wrong prints the first group's answer twice and
+    every other assertion in this file still passes.
+    """
+    deck = (
+        f"CE ek rearm fat\n{_FAT_WIRE}GE 0\nEK -1\n"
+        "FR 0 1 0 0 30. 1\nEX 0 1 6 0 1.\nXQ\nEK\nXQ\nNX\n"
+    )
+    rc, out, err = _run_main([], deck=deck)
+    assert rc == 0 and err == "" and "ERROR-NEC2C" not in out
+    rows = aip_impedances(out)
+    assert len(rows) == 2, rows
+    first, second = complex(*map(float, rows[0])), complex(*map(float, rows[1]))
+    assert first == _first_z(_run_main([], deck=_fat_deck("EK -1"))[1])
+    assert second == _first_z(_run_main([], deck=_fat_deck("EK"))[1])
+    assert _relative(first, second) >= 0.02, f"{first} vs {second}"
+
+
+@pytest.mark.parametrize(
+    "basis", ["sinusoidal-galerkin", "sinusoidal-galerkin-converged"]
+)
+def test_a_galerkin_basis_refuses_an_ek_deck_as_a_nec_error(basis, restore_basis):
+    """The refusal path, on the class of deck that reaches it in real life.
+
+    momwire#246 leaves NEC's extended kernel unimplemented on the Galerkin fill
+    — its folded third source shape has no EKSCX counterpart — so the solver
+    refuses at construction with a NotImplementedError. The live `NECSource`
+    path sends `EK` on EVERY deck (grammar doc §17), so a SimNEC user who picks
+    a Galerkin portal entry hits this on their first solve, and what they must
+    get is the documented refusal frame: a token-0 `ERROR:` line naming the
+    kernel, the oracle-shaped `ERROR-NEC2C:` line behind it, and — the one that
+    decides whether the session survives — the NX sentinel. A traceback out of
+    `main` would cost the sentinel and stall `Execute.readLine` forever.
+    """
+    rc, out, err = _run_main(["--basis", basis], deck=_fat_deck("EK"))
+    assert rc == 0 and err == ""
+    assert "Traceback" not in out
+    errors = [ln for ln in out.splitlines() if ln.split()[:1] == ["ERROR:"]]
+    assert errors, out[-800:]
+    assert "extended thin-wire kernel" in errors[0]
+    assert "sinusoidal-galerkin" in errors[0]
+    assert "ERROR-NEC2C: " in out
+    assert NX_ECHO.search(out), "no NX sentinel on the kernel-refusal path"
+    # ... and the same basis answers the same deck once the card is gone, so
+    # the refusal is the KERNEL's and not the basis failing on a fat wire.
+    rc, plain, _err = _run_main(["--basis", basis], deck=_fat_deck())
+    assert rc == 0 and "ERROR-NEC2C" not in plain and aip_impedances(plain)
+
+
+def test_the_thin_wire_ek_fixtures_barely_move_and_move_towards_nec2c():
+    """The armor's own measurement, kept next to the numbers that justify it.
+
+    43 of the 45 corpus fixtures carry no `EK` and are byte-identical across
+    this change. The two that do carry it are Δ/a ≈ 500 dipoles, where the
+    extended kernel is the correction it is designed to be small: measured,
+    both move 0.017 % — inside momwire's own no-op bar — and both move CLOSER
+    to nec2c (0.761 % → 0.745 %). `dipole_ek_rearm`'s first group is `EK -1`
+    and must not move at all, which is the assertion that the reduced path is
+    still the reduced path.
+    """
+
+    def render(name):
+        # Through `main` rather than `printout`, so the process-global basis is
+        # this test's own whatever ran before it.
+        return _run_main([], deck=fixture_deck(name) + "\nNX\n")[1]
+
+    extended = _first_z(render("dipole_ek_extended"))
+    oracle = complex(7.9240e01, 4.5364e01)  # the fixture's own captured row
+    reduced = _first_z(render("dipole_free_space"))  # same wire, no EK card
+    assert _relative(extended, reduced) <= 1e-3, (
+        f"a Δ/a≈500 wire moved {_relative(extended, reduced):.4%} across EK"
+    )
+    assert _relative(extended, oracle) < _relative(reduced, oracle)
+
+    rows = aip_impedances(render("dipole_ek_rearm"))
+    assert len(rows) == 2
+    first, second = complex(*map(float, rows[0])), complex(*map(float, rows[1]))
+    assert first == reduced, "the EK -1 group is no longer the reduced-kernel one"
+    assert second == extended
+
+
 # --- the cross-deck solver cache (issue #823) --------------------------------
 #
 # The cache's whole claim is that the printout is IDENTICAL whether a deck was
@@ -2694,6 +2935,20 @@ CACHE_NET_BASE = mutate(
     "EX 0 1 5 0 1.\nTL 1 3 1 7 600. 2.5 0. 0. 0. 0.\nNT 1 3 1 7 0. 0.02 0. 0. 0. 0.02\n",
 )
 
+# A free-space deck at Δ/a = 2.27 — the regime where the extended kernel is
+# worth several percent (issue #849). The plain CACHE_BASE wire is 500× too
+# thin for an EK mutation to move a printed digit, so a cross-deck cache test
+# on it can only ever assert the MISS; this one asserts the answer too.
+CACHE_FAT_BASE = (
+    "CM cross-deck cache probe, fat\n"
+    "CE\n"
+    "GW 1 11 0. 0. -2.5 0. 0. 2.5 0.2\n"
+    "GE 0\n"
+    "EX 0 1 6 0 1.\n"
+    "FR 0 1 0 0 30. 0\n"
+    "XQ\n"
+)
+
 
 # (label, base deck, mutant deck, does this move the printed numbers?)
 _OPERATOR_MUTATIONS = (
@@ -2744,11 +2999,21 @@ _OPERATOR_MUTATIONS = (
         mutate("600. 2.5", "-600. 2.5", CACHE_NET_BASE),
         True,
     ),
-    # EK is the conservative key entry: momwire's kernel is momwire's kernel, so
-    # the flag moves no number here — the gate is that it still MISSES, because
-    # a card whose meaning is "compute the operator differently" must never be
-    # answered from an entry built without it.
+    # EK used to be the conservative key entry — kept for the principle that a
+    # card whose meaning is "compute the operator differently" must never be
+    # answered from an entry built without it, back when momwire had no other
+    # kernel and the flag moved no number. Issue #849 made it an ordinary one.
+    # This deck's wire is Δ/a ≈ 500, where the extended kernel is a 0.02 %
+    # correction that does not survive `%13.5E`, so `moves_numbers` stays False
+    # HERE and the fat-wire deck below carries the "and it answers with its own
+    # physics" half.
     ("EK toggled", CACHE_BASE, mutate("EX 0 1 5 0 1.\n", "EK\nEX 0 1 5 0 1.\n"), False),
+    (
+        "EK toggled (fat wire)",
+        CACHE_FAT_BASE,
+        mutate("GE 0\n", "GE 0\nEK\n", CACHE_FAT_BASE),
+        True,
+    ),
 )
 
 
