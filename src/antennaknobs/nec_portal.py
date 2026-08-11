@@ -991,12 +991,18 @@ class ExecuteGroup:
     # reason, and because ``PT`` is a TOGGLE: ``dipole_pt_toggle`` suppresses
     # the first run's table and restores the second's from one deck.
     pt: PrintControl | None = None
-    # EK in force when this group fired. Advisory for momwire (our kernel is
-    # our kernel), but the refilled preamble must announce it exactly as the
-    # oracle does — and only there: an EK between two XQs re-arms execution
-    # without a refill, and the oracle prints no announcement for it
-    # (measured: XQ / EK / XQ shows two AIP sections, one preamble, zero
-    # announcements).
+    # EK in force when this group fired. HONOURED since issue #849 (momwire
+    # 0.26.0): the solver this group is answered from is built with
+    # `extended_kernel=True`, the same O(a²) on-axis tube expansion NEC's card
+    # asks for. It was advisory before that — momwire had no extended kernel to
+    # switch to — which is why it is per GROUP rather than per deck: the
+    # printout always had to distinguish the two, and now the operator does
+    # too (`DeckSolver.at` keys its per-frequency fill on the kernel as well).
+    #
+    # The refilled preamble must announce it exactly as the oracle does — and
+    # only there: an EK between two XQs re-arms execution without a refill, and
+    # the oracle prints no announcement for it (measured: XQ / EK / XQ shows
+    # two AIP sections, one preamble, zero announcements).
     ek: bool = False
     # A kernel change between execute cards refills the matrix WITHOUT a new
     # FR: the oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING
@@ -1188,19 +1194,20 @@ def parse_deck(body: str) -> PortalDeck:
             # XQ` prints no block at all).
             multiprocessing = Multiprocessing.from_card(card)
         elif card.mnemonic == "EK":
-            if card.i(0) not in (0, -1):
-                raise PortalError(
-                    f"EK {card.i(0)} is neither 0 (extended kernel) nor -1 "
-                    f"(standard kernel)"
-                )
-            if (
-                card.i(0) == 0
-                and not extended_kernel
-                or card.i(0) == -1
-                and extended_kernel
-            ):
+            # The oracle's test is `I1 == -1`, and NOTHING else: measured on
+            # nec2c 5b4az.ae6ty.1.23, `EK`, `EK 0`, `EK 1`, `EK 2` and even
+            # `EK -2` all print THE EXTENDED THIN WIRE KERNEL WILL BE USED,
+            # and only `EK -1` does not. (It is NEC-2's own card reader —
+            # nec2dx.f sets IEXK = 1 on an EK card and clears it only for
+            # ITMP1 = -1.) This used to refuse anything outside {0, -1}, which
+            # is the #814 class of bug: refusing a card the reference engine
+            # accepts turns a runnable deck into a fabricated readout. Match
+            # the oracle. `nec_import.parse_nec` already read the card this
+            # way, so the two card readers now agree as well.
+            wanted = card.i(0) != -1
+            if wanted != extended_kernel:
                 kernel_dirty = executed > 0
-            extended_kernel = card.i(0) == 0
+            extended_kernel = wanted
         elif card.mnemonic == "PT":
             # Also not an arming card: it changes what a run PRINTS, not what
             # a run computes, so it cannot make an XQ into a fresh execution.
@@ -2023,7 +2030,8 @@ class DeckSolver:
             self.network_rows.append((a, b, branch, length))
 
         self._smallest_radius = min(w.radius for w in self.wires)
-        self._cache: dict[float, dict] = {}
+        # (frequency, extended kernel) -> one filled and factored operator.
+        self._cache: dict[tuple[float, bool], dict] = {}
 
     def _line_length(self, branch: LineBranch, a: int, b: int) -> float:
         """A ``TL`` card's resolved length: its own, or — when the card says
@@ -2142,15 +2150,24 @@ class DeckSolver:
 
     # -- per-frequency operator -------------------------------------------
 
-    def at(self, freq_mhz: float) -> dict:
+    def at(self, freq_mhz: float, extended_kernel: bool = False) -> dict:
         """The cached (Y, X, solver) for a frequency — one fill, one factor.
 
         When this instance came out of the cross-deck cache (``_solver_for``)
         these entries came with it, so a re-probed deck answers with no fill at
         all, and the same structure at a NEW frequency pays one fill on top of
         a geometry parse and mesh it did not repeat.
+
+        ``extended_kernel`` is the group's ``EK`` (issue #849) and is part of
+        the cache key, not just of the fill: ``dipole_ek_rearm`` is one deck
+        whose two execute groups ask for two different kernels at the SAME
+        frequency, so keying on the frequency alone would answer the second
+        from the first's operator. The key is written ``(freq, ek)`` rather
+        than as two dicts so that adding a third operator axis later cannot
+        forget one of them.
         """
-        cached = self._cache.get(freq_mhz)
+        key = (freq_mhz, bool(extended_kernel))
+        cached = self._cache.get(key)
         if cached is not None:
             return cached
         if _cache_serving or _cache_stats_path is not None:
@@ -2160,7 +2177,9 @@ class DeckSolver:
             _cache_stats["fills"] += 1
         wavelength = C_LIGHT / (freq_mhz * 1e6)
         started = time.perf_counter()
-        solver = self.engine._make_solver(wavelength=wavelength)
+        solver = self.engine._make_solver(
+            wavelength=wavelength, extended_kernel=bool(extended_kernel)
+        )
         y_sub, coeffs = _y_and_port_coeffs(solver)
         fill_ms = int(round((time.perf_counter() - started) * 1000.0))
         entry = {
@@ -2170,7 +2189,7 @@ class DeckSolver:
             "X": coeffs,
             "fill_ms": fill_ms,
         }
-        self._cache[freq_mhz] = entry
+        self._cache[key] = entry
         return entry
 
     def _load_impedances(self, omega: float) -> np.ndarray:
@@ -2193,8 +2212,11 @@ class DeckSolver:
 
     def solve_group(self, group: ExecuteGroup, freq_mhz: float) -> dict:
         """One execute group at one frequency: port currents, segment
-        currents, and the power budget — all from the cached factorisation."""
-        entry = self.at(freq_mhz)
+        currents, and the power budget — all from the cached factorisation.
+
+        The group's ``EK`` picks the operator (issue #849), so two groups of
+        one deck under two kernels get two fills and two answers."""
+        entry = self.at(freq_mhz, extended_kernel=group.ek)
         omega = 2.0 * math.pi * freq_mhz * 1e6
         y = entry["Y"]
         v_source = np.zeros(self.n_ports, dtype=np.complex128)
@@ -2536,11 +2558,14 @@ def _operator_key(deck: PortalDeck) -> tuple:
       is the proof, and it compares against a FRESH PROCESS rather than
       against itself, so it stays a proof if ``GD`` ever grows a far field.
 
-    ``EK`` is the conservative entry. Our kernel is momwire's kernel, so today
-    the flag is advisory and could be left out for a better hit rate — but it
-    is a kernel SELECTION, the one card in this list whose whole meaning is
-    "compute the operator differently", and a wrong hit here would be silent.
-    One bool per group is not a hit rate worth spending.
+    ``EK`` used to be the conservative entry — kept on the argument that a
+    card whose whole meaning is "compute the operator differently" must never
+    be answered from an entry built without it, even while momwire had no
+    other kernel to build with. Since issue #849 it is an ordinary one: the
+    flag IS the operator now (``DeckSolver.at`` fills per kernel), and a wrong
+    hit here would serve a reduced-kernel answer to a deck that asked for the
+    extended one. The tuple stays per GROUP, because that is the granularity
+    the card has.
     """
     cls, kwargs, suffix = _active_basis
     return (
@@ -3248,7 +3273,7 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     except PortalError as exc:
         _append_error(out, exc)
         return out, err
-    except (ValueError, np.linalg.LinAlgError) as exc:
+    except (ValueError, NotImplementedError, np.linalg.LinAlgError) as exc:
         _append_error(out, exc)
         return out, err
 
@@ -3290,7 +3315,17 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
                 if i:
                     out += ["", ""]
                 out += _run_block(deck, solver, group, freq)
-        except (PortalError, ValueError, np.linalg.LinAlgError) as exc:
+        except (
+            PortalError,
+            ValueError,
+            # A basis that cannot serve this group's kernel (issue #849:
+            # sinusoidal-galerkin under EK, momwire#246). momwire raises it,
+            # and `MomwireEngine` re-raises it before the fill; either way it
+            # is a refusal SimNEC must see as a NEC ERROR, not as a daemon
+            # traceback that costs the deck its NX sentinel.
+            NotImplementedError,
+            np.linalg.LinAlgError,
+        ) as exc:
             _append_error(out, exc)
         out += ["", "", ""]
     return out, err
@@ -3408,31 +3443,64 @@ def _selftest(stdout) -> int:
         "TL network row present": "STRAIGHT" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
     }
+
     # One deck per alternate basis: the point is that the entry is wired and
     # answers on THIS box, not that it is fast or converged. The selftest deck
     # is a single small dipole, which for `hmatrix`/`arrayblock` means a
     # near-field-only operator and (for arrayblock) a degenerate element
     # partition that degrades to the parent — the graceful-degradation path,
     # which is exactly the one a smoke test wants to prove never raises.
+    def _alt(basis: str, deck: str):
+        return subprocess.run(
+            [sys.executable, "-m", "antennaknobs.nec_portal", "--basis", basis],
+            input=deck,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
     for basis, suffix in (
-        ("sinusoidal-galerkin-converged", "+sgc"),
         ("sinusoidal", "+sin"),
         ("bspline-d1", "+bs1"),
         ("hmatrix", "+hm"),
         ("arrayblock", "+ab"),
     ):
-        alt = subprocess.run(
-            [sys.executable, "-m", "antennaknobs.nec_portal", "--basis", basis],
-            input=_SELFTEST_DECKS[0],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        alt = _alt(basis, _SELFTEST_DECKS[0])
         checks[f"alt basis answers ({suffix})"] = (
             alt.returncode == 0
             and suffix in alt.stdout
             and "ANTENNA INPUT PARAMETERS" in alt.stdout
         )
+    # The Galerkin entries are the exception, and the check is deliberately
+    # two-sided rather than dropped (issue #849). momwire#246 leaves NEC's
+    # extended kernel unimplemented on the Galerkin fill, and deck 1 carries
+    # `EK` precisely because the live NECSource path always sends it — so
+    # honouring the card for real means these two roster entries cannot answer
+    # a live SimNEC deck at all. What a deployment gate can still prove, and
+    # what a box must never get wrong, is that the refusal is the DOCUMENTED
+    # one: a named `ERROR:` line and the NX sentinel behind it (a hang here is
+    # what stalls SimNEC's readLine forever) — and that the SESSION survives
+    # it, which is why both decks go down ONE process: the EK deck refuses,
+    # the same deck without the card answers, from the same resident engine.
+    galerkin = _alt(
+        "sinusoidal-galerkin-converged",
+        _SELFTEST_DECKS[0] + _SELFTEST_DECKS[0].replace("EK\n", ""),
+    )
+    sentinels = sum(
+        1
+        for ln in galerkin.stdout.splitlines()
+        if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
+    )
+    checks["galerkin refuses EK by name, session survives"] = (
+        galerkin.returncode == 0
+        and any(
+            ln.split()[:1] == ["ERROR:"] and "extended thin-wire kernel" in ln
+            for ln in galerkin.stdout.splitlines()
+        )
+        and sentinels == 2
+        and "+sgc" in galerkin.stdout
+        and galerkin.stdout.count("ANTENNA INPUT PARAMETERS") == 1
+    )
     for name, ok in checks.items():
         stdout.write(f"  {'ok  ' if ok else 'FAIL'} {name}\n")
     passed = all(checks.values())
