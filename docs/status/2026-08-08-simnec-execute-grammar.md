@@ -1405,8 +1405,14 @@ fabricated readouts from the failures (Windows session, 2026-08-08:
 
 Pinned behaviour (fixtures `dipole_ek_extended`, `dipole_ek_rearm`):
 
-- `EK` / `EK 0` = extended thin-wire kernel on; `EK -1` = standard. Echoed
-  as a normal DATA CARD line.
+- The card's one field is tested for `-1` and for nothing else: `EK`, `EK 0`,
+  `EK 1`, `EK 2` and even `EK -2` all turn the extended thin-wire kernel ON,
+  and only `EK -1` turns it off (re-measured on 5b4az.ae6ty.1.23, 2026-08-10;
+  it is NEC-2's own card reader — `nec2dx.f` sets `IEXK = 1` on an EK card and
+  clears it for `ITMP1 = -1` alone). Echoed as a normal DATA CARD line.
+  This engine refused anything outside `{0, -1}` until issue #849 — the same
+  failure class as #814, a deck the reference engine runs turned into a
+  fabricated SimNEC readout by our refusal.
 - When on at a full (FR-driven) preamble: one extra line, 24-space indent,
   `THE EXTENDED THIN WIRE KERNEL WILL BE USED`, directly after the
   APPROXIMATE INTEGRATION note.
@@ -1418,8 +1424,28 @@ Pinned behaviour (fixtures `dipole_ek_extended`, `dipole_ek_rearm`):
   retained source. The first EX after an execution replaces the set;
   §11's "cleared at every XQ" described decks that always supplied
   fresh EX cards, not the engine.
-- For momwire the kernel choice is advisory (our kernel is our own);
-  layout is reproduced exactly, values are ours.
+- ~~For momwire the kernel choice is advisory (our kernel is our own);
+  layout is reproduced exactly, values are ours.~~ **Superseded by issue
+  #849 (momwire 0.26.0).** The card is HONOURED: the solver an execute group
+  is answered from is built with `extended_kernel=True`, momwire's own O(a²)
+  on-axis tube expansion (momwire#249/#259/#269/#270). Consequences worth
+  writing down:
+  - It is per EXECUTE GROUP, not per deck, and the per-deck fill cache is
+    keyed on `(frequency, kernel)` accordingly — `dipole_ek_rearm` is one
+    deck, one frequency, two operators.
+  - Magnitude: nothing, on any deck in the fixture corpus. Every committed
+    EK deck is `Δ/a ≈ 500`, where the correction measures 0.017 %. On a
+    `Δ/a = 2.27` wire both engines move ~8 %, and momwire's reduced answer
+    is 0.5 % from nec2c's while its extended answer is 3.1 % from nec2c's.
+  - **The two Galerkin portal entries cannot serve a live SimNEC session.**
+    momwire#246 leaves the extended kernel unimplemented on the Galerkin
+    fill, and `NECSource` sends `EK` on every deck, so `--basis
+    sinusoidal-galerkin[-converged]` now refuses every live deck with a
+    named `ERROR:` frame (and its NX sentinel). That is deliberate — the
+    alternative is serving a reduced-kernel answer under an extended-kernel
+    request — but it means those two dialog entries are bench instruments
+    rather than session engines until momwire#246 lands. `--basis
+    sinusoidal` is the point-matched sibling that does carry EK.
 - Build note: the 1.17 corpus oracle aborts noisily at EOF after the last
   NX ("Error reading input file") — post-sentinel noise, also present in
   pre-EK fixtures, harmless to `Execute` which stops at the sentinel.
