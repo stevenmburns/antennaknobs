@@ -20,9 +20,11 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
 * the version probe, the resident stdin loop, the ``NX`` sentinel;
 * ``CM``/``CE`` directives ``QQ`` (quiet) and ``FF`` (the one stderr line);
 * geometry ``GW``/``GM``/``GS``/``GX``/``GR``/``GA``/``GH``/``GE``, environment
-  ``GN 0/1/2``, loading ``LD 0/1/4/5``, excitation ``EX 0``, ``FR``, and
-  ``XQ``; (Ward's ``YY`` report card was retired in #839 — abandoned
-  upstream, its only sender a dev benchmark);
+  ``GN 0/1/2``, loading ``LD 0/1/4/5``, excitation ``EX 0``, ``FR``,
+  ``EK`` (the extended thin-wire kernel, honoured since #849 — every I1
+  except -1 enables it, matching nec2c), and ``XQ``; (Ward's ``YY``
+  report card was retired in #839 — abandoned upstream, its only sender
+  a dev benchmark);
 * unit 3: ``RP 0`` radiation patterns, ``NE``/``NH`` near-field grids, and
   ``NT`` two-port networks — each of which is also an *execute* card in its
   own right (``RP``/``NE``/``NH`` run the pending group, so a bare ``XQ``
