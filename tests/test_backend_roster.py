@@ -36,8 +36,8 @@ def client() -> TestClient:
     return TestClient(_server.app)
 
 
-def _roster(have_pynec: bool = True) -> list[dict]:
-    return backend_roster(have_pynec=have_pynec)
+def _roster(have_pynec: bool = True, have_nec5: bool = False) -> list[dict]:
+    return backend_roster(have_pynec=have_pynec, have_nec5=have_nec5)
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ def test_momwire_entries_carry_a_solver_class_and_pynec_does_not():
     serve the wrong solver's numbers under the right tab. PyNEC is the one
     entry with no momwire class — it rides `solver: "pynec"`."""
     for spec in _BACKENDS:
-        assert (spec.solver is None) == (spec.kind == "pynec"), spec.name
+        assert (spec.solver is None) == (spec.kind in ("pynec", "nec5")), spec.name
     assert all(cls is not None for cls in _MOMWIRE_MODELS.values())
 
 
@@ -117,7 +117,7 @@ def test_backend_roster_served_shape(client):
     """The catalog the frontend renders its whole solver picker from: order,
     labels, ground support, panel hints and the generic knob schema. Pinned
     here the way the terrain preset catalog is (issue #560)."""
-    roster = _roster()
+    roster = _roster(have_nec5=True)
     assert [e["name"] for e in roster] == [
         "sinusoidal",
         "sinusoidal-galerkin",
@@ -125,6 +125,7 @@ def test_backend_roster_served_shape(client):
         "hmatrix",
         "arrayblock",
         "pynec",
+        "nec5",
     ]
     by_name = {e["name"]: e for e in roster}
     assert [e["label"] for e in roster] == [
@@ -134,6 +135,7 @@ def test_backend_roster_served_shape(client):
         "H-matrix (ACA)",
         "Array-block",
         "PyNEC",
+        "NEC-5",
     ]
     # Every current solver models a ground; the flag exists so a future one
     # that doesn't can say so without a frontend change.
@@ -145,6 +147,7 @@ def test_backend_roster_served_shape(client):
         "hmatrix": "bspline",
         "arrayblock": "bspline",
         "pynec": "pynec",
+        "nec5": "nec5",
     }
     # Generic numeric knobs: only the two sinusoidal bases carry one today —
     # every other backend's knobs are non-numeric (degree tabs, gated
@@ -156,6 +159,7 @@ def test_backend_roster_served_shape(client):
         "hmatrix": [],
         "arrayblock": [],
         "pynec": [],
+        "nec5": [],
     }
     assert by_name["sinusoidal"]["options_schema"][0] == {
         "key": "n_qp_const",
@@ -174,6 +178,9 @@ def test_backend_roster_served_shape(client):
         "hmatrix": 30,
         "arrayblock": 21,
         "pynec": 21,
+        # NEC-5 sources sit at segment ends: an EVEN count puts the feed
+        # knot at the wire's exact middle (issue #825).
+        "nec5": 20,
     }
     # comboInappropriate policy, served as capabilities instead of the
     # frontend's old name lists.
@@ -191,8 +198,12 @@ def test_backend_roster_served_shape(client):
     # mount, exactly like terrain_presets.
     from antennaknobs.web import pynec_backend
 
+    from antennaknobs.web import nec5_backend
+
     served = client.get("/capabilities").json()["backends"]
-    assert served == _roster(have_pynec=pynec_backend.HAVE_PYNEC)
+    assert served == _roster(
+        have_pynec=pynec_backend.HAVE_PYNEC, have_nec5=nec5_backend.have_nec5()
+    )
 
 
 def test_recommendable_backends_are_roster_members():
@@ -222,3 +233,23 @@ def test_adapter_module_import_is_the_one_registry():
     and the existing web tests that import it."""
     assert adapter._MOMWIRE_MODELS is _MOMWIRE_MODELS
     assert _MOMWIRE_MODELS["bspline"].__name__ == "BSplineSolver"
+
+
+def test_nec5_entry_is_gated_on_the_binary_probe_at_request_time(client, monkeypatch):
+    """NEC-5 is licensed, user-supplied software (issue #825): the entry
+    appears exactly when the serving machine resolves $NEC5_EXE — a runtime
+    probe per request, so the hosted simulator (which never defines it) can
+    never offer NEC-5, while a local instance with the env var set always
+    does."""
+    import sys
+
+    assert "nec5" in {e["name"] for e in _roster(have_nec5=True)}
+    assert "nec5" not in {e["name"] for e in _roster(have_nec5=False)}
+
+    monkeypatch.delenv("NEC5_EXE", raising=False)
+    served = client.get("/capabilities").json()
+    assert "nec5" not in {e["name"] for e in served["backends"]}
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    served = client.get("/capabilities").json()
+    assert "nec5" in {e["name"] for e in served["backends"]}

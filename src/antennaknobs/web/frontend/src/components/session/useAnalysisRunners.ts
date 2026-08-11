@@ -494,7 +494,7 @@ export function useAnalysisRunners({
     setPattern(null);
     if (
       !autoSim || // Paused holds the engine (issue #612) — no NEC re-solve.
-      backend.name !== "pynec" ||
+      (backend.name !== "pynec" && backend.name !== "nec5") ||
       !active ||
       !necOverlayEnabled ||
       !patternResident || // issue #715: gated on the azimuth/elevation cuts

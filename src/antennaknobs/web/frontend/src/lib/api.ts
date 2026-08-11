@@ -250,7 +250,7 @@ export type SolveRequest = {
   /** Which `<name>_params` dict on the Builder to seed from. Omitted
    *  → backend falls back to default_params. */
   variant?: string;
-  solver: "momwire" | "pynec";
+  solver: "momwire" | "pynec" | "nec5";
   /** A momwire model name from the served roster (#628) — a plain string,
    *  not a union: the server owns the registry and validates it, and a
    *  third copy of the roster here is exactly the drift #628 removes. */

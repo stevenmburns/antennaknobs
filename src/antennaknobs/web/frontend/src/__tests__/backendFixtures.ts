@@ -89,6 +89,21 @@ export const ROSTER_NO_PYNEC: BackendRoster = SERVED_ROSTER.filter(
   (b) => b.kind !== "pynec",
 );
 
+/** The roster a machine with a licensed NEC-5 binary serves (issue #825):
+ *  the nec5 entry appears only when the server resolves $NEC5_EXE, so the
+ *  DEFAULT SERVED_ROSTER above deliberately omits it — absence is the
+ *  hosted-simulator shape. Python twin pin: test_backend_roster.py. */
+export const ROSTER_WITH_NEC5: BackendRoster = [
+  ...SERVED_ROSTER,
+  backendEntry({
+    name: "nec5",
+    label: "NEC-5",
+    kind: "nec5",
+    panel: "nec5",
+    default_n_per_wire: 20,
+  }),
+];
+
 export function entry(name: string, roster: BackendRoster = SERVED_ROSTER): BackendEntry {
   const found = roster.find((b) => b.name === name);
   if (!found) throw new Error(`no fixture backend named ${name}`);

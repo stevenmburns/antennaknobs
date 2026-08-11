@@ -79,6 +79,7 @@ except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 10.0, 0.002)
 from antennaknobs.engines.momwire import MomwireEngine
+from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.terrain import (
     Terrain,
     cliff_terrain,
@@ -281,19 +282,34 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         panel="pynec",
         default_n_per_wire=21,
     ),
+    # Licensed, user-supplied binary (issue #825): served only when the
+    # machine running the server resolves $NEC5_EXE. The hosted simulator
+    # never defines it, so this entry cannot appear hosted (the #824 EULA's
+    # no-SaaS term); on a personal machine it is the operator's own
+    # licensed use. Same roster-membership availability contract as pynec.
+    _BackendSpec(
+        name="nec5",
+        label="NEC-5",
+        solver=None,
+        kind="nec5",
+        panel="nec5",
+        default_n_per_wire=20,
+    ),
 )
 
 _MOMWIRE_MODELS = {b.name: b.solver for b in _BACKENDS if b.kind == "momwire"}
 
 
-def backend_roster(*, have_pynec: bool) -> list[dict]:
+def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
     """The self-describing solver catalog served on GET /capabilities.
 
     Order is list order; the frontend renders its tabs, generic numeric knobs
-    and ground gating straight from this, and selects its two bespoke panels
+    and ground gating straight from this, and selects its bespoke panels
     by the `panel` hint rather than by backend name. Computed per request so
-    the PyNEC entry follows pynec_backend.HAVE_PYNEC.
+    the PyNEC entry follows pynec_backend.HAVE_PYNEC and the NEC-5 entry
+    follows the $NEC5_EXE binary probe.
     """
+    availability = {"pynec": have_pynec, "nec5": have_nec5}
     return [
         {
             "name": b.name,
@@ -317,7 +333,7 @@ def backend_roster(*, have_pynec: bool) -> list[dict]:
             "dense_family": b.dense_family,
         }
         for b in _BACKENDS
-        if b.kind != "pynec" or have_pynec
+        if availability.get(b.kind, True)
     ]
 
 
@@ -1297,6 +1313,37 @@ def _pynec_ground_spec(req: dict):
         # field pynec_solve attaches to the response.
         return ("finite",) + _terrain_from_request(req).crest_medium
     return DEFAULT_GROUND
+
+
+def _nec5_ground_spec(req: dict):
+    """Map the frontend's ground knobs to NEC5Engine's ground spec. NEC-5
+    has no reflection-coefficient model (its IPERF 0 IS full Sommerfeld),
+    so the UI's "fast" request is served by the full Sommerfeld solve and
+    `ground_model_applied` reports "sommerfeld" — the engine's honest
+    upgrade, same convention as a momwire solver falling back to its best
+    available model. Terrain rides the crest-medium hybrid exactly like
+    the PyNEC path."""
+    model = _requested_ground_model(req)
+    if model is None:
+        return None
+    if model == "pec":
+        return "pec"
+    if model == "terrain":
+        return ("finite",) + _terrain_from_request(req).crest_medium
+    # "fast" and "sommerfeld" both land on NEC-5's native Sommerfeld.
+    return DEFAULT_GROUND
+
+
+def _nec5_ground_applied(ground) -> str:
+    if isinstance(ground, tuple) and ground and ground[0] == "finite":
+        return "sommerfeld"
+    if ground == "pec" or (isinstance(ground, tuple) and ground[0] == "pec"):
+        return "pec-image"
+    return "free"
+
+
+def _make_nec5_engine(req: dict, builder):
+    return NEC5Engine(builder, ground=_nec5_ground_spec(req))
 
 
 def _wire_material_results(builder) -> dict:
@@ -2613,6 +2660,122 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             ]
         return out
 
+    def nec5_solve(req: dict) -> dict:
+        # Mirror pynec_solve through the licensed NEC-5 binary: one
+        # subprocess run serves Z, currents and the power budget
+        # (NEC5Engine.solve_snapshot), and the response shape is identical
+        # so the frontend renders it unchanged.
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        plane, planes = _apply_plane(builder, req)
+        eng = _make_nec5_engine(req, builder)
+        t0 = time.perf_counter()
+        zs_raw, currents, _budget = eng.solve_snapshot()
+        zs = [_json_safe_z(z) for z in zs_raw]
+        solve_ms = (time.perf_counter() - t0) * 1e3
+        feed_wire_idx, feed_knot_idx = _pynec_feed_indices(builder, currents)
+        z_primary = zs[0] if zs else complex(0.0, 0.0)
+        finite = isinstance(eng.ground, tuple) and eng.ground[0] == "finite"
+        out = {
+            "geometry": name,
+            "wires": _pack_wires(currents),
+            "feed_wire_index": feed_wire_idx,
+            "feed_knot_index": feed_knot_idx,
+            "feed_position": _pynec_feed_position(builder, currents),
+            "feed_positions": _pynec_feed_positions(
+                builder, currents, hints()["multi_feed"]
+            ),
+            "z_in_re": float(z_primary.real),
+            "z_in_im": float(z_primary.imag),
+            "design_freq_mhz": design_freq,
+            "measurement_freq_mhz": meas_freq,
+            "lambda_design_m": C_LIGHT / (design_freq * 1e6),
+            "solve_ms": solve_ms,
+            "ground": bool(req.get("ground", False)),
+            "height_m": 0.0,
+            "ground_eps_r": eng.ground[1] if finite else _PEC_GROUND_EPS_R,
+            "ground_sigma": eng.ground[2] if finite else _PEC_GROUND_SIGMA,
+            "ground_model_applied": _nec5_ground_applied(eng.ground),
+            "z0_ohms": hints()["target_z0"],
+            "multi_feed": hints()["multi_feed"],
+            "default_view": hints()["default_view"],
+            "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
+            "power_budget": _budget_rows(eng, builder),
+            "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
+            **_wire_material_results(builder),
+            **_rig_report_results(builder),
+            **_readout_rows_results(builder),
+        }
+        if planes is not None:
+            out["plane"] = plane
+            out["planes"] = planes
+        if _requested_ground_model(req) == "terrain":
+            # Same crest-medium hybrid as the PyNEC path: the engine solved
+            # flat Sommerfeld at the crest constants; the facets enter in
+            # the server's far-field composition via ground_terrain.
+            out["ground_model_applied"] = "terrain"
+            gt = _pack_terrain(_terrain_from_request(req))
+            marker = _terrain_marker(req)
+            if marker:
+                gt["marker"] = marker
+            out["ground_terrain"] = gt
+        if hints()["multi_feed"] and len(zs) > 1:
+            # NEC5Engine._sources is [(wire_idx, ex_type, value)] in feed
+            # order; value is volts for EX 0 and amps for EX 4.
+            values = [v for _i, _t, v in eng._sources]
+            values += [complex(1.0, 0.0)] * (len(zs) - len(values))
+            out["feeds"] = [
+                {
+                    "z_re": float(z.real),
+                    "z_im": float(z.imag),
+                    "v_re": float(v.real),
+                    "v_im": float(v.imag),
+                }
+                for z, v in zip(zs, values)
+            ]
+        return out
+
+    def nec5_pattern(req: dict) -> dict:
+        # Same response contract as pynec_backend.pattern (46 thetas
+        # 0..90 x 73 phis 0..360, gains in dBi), from one RP deck run.
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        _apply_plane(builder, req)
+        eng = _make_nec5_engine(req, builder)
+        n_theta, n_phi = 46, 73
+        del_theta = 90.0 / (n_theta - 1)
+        del_phi = 360.0 / (n_phi - 1)
+        t0 = time.perf_counter()
+        text = eng._run(
+            eng.deck([meas_freq], rp=(n_theta, n_phi - 1, del_theta, del_phi))
+        )
+        gains_by_angle = eng._parse_radiation_patterns(text)
+        pattern_ms = (time.perf_counter() - t0) * 1e3
+        thetas = [ti * del_theta for ti in range(n_theta)]
+        phis = [pi * del_phi for pi in range(n_phi)]
+        gains = [
+            [gains_by_angle[(round(th, 2), round(ph, 2))] for ph in phis]
+            for th in thetas
+        ]
+        return {
+            "available": True,
+            "geometry": name,
+            "ground": bool(req.get("ground", False)),
+            "ground_fast": bool(req.get("ground_fast", False)),
+            "height_m": 0.0,
+            "measurement_freq_mhz": meas_freq,
+            "theta_deg": thetas,
+            "phi_deg": phis,
+            "gain_dbi": gains,
+            "pattern_ms": pattern_ms,
+        }
+
     def params_source(req: dict) -> str:
         # Overlay the request's live knob values onto the chosen variant's
         # params (which still carry ui_params and the design's real nesting —
@@ -2807,6 +2970,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,
+        nec5_solve=nec5_solve,
+        nec5_pattern=nec5_pattern,
         nec_export=nec_export,
         schematic_svg=schematic_svg,
         params_source=params_source,
