@@ -270,7 +270,8 @@ Everything SimNEC's portal actually emits for wire antennas:
 | Cliffs | `RP 2` linear and `RP 3` circular cliffs — the second medium and edge geometry from a `GD` card (or from `GN`'s own `F3`–`F6`), selected per segment at its own reflection point |
 | Near fields | `NE` / `NH` rectangular grids in free space or over perfect ground |
 | Networks | `NT` two-port admittance branches and `TL` transmission lines between segments |
-| Housekeeping | `EK` extended-kernel, `MP` multicore hints, `PT` print control — accepted and echoed exactly as nec2c does (advisory where momwire's own physics governs) |
+| Kernel | `EK` — the extended thin-wire kernel, honoured per execute group: the group's solver is built with momwire's own O(a²) tube expansion, and `EK -1` (like an absent card) stays reduced. The Galerkin basis refuses it as a `NEC ERROR` rather than answering reduced under an extended-kernel request (momwire#246) — `--basis sinusoidal` is the point-matched sibling that carries it |
+| Housekeeping | `MP` multicore hints, `PT` print control — accepted and echoed exactly as nec2c does (advisory where momwire's own physics governs) |
 
 One thing is faster than the engine it replaces, structurally. SimNEC probes an
 N-port antenna by sending N excitation groups in one deck, and a stock nec2c

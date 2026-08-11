@@ -276,6 +276,40 @@ instance: a local install is **unlocked** (solve as big as your own machine
 allows, sweep as long as you like). See `docs/deploy.md`.
 :::
 
+### The extended kernel (EK)
+
+Beside **wire radius**, every momwire slot's gear menu carries an **extended
+kernel (EK)** check — NEC's extended thin-wire kernel, the `EK` card. It
+changes how the solve treats the wire's radius on-axis: instead of collapsing
+the current to a filament, it integrates NEC's O(a²) expansion over the tube.
+That only matters when a wire is **fat relative to its own segments** — the
+Δ/a ratio. Above Δ/a ≈ 10 it moves the impedance a fraction of a percent;
+below Δ/a ≈ 3 it moves it several percent, in NEC's direction. It costs about
+1.0–1.3× the ordinary solve.
+
+Turn it on when you're modelling thick elements (tubing, cages, a fat-wire
+imported deck) or cross-checking a NEC model whose deck carries an `EK`
+card — the flag is per slot, so the natural use is **A against B: the same
+basis and mesh, one slot with the kernel and one without**, and the readouts
+side by side. A slot running it is labelled **+EK** on its chip
+(e.g. `B-spline d=2 +EK`), so the pair stays tellable apart.
+
+Two combinations are unavailable, and the check greys out and says which:
+
+- **Sin-Galerkin** cannot run it — momwire implements the extended kernel on
+  the point-matched Sinusoidal solver and the B-spline family, and refuses on
+  the Galerkin sibling rather than quietly serving a reduced-kernel answer
+  (momwire#246). Use the **Sinusoidal** slot for an extended-kernel run on
+  that basis family.
+- **K≥3 junction singular enrichment** (the validation-only B-spline knob)
+  cannot run alongside it: the enrichment degrees of freedom bypass the very
+  kernels the extended kernel corrects (momwire#271). The two grey each other
+  out, so you can always back out of either.
+
+**PyNEC** has no such check — the toggle drives momwire's kernel. Changing a
+slot's solver resets the check along with that solver's other options, so an
+armed kernel never rides silently onto a basis you just switched to.
+
 ### The feed model (Sin-Galerkin only)
 
 Pick **Sin-Galerkin** and its gear menu grows one more control, **feed
