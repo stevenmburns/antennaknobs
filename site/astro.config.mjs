@@ -105,6 +105,7 @@ export default defineConfig({
             { label: "The solver & accuracy", slug: "reference/solver" },
             { label: "Loading NEC decks", slug: "reference/nec-import" },
             { label: "SimNEC round-trip", slug: "reference/simnec" },
+            { label: "NEC-5 engine", slug: "reference/nec5" },
             { label: "Web workbench", slug: "reference/web" },
             { label: "Drone & Transform API", slug: "reference/drone-transform" },
             { label: "Command line", slug: "reference/cli" },

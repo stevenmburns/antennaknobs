@@ -174,9 +174,13 @@ What you'll notice:
   *detect* features, so it opens at 17 log-spaced points instead of 41 and the
   S11/VSWR/Smith views fill in sooner; the refinement rounds then sharpen
   whatever the base grid straddled.
-- **The Smith locus is a connected curve.** Refinement removes the sparse-
-  sample kinks that made a polyline dishonest, so the per-feed sweep trail
-  draws as a stroke instead of a dot cloud.
+- **The Smith locus is a connected curve — once it has earned it.** While
+  refinement is still landing points, the Smith, VSWR and |Γ| views draw
+  **unconnected dots**: a polyline through a half-refined set shows kinks
+  that are artifacts of sampling, not physics. When the refinement pass
+  settles, the views switch to the connected stroke. (Toggling refinement
+  off mid-run deliberately keeps the dots — the accumulated set is uneven,
+  and the charts keep saying so.)
 - **Only what's on screen refines.** Like the sweeps themselves
   (view-residency gating, above), refinement spends solves only on the
   projections and cuts whose views are pinned or open.
@@ -253,11 +257,17 @@ A **solver selector** offers a few preset slots so you can flip between engines
 without re-entering options — e.g. a fast dense basis, an accelerated array
 engine, and the PyNEC reference. The available engines are the momwire bases
 (**Sinusoidal**, **Sin-Galerkin**, **B-spline**), the accelerators
-(**H-matrix (ACA)**, **Array-block**), and the optional **PyNEC** backend — see
-[The solver & accuracy](/reference/solver/) for what each is good at. The list
-is **served by the backend you're pointed at**, so a server built without
-PyNEC simply doesn't offer it, rather than offering a slot that fails on the
-first solve.
+(**H-matrix (ACA)**, **Array-block**), the optional **PyNEC** backend — see
+[The solver & accuracy](/reference/solver/) for what each is good at — and,
+on a machine with a licensed binary, **NEC-5**
+([setup and terms](/reference/nec5/)): the slot appears exactly when the
+server resolves `NEC5_EXE`, which is why the hosted simulator never shows
+it while your own local instance can. The list is **served by the backend
+you're pointed at**, so a server without an optional engine simply doesn't
+offer it, rather than offering a slot that fails on the first solve. NEC-5
+solves are one external run per request — right for A/B snapshot checks
+against momwire in the next slot, heavier than the in-process engines for
+live dragging.
 
 The solver's gear menu also exposes **segments / wire (N)** — how finely each
 wire is discretized. More segments = more accurate (up to convergence) but a
@@ -452,6 +462,13 @@ that computes physical diagnostics — the catenary inverted vee reports its
 them as self-describing rows the readout renders generically, so a new
 design idea (including a user design in `~/.antennaknobs/designs/`) gets its
 numbers on screen with no frontend change.
+
+When the design you're iterating **is** a user design — editor in one
+window, workbench in the other — a **reload button** next to the design
+picker re-reads the file and re-solves in place. Your tuned knob values
+always survive the reload; a parameter the edited file just *grew* appears
+with the file's default. One click instead of a page reload per edit
+cycle.
 
 ## Power budget
 

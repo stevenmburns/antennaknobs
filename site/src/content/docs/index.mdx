@@ -25,22 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.48.0" icon="star">
-  **The extended-kernel release.** NEC's **`EK` card** — the extended
-  thin-wire kernel, the correction that matters when a wire is fat relative
-  to its own segments — is now honoured end to end, powered by momwire
-  0.26.0's C++ implementation. An imported deck's `EK` card **changes the
-  solve instead of being advisory** (and `EK 1` is no longer a refusal), the
-  CLI grows **`--extended-kernel`**, and every momwire slot in the web
-  workbench carries a per-slot **extended kernel (EK)** check — put the same
-  basis in two slots, one with the kernel and one without (the chip reads
-  **+EK**), and read the difference side by side. It runs on four of the
-  five solver families, in free space and over every ground model, at about
-  1.0–1.3× the ordinary solve; on a Δ/a = 2.27 dipole it moves the impedance
-  the same 8% step NEC takes, tracked to 0.5%/3.1% on the two sides of the
-  card. The two combinations that can't serve it refuse loudly rather than
-  quietly answering with the reduced kernel. Start at
-  [The extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
+<Card title="New in v0.49.0" icon="star">
+  **The third-oracle release.** With a licensed binary and one environment
+  variable, **NEC-5 runs as a full antennaknobs engine** — impedance,
+  currents, native-Sommerfeld grounds, radiation patterns, network ports
+  (including NEC-5's native current sources), loads and power budgets —
+  closing a **cross-validation triangle** of three independently written
+  solvers: momwire's basis families, NEC-2's kernels, NEC-5's
+  mixed-potential formulation. `--engines nec5` on the CLI, a slot in the
+  workbench picker on your own machine (never the hosted simulator — the
+  license stays personal), honest refusals for everything unserved, and
+  one genuine physics finding already logged from the triangle. Also in
+  this release: knob-scrub **sweeps reuse their own cached points**,
+  refining charts draw **honest dots until the curve settles**, a
+  **reload button** for the user design you're editing, NEC-5 edge-source
+  decks are **detected on import** instead of silently misread, and the
+  portal retires SimNEC's abandoned `YY` directive. Start at
+  [NEC-5 as a third engine](/reference/nec5/).
 </Card>
 
 ## The whole pitch, in one line
@@ -83,8 +84,9 @@ by dragging, and read out in real time.
     O(N²). Demonstrated O(N log N) on a 2142-segment Yagi.
   </Card>
   <Card title="Cross-checked physics" icon="approve-check">
-    A NEC-2 reference engine runs alongside the in-house solver, so you get a
-    built-in accuracy check most tools lack.
+    A NEC-2 reference engine runs alongside the in-house solver — and a
+    licensed NEC-5 can join as a third — so you get a built-in accuracy
+    check most tools lack.
   </Card>
   <Card title="No platform lock-in" icon="laptop">
     A web UI by default — works anywhere a browser does, while the competition

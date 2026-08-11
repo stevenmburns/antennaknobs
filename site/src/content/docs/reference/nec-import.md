@@ -255,6 +255,20 @@ substitution is named in `skipped_note()`). This dialect support was
 validated against a 3,146-deck corpus of published models — ARRL course
 material, 4nec2's own library, and the wider web.
 
+## The NEC-5 dialect
+
+NEC-5 changed one thing the importer must not guess about: **sources can sit
+at a segment end** (a knot) rather than a segment center — `EX` grows an
+end-selector field, and a negative segment number selects an end too. NEC-2
+uses that same field position for print-control flags, so the two dialects
+genuinely collide. The importer resolves it conservatively: the spellings
+that can only be NEC-5 (a negative segment, or the end-selector value NEC-2
+never defines) are **refused with the dialect named** — never silently read
+as a NEC-2 center feed half a segment away — while the one ambiguous value
+keeps its legal NEC-2 meaning. Decks that need the edge-source form solve
+natively on [the NEC-5 engine](/reference/nec5/), which speaks it as a
+first-class citizen.
+
 ## Programmatic use
 
 Outside a design, `parse_nec(text, name=...)` takes raw deck text and returns
