@@ -557,9 +557,18 @@ export function useAnalysisRunners({
       refineEnabled,
     });
 
+    const base = buildRequest();
     const body = {
-      ...buildRequest(),
+      ...base,
       freqs_mhz: freqs,
+      // Opt-in cache read-through (issue #763): a knob scrub back to an
+      // already-swept state may reuse the per-freq Z this session itself
+      // wrote. User designs are excluded — their file can change on disk
+      // under an unchanged request key (the server enforces both gates
+      // again regardless).
+      reuse_cached_z:
+        !String(base.geometry ?? "").startsWith("user.") &&
+        !String(base.geometry ?? "").startsWith("@"),
       // Lane metadata (issue #382): issued-at generation (a newer knob drag
       // supersedes this batch server-side) + the gate's approval, which the
       // server requires for a warned batch (poor-match combo backstop).
