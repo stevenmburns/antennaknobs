@@ -623,3 +623,67 @@ def test_live_average_gain_reads_ground_absorption():
     avg, omega = e.average_power_gain()
     assert 0.2 < avg < 2.0
     assert 0.9 * np.pi < omega < 2.1 * np.pi
+
+
+# ------------------------------------------------- capture cache (#872 ph 0)
+
+
+def test_capture_cache_hit_skips_binary(monkeypatch, tmp_path):
+    """A printout already captured for this exact deck is served from disk:
+    NEC5_EXE points at python (which could never produce a printout), so a
+    successful impedance() proves the binary was not invoked."""
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    eng = NEC5Engine(_invvee_builder(), capture_dir=tmp_path)
+    deck = eng.deck([eng.builder.freq])
+    h = NEC5Engine._deck_hash(deck)
+    (tmp_path / f"{h}.out").write_text(
+        (FIXTURES / "invvee_dipole_single.out").read_text()
+    )
+    (z,) = eng.impedance()
+    assert z == pytest.approx(70.746 - 8.5699j, rel=1e-3)
+    assert eng.run_log == [{"hash": h, "cached": True, "seconds": 0.0}]
+
+
+def test_capture_writes_deck_and_printout(monkeypatch, tmp_path):
+    """A fresh run captures <hash>.nec + <hash>.out and logs its solve time;
+    a second engine over the same capture dir is then served from cache.
+    The 'binary' is a stub that copies the pinned fixture printout."""
+    fixture_out = FIXTURES / "invvee_dipole_single.out"
+    stub = tmp_path / "nec5-stub.sh"
+    stub.write_text(
+        f'#!/bin/sh\nread inp\nread outp\ncp "{fixture_out.resolve()}" "$outp"\n'
+    )
+    stub.chmod(0o755)
+    captures = tmp_path / "captures"
+
+    eng = NEC5Engine(_invvee_builder(), nec5_exe=str(stub), capture_dir=captures)
+    (z,) = eng.impedance()
+    assert z == pytest.approx(70.746 - 8.5699j, rel=1e-3)
+    h = NEC5Engine._deck_hash(eng.deck([eng.builder.freq]))
+    assert (captures / f"{h}.nec").read_text() == eng.deck([eng.builder.freq])
+    assert (captures / f"{h}.out").read_text() == fixture_out.read_text()
+    assert len(eng.run_log) == 1
+    (entry,) = eng.run_log
+    assert entry["hash"] == h and entry["cached"] is False
+    assert entry["seconds"] > 0.0
+
+    # Re-analysis path: a second engine never re-solves.
+    eng2 = NEC5Engine(_invvee_builder(), nec5_exe=str(stub), capture_dir=captures)
+    eng2.impedance()
+    assert eng2.run_log[0]["cached"] is True
+
+
+def test_no_capture_dir_means_no_cache(monkeypatch, tmp_path):
+    """Without capture_dir the engine behaves exactly as before: every run
+    invokes the binary and nothing is written anywhere."""
+    fixture_out = FIXTURES / "invvee_dipole_single.out"
+    stub = tmp_path / "nec5-stub.sh"
+    stub.write_text(
+        f'#!/bin/sh\nread inp\nread outp\ncp "{fixture_out.resolve()}" "$outp"\n'
+    )
+    stub.chmod(0o755)
+    eng = NEC5Engine(_invvee_builder(), nec5_exe=str(stub))
+    eng.impedance()
+    eng.impedance()
+    assert [e["cached"] for e in eng.run_log] == [False, False]
+    assert list(tmp_path.iterdir()) == [stub]

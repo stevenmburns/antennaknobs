@@ -114,8 +114,9 @@ def test_bench_one_guard_skips_finite_grounds_for_oversized_meshes():
 
 def test_engine_keys_cover_every_dispatchable_solver():
     # "sing" (momwire#182) is the sinusoidal basis tested variationally — the
-    # same basis as "sin", so the pair isolates the testing scheme.
-    assert set(bc.ENGINE_KEYS) == {"pynec", "sin", "sing", "bs1", "bs2"}
+    # same basis as "sin", so the pair isolates the testing scheme. "nec5"
+    # (#872 phase 0) drives the licensed NEC-5 binary; opt-in like "sing".
+    assert set(bc.ENGINE_KEYS) == {"pynec", "sin", "sing", "bs1", "bs2", "nec5"}
     assert all(k in bc.ENGINE_LABEL for k in bc.ENGINE_KEYS)
 
 

@@ -7,11 +7,19 @@ For every deck in the xnec2c examples corpus this script:
   2. Runs the *original* deck through the ``nec2c`` CLI and reads the driving-
      point impedance from its first ANTENNA INPUT PARAMETERS block, at the
      frequency nec2c actually used (robust to sweep direction / FR start).
-  3. Solves the translated geometry at that same frequency with four engines:
+  3. Solves the translated geometry at that same frequency with the engines
+     selected by --engines:
        pynec  — PyNECEngine
        sin    — MomwireEngine(SinusoidalSolver)
        bs1    — MomwireEngine(BSplineSolver, degree=1)   (tent basis)
        bs2    — MomwireEngine(BSplineSolver, degree=2)   (quadratic)
+       nec5   — NEC5Engine (opt-in, #872 phase 0): needs $NEC5_EXE; decks
+                asking for dialect the engine deliberately refuses (TL/NT,
+                ql/qc loads, distributed ports, buried/in-plane wires,
+                refl-coef ground) are counted OOS (out-of-scope), not as
+                failures, and printouts are captured-and-cached by deck
+                content hash under --nec5-capture-dir so re-analysis never
+                re-solves.
   4. Scores each engine against nec2c by reflection-coefficient distance
      ΔΓ = |Γ_eng − Γ_nec2c| with Γ = (Z − 50)/(Z + 50), and records solve
      wall-time and peak RSS. ΔΓ is bounded on [0, 2], so decks whose |Z| passes
@@ -88,19 +96,21 @@ Z0 = 50.0  # system impedance for the reflection-coefficient metric (issue #407)
 # Every engine key the benchmark scripts can dispatch. "sing" (momwire#182)
 # is the SAME three-term basis as "sin" tested variationally instead of
 # point-matched, so the pair isolates the TESTING scheme with the basis held
-# fixed — that is what it is here for.
-ENGINE_KEYS = ("pynec", "sin", "sing", "bs1", "bs2")
+# fixed — that is what it is here for. "nec5" (#872 phase 0) drives the
+# licensed NEC-5 binary through NEC5Engine and needs $NEC5_EXE resolved.
+ENGINE_KEYS = ("pynec", "sin", "sing", "bs1", "bs2", "nec5")
 ENGINE_LABEL = {
     "pynec": "PyNEC",
     "sin": "Sinusoidal",
     "sing": "Sinusoidal-Gal",
     "bs1": "BSpline d=1",
     "bs2": "BSpline d=2",
+    "nec5": "NEC-5",
 }
 # What `--engines` defaults to. Deliberately NOT all of ENGINE_KEYS: the
 # corpus/catalog sweeps are long-running, and silently adding a fifth column
 # to every historical benchmark would change what those runs cost and mean.
-# Ask for "sing" explicitly.
+# Ask for "sing" or "nec5" explicitly.
 DEFAULT_ENGINE_KEYS = ("pynec", "sin", "bs1", "bs2")
 
 
@@ -346,7 +356,6 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
         cores = apply_server_thread_policy()
 
         from antennaknobs import AntennaBuilder, WireSpec
-        from antennaknobs.engines.pynec import PyNECEngine
         from antennaknobs.engines.momwire import MomwireEngine
         from momwire import BSplineSolver, SinusoidalSolver
 
@@ -386,6 +395,10 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
 
         t0 = time.perf_counter()
         if engine == "pynec":
+            # Imported per-branch so the nec5 lane runs without PyNEC
+            # installed (the nec5 study boxes need only the licensed binary).
+            from antennaknobs.engines.pynec import PyNECEngine
+
             eng = PyNECEngine(
                 builder,
                 ground=ground,
@@ -415,10 +428,25 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
                 solver_kwargs={"degree": 2},
                 ground=ground,
             )
+        elif engine == "nec5":
+            from antennaknobs.engines.nec5 import NEC5Engine
+
+            # Env-passed like PYNEC_ALLOW_INTERSECTIONS to keep the --worker
+            # argv arity fixed at 4. The capture dir gives the sweep the
+            # phase-0 printout cache (#872): a deck already captured is
+            # served from disk, so re-analysis never re-solves.
+            eng = NEC5Engine(
+                builder,
+                ground=ground,
+                timeout=float(os.environ.get("NEC5_BENCH_TIMEOUT") or 120.0),
+                capture_dir=os.environ.get("NEC5_CAPTURE_DIR") or None,
+            )
         else:
             raise ValueError(f"unknown engine {engine!r}")
         zs = eng.impedance()
         solve_s = time.perf_counter() - t0
+        if engine == "nec5":
+            result["nec5_runs"] = eng.run_log
 
         # ru_maxrss is the process-lifetime peak (KiB on Linux).
         peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
@@ -436,7 +464,31 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
 
         result["error"] = f"{type(e).__name__}: {e}"
         result["traceback"] = traceback.format_exc()[-800:]
+        if engine == "nec5" and nec5_out_of_scope(e):
+            result["out_of_scope"] = True
     print(json.dumps(result))
+
+
+# NEC5Engine refusal messages that mean "the deck asks for something the
+# stage-1..5 dialect deliberately does not serve" (#872 phase 0): the census
+# counts these as out-of-scope, not engine failures. NotImplementedError is
+# the engine's designed refusal channel (TL/NT branches, distributed or
+# virtual ports, finite-fast ground, buried wires); the two ValueError
+# messages are hard NEC-5 dialect rules the engine enforces at construction.
+_NEC5_SCOPE_VALUEERROR_SNIPPETS = (
+    "lies in the ground plane (z=0)",
+    "too close to free space for NEC-5's Sommerfeld tables",
+)
+
+
+def nec5_out_of_scope(e: BaseException) -> bool:
+    """True when a nec5-lane exception is a dialect-scope refusal rather
+    than a solve failure."""
+    if isinstance(e, NotImplementedError):
+        return True
+    return isinstance(e, ValueError) and any(
+        s in str(e) for s in _NEC5_SCOPE_VALUEERROR_SNIPPETS
+    )
 
 
 def run_engine(
@@ -447,11 +499,18 @@ def run_engine(
     timeout,
     allow_intersections=False,
     mem_bytes=None,
+    nec5_capture_dir=None,
 ):
     """Dispatch a worker subprocess for one (deck, engine); parse its JSON."""
     env = dict(os.environ)
     if allow_intersections:
         env["PYNEC_ALLOW_INTERSECTIONS"] = "1"
+    if engine == "nec5":
+        # Env-passed to keep the --worker argv arity fixed at 4.
+        if nec5_capture_dir:
+            env["NEC5_CAPTURE_DIR"] = str(nec5_capture_dir)
+        if timeout is not None:
+            env["NEC5_BENCH_TIMEOUT"] = repr(float(timeout))
     try:
         proc = subprocess.run(
             [
@@ -518,10 +577,14 @@ _TIMEOUT_RE = re.compile(r"solve timeout")
 def engine_error_kind(res):
     """Classify an engine result's error: ``None`` (no error), ``"geo"``
     (nec2++ geometry-intersection rejection — documented kernel limitation,
-    issue #409), ``"mem"`` (hit the --mem-limit-gb cap), ``"timeout"`` (hit
-    the --timeout wall-clock cap), or ``"err"`` (any other failure)."""
+    issue #409), ``"scope"`` (outside the engine's served dialect — the
+    nec5 lane's designed refusals, #872 phase 0), ``"mem"`` (hit the
+    --mem-limit-gb cap), ``"timeout"`` (hit the --timeout wall-clock cap),
+    or ``"err"`` (any other failure)."""
     if res is None:
         return "err"
+    if res.get("out_of_scope"):
+        return "scope"
     err = res.get("error")
     if not err:
         return None
@@ -1189,6 +1252,7 @@ def bench_deck(
     allow_intersections=False,
     mem_bytes=None,
     rel_name=None,
+    nec5_capture_dir=None,
 ):
     # rel_name (corpus-relative path) disambiguates wild trees where the same
     # stem appears under several sources.
@@ -1317,7 +1381,14 @@ def bench_deck(
     row["engines"] = {}
     for e in engines:
         res = run_engine(
-            e, deck_path, freq, eng_ground, timeout, allow_intersections, mem_bytes
+            e,
+            deck_path,
+            freq,
+            eng_ground,
+            timeout,
+            allow_intersections,
+            mem_bytes,
+            nec5_capture_dir=nec5_capture_dir,
         )
         if res.get("error") is None and "z" in res:
             res["cmp"] = compare(res["z"], ref["z"])
@@ -1333,6 +1404,8 @@ def fmt_dg(res):
     kind = engine_error_kind(res)
     if kind == "geo":
         return "GEO"  # nec2++ geometry-intersection rejection (issue #409)
+    if kind == "scope":
+        return "OOS"  # outside the engine's served dialect (#872 phase 0)
     if kind == "mem":
         return "MEM"  # hit --mem-limit-gb
     if kind == "timeout":
@@ -1461,12 +1534,21 @@ def print_report(rows, engines):
     ]
     if eng_errs:
         geo = [x for x in eng_errs if x[2] == "geo"]
+        scope = [x for x in eng_errs if x[2] == "scope"]
         mem = [x for x in eng_errs if x[2] == "mem"]
         tmo = [x for x in eng_errs if x[2] == "timeout"]
         other = [x for x in eng_errs if x[2] == "err"]
         print("\n" + "=" * 72)
         print(f"ENGINE ERRORS ON REFERENCED DECKS ({len(eng_errs)})")
         print("=" * 72)
+        if scope:
+            print(
+                f"OOS — outside the engine's served dialect ({len(scope)}); "
+                "designed refusal (TL/NT, ql/qc loads, distributed ports, "
+                "buried/in-plane wires, refl-coef ground), not a failure:"
+            )
+            for deck, e, _k, why in scope:
+                print(f"  {deck:<28} {ENGINE_LABEL[e]:<12} {(why or '')[:70]}")
         if geo:
             print(
                 f"GEO — nec2++ geometry-intersection rejection ({len(geo)}); "
@@ -1697,6 +1779,16 @@ def main(argv=None):
         "(issue #409; needs pynec-accel >=1.7.5)",
     )
     ap.add_argument(
+        "--nec5-capture-dir",
+        type=Path,
+        default=Path.home() / ".antennaknobs" / "nec5-captures",
+        help="printout capture-and-cache for the nec5 lane (#872 phase 0): "
+        "each solve's deck and printout are stored keyed by deck content "
+        "hash, and an already-captured deck is served from disk without "
+        "re-running the binary. Captured printouts are End-User Reports "
+        "under the NEC-5 license (LLNL-CODE-746721)",
+    )
+    ap.add_argument(
         "--out",
         type=Path,
         default=None,
@@ -1768,6 +1860,16 @@ def main(argv=None):
     )
     if nec2c_id.get("path") is None:
         sys.exit("nec2c not on PATH — build it and symlink into ~/.local/bin")
+    if "nec5" in args.engines:
+        from antennaknobs.engines.nec5 import find_nec5
+
+        nec5_exe = find_nec5()
+        if nec5_exe is None:
+            sys.exit(
+                "nec5 lane requested but $NEC5_EXE does not resolve to an "
+                "executable — point it at your licensed nec5cl binary"
+            )
+        print(f"nec5 lane: {nec5_exe}   captures: {args.nec5_capture_dir}")
 
     # Incremental JSONL mode: resume by skipping decks already recorded.
     jsonl = args.out if args.out and args.out.suffix == ".jsonl" else None
@@ -1809,6 +1911,9 @@ def main(argv=None):
                 allow_intersections=args.allow_wire_intersections,
                 mem_bytes=mem_bytes,
                 rel_name=rel,
+                nec5_capture_dir=(
+                    args.nec5_capture_dir if "nec5" in args.engines else None
+                ),
             )
         except Exception as e:  # noqa: BLE001 — a 20 h sweep must survive any
             # single deck (first bite: nec2c emitting raw 0xff into its output)

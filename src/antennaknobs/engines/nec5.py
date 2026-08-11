@@ -26,10 +26,12 @@ pinned by captured printouts committed under ``tests/fixtures/nec5/``
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -98,7 +100,15 @@ class NEC5Engine(SimulationEngine):
     # fed wire's midpoint (see module docstring).
     segment_parity = "even"
 
-    def __init__(self, builder, *, ground=None, nec5_exe=None, timeout=120.0):
+    def __init__(
+        self,
+        builder,
+        *,
+        ground=None,
+        nec5_exe=None,
+        timeout=120.0,
+        capture_dir=None,
+    ):
         super().__init__(builder)
         self.ground = self._normalise_ground(ground)
         exe = find_nec5(nec5_exe)
@@ -110,6 +120,19 @@ class NEC5Engine(SimulationEngine):
             )
         self._exe = exe
         self._timeout = float(timeout)
+        # Printout capture-and-cache (issue #872 phase 0): with capture_dir
+        # set, every run stores its deck and printout keyed by the deck
+        # text's content hash, and a run whose printout is already captured
+        # is served from disk without invoking the binary — re-analysis
+        # never re-solves. The stored printouts are End-User Reports under
+        # the NEC-5 license (LLNL-CODE-746721); the binary itself is never
+        # copied or distributed.
+        self._capture_dir = Path(capture_dir).expanduser() if capture_dir else None
+        if self._capture_dir is not None:
+            self._capture_dir.mkdir(parents=True, exist_ok=True)
+        # One dict per _run call: {"hash", "cached", "seconds"} — the
+        # per-solve time log the census machinery records (#872 phase 0).
+        self.run_log: list[dict] = []
         if builder.build_tls():
             raise NotImplementedError(
                 "NEC5Engine stage 1 does not model transmission lines"
@@ -379,12 +402,39 @@ class NEC5Engine(SimulationEngine):
 
     # ---------- run ----------
 
+    @staticmethod
+    def _deck_hash(deck: str) -> str:
+        """Content key for the capture cache: the deck text fully determines
+        a run (same binary), so its hash names the printout."""
+        return hashlib.sha256(deck.encode()).hexdigest()[:16]
+
     def _run(self, deck: str) -> str:
         """Run one deck through the binary and return the printout text.
 
         NEC-5 reads the input and output file names from stdin and works
         in intermediate files; exit codes are not trusted (Fortran STOP) —
-        the printout's presence and parseability are the health signal."""
+        the printout's presence and parseability are the health signal.
+
+        With ``capture_dir`` set, a previously captured printout for this
+        exact deck is returned without invoking the binary, and fresh
+        printouts are captured beside their decks (``<hash>.nec`` /
+        ``<hash>.out``)."""
+        h = self._deck_hash(deck)
+        if self._capture_dir is not None:
+            cached = self._capture_dir / f"{h}.out"
+            if cached.is_file():
+                self.run_log.append({"hash": h, "cached": True, "seconds": 0.0})
+                return cached.read_text(errors="replace")
+        t0 = time.perf_counter()
+        text = self._run_binary(deck)
+        seconds = time.perf_counter() - t0
+        self.run_log.append({"hash": h, "cached": False, "seconds": seconds})
+        if self._capture_dir is not None:
+            (self._capture_dir / f"{h}.nec").write_text(deck)
+            (self._capture_dir / f"{h}.out").write_text(text)
+        return text
+
+    def _run_binary(self, deck: str) -> str:
         with tempfile.TemporaryDirectory(prefix="nec5_") as td:
             tdp = Path(td)
             (tdp / "model.nec").write_text(deck)
