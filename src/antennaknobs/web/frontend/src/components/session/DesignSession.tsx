@@ -1284,8 +1284,15 @@ function DesignSessionBody({
   // sweep, far-field norm check and the NEC rp_card pattern. Called here, at
   // the debounce effects' old position, so all four keep their global order
   // behind the solve and preview effects above.
-  const { sweep, sweepRunning, converge, convergeRunning, normCheck, pattern } =
-    useAnalysisRunners({
+  const {
+    sweep,
+    sweepRunning,
+    sweepSettled,
+    converge,
+    convergeRunning,
+    normCheck,
+    pattern,
+  } = useAnalysisRunners({
       backend,
       currentVariant,
       currentExample,
@@ -1649,6 +1656,7 @@ function DesignSessionBody({
             multiFeed={effectiveMultiFeed}
             fineNorm={normCheck?.pattern_norm ?? null}
             refineEnabled={refineEnabled}
+            sweepSettled={sweepSettled}
             schematicSvg={schematicSvg}
             schematicUnavailable={schematicUnavailable}
           />
@@ -1810,6 +1818,7 @@ function DesignSessionBody({
                       pinnedPatterns={[]}
                       measFreqMhz={measFreq}
                       sweepRunning={sweepRunning}
+                      sweepSettled={sweepSettled}
                       convergeRunning={convergeRunning}
                       azElevDeg={azElevDeg}
                       elevAzDeg={elevAzDeg}

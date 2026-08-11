@@ -333,3 +333,74 @@ describe("adaptive sweep refinement (issue #744)", () => {
     expect(refineBodies()).toHaveLength(0);
   });
 });
+
+// What the charts key dots-vs-polyline on (issue #866): a sweep is settled
+// only when its rendered shape is final. The transitions pinned here are the
+// contract viewRegistry consumes; the planner's own criterion stays pinned
+// in refine.test.ts.
+describe("sweep settledness (issue #866)", () => {
+  it("is unsettled from the base sweep under refinement until the pass concludes", async () => {
+    const { result } = renderRunners(BASE);
+    await settle();
+    // Base sweep streamed, refinement still owed (dwell pending): the lean
+    // grid is provisional — a polyline through it would kink and shift.
+    expect(result.current.sweepSettled).toBe(false);
+    await settle(500, 400); // run every round it wants to conclusion
+    expect(refineBodies().length).toBeGreaterThan(0);
+    expect(result.current.sweepSettled).toBe(true);
+  });
+
+  it("stays settled throughout when refinement is disabled (the dense grid IS the shape)", async () => {
+    const { result } = renderRunners({ ...BASE, refineEnabled: false });
+    await settle();
+    expect(result.current.sweepSettled).toBe(true);
+    await settle();
+    await settle();
+    expect(result.current.sweepSettled).toBe(true);
+  });
+
+  it("a smooth sweep settles via the empty plan, without spending a solve", async () => {
+    fetchMock.mockImplementation((url: string, init?: { body?: string }) => {
+      if (url !== "/sweep")
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      const body = JSON.parse(init?.body ?? "{}");
+      sweepBodies.push(body);
+      const freqs: number[] = body.freqs_mhz ?? [];
+      return ndjson(
+        freqs.map((f) => JSON.stringify({ freq_mhz: f, z_re: 50, z_im: 0 })),
+      );
+    });
+    const { result } = renderRunners(BASE);
+    await settle();
+    expect(result.current.sweepSettled).toBe(false);
+    await settle();
+    expect(refineBodies()).toHaveLength(0);
+    expect(result.current.sweepSettled).toBe(true);
+  });
+
+  it("toggling refinement off mid-run leaves the sweep unsettled — dots, not a faked line", async () => {
+    const { result, rerender } = renderRunners(BASE);
+    await settle();
+    expect(result.current.sweepSettled).toBe(false);
+    // The user switches adaptive resolution off before the pass concludes.
+    rerender({ ...BASE, refineEnabled: false });
+    await settle(500, 400);
+    // The accumulated set is uneven; it never settles, so the charts keep
+    // rendering honest dots instead of a polyline through it.
+    expect(result.current.sweepSettled).toBe(false);
+  });
+
+  it("a knob change mid-refinement hands settledness to the superseding sweep", async () => {
+    const { result, rerender } = renderRunners(BASE);
+    await settle();
+    await settle(500, 400);
+    expect(result.current.sweepSettled).toBe(true);
+    // New knob state: a fresh lean base sweep begins — provisional again —
+    // and its own refinement pass settles it.
+    rerender({ ...BASE, req: { geometry: "g", length_factor: 1.01 } });
+    await settle();
+    expect(result.current.sweepSettled).toBe(false);
+    await settle(500, 400);
+    expect(result.current.sweepSettled).toBe(true);
+  });
+});

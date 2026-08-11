@@ -41,6 +41,12 @@ export type ViewRenderProps = {
    *  frequency-sorted samples finally support one). Optional: thumbnail
    *  call sites omit it and keep the dot trail. */
   refineEnabled?: boolean;
+  /** The sweep's shape is final (issue #866): no refinement pass is running
+   *  or was cut short. While false, the sweep-trace views (smith / vswr /
+   *  gamma) draw unconnected dots — a polyline through a still-densifying
+   *  set renders transient kinks that shift as points land. Optional so
+   *  thumbnail call sites can omit it (defaults settled, today's look). */
+  sweepSettled?: boolean;
   // A trial impedance to plot INSTEAD of `result`'s, while something drives
   // the design faster than the solve channel can follow — today the streamed
   // optimizer (#773), whose per-eval frames carry Z but do not touch the
@@ -126,7 +132,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       convergeRunning={p.convergeRunning}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
-      connectSweep={p.refineEnabled ?? false}
+      connectSweep={(p.refineEnabled ?? false) && (p.sweepSettled ?? true)}
     />
   ),
   schematic: (p) => (
@@ -151,6 +157,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       sweep={p.sweep}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
+      settled={p.sweepSettled ?? true}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
     />
@@ -165,6 +172,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       sweep={p.sweep}
       measFreqMhz={p.measFreqMhz}
       running={p.sweepRunning}
+      settled={p.sweepSettled ?? true}
       feeds={p.result?.feeds}
       multiFeed={p.multiFeed}
     />

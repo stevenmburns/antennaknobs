@@ -165,6 +165,34 @@ describe("dispatch", () => {
     expect(mount("antenna").querySelector(".viewport-fit")).not.toBeNull();
   });
 
+  it("keys the smith trail on refinement enabled AND settled (issue #866)", () => {
+    const connect = (o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
+      mount("smith", o).querySelector("canvas.smith")!.getAttribute("data-connect");
+    // Refinement disabled (or omitted, the thumbnail case): dot cloud, as
+    // before #744 — regardless of settledness (the refinement-disabled
+    // rendering path must not change).
+    expect(connect({})).toBe("0");
+    expect(connect({ refineEnabled: false, sweepSettled: true })).toBe("0");
+    // Enabled + settled (or settledness omitted): the connected locus.
+    expect(connect({ refineEnabled: true })).toBe("1");
+    expect(connect({ refineEnabled: true, sweepSettled: true })).toBe("1");
+    // Enabled but still refining: dots — no polyline through a set whose
+    // points are still landing.
+    expect(connect({ refineEnabled: true, sweepSettled: false })).toBe("0");
+    // Toggled off mid-run (enabled false, unsettled): still dots.
+    expect(connect({ refineEnabled: false, sweepSettled: false })).toBe("0");
+  });
+
+  for (const view of ["gamma", "vswr"] as const) {
+    it(`passes settledness through to the ${view} chart (issue #866)`, () => {
+      const settledAttr = (o: Partial<React.ComponentProps<typeof ViewPanel>>) =>
+        mount(view, o).querySelector(MARKERS[view])!.getAttribute("data-settled");
+      expect(settledAttr({})).toBe("1"); // omitted: settled, today's line
+      expect(settledAttr({ sweepSettled: true })).toBe("1");
+      expect(settledAttr({ sweepSettled: false })).toBe("0");
+    });
+  }
+
   it("passes the schematic view its own props", () => {
     const svg = '<svg viewBox="0 0 10 10"><path d="M 0,0 L 10,10" /></svg>';
     expect(mount("schematic", { schematicSvg: svg }).innerHTML).toContain("viewBox");
