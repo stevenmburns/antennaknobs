@@ -195,6 +195,36 @@ def test_parse_currents_fixture():
     assert max(abs(c) for c in per_tag[3]) == pytest.approx(peak)
 
 
+def test_deck_rp_line(monkeypatch):
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    lines = NEC5Engine(_dipole_builder()).deck([28.5], rp=(90, 360, 1, 1)).splitlines()
+    assert not any(ln.startswith("XQ") for ln in lines)
+    rp = [ln for ln in lines if ln.startswith("RP")][0].split()
+    # NTH=90, NPH=361 (phi seam duplicated), XNDA=0, dth/dph as floats.
+    assert rp[1:5] == ["0", "90", "361", "0"]
+
+
+def test_parse_pattern_fixture():
+    text = (FIXTURES / "invvee_dipole_pattern.out").read_text()
+    gains = NEC5Engine._parse_radiation_patterns(text)
+    assert len(gains) == 15  # 3 thetas x 5 phis (seam duplicated)
+    assert gains[(0.0, 0.0)] == pytest.approx(2.14, abs=0.01)
+    # The phi seam duplicates the phi=0 column.
+    for th in (0.0, 30.0, 60.0):
+        assert gains[(th, 360.0)] == gains[(th, 0.0)]
+
+
+def test_parse_pattern_null_rows():
+    # Vertical dipole: theta=0 rows are true nulls printed as -999.99 with
+    # a BLANK SENSE column (11 tokens instead of 12) — both row shapes
+    # must parse.
+    text = (FIXTURES / "vertical_dipole_pattern.out").read_text()
+    gains = NEC5Engine._parse_radiation_patterns(text)
+    assert len(gains) == 15
+    assert gains[(0.0, 0.0)] == -999.99
+    assert gains[(60.0, 90.0)] > -10.0
+
+
 def test_faulty_deck_printout_raises():
     text = (FIXTURES / "faulty_deck_error.out").read_text()
     with pytest.raises(NEC5Error, match="No model data"):
@@ -272,6 +302,36 @@ def test_live_currents_match_momwire_peak():
     p5 = max(abs(w.knot_currents).max() for w in c5)
     pm = max(abs(w.knot_currents).max() for w in cm)
     assert p5 == pytest.approx(pm, rel=0.05)
+
+
+@needs_nec5
+def test_live_far_field_matches_momwire():
+    b = _invvee_builder()
+    f5 = NEC5Engine(b).far_field(n_theta=9, n_phi=36, del_theta=10, del_phi=10)
+    fm = MomwireEngine(b).far_field(n_theta=9, n_phi=36, del_theta=10, del_phi=10)
+    assert abs(f5.max_gain - fm.max_gain) < 0.5
+    r5, rm = np.array(f5.rings), np.array(fm.rings)
+    mask = (r5 > -900) & (rm > -900)
+    assert np.sqrt(np.mean((r5[mask] - rm[mask]) ** 2)) < 0.5
+
+
+@needs_nec5
+def test_live_compare_patterns_gate(tmp_path):
+    """The issue's stage gate: compare_patterns accepts an NEC5Engine and
+    prints a sane row."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import antennaknobs as ant
+
+    b = _invvee_builder()
+    out = tmp_path / "cmp.png"
+    ant.compare_patterns(
+        [NEC5Engine(b), MomwireEngine(b)],
+        fn=str(out),
+        builder_names=["nec5", "momwire"],
+    )
+    assert out.stat().st_size > 0
 
 
 @needs_nec5

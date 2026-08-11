@@ -24,6 +24,16 @@
     "invvee_dipole_sommerfeld": {
       "deck": "invvee_dipole_sommerfeld.nec",
       "printout": "invvee_dipole_sommerfeld.out"
+    },
+    "invvee_dipole_pattern": {
+      "deck": "invvee_dipole_pattern.nec",
+      "printout": "invvee_dipole_pattern.out",
+      "note": "RP 3x5 grid pins the RADIATION PATTERNS row layout incl. blank-SENSE null rows"
+    },
+    "vertical_dipole_pattern": {
+      "deck": "vertical_dipole_pattern.nec",
+      "printout": "vertical_dipole_pattern.out",
+      "note": "vertical dipole: -999.99 null rows with BLANK SENSE column (12-token rows) at theta=0"
     }
   }
 }
