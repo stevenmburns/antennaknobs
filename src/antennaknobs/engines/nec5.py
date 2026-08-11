@@ -34,7 +34,13 @@ from pathlib import Path
 import numpy as np
 
 from ..engine import FarField, SimulationEngine, WireCurrents
-from ..network import as_wire
+from ..network import (
+    Driven,
+    DrivenCurrent,
+    PortOnWire,
+    PortOnWireFloating,
+    as_wire,
+)
 
 C_LIGHT = 299_792_458.0
 
@@ -74,9 +80,12 @@ def _num(x) -> str:
 class NEC5Engine(SimulationEngine):
     """Drive a licensed NEC-5 binary through intermediate files.
 
-    Stages 1+2 of #825: plain ``Wire.ex`` feeds, impedance and currents,
-    in free space or over ground — ``"pec"`` and NEC-5's native Sommerfeld
-    ``("finite", eps_r, sigma)``. Port networks, patterns and
+    Stages 1-4 of #825: impedance, currents and radiation patterns, in
+    free space or over ground (``"pec"`` / NEC-5's native Sommerfeld
+    ``("finite", eps_r, sigma)``), fed by legacy ``Wire.ex`` entries or a
+    ``build_network()`` spec whose sources sit on ``PortOnWire`` delta
+    gaps — ``Driven`` as ``EX 0``, ``DrivenCurrent`` as NEC-5's native
+    ``EX 4`` current source. Network branches (loads, lines) and
     NEC-5-specific physics are later stages and refuse loudly here.
     """
 
@@ -97,21 +106,31 @@ class NEC5Engine(SimulationEngine):
             )
         self._exe = exe
         self._timeout = float(timeout)
-        if builder.build_network() is not None:
-            raise NotImplementedError(
-                "NEC5Engine stage 1 supports plain-fed designs only "
-                "(port networks are a later #825 stage)"
-            )
         if builder.build_tls():
             raise NotImplementedError(
                 "NEC5Engine stage 1 does not model transmission lines"
             )
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._wires = [as_wire(t) for t in self.tups]
-        self._feeds = [(i, w) for i, w in enumerate(self._wires) if w.ex is not None]
-        if not self._feeds:
+        # Sources, in excitation order: (wire_index, ex_type, value) with
+        # ex_type NEC-5's EX I1 — 0 voltage, 4 current (native in NEC-5;
+        # NEC-2 has no current source). Legacy Wire.ex entries and
+        # build_network() Driven/DrivenCurrent sources resolve to the same
+        # shape: a source at the named wire's center knot, the NEC-5 spelling
+        # of PortOnWire's delta gap at the wire's middle.
+        network = builder.build_network()
+        if network is not None:
+            self._sources = self._resolve_network_sources(network)
+        else:
+            self._sources = [
+                (i, 0, complex(w.ex))
+                for i, w in enumerate(self._wires)
+                if w.ex is not None
+            ]
+        if not self._sources:
             raise ValueError(
-                "design has no excitation (no Wire.ex entry) — nothing to solve"
+                "design has no excitation (no Wire.ex entry or network "
+                "source) — nothing to solve"
             )
         spec = builder.build_wire_material()
         default_radius = spec.radius if spec is not None else 0.0005
@@ -120,6 +139,59 @@ class NEC5Engine(SimulationEngine):
         ]
         if self.ground is not None:
             self._check_geometry_above_ground()
+
+    def _resolve_network_sources(self, network):
+        """Map a build_network() spec onto NEC-5 edge sources — stage 4 of
+        #825, and the place NEC-5 natively out-expresses NEC-2: a
+        ``PortOnWire`` delta gap becomes a source at the named wire's
+        center knot, ``Driven`` as ``EX 0`` (volts) and ``DrivenCurrent``
+        as ``EX 4`` (amps, no NEC-2 counterpart). Branches (loads, lines,
+        two-ports) are #825 stage 5+ and refuse here."""
+        if network.branches:
+            raise NotImplementedError(
+                "NEC5Engine does not stamp network branches yet "
+                "(loads are #825 stage 5; lines/two-ports have no NEC-5 "
+                "native cards on this path)"
+            )
+        by_name = {w.name: i for i, w in enumerate(self._wires) if w.name}
+        if any(w.ex is not None for w in self._wires):
+            raise ValueError(
+                "design mixes legacy Wire.ex feeds with a build_network() "
+                "spec — use one excitation style"
+            )
+        sources = []
+        for src in network.sources:
+            port = network.ports.get(src.port)
+            if port is None:
+                raise ValueError(f"network source names unknown port {src.port!r}")
+            if isinstance(port, PortOnWireFloating):
+                raise NotImplementedError(
+                    "NEC5Engine cannot expose a floating port's second "
+                    "terminal (no circuit stamping on this engine)"
+                )
+            if not isinstance(port, PortOnWire):
+                raise NotImplementedError(
+                    f"port {src.port!r} is virtual — NEC5Engine only serves "
+                    "ports on real wires"
+                )
+            if port.distributed:
+                raise NotImplementedError(
+                    f"port {src.port!r} is distributed (finite gap) — "
+                    "NEC5Engine only serves delta-gap ports"
+                )
+            idx = by_name.get(port.name)
+            if idx is None:
+                raise ValueError(
+                    f"port {src.port!r} names wire {port.name!r} which the "
+                    "geometry does not carry"
+                )
+            if isinstance(src, Driven):
+                sources.append((idx, 0, complex(src.voltage)))
+            elif isinstance(src, DrivenCurrent):
+                sources.append((idx, 4, complex(src.current)))
+            else:
+                raise NotImplementedError(f"unsupported source type {type(src)}")
+        return sources
 
     # ---------- ground ----------
 
@@ -230,12 +302,13 @@ class NEC5Engine(SimulationEngine):
         ge_line, gn_lines = self._ground_lines()
         lines.append(ge_line)
         lines.extend(gn_lines)
-        for i, w in self._feeds:
+        for idx, ex_type, value in self._sources:
             # Source at end 2 of the middle segment = the wire's center
             # knot (even parity guarantees n_seg is even).
-            ex = complex(w.ex)
+            n_seg = self._wires[idx].n_seg
             lines.append(
-                f"EX 0 {i + 1} {w.n_seg // 2} 2 {_num(ex.real)} {_num(ex.imag)}"
+                f"EX {ex_type} {idx + 1} {n_seg // 2} 2 "
+                f"{_num(value.real)} {_num(value.imag)}"
             )
         lines.append(f"FR 0 {freqs.size} 0 0 {_num(freqs[0])} {_num(df)}")
         if rp is None:
@@ -426,7 +499,10 @@ class NEC5Engine(SimulationEngine):
         # wires prints as segment 41), while the deck's EX addresses
         # tag-relative — translate before comparing.
         offsets = np.cumsum([0] + [w.n_seg for w in self._wires[:-1]])
-        expect = [(i + 1, int(offsets[i]) + w.n_seg // 2) for i, w in self._feeds]
+        expect = [
+            (idx + 1, int(offsets[idx]) + self._wires[idx].n_seg // 2)
+            for idx, _, _ in self._sources
+        ]
         got = [(tag, seg) for tag, seg, _ in rows]
         if got != expect:
             raise NEC5Error(
