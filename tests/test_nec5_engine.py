@@ -340,3 +340,146 @@ def test_live_cli_roster_includes_nec5():
 
     assert ENGINE_CLASSES.get("nec5") is NEC5Engine
     assert find_nec5() is not None
+
+
+# ------------------------------------------------------------ network ports
+
+
+class _PortDipole(AntennaBuilder):
+    """Dipole fed through a named 2-segment bridge wire and a
+    build_network() spec — stage 4's PortOnWire-at-knot mapping."""
+
+    default_params = {"freq": 28.5}
+
+    def build_wires(self):
+        from antennaknobs.network import Wire
+
+        return [
+            Wire((0, -2.5, 7), (0, -0.05, 7), n_seg=10),
+            Wire((0, -0.05, 7), (0, 0.05, 7), n_seg=2, name="feed"),
+            Wire((0, 0.05, 7), (0, 2.5, 7), n_seg=10),
+        ]
+
+    def build_network(self):
+        from antennaknobs.network import Driven, Network, PortOnWire
+
+        return Network(
+            ports={"feed": PortOnWire(name="feed")},
+            sources=[Driven(port="feed")],
+        )
+
+
+def test_network_port_deck(monkeypatch):
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    lines = NEC5Engine(_PortDipole()).deck([28.5]).splitlines()
+    ex = [ln for ln in lines if ln.startswith("EX")]
+    assert len(ex) == 1
+    # Voltage source (EX 0) at the feed wire's center knot: tag 2, end 2 of
+    # relative segment 1.
+    assert ex[0].split()[1:5] == ["0", "2", "1", "2"]
+
+
+def test_network_current_source_deck(monkeypatch):
+    from antennaknobs.network import DrivenCurrent, Network, PortOnWire
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    class B(_PortDipole):
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire(name="feed")},
+                sources=[DrivenCurrent(port="feed", current=2j)],
+            )
+
+    lines = NEC5Engine(B()).deck([28.5]).splitlines()
+    ex = [ln for ln in lines if ln.startswith("EX")][0].split()
+    # NEC-5's native current source — EX 4, no NEC-2 counterpart.
+    assert ex[1] == "4"
+    assert float(ex[5]) == 0.0 and float(ex[6]) == 2.0
+
+
+def test_network_refusals(monkeypatch):
+    from antennaknobs.network import (
+        Driven,
+        Load,
+        Network,
+        PortOnWire,
+        PortVirtual,
+    )
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    class Branchy(_PortDipole):
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire(name="feed")},
+                branches=[Load(port="feed", r=50.0)],
+                sources=[Driven(port="feed")],
+            )
+
+    with pytest.raises(NotImplementedError, match="branches"):
+        NEC5Engine(Branchy())
+
+    class Virtual(_PortDipole):
+        def build_network(self):
+            return Network(
+                ports={"v": PortVirtual(name="v")}, sources=[Driven(port="v")]
+            )
+
+    with pytest.raises(NotImplementedError, match="virtual"):
+        NEC5Engine(Virtual())
+
+    class Distributed(_PortDipole):
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire(name="feed", distributed=True)},
+                sources=[Driven(port="feed")],
+            )
+
+    with pytest.raises(NotImplementedError, match="distributed"):
+        NEC5Engine(Distributed())
+
+
+@needs_nec5
+def test_live_network_port_impedance():
+    b = _PortDipole()
+    z5 = NEC5Engine(b).impedance()[0]
+    zm = MomwireEngine(b).impedance()[0]
+    assert abs(z5 - zm) < 10.0
+
+
+@needs_nec5
+def test_live_phased_current_pair():
+    from antennaknobs.network import DrivenCurrent, Network, PortOnWire, Wire
+
+    class PhasedPair(AntennaBuilder):
+        default_params = {"freq": 28.5}
+
+        def build_wires(self):
+            w = []
+            for k, x in enumerate((0.0, 2.63)):
+                w += [
+                    Wire((x, -2.5, 7), (x, -0.05, 7), n_seg=10),
+                    Wire((x, -0.05, 7), (x, 0.05, 7), n_seg=2, name=f"f{k}"),
+                    Wire((x, 0.05, 7), (x, 2.5, 7), n_seg=10),
+                ]
+            return w
+
+        def build_network(self):
+            return Network(
+                ports={
+                    "f0": PortOnWire(name="f0"),
+                    "f1": PortOnWire(name="f1"),
+                },
+                sources=[
+                    DrivenCurrent(port="f0", current=1),
+                    DrivenCurrent(port="f1", current=1j),
+                ],
+            )
+
+    p = PhasedPair()
+    z5s = NEC5Engine(p).impedance()
+    zms = MomwireEngine(p).impedance()
+    assert len(z5s) == 2
+    for a, m in zip(z5s, zms):
+        assert abs(a - m) < 10.0
