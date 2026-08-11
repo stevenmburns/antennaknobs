@@ -291,6 +291,18 @@ python -m antennaknobs compare_patterns \
   --engines pynec momwire:bspline --fn check.png
 ```
 
+With a licensed NEC-5 binary on the machine (`export NEC5_EXE=...`), `nec5`
+joins the roster and the comparison becomes a three-way triangle of
+independently written solvers — see [NEC-5 as a third
+engine](/reference/nec5/) for setup, capabilities, and the license terms
+that keep it strictly local:
+
+```bash
+python -m antennaknobs compare_patterns \
+  --builders beams.moxon beams.moxon beams.moxon \
+  --engines momwire pynec nec5 --fn triangle.png
+```
+
 Alongside the overlaid plot, `compare_patterns` prints a metrics table — peak
 gain (dBi), takeoff angle, front-to-back, and −3 dB azimuth/elevation
 beamwidths — one row per antenna, so the comparison comes with numbers, not just
