@@ -1,6 +1,6 @@
-"""NEC5Engine (issue #825, stages 1+2): deck writer, grounds, printout
-parsers, and — where a licensed binary is present — live differential
-checks vs momwire.
+"""NEC5Engine (issue #825, stages 1-5): deck writer, grounds, patterns,
+network ports, loads and printout parsers — plus, where a licensed binary
+is present, live differential checks vs momwire.
 
 Parser tests run everywhere, pinned by the captured printouts in
 tests/fixtures/nec5/ (End-User Reports; NEC-5 is (c) LLNL,
@@ -410,15 +410,33 @@ def test_network_refusals(monkeypatch):
     monkeypatch.setenv("NEC5_EXE", sys.executable)
 
     class Branchy(_PortDipole):
+        # A TL branch has no NEC-5 native card on this path (stage 5 serves
+        # Load only) — the refusal names the branch type.
         def build_network(self):
+            from antennaknobs.network import TL, PortVirtual
+
             return Network(
-                ports={"feed": PortOnWire(name="feed")},
-                branches=[Load(port="feed", r=50.0)],
+                ports={
+                    "feed": PortOnWire(name="feed"),
+                    "v": PortVirtual(name="v"),
+                },
+                branches=[TL(a="feed", b="v", z0=50.0, length=1.0)],
                 sources=[Driven(port="feed")],
             )
 
-    with pytest.raises(NotImplementedError, match="branches"):
+    with pytest.raises(NotImplementedError, match="TL"):
         NEC5Engine(Branchy())
+
+    class QLoad(_PortDipole):
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire(name="feed")},
+                branches=[Load(port="feed", l=2e-6, ql=200.0)],
+                sources=[Driven(port="feed")],
+            )
+
+    with pytest.raises(NotImplementedError, match="ql/qc"):
+        NEC5Engine(QLoad())
 
     class Virtual(_PortDipole):
         def build_network(self):
@@ -483,3 +501,125 @@ def test_live_phased_current_pair():
     assert len(z5s) == 2
     for a, m in zip(z5s, zms):
         assert abs(a - m) < 10.0
+
+
+# ------------------------------------------------------- loads and material
+
+
+class _LoadedDipole(_PortDipole):
+    """_PortDipole plus a series 2uH coil load on the feed port wire."""
+
+    def build_network(self):
+        from antennaknobs.network import Driven, Load, Network, PortOnWire
+
+        return Network(
+            ports={"feed": PortOnWire(name="feed")},
+            branches=[Load(port="feed", l=2e-6)],
+            sources=[Driven(port="feed")],
+        )
+
+
+def test_load_deck_lines(monkeypatch):
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    lines = NEC5Engine(_LoadedDipole()).deck([28.5]).splitlines()
+    ld = [ln for ln in lines if ln.startswith("LD")]
+    assert len(ld) == 1
+    toks = ld[0].split()
+    # Series RLC (LD 0) at the feed wire's center knot: tag 2, segment 1,
+    # end 2 — the same knot the source occupies (series-with-source
+    # semantics).
+    assert toks[1:5] == ["0", "2", "1", "2"]
+    assert float(toks[6]) == pytest.approx(2e-6)
+
+
+def test_fixed_z_load_deck_line(monkeypatch):
+    from antennaknobs.network import Driven, Load, Network, PortOnWire
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    class B(_PortDipole):
+        def build_network(self):
+            return Network(
+                ports={"feed": PortOnWire(name="feed")},
+                branches=[Load(port="feed", z=50 - 25j)],
+                sources=[Driven(port="feed")],
+            )
+
+    ld = [
+        ln for ln in NEC5Engine(B()).deck([28.5]).splitlines() if ln.startswith("LD")
+    ][0].split()
+    assert ld[1] == "4"
+    assert float(ld[5]) == 50.0 and float(ld[6]) == -25.0
+
+
+def test_material_deck_lines(monkeypatch):
+    from momwire import insulation_inductance
+
+    from antennaknobs.network import WireSpec
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    class Lossy(_Dipole):
+        def build_wire_material(self):
+            return WireSpec(
+                radius=0.0005,
+                conductivity=5.8e7,
+                insulation_radius=0.0009,
+                insulation_eps_r=3.5,
+            )
+
+    lines = NEC5Engine(Lossy()).deck([28.5]).splitlines()
+    ld5 = [ln for ln in lines if ln.startswith("LD 5")]
+    ld2 = [ln for ln in lines if ln.startswith("LD 2")]
+    assert len(ld5) == 1 and len(ld2) == 1
+    assert float(ld5[0].split()[5]) == pytest.approx(5.8e7)
+    # NEC-5 has no native insulated-wire card (no IS in the command
+    # roster) — the jacket rides the same King L' LD 2 emulation momwire
+    # and export_nec use.
+    expected = insulation_inductance(0.0005, 0.0009, 3.5)
+    assert float(ld2[0].split()[6]) == pytest.approx(expected, rel=1e-5)
+
+
+def test_parse_power_budget_fixture():
+    text = (FIXTURES / "invvee_dipole_single.out").read_text()
+    pb = NEC5Engine._parse_power_budget(text)
+    assert pb["efficiency_pct"] == pytest.approx(100.0)
+    assert pb["input_w"] == pytest.approx(pb["radiated_w"])
+    assert pb["wire_loss_w"] == 0.0
+
+
+@needs_nec5
+def test_live_loaded_dipole_matches_momwire():
+    b = _LoadedDipole()
+    z5 = NEC5Engine(b).impedance()[0]
+    zm = MomwireEngine(b).impedance()[0]
+    # Loaded impedances run large; the bar is relative.
+    assert abs(z5 - zm) / abs(zm) < 0.05
+
+
+@needs_nec5
+def test_live_power_budget_lossy_wire():
+    from antennaknobs.network import WireSpec
+
+    class Lossy(_ElevatedDipole):
+        def build_wire_material(self):
+            return WireSpec(radius=0.0005, conductivity=5.8e7)
+
+    pb = NEC5Engine(Lossy()).power_budget()
+    assert 90.0 < pb["efficiency_pct"] < 100.0
+    assert pb["wire_loss_w"] > 0.0
+    assert pb["input_w"] == pytest.approx(
+        pb["radiated_w"] + pb["wire_loss_w"], rel=1e-3
+    )
+
+
+@needs_nec5
+def test_live_average_gain_reads_ground_absorption():
+    # Lossless dipole over lossy Sommerfeld ground: the hemisphere average
+    # power gain must fall below the lossless-over-ground value of 2.0 —
+    # that shortfall IS the ground absorption (the plain power budget
+    # cannot see it: radiated == input on an XQ run, pinned by fixture).
+    e = NEC5Engine(_ElevatedDipole(), ground=("finite", 13.0, 0.005))
+    avg, omega = e.average_power_gain()
+    assert 0.2 < avg < 2.0
+    assert 0.9 * np.pi < omega < 2.1 * np.pi

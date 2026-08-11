@@ -27,16 +27,20 @@ pinned by captured printouts committed under ``tests/fixtures/nec5/``
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
 
 import numpy as np
 
+from momwire import insulation_inductance
+
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (
     Driven,
     DrivenCurrent,
+    Load,
     PortOnWire,
     PortOnWireFloating,
     as_wire,
@@ -119,6 +123,7 @@ class NEC5Engine(SimulationEngine):
         # shape: a source at the named wire's center knot, the NEC-5 spelling
         # of PortOnWire's delta gap at the wire's middle.
         network = builder.build_network()
+        self._loads = []  # (wire_index, Load), filled by the network resolver
         if network is not None:
             self._sources = self._resolve_network_sources(network)
         else:
@@ -137,6 +142,22 @@ class NEC5Engine(SimulationEngine):
         self._radii = [
             w.spec.radius if w.spec is not None else default_radius for w in self._wires
         ]
+        # Wire material (stage 5): the same global LD cards export_nec
+        # emits — conductor loss as LD 5 (bulk conductivity, distributed
+        # over every segment) and the insulation jacket's King quasi-static
+        # series inductance as LD 2 (H/m) — momwire's own L', so the
+        # emulation matches its LD-2 parity work. NEC-5 has NO native
+        # insulated-wire card (the full 3.2/3.3 command roster carries no
+        # IS — NEC-4's card did not survive), so the emulation is the only
+        # route.
+        self._material_lines = []
+        if spec is not None and spec.conductivity is not None:
+            self._material_lines.append(f"LD 5 0 0 0 {_num(spec.conductivity)} 0. 0.")
+        if spec is not None and spec.insulation_radius:
+            l_ins = insulation_inductance(
+                spec.radius, spec.insulation_radius, spec.insulation_eps_r
+            )
+            self._material_lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
         if self.ground is not None:
             self._check_geometry_above_ground()
 
@@ -147,23 +168,30 @@ class NEC5Engine(SimulationEngine):
         center knot, ``Driven`` as ``EX 0`` (volts) and ``DrivenCurrent``
         as ``EX 4`` (amps, no NEC-2 counterpart). Branches (loads, lines,
         two-ports) are #825 stage 5+ and refuse here."""
-        if network.branches:
-            raise NotImplementedError(
-                "NEC5Engine does not stamp network branches yet "
-                "(loads are #825 stage 5; lines/two-ports have no NEC-5 "
-                "native cards on this path)"
-            )
+        for br in network.branches:
+            if not isinstance(br, Load):
+                raise NotImplementedError(
+                    f"NEC5Engine cannot stamp a {type(br).__name__} branch "
+                    "(only Load is served natively; lines/two-ports have no "
+                    "NEC-5 native cards on this path)"
+                )
+            if br.ql is not None or br.qc is not None:
+                raise NotImplementedError(
+                    "Load ql/qc (Q-derived series R) is frequency-dependent "
+                    "and has no NEC-5 LD form; spell the loss as an explicit "
+                    "r= at the frequency of interest"
+                )
         by_name = {w.name: i for i, w in enumerate(self._wires) if w.name}
         if any(w.ex is not None for w in self._wires):
             raise ValueError(
                 "design mixes legacy Wire.ex feeds with a build_network() "
                 "spec — use one excitation style"
             )
-        sources = []
-        for src in network.sources:
-            port = network.ports.get(src.port)
+
+        def wire_index(port_name):
+            port = network.ports.get(port_name)
             if port is None:
-                raise ValueError(f"network source names unknown port {src.port!r}")
+                raise ValueError(f"network names unknown port {port_name!r}")
             if isinstance(port, PortOnWireFloating):
                 raise NotImplementedError(
                     "NEC5Engine cannot expose a floating port's second "
@@ -171,26 +199,35 @@ class NEC5Engine(SimulationEngine):
                 )
             if not isinstance(port, PortOnWire):
                 raise NotImplementedError(
-                    f"port {src.port!r} is virtual — NEC5Engine only serves "
+                    f"port {port_name!r} is virtual — NEC5Engine only serves "
                     "ports on real wires"
                 )
             if port.distributed:
                 raise NotImplementedError(
-                    f"port {src.port!r} is distributed (finite gap) — "
+                    f"port {port_name!r} is distributed (finite gap) — "
                     "NEC5Engine only serves delta-gap ports"
                 )
             idx = by_name.get(port.name)
             if idx is None:
                 raise ValueError(
-                    f"port {src.port!r} names wire {port.name!r} which the "
+                    f"port {port_name!r} names wire {port.name!r} which the "
                     "geometry does not carry"
                 )
+            return idx
+
+        sources = []
+        for src in network.sources:
+            idx = wire_index(src.port)
             if isinstance(src, Driven):
                 sources.append((idx, 0, complex(src.voltage)))
             elif isinstance(src, DrivenCurrent):
                 sources.append((idx, 4, complex(src.current)))
             else:
                 raise NotImplementedError(f"unsupported source type {type(src)}")
+        # Loads land at the same center knot as a source on that port —
+        # NEC-5's series-with-the-source semantics (manual, EX card) is
+        # exactly the MNA Driven+Load termination convention.
+        self._loads = [(wire_index(br.port), br) for br in network.branches]
         return sources
 
     # ---------- ground ----------
@@ -302,6 +339,22 @@ class NEC5Engine(SimulationEngine):
         ge_line, gn_lines = self._ground_lines()
         lines.append(ge_line)
         lines.extend(gn_lines)
+        lines.extend(self._material_lines)
+        for idx, br in self._loads:
+            n_seg = self._wires[idx].n_seg
+            # Discrete LD addressing: LDTAGF picks the segment, LDTAGT the
+            # segment END (manual, LD card) — end 2 of the middle segment,
+            # the same center knot the port's source occupies.
+            where = f"{idx + 1} {n_seg // 2} 2"
+            if br.z is not None:
+                z = complex(br.z)
+                lines.append(f"LD 4 {where} {_num(z.real)} {_num(z.imag)} 0.")
+            else:
+                ldtyp = 1 if br.parallel else 0
+                r = float(br.r) if br.r is not None else 0.0
+                el = float(br.l) if br.l is not None else 0.0
+                c = float(br.c) if br.c is not None else 0.0
+                lines.append(f"LD {ldtyp} {where} {_num(r)} {_num(el)} {_num(c)}")
         for idx, ex_type, value in self._sources:
             # Source at end 2 of the middle segment = the wire's center
             # knot (even parity guarantees n_seg is even).
@@ -488,6 +541,66 @@ class NEC5Engine(SimulationEngine):
             thetas=thetas,
             phis=phis,
         )
+
+    @staticmethod
+    def _parse_power_budget(text: str) -> dict:
+        """The POWER BUDGET section as a dict (input_w, radiated_w,
+        wire_loss_w, efficiency_pct). Note the semantics pinned by capture:
+        on a plain XQ run RADIATED = INPUT − WIRE LOSS even over lossy
+        ground — ground absorption only shows through the average-gain
+        route (see average_power_gain)."""
+        try:
+            chunk = text.split("- - - POWER BUDGET - - -", 1)[1]
+        except IndexError:
+            raise NEC5Error("no POWER BUDGET in NEC-5 printout") from None
+        out = {}
+        keys = {
+            "INPUT POWER": "input_w",
+            "RADIATED POWER": "radiated_w",
+            "WIRE LOSS": "wire_loss_w",
+            "EFFICIENCY": "efficiency_pct",
+        }
+        for line in chunk.splitlines()[:10]:
+            for label, key in keys.items():
+                if label in line and "=" in line:
+                    out[key] = float(line.split("=", 1)[1].split()[0])
+        if set(out) != set(keys.values()):
+            raise NEC5Error(f"incomplete POWER BUDGET section: parsed {out}")
+        return out
+
+    def power_budget(self):
+        """Run at the builder's frequency and return the parsed POWER
+        BUDGET (input_w, radiated_w, wire_loss_w, efficiency_pct —
+        conductor efficiency; ground absorption is not in this section)."""
+        return self._parse_power_budget(self._run(self.deck([self.builder.freq])))
+
+    def average_power_gain(self, *, n_theta=18, n_phi=36):
+        """(average power gain, solid angle in steradians) from an RP run
+        with the A-digit set to average-and-suppress (XNDA=0002), sampling
+        the upper hemisphere. Over a lossy ground the average gain is the
+        ground-absorption story the plain power budget cannot tell: a
+        lossless antenna radiating avg*Omega/(4*pi) of its input."""
+        del_theta = 90.0 / n_theta
+        del_phi = 360.0 / n_phi
+        # Sample cell centers so the sector average is honest.
+        lines = self.deck([self.builder.freq]).splitlines()
+        lines = [ln for ln in lines if not ln.startswith("XQ")]
+        rp = (
+            f"RP 0 {n_theta} {n_phi} 0002 {_num(del_theta / 2)} 0.0 "
+            f"{_num(del_theta)} {_num(del_phi)}"
+        )
+        lines.insert(-1, rp)  # before EN
+        text = self._run("\n".join(lines) + "\n")
+        for line in text.splitlines():
+            if "AVERAGE POWER GAIN" in line:
+                toks = line.replace("=", " = ").split()
+                avg = float(toks[toks.index("GAIN") + 2])
+                # "...SOLID ANGLE USED IN AVERAGING=( x.xxxx)*PI STERADIANS"
+                m = re.search(r"AVERAGING=\(\s*([0-9.Ee+-]+)\)\*PI", line)
+                if not m:
+                    raise NEC5Error(f"unparseable solid angle in: {line!r}")
+                return avg, float(m.group(1)) * np.pi
+        raise NEC5Error("no AVERAGE POWER GAIN line in NEC-5 printout")
 
     def _impedances_from(self, rows: list[tuple[int, int, complex]]) -> list[complex]:
         """Match one frequency's AIP rows against this model's feeds, in
