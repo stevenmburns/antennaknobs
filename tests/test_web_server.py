@@ -2474,6 +2474,7 @@ def test_cache_key_recurses_into_model_options():
         ("use_singular_enrichment", False),
         ("enrichment_variant", "off"),
         ("tikhonov_lambda", 1e-2),
+        ("extended_kernel", True),
     ]:
         mutant = dict(_CANONICAL_REQ)
         mutant["model_options"] = {**_CANONICAL_REQ["model_options"], k: alt}
@@ -3089,6 +3090,128 @@ def test_swept_mem_budget_injected_for_bspline_family(monkeypatch):
         {**req_base, "momwire_model": "bspline"}, builder
     )
     assert "swept_mem_mb" not in (eng._solver_kwargs or {})
+
+
+# ---------------------------------------------------------------------------
+# extended_kernel (issue #849): NEC's EK card as a hosted model option, wired
+# through to MomwireEngine's named `extended_kernel=` kwarg rather than left
+# inside solver_kwargs (unit 1's engine-side note + this unit's adapter site).
+# ---------------------------------------------------------------------------
+
+
+def test_extended_kernel_reaches_momwire_engine():
+    import importlib
+
+    from antennaknobs.web import adapter
+
+    design = importlib.import_module("antennaknobs.designs.dipoles.invvee")
+    req_base = {"measurement_freq_mhz": 28.47}
+    builder = adapter._build_builder(design.Builder, req_base)
+
+    eng_off = adapter._make_momwire_engine(
+        {**req_base, "momwire_model": "bspline"}, builder
+    )
+    assert eng_off._extended_kernel is False
+
+    eng_on = adapter._make_momwire_engine(
+        {
+            **req_base,
+            "momwire_model": "bspline",
+            "model_options": {"extended_kernel": True},
+        },
+        builder,
+    )
+    assert eng_on._extended_kernel is True
+    # Pulled out and passed as the named kwarg — not left sitting in
+    # solver_kwargs (unit 1's engine-side fold would still work either way,
+    # but the adapter's contract is the named kwarg specifically).
+    assert "extended_kernel" not in (eng_on._solver_kwargs or {})
+
+
+def test_hosted_extended_kernel_option_is_whitelisted(monkeypatch):
+    """The EK toggle is a physics selection like feed_model, not a compute-
+    amplification lever, so it must survive the hosted allowlist."""
+    from antennaknobs.web import adapter
+
+    monkeypatch.setattr(adapter, "_HOSTED", True)
+    out = adapter.sanitize_model_options({"model_options": {"extended_kernel": True}})
+    assert out == {"extended_kernel": True}
+    with pytest.raises(ValueError, match="extended_kernel"):
+        adapter.sanitize_model_options({"model_options": {"extended_kernel": "yes"}})
+
+
+def test_extended_kernel_moves_impedance_and_matches_direct_engine():
+    """Full server.solve() path: the kernel toggle must actually move Z, and
+    match constructing MomwireEngine(extended_kernel=True) directly on the
+    same builder."""
+    import importlib
+
+    from antennaknobs.engines import MomwireEngine
+    from antennaknobs.web import adapter
+
+    base = {
+        "geometry": "dipoles.invvee",
+        "solver": "momwire",
+        "momwire_model": "bspline",
+        "measurement_freq_mhz": 28.47,
+        "wire_radius": 0.008,  # fat wire — the kernels must visibly disagree
+    }
+    z_off = server.solve(dict(base))
+    z_on = server.solve({**base, "model_options": {"extended_kernel": True}})
+    assert (
+        abs(z_on["z_in_re"] - z_off["z_in_re"]) > 0.05
+        or abs(z_on["z_in_im"] - z_off["z_in_im"]) > 0.05
+    )
+
+    design = importlib.import_module("antennaknobs.designs.dipoles.invvee")
+    builder = adapter._build_builder(design.Builder, base)
+    builder.freq = base["measurement_freq_mhz"]
+    z_direct = MomwireEngine(
+        builder, wire_radius=0.008, extended_kernel=True
+    ).impedance()[0]
+    assert z_on["z_in_re"] == pytest.approx(z_direct.real)
+    assert z_on["z_in_im"] == pytest.approx(z_direct.imag)
+
+
+def test_geometry_extended_kernel_galerkin_refusal_is_structured(client: TestClient):
+    """issue #849: EK + sinusoidal-galerkin refuses at engine construction
+    (momwire#246 — no EKSCX counterpart for the Galerkin fill). The web path
+    must surface this as a clean {"error": ...} body (200), not a
+    500/traceback — the same structured-error contract as a broken user
+    design (test_geometry_endpoint_surfaces_build_error)."""
+    resp = client.post(
+        "/geometry",
+        json={
+            "geometry": "dipoles.invvee",
+            "momwire_model": "sinusoidal-galerkin",
+            "model_options": {"extended_kernel": True},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "error" in body
+    assert "sinusoidal-galerkin" in body["error"]
+
+
+def test_ws_extended_kernel_galerkin_refusal_keeps_socket_alive(client: TestClient):
+    """Same refusal on the live /ws solve path: an error frame, not a torn
+    down socket — the next (healthy) request on the same socket must still
+    solve (mirrors test_ws_solve_error_keeps_socket_alive)."""
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(
+            json.dumps(
+                {
+                    "geometry": "dipoles.invvee",
+                    "momwire_model": "sinusoidal-galerkin",
+                    "model_options": {"extended_kernel": True},
+                }
+            )
+        )
+        bad = json.loads(ws.receive_text())
+        assert "sinusoidal-galerkin" in bad["error"]
+        ws.send_text(json.dumps({"geometry": "dipoles.invvee"}))
+        ok = json.loads(ws.receive_text())
+        assert "error" not in ok
 
 
 def test_momwire_ground_off_reports_free_model():

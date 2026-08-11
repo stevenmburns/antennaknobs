@@ -347,7 +347,23 @@ def parse_engine_spec(spec):
     return name, {"solver": MOMWIRE_BASES[basis]}
 
 
-def make_engine_factory(engine_spec, ground_spec):
+def make_engine_factory(
+    engine_spec, ground_spec, *, extended_kernel=False, deck_extended_kernel=False
+):
+    """Bind an engine spec (+ optional ground) into a builder->engine factory.
+
+    ``extended_kernel`` is an explicit user request (CLI ``--extended-kernel``);
+    ``deck_extended_kernel`` is a ``@file.nec`` deck's own parsed ``EK`` card
+    (issue #849). Either turns the momwire extended thin-wire kernel on — the
+    combination rule is OR, so a deck that already carries ``EK`` doesn't need
+    the flag repeated, and the flag still works on a deck (or a built-in
+    design) that carries none. Only momwire consumes the kernel this way:
+    an explicit ``--extended-kernel`` on any other engine is a clear user
+    error (PyNEC's own extended-kernel support, issue #414, is a separate,
+    unexposed constructor kwarg — not driven by this flag); a deck-only
+    request on a non-momwire engine is silently left alone, matching the
+    pre-#849 status quo for that engine.
+    """
     name, kwargs = parse_engine_spec(engine_spec)
     cls = ENGINE_CLASSES[name]
     # PyNECEngine's default ground IS finite; momwire's default is free.
@@ -355,12 +371,32 @@ def make_engine_factory(engine_spec, ground_spec):
     # when they don't, we use whatever the engine's own default is.
     if ground_spec is not _GROUND_UNSET:
         kwargs["ground"] = ground_spec
+    if extended_kernel or deck_extended_kernel:
+        if name != "momwire":
+            if extended_kernel:
+                raise argparse.ArgumentTypeError(
+                    f"--extended-kernel only applies to the momwire engine "
+                    f"(got {name!r}, issue #849, momwire >= 0.26.0)"
+                )
+            # A deck-only EK request on a non-momwire engine: left alone,
+            # same as before this issue — PyNEC's own EK support (#414)
+            # isn't wired to a deck or this flag.
+        else:
+            kwargs["extended_kernel"] = True
     if not kwargs:
         return cls
     return partial(cls, **kwargs)
 
 
 _GROUND_UNSET = object()
+
+
+def deck_extended_kernel_flag(builder_cls) -> bool:
+    """True if `builder_cls` came from an `@file.nec`/`@file.ssn` spec whose
+    deck carries an EK card (issue #849) — see `file_designs._make_builder`'s
+    `file_extended_kernel` attribute. False for every ordinary catalog/user
+    design (the attribute doesn't exist on those classes at all)."""
+    return bool(getattr(builder_cls, "file_extended_kernel", False))
 
 
 def cli(arguments=None):
@@ -447,6 +483,21 @@ def cli(arguments=None):
             "(reflection-coefficient approximation) "
             "(default: engine-specific — finite for pynec, free for momwire).",
         )
+        p.add_argument(
+            "--extended-kernel",
+            dest="extended_kernel",
+            default=False,
+            action="store_true",
+            help="Apply NEC's extended thin-wire kernel (the EK card) on the "
+            "momwire engine (issue #849, needs momwire >= 0.26.0). Every "
+            "momwire basis serves it except sinusoidal-galerkin, which "
+            "refuses (momwire#246 — no EKSCX counterpart for its folded "
+            "testing shape); combining it with model_options "
+            "use_singular_enrichment also refuses (momwire#271). Matters for "
+            "fat wires (radius comparable to segment length). A "
+            '"@file.nec" deck\'s own EK card is honoured too — either one '
+            "turns the kernel on (OR). Only applies to the momwire engine.",
+        )
 
     def add_pattern_common(p):
         p.add_argument(
@@ -468,11 +519,16 @@ def cli(arguments=None):
             help="Azimuth angle (rear) for the elevation plot.",
         )
 
-    def engine_factory_from_args(args):
+    def engine_factory_from_args(args, deck_extended_kernel=False):
         ground = (
             args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
         )
-        return make_engine_factory(args.engine, ground)
+        return make_engine_factory(
+            args.engine,
+            ground,
+            extended_kernel=args.extended_kernel,
+            deck_extended_kernel=deck_extended_kernel,
+        )
 
     p = subparsers.add_parser("draw", help="Draw antenna")
     add_common(p)
@@ -541,7 +597,7 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(args)
+        engine = engine_factory_from_args(args, deck_extended_kernel_flag(builder))
         measured = read_measured(args.measured, z0=args.z0) if args.measured else None
         if measured is not None and (args.patterns or args.gain):
             # Measured S11 has nothing to say about a pattern or gain chart.
@@ -630,7 +686,7 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(args)
+        engine = engine_factory_from_args(args, deck_extended_kernel_flag(builder))
         opt_builder = optimize(
             builder(),
             args.params,
@@ -802,14 +858,17 @@ def cli(arguments=None):
         elif args.line:
             raise SystemExit("--line only applies with --plane station")
 
-        builder = get_builder(args.builder)()
+        builder_cls = get_builder(args.builder)
+        builder = builder_cls()
         try:
             result = fit(
                 builder,
                 read_measured(args.measured),
                 args.params,
                 z0=args.z0,
-                engine=engine_factory_from_args(args),
+                engine=engine_factory_from_args(
+                    args, deck_extended_kernel_flag(builder_cls)
+                ),
                 bounds=pairs,
                 fractions=args.fractions,
                 npoints=args.npoints,
@@ -943,7 +1002,8 @@ def cli(arguments=None):
     def f(args):
         from .schematic import lower, render_svg
 
-        builder = get_builder(args.builder)()
+        builder_cls = get_builder(args.builder)
+        builder = builder_cls()
         net = builder.build_network() if hasattr(builder, "build_network") else None
         if net is None:
             raise SystemExit(
@@ -952,7 +1012,9 @@ def cli(arguments=None):
             )
         budget = p_in = None
         if args.power:
-            eng = engine_factory_from_args(args)(builder)
+            eng = engine_factory_from_args(
+                args, deck_extended_kernel_flag(builder_cls)
+            )(builder)
             eng.current_distribution()
             budget = getattr(eng, "_excited_power_budget", None)
             # With p_in the annotation reads as the budget table's percent
@@ -983,7 +1045,7 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(args)
+        engine = engine_factory_from_args(args, deck_extended_kernel_flag(builder))
         eng = engine(builder())
         if args.wireframe:
             pattern3d(eng, fn=args.fn)
@@ -1026,8 +1088,14 @@ def cli(arguments=None):
         instances = []
         labels = []
         for bname, espec in pairs:
-            eng = make_engine_factory(espec, ground)
-            instances.append(eng(get_builder(bname)()))
+            builder_cls = get_builder(bname)
+            eng = make_engine_factory(
+                espec,
+                ground,
+                extended_kernel=args.extended_kernel,
+                deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
+            )
+            instances.append(eng(builder_cls()))
             if multi_engine and multi_builder:
                 labels.append(f"{bname}/{espec}")
             elif multi_engine:
@@ -1256,5 +1324,14 @@ def cli(arguments=None):
     except DesignNotTrustedError as exc:
         # A design the user hasn't allowed yet: show the clean guidance, not a
         # traceback.
+        print(str(exc))
+        raise SystemExit(1) from None
+    except NotImplementedError as exc:
+        # A momwire engine refusing a request it cannot honour — e.g.
+        # --extended-kernel on sinusoidal-galerkin (momwire#246) — raises
+        # this at engine construction (MomwireEngine._require_extended_kernel,
+        # issue #849) with a message that already names the problem; print
+        # it instead of a traceback, same convention as the other clean
+        # user-facing errors above.
         print(str(exc))
         raise SystemExit(1) from None
