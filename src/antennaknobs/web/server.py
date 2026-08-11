@@ -988,6 +988,10 @@ _SOLVE_CACHE_MAX = 100
 # megabyte, and holds ~50 full sweeps of design history.
 _SWEEP_Z_CACHE: "OrderedDict[tuple[str, int], tuple]" = OrderedDict()
 _SWEEP_Z_CACHE_MAX = 4096
+# issue #763: which session last wrote each design's entries. A base sweep
+# may read the cache ONLY back for its own writes (see
+# _base_sweep_may_read_cache) — this map is what "its own" means.
+_SWEEP_Z_WRITER: dict[str, str] = {}
 # Hit/miss counters — observability, and the only honest way to assert "this
 # request performed zero engine solves" in a test.
 _SWEEP_Z_STATS = {"hits": 0, "misses": 0}
@@ -1009,6 +1013,31 @@ def _sweep_design_key(req: dict) -> str:
     otherwise be silently mis-cached.
     """
     return _canonical_solve_key({k: v for k, v in req.items() if k != "freqs_mhz"})
+
+
+def _base_sweep_may_read_cache(req: dict, design_key: str) -> bool:
+    """Issue #763: opt-in read-through for BASE sweeps, so a knob scrub
+    A→B→A stops re-solving the ~41 points the cache already holds.
+
+    Three gates, each preserving a documented ``_SWEEP_Z_CACHE`` property:
+
+    * ``reuse_cached_z`` — the client asserts freshness for its own
+      session (it knows whether the design changed since it last swept);
+    * same-session writer — a session only ever reads back its OWN
+      writes, so two sessions issuing the same sweep still both compute
+      (the #382 lane contract stays testable);
+    * never for user designs — the edited-on-disk exposure stays closed
+      server-side, whatever the client asserts.
+    """
+    if not req.get("reuse_cached_z"):
+        return False
+    geometry = str(req.get("geometry", ""))
+    if geometry.startswith("user.") or geometry.startswith("@"):
+        return False
+    session, _gen = _lane_key(req)
+    if session is None:
+        return False
+    return _SWEEP_Z_WRITER.get(design_key) == session
 
 
 def _sweep_z_get(design_key: str, freq: float) -> tuple | None:
@@ -1148,6 +1177,10 @@ _CACHE_KEY_BLOCKLIST = frozenset(
         # request asks for extra frequencies of the same design, so it has
         # to land on the same per-freq cache entries a base sweep would.
         "_refine",
+        # Base-sweep read-through opt-in (issue #763): pure cache policy —
+        # a refinement request without the flag must land on the same
+        # per-freq entries the flagged base sweep wrote.
+        "reuse_cached_z",
         # Polar-cut angles (issue #547): cuts are attached per-request AFTER
         # the cache, so the cached entry is angle-independent by design.
         # Leaving these in the key meant every cut-dial drag silently
@@ -1380,7 +1413,17 @@ async def sweep_endpoint(req: dict, request: Request):
     # for the same deterministic plan it asked for last time), every sweep
     # writes it. See _SWEEP_Z_CACHE for why the read side is asymmetric.
     design_key = _sweep_design_key(req)
-    read_cache = lane_kind == "sweep_refine"
+    read_cache = lane_kind == "sweep_refine" or _base_sweep_may_read_cache(
+        req, design_key
+    )
+    # Every sweep writes the cache, so record the writing session (checked
+    # first, stamped second: another session's scrub must miss THIS time
+    # and only start hitting once its own sweep has written).
+    _writer_session, _ = _lane_key(req)
+    if _writer_session is not None:
+        _SWEEP_Z_WRITER[design_key] = _writer_session
+        while len(_SWEEP_Z_WRITER) > _SWEEP_Z_CACHE_MAX:
+            _SWEEP_Z_WRITER.pop(next(iter(_SWEEP_Z_WRITER)))
     # Validate the client's solver kwargs up front: this endpoint streams, so
     # an error surfacing mid-generator can't become a clean status code.
     # Imported here (like /optimize's optimizer import): adapter ↔ examples
