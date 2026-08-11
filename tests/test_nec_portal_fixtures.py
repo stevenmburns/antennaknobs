@@ -50,12 +50,9 @@ BANNER = re.compile(r"^VERSION:(\S+)$", re.MULTILINE)
 # partsMatch(parts, "DATA", "CARD", "No:", "", "NX"), where "" is a wildcard.
 NX_ECHO = re.compile(r"^\s*DATA CARD No:\s+\d+ NX\b", re.MULTILINE)
 
-# The Y-row report the ae6ty engine emits for a YY card.  Horizontal
-# whitespace only — \s would let the repeat run across line breaks.
-YY_ROW = re.compile(r"^[ \t]*-YY(?:[ \t]+[-+0-9.eE]+)+[ \t]*$", re.MULTILINE)
-
 # `CM QQ 1` / `CE QQ 1` is an ae6ty extension: quiet mode, which suppresses the
-# SEGMENTATION DATA block. The jar's own test deck uses it.
+# SEGMENTATION DATA block. The jar's own test deck used it (fixture successor:
+# split_dipole_qq, #839).
 QQ_QUIET = re.compile(r"^C[ME]\s+QQ\s+([1-9]\d*)\s*$", re.MULTILINE)
 
 
@@ -161,56 +158,7 @@ def test_timings_are_canonicalised(name):
 
 
 # --------------------------------------------------------------------------
-# the YY report
-# --------------------------------------------------------------------------
-
-YY_FIXTURES = ("jar_testdeck", "jar_testdeck_daemon_framed", "two_source_yy_card")
-
-
-@pytest.mark.parametrize("name", YY_FIXTURES)
-def test_yy_fixture_reports_y_rows(name):
-    """A YY card makes the engine print one '-YY' row per XQ.
-
-    The row carries 2N numbers — N complex currents, one per (tag, segment)
-    pair on the YY card — so the N runs together build the N x N Y matrix.
-    """
-    deck = _deck(name)
-    yy_cards = [ln for ln in deck.splitlines() if ln.split()[:1] == ["YY"]]
-    assert len(yy_cards) == 1, f"{name}: expected exactly one YY card"
-    n_ports = (len(yy_cards[0].split()) - 1) // 2
-
-    rows = YY_ROW.findall(_out(name))
-    assert len(rows) == n_ports, (
-        f"{name}: expected {n_ports} '-YY' rows (one per source run), got {len(rows)}"
-    )
-    for row in rows:
-        numbers = row.split()[1:]
-        assert len(numbers) == 2 * n_ports, (
-            f"{name}: '-YY' row has {len(numbers)} numbers, expected "
-            f"{2 * n_ports} (real/imag per port)"
-        )
-        for token in numbers:
-            float(token)
-
-
-def test_yy_row_equals_the_antenna_input_parameters_current():
-    """The k-th '-YY' entry is the current at the k-th YY report point.
-
-    Cross-checked against ``two_source_sensor_lines``, the same 2-port
-    structure driven the way SimNEC's portal actually drives it (one EX per
-    port, 1 V on the driven one and 1e-10 V on the rest, so every port shows
-    up as a row of ANTENNA INPUT PARAMETERS).  Both routes must agree.
-    """
-    yy_rows = [row.split()[1:] for row in YY_ROW.findall(_out("two_source_yy_card"))]
-    assert len(yy_rows) == 2
-
-    sensor_rows = _antenna_input_currents(_out("two_source_sensor_lines"))
-    assert len(sensor_rows) == 2
-    assert all(len(r) == 2 for r in sensor_rows)
-
-    for yy_row, sensor_row in zip(yy_rows, sensor_rows, strict=True):
-        flat = [float(v) for pair in sensor_row for v in pair]
-        assert [float(v) for v in yy_row] == pytest.approx(flat, rel=1e-4)
+# (Ward's YY report card was retired in #839.)
 
 
 def _antenna_input_currents(text: str) -> list[list[tuple[float, float]]]:

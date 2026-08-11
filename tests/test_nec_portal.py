@@ -84,8 +84,7 @@ REPRESENTATIVE = (
     "dipole_load_ld0",
     "dipole_gs_scaled",
     "dipole_rp2_linear_cliff",
-    "jar_testdeck",
-    "two_source_yy_card",
+    "split_dipole_qq",
     "two_source_sensor_lines",
 )
 
@@ -175,14 +174,6 @@ def aip_tables(text: str) -> list[list[list[str]]]:
             continue
         tables[-1].append(parts)
     return tables
-
-
-def yy_rows(text: str) -> list[list[float]]:
-    return [
-        [float(v) for v in line.split()[1:]]
-        for line in text.splitlines()
-        if line.split()[:1] == ["-YY"]
-    ]
 
 
 # --------------------------------------------------------------------------
@@ -306,8 +297,9 @@ def test_antenna_input_rows_are_eleven_tokens_with_the_current_at_4_and_5(name):
 
 
 def test_quiet_mode_suppresses_the_segmentation_block():
-    """`CE QQ 1` is ae6ty's quiet directive; the jar's own test deck uses it."""
-    quiet, _err = run_deck(fixture_deck("jar_testdeck"))
+    """`CE QQ 1` is ae6ty's quiet directive; the jar's own test deck used
+    it (the fixture is its YY-free successor, #839)."""
+    quiet, _err = run_deck(fixture_deck("split_dipole_qq"))
     loud, _err = run_deck(fixture_deck("dipole_free_space"))
     assert "SEGMENTATION DATA" not in quiet
     assert "SEGMENTATION DATA" in loud
@@ -317,58 +309,26 @@ def test_quiet_mode_suppresses_the_segmentation_block():
 def test_reduced_field_is_the_only_thing_written_to_stderr():
     """NEC2Daemon never drains the child's stderr, so anything beyond the
     `CM FF` line risks filling the pipe buffer and deadlocking the UI."""
-    _out, err = run_deck(fixture_deck("jar_testdeck_daemon_framed"))
+    _out, err = run_deck(fixture_deck("split_dipole_qq_daemon_framed"))
     assert err == "reducedField:2\n"
     _out, err = run_deck(fixture_deck("dipole_free_space"))
     assert err == ""
 
 
 # --------------------------------------------------------------------------
-# the YY report
+# the retired YY report card (#839)
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("name", "n_ports"), [("two_source_yy_card", 2), ("jar_testdeck", 3)]
-)
-def test_yy_rows_have_the_oracles_arity(name, n_ports):
-    ours = yy_rows(run_deck(fixture_deck(name))[0])
-    theirs = yy_rows(fixture_out(name))
-    assert len(ours) == len(theirs) == n_ports
-    for row in ours:
-        assert len(row) == 2 * n_ports
-
-
-def test_yy_row_agrees_with_the_antenna_input_current():
-    """The two Y mechanisms must not disagree.
-
-    ``-YY`` reports the current at each report point and ANTENNA INPUT
-    PARAMETERS reports it at each driven port; where a report point IS a port
-    they are the same number, so a deck that carries both must print both the
-    same way. (The oracle gets this for free — its pulse basis makes the
-    segment current and the driving-point current one quantity.)
-    """
-    text, _err = run_deck(fixture_deck("two_source_yy_card"))
-    rows = yy_rows(text)
-    tables = aip_tables(text)
-    assert len(rows) == len(tables) == 2
-    for row, table in zip(rows, tables, strict=True):
-        driven = complex(float(table[0][4]), float(table[0][5]))
-        # The YY card lists port 1 then port 2; each group drives one of them,
-        # so the driven port's own entry appears in the row.
-        entries = [complex(row[i], row[i + 1]) for i in range(0, len(row), 2)]
-        assert min(abs(e - driven) for e in entries) <= 1e-4 * abs(driven)
-
-
-def test_yy_matrix_is_reciprocal():
-    """The N '-YY' rows of an N-port deck are the N columns of one Y matrix,
-    so the off-diagonals must mirror."""
-    rows = yy_rows(run_deck(fixture_deck("jar_testdeck"))[0])
-    y = [[complex(r[i], r[i + 1]) for i in range(0, len(r), 2)] for r in rows]
-    for i in range(3):
-        for j in range(i + 1, 3):
-            scale = max(abs(y[i][j]), abs(y[j][i]))
-            assert abs(y[i][j] - y[j][i]) <= 1e-6 * scale
+def test_yy_card_is_no_longer_a_known_card():
+    """Ward's YY directive is retired (#839: abandoned upstream, its only
+    sender a dev benchmark). A deck carrying one now takes the same
+    unknown-card path a real nec2c would give it — never a silent no-op
+    that prints a '-YY' row."""
+    deck = fixture_deck("split_dipole_qq").replace("GE 0\n", "GE 0\nYY 1 4 2 4 5 4\n")
+    out, _err = run_deck(deck)
+    assert "unrecognised NEC card 'YY'" in out
+    assert "    -YY" not in out
 
 
 def test_two_source_y_matrix_is_reciprocal():
@@ -1325,16 +1285,12 @@ def currents_tables(text: str) -> list[list[list[str]]]:
     """The CURRENTS AND LOCATION rows, tokenised, one list per table.
 
     Ten tokens per row, which is what ends the table for a reader; the seg and
-    tag numbers are fields 0 and 1. A ``YY`` deck puts its ``-YY`` row inside
-    this table, ahead of the segments, so that one line is stepped over rather
-    than read as the end of it.
+    tag numbers are fields 0 and 1.
     """
     tables: list[list[list[str]]] = []
     collecting = False
     for line in text.splitlines():
         parts = line.split()
-        if parts[:1] == ["-YY"]:
-            continue
         if parts[1:4] == ["CURRENTS", "AND", "LOCATION"]:
             tables.append([])
             collecting = False
@@ -1358,21 +1314,6 @@ def test_pt_minus_one_removes_the_whole_currents_section():
     for text in (printout("dipole_pt_toggle"), fixture_out("dipole_pt_toggle")):
         assert text.count("CURRENTS AND LOCATION") == 1
         assert text.count("ANTENNA INPUT PARAMETERS") == 2
-
-
-def test_the_yy_report_survives_pt_minus_one():
-    """The load-bearing detail. ``-YY`` is the row ``addYYLine`` parses, so a
-    suppression that swallowed it would break SimNEC's Y path — and the oracle
-    does not swallow it: the line lands directly after the last ANTENNA INPUT
-    PARAMETERS row, with no blank and no table around it."""
-    for text in (printout("dipole_pt_toggle"), fixture_out("dipole_pt_toggle")):
-        lines = text.splitlines()
-        index = next(i for i, ln in enumerate(lines) if ln.split()[:1] == ["-YY"])
-        # The row above is an 11-token ANTENNA INPUT PARAMETERS row, not a
-        # currents-table header.
-        assert len(lines[index - 1].split()) == 11
-        assert lines[index + 1] == ""
-        assert len(yy_rows(text)) == 2, "one -YY row per run, suppressed or not"
 
 
 def test_pt_minus_two_restores_the_table():
@@ -3052,7 +2993,7 @@ _READOUT_MUTATIONS = (
     ),
     ("EX voltage", mutate("EX 0 1 5 0 1.", "EX 0 1 5 0 2.5")),
     ("RP grid", mutate("XQ\n", "RP 0 7 13 1001 0 0 30 30 1000\nXQ\n")),
-    ("YY card", mutate("EX 0 1 5 0 1.\n", "YY 1 3 1 7\nEX 0 1 5 0 1.\n")),
+    ("PT print control", mutate("EX 0 1 5 0 1.\n", "PT 0 1 3 5\nEX 0 1 5 0 1.\n")),
     ("PT card", mutate("XQ\n", "PT -1\nXQ\n")),
     ("MP card", mutate("XQ\n", "MP 16 32\nXQ\n")),
 )

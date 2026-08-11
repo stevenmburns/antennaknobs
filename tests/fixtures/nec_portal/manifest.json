@@ -201,8 +201,8 @@
     {
       "name": "dipole_pt_toggle",
       "returncode": 253,
-      "deck_sha256": "9ce5223b209cd358219ec1b45a8aaddf2798925b265e36ac0a2983d43cb57dbb",
-      "out_sha256": "819d7e37d5a0f714118bc1d1404c6ca9f6bce65da3f76b07fef7597ac21d9dc4",
+      "deck_sha256": "fccca5de7421553a3ba47cddd7a9023247b7e2ac50e12c87400a548fd8c9fd83",
+      "out_sha256": "100b158c7b911bdf8db5716c52d7a710d39b8d489aa67d76d5a7a7c06cd91d36",
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
@@ -283,20 +283,6 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
-      "name": "jar_testdeck",
-      "returncode": 253,
-      "deck_sha256": "dbe5138583985f4561fa09494f995530032d5b8bfb3b7838ef67b155beac7f6c",
-      "out_sha256": "ca46be17526baaaf24b263882a75a7ffc8e1c7d87c82e50e87e16b016493f99c",
-      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
-    },
-    {
-      "name": "jar_testdeck_daemon_framed",
-      "returncode": 253,
-      "deck_sha256": "46f917a5a998f63685ae671b586b8a1798d74c848a1088cb702ba5e5dd6af7f9",
-      "out_sha256": "c0303dcae2e29f67ade38a6b2c666bff18653259424fc634f760d4ed1ef69507",
-      "stderr": "reducedField:2\n\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
-    },
-    {
       "name": "resident_two_decks",
       "returncode": 253,
       "deck_sha256": "d69635af3681c91eca822dc961edc5105fa17ee8ee30221d5250f277c710becc",
@@ -304,17 +290,24 @@
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     },
     {
+      "name": "split_dipole_qq",
+      "returncode": 253,
+      "deck_sha256": "6c7eb50f91f40e71b631a6e6d3ebc56c96ff9b7800fca2f1059e90066b8ed956",
+      "out_sha256": "2e5aa2eb5ae8f77e2bfddc7deb39835c83cc9ca2450620234c4732d79cf174f2",
+      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
+      "name": "split_dipole_qq_daemon_framed",
+      "returncode": 253,
+      "deck_sha256": "2f77db39d12583265797f3bbf3c2581cfdf8744165ce8aa96ec55ee77a51beff",
+      "out_sha256": "31bf474d616596ab6725a85b95bc683a0464024e9a3a63bdbaa24297c5e2fbf4",
+      "stderr": "reducedField:2\n\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
+    },
+    {
       "name": "two_source_sensor_lines",
       "returncode": 253,
       "deck_sha256": "752affb96a0634db4b3b7c59cd6280f323bbc34a57c3cdfc51ed69e51615603f",
       "out_sha256": "0e581ca25b9ae2fd5e32477afbc894f0278a8a2a54d20e06e9e497dd60c2e9da",
-      "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
-    },
-    {
-      "name": "two_source_yy_card",
-      "returncode": 253,
-      "deck_sha256": "1955d3adf37578724d4b1de902cf680c4b4389cb250f921768741c665e3806c8",
-      "out_sha256": "7a42c4dfe3adda3a51a8cb45d1a545b899824530f9db6a2a784f9e8c6401a113",
       "stderr": "\nERROR-NEC2C: nec2c: Error reading input file - aborting\n"
     }
   ]

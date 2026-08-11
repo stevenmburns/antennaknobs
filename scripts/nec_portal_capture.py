@@ -11,8 +11,8 @@ prints.
 This script builds a small, deterministic corpus of decks in SimNEC's *portal
 dialect* (the card subset ``nec2/NECSource`` actually emits — CM/CE, EK, GW,
 GM, GS, GE, GN, GD, LD, IS, EX, NT, TL, FR, RP, NE, NH, PT, MP, XQ, plus
-Ward's custom ``YY`` — terminated by ``NX``), runs each one through the oracle
-binary, and
+terminated by ``NX`` — Ward's custom ``YY`` retired in #839), runs each one
+through the oracle binary, and
 commits the deck/printout pairs as fixtures under
 ``tests/fixtures/nec_portal/``.
 
@@ -75,10 +75,11 @@ MAX_JOBS = 2
 
 # Verbatim from the ``testdeck`` string constant in nec2/NEC2Daemon (recovered
 # with `javap -c -p -constants nec2/NEC2Daemon.class`).  Five wires forming one
-# split dipole, a YY card naming three (tag, segment) report points, and three
-# EX/FR/XQ groups — one 1 V run per source, which is how SimNEC builds an
-# N-port Y matrix.
-JAR_TESTDECK = (
+# split dipole and three EX/FR/XQ groups — one 1 V run per source, which is
+# how SimNEC builds an N-port Y matrix. Derived from the SimNEC jar's test
+# deck with its YY card removed (#839: the directive is Ward-abandoned and
+# retired here; the deck's remaining value is QQ quiet + the multi-EX shape).
+SPLIT_DIPOLE_QQ = (
     "CE QQ 1\n"
     "GW 1 7 1.250000 0.000000 11.648950 -1.250000 0.000000 11.648950 0.001000\n"
     "GW 2 7 -1.250000 0.000000 11.648950 -3.750000 0.000000 11.648950 0.001000\n"
@@ -86,7 +87,6 @@ JAR_TESTDECK = (
     "GW 4 3 5.000000 0.000000 11.648950 3.750000 0.000000 11.648950 0.001000\n"
     "GW 5 7 3.750000 0.000000 11.648950 1.250000 0.000000 11.648950 0.001000\n"
     "GE 0\n"
-    "YY 1 4 2 4 5 4\n"
     "EX 0 1 4 0 1.\n"
     "FR 0 1 0 0 30.000000 1\n"
     "XQ\n"
@@ -338,9 +338,7 @@ def _synthetic_decks() -> dict[str, str]:
     # planeWaveExcitation branch of NECSource.constructNECFile), but the card
     # itself is independent of that sequence: it is a persistent toggle on the
     # CURRENTS AND LOCATION table alone. This deck shows both halves of the
-    # toggle in one run — the first XQ suppressed, the second restored — and,
-    # because it carries a YY card, that Ward's `-YY` report SURVIVES the
-    # suppression and is printed where the table would have been.
+    # toggle in one run — the first XQ suppressed, the second restored.
     decks["dipole_ek_extended"] = (
         "CE ek extended thin-wire kernel, as the live NECSource path sends it\n"
         + _DIPOLE_GW
@@ -366,7 +364,6 @@ def _synthetic_decks() -> dict[str, str]:
         + _DIPOLE_GW
         + "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
         "GE 0\n"
-        "YY 1 5 2 5\n"
         "FR 0 1 0 0 30. 1\n"
         "EX 0 1 5 0 1.\n"
         "PT -1\n"
@@ -406,23 +403,6 @@ def _synthetic_decks() -> dict[str, str]:
         "XQ\n"
         "EX 0 1 5 0 1.000000e-10\n"
         "EX 0 2 5 0 1.000000e+00\n"
-        "XQ\n"
-    )
-
-    # The same 2-port structure driven through Ward's YY card instead: one EX
-    # per XQ, and the engine reports the named (tag, segment) currents on a
-    # "-YY" line.
-    decks["two_source_yy_card"] = (
-        "CE two source YY probe\n"
-        + _DIPOLE_GW
-        + "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
-        "GE 0\n"
-        "YY 1 5 2 5\n"
-        "EX 0 1 5 0 1.\n"
-        "FR 0 1 0 0 30. 1\n"
-        "XQ\n"
-        "EX 0 2 5 0 1.\n"
-        "FR 0 1 0 0 30. 1\n"
         "XQ\n"
     )
 
@@ -580,8 +560,8 @@ def _synthetic_decks() -> dict[str, str]:
     )
 
     # The jar's own deck, raw and as NEC2Daemon.submit() actually frames it.
-    decks["jar_testdeck"] = JAR_TESTDECK
-    decks["jar_testdeck_daemon_framed"] = DAEMON_PREFIX + JAR_TESTDECK
+    decks["split_dipole_qq"] = SPLIT_DIPOLE_QQ
+    decks["split_dipole_qq_daemon_framed"] = DAEMON_PREFIX + SPLIT_DIPOLE_QQ
 
     return decks
 
@@ -630,8 +610,7 @@ PORTAL_CARDS = frozenset(
         "NH",  # far field, near E field, near H field
         "PT",
         "MP",  # print control, multiprocessing hint
-        "YY",
-        "XQ",  # Ward's Y-report card, execute
+        "XQ",  # execute (Ward's YY report card retired in #839)
     }
 )
 

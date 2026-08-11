@@ -261,7 +261,7 @@ Everything SimNEC's portal actually emits for wire antennas:
 
 | | |
 | --- | --- |
-| Feedpoint impedance | `EX 0` voltage sources, one or many, and the `YY` report card SimNEC probes multi-port antennas with |
+| Feedpoint impedance | `EX 0` voltage sources, one or many — SimNEC probes multi-port antennas with per-source `EX`/`XQ` groups (its old `YY` report directive is abandoned upstream and not served) |
 | Frequency sweeps | multi-point `FR`, the whole sweep in one deck |
 | Geometry | `GW` wires with `GM` / `GX` / `GR` / `GS` / `GA` / `GH` transforms |
 | Ground | free space, `GE ±1` perfect ground, `GN 0` reflection-coefficient and `GN 2` Sommerfeld finite ground |

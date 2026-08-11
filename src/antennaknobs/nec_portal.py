@@ -8,7 +8,7 @@ This module is that process, with momwire behind it instead of nec2c.
 The contract is pinned in ``docs/status/2026-08-08-simnec-execute-grammar.md``
 (issue #792 units 1-3) and in the 36 oracle deck/printout pairs under
 ``tests/fixtures/nec_portal/``. Everything here — column widths, header
-strings, section order, the ``-YY`` row, the stderr discipline — is copied out
+strings, section order, the stderr discipline — is copied out
 of those two sources. **Layout is the contract; the numbers are momwire's.**
 A different basis and kernel will never reproduce nec2c digit for digit, and
 SimNEC does not need it to: it reads exactly two numbers per
@@ -20,8 +20,9 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
 * the version probe, the resident stdin loop, the ``NX`` sentinel;
 * ``CM``/``CE`` directives ``QQ`` (quiet) and ``FF`` (the one stderr line);
 * geometry ``GW``/``GM``/``GS``/``GX``/``GR``/``GA``/``GH``/``GE``, environment
-  ``GN 0/1/2``, loading ``LD 0/1/4/5``, excitation ``EX 0``, ``FR``, ``XQ``,
-  and Ward's ``YY`` report card;
+  ``GN 0/1/2``, loading ``LD 0/1/4/5``, excitation ``EX 0``, ``FR``, and
+  ``XQ``; (Ward's ``YY`` report card was retired in #839 — abandoned
+  upstream, its only sender a dev benchmark);
 * unit 3: ``RP 0`` radiation patterns, ``NE``/``NH`` near-field grids, and
   ``NT`` two-port networks — each of which is also an *execute* card in its
   own right (``RP``/``NE``/``NH`` run the pending group, so a bare ``XQ``
@@ -555,7 +556,7 @@ _DEFERRED_CARDS = MappingProxyType(
 _EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
 
 # Cards that make the next execute card a real run rather than a no-op.
-_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "YY", "EK"})
+_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "EK"})
 
 
 @dataclass(frozen=True)
@@ -563,7 +564,7 @@ class Card:
     """One data card: mnemonic plus its numeric fields, in card order.
 
     NEC's echo splits those fields into four integers and six reals whatever
-    the card means — a ``YY 1 4 2 4 5 4`` report card echoes ``1 4 2 4`` as
+    the card means — an ``NT 1 4 2 4 5 4`` card echoes ``1 4 2 4`` as
     integers and ``5.0 4.0`` as reals — so one accessor pair serves them all.
     """
 
@@ -844,12 +845,8 @@ class PrintControl:
 
     ``PT -1``
         the whole ``CURRENTS AND LOCATION`` section disappears — banner, note,
-        blank, both column-header lines and every row. What is left in its
-        place is Ward's ``-YY`` report, printed immediately after the last
-        ``ANTENNA INPUT PARAMETERS`` row with no blank between them
-        (fixture: ``dipole_pt_toggle``). That the ``-YY`` line survives is the
-        load-bearing detail: it is the row SimNEC's ``addYYLine`` parses, so a
-        suppression that swallowed it would break the Y path.
+        blank, both column-header lines and every row
+        (fixture: ``dipole_pt_toggle``).
     ``PT -2``
         restores the table. It is a state change, not a per-run flag: the
         toggle holds across execute cards until another ``PT`` moves it.
@@ -1032,7 +1029,6 @@ class PortalDeck:
     # record of what arrived; it moves no number here (see :class:`SecondMedium`).
     second_medium: SecondMedium | None = None
     ground_plane_flag: bool = False
-    yy_points: tuple[tuple[int, int], ...] = ()
     quiet: bool = False
     reduced_field: int | None = None
 
@@ -1113,7 +1109,6 @@ def parse_deck(body: str) -> PortalDeck:
     networks: list[NetworkBranch | LineBranch] = []
     loads: list[Card] = []
     sources: list[tuple[int, int, complex]] = []
-    yy_points: list[tuple[int, int]] = []
     freqs: tuple[float, ...] = (0.0,)
     fresh_fr = False
     # True when something has changed since the last execution, so the next
@@ -1215,12 +1210,6 @@ def parse_deck(body: str) -> PortalDeck:
         elif card.mnemonic == "FR":
             freqs = _fr_frequencies(card)
             fresh_fr = True
-        elif card.mnemonic == "YY":
-            vals = card.values
-            yy_points = [
-                (int(round(vals[i])), int(round(vals[i + 1])))
-                for i in range(0, len(vals) - 1, 2)
-            ]
         elif card.mnemonic == "EX":
             if card.i(0) != 0:
                 raise PortalError(
@@ -1274,7 +1263,6 @@ def parse_deck(body: str) -> PortalDeck:
         ground=ground,
         second_medium=second_medium,
         ground_plane_flag=ground_plane_flag,
-        yy_points=tuple(yy_points),
         quiet=quiet,
         reduced_field=reduced_field,
     )
@@ -1338,15 +1326,6 @@ def fmt_current_row(seg, tag, centre, length, current) -> str:
         f" {centre[0]:9.4f} {centre[1]:9.4f} {centre[2]:9.4f} {length:9.5f}"
         f" {current.real:11.4E} {current.imag:11.4E} {mag:11.4E} {phase:8.3f}"
     )
-
-
-def fmt_yy_row(currents) -> str:
-    """Ward's ``-YY`` report: the currents at the YY card's report points, one
-    ``%11.4E`` pair per point. SimNEC's ``addYYLine`` parses it and this build
-    of the jar then discards it (grammar doc §6) — we emit it anyway because
-    it is four lines of code and the only forward-compatible Y path."""
-    body = "".join(f" {v:11.4E}" for c in currents for v in (c.real, c.imag))
-    return f"    -YY{body}"
 
 
 def fmt_network_row(tag_a, seg_a, tag_b, seg_b, values, tail: str = "") -> str:
@@ -2102,23 +2081,6 @@ class DeckSolver:
         of ``self.wires[wire]``."""
         return sum(w.n_seg for w in self.wires[:wire]) + local
 
-    def report_current(self, tag: int, seg: int, result: dict) -> complex:
-        """The current at a ``YY`` report point.
-
-        A point that carries a gap reads its Galerkin port current — the same
-        number the ANTENNA INPUT PARAMETERS table prints, so the two Y paths
-        agree exactly. A point with no gap has no port, so the interpolated
-        segment-midpoint current is the only reading available (and is what
-        the oracle prints for every point, its pulse basis making the two
-        identical).
-        """
-        wire, local = _locate(self.wires, tag, seg)
-        number = self.global_segment(wire, local)
-        port = self.port_by_segment.get(number)
-        if port is not None:
-            return complex(result["i_port"][port])
-        return complex(result["segment_currents"][number - 1])
-
     # -- construction ------------------------------------------------------
 
     def _build_engine(self, freq_mhz: float) -> MomwireEngine:
@@ -2545,7 +2507,7 @@ def _operator_key(deck: PortalDeck) -> tuple:
     * ``EX`` VOLTAGES — X's columns are per-1 V and the voltage applies at
       readout (``solve_group``). Only an EX's PLACEMENT is in the key, via the
       port set.
-    * ``RP``/``NE``/``NH``/``PT``/``YY``/``XQ``/``MP`` — readout and print
+    * ``RP``/``NE``/``NH``/``PT``/``XQ``/``MP`` — readout and print
       control, computed from the result after the solve.
     * ``CM``/``CE`` comments, and card formatting — the key is built from the
       parsed deck, so a re-sent deck that differs only in whitespace hits.
@@ -3193,16 +3155,6 @@ def _run_block(
     if not suppressed:
         out += ["", "", _CURRENTS_HEADER, _CURRENTS_NOTE, "", *_CURRENTS_TABLE_HEADER]
     currents = result["segment_currents"]
-    # The ``-YY`` report is printed either way — under ``PT -1`` it lands
-    # directly after the last ANTENNA INPUT PARAMETERS row, with no blank and
-    # no table around it (fixture: dipole_pt_toggle). It is the row SimNEC's
-    # addYYLine parses, so suppression must not take it with the table.
-    if deck.yy_points:
-        out.append(
-            fmt_yy_row(
-                [solver.report_current(tag, seg, result) for tag, seg in deck.yy_points]
-            )
-        )
     if not suppressed:
         for seg in _printed_segments(group.pt, solver):
             out.append(
@@ -3382,7 +3334,7 @@ _SELFTEST_DECKS = (
     "CE selftest 2\n"
     "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
     "GW 2 11 3. -5. 10. 3. 5. 10. 0.001\n"
-    "GE 0\nYY 1 6 2 6\n"
+    "GE 0\n"
     "EX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\n"
     "EX 0 2 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
     "CE selftest 3\n"
@@ -3439,7 +3391,6 @@ def _selftest(stdout) -> int:
             if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
         )
         == 4,
-        "-YY row present": "    -YY " in proc.stdout,
         "TL network row present": "STRAIGHT" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
     }
