@@ -18,6 +18,8 @@ export function CatalogPanel({
   loadErrors,
   trustBusy,
   trustDesign,
+  onReloadDesign,
+  reloadBusy,
 }: {
   geomGroups: ExampleGroup[];
   geometry: string;
@@ -31,6 +33,8 @@ export function CatalogPanel({
   loadErrors: DesignLoadError[];
   trustBusy: string | null;
   trustDesign: (stem: string, allowEdits: boolean) => void;
+  onReloadDesign: () => void;
+  reloadBusy: boolean;
 }) {
   return (
     <>
@@ -43,6 +47,18 @@ export function CatalogPanel({
           setFilter={setGeomFilter}
           onSelect={setGeometry}
         />
+        {currentExample?.name.startsWith("user.") && (
+          <button
+            type="button"
+            className="design-reload-btn"
+            onClick={onReloadDesign}
+            disabled={reloadBusy}
+            aria-label="reload design file"
+            title="Reload this design file from disk and re-solve (trust it in “always” mode so edits keep loading)"
+          >
+            ⟳
+          </button>
+        )}
         {currentExample && currentExample.variants.length > 1 && (
           <select
             id="variant-select"

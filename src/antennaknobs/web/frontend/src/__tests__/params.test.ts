@@ -16,6 +16,7 @@ import {
   isGroup,
   linkedMeasFreqFor,
   matchesQuery,
+  mergeSeededDefaults,
   overlaySchemaForVariant,
   seedDefaults,
   setValueAtPath,
@@ -217,6 +218,65 @@ describe("seedDefaults", () => {
       expect(innerInstances).toHaveLength(1);
       expect(innerInstances[0]).toEqual({ x: 1 });
     }
+  });
+});
+
+// --- mergeSeededDefaults (issue #867) ---------------------------------
+
+describe("mergeSeededDefaults", () => {
+  it("keeps existing tuned values over seeded defaults", () => {
+    const out = mergeSeededDefaults({ len: 12.5 }, { len: 9.9 });
+    expect(out).toEqual({ len: 9.9 });
+  });
+
+  it("fills in keys the existing bag lacks (a newly added param)", () => {
+    const out = mergeSeededDefaults({ len: 12.5, gap: 0.1 }, { len: 9.9 });
+    expect(out).toEqual({ len: 9.9, gap: 0.1 });
+  });
+
+  it("returns the existing bag by identity when nothing merged", () => {
+    const existing = { len: 9.9 };
+    expect(mergeSeededDefaults({ len: 12.5 }, existing)).toBe(existing);
+  });
+
+  it("merges a new scalar into existing group instances, keeping tuned values", () => {
+    const seeded = {
+      bands: [
+        { freq: 14.1, q: 5 },
+        { freq: 14.1, q: 5 },
+      ],
+    };
+    const existing = { bands: [{ freq: 7.05 }, { freq: 21.2 }] };
+    const out = mergeSeededDefaults(seeded, existing);
+    expect(out).toEqual({
+      bands: [
+        { freq: 7.05, q: 5 },
+        { freq: 21.2, q: 5 },
+      ],
+    });
+  });
+
+  it("grows a group to the seeded max_repeats, seeding the new instances", () => {
+    const seeded = { bands: [{ freq: 14.1 }, { freq: 14.1 }, { freq: 14.1 }] };
+    const existing = { bands: [{ freq: 7.05 }] };
+    const out = mergeSeededDefaults(seeded, existing);
+    expect(out.bands).toEqual([{ freq: 7.05 }, { freq: 14.1 }, { freq: 14.1 }]);
+  });
+
+  it("shrinks a group to the seeded max_repeats, dropping surplus instances", () => {
+    const seeded = { bands: [{ freq: 14.1 }] };
+    const existing = { bands: [{ freq: 7.05 }, { freq: 21.2 }] };
+    const out = mergeSeededDefaults(seeded, existing);
+    expect(out.bands).toEqual([{ freq: 7.05 }]);
+  });
+
+  it("returns identity when group instances need no merging", () => {
+    const existing = { bands: [{ freq: 7.05 }, { freq: 21.2 }] };
+    const out = mergeSeededDefaults(
+      { bands: [{ freq: 14.1 }, { freq: 14.1 }] },
+      existing,
+    );
+    expect(out).toBe(existing);
   });
 });
 
