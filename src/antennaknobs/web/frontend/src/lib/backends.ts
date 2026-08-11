@@ -197,6 +197,14 @@ export type BackendOpts = {
   // offered on plain sinusoidal: the point gap has no collocation RHS
   // (momwire#212), so that solver's roster entry names no panel.
   feedModel?: FeedModel;
+  // NEC's extended thin-wire kernel — the `EK` card (issue #849, momwire >=
+  // 0.26.0). Common to every momwire backend rather than panel-specific, so
+  // it sits beside wire radius rather than inside a bespoke panel: it is the
+  // knob that says how the on-axis Green's function treats that radius.
+  // ABSENT = off, which is the EK card's own convention (a deck with no `EK`
+  // card, and `EK -1`, both read as the reduced kernel) and what keeps a
+  // kernel-off request byte-identical to what every release before #849 sent.
+  extendedKernel?: boolean;
 };
 
 /** A backend's stock options: served numeric defaults plus the bespoke
@@ -212,6 +220,61 @@ export function defaultOptsFor(b: BackendEntry): BackendOpts {
   // on near-open designs (#640).
   if (b.panel === PANEL_SIN_GALERKIN) opts.feedModel = "segment";
   return opts;
+}
+
+// ---------------------------------------------------------------------------
+// The extended thin-wire kernel (issue #849)
+// ---------------------------------------------------------------------------
+
+// One-line "why you'd want this", used as the toggle's tooltip.
+export const EK_HINT =
+  "NEC's extended thin-wire kernel (the EK card): the on-axis Green's " +
+  "function uses NEC's O(a²) tube expansion instead of the filament " +
+  "approximation. It matters where the wire is FAT relative to its segments " +
+  "— a fraction of a percent at Δ/a > 10, several percent below Δ/a ≈ 3 — " +
+  "and costs about 1.0–1.3× the reduced-kernel solve.";
+
+// The one basis that cannot serve the kernel. Named here rather than read off
+// the roster because the roster carries no capability field for it: momwire
+// implements EK on the point-matched SinusoidalSolver and the B-spline family,
+// and refuses on the Galerkin sibling (momwire#246). This is the frontend twin
+// of engines/momwire.py::_extended_kernel_refusal, which raises the same two
+// refusals server-side — so a stale name here costs a clear error dialog, not
+// a wrong answer. If a second basis ever refuses, that is the moment to serve
+// the capability as a roster field instead of extending this constant.
+export const EK_UNSUPPORTED_BACKEND = "sinusoidal-galerkin";
+
+export const EK_GALERKIN_REASON =
+  "The Sin-Galerkin basis cannot run the extended kernel: NEC's EKSCX has no " +
+  "counterpart for its folded testing shape (momwire#246). Use the " +
+  "Sinusoidal or B-spline slots for an extended-kernel run.";
+
+export const EK_ENRICHMENT_REASON =
+  "The extended kernel and K≥3 junction singular enrichment cannot be used " +
+  "together (momwire#271): the enrichment DOFs bypass the moment kernels the " +
+  "extended kernel corrects. Turn one of the two off.";
+
+/** Why this slot cannot run the extended kernel, or null if it can. Mirrors
+ *  the engine-side refusals so the gear menu can grey the toggle out and say
+ *  why, instead of letting the solve come back as an error dialog. */
+export function extendedKernelRefusal(
+  b: BackendEntry,
+  opts: BackendOpts,
+): string | null {
+  if (b.name === EK_UNSUPPORTED_BACKEND) return EK_GALERKIN_REASON;
+  if (opts.bspline?.useSingularEnrichment) return EK_ENRICHMENT_REASON;
+  return null;
+}
+
+/** Is the extended kernel actually in force for this slot? True only when the
+ *  user asked for it AND this backend can serve it — a slot whose backend
+ *  changed under a set flag solves reduced rather than erroring, and the chip
+ *  and the request agree with the toggle the gear menu is showing. PyNEC is
+ *  excluded outright: it sends no `model_options` at all, and its own
+ *  extended-kernel support (issue #414) is a separate, unexposed kwarg. */
+export function extendedKernelActive(b: BackendEntry, opts: BackendOpts): boolean {
+  if (b.kind !== "momwire" || !opts.extendedKernel) return false;
+  return extendedKernelRefusal(b, opts) === null;
 }
 
 // Three abstract solver slots. Each holds one backend choice and its
@@ -231,13 +294,19 @@ export type SlotConfig = {
 // spline degree so two b-spline slots (the default A d=2 / B d=1 pair) stay
 // distinguishable at a glance.
 export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string {
+  // "+EK" affixes the extended thin-wire kernel (issue #849) to whatever the
+  // slot is already called. The whole point of the toggle is A-vs-B — one slot
+  // with the kernel, one without — so the chips have to say which is which.
+  // Affixed only when the kernel is actually IN FORCE, never when a backend
+  // that refuses it is carrying a set flag.
+  const ek = extendedKernelActive(b, opts) ? " +EK" : "";
   if (b.panel === PANEL_BSPLINE)
-    return `${b.label} d=${opts.bspline?.degree ?? BSPLINE_DEFAULT_OPTS.degree}`;
+    return `${b.label} d=${opts.bspline?.degree ?? BSPLINE_DEFAULT_OPTS.degree}${ek}`;
   // Surface the non-default feed model on the slot chip: two Sin-Galerkin
   // slots differing only in feed model must be tellable apart at a glance.
   if (b.panel === PANEL_SIN_GALERKIN && opts.feedModel === "point")
-    return `${b.label} (converged)`;
-  return b.label;
+    return `${b.label} (converged)${ek}`;
+  return `${b.label}${ek}`;
 }
 
 /** Seed for one default slot: a backend NAME (resolved against the served
@@ -324,5 +393,14 @@ export function modelOptionsForRequest(
     // (momwire#212) and must not receive the key at all.
     out.feed_model = opts.feedModel ?? "segment";
   }
+  // The extended thin-wire kernel travels as a model option (the server pulls
+  // it back out of model_options and passes it as the named `extended_kernel=`
+  // constructor kwarg). Sent ONLY when in force: absence is the reduced
+  // kernel — the EK card's own convention, and the spelling that keeps a
+  // kernel-off request byte-identical to what every release before #849 sent.
+  // The `extendedKernelActive` gate is also what keeps a refused combination
+  // off the wire; the UI disables the toggle on those, so this is the second
+  // of the two locks, not the only one.
+  if (extendedKernelActive(b, opts)) out.extended_kernel = true;
   return out;
 }

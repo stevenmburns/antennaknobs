@@ -19,6 +19,8 @@ import {
 } from "../components/backend/BackendConfigModal";
 import {
   BSPLINE_DEFAULT_OPTS,
+  EK_ENRICHMENT_REASON,
+  EK_GALERKIN_REASON,
   RESTRICTED_BACKEND_REASON,
   defaultOptsFor,
   type BackendOpts,
@@ -200,6 +202,107 @@ describe("BackendConfigModal — per-backend knob visibility", () => {
     unmount();
     renderModal({ backend: "bspline" });
     expect(screen.queryByText(/no extra solver knobs/)).toBeNull();
+  });
+});
+
+describe("BackendConfigModal — extended kernel (#849)", () => {
+  const EK = /extended kernel \(EK\)/;
+  const ENRICHMENT = /junction singular enrichment/;
+  const MOMWIRE = NAMES.filter((n) => entry(n).kind === "momwire");
+
+  it.each(MOMWIRE)("offers the toggle on %s, off by default", (name) => {
+    renderModal({ backend: name });
+    expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty(
+      "checked",
+      false,
+    );
+  });
+
+  it("offers no toggle on pynec — its extended kernel is not this knob (#414)", () => {
+    renderModal({ backend: "pynec" });
+    expect(screen.queryByRole("checkbox", { name: EK })).toBeNull();
+  });
+
+  it("patches extendedKernel on and off", async () => {
+    const off = renderModal({ backend: "bspline" });
+    await off.user.click(screen.getByRole("checkbox", { name: EK }));
+    expect(off.onPatch).toHaveBeenCalledWith({ extendedKernel: true });
+    off.unmount();
+
+    const on = renderModal({
+      backend: "bspline",
+      opts: { ...defaultOptsFor(entry("bspline")), extendedKernel: true },
+    });
+    expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("checked", true);
+    await on.user.click(screen.getByRole("checkbox", { name: EK }));
+    expect(on.onPatch).toHaveBeenCalledWith({ extendedKernel: false });
+  });
+
+  it("greys the toggle out on Sin-Galerkin and says why on the page", () => {
+    renderModal({ backend: "sinusoidal-galerkin" });
+    const box = screen.getByRole("checkbox", { name: EK });
+    expect(box).toHaveProperty("disabled", true);
+    expect(box).toHaveProperty("checked", false);
+    // The reason is visible, not tooltip-only: a greyed box with no
+    // explanation is the silence #849 is about.
+    expect(screen.getByText(EK_GALERKIN_REASON)).toBeTruthy();
+    expect(within(screen.getByTitle(EK_GALERKIN_REASON)).getByRole("checkbox")).toBe(box);
+  });
+
+  it("shows a set flag as UNCHECKED on the basis that refuses it", async () => {
+    // A slot cannot normally reach this (a backend swap resets the flag), but
+    // the row must never claim a kernel that isn't running.
+    const { user, onPatch } = renderModal({
+      backend: "sinusoidal-galerkin",
+      opts: {
+        ...defaultOptsFor(entry("sinusoidal-galerkin")),
+        extendedKernel: true,
+      },
+    });
+    const box = screen.getByRole("checkbox", { name: EK });
+    expect(box).toHaveProperty("checked", false);
+    await user.click(box);
+    expect(onPatch).not.toHaveBeenCalled(); // disabled: the click does nothing
+  });
+
+  it("keeps the Δ/a hint on the servable backends", () => {
+    renderModal({ backend: "bspline" });
+    expect(screen.getByText(/Δ\/a/)).toBeTruthy();
+    expect(screen.queryByText(EK_GALERKIN_REASON)).toBeNull();
+  });
+
+  // momwire#271: the two are mutually exclusive, and the exclusion is
+  // symmetric so neither box can lock the other out permanently.
+  it("greys the kernel out while enrichment is on", () => {
+    renderModal({
+      backend: "bspline",
+      opts: bsplineOpts("bspline", { useSingularEnrichment: true }),
+    });
+    expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("disabled", true);
+    expect(screen.getByText(EK_ENRICHMENT_REASON)).toBeTruthy();
+    // …and enrichment itself is still live, so the user can back out.
+    expect(screen.getByRole("checkbox", { name: ENRICHMENT })).toHaveProperty(
+      "disabled",
+      false,
+    );
+  });
+
+  it("greys enrichment out while the kernel is on", () => {
+    const opts = bsplineOpts("bspline", { useSingularEnrichment: false });
+    renderModal({ backend: "bspline", opts: { ...opts, extendedKernel: true } });
+    const enrich = screen.getByRole("checkbox", { name: ENRICHMENT });
+    expect(enrich).toHaveProperty("disabled", true);
+    expect(within(screen.getByTitle(EK_ENRICHMENT_REASON)).getByRole("checkbox")).toBe(enrich);
+    // …and the kernel itself is still live.
+    expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("disabled", false);
+  });
+
+  it("leaves enrichment alone when the kernel is off", () => {
+    renderModal({ backend: "bspline", opts: bsplineOpts("bspline") });
+    expect(screen.getByRole("checkbox", { name: ENRICHMENT })).toHaveProperty(
+      "disabled",
+      false,
+    );
   });
 });
 

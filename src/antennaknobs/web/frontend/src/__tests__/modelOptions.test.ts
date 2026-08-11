@@ -145,6 +145,72 @@ describe("modelOptionsForRequest", () => {
     });
   });
 
+  // --- the extended thin-wire kernel (issue #849) --------------------------
+  //
+  // The wire key is `extended_kernel`, which adapter.py pulls back out of
+  // model_options and passes as MomwireEngine's named constructor kwarg. The
+  // contract that matters here is the ASYMMETRY: present-and-true when armed,
+  // absent otherwise — never `false`. The stock-JSON test above is the guard
+  // for the "absent" half, and it is unchanged by #849 on purpose.
+  describe("extended_kernel", () => {
+    const armed = (name: string) => ({
+      ...defaultOptsFor(entry(name)),
+      extendedKernel: true,
+    });
+
+    it("rides as `extended_kernel: true` on every basis that serves it", () => {
+      for (const name of ["sinusoidal", "bspline", "hmatrix", "arrayblock"]) {
+        expect(modelOptionsForRequest(entry(name), armed(name))).toHaveProperty(
+          "extended_kernel",
+          true,
+        );
+      }
+    });
+
+    it("is ABSENT — not false — with the toggle off", () => {
+      for (const name of ["sinusoidal", "bspline", "hmatrix", "arrayblock"]) {
+        const b = entry(name);
+        expect(modelOptionsForRequest(b, defaultOptsFor(b))).not.toHaveProperty(
+          "extended_kernel",
+        );
+        // …and explicitly off is the same request as never armed: toggling on
+        // and back off must return to the pre-#849 body byte for byte.
+        expect(
+          JSON.stringify(
+            modelOptionsForRequest(b, {
+              ...defaultOptsFor(b),
+              extendedKernel: false,
+            }),
+          ),
+        ).toBe(JSON.stringify(modelOptionsForRequest(b, defaultOptsFor(b))));
+      }
+    });
+
+    it("never reaches the wire on a basis that refuses it (momwire#246/#271)", () => {
+      // Galerkin: momwire#246.
+      expect(
+        modelOptionsForRequest(
+          entry("sinusoidal-galerkin"),
+          armed("sinusoidal-galerkin"),
+        ),
+      ).toEqual({ n_qp_const: 8, feed_model: "segment" });
+      // Singular enrichment: momwire#271. Sending both would be a refusal at
+      // engine construction; the UI greys the pair out, and this is the lock
+      // behind that.
+      const enriched = {
+        ...armed("bspline"),
+        bspline: { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: true },
+      };
+      const out = modelOptionsForRequest(entry("bspline"), enriched);
+      expect(out.use_singular_enrichment).toBe(true);
+      expect(out).not.toHaveProperty("extended_kernel");
+    });
+
+    it("stays off the wire for pynec, which sends no model_options", () => {
+      expect(modelOptionsForRequest(entry("pynec"), armed("pynec"))).toEqual({});
+    });
+  });
+
   it("uses the panel's own defaults when a b-spline slot carries no panel state", () => {
     const result = modelOptionsForRequest(entry("bspline"), {
       nPerWire: 30,
