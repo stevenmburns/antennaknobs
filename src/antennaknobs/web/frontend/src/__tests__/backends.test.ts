@@ -14,11 +14,17 @@ import {
   comboInappropriate,
   defaultOptsFor,
   defaultSlots,
+  EK_ENRICHMENT_REASON,
+  EK_GALERKIN_REASON,
+  EK_UNSUPPORTED_BACKEND,
+  extendedKernelActive,
+  extendedKernelRefusal,
   findBackend,
   hasBSplinePanel,
   normalizeBackend,
   slotFromSeed,
   type BackendEntry,
+  type BackendOpts,
 } from "../lib/backends";
 import {
   backendEntry,
@@ -89,6 +95,62 @@ describe("defaultOptsFor", () => {
     expect(defaultOptsFor(entry("sinusoidal-galerkin")).bspline).toBeUndefined();
     expect(defaultOptsFor(entry("sinusoidal")).bspline).toBeUndefined();
     expect(defaultOptsFor(entry("sinusoidal")).feedModel).toBeUndefined();
+  });
+
+  // Absence, not `false`: that is the EK card's own convention, and it is what
+  // keeps a stock request byte-identical to the pre-#849 one (pinned as JSON
+  // in modelOptions.test.ts).
+  it("leaves the extended kernel unset on every backend (#849)", () => {
+    for (const b of SERVED_ROSTER) {
+      expect(defaultOptsFor(b).extendedKernel).toBeUndefined();
+      expect(extendedKernelActive(b, defaultOptsFor(b))).toBe(false);
+    }
+  });
+});
+
+describe("extendedKernelRefusal (#849)", () => {
+  const on = (name: string) => ({ ...defaultOptsFor(entry(name)), extendedKernel: true });
+
+  it("passes every backend that momwire serves the kernel on", () => {
+    for (const name of ["sinusoidal", "bspline", "hmatrix", "arrayblock"]) {
+      expect(extendedKernelRefusal(entry(name), on(name))).toBeNull();
+      expect(extendedKernelActive(entry(name), on(name))).toBe(true);
+    }
+  });
+
+  it("refuses the Galerkin basis by name, citing momwire#246", () => {
+    const b = entry("sinusoidal-galerkin");
+    expect(b.name).toBe(EK_UNSUPPORTED_BACKEND); // the constant IS the roster name
+    expect(extendedKernelRefusal(b, on(b.name))).toBe(EK_GALERKIN_REASON);
+    expect(EK_GALERKIN_REASON).toContain("momwire#246");
+    // …and it refuses whether or not the flag is set: the predicate describes
+    // the backend, and the toggle greys out before anything is armed.
+    expect(extendedKernelRefusal(b, defaultOptsFor(b))).toBe(EK_GALERKIN_REASON);
+    expect(extendedKernelActive(b, on(b.name))).toBe(false);
+  });
+
+  it("refuses alongside singular enrichment, citing momwire#271", () => {
+    const opts = on("bspline");
+    opts.bspline = { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: true };
+    expect(extendedKernelRefusal(entry("bspline"), opts)).toBe(EK_ENRICHMENT_REASON);
+    expect(EK_ENRICHMENT_REASON).toContain("momwire#271");
+    expect(extendedKernelActive(entry("bspline"), opts)).toBe(false);
+    // Enrichment off again and the same slot serves it.
+    opts.bspline = { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: false };
+    expect(extendedKernelActive(entry("bspline"), opts)).toBe(true);
+  });
+
+  it("never activates on PyNEC, which takes no model_options at all", () => {
+    // PyNEC's own extended-kernel support (issue #414) is a separate,
+    // unexposed kwarg — this toggle must not claim to drive it.
+    expect(extendedKernelActive(entry("pynec"), on("pynec"))).toBe(false);
+  });
+
+  it("serves a momwire backend the roster invented and nobody hardcoded", () => {
+    const fake = backendEntry({ name: "fake-solver", label: "Fake" });
+    expect(
+      extendedKernelActive(fake, { ...defaultOptsFor(fake), extendedKernel: true }),
+    ).toBe(true);
   });
 });
 
@@ -275,5 +337,54 @@ describe("backendDisplayLabel", () => {
       options_schema: [backendOption()],
     });
     expect(backendDisplayLabel(fake, defaultOptsFor(fake))).toBe("Fake");
+  });
+
+  // The A/B story of #849 is "same basis, one slot with the kernel": if the
+  // chips don't say which, the comparison is unreadable.
+  it('affixes "+EK" wherever the extended kernel is in force', () => {
+    const ek = (name: string, over: Partial<BackendOpts> = {}) =>
+      backendDisplayLabel(entry(name), {
+        ...defaultOptsFor(entry(name)),
+        extendedKernel: true,
+        ...over,
+      });
+    expect(ek("sinusoidal")).toBe("Sinusoidal +EK");
+    expect(ek("bspline")).toBe("B-spline d=2 +EK");
+    expect(ek("bspline", { bspline: { ...BSPLINE_DEFAULT_OPTS, degree: 1 } })).toBe(
+      "B-spline d=1 +EK",
+    );
+    expect(ek("hmatrix")).toBe("H-matrix (ACA) d=2 +EK");
+    expect(ek("arrayblock")).toBe("Array-block d=2 +EK");
+  });
+
+  it("leaves the label alone when the kernel is off or refused", () => {
+    // Off: the default, and the other half of every A/B pair.
+    expect(
+      backendDisplayLabel(entry("bspline"), defaultOptsFor(entry("bspline"))),
+    ).toBe("B-spline d=2");
+    // Refused by basis — a set flag on a Galerkin slot is not a running
+    // kernel, and the chip must not claim it is.
+    expect(
+      backendDisplayLabel(entry("sinusoidal-galerkin"), {
+        ...defaultOptsFor(entry("sinusoidal-galerkin")),
+        feedModel: "point",
+        extendedKernel: true,
+      }),
+    ).toBe("Sin-Galerkin (converged)");
+    // Refused by enrichment.
+    expect(
+      backendDisplayLabel(entry("bspline"), {
+        ...defaultOptsFor(entry("bspline")),
+        bspline: { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: true },
+        extendedKernel: true,
+      }),
+    ).toBe("B-spline d=2");
+    // Never on PyNEC.
+    expect(
+      backendDisplayLabel(entry("pynec"), {
+        ...defaultOptsFor(entry("pynec")),
+        extendedKernel: true,
+      }),
+    ).toBe("PyNEC");
   });
 });
