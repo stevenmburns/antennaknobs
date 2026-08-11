@@ -1,5 +1,6 @@
-"""NEC5Engine (issue #825, stage 1): deck writer, printout parsers, and —
-where a licensed binary is present — live differential checks vs momwire.
+"""NEC5Engine (issue #825, stages 1+2): deck writer, grounds, printout
+parsers, and — where a licensed binary is present — live differential
+checks vs momwire.
 
 Parser tests run everywhere, pinned by the captured printouts in
 tests/fixtures/nec5/ (End-User Reports; NEC-5 is (c) LLNL,
@@ -36,6 +37,16 @@ class _Dipole(AntennaBuilder):
 
 def _dipole_builder():
     return _Dipole()
+
+
+class _ElevatedDipole(AntennaBuilder):
+    """Horizontal 10m dipole at z=0.5 — legal over a NEC-5 ground (the
+    vertical _Dipole spans z<0 and rightly refuses there)."""
+
+    default_params = {"freq": 28.5}
+
+    def build_wires(self):
+        return [Wire((0, -2.5, 0.5), (0, 2.5, 0.5), n_seg=10, ex=1 + 0j)]
 
 
 def _invvee_builder():
@@ -75,10 +86,76 @@ def test_missing_binary_is_a_clear_error(monkeypatch):
         NEC5Engine(_dipole_builder())
 
 
-def test_ground_refuses_in_stage_1(monkeypatch):
+# ------------------------------------------------------------------ grounds
+
+
+def test_ground_deck_lines(monkeypatch):
     monkeypatch.setenv("NEC5_EXE", sys.executable)
-    with pytest.raises(NotImplementedError, match="free-space"):
-        NEC5Engine(_dipole_builder(), ground=("finite", 10.0, 0.002))
+    lines = NEC5Engine(_ElevatedDipole(), ground="pec").deck([28.5]).splitlines()
+    assert "GE 1 0" in lines
+    assert any(ln.startswith("GN 1") for ln in lines)
+    lines = (
+        NEC5Engine(_ElevatedDipole(), ground=("finite", 13.0, 0.005))
+        .deck([28.5])
+        .splitlines()
+    )
+    gn = [ln for ln in lines if ln.startswith("GN")][0].split()
+    # IPERF 0 = NEC-5's native Sommerfeld; explicit FMUR/FMUI keep the
+    # NOFILE token (skip table-cache files) out of the permeability slots.
+    assert gn[1] == "0"
+    assert float(gn[5]) == 13.0 and float(gn[6]) == 0.005
+    assert gn[-1] == "NOFILE"
+
+
+def test_finite_fast_refuses(monkeypatch):
+    # NEC-2's GN 0 is the reflection-coefficient approximation; NEC-5's
+    # IPERF 0 is full Sommerfeld and it has no refl-coef option — a silent
+    # physics upgrade would corrupt cross-engine comparisons.
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    with pytest.raises(NotImplementedError, match="reflection-coefficient"):
+        NEC5Engine(_ElevatedDipole(), ground=("finite-fast", 13.0, 0.005))
+
+
+def test_near_unity_epsilon_refuses(monkeypatch):
+    # Captured live: eps_r -> 1 degenerates NEC-5's Sommerfeld tables into
+    # 1e5-ohm nonsense; the engine refuses the corner.
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    with pytest.raises(ValueError, match="too close to free space"):
+        NEC5Engine(_ElevatedDipole(), ground=("finite", 1.0001, 1e-9))
+
+
+class _BuriedDipole(AntennaBuilder):
+    default_params = {"freq": 28.5}
+
+    def build_wires(self):
+        return [Wire((0, -2.5, -0.1), (0, 2.5, 0.5), n_seg=10, ex=1 + 0j)]
+
+
+class _InPlaneDipole(AntennaBuilder):
+    default_params = {"freq": 28.5}
+
+    def build_wires(self):
+        return [Wire((0, -2.5, 0.0), (0, 2.5, 0.0), n_seg=10, ex=1 + 0j)]
+
+
+def test_below_ground_geometry_refuses(monkeypatch):
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    with pytest.raises(NotImplementedError, match="below z=0"):
+        NEC5Engine(_BuriedDipole(), ground="pec")
+    with pytest.raises(ValueError, match="lies in the ground plane"):
+        NEC5Engine(_InPlaneDipole(), ground="pec")
+    # The same geometries are fine in free space.
+    NEC5Engine(_BuriedDipole())
+
+
+def test_parse_ground_fixtures():
+    for name, expect_z in [
+        ("invvee_dipole_pec", 60.72 + 0.51j),
+        ("invvee_dipole_sommerfeld", 65.48 - 3.04j),
+    ]:
+        text = (FIXTURES / f"{name}.out").read_text()
+        rows = NEC5Engine._parse_input_parameters(text)[0]
+        assert rows[0][2] == pytest.approx(expect_z, abs=0.01)
 
 
 # ------------------------------------------------------------------- parsers
@@ -142,6 +219,37 @@ def test_live_impedance_within_cross_engine_bars(make_builder):
     # Different formulations (NEC-5 mixed-potential vs momwire thin-wire):
     # agreement to a few ohms is the expected bar, not identity.
     assert abs(z5 - zm) < 5.0
+
+
+@needs_nec5
+@pytest.mark.parametrize("ground", ["pec", ("finite", 13.0, 0.005)])
+def test_live_ground_impedance_within_cross_engine_bars(ground):
+    b = _invvee_builder()
+    z5 = NEC5Engine(b, ground=ground).impedance()[0]
+    zm = MomwireEngine(b, ground=ground).impedance()[0]
+    assert abs(z5 - zm) < 5.0
+
+
+@needs_nec5
+def test_live_low_height_sommerfeld_documented_gap():
+    """At 0.048 wavelengths over Sommerfeld ground, NEC-5 sits ~7 ohm from
+    the NEC-2 lineage (momwire 63.16-21.64j, nec2c 63.20-21.97j, NEC-5
+    62.14-28.61j, all captured 2026-08-10): the resistances agree to ~1 ohm
+    while the reactances split — a genuine formulation difference in the
+    close-ground interaction, recorded here as the third-oracle data point
+    #825 set out to collect, not averaged away with a loose bar."""
+
+    class LowDipole(AntennaBuilder):
+        default_params = {"freq": 28.5}
+
+        def build_wires(self):
+            return [Wire((0, -2.5, 0.5), (0, 2.5, 0.5), n_seg=20, ex=1 + 0j)]
+
+    g = ("finite", 13.0, 0.005)
+    z5 = NEC5Engine(LowDipole(), ground=g).impedance()[0]
+    zm = MomwireEngine(LowDipole(), ground=g).impedance()[0]
+    assert abs(z5.real - zm.real) < 3.0
+    assert 4.0 < (zm.imag - z5.imag) < 10.0
 
 
 @needs_nec5

@@ -16,6 +16,14 @@
       "deck": "faulty_deck_error.nec",
       "printout": "faulty_deck_error.out",
       "note": "GW with NS=0: pins the no-ANTENNA-INPUT-PARAMETERS failure path"
+    },
+    "invvee_dipole_pec": {
+      "deck": "invvee_dipole_pec.nec",
+      "printout": "invvee_dipole_pec.out"
+    },
+    "invvee_dipole_sommerfeld": {
+      "deck": "invvee_dipole_sommerfeld.nec",
+      "printout": "invvee_dipole_sommerfeld.out"
     }
   }
 }

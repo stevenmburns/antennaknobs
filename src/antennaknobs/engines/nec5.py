@@ -70,9 +70,10 @@ def _num(x) -> str:
 class NEC5Engine(SimulationEngine):
     """Drive a licensed NEC-5 binary through intermediate files.
 
-    Stage 1 scope (#825): free space, plain ``Wire.ex`` feeds, impedance
-    and currents. Grounds, port networks, patterns and NEC-5-specific
-    physics are later stages and refuse loudly here.
+    Stages 1+2 of #825: plain ``Wire.ex`` feeds, impedance and currents,
+    in free space or over ground — ``"pec"`` and NEC-5's native Sommerfeld
+    ``("finite", eps_r, sigma)``. Port networks, patterns and
+    NEC-5-specific physics are later stages and refuse loudly here.
     """
 
     supports_far_field = False  # stage 3: RP parsing
@@ -82,10 +83,7 @@ class NEC5Engine(SimulationEngine):
 
     def __init__(self, builder, *, ground=None, nec5_exe=None, timeout=120.0):
         super().__init__(builder)
-        if ground is not None:
-            raise NotImplementedError(
-                "NEC5Engine stage 1 is free-space only (grounds are #825 stage 2)"
-            )
+        self.ground = self._normalise_ground(ground)
         exe = find_nec5(nec5_exe)
         if exe is None:
             raise NEC5Error(
@@ -116,6 +114,85 @@ class NEC5Engine(SimulationEngine):
         self._radii = [
             w.spec.radius if w.spec is not None else default_radius for w in self._wires
         ]
+        if self.ground is not None:
+            self._check_geometry_above_ground()
+
+    # ---------- ground ----------
+
+    @staticmethod
+    def _normalise_ground(ground):
+        """The repo's shared ground-spec spellings, mapped onto what NEC-5
+        natively serves. DIALECT TRAP: NEC-2's ``GN 0`` is the
+        reflection-coefficient approximation, but NEC-5's ``IPERF 0`` is a
+        full Sommerfeld solution — NEC-5 has no reflection-coefficient
+        option at all, so ``("finite-fast", ...)`` refuses rather than
+        silently upgrading the physics."""
+        if ground is None or ground == "free":
+            return None
+        if ground == "pec":
+            return ("pec",)
+        if isinstance(ground, tuple) and len(ground) == 3 and ground[0] == "finite":
+            eps_r, sigma = float(ground[1]), float(ground[2])
+            if eps_r < 1.5:
+                # Captured live: eps_r → 1 (with tiny sigma) returns
+                # impedances in the 1e5-ohm range — the Sommerfeld table
+                # machinery degenerates as the ground vanishes. Refuse the
+                # corner instead of serving nonsense; real grounds sit well
+                # above this bound.
+                raise ValueError(
+                    f"eps_r={eps_r} is too close to free space for NEC-5's "
+                    "Sommerfeld tables (degenerate limit); use ground=None "
+                    "for free space"
+                )
+            return ("finite", eps_r, sigma)
+        if isinstance(ground, tuple) and ground and ground[0] == "finite-fast":
+            raise NotImplementedError(
+                "NEC-5 has no reflection-coefficient ground (its IPERF 0 is "
+                "a full Sommerfeld solution): use ('finite', eps_r, sigma) "
+                "for NEC-5's native Sommerfeld ground"
+            )
+        raise ValueError(f"unrecognised ground spec: {ground!r}")
+
+    def _check_geometry_above_ground(self):
+        """NEC-5's ``GE 1`` ground demands no segment below z=0 and no wire
+        lying in the plane; a wire END at z=0 is the legal ground contact.
+        Refuse violations here, at construction, rather than letting the
+        binary's looser-than-documented checks decide (stage-1 lesson: it
+        ran a mid-segment wire crossing without complaint)."""
+        for i, w in enumerate(self._wires):
+            z0, z1 = float(w.p0[2]), float(w.p1[2])
+            if z0 < 0.0 or z1 < 0.0:
+                raise NotImplementedError(
+                    f"wire {i + 1} dips below z=0: buried conductors are not "
+                    "served (NEC-5's GE 1 ground forbids them; a buried-wire "
+                    "stage would need GE -1 semantics pinned first)"
+                )
+            if z0 == 0.0 and z1 == 0.0:
+                raise ValueError(
+                    f"wire {i + 1} lies in the ground plane (z=0), which "
+                    "NEC-5's GE 1 ground forbids"
+                )
+
+    def _ground_lines(self) -> tuple[str, list[str]]:
+        """(GE line, GN lines) for the current ground spec.
+
+        Sommerfeld table files: NEC-5 caches its interpolation tables to
+        ``SOMMPD.NEX``-style files in the cwd by default. The runner works
+        in a throwaway tempdir, so the cache could never be reused anyway —
+        pass the magic name NOFILE to skip writing it (manual, GN card).
+        A persistent cross-run table cache (keyed by complex epsilon, which
+        is all the tables depend on) is a possible later optimisation."""
+        if self.ground is None:
+            return "GE 0 0", []
+        if self.ground[0] == "pec":
+            return "GE 1 0", ["GN 1 0 0 0"]
+        _, eps_r, sigma = self.ground
+        # FMUR/FMUI are written explicitly (free space's mu) so the NOFILE
+        # token cannot be misread into the permeability fields — the file
+        # name is positional after F4.
+        return "GE 1 0", [
+            f"GN 0 0 0 0 {_num(eps_r)} {_num(sigma)} {_num(1.0)} {_num(0.0)} NOFILE"
+        ]
 
     # ---------- deck ----------
 
@@ -141,7 +218,9 @@ class NEC5Engine(SimulationEngine):
                 f"{_num(p0[0])} {_num(p0[1])} {_num(p0[2])} "
                 f"{_num(p1[0])} {_num(p1[1])} {_num(p1[2])} {_num(r)}"
             )
-        lines.append("GE 0 0")
+        ge_line, gn_lines = self._ground_lines()
+        lines.append(ge_line)
+        lines.extend(gn_lines)
         for i, w in self._feeds:
             # Source at end 2 of the middle segment = the wire's center
             # knot (even parity guarantees n_seg is even).
