@@ -400,6 +400,15 @@ _HOSTED_MODEL_OPTIONS = {
     "tikhonov_lambda": _float_in(0.0, 1e3),
     "auto_tap_ratio_threshold": _float_in(0.0, 1.0),
     "enrichment_min_k": _int_in(2, 64),
+    # NEC's extended thin-wire kernel (the EK card, issue #849, momwire >=
+    # 0.26.0). A physics selection like feed_model, not a compute-
+    # amplification lever, so it belongs on the hosted allowlist.
+    # `_make_momwire_engine` pulls it back out and passes it as the named
+    # `extended_kernel=` constructor kwarg rather than leaving it here —
+    # MomwireEngine folds either spelling the same way (issue #849's
+    # engine-side note), but the named kwarg keeps the adapter's intent
+    # explicit and is what unit 1 documented at this call site.
+    "extended_kernel": _bool_opt,
 }
 
 
@@ -1454,6 +1463,16 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     wire_radius = _positive_finite("wire_radius", req.get("wire_radius", 0.0005))
     ground = _ground_for_engine(req, 0.0)
     solver_kwargs = sanitize_model_options(req)
+    # Extended thin-wire kernel (issue #849): pulled out of model_options and
+    # passed as the named constructor kwarg instead, so it reaches the engine
+    # the same way whether hosted (filtered through _HOSTED_MODEL_OPTIONS
+    # above) or local (model_options forwarded verbatim, sanitize_model_options
+    # skips the whitelist). MomwireEngine folds either spelling identically,
+    # but the named kwarg is the explicit, testable path.
+    extended_kernel = False
+    if solver_kwargs and "extended_kernel" in solver_kwargs:
+        solver_kwargs = dict(solver_kwargs)
+        extended_kernel = bool(solver_kwargs.pop("extended_kernel"))
     if _SWEPT_MEM_MB is not None and issubclass(solver_cls, BSplineSolver):
         # Deployment-owned memory policy (momwire >= 0.9): cap the batched
         # frequency sweep's transient memory per solve. Server-side value
@@ -1470,6 +1489,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         wire_radius=wire_radius,
         solver_kwargs=solver_kwargs,
         ground=ground,
+        extended_kernel=extended_kernel,
         cancel=cancel,
     )
 

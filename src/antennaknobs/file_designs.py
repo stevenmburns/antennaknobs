@@ -59,7 +59,9 @@ def _seed_freq(freq_range):
     )
 
 
-def _make_builder(stem, freq, meas_range, notes, wires_fn, network_fn):
+def _make_builder(
+    stem, freq, meas_range, notes, wires_fn, network_fn, *, extended_kernel=False
+):
     ui: dict = {}
     if meas_range:
         ui["meas_freq_range"] = tuple(meas_range)
@@ -74,6 +76,13 @@ def _make_builder(stem, freq, meas_range, notes, wires_fn, network_fn):
         label = stem
 
         default_params = MappingProxyType(params)
+
+        # The file's own EK card (NecDeck.extended_kernel), issue #849: the
+        # CLI's `--extended-kernel` handling ORs this in for a momwire engine
+        # (see `cli.engine_factory_from_args`) so a deck that asks for the
+        # extended thin-wire kernel gets it without an extra flag, and a
+        # deck that doesn't still honors an explicit `--extended-kernel`.
+        file_extended_kernel = extended_kernel
 
         def build_wires(self):
             return wires_fn()
@@ -97,6 +106,7 @@ def _nec_builder(path: Path, text: str):
         [deck.skipped_note(), freq_note],
         lambda: deck.wire_tuples(specs=True),
         deck.network,
+        extended_kernel=deck.extended_kernel,
     )
 
 
@@ -138,6 +148,7 @@ def _ssn_builder(path: Path, text: str):
         [circuit.skipped_note(), _ground_note(circuit.ground), freq_note],
         lambda: deck.wire_tuples(specs=True),
         circuit.network,
+        extended_kernel=deck.extended_kernel,
     )
 
 
