@@ -654,8 +654,29 @@ class NEC5Engine(SimulationEngine):
         adjacent segment-center currents; free ends go to zero; junction
         ends carry the adjacent center current."""
         text = self._run(self.deck([self.builder.freq]))
-        per_tag = self._parse_wire_currents(text)[0]
+        return self._currents_from(self._parse_wire_currents(text)[0])
 
+    def solve_snapshot(self):
+        """One binary run serving the whole web-solve contract: impedances,
+        knot currents, and the power budget from a single printout (the
+        separate impedance()/current_distribution() calls each spawn a
+        process — a web solve wants one). Also stamps the duck-typed
+        ``_excited_efficiency`` / ``_excited_p_in`` /
+        ``_excited_power_budget`` attributes the web adapter's budget and
+        efficiency helpers read on every engine."""
+        text = self._run(self.deck([self.builder.freq]))
+        zs = self._impedances_from(self._parse_input_parameters(text)[0])
+        currents = self._currents_from(self._parse_wire_currents(text)[0])
+        budget = self._parse_power_budget(text)
+        self._excited_efficiency = budget["efficiency_pct"] / 100.0
+        self._excited_p_in = budget["input_w"]
+        self._excited_power_budget = [
+            ("Radiated", budget["radiated_w"]),
+            ("Wire loss", budget["wire_loss_w"]),
+        ]
+        return zs, currents, budget
+
+    def _currents_from(self, per_tag):
         def _key(p):
             return tuple(np.round(np.asarray(p, dtype=float), 6))
 

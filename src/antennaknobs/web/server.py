@@ -43,7 +43,7 @@ from threadpoolctl import threadpool_limits
 from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
 
 from . import cost as _cost
-from . import pynec_backend, user_designs
+from . import nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
 from .progress_stream import ProgressStream, ProgressStreamClosed
@@ -1202,7 +1202,19 @@ def _canonical_solve_key(req: dict) -> str:
             return [quantise(v) for v in x]
         return x
 
-    blob = json.dumps(quantise(req), sort_keys=True, default=str).encode()
+    canon = quantise(req)
+    # The RESOLVED backend, not the requested one: a solver the machine
+    # can't serve falls back to momwire, and for NEC-5 availability is a
+    # runtime $NEC5_EXE probe that can differ between requests — caching
+    # under the requested name would serve a momwire fallback as a NEC-5
+    # answer (or vice versa) after the environment changes.
+    backend = _external_backend(req)
+    canon["_resolved_solver"] = (
+        "momwire"
+        if backend is None
+        else ("pynec" if backend is pynec_backend else "nec5")
+    )
+    blob = json.dumps(canon, sort_keys=True, default=str).encode()
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
 
@@ -1232,17 +1244,33 @@ def _shed(fn, *args, **kwargs):
         raise exc
 
 
+def _external_backend(req: dict):
+    """The non-momwire backend module a request selects (pynec / nec5), or
+    None for the momwire path. Availability is re-checked here per request;
+    a requested-but-unavailable engine falls back to momwire — the existing
+    pynec contract, which the nec5 entry (a runtime $NEC5_EXE probe, issue
+    #825) inherits."""
+    s = req.get("solver")
+    if s == "pynec" and pynec_backend.HAVE_PYNEC:
+        return pynec_backend
+    if s == "nec5" and nec5_backend.have_nec5():
+        return nec5_backend
+    return None
+
+
 def _solve_uncached(req: dict, cancel=None) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
-    _check_solve_size(req, use_pynec=use_pynec)
-    if use_pynec:
-        # PyNEC start-gate only: a request already superseded before its solve
-        # begins dies for free here; the native solve is one opaque call with no
-        # mid-solve abort, so an in-flight one runs to completion (as today).
+    backend = _external_backend(req)
+    _check_solve_size(req, use_pynec=backend is not None)
+    if backend is not None:
+        # External-engine start-gate only: a request already superseded before
+        # its solve begins dies for free here; the native solve is one opaque
+        # call with no mid-solve abort (PyNEC in-process, NEC-5 a subprocess),
+        # so an in-flight one runs to completion (as today).
         if cancel is not None:
             cancel.raise_if_cancelled()
-        out = pynec_backend.solve(req)
+        out = backend.solve(req)
+        out["solver"] = "pynec" if backend is pynec_backend else "nec5"
     else:
         ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
         out = ex.momwire_solve(req, cancel=cancel)
@@ -1330,8 +1358,9 @@ async def sweep_endpoint(req: dict, request: Request):
         )
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     sweep_ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
-    use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
-    solver_name = "pynec" if use_pynec else "momwire"
+    ext_backend = _external_backend(req)
+    use_pynec = ext_backend is not None
+    solver_name = req.get("solver") if use_pynec else "momwire"
     # Admission by cost (issue #382), before the stream starts: over-cap
     # matrix or point count → clean 413 (as before); a dense-family batch on
     # a benchmark-class mesh → 403 unless the request carries the client
@@ -1391,7 +1420,7 @@ async def sweep_endpoint(req: dict, request: Request):
                         async with _LANES.turn(session, lane_kind, lane_gen) as token:
                             if is_multifeed:
                                 primary, feeds_z = await run_in_threadpool(
-                                    _shed, pynec_backend._sweep_at_multifeed, req, f
+                                    _shed, ext_backend._sweep_at_multifeed, req, f
                                 )
                                 cached = (
                                     float(primary.real),
@@ -1401,7 +1430,7 @@ async def sweep_endpoint(req: dict, request: Request):
                                 )
                             else:
                                 z = await run_in_threadpool(
-                                    _shed, pynec_backend._sweep_at, req, f
+                                    _shed, ext_backend._sweep_at, req, f
                                 )
                                 cached = (float(z.real), float(z.imag), None, None)
                             superseded_mid_point = token.cancelled
@@ -1536,12 +1565,12 @@ def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None
     norm) — for the /converge sweep we only need Z(N).
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
-    if use_pynec:
-        # Start-gate only: PyNEC's native solve has no mid-solve abort.
+    backend = _external_backend(req)
+    if backend is not None:
+        # Start-gate only: the external solve has no mid-solve abort.
         if cancel is not None:
             cancel.raise_if_cancelled()
-        res = pynec_backend.solve(req)
+        res = backend.solve(req)
     else:
         ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
         res = ex.momwire_solve(req, cancel=cancel)
@@ -1575,8 +1604,8 @@ async def converge_endpoint(req: dict, request: Request):
         raise HTTPException(
             status_code=422, detail="n_values must be a list of integers"
         ) from None
-    use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
-    solver_name = "pynec" if use_pynec else "momwire"
+    use_pynec = _external_backend(req) is not None
+    solver_name = req.get("solver") if use_pynec else "momwire"
     # Admission by cost (issue #382): point-count refuse (413) and the
     # poor-match warn (403 without approval). The per-N matrix-size refuse
     # stays inside the loop — est_basis moves with N.
@@ -1642,8 +1671,9 @@ async def converge_endpoint(req: dict, request: Request):
 
 @app.post("/pattern")
 async def pattern_endpoint(req: dict):
-    """NEC's rp_card-computed gain pattern. PyNEC-only."""
-    if req.get("solver") != "pynec" or not pynec_backend.HAVE_PYNEC:
+    """NEC's rp_card-computed gain pattern (PyNEC or NEC-5)."""
+    pat_backend = _external_backend(req)
+    if pat_backend is None:
         return {"available": False}
     # rp_card needs a full NEC solve first, so the hosted matrix-size cap
     # applies here exactly like the /ws solve path.
@@ -1656,7 +1686,7 @@ async def pattern_endpoint(req: dict):
         # PyNEC-only, so the token is a start gate: a queued pattern that a
         # knob drag overtook dies here instead of grinding a stale solve.
         async with _LANES.turn(session, "pattern", lane_gen):
-            return await run_in_threadpool(_shed, pynec_backend.pattern, req)
+            return await run_in_threadpool(_shed, pat_backend.pattern, req)
     except Superseded:
         return {"available": False}
 
@@ -2447,7 +2477,10 @@ def capabilities_endpoint():
 
     return {
         "have_pynec": pynec_backend.HAVE_PYNEC,
-        "backends": backend_roster(have_pynec=pynec_backend.HAVE_PYNEC),
+        "backends": backend_roster(
+            have_pynec=pynec_backend.HAVE_PYNEC,
+            have_nec5=nec5_backend.have_nec5(),
+        ),
         "terrain_presets": terrain_presets_schema(),
     }
 

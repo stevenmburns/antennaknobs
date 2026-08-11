@@ -304,7 +304,7 @@ export function FarFieldOverlayControls({
           norm check
         </label>
       )}
-      {!isMobile && backend === "pynec" && (
+      {!isMobile && (backend === "pynec" || backend === "nec5") && (
         <label
           className="overlay-checkbox"
           style={

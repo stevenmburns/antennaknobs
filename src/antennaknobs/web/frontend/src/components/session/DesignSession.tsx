@@ -719,7 +719,7 @@ function DesignSessionBody({
       _session: sessionId,
       geometry,
       variant: currentVariant,
-      solver: backend.kind === "pynec" ? "pynec" : "momwire",
+      solver: backend.kind === "momwire" ? "momwire" : backend.kind,
       n_per_wire: nPerWire,
       design_freq_mhz: designFreq,
       measurement_freq_mhz: measFreq,
@@ -739,7 +739,7 @@ function DesignSessionBody({
     if (base.ground_model === "terrain") {
       base.terrain = { preset: terrainPreset, ...terrainParams };
     }
-    if (backend.kind !== "pynec") {
+    if (backend.kind === "momwire") {
       base.momwire_model = backend.name;
       const opts = modelOptionsForRequest(backend, currentOpts);
       // Enrichment now solves over ground (momwire #167: PEC image reaction,

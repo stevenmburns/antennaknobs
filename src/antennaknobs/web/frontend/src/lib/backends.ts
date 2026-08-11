@@ -26,9 +26,11 @@ export type BackendOptionField = {
 export type BackendEntry = {
   name: string;
   label: string;
-  /** "pynec" rides the separate `solver: "pynec"` request field and never
-   *  `momwire_model`; everything else is a momwire model name. */
-  kind: "momwire" | "pynec";
+  /** Non-momwire kinds ("pynec", "nec5") ride the `solver` request field
+   *  and never `momwire_model`; everything else is a momwire model name.
+   *  "nec5" appears only when the serving machine resolves $NEC5_EXE — a
+   *  licensed, user-supplied binary (issue #825), never the hosted box. */
+  kind: "momwire" | "pynec" | "nec5";
   supports_ground: boolean;
   options_schema: BackendOptionField[];
   /** Bespoke panel hint — the knobs no numeric renderer can carry. Null for
@@ -370,7 +372,7 @@ export function modelOptionsForRequest(
   b: BackendEntry,
   opts: BackendOpts,
 ): Record<string, unknown> {
-  if (b.kind === "pynec") return {};
+  if (b.kind !== "momwire") return {};
   const out: Record<string, unknown> = {};
   for (const f of b.options_schema) out[f.key] = opts.schema[f.key] ?? f.default;
   if (b.panel === PANEL_BSPLINE) {

@@ -111,7 +111,9 @@ export function GroundPanel({
                         "refl-coef (fast)",
                         backend.name === "pynec"
                           ? "Reflection-coefficient approximation (NEC ITYPE=0), the default. ~2x faster per solve; impedance degrades below ~0.1λ height."
-                          : "Reflection-coefficient model, the default. Fast; matches Sommerfeld above ~0.1λ heights.",
+                          : backend.name === "nec5"
+                            ? "NEC-5 has no reflection-coefficient model (its IPERF 0 is full Sommerfeld) — this choice is served by the full Sommerfeld solve, and the applied-model readout says so."
+                            : "Reflection-coefficient model, the default. Fast; matches Sommerfeld above ~0.1λ heights.",
                       ],
                       [
                         "sommerfeld",

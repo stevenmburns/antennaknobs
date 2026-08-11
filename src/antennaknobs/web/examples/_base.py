@@ -328,6 +328,10 @@ class AntennaExample:
     converged_feed_suggested: bool = False
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
+    #: NEC-5 twins (issue #825): same request/response contracts as the
+    #: pynec pair, backed by the user's licensed binary via $NEC5_EXE.
+    nec5_solve: Optional[SolveFn] = None
+    nec5_pattern: Optional[SolveFn] = None
     # Render the geometry as a NEC2 .nec card deck (str) for the current
     # request (params/variant/freq/ground). None when the design has no
     # faithful native-NEC representation (TL/virtual-driver networks).
