@@ -832,6 +832,29 @@ button:focus-visible,
   padding: var(--space-4) var(--space-3);
 }
 
+/* Reload the selected user design file from disk (issue #867). Only rendered
+   for user.* designs, inline in the antenna row after the picker; same chrome
+   as .geometry-select so the row reads as one control strip. */
+.design-reload-btn {
+  flex: 0 0 auto;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1;
+  background: var(--inset);
+  color: var(--fg);
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.design-reload-btn:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+.design-reload-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .geometry-filter-hint {
   color: var(--muted);
   font-family: var(--font-mono);

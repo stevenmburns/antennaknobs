@@ -67,6 +67,7 @@ type PanelOverrides = Partial<{
   examplesError: string | null;
   loadErrors: DesignLoadError[];
   trustBusy: string | null;
+  reloadBusy: boolean;
 }>;
 
 function renderPanel(overrides: PanelOverrides = {}) {
@@ -75,6 +76,7 @@ function renderPanel(overrides: PanelOverrides = {}) {
     setGeometry: vi.fn(),
     selectVariant: vi.fn(),
     trustDesign: vi.fn(),
+    onReloadDesign: vi.fn(),
   };
   const defaultExample = example();
   const props = {
@@ -86,6 +88,7 @@ function renderPanel(overrides: PanelOverrides = {}) {
     examplesError: null,
     loadErrors: [],
     trustBusy: null,
+    reloadBusy: false,
     ...overrides,
     ...spies,
   };
@@ -134,6 +137,47 @@ describe("CatalogPanel — variant select", () => {
     await user.selectOptions(variantSelect()!, "opt");
     expect(selectVariant).toHaveBeenCalledWith("opt");
     expect(selectVariant).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("CatalogPanel — reload button (issue #867)", () => {
+  const reloadButton = () =>
+    screen.queryByRole("button", { name: "reload design file" });
+
+  it("shows the button for a user design", () => {
+    renderPanel({
+      currentExample: example({ name: "user.my_dipole" }),
+      geometry: "user.my_dipole",
+    });
+    expect(reloadButton()).not.toBeNull();
+  });
+
+  it("hides the button for a built-in design", () => {
+    renderPanel(); // dipole.test
+    expect(reloadButton()).toBeNull();
+  });
+
+  it("hides the button when currentExample is undefined", () => {
+    renderPanel({ currentExample: undefined });
+    expect(reloadButton()).toBeNull();
+  });
+
+  it("fires onReloadDesign on click", async () => {
+    const { user, onReloadDesign } = renderPanel({
+      currentExample: example({ name: "user.my_dipole" }),
+      geometry: "user.my_dipole",
+    });
+    await user.click(reloadButton()!);
+    expect(onReloadDesign).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the button while a reload is in flight", () => {
+    renderPanel({
+      currentExample: example({ name: "user.my_dipole" }),
+      geometry: "user.my_dipole",
+      reloadBusy: true,
+    });
+    expect((reloadButton() as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

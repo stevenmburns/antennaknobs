@@ -296,6 +296,40 @@ export function seedDefaults(
   return out;
 }
 
+// Overlay freshly seeded defaults UNDER an existing bag (issue #867): tuned
+// values always win; only keys the bag lacks — a param the design's author
+// just added, seen when reloading an edited user design — take the seeded
+// default. Group instance arrays merge per index, so a new scalar inside an
+// existing group instance lands too; a shrunk max_repeats drops the surplus
+// instances with it. Returns `existing` by identity when nothing merged, so
+// unchanged bags don't churn state identity on every /examples fetch.
+export function mergeSeededDefaults(
+  seeded: ParamValueBag,
+  existing: ParamValueBag,
+): ParamValueBag {
+  let changed = false;
+  const out: ParamValueBag = { ...existing };
+  for (const [key, seedVal] of Object.entries(seeded)) {
+    const cur = existing[key];
+    if (cur === undefined) {
+      out[key] = seedVal;
+      changed = true;
+    } else if (Array.isArray(seedVal) && Array.isArray(cur)) {
+      const merged = seedVal.map((inst, i) =>
+        cur[i] !== undefined ? mergeSeededDefaults(inst, cur[i]) : inst,
+      );
+      if (
+        merged.length !== cur.length ||
+        merged.some((m, i) => m !== cur[i])
+      ) {
+        out[key] = merged;
+        changed = true;
+      }
+    }
+  }
+  return changed ? out : existing;
+}
+
 // Walk the schema collecting (param, value) pairs for every leaf marked
 // `linked_to_design_freq`. Fan_dipole's first band's freq is the
 // canonical example: when it changes, the global design frequency

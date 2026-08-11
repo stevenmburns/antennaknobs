@@ -1,4 +1,11 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   backendAllowed,
   backendDisplayLabel,
@@ -175,7 +182,27 @@ function DesignSessionBody({
     loadErrors,
     trustBusy,
     trustDesign,
+    reloadCatalog,
   } = useDesignCatalog({ geometry, setGeometry, setParamValues });
+
+  // Reload the selected user design from disk (issue #867). Re-fetching
+  // /examples makes the server re-register user designs; bumping the nonce
+  // re-runs the preview effect below for the SAME geometry, and its
+  // previewReady release then re-fires the live solve — exactly the design-
+  // switch path, minus the selection change. Load errors and awaiting-trust
+  // states ride along on the same fetch, so a broken edit surfaces in the
+  // usual panels.
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [reloadBusy, setReloadBusy] = useState(false);
+  const reloadDesigns = useCallback(async () => {
+    setReloadBusy(true);
+    try {
+      await reloadCatalog();
+      setReloadNonce((n) => n + 1);
+    } finally {
+      setReloadBusy(false);
+    }
+  }, [reloadCatalog]);
 
   const currentExample = examples.find((e) => e.name === geometry);
   // currentValues is deliberately a fresh reference whenever paramValues[geometry]
@@ -1231,7 +1258,8 @@ function DesignSessionBody({
           setPreview(data as SolveResponse);
           // A deferred (user) design derives its natural view only when the
           // builder first runs — which is this preview. Snap the camera to it
-          // here, once per selection (this effect is keyed on `geometry`).
+          // here, once per selection or user-design reload (this effect is
+          // keyed on `geometry` + `reloadNonce`).
           const dv = (data as SolveResponse).default_view;
           if (dv) setCameraProjection(dv);
         }
@@ -1246,8 +1274,11 @@ function DesignSessionBody({
         if (!controller.signal.aborted) setPreviewReady(forGeometry);
       });
     return () => controller.abort();
+    // reloadNonce (issue #867): a user-design reload re-runs this full
+    // switch path for the same geometry — fresh preview from the re-loaded
+    // builder, gate reset, then the live solve re-fires on release.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geometry]);
+  }, [geometry, reloadNonce]);
 
   // The four background analyses (#642 seam 5b-3): freq sweep, convergence
   // sweep, far-field norm check and the NEC rp_card pattern. Called here, at
@@ -1343,6 +1374,8 @@ function DesignSessionBody({
           loadErrors={loadErrors}
           trustBusy={trustBusy}
           trustDesign={trustDesign}
+          onReloadDesign={reloadDesigns}
+          reloadBusy={reloadBusy}
         />
 
         {currentExample && (

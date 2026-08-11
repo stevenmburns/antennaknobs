@@ -6,6 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 import {
+  mergeSeededDefaults,
   seedDefaults,
   type ExampleDescriptor,
   type ParamValueBag,
@@ -49,12 +50,16 @@ export function useDesignCatalog({
       setLoadErrors(Array.isArray(j.errors) ? j.errors : []);
       // Walk each example's schema and pre-seed defaults — including
       // pre-allocated group instance arrays — so the sliders have
-      // something to render against on first show.
+      // something to render against on first show. Designs already seen
+      // merge-seed instead (issue #867): tuned values survive, but params
+      // an edited user design just grew get their defaults filled in.
       setParamValues((prev) => {
         const next = { ...prev };
         for (const ex of list) {
-          if (next[ex.name]) continue;
-          next[ex.name] = seedDefaults(ex.param_schema);
+          const seeded = seedDefaults(ex.param_schema);
+          next[ex.name] = next[ex.name]
+            ? mergeSeededDefaults(seeded, next[ex.name])
+            : seeded;
         }
         return next;
       });
@@ -124,5 +129,8 @@ export function useDesignCatalog({
     loadErrors,
     trustBusy,
     trustDesign,
+    // For the user-design reload button (issue #867): the server re-registers
+    // user designs on every GET /examples, so a bare re-fetch IS the reload.
+    reloadCatalog: loadExamples,
   };
 }
