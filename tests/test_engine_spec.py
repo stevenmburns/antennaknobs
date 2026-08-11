@@ -1,13 +1,17 @@
 import argparse
+from types import MappingProxyType
 
 import pytest
 
 import antennaknobs as ant
+from antennaknobs import AntennaBuilder, Wire, WireSpec
 from antennaknobs.cli import (
     MOMWIRE_BASES,
     parse_engine_spec,
     make_engine_factory,
     broadcast_pairs,
+    deck_extended_kernel_flag,
+    get_builder,
     _GROUND_UNSET,
 )
 from antennaknobs.engines import PyNECEngine, MomwireEngine
@@ -243,3 +247,191 @@ def test_cli_pattern_with_basis_spec():
     ant.cli(
         f"pattern --builder dipoles.invvee:dipole --engine momwire:sinusoidal{O}".split()
     )
+
+
+# ---------------------------------------------------------------------------
+# --extended-kernel (issue #849): NEC's EK card on the momwire CLI path, plus
+# @file.nec decks honoring their own EK card. See engines/momwire.py's
+# `_extended_kernel_refusal` for what refuses and why.
+# ---------------------------------------------------------------------------
+
+# Half-wave dipole with a/h ~ 0.24 (8 mm radius, ~33 mm segments) at 300 MHz —
+# deliberately fat so the reduced and extended kernels visibly disagree, the
+# same fixture shape as test_pynec_extended_kernel.py's PyNEC-side oracle.
+_FAT_DIPOLE_FREQ_MHZ = 300.0
+_FAT_DIPOLE_SPEC = WireSpec(radius=0.008)
+
+
+def _fat_dipole_builder():
+    class _B(AntennaBuilder):
+        default_params = MappingProxyType({"freq": _FAT_DIPOLE_FREQ_MHZ})
+
+        def build_wires(self):
+            return [
+                Wire(
+                    (-0.25, 0.0, 0.0), (0.0, 0.0, 0.0), 7, None, None, _FAT_DIPOLE_SPEC
+                ),
+                Wire(
+                    (0.0, 0.0, 0.0), (0.25, 0.0, 0.0), 8, 1 + 0j, None, _FAT_DIPOLE_SPEC
+                ),
+            ]
+
+    return _B()
+
+
+def test_make_factory_extended_kernel_binds_kwarg():
+    factory = make_engine_factory("momwire", _GROUND_UNSET, extended_kernel=True)
+    assert factory.func is MomwireEngine
+    assert factory.keywords == {"extended_kernel": True}
+    # Off by default: no kwarg at all, not extended_kernel=False (an EK-off
+    # solve must keep passing exactly what it passed before this issue).
+    assert make_engine_factory("momwire", _GROUND_UNSET) is MomwireEngine
+
+
+@pytest.mark.parametrize(
+    "flag,deck",
+    [(True, False), (False, True), (True, True)],
+)
+def test_make_factory_extended_kernel_ors_flag_and_deck(flag, deck):
+    """Either the explicit --extended-kernel flag or a deck's own EK card
+    turns the kernel on — the combination rule is OR (issue #849)."""
+    factory = make_engine_factory(
+        "momwire", _GROUND_UNSET, extended_kernel=flag, deck_extended_kernel=deck
+    )
+    assert factory.keywords == {"extended_kernel": True}
+
+
+def test_make_factory_extended_kernel_off_when_neither_set():
+    factory = make_engine_factory(
+        "momwire", _GROUND_UNSET, extended_kernel=False, deck_extended_kernel=False
+    )
+    assert factory is MomwireEngine
+
+
+def test_make_factory_extended_kernel_moves_fat_wire_impedance_and_matches_direct():
+    """Z must actually move with the flag, and match constructing
+    MomwireEngine(extended_kernel=True) directly on the same design."""
+    factory_off = make_engine_factory("momwire", _GROUND_UNSET)
+    factory_on = make_engine_factory("momwire", _GROUND_UNSET, extended_kernel=True)
+    z_off = factory_off(_fat_dipole_builder()).impedance()[0]
+    z_on = factory_on(_fat_dipole_builder()).impedance()[0]
+    assert abs(z_on - z_off) > 0.3  # the kernels must actually disagree here
+
+    z_direct = MomwireEngine(_fat_dipole_builder(), extended_kernel=True).impedance()[0]
+    assert z_on == z_direct
+
+
+@needs_pynec
+def test_make_factory_extended_kernel_rejected_for_non_momwire():
+    """An explicit --extended-kernel is a momwire-only flag; a request to
+    apply it on another engine is a clear user error, not a silent no-op
+    (PyNEC's own EK support, issue #414, is a separate unexposed kwarg)."""
+    with pytest.raises(argparse.ArgumentTypeError, match="momwire"):
+        make_engine_factory("pynec", _GROUND_UNSET, extended_kernel=True)
+
+
+@needs_pynec
+def test_make_factory_deck_extended_kernel_silently_ignored_for_non_momwire():
+    """A deck-only EK request (no explicit flag) on a non-momwire engine is
+    left alone — unchanged from before issue #849, since PyNEC's EK support
+    isn't wired to the deck by this issue."""
+    factory = make_engine_factory("pynec", _GROUND_UNSET, deck_extended_kernel=True)
+    assert factory is PyNECEngine
+
+
+def test_make_factory_extended_kernel_refuses_sinusoidal_galerkin_at_construction():
+    """momwire#246: no EKSCX counterpart for the Galerkin fill's folded
+    testing shape, so the solver refuses at construction — the same
+    NotImplementedError the engine raises directly (issue #849)."""
+    factory = make_engine_factory(
+        "momwire:sinusoidal-galerkin", _GROUND_UNSET, extended_kernel=True
+    )
+    with pytest.raises(NotImplementedError, match="sinusoidal-galerkin"):
+        factory(_fat_dipole_builder())
+
+
+def test_cli_extended_kernel_flag_runs():
+    ant.cli(
+        f"pattern --builder dipoles.invvee:dipole --engine momwire "
+        f"--extended-kernel{O}".split()
+    )
+
+
+def test_cli_extended_kernel_galerkin_refusal_is_a_clean_systemexit(capsys):
+    """The CLI must print the refusal and exit cleanly (exit code 1, the
+    message on stdout), not dump a traceback (cli()'s NotImplementedError
+    handler, issue #849)."""
+    with pytest.raises(SystemExit) as exc:
+        ant.cli(
+            f"pattern --builder dipoles.invvee:dipole "
+            f"--engine momwire:sinusoidal-galerkin --extended-kernel{O}".split()
+        )
+    assert exc.value.code == 1
+    assert "sinusoidal-galerkin" in capsys.readouterr().out
+
+
+@needs_pynec
+def test_cli_extended_kernel_flag_rejected_for_pynec():
+    with pytest.raises(argparse.ArgumentTypeError):
+        ant.cli(
+            f"pattern --builder dipoles.invvee:dipole --engine pynec "
+            f"--extended-kernel{O}".split()
+        )
+
+
+# --- @file.nec decks honoring their own EK card ---------------------------
+
+_FAT_DIPOLE_DECK = """CE fat dipole
+GW 1 15 -0.25 0 0 0.25 0 0 0.008
+GE 0
+{ek}FR 0 1 0 0 300.0
+EX 0 1 8 0 1.0 0.0
+EN
+"""
+
+
+def test_deck_extended_kernel_flag_absence_vs_explicit_off_vs_on(tmp_path):
+    """NecDeck.extended_kernel semantics carried onto the synthesized @file
+    builder: absence and `EK -1` both read as off, any other EK reads as on
+    (issue #849's chosen, documented combination rule)."""
+    on = tmp_path / "on.nec"
+    on.write_text(_FAT_DIPOLE_DECK.format(ek="EK\n"))
+    off = tmp_path / "off.nec"
+    off.write_text(_FAT_DIPOLE_DECK.format(ek="EK -1\n"))
+    absent = tmp_path / "absent.nec"
+    absent.write_text(_FAT_DIPOLE_DECK.format(ek=""))
+
+    assert deck_extended_kernel_flag(get_builder(f"@{on}")) is True
+    assert deck_extended_kernel_flag(get_builder(f"@{off}")) is False
+    assert deck_extended_kernel_flag(get_builder(f"@{absent}")) is False
+    # An ordinary catalog design carries no such attribute at all.
+    assert deck_extended_kernel_flag(get_builder("dipoles.invvee")) is False
+
+
+def test_file_nec_deck_ek_card_honored_on_momwire_engine(tmp_path):
+    """A `@file.nec` deck's own EK card turns the kernel on for the momwire
+    engine with no --extended-kernel flag needed, and matches constructing
+    MomwireEngine(extended_kernel=True) directly on the same geometry."""
+    path = tmp_path / "fatdipole.nec"
+    path.write_text(_FAT_DIPOLE_DECK.format(ek="EK\n"))
+
+    builder_cls = get_builder(f"@{path}")
+    factory = make_engine_factory(
+        "momwire",
+        _GROUND_UNSET,
+        deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
+    )
+    z_via_deck = factory(builder_cls()).impedance()[0]
+    z_direct_on = MomwireEngine(builder_cls(), extended_kernel=True).impedance()[0]
+    z_direct_off = MomwireEngine(builder_cls(), extended_kernel=False).impedance()[0]
+
+    assert z_via_deck == z_direct_on
+    assert abs(z_via_deck - z_direct_off) > 0.3
+
+
+def test_cli_file_nec_deck_ek_card_runs_end_to_end(tmp_path):
+    """Smoke-level: the CLI actually runs a momwire solve against an
+    @file.nec deck carrying an EK card, with no --extended-kernel flag."""
+    path = tmp_path / "fatdipole.nec"
+    path.write_text(_FAT_DIPOLE_DECK.format(ek="EK\n"))
+    ant.cli(f"pattern --builder @{path} --engine momwire{O}".split())
