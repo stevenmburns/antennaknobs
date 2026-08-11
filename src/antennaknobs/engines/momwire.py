@@ -153,6 +153,48 @@ def _solver_supports_wire_loading(solver):
     return getattr(solver, "__name__", None) in _WIRE_LOADING_SOLVERS
 
 
+# NEC's extended thin-wire kernel — the `EK` card — on the momwire bases that
+# implement it (momwire 0.26.0: BSpline + its HMatrix/ArrayBlock subclasses,
+# and the point-matched SinusoidalSolver; issues momwire#249/#259/#269/#270).
+# Two combinations REFUSE upstream, both at solver construction, both with a
+# NotImplementedError. They are re-raised here — same type, same shape — for
+# one reason: the engine can say no BEFORE a fill is attempted, so the caller's
+# error path (the portal's `NEC ERROR` frame, the web solve's error envelope)
+# reports a named refusal instead of a traceback out of the middle of a solve.
+def _extended_kernel_refusal(solver, solver_kwargs):
+    """Why this solver + kwargs pair cannot run the extended kernel, or None.
+
+    * ``SinusoidalGalerkinSolver`` — momwire#246/#233: NEC's ``EKSCX`` has no
+      counterpart for the Galerkin fill's folded third source shape, so momwire
+      ships EK on the point-matched sibling only and refuses rather than
+      silently serving a reduced-kernel answer under an EK request.
+    * ``use_singular_enrichment=True`` — momwire#271/#249 follow-up C: the
+      enrichment DOFs carry their own singular quadrature and bypass the moment
+      kernels entirely, and the O(a²) tube expansion was never derived for the
+      s^(-1/2) shapes.
+
+    Everything else — including finite ground, which momwire#269 lifted — is
+    served.
+    """
+    name = getattr(solver, "__name__", str(solver))
+    if name == "SinusoidalGalerkinSolver":
+        return (
+            "the extended thin-wire kernel is not available on the "
+            "sinusoidal-galerkin basis: momwire implements NEC's extended "
+            "kernel on the point-matched SinusoidalSolver only (momwire#246). "
+            "Use the sinusoidal basis for an extended-kernel run, or drop the "
+            "kernel request for the reduced-kernel Galerkin fill"
+        )
+    if (solver_kwargs or {}).get("use_singular_enrichment"):
+        return (
+            "the extended thin-wire kernel and singular enrichment cannot be "
+            "used together (momwire#271): the enrichment DOFs bypass the "
+            "moment kernels the extended kernel corrects. Turn one of the two "
+            "off"
+        )
+    return None
+
+
 class MomwireEngine(SimulationEngine):
     supports_far_field = True
 
@@ -165,6 +207,7 @@ class MomwireEngine(SimulationEngine):
         solver_kwargs=None,
         ground=None,
         ground_z=0.0,
+        extended_kernel=False,
         cancel=None,
     ):
         """
@@ -184,6 +227,21 @@ class MomwireEngine(SimulationEngine):
           Dict of solver-specific kwargs passed straight to the constructor
           (e.g. `{"degree": 1}` for BSplineSolver, or `{"n_qp_const": 16}`
           for SinusoidalSolver). None = solver defaults.
+        extended_kernel:
+          NEC's extended thin-wire kernel — the `EK` card (issue #849,
+          momwire >= 0.26.0). False (the default) is the reduced kernel every
+          release before this one solved with, and the reduced path passes no
+          `extended_kernel` kwarg at all, so an EK-off solve stays bit-identical
+          to older pins. True moves the on-axis Green's function to NEC's O(a²)
+          tube expansion, which matters exactly where the thin-wire
+          approximation is under strain: it is a fraction of a percent at
+          Δ/a > 10 and several percent below Δ/a ~ 3.
+          `solver_kwargs={"extended_kernel": ...}` is accepted as the same
+          knob (a local web instance forwards model_options verbatim) and is
+          folded into this option rather than reaching the constructor twice.
+          Two combinations refuse — see `_extended_kernel_refusal`; the
+          refusal is raised HERE, at engine construction, not from inside a
+          fill.
         ground:
           None or "free"           — no ground (default)
           "pec"                    — PEC plane at z=ground_z (image method)
@@ -219,6 +277,16 @@ class MomwireEngine(SimulationEngine):
         self._cancel = cancel
         self._solver = solver
         self._solver_kwargs = dict(solver_kwargs) if solver_kwargs else {}
+        # The kernel knob has two spellings — the named option and a
+        # solver_kwargs entry (a local web instance forwards model_options
+        # verbatim, and `_make_solver` splices solver_kwargs LAST, so leaving
+        # it in place would let it silently win over a per-call override).
+        # Fold them into one flag, validated once.
+        self._extended_kernel = bool(
+            self._solver_kwargs.pop("extended_kernel", False)
+        ) or bool(extended_kernel)
+        if self._extended_kernel:
+            self._require_extended_kernel()
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
@@ -583,11 +651,38 @@ class MomwireEngine(SimulationEngine):
             kw["ground_model"] = "sommerfeld"
         return kw
 
-    def _make_solver(self, *, wavelength, end_port_voltages=None):
+    def _require_extended_kernel(self):
+        """Raise if this basis (or these kwargs) cannot serve the extended
+        kernel. Same exception type and the same class of message momwire's own
+        constructors use, so an engine-level refusal and an upstream one are
+        indistinguishable to a caller's error path."""
+        reason = _extended_kernel_refusal(self._solver, self._solver_kwargs)
+        if reason is not None:
+            raise NotImplementedError(reason)
+
+    def _kernel_solver_kwargs(self, extended_kernel=None):
+        """Extra kernel kwargs for solver construction.
+
+        ``extended_kernel`` overrides the engine's own setting for one call —
+        the NEC portal needs it because ``EK`` is per EXECUTE GROUP, so one
+        deck's two groups can want two different operators out of one engine.
+        The reduced path returns an EMPTY dict rather than
+        ``extended_kernel=False`` so a kernel-off solve keeps passing exactly
+        the kwargs it passed before momwire 0.26.0.
+        """
+        ek = self._extended_kernel if extended_kernel is None else bool(extended_kernel)
+        if not ek:
+            return {}
+        self._require_extended_kernel()
+        return {"extended_kernel": True}
+
+    def _make_solver(self, *, wavelength, end_port_voltages=None, extended_kernel=None):
         """Solver instance. ``end_port_voltages`` (issue #579): per-end-port
         complex voltages in `self._end_ports` order; None means 0 V on every
         end port (the Y-matrix path enumerates ports, so drive levels are
-        irrelevant there)."""
+        irrelevant there). ``extended_kernel`` overrides the engine's kernel
+        setting for this one solver (issue #849 — the portal's per-group
+        ``EK``); None keeps it."""
         kw = {}
         if self._end_port_junctions:
             volts = (
@@ -610,6 +705,7 @@ class MomwireEngine(SimulationEngine):
             **kw,
             **self._loading_kwargs,
             **self._ground_solver_kwargs(),
+            **self._kernel_solver_kwargs(extended_kernel),
             **self._solver_kwargs,
         )
 
@@ -887,6 +983,7 @@ class MomwireEngine(SimulationEngine):
             **kw,
             **self._loading_kwargs,
             **self._ground_solver_kwargs(),
+            **self._kernel_solver_kwargs(),
             **self._solver_kwargs,
         )
 
