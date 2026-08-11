@@ -241,6 +241,16 @@ export function useAnalysisRunners({
 
   const [sweep, setSweep] = useState<SweepData | null>(null);
   const [sweepRunning, setSweepRunning] = useState(false);
+  // Whether the current sweep's shape is final (issue #866). False from the
+  // moment a base sweep starts under refinement (its lean grid is destined
+  // to be densified — a polyline through it would draw the transient kinks
+  // refinement exists to remove) until a refinement pass concludes on its
+  // own terms (plan empty or budget spent). Toggling refinement off mid-run
+  // deliberately does NOT settle: the accumulated set is uneven, so the
+  // charts keep rendering dots rather than faking a finished curve. A sweep
+  // run with refinement disabled settles immediately — its uniform grid is
+  // the rendering, unchanged from the pre-#744 behavior.
+  const [sweepSettled, setSweepSettled] = useState(true);
   const [converge, setConverge] = useState<ConvergeData | null>(null);
   const [convergeRunning, setConvergeRunning] = useState(false);
   const [normCheck, setNormCheck] = useState<NormCheckData | null>(null);
@@ -576,6 +586,10 @@ export function useAnalysisRunners({
       _approved: approvedComboRef.current,
     };
     setSweepRunning(true);
+    // Settledness for this sweep (issue #866): with refinement on, the lean
+    // base grid is provisional until the refine pass lands; with it off, the
+    // dense grid IS the final shape.
+    setSweepSettled(!refineEnabledRef.current);
     let planned: SweepData | null = null;
     try {
       // New object per point so React re-renders the Smith chart as the
@@ -628,6 +642,16 @@ export function useAnalysisRunners({
     sweepRefineAbortRef.current = controller;
     let acc = base;
     let spent = 0;
+    // Unsettle here too, not just in runSweep (issue #866): a pass triggered
+    // by a chart becoming resident refines a sweep whose base flow settled
+    // long ago (or ran refine-disabled), and its insertions are about to
+    // reshape the curve.
+    setSweepSettled(false);
+    // Set exactly when the pass concludes on its own terms — the budget runs
+    // out or the planner finds nothing left to fix. A mid-run toggle-off
+    // (the break below) leaves it false: the accumulated set is uneven and
+    // the charts should keep saying so (dots, not a polyline).
+    let concluded = false;
     try {
       while (spent < SWEEP_REFINE_BUDGET && !controller.signal.aborted) {
         // The toggle and the resident-projection set are read per ROUND:
@@ -641,7 +665,10 @@ export function useAnalysisRunners({
           Math.min(SWEEP_REFINE_ROUND_BUDGET, SWEEP_REFINE_BUDGET - spent),
           residentSweepViewsRef.current,
         );
-        if (want.length === 0) break; // no visible kink left to remove
+        if (want.length === 0) {
+          concluded = true; // no visible kink left to remove
+          break;
+        }
         spent += want.length;
         const settled = acc; // merge target for this round's snapshots
         const extra = await streamSweep(
@@ -664,10 +691,18 @@ export function useAnalysisRunners({
         if (controller.signal.aborted) return;
         setSweep(acc);
       }
+      // Exiting because the budget ran dry is as final as an empty plan —
+      // best-so-far is the shape we will render from here on. An abort
+      // (superseded by a new sweep) is not: that sweep resets settledness
+      // itself.
+      if (spent >= SWEEP_REFINE_BUDGET && !controller.signal.aborted) {
+        concluded = true;
+      }
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       console.error("sweep refine error", e);
     } finally {
+      if (concluded) setSweepSettled(true);
       if (sweepRefineAbortRef.current === controller) {
         sweepRefineAbortRef.current = null;
       }
@@ -861,6 +896,7 @@ export function useAnalysisRunners({
   return {
     sweep,
     sweepRunning,
+    sweepSettled,
     converge,
     convergeRunning,
     normCheck,

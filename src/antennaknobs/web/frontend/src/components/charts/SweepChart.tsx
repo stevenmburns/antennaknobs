@@ -42,6 +42,7 @@ export function SweepChart({
   sweep,
   measFreqMhz,
   running,
+  settled = true,
   feeds,
   multiFeed,
 }: {
@@ -53,6 +54,12 @@ export function SweepChart({
   sweep: SweepData | null;
   measFreqMhz: number;
   running: boolean;
+  /** The sweep's shape is final (issue #866). While a refinement pass is
+   *  still inserting points (or was cut short mid-run), the trail renders as
+   *  unconnected dots — a polyline through a still-densifying set draws
+   *  transient kinks that then shift as points land. Defaults true so
+   *  refinement-free call sites keep today's connected line. */
+  settled?: boolean;
   /** Multi-feed geometries pass the per-feed Z list from the latest solve so
    *  the chart can mark N current points, one per port (same prop SmithChart
    *  takes for the same reason). */
@@ -198,21 +205,41 @@ export function SweepChart({
       // dim = sweep trail, bright = current-Z marker). Unlike the Smith
       // chart's 2-D Γ-plane locus, frequency is a natural ordering axis
       // here, so — unlike that chart's unconnected scatter — a connected
-      // line is the correct read, not an artifact of interpolation.
+      // line is the correct read, not an artifact of interpolation. Except
+      // while refinement is still densifying the set (issue #866): then the
+      // line's kinks are transients about to shift, so draw honest dots and
+      // connect only once `settled`.
       for (let fi = 0; fi < nFeeds; fi++) {
-        ctx.strokeStyle = feedSweepColor(fi);
-        ctx.lineWidth = 1.3;
-        ctx.beginPath();
-        let started = false;
-        for (let i = 0; i < freqs.length; i++) {
-          const z = zAt(fi, i);
-          const v = valueFor(mode, z.re, z.im, z0);
-          const px = xOf(freqs[i]);
-          const py = offScale(v) ? marginT : yOf(v);
-          if (!started) { ctx.moveTo(px, py); started = true; }
-          else ctx.lineTo(px, py);
+        if (settled) {
+          ctx.strokeStyle = feedSweepColor(fi);
+          ctx.lineWidth = 1.3;
+          ctx.beginPath();
+          let started = false;
+          for (let i = 0; i < freqs.length; i++) {
+            const z = zAt(fi, i);
+            const v = valueFor(mode, z.re, z.im, z0);
+            const px = xOf(freqs[i]);
+            const py = offScale(v) ? marginT : yOf(v);
+            if (!started) { ctx.moveTo(px, py); started = true; }
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        } else {
+          // Same dot radius as SmithChart's unconnected trail, same color
+          // grammar (off-scale samples still get the pinned-needle tick
+          // below, not a dot on the frame).
+          ctx.fillStyle = feedSweepColor(fi);
+          for (let i = 0; i < freqs.length; i++) {
+            const z = zAt(fi, i);
+            const v = valueFor(mode, z.re, z.im, z0);
+            if (offScale(v)) continue;
+            const px = xOf(freqs[i]);
+            const py = yOf(v);
+            ctx.beginPath();
+            ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
+            ctx.fill();
+          }
         }
-        ctx.stroke();
 
         // Off-scale samples get an upward tick at the top edge instead of a
         // dot sitting exactly on the frame — a real VSWR meter's pinned
@@ -292,13 +319,14 @@ export function SweepChart({
     // memoization this dep array exists for. mode is listed directly since
     // it's the one prop dom/valueFor key off that isn't otherwise present.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, feeds, multiFeed, theme]);
+  }, [mode, r, x, z0, size, sweep, measFreqMhz, running, settled, feeds, multiFeed, theme]);
 
   return (
     <canvas
       ref={canvasRef}
       className={`sweep sweep-${mode}`}
       data-mode={mode}
+      data-settled={settled ? "1" : "0"}
       data-points={hasSweep ? sweep!.freqs_mhz.length : 0}
       data-feeds={nFeeds}
       data-y-values={traceY.map((v) => v.toFixed(4)).join(",")}

@@ -614,5 +614,10 @@ export function SmithChart({
     // leave the last trial ring on screen after a run settled.
   }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, trial, theme]);
 
-  return <canvas ref={canvasRef} className="smith" />;
+  // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
+  // canvas pixels are invisible to jsdom, the attribute is not (the same
+  // seam SweepChart's data-* attributes provide).
+  return (
+    <canvas ref={canvasRef} className="smith" data-connect={connectSweep ? "1" : "0"} />
+  );
 }
