@@ -154,37 +154,28 @@ def _solver_supports_wire_loading(solver):
 
 
 # NEC's extended thin-wire kernel — the `EK` card — on the momwire bases that
-# implement it (momwire 0.26.0: BSpline + its HMatrix/ArrayBlock subclasses,
-# and the point-matched SinusoidalSolver; issues momwire#249/#259/#269/#270).
-# Two combinations REFUSE upstream, both at solver construction, both with a
-# NotImplementedError. They are re-raised here — same type, same shape — for
-# one reason: the engine can say no BEFORE a fill is attempted, so the caller's
-# error path (the portal's `NEC ERROR` frame, the web solve's error envelope)
-# reports a named refusal instead of a traceback out of the middle of a solve.
+# implement it (momwire 0.27.0: every basis — BSpline + its HMatrix/ArrayBlock
+# subclasses, the point-matched SinusoidalSolver, and since momwire#246/#287
+# the SinusoidalGalerkinSolver on every ground model; issues
+# momwire#249/#259/#269/#270/#246/#287/#299). One combination REFUSES
+# upstream, at solver construction, with a NotImplementedError. It is
+# re-raised here — same type, same shape — for one reason: the engine can say
+# no BEFORE a fill is attempted, so the caller's error path (the portal's
+# `NEC ERROR` frame, the web solve's error envelope) reports a named refusal
+# instead of a traceback out of the middle of a solve.
 def _extended_kernel_refusal(solver, solver_kwargs):
     """Why this solver + kwargs pair cannot run the extended kernel, or None.
 
-    * ``SinusoidalGalerkinSolver`` — momwire#246/#233: NEC's ``EKSCX`` has no
-      counterpart for the Galerkin fill's folded third source shape, so momwire
-      ships EK on the point-matched sibling only and refuses rather than
-      silently serving a reduced-kernel answer under an EK request.
     * ``use_singular_enrichment=True`` — momwire#271/#249 follow-up C: the
       enrichment DOFs carry their own singular quadrature and bypass the moment
       kernels entirely, and the O(a²) tube expansion was never derived for the
       s^(-1/2) shapes.
 
-    Everything else — including finite ground, which momwire#269 lifted — is
-    served.
+    Everything else is served: finite ground (momwire#269), the Galerkin
+    family on every ground model including Sommerfeld (momwire#246/#287,
+    with the node-gated end brackets of momwire#299 making non-collinear
+    decks sound).
     """
-    name = getattr(solver, "__name__", str(solver))
-    if name == "SinusoidalGalerkinSolver":
-        return (
-            "the extended thin-wire kernel is not available on the "
-            "sinusoidal-galerkin basis: momwire implements NEC's extended "
-            "kernel on the point-matched SinusoidalSolver only (momwire#246). "
-            "Use the sinusoidal basis for an extended-kernel run, or drop the "
-            "kernel request for the reduced-kernel Galerkin fill"
-        )
     if (solver_kwargs or {}).get("use_singular_enrichment"):
         return (
             "the extended thin-wire kernel and singular enrichment cannot be "
@@ -239,9 +230,9 @@ class MomwireEngine(SimulationEngine):
           `solver_kwargs={"extended_kernel": ...}` is accepted as the same
           knob (a local web instance forwards model_options verbatim) and is
           folded into this option rather than reaching the constructor twice.
-          Two combinations refuse — see `_extended_kernel_refusal`; the
-          refusal is raised HERE, at engine construction, not from inside a
-          fill.
+          One combination refuses (singular enrichment) — see
+          `_extended_kernel_refusal`; the refusal is raised HERE, at engine
+          construction, not from inside a fill.
         ground:
           None or "free"           — no ground (default)
           "pec"                    — PEC plane at z=ground_z (image method)

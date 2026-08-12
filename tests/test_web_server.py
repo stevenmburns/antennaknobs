@@ -3173,12 +3173,12 @@ def test_extended_kernel_moves_impedance_and_matches_direct_engine():
     assert z_on["z_in_im"] == pytest.approx(z_direct.imag)
 
 
-def test_geometry_extended_kernel_galerkin_refusal_is_structured(client: TestClient):
-    """issue #849: EK + sinusoidal-galerkin refuses at engine construction
-    (momwire#246 — no EKSCX counterpart for the Galerkin fill). The web path
-    must surface this as a clean {"error": ...} body (200), not a
-    500/traceback — the same structured-error contract as a broken user
-    design (test_geometry_endpoint_surfaces_build_error)."""
+def test_geometry_extended_kernel_galerkin_serves(client: TestClient):
+    """momwire 0.27.0 (issue #849): EK + sinusoidal-galerkin — the request
+    that used to be the structured-refusal case — now solves. The invvee is a
+    deliberately NON-COLLINEAR deck: momwire#299's node-gated end brackets
+    are what make this answer sound, so this doubles as the web-path pin on
+    that fix."""
     resp = client.post(
         "/geometry",
         json={
@@ -3189,11 +3189,38 @@ def test_geometry_extended_kernel_galerkin_refusal_is_structured(client: TestCli
     )
     assert resp.status_code == 200
     body = resp.json()
+    assert "error" not in body
+
+
+def test_geometry_extended_kernel_enrichment_refusal_is_structured(
+    client: TestClient,
+):
+    """The one EK refusal left (momwire#271: enrichment DOFs bypass the
+    moment kernels). The web path must surface it as a clean {"error": ...}
+    body (200), not a 500/traceback — the same structured-error contract as a
+    broken user design (test_geometry_endpoint_surfaces_build_error). This
+    carries the refusal-contract coverage the retired galerkin case used to
+    provide."""
+    resp = client.post(
+        "/geometry",
+        json={
+            "geometry": "dipoles.invvee",
+            "momwire_model": "sinusoidal-galerkin",
+            "model_options": {
+                "extended_kernel": True,
+                "use_singular_enrichment": True,
+            },
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
     assert "error" in body
-    assert "sinusoidal-galerkin" in body["error"]
+    assert "enrichment" in body["error"]
 
 
-def test_ws_extended_kernel_galerkin_refusal_keeps_socket_alive(client: TestClient):
+def test_ws_extended_kernel_enrichment_refusal_keeps_socket_alive(
+    client: TestClient,
+):
     """Same refusal on the live /ws solve path: an error frame, not a torn
     down socket — the next (healthy) request on the same socket must still
     solve (mirrors test_ws_solve_error_keeps_socket_alive)."""
@@ -3203,12 +3230,15 @@ def test_ws_extended_kernel_galerkin_refusal_keeps_socket_alive(client: TestClie
                 {
                     "geometry": "dipoles.invvee",
                     "momwire_model": "sinusoidal-galerkin",
-                    "model_options": {"extended_kernel": True},
+                    "model_options": {
+                        "extended_kernel": True,
+                        "use_singular_enrichment": True,
+                    },
                 }
             )
         )
         bad = json.loads(ws.receive_text())
-        assert "sinusoidal-galerkin" in bad["error"]
+        assert "enrichment" in bad["error"]
         ws.send_text(json.dumps({"geometry": "dipoles.invvee"}))
         ok = json.loads(ws.receive_text())
         assert "error" not in ok
