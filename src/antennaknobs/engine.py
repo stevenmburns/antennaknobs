@@ -58,6 +58,16 @@ class SimulationEngine(ABC):
             return n_seg + 1 if n_seg % 2 == 0 else n_seg
         return max(1, n_seg)
 
+    def _parity_exempt_names(self):
+        """Wire names exempt from parity coercion even though marked.
+
+        Coercion exists to land a MID-WIRE attachment on a middle segment;
+        an engine whose port sits at a wire END (NEC-5's EX-at-knot for
+        `PortAtVertex`, issue #898) overrides this to exempt wires whose
+        only attachment is such a port — bumping their count would change
+        the author's mesh for nothing."""
+        return frozenset()
+
     def _coerce_wire_tuples(self, tups):
         """Returns the input tuples with each n_seg bumped to the engine's
         required parity. Logs once per distinct (n_in, n_out) shift so a
@@ -88,7 +98,9 @@ class SimulationEngine(ABC):
             # and a knob move can flip an unfed wire's parity mid-sweep — a
             # ~0.01 Ω wobble, not a bug. Measured design deltas: 0.00 Ω for
             # PyNEC/Sinusoidal/BSpline-d2, 0.05 Ω for the d=1 tent basis.
-            marked = w.ex is not None or w.name is not None
+            marked = (
+                w.ex is not None or w.name is not None
+            ) and w.name not in self._parity_exempt_names()
             n_new = self.coerce_n_seg(w.n_seg, parity) if marked else max(1, w.n_seg)
             if n_new != w.n_seg and (w.n_seg, n_new) not in seen:
                 seen.add((w.n_seg, n_new))
