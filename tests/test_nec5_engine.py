@@ -262,24 +262,37 @@ def test_live_ground_impedance_within_cross_engine_bars(ground):
 
 @needs_nec5
 def test_live_low_height_sommerfeld_documented_gap():
-    """At 0.048 wavelengths over Sommerfeld ground, NEC-5 sits ~7 ohm from
-    the NEC-2 lineage (momwire 63.16-21.64j, nec2c 63.20-21.97j, NEC-5
-    62.14-28.61j, all captured 2026-08-10): the resistances agree to ~1 ohm
-    while the reactances split — a genuine formulation difference in the
-    close-ground interaction, recorded here as the third-oracle data point
-    #825 set out to collect, not averaged away with a loose bar."""
+    """At 0.048 wavelengths over Sommerfeld ground, NEC-5 at NS=20 sits
+    ~7 ohm from the NEC-2 lineage in X (momwire 63.16-21.64j, nec2c
+    63.20-21.97j, NEC-5 62.14-28.61j, captured 2026-08-10). Originally
+    recorded as "a genuine formulation difference in the close-ground
+    interaction" — RESOLVED by #872 phase 3a (2026-08-12): the gap is the
+    knot-source mesh march of phase 1, and the (40, 80) Richardson pair
+    dissolves it to ~0.1 ohm (nec5_extrap 62.81-21.62j vs nec2c
+    62.89-21.56j, bs2 62.86-21.52j — bench_nec5_ground.py). This test now
+    pins BOTH halves: the raw NS=20 march (stable, reproducible — the
+    trap a single-mesh comparison falls into) and its extrapolated
+    resolution (close ground does NOT break the recipe)."""
 
     class LowDipole(AntennaBuilder):
         default_params = {"freq": 28.5}
 
+        def __init__(self, n=20, params=None):
+            super().__init__(params)
+            self._n = n
+
         def build_wires(self):
-            return [Wire((0, -2.5, 0.5), (0, 2.5, 0.5), n_seg=20, ex=1 + 0j)]
+            return [Wire((0, -2.5, 0.5), (0, 2.5, 0.5), n_seg=self._n, ex=1 + 0j)]
 
     g = ("finite", 13.0, 0.005)
     z5 = NEC5Engine(LowDipole(), ground=g).impedance()[0]
     zm = MomwireEngine(LowDipole(), ground=g).impedance()[0]
     assert abs(z5.real - zm.real) < 3.0
-    assert 4.0 < (zm.imag - z5.imag) < 10.0
+    assert 4.0 < (zm.imag - z5.imag) < 10.0  # the raw NS=20 knot-source march
+    z40 = NEC5Engine(LowDipole(40), ground=g).impedance()[0]
+    z80 = NEC5Engine(LowDipole(80), ground=g).impedance()[0]
+    z_inf = 2 * z80 - z40  # phase-1 recipe, order ~1
+    assert abs(z_inf.imag - zm.imag) < 1.5  # the march extrapolates away
 
 
 @needs_nec5
