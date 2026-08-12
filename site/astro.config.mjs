@@ -103,6 +103,7 @@ export default defineConfig({
           items: [
             { label: "Design catalog", slug: "reference/catalog" },
             { label: "The solver & accuracy", slug: "reference/solver" },
+            { label: "The validation story", slug: "reference/validation" },
             { label: "Loading NEC decks", slug: "reference/nec-import" },
             { label: "SimNEC round-trip", slug: "reference/simnec" },
             { label: "NEC-5 engine", slug: "reference/nec5" },
