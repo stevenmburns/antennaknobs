@@ -20,7 +20,6 @@ import {
 import {
   BSPLINE_DEFAULT_OPTS,
   EK_ENRICHMENT_REASON,
-  EK_GALERKIN_REASON,
   RESTRICTED_BACKEND_REASON,
   defaultOptsFor,
   type BackendOpts,
@@ -238,20 +237,10 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
     expect(on.onPatch).toHaveBeenCalledWith({ extendedKernel: false });
   });
 
-  it("greys the toggle out on Sin-Galerkin and says why on the page", () => {
-    renderModal({ backend: "sinusoidal-galerkin" });
-    const box = screen.getByRole("checkbox", { name: EK });
-    expect(box).toHaveProperty("disabled", true);
-    expect(box).toHaveProperty("checked", false);
-    // The reason is visible, not tooltip-only: a greyed box with no
-    // explanation is the silence #849 is about.
-    expect(screen.getByText(EK_GALERKIN_REASON)).toBeTruthy();
-    expect(within(screen.getByTitle(EK_GALERKIN_REASON)).getByRole("checkbox")).toBe(box);
-  });
-
-  it("shows a set flag as UNCHECKED on the basis that refuses it", async () => {
-    // A slot cannot normally reach this (a backend swap resets the flag), but
-    // the row must never claim a kernel that isn't running.
+  it("serves the toggle on Sin-Galerkin (momwire 0.27.0 un-refusal)", async () => {
+    // The exact modal state that used to grey out with the momwire#246
+    // reason: since momwire#246/#287/#299 the Galerkin family serves the
+    // kernel, so the box is live and patches like any other basis.
     const { user, onPatch } = renderModal({
       backend: "sinusoidal-galerkin",
       opts: {
@@ -260,15 +249,15 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
       },
     });
     const box = screen.getByRole("checkbox", { name: EK });
-    expect(box).toHaveProperty("checked", false);
+    expect(box).toHaveProperty("disabled", false);
+    expect(box).toHaveProperty("checked", true);
     await user.click(box);
-    expect(onPatch).not.toHaveBeenCalled(); // disabled: the click does nothing
+    expect(onPatch).toHaveBeenCalledWith({ extendedKernel: false });
   });
 
   it("keeps the Δ/a hint on the servable backends", () => {
     renderModal({ backend: "bspline" });
     expect(screen.getByText(/Δ\/a/)).toBeTruthy();
-    expect(screen.queryByText(EK_GALERKIN_REASON)).toBeNull();
   });
 
   // momwire#271: the two are mutually exclusive, and the exclusion is

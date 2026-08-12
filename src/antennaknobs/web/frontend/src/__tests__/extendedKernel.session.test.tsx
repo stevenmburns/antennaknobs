@@ -146,13 +146,15 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
     );
 
     // Swapping the backend resets that slot's model kwargs to the new
-    // backend's defaults, the kernel among them — so the Galerkin basis that
-    // cannot serve it never inherits an armed flag.
+    // backend's defaults, the kernel among them — a new basis never inherits
+    // an armed flag it wasn't configured with. (Sin-Galerkin serves EK since
+    // momwire 0.27.0, so the box arrives live and unchecked rather than
+    // greyed out.)
     await user.click(screen.getByRole("button", { name: "Slot A options" }));
     await user.click(screen.getByRole("tab", { name: "Sin-Galerkin" }));
-    expect(
-      screen.getByRole("checkbox", { name: /extended kernel \(EK\)/ }),
-    ).toHaveProperty("disabled", true);
+    const box = screen.getByRole("checkbox", { name: /extended kernel \(EK\)/ });
+    expect(box).toHaveProperty("disabled", false);
+    expect(box).toHaveProperty("checked", false);
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     await waitFor(() => {

@@ -186,14 +186,15 @@ describe("modelOptionsForRequest", () => {
       }
     });
 
-    it("never reaches the wire on a basis that refuses it (momwire#246/#271)", () => {
-      // Galerkin: momwire#246.
+    it("reaches the wire on Galerkin, never alongside enrichment (momwire#271)", () => {
+      // Galerkin serves the kernel since momwire 0.27.0 (momwire#246/#287/
+      // #299) — an armed slot sends it like any other basis.
       expect(
         modelOptionsForRequest(
           entry("sinusoidal-galerkin"),
           armed("sinusoidal-galerkin"),
         ),
-      ).toEqual({ n_qp_const: 8, feed_model: "segment" });
+      ).toEqual({ n_qp_const: 8, feed_model: "segment", extended_kernel: true });
       // Singular enrichment: momwire#271. Sending both would be a refusal at
       // engine construction; the UI greys the pair out, and this is the lock
       // behind that.
