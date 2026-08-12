@@ -25,23 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.49.0" icon="star">
-  **The third-oracle release.** With a licensed binary and one environment
-  variable, **NEC-5 runs as a full antennaknobs engine** — impedance,
-  currents, native-Sommerfeld grounds, radiation patterns, network ports
-  (including NEC-5's native current sources), loads and power budgets —
-  closing a **cross-validation triangle** of three independently written
-  solvers: momwire's basis families, NEC-2's kernels, NEC-5's
-  mixed-potential formulation. `--engines nec5` on the CLI, a slot in the
-  workbench picker on your own machine (never the hosted simulator — the
-  license stays personal), honest refusals for everything unserved, and
-  one genuine physics finding already logged from the triangle. Also in
-  this release: knob-scrub **sweeps reuse their own cached points**,
-  refining charts draw **honest dots until the curve settles**, a
-  **reload button** for the user design you're editing, NEC-5 edge-source
-  decks are **detected on import** instead of silently misread, and the
-  portal retires SimNEC's abandoned `YY` directive. Start at
-  [NEC-5 as a third engine](/reference/nec5/).
+<Card title="New in v0.50.0" icon="star">
+  **The Galerkin kernel unlocked.** momwire 0.27.0 finishes NEC's extended
+  thin-wire kernel on the **Sin-Galerkin basis** — every ground model
+  including full Sommerfeld, bent and stepped geometry made sound by a
+  node-gated end-bracket correction — so **all five momwire solver
+  families now serve the `EK` card**, in the workbench gear menu, on the
+  CLI, and for SimNEC decks through the portal (which sends `EK` on every
+  live solve). Ground-contact decks over lossy soil now **converge under
+  the extended kernel** instead of walking, and swept solves on the
+  accelerated solvers **dispatch to the fastest engine automatically**.
+  The cross-validation triangle also closed its one open gap: the
+  low-height reactance split published in v0.49 was **resolved by the
+  full corpus study** — a feed-model convergence term, not physics, gone
+  under Richardson extrapolation — and the 3,146-deck wild-corpus census
+  put the triangle to work, tracing 46 formulation outliers to NEC-2's
+  known stepped-diameter defect. Start at
+  [the extended kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
 </Card>
 
 ## The whole pitch, in one line
