@@ -158,6 +158,7 @@ def test_coerce_preserves_shape_and_spec():
 
         coerce_n_seg = staticmethod(_S.coerce_n_seg)
         _coerce_wire_tuples = _S._coerce_wire_tuples
+        _parity_exempt_names = _S._parity_exempt_names
 
     eng = _Stub()
     p0, p1 = (0, 0, 0.0), (0, 0, 1.0)
