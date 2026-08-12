@@ -1,0 +1,2348 @@
+[
+ {
+  "design": "arrays.bowtie16x1",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 21,
+  "t_nec5": 5.663712501525879,
+  "t_bs2": 4.337778568267822,
+  "nec5": {
+   "peak_gain_dbi": 11.14,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 8.03191489361702,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 11.13395130519937,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 3.552713678800501e-15,
+   "az_beamwidth_deg": 8.03830173382094,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.028824840958784428,
+  "d_peak_db": 0.0060486948006310826,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -3.552713678800501e-15,
+  "flagged": false
+ },
+ {
+  "design": "arrays.bowtie1x2_bl",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a BalancedLine branch (only Load is served natively; lines/two-ports have no",
+  "nseg": 81
+ },
+ {
+  "design": "arrays.bowtie4x4",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 21,
+  "t_nec5": 5.560920000076294,
+  "t_bs2": 4.261191368103027,
+  "nec5": {
+   "peak_gain_dbi": 11.73,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 30.139534883720927,
+   "el_beamwidth_deg": 17.085714285714285
+  },
+  "bs2": {
+   "peak_gain_dbi": 11.721265817550107,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 1.7763568394002505e-15,
+   "az_beamwidth_deg": 30.184848556609204,
+   "el_beamwidth_deg": 17.091526992807218
+  },
+  "rms_db": 0.046288240920875204,
+  "d_peak_db": 0.00873418244989388,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -1.7763568394002505e-15,
+  "flagged": false
+ },
+ {
+  "design": "arrays.bowtiearray",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 4.099405288696289,
+  "t_bs2": 3.0966382026672363,
+  "nec5": {
+   "peak_gain_dbi": 7.87,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.111111111111114,
+   "el_beamwidth_deg": 39.92857142857143
+  },
+  "bs2": {
+   "peak_gain_dbi": 7.8743243258816955,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 3.552713678800501e-15,
+   "az_beamwidth_deg": 35.0842371096005,
+   "el_beamwidth_deg": 39.89030074810176
+  },
+  "rms_db": 0.004768850405449722,
+  "d_peak_db": -0.004324325881695401,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -3.552713678800501e-15,
+  "flagged": false
+ },
+ {
+  "design": "arrays.bowtiearray1x2",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.9699375629425049,
+  "t_bs2": 1.4439268112182617,
+  "nec5": {
+   "peak_gain_dbi": 5.17,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.142857142857146,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.170909510034375,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 8.881784197001252e-16,
+   "az_beamwidth_deg": 35.13899202685745,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0032681635731994733,
+  "d_peak_db": -0.0009095100343747831,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -8.881784197001252e-16,
+  "flagged": false
+ },
+ {
+  "design": "arrays.bowtiearray2x4",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 11.359950065612793,
+  "t_bs2": 7.007312774658203,
+  "nec5": {
+   "peak_gain_dbi": 10.91,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 17.287671232876715,
+   "el_beamwidth_deg": 39.76923076923077
+  },
+  "bs2": {
+   "peak_gain_dbi": 10.909735768674395,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 17.289412497205902,
+   "el_beamwidth_deg": 39.73912996723629
+  },
+  "rms_db": 0.005510172165310117,
+  "d_peak_db": 0.00026423132560537965,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "arrays.delta_looparray",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.9906349182128906,
+  "t_bs2": 1.4624519348144531,
+  "nec5": {
+   "peak_gain_dbi": 6.14,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.27777777777778,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 6.139293474116966,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.28863316547723,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0036207696160829484,
+  "d_peak_db": 0.0007065258830341037,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "arrays.delta_looparray_1x4",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 4.096494913101196,
+  "t_bs2": 3.14901065826416,
+  "nec5": {
+   "peak_gain_dbi": 8.69,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 16.883116883116884,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.685557804542789,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 16.8879070797405,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.00478300233380053,
+  "d_peak_db": 0.004442195457210474,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "arrays.delta_looparray_1x4_grouped",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 4.086733102798462,
+  "t_bs2": 3.1256589889526367,
+  "nec5": {
+   "peak_gain_dbi": 7.26,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 22.586206896551726,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 7.256628586852512,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 8.881784197001252e-16,
+   "az_beamwidth_deg": 22.60214569638149,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.010833075279002983,
+  "d_peak_db": 0.0033714131474873454,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -8.881784197001252e-16,
+  "flagged": false
+ },
+ {
+  "design": "arrays.delta_looparray_2x2",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 4.349667072296143,
+  "t_bs2": 3.285421848297119,
+  "nec5": {
+   "peak_gain_dbi": 8.26,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.05555555555556,
+   "el_beamwidth_deg": 33.125
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.256253725850538,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 3.552713678800501e-15,
+   "az_beamwidth_deg": 35.088244945096584,
+   "el_beamwidth_deg": 33.15865951539469
+  },
+  "rms_db": 0.0058807621165549,
+  "d_peak_db": 0.0037462741494618257,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -3.552713678800501e-15,
+  "flagged": false
+ },
+ {
+  "design": "arrays.delta_looparray_network",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "arrays.folded_invveearray",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 3.7777092456817627,
+  "t_bs2": 2.849851369857788,
+  "nec5": {
+   "peak_gain_dbi": 7.64,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.04999999999999982,
+   "az_beamwidth_deg": 35.48571428571429,
+   "el_beamwidth_deg": 36.400000000000006
+  },
+  "bs2": {
+   "peak_gain_dbi": 7.636859680868133,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.045219315852733644,
+   "az_beamwidth_deg": 35.47962212728223,
+   "el_beamwidth_deg": 36.41061972263442
+  },
+  "rms_db": 0.0032813130159745994,
+  "d_peak_db": 0.0031403191318668533,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.004780684147266179,
+  "flagged": false
+ },
+ {
+  "design": "arrays.hentenna_array",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 2.736246347427368,
+  "t_bs2": 2.0385549068450928,
+  "nec5": {
+   "peak_gain_dbi": 8.01,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.542857142857144,
+   "el_beamwidth_deg": 38.78571428571429
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.012964693025955,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.52262552161662,
+   "el_beamwidth_deg": 38.751693818724256
+  },
+  "rms_db": 0.004496635027394618,
+  "d_peak_db": -0.002964693025955256,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "arrays.hourglass_array",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 3.2298521995544434,
+  "t_bs2": 2.465075969696045,
+  "nec5": {
+   "peak_gain_dbi": 7.98,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.33333333333333,
+   "el_beamwidth_deg": 37.92857142857142
+  },
+  "bs2": {
+   "peak_gain_dbi": 7.984886430393913,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 8.881784197001252e-16,
+   "az_beamwidth_deg": 35.3315482290775,
+   "el_beamwidth_deg": 37.88068209704634
+  },
+  "rms_db": 0.004132904475060587,
+  "d_peak_db": -0.004886430393912455,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -8.881784197001252e-16,
+  "flagged": false
+ },
+ {
+  "design": "arrays.invveearray",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.911656379699707,
+  "t_bs2": 1.3841016292572021,
+  "nec5": {
+   "peak_gain_dbi": 7.61,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.44444444444444,
+   "el_beamwidth_deg": 36.13333333333333
+  },
+  "bs2": {
+   "peak_gain_dbi": 7.612811099519065,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 35.429222717015605,
+   "el_beamwidth_deg": 36.16082896219224
+  },
+  "rms_db": 0.01810493807522539,
+  "d_peak_db": -0.0028110995190644417,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "arrays.lumped_coupled_pair",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TwoPort branch (only Load is served natively; lines/two-ports have no NEC-",
+  "nseg": 81
+ },
+ {
+  "design": "arrays.moxonarray",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 3.612459897994995,
+  "t_bs2": 2.6664555072784424,
+  "nec5": {
+   "peak_gain_dbi": 11.33,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 7.66,
+   "az_beamwidth_deg": 34.421052631578945,
+   "el_beamwidth_deg": 34.470588235294116
+  },
+  "bs2": {
+   "peak_gain_dbi": 11.336339152639496,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 7.886744519231226,
+   "az_beamwidth_deg": 34.43488321870416,
+   "el_beamwidth_deg": 34.618953473298944
+  },
+  "rms_db": 0.20249654364353714,
+  "d_peak_db": -0.006339152639496248,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -0.22674451923122607,
+  "flagged": false
+ },
+ {
+  "design": "arrays.yagiarray",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 8.39114785194397,
+  "t_bs2": 6.0215089321136475,
+  "nec5": {
+   "peak_gain_dbi": 12.89,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 20.380000000000003,
+   "az_beamwidth_deg": 31.894736842105257,
+   "el_beamwidth_deg": 25.956521739130437
+  },
+  "bs2": {
+   "peak_gain_dbi": 12.898939404186054,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 20.389452123302604,
+   "az_beamwidth_deg": 31.85352957486387,
+   "el_beamwidth_deg": 25.884720084157625
+  },
+  "rms_db": 0.06093070167457171,
+  "d_peak_db": -0.008939404186053324,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -0.009452123302601478,
+  "flagged": false
+ },
+ {
+  "design": "beams.hb9cv",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "beams.hexbeam",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.123779058456421,
+  "t_bs2": 0.6863269805908203,
+  "nec5": {
+   "peak_gain_dbi": 4.82,
+   "takeoff_deg": 5.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 17.700000000000003,
+   "az_beamwidth_deg": 90.92307692307692,
+   "el_beamwidth_deg": 84.7
+  },
+  "bs2": {
+   "peak_gain_dbi": 4.786142731799157,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 17.444507870880305,
+   "az_beamwidth_deg": 90.78447261924913,
+   "el_beamwidth_deg": 85.26841713808345
+  },
+  "rms_db": 0.10173089771907806,
+  "d_peak_db": 0.033857268200843116,
+  "d_takeoff_deg": 4.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.2554921291196983,
+  "flagged": true
+ },
+ {
+  "design": "beams.moxon",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.09251117706298828,
+  "t_bs2": 0.641442060470581,
+  "nec5": {
+   "peak_gain_dbi": 6.34,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 20.17,
+   "az_beamwidth_deg": 76.93333333333334,
+   "el_beamwidth_deg": 65.72727272727273
+  },
+  "bs2": {
+   "peak_gain_dbi": 6.296909790017795,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 21.44586048832614,
+   "az_beamwidth_deg": 77.06994697561547,
+   "el_beamwidth_deg": 66.34465067427296
+  },
+  "rms_db": 0.5000109679648038,
+  "d_peak_db": 0.04309020998220525,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -1.2758604883261384,
+  "flagged": false
+ },
+ {
+  "design": "beams.moxon_turnstile",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "beams.owa_yagi",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.7953786849975586,
+  "t_bs2": 1.315138816833496,
+  "nec5": {
+   "peak_gain_dbi": 8.31,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 21.72,
+   "az_beamwidth_deg": 62.29999999999999,
+   "el_beamwidth_deg": 48.07142857142857
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.334969477408746,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 20.92851136770792,
+   "az_beamwidth_deg": 62.187010820258266,
+   "el_beamwidth_deg": 47.850581989502274
+  },
+  "rms_db": 0.38991448782561283,
+  "d_peak_db": -0.024969477408745888,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.7914886322920793,
+  "flagged": false
+ },
+ {
+  "design": "beams.owa_yagi_6el",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 2.606708526611328,
+  "t_bs2": 1.9814720153808594,
+  "nec5": {
+   "peak_gain_dbi": 10.23,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 35.56,
+   "az_beamwidth_deg": 52.78260869565217,
+   "el_beamwidth_deg": 33.199999999999996
+  },
+  "bs2": {
+   "peak_gain_dbi": 10.231522754176481,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 33.90848628016277,
+   "az_beamwidth_deg": 52.59068610115344,
+   "el_beamwidth_deg": 32.9553591218024
+  },
+  "rms_db": 0.47085067540514636,
+  "d_peak_db": -0.001522754176480845,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 1.651513719837233,
+  "flagged": false
+ },
+ {
+  "design": "beams.phased_driver_yagi",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "beams.yagi",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.09362411499023438,
+  "t_bs2": 1.2686667442321777,
+  "nec5": {
+   "peak_gain_dbi": 8.89,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 8.15,
+   "az_beamwidth_deg": 59.8095238095238,
+   "el_beamwidth_deg": 41.88235294117647
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.903929798028939,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 8.304888470341627,
+   "az_beamwidth_deg": 59.82574793740068,
+   "el_beamwidth_deg": 41.89334300779292
+  },
+  "rms_db": 0.440679316656896,
+  "d_peak_db": -0.013929798028938123,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -0.15488847034162667,
+  "flagged": false
+ },
+ {
+  "design": "broadband.discone",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 4.104079484939575,
+  "t_bs2": 3.0461623668670654,
+  "nec5": {
+   "peak_gain_dbi": 1.73,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 43.666666666666664
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.726064116414676,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 297.0,
+   "front_to_back_db": 1.5543122344752192e-15,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 43.71125200774655
+  },
+  "rms_db": 0.0026952042412898528,
+  "d_peak_db": 0.00393588358532404,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 63.0,
+  "d_fb_db": -1.5543122344752192e-15,
+  "flagged": false
+ },
+ {
+  "design": "broadband.g5rv",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "broadband.lpda",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "broadband.t2fd",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.2707514762878418,
+  "t_bs2": 1.1984121799468994,
+  "nec5": {
+   "peak_gain_dbi": -1.69,
+   "takeoff_deg": 9.0,
+   "azimuth_deg": 185.0,
+   "front_to_back_db": 0.69,
+   "az_beamwidth_deg": 87.99999999999999,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": -1.6993385626583482,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 181.0,
+   "front_to_back_db": 0.5165103238757516,
+   "az_beamwidth_deg": 86.10765083786528,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.010851821804492883,
+  "d_peak_db": 0.009338562658348204,
+  "d_takeoff_deg": 7.0,
+  "d_azimuth_deg": 4.0,
+  "d_fb_db": 0.17348967612424837,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.dipole_turnstile",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.0585625171661377,
+  "t_bs2": 0.6481988430023193,
+  "nec5": {
+   "peak_gain_dbi": 2.13,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 87.00000000000001
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.1316828151763128,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 86.52546211692018
+  },
+  "rms_db": 0.00288526965559221,
+  "d_peak_db": -0.0016828151763128574,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.folded_invvee",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.067671537399292,
+  "t_bs2": 0.6417875289916992,
+  "nec5": {
+   "peak_gain_dbi": 1.96,
+   "takeoff_deg": 6.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.06000000000000005,
+   "az_beamwidth_deg": 85.84615384615384,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.9604384935256014,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.05223017270645536,
+   "az_beamwidth_deg": 85.24384258405789,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0028627855991277206,
+  "d_peak_db": -0.0004384935256014355,
+  "d_takeoff_deg": 5.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0077698272935446955,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.folded_invvee_balun",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "dipoles.invvee",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.09232068061828613,
+  "t_bs2": 0.3273341655731201,
+  "nec5": {
+   "peak_gain_dbi": 1.93,
+   "takeoff_deg": 6.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 85.85714285714286,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.929174395409774,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 85.27463919776113,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.003002559725237292,
+  "d_peak_db": 0.000825604590225959,
+  "d_takeoff_deg": 5.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.invvee_catenary",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.6542284488677979,
+  "t_bs2": 0.2985529899597168,
+  "nec5": {
+   "peak_gain_dbi": 1.82,
+   "takeoff_deg": 7.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 86.71428571428571,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.8203737876135904,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 85.97632938969181,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0030345336068036597,
+  "d_peak_db": -0.000373787613590304,
+  "d_takeoff_deg": 6.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.invvee_coax_station",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "dipoles.koch_dipole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.7645230293273926,
+  "t_bs2": 0.40015649795532227,
+  "nec5": {
+   "peak_gain_dbi": 1.94,
+   "takeoff_deg": 23.0,
+   "azimuth_deg": 184.0,
+   "front_to_back_db": 0.07999999999999985,
+   "az_beamwidth_deg": 95.83116883116884,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.9402925171154617,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 1.5543122344752192e-15,
+   "az_beamwidth_deg": 85.73504364850437,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.003077295134870154,
+  "d_peak_db": -0.0002925171154617434,
+  "d_takeoff_deg": 22.0,
+  "d_azimuth_deg": 176.0,
+  "d_fb_db": 0.0799999999999983,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.ocf_dipole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.694251298904419,
+  "t_bs2": 0.3318192958831787,
+  "nec5": {
+   "peak_gain_dbi": 2.14,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.1439655936835527,
+   "takeoff_deg": 29.0,
+   "azimuth_deg": 2.0,
+   "front_to_back_db": 0.0234655205764156,
+   "az_beamwidth_deg": 92.27038227145118,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.003016332120134128,
+  "d_peak_db": -0.003965593683552537,
+  "d_takeoff_deg": 61.0,
+  "d_azimuth_deg": 2.0,
+  "d_fb_db": -0.0234655205764156,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.pota_invvee",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.6600403785705566,
+  "t_bs2": 0.3155341148376465,
+  "nec5": {
+   "peak_gain_dbi": 1.71,
+   "takeoff_deg": 6.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 86.14285714285714,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.708987094564033,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 85.5813492779535,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0029781255452937367,
+  "d_peak_db": 0.001012905435966882,
+  "d_takeoff_deg": 5.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "dipoles.short_dipole_loaded",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.49923014640808105,
+  "t_bs2": 0.1475987434387207,
+  "nec5": {
+   "peak_gain_dbi": 1.85,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.853163025656076,
+   "takeoff_deg": 13.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 89.70293622263627,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0032680991944071328,
+  "d_peak_db": -0.0031630256560759573,
+  "d_takeoff_deg": 77.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "loops.bisquare",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 2.0448877811431885,
+  "t_bs2": 1.5313928127288818,
+  "nec5": {
+   "peak_gain_dbi": 3.66,
+   "takeoff_deg": 43.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 95.77573529411765,
+   "el_beamwidth_deg": 73.53846153846153
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.6620121171939424,
+   "takeoff_deg": 42.0,
+   "azimuth_deg": 182.0,
+   "front_to_back_db": 0.013241887249239248,
+   "az_beamwidth_deg": 96.08348966772996,
+   "el_beamwidth_deg": 73.58987316754886
+  },
+  "rms_db": 0.006931732036751841,
+  "d_peak_db": -0.002012117193942231,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 178.0,
+  "d_fb_db": -0.013241887249239248,
+  "flagged": false
+ },
+ {
+  "design": "loops.delta_loop",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1372871398925781,
+  "t_bs2": 0.7144668102264404,
+  "nec5": {
+   "peak_gain_dbi": 3.09,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.8,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.0917714197027184,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.81136376293799,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0031724015537938867,
+  "d_peak_db": -0.0017714197027185463,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "loops.delta_loop_flyby",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.09386563301086426,
+  "t_bs2": 0.7125763893127441,
+  "nec5": {
+   "peak_gain_dbi": 3.09,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.8,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.0917714196989636,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.81136376294438,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0031724015530909433,
+  "d_peak_db": -0.001771419698963772,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "loops.delta_loop_reflected",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.09396076202392578,
+  "t_bs2": 0.7117283344268799,
+  "nec5": {
+   "peak_gain_dbi": 3.09,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.8,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.0917714197014994,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.81136376293628,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.003172401554458603,
+  "d_peak_db": -0.0017714197014995214,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "loops.delta_loop_slanted",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.9973738193511963,
+  "t_bs2": 1.4793999195098877,
+  "nec5": {
+   "peak_gain_dbi": 5.96,
+   "takeoff_deg": 3.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 38.36363636363637,
+   "el_beamwidth_deg": 79.50000000000001
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.964928486049333,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 2.6645352591003757e-15,
+   "az_beamwidth_deg": 38.351194399834995,
+   "el_beamwidth_deg": 79.14464607829034
+  },
+  "rms_db": 0.004464801266621494,
+  "d_peak_db": -0.004928486049332825,
+  "d_takeoff_deg": 2.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -2.6645352591003757e-15,
+  "flagged": false
+ },
+ {
+  "design": "loops.delta_loop_topdown",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.09363341331481934,
+  "t_bs2": 0.7133936882019043,
+  "nec5": {
+   "peak_gain_dbi": 3.09,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.8,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.0917714197001662,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 84.81136376294108,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.003172401553511665,
+  "d_peak_db": -0.0017714197001663656,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "loops.diamond_loop",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.136953592300415,
+  "t_bs2": 0.7024977207183838,
+  "nec5": {
+   "peak_gain_dbi": 2.8,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 79.5,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.8011056418065854,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 1.7763568394002505e-15,
+   "az_beamwidth_deg": 79.63422586373667,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0029927612940771134,
+  "d_peak_db": -0.0011056418065855667,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -1.7763568394002505e-15,
+  "flagged": false
+ },
+ {
+  "design": "loops.diamond_loop_turnstile",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.9666352272033691,
+  "t_bs2": 1.4307456016540527,
+  "nec5": {
+   "peak_gain_dbi": 3.11,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 134.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 96.25,
+   "el_beamwidth_deg": 63.800000000000004
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.112250319034792,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 315.0,
+   "front_to_back_db": 3.9968028886505635e-15,
+   "az_beamwidth_deg": 96.32754274871259,
+   "el_beamwidth_deg": 63.781183079534706
+  },
+  "rms_db": 0.0034968847917419797,
+  "d_peak_db": -0.0022503190347920032,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 179.0,
+  "d_fb_db": -3.9968028886505635e-15,
+  "flagged": false
+ },
+ {
+  "design": "loops.horizontal_loop",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1189093589782715,
+  "t_bs2": 0.6856207847595215,
+  "nec5": {
+   "peak_gain_dbi": 3.28,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 67.2
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.281686091887446,
+   "takeoff_deg": 88.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.010880612056419103,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 76.79698157149248
+  },
+  "rms_db": 0.002875557985690768,
+  "d_peak_db": -0.0016860918874463948,
+  "d_takeoff_deg": 2.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -0.010880612056419103,
+  "flagged": false
+ },
+ {
+  "design": "loops.horizontal_loop_drone",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.0684762001037598,
+  "t_bs2": 0.6514997482299805,
+  "nec5": {
+   "peak_gain_dbi": 3.13,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 50.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.130616768332761,
+   "takeoff_deg": 88.0,
+   "azimuth_deg": 225.0,
+   "front_to_back_db": 0.01499854143157986,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0031255571567810293,
+  "d_peak_db": -0.0006167683327609197,
+  "d_takeoff_deg": 2.0,
+  "d_azimuth_deg": 135.0,
+  "d_fb_db": -0.01499854143157986,
+  "flagged": false
+ },
+ {
+  "design": "loops.inv_delta_loop",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1318821907043457,
+  "t_bs2": 0.7006938457489014,
+  "nec5": {
+   "peak_gain_dbi": 3.21,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 85.33333333333333,
+   "el_beamwidth_deg": 86.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.2087163485128127,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 85.30320001866892,
+   "el_beamwidth_deg": 85.7895888397798
+  },
+  "rms_db": 0.002990557923296953,
+  "d_peak_db": 0.0012836514871872318,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "loops.quad",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.9858286380767822,
+  "t_bs2": 1.4301621913909912,
+  "nec5": {
+   "peak_gain_dbi": 7.15,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 35.59,
+   "az_beamwidth_deg": 74.94117647058823,
+   "el_beamwidth_deg": 46.49999999999999
+  },
+  "bs2": {
+   "peak_gain_dbi": 7.160537198705368,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 34.61396086106603,
+   "az_beamwidth_deg": 74.89282361031042,
+   "el_beamwidth_deg": 46.45807259392615
+  },
+  "rms_db": 0.08207679952443485,
+  "d_peak_db": -0.010537198705367956,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.9760391389339702,
+  "flagged": false
+ },
+ {
+  "design": "loops.skyloop_lmatch",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TwoPort branch (only Load is served natively; lines/two-ports have no NEC-",
+  "nseg": 81
+ },
+ {
+  "design": "loops.triangular_skyloop",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.0933659076690674,
+  "t_bs2": 0.6631336212158203,
+  "nec5": {
+   "peak_gain_dbi": 2.93,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 42.3125
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.933797023608122,
+   "takeoff_deg": 89.0,
+   "azimuth_deg": 90.0,
+   "front_to_back_db": 0.0023685749904691633,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0028781555242597713,
+  "d_peak_db": -0.00379702360812173,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 90.0,
+  "d_fb_db": -0.0023685749904691633,
+  "flagged": false
+ },
+ {
+  "design": "multiband.fandipole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 3.1819374561309814,
+  "t_bs2": 2.414583921432495,
+  "nec5": {
+   "peak_gain_dbi": 2.11,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.3999999999999999,
+   "az_beamwidth_deg": 85.28571428571429,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.10141378545143,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.40070935997059154,
+   "az_beamwidth_deg": 85.50092907262798,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.008383224651574423,
+  "d_peak_db": 0.008586214548569782,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -0.0007093599705916276,
+  "flagged": false
+ },
+ {
+  "design": "multiband.hexbeam_5band",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "multiband.trap_dipole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.8967442512512207,
+  "t_bs2": 0.5949399471282959,
+  "nec5": {
+   "peak_gain_dbi": 2.21,
+   "takeoff_deg": 90.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 38.1875
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.2053932094871205,
+   "takeoff_deg": 19.0,
+   "azimuth_deg": 90.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 81.73610570838309,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0034664981614870084,
+  "d_peak_db": 0.004606790512879488,
+  "d_takeoff_deg": 71.0,
+  "d_azimuth_deg": 90.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "multiband.trap_fan_dipole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.3250236511230469,
+  "t_bs2": 1.2259740829467773,
+  "nec5": {
+   "peak_gain_dbi": 1.99,
+   "takeoff_deg": 5.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.1100000000000001,
+   "az_beamwidth_deg": 85.85714285714286,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.9923067930548726,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.10602198960581943,
+   "az_beamwidth_deg": 85.50744500094407,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0033498768276676357,
+  "d_peak_db": -0.00230679305487258,
+  "d_takeoff_deg": 4.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.003978010394180664,
+  "flagged": false
+ },
+ {
+  "design": "multiband.twoband_fan_dipole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1377711296081543,
+  "t_bs2": 0.703019380569458,
+  "nec5": {
+   "peak_gain_dbi": 2.07,
+   "takeoff_deg": 8.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.1399999999999999,
+   "az_beamwidth_deg": 84.0,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.0700623103926215,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.13438918666919464,
+   "az_beamwidth_deg": 82.99179479328419,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.0030933702329466895,
+  "d_peak_db": -6.231039262161175e-05,
+  "d_takeoff_deg": 7.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.005610813330805264,
+  "flagged": false
+ },
+ {
+  "design": "specialty.bowtie",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1182119846343994,
+  "t_bs2": 0.6880671977996826,
+  "nec5": {
+   "peak_gain_dbi": 2.09,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 82.875,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.08811069018663,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 82.90761203147642,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.002942942939936912,
+  "d_peak_db": 0.0018893098133698771,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "specialty.continuous_helix",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.2872817516326904,
+  "t_bs2": 0.861365795135498,
+  "nec5": {
+   "peak_gain_dbi": 1.55,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 247.0,
+   "front_to_back_db": 0.15000000000000013,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 48.266666666666666
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.5427144729735407,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 249.0,
+   "front_to_back_db": 0.14235069497708652,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 47.796352906566014
+  },
+  "rms_db": 0.04118753045239008,
+  "d_peak_db": 0.007285527026459349,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 2.0,
+  "d_fb_db": 0.007649305022913611,
+  "flagged": false
+ },
+ {
+  "design": "specialty.faceted_helix",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.3142998218536377,
+  "t_bs2": 0.9224739074707031,
+  "nec5": {
+   "peak_gain_dbi": 1.54,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 243.0,
+   "front_to_back_db": 0.14000000000000012,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 49.53333333333333
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.5418307646523939,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 250.0,
+   "front_to_back_db": 0.1369797712552745,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 47.84671376361591
+  },
+  "rms_db": 0.04124437036049971,
+  "d_peak_db": -0.001830764652393846,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 7.0,
+  "d_fb_db": 0.003020228744725628,
+  "flagged": false
+ },
+ {
+  "design": "specialty.hentenna",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.4194903373718262,
+  "t_bs2": 1.0161402225494385,
+  "nec5": {
+   "peak_gain_dbi": 5.19,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 88.8,
+   "el_beamwidth_deg": 34.705882352941174
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.194789681631811,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 88.80236371888864,
+   "el_beamwidth_deg": 34.668648195714766
+  },
+  "rms_db": 0.006726133815380092,
+  "d_peak_db": -0.004789681631810261,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "specialty.hentenna_slant",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.4364206790924072,
+  "t_bs2": 1.0220274925231934,
+  "nec5": {
+   "peak_gain_dbi": 5.09,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 88.13333333333334,
+   "el_beamwidth_deg": 35.625
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.0877555788166475,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 88.21648185104425,
+   "el_beamwidth_deg": 35.65893351337373
+  },
+  "rms_db": 0.0065592968794307505,
+  "d_peak_db": 0.0022444211833523298,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "specialty.hourglass",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.7460908889770508,
+  "t_bs2": 1.2789642810821533,
+  "nec5": {
+   "peak_gain_dbi": 5.54,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 86.66666666666667,
+   "el_beamwidth_deg": 30.36842105263158
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.542639925543181,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 86.70339622730518,
+   "el_beamwidth_deg": 30.3577143024923
+  },
+  "rms_db": 0.008212993274359731,
+  "d_peak_db": -0.002639925543181043,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "specialty.hourglass_slant",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.7193653583526611,
+  "t_bs2": 1.2557566165924072,
+  "nec5": {
+   "peak_gain_dbi": 5.08,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 88.8,
+   "el_beamwidth_deg": 32.05882352941176
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.085236805340912,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 88.71384362766221,
+   "el_beamwidth_deg": 32.059581760701825
+  },
+  "rms_db": 0.006768610884119396,
+  "d_peak_db": -0.005236805340912198,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "verticals.bobtail",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.711291790008545,
+  "t_bs2": 1.2443268299102783,
+  "nec5": {
+   "peak_gain_dbi": 6.75,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 45.53846153846154,
+   "el_beamwidth_deg": 42.06666666666666
+  },
+  "bs2": {
+   "peak_gain_dbi": 6.7538010359124545,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 8.881784197001252e-16,
+   "az_beamwidth_deg": 45.52234323955378,
+   "el_beamwidth_deg": 42.06366524796775
+  },
+  "rms_db": 0.011567244713850722,
+  "d_peak_db": -0.003801035912454509,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -8.881784197001252e-16,
+  "flagged": false
+ },
+ {
+  "design": "verticals.bruce",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 2.089571714401245,
+  "t_bs2": 1.5262675285339355,
+  "nec5": {
+   "peak_gain_dbi": 4.32,
+   "takeoff_deg": 33.0,
+   "azimuth_deg": 193.0,
+   "front_to_back_db": 2.79,
+   "az_beamwidth_deg": 54.47835497835497,
+   "el_beamwidth_deg": 89.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 4.315039085222692,
+   "takeoff_deg": 32.0,
+   "azimuth_deg": 347.0,
+   "front_to_back_db": 2.803200541352197,
+   "az_beamwidth_deg": 53.87811518486128,
+   "el_beamwidth_deg": 89.0
+  },
+  "rms_db": 0.016962498152816124,
+  "d_peak_db": 0.004960914777308645,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 154.0,
+  "d_fb_db": -0.01320054135219717,
+  "flagged": false
+ },
+ {
+  "design": "verticals.challenger",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a Transformer branch (only Load is served natively; lines/two-ports have no ",
+  "nseg": 81
+ },
+ {
+  "design": "verticals.dominator",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a Transformer branch (only Load is served natively; lines/two-ports have no ",
+  "nseg": 81
+ },
+ {
+  "design": "verticals.elt_whip",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 21,
+  "t_nec5": 29.27485728263855,
+  "t_bs2": 223.6798050403595,
+  "nec5": {
+   "peak_gain_dbi": 5.68,
+   "takeoff_deg": 34.0,
+   "azimuth_deg": 148.0,
+   "front_to_back_db": 0.09999999999999964,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 27.051764705882356
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.51448264744004,
+   "takeoff_deg": 34.0,
+   "azimuth_deg": 150.0,
+   "front_to_back_db": 0.10263419329996282,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 27.294081221902193
+  },
+  "rms_db": 1.1332583351782668,
+  "d_peak_db": 0.16551735255995936,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 2.0,
+  "d_fb_db": -0.0026341932999631723,
+  "flagged": false
+ },
+ {
+  "design": "verticals.four_square",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.7944262027740479,
+  "t_bs2": 1.322094440460205,
+  "nec5": {
+   "peak_gain_dbi": 8.99,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 45.0,
+   "front_to_back_db": 20.78,
+   "az_beamwidth_deg": 61.714285714285715,
+   "el_beamwidth_deg": 29.285714285714285
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.962556161283405,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 45.0,
+   "front_to_back_db": 22.21885627111802,
+   "az_beamwidth_deg": 61.81163170694957,
+   "el_beamwidth_deg": 29.297334407667737
+  },
+  "rms_db": 0.5851496059291234,
+  "d_peak_db": 0.027443838716594726,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -1.43885627111802,
+  "flagged": false
+ },
+ {
+  "design": "verticals.half_square",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1080288887023926,
+  "t_bs2": 0.6703963279724121,
+  "nec5": {
+   "peak_gain_dbi": 4.94,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 74.625,
+   "el_beamwidth_deg": 41.199999999999996
+  },
+  "bs2": {
+   "peak_gain_dbi": 4.937713157301382,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 1.0,
+   "front_to_back_db": 0.005556826531084802,
+   "az_beamwidth_deg": 74.60235962417443,
+   "el_beamwidth_deg": 41.212227375485824
+  },
+  "rms_db": 0.007683429075677311,
+  "d_peak_db": 0.00228684269861823,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 1.0,
+  "d_fb_db": -0.005556826531084802,
+  "flagged": false
+ },
+ {
+  "design": "verticals.inverted_l",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.2772114276885986,
+  "t_bs2": 0.8345301151275635,
+  "nec5": {
+   "peak_gain_dbi": 1.49,
+   "takeoff_deg": 11.0,
+   "azimuth_deg": 257.0,
+   "front_to_back_db": 0.3600000000000001,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 58.0
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.4945554724710517,
+   "takeoff_deg": 4.0,
+   "azimuth_deg": 199.0,
+   "front_to_back_db": 0.04582274315914736,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 53.0450107555926
+  },
+  "rms_db": 0.013688715707538775,
+  "d_peak_db": -0.0045554724710517025,
+  "d_takeoff_deg": 7.0,
+  "d_azimuth_deg": 58.0,
+  "d_fb_db": 0.31417725684085274,
+  "flagged": false
+ },
+ {
+  "design": "verticals.inverted_l_tmatch",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TwoPort branch (only Load is served natively; lines/two-ports have no NEC-",
+  "nseg": 81
+ },
+ {
+  "design": "verticals.jpole",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1184256076812744,
+  "t_bs2": 0.6838386058807373,
+  "nec5": {
+   "peak_gain_dbi": 2.54,
+   "takeoff_deg": 11.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.6600000000000001,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 45.9375
+  },
+  "bs2": {
+   "peak_gain_dbi": 2.5375647018948033,
+   "takeoff_deg": 10.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.6233003726968054,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 45.958112763363864
+  },
+  "rms_db": 0.0031157888719364874,
+  "d_peak_db": 0.002435298105196715,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.03669962730319476,
+  "flagged": false
+ },
+ {
+  "design": "verticals.phased_verticals",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.0778131484985352,
+  "t_bs2": 0.6621475219726562,
+  "nec5": {
+   "peak_gain_dbi": 5.24,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 6.51,
+   "az_beamwidth_deg": 161.4,
+   "el_beamwidth_deg": 35.33333333333333
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.231701113309896,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 6.563882137295369,
+   "az_beamwidth_deg": 162.06096385467254,
+   "el_beamwidth_deg": 35.33509383251448
+  },
+  "rms_db": 0.026634262379604555,
+  "d_peak_db": 0.008298886690104368,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -0.0538821372953695,
+  "flagged": false
+ },
+ {
+  "design": "verticals.pota_performer",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.8232922554016113,
+  "t_bs2": 0.43303775787353516,
+  "nec5": {
+   "peak_gain_dbi": 1.64,
+   "takeoff_deg": 25.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 3.7199999999999998,
+   "az_beamwidth_deg": 305.0,
+   "el_beamwidth_deg": 67.57142857142857
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.6361748944870071,
+   "takeoff_deg": 24.0,
+   "azimuth_deg": 346.0,
+   "front_to_back_db": 3.3592227833362944,
+   "az_beamwidth_deg": 311.4184321216255,
+   "el_beamwidth_deg": 67.28390282999224
+  },
+  "rms_db": 0.0035446224135577795,
+  "d_peak_db": 0.0038251055129927547,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 14.0,
+  "d_fb_db": 0.3607772166637053,
+  "flagged": false
+ },
+ {
+  "design": "verticals.raised_vertical",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 0.8444523811340332,
+  "t_bs2": 0.4499526023864746,
+  "nec5": {
+   "peak_gain_dbi": 1.83,
+   "takeoff_deg": 25.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 3.95,
+   "az_beamwidth_deg": 296.0,
+   "el_beamwidth_deg": 66.42857142857143
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.8266181734676035,
+   "takeoff_deg": 24.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 3.783116034217951,
+   "az_beamwidth_deg": 302.027150374039,
+   "el_beamwidth_deg": 66.44733624942904
+  },
+  "rms_db": 0.0029903247187387126,
+  "d_peak_db": 0.0033818265323966035,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.16688396578204934,
+  "flagged": false
+ },
+ {
+  "design": "verticals.rectangle",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "verticals.right_angle_delta",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.1271367073059082,
+  "t_bs2": 0.6810171604156494,
+  "nec5": {
+   "peak_gain_dbi": 3.53,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 116.875,
+   "el_beamwidth_deg": 42.6
+  },
+  "bs2": {
+   "peak_gain_dbi": 3.5286690214889433,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 181.0,
+   "front_to_back_db": 0.003015594151630996,
+   "az_beamwidth_deg": 116.957591886881,
+   "el_beamwidth_deg": 42.66498935611896
+  },
+  "rms_db": 0.020653712898880155,
+  "d_peak_db": 0.0013309785110564576,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 179.0,
+  "d_fb_db": -0.003015594151630996,
+  "flagged": false
+ },
+ {
+  "design": "verticals.stub_matched_vertical",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "verticals.tri_moxon",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "verticals.vertical",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.0477299690246582,
+  "t_bs2": 0.6173419952392578,
+  "nec5": {
+   "peak_gain_dbi": 1.58,
+   "takeoff_deg": 5.0,
+   "azimuth_deg": 50.0,
+   "front_to_back_db": 0.07000000000000006,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 48.1764705882353
+  },
+  "bs2": {
+   "peak_gain_dbi": 1.5776568552773285,
+   "takeoff_deg": 4.0,
+   "azimuth_deg": 300.0,
+   "front_to_back_db": 0.0640893364326438,
+   "az_beamwidth_deg": 360.0,
+   "el_beamwidth_deg": 48.328969612365114
+  },
+  "rms_db": 0.0029482190659431756,
+  "d_peak_db": 0.0023431447226716084,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 110.0,
+  "d_fb_db": 0.005910663567356256,
+  "flagged": false
+ },
+ {
+  "design": "wire.doublet_balanced_tuner",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a FloatingBalun branch (only Load is served natively; lines/two-ports have n",
+  "nseg": 81
+ },
+ {
+  "design": "wire.doublet_ladder_tuner",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "wire.edz",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "wire.efhw_sloper",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a Transformer branch (only Load is served natively; lines/two-ports have no ",
+  "nseg": 81
+ },
+ {
+  "design": "wire.expanded_lazy_h",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "wire.lazy_h",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.896822452545166,
+  "t_bs2": 1.38657808303833,
+  "nec5": {
+   "peak_gain_dbi": 8.08,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 47.44,
+   "el_beamwidth_deg": 28.95
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.079364383420371,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 47.443960762533806,
+   "el_beamwidth_deg": 28.96523632410679
+  },
+  "rms_db": 0.013733317630589693,
+  "d_peak_db": 0.0006356165796290725,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.0,
+  "flagged": false
+ },
+ {
+  "design": "wire.longwire",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 3.21864652633667,
+  "t_bs2": 2.6222071647644043,
+  "nec5": {
+   "peak_gain_dbi": 5.72,
+   "takeoff_deg": 27.0,
+   "azimuth_deg": 85.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 49.875,
+   "el_beamwidth_deg": 21.213963963963966
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.7267891193608715,
+   "takeoff_deg": 22.0,
+   "azimuth_deg": 254.0,
+   "front_to_back_db": 2.1173018893705375e-10,
+   "az_beamwidth_deg": 58.75701087835085,
+   "el_beamwidth_deg": 31.810112412902495
+  },
+  "rms_db": 0.027354668724953,
+  "d_peak_db": -0.006789119360871787,
+  "d_takeoff_deg": 5.0,
+  "d_azimuth_deg": 169.0,
+  "d_fb_db": -2.1173018893705375e-10,
+  "flagged": false
+ },
+ {
+  "design": "wire.rhombic",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 21,
+  "t_nec5": 3.774913787841797,
+  "t_bs2": 2.856663703918457,
+  "nec5": {
+   "peak_gain_dbi": 8.28,
+   "takeoff_deg": 23.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 22.299999999999997,
+   "az_beamwidth_deg": 26.653846153846157,
+   "el_beamwidth_deg": 22.290322580645167
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.275276591234407,
+   "takeoff_deg": 23.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 22.87597758007334,
+   "az_beamwidth_deg": 26.595428945225166,
+   "el_beamwidth_deg": 22.379270127414856
+  },
+  "rms_db": 0.11297335180803503,
+  "d_peak_db": 0.004723408765592296,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -0.5759775800733422,
+  "flagged": false
+ },
+ {
+  "design": "wire.sterba",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 10.072412967681885,
+  "t_bs2": 7.777114152908325,
+  "nec5": {
+   "peak_gain_dbi": 10.48,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 24.862745098039213,
+   "el_beamwidth_deg": 29.047619047619047
+  },
+  "bs2": {
+   "peak_gain_dbi": 10.48311313352224,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 180.0,
+   "front_to_back_db": 0.0002492212279641137,
+   "az_beamwidth_deg": 24.982509353159458,
+   "el_beamwidth_deg": 29.0485713377124
+  },
+  "rms_db": 0.010503455112888282,
+  "d_peak_db": -0.0031131335222394085,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 180.0,
+  "d_fb_db": -0.0002492212279641137,
+  "flagged": false
+ },
+ {
+  "design": "wire.sterba_bl",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a BalancedLine branch (only Load is served natively; lines/two-ports have no",
+  "nseg": 81
+ },
+ {
+  "design": "wire.sterba_tl",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ },
+ {
+  "design": "wire.terminated_longwire",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 21,
+  "t_nec5": 3.778513193130493,
+  "t_bs2": 3.555173397064209,
+  "nec5": {
+   "peak_gain_dbi": 8.68,
+   "takeoff_deg": 14.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 5.42,
+   "az_beamwidth_deg": 27.44,
+   "el_beamwidth_deg": 11.988560992021533
+  },
+  "bs2": {
+   "peak_gain_dbi": 8.62496911158859,
+   "takeoff_deg": 14.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 5.3137120668313855,
+   "az_beamwidth_deg": 27.359977499355278,
+   "el_beamwidth_deg": 11.990269457377565
+  },
+  "rms_db": 0.10272041387032003,
+  "d_peak_db": 0.05503088841141057,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": 0.1062879331686144,
+  "flagged": false
+ },
+ {
+  "design": "wire.vbeam",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.8704490661621094,
+  "t_bs2": 1.430283546447754,
+  "nec5": {
+   "peak_gain_dbi": 5.12,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 1.3000000000000003,
+   "az_beamwidth_deg": 39.57142857142857,
+   "el_beamwidth_deg": 56.666666666666664
+  },
+  "bs2": {
+   "peak_gain_dbi": 5.115214150521656,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 360.0,
+   "front_to_back_db": 1.3000969909399318,
+   "az_beamwidth_deg": 39.62331377319451,
+   "el_beamwidth_deg": 56.6817802495287
+  },
+  "rms_db": 0.005614338497389345,
+  "d_peak_db": 0.004785849478343707,
+  "d_takeoff_deg": 0.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -9.699093993154051e-05,
+  "flagged": false
+ },
+ {
+  "design": "wire.w8jk",
+  "error": null,
+  "out_of_scope": null,
+  "nseg": 81,
+  "t_nec5": 1.3141098022460938,
+  "t_bs2": 0.9275662899017334,
+  "nec5": {
+   "peak_gain_dbi": 6.17,
+   "takeoff_deg": 2.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 0.0,
+   "az_beamwidth_deg": 56.36363636363637,
+   "el_beamwidth_deg": 44.666666666666664
+  },
+  "bs2": {
+   "peak_gain_dbi": 6.171507869084406,
+   "takeoff_deg": 1.0,
+   "azimuth_deg": 0.0,
+   "front_to_back_db": 3.8458125573015423e-13,
+   "az_beamwidth_deg": 56.36057370711045,
+   "el_beamwidth_deg": 44.68800425383018
+  },
+  "rms_db": 0.0033887542788862543,
+  "d_peak_db": -0.0015078690844063658,
+  "d_takeoff_deg": 1.0,
+  "d_azimuth_deg": 0.0,
+  "d_fb_db": -3.8458125573015423e-13,
+  "flagged": false
+ },
+ {
+  "design": "wire.zepp",
+  "error": null,
+  "out_of_scope": "NEC5Engine cannot stamp a TL branch (only Load is served natively; lines/two-ports have no NEC-5 nat",
+  "nseg": 81
+ }
+]
