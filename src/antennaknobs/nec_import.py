@@ -1041,6 +1041,123 @@ def _gw(card, wires):
     wires.append([tag, n_seg, p1, p2, radius])
 
 
+def _snap_nec_connections(wires):
+    """Snap wire ends that NEC considers connected onto exact shared
+    coordinates, in place.
+
+    NEC engines connect segments whose ends coincide within 1e-3 of a
+    segment length — the grouping into GW wires is irrelevant. The exact
+    rule in nec2c's ``conect()``: L1 (Manhattan) separation <= SMIN=1e-3
+    times the CONNECTING segment's own length, applied per end (so a
+    mixed-length pair effectively links under the larger tolerance). We
+    match the L1 norm and take the per-pair MINIMUM segment length — the
+    conservative intersection: never connects what any NEC build would
+    leave open, at the cost of missing pairs in the narrow
+    (1e-3*min, 1e-3*max) band.
+    antennaknobs' engines junction wire ends on (near-)exact coordinate
+    matches instead (``flat_wires_to_polylines`` quantizes at 1e-6 m,
+    ``_junction_cuts`` at 1e-9 m), so a deck whose corners sit
+    microscopically apart solves as a BROKEN electrical graph: current
+    pinned to zero at every unmatched end. That is not a hypothetical —
+    GM-rotated copies of 6-significant-digit card coordinates land ~1e-6 m
+    off the endpoints they must join (the qantenna delta-loop-15m corners
+    sit 1.1 um apart, and every momwire basis solved three broken
+    triangles that never resonate while nec2c/nec2++/NEC-5 all connected
+    them — momwire#302).
+
+    Two passes, both endpoint moves <= the NEC tolerance (<= 0.1 % of one
+    segment — far below solver noise):
+
+      1. cluster wire ENDPOINTS under the per-pair NEC tolerance
+         (union-find) and rewrite each cluster to its first member;
+      2. snap remaining endpoints onto OTHER wires' interior segment
+         boundaries within tolerance, computed with bitwise the same
+         ``a + (b - a) * (k / n_seg)`` formula ``_junction_cuts`` and
+         ``wire_tuples`` use, so the mid-wire touch is later detected as
+         a cut (NEC connects a wire end running into another wire's
+         segment boundary the same way).
+
+    Gaps wider than the tolerance are left alone — NEC treats those as
+    open, so deliberately gapped geometry is unaffected.
+    """
+
+    def l1(a, b):
+        return sum(abs(x - y) for x, y in zip(a, b))
+
+    end_seg_len = []  # per endpoint (2 per wire): its wire's segment length
+    pts = []  # (coordinate tuple) per endpoint, index = 2*wire + (0|1)
+    for _tag, n_seg, p1, p2, _rad in wires:
+        seg = math.dist(p1, p2) / n_seg
+        for p in (p1, p2):
+            end_seg_len.append(seg)
+            pts.append(tuple(float(c) for c in p))
+
+    max_tol = 1e-3 * max(end_seg_len)
+    if max_tol <= 0.0:
+        return
+
+    def cell(p):
+        return tuple(math.floor(c / max_tol) for c in p)
+
+    def neighborhood(grid, p):
+        cx, cy, cz = cell(p)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    yield from grid.get((cx + dx, cy + dy, cz + dz), ())
+
+    # Pass 1: endpoint clusters. Union-find under the per-pair tolerance.
+    grid = {}
+    for k, p in enumerate(pts):
+        grid.setdefault(cell(p), []).append(k)
+    parent = list(range(len(pts)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for k, p in enumerate(pts):
+        for j in neighborhood(grid, p):
+            if j <= k:
+                continue
+            if l1(p, pts[j]) <= 1e-3 * min(end_seg_len[k], end_seg_len[j]):
+                parent[find(j)] = find(k)
+
+    for k in range(len(pts)):
+        root = find(k)
+        if root != k:
+            wi, end = divmod(k, 2)
+            wires[wi][2 + end] = list(pts[root])
+            pts[k] = pts[root]
+
+    # Pass 2: endpoints onto other wires' interior segment boundaries
+    # (recomputed after pass 1 so moved ends shift their boundaries too).
+    bgrid = {}
+    boundaries = []  # (wire_idx, coordinate tuple)
+    for wi, (_tag, n_seg, p1, p2, _rad) in enumerate(wires):
+        for k in range(1, n_seg):
+            t = k / n_seg
+            b = tuple(a + (b_ - a) * t for a, b_ in zip(p1, p2))
+            bgrid.setdefault(cell(b), []).append(len(boundaries))
+            boundaries.append((wi, b))
+
+    for k, p in enumerate(pts):
+        wi, end = divmod(k, 2)
+        best = None
+        for j in neighborhood(bgrid, p):
+            bw, b = boundaries[j]
+            if bw == wi or b == p:
+                continue
+            d = l1(p, b)
+            seg_b = end_seg_len[2 * bw]
+            if d <= 1e-3 * min(end_seg_len[k], seg_b) and (best is None or d < best[0]):
+                best = (d, b)
+        if best is not None:
+            wires[wi][2 + end] = list(best[1])
+
+
 def _ga(card, wires):
     """Wire arc in the XZ plane (nec2c ``arc``): ``n_seg`` 1-segment chords."""
     tag, n_seg = card.i(0), card.i(1)
@@ -1868,6 +1985,8 @@ def parse_nec(
 
     if not wires:
         raise ValueError(f"{name}: deck defines no wires")
+
+    _snap_nec_connections(wires)
 
     feeds = []
     for tag, seg, voltage, current, where in feeds_raw:

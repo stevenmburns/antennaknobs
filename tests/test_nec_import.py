@@ -670,3 +670,55 @@ def test_crossing_wires_shatter_into_wire_end_junctions():
         "GW 1 3 0 0 0 0 0 3 0.001\nGW 2 3 1 0 0 1 0 3 0.001\nGE\nEX 0 1 2 0 1 0\nEN\n"
     )
     assert len(deck.wire_tuples()) == 2
+
+
+def test_gm_rotated_corners_snap_to_exact_shared_nodes():
+    """NEC connects segment ends that coincide within 1e-3 of the shorter
+    segment; the engines junction wire ends on exact coordinate matches.
+    GM-rotated copies of 6-significant-digit card coordinates land ~1e-6 m
+    off the endpoints they must join (the qantenna delta-loop corners sit
+    1.1 um apart), which used to import as three BROKEN loop sides — every
+    momwire basis solved a delta loop that never resonates while
+    nec2c/nec2++/NEC-5 connected it (momwire#302)."""
+    deck = parse_nec(
+        "GW 1 17 0 2.49360 1.43968 0 -2.49360 1.43968 0.01\n"
+        "GM 0 2 120 0 0 0 0 0 1\n"
+        "GE\nEX 0 1 9 0 1 0\nEN\n"
+    )
+    tups = deck.wire_tuples()
+    assert len(tups) == 3
+    # A closed triangle: exactly 3 distinct corner coordinates, each an
+    # EXACT (bitwise) match between the two wires that meet there.
+    corners = {t[0] for t in tups} | {t[1] for t in tups}
+    assert len(corners) == 3
+    from antennaknobs.geometry import flat_wires_to_polylines
+
+    translated = flat_wires_to_polylines(tups)
+    assert translated["junctions"], "closed loop must junction, not float"
+
+
+def test_wire_end_within_nec_tolerance_of_interior_boundary_connects():
+    """A wire END landing microscopically off another wire's interior
+    segment boundary is a NEC connection too — the end snaps onto the
+    boundary so the crossing-cut machinery sees it exactly."""
+    deck = parse_nec(
+        "GW 1 4 0 0 -2 0 0 2 0.001\n"  # boundaries at z = -1, 0, +1
+        "GW 2 1 0 0.0004 0 0 1 0 0.001\n"  # end 0.4 mm off the z=0 boundary
+        "GE\nEX 0 2 1 0 1 0\nEN\n"
+    )
+    tups = deck.wire_tuples()
+    ends_at_origin = sum(1 for t in tups for e in (t[0], t[1]) if e == (0.0, 0.0, 0.0))
+    assert ends_at_origin == 3  # wire 1 cut in two + wire 2's snapped end
+
+
+def test_gaps_wider_than_nec_tolerance_stay_open():
+    """NEC leaves ends further apart than the tolerance disconnected, so
+    the import must too — deliberately gapped geometry is untouched."""
+    deck = parse_nec(
+        "GW 1 4 0 0 -2 0 0 2 0.001\n"
+        "GW 2 1 0 0.01 0 0 1 0 0.001\n"  # 10 mm off: a real gap
+        "GE\nEX 0 2 1 0 1 0\nEN\n"
+    )
+    tups = deck.wire_tuples()
+    assert len(tups) == 2
+    assert any(t[0] == (0.0, 0.01, 0.0) for t in tups)  # end unmoved
