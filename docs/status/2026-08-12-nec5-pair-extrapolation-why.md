@@ -89,25 +89,27 @@ more. What matters operationally is measured and now closed: order ≈ 1,
 source-type-independent, extrapolates to the right answer.
 
 **Addendum (same day, prompted by a groups.io reply): LLNL's own NEC-5
-Validation Manual documents the behaviour.** The introduction states
-the linear (triangle/roof-top) current expansion "may converge somewhat
-more slowly than the sinusoidal expansion used in previous NEC codes,
-as shown in this manual for dipoles"; §2.3 (Convergence for a Dipole
-Antenna) plots the N-ladders — admittance "converge[s] rapidly at the
-first resonance and more slowly at the second", impedance slowest at
-anti-resonant peaks, NEC-4's sinusoidal expansion much faster there —
-and names a feed-region mechanism: "the susceptance becomes more
-capacitive with increasing number of segments N due to the increased
-effective shunt capacitance of the source gap" (the gap's effective
-width scales with segment length). §2.2 also confirms two probe
-findings independently: the even-count end-fed center feed is the
-intended idiom (no segment-center source exists; a split-source
-spelling on an odd count is the NEC-4-compatibility alternative), and
-"current sources in NEC-5 are voltage sources with the voltage
-determined to produce the desired current" — the EX 0/EX 4
-digit-identity, explained. The manual shows the curves but prescribes
-no finite-N reading recipe; the (N, 2N) pair remains ours, now with
-the vendor's own documentation of the march it corrects.
+Validation Manual documents the behaviour** (facts restated here in our
+words — the license folds the manual into the licensed Software, so no
+manual prose is reproduced; cite Burke & Poggio, NEC 5.0,
+LLNL-CODE-746721). Its introduction notes that the linear
+(triangle/roof-top) current expansion converges more slowly than the
+sinusoidal expansion of the earlier NEC codes, and points to its dipole
+chapter for the demonstration. §2.3 (Convergence for a Dipole Antenna)
+plots the N-ladders — fast convergence at the first resonance, slower
+at the second, slowest near anti-resonant peaks, with NEC-4's
+sinusoidal expansion much quicker there — and attributes an
+N-dependent reactance term to the effective shunt capacitance of the
+source gap, which grows as segments (and with them the gap) shrink.
+§2.2 also confirms two probe findings independently: sources exist at
+segment ends/patch edges only, making the even-count end-fed center
+feed the intended idiom (a split-source spelling on an odd count is
+described as the NEC-4-compatibility alternative), and current sources
+are implemented as voltage sources whose voltage is adjusted to
+produce the requested current — the EX 0/EX 4 digit-identity,
+explained. The manual shows the curves but prescribes no finite-N
+reading recipe; the (N, 2N) pair remains ours, now with the vendor's
+own documentation of the march it corrects.
 
 - Pin added: `test_live_ex0_ex4_identical_impedance` (EX 0 vs EX 4
   digit-identity at fixed mesh) beside the phase-1 knot-identity pin.
