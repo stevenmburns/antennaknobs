@@ -42,6 +42,33 @@ def test_bridge_idiom_cost_stays_measured():
 
 
 @pytest.mark.antenna_computation_check
+def test_apex_vee_runs_on_the_iterative_solvers():
+    """The web's hmatrix/arrayblock backends (allowlisted for vertex
+    designs since momwire 0.28.1) must give the dense answer through the
+    ENGINE path — the accelerated impedance route used to solve a
+    node-gap-driven deck with a zero drive (momwire#307's fix)."""
+    from momwire.array_block import ArrayBlockSolver
+    from momwire.hmatrix import HMatrixSolver
+
+    z_ref = _z(Apex)
+    for solver in (HMatrixSolver, ArrayBlockSolver):
+        eng = MomwireEngine(Apex(), ground=None, solver=solver)
+        z = complex(eng.impedance()[0])
+        assert abs(z - z_ref) < 0.05, (solver.__name__, z, z_ref)
+
+
+def test_vertex_designs_allowlist_the_iterative_backends():
+    """`_required_backends`: a vertex-port design gets the wider list
+    (iterative solvers included); a PortAtEnd design keeps the narrow
+    junction-port list; a design with both is bound by the narrow one."""
+    from antennaknobs.designs.wire.sterba_bl import Builder as EndPortDesign
+    from antennaknobs.web import adapter
+
+    assert adapter._required_backends(Apex) == adapter._VERTEX_PORT_BACKENDS
+    assert adapter._required_backends(EndPortDesign) == adapter._JUNCTION_PORT_BACKENDS
+
+
+@pytest.mark.antenna_computation_check
 def test_apex_vee_solves_end_to_end():
     """The excited path (current distribution + far field) through a
     design driven ONLY by a vertex port — no gap feed anywhere."""
