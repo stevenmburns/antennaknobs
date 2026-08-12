@@ -78,42 +78,41 @@ centered at L/4):
 | engine | L/128 value | note |
 |---|---|---|
 | nec2c | 113.620 −84.056j | agrees with NEC-5's Z∞ |
-| bs2 | 112.288 −99.304j | converged (moving <0.2 Ω/rung) |
-| bs1 | 111.937 −99.752j | converges to the same place from below |
-| sing | 112.393 −99.278j | ditto from above |
+| bs2 | 113.394 −84.126j | agrees (regenerated — see finding below) |
+| bs1 | 112.973 −84.733j | converges to the same place from below |
+| sing | 113.504 −84.082j | ditto from above |
 
-**Flagged finding — RESOLVED 2026-08-12 (same day, follow-up runs): the
-"formulation split" was a bridge-idiom artifact, and the −99 readings
-are the wrong ones.** Three additional controls:
+**Flagged finding — the ~15 Ω X "formulation split", resolved twice.**
+The first run of this study read every momwire basis (and pynec) at
+X ≈ −99 on the bridge geometry, against −84 from nec2c and NEC-5's
+extrapolated limit. Same-day controls established the −84 side was
+right (single-wire off-center feeds agree across all engines to <1 Ω;
+single-wire feeds at seg 52/53 of NS=208 bracket exactly L/4 with an
+agreed mean ≈ **113.4 −84j**, bs2 itself included at 113.346−83.998j),
+and the split was blamed on the 1-segment colinear bridge feed idiom —
+filed as momwire#300 with a "feed-local basis never enriches" mechanism.
 
-1. Single wire, off-center segment-center feed (seg 9/32): nec2c, pynec
-   and bs2 agree to <1 Ω in both parts (−77.5 / −76.8 / −77.4 X). No
-   generic off-center split exists between any of them.
-2. pynec and momwire `sin` on the bridge geometry read −99 like the
-   Galerkin family — so the bridge reading is shared by nec2++ and every
-   momwire basis, not a Galerkin property.
-3. The arbiter: single-wire feeds at seg 52/53 of NS=208 bracket exactly
-   L/4, and every engine agrees on single wires, so their mean is an
-   agreed Z(L/4) ≈ **113.4 −84 j** — nec2c 113.460−83.806j, pynec
-   113.666−83.028j, **bs2 113.346−83.998j**. NEC-5's extrapolated
-   113.09−84.53j and nec2c's bridge reading −84.1 match it; the bridge
-   spelling on momwire/nec2++ (−99) does not — even though a colinear
-   same-radius 3-wire split is electrically the identity.
+**momwire#300 dissolved under the momwire-level repro (2026-08-12): the
+split was a study-instrument radius mismatch, not a solver defect.**
+`make_momwire`'s builder declared no wire material, so the momwire and
+pynec reference rows solved the adapter-default **0.5 mm** wire while
+every hand deck (nec2c, NEC-5) specified the study's **1 mm** — and at
+an off-center feed the radius moves X while barely touching R, exactly
+the observed signature. Driving `BSplineSolver` directly at a
+*consistent* radius, the single-wire and 3-wire-bridge spellings agree
+at any radius (1 mm: 113.42−83.89j vs 113.26−83.94j at pitch L/256;
+0.5 mm: 112.30−99.13j vs 112.16−99.15j — the second pair reproducing
+the "anomalous" −99 exactly). The bridge idiom is exonerated on the
+issue's own open questions too: enriching the bridge to 3–9 segments
+moves X < 0.1 Ω, and a 16×-pitch 1-segment bridge costs only +0.22 Ω.
+The identity is now pinned as a momwire regression test; the momwire
+reference rows above and the JSON artifact are regenerated at the
+correct radius, restoring three-way agreement (bs2/bs1/sing all → ≈
+113.4 −84j, matching nec2c's series and NEC-5's Z∞).
 
-So: census X columns need no formulation caveat, and NEC-5's knot-source
-limit is validated against an all-engines-agree reference. The real
-defect is the **1-segment colinear bridge feed idiom** — a gap on a
-1-segment wire junctioned at both ends reads ~15 Ω off in X on momwire
-(all bases) and nec2++, internally inconsistent with the same solvers'
-single-wire spelling of the same antenna. Note the study ladder kept the
-bridge at ONE segment while its length shrank with pitch, so the feed
-region's basis never enriches — the plausible mechanism, and why the
-reading "converges" to the wrong place. Filed as a momwire issue;
-nec2c's junction-adjacent source lumping happens to be insensitive.
-Catalog bridge feeds (e.g. invvee's) use short fixed-length bridges
-(≪ λ), where the cross-engine checks bound the effect at a few Ω —
-bridge-length dependence is recorded in the momwire issue as the open
-question.
+Census immunity holds trivially: the census lane translates each deck's
+own GW radius per wire, so no census row ever mixed radii — the mismatch
+was confined to this study's first-run reference rows.
 
 ## C. Correction-recipe verdict
 
