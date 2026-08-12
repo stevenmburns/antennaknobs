@@ -71,7 +71,7 @@ from antennaknobs.builder import (
     diff_params,
     resolve_variant_params,
 )
-from antennaknobs.network import PortAtEnd, as_wire
+from antennaknobs.network import PortAtEnd, PortAtVertex, as_wire
 
 try:
     from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
@@ -2071,7 +2071,13 @@ def _required_backends(cls) -> tuple[str, ...] | None:
         net = _build_builder(cls, {}).build_network()
     except Exception:
         return None
-    if net is not None and any(isinstance(p, PortAtEnd) for p in net.ports.values()):
+    if net is not None and any(
+        isinstance(p, (PortAtEnd, PortAtVertex)) for p in net.ports.values()
+    ):
+        # PortAtVertex (issue #898, momwire#305's series node gap) shares
+        # the allowlist: the same two families implement it, the same ones
+        # refuse it, and NEC-5 joins when its EX-at-knot mapping lands
+        # (#898 piece 3).
         return _JUNCTION_PORT_BACKENDS
     return None
 

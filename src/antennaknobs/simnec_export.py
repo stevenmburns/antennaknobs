@@ -693,8 +693,9 @@ def export_ssn(
     is exact at that frequency and Q-model-approximate across a sweep.
     """
     freq_mhz = builder.freq if freq_mhz is None else float(freq_mhz)
-    # PyNECEngine raises ValueError here for PortAtEnd (momwire-only) designs —
-    # NEC-2 (and therefore SimNEC's NEC block) has no junction-node port.
+    # PyNECEngine raises ValueError here for PortAtEnd / PortAtVertex
+    # designs — NEC-2 (and therefore SimNEC's NEC block) has no
+    # junction-node port and no segment-end source (issues #579, #898).
     eng = PyNECEngine(builder, ground=ground)
     if eng._use_reducer:
         # Station path (issue #604): circuit elements from the reducer

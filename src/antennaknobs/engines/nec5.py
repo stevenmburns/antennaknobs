@@ -43,6 +43,7 @@ from ..network import (
     Driven,
     DrivenCurrent,
     Load,
+    PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
     as_wire,
@@ -219,6 +220,15 @@ class NEC5Engine(SimulationEngine):
                 raise NotImplementedError(
                     "NEC5Engine cannot expose a floating port's second "
                     "terminal (no circuit stamping on this engine)"
+                )
+            if isinstance(port, PortAtVertex):
+                # The natural NEC-5 port — EX at the shared knot — but the
+                # tag/segment/end addressing and the feed-row validation are
+                # #898 piece 3 (the re-scoped #897), landing separately.
+                raise NotImplementedError(
+                    f"port {port_name!r} is a PortAtVertex — NEC5Engine's "
+                    "EX-at-knot mapping is not wired yet (issue #898); run "
+                    "it on the momwire engine meanwhile"
                 )
             if not isinstance(port, PortOnWire):
                 raise NotImplementedError(

@@ -144,7 +144,47 @@ class PortAtEnd:
             raise ValueError(f"PortAtEnd end must be 'p0' or 'p1', got {self.end!r}")
 
 
-Port = Union[PortOnWire, PortOnWireFloating, PortAtEnd, PortVirtual]
+@dataclass(frozen=True)
+class PortAtVertex:
+    """SERIES port at a wire ENDPOINT's junction (issue #898) — the apex
+    feed: a delta-gap voltage inserted in the current path THROUGH the
+    node, in series with the named wire's connection to it. Feeding an
+    inverted vee at its exact vertex — no bridge wire — is this port,
+    and it is the model NEC-5 users build natively (``EX`` at a knot).
+
+    NOT `PortAtEnd`, deliberately: that port is momwire's #172 junction
+    port — the node's KCL row promoted to a port, a SHUNT/common-mode
+    attachment whose drive injects net current INTO the node (right for
+    ground contacts and `BalancedLine` terminals). For a series-fed
+    two-wire apex the KCL-row port's current reads zero by symmetry —
+    the two ports answer different physics questions, which is why this
+    is a separate type and not a flag.
+
+    ``wire`` names a `build_wires()` tuple (names must be unique);
+    ``end`` picks its authored ``"p0"`` or ``"p1"`` endpoint, which must
+    coincide with at least one other wire end (a vertex needs a through
+    path — a lone conductor end is `PortAtEnd`'s job). The port current
+    is the current flowing from the node INTO the named wire, so at a
+    two-wire vertex the wire choice does not change the impedance; at a
+    junction of degree ≥ 3 it names which arm the gap separates, exactly
+    as NEC-5's tag/segment/end addressing does. No gap is cut in the
+    wire; the name identifies geometry only.
+
+    momwire resolves it to a `node_gaps` series feed (momwire#305);
+    NEC-5 to its native knot source. NEC-2-shaped engines
+    (`PyNECEngine`, deck export) refuse by name — NEC-2 has no end
+    source, and the honest near-miss (the short-bridge idiom) is a
+    DIFFERENT model the user must choose explicitly."""
+
+    wire: str
+    end: str = "p1"
+
+    def __post_init__(self):
+        if self.end not in ("p0", "p1"):
+            raise ValueError(f"PortAtVertex end must be 'p0' or 'p1', got {self.end!r}")
+
+
+Port = Union[PortOnWire, PortOnWireFloating, PortAtEnd, PortAtVertex, PortVirtual]
 
 
 @dataclass(frozen=True)
@@ -1057,22 +1097,31 @@ def validate_named_wires_referenced(named_wires, network):
     both known (composite expansion has already namespaced port names).
     """
     gap_names = {n for n, p in network.ports.items() if isinstance(p, PortOnWire)}
-    end_names = {p.wire for p in network.ports.values() if isinstance(p, PortAtEnd)}
+    # End and vertex ports both name geometry without cutting a gap, so
+    # they share one rule against gap ports (a wire may carry BOTH an end
+    # and a vertex port — on different or even the same endpoint, where
+    # momwire's own shunt+series conflict rule then applies).
+    end_names = {
+        p.wire
+        for p in network.ports.values()
+        if isinstance(p, (PortAtEnd, PortAtVertex))
+    }
     both = sorted(gap_names & end_names)
     if both:
         raise ValueError(
             f"wire name(s) {both} are referenced by both a PortOnWire and a "
-            "PortAtEnd — a gap port cuts a delta gap in the wire while an "
-            "end port must leave it gapless (issue #579); use separate wires."
+            "PortAtEnd/PortAtVertex — a gap port cuts a delta gap in the "
+            "wire while an end or vertex port must leave it gapless "
+            "(issues #579, #898); use separate wires."
         )
     orphaned = sorted(set(named_wires) - {None} - gap_names - end_names)
     if orphaned:
         raise ValueError(
-            f"named wire(s) {orphaned} are not referenced by any PortOnWire "
-            "or PortAtEnd in build_network(); a named wire becomes a port "
-            "edge, and an unreferenced port is an OPEN gap that cuts the "
-            "wire there (issue #578). Reference each name in Network.ports, "
-            "or drop the name."
+            f"named wire(s) {orphaned} are not referenced by any PortOnWire, "
+            "PortAtEnd or PortAtVertex in build_network(); a named wire "
+            "becomes a port edge, and an unreferenced port is an OPEN gap "
+            "that cuts the wire there (issue #578). Reference each name in "
+            "Network.ports, or drop the name."
         )
 
 
@@ -1227,7 +1276,11 @@ def _resolve_aliases(pairs, ports):
 
     rename = {}
     for members in classes.values():
-        real = [n for n in members if isinstance(ports.get(n), (PortOnWire, PortAtEnd))]
+        real = [
+            n
+            for n in members
+            if isinstance(ports.get(n), (PortOnWire, PortAtEnd, PortAtVertex))
+        ]
         if len(real) > 1:
             raise ValueError(
                 f"aliases merge distinct geometry ports {sorted(real)} — "
@@ -1419,10 +1472,11 @@ class Network:
             raise ValueError("branch_paths is derived — do not pass it")
         self._expand_instances()
         for name, port in self.ports.items():
-            # A PortAtEnd is keyed by its PORT name alone; its `wire` field
-            # names geometry, not the port (two end ports may share a wire),
-            # so there is no redundant name field to cross-check.
-            if not isinstance(port, PortAtEnd) and port.name != name:
+            # A PortAtEnd / PortAtVertex is keyed by its PORT name alone; its
+            # `wire` field names geometry, not the port (two such ports may
+            # share a wire), so there is no redundant name field to
+            # cross-check.
+            if not isinstance(port, (PortAtEnd, PortAtVertex)) and port.name != name:
                 raise ValueError(
                     f"port dict key {name!r} doesn't match Port.name {port.name!r}"
                 )
@@ -1483,7 +1537,9 @@ class Network:
         if not cm_open and not fbaluns:
             return
         determinate = {
-            n for n, p in self.ports.items() if isinstance(p, (PortOnWire, PortAtEnd))
+            n
+            for n, p in self.ports.items()
+            if isinstance(p, (PortOnWire, PortAtEnd, PortAtVertex))
         }
         determinate.update(src.port for src in self.sources)
         for br in self.branches:

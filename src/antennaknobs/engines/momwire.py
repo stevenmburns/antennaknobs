@@ -14,6 +14,7 @@ from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
 from ..network import (
     PortAtEnd,
+    PortAtVertex,
     PortOnWire,
     PortVirtual,
     as_wire,
@@ -319,9 +320,25 @@ class MomwireEngine(SimulationEngine):
             if self._network is not None
             else []
         )
+        # Vertex ports (issue #898): PortAtVertex entries resolve to series
+        # node gaps (momwire#305). Same boundary-forcing translation as end
+        # ports — the difference is what the port becomes on the solver: a
+        # node gap addresses the polyline MEMBER (wire-end), not the
+        # junction's KCL row.
+        self._vertex_ports = (
+            [
+                (name, port.wire, port.end)
+                for name, port in self._network.ports.items()
+                if isinstance(port, PortAtVertex)
+            ]
+            if self._network is not None
+            else []
+        )
 
         translated = flat_wires_to_polylines(
-            tups, end_ports=[(w, e) for _n, w, e in self._end_ports]
+            tups,
+            end_ports=[(w, e) for _n, w, e in self._end_ports]
+            + [(w, e) for _n, w, e in self._vertex_ports],
         )
         self._polylines = translated["polylines"]
         self._edge_segments = translated["edge_segments"]
@@ -333,6 +350,11 @@ class MomwireEngine(SimulationEngine):
         # Junction index per end port, in self._end_ports order.
         self._end_port_junctions = [
             translated["end_port_junctions"][(w, e)] for _n, w, e in self._end_ports
+        ]
+        # (polyline_idx, "start"|"end") per vertex port, in order — what
+        # momwire's node_gaps= addresses.
+        self._vertex_port_members = [
+            translated["end_port_members"][(w, e)] for _n, w, e in self._vertex_ports
         ]
         # Distributed-port expansion (issue #477): None until _init_network
         # finds a PortOnWire(distributed=True); every other path treats the
@@ -529,6 +551,11 @@ class MomwireEngine(SimulationEngine):
         for name, _wire, _end in self._end_ports:
             port_to_idx[name] = next_idx
             next_idx += 1
+        # Vertex ports follow the end ports, matching momwire's
+        # [feeds…, junction_ports…, node_gaps…] Y ordering (momwire#305).
+        for name, _wire, _end in self._vertex_ports:
+            port_to_idx[name] = next_idx
+            next_idx += 1
         for name, port in net.ports.items():
             if isinstance(port, PortVirtual):
                 port_to_idx[name] = next_idx
@@ -617,7 +644,10 @@ class MomwireEngine(SimulationEngine):
         if self._feed_W is None:
             return Y
         W = self._feed_W
-        n_end = len(self._end_port_junctions)
+        # Vertex ports pass through like end ports: a node gap's sign is
+        # geometric (current from the node into the named wire), so there
+        # is no walk-sign to normalize and no sub-feed expansion.
+        n_end = len(self._end_port_junctions) + len(self._vertex_port_members)
         if n_end:
             W = np.block(
                 [
@@ -667,13 +697,22 @@ class MomwireEngine(SimulationEngine):
         self._require_extended_kernel()
         return {"extended_kernel": True}
 
-    def _make_solver(self, *, wavelength, end_port_voltages=None, extended_kernel=None):
+    def _make_solver(
+        self,
+        *,
+        wavelength,
+        end_port_voltages=None,
+        vertex_port_voltages=None,
+        extended_kernel=None,
+    ):
         """Solver instance. ``end_port_voltages`` (issue #579): per-end-port
         complex voltages in `self._end_ports` order; None means 0 V on every
         end port (the Y-matrix path enumerates ports, so drive levels are
-        irrelevant there). ``extended_kernel`` overrides the engine's kernel
-        setting for this one solver (issue #849 — the portal's per-group
-        ``EK``); None keeps it."""
+        irrelevant there). ``vertex_port_voltages`` (issue #898): the same,
+        for the series node gaps in `self._vertex_ports` order.
+        ``extended_kernel`` overrides the engine's kernel setting for this
+        one solver (issue #849 — the portal's per-group ``EK``); None keeps
+        it."""
         kw = {}
         if self._end_port_junctions:
             volts = (
@@ -683,6 +722,16 @@ class MomwireEngine(SimulationEngine):
             )
             kw["junction_ports"] = [
                 (j, complex(v)) for j, v in zip(self._end_port_junctions, volts)
+            ]
+        if self._vertex_port_members:
+            v_volts = (
+                vertex_port_voltages
+                if vertex_port_voltages is not None
+                else [0j] * len(self._vertex_port_members)
+            )
+            kw["node_gaps"] = [
+                (pl, end, complex(v))
+                for (pl, end), v in zip(self._vertex_port_members, v_volts)
             ]
         return self._solver(
             wires=self._polylines,
@@ -767,7 +816,11 @@ class MomwireEngine(SimulationEngine):
             (int(j), complex(v).real, complex(v).imag)
             for j, v in getattr(sim, "junction_ports", []) or []
         )
-        key = (float(wavelength), v_key, jp_key)
+        ng_key = tuple(
+            (int(w), e, complex(v).real, complex(v).imag)
+            for w, e, v in getattr(sim, "node_gaps", []) or []
+        )
+        key = (float(wavelength), v_key, jp_key, ng_key)
         cached = getattr(self, "_solved_cache", None)
         if cached is not None and cached[0] == key:
             sim, coeffs, z = cached[1]
@@ -931,6 +984,12 @@ class MomwireEngine(SimulationEngine):
             end_port_voltages = [
                 complex(V_full[n_f + k]) for k in range(len(self._end_ports))
             ]
+            # Vertex-port voltages follow the end ports in the reducer's
+            # port ordering (issue #898).
+            n_fe = n_f + len(self._end_ports)
+            vertex_port_voltages = [
+                complex(V_full[n_fe + k]) for k in range(len(self._vertex_ports))
+            ]
         elif self._tls:
             self._excited_efficiency = 1.0
             self._excited_power_budget = []
@@ -961,6 +1020,14 @@ class MomwireEngine(SimulationEngine):
             # fires on the network path where end_port_voltages is set.
             kw["junction_ports"] = [
                 (j, v) for j, v in zip(self._end_port_junctions, end_port_voltages)
+            ]
+        if self._vertex_port_members:
+            # Same guard: only the network path declares vertex ports.
+            kw["node_gaps"] = [
+                (pl, end, complex(v))
+                for (pl, end), v in zip(
+                    self._vertex_port_members, vertex_port_voltages
+                )
             ]
         return self._solver(
             wires=self._polylines,
