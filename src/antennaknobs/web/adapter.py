@@ -2048,6 +2048,21 @@ _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 # point charges — and reject mixed per-wire radii.
 _JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin")
 
+# Backends that implement the SERIES vertex port (`PortAtVertex`, issue
+# #898 / momwire#305's node gaps) — a wider list than the junction-port
+# one: the iterative HMatrix/ArrayBlock solvers serve node gaps through
+# the same dense port columns (Y) and, since momwire 0.28.1, drive them
+# on the accelerated impedance route too; node gaps also run over EVERY
+# ground model on both dense families (they ride the ordinary span — no
+# node-charge machinery, so none of the junction-port ground caveats).
+# `bspline` stays first for the same default-backend reason as above.
+_VERTEX_PORT_BACKENDS = (
+    "bspline",
+    "sinusoidal-galerkin",
+    "hmatrix",
+    "arrayblock",
+)
+
 
 @lru_cache(maxsize=None)
 def _required_backends(cls) -> tuple[str, ...] | None:
@@ -2071,14 +2086,16 @@ def _required_backends(cls) -> tuple[str, ...] | None:
         net = _build_builder(cls, {}).build_network()
     except Exception:
         return None
-    if net is not None and any(
-        isinstance(p, (PortAtEnd, PortAtVertex)) for p in net.ports.values()
-    ):
-        # PortAtVertex (issue #898, momwire#305's series node gap) shares
-        # the allowlist: the same two families implement it, the same ones
-        # refuse it, and NEC-5 joins when its EX-at-knot mapping lands
-        # (#898 piece 3).
+    if net is None:
+        return None
+    has_end = any(isinstance(p, PortAtEnd) for p in net.ports.values())
+    has_vertex = any(isinstance(p, PortAtVertex) for p in net.ports.values())
+    if has_end:
+        # A design carrying BOTH port kinds is bound by the narrower
+        # junction-port list (the vertex list is a superset of it).
         return _JUNCTION_PORT_BACKENDS
+    if has_vertex:
+        return _VERTEX_PORT_BACKENDS
     return None
 
 
