@@ -182,6 +182,22 @@ does, and prints PASS or FAIL:
 momwire-nec2c --selftest
 ```
 
+### Testing from the command line
+
+The portal can also run a deck file directly, the way you would test any
+NEC engine:
+
+```bash
+momwire-nec2c --basis sinusoidal < dipole.nec > dipole.out
+```
+
+One framing rule makes this work: the portal solves a deck only when its
+terminator card arrives. Inside SimNEC that card is `NX` (appended to every
+deck automatically); standalone, a stock `.nec` file's final `EN` card does
+the same job and then ends the run, exactly as nec2c would. A file with
+*neither* — say, a deck that stops at `XQ` — produces only the banner: the
+body is discarded at end-of-input with a warning on stderr naming this rule.
+
 ### Choosing the physics: `--basis`
 
 SimNEC launches engines through the shell, so the engine command can carry

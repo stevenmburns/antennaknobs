@@ -373,6 +373,62 @@ def test_two_decks_through_one_loop_produce_two_frames():
     assert section_walk(ours) == section_walk(fixture_out("resident_two_decks"))
 
 
+_EN_DIPOLE = (
+    "CE standalone dipole\n"
+    "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
+    "GE 0\n"
+    "EX 0 1 5 0 1.\n"
+    "FR 0 1 0 0 30. 0\n"
+    "XQ\n"
+)
+
+
+def test_en_terminates_a_frame_and_ends_the_run():
+    """#901: an unmodified .nec file — XQ then EN, no NX — redirected into the
+    daemon must solve, echo EN as its own final data card the way genuine
+    nec2c does, skip the next-deck banner reprint, and exit 0."""
+    rc, out, err = _run_main([], deck=_EN_DIPOLE + "EN\n")
+    assert rc == 0
+    assert err == ""
+    assert out.count("ANTENNA INPUT PARAMETERS") == 1
+    assert re.findall(r"DATA CARD No:\s+(\d+) (\w\w)", out) == [
+        ("1", "EX"),
+        ("2", "FR"),
+        ("3", "XQ"),
+        ("4", "EN"),
+    ]
+    # EN ends the run: one start-up banner and nothing after the EN echo.
+    assert out.count("VERSION:") == 1
+    last = [ln for ln in out.splitlines() if ln.strip()][-1]
+    assert " EN " in last
+
+
+def test_en_after_an_nx_frame_echoes_and_exits_without_running():
+    """EN arriving with an empty body (right after an NX frame) is echoed as
+    card 1 of an empty deck and ends the run — nothing solves twice. Blank
+    lines left behind must not trip the EOF warning either."""
+    rc, out, err = _run_main([], deck=_EN_DIPOLE + "NX\n\nEN\n\n")
+    assert rc == 0
+    assert err == ""
+    assert out.count("ANTENNA INPUT PARAMETERS") == 1
+    # Startup banner + the post-NX reprint, none after EN.
+    assert out.count("VERSION:") == 2
+    assert re.findall(r"DATA CARD No:\s+(\d+) (\w\w)", out)[-2:] == [
+        ("4", "NX"),
+        ("1", "EN"),
+    ]
+
+
+def test_unterminated_body_at_eof_warns_on_stderr():
+    """#901: a deck body abandoned by EOF (no NX, no EN) used to vanish
+    without a trace — banner-only stdout and exit 0 read as a broken install.
+    The discard must name the framing rule on stderr."""
+    rc, out, err = _run_main([], deck=_EN_DIPOLE)
+    assert rc == 0
+    assert "ANTENNA INPUT PARAMETERS" not in out
+    assert "WARNING" in err and "NX or EN" in err
+
+
 def test_an_unsupported_card_still_emits_the_sentinel():
     """A deck we cannot run must not leave SimNEC blocked in readLine().
 
