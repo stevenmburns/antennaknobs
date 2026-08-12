@@ -18,6 +18,7 @@ after L. B. Cebik (W4RNL)'s articles.
 | `dipoles.folded_invvee` | Folded inverted-vee — the folded dipole's impedance step-up, with drooped arms |
 | `dipoles.folded_invvee_balun` | Folded inverted-V fed through a 4:1 balun and real coax — the `Transformer` showcase (issue #301) |
 | `dipoles.invvee` | Inverted-vee dipole — the default quickstart example · variants: `classic_edz`, `dipole`, `three_halves` |
+| `dipoles.invvee_apex` | Inverted-vee fed at its exact apex — no bridge wire (issue #898) · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.invvee_catenary` | Inverted-vee dipole whose arms hang as real catenaries (issue #698, unit 2) |
 | `dipoles.invvee_coax_station` | Inverted-V fed through real coax — the classic "resonant antenna on 50 Ω line" station, modelled from the rig (issue #300) · variants: `classic_edz`, `dipole`, `three_halves` |
 | `dipoles.koch_dipole` | Koch fractal dipole (L. B. Cebik, W4RNL -- "fractal antennas") |
