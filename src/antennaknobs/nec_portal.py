@@ -3272,11 +3272,13 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
         except (
             PortalError,
             ValueError,
-            # A basis that cannot serve this group's kernel (issue #849:
-            # sinusoidal-galerkin under EK, momwire#246). momwire raises it,
-            # and `MomwireEngine` re-raises it before the fill; either way it
-            # is a refusal SimNEC must see as a NEC ERROR, not as a daemon
-            # traceback that costs the deck its NX sentinel.
+            # A basis that cannot serve this group's kernel (issue #849 —
+            # since momwire 0.27.0 the only such combination is EK with
+            # singular enrichment; the Galerkin refusal fell with
+            # momwire#246/#287/#299). momwire raises it, and `MomwireEngine`
+            # re-raises it before the fill; either way it is a refusal SimNEC
+            # must see as a NEC ERROR, not as a daemon traceback that costs
+            # the deck its NX sentinel.
             NotImplementedError,
             np.linalg.LinAlgError,
         ) as exc:
@@ -3424,17 +3426,16 @@ def _selftest(stdout) -> int:
             and suffix in alt.stdout
             and "ANTENNA INPUT PARAMETERS" in alt.stdout
         )
-    # The Galerkin entries are the exception, and the check is deliberately
-    # two-sided rather than dropped (issue #849). momwire#246 leaves NEC's
-    # extended kernel unimplemented on the Galerkin fill, and deck 1 carries
-    # `EK` precisely because the live NECSource path always sends it — so
-    # honouring the card for real means these two roster entries cannot answer
-    # a live SimNEC deck at all. What a deployment gate can still prove, and
-    # what a box must never get wrong, is that the refusal is the DOCUMENTED
-    # one: a named `ERROR:` line and the NX sentinel behind it (a hang here is
-    # what stalls SimNEC's readLine forever) — and that the SESSION survives
-    # it, which is why both decks go down ONE process: the EK deck refuses,
-    # the same deck without the card answers, from the same resident engine.
+    # The Galerkin entries used to be the exception: until momwire 0.27.0 the
+    # Galerkin fill refused NEC's extended kernel, and deck 1 carries `EK`
+    # precisely because the live NECSource path always sends it, so this check
+    # gated the DOCUMENTED refusal frame. momwire#246/#287/#299 implemented
+    # the kernel on the Galerkin family (every ground model, non-collinear
+    # decks included), so the same two-deck, one-process probe now proves the
+    # positive statement: the EK deck ANSWERS, the plain deck answers after it
+    # from the same resident engine, and both sentinels survive. Keeping both
+    # decks (with and without the card) preserves the session-survival half of
+    # the old gate — a traceback on either would cost its NX sentinel.
     galerkin = _alt(
         "sinusoidal-galerkin-converged",
         _SELFTEST_DECKS[0] + _SELFTEST_DECKS[0].replace("EK\n", ""),
@@ -3444,15 +3445,12 @@ def _selftest(stdout) -> int:
         for ln in galerkin.stdout.splitlines()
         if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
     )
-    checks["galerkin refuses EK by name, session survives"] = (
+    checks["galerkin serves EK, session survives"] = (
         galerkin.returncode == 0
-        and any(
-            ln.split()[:1] == ["ERROR:"] and "extended thin-wire kernel" in ln
-            for ln in galerkin.stdout.splitlines()
-        )
+        and not any(ln.split()[:1] == ["ERROR:"] for ln in galerkin.stdout.splitlines())
         and sentinels == 2
         and "+sgc" in galerkin.stdout
-        and galerkin.stdout.count("ANTENNA INPUT PARAMETERS") == 1
+        and galerkin.stdout.count("ANTENNA INPUT PARAMETERS") == 2
     )
     for name, ok in checks.items():
         stdout.write(f"  {'ok  ' if ok else 'FAIL'} {name}\n")

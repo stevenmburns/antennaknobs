@@ -68,14 +68,15 @@ dipole, nec2c reads 123.7+28.6 j reduced and 113.6+29.0 j extended — an 8 %
 step — and momwire's sinusoidal basis tracks both sides of the card to 0.5 %
 and 3.1 % respectively.
 
-momwire serves it on four of its five solver families — **`sinusoidal`**,
-**`bspline`**, **`hmatrix`** and **`arrayblock`**, in free space and over
-every ground model, at about 1.0–1.3× the reduced-kernel solve. Two
-combinations refuse, loudly rather than silently:
+momwire serves it on all five solver families — **`sinusoidal`**,
+**`sinusoidal-galerkin`**, **`bspline`**, **`hmatrix`** and
+**`arrayblock`** — in free space and over every ground model, at about
+1.0–1.3× the reduced-kernel solve. The Galerkin family joined with momwire
+0.27.0: momwire#246 built its extended kernel, momwire#287 measured the
+Sommerfeld ground in, and momwire#299 made non-collinear geometry (vees,
+bent elements, junctions, radius steps) sound. One combination refuses,
+loudly rather than silently:
 
-- **`sinusoidal-galerkin`** — NEC's `EKSCX` has no counterpart for the
-  Galerkin fill's folded third source shape (momwire#246). Reach for the
-  point-matched `sinusoidal` sibling instead.
 - **singular enrichment** — the enrichment degrees of freedom carry their own
   quadrature and bypass the moment kernels the extended kernel corrects
   (momwire#271).

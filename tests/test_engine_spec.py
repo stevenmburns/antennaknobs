@@ -339,15 +339,32 @@ def test_make_factory_deck_extended_kernel_silently_ignored_for_non_momwire():
     assert factory is PyNECEngine
 
 
-def test_make_factory_extended_kernel_refuses_sinusoidal_galerkin_at_construction():
-    """momwire#246: no EKSCX counterpart for the Galerkin fill's folded
-    testing shape, so the solver refuses at construction — the same
-    NotImplementedError the engine raises directly (issue #849)."""
+def test_make_factory_extended_kernel_serves_sinusoidal_galerkin():
+    """momwire 0.27.0 un-refusal (issue #849): momwire#246 implemented NEC's
+    extended kernel on the Galerkin fill (#287 lifted the last ground refusal,
+    #299 fixed non-collinear decks), so the factory that used to raise
+    NotImplementedError at construction now builds a working engine, and the
+    kernel is honoured: the fat deck's EK answer differs measurably from the
+    reduced one."""
     factory = make_engine_factory(
         "momwire:sinusoidal-galerkin", _GROUND_UNSET, extended_kernel=True
     )
-    with pytest.raises(NotImplementedError, match="sinusoidal-galerkin"):
-        factory(_fat_dipole_builder())
+    z_ek = factory(_fat_dipole_builder()).impedance()[0]
+    reduced = make_engine_factory("momwire:sinusoidal-galerkin", _GROUND_UNSET)
+    z_red = reduced(_fat_dipole_builder()).impedance()[0]
+    assert abs(z_ek - z_red) / abs(z_red) >= 0.02, f"{z_ek} vs {z_red}"
+
+
+def test_make_factory_extended_kernel_still_refuses_singular_enrichment():
+    """The one EK refusal left (momwire#271): enrichment DOFs bypass the
+    moment kernels the extended kernel corrects. Same NotImplementedError,
+    same at-construction timing — this is the coverage the retired Galerkin
+    refusal test used to provide for the engine's refusal path."""
+    factory = make_engine_factory(
+        "momwire:sinusoidal-galerkin", _GROUND_UNSET, extended_kernel=True
+    )
+    with pytest.raises(NotImplementedError, match="enrichment"):
+        factory(_fat_dipole_builder(), solver_kwargs={"use_singular_enrichment": True})
 
 
 def test_cli_extended_kernel_flag_runs():
@@ -357,17 +374,19 @@ def test_cli_extended_kernel_flag_runs():
     )
 
 
-def test_cli_extended_kernel_galerkin_refusal_is_a_clean_systemexit(capsys):
-    """The CLI must print the refusal and exit cleanly (exit code 1, the
-    message on stdout), not dump a traceback (cli()'s NotImplementedError
-    handler, issue #849)."""
-    with pytest.raises(SystemExit) as exc:
-        ant.cli(
-            f"pattern --builder dipoles.invvee:dipole "
-            f"--engine momwire:sinusoidal-galerkin --extended-kernel{O}".split()
-        )
-    assert exc.value.code == 1
-    assert "sinusoidal-galerkin" in capsys.readouterr().out
+def test_cli_extended_kernel_galerkin_runs():
+    """momwire 0.27.0 (issue #849): the exact invocation that used to be the
+    CLI's documented clean-refusal case now just runs — the Galerkin fill
+    serves the extended kernel on every ground, non-collinear invvee included
+    (momwire#246/#287/#299). The cli() NotImplementedError→SystemExit handler
+    this test used to cover keeps its coverage at the web layer
+    (test_geometry_extended_kernel_enrichment_refusal_is_structured) and the
+    factory layer (…still_refuses_singular_enrichment above); no basis name
+    reachable from the CLI refuses EK anymore."""
+    ant.cli(
+        f"pattern --builder dipoles.invvee:dipole "
+        f"--engine momwire:sinusoidal-galerkin --extended-kernel{O}".split()
+    )
 
 
 @needs_pynec

@@ -2640,32 +2640,33 @@ def test_two_groups_of_one_deck_under_two_kernels_get_two_operators():
 @pytest.mark.parametrize(
     "basis", ["sinusoidal-galerkin", "sinusoidal-galerkin-converged"]
 )
-def test_a_galerkin_basis_refuses_an_ek_deck_as_a_nec_error(basis, restore_basis):
-    """The refusal path, on the class of deck that reaches it in real life.
+def test_a_galerkin_basis_serves_an_ek_deck(basis, restore_basis):
+    """The un-refusal (momwire 0.27.0), on the class of deck that reaches it
+    in real life.
 
-    momwire#246 leaves NEC's extended kernel unimplemented on the Galerkin fill
-    — its folded third source shape has no EKSCX counterpart — so the solver
-    refuses at construction with a NotImplementedError. The live `NECSource`
-    path sends `EK` on EVERY deck (grammar doc §17), so a SimNEC user who picks
-    a Galerkin portal entry hits this on their first solve, and what they must
-    get is the documented refusal frame: a token-0 `ERROR:` line naming the
-    kernel, the oracle-shaped `ERROR-NEC2C:` line behind it, and — the one that
-    decides whether the session survives — the NX sentinel. A traceback out of
-    `main` would cost the sentinel and stall `Execute.readLine` forever.
+    Until momwire 0.27.0 the Galerkin fill refused NEC's extended kernel and
+    this test pinned the documented refusal frame. momwire#246 implemented the
+    kernel on the Galerkin family, #287 lifted the last (Sommerfeld) ground
+    refusal and #299 made non-collinear decks sound, so the live `NECSource`
+    path — which sends `EK` on EVERY deck (grammar doc §17) — now gets an
+    ANSWER from the Galerkin portal entries. The deck is the fat Δ/a ≈ 2.4
+    dipole, where the kernel is a real correction: the EK answer must differ
+    measurably from the reduced one (same 2 % floor the sinusoidal EK test
+    uses), and both frames must keep their NX sentinels.
     """
     rc, out, err = _run_main(["--basis", basis], deck=_fat_deck("EK"))
     assert rc == 0 and err == ""
-    assert "Traceback" not in out
-    errors = [ln for ln in out.splitlines() if ln.split()[:1] == ["ERROR:"]]
-    assert errors, out[-800:]
-    assert "extended thin-wire kernel" in errors[0]
-    assert "sinusoidal-galerkin" in errors[0]
-    assert "ERROR-NEC2C: " in out
-    assert NX_ECHO.search(out), "no NX sentinel on the kernel-refusal path"
-    # ... and the same basis answers the same deck once the card is gone, so
-    # the refusal is the KERNEL's and not the basis failing on a fat wire.
+    assert "Traceback" not in out and "ERROR-NEC2C" not in out
+    assert NX_ECHO.search(out), "no NX sentinel on the EK-served path"
+    ek_rows = aip_impedances(out)
+    assert ek_rows, out[-800:]
+    # ... and the reduced answer on the same deck differs by a real margin,
+    # so the card is being honoured rather than silently dropped.
     rc, plain, _err = _run_main(["--basis", basis], deck=_fat_deck())
-    assert rc == 0 and "ERROR-NEC2C" not in plain and aip_impedances(plain)
+    assert rc == 0 and "ERROR-NEC2C" not in plain
+    z_ek = complex(*map(float, ek_rows[0]))
+    z_plain = complex(*map(float, aip_impedances(plain)[0]))
+    assert _relative(z_ek, z_plain) >= 0.02, f"{z_ek} vs {z_plain}"
 
 
 def test_the_thin_wire_ek_fixtures_barely_move_and_move_towards_nec2c():

@@ -270,11 +270,11 @@ python -m antennaknobs sweep --builder wire.dipole --extended-kernel
 It matters for **fat wires** — segments not much longer than the wire radius —
 and is a fraction of a percent on ordinary thin wire; see
 [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
-Every momwire basis serves it except `sinusoidal-galerkin`, which refuses
-(momwire#246), as does the combination with `use_singular_enrichment`
-(momwire#271) — both exit with a named message rather than a reduced-kernel
-answer under an extended-kernel request. The flag applies only to momwire:
-passing it with `--engine pynec` is an error.
+Every momwire basis serves it, `sinusoidal-galerkin` included since momwire
+0.27.0 (momwire#246/#287/#299). The one refusal left is the combination with
+`use_singular_enrichment` (momwire#271), which exits with a named message
+rather than a reduced-kernel answer under an extended-kernel request. The
+flag applies only to momwire: passing it with `--engine pynec` is an error.
 
 An imported deck brings its own: a `@file.nec` design whose deck carries an
 `EK` card is solved with the kernel on without the flag, and either source
