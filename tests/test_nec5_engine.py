@@ -761,6 +761,29 @@ def test_live_ex_sources_live_at_knots():
     assert abs(z_k3_e2 - z_k2_e2) > 0.1 * abs(z_k2_e2)
 
 
+@needs_nec5
+def test_live_ex0_ex4_identical_impedance():
+    """#890 discriminator pin: the same knot driven as a voltage source
+    (EX 0) and as NEC-5's native current source (EX 4) reads the identical
+    impedance at fixed mesh — and the EX 4 row carries no readout
+    convention at all (its AIP current is the driven 1 A exactly). The
+    O(1/N) mesh march being common to both is what pronounces it NEC-5's
+    own knot discretization rather than a harness-side gap or readout
+    artifact (docs/status/2026-08-12-nec5-pair-extrapolation-why.md)."""
+    deck = (
+        "CM ex0 vs ex4\nCE\nGW 1 8 0. 0. 10. 0. 0. 15.2 1.000000E-03\nGE 0 0\n"
+        "{ex}\nFR 0 1 0 0 27.0 0.\nXQ 0\nEN\n"
+    )
+    eng = NEC5Engine(_dipole_builder())
+
+    def z(ex):
+        return eng.run_deck(deck.format(ex=ex))[0][0][2]
+
+    z_volt = z("EX 0 1 4 2 1. 0.")
+    z_amp = z("EX 4 1 4 2 1. 0.")
+    assert z_amp == pytest.approx(z_volt, rel=1e-6)
+
+
 # --------------------------------- corpus feed-position exactness (#872 ph 1)
 
 
