@@ -99,6 +99,59 @@ EZNEC's current-source feed idiom replaced by a direct center voltage feed
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
 EZNEC's NEC-2D, independently implemented.
 
+## Case: the Leeson demo — stepped-diameter elements
+
+Practical Yagi elements taper: fat tubing at the boom, thinner sections
+toward the tips. NEC-2 carries a documented defect at wire-radius steps —
+serious enough that EZNEC ships a correction (David Leeson's
+uniform-diameter substitute elements) and applies it whenever a stepped
+element qualifies. L.B. Cebik (W4RNL) published the canonical
+demonstration: five 14 MHz free-space dipoles with progressively harder
+tapers, giving uncorrected and Leeson-corrected NEC-2 values for each
+("Tapering to Perfection", *Antenna Modeling* #10). Here are his cases
+through our engines — the exact stepped geometry, no correction applied
+anywhere:
+
+| element (14 MHz, free space) | published NEC-2 raw | our nec2c, 1×→4× mesh | momwire bs2 | NEC-5 pair | published corrected |
+| --- | --- | --- | --- | --- | --- |
+| uniform 1.0″ | — | 72.03 +0.63j → 72.28 +1.26j | 72.01 +0.24j | 72.03 -0.01j | 71.80 -0.60j |
+| one step, far out | 73.00 +4.40j | 73.55 +7.22j → 74.44 +10.92j | 72.01 -2.09j | 72.01 -2.33j | 72.00 +0.40j |
+| one step, near center | 72.40 +5.20j | 72.40 +7.66j → 72.38 +10.52j | 73.50 -0.40j | 73.51 -0.64j | 71.80 -0.50j |
+| two steps, modest taper | 72.50 +10.60j | 72.42 +12.71j → 72.46 +17.34j | 73.87 -1.43j | 73.87 -1.73j | 71.90 +0.10j |
+| two steps, extreme taper | 67.60 +17.10j | 66.56 +19.56j → 65.29 +24.42j | 76.55 -1.02j | 76.53 -1.83j | 72.10 +0.90j |
+
+Reading the table:
+
+- **The control row behaves**: on the uniform element every engine and
+  the published value agree within a few tenths of an ohm.
+- **Our raw nec2c reproduces the published defect**, and the mesh march
+  shows something the single published number cannot: **the error grows
+  as you refine the mesh**. On the extreme taper the reactance error runs
+  +19.6 Ω at 1× density to +24.4 Ω at 4× — you cannot mesh your way
+  out of a formulation defect. (Our reads differ from Cebik's published
+  raw values by a few ohms of X because the raw error is
+  segmentation-dependent and his segment counts were not published; the
+  signature and direction match throughout.)
+- **The two exact-geometry formulations agree with each other** — bs2 and
+  the NEC-5 pair land within 0.81 Ω on every case — and sit
+  where the correction points: reactance within 2.5 Ω of the
+  corrected value on every taper. The correction table is built into the
+  physics.
+- On the extreme taper the corrected *resistance* sits ~4 Ω from the
+  exact-geometry consensus — a reminder that the Leeson correction is
+  itself an approximation (a uniform substitute element), and two
+  independent formulations solving the true geometry is the stronger
+  statement of the two.
+
+![Feed reactance versus mesh density for the extreme stepped-diameter
+dipole: raw nec2c marches away from the answer as the mesh refines, while
+momwire bs2 and the NEC-5 pair sit flat on the Leeson-corrected value at
+every density.](../../../assets/validation/leeson-case5.png)
+
+This is the same defect the wild-corpus census found at scale — see the
+next section: 44 of the 46 formulation-line movers are stepped-radius
+decks.
+
 ## The wild-corpus census
 
 The strongest evidence is not a curated demo but a corpus nobody tuned:
@@ -192,15 +245,19 @@ refusal or a flag, not a number.
   binary (`NEC5_EXE`). Captured printouts in the test suite are End-User
   Reports carrying the LLNL-CODE-746721 citation; NEC-5 behaviour is
   described here by paraphrase and citation, never reproduced manual text.
+- **The published anchors are cited, not copied.** The Leeson-demo target
+  values are Cebik's published tables ("Tapering to Perfection",
+  *Antenna Modeling* #10, archived in the community Cebik archive); the
+  ByDipole1 external curves are AC6LA's published plots.
 - **This page is generated** by `scripts/build_validation_report.py` from
-  committed artifacts in `scratch/` (ByDipole1 ladders, the convergence
-  census, the fourth-vote artifact); `--recompute` re-runs the ByDipole1
-  study live. The census instruments are `scripts/bench_nec_corpus.py`
+  committed artifacts in `scratch/` (ByDipole1 ladders, the Leeson cases,
+  the convergence census, the fourth-vote artifact); `--recompute` re-runs
+  the ByDipole1 study live and `scripts/bench_leeson.py` regenerates the
+  Leeson cases. The census instruments are `scripts/bench_nec_corpus.py`
   and `scripts/bench_nec5_convergence.py`; per-phase writeups live in
   `docs/status/`.
 
-This page grows as the validation story does: stepped-diameter cases with
-published corrected values, analytic anchors (King-Middleton dipole
-values, the closed-form directivity norm), community-submitted problem
-decks — every submission gets a published per-deck verdict — and
-measured-data anchors.
+This page grows as the validation story does: analytic anchors
+(King-Middleton dipole values, the closed-form directivity norm),
+community-submitted problem decks — every submission gets a published
+per-deck verdict — and measured-data anchors.

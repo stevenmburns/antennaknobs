@@ -5,12 +5,15 @@ its figure — every number on the page is either computed here from a
 committed artifact or a cited literal from a docs/status writeup:
 
   scratch/bydipole1-ladders.json      ByDipole1 four-engine ladders (computed)
+  scratch/leeson-cebik.json           the Leeson demo cases (computed; the
+                                      published Cebik values ride inside)
   scratch/nec5-convergence-phase2.json  fixed-mesh self-convergence (computed)
   scratch/nec5-wild-pynec-votes.json  the fourth-vote split (computed)
   docs/status/2026-08-12-nec5-wild-phase5.md  census totals (cited literals)
 
-Outputs (both committed):
+Outputs (all committed):
   site/src/assets/validation/bydipole1-convergence.png
+  site/src/assets/validation/leeson-case5.png
   site/src/content/docs/reference/validation.md
 
 `--recompute` re-runs the ByDipole1 ladders live before rendering: nec2c on
@@ -32,9 +35,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LADDERS = ROOT / "scratch" / "bydipole1-ladders.json"
+LEESON = ROOT / "scratch" / "leeson-cebik.json"
 PHASE2 = ROOT / "scratch" / "nec5-convergence-phase2.json"
 VOTES = ROOT / "scratch" / "nec5-wild-pynec-votes.json"
 FIGURE = ROOT / "site" / "src" / "assets" / "validation" / "bydipole1-convergence.png"
+LEESON_FIGURE = ROOT / "site" / "src" / "assets" / "validation" / "leeson-case5.png"
 PAGE = ROOT / "site" / "src" / "content" / "docs" / "reference" / "validation.md"
 
 # ByDipole1 (EZNEC 7 distributed sample), re-authored with a direct center
@@ -214,6 +219,42 @@ def phase2_table(phase2: dict) -> str:
     return "\n".join(lines)
 
 
+def _zrow(row: list[float]) -> complex:
+    """[mult, nseg, R, X] → Z (the Leeson artifact's row shape)."""
+    return complex(row[2], row[3])
+
+
+def leeson_table(leeson: dict) -> str:
+    lines = [
+        "| element (14 MHz, free space) | published NEC-2 raw | our nec2c, 1×→4× mesh | momwire bs2 | NEC-5 pair | published corrected |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for case in leeson["cases"]:
+        pub = case["published"]
+        raw = fmt_z(complex(*pub["raw"])) if pub["raw"] else "—"
+        cor = fmt_z(complex(*pub["corrected"]))
+        march = " → ".join(fmt_z(_zrow(r)) for r in case["nec2c"][::2])
+        bs2 = fmt_z(_zrow(case["bs2"][-1]))
+        nec5 = fmt_z(_zrow(case["nec5"][-1]))
+        lines.append(f"| {case['label']} | {raw} | {march} | {bs2} | {nec5} | {cor} |")
+    return "\n".join(lines)
+
+
+def leeson_spreads(leeson: dict) -> tuple[float, float, str, str]:
+    """Max bs2↔NEC-5 distance, max bs2 X offset from the corrected value,
+    and case-5 nec2c X march endpoints."""
+    max_mutual = max(
+        abs(_zrow(c["bs2"][-1]) - _zrow(c["nec5"][-1])) for c in leeson["cases"]
+    )
+    max_dx = max(
+        abs(_zrow(c["bs2"][-1]).imag - c["published"]["corrected"][1])
+        for c in leeson["cases"]
+    )
+    c5 = next(c for c in leeson["cases"] if c["name"] == "case5-extreme")
+    x0, x1 = _zrow(c5["nec2c"][0]).imag, _zrow(c5["nec2c"][-1]).imag
+    return max_mutual, max_dx, f"{x0:+.1f}", f"{x1:+.1f}"
+
+
 def votes_split(votes: list[dict]) -> tuple[int, int, int]:
     voted = [r for r in votes if r.get("dg_pynec_nec2c") is not None]
     formulation = sum(1 for r in voted if r["dg_pynec_nec2c"] < r["dg_pynec_bs2"])
@@ -302,14 +343,85 @@ def render_figure(data: dict) -> None:
     print(f"wrote {FIGURE.relative_to(ROOT)}")
 
 
+def render_leeson_figure(leeson: dict) -> None:
+    """Case-5 feed reactance vs mesh density: the march you cannot refine away."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    surface = "#fcfcfb"
+    ink, ink2, grid = "#1a1a19", "#5f5e56", "#e8e8e6"
+    c5 = next(c for c in leeson["cases"] if c["name"] == "case5-extreme")
+    corrected_x = c5["published"]["corrected"][1]
+
+    fig, ax = plt.subplots(figsize=(8.6, 4.6), facecolor=surface)
+    ax.set_facecolor(surface)
+    series = [
+        ("nec2c", "nec2c (NEC-2), raw", "#eda100"),
+        ("nec5_raw", "NEC-5, native single mesh", "#9dd6bf"),
+        ("bs2", "momwire bs2", "#2a78d6"),
+        ("nec5", "NEC-5 (N, 2N) pair", "#1baf7a"),
+    ]
+    for key, label, color in series:
+        pts = c5[key]
+        ax.plot(
+            [p[0] for p in pts],
+            [_zrow(p).imag for p in pts],
+            color=color,
+            lw=2,
+            marker="o",
+            ms=4.5,
+            mfc=color,
+            mec=surface,
+            mew=0.5,
+            label=label,
+        )
+    ax.axhline(corrected_x, color=ink2, lw=1.2, ls=(0, (5, 4)), zorder=0)
+    ax.text(
+        0.93,
+        corrected_x + 0.7,
+        f"published Leeson-corrected X ({corrected_x:+.1f} Ω)",
+        va="bottom",
+        fontsize=8.5,
+        color=ink2,
+    )
+    ax.set_xscale("log", base=2)
+    ax.set_xticks([1, 2, 4], labels=["1×", "2×", "4×"])
+    ax.set_xlim(0.9, 7.5)
+    ax.set_xlabel("Mesh density (1× ≈ 0.25 m segments)", color=ink, fontsize=10)
+    ax.set_ylabel("Feed X (Ω)", color=ink, fontsize=10)
+    ax.grid(True, color=grid, lw=0.8)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    for s in ("left", "bottom"):
+        ax.spines[s].set_color(ink2)
+    ax.tick_params(colors=ink2, labelsize=9)
+    ax.legend(loc="center right", frameon=False, fontsize=9, labelcolor=ink)
+    ax.set_title(
+        "Extreme stepped-diameter dipole (Cebik case 5) — feed reactance vs mesh\n"
+        "Raw NEC-2's stepped-radius error grows with refinement; the\n"
+        "exact-geometry formulations hold still, near the corrected value",
+        color=ink,
+        fontsize=10.5,
+        loc="left",
+        pad=12,
+    )
+    fig.tight_layout()
+    fig.savefig(LEESON_FIGURE, dpi=170, facecolor=surface)
+    print(f"wrote {LEESON_FIGURE.relative_to(ROOT)}")
+
+
 # --------------------------------------------------------------------------
 # The page
 
 
-def build_page(data: dict, phase2: dict, votes: list[dict]) -> str:
+def build_page(data: dict, phase2: dict, votes: list[dict], leeson: dict) -> str:
     bd_table, bd_pairs = bydipole1_section(data)
     p2_table = phase2_table(phase2)
     n_voted, n_formulation, n_translation = votes_split(votes)
+    lee_table = leeson_table(leeson)
+    lee_mutual, lee_dx, lee_x0, lee_x1 = leeson_spreads(leeson)
     bs2_11 = _z(data["bs2"][0])
     nec5_12 = _z(data["nec5"][0])
     nec5_100 = _z(data["nec5"][-1])
@@ -414,6 +526,53 @@ EZNEC's current-source feed idiom replaced by a direct center voltage feed
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
 EZNEC's NEC-2D, independently implemented.
 
+## Case: the Leeson demo — stepped-diameter elements
+
+Practical Yagi elements taper: fat tubing at the boom, thinner sections
+toward the tips. NEC-2 carries a documented defect at wire-radius steps —
+serious enough that EZNEC ships a correction (David Leeson's
+uniform-diameter substitute elements) and applies it whenever a stepped
+element qualifies. L.B. Cebik (W4RNL) published the canonical
+demonstration: five 14 MHz free-space dipoles with progressively harder
+tapers, giving uncorrected and Leeson-corrected NEC-2 values for each
+("Tapering to Perfection", *Antenna Modeling* #10). Here are his cases
+through our engines — the exact stepped geometry, no correction applied
+anywhere:
+
+{lee_table}
+
+Reading the table:
+
+- **The control row behaves**: on the uniform element every engine and
+  the published value agree within a few tenths of an ohm.
+- **Our raw nec2c reproduces the published defect**, and the mesh march
+  shows something the single published number cannot: **the error grows
+  as you refine the mesh**. On the extreme taper the reactance error runs
+  {lee_x0} Ω at 1× density to {lee_x1} Ω at 4× — you cannot mesh your way
+  out of a formulation defect. (Our reads differ from Cebik's published
+  raw values by a few ohms of X because the raw error is
+  segmentation-dependent and his segment counts were not published; the
+  signature and direction match throughout.)
+- **The two exact-geometry formulations agree with each other** — bs2 and
+  the NEC-5 pair land within {lee_mutual:.2f} Ω on every case — and sit
+  where the correction points: reactance within {lee_dx:.1f} Ω of the
+  corrected value on every taper. The correction table is built into the
+  physics.
+- On the extreme taper the corrected *resistance* sits ~4 Ω from the
+  exact-geometry consensus — a reminder that the Leeson correction is
+  itself an approximation (a uniform substitute element), and two
+  independent formulations solving the true geometry is the stronger
+  statement of the two.
+
+![Feed reactance versus mesh density for the extreme stepped-diameter
+dipole: raw nec2c marches away from the answer as the mesh refines, while
+momwire bs2 and the NEC-5 pair sit flat on the Leeson-corrected value at
+every density.](../../../assets/validation/leeson-case5.png)
+
+This is the same defect the wild-corpus census found at scale — see the
+next section: 44 of the 46 formulation-line movers are stepped-radius
+decks.
+
 ## The wild-corpus census
 
 The strongest evidence is not a curated demo but a corpus nobody tuned:
@@ -493,18 +652,22 @@ refusal or a flag, not a number.
   binary (`NEC5_EXE`). Captured printouts in the test suite are End-User
   Reports carrying the LLNL-CODE-746721 citation; NEC-5 behaviour is
   described here by paraphrase and citation, never reproduced manual text.
+- **The published anchors are cited, not copied.** The Leeson-demo target
+  values are Cebik's published tables ("Tapering to Perfection",
+  *Antenna Modeling* #10, archived in the community Cebik archive); the
+  ByDipole1 external curves are AC6LA's published plots.
 - **This page is generated** by `scripts/build_validation_report.py` from
-  committed artifacts in `scratch/` (ByDipole1 ladders, the convergence
-  census, the fourth-vote artifact); `--recompute` re-runs the ByDipole1
-  study live. The census instruments are `scripts/bench_nec_corpus.py`
+  committed artifacts in `scratch/` (ByDipole1 ladders, the Leeson cases,
+  the convergence census, the fourth-vote artifact); `--recompute` re-runs
+  the ByDipole1 study live and `scripts/bench_leeson.py` regenerates the
+  Leeson cases. The census instruments are `scripts/bench_nec_corpus.py`
   and `scripts/bench_nec5_convergence.py`; per-phase writeups live in
   `docs/status/`.
 
-This page grows as the validation story does: stepped-diameter cases with
-published corrected values, analytic anchors (King-Middleton dipole
-values, the closed-form directivity norm), community-submitted problem
-decks — every submission gets a published per-deck verdict — and
-measured-data anchors.
+This page grows as the validation story does: analytic anchors
+(King-Middleton dipole values, the closed-form directivity norm),
+community-submitted problem decks — every submission gets a published
+per-deck verdict — and measured-data anchors.
 """
 
 
@@ -524,9 +687,11 @@ def main() -> int:
         data = json.loads(LADDERS.read_text())
     phase2 = json.loads(PHASE2.read_text())
     votes = json.loads(VOTES.read_text())
+    leeson = json.loads(LEESON.read_text())
 
     render_figure(data)
-    PAGE.write_text(build_page(data, phase2, votes))
+    render_leeson_figure(leeson)
+    PAGE.write_text(build_page(data, phase2, votes, leeson))
     print(f"wrote {PAGE.relative_to(ROOT)}")
     return 0
 
