@@ -138,21 +138,43 @@ class NEC5Engine(SimulationEngine):
             raise NotImplementedError(
                 "NEC5Engine stage 1 does not model transmission lines"
             )
+        # The network is read BEFORE parity coercion so vertex-only wires
+        # can be exempted (their EX sits at an end knot, which every count
+        # provides — bumping the author's mesh would be gratuitous, #898).
+        network = builder.build_network()
+        self._vertex_only_names = frozenset()
+        if network is not None:
+            vertex_names = {
+                p.wire for p in network.ports.values() if isinstance(p, PortAtVertex)
+            }
+            # Any non-vertex port that touches a wire (by .name for gap
+            # ports, .wire for end ports) keeps that wire under the normal
+            # coercion rule; a PortVirtual's name is a circuit node, not a
+            # wire, but a coincidental match only costs an unnecessary
+            # even count — never a wrong mesh.
+            other_names = set()
+            for p in network.ports.values():
+                if isinstance(p, PortAtVertex):
+                    continue
+                nm = getattr(p, "name", None) or getattr(p, "wire", None)
+                if nm:
+                    other_names.add(nm)
+            self._vertex_only_names = frozenset(vertex_names - other_names)
         self.tups = self._coerce_wire_tuples(builder.build_wires())
         self._wires = [as_wire(t) for t in self.tups]
-        # Sources, in excitation order: (wire_index, ex_type, value) with
-        # ex_type NEC-5's EX I1 — 0 voltage, 4 current (native in NEC-5;
-        # NEC-2 has no current source). Legacy Wire.ex entries and
-        # build_network() Driven/DrivenCurrent sources resolve to the same
-        # shape: a source at the named wire's center knot, the NEC-5 spelling
-        # of PortOnWire's delta gap at the wire's middle.
-        network = builder.build_network()
+        # Sources, in excitation order: (wire_index, ex_type, value, knot)
+        # with ex_type NEC-5's EX I1 — 0 voltage, 4 current (native in
+        # NEC-5; NEC-2 has no current source) — and knot naming which knot
+        # of the wire hosts the source: "center" (PortOnWire's delta gap at
+        # the middle, the legacy Wire.ex spelling too) or "p0"/"p1"
+        # (PortAtVertex, issue #898 — NEC-5's native series feed at the
+        # wire end's junction knot).
         self._loads = []  # (wire_index, Load), filled by the network resolver
         if network is not None:
             self._sources = self._resolve_network_sources(network)
         else:
             self._sources = [
-                (i, 0, complex(w.ex))
+                (i, 0, complex(w.ex), "center")
                 for i, w in enumerate(self._wires)
                 if w.ex is not None
             ]
@@ -212,7 +234,10 @@ class NEC5Engine(SimulationEngine):
                 "spec — use one excitation style"
             )
 
-        def wire_index(port_name):
+        def wire_attachment(port_name):
+            """(wire_index, knot) for a port: PortOnWire at "center",
+            PortAtVertex at its authored end (issue #898 — NEC-5's native
+            EX-at-knot, the series feed at a junction)."""
             port = network.ports.get(port_name)
             if port is None:
                 raise ValueError(f"network names unknown port {port_name!r}")
@@ -222,14 +247,13 @@ class NEC5Engine(SimulationEngine):
                     "terminal (no circuit stamping on this engine)"
                 )
             if isinstance(port, PortAtVertex):
-                # The natural NEC-5 port — EX at the shared knot — but the
-                # tag/segment/end addressing and the feed-row validation are
-                # #898 piece 3 (the re-scoped #897), landing separately.
-                raise NotImplementedError(
-                    f"port {port_name!r} is a PortAtVertex — NEC5Engine's "
-                    "EX-at-knot mapping is not wired yet (issue #898); run "
-                    "it on the momwire engine meanwhile"
-                )
+                idx = by_name.get(port.wire)
+                if idx is None:
+                    raise ValueError(
+                        f"port {port_name!r} names wire {port.wire!r} which "
+                        "the geometry does not carry"
+                    )
+                return idx, port.end
             if not isinstance(port, PortOnWire):
                 raise NotImplementedError(
                     f"port {port_name!r} is virtual — NEC5Engine only serves "
@@ -246,21 +270,31 @@ class NEC5Engine(SimulationEngine):
                     f"port {port_name!r} names wire {port.name!r} which the "
                     "geometry does not carry"
                 )
-            return idx
+            return idx, "center"
 
         sources = []
         for src in network.sources:
-            idx = wire_index(src.port)
+            idx, knot = wire_attachment(src.port)
             if isinstance(src, Driven):
-                sources.append((idx, 0, complex(src.voltage)))
+                sources.append((idx, 0, complex(src.voltage), knot))
             elif isinstance(src, DrivenCurrent):
-                sources.append((idx, 4, complex(src.current)))
+                sources.append((idx, 4, complex(src.current), knot))
             else:
                 raise NotImplementedError(f"unsupported source type {type(src)}")
         # Loads land at the same center knot as a source on that port —
         # NEC-5's series-with-the-source semantics (manual, EX card) is
-        # exactly the MNA Driven+Load termination convention.
-        self._loads = [(wire_index(br.port), br) for br in network.branches]
+        # exactly the MNA Driven+Load termination convention. A load on a
+        # VERTEX port would need the same end-knot address; deferring until
+        # a design wants it keeps the LD path single-shape.
+        self._loads = []
+        for br in network.branches:
+            idx, knot = wire_attachment(br.port)
+            if knot != "center":
+                raise NotImplementedError(
+                    f"Load on vertex port {br.port!r}: series loads at a "
+                    "junction knot are not wired yet (issue #898)"
+                )
+            self._loads.append((idx, br))
         return sources
 
     # ---------- ground ----------
@@ -342,6 +376,27 @@ class NEC5Engine(SimulationEngine):
 
     # ---------- deck ----------
 
+    def _parity_exempt_names(self):
+        """Wires whose only attachment is a `PortAtVertex` keep their
+        authored segment count: the vertex source sits at an END knot
+        (segment 1 end 1 / segment n end 2), which every count provides —
+        even parity exists to put a knot at the MIDDLE (issue #898)."""
+        return self._vertex_only_names
+
+    def _source_address(self, idx, knot):
+        """NEC-5 EX addressing (tag-relative segment, end code) for a knot
+        of wire ``idx``: the center knot is end 2 of the middle segment
+        (even parity guarantees n_seg is even); a vertex knot is the
+        wire's own end — segment 1 end 1 for ``p0``, segment n_seg end 2
+        for ``p1`` (issue #898, the series apex feed)."""
+        n_seg = self._wires[idx].n_seg
+        if knot == "center":
+            return n_seg // 2, 2
+        if knot == "p0":
+            return 1, 1
+        assert knot == "p1", knot
+        return n_seg, 2
+
     def deck(self, freqs, *, rp=None) -> str:
         """The NEC-5 input deck for this model at the given frequencies
         (MHz). Multiple frequencies must be uniformly spaced (NEC-5's FR
@@ -388,12 +443,10 @@ class NEC5Engine(SimulationEngine):
                 el = float(br.l) if br.l is not None else 0.0
                 c = float(br.c) if br.c is not None else 0.0
                 lines.append(f"LD {ldtyp} {where} {_num(r)} {_num(el)} {_num(c)}")
-        for idx, ex_type, value in self._sources:
-            # Source at end 2 of the middle segment = the wire's center
-            # knot (even parity guarantees n_seg is even).
-            n_seg = self._wires[idx].n_seg
+        for idx, ex_type, value, knot in self._sources:
+            seg, end = self._source_address(idx, knot)
             lines.append(
-                f"EX {ex_type} {idx + 1} {n_seg // 2} 2 "
+                f"EX {ex_type} {idx + 1} {seg} {end} "
                 f"{_num(value.real)} {_num(value.imag)}"
             )
         lines.append(f"FR 0 {freqs.size} 0 0 {_num(freqs[0])} {_num(df)}")
@@ -670,11 +723,13 @@ class NEC5Engine(SimulationEngine):
         # The printout's SEG. NO. is the ABSOLUTE segment number (pinned by
         # fixture: a feed at relative segment 1 of tag 3 after two 20-segment
         # wires prints as segment 41), while the deck's EX addresses
-        # tag-relative — translate before comparing.
+        # tag-relative — translate before comparing. End-knot sources (#898)
+        # translate through the same offsets: their row prints the END
+        # segment's absolute number (segment 1 or n_seg of the tag).
         offsets = np.cumsum([0] + [w.n_seg for w in self._wires[:-1]])
         expect = [
-            (idx + 1, int(offsets[idx]) + self._wires[idx].n_seg // 2)
-            for idx, _, _ in self._sources
+            (idx + 1, int(offsets[idx]) + self._source_address(idx, knot)[0])
+            for idx, _, _, knot in self._sources
         ]
         got = [(tag, seg) for tag, seg, _ in rows]
         if got != expect:

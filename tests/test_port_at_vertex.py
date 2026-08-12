@@ -146,14 +146,101 @@ def test_pynec_rejects_port_at_vertex():
         PyNECEngine(_ApexDipole())
 
 
-def test_nec5_refuses_until_knot_mapping_lands(monkeypatch):
-    """#898 piece 3 (the re-scoped #897) wires EX-at-knot; until then the
-    refusal must name the port and the issue, not mumble about virtual
-    ports. Any executable satisfies the constructor's exe gate — the
-    refusal fires while the constructor resolves network sources, before
-    anything runs."""
+# ---------------------------------------------------------------------------
+# NEC-5: the native EX-at-knot mapping (#898 piece 3, the re-scoped #897)
+# ---------------------------------------------------------------------------
+
+
+class _OddApex(_ApexDipole):
+    """Odd arm counts: visible parity exemption — a vertex-only wire keeps
+    its authored mesh because the source sits at an END knot."""
+
+    def build_wires(self):
+        arm_idx, _end = self.vertex
+        names = ["arm" if i == arm_idx else None for i in range(2)]
+        return [
+            Wire((0, 0, -ARM), (0, 0, 0), n_seg=15, name=names[0]),
+            Wire((0, 0, 0), (0, 0, ARM), n_seg=15, name=names[1]),
+        ]
+
+
+def test_nec5_maps_vertex_to_end_knot(monkeypatch):
+    """The deck spells the apex as NEC-5's native knot source: EX at the
+    named wire's own end (segment n_seg end 2 for p1 / segment 1 end 1
+    for p0), and a vertex-only wire's authored ODD count survives — the
+    even-parity coercion exists to put a knot mid-wire, which an end feed
+    does not need."""
     from antennaknobs.engines.nec5 import NEC5Engine
 
     monkeypatch.setenv("NEC5_EXE", sys.executable)
-    with pytest.raises(NotImplementedError, match="PortAtVertex"):
-        NEC5Engine(_ApexDipole())
+    deck = NEC5Engine(_OddApex()).deck([FREQ])
+    assert "GW 1 15 " in deck  # authored mesh kept (no even bump)
+    assert "GW 2 15 " in deck
+    assert "EX 0 1 15 2 " in deck  # arm p1: its own end knot
+
+    class _P0(_OddApex):
+        vertex = (1, "p0")
+
+    deck = NEC5Engine(_P0()).deck([FREQ])
+    assert "EX 0 2 1 1 " in deck  # arm p0: segment 1, end 1
+
+
+def test_nec5_still_coerces_gap_fed_wires(monkeypatch):
+    """The exemption is surgical: a centre-fed wire still needs its middle
+    knot, so the even bump stays for everything that is not vertex-only."""
+    from antennaknobs.engines.nec5 import NEC5Engine
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    class _OddPlain(_PlainDipole):
+        def build_wires(self):
+            return [Wire((0, 0, -ARM), (0, 0, ARM), n_seg=31, ex=1 + 0j)]
+
+    deck = NEC5Engine(_OddPlain()).deck([FREQ])
+    assert "GW 1 32 " in deck
+    assert "EX 0 1 16 2 " in deck
+
+
+nec5_live = pytest.mark.skipif(
+    __import__("antennaknobs.engines.nec5", fromlist=["find_nec5"]).find_nec5() is None,
+    reason="licensed NEC-5 binary not configured (NEC5_EXE)",
+)
+
+
+def _apex_at(n):
+    class _A(_ApexDipole):
+        def build_wires(self):
+            arm_idx, _end = self.vertex
+            names = ["arm" if i == arm_idx else None for i in range(2)]
+            return [
+                Wire((0, 0, -ARM), (0, 0, 0), n_seg=n, name=names[0]),
+                Wire((0, 0, 0), (0, 0, ARM), n_seg=n, name=names[1]),
+            ]
+
+    return _A()
+
+
+@nec5_live
+@pytest.mark.antenna_computation_check
+def test_nec5_apex_feed_agrees_with_momwire():
+    """The A/B the arc exists for: the same apex-fed split dipole through
+    NEC-5's native knot source and momwire's series node gap.
+
+    NEC-5's raw reading marches at O(1/N) — its own knot discretization,
+    the momwire#890 finding — so the comparison uses the #872/#890 pair
+    recipe: Richardson-extrapolate the (N, 2N) pair and compare THAT
+    against momwire's nearly-stationary d=2 answer. Measured 2026-08-12:
+    raw gaps 3.9/2.0/1.2 Ω at 16/32/64 per arm; the extrapolated pair
+    lands 0.11 Ω from momwire."""
+    from antennaknobs.engines.nec5 import NEC5Engine
+
+    z32 = complex(NEC5Engine(_apex_at(32)).impedance()[0])
+    z64 = complex(NEC5Engine(_apex_at(64)).impedance()[0])
+    z5 = 2 * z64 - z32  # first-order Richardson on the O(1/N) march
+    zm = _z(_apex_at(64))
+    assert abs(z5 - zm) < 0.5, (
+        f"NEC-5 pair {z5:.3f} (raw {z32:.3f} / {z64:.3f}) vs momwire {zm:.3f}"
+    )
+    # And the raw N=64 reading is inside the march-sized envelope — a
+    # sign/addressing bug would blow this by an order of magnitude.
+    assert abs(z64 - zm) < 2.0
