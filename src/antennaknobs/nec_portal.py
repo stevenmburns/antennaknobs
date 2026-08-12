@@ -4,6 +4,9 @@ SimNEC (``nec2/NEC2Daemon``) starts one NEC-2 process and keeps it: decks
 arrive on stdin framed by an ``NX`` card, printouts leave on stdout, and the
 Java side blocks in ``readLine()`` until it sees the ``NX`` data-card echo.
 This module is that process, with momwire behind it instead of nec2c.
+Standalone use (a shell redirect instead of SimNEC) gets one extension the
+Java side never exercises: ``EN`` — a stock deck's final card — also
+terminates a frame, and ends the run the way genuine nec2c does (#901).
 
 The contract is pinned in ``docs/status/2026-08-08-simnec-execute-grammar.md``
 (issue #792 units 1-3) and in the 36 oracle deck/printout pairs under
@@ -3329,7 +3332,7 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     return out, err
 
 
-def deck_frame(body: str) -> tuple[list[str], list[str]]:
+def deck_frame(body: str, terminator: str = "NX") -> tuple[list[str], list[str]]:
     """One deck's stdout frame: printout, the ``NX`` sentinel, trailing banner.
 
     Card numbering restarts at 1 inside every deck, so the sentinel's ordinal
@@ -3338,15 +3341,21 @@ def deck_frame(body: str) -> tuple[list[str], list[str]]:
     This is also the frame boundary the measurement file is written at (a deck
     is done, its fills are paid), and the boundary a REFUSED deck still counts
     at — it is a deck the session sent, so it belongs in the denominator.
+
+    ``terminator="EN"`` is the standalone variant (#901): the echo names the
+    card that actually arrived, and the trailing banner is omitted — genuine
+    nec2c reprints its banner only at NX, in anticipation of a next deck that
+    EN says will never come.
     """
     global _decks_rendered
     out, err = render_deck(body)
     echoed = sum(1 for line in out if line.startswith("  DATA CARD No:"))
-    out.append(fmt_data_card(echoed + 1, Card("NX", (), "NX")))
-    # The oracle reprints its banner right after consuming NX, in anticipation
-    # of the next deck; SEEKING ignores it. Reproduced so a resident
-    # transcript frames identically (grammar doc §1, §10.8).
-    out += list(_banner_lines()[1:])
+    out.append(fmt_data_card(echoed + 1, Card(terminator, (), terminator)))
+    if terminator == "NX":
+        # The oracle reprints its banner right after consuming NX, in
+        # anticipation of the next deck; SEEKING ignores it. Reproduced so a
+        # resident transcript frames identically (grammar doc §1, §10.8).
+        out += list(_banner_lines()[1:])
     _decks_rendered += 1
     _write_cache_stats()
     return out, err
@@ -3505,9 +3514,12 @@ def _selftest(stdout) -> int:
 def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) -> int:
     """The daemon. ``-version`` probes; otherwise read decks until stdin ends.
 
-    Decks are framed on stdin by an ``NX`` card and by nothing else — no
-    length prefix, no sentinel of our own — and the process is never restarted
-    between them (``NEC2Daemon.submit``).
+    Decks are framed on stdin by an ``NX`` card — no length prefix, no
+    sentinel of our own — and the process is never restarted between them
+    (``NEC2Daemon.submit``). ``EN`` also terminates a frame but then ends the
+    run, so an unmodified ``.nec`` file redirected in solves and exits (#901);
+    SimNEC itself never sends it. A body left unterminated at EOF is discarded
+    with a stderr warning naming the framing rule.
     """
     argv = sys.argv[1:] if argv is None else argv
     stdin = sys.stdin if stdin is None else stdin
@@ -3595,16 +3607,26 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
 
     body: list[str] = []
     for line in stdin:
-        if line.strip().upper().split()[:1] != ["NX"]:
+        head = line.strip().upper().split()[:1]
+        if head not in (["NX"], ["EN"]):
             body.append(line.rstrip("\n"))
             continue
-        out, err = deck_frame("\n".join(body))
+        out, err = deck_frame("\n".join(body), terminator=head[0])
         stdout.write("\n".join(out) + "\n")
         stdout.flush()
         if err:
             stderr.write("\n".join(err) + "\n")
             stderr.flush()
+        if head == ["EN"]:
+            return 0
         body = []
+    if any(ln.strip() for ln in body):
+        stderr.write(
+            "WARNING: deck discarded — stdin ended before an NX or EN card. "
+            "The portal solves a deck only at its frame terminator: SimNEC "
+            "appends NX itself; a standalone .nec file must end with EN.\n"
+        )
+        stderr.flush()
     return 0
 
 
