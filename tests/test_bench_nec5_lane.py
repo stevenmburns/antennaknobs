@@ -139,3 +139,22 @@ def test_worker_wires_capture_dir_through_env(capsys, monkeypatch, tmp_path):
     assert res["error"] and "NEC5Error" in res["error"]
     assert res.get("out_of_scope") is None
     assert sorted(p.suffix for p in captures.iterdir()) == [".nec", ".out"]
+
+
+def test_solve_design_dispatches_nec5():
+    """#872 phase 2: nec5 rides bench_converge's ladder machinery as just
+    another engine key — its knot source is the same feed class as bs1's
+    tent basis (both segment_parity="even"), so no special-casing beyond
+    the dispatch branch. Skips without the licensed binary."""
+    import pytest
+
+    import bench_converge as bc
+    from antennaknobs.engines.nec5 import find_nec5
+
+    if find_nec5() is None:
+        pytest.skip("no licensed NEC-5 binary")
+    res = bc.solve_design(bc.load_design("dipoles.invvee"), 21, "nec5", "free")
+    assert res["error"] is None
+    z = complex(res["z"][0][0], res["z"][0][1])
+    # Loose physics bar: the invvee dipole variant feeds ~55 ohm.
+    assert 30 < z.real < 90 and abs(z.imag) < 60
