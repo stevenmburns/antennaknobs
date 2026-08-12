@@ -15,8 +15,6 @@ import {
   defaultOptsFor,
   defaultSlots,
   EK_ENRICHMENT_REASON,
-  EK_GALERKIN_REASON,
-  EK_UNSUPPORTED_BACKEND,
   extendedKernelActive,
   extendedKernelRefusal,
   findBackend,
@@ -112,21 +110,18 @@ describe("extendedKernelRefusal (#849)", () => {
   const on = (name: string) => ({ ...defaultOptsFor(entry(name)), extendedKernel: true });
 
   it("passes every backend that momwire serves the kernel on", () => {
-    for (const name of ["sinusoidal", "bspline", "hmatrix", "arrayblock"]) {
+    // Every momwire basis serves the kernel since momwire 0.27.0 — the
+    // Galerkin family joined with momwire#246/#287/#299.
+    for (const name of [
+      "sinusoidal",
+      "sinusoidal-galerkin",
+      "bspline",
+      "hmatrix",
+      "arrayblock",
+    ]) {
       expect(extendedKernelRefusal(entry(name), on(name))).toBeNull();
       expect(extendedKernelActive(entry(name), on(name))).toBe(true);
     }
-  });
-
-  it("refuses the Galerkin basis by name, citing momwire#246", () => {
-    const b = entry("sinusoidal-galerkin");
-    expect(b.name).toBe(EK_UNSUPPORTED_BACKEND); // the constant IS the roster name
-    expect(extendedKernelRefusal(b, on(b.name))).toBe(EK_GALERKIN_REASON);
-    expect(EK_GALERKIN_REASON).toContain("momwire#246");
-    // …and it refuses whether or not the flag is set: the predicate describes
-    // the backend, and the toggle greys out before anything is armed.
-    expect(extendedKernelRefusal(b, defaultOptsFor(b))).toBe(EK_GALERKIN_REASON);
-    expect(extendedKernelActive(b, on(b.name))).toBe(false);
   });
 
   it("refuses alongside singular enrichment, citing momwire#271", () => {
@@ -362,15 +357,15 @@ describe("backendDisplayLabel", () => {
     expect(
       backendDisplayLabel(entry("bspline"), defaultOptsFor(entry("bspline"))),
     ).toBe("B-spline d=2");
-    // Refused by basis — a set flag on a Galerkin slot is not a running
-    // kernel, and the chip must not claim it is.
+    // Served on Galerkin since momwire 0.27.0 — the flag on that slot IS a
+    // running kernel now, and the chip says so.
     expect(
       backendDisplayLabel(entry("sinusoidal-galerkin"), {
         ...defaultOptsFor(entry("sinusoidal-galerkin")),
         feedModel: "point",
         extendedKernel: true,
       }),
-    ).toBe("Sin-Galerkin (converged)");
+    ).toBe("Sin-Galerkin (converged) +EK");
     // Refused by enrichment.
     expect(
       backendDisplayLabel(entry("bspline"), {

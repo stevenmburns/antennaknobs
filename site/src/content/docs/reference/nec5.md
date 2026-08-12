@@ -98,12 +98,20 @@ in-process solves for live knob-dragging.
 
 Cross-engine agreement on reference designs runs a few ohms of impedance
 (the different formulations' genuine spread) and ~0.01 dB RMS on far-field
-patterns. One documented exception, found the day the engine landed: at
-very low heights over lossy Sommerfeld ground (≈0.05 λ), NEC-5's reactance
-sits ~7 Ω away from the mutually-agreeing NEC-2 lineage while resistances
-match — a real formulation difference in the close-ground interaction,
-pinned in the test suite as a measured gap rather than averaged into a
-tolerance. That is the cross-validation triangle doing its job.
+patterns. The one apparent exception closed under study, and the closing is
+worth telling: the day the engine landed, NEC-5's reactance at very low
+heights over lossy Sommerfeld ground (≈0.05 λ) sat ~7 Ω away from the
+mutually-agreeing NEC-2 lineage, and was documented here as a formulation
+difference. The full corpus comparison then swept a dipole from 0.02 λ to
+1.0 λ and found the offset is height-*independent* — a feed-model term from
+NEC-5's knot-source mesh march, not close-ground physics — and that
+Richardson-extrapolating NEC-5's (N, 2N) pair dissolves it entirely:
+extrapolated NEC-5 agrees with the NEC-2 lineage to ≤ 0.17 Ω in reactance
+at every height. Both halves are pinned in the test suite — the raw
+single-mesh offset and its extrapolated resolution. That is the
+cross-validation triangle doing its job twice: first flagging a real
+discrepancy, then identifying it as convergence behaviour rather than
+physics.
 
 ## Importing NEC-5 decks
 

@@ -304,13 +304,11 @@ basis and mesh, one slot with the kernel and one without**, and the readouts
 side by side. A slot running it is labelled **+EK** on its chip
 (e.g. `B-spline d=2 +EK`), so the pair stays tellable apart.
 
-Two combinations are unavailable, and the check greys out and says which:
+Every momwire basis serves it — the Galerkin family joined with momwire
+0.27.0 (momwire#246/#287/#299: every ground model, bent and stepped
+geometry included). One combination is unavailable, and the check greys out
+and says which:
 
-- **Sin-Galerkin** cannot run it — momwire implements the extended kernel on
-  the point-matched Sinusoidal solver and the B-spline family, and refuses on
-  the Galerkin sibling rather than quietly serving a reduced-kernel answer
-  (momwire#246). Use the **Sinusoidal** slot for an extended-kernel run on
-  that basis family.
 - **K≥3 junction singular enrichment** (the validation-only B-spline knob)
   cannot run alongside it: the enrichment degrees of freedom bypass the very
   kernels the extended kernel corrects (momwire#271). The two grey each other

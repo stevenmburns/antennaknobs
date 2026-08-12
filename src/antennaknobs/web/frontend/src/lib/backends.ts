@@ -237,20 +237,13 @@ export const EK_HINT =
   "and costs about 1.0–1.3× the reduced-kernel solve.";
 
 // The one basis that cannot serve the kernel. Named here rather than read off
-// the roster because the roster carries no capability field for it: momwire
-// implements EK on the point-matched SinusoidalSolver and the B-spline family,
-// and refuses on the Galerkin sibling (momwire#246). This is the frontend twin
-// of engines/momwire.py::_extended_kernel_refusal, which raises the same two
-// refusals server-side — so a stale name here costs a clear error dialog, not
-// a wrong answer. If a second basis ever refuses, that is the moment to serve
-// the capability as a roster field instead of extending this constant.
-export const EK_UNSUPPORTED_BACKEND = "sinusoidal-galerkin";
-
-export const EK_GALERKIN_REASON =
-  "The Sin-Galerkin basis cannot run the extended kernel: NEC's EKSCX has no " +
-  "counterpart for its folded testing shape (momwire#246). Use the " +
-  "Sinusoidal or B-spline slots for an extended-kernel run.";
-
+// Since momwire 0.27.0 every momwire basis serves the extended kernel — the
+// Galerkin family joined with momwire#246/#287/#299 — so the one refusal left
+// is the enrichment combination below. This is the frontend twin of
+// engines/momwire.py::_extended_kernel_refusal, which raises the same refusal
+// server-side — a stale rule here costs a clear error dialog, not a wrong
+// answer. If a second refusal ever appears, that is the moment to serve the
+// capability as a roster field instead of another local rule.
 export const EK_ENRICHMENT_REASON =
   "The extended kernel and K≥3 junction singular enrichment cannot be used " +
   "together (momwire#271): the enrichment DOFs bypass the moment kernels the " +
@@ -260,10 +253,9 @@ export const EK_ENRICHMENT_REASON =
  *  the engine-side refusals so the gear menu can grey the toggle out and say
  *  why, instead of letting the solve come back as an error dialog. */
 export function extendedKernelRefusal(
-  b: BackendEntry,
+  _b: BackendEntry,
   opts: BackendOpts,
 ): string | null {
-  if (b.name === EK_UNSUPPORTED_BACKEND) return EK_GALERKIN_REASON;
   if (opts.bspline?.useSingularEnrichment) return EK_ENRICHMENT_REASON;
   return null;
 }
