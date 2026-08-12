@@ -1,0 +1,528 @@
+[
+ {
+  "deck": "arrl/cebik-models/VHF-UHF/144-2elhalfsquare.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/VHF-UHF/50-2eldr-dirYagi.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   17.684353442382417,
+   10.444077229216509
+  ],
+  "dg_pynec_nec2c": 0.00047801248793782723,
+  "dg_pynec_bs2": 0.3476311206095214
+ },
+ {
+  "deck": "arrl/cebik-models/VHF-UHF/50-4elhigainYagi-W1VT.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   18.415531396641505,
+   13.012335733980583
+  ],
+  "dg_pynec_nec2c": 0.0008052579394149269,
+  "dg_pynec_bs2": 0.4030753879284072
+ },
+ {
+  "deck": "arrl/cebik-models/VHF-UHF/50-9elYagi-ON4ANT.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   50.64495590176693,
+   34.93411557141031
+  ],
+  "dg_pynec_nec2c": 0.0014781053790834562,
+  "dg_pynec_bs2": 0.4475962527036739
+ },
+ {
+  "deck": "arrl/cebik-models/VHF-UHF/50-quadrectangle-horiz.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   55.08553016962418,
+   66.10866288875809
+  ],
+  "dg_pynec_nec2c": 0.00020653124464003987,
+  "dg_pynec_bs2": 0.7834078301173386
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/10-3elparasitic-sngnd.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/10-dpl-spiralhats-sngnd.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/3r6-alt3shortequidelta-sngnd-12.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/3r6-altshortequidelta-sngnd-12.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/3r6-vert-coilhat.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   23.46197094674452,
+   14.717238318296971
+  ],
+  "dg_pynec_nec2c": 0.00033680520405722356,
+  "dg_pynec_bs2": 0.24939335260949952
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/7-3elhatloadparasitic-sngnd.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/Verticals/7-3elparasitic-sngnd.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/2el10mYagi-stepdia-large.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   21.768355189600353,
+   8.936076170884094
+  ],
+  "dg_pynec_nec2c": 0.00041435252852355017,
+  "dg_pynec_bs2": 0.3211948428000006
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/2el10mYagi-stepdia-small.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   45.26751890742597,
+   23.341936710422097
+  ],
+  "dg_pynec_nec2c": 0.00019708302813192387,
+  "dg_pynec_bs2": 0.2111366505565975
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/2eldr-ref40mYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   43.874127234870244,
+   3.478123229829712
+  ],
+  "dg_pynec_nec2c": 0.00013339201045638394,
+  "dg_pynec_bs2": 0.47824902182602264
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/2elwb40mYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   68.20353813469188,
+   42.14696405416847
+  ],
+  "dg_pynec_nec2c": 9.539584937683368e-05,
+  "dg_pynec_bs2": 0.3577542422546497
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3el10mYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   10.364241350706537,
+   -7.758179288572665
+  ],
+  "dg_pynec_nec2c": 0.0001787846811658423,
+  "dg_pynec_bs2": 0.5457570070854572
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3el15mYagi-stepdia-large.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   19.23231952697965,
+   13.350870646840749
+  ],
+  "dg_pynec_nec2c": 0.00028417314186474785,
+  "dg_pynec_bs2": 0.3634930105867518
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3el15mYagi-stepdia-small.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   9.46188462924075,
+   -6.626806938721816
+  ],
+  "dg_pynec_nec2c": 0.0002185109031444627,
+  "dg_pynec_bs2": 0.5659438201763527
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3el20mlongYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   18.942687635490714,
+   21.82112681004955
+  ],
+  "dg_pynec_nec2c": 0.0003936347333760699,
+  "dg_pynec_bs2": 0.5047785734231383
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3el20mshortYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   19.8507026399902,
+   17.27713219346569
+  ],
+  "dg_pynec_nec2c": 0.00035964049612116904,
+  "dg_pynec_bs2": 0.42512159050627235
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3el40mYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   20.769278477778816,
+   14.877746993876283
+  ],
+  "dg_pynec_nec2c": 0.000327378979935277,
+  "dg_pynec_bs2": 0.4038333490693199
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/3elwb40mYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   33.48597907599757,
+   39.41771737588994
+  ],
+  "dg_pynec_nec2c": 0.000238908284127336,
+  "dg_pynec_bs2": 0.5349646228955443
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/4el2b12m17mYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   56.29474692566762,
+   11.11439144061029
+  ],
+  "dg_pynec_nec2c": 0.00015632720227366022,
+  "dg_pynec_bs2": 0.24139000819626408
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/4el2b12m17mdr-dirYagi-stepdia.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   2.786722708522894,
+   52.51696574944623
+  ],
+  "dg_pynec_nec2c": 0.0007101727197832728,
+  "dg_pynec_bs2": 1.1706837486694113
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/4elwb40mYagi.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   26.075416811951627,
+   17.913584862859015
+  ],
+  "dg_pynec_nec2c": 0.00036369406556229156,
+  "dg_pynec_bs2": 0.49729390544084134
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/5el20mYagi-K4SB.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   40.189428053791495,
+   19.53594839928508
+  ],
+  "dg_pynec_nec2c": 0.0002629563162685379,
+  "dg_pynec_bs2": 0.3207942372601513
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/5el20mYagi-N6BV.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   2.0109151816844864,
+   -4.14655533095978
+  ],
+  "dg_pynec_nec2c": 0.0006895714461044622,
+  "dg_pynec_bs2": 0.8065720401839356
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/6el10mOWAYagi-N6BV.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   21.12490984078028,
+   -3.1985715493876805
+  ],
+  "dg_pynec_nec2c": 0.0003733339340390277,
+  "dg_pynec_bs2": 0.3314370893108402
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/6el20mOWAYagi-NW3Z.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   31.956428616113595,
+   -1.4150276812910705
+  ],
+  "dg_pynec_nec2c": 0.00038416695089750214,
+  "dg_pynec_bs2": 0.22107678018611268
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/7el15mYagi-SP5GRM.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   7.45939577447812,
+   13.397474673867304
+  ],
+  "dg_pynec_nec2c": 0.0013050244978061564,
+  "dg_pynec_bs2": 0.7320891559578203
+ },
+ {
+  "deck": "arrl/cebik-models/Yagis-HF/capload2el10mYagi-375.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   28.03352044763435,
+   -5.907108647812954
+  ],
+  "dg_pynec_nec2c": 0.00033529951915564903,
+  "dg_pynec_bs2": 0.3470574603117177
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/10-2-3.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   174.7961809502488,
+   139.48238568409855
+  ],
+  "dg_pynec_nec2c": 5.173294942610843e-05,
+  "dg_pynec_bs2": 0.29650766250125954
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/10-2-3A.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   179.77991525952842,
+   154.44536956852264
+  ],
+  "dg_pynec_nec2c": 4.792659960085118e-05,
+  "dg_pynec_bs2": 0.3140699555464668
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/10-2-4.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   136.48265163524516,
+   14.416203201975394
+  ],
+  "dg_pynec_nec2c": 7.813037603766979e-05,
+  "dg_pynec_bs2": 0.3598505561673364
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/10-3-1.NEC",
+  "pynec_error": "RuntimeError: GEOMETRY DATA ERROR -- FIRST SEGMENT MIDPOINT OF WIRE #2 (TAG ID #2) INTERSECTS WIRE #1 (TAG ID #1)"
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/12-4-1.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   51.41330242973519,
+   36.25286282050645
+  ],
+  "dg_pynec_nec2c": 0.00026685390384941795,
+  "dg_pynec_bs2": 0.6341936058867482
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/12-4-2.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   51.73833065486893,
+   36.540606377665654
+  ],
+  "dg_pynec_nec2c": 0.0002714826926673273,
+  "dg_pynec_bs2": 0.6304387598877448
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/12-4.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   51.48251252832628,
+   36.30933881585384
+  ],
+  "dg_pynec_nec2c": 0.0002706633097782538,
+  "dg_pynec_bs2": 0.6335271168527702
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/15-2-3P.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   28.581045588390776,
+   6.122205380108091
+  ],
+  "dg_pynec_nec2c": 0.0005005152619824389,
+  "dg_pynec_bs2": 0.20952880705033036
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/18-9.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   70.92062888897755,
+   20.86642540930026
+  ],
+  "dg_pynec_nec2c": 0.00015650413013624322,
+  "dg_pynec_bs2": 0.25566538180356857
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/6-6.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-1/9-5.NEC",
+  "pynec_error": null,
+  "z_pynec": [
+   9.460900851488375,
+   -6.645461443697732
+  ],
+  "dg_pynec_nec2c": 0.00021967187897921426,
+  "dg_pynec_bs2": 0.566169140770827
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-10/10-3b.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   30.617159379019043,
+   -3.0634105380160053
+  ],
+  "dg_pynec_nec2c": 0.0005141994032959846,
+  "dg_pynec_bs2": 0.22749082258652395
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-11/11-2b.nec",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-20/20-4g-nec2.nec",
+  "pynec_error": "RuntimeError: GEOMETRY DATA ERROR -- FIRST SEGMENT MIDPOINT OF WIRE #2 (TAG ID #2) INTERSECTS WIRE #1 (TAG ID #1)"
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-3/3-5.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   1.8941155578356628,
+   -4.346427404482196
+  ],
+  "dg_pynec_nec2c": 0.000697774293880338,
+  "dg_pynec_bs2": 0.8064934376907308
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-5/5-6a.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   64.66230270917168,
+   -4.606314433565156
+  ],
+  "dg_pynec_nec2c": 0.23178316340881014,
+  "dg_pynec_bs2": 0.005724796138596011
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-7/7-5.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   20.339097121936184,
+   -8.625342027886736
+  ],
+  "dg_pynec_nec2c": 2.710958719298301e-05,
+  "dg_pynec_bs2": 0.6427845640694173
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-7/7-5a.nec",
+  "pynec_error": "RuntimeError: GEOMETRY DATA ERROR -- FIRST SEGMENT MIDPOINT OF WIRE #2 (TAG ID #2) INTERSECTS WIRE #1 (TAG ID #1)"
+ },
+ {
+  "deck": "community/cebik-w4rnl/tutorial-models/Tutorial-2/ch-7/7-8.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   25.007015706719304,
+   72.6765959785664
+  ],
+  "dg_pynec_nec2c": 0.0003217048678379028,
+  "dg_pynec_bs2": 0.4469785488330488
+ },
+ {
+  "deck": "opensource/4nec2/zz_MiniNec/HFbeams/3EL20.NEC",
+  "pynec_error": "ValueError: unrecognised ground spec: 'finite'"
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_18_1.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   65.16885581089186,
+   -3.557147109135914
+  ],
+  "dg_pynec_nec2c": 0.00030397948003442476,
+  "dg_pynec_bs2": 0.3598281423083783
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_18_1t.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   65.6824709046439,
+   -5.5643873790964244
+  ],
+  "dg_pynec_nec2c": 0.00029539028132161957,
+  "dg_pynec_bs2": 0.34023057775286786
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_18_t10m.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   63.15469858082362,
+   -1.4126434856211176
+  ],
+  "dg_pynec_nec2c": 0.00031259932519778276,
+  "dg_pynec_bs2": 0.38252218208564875
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_18_t10mvp.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   63.15469858082362,
+   -1.4126434856211176
+  ],
+  "dg_pynec_nec2c": 0.00031259932519778276,
+  "dg_pynec_bs2": 0.38252218208564875
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_24b18.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   66.53222256615426,
+   26.9398933132601
+  ],
+  "dg_pynec_nec2c": 0.00025977274359288564,
+  "dg_pynec_bs2": 0.37879660412219457
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_28_1.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   38.69422268391674,
+   -57.959873436571094
+  ],
+  "dg_pynec_nec2c": 0.000360190826104223,
+  "dg_pynec_bs2": 0.700525415212391
+ },
+ {
+  "deck": "opensource/nec2c/dl_2el_28_f.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   31.536087047490955,
+   -102.44924518347733
+  ],
+  "dg_pynec_nec2c": 0.00018026229768604253,
+  "dg_pynec_bs2": 0.8020973782813365
+ },
+ {
+  "deck": "opensource/qantenna/tower.nec",
+  "pynec_error": "RuntimeError: GEOMETRY DATA ERROR -- WIRE #1 (TAG ID #1) INTERSECTS WIRE #19 (TAG ID #19)"
+ },
+ {
+  "deck": "opensource/qantenna/turnstile-sloped.nec",
+  "pynec_error": null,
+  "z_pynec": [
+   14.240581428000905,
+   5.037673861954446
+  ],
+  "dg_pynec_nec2c": 3.84745807515633e-05,
+  "dg_pynec_bs2": 0.2693801865516907
+ }
+]
