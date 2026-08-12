@@ -1287,6 +1287,21 @@ def _has_near_ground_ungrounded_wire(deck, freq_mhz: float) -> bool:
     return bool(_somm_low_wire_risk(tups, 299.792458 / freq_mhz))
 
 
+def _stepped_radius(deck) -> bool:
+    """Stepped/multi-radius elements (issue #885): any two wires whose radii
+    genuinely differ. On these decks the nec2c reference carries NEC-2's
+    known stepped-diameter defect (the reason EZNEC ships the Leeson
+    correction; fixed in NEC-4/NEC-5): the #872 phase-5 movers analysis put
+    {bs2 + NEC-5} in mutual agreement against {nec2c + nec2++} on identical
+    geometry for 44/46 formulation-class decks, all stepped-radius — the
+    REFERENCE is the outlier there, so the flag marks the ΔΓ-vs-nec2c
+    columns as reference-suspect rather than engine error. (GC tapers would
+    belong here too, but ``parse_nec`` rejects GC decks before a row
+    exists, so distinct GW radii are the whole served class.)"""
+    radii = [w.radius for w in deck.wires]
+    return bool(radii) and max(radii) > min(radii) * (1 + 1e-9)
+
+
 def bench_deck(
     deck_path: Path,
     engines,
@@ -1326,6 +1341,7 @@ def bench_deck(
         # instead of hanging (momwire#157), at a residual that matches nec2c
         # better than meshing the tiny remote wire would. Labeled, not hidden.
         virtualized_anchors=list(deck.virtual_anchor_tags()),
+        stepped_radius=_stepped_radius(deck),
     )
 
     # EX 6 decks (issue #442) NEVER use the original-deck reference: nec2c
@@ -1476,7 +1492,9 @@ def print_report(rows, engines):
         " t = mixed EX 6 feed shares a TL/NT segment; R_BIG subtraction skipped (#456),"
         " y = EX 6 current-source reference via NT-gyrator emulation (#475),"
         " s = EX 6 current-source reference via Y-matrix superposition (#463, #464),"
-        " p = gn 2 + near-ground ungrounded wire: pynec known-unreliable (#448)"
+        " p = gn 2 + near-ground ungrounded wire: pynec known-unreliable (#448),"
+        " d = stepped-radius wires: nec2c reference suspect "
+        "(NEC-2 stepped-diameter defect, #885)"
     )
     print("=" * 104)
     hdr = (
@@ -1496,6 +1514,7 @@ def print_report(rows, engines):
             + ("y" if r.get("nec2c", {}).get("gyrator") else "")
             + ("s" if r.get("nec2c", {}).get("superposition") else "")
             + ("p" if r.get("pynec_somm_suspect") else "")
+            + ("d" if r.get("stepped_radius") else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
@@ -1529,7 +1548,9 @@ def print_report(rows, engines):
     print("\n" + "=" * 72)
     print(
         "AGREEMENT ROLLUP  (feed-0 ΔΓ; clean decks: supported ground, "
-        "fully-expressed network, no virtualized anchors, verbatim reference)"
+        "fully-expressed network, no virtualized anchors, verbatim reference,\n"
+        "  single-radius geometry — d-flagged decks are excluded because the "
+        "nec2c REFERENCE is the suspect there, #885)"
     )
     print("=" * 72)
     for e in engines:
@@ -1543,6 +1564,9 @@ def print_report(rows, engines):
             # are a labeled cohort, not the clean baseline: the resolution
             # and the engines share the SY evaluator, so its bugs cancel
             and not r["nec2c"].get("resolved_deck")
+            # d-flagged decks measure the reference's stepped-diameter
+            # defect, not the engine (#885) — they get their own section
+            and not r.get("stepped_radius")
             and not r["engines"].get(e, {}).get("error")
             and r["engines"][e].get("cmp")
         ]
@@ -1555,6 +1579,41 @@ def print_report(rows, engines):
             f"{ENGINE_LABEL[e]:<12} n={len(dgs):>3}  median={statistics.median(dgs):.4f}  "
             f"<0.01:{within(0.01):>3}  <0.05:{within(0.05):>3}  <0.2:{within(0.20):>3}"
         )
+
+    # Stepped-radius cohort (#885): on d-flagged decks the trustworthy signal
+    # is the bs2↔nec5 MUTUAL distance — two independent formulations that both
+    # model stepped diameters — not either engine's distance from nec2c.
+    stepped = [r for r in ok if r.get("stepped_radius")]
+    if stepped:
+        both = "bs2" in engines and "nec5" in engines
+        print("\n" + "=" * 72)
+        print(
+            f"STEPPED-RADIUS DECKS ({len(stepped)}) — nec2c reference suspect "
+            "(#885)" + ("; quality signal = ΔΓ(bs2, nec5)" if both else "")
+        )
+        print("=" * 72)
+        if both:
+            print(
+                f"{'deck':<34} {'bs2 vs ref':>11} {'nec5 vs ref':>12} {'bs2↔nec5':>10}"
+            )
+            for r in stepped:
+                zs = {}
+                for e in ("bs2", "nec5"):
+                    res = r["engines"].get(e) or {}
+                    if not res.get("error") and res.get("z"):
+                        zs[e] = _z(res["z"][0])
+                mutual = (
+                    f"{abs(_gamma(zs['bs2']) - _gamma(zs['nec5'])):>10.4f}"
+                    if len(zs) == 2
+                    else f"{'n/a':>10}"
+                )
+                print(
+                    f"{r['deck']:<34} {fmt_dg(r['engines'].get('bs2')):>11} "
+                    f"{fmt_dg(r['engines'].get('nec5')):>12} {mutual}"
+                )
+        else:
+            for r in stepped:
+                print(f"  {r['deck']}")
 
     # failures
     errs = [r for r in rows if r.get("error") or r.get("nec2c", {}).get("error")]
