@@ -410,17 +410,31 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
                 extended_thin_wire_kernel=deck.extended_kernel,
             )
         elif engine == "sin":
-            eng = MomwireEngine(builder, solver=SinusoidalSolver, ground=ground)
+            eng = MomwireEngine(
+                builder,
+                solver=SinusoidalSolver,
+                ground=ground,
+                # Honour the deck's EK card kernel-for-kernel against nec2c
+                # (#414 gave pynec this; momwire grew the opt-in in #849 and
+                # serves it end to end — Sommerfeld included — since 0.27.0).
+                extended_kernel=deck.extended_kernel,
+            )
         elif engine == "sing":
             from momwire import SinusoidalGalerkinSolver
 
-            eng = MomwireEngine(builder, solver=SinusoidalGalerkinSolver, ground=ground)
+            eng = MomwireEngine(
+                builder,
+                solver=SinusoidalGalerkinSolver,
+                ground=ground,
+                extended_kernel=deck.extended_kernel,
+            )
         elif engine == "bs1":
             eng = MomwireEngine(
                 builder,
                 solver=BSplineSolver,
                 solver_kwargs={"degree": 1},
                 ground=ground,
+                extended_kernel=deck.extended_kernel,
             )
         elif engine == "bs2":
             eng = MomwireEngine(
@@ -428,6 +442,7 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
                 solver=BSplineSolver,
                 solver_kwargs={"degree": 2},
                 ground=ground,
+                extended_kernel=deck.extended_kernel,
             )
         elif engine == "nec5":
             from antennaknobs.engines.nec5 import NEC5Engine
