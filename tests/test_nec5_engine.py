@@ -687,3 +687,62 @@ def test_no_capture_dir_means_no_cache(monkeypatch, tmp_path):
     eng.impedance()
     assert [e["cached"] for e in eng.run_log] == [False, False]
     assert list(tmp_path.iterdir()) == [stub]
+
+
+# ----------------------------------------- EX source semantics (#872 phase 1)
+
+
+def _stub_engine(tmp_path, capture_dir=None):
+    """NEC5Engine with a stub 'binary' that copies the pinned invvee
+    printout — enough to exercise run_deck's plumbing without a license."""
+    fixture_out = FIXTURES / "invvee_dipole_single.out"
+    stub = tmp_path / "nec5-stub.sh"
+    stub.write_text(
+        f'#!/bin/sh\nread inp\nread outp\ncp "{fixture_out.resolve()}" "$outp"\n'
+    )
+    stub.chmod(0o755)
+    return NEC5Engine(_invvee_builder(), nec5_exe=str(stub), capture_dir=capture_dir)
+
+
+def test_run_deck_returns_parsed_sections(tmp_path):
+    eng = _stub_engine(tmp_path, capture_dir=tmp_path / "cap")
+    per_freq = eng.run_deck("CM raw\nCE\nGW 1 2 0 0 0 0 0 1 .001\nEN\n")
+    assert len(per_freq) == 1
+    (tag, seg, z) = per_freq[0][0]
+    assert (tag, seg) == (3, 41)  # the fixture's feed row, verbatim
+    assert z == pytest.approx(70.746 - 8.5699j, rel=1e-3)
+    # Raw decks ride the capture cache like any other run.
+    eng.run_deck("CM raw\nCE\nGW 1 2 0 0 0 0 0 1 .001\nEN\n")
+    assert [e["cached"] for e in eng.run_log] == [False, True]
+
+
+@needs_nec5
+def test_live_ex_sources_live_at_knots():
+    """The #872 phase-1 dialect pin, measured: NEC-5 voltage sources sit at
+    segment ENDS only. (a) The three spellings of one knot — end 2 of seg
+    k, end 1 of seg k+1, negative-I3 — are identical; (b) a vanilla NEC-2
+    ``EX 0 tag seg 0`` card is reinterpreted as END 2 of seg (NOT the
+    segment center nec2c feeds), identical to the explicit end-2 form and
+    far from the knot on the other side. Guards the backward-compatibility
+    trap: a NEC-2 deck runs through NEC-5 unwarned with its feed shifted
+    half a segment."""
+    deck = (
+        "CM ex semantics\nCE\nGW 1 8 0. 0. 10. 0. 0. 15.2 1.000000E-03\nGE 0 0\n"
+        "{ex}\nFR 0 1 0 0 27.0 0.\nXQ 0\nEN\n"
+    )
+    eng = NEC5Engine(_dipole_builder())
+
+    def z(ex):
+        return eng.run_deck(deck.format(ex=ex))[0][0][2]
+
+    z_k2_e2 = z("EX 0 1 2 2 1. 0.")  # knot at 0.25L
+    z_k3_e1 = z("EX 0 1 3 1 1. 0.")  # same knot, other spelling
+    z_k3_neg = z("EX 0 1 -3 0 1. 0.")  # same knot, negative-I3 spelling
+    z_nec2_style = z("EX 0 1 3 0 1. 0.")  # NEC-2 card: nec2c feeds seg-3 CENTER
+    z_k3_e2 = z("EX 0 1 3 2 1. 0.")  # knot at 0.375L
+    assert z_k3_e1 == pytest.approx(z_k2_e2, rel=1e-6)
+    assert z_k3_neg == pytest.approx(z_k2_e2, rel=1e-6)
+    assert z_nec2_style == pytest.approx(z_k3_e2, rel=1e-6)
+    # The two knots bracket a steep dZ/ds region — they must differ a lot,
+    # or the identity assertions above would be vacuous.
+    assert abs(z_k3_e2 - z_k2_e2) > 0.1 * abs(z_k2_e2)
