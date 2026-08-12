@@ -10,6 +10,13 @@ caught one harness-side idiom artifact this cycle (momwire#300's
 1-seg-bridge feed), so #890 demanded the harness-side hypotheses be
 discriminated before the walk may be pronounced intrinsic.
 
+*(Addendum, same day: momwire#300 itself has since dissolved — the
+phase-1 study's momwire reference rows solved a 0.5 mm wire against the
+hand decks' 1 mm, see the phase-1 doc's rewritten finding — which only
+sharpens the precedent this study answered to: the cycle's one confirmed
+artifact lived in a comparison instrument, not in any solver, exactly
+the class #890 was built to hunt on the NEC-5 lane.)*
+
 Instrument: `scripts/bench_nec5_walk_why.py` (sections A–F); artifact
 `scratch/nec5-walk-why-890.json`. Probe decks per the issue's acceptance
 set: a thin 5 m dipole in free space at 28.5 MHz (bs2-anchored), the
