@@ -1,5 +1,7 @@
 *.pdf
 *.png
+# Site images are content, not scratch output — exempt from the global *.png
+!site/src/assets/**/*.png
 SWEEP_LENGTH
 SWEEP_SLOPE
 __pycache__/
