@@ -357,6 +357,7 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
 
         from antennaknobs import AntennaBuilder, WireSpec
         from antennaknobs.engines.momwire import MomwireEngine
+        from antennaknobs.network import as_wire
         from momwire import BSplineSolver, SinusoidalSolver
 
         ground = json.loads(ground_json)
@@ -446,6 +447,33 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
         zs = eng.impedance()
         solve_s = time.perf_counter() - t0
         if engine == "nec5":
+            # Census-grade NEC-5 rows are Richardson (N, 2N) pairs (#872
+            # phase 2: knot-source march, order ~1 — measured 0.54-1.74
+            # across the stratified sample; phase 3a validated the same
+            # recipe over Sommerfeld ground). Solve the deck again at
+            # doubled mesh and report the pair extrapolation as the row's
+            # z; the native and doubled reads stay in the JSON. Opt out
+            # with NEC5_PAIR=0 (then z is the deck-native single read).
+            if os.environ.get("NEC5_PAIR", "1") != "0":
+                doubled = [w._replace(n_seg=2 * w.n_seg) for w in map(as_wire, tups)]
+
+                class DoubledBuilder(DeckBuilder):
+                    def build_wires(self):
+                        return doubled
+
+                eng2 = NEC5Engine(
+                    DoubledBuilder(),
+                    ground=ground,
+                    timeout=float(os.environ.get("NEC5_BENCH_TIMEOUT") or 120.0),
+                    capture_dir=os.environ.get("NEC5_CAPTURE_DIR") or None,
+                )
+                zs2 = eng2.impedance()
+                solve_s = time.perf_counter() - t0
+                result["nec5_z_native"] = [[z.real, z.imag] for z in zs]
+                result["nec5_z_doubled"] = [[z.real, z.imag] for z in zs2]
+                zs = [2 * z2 - z1 for z1, z2 in zip(zs, zs2)]
+                result["nec5_pair"] = True
+                eng.run_log.extend(eng2.run_log)
             result["nec5_runs"] = eng.run_log
 
         # ru_maxrss is the process-lifetime peak (KiB on Linux).
