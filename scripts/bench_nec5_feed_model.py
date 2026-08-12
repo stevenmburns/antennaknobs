@@ -98,10 +98,18 @@ def make_nec5(capture_dir):
 
 
 def make_momwire(solver_key: str, n: int):
-    """MomwireEngine on the aligned bridge geometry at ladder pitch L/n."""
+    """MomwireEngine on the aligned bridge geometry at ladder pitch L/n.
+
+    The builder declares the study RADIUS via `build_wire_material()` so
+    momwire solves the same conductor the hand decks describe. The first
+    run of this study omitted it, so every momwire reference row solved
+    the adapter-default 0.5 mm wire against 1 mm decks — the ~15 Ω X
+    "bridge idiom" split of momwire#300, which dissolved on the fix
+    (radius moves X and barely touches R at an off-center feed).
+    """
     from antennaknobs.builder import AntennaBuilder
     from antennaknobs.engines import MomwireEngine
-    from antennaknobs.network import Wire
+    from antennaknobs.network import Wire, WireSpec
     from momwire import BSplineSolver, SinusoidalGalerkinSolver
 
     d = L / n
@@ -109,6 +117,9 @@ def make_momwire(solver_key: str, n: int):
 
     class _OCF(AntennaBuilder):
         default_params = {"freq": FREQ}
+
+        def build_wire_material(self):
+            return WireSpec(radius=RADIUS)
 
         def build_wires(self):
             return [
