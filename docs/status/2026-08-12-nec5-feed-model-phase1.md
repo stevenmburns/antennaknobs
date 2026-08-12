@@ -82,13 +82,38 @@ centered at L/4):
 | bs1 | 111.937 −99.752j | converges to the same place from below |
 | sing | 112.393 −99.278j | ditto from above |
 
-**Flagged finding (phase-2 candidate #1):** the momwire Galerkin family
-agrees internally to ~0.5 Ω but sits **~15 Ω off the NEC lineage in X**
-(−99 vs −84) at identical geometry and feed convention, with R agreeing
-to ~1 Ω. This is a converged formulation split, not a mesh or feed
-artifact — the hentenna-style "extrapolate further" cure does not apply.
-Needs phase-2 arbitration (which family is right at an OCF feed?) before
-census X columns are interpreted.
+**Flagged finding — RESOLVED 2026-08-12 (same day, follow-up runs): the
+"formulation split" was a bridge-idiom artifact, and the −99 readings
+are the wrong ones.** Three additional controls:
+
+1. Single wire, off-center segment-center feed (seg 9/32): nec2c, pynec
+   and bs2 agree to <1 Ω in both parts (−77.5 / −76.8 / −77.4 X). No
+   generic off-center split exists between any of them.
+2. pynec and momwire `sin` on the bridge geometry read −99 like the
+   Galerkin family — so the bridge reading is shared by nec2++ and every
+   momwire basis, not a Galerkin property.
+3. The arbiter: single-wire feeds at seg 52/53 of NS=208 bracket exactly
+   L/4, and every engine agrees on single wires, so their mean is an
+   agreed Z(L/4) ≈ **113.4 −84 j** — nec2c 113.460−83.806j, pynec
+   113.666−83.028j, **bs2 113.346−83.998j**. NEC-5's extrapolated
+   113.09−84.53j and nec2c's bridge reading −84.1 match it; the bridge
+   spelling on momwire/nec2++ (−99) does not — even though a colinear
+   same-radius 3-wire split is electrically the identity.
+
+So: census X columns need no formulation caveat, and NEC-5's knot-source
+limit is validated against an all-engines-agree reference. The real
+defect is the **1-segment colinear bridge feed idiom** — a gap on a
+1-segment wire junctioned at both ends reads ~15 Ω off in X on momwire
+(all bases) and nec2++, internally inconsistent with the same solvers'
+single-wire spelling of the same antenna. Note the study ladder kept the
+bridge at ONE segment while its length shrank with pitch, so the feed
+region's basis never enriches — the plausible mechanism, and why the
+reading "converges" to the wrong place. Filed as a momwire issue;
+nec2c's junction-adjacent source lumping happens to be insensitive.
+Catalog bridge feeds (e.g. invvee's) use short fixed-length bridges
+(≪ λ), where the cross-engine checks bound the effect at a few Ω —
+bridge-length dependence is recorded in the momwire issue as the open
+question.
 
 ## C. Correction-recipe verdict
 
