@@ -397,11 +397,10 @@ SUPPORTED = NAMES
 # §11, which is exactly the readLine() stall §10.1 worries about).
 # ``TL`` left this table in issue #799: two fixtures now pin its NETWORK DATA
 # layout, so it runs instead of refusing. ``PT`` and ``MP`` left it in #800,
-# for the same reason. ``IS`` stays: nothing here models NEC-4.2 insulation,
-# and running the deck as a bare wire would be a wrong answer, not a refusal.
+# for the same reason, and ``IS`` in #873 (whole-wire lossless jackets ride
+# momwire's insulation model; the unmodelled remainder refuses by field).
 _GEOM = "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGW 2 9 1. 0. -2.5 1. 0. 2.5 0.001\n"
 UNSUPPORTED = {
-    "IS": f"CE is\n{_GEOM}GE 0\nEX 0 1 5 0 1.\nIS 0 1 1 9 2.3 0.001\nFR 0 1 0 0 30. 0\nXQ\n",
     "SP": f"CE sp\n{_GEOM}GE 0\nEX 0 1 5 0 1.\nSP 0 0 0. 0. 0. 0. 0. 1.\nFR 0 1 0 0 30. 0\nXQ\n",
     "radial ground screen": (
         "CE gn radials\nGW 1 9 0. 0. 0.1 0. 0. 5.2 0.001\nGE -1\n"

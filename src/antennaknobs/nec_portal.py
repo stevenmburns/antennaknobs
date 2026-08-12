@@ -56,11 +56,14 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
   input parameters, currents and location, power budget, radiation patterns,
   near electric/magnetic fields.
 
-Still deferred (unit 4 / out of scope): ``IS``, surface
+Still deferred (unit 4 / out of scope): surface
 patches, ``RP`` modes other than 0, spherical
 ``NE``/``NH`` grids, and ``GN`` radial-wire ground screens. Those cards take
 the error path below rather than crashing the daemon — the printout says which
-card and why, and the ``NX`` sentinel is still emitted.
+card and why, and the ``NX`` sentinel is still emitted. ``IS`` left this list
+in issue #873: whole-wire lossless jackets ride momwire's insulation model,
+and the unmodelled remainder (partial ranges, conductive sheaths) refuses by
+card and field.
 
 Where the physics citations point
 ---------------------------------
@@ -544,7 +547,6 @@ _GEOMETRY_CARDS = frozenset({"GW", "GA", "GH", "GM", "GX", "GR", "GS", "GE"})
 # named so the error path can say WHICH card, instead of "unrecognised".
 _DEFERRED_CARDS = MappingProxyType(
     {
-        "IS": "NEC-4.2 wire insulation",
         "SP": "surface patch",
         "SM": "multiple-patch surface",
     }
@@ -1026,6 +1028,10 @@ class PortalDeck:
     # re-emits a column header (see ``_network_lines``).
     networks: tuple[NetworkBranch | LineBranch, ...] = ()
     loads: tuple[Card, ...] = ()
+    # ``IS`` insulated-sheath cards (issue #873), carried into the union deck
+    # like loads but kept apart: an ``LD -1`` nullification must not sweep
+    # away insulation, which is a wire property here, not a load.
+    insulation: tuple[Card, ...] = ()
     ground: Ground = field(default_factory=Ground)
     # The deck's ``GD`` card, if it carried one. Kept so the deck is a full
     # record of what arrived; it moves no number here (see :class:`SecondMedium`).
@@ -1110,6 +1116,7 @@ def parse_deck(body: str) -> PortalDeck:
     groups: list[ExecuteGroup | None] = []
     networks: list[NetworkBranch | LineBranch] = []
     loads: list[Card] = []
+    insulation: list[Card] = []
     sources: list[tuple[int, int, complex]] = []
     freqs: tuple[float, ...] = (0.0,)
     fresh_fr = False
@@ -1175,6 +1182,25 @@ def parse_deck(body: str) -> PortalDeck:
                 loads.clear()
             else:
                 loads.append(card)
+        elif card.mnemonic == "IS":
+            # NEC-4.2 insulated sheath (issue #873), served as momwire's
+            # whole-wire lossless-dielectric jacket. Structural for this
+            # engine — one geometry, one set of per-wire specs, every
+            # group — so it must precede the first execute request; and a
+            # conductive sheath refuses by field rather than dropping F2.
+            if executed:
+                raise PortalError(
+                    "IS after an execute request is not supported by this "
+                    "engine: wire insulation is part of the structure, so "
+                    "it cannot change between runs"
+                )
+            if card.f(5) != 0.0:
+                raise PortalError(
+                    "IS with a conductive sheath (F2 != 0) is not modelled "
+                    "by this engine — the insulation jacket is a lossless "
+                    "dielectric; set the sheath conductivity to 0"
+                )
+            insulation.append(card)
         elif card.mnemonic == "NT":
             networks.append(NetworkBranch.from_card(card))
         elif card.mnemonic == "TL":
@@ -1262,6 +1288,7 @@ def parse_deck(body: str) -> PortalDeck:
         groups=tuple(groups),
         networks=tuple(networks),
         loads=tuple(loads),
+        insulation=tuple(insulation),
         ground=ground,
         second_medium=second_medium,
         ground_plane_flag=ground_plane_flag,
@@ -1784,6 +1811,7 @@ def _synthesize_union_deck(deck: PortalDeck, ports: list[tuple[int, int]]) -> st
     """
     lines = [c.raw for c in deck.geometry]
     lines += [c.raw for c in deck.loads]
+    lines += [c.raw for c in deck.insulation]
     lines += [f"EX 0 {tag} {seg} 0 1." for tag, seg in ports]
     return "\n".join(lines) + "\n"
 
@@ -1957,6 +1985,16 @@ class DeckSolver:
 
         text = _synthesize_union_deck(deck, ports)
         self.deck = parse_nec(text, name="portal deck", network=True)
+        # The importer's convention for an unexpressible IS card is
+        # skip-with-detail (the corpus norm); the portal's is refusal —
+        # solving a bare wire where the deck asked for a jacket would be a
+        # wrong answer, not a translation compromise (issue #873). The
+        # sigma refusal already fired at parse_deck; what reaches here is
+        # the geometry-dependent remainder: partial-wire ranges and jackets
+        # that do not clear the conductor.
+        for mnemonic, reason in self.deck.ignored_detail:
+            if mnemonic == "IS":
+                raise PortalError(f"IS: {reason}")
         self.wires = self.deck.wires
         self.segments = _structure_segments(self.wires)
         self.n_segments = len(self.segments)
@@ -2536,6 +2574,10 @@ def _operator_key(deck: PortalDeck) -> tuple:
         tuple((c.mnemonic, c.values) for c in deck.geometry),
         (deck.ground.kind, deck.ground.eps_r, deck.ground.sigma),
         tuple((c.mnemonic, c.values) for c in deck.loads),
+        # IS insulation (issue #873) moves the operator the same way loads
+        # do — per-wire jacket L' lands in the fill — so two decks alike but
+        # for their jackets are two operators.
+        tuple((c.mnemonic, c.values) for c in deck.insulation),
         tuple(_union_ports(deck)),
         deck.networks,
         tuple(g.ek for g in deck.groups if g is not None),

@@ -376,10 +376,10 @@ def test_two_decks_through_one_loop_produce_two_frames():
 def test_an_unsupported_card_still_emits_the_sentinel():
     """A deck we cannot run must not leave SimNEC blocked in readLine().
 
-    ``IS`` is the live example after issue #800 took ``PT`` and ``MP`` off
-    this list (#799 took ``TL``): the portal dialect can carry it, but its
-    semantics are NEC-4.2's insulated-wire model, which momwire does not have —
-    so it takes the error path rather than silently solving a bare wire.
+    ``SP`` is the live example after issue #873 took ``IS`` off this list
+    (#800 took ``PT`` and ``MP``, #799 took ``TL``): the portal dialect can
+    carry a surface patch, but momwire is a wire solver — so it takes the
+    error path rather than silently solving whatever wires remain.
 
     Issue #829 (Ward's 2026-08-08 reply): the refusal now leads with an
     ``ERROR:`` line — token 0 exactly, which is what trips Execute's
@@ -390,23 +390,128 @@ def test_an_unsupported_card_still_emits_the_sentinel():
     on it, so this test now pins the opposite of what it used to.
     """
     out, err = deck_frame(
-        "CE insulation\n"
+        "CE patch\n"
         "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
         "GW 2 9 1. 0. -2.5 1. 0. 2.5 0.001\n"
         "GE 0\n"
         "EX 0 1 5 0 1.\n"
-        "IS 0 1 1 9 2.3 0.001\n"
+        "SP 0 0 0. 0. 0. 0. 0. 1.\n"
         "FR 0 1 0 0 30. 0\n"
         "XQ\n"
     )
     text = "\n".join(out)
     assert NX_ECHO.search(text), "the NX sentinel is missing on the error path"
-    assert "ERROR: IS" in text
-    assert "ERROR-NEC2C: IS" in text
+    assert "ERROR: SP" in text
+    assert "ERROR-NEC2C: SP" in text
     assert any(line.split()[:1] == ["ERROR:"] for line in text.splitlines()), (
         "no line trips Execute's token-0 `ERROR:` warning frame"
     )
     assert err == []
+
+
+# --------------------------------------------------------------------------
+# issue #873: the IS insulated-sheath card rides momwire's jacket model
+# --------------------------------------------------------------------------
+
+_IS_DIPOLE = (
+    "CE insulated dipole\n"
+    "GW 1 21 0. 0. -2.5 0. 0. 2.5 0.0005\n"
+    "GE 0\n"
+    "EX 0 1 11 0 1.\n"
+    "{is_card}"
+    "FR 0 1 0 0 28.5 0\n"
+    "XQ\n"
+)
+
+
+def _is_dipole_z(is_card: str = ""):
+    out, err = deck_frame(_IS_DIPOLE.format(is_card=is_card))
+    text = "\n".join(out)
+    assert err == []
+    assert "ERROR-NEC2C" not in text
+    rows = _aip_rows(text)
+    assert rows
+    return complex(*rows[0][4:6])
+
+
+def test_is_card_solves_and_loads_the_wire():
+    """The acceptance solve (issue #873): a full-wire ``IS`` runs instead of
+    refusing, and the jacket's King series inductance makes the dipole
+    electrically longer — at a frequency just below bare resonance the
+    reactance moves up by whole ohms, the velocity-factor shift."""
+    z_bare = _is_dipole_z()
+    z_ins = _is_dipole_z("IS 0 1 1 21 3.2 0. 0.0015\n")
+    assert z_ins.imag > z_bare.imag + 3.0, (z_bare, z_ins)
+    # The jacket is lossless: R moves only via the current redistribution,
+    # not by tens of ohms.
+    assert abs(z_ins.real - z_bare.real) < 10.0, (z_bare, z_ins)
+
+
+def test_is_card_matches_a_direct_momwire_solve():
+    """Portal path == the same jacket handed to momwire as a per-wire
+    ``WireSpec`` (issue #873 acceptance): same geometry, mesh, basis and
+    insulation kwargs, so the two answers must sit within solver noise."""
+    from types import MappingProxyType
+
+    from antennaknobs import AntennaBuilder, WireSpec
+    from antennaknobs.engines import MomwireEngine
+    from antennaknobs.network import Wire
+    from momwire import BSplineSolver
+
+    class Insulated(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 28.5})
+
+        def build_wires(self):
+            return [
+                Wire(
+                    (0, 0, -2.5),
+                    (0, 0, 2.5),
+                    n_seg=21,
+                    ex=1 + 0j,
+                    spec=WireSpec(
+                        radius=0.0005,
+                        insulation_radius=0.0015,
+                        insulation_eps_r=3.2,
+                    ),
+                )
+            ]
+
+    direct = MomwireEngine(Insulated(), solver=BSplineSolver).impedance()[0]
+    portal = _is_dipole_z("IS 0 1 1 21 3.2 0. 0.0015\n")
+    # The portal value is read back from the PRINTED AIP row, so the bound
+    # is the printout's own quantization, not solver noise (measured 6e-6).
+    assert abs(portal - direct) / abs(direct) < 1e-4, (portal, direct)
+
+
+def _is_refusal(deck: str) -> str:
+    out, err = deck_frame(deck)
+    text = "\n".join(out)
+    assert err == []
+    assert NX_ECHO.search(text), "refusal must still emit the NX sentinel"
+    assert "ERROR: IS" in text
+    return text
+
+
+def test_is_partial_wire_range_refuses_by_name():
+    text = _is_refusal(_IS_DIPOLE.format(is_card="IS 0 1 3 9 3.2 0. 0.0015\n"))
+    assert "partial-wire" in text
+
+
+def test_is_conductive_sheath_refuses_by_field():
+    text = _is_refusal(_IS_DIPOLE.format(is_card="IS 0 1 1 21 3.2 0.01 0.0015\n"))
+    assert "conductive sheath" in text
+
+
+def test_is_jacket_inside_the_conductor_refuses_by_name():
+    text = _is_refusal(_IS_DIPOLE.format(is_card="IS 0 1 1 21 3.2 0. 0.0002\n"))
+    assert "conductor radius" in text
+
+
+def test_is_after_an_execute_request_refuses():
+    text = _is_refusal(
+        _IS_DIPOLE.format(is_card="") + "IS 0 1 1 21 3.2 0. 0.0015\nXQ\n"
+    )
+    assert "execute" in text
 
 
 # --------------------------------------------------------------------------
