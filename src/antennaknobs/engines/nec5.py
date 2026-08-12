@@ -673,6 +673,22 @@ class NEC5Engine(SimulationEngine):
             )
         return [z for _, _, z in rows]
 
+    # ---------- raw-deck escape hatch ----------
+
+    def run_deck(self, deck: str) -> list[list[tuple[int, int, complex]]]:
+        """Run a caller-authored NEC-5 deck through the binary and return the
+        parsed ANTENNA INPUT PARAMETERS sections — one list per frequency,
+        each row ``(tag, abs_seg, Z)``.
+
+        This is the mesh-ladder instrument for #872 phase 1+: studies that
+        place sources on specific knots (``EX ... I4``) author deck text
+        directly instead of going through ``deck()``'s center-feed
+        convention. The engine's geometry is NOT consulted — the caller owns
+        the deck — so none of ``_impedances_from``'s feed-row validation
+        applies. The capture cache serves and stores these runs like any
+        other."""
+        return self._parse_input_parameters(self._run(deck))
+
     # ---------- SimulationEngine API ----------
 
     def impedance(self):
