@@ -90,6 +90,7 @@ _IGNORED_CARDS = {
     "PL": "plot request",
     "WG": "NGF write request",
     "ZO": "impedance normalisation (xnec2c)",
+    "IS": "insulated-wire sheath",
 }
 
 _UNSUPPORTED_CARDS = {
@@ -1522,6 +1523,7 @@ def _translate_network_cards(
     freq_mhz,
     virtualize_anchors,
     fr_first_mhz=None,
+    is_raw=(),
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -1757,6 +1759,51 @@ def _translate_network_cards(
         else:
             skip("LD", f"type {ldtyp} is not recognised")
 
+    for card in is_raw:
+        # NEC-4's insulated-sheath card, in the spelling SimNEC's NECSource
+        # emits — ``IS 0 tag first last  eps_r sigma b`` (issue #873; format
+        # string pinned in the 2026-08-08 execute-grammar doc §16.6): F1 the
+        # jacket's relative permittivity, F2 its conductivity, F3 its outer
+        # radius in metres. Same per-wire WireSpec jacket as 4nec2's LD 7
+        # (#447), same whole-wire constraint, last card wins per wire (and,
+        # deck-order aside, an IS beats an LD 7 on the same wire because it
+        # translates after the LD loop). momwire's jacket model is a lossless
+        # dielectric (King quasi-static L', momwire#131), so a conductive
+        # sheath stays unmodelled BY NAME rather than silently dropping F2.
+        tag, sf, st = card.i(1), card.i(2), card.i(3)
+        eps_r, sigma, b = card.f(4), card.f(5), card.f(6)
+        if sigma != 0.0:
+            skip(
+                "IS",
+                "a conductive sheath (F2 != 0) is not modelled — the "
+                "jacket loading is a lossless dielectric",
+            )
+            continue
+        if b <= 0.0 or eps_r <= 1.0:
+            continue  # no jacket, or a vacuum one — electrically a no-op
+        pairs = _segment_range(wires, tag, sf, st, card)
+        by_wire = {}
+        for wi, s in pairs:
+            by_wire.setdefault(wi, set()).add(s)
+        if not all(
+            segs == set(range(1, wires[wi][1] + 1)) for wi, segs in by_wire.items()
+        ):
+            skip(
+                "IS",
+                "insulation on a partial-wire segment range — per-wire "
+                "specs cover whole wires only",
+            )
+            continue
+        for wi in by_wire:
+            if b <= wires[wi][4]:
+                skip(
+                    "IS",
+                    "insulation whose outer radius does not exceed the "
+                    "wire's conductor radius",
+                )
+                continue
+            wire_insulation[wi] = (b, eps_r)
+
     return (
         tuple(loads),
         tuple(tls),
@@ -1799,6 +1846,7 @@ def parse_nec(
     ignored: set[str] = set()
     feeds_raw: list[tuple[int, int, complex, str]] = []
     lds_raw: list[_Card] = []
+    is_raw: list[_Card] = []
     tls_raw: list[_Card] = []
     nts_raw: list[_Card] = []
     freq_mhz: tuple[float, float] | None = None
@@ -1876,7 +1924,7 @@ def parse_nec(
             ground = True
             ignored.add(mnemonic)
             continue
-        if network and mnemonic in ("LD", "TL", "NT"):
+        if network and mnemonic in ("LD", "TL", "NT", "IS"):
             # Collected raw and translated after the loop, once the wire
             # list is final (their tag/segment addressing resolves against
             # the transformed geometry, exactly like EX).
@@ -1886,6 +1934,11 @@ def parse_nec(
                     lds_raw.clear()  # NEC: nullify all previous loads
                 else:
                     lds_raw.append(card)
+            elif mnemonic == "IS":
+                # NEC-4's insulated-sheath card (issue #873). Kept apart
+                # from lds_raw so an LD -1 nullification cannot sweep away
+                # insulation, which is a wire property here, not a load.
+                is_raw.append(card)
             elif mnemonic == "TL":
                 tls_raw.append(card)
             else:
@@ -2022,6 +2075,7 @@ def parse_nec(
             freq_mhz,
             virtualize_anchors,
             fr_first_mhz,
+            is_raw,
         )
         ignored |= skipped
 

@@ -370,11 +370,20 @@ upstream of any engine:
 - **No apostrophes in `CM`/`CE` lines** pasted into the script editor —
   SimNEC's script parser reads `'` as a quote and errors.
 
+Supported with caveats:
+
+- **`IS`** (NEC-4.2 wire insulation) — a full-wire `IS` becomes momwire's
+  per-wire insulation jacket (the King quasi-static series inductance the
+  catalog's insulated wires use), so insulated SimNEC decks solve with the
+  velocity-factor shift modelled. The jacket is a **lossless dielectric**:
+  a nonzero sheath conductivity refuses by name rather than silently
+  dropping the field, and so does an `IS` covering part of a wire
+  (momwire's insulation is per wire, not per segment) or a jacket radius
+  that doesn't clear the conductor.
+
 Refused today:
 
 - **Surface patches** (`SP`, `SM`) — momwire is a wire solver.
-- **`IS`** — NEC-4.2 wire insulation; momwire's insulation model is not
-  wired through the portal.
 - **`RP` mode 1** — the surface wave. It prints a different table altogether
   (`RADIATED FIELDS NEAR GROUND`, with an `E(RADIAL)` column) and needs a
   surface-wave kernel this engine does not have.
