@@ -746,3 +746,72 @@ def test_live_ex_sources_live_at_knots():
     # The two knots bracket a steep dZ/ds region — they must differ a lot,
     # or the identity assertions above would be vacuous.
     assert abs(z_k3_e2 - z_k2_e2) > 0.1 * abs(z_k2_e2)
+
+
+# --------------------------------- corpus feed-position exactness (#872 ph 1)
+
+
+def _deck_feed_positions(deck_text: str):
+    """The NEC-5 source's z position for a corpus-style deck translated
+    through the census pipeline (parse_nec -> wire_tuples ->
+    NEC5Engine.deck). Vertical single-axis geometry so z alone locates
+    the feed."""
+    from types import MappingProxyType
+
+    from antennaknobs.nec_import import parse_nec
+
+    deck = parse_nec(deck_text, name="t.nec", network=True)
+    net = deck.network()
+    tups = deck.wire_tuples(specs=True)
+
+    class _B(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 27.0})
+
+        def build_wires(self):
+            return tups
+
+        def build_network(self):
+            return net
+
+    eng = NEC5Engine(_B())
+    lines = eng.deck([27.0]).splitlines()
+    gw = {}
+    for ln in lines:
+        t = ln.split()
+        if t[0] == "GW":
+            gw[int(t[1])] = (int(t[2]), float(t[5]), float(t[8]))  # n_seg, z1, z2
+    ex = next(t for t in map(str.split, lines) if t[0] == "EX")
+    tag, seg, end = int(ex[2]), int(ex[3]), int(ex[4])
+    assert end == 2
+    n_seg, z1, z2 = gw[tag]
+    return z1 + (z2 - z1) * seg / n_seg
+
+
+def test_corpus_offcenter_feed_lands_on_exact_gap_position(monkeypatch):
+    """#872 phase 1: the importer isolates an off-center fed segment on its
+    own 1-segment wire, and even-parity coercion makes that segment's
+    center a knot — so the NEC-5 source sits at EXACTLY the NEC-2
+    delta-gap position. Census comparisons carry no feed-position offset;
+    the residual NEC-5 systematic is the knot-source feed-MODEL march
+    alone (bench_nec5_feed_model.py measures it)."""
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    z = _deck_feed_positions(
+        "CM x\nCE\nGW 1 9 0 0 10. 0 0 15.2 .001\nGE 0\n"
+        "EX 0 1 3 0 1. 0.\nFR 0 1 0 0 27. 0\nXQ\nEN\n"
+    )
+    # abs tolerance = the deck text's %.6E print granularity (~1e-5 m
+    # here), not solver precision: the geometry is exact, the printed
+    # coordinate is rounded.
+    assert z == pytest.approx(10 + (3 - 0.5) / 9 * 5.2, abs=1e-4)
+
+
+def test_corpus_middle_feed_of_odd_wire_lands_on_exact_gap_position(monkeypatch):
+    """The stays-whole case: a feed at the middle segment of an odd-count
+    wire keeps the wire intact; parity coercion (9 -> 10) puts a knot at
+    the wire's physical middle = the original segment's center."""
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    z = _deck_feed_positions(
+        "CM x\nCE\nGW 1 9 0 0 10. 0 0 15.2 .001\nGE 0\n"
+        "EX 0 1 5 0 1. 0.\nFR 0 1 0 0 27. 0\nXQ\nEN\n"
+    )
+    assert z == pytest.approx(12.6, abs=1e-4)

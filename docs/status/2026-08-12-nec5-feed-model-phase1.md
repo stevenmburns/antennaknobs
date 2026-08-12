@@ -31,6 +31,21 @@ p. 47: sources exist at "a segment end or patch edge" — there is no
 center option); the identity triple proves there is no hidden center DOF.
 On this coarse mesh the shift is worth ~34 Ω in R.
 
+**Census-pipeline immunity (verified 2026-08-12, follow-up to this
+study):** the trap bites RAW decks fed to the binary, not the translated
+census lane. `wire_tuples` isolates an off-center fed segment on its own
+1-segment wire, and `NEC5Engine`'s even-parity coercion makes that
+segment's center a knot — so the emitted `EX` lands at exactly the NEC-2
+delta-gap position (off-center case: isolated wire, 1→2 segments;
+middle-of-odd-wire case: whole wire, N→N+1). Pinned by the
+`test_corpus_*_feed_lands_on_exact_gap_position` tests. Census
+comparisons therefore carry no feed-POSITION offset; their residual
+NEC-5 systematic is the knot-source feed-MODEL march of section B alone
+— which also means the corpus splits (e.g. the 2m yagi family) are
+feed-model/formulation, not position. The cost of exactness is a local
+mesh perturbation only: the fed segment becomes two half-length segments
+(a 2:1 neighbor-length ratio at the source).
+
 ## B. Ladder decomposition at feed = L/4
 
 Aligned = NS 4k, fed knot pinned exactly at L/4 every rung. Walking =
