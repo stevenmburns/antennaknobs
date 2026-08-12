@@ -79,7 +79,10 @@ during development:
 - **Sources sit at segment ends** (knots), not segment centers as in
   NEC-2. The deck writer meshes fed wires with even segment counts so the
   feed lands exactly at the wire's middle knot — the same physical point
-  the other engines drive.
+  the other engines drive. A `PortAtVertex` apex feed uses this
+  natively: its source is the named wire's *own end knot* (segment 1
+  end 1, or segment n end 2), so no parity coercion applies and a
+  vertex-only wire keeps its authored segment count.
 - **The "fast" ground model is served as full Sommerfeld.** NEC-5 has no
   reflection-coefficient approximation (its `IPERF 0` *is* the Sommerfeld
   solution), so asking for the fast model gets the accurate one, and the

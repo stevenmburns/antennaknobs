@@ -20,7 +20,7 @@ This page introduces the vocabulary. The worked examples put it to use:
 ## Ports: where the circuit meets the wire
 
 A design's `build_network()` returns a `Network` — ports, branches,
-sources. Ports come in four kinds:
+sources. Ports come in five kinds:
 
 - **`PortOnWire("feed")`** — a real port at a named wire of the
   geometry. This is the seam between the circuit world and the field
@@ -57,6 +57,22 @@ sources. Ports come in four kinds:
   vanishing centre-tapped stub converges to an **open** (its far face is a
   dead end, not live conductor), and bridging across the two conductors
   gives the wrong conduction graph.
+- **`PortAtVertex("arm", "p0")`** — the **series** feed at a junction:
+  a voltage inserted in the current path *through* the node, in series
+  with the named wire's connection to it. This is feeding an inverted
+  vee at its exact apex, with no bridge wire — the model NEC-5 users
+  build natively (`EX` at the shared knot), and momwire's series node
+  gap. Deliberately **not** `PortAtEnd`, which is the *shunt*
+  junction port (its drive injects net current *into* the node — for a
+  series-fed two-wire apex that current reads zero by symmetry). At a
+  two-wire vertex the wire choice doesn't change the answer; at a
+  junction of three or more it names which arm the gap separates. Runs
+  on every momwire family over every ground model, and on NEC-5
+  natively; NEC-2-shaped engines refuse by name — the honest near-miss
+  is the short-bridge idiom, which stays a different model you author
+  explicitly (the stock `dipoles.invvee` *is* that spelling, and
+  `dipoles.invvee_apex` is this one — about 2 Ω apart, nearly all
+  reactance, at stock geometry).
 
 The source (`Driven(port="rig")`) goes wherever your measurement plane
 is. Put it at the antenna feed and you're modelling the antenna; put it

@@ -25,23 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.50.0" icon="star">
-  **The Galerkin kernel unlocked.** momwire 0.27.0 finishes NEC's extended
-  thin-wire kernel on the **Sin-Galerkin basis** — every ground model
-  including full Sommerfeld, bent and stepped geometry made sound by a
-  node-gated end-bracket correction — so **all five momwire solver
-  families now serve the `EK` card**, in the workbench gear menu, on the
-  CLI, and for SimNEC decks through the portal (which sends `EK` on every
-  live solve). Ground-contact decks over lossy soil now **converge under
-  the extended kernel** instead of walking, and swept solves on the
-  accelerated solvers **dispatch to the fastest engine automatically**.
-  The cross-validation triangle also closed its one open gap: the
-  low-height reactance split published in v0.49 was **resolved by the
-  full corpus study** — a feed-model convergence term, not physics, gone
-  under Richardson extrapolation — and the 3,146-deck wild-corpus census
-  put the triangle to work, tracing 46 formulation outliers to NEC-2's
-  known stepped-diameter defect. Start at
-  [the extended kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
+<Card title="New in v0.51.0" icon="star">
+  **The apex feed.** Feed an inverted vee at its **exact vertex** — no
+  bridge wire — the way NEC-5 users build them natively. momwire 0.28
+  adds the series node gap (a voltage in series with a named wire-end at
+  a junction, distinct from the shunt junction port), and the new
+  `PortAtVertex` port drives it on **every momwire family, over every
+  ground model**, and on NEC-5 through its native `EX`-at-the-knot
+  source; NEC-2-shaped engines refuse honestly rather than substitute.
+  The new [`dipoles.invvee_apex`](/reference/catalog/) design makes the
+  old question a number: the bridge-feed idiom is worth **about 2 Ω,
+  nearly all reactance**, on a stock 10 m vee — and the NEC-5
+  cross-check lands **0.11 Ω** from momwire under the validation
+  pair recipe. Also new: the
+  [validation story](/reference/validation/) pages with the Leeson
+  tapered-dipole demo, the SimNEC portal serving the `IS`
+  insulated-sheath card, and standalone portal runs — a stock `.nec`
+  deck ending in `EN` now solves directly from the shell.
 </Card>
 
 ## The whole pitch, in one line
