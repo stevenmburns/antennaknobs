@@ -72,3 +72,25 @@ formulation-level agreement between momwire and NEC-5 is the story.
 - [x] Outlier issues filed with three-way evidence (#885, momwire#302,
       momwire#300 from phase 1; sin's #484 instability three-way
       confirmed in phase 2)
+
+## Addendum (same day): the EK kernel-mismatch closure
+
+momwire's `extended_kernel=` opt-in (#849) was never wired into the
+census lanes, so bs2 rows ran the reduced kernel on the 310 EK-carrying
+decks while nec2c applied EK — a kernel mismatch pynec never had (#414).
+With momwire 0.27.0 serving EK end to end, the lanes now forward
+`deck.extended_kernel` and the 310 decks were re-solved (jsonl surgery,
+first-run backup at `.pre-ek`).
+
+**Result — honest and mixed**: paired before/after on 309 decks, bs2 ΔΓ
+median 0.0380 → 0.0477, improved 41 / worsened 104 / unchanged 164,
+worst tail slightly thinner (>0.2: 59 → 57). The movers are dominated by
+the g1ojs magloop family and swing BOTH ways by up to ±0.44 (20m/160m
+magloops improve up to 0.61 → 0.18; 40m magloops regress up to 0.35 →
+0.82). Reading: electrically-tiny fat-conductor loops are
+kernel-sensitive to the point that no single-kernel read is
+census-grade there — the honest treatment is a kernel-sensitivity flag,
+not a kernel preference. Note 4nec2 writes `EK` by default, so many of
+the 310 cards are incidental (median deck moved little). The wiring
+stays: kernel-for-kernel against the reference is correct methodology
+independent of whether it flatters the numbers.
