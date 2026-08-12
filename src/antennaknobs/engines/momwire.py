@@ -1025,9 +1025,7 @@ class MomwireEngine(SimulationEngine):
             # Same guard: only the network path declares vertex ports.
             kw["node_gaps"] = [
                 (pl, end, complex(v))
-                for (pl, end), v in zip(
-                    self._vertex_port_members, vertex_port_voltages
-                )
+                for (pl, end), v in zip(self._vertex_port_members, vertex_port_voltages)
             ]
         return self._solver(
             wires=self._polylines,
