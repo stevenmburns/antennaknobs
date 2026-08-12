@@ -113,6 +113,24 @@ cross-validation triangle doing its job twice: first flagging a real
 discrepancy, then identifying it as convergence behaviour rather than
 physics.
 
+The *cause* of that convergence behaviour was then pinned down in its own
+study. A clean first-order march is also the signature of feeding or
+reading a solver half a segment wrong, so every harness-side suspect got a
+discriminating experiment: the two spellings of the same feed knot solve
+bit-identically; a deliberate one-segment feed slide produces an effect
+one to two orders smaller than the march (and shrinking a full order
+faster); NEC-5's native current source (`EX 4`) — whose input-parameters
+row carries the driven current exactly, leaving no readout convention in
+play — walks digit-for-digit with the voltage source; segment-parity
+coercion moves at most one segment on one wire, worth sub-milliohm shifts;
+and LLNL's shipped sample models run through this engine's own
+runner reproduce the shipped reference printouts to every printed digit.
+The march is NEC-5's own knot-source discretization — first-order in
+segment length, converging to the same limit the other engines agree on —
+which is why the (N, 2N) Richardson pair is the permanent recipe for
+census-grade NEC-5 numbers rather than a workaround for a bug on either
+side of the interface.
+
 ## Importing NEC-5 decks
 
 `@file.nec` import recognises NEC-5's edge-source `EX` spellings (a
