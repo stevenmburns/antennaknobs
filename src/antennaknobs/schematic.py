@@ -69,6 +69,7 @@ from .network import (
     FloatingBalun,
     Load,
     PortAtEnd,
+    PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
     Shunt,
@@ -490,7 +491,7 @@ def _antenna_nodes(net):
         if isinstance(p, PortOnWireFloating):
             out[f"{name}.p"] = name
             out[f"{name}.n"] = name
-        elif isinstance(p, (PortOnWire, PortAtEnd)):
+        elif isinstance(p, (PortOnWire, PortAtEnd, PortAtVertex)):
             out[name] = name
     return out
 

@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from .cell import Cell, Placement, flatten_placements
 from .network import (
     PortAtEnd,
+    PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
     PortVirtual,
@@ -79,11 +80,11 @@ class Module:
                     raise ValueError(
                         f"feed port {port.name!r} names no cell feed {self.cell.feeds!r}"
                     )
-            elif isinstance(port, PortAtEnd):
+            elif isinstance(port, (PortAtEnd, PortAtVertex)):
                 if port.wire not in feeds:
                     raise ValueError(
-                        f"PortAtEnd wire {port.wire!r} names no cell feed "
-                        f"{self.cell.feeds!r}"
+                        f"{type(port).__name__} wire {port.wire!r} names no "
+                        f"cell feed {self.cell.feeds!r}"
                     )
             elif not isinstance(port, PortVirtual):
                 raise ValueError(f"unsupported module port {port!r}")
@@ -148,6 +149,8 @@ def _rewrite_port(port, prefix):
         return PortOnWire(prefix + port.name, port.distributed)
     if isinstance(port, PortAtEnd):
         return PortAtEnd(prefix + port.wire, port.end)
+    if isinstance(port, PortAtVertex):
+        return PortAtVertex(prefix + port.wire, port.end)
     return PortVirtual(prefix + port.name)  # PortVirtual
 
 
@@ -183,7 +186,9 @@ def expand_modules(instances) -> Assembly:
                     f"module expansion produced duplicate port {final_key!r}"
                 )
             ports[final_key] = final
-            if isinstance(port, (PortOnWire, PortAtEnd)):  # geometry-touching feed
+            if isinstance(
+                port, (PortOnWire, PortAtEnd, PortAtVertex)
+            ):  # geometry-touching feed
                 feeds.append(final_key)
         for br in inst.of.branches:
             branches.append(_rewrite_branch(br, resolve))

@@ -18,6 +18,7 @@ from ..network import (
     FloatingBalun,
     Load,
     PortAtEnd,
+    PortAtVertex,
     PortOnWire,
     PortVirtual,
     Shunt,
@@ -207,6 +208,21 @@ class PyNECEngine(SimulationEngine):
                 "this design uses PortAtEnd (a junction-node port), which "
                 "NEC-2 cannot represent — run it on the momwire engine "
                 "(issue #579)"
+            )
+        # Vertex ports refuse by NAME for the same class of reason (issue
+        # #898): NEC-2 has no segment-END source, so the true series apex
+        # feed is inexpressible. The honest near-miss — a short bridge wire
+        # carrying a centre gap — is a DIFFERENT model the user must author
+        # explicitly, never a silent substitution.
+        if self._network is not None and any(
+            isinstance(p, PortAtVertex) for p in self._network.ports.values()
+        ):
+            raise ValueError(
+                "this design uses PortAtVertex (a series apex feed at a "
+                "junction knot), which NEC-2 cannot represent — run it on "
+                "the momwire or NEC-5 engine, or author the short-bridge "
+                "idiom explicitly if a NEC-2 approximation is wanted "
+                "(issue #898)"
             )
         # Wire material (issue #316): radius + conductor loss from the
         # design's WireSpec. The spec's conductivity is emitted as a global

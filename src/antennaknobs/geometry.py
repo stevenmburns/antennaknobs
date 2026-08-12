@@ -75,6 +75,10 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
                           if every component is a simple path.
         end_port_junctions : dict (wire_name, "p0"|"p1") -> junction index
                           for every requested end port (issue #579).
+        end_port_members : dict (wire_name, "p0"|"p1") ->
+                          (polyline_idx, "start"|"end") — the momwire
+                          member each named end became; what a series
+                          node gap addresses (momwire#305, issue #898).
     """
     if not tups:
         raise ValueError("no wires to translate")
@@ -348,6 +352,30 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
     end_port_junctions = {
         (nm, which): junction_index_of_node[nid] for nm, which, nid in end_port_nodes
     }
+    # The MEMBER each named end became: (polyline_idx, "start"|"end") in
+    # momwire's numbering — what a series node gap (momwire#305, issue
+    # #898's PortAtVertex) addresses, where a junction PORT (#579) needs
+    # only the junction index above. Derivation: the named endpoint sits at
+    # node position edge_pos or edge_pos+1 of its polyline's walk depending
+    # on whether the walk traversed the authored tuple p0→p1; a forced
+    # boundary means that position is the walk's first or last node.
+    end_port_members = {}
+    if end_port_nodes:
+        name_to_tup = {}
+        for i, nm in enumerate(tup_names):
+            if nm is not None:
+                name_to_tup.setdefault(nm, []).append(i)
+        for nm, which, _nid in end_port_nodes:
+            tup_index = name_to_tup[nm][0]
+            pl_idx, edge_pos = edge_to_polyline[tup_index]
+            walk_dir = edge_walk_dir[tup_index]
+            pos = edge_pos + (0 if (which == "p0") == (walk_dir == 1) else 1)
+            n_edges_pl = len(edge_segments[pl_idx])
+            assert pos in (0, n_edges_pl), (nm, which, pos, n_edges_pl)
+            end_port_members[(nm, which)] = (
+                pl_idx,
+                "start" if pos == 0 else "end",
+            )
 
     # Locate the excitation(s) and convert each to (polyline_idx,
     # arclength, voltage). PyNEC feeds at segment `(n_seg+1)//2` of the
@@ -408,4 +436,5 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
         "feed_voltage": feeds[0][2] if feeds else None,
         "junctions": junctions,
         "end_port_junctions": end_port_junctions,
+        "end_port_members": end_port_members,
     }
