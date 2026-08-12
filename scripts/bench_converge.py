@@ -178,6 +178,21 @@ def solve_design(builder_cls, nseg: int, engine: str, ground):
         eng = MomwireEngine(
             b, solver=BSplineSolver, solver_kwargs={"degree": 2}, ground=ground
         )
+    elif engine == "nec5":
+        # Just another engine on the ladder (#872 phase 2): its knot
+        # source is the same feed class as bs1's tent basis (both declare
+        # segment_parity="even"), so the standard parity coercion pins the
+        # feed and the census treats its convergence like any other
+        # engine's. NEC5_CAPTURE_DIR rides through for the printout cache.
+        import os
+
+        from antennaknobs.engines.nec5 import NEC5Engine
+
+        eng = NEC5Engine(
+            b,
+            ground=ground,
+            capture_dir=os.environ.get("NEC5_CAPTURE_DIR") or None,
+        )
     else:
         raise ValueError(f"unknown engine {engine!r}")
     zs = eng.impedance()
