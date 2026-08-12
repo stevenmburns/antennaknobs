@@ -88,6 +88,27 @@ us see (the EULA bars reading the Fortran); the census does not need
 more. What matters operationally is measured and now closed: order ≈ 1,
 source-type-independent, extrapolates to the right answer.
 
+**Addendum (same day, prompted by a groups.io reply): LLNL's own NEC-5
+Validation Manual documents the behaviour.** The introduction states
+the linear (triangle/roof-top) current expansion "may converge somewhat
+more slowly than the sinusoidal expansion used in previous NEC codes,
+as shown in this manual for dipoles"; §2.3 (Convergence for a Dipole
+Antenna) plots the N-ladders — admittance "converge[s] rapidly at the
+first resonance and more slowly at the second", impedance slowest at
+anti-resonant peaks, NEC-4's sinusoidal expansion much faster there —
+and names a feed-region mechanism: "the susceptance becomes more
+capacitive with increasing number of segments N due to the increased
+effective shunt capacitance of the source gap" (the gap's effective
+width scales with segment length). §2.2 also confirms two probe
+findings independently: the even-count end-fed center feed is the
+intended idiom (no segment-center source exists; a split-source
+spelling on an odd count is the NEC-4-compatibility alternative), and
+"current sources in NEC-5 are voltage sources with the voltage
+determined to produce the desired current" — the EX 0/EX 4
+digit-identity, explained. The manual shows the curves but prescribes
+no finite-N reading recipe; the (N, 2N) pair remains ours, now with
+the vendor's own documentation of the march it corrects.
+
 - Pin added: `test_live_ex0_ex4_identical_impedance` (EX 0 vs EX 4
   digit-identity at fixed mesh) beside the phase-1 knot-identity pin.
 - `site/src/content/docs/reference/nec5.md` honest-numbers section now

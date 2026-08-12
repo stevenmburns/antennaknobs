@@ -129,7 +129,13 @@ The march is NEC-5's own knot-source discretization — first-order in
 segment length, converging to the same limit the other engines agree on —
 which is why the (N, 2N) Richardson pair is the permanent recipe for
 census-grade NEC-5 numbers rather than a workaround for a bug on either
-side of the interface.
+side of the interface. LLNL's NEC-5 Validation Manual documents the
+behaviour in its own words: the linear current expansion "may converge
+somewhat more slowly than the sinusoidal expansion used in previous NEC
+codes, as shown in this manual for dipoles" (§1), with §2.3's dipole
+ladders showing it and attributing an N-dependent feed term to the
+effective shunt capacitance of the source gap, whose width scales with
+segment length.
 
 ## Importing NEC-5 decks
 
