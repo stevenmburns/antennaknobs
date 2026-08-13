@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_simnec_import_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-12 23:02 +0000
+            created at 2026-08-13 04:51 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -152,18 +152,18 @@
     <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t"><span class="str">   The station element XML (parameter names ``Zo``/``VFnom``/``ft``/``k0``&#8230;,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t"><span class="str">   ``F``/``H``/``Q``/``@MHz``, ``Mdl``/``N``) is authored from the schema</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t"><span class="str">   survey of a SimNEC 5.1a1-saved ``lastCircuit.ssn`` (issue #604), and</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t"><span class="str">   load-validated in SimNEC 6p4d6 (2026-08-07): the ladder-tuner cascade</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t"><span class="str">   load-validated in SimNEC 5.1a0 (2026-08-07): the ladder-tuner cascade</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t"><span class="str">   loads with correct element values and reproduces the Track-1 rig-side</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t"><span class="str">   impedance at 7.1 MHz. ``TRANSFORMER2``&#x27;s ``N`` was found to read</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t"><span class="str">   antenna-side:generator-side &#8212; the inverse of our ``Transformer`` ``n`` &#8212;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t"><span class="str">   so the exporter emits the reciprocal (see the emission comment).</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t"><span class="str">   Also validated on 6p4d6: ``Q = 0`` means &quot;ideal / no loss&quot; (the SimSmith</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t"><span class="str">   Also validated on 5.1a0: ``Q = 0`` means &quot;ideal / no loss&quot; (the SimSmith</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t"><span class="str">   convention), and the ``k0``/``k1``/``k2`` loss coefficients round-trip a</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t"><span class="str">   load/save intact with the recomputed ``/100f`` matching the coefficient</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t"><span class="str">   formula. The ``SERIES_TLINE`` ``Mdl`` is pinned to ``k0k1k2`` explicitly:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t"><span class="str">   left unset it defaults to ``simplified``, which drives loss from the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t"><span class="str">   single ``/100f @frq`` point (right at the export frequency, wrong across</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t"><span class="str">   a SimNEC-side sweep). The ``material`` params 6p4d6 adds on save are</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t"><span class="str">   a SimNEC-side sweep). The ``material`` params 5.1a0 adds on save are</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t"><span class="str">   inert defaults for the physical-geometry loss models.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t"><span class="str">Licensing</span>&nbsp;</span><span class="r"></span></p>
@@ -420,7 +420,7 @@
     <p class="pln"><span class="n"><a id="t338" href="#t338">338</a></span><span class="t">        <span class="com"># dB/100 ft = k0 + k1&#183;&#8730;f + k2&#183;f, displayed as `/100f` at `@frq`.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t339" href="#t339">339</a></span><span class="t">        <span class="com"># `~deg`/`@MHz` are the displayed electrical length, advisory (SimNEC</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t340" href="#t340">340</a></span><span class="t">        <span class="com"># recomputes them from Zo/VFnom/ft). `Mdl` pins the loss model to</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t341" href="#t341">341</a></span><span class="t">        <span class="com"># &quot;k0k1k2&quot; (option string verified against SimNEC 6p4d6): the default</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t341" href="#t341">341</a></span><span class="t">        <span class="com"># &quot;k0k1k2&quot; (option string verified against SimNEC 5.1a0): the default</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t342" href="#t342">342</a></span><span class="t">        <span class="com"># &quot;simplified&quot; model reads the single `/100f @frq` point instead of</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t343" href="#t343">343</a></span><span class="t">        <span class="com"># the coefficients, which agrees at the export frequency but not</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t344" href="#t344">344</a></span><span class="t">        <span class="com"># across a SimNEC-side sweep.</span>&nbsp;</span><span class="r"></span></p>
@@ -472,7 +472,7 @@
     <p class="pln"><span class="n"><a id="t390" href="#t390">390</a></span><span class="t">        <span class="com"># Orientation: our Transformer(a, b, n) has v_a = n&#183;v_b, so the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t391" href="#t391">391</a></span><span class="t">        <span class="com"># impedance at a is n&#178;&#183;Z_b; n_eff is that generator-side:antenna-side</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t392" href="#t392">392</a></span><span class="t">        <span class="com"># ratio &#8212; entering the branch at `a` keeps n, entering at `b` inverts</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t393" href="#t393">393</a></span><span class="t">        <span class="com"># it. SimNEC&#x27;s TRANSFORMER2 N reads the OTHER way (measured on 6p4d6,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t393" href="#t393">393</a></span><span class="t">        <span class="com"># it. SimNEC&#x27;s TRANSFORMER2 N reads the OTHER way (measured on 5.1a0,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t394" href="#t394">394</a></span><span class="t">        <span class="com"># 2026-08-07: an n=2 step-up emitted as N=2 read Z/4 at the generator</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t395" href="#t395">395</a></span><span class="t">        <span class="com"># instead of 4Z), so the emitted value is 1/n_eff.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t396" href="#t396">396</a></span><span class="t">        <span class="nam">n_eff</span> <span class="op">=</span> <span class="nam">br</span><span class="op">.</span><span class="nam">n</span> <span class="key">if</span> <span class="nam">entered_at</span> <span class="op">==</span> <span class="nam">br</span><span class="op">.</span><span class="nam">a</span> <span class="key">else</span> <span class="num">1.0</span> <span class="op">/</span> <span class="nam">br</span><span class="op">.</span><span class="nam">n</span>&nbsp;</span><span class="r"></span></p>
@@ -900,7 +900,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_simnec_import_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-12 23:02 +0000
+            created at 2026-08-13 04:51 +0000
         </p>
     </div>
 </footer>
