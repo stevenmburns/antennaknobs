@@ -2056,11 +2056,16 @@ _JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin")
 # ground model on both dense families (they ride the ordinary span — no
 # node-charge machinery, so none of the junction-port ground caveats).
 # `bspline` stays first for the same default-backend reason as above.
+# `nec5` serves the port NATIVELY (EX at the shared knot, #898 piece 3);
+# its tab exists only when the serving box resolves $NEC5_EXE, and an
+# allowlist entry for an absent backend is simply not a tab — so listing
+# it here enables the tab exactly where the engine exists.
 _VERTEX_PORT_BACKENDS = (
     "bspline",
     "sinusoidal-galerkin",
     "hmatrix",
     "arrayblock",
+    "nec5",
 )
 
 

@@ -221,8 +221,12 @@ def test_recommendable_backends_are_roster_members():
 
 def test_required_backends_are_roster_members():
     """Same for the per-design allowlist (`requires_backends`): a name outside
-    the roster would disable every tab with no way to satisfy it."""
-    names = {e["name"] for e in _roster()}
+    the roster would disable every tab with no way to satisfy it. Validated
+    against the FULL roster (both gated engines present): `nec5` is a
+    legitimate allowlist member that only materializes as a tab on boxes
+    resolving $NEC5_EXE — a listed-but-absent backend is simply not a tab,
+    which is different from a name the roster can never serve."""
+    names = {e["name"] for e in _roster(have_pynec=True, have_nec5=True)}
     for ex in _server.EXAMPLES.values():
         for req in ex.requires_backends or ():
             assert req in names, (ex.name, req)
