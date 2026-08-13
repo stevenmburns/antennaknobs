@@ -35,6 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LADDERS = ROOT / "scratch" / "bydipole1-ladders.json"
+ANCHORS = ROOT / "scratch" / "analytic-anchors.json"
 LEESON = ROOT / "scratch" / "leeson-cebik.json"
 PHASE2 = ROOT / "scratch" / "nec5-convergence-phase2.json"
 VOTES = ROOT / "scratch" / "nec5-wild-pynec-votes.json"
@@ -135,6 +136,110 @@ def recompute_ladders() -> dict:
     print("bs1 done", flush=True)
     LADDERS.write_text(json.dumps(data))
     return data
+
+
+def recompute_anchors() -> dict:
+    """The analytic-anchor rows (#896 phase 2): quantities whose exact value
+    is set by physics, not by any engine. One case, the ByDipole1 wire in
+    FREE SPACE (lossless): energy conservation fixes the average power gain
+    over the sphere at exactly 1 — every engine's pattern integral is
+    measured against that, which tests the whole normalization chain
+    (momwire's closed-form η₀k²/(8π·P_in) directivity norm included)."""
+    import re as _re
+    import shutil
+    import subprocess
+
+    n = 51  # odd: the center-gap feed sits on the middle segment everywhere
+    out: dict = {"case": "ByDipole1 wire, free space, lossless", "nseg": n}
+
+    # momwire bs2: integrate the far-field grid. The public grid covers the
+    # upper hemisphere (theta 0..89° from zenith, 1° rings); the horizontal
+    # dipole is symmetric about its own plane, so the full-sphere average
+    # equals the upper-hemisphere one.
+    import numpy as np
+    from types import MappingProxyType
+
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.network import Wire, WireSpec
+
+    class _Free(AntennaBuilder):
+        default_params = MappingProxyType({"freq": FREQ})
+
+        def build_wires(self):
+            return [
+                Wire(
+                    (0, 0, H),
+                    (0, L, H),
+                    n_seg=n,
+                    ex=1 + 0j,
+                    spec=WireSpec(radius=RAD),
+                )
+            ]
+
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    ff = MomwireEngine(_Free(), ground=None).far_field(n_theta=90, n_phi=360)
+    g = 10.0 ** (np.asarray(ff.rings, dtype=float) / 10.0)  # (90, 361) dBi grid
+    g = g[:, :-1]  # drop the phi seam duplicate
+    theta = np.radians(np.asarray(ff.thetas, dtype=float))
+    dth, dph = np.pi / 180.0, np.pi / 180.0
+    avg = float(np.sum(g * np.sin(theta)[:, None]) * dth * dph / (2.0 * np.pi))
+    out["momwire_bs2"] = avg
+
+    # nec2c: full-sphere RP with the average-power-gain request (XNDA A=2),
+    # cell-centered rings so the sector average is honest.
+    if shutil.which("nec2c"):
+        deck = (
+            "CM anchors free-space dipole\nCE\n"
+            f"GW 1 {n} 0. 0. {H!r} 0. {L!r} {H!r} {RAD!r}\n"
+            "GE 0\n"
+            f"EX 0 1 {(n + 1) // 2} 0 1. 0.\n"
+            f"FR 0 1 0 0 {FREQ!r} 0\n"
+            "RP 0 90 180 1002 1.0 0.0 2.0 2.0\nEN\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            dp = Path(td) / "a.nec"
+            op = Path(td) / "a.out"
+            dp.write_text(deck)
+            subprocess.run(
+                ["nec2c", "-i", str(dp), "-o", str(op)],
+                capture_output=True,
+                timeout=240,
+            )
+            m = _re.search(
+                r"AVERAGE POWER GAIN[^0-9Ee+-]*([0-9.Ee+-]+)", op.read_text()
+            )
+            if m:
+                out["nec2c"] = float(m.group(1))
+
+    # NEC-5: its own printout's average, over its own full-sphere grid.
+    from antennaknobs.engines.nec5 import NEC5Engine, find_nec5
+
+    if find_nec5():
+        avg5, _solid = NEC5Engine(_Free()).average_power_gain(n_theta=90, n_phi=180)
+        out["nec5"] = avg5
+
+    ANCHORS.write_text(json.dumps(out, indent=1))
+    return out
+
+
+def anchors_section(anchors: dict) -> str:
+    rows = [
+        "| source | average power gain | deviation |",
+        "| --- | --- | --- |",
+        "| energy conservation (exact) | 1.0000 | — |",
+    ]
+    for key, label in (
+        ("momwire_bs2", "momwire bs2 (closed-form directivity norm)"),
+        ("nec2c", "nec2c (printout average)"),
+        ("nec5", "NEC-5 (printout average)"),
+    ):
+        v = anchors.get(key)
+        if v is None:
+            rows.append(f"| {label} | — | — |")
+        else:
+            rows.append(f"| {label} | {v:.4f} | {abs(v - 1.0):.4f} |")
+    return "\n".join(rows)
 
 
 def _ri(z: complex) -> list[float]:
@@ -416,8 +521,11 @@ def render_leeson_figure(leeson: dict) -> None:
 # The page
 
 
-def build_page(data: dict, phase2: dict, votes: list[dict], leeson: dict) -> str:
+def build_page(
+    data: dict, phase2: dict, votes: list[dict], leeson: dict, anchors: dict
+) -> str:
     bd_table, bd_pairs = bydipole1_section(data)
+    anchors_table = anchors_section(anchors)
     p2_table = phase2_table(phase2)
     n_voted, n_formulation, n_translation = votes_split(votes)
     lee_table = leeson_table(leeson)
@@ -664,10 +772,28 @@ refusal or a flag, not a number.
   and `scripts/bench_nec5_convergence.py`; per-phase writeups live in
   `docs/status/`.
 
-This page grows as the validation story does: analytic anchors
-(King-Middleton dipole values, the closed-form directivity norm),
-community-submitted problem decks — every submission gets a published
-per-deck verdict — and measured-data anchors.
+## Anchors that are not any engine
+
+Cross-engine agreement can, in principle, be three engines sharing one
+mistake. The rows below are pinned to values set by physics alone. The
+first is energy conservation: for a lossless antenna in free space the
+power-gain pattern must average to exactly 1 over the sphere. momwire
+computes gain through a closed-form directivity norm
+(η₀k²/8π · |M⊥|²/P_in — momwire#231), so its row measures the entire
+normalization chain against the conservation law; the nec2c and NEC-5
+rows are their own printouts' averages over their own grids.
+
+{anchors_table}
+
+Case: the ByDipole1 wire in free space, lossless, 51 segments. A
+deviation in the fourth decimal is grid quadrature; a deviation in the
+second would be a normalization defect — that is the failure mode this
+row exists to catch.
+
+This page grows as the validation story does: further analytic anchors
+(King-Middleton second-order dipole values, from King's published
+tables), community-submitted problem decks — every submission gets a
+published per-deck verdict — and measured-data anchors.
 """
 
 
@@ -685,13 +811,17 @@ def main() -> int:
         data = recompute_ladders()
     else:
         data = json.loads(LADDERS.read_text())
+    if args.recompute or not ANCHORS.exists():
+        anchors = recompute_anchors()
+    else:
+        anchors = json.loads(ANCHORS.read_text())
     phase2 = json.loads(PHASE2.read_text())
     votes = json.loads(VOTES.read_text())
     leeson = json.loads(LEESON.read_text())
 
     render_figure(data)
     render_leeson_figure(leeson)
-    PAGE.write_text(build_page(data, phase2, votes, leeson))
+    PAGE.write_text(build_page(data, phase2, votes, leeson, anchors))
     print(f"wrote {PAGE.relative_to(ROOT)}")
     return 0
 

@@ -1,0 +1,7 @@
+{
+ "case": "ByDipole1 wire, free space, lossless",
+ "nseg": 51,
+ "momwire_bs2": 0.9926576800679143,
+ "nec2c": 0.99628,
+ "nec5": 0.998904
+}
