@@ -257,7 +257,30 @@ refusal or a flag, not a number.
   and `scripts/bench_nec5_convergence.py`; per-phase writeups live in
   `docs/status/`.
 
-This page grows as the validation story does: analytic anchors
-(King-Middleton dipole values, the closed-form directivity norm),
-community-submitted problem decks — every submission gets a published
-per-deck verdict — and measured-data anchors.
+## Anchors that are not any engine
+
+Cross-engine agreement can, in principle, be three engines sharing one
+mistake. The rows below are pinned to values set by physics alone. The
+first is energy conservation: for a lossless antenna in free space the
+power-gain pattern must average to exactly 1 over the sphere. momwire
+computes gain through a closed-form directivity norm
+(η₀k²/8π · |M⊥|²/P_in — momwire#231), so its row measures the entire
+normalization chain against the conservation law; the nec2c and NEC-5
+rows are their own printouts' averages over their own grids.
+
+| source | average power gain | deviation |
+| --- | --- | --- |
+| energy conservation (exact) | 1.0000 | — |
+| momwire bs2 (closed-form directivity norm) | 0.9927 | 0.0073 |
+| nec2c (printout average) | 0.9963 | 0.0037 |
+| NEC-5 (printout average) | 0.9989 | 0.0011 |
+
+Case: the ByDipole1 wire in free space, lossless, 51 segments. A
+deviation in the fourth decimal is grid quadrature; a deviation in the
+second would be a normalization defect — that is the failure mode this
+row exists to catch.
+
+This page grows as the validation story does: further analytic anchors
+(King-Middleton second-order dipole values, from King's published
+tables), community-submitted problem decks — every submission gets a
+published per-deck verdict — and measured-data anchors.
