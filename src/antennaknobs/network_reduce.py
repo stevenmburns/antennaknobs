@@ -53,6 +53,7 @@ from .network import (
     DrivenCurrent,
     FloatingBalun,
     Load,
+    PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
     Shunt,
@@ -1198,10 +1199,17 @@ class NetworkReducer:
                         )
                     )
             elif isinstance(br, Load):
-                if not isinstance(self.network.ports[br.port], PortOnWire):
+                # A series load needs a real current path to sit in: a gap
+                # port's segment, or (issue #910) a vertex port's through-
+                # current at the junction knot — the same Group-2
+                # termination branch either way.
+                if not isinstance(
+                    self.network.ports[br.port], (PortOnWire, PortAtVertex)
+                ):
                     raise ValueError(
                         f"Load on virtual port {br.port!r}: a Load is a series "
-                        "impedance on an antenna segment, which only PortOnWire has"
+                        "impedance in an antenna current path, which only "
+                        "PortOnWire and PortAtVertex have"
                     )
                 loads_by_node.setdefault(self.port_to_idx[br.port], []).append(br)
             else:

@@ -281,20 +281,15 @@ class NEC5Engine(SimulationEngine):
                 sources.append((idx, 4, complex(src.current), knot))
             else:
                 raise NotImplementedError(f"unsupported source type {type(src)}")
-        # Loads land at the same center knot as a source on that port —
-        # NEC-5's series-with-the-source semantics (manual, EX card) is
-        # exactly the MNA Driven+Load termination convention. A load on a
-        # VERTEX port would need the same end-knot address; deferring until
-        # a design wants it keeps the LD path single-shape.
+        # Loads land at the same knot as a source on that port — NEC-5's
+        # series-with-the-source semantics (manual, EX card) is exactly the
+        # MNA Driven+Load termination convention. A load on a VERTEX port
+        # (issue #910) uses the port's own end-knot address, so a loaded
+        # apex feed keeps the load in series with the source at the vertex.
         self._loads = []
         for br in network.branches:
             idx, knot = wire_attachment(br.port)
-            if knot != "center":
-                raise NotImplementedError(
-                    f"Load on vertex port {br.port!r}: series loads at a "
-                    "junction knot are not wired yet (issue #898)"
-                )
-            self._loads.append((idx, br))
+            self._loads.append((idx, knot, br))
         return sources
 
     # ---------- ground ----------
@@ -428,12 +423,13 @@ class NEC5Engine(SimulationEngine):
         lines.append(ge_line)
         lines.extend(gn_lines)
         lines.extend(self._material_lines)
-        for idx, br in self._loads:
-            n_seg = self._wires[idx].n_seg
+        for idx, knot, br in self._loads:
             # Discrete LD addressing: LDTAGF picks the segment, LDTAGT the
-            # segment END (manual, LD card) — end 2 of the middle segment,
-            # the same center knot the port's source occupies.
-            where = f"{idx + 1} {n_seg // 2} 2"
+            # segment END (manual, LD card) — the SAME knot the port's
+            # source occupies: end 2 of the middle segment for center
+            # ports, the wire's own end knot for vertex ports (#910).
+            seg, end = self._source_address(idx, knot)
+            where = f"{idx + 1} {seg} {end}"
             if br.z is not None:
                 z = complex(br.z)
                 lines.append(f"LD 4 {where} {_num(z.real)} {_num(z.imag)} 0.")

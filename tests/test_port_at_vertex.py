@@ -244,3 +244,61 @@ def test_nec5_apex_feed_agrees_with_momwire():
     # And the raw N=64 reading is inside the march-sized envelope — a
     # sign/addressing bug would blow this by an order of magnitude.
     assert abs(z64 - zm) < 2.0
+
+
+def test_nec5_load_on_vertex_port_lands_at_the_knot(monkeypatch):
+    """#910: a Load on a vertex port emits its LD at the SAME knot address
+    as the port's EX — NEC-5's series-with-the-source convention — and a
+    centre-port load keeps its middle-knot address."""
+    from antennaknobs.engines.nec5 import NEC5Engine
+    from antennaknobs.network import Load
+
+    class _Loaded(_ApexDipole):
+        def build_network(self):
+            net = super().build_network()
+            return Network(
+                ports=dict(net.ports),
+                branches=[Load(port="apex", r=10.0)],
+                sources=list(net.sources),
+            )
+
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    deck = NEC5Engine(_Loaded()).deck([FREQ])
+    assert "EX 0 1 16 2 " in deck  # arm p1: its own end knot
+    assert "LD 0 1 16 2 " in deck  # the load, same knot, in series
+
+
+@nec5_live
+@pytest.mark.antenna_computation_check
+def test_nec5_loaded_apex_agrees_with_momwire():
+    """The #910 cross-engine pin: an apex vee with a 10 Ω series load at
+    the vertex — momwire stamps it through the MNA reducer, NEC-5 through
+    its native LD-at-knot — compared via the #890 Richardson pair."""
+    from antennaknobs.engines.momwire import MomwireEngine
+    from antennaknobs.engines.nec5 import NEC5Engine
+    from antennaknobs.network import Load
+
+    def loaded(n):
+        base = _apex_at(n)
+
+        class _L(type(base)):
+            def build_network(self):
+                net = super().build_network()
+                return Network(
+                    ports=dict(net.ports),
+                    branches=[Load(port="apex", r=10.0)],
+                    sources=list(net.sources),
+                )
+
+        return _L()
+
+    z32 = complex(NEC5Engine(loaded(32)).impedance()[0])
+    z64 = complex(NEC5Engine(loaded(64)).impedance()[0])
+    z5 = 2 * z64 - z32
+    zm = complex(MomwireEngine(loaded(64), ground=None).impedance()[0])
+    assert abs(z5 - zm) < 0.6, (
+        f"NEC-5 pair {z5:.3f} (raw {z32:.3f}/{z64:.3f}) vs momwire {zm:.3f}"
+    )
+    # the load actually acts: both engines read ~10 ohms above the bare apex
+    zm_bare = complex(MomwireEngine(_apex_at(64), ground=None).impedance()[0])
+    assert 8.0 < (zm - zm_bare).real < 12.0
