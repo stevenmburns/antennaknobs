@@ -1016,7 +1016,7 @@ old". `nec_portal.PROBE_VERSION`'s tail is `9.1`, which clears it with room.
 The floor is not arbitrary: **it is exactly the version of the nec2c SimNEC
 currently ships**. This machine has two locale trees — the stale
 `~/.SimNEC/2/3` the corpus was captured from (`5b4az.ae6ty.1.17`) and the live
-`~/.SimNEC/5/1` belonging to SimNEC 6p4d6 (`5b4az.ae6ty.1.23`). So the floor
+`~/.SimNEC/5/1` belonging to SimNEC 5.1a0 (`5b4az.ae6ty.1.23`). So the floor
 moves with the shipped oracle, and a future SimNEC could in principle raise it
 past 9.1 — one more reason to ask Ward for a blessed convention rather than to
 squat on a number (see `2026-08-08-ward-simnec-momwire-notes.md`).
@@ -1537,7 +1537,7 @@ Corpus 38 -> 40; layout gate 40/40.
 ## Addendum 2026-08-09 — the versionNECd path, traced (issue #828)
 
 Ward's reply (2026-08-08) sanctioned probing as `NEC2text#.#`; a full bytecode
-trace of the 6p4d6 jar (CFR + `javap -c -p`, plus executing the four verbatim
+trace of the 5.1a0 jar (CFR + `javap -c -p`, plus executing the four verbatim
 patterns under Java 21) settled the questions §1 and item 11 left open. The
 portal now probes as `NEC2momwire.<major>.<minor>` (`--legacy-probe` restores
 the old versionA masquerade).

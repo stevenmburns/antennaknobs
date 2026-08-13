@@ -355,7 +355,7 @@ def test_station_ideal_transformer2():
     extra = _el("TRANSFORMER2", {"Mdl": "ideal", "N": 2}, label="X1")
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
     (x,) = [b for b in c.network().branches if isinstance(b, Transformer)]
-    # SimNEC's N is the antenna:generator voltage ratio (validated on 6p4d6,
+    # SimNEC's N is the antenna:generator voltage ratio (validated on 5.1a0,
     # PR #696), so entered generator-side, Transformer n = 1/N.
     assert (x.a, x.b, x.n) == ("rig", "feed", 0.5)
 
@@ -465,7 +465,7 @@ def test_read_ssn_confined_to_design_folder(tmp_path, monkeypatch):
 class _XfmrStation(AntennaBuilder):
     """n=2 ideal transformer between rig and dipole — pins the reciprocal
     TRANSFORMER2 N convention END TO END (export emits N=1/n, import reads
-    n=1/N; the SimNEC 6p4d6 validation finding from PR #696), so the pair
+    n=1/N; the SimNEC 5.1a0 validation finding from PR #696), so the pair
     cannot drift apart again."""
 
     default_params = MappingProxyType({"freq": 14.0, "design_freq": 14.0})

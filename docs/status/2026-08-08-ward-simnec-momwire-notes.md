@@ -1,7 +1,18 @@
 # Notes for Ward: running momwire as SimNEC's NEC engine
 
-**Date:** 2026-08-08 · **Against:** SimNEC 6p4d6 and its bundled `nec2c`
+**Date:** 2026-08-08 · **Against:** SimNEC 5.1a0 and its bundled `nec2c`
 (`5b4az.ae6ty.1.23`)
+
+> **Correction (2026-08-12):** every 2026-08 document in this repo
+> originally recorded the validated SimNEC build as "6p4d6" — a
+> mis-transcription that matches no SimNEC version format (upstream uses
+> `5.1a0` / `5.0c3`-style strings) and that Ward himself did not
+> recognize. The actual build is **5.1a0**, verified three ways on the
+> Linux box that still has the installation: the Release Notes PDF inside
+> the installed `SimNEC.jar` (dated 1/4/2026) tops out at 5.1a0; the
+> app's preference layout is `$HOME/.SimNEC/<maj>/<min>/` and the active
+> profile is `~/.SimNEC/5/1`; and the bundled `nec2c` version matches.
+> The token has been corrected repo-wide in place.
 
 ---
 

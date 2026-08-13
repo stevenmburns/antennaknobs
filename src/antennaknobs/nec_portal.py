@@ -203,7 +203,7 @@ __all__ = [
 # against four anchored regexes. We answer the FOURTH, ``versionNECd =
 # (NEC\d+\D.*)`` — honest identity, sanctioned by Ward (2026-08-08: "If you
 # respond with something like NEC2text#.# things will work") and verified
-# against the 6p4d6 bytecode (issue #828; grammar doc, 2026-08-09 addendum):
+# against the 5.1a0 bytecode (issue #828; grammar doc, 2026-08-09 addendum):
 # a versionNECd match calls ``setVersion(line)`` and returns success — group(1)
 # is never read, nothing is Double-parsed, there is no version floor, and NO
 # engine state is set. The engine enum (and with it the daemon class, the

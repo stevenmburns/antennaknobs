@@ -110,7 +110,7 @@ MNA over its own nec2c, and the antennaknobs workbench).
 | Refusal stays alive | **PASS with a finding** | patch deck: session healthy, doublet loaded fine after — but the refusal was SILENT in the UI (→ Ward ask 2) |
 | Reverted cleanly | **PASS** | nec2c re-verified on the lindenblad |
 
-**Session date: 2026-08-08, Windows box, SimNEC 6p4d6, crew 4.** Live
+**Session date: 2026-08-08, Windows box, SimNEC 5.1a0, crew 4.** Live
 discoveries: `EK` sent unconditionally by `NECSource` (fixed same-day,
 PR #814, selftest now gates on it); `GD` + `RP 3` in EZNEC-derived examples
 still refused (cardioid / 4-square blocked; GD fix has since landed —
