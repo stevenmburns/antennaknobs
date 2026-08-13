@@ -70,18 +70,18 @@ is stuck on one value.
    The station element XML (parameter names ``Zo``/``VFnom``/``ft``/``k0``…,
    ``F``/``H``/``Q``/``@MHz``, ``Mdl``/``N``) is authored from the schema
    survey of a SimNEC 5.1a1-saved ``lastCircuit.ssn`` (issue #604), and
-   load-validated in SimNEC 6p4d6 (2026-08-07): the ladder-tuner cascade
+   load-validated in SimNEC 5.1a0 (2026-08-07): the ladder-tuner cascade
    loads with correct element values and reproduces the Track-1 rig-side
    impedance at 7.1 MHz. ``TRANSFORMER2``'s ``N`` was found to read
    antenna-side:generator-side — the inverse of our ``Transformer`` ``n`` —
    so the exporter emits the reciprocal (see the emission comment).
-   Also validated on 6p4d6: ``Q = 0`` means "ideal / no loss" (the SimSmith
+   Also validated on 5.1a0: ``Q = 0`` means "ideal / no loss" (the SimSmith
    convention), and the ``k0``/``k1``/``k2`` loss coefficients round-trip a
    load/save intact with the recomputed ``/100f`` matching the coefficient
    formula. The ``SERIES_TLINE`` ``Mdl`` is pinned to ``k0k1k2`` explicitly:
    left unset it defaults to ``simplified``, which drives loss from the
    single ``/100f @frq`` point (right at the export frequency, wrong across
-   a SimNEC-side sweep). The ``material`` params 6p4d6 adds on save are
+   a SimNEC-side sweep). The ``material`` params 5.1a0 adds on save are
    inert defaults for the physical-geometry loss models.
 
 Licensing
@@ -338,7 +338,7 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
         # dB/100 ft = k0 + k1·√f + k2·f, displayed as `/100f` at `@frq`.
         # `~deg`/`@MHz` are the displayed electrical length, advisory (SimNEC
         # recomputes them from Zo/VFnom/ft). `Mdl` pins the loss model to
-        # "k0k1k2" (option string verified against SimNEC 6p4d6): the default
+        # "k0k1k2" (option string verified against SimNEC 5.1a0): the default
         # "simplified" model reads the single `/100f @frq` point instead of
         # the coefficients, which agrees at the export frequency but not
         # across a SimNEC-side sweep.
@@ -390,7 +390,7 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
         # Orientation: our Transformer(a, b, n) has v_a = n·v_b, so the
         # impedance at a is n²·Z_b; n_eff is that generator-side:antenna-side
         # ratio — entering the branch at `a` keeps n, entering at `b` inverts
-        # it. SimNEC's TRANSFORMER2 N reads the OTHER way (measured on 6p4d6,
+        # it. SimNEC's TRANSFORMER2 N reads the OTHER way (measured on 5.1a0,
         # 2026-08-07: an n=2 step-up emitted as N=2 read Z/4 at the generator
         # instead of 4Z), so the emitted value is 1/n_eff.
         n_eff = br.n if entered_at == br.a else 1.0 / br.n

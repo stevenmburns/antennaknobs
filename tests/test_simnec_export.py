@@ -322,7 +322,7 @@ def test_station_ladder_tuner_full_cascade():
     assert tl["k1"] == "0.02" and tl["k2"] == "0.0001"
     # Pinned explicitly: SimNEC's default "simplified" model reads only the
     # single /100f@frq point; k0k1k2 drives loss from the coefficients
-    # across a SimNEC-side sweep (validated on 6p4d6).
+    # across a SimNEC-side sweep (validated on 5.1a0).
     assert tl["Mdl"] == "k0k1k2"
     coil = _params_of(ssn, "SHUNT_IND")
     assert coil["H"] == "4.218e-06"

@@ -181,7 +181,7 @@ def aip_tables(text: str) -> list[list[list[str]]]:
 # --------------------------------------------------------------------------
 
 
-# Execute.testCommand's four probe regexes, verbatim from the 6p4d6 bytecode
+# Execute.testCommand's four probe regexes, verbatim from the 5.1a0 bytecode
 # (issue #828 research; grammar doc 2026-08-09 addendum). A/B/C Double-parse
 # group(1) against the 1.23 floor; NECd reads no group and sets no state.
 VERSION_B = re.compile(r"5b4az\.ae6ty\.(.*)")

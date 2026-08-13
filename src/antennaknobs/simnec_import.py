@@ -50,7 +50,7 @@ branch→element mapping, element for element:
     SHUNT_IND / SHUNT_CAP             -> Shunt    (H / F, Q -> ql / qc)
     TRANSFORMER2 (Mdl ideal)          -> Transformer (n = 1/N: SimNEC's N is
                                          the antenna:generator voltage ratio,
-                                         validated on 6p4d6 — see export)
+                                         validated on 5.1a0 — see export)
 
 The chain hangs between a virtual generator-side node (``"rig"``, the
 ``Driven`` source) and the deck's fed wire; trap ``Load``s ride in the deck as
@@ -203,7 +203,7 @@ def _series_branch(el: SsnElement, a: str, b: str):
             f"TRANSFORMER2 {el.label or ''}: model {el.get('Mdl')!r} is not "
             f"the ideal ratio; only 'Mdl ideal' translates to Transformer"
         )
-    # SimNEC's N is the ANTENNA:generator ratio — validated live on 6p4d6
+    # SimNEC's N is the ANTENNA:generator ratio — validated live on 5.1a0
     # (2026-08-07, PR #696 signoff: an n=2 step-up emitted as N=2 read Z/4
     # at the generator), and the exporter emits the reciprocal accordingly.
     # Our Transformer(a, b, n) has v_a = n*v_b entered generator-side, so

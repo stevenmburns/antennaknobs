@@ -11,7 +11,7 @@ as a design — so the same antenna and matching chain can be checked by two
 independently written solvers without hand-entering geometry or component
 values in either direction.
 
-The element mapping is validated against a real SimNEC installation (6p4d6):
+The element mapping is validated against a real SimNEC installation (5.1a0):
 generated stations load with correct values, reproduce the reference
 impedance, and survive a SimNEC load/save round-trip without drift.
 
@@ -127,7 +127,7 @@ B-spline Galerkin solver behind it. Your Smith chart, tuner, and sweeps stay
 SimNEC's; the electromagnetics become momwire's.
 
 :::caution[Validated live — but unblessed upstream]
-This has driven a real SimNEC session end to end (Windows, SimNEC 6p4d6):
+This has driven a real SimNEC session end to end (Windows, SimNEC 5.1a0):
 knob tracking, sweeps, patterns, and multi-source phased-array examples, with
 a validated station circuit reading within a few percent of the bundled
 nec2c through a high-Q tuner, pattern levels agreeing to ~0.01 dB once the
