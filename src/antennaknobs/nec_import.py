@@ -118,12 +118,18 @@ class NecFeed:
     ``deck.wires[wire]`` is driven with ``voltage`` volts — or, when
     ``current`` is True (4nec2's EX 6, issue #442), that complex value is
     the forced current in amps and the feed becomes a ``DrivenCurrent``
-    in ``deck.network()``."""
+    in ``deck.network()``.
+
+    ``edge`` (issue #824, the NEC-5 edge-source form): 0 is the ordinary
+    NEC-2 center gap; 1/2 places the source at that END of ``seg`` — a
+    knot source, which ``network()`` renders as a ``PortAtVertex`` (the
+    series apex feed, #898) on a wire piece ending at that knot."""
 
     wire: int
     seg: int
     voltage: complex
     current: bool = False
+    edge: int = 0
 
 
 @dataclass(frozen=True)
@@ -332,6 +338,8 @@ class NecDeck:
         plan: dict[tuple[int, int], str] = {}
         single = len(self.feeds) == 1
         for k, f in enumerate(self.feeds, 1):
+            if f.edge:
+                continue  # knot sources live in _vertex_plan (#824)
             key = (f.wire, f.seg)
             if key in plan:
                 raise ValueError(
@@ -347,6 +355,30 @@ class NecDeck:
         for k, nt in enumerate(self.nts, 1):
             plan.setdefault((nt.wire_a, nt.seg_a), f"nt{k}a")
             plan.setdefault((nt.wire_b, nt.seg_b), f"nt{k}b")
+        return plan
+
+    @cached_property
+    def _vertex_plan(self) -> dict[tuple[int, int], tuple[str, str]]:
+        """(wire index, local knot 0..n_seg) → (port name, "p0"|"p1") for
+        every NEC-5 edge source (issue #824). The knot is the shared feed
+        naming sequence with `_port_plan` (a lone feed is ``"feed"``); the
+        end token names which authored end of the EMITTED wire piece the
+        knot is: an interior knot cuts the wire and the port rides the
+        piece ENDING there ("p1"); knot 0 is the whole piece's "p0"."""
+        plan: dict[tuple[int, int], tuple[str, str]] = {}
+        single = len(self.feeds) == 1
+        for k, f in enumerate(self.feeds, 1):
+            if not f.edge:
+                continue
+            knot = f.seg - 1 if f.edge == 1 else f.seg
+            key = (f.wire, knot)
+            if key in plan:
+                raise ValueError(
+                    f"NEC deck drives knot {knot} of wire {f.wire + 1} "
+                    f"with more than one EX card"
+                )
+            end = "p0" if knot == 0 else "p1"
+            plan[key] = ("feed" if single else f"feed{k}", end)
         return plan
 
     @cached_property
@@ -478,12 +510,22 @@ class NecDeck:
                 continue
             per = marks.get(i, {})
             cutset = self._junction_cuts.get(i, frozenset())
+            # Knot sources (issue #824): wire pieces are cut at each claimed
+            # interior knot, and the piece whose authored end lands ON the
+            # knot carries the port name — network() then hosts a
+            # PortAtVertex there. Empty outside network mode (the parser
+            # refuses edge sources without it).
+            vper = {
+                knot: nm_end
+                for (wi, knot), nm_end in self._vertex_plan.items()
+                if wi == i
+            }
             n = w.n_seg
             spec = spec_for(i, w)
-            if not per and not cutset:
+            if not per and not cutset and not vper:
                 emit(w.p1, w.p2, n, None, spec=spec)
                 continue
-            if not cutset and len(per) == 1 and n % 2 == 1:
+            if not cutset and not vper and len(per) == 1 and n % 2 == 1:
                 (seg, (ex, pname)) = next(iter(per.items()))
                 if seg == (n + 1) // 2:
                     # Marked at the wire's middle segment — the engine's
@@ -498,21 +540,41 @@ class NecDeck:
                 t = k / n
                 return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2))
 
-            # Cut at every junction boundary, and around every marked
-            # segment so it sits alone on a 1-segment piece.
+            # Cut at every junction boundary, around every marked segment
+            # so it sits alone on a 1-segment piece, and at every claimed
+            # interior knot (#824).
             bounds = set(cutset)
             for seg in per:
                 bounds.update((seg - 1, seg))
+            bounds.update(k for k in vper)
             bounds -= {0, n}
             prev = 0
             for b in [*sorted(bounds), n]:
                 count = b - prev
                 mark = per.get(b) if count == 1 else None
+                # Vertex claim on this piece: knot 0 rides the first piece
+                # (its "p0"); every other knot rides the piece ENDING there.
+                vclaims = ([vper[0][0]] if prev == 0 and 0 in vper else []) + (
+                    [vper[b][0]] if b in vper else []
+                )
+                if len(vclaims) > 1 or (vclaims and mark is not None):
+                    raise ValueError(
+                        f"wire {i + 1}: piece between knots {prev} and {b} "
+                        "is claimed by more than one attachment (a knot "
+                        "source needs its own wire end, #824)"
+                    )
                 if mark is not None:
                     ex, pname = mark
                     emit(point(prev), point(b), 1, ex, pname, spec)
                 else:
-                    emit(point(prev), point(b), count, None, spec=spec)
+                    emit(
+                        point(prev),
+                        point(b),
+                        count,
+                        None,
+                        vclaims[0] if vclaims else None,
+                        spec,
+                    )
                 prev = b
         return tups
 
@@ -539,6 +601,12 @@ class NecDeck:
             )
             for (wi, _seg), pname in plan.items()
         }
+        # Knot sources (issue #824): the NEC-5 edge form becomes the series
+        # apex feed — a PortAtVertex on the wire piece whose authored end
+        # sits on the claimed knot (wire name == port name, the PortOnWire
+        # convention).
+        for (_wi, _knot), (pname, end) in self._vertex_plan.items():
+            ports[pname] = _net.PortAtVertex(pname, end=end)
         branches: list = []
         for ld in self.loads:
             branches.append(
@@ -582,10 +650,17 @@ class NecDeck:
                 branches.append(_net.Shunt(port=a, r=nt.shunt_r_a))
             if nt.shunt_r_b is not None:
                 branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
+
+        def feed_port(f):
+            if f.edge:
+                knot = f.seg - 1 if f.edge == 1 else f.seg
+                return self._vertex_plan[(f.wire, knot)][0]
+            return plan[(f.wire, f.seg)]
+
         sources = [
-            _net.DrivenCurrent(port=plan[(f.wire, f.seg)], current=f.voltage)
+            _net.DrivenCurrent(port=feed_port(f), current=f.voltage)
             if f.current
-            else _net.Driven(port=plan[(f.wire, f.seg)], voltage=f.voltage)
+            else _net.Driven(port=feed_port(f), voltage=f.voltage)
             for f in self.feeds
         ]
         return _net.Network(ports=ports, branches=branches, sources=sources)
@@ -2011,25 +2086,36 @@ def parse_nec(
             # segment END — I4 = 1/2 picks the end, and with I4 = 0 the SIGN
             # of I3 does (negative → end 1). NEC-2's EX I4 is a print-control
             # field instead (legal values 0/1/10/11), so a negative segment
-            # or I4 = 2 can only be the NEC-5 form — refuse it precisely
-            # rather than silently shifting the feed half a segment to the
-            # NEC-2 center-gap reading. I4 = 1 is genuinely ambiguous
-            # (legal NEC-2 print flag) and keeps its NEC-2 meaning.
-            if card.i(2) < 0 or card.i(3) == 2:
-                raise card.error(
-                    "this is the NEC-5 edge-source form (a source at a "
-                    "segment END — I4 selects the end, or a negative "
-                    "segment number selects end 1): antennaknobs' port "
-                    "model has no wire-end port yet, so the feed cannot "
-                    "be represented faithfully (issue #824). NEC5Engine "
-                    "solves such decks directly."
-                )
+            # or I4 = 2 can only be the NEC-5 form. I4 = 1 is genuinely
+            # ambiguous (legal NEC-2 print flag) and keeps its NEC-2 meaning.
+            # Since #898 the port model HAS the wire-end port (PortAtVertex →
+            # momwire's series node gap / NEC-5's native knot source), so the
+            # form imports faithfully — through the network path, which is
+            # where vertex ports live.
+            edge = 0
+            seg_field = card.i(2)
+            if seg_field < 0 or card.i(3) == 2:
+                if not network:
+                    raise card.error(
+                        "this is the NEC-5 edge-source form (a source at a "
+                        "segment END — I4 selects the end, or a negative "
+                        "segment number selects end 1): it imports as a "
+                        "PortAtVertex, which needs the network path — parse "
+                        "with network=True (issue #824)"
+                    )
+                if ex_type == 6:
+                    raise card.error(
+                        "EX 6 (current source) at a segment end is not "
+                        "supported yet — voltage edge sources only (#824)"
+                    )
+                edge = 1 if seg_field < 0 else 2
             feeds_raw.append(
                 (
                     card.i(1),
-                    card.i(2),
+                    abs(seg_field),
                     complex(card.f(4), card.f(5)),
                     ex_type == 6,
+                    edge,
                     where,
                 )
             )
@@ -2042,10 +2128,10 @@ def parse_nec(
     _snap_nec_connections(wires)
 
     feeds = []
-    for tag, seg, voltage, current, where in feeds_raw:
+    for tag, seg, voltage, current, edge, where in feeds_raw:
         card = _Card("EX", [], where)
         idx, local = _locate_segment(wires, tag, seg, card)
-        feeds.append(NecFeed(idx, local, voltage, current))
+        feeds.append(NecFeed(idx, local, voltage, current, edge))
 
     loads: tuple[NecLoad, ...] = ()
     tls: tuple[NecTL, ...] = ()
