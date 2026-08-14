@@ -196,6 +196,13 @@ def recompute_free_ladders() -> dict:
     print("bs1 free done", flush=True)
     free["razor"] = [[n, *_ri(_free_wire_solver(n, RazorSolver))] for n in EVEN]
     print("razor done", flush=True)
+    # The momwire#316 mode: NEC-5's identified centroid-trapezoid path rule.
+    # This lane lands on the NEC-5 curve rung-for-rung (constant
+    # ~0.004+0.037j residual) — the quadrature IS the coarse-mesh excess.
+    free["razor_n5q"] = [
+        [n, *_ri(_free_wire_solver(n, RazorSolver, nec5_quadrature=True))] for n in EVEN
+    ]
+    print("razor_n5q done", flush=True)
     FREE_LADDERS.write_text(json.dumps(free))
     return free
 
@@ -462,10 +469,16 @@ def render_figure(data: dict, free: dict) -> None:
                 "bs1": ("#eb6834", "momwire bs1"),
                 "razor": ("#7a5bd6", "momwire razor"),
                 "nec5": ("#1baf7a", "NEC-5"),
+                # NEC-5's identified quadrature (momwire#316): drawn as a
+                # marker-free dashed overlay so the green NEC-5 curve shows
+                # through between the dashes — the two are one curve to
+                # within a constant 0.04 Ω.
+                "razor_n5q": ("#b2379b", "razor, NEC-5 quadrature"),
             },
-            "free space — the formulation twin (momwire#309)",
+            "free space — the formulation twin (momwire#309/#316)",
         ),
     ]
+    dashed = {"razor_n5q"}
 
     fig, axes = plt.subplots(3, 2, figsize=(12.8, 10.2), sharex=True, facecolor=surface)
     panels = [
@@ -481,18 +494,21 @@ def render_figure(data: dict, free: dict) -> None:
                 pts = col_data[key]
                 ns = [p[0] for p in pts]
                 ys = [f(_z(p)) for p in pts]
-                ax.plot(
-                    ns,
-                    ys,
-                    color=color,
-                    lw=2,
-                    marker="o",
-                    ms=3.5,
-                    mfc=color,
-                    mec=surface,
-                    mew=0.5,
-                    label=label,
-                )
+                if key in dashed:
+                    ax.plot(ns, ys, color=color, lw=1.6, ls=(0, (4, 3)), label=label)
+                else:
+                    ax.plot(
+                        ns,
+                        ys,
+                        color=color,
+                        lw=2,
+                        marker="o",
+                        ms=3.5,
+                        mfc=color,
+                        mec=surface,
+                        mew=0.5,
+                        label=label,
+                    )
                 ends.append((ys[-1], ns[-1], label, color))
             # Spread the end-of-line labels: enforce a minimum vertical gap
             # (fraction of the AXIS range, so it tracks font size) so series
@@ -702,8 +718,10 @@ count on ByDipole1. Left, over ground: momwire bs2, momwire bs1, NEC-5 and
 nec2c — the bs2 curve is flat from eleven segments while NEC-5 approaches
 the common limit in a first-order march. Right, the same wire in free
 space: momwire's razor solver shares NEC-5's first-order march and lands
-on the same limit, while bs1, on the same tent basis with Galerkin
-testing, converges faster.](../../../assets/validation/bydipole1-convergence.png)
+on the same limit, bs1 on the same tent basis with Galerkin testing
+converges faster, and a dashed razor lane using NEC-5's identified
+quadrature lies directly on the NEC-5
+curve.](../../../assets/validation/bydipole1-convergence.png)
 
 {bd_table}
 
@@ -739,10 +757,18 @@ march — X-pair steps X(2N)−X(N) of {razor_pairs} Ω against NEC-5's
 (NEC-5 carries extra coarse-mesh excess on the first pair) — and the two
 curves land together on a common limit, while bs1, the *same tent basis*
 under Galerkin testing, converges visibly faster on its own trajectory. The march is the testing rule, reproduced
-from the manual's description alone, with no NEC-5 code involved. (The
-twin panel is free-space because RazorSolver deliberately carries no
-ground: NEC-5's Michalski ground has its own small limit offset that
-would blur the formulation comparison.)
+from the manual's description alone, with no NEC-5 code involved.
+
+The dashed overlay closes the loop: NEC-5's remaining coarse-mesh excess
+over the twin was identified (momwire#316) as its quadrature — the
+∫A·dl testing integral evaluated by a two-point trapezoid at the element
+centroids, the literal reading of "path integrals between centroids".
+With that one rule adopted (`nec5_quadrature=True`), the razor lane lands
+on NEC-5's curve at every rung, to a constant −0.004−0.037j Ω — an
+N-independent kernel nuance and the entire remaining difference between
+the two codes on this wire. (The twin panel is free-space because
+RazorSolver deliberately carries no ground: NEC-5's Michalski ground has
+its own small limit offset that would blur the formulation comparison.)
 
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed

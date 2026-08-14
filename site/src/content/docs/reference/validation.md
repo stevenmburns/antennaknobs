@@ -65,8 +65,10 @@ count on ByDipole1. Left, over ground: momwire bs2, momwire bs1, NEC-5 and
 nec2c — the bs2 curve is flat from eleven segments while NEC-5 approaches
 the common limit in a first-order march. Right, the same wire in free
 space: momwire's razor solver shares NEC-5's first-order march and lands
-on the same limit, while bs1, on the same tent basis with Galerkin
-testing, converges faster.](../../../assets/validation/bydipole1-convergence.png)
+on the same limit, bs1 on the same tent basis with Galerkin testing
+converges faster, and a dashed razor lane using NEC-5's identified
+quadrature lies directly on the NEC-5
+curve.](../../../assets/validation/bydipole1-convergence.png)
 
 | engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N |
 | --- | --- | --- |
@@ -107,10 +109,18 @@ march — X-pair steps X(2N)−X(N) of +4.49 / +2.18 / +1.17 Ω against NEC-5's
 (NEC-5 carries extra coarse-mesh excess on the first pair) — and the two
 curves land together on a common limit, while bs1, the *same tent basis*
 under Galerkin testing, converges visibly faster on its own trajectory. The march is the testing rule, reproduced
-from the manual's description alone, with no NEC-5 code involved. (The
-twin panel is free-space because RazorSolver deliberately carries no
-ground: NEC-5's Michalski ground has its own small limit offset that
-would blur the formulation comparison.)
+from the manual's description alone, with no NEC-5 code involved.
+
+The dashed overlay closes the loop: NEC-5's remaining coarse-mesh excess
+over the twin was identified (momwire#316) as its quadrature — the
+∫A·dl testing integral evaluated by a two-point trapezoid at the element
+centroids, the literal reading of "path integrals between centroids".
+With that one rule adopted (`nec5_quadrature=True`), the razor lane lands
+on NEC-5's curve at every rung, to a constant −0.004−0.037j Ω — an
+N-independent kernel nuance and the entire remaining difference between
+the two codes on this wire. (The twin panel is free-space because
+RazorSolver deliberately carries no ground: NEC-5's Michalski ground has
+its own small limit offset that would blur the formulation comparison.)
 
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed
