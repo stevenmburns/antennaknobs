@@ -16,6 +16,9 @@ Lanes (all the same wire: L=10.18946 m, a=1.0262 mm, 14 MHz, center-fed):
          between adjacent segment centroids, reduced kernel, delta-gap V
          landing entirely in the feed knot's row (NEC-5's EX-at-knot)
   1ptA   variant: vector-potential path integral collapsed to h*A(knot)
+  trap2  variant: A at the two path-end centroids, trapezoid ∫A·dl — the
+         IDENTIFIED NEC-5 rule (docs/status/2026-08-14-nec5-quadrature-
+         identified.md): matches NEC-5 to a constant −0.004−0.037j Ω
   nec5   $NEC5_EXE on the free-space deck, EX at the center knot
   bs1    momwire BSplineSolver(degree=1) — same basis, Galerkin testing
 
@@ -88,6 +91,22 @@ def _tent_potentials(y, knots, a, k, xg, wg):
     return rise + fall
 
 
+# Named low-order rules for the testing-path integral ∫ A·dl, as
+# (fraction-along-path, weight-fraction-of-h) node sets. The residue study
+# (2026-08-14): the twin-vs-NEC-5 gap is a clean C/N² term (C ≈ −770 Ω·seg²
+# in X, ≈ −65 in R on this wire), which smells like a low-order local rule
+# in NEC-5's fill rather than formulation — these are the standard
+# candidates. "1pt" (= the killed one_point_a) errs in the OPPOSITE
+# direction to NEC-5 (less capacitive), so endpoint-weighted rules that
+# under-sample A's peak at the knot are the prime suspects.
+PATH_RULES = {
+    "trap2": ((0.0, 0.5), (1.0, 0.5)),  # centroids-only trapezoid
+    "trap3": ((0.0, 0.25), (0.5, 0.5), (1.0, 0.25)),  # composite trapezoid
+    "mid2": ((0.25, 0.5), (0.75, 0.5)),  # midpoint per half-path
+    "1pt": ((0.5, 1.0),),  # h · A(knot)
+}
+
+
 def razor_impedance(
     n: int,
     *,
@@ -97,6 +116,7 @@ def razor_impedance(
     n_gl_outer: int = 32,
     n_gl_rem: int = 12,
     one_point_a: bool = False,
+    path_rule: str | None = None,
 ) -> complex:
     """Center-fed straight-wire input impedance, tent basis + razor testing.
 
@@ -124,7 +144,16 @@ def razor_impedance(
     Z = np.empty((m_int, m_int), dtype=complex)
     for m in range(1, n):  # row = interior knot m
         # vector-potential term over the path c_{m-1..m} .. knot .. c_{m..m+1}
-        if one_point_a:
+        if path_rule is not None:
+            t1 = np.zeros(m_int, dtype=complex)
+            p0 = cent[m - 1]
+            # NB: the loop variable must not be `w` — that name is the
+            # angular frequency in this scope.
+            for frac, wt in PATH_RULES[path_rule]:
+                t1 += (wt * h) * _tent_potentials(
+                    p0 + frac * h, knots, a, k, xg_r, wg_r
+                )
+        elif one_point_a:
             t1 = h * _tent_potentials(knots[m], knots, a, k, xg_r, wg_r)
         else:
             t1 = np.zeros(m_int, dtype=complex)
@@ -191,17 +220,24 @@ def main() -> None:
         for n in (12, 48):
             z0 = razor_impedance(n)
             z1 = razor_impedance(n, n_gl_outer=64, n_gl_rem=24)
-            print(f"quad self-check N={n}: {z0:.6f} vs doubled {z1:.6f} "
-                  f"(|Δ|={abs(z1 - z0):.2e})")
+            print(
+                f"quad self-check N={n}: {z0:.6f} vs doubled {z1:.6f} "
+                f"(|Δ|={abs(z1 - z0):.2e})"
+            )
         return
 
     data: dict[str, list] = {}
     data["razor"] = [[n, *_ri(razor_impedance(n))] for n in EVEN]
     print("razor done", flush=True)
-    data["razor_1ptA"] = [
-        [n, *_ri(razor_impedance(n, one_point_a=True))] for n in EVEN
-    ]
+    data["razor_1ptA"] = [[n, *_ri(razor_impedance(n, one_point_a=True))] for n in EVEN]
     print("razor_1ptA done", flush=True)
+    # The identified NEC-5 rule (residue study 2026-08-14): potentials
+    # evaluated at the two path-end centroids only, trapezoid ∫A·dl. This
+    # lane matches NEC-5 to a CONSTANT −0.004−0.037j Ω across the ladder.
+    data["razor_trap2"] = [
+        [n, *_ri(razor_impedance(n, path_rule="trap2"))] for n in EVEN
+    ]
+    print("razor_trap2 done", flush=True)
     data["bs1"] = [[n, *_ri(bs1_impedance(n))] for n in EVEN]
     print("bs1 done", flush=True)
 
@@ -221,7 +257,9 @@ def main() -> None:
 
     OUT.write_text(json.dumps(data))
 
-    lanes = [k for k in ("nec5", "razor", "razor_1ptA", "bs1") if k in data]
+    lanes = [
+        k for k in ("nec5", "razor_trap2", "razor", "razor_1ptA", "bs1") if k in data
+    ]
     hdr = "  N   " + "".join(f"{k:>22}" for k in lanes)
     print("\n" + hdr)
     for i, n in enumerate(EVEN):
@@ -240,8 +278,12 @@ def main() -> None:
             if n in idx and 2 * n in idx:
                 pairs.append(data[k][idx[2 * n]][2] - data[k][idx[n]][2])
         ratios = [pairs[i] / pairs[i + 1] for i in range(len(pairs) - 1)]
-        print(f"  {k:>10}: " + "  ".join(f"{d:+.3f}" for d in pairs)
-              + "   ratios " + "  ".join(f"{r:.2f}" for r in ratios))
+        print(
+            f"  {k:>10}: "
+            + "  ".join(f"{d:+.3f}" for d in pairs)
+            + "   ratios "
+            + "  ".join(f"{r:.2f}" for r in ratios)
+        )
 
 
 if __name__ == "__main__":
