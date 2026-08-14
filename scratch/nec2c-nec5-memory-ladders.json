@@ -1,0 +1,48 @@
+{
+  "what": "nec2c and NEC-5 peak-memory ladders on arrays.bowtiearray2x4 — companion to bs2-memory-ladder.json (same geometry, same rungs)",
+  "date": "2026-08-14",
+  "instrument": "scratchpad nec_mem_ladder.py: matched-dimension decks (nec2c via nec_export anchor_deck, NEC-5 via NEC5Engine.deck), each binary under `ulimit -v 8 GB` wrapped in /usr/bin/time -v; peak = child binary max RSS; runs sequential",
+  "conditions": {
+    "geometry": "arrays.bowtiearray2x4, free space, 28.5 MHz, single-frequency FR",
+    "nec2c": "system nec2c on PATH",
+    "nec5": "licensed nec5cl (LLNL-CODE-746721), NEC5-downloads/nec5-linux",
+    "machine": "xps13, 16 GB RAM",
+    "note": "segment counts differ by a few segs between engines (parity coercion); dense_NxN uses each deck's own count at 16 B/entry"
+  },
+  "columns": ["n_per_wire", "segs", "wall_s", "peak_rss_mb", "dense_matrix_mb"],
+  "nec2c": [
+    [21, 720, 0.3, 11, 8],
+    [41, 1432, 2.8, 34, 31],
+    [61, 2136, 8.5, 73, 70],
+    [81, 2784, 20.1, 122, 118],
+    [101, 3496, 39.3, 190, 186],
+    [121, 4192, 63.9, 272, 268],
+    [161, 5576, 165.3, 478, 474],
+    [201, 6968, 276.6, 745, 741],
+    [241, 8320, 466.1, 1061, 1056]
+  ],
+  "nec5": [
+    [21, 728, 0.3, 22, 8],
+    [41, 1424, 0.8, 49, 31],
+    [61, 2128, 1.8, 89, 69],
+    [81, 2792, 3.5, 142, 119],
+    [101, 3488, 5.3, 211, 186],
+    [121, 4200, 7.7, 297, 269],
+    [161, 5568, 16.4, 505, 473],
+    [201, 6960, 25.4, 776, 739],
+    [241, 8328, 36.8, 1100, 1058],
+    [321, 11104, 78.7, 1933, 1881],
+    [401, 13864, 128.2, 2994, 2933]
+  ],
+  "z_sanity": "nec2c reads 212+37j across the ladder (vs bs2's mesh-stable 211+30j — the known NEC-2 reactance offset on this geometry class); NEC-5 printouts parsed OK on every rung",
+  "comparison": {
+    "memory_model": {
+      "nec2c": "peak = dense + 3-5 MB (1.004x dense) — allocates essentially nothing but the in-core matrix",
+      "nec5": "peak -> ~1.02x dense + ~50-60 MB at large N (1.6x at small N where the fixed footprint dominates)",
+      "bs2": "peak = 1.6-2.2x dense + 300-500 MB transient (see bs2-memory-ladder.json; excess = td_all + swept chunks, momwire#318)"
+    },
+    "at_8320_segs": {"nec2c_mb": 1061, "nec5_mb": 1100, "bs2_mb": 2274, "nec2c_wall_s": 466, "nec5_wall_s": 37, "bs2_wall_s": 29},
+    "wall_time": "NEC-5 ~12.7x faster than nec2c at 8.3k segs and within ~25% of bs2; nec2c's unblocked O(N^3) factor dominates its ladder",
+    "ceiling_8gb": "nec2c ~23k segs, NEC-5 ~22.8k segs, bs2 ~15-16k basis today (~18k if momwire#318 windows td_all)"
+  }
+}
