@@ -315,5 +315,5 @@ This page grows as the validation story does: further analytic anchors
 tables), community-submitted problem decks — the intake is
 [antenna-problem-decks](https://github.com/stevenmburns/antenna-problem-decks),
 where every submission gets a committed per-deck verdict (two published
-so far: a 20:1 tapered dipole and the hentenna, one NEC-2 defect class
-each) — and measured-data anchors.
+so far: a 20:1 tapered dipole submitted by Ward Harriman, AE6TY, and
+the hentenna, one NEC-2 defect class each) — and measured-data anchors.
