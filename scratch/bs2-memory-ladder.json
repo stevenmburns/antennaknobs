@@ -1,0 +1,37 @@
+{
+  "what": "bs2 (BSplineSolver degree=2, dense) peak-memory ladder on the xps13 16GB box",
+  "date": "2026-08-14",
+  "instrument": "scripts/measure_solve_memory.py arrays.bowtiearray2x4 bspline <N>...",
+  "conditions": {
+    "geometry": "arrays.bowtiearray2x4",
+    "engine": "bspline (default degree=2 == bs2)",
+    "swept_mem_mb": "momwire default 256",
+    "cap": "every worker under ulimit -v 8388608 (8 GB address space); runs sequential, fresh subprocess per N",
+    "machine": "xps13, 16 GB RAM",
+    "momwire": ">= 0.28.1 checkout at 9c41f8d"
+  },
+  "columns": ["n_per_wire", "basis", "solve_ms", "peak_rss_mb", "delta_rss_mb", "dense_matrix_mb"],
+  "rows": [
+    [21, 720, 289, 177, 85, 8],
+    [41, 1424, 609, 426, 334, 31],
+    [61, 2128, 1178, 716, 623, 69],
+    [81, 2784, 2079, 794, 701, 118],
+    [101, 3488, 3236, 885, 793, 186],
+    [121, 4192, 5032, 1015, 922, 268],
+    [161, 5568, 9688, 1331, 1238, 473],
+    [201, 6960, 17896, 1773, 1681, 739],
+    [241, 8320, 29324, 2274, 2182, 1056],
+    [321, 11104, 57420, 3452, 3359, 1881],
+    [401, 13856, 103665, 5196, 5103, 2930]
+  ],
+  "z_all_rungs": "211+30j (mesh-stable across the whole ladder)",
+  "model": {
+    "large_n": "delta_rss_mb ~= 1.6-1.7 * dense_matrix_mb + 300-500 MB transient",
+    "small_n": "below ~3500 basis a size-capped transient (swept fill chunks + pattern eval, order 500 MB) dominates, so delta/dense runs 4-10x",
+    "interpretation": "asymptotic 1.6-1.7x dense = the Z matrix itself plus factorization/fill working copies; the additive term is the swept_mem_mb-bounded moment tensors and solve-path temporaries"
+  },
+  "cap_projection": {
+    "8gb_cap": "predicted peak hits 8 GB near basis ~17000 (N~500 on this geometry); largest verified rung basis 13856 peaked 5.2 GB under an 8 GB RLIMIT_AS with no allocation failure",
+    "recommended_ceiling": "basis <= ~15000-16000 for an 8 GB budget (predicted peak ~6.5-7 GB, leaves headroom for RLIMIT_AS being address space, not RSS)"
+  }
+}
