@@ -60,10 +60,13 @@ regime (single radius, no junctions), which makes it a *convergence-rate*
 exhibit: every engine here converges to the same answer, and the question
 is how many segments each needs to get there.
 
-![Three-panel convergence plot: feed-point R, X and SWR versus segment
-count for momwire bs2, momwire bs1, NEC-5 and nec2c on ByDipole1. The bs2
-curve is flat from eleven segments; NEC-5 approaches the common limit in a
-first-order march.](../../../assets/validation/bydipole1-convergence.png)
+![Two-column convergence plot: feed-point R, X and SWR versus segment
+count on ByDipole1. Left, over ground: momwire bs2, momwire bs1, NEC-5 and
+nec2c — the bs2 curve is flat from eleven segments while NEC-5 approaches
+the common limit in a first-order march. Right, the same wire in free
+space: momwire's razor solver shares NEC-5's first-order march and lands
+on the same limit, while bs1, on the same tent basis with Galerkin
+testing, converges faster.](../../../assets/validation/bydipole1-convergence.png)
 
 | engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N |
 | --- | --- | --- |
@@ -93,11 +96,28 @@ What the plot shows:
   our runner and a second, unrelated NEC-5 host produce the same numbers
   from the same physics.
 
+The right-hand column is the same wire in free space, and it explains WHY
+NEC-5 marches. NEC-5's public manual states its formulation — a triangular
+(tent) current expansion tested by Rao-Wilton-Glisson path integrals
+between element centroids ("razor-blade" testing) — and momwire now
+implements that exact scheme as `RazorSolver`, the formulation twin
+(momwire#309). On identical meshes the twin shares NEC-5's first-order
+march — X-pair steps X(2N)−X(N) of +4.49 / +2.18 / +1.17 Ω against NEC-5's
++8.50 / +3.16 / +1.41 Ω at N=12/24/48, the same halving-per-doubling signature
+(NEC-5 carries extra coarse-mesh excess on the first pair) — and the two
+curves land together on a common limit, while bs1, the *same tent basis*
+under Galerkin testing, converges visibly faster on its own trajectory. The march is the testing rule, reproduced
+from the manual's description alone, with no NEC-5 code involved. (The
+twin panel is free-space because RazorSolver deliberately carries no
+ground: NEC-5's Michalski ground has its own small limit offset that
+would blur the formulation comparison.)
+
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed
 (driving-point impedance is source-type independent; the equivalence is
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
-EZNEC's NEC-2D, independently implemented.
+EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
+`RazorSolver` on the momwire#311 branch.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
