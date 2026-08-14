@@ -5,6 +5,8 @@ its figure — every number on the page is either computed here from a
 committed artifact or a cited literal from a docs/status writeup:
 
   scratch/bydipole1-ladders.json      ByDipole1 four-engine ladders (computed)
+  scratch/bydipole1-freespace-ladders.json  the free-space twin panel: bs1 /
+                                      razor (momwire#311) / NEC-5 (computed)
   scratch/leeson-cebik.json           the Leeson demo cases (computed; the
                                       published Cebik values ride inside)
   scratch/nec5-convergence-phase2.json  fixed-mesh self-convergence (computed)
@@ -35,6 +37,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LADDERS = ROOT / "scratch" / "bydipole1-ladders.json"
+FREE_LADDERS = ROOT / "scratch" / "bydipole1-freespace-ladders.json"
 ANCHORS = ROOT / "scratch" / "analytic-anchors.json"
 LEESON = ROOT / "scratch" / "leeson-cebik.json"
 PHASE2 = ROOT / "scratch" / "nec5-convergence-phase2.json"
@@ -136,6 +139,65 @@ def recompute_ladders() -> dict:
     print("bs1 done", flush=True)
     LADDERS.write_text(json.dumps(data))
     return data
+
+
+# --------------------------------------------------------------------------
+# ByDipole1 free-space companion: the formulation-twin panel. RazorSolver is
+# free-space by design (its ground would be Michalski's, which carries its
+# own limit offset and would muddy the twin comparison), so its lane lives
+# on the same wire with the ground removed, next to the two lanes that give
+# it meaning: bs1 (same tent basis, Galerkin testing) and NEC-5 (the
+# formulation it twins). Recomputing the razor lane needs momwire >= the
+# #311 RazorSolver branch; page rebuilds from the committed JSON do not.
+
+
+def _free_wire_solver(n: int, cls, **kw):
+    import numpy as np
+
+    c0 = 299792458.0
+    wires = [np.array([[0.0, 0.0, 0.0], [0.0, L, 0.0]])]
+    solver = cls(
+        wires=wires, nsegs=n, wire_radius=RAD, wavelength=c0 / (FREQ * 1e6), **kw
+    )
+    z, _ = solver.compute_impedance()
+    return z
+
+
+def _nec5_free_z(n: int, eng) -> complex:
+    deck = (
+        "CM tri-razor free-space ladder\nCE\n"
+        f"GW 1 {n} 0.000000E+00 0.000000E+00 0.000000E+00 "
+        f"0.000000E+00 {L:.6E} 0.000000E+00 {RAD:.6E}\n"
+        "GE 0\n"
+        f"EX 0 1 {n // 2} 2 1.000000E+00 0.000000E+00\n"
+        f"FR 0 1 0 0 {FREQ:.6E} 0.000000E+00\nXQ 0\nEN\n"
+    )
+    return eng.run_deck(deck)[0][0][2]
+
+
+def recompute_free_ladders() -> dict:
+    from momwire import RazorSolver
+    from momwire.bspline import BSplineSolver
+
+    from antennaknobs.engines.nec5 import NEC5Engine
+    from bench_nec5_walk_why import make_dipole
+
+    eng5 = NEC5Engine(
+        make_dipole(20),
+        ground=None,
+        capture_dir=Path.home() / ".antennaknobs" / "nec5-captures",
+    )
+    free = {}
+    free["nec5"] = [[n, *_ri(_nec5_free_z(n, eng5))] for n in EVEN]
+    print("nec5 free done", flush=True)
+    free["bs1"] = [
+        [n, *_ri(_free_wire_solver(n, BSplineSolver, degree=1))] for n in EVEN
+    ]
+    print("bs1 free done", flush=True)
+    free["razor"] = [[n, *_ri(_free_wire_solver(n, RazorSolver))] for n in EVEN]
+    print("razor done", flush=True)
+    FREE_LADDERS.write_text(json.dumps(free))
+    return free
 
 
 def recompute_anchors() -> dict:
@@ -371,7 +433,7 @@ def votes_split(votes: list[dict]) -> tuple[int, int, int]:
 # exhibit already published on the groups.io thread)
 
 
-def render_figure(data: dict) -> None:
+def render_figure(data: dict, free: dict) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -379,70 +441,94 @@ def render_figure(data: dict) -> None:
 
     surface = "#fcfcfb"
     ink, ink2, grid = "#1a1a19", "#5f5e56", "#e8e8e6"
-    series = {
-        "bs2": ("#2a78d6", "momwire bs2"),
-        "bs1": ("#eb6834", "momwire bs1"),
-        "nec5": ("#1baf7a", "NEC-5"),
-        "nec2c": ("#eda100", "nec2c (NEC-2)"),
-    }
+    # Column 0: the over-ground exhibit, unchanged. Column 1: the same wire
+    # in free space — RazorSolver is free-space by design, so the twin
+    # comparison lives on axes NEC-5's Michalski ground cannot contaminate.
+    # bs1 and NEC-5 keep their colors across columns; razor gets its own.
+    columns = [
+        (
+            data,
+            {
+                "bs2": ("#2a78d6", "momwire bs2"),
+                "bs1": ("#eb6834", "momwire bs1"),
+                "nec5": ("#1baf7a", "NEC-5"),
+                "nec2c": ("#eda100", "nec2c (NEC-2)"),
+            },
+            "over Sommerfeld ground (εr 20, σ 0.0303 S/m)",
+        ),
+        (
+            free,
+            {
+                "bs1": ("#eb6834", "momwire bs1"),
+                "razor": ("#7a5bd6", "momwire razor"),
+                "nec5": ("#1baf7a", "NEC-5"),
+            },
+            "free space — the formulation twin (momwire#309)",
+        ),
+    ]
 
-    fig, axes = plt.subplots(3, 1, figsize=(8.6, 10.2), sharex=True, facecolor=surface)
+    fig, axes = plt.subplots(3, 2, figsize=(12.8, 10.2), sharex=True, facecolor=surface)
     panels = [
         ("Source R (Ω)", lambda z: z.real),
         ("Source X (Ω)", lambda z: z.imag),
         ("SWR(50)", swr),
     ]
-    for ax, (ylabel, f) in zip(axes, panels):
-        ax.set_facecolor(surface)
-        ends = []
-        for key, (color, label) in series.items():
-            pts = data[key]
-            ns = [p[0] for p in pts]
-            ys = [f(_z(p)) for p in pts]
-            ax.plot(
-                ns,
-                ys,
-                color=color,
-                lw=2,
-                marker="o",
-                ms=3.5,
-                mfc=color,
-                mec=surface,
-                mew=0.5,
-                label=label,
-            )
-            ends.append((ys[-1], ns[-1], label, color))
-        # Spread the end-of-line labels: enforce a minimum vertical gap
-        # (fraction of the AXIS range, so it tracks font size) so series
-        # converging to the same value stay individually legible.
-        ymin, ymax = ax.get_ylim()
-        min_gap = 0.045 * (ymax - ymin)
-        ends.sort()
-        placed = []
-        for y, _n, _label, _color in ends:
-            placed.append(y if not placed else max(y, placed[-1] + min_gap))
-        for (y, n, label, color), ly in zip(ends, placed):
-            ax.text(n + 2.5, ly, label, va="center", fontsize=9, color=color)
-        ax.set_ylabel(ylabel, color=ink, fontsize=10)
-        ax.grid(True, color=grid, lw=0.8)
-        for s in ("top", "right"):
-            ax.spines[s].set_visible(False)
-        for s in ("left", "bottom"):
-            ax.spines[s].set_color(ink2)
-        ax.tick_params(colors=ink2, labelsize=9)
-        ax.set_xlim(8, 118)
-    axes[0].legend(loc="lower right", frameon=False, fontsize=9, labelcolor=ink)
-    axes[2].set_xlabel("Number of segments", color=ink, fontsize=10)
-    axes[0].set_title(
+    for col, (col_data, series, col_title) in enumerate(columns):
+        for ax, (ylabel, f) in zip(axes[:, col], panels):
+            ax.set_facecolor(surface)
+            ends = []
+            for key, (color, label) in series.items():
+                pts = col_data[key]
+                ns = [p[0] for p in pts]
+                ys = [f(_z(p)) for p in pts]
+                ax.plot(
+                    ns,
+                    ys,
+                    color=color,
+                    lw=2,
+                    marker="o",
+                    ms=3.5,
+                    mfc=color,
+                    mec=surface,
+                    mew=0.5,
+                    label=label,
+                )
+                ends.append((ys[-1], ns[-1], label, color))
+            # Spread the end-of-line labels: enforce a minimum vertical gap
+            # (fraction of the AXIS range, so it tracks font size) so series
+            # converging to the same value stay individually legible.
+            ymin, ymax = ax.get_ylim()
+            min_gap = 0.045 * (ymax - ymin)
+            ends.sort()
+            placed = []
+            for y, _n, _label, _color in ends:
+                placed.append(y if not placed else max(y, placed[-1] + min_gap))
+            for (y, n, label, color), ly in zip(ends, placed):
+                ax.text(n + 2.5, ly, label, va="center", fontsize=9, color=color)
+            if col == 0:
+                ax.set_ylabel(ylabel, color=ink, fontsize=10)
+            ax.grid(True, color=grid, lw=0.8)
+            for s in ("top", "right"):
+                ax.spines[s].set_visible(False)
+            for s in ("left", "bottom"):
+                ax.spines[s].set_color(ink2)
+            ax.tick_params(colors=ink2, labelsize=9)
+            ax.set_xlim(8, 118)
+        axes[0, col].legend(
+            loc="lower right", frameon=False, fontsize=9, labelcolor=ink
+        )
+        axes[2, col].set_xlabel("Number of segments", color=ink, fontsize=10)
+        axes[0, col].set_title(col_title, color=ink, fontsize=10, loc="left", pad=8)
+    fig.suptitle(
         "ByDipole1 (EZNEC 7 sample) — feed-point convergence vs engine\n"
-        "10.19 m dipole at 9.14 m over Sommerfeld ground (εr 20, "
-        "σ 0.0303 S/m), 14 MHz",
+        "10.19 m dipole (#14 wire), 14 MHz; left at 9.14 m over ground, "
+        "right the same wire in free space",
         color=ink,
         fontsize=11,
-        loc="left",
-        pad=12,
+        x=0.02,
+        ha="left",
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
     FIGURE.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGURE, dpi=170, facecolor=surface)
     print(f"wrote {FIGURE.relative_to(ROOT)}")
@@ -522,9 +608,20 @@ def render_leeson_figure(leeson: dict) -> None:
 
 
 def build_page(
-    data: dict, phase2: dict, votes: list[dict], leeson: dict, anchors: dict
+    data: dict, free: dict, phase2: dict, votes: list[dict], leeson: dict, anchors: dict
 ) -> str:
     bd_table, bd_pairs = bydipole1_section(data)
+    razor_diffs = [
+        _z(free["razor"][EVEN.index(2 * n)]).imag
+        - _z(free["razor"][EVEN.index(n)]).imag
+        for n in (12, 24, 48)
+    ]
+    nec5f_diffs = [
+        _z(free["nec5"][EVEN.index(2 * n)]).imag - _z(free["nec5"][EVEN.index(n)]).imag
+        for n in (12, 24, 48)
+    ]
+    razor_pairs = " / ".join(f"{d:+.2f}" for d in razor_diffs)
+    nec5f_pairs = " / ".join(f"{d:+.2f}" for d in nec5f_diffs)
     anchors_table = anchors_section(anchors)
     p2_table = phase2_table(phase2)
     n_voted, n_formulation, n_translation = votes_split(votes)
@@ -600,10 +697,13 @@ regime (single radius, no junctions), which makes it a *convergence-rate*
 exhibit: every engine here converges to the same answer, and the question
 is how many segments each needs to get there.
 
-![Three-panel convergence plot: feed-point R, X and SWR versus segment
-count for momwire bs2, momwire bs1, NEC-5 and nec2c on ByDipole1. The bs2
-curve is flat from eleven segments; NEC-5 approaches the common limit in a
-first-order march.](../../../assets/validation/bydipole1-convergence.png)
+![Two-column convergence plot: feed-point R, X and SWR versus segment
+count on ByDipole1. Left, over ground: momwire bs2, momwire bs1, NEC-5 and
+nec2c — the bs2 curve is flat from eleven segments while NEC-5 approaches
+the common limit in a first-order march. Right, the same wire in free
+space: momwire's razor solver shares NEC-5's first-order march and lands
+on the same limit, while bs1, on the same tent basis with Galerkin
+testing, converges faster.](../../../assets/validation/bydipole1-convergence.png)
 
 {bd_table}
 
@@ -628,11 +728,28 @@ What the plot shows:
   our runner and a second, unrelated NEC-5 host produce the same numbers
   from the same physics.
 
+The right-hand column is the same wire in free space, and it explains WHY
+NEC-5 marches. NEC-5's public manual states its formulation — a triangular
+(tent) current expansion tested by Rao-Wilton-Glisson path integrals
+between element centroids ("razor-blade" testing) — and momwire now
+implements that exact scheme as `RazorSolver`, the formulation twin
+(momwire#309). On identical meshes the twin shares NEC-5's first-order
+march — X-pair steps X(2N)−X(N) of {razor_pairs} Ω against NEC-5's
+{nec5f_pairs} Ω at N=12/24/48, the same halving-per-doubling signature
+(NEC-5 carries extra coarse-mesh excess on the first pair) — and the two
+curves land together on a common limit, while bs1, the *same tent basis*
+under Galerkin testing, converges visibly faster on its own trajectory. The march is the testing rule, reproduced
+from the manual's description alone, with no NEC-5 code involved. (The
+twin panel is free-space because RazorSolver deliberately carries no
+ground: NEC-5's Michalski ground has its own small limit offset that
+would blur the formulation comparison.)
+
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed
 (driving-point impedance is source-type independent; the equivalence is
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
-EZNEC's NEC-2D, independently implemented.
+EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
+`RazorSolver` on the momwire#311 branch.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
@@ -814,6 +931,10 @@ def main() -> int:
         data = recompute_ladders()
     else:
         data = json.loads(LADDERS.read_text())
+    if args.recompute or not FREE_LADDERS.exists():
+        free = recompute_free_ladders()
+    else:
+        free = json.loads(FREE_LADDERS.read_text())
     if args.recompute or not ANCHORS.exists():
         anchors = recompute_anchors()
     else:
@@ -822,9 +943,9 @@ def main() -> int:
     votes = json.loads(VOTES.read_text())
     leeson = json.loads(LEESON.read_text())
 
-    render_figure(data)
+    render_figure(data, free)
     render_leeson_figure(leeson)
-    PAGE.write_text(build_page(data, phase2, votes, leeson, anchors))
+    PAGE.write_text(build_page(data, free, phase2, votes, leeson, anchors))
     print(f"wrote {PAGE.relative_to(ROOT)}")
     return 0
 
