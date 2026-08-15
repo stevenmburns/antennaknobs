@@ -18,23 +18,41 @@ SimNEC does not need it to: it reads exactly two numbers per
 ``ANTENNA INPUT PARAMETERS`` row (the CURRENT real/imaginary columns, fields 4
 and 5 of an 11-token row) and builds its Y matrix from them.
 
+The dialect is momwire's
+------------------------
+Since #846 phase II this module owns the PROTOCOL and momwire owns the
+LANGUAGE. ``momwire.deck.parse(text, dialect="nec2")`` reads the deck against
+the normative grammar published at
+momwire.dev/reference/deck-grammar-nec2 — every card, every field, every
+refusal message — and ``momwire.deck.build_solver`` maps the resulting
+dialect-neutral ``DeckModel`` onto a solver family plus the ``PortPlan`` that
+says what its ports mean. What is left here is what a solver has no vocabulary
+for: NEC's tags and global segment numbers, the column-exact printout, the
+resident stdin framing, and the port algebra that stamps a load onto a
+solution the fill knows nothing about.
+
+The dialect is **antenna-only**, which is what the restriction buys: a
+structure of thin wires, driven by voltage sources, optionally over a ground.
+``TL`` and ``NT`` are refused by name — solve the network outside the engine,
+or import the deck with antennaknobs, which keeps NEC's full network grammar
+(``nec_import.parse_nec``). Across the 44-deck reference corpus the two cards
+appear in three hand-authored probe decks and nowhere else; SimNEC's own
+``NECSource`` never writes them and its state machine never reads the sections
+they would print.
+
 Scope (units 2 and 3 — the whole portal dialect bar the long tail):
 
 * the version probe, the resident stdin loop, the ``NX`` sentinel;
 * ``CM``/``CE`` directives ``QQ`` (quiet) and ``FF`` (the one stderr line);
-* geometry ``GW``/``GM``/``GS``/``GX``/``GR``/``GA``/``GH``/``GE``, environment
-  ``GN 0/1/2``, loading ``LD 0/1/4/5``, excitation ``EX 0``, ``FR``,
+* geometry ``GW``/``GM``/``GS``/``GE``, environment ``GN 0/1/2`` and ``GD``,
+  loading ``LD 0/1/4/5``, insulation ``IS``, excitation ``EX 0``, ``FR``,
   ``EK`` (the extended thin-wire kernel, honoured since #849 — every I1
   except -1 enables it, matching nec2c), and ``XQ``; (Ward's ``YY``
   report card was retired in #839 — abandoned upstream, its only sender
   a dev benchmark);
-* unit 3: ``RP 0`` radiation patterns, ``NE``/``NH`` near-field grids, and
-  ``NT`` two-port networks — each of which is also an *execute* card in its
-  own right (``RP``/``NE``/``NH`` run the pending group, so a bare ``XQ``
-  after one of them re-runs nothing);
-* issue #799: ``TL`` transmission lines, which nec2c prints as an equivalent
-  network — same ``NETWORK DATA`` banner as ``NT``, a different three-line
-  column header, and a trailing ``STRAIGHT``/``CROSSED`` type word;
+* unit 3: ``RP 0/2/3`` radiation patterns and ``NE``/``NH`` near-field grids
+  — each of which is also an *execute* card in its own right (they run the
+  pending group, so a bare ``XQ`` after one of them re-runs nothing);
 * issue #800: ``MP``, the ae6ty multicore hint SimNEC emits automatically past
   256 segments — parsed, echoed, and its one advisory line reproduced, with the
   ``#Proc``/``blockSize`` numbers deliberately not acted on (see
@@ -55,18 +73,18 @@ Scope (units 2 and 3 — the whole portal dialect bar the long tail):
   (see :class:`SecondMedium`);
 * the printout sections SimNEC's state machine walks: banner, comments, data
   cards, structure specification, segmentation data, frequency, structure
-  impedance loading, antenna environment, network data, matrix timing, antenna
-  input parameters, currents and location, power budget, radiation patterns,
+  impedance loading, antenna environment, matrix timing, antenna input
+  parameters, currents and location, power budget, radiation patterns,
   near electric/magnetic fields.
 
-Still deferred (unit 4 / out of scope): surface
-patches, ``RP`` modes other than 0, spherical
-``NE``/``NH`` grids, and ``GN`` radial-wire ground screens. Those cards take
-the error path below rather than crashing the daemon — the printout says which
-card and why, and the ``NX`` sentinel is still emitted. ``IS`` left this list
-in issue #873: whole-wire lossless jackets ride momwire's insulation model,
-and the unmodelled remainder (partial ranges, conductive sheaths) refuses by
-card and field.
+Refused by name, with the grammar's own message: ``TL``/``NT`` (networks),
+``GA``/``GH``/``GX``/``GR``/``GC``/``GF`` (geometry out of dialect),
+``SY``, ``SP``/``SM`` (surface patches), ``RP`` modes 1 and 4-6, spherical
+``NE``/``NH`` grids, ``GN`` radial-wire ground screens, ``EX`` types other
+than 0, ``LD`` types 2/3/6/7 and the ranges that cannot expand, and the four
+``IS`` cases a lossless whole-wire jacket cannot express. Every one of them
+takes the error path below rather than crashing the daemon — the printout says
+which card and why, and the ``NX`` sentinel is still emitted.
 
 Where the physics citations point
 ---------------------------------
@@ -135,13 +153,23 @@ from momwire import (
     SinusoidalGalerkinSolver,
     SinusoidalSolver,
 )
+from momwire.deck import Card, DeckError, build_solver
+from momwire.deck import parse as parse_dialect
+from momwire.deck import parse_card
 
-
-from .builder import AntennaBuilder
-from .engines.momwire import MomwireEngine
-from .nec_import import parse_nec
-from .network import _series_rlc_impedance
-from .network_reduce import SingularNetworkError, tl_admittance_2x2
+# The NEC-level view of a deck's geometry: the flat wire list after every
+# GM/GS transform and both connection passes, carrying the TAGS and the
+# (tag, segment) resolver. ``momwire.deck``'s public surface deliberately
+# stops at the dialect-neutral ``DeckModel``, whose vocabulary has no tags,
+# no segment numbers and no card ordinals (spec ``#the-deckmodel``) — but
+# every table in this printout is addressed in exactly those terms, so the
+# portal needs the layer underneath the model as well. This is the one
+# momwire-internal import in this file; #846 phase III (which moves this
+# module into ``momwire/portal/``) turns it into an ordinary intra-package
+# import, and the follow-up filed with it asks momwire to promote
+# ``Nec2Structure`` to ``momwire.deck``'s public surface if the portal is
+# ever a third-party consumer again.
+from momwire.deck._nec2_geometry import build_geometry
 
 # --basis choices (mirrors the CLI's MOMWIRE_BASES/VARIANTS subset that makes
 # sense behind SimNEC): name -> (solver class, solver kwargs, banner suffix).
@@ -184,6 +212,12 @@ _BASES = {
     ),
 }
 _active_basis = _BASES["bspline"]
+# The same name, as ``momwire.deck.build_solver`` takes it. ``momwire.deck``'s
+# own ``BASES`` roster is spelt to match this table exactly (momwire#359), so
+# one string selects the same physics on either side of the portal; the class
+# and kwargs above stay because the banner suffix and the operator key are the
+# portal's business, not the dialect's.
+_active_basis_name = "bspline"
 
 __all__ = [
     "BANNER_VERSION",
@@ -273,8 +307,9 @@ _GAIN_FLOOR2 = 1.0e-20
 _GAIN_FLOOR_DB = -999.99
 
 # The ``RP`` modes this engine computes: space wave, linear cliff, circular
-# cliff. See :func:`_validate_rp` for what the rest ask for and why they are
-# refused rather than approximated.
+# cliff. The dialect refuses the rest by name (spec ``#rp--radiation-
+# pattern``); these two are the only modes whose table this module draws
+# differently, through the FAR FIELD GROUND PARAMETERS block.
 _RP_MODES = frozenset({0, 2, 3})
 # ...and the two that consume a second medium, keyed to the word nec2c prints
 # in the FAR FIELD GROUND PARAMETERS block.
@@ -411,47 +446,6 @@ _POWER_HEADER = "                               ---------- POWER BUDGET --------
 # dipole_rp_pattern.out, dipole_ne_nearfield.out and dipole_nh_nearfield.out.
 # ---------------------------------------------------------------------------
 
-_NETWORK_HEADER = (
-    "                                            ---------- NETWORK DATA ----------"
-)
-_NETWORK_TABLE_HEADER = (
-    "  -- FROM -  --- TO --            -------- ADMITTANCE MATRIX ELEMENTS"
-    " (MHOS) ---------",
-    "  TAG   SEG  TAG   SEG   ----- (ONE,ONE) ------   ----- (ONE,TWO) -----"
-    "   ----- (TWO,TWO) -------",
-    "  No:   No:  No:   No:      REAL      IMAGINARY      REAL     IMAGINARY"
-    "       REAL      IMAGINARY",
-)
-# issue #799 — copied byte for byte out of dipole_tl_network.out. nec2c prints
-# a TL card as an *equivalent network*: same NETWORK DATA banner, but the three
-# column-header lines describe the card's own fields (Z0, length, the two end
-# shunt admittances) instead of a Y matrix, and the row carries a trailing LINE
-# TYPE word. nec2c re-emits whichever header block matches the row it is about
-# to print whenever the KIND changes, so a deck mixing TL and NT shows two
-# header blocks under one banner — in card order, straight and crossed lines
-# sharing one block (fixture: dipole_tl_shunt_crossed.out).
-_LINE_TABLE_HEADER = (
-    "  -- FROM -  --- TO --      TRANSMISSION LINE        --------- SHUNT"
-    " ADMITTANCES (MHOS) ---------   LINE",
-    "  TAG   SEG  TAG   SEG    IMPEDANCE      LENGTH     ----- END ONE -----"
-    "      ----- END TWO -----   TYPE",
-    "  No:   No:  No:   No:         OHMS      METERS      REAL      IMAGINARY"
-    "      REAL      IMAGINARY",
-)
-
-_NETWORK_EXCITATION_HEADER = (
-    "                          --------- STRUCTURE EXCITATION DATA AT NETWORK"
-    " CONNECTION POINTS --------"
-)
-# Same 11-token row shape as ANTENNA INPUT PARAMETERS, but the oracle's header
-# spacing differs by a column here and there — copy it, do not reuse.
-_NETWORK_EXCITATION_TABLE_HEADER = (
-    "  TAG   SEG       VOLTAGE (VOLTS)          CURRENT (AMPS)         IMPEDANCE"
-    " (OHMS)       ADMITTANCE (MHOS)     POWER",
-    "  No:   No:     REAL      IMAGINARY     REAL      IMAGINARY     REAL     "
-    " IMAGINARY     REAL      IMAGINARY   (WATTS)",
-)
-
 _PATTERN_HEADER = (
     "                             ---------- RADIATION PATTERNS -----------"
 )
@@ -539,21 +533,30 @@ class PortalError(Exception):
     the daemon still emits the NX sentinel so the Java side does not block."""
 
 
+# What a caller catches to mean "the DECK is at fault, not the code". The
+# dialect's own refusals arrive as ``momwire.deck.DeckError`` (a ValueError
+# subclass carrying the spec's message verbatim); the portal's own — the
+# handful of refusals that are about the PRINTOUT rather than the physics —
+# arrive as :class:`PortalError`. Both take the same two-line error frame.
+_DECK_REFUSALS = (PortalError, DeckError)
+
+
 # --------------------------------------------------------------------------
 # cards
 # --------------------------------------------------------------------------
+#
+# Card TOKENIZATION and every dialect refusal now belong to ``momwire.deck``
+# (#846 phase II): ``parse_card`` above is momwire's, and the refusal table —
+# ``TL``/``NT`` by name, ``GA``/``GH``/``GX``/``GR``, ``SP``/``SM``, the ``EX``
+# type gate, the ``RP`` mode gate, ``GN``'s radial screens, the ``LD`` types
+# and ranges, ``IS``'s four cases — is the normative grammar's, published at
+# momwire.dev/reference/deck-grammar-nec2. This module frames those messages;
+# it no longer writes them.
 
 # Cards echoed inside STRUCTURE SPECIFICATION rather than as DATA CARD lines.
-_GEOMETRY_CARDS = frozenset({"GW", "GA", "GH", "GM", "GX", "GR", "GS", "GE"})
-
-# Cards the portal dialect can carry that this build does not model. They are
-# named so the error path can say WHICH card, instead of "unrecognised".
-_DEFERRED_CARDS = MappingProxyType(
-    {
-        "SP": "surface patch",
-        "SM": "multiple-patch surface",
-    }
-)
+# The dialect's geometry is GW with GM / GS transforms and the GE terminator;
+# GA/GH/GX/GR are refused by name upstream, so nothing else reaches here.
+_GEOMETRY_CARDS = frozenset({"GW", "GM", "GS", "GE"})
 
 # Cards that RUN the pending excitation group. ``RP``/``NE``/``NH`` are not
 # just report requests: nec2c executes on reading them and then prints their
@@ -562,58 +565,21 @@ _DEFERRED_CARDS = MappingProxyType(
 # nothing new since the last execution produces no output at all.
 _EXECUTE_CARDS = frozenset({"XQ", "RP", "NE", "NH"})
 
-# Cards that make the next execute card a real run rather than a no-op.
-_ARMING_CARDS = frozenset({"EX", "FR", "LD", "GN", "NT", "TL", "EK"})
+# Cards that end a deck body. The framing caller normally splits on them
+# before this module sees anything, but a body that still carries one stops
+# here exactly where the dialect parser stops.
+_TERMINATORS = frozenset({"NX", "EN"})
 
-
-@dataclass(frozen=True)
-class Card:
-    """One data card: mnemonic plus its numeric fields, in card order.
-
-    NEC's echo splits those fields into four integers and six reals whatever
-    the card means — an ``NT 1 4 2 4 5 4`` card echoes ``1 4 2 4`` as
-    integers and ``5.0 4.0`` as reals — so one accessor pair serves them all.
-    """
-
-    mnemonic: str
-    values: tuple[float, ...]
-    raw: str
-
-    def f(self, k: int) -> float:
-        return self.values[k] if k < len(self.values) else 0.0
-
-    def i(self, k: int) -> int:
-        return int(round(self.f(k)))
-
-
-def parse_card(line: str) -> Card | None:
-    """One deck line as a :class:`Card`, or None for a blank line.
-
-    Free-format, comma-or-space separated, mnemonic taken from the first two
-    characters — the same tolerance ``nec_import.parse_nec`` applies, because
-    the same decks reach both.
-    """
-    stripped = line.strip()
-    if not stripped:
-        return None
-    tokens = stripped.replace(",", " ").split()
-    head = tokens[0]
-    if len(head) > 2 and head[:2].isalpha() and head[2] in "0123456789.+-":
-        tokens = [head[:2], head[2:], *tokens[1:]]
-    mnemonic = tokens[0].upper()
-    if len(mnemonic) != 2 or not mnemonic.isalpha():
-        raise PortalError(f"CARD'S MNEMONIC CODE TOO SHORT OR MISSING: {stripped!r}")
-    if mnemonic in ("CM", "CE"):
-        return Card(mnemonic, (), line.rstrip("\n"))
-    values = []
-    for token in tokens[1:]:
-        try:
-            values.append(float(token.replace("D", "E").replace("d", "e")))
-        except ValueError:
-            raise PortalError(
-                f"NON-NUMERICAL CHARACTER IN FIELD: {token!r} on {stripped!r}"
-            ) from None
-    return Card(mnemonic, tuple(values), line.rstrip("\n"))
+# Cards that REBUILD THE OPERATOR when they arrive between two execute cards.
+# The oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING part of the
+# refill preamble but no FREQUENCY block — the ``refilled_partial`` shape
+# ``dipole_ek_rearm`` pins for ``EK``. Measured on the oracle for all three
+# (probes ``XQ / <card> / XQ``, 2026-08-15): ``GN 1`` prints the partial
+# preamble and the impedance moves (issue #933, the bug this replaces — the
+# old ``GN`` branch never reached the arming test at all), ``LD`` prints it
+# with the new row in the loading table, and ``EX`` prints no preamble at all,
+# because moving the drive does not move the matrix.
+_OPERATOR_CARDS = frozenset({"EK", "GN", "LD"})
 
 
 @dataclass(frozen=True)
@@ -626,42 +592,22 @@ class Ground:
     sigma: float = 0.0
 
     @classmethod
-    def from_card(cls, card: Card) -> Ground:
-        code = card.i(0)
-        if code == 1:
-            return cls("pec")
-        if code == -1:
-            return cls("free")
-        if code in (0, 2):
-            # I2 is NRADL, the radial-wire ground-screen count. nec2c models a
-            # screen as a surface impedance on the reflection-coefficient
-            # ground only; momwire has no screen model at all, so ignoring the
-            # field would silently change the physics. Reject it by name.
-            # (For GN 2 the oracle refuses it too, with
-            # "RADIAL WIRE G.S. APPROXIMATION MAY NOT BE USED WITH SOMMERFELD
-            # GROUND OPTION" — and then aborts WITHOUT the NX echo. Grammar
-            # doc §11.)
-            if card.i(1) != 0:
-                raise PortalError(
-                    f"GN {code} with a {card.i(1)}-wire radial ground screen is "
-                    f"not supported by this engine"
-                )
-            kind = "refl" if code == 0 else "sommerfeld"
-            return cls(kind, card.f(4), card.f(5))
-        raise PortalError(f"GN type {code} is not supported by this engine")
+    def from_model(cls, ground) -> Ground:
+        """The printout's view of ``DeckModel.ground``.
 
-    def momwire_spec(self):
-        if self.kind == "free":
-            return None
-        if self.kind == "pec":
-            return "pec"
-        # NEC gn 0 is the reflection-coefficient approximation, gn 2 the
-        # Sommerfeld solution; momwire spells them "finite-fast" / "finite".
-        return (
-            "finite-fast" if self.kind == "refl" else "finite",
-            self.eps_r,
-            self.sigma,
-        )
+        The model speaks momwire's ground vocabulary — ``None`` / ``"pec"`` /
+        ``("finite-fast" | "finite", eps_r, sigma)`` — and this record is the
+        NEC-facing half: the four words the ANTENNA ENVIRONMENT block prints
+        and the two constants that go with them. The ``GN`` card's own reading
+        (which type means which model, and the radial-screen refusal) lives in
+        the dialect now, not here.
+        """
+        if ground is None:
+            return cls("free")
+        if ground == "pec":
+            return cls("pec")
+        model, eps_r, sigma = ground
+        return cls("refl" if model == "finite-fast" else "sommerfeld", eps_r, sigma)
 
 
 @dataclass(frozen=True)
@@ -752,91 +698,16 @@ class SecondMedium:
     height: float = 0.0  # CHT
 
     @classmethod
-    def from_card(cls, card: Card) -> SecondMedium:
-        return cls(card.f(4), card.f(5), card.f(6), card.f(7))
+    def from_model(cls, second) -> SecondMedium | None:
+        """The printout's view of ``DeckModel.second_medium``.
 
-
-@dataclass(frozen=True)
-class NetworkBranch:
-    """One ``NT`` card: a reciprocal two-port admittance across two segments.
-
-    NEC's card gives ``Y11``, ``Y12`` and ``Y22`` (real + imaginary each) and
-    takes ``Y21 = Y12``. The branch hangs off the two segments' gaps, in
-    parallel with the structure, so its current adds to the segment current at
-    the same node — which is why the driven port's ANTENNA INPUT PARAMETERS
-    current is the SOURCE current (segment + network) and not the segment
-    current the CURRENTS AND LOCATION table prints.
-    """
-
-    a: tuple[int, int]  # (tag, segment) of port one
-    b: tuple[int, int]  # (tag, segment) of port two
-    y11: complex
-    y12: complex
-    y22: complex
-
-    @classmethod
-    def from_card(cls, card: Card) -> NetworkBranch:
-        return cls(
-            (card.i(0), card.i(1)),
-            (card.i(2), card.i(3)),
-            complex(card.f(4), card.f(5)),
-            complex(card.f(6), card.f(7)),
-            complex(card.f(8), card.f(9)),
-        )
-
-
-@dataclass(frozen=True)
-class LineBranch:
-    """One ``TL`` card: an ideal transmission line across two segments.
-
-    NEC solves a ``TL`` by substituting the line's *equivalent network* — the
-    same 2×2 short-circuit admittance an ``NT`` card states directly — so
-    everything unit 3 pinned about ``NT`` (the gap cut, the floating undriven
-    port, the source-vs-segment current split, ``NETWORK LOSS``) holds here
-    unchanged. Only three things are the card's own:
-
-    * **crossed lines are a NEGATIVE z0.** The printout echoes ``|z0|`` and
-      says ``CROSSED`` in the LINE TYPE column; the physics is port B's
-      polarity inverted, which flips the sign of the off-diagonal transfer
-      terms ONLY — not a negative z0 in the formula, which would wrongly
-      negate the diagonal self terms too.
-    * **length 0 means the straight-line distance** between the two
-      connection points (the segment centres). The printout echoes the
-      RESOLVED length, so a zero-length card never prints a zero.
-    * **the two end admittances shunt onto the diagonal**, Y11 += y_a and
-      Y22 += y_b, which is what makes a lossy line's ``NETWORK LOSS``
-      non-zero.
-
-    Those three rules are ``nec_import.NecTL``'s as well — the same card read
-    by the same repo's other translator — and
-    ``tests/test_nec_portal.py::test_the_portal_and_nec_import_translate_tl_the_same_way``
-    holds the two readings against each other. The admittance itself comes
-    from ``network_reduce.tl_admittance_2x2``: antennaknobs' own TL branch,
-    the closed form the reducer's composition oracles are written against.
-    """
-
-    a: tuple[int, int]  # (tag, segment) of end one
-    b: tuple[int, int]  # (tag, segment) of end two
-    z0: float  # |z0|, as the printout echoes it
-    length: float  # card length; 0.0 means "the straight-line distance"
-    crossed: bool
-    y_a: complex  # shunt admittance at end one
-    y_b: complex  # shunt admittance at end two
-
-    @classmethod
-    def from_card(cls, card: Card) -> LineBranch:
-        z0 = card.f(4)
-        if z0 == 0.0:
-            raise PortalError("TL characteristic impedance must be non-zero")
-        return cls(
-            (card.i(0), card.i(1)),
-            (card.i(2), card.i(3)),
-            abs(z0),
-            card.f(5),
-            z0 < 0.0,
-            complex(card.f(6), card.f(7)),
-            complex(card.f(8), card.f(9)),
-        )
+        Which card carried it — ``GD``, or a ``GN`` whose ``NRADL`` is zero —
+        is the dialect's business; by the time it reaches here it is four
+        numbers and the question of which cliff mode reads them.
+        """
+        if second is None:
+            return None
+        return cls(second.eps_r, second.sigma, second.edge_distance, second.height)
 
 
 @dataclass(frozen=True)
@@ -943,11 +814,9 @@ class Multiprocessing:
 
     @classmethod
     def from_card(cls, card: Card) -> Multiprocessing:
-        for k in (0, 1):
-            if card.f(k) != float(card.i(k)):
-                raise PortalError(
-                    f"MP field {k + 1} must be an integer, not {card.f(k)!r}"
-                )
+        # A fractional field is NEC's own integer-reader error and the
+        # dialect refuses it before this card is ever echoed, so the two
+        # fields are integers by the time they reach the printout.
         return cls(card.i(0), card.i(1))
 
     @property
@@ -1008,17 +877,36 @@ class ExecuteGroup:
     # the oracle prints no announcement for it (measured: XQ / EK / XQ shows
     # two AIP sections, one preamble, zero announcements).
     ek: bool = False
-    # A kernel change between execute cards refills the matrix WITHOUT a new
-    # FR: the oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING
+    # An operator card between two execute cards refills the matrix WITHOUT a
+    # new FR: the oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING
     # part of the preamble but no FREQUENCY block and no kernel announcement
-    # (fixture dipole_ek_rearm). Advisory refill for us — the cached factors
-    # are already momwire's — but the printout must walk the same sections.
+    # (fixtures dipole_ek_rearm, dipole_gn_rearm, dipole_ld_rearm). Advisory
+    # refill for us — the cached factors are already momwire's — but the
+    # printout must walk the same sections. See ``_OPERATOR_CARDS``.
     refilled_partial: bool = False
 
 
 @dataclass
 class PortalDeck:
-    """A deck body (everything up to, not including, its ``NX``)."""
+    """A deck body (everything up to, not including, its ``NX``).
+
+    Two readings of the same cards live side by side here, and the split is
+    deliberate (#846 phase II, design doc §7):
+
+    * :attr:`model` is ``momwire.deck``'s — the dialect-neutral
+      :class:`~momwire.deck.model.DeckModel` that decides what gets SOLVED:
+      wires, feeds, loads, ground, and one entry per execute card saying
+      whether it ran and at which frequencies. Every dialect refusal is its.
+    * everything else is the PRINTOUT's — the cards as written, in the order
+      the ``DATA CARD No:`` echo needs them, and the per-group print state
+      (which report card fired, which ``MP``/``PT`` was in force) that the
+      model deliberately does not carry, because a card ordinal is not part
+      of a solver's vocabulary.
+
+    The two readings must agree about arming, frequencies and drive, and
+    ``test_nec_portal.py::test_the_portal_and_the_dialect_agree_*`` is the
+    proof, run over every deck in the corpus.
+    """
 
     comments: tuple[str, ...] = ()
     geometry: tuple[Card, ...] = ()
@@ -1026,15 +914,7 @@ class PortalDeck:
     # One entry per EXECUTE card in ``data_cards`` order; None marks an execute
     # card that ran nothing (a bare ``XQ`` trailing an ``RP``/``NE``/``NH``).
     groups: tuple[ExecuteGroup | None, ...] = ()
-    # Every ``NT`` and ``TL`` card, in CARD ORDER — which is the order nec2c
-    # prints NETWORK DATA rows in, and the order that decides where it
-    # re-emits a column header (see ``_network_lines``).
-    networks: tuple[NetworkBranch | LineBranch, ...] = ()
     loads: tuple[Card, ...] = ()
-    # ``IS`` insulated-sheath cards (issue #873), carried into the union deck
-    # like loads but kept apart: an ``LD -1`` nullification must not sweep
-    # away insulation, which is a wire property here, not a load.
-    insulation: tuple[Card, ...] = ()
     ground: Ground = field(default_factory=Ground)
     # The deck's ``GD`` card, if it carried one. Kept so the deck is a full
     # record of what arrived; it moves no number here (see :class:`SecondMedium`).
@@ -1042,211 +922,76 @@ class PortalDeck:
     ground_plane_flag: bool = False
     quiet: bool = False
     reduced_field: int | None = None
-
-
-def _fr_frequencies(card: Card) -> tuple[float, ...]:
-    """The frequency list an ``FR`` card asks for (linear or multiplicative)."""
-    n = max(card.i(1), 1)
-    start, step = card.f(4), card.f(5)
-    if card.i(0) == 0:
-        return tuple(start + i * step for i in range(n))
-    return tuple(start * step**i if step > 0 else start for i in range(n))
-
-
-def _directive(text: str, keyword: str) -> int | None:
-    """``QQ n`` / ``FF n`` out of a CM/CE body (the oracle's processCMLine)."""
-    parts = text.split()
-    for i, token in enumerate(parts):
-        if token.upper() == keyword and i + 1 < len(parts):
-            try:
-                return int(float(parts[i + 1]))
-            except ValueError:
-                return None
-    return None
-
-
-def _validate_rp(card: Card) -> None:
-    """Reject the ``RP`` shapes this engine does not compute.
-
-    ``nec2/NECSource`` only ever writes ``RP 0 <nth> <nph> 1001 0 0 <dth>
-    <dph> 1000``, but a user-pasted deck reaches the portal too, so the mode
-    field is a real input. Modes 0, 2 and 3 run (issue #802); the rest are
-    refused by name, because their tables are a different shape and guessing
-    one is worse than saying no.
-
-    ==========  ================================================  ========
-    ``I1``      what it asks for                                  here
-    ==========  ================================================  ========
-    ``0``       space wave over the ground plane                  runs
-    ``1``       surface wave — ``RADIATED FIELDS NEAR GROUND``,   refused
-                a different banner and a different row shape
-                (nine columns including ``E(RADIAL)``), reached
-                through ``GFLD`` rather than ``FFLD``
-    ``2``       linear cliff: second medium beyond ``x = CLT``    runs
-    ``3``       circular cliff: second medium beyond ``r = CLT``  runs
-    ``4``       radial wire ground screen                         refused
-    ``5``       screen inside, then a LINEAR cliff beyond it      refused
-    ``6``       screen inside, then a CIRCULAR cliff beyond it    refused
-    ==========  ================================================  ========
-
-    4-6 stay refused for the reason ``GN``'s ``NRADL`` field is: the screen is
-    a surface impedance ``Z = t1·d·ln(d/t2)`` folded into the reflection
-    coefficient, momwire has no screen model at all, and running the deck as
-    bare ground would be a wrong answer rather than a refusal. 1 stays refused
-    because nothing here computes a surface wave.
-    """
-    if card.i(0) not in _RP_MODES:
-        raise PortalError(
-            f"RP mode {card.i(0)} is not supported by this engine "
-            f"(modes {', '.join(str(m) for m in sorted(_RP_MODES))} only)"
-        )
-
-
-def _validate_near_field(card: Card) -> None:
-    """``NE``/``NH`` in rectangular coordinates only (``I1 = 0``)."""
-    if card.i(0) != 0:
-        raise PortalError(
-            f"{card.mnemonic} coordinate system {card.i(0)} (spherical) is not "
-            f"supported by this engine; rectangular (0) only"
-        )
+    # momwire's own reading of the same deck: what gets solved, and the
+    # geometry underneath it (the flat NEC wire list, the tags, and the
+    # ``(tag, segment)`` resolver every table in the printout is addressed by).
+    model: object | None = None
+    structure: object | None = None
 
 
 def parse_deck(body: str) -> PortalDeck:
-    """A deck body's cards, grouped the way the engine executes them."""
+    """A deck body's cards, grouped the way the engine executes them.
+
+    ``momwire.deck.parse`` reads the deck first and owns every refusal: this
+    function only ever sees a deck the dialect will run, so it carries no
+    error path of its own beyond the tokenizer's. What it adds is the
+    printout's view — the card echo, the geometry rows, and the per-group
+    report/MP/PT state — plus the two things the model cannot express:
+
+    * the group's ``EX`` addresses as ``(tag, segment)`` pairs, because the
+      ``ANTENNA INPUT PARAMETERS`` table is addressed in NEC's terms and
+      because a source explicitly driven at 0 V is a printed row while an
+      undriven port is not — a distinction a voltage vector cannot make;
+    * ``refilled_partial``, the partial refill preamble an operator card
+      between two execute cards produces (see ``_OPERATOR_CARDS``).
+    """
+    model = parse_dialect(body, dialect="nec2")
+
     comments: list[str] = []
     geometry: list[Card] = []
     data_cards: list[Card] = []
     groups: list[ExecuteGroup | None] = []
-    networks: list[NetworkBranch | LineBranch] = []
     loads: list[Card] = []
-    insulation: list[Card] = []
     sources: list[tuple[int, int, complex]] = []
-    freqs: tuple[float, ...] = (0.0,)
-    fresh_fr = False
-    # True when something has changed since the last execution, so the next
-    # execute card is a real run rather than a no-op echo.
-    armed = True
     executed = 0
-    ground = Ground()
-    second_medium: SecondMedium | None = None
-    ground_plane_flag = False
-    quiet = False
-    reduced_field: int | None = None
     multiprocessing: Multiprocessing | None = None
     print_control: PrintControl | None = None
-    extended_kernel = False
-    kernel_dirty = False
+    second_medium = SecondMedium.from_model(model.second_medium)
+    # True when a card that REBUILDS the operator has arrived since the last
+    # execute card. It is the printout's half of arming: the dialect decides
+    # whether the next execute card runs at all, this decides whether the run
+    # reprints the loading / environment / matrix-timing preamble.
+    operator_dirty = False
     sources_stale = False
 
     for line in body.splitlines():
         card = parse_card(line)
         if card is None:
             continue
+        if card.mnemonic in _TERMINATORS:
+            break
         if card.mnemonic in ("CM", "CE"):
-            text = card.raw[2:]
-            comments.append(text)
-            if (qq := _directive(text, "QQ")) and qq > 0:
-                quiet = True
-            if (ff := _directive(text, "FF")) is not None:
-                reduced_field = ff
+            comments.append(card.text)
             continue
         if card.mnemonic in _GEOMETRY_CARDS:
             geometry.append(card)
-            if card.mnemonic == "GE" and card.i(0) != 0:
-                ground_plane_flag = True
             continue
-        if card.mnemonic == "GN":
-            # NOTE the ground *annotation* in STRUCTURE SPECIFICATION comes
-            # from the GE flag alone: the catalog decks carry `GE 0` + `GN 1`
-            # and the oracle prints no "GROUND PLANE SPECIFIED." for them.
-            ground = Ground.from_card(card)
-            # ...and, when no radial screen claims F3-F6, the card carries a
-            # whole second medium in them — the same four values a GD would
-            # set, written to the same four /FPAT/ slots by NEC's own card
-            # reader (nec2dx.f main program, label 23). A GN that reaches
-            # here always rewrites them, so a bare `GN 1` clears an earlier
-            # cliff exactly as the oracle does; a screen count keeps them,
-            # because the oracle takes the F3/F4 pair as the screen's geometry
-            # and returns before the assignment.
-            if card.i(1) == 0:
-                second_medium = SecondMedium(card.f(6), card.f(7), card.f(8), card.f(9))
-            data_cards.append(card)
-            continue
-        if card.mnemonic in _DEFERRED_CARDS:
-            raise PortalError(
-                f"{card.mnemonic} ({_DEFERRED_CARDS[card.mnemonic]}) is not "
-                f"supported by this engine yet"
-            )
         data_cards.append(card)
-        if card.mnemonic in _ARMING_CARDS:
-            armed = True
+        if card.mnemonic in _OPERATOR_CARDS and executed:
+            operator_dirty = True
         if card.mnemonic == "LD":
+            # The loading table echoes the cards in force, and ``LD -1``
+            # nullifies every load read so far — the dialect's own rule, and
+            # only loads: ``IS`` insulation is a wire property, not a load.
             if card.i(0) == -1:
                 loads.clear()
             else:
                 loads.append(card)
-        elif card.mnemonic == "IS":
-            # NEC-4.2 insulated sheath (issue #873), served as momwire's
-            # whole-wire lossless-dielectric jacket. Structural for this
-            # engine — one geometry, one set of per-wire specs, every
-            # group — so it must precede the first execute request; and a
-            # conductive sheath refuses by field rather than dropping F2.
-            if executed:
-                raise PortalError(
-                    "IS after an execute request is not supported by this "
-                    "engine: wire insulation is part of the structure, so "
-                    "it cannot change between runs"
-                )
-            if card.f(5) != 0.0:
-                raise PortalError(
-                    "IS with a conductive sheath (F2 != 0) is not modelled "
-                    "by this engine — the insulation jacket is a lossless "
-                    "dielectric; set the sheath conductivity to 0"
-                )
-            insulation.append(card)
-        elif card.mnemonic == "NT":
-            networks.append(NetworkBranch.from_card(card))
-        elif card.mnemonic == "TL":
-            networks.append(LineBranch.from_card(card))
-        elif card.mnemonic == "GD":
-            # Also not an arming card (measured: `... XQ / GD ... / XQ` prints
-            # one block). The second medium reaches NEC's far field only
-            # through RP's cliff modes, so this moves nothing until an RP 2 or
-            # RP 3 asks for it — see SecondMedium.
-            second_medium = SecondMedium.from_card(card)
         elif card.mnemonic == "MP":
-            # Not an arming card: the oracle runs nothing for an XQ whose only
-            # new card is an MP (measured — the second XQ of `... XQ / MP 4 8 /
-            # XQ` prints no block at all).
             multiprocessing = Multiprocessing.from_card(card)
-        elif card.mnemonic == "EK":
-            # The oracle's test is `I1 == -1`, and NOTHING else: measured on
-            # nec2c 5b4az.ae6ty.1.23, `EK`, `EK 0`, `EK 1`, `EK 2` and even
-            # `EK -2` all print THE EXTENDED THIN WIRE KERNEL WILL BE USED,
-            # and only `EK -1` does not. (It is NEC-2's own card reader —
-            # nec2dx.f sets IEXK = 1 on an EK card and clears it only for
-            # ITMP1 = -1.) This used to refuse anything outside {0, -1}, which
-            # is the #814 class of bug: refusing a card the reference engine
-            # accepts turns a runnable deck into a fabricated readout. Match
-            # the oracle. `nec_import.parse_nec` already read the card this
-            # way, so the two card readers now agree as well.
-            wanted = card.i(0) != -1
-            if wanted != extended_kernel:
-                kernel_dirty = executed > 0
-            extended_kernel = wanted
         elif card.mnemonic == "PT":
-            # Also not an arming card: it changes what a run PRINTS, not what
-            # a run computes, so it cannot make an XQ into a fresh execution.
             print_control = PrintControl.from_card(card)
-        elif card.mnemonic == "FR":
-            freqs = _fr_frequencies(card)
-            fresh_fr = True
         elif card.mnemonic == "EX":
-            if card.i(0) != 0:
-                raise PortalError(
-                    f"EX type {card.i(0)} is not a voltage source; this engine "
-                    f"drives EX 0 only"
-                )
             # NEC RETAINS the excitation across an execute card: a re-run
             # with no new EX re-drives the previous set (dipole_ek_rearm's
             # second AIP repeats tag 1 seg 5), while the first EX after an
@@ -1257,46 +1002,46 @@ def parse_deck(body: str) -> PortalDeck:
                 sources_stale = False
             sources.append((card.i(1), card.i(2), complex(card.f(4), card.f(5))))
         elif card.mnemonic in _EXECUTE_CARDS:
-            if not armed and executed:
+            # The dialect decided which execute cards run; this walk only has
+            # to stay in step with it, one entry per execute card in order.
+            armed = (
+                model.groups[len(groups)] if len(groups) < len(model.groups) else None
+            )
+            if armed is None:
                 groups.append(None)
                 continue
-            if card.mnemonic == "RP":
-                _validate_rp(card)
-            elif card.mnemonic in ("NE", "NH"):
-                _validate_near_field(card)
             groups.append(
                 ExecuteGroup(
                     tuple(sources),
-                    freqs if fresh_fr else freqs[-1:],
-                    refilled=fresh_fr or not executed,
+                    armed.frequencies,
+                    refilled=armed.refilled,
                     report=None if card.mnemonic == "XQ" else card,
                     mp=multiprocessing,
                     pt=print_control,
-                    ek=extended_kernel,
-                    refilled_partial=kernel_dirty and not (fresh_fr or not executed),
+                    ek=armed.extended_kernel,
+                    refilled_partial=(
+                        (armed.refilled_partial or operator_dirty)
+                        and not armed.refilled
+                    ),
                 )
             )
-            kernel_dirty = False
+            operator_dirty = False
             executed += 1
             sources_stale = True
-            fresh_fr = False
-            armed = False
-        else:
-            raise PortalError(f"unrecognised NEC card {card.mnemonic!r}")
 
     return PortalDeck(
         comments=tuple(comments),
         geometry=tuple(geometry),
         data_cards=tuple(data_cards),
         groups=tuple(groups),
-        networks=tuple(networks),
         loads=tuple(loads),
-        insulation=tuple(insulation),
-        ground=ground,
+        ground=Ground.from_model(model.ground),
         second_medium=second_medium,
-        ground_plane_flag=ground_plane_flag,
-        quiet=quiet,
-        reduced_field=reduced_field,
+        ground_plane_flag=model.ground_plane_flag,
+        quiet=model.quiet,
+        reduced_field=model.reduced_field,
+        model=model,
+        structure=build_geometry(geometry),
     )
 
 
@@ -1357,29 +1102,6 @@ def fmt_current_row(seg, tag, centre, length, current) -> str:
         f" {seg:5d} {tag:4d}"
         f" {centre[0]:9.4f} {centre[1]:9.4f} {centre[2]:9.4f} {length:9.5f}"
         f" {current.real:11.4E} {current.imag:11.4E} {mag:11.4E} {phase:8.3f}"
-    )
-
-
-def fmt_network_row(tag_a, seg_a, tag_b, seg_b, values, tail: str = "") -> str:
-    """A NETWORK DATA row: the two connection points, six numbers, a tail word.
-
-    ``NT`` and ``TL`` rows share this layout EXACTLY — six alternating
-    ``%12.4E``/``%11.4E`` fields and a nine-column right-aligned tail — and
-    only the meaning of the six changes: an ``NT`` row is
-    ``Re/Im(Y11), Re/Im(Y12), Re/Im(Y22)`` under an empty tail, a ``TL`` row is
-    ``|z0|, length, Re/Im(y_end1), Re/Im(y_end2)`` under ``STRAIGHT`` or
-    ``CROSSED``. The oracle pads the ``NT`` form out to 106 columns with nine
-    trailing spaces, which is the same nine columns ``STRAIGHT`` occupies —
-    reproduced, because ``layout_signature`` compares token END columns and a
-    reader diffing bytes should see none.
-    """
-    v1, v2, v3, v4, v5, v6 = values
-    return (
-        f" {tag_a:4d} {seg_a:5d} {tag_b:4d} {seg_b:5d}"
-        f" {v1:12.4E} {v2:11.4E}"
-        f" {v3:12.4E} {v4:11.4E}"
-        f" {v5:12.4E} {v6:11.4E}"
-        f"{tail:>9s}"
     )
 
 
@@ -1803,34 +1525,17 @@ def _y_and_port_coeffs(solver):
     return sol.y, sol.coeffs
 
 
-def _synthesize_union_deck(deck: PortalDeck, ports: list[tuple[int, int]]) -> str:
-    """A NEC deck text carrying the geometry, the loading, and ONE ``EX`` per
-    distinct port across every execute group.
-
-    Handing this to ``nec_import.parse_nec`` reuses the repo's only card
-    parser — GW/GM/GS/GX/GR transforms, LD translation, tag/segment
-    addressing, per-wire specs — and gives one geometry translation for the
-    whole deck, which is what lets a single fill serve every group.
-    """
-    lines = [c.raw for c in deck.geometry]
-    lines += [c.raw for c in deck.loads]
-    lines += [c.raw for c in deck.insulation]
-    lines += [f"EX 0 {tag} {seg} 0 1." for tag, seg in ports]
-    return "\n".join(lines) + "\n"
-
-
 def _union_ports(deck: PortalDeck) -> list[tuple[int, int]]:
-    """Every ``(tag, segment)`` the deck needs a gap at, in discovery order:
-    the union of every execute group's ``EX`` segments, then every ``NT``/``TL``
-    endpoint (NEC cuts the segment to hang the network off it, so it needs a
-    gap whether or not anything drives it).
+    """Every ``(tag, segment)`` the deck drives, in discovery order: the union
+    of every execute group's ``EX`` segments.
+
+    This is the dialect's own union rule (spec ``#one-geometry-one-port-set``)
+    read in NEC's vocabulary, and it is the bridge between the two: entry ``i``
+    here is model feed ``i``, so ``PortPlan.feed_ports[i]`` is the solver port
+    the ``ANTENNA INPUT PARAMETERS`` row for ``(tag, seg)`` reads.
 
     Lifted out of :class:`DeckSolver` so the cross-deck cache key is built from
-    the SAME walk the solver's port columns come from. The port set is part of
-    the operator — it decides the union deck's gaps, the drive columns B, and
-    the column order of X — so two decks alike but for a moved ``EX`` are two
-    different operators, and a key that computed the set its own way could
-    drift from the one the solver actually built.
+    the SAME walk the solver's port columns come from.
     """
     ports: list[tuple[int, int]] = []
     for group in deck.groups:
@@ -1839,29 +1544,26 @@ def _union_ports(deck: PortalDeck) -> list[tuple[int, int]]:
         for tag, seg, _v in group.sources:
             if (tag, seg) not in ports:
                 ports.append((tag, seg))
-    for branch in deck.networks:
-        for point in (branch.a, branch.b):
-            if point not in ports:
-                ports.append(point)
     return ports
 
 
-def _locate(wires, tag: int, seg: int) -> tuple[int, int]:
-    """NEC (tag, segment) → (wire index, 1-based local segment); ``tag`` 0
-    means an absolute segment number. Mirrors ``nec_import._locate_segment``
-    against the parsed ``NecWire`` list."""
-    seg = max(seg, 1)
-    acc = 0
-    for i, w in enumerate(wires):
-        if tag != 0 and w.tag != tag:
-            continue
-        if acc + w.n_seg >= seg:
-            return i, seg - acc
-        acc += w.n_seg
-    raise PortalError(
-        f"segment {seg} is out of range for "
-        + (f"tag {tag}" if tag else "the structure")
-    )
+def _series_rlc_impedance(r, l, c, omega):  # noqa: E741 — NEC's own field name
+    """Series R + jwL + 1/(jwC). Any of r/l/c may be None (omitted term).
+
+    COPIED, not imported, from ``antennaknobs.network._series_rlc_impedance``
+    (#846: the portal depends on momwire alone). Twenty-six lines with zero
+    module dependencies, minus the finite-Q terms, which no NEC ``LD`` card can
+    ask for: the card gives R, L and C and nothing else. The original stays
+    where it is and serves the design library; this one serves ``LD 0``.
+    """
+    z = 0.0 + 0.0j
+    if r is not None:
+        z += r
+    if l is not None:
+        z += 1j * omega * l
+    if c is not None:
+        z += 1.0 / (1j * omega * c)
+    return z
 
 
 @dataclass
@@ -1966,8 +1668,53 @@ def _connection_data(wires) -> list[tuple[int, int]]:
     return out
 
 
+def _port_signs(built, model) -> np.ndarray:
+    """``d_k = ±1`` per solver port: the deck's sign convention over momwire's.
+
+    A delta-gap feed's polarity follows the direction the polyline WALK ran
+    through its edge, and the walk is free to traverse a wire against the
+    p1→p2 direction the ``GW`` card authored (a mid-structure feed on a chain
+    assembled from both ends is the routine case — five of the reference
+    corpus's decks hit it). NEC's convention is the card's, so every port is
+    normalised back onto it by the diagonal congruence ``Y_deck = D·Y_walk·D``
+    with the matching ``V_walk = D·V_deck`` on the applied voltages. Both are
+    exactly what ``MomwireEngine._contract_y`` / ``_feed_W`` did before #846
+    phase II; the difference is that this reads the sign off the built mesh
+    rather than off a private engine attribute.
+
+    ``momwire.deck``'s :class:`~momwire.deck._solver.PortPlan` does not carry
+    the walk direction (``_polylines.py`` computes it and keeps it), so it is
+    recovered here from the geometry: the polyline edge the port sits on
+    against the model wire the plan says the port belongs to.
+    """
+    signs = np.ones(built.ports.n_ports)
+    polylines = built.solver.wires_polylines
+    for index, site in enumerate(built.ports.sites):
+        polyline = np.asarray(polylines[built.solver.feeds[index][0]], dtype=float)
+        arclength = built.solver.feeds[index][1]
+        lengths = np.linalg.norm(np.diff(polyline, axis=0), axis=1)
+        edge = int(np.searchsorted(np.cumsum(lengths), arclength, side="left"))
+        edge = min(edge, len(lengths) - 1)
+        walk = polyline[edge + 1] - polyline[edge]
+        wire = model.wires[site.wire]
+        authored = np.asarray(wire.vertices[-1], dtype=float) - np.asarray(
+            wire.vertices[0], dtype=float
+        )
+        signs[index] = 1.0 if float(np.dot(walk, authored)) >= 0.0 else -1.0
+    return signs
+
+
 class DeckSolver:
     """momwire behind one deck: one geometry, one fill per frequency.
+
+    The construction is ``momwire.deck``'s (#846 phase II): the dialect parsed
+    the deck into a :class:`~momwire.deck.model.DeckModel`, and
+    :func:`~momwire.deck.build_solver` maps that model onto a solver family
+    plus the :class:`~momwire.deck._solver.PortPlan` that says what its ports
+    MEAN. This class is what sits between that plan and the printout — the
+    NEC-facing half nothing in momwire speaks: global segment numbers, tags,
+    the deck's own current sign convention, and the port algebra that stamps a
+    load.
 
     Ports are the union of every execute group's ``EX`` segments and every
     ``LD`` segment, so a group is just a voltage vector over a port set that
@@ -1981,177 +1728,93 @@ class DeckSolver:
 
     def __init__(self, deck: PortalDeck):
         self.portal_deck = deck
-        ports = _union_ports(deck)
-        if not ports:
+        self.model = deck.model
+        self.structure = deck.structure
+        self.ports = _union_ports(deck)
+        if not self.ports:
             raise PortalError("deck has no EX card — nothing drives the structure")
-        self.ports = ports
 
-        text = _synthesize_union_deck(deck, ports)
-        self.deck = parse_nec(text, name="portal deck", network=True)
-        # The importer's convention for an unexpressible IS card is
-        # skip-with-detail (the corpus norm); the portal's is refusal —
-        # solving a bare wire where the deck asked for a jacket would be a
-        # wrong answer, not a translation compromise (issue #873). The
-        # sigma refusal already fired at parse_deck; what reaches here is
-        # the geometry-dependent remainder: partial-wire ranges and jackets
-        # that do not clear the conductor.
-        for mnemonic, reason in self.deck.ignored_detail:
-            if mnemonic == "IS":
-                raise PortalError(f"IS: {reason}")
-        self.wires = self.deck.wires
+        # The flat NEC wire list after every GM/GS transform and both
+        # connection passes: tags, segment counts, endpoints, radii. This is
+        # the structure every table in the printout is addressed against.
+        self.wires = self.structure.wires
         self.segments = _structure_segments(self.wires)
         self.n_segments = len(self.segments)
 
-        freq_seed = deck.groups[0].freqs_mhz[0] if deck.groups else 0.0
-        self.engine = self._build_engine(freq_seed)
-
-        plan = self.deck._port_plan
-        names = self.engine._feed_names
-        # Port index in the momwire feed ordering, per union EX port and per
-        # translated LD port.
-        self.feed_index: list[int] = []
-        for feed in self.deck.feeds:
-            self.feed_index.append(names.index(plan[(feed.wire, feed.seg)]))
-        self.load_ports: list[tuple[int, object]] = [
-            (names.index(plan[(ld.wire, ld.seg)]), ld) for ld in self.deck.loads
-        ]
-        self.n_ports = len(names)
-        # Global NEC segment number → momwire port index, for every segment
-        # that carries a gap. Lets a readout prefer the Galerkin port current
-        # (what Y is built from) over the interpolated midpoint current.
-        self.port_by_segment: dict[int, int] = {
-            self.global_segment(feed.wire, feed.seg): port
-            for feed, port in zip(self.deck.feeds, self.feed_index)
-        }
-
-        # NT and TL branches, stamped onto the port index set, in card order.
-        # An NT matrix is frequency-independent (the card gives constant
-        # admittances) so it is accumulated once here; a TL's is not — its
-        # electrical length is βl — so the line rows are kept and stamped per
-        # frequency by ``y_network_at``.
-        lookup = {point: self.feed_index[i] for i, point in enumerate(self.ports)}
-        self.y_constant = np.zeros((self.n_ports, self.n_ports), dtype=np.complex128)
-        self.network_ports: set[int] = set()
-        # (port a, port b, branch, resolved TL length or None for an NT).
-        self.network_rows: list[
-            tuple[int, int, NetworkBranch | LineBranch, float | None]
-        ] = []
-        self.line_rows: list[tuple[int, int, LineBranch, float]] = []
-        for branch in deck.networks:
-            a, b = lookup[branch.a], lookup[branch.b]
-            length: float | None = None
-            if isinstance(branch, LineBranch):
-                length = self._line_length(branch, a, b)
-                self.line_rows.append((a, b, branch, length))
-            else:
-                self.y_constant[a, a] += branch.y11
-                self.y_constant[a, b] += branch.y12
-                self.y_constant[b, a] += branch.y12
-                self.y_constant[b, b] += branch.y22
-            self.network_ports.update((a, b))
-            self.network_rows.append((a, b, branch, length))
-
+        self._group = next(
+            (i for i, g in enumerate(self.model.groups) if g is not None), None
+        )
+        # The operating point the first real run asks for. Building the seed
+        # solver here rather than lazily keeps the port plan available before
+        # anything is printed, exactly as the engine's translation used to be.
+        armed = next((g for g in deck.groups if g is not None), None)
+        seed = armed.freqs_mhz[0] if armed else 0.0
+        seed_ek = bool(armed.ek) if armed else False
+        # The ground plane's height, for the PEC image the near field takes.
+        self.ground_z = self.model.ground_z if self.model.ground is not None else None
         self._smallest_radius = min(w.radius for w in self.wires)
         # (frequency, extended kernel) -> one filled and factored operator.
         self._cache: dict[tuple[float, bool], dict] = {}
 
-    def _line_length(self, branch: LineBranch, a: int, b: int) -> float:
-        """A ``TL`` card's resolved length: its own, or — when the card says
-        zero — the straight-line distance between the two connection points,
-        which NEC takes to be the segment CENTRES. The printout echoes THIS
-        number, so a zero-length card never prints a zero."""
-        if branch.length:
-            return branch.length
-        centre_a = self.segments[self.segment_of_port(a) - 1].centre
-        centre_b = self.segments[self.segment_of_port(b) - 1].centre
-        return float(np.linalg.norm(centre_a - centre_b))
+        built = self._build(seed, seed_ek)
+        plan = built.ports
+        self.plan = plan
+        self.n_ports = plan.n_ports
+        # Port index in the solver's ordering, per union EX port and per
+        # translated LD port — the plan's own bridge, in the model's feed and
+        # load order, which is this walk's order by construction.
+        self.feed_index: list[int] = list(plan.feed_ports)
+        self.load_ports: list[tuple[int, object]] = [
+            (port, spec) for port, spec in plan.loaded_ports()
+        ]
+        # Global NEC segment number → solver port index, for every segment
+        # that carries a gap. Lets a readout prefer the Galerkin port current
+        # (what Y is built from) over the interpolated midpoint current.
+        self.port_by_segment: dict[int, int] = {
+            self.global_segment(*self.structure.locate(tag, seg)): port
+            for (tag, seg), port in zip(self.ports, self.feed_index)
+        }
+        # Whether any wire carries a material at all — the gate on the wire
+        # loss term of the power budget (``LD 5`` conductivity, ``IS``
+        # insulation). ``momwire.deck`` folds both into the model's per-wire
+        # material record.
+        self._lossy = any(w.material is not None for w in self.model.wires)
+        self._cache[(seed, seed_ek)] = self._entry(built)
 
-    def y_network_at(self, wavelength: float) -> np.ndarray:
-        """The whole deck's network admittance at one wavelength.
+    # -- construction ------------------------------------------------------
 
-        The constant ``NT`` part plus every ``TL``'s equivalent network:
-        ``tl_admittance_2x2`` — antennaknobs' own TL branch — with the card's
-        end admittances added onto the diagonal, which is where a lossy line's
-        ``NETWORK LOSS`` comes from.
-        """
-        y = self.y_constant.copy()
-        for a, b, branch, length in self.line_rows:
-            try:
-                block = tl_admittance_2x2(
-                    branch.z0, length, wavelength, transposed=branch.crossed
-                )
-            except SingularNetworkError as exc:
-                # An exactly-lossless k·λ/2 line HAS no admittance matrix, and
-                # nec2c's netwk() divides by the same sinh. Refuse it by name
-                # rather than emit a table of infinities.
-                raise PortalError(f"TL {branch.a} -> {branch.b}: {exc}") from None
-            y[a, a] += block[0, 0] + branch.y_a
-            y[a, b] += block[0, 1]
-            y[b, a] += block[1, 0]
-            y[b, b] += block[1, 1] + branch.y_b
-        return y
+    def _build(self, freq_mhz: float, extended_kernel: bool):
+        """One constructed solver plus its port plan, at one operating point."""
+        return build_solver(
+            self.model,
+            basis=_active_basis_name,
+            group=self._group,
+            frequency_mhz=freq_mhz,
+            extended_kernel=bool(extended_kernel),
+        )
 
-    def network_report_order(self, driven_ports: set[int]) -> list[int]:
-        """Row order for STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS.
-
-        NEC's ``netwk()`` sorts the connection points into two lists as it
-        walks the cards — the ones that are NOT also excitation segments, then
-        the ones that are — and prints the first list followed by the second.
-        Within each list the order is discovery: card by card, end one before
-        end two. So ``dipole_nt_network`` (``NT 1 5 2 5``, driven on 1/5)
-        prints ``(2, 14)`` then ``(1, 5)``, and the mixed
-        ``dipole_tl_shunt_crossed`` prints the TL's far end, then both NT ends,
-        then the driven TL end last.
-        """
-        undriven: list[int] = []
-        driven: list[int] = []
-        for a, b, _branch, _length in self.network_rows:
-            for port in (a, b):
-                if port in undriven or port in driven:
-                    continue
-                (driven if port in driven_ports else undriven).append(port)
-        return undriven + driven
-
-    def segment_of_port(self, port: int) -> int:
-        """The global NEC segment number carrying momwire port ``port``."""
-        for number, idx in self.port_by_segment.items():
-            if idx == port:
-                return number
-        raise PortalError(f"port {port} has no segment")
+    def _entry(self, built) -> dict:
+        """The cached ``(Y, X, solver)`` behind one constructed solver."""
+        started = time.perf_counter()
+        y_solver, coeffs = _y_and_port_coeffs(built.solver)
+        fill_ms = int(round((time.perf_counter() - started) * 1000.0))
+        signs = _port_signs(built, self.model)
+        return {
+            "solver": built.solver,
+            "wavelength": built.wavelength,
+            # Y in the DECK's sign convention (see ``_port_signs``): the
+            # diagonal congruence D·Y·D that puts every port back on the
+            # direction its NEC wire was authored in.
+            "Y": y_solver * signs[:, None] * signs[None, :],
+            "X": coeffs,
+            "signs": signs,
+            "fill_ms": fill_ms,
+        }
 
     def global_segment(self, wire: int, local: int) -> int:
         """NEC's absolute segment number for 1-based local segment ``local``
         of ``self.wires[wire]``."""
         return sum(w.n_seg for w in self.wires[:wire]) + local
-
-    # -- construction ------------------------------------------------------
-
-    def _build_engine(self, freq_mhz: float) -> MomwireEngine:
-        deck = self.deck
-        wires = deck.wire_tuples(specs=True)
-        network = deck.network()
-
-        class _DeckBuilder(AntennaBuilder):
-            label = "nec_portal"
-            default_params = MappingProxyType(
-                {"freq": freq_mhz or 1.0, "design_freq": freq_mhz or 1.0}
-            )
-
-            def build_wires(self):
-                return wires
-
-            def build_network(self):
-                return network
-
-        ground = self.portal_deck.ground.momwire_spec()
-        cls, kwargs, _ = _active_basis
-        return MomwireEngine(
-            _DeckBuilder(),
-            solver=cls,
-            solver_kwargs=dict(kwargs) or None,
-            ground=ground,
-            ground_z=0.0,
-        )
 
     # -- per-frequency operator -------------------------------------------
 
@@ -2180,29 +1843,23 @@ class DeckSolver:
             # off the instrument is off too, so its zeros are evidence rather
             # than an unread accumulator.
             _cache_stats["fills"] += 1
-        wavelength = C_LIGHT / (freq_mhz * 1e6)
-        started = time.perf_counter()
-        solver = self.engine._make_solver(
-            wavelength=wavelength, extended_kernel=bool(extended_kernel)
-        )
-        y_sub, coeffs = _y_and_port_coeffs(solver)
-        fill_ms = int(round((time.perf_counter() - started) * 1000.0))
-        entry = {
-            "solver": solver,
-            "wavelength": wavelength,
-            "Y": self.engine._contract_y(y_sub),
-            "X": coeffs,
-            "fill_ms": fill_ms,
-        }
+        entry = self._entry(self._build(freq_mhz, extended_kernel))
         self._cache[key] = entry
         return entry
 
     def _load_impedances(self, omega: float) -> np.ndarray:
+        """The per-port load impedance vector at one angular frequency.
+
+        The plan says which solver port each ``LD`` card landed on and hands
+        over its :class:`~momwire.deck.model.LoadSpec`; stamping it is the
+        consumer's job, because the load is an impedance in the port's own
+        current path rather than anything the fill knows about.
+        """
         z = np.zeros(self.n_ports, dtype=np.complex128)
         for idx, ld in self.load_ports:
-            if ld.z is not None:
-                z[idx] += complex(ld.z)
-            elif ld.parallel:
+            if ld.kind == "fixed":
+                z[idx] += complex(ld.r, ld.x)
+            elif ld.kind == "parallel":
                 y = 0.0 + 0.0j
                 if ld.r:
                     y += 1.0 / ld.r
@@ -2212,7 +1869,9 @@ class DeckSolver:
                     y += 1j * omega * ld.c
                 z[idx] += (1.0 / y) if y != 0 else 0.0
             else:
-                z[idx] += _series_rlc_impedance(ld.r, ld.l, ld.c, omega)
+                z[idx] += _series_rlc_impedance(
+                    ld.r or None, ld.l or None, ld.c or None, omega
+                )
         return z
 
     def solve_group(self, group: ExecuteGroup, freq_mhz: float) -> dict:
@@ -2230,32 +1889,18 @@ class DeckSolver:
             for s_tag, s_seg, volts in group.sources:
                 if (s_tag, s_seg) == (tag, seg):
                     v_source[port] = volts
-                    wire, local = _locate(self.wires, tag, seg)
+                    wire, local = self.structure.locate(tag, seg)
                     driven.append((port, self.global_segment(wire, local), volts))
         z_load = self._load_impedances(omega)
-        y_network = self.y_network_at(entry["wavelength"])
         system = np.eye(self.n_ports, dtype=np.complex128) + (z_load[:, None] * y)
-        rhs = v_source.copy()
-        # A network port that nothing drives is not a shorted gap: its voltage
-        # floats to whatever makes the node's currents balance, so its row
-        # becomes KCL — antenna current plus network current is zero. A network
-        # port that IS driven keeps the ideal-source row (V = V_ex) and the
-        # source supplies the difference. Grammar doc §11.
-        driven_ports = {port for port, _seg, _v in driven}
-        for port in sorted(self.network_ports - driven_ports):
-            system[port, :] = y[port, :] + y_network[port, :]
-            rhs[port] = 0.0
-        v_gap = np.linalg.solve(system, rhs)
+        v_gap = np.linalg.solve(system, v_source)
         i_port = y @ v_gap
-        i_network = y_network @ v_gap
-        # What the source delivers: the segment current plus whatever the
-        # network draws at the same node. With no NT card the second term is
-        # zero and this is the unit-2 reading unchanged.
-        i_source = i_port + i_network
+        # No network branch can reach this engine: ``TL`` and ``NT`` are
+        # refused by name (the dialect is antenna-only), so the source current
+        # IS the segment current and the network loss is identically zero.
+        i_source = i_port
 
-        w_matrix = self.engine._feed_W
-        v_sub = v_gap if w_matrix is None else w_matrix @ v_gap
-        coeffs = entry["X"] @ v_sub
+        coeffs = entry["X"] @ (entry["signs"] * v_gap)
         seg_currents = self._segment_currents(entry["solver"], coeffs)
 
         p_in = 0.5 * float(
@@ -2263,23 +1908,21 @@ class DeckSolver:
         )
         p_load = 0.5 * float(np.sum(np.real(z_load) * np.abs(i_port) ** 2))
         p_wire = 0.0
-        if self.engine._loading_kwargs:
+        if self._lossy:
             p_wire = float(entry["solver"].wire_loss_power(coeffs)[0])
         p_structure = p_load + p_wire
-        p_network = 0.5 * float(np.sum(np.real(v_gap * np.conj(i_network))))
-        p_rad = p_in - p_structure - p_network
+        p_rad = p_in - p_structure
         return {
             "driven": driven,
             "v_gap": v_gap,
             "i_port": i_port,
-            "i_network": i_network,
             "i_source": i_source,
             "segment_currents": seg_currents,
             "coeffs": coeffs,
             "solver": entry["solver"],
             "p_in": p_in,
             "p_structure": p_structure,
-            "p_network": p_network,
+            "p_network": 0.0,
             "p_radiated": p_rad,
             "efficiency": (100.0 * p_rad / p_in) if p_in > 0 else 0.0,
             "fill_ms": entry["fill_ms"],
@@ -2289,52 +1932,15 @@ class DeckSolver:
     # -- field sources -----------------------------------------------------
 
     def current_elements(self, result: dict, subdiv: int = 1):
-        """``(mid, moment, nodes, delta)`` for the whole structure.
+        """``(mid, moment, nodes, delta)`` for the whole structure — momwire's
+        own ``element_currents``.
 
-        ``mid``/``moment`` are the element midpoints and their complex current
-        moments ``I·dl`` — the far-field sum's terms. ``nodes``/``delta`` are
-        the mesh knots and the current STEP across each, which is the discrete
-        continuity charge the near-field scalar potential needs. Wire ends get
-        the full element current as their step (nothing carries current past
-        them), and knots two wires share coincide, so their steps simply add.
-
-        ``subdiv > 1`` resamples the solved B-spline current at intermediate
-        arc positions (``currents_at_knots(coeffs, s_array=...)``) instead of
-        only at the mesh knots. The far field does not need it — every element
-        is electrically small and only the radiation-zone limit matters — but a
-        near field a metre from a half-metre segment does.
+        The portal carried a near-verbatim duplicate of this walk until #846
+        phase II (same mesh walk, same moments, same steps); momwire ships it
+        publicly, so the copy is gone and only the deck-direction re-signing
+        below — which is NEC's convention, not momwire's — stays here.
         """
-        solver, coeffs = result["solver"], result["coeffs"]
-        engine = self.engine
-        fine: list[np.ndarray] = []
-        arcs: list[np.ndarray] = []
-        for w_idx, polyline in enumerate(engine._polylines):
-            parts = []
-            for i, n_e in enumerate(engine._edge_segments[w_idx]):
-                seg = np.linspace(polyline[i], polyline[i + 1], n_e * subdiv + 1)
-                parts.append(seg if i == 0 else seg[1:])
-            knots = np.vstack(parts)
-            fine.append(knots)
-            step = np.linalg.norm(knots[1:] - knots[:-1], axis=1)
-            arcs.append(np.concatenate([[0.0], np.cumsum(step)]))
-        currents = solver.currents_at_knots(coeffs, None if subdiv == 1 else arcs)
-        mids, moments, nodes, deltas = [], [], [], []
-        for knots, cur in zip(fine, currents, strict=True):
-            cur = np.asarray(cur)
-            element = 0.5 * (cur[1:] + cur[:-1])
-            mids.append(0.5 * (knots[1:] + knots[:-1]))
-            moments.append(element[:, None] * (knots[1:] - knots[:-1]))
-            nodes.append(knots)
-            zero = np.zeros(1, dtype=np.complex128)
-            deltas.append(
-                np.concatenate([zero, element]) - np.concatenate([element, zero])
-            )
-        return (
-            np.concatenate(mids, axis=0),
-            np.concatenate(moments, axis=0),
-            np.concatenate(nodes, axis=0),
-            np.concatenate(deltas, axis=0),
-        )
+        return result["solver"].element_currents(result["coeffs"], subdiv=subdiv)
 
     def _segment_currents(self, solver, coeffs) -> np.ndarray:
         """Per NEC segment (global order), the midpoint current signed along
@@ -2345,12 +1951,11 @@ class DeckSolver:
         sign; the dot product against the deck wire's direction puts every
         segment back on NEC's convention.
         """
-        engine = self.engine
         knot_currents = solver.currents_at_knots(coeffs)
         mids, dirs, vals = [], [], []
-        for w_idx, polyline in enumerate(engine._polylines):
+        for w_idx, polyline in enumerate(solver.wires_polylines):
             parts = []
-            for i, n_e in enumerate(engine._edge_segments[w_idx]):
+            for i, n_e in enumerate(solver.n_per_edge_per_wire[w_idx]):
                 seg = np.linspace(polyline[i], polyline[i + 1], n_e + 1)
                 parts.append(seg if i == 0 else seg[1:])
             knots = np.vstack(parts)
@@ -2371,8 +1976,7 @@ class DeckSolver:
         # dipole_rp_crossed_quadrature printed wire 1's port current on wire
         # 2's segment 14, a 90-degree error hidden behind a perfectly plausible
         # magnitude. Require the element to run along the NEC segment too, and
-        # fall back to pure distance if nothing does (a curved GA arc, where
-        # momwire's chord may sit at an angle to the card's).
+        # fall back to pure distance if nothing does.
         unit_e = dirs / np.maximum(np.linalg.norm(dirs, axis=1, keepdims=True), 1e-30)
         unit_s = wanted_dir / np.maximum(
             np.linalg.norm(wanted_dir, axis=1, keepdims=True), 1e-30
@@ -2524,20 +2128,23 @@ def _write_cache_stats() -> None:
 def _operator_key(deck: PortalDeck) -> tuple:
     """The identity of the linear operator this deck describes.
 
+    Read off the parsed :class:`~momwire.deck.model.DeckModel` rather than off
+    the cards, because the model IS the operator's statement: the wires the
+    fill runs over (vertices, radii, per-edge element counts and each wire's
+    material — a ``LD 5`` conductivity or an ``IS`` jacket lands in the fill),
+    the ground, the port set in order, and the loads whose gaps the fill has
+    to cut. Two decks that differ only in spelling produce the same model and
+    therefore the same key.
+
     Everything that changes the matrix, the drive columns, or their ordering:
 
-    * the geometry cards after nothing — ``GW``/``GA``/``GH``/``GM``/``GX``/
-      ``GR``/``GS``/``GE`` by mnemonic and numeric fields, which is what
-      ``_synthesize_union_deck`` hands the translator (endpoints, segment
-      counts, radii, transforms, and the ``GE`` ground-plane flag);
-    * the ground — ``GN``'s kind and its parameters, and its ABSENCE (a
-      free-space :class:`Ground` is a distinct value, not a missing one);
-    * the loads — ``LD`` cards by fields, in force at the end of the deck,
-      which is the set ``_synthesize_union_deck`` writes and the set
-      ``_load_impedances`` stamps;
-    * the port set, in order — the walk in :func:`_union_ports`;
-    * the ``NT``/``TL`` branches — they stamp ``y_constant`` and the line rows,
-      and their endpoints are ports;
+    * the wires — geometry after every ``GM``/``GS`` transform, both
+      connection passes and the junction shatter;
+    * the ground — kind and constants, and its ABSENCE (free space is a
+      distinct value, not a missing one), plus the plane's height;
+    * the loads — position and :class:`~momwire.deck.model.LoadSpec`, which is
+      the set ``_load_impedances`` stamps and the set that cuts gaps;
+    * the port set, in order — the model's own feed union;
     * the kernel flag, per execute group — see below;
     * the basis: solver class, solver kwargs and banner suffix. One process has
       one ``--basis``, so this can never differ between two live decks; it is in
@@ -2573,16 +2180,12 @@ def _operator_key(deck: PortalDeck) -> tuple:
     the card has.
     """
     cls, kwargs, suffix = _active_basis
+    model = deck.model
     return (
-        tuple((c.mnemonic, c.values) for c in deck.geometry),
-        (deck.ground.kind, deck.ground.eps_r, deck.ground.sigma),
-        tuple((c.mnemonic, c.values) for c in deck.loads),
-        # IS insulation (issue #873) moves the operator the same way loads
-        # do — per-wire jacket L' lands in the fill — so two decks alike but
-        # for their jackets are two operators.
-        tuple((c.mnemonic, c.values) for c in deck.insulation),
-        tuple(_union_ports(deck)),
-        deck.networks,
+        model.wires,
+        (model.ground, model.ground_z),
+        model.loads,
+        tuple((wire, arclength) for wire, arclength, _volts in model.feeds),
         tuple(g.ek for g in deck.groups if g is not None),
         (cls.__name__, tuple(sorted(kwargs.items())), suffix),
     )
@@ -2845,78 +2448,6 @@ def _environment_lines(ground: Ground, freq_mhz: float) -> list[str]:
     return lines
 
 
-def _network_lines(solver: DeckSolver, result: dict) -> list[str]:
-    """NETWORK DATA plus STRUCTURE EXCITATION DATA AT NETWORK CONNECTION POINTS.
-
-    Both are *(ignored)* by ``Execute`` — its state machine only arms on the
-    ``ANTENNA INPUT PARAMETERS`` banner, and the excitation table's rows have
-    the same 11-token shape but are never reached. They are printed because the
-    layout is the contract and a reader diffing against the oracle would
-    otherwise see a missing section.
-    """
-    out = [_NETWORK_HEADER]
-    # nec2c carries the PREVIOUS row's kind and re-emits the matching column
-    # header whenever it changes, so a deck mixing TL and NT cards shows two
-    # header blocks under one banner, interleaved in card order. Straight and
-    # crossed lines are one kind and share a block.
-    kind: type | None = None
-    for a, b, branch, length in solver.network_rows:
-        seg_a, seg_b = solver.segment_of_port(a), solver.segment_of_port(b)
-        if isinstance(branch, LineBranch):
-            values = (
-                branch.z0,
-                length,
-                branch.y_a.real,
-                branch.y_a.imag,
-                branch.y_b.real,
-                branch.y_b.imag,
-            )
-            tail = "CROSSED" if branch.crossed else "STRAIGHT"
-            header = _LINE_TABLE_HEADER
-        else:
-            values = (
-                branch.y11.real,
-                branch.y11.imag,
-                branch.y12.real,
-                branch.y12.imag,
-                branch.y22.real,
-                branch.y22.imag,
-            )
-            tail = ""
-            header = _NETWORK_TABLE_HEADER
-        if kind is not type(branch):
-            kind = type(branch)
-            out += list(header)
-        out.append(
-            fmt_network_row(
-                solver.segments[seg_a - 1].tag,
-                seg_a,
-                solver.segments[seg_b - 1].tag,
-                seg_b,
-                values,
-                tail,
-            )
-        )
-    out += ["", "", _NETWORK_EXCITATION_HEADER, *_NETWORK_EXCITATION_TABLE_HEADER]
-    driven_ports = {port for port, _seg, _v in result["driven"]}
-    for port in solver.network_report_order(driven_ports):
-        number = solver.segment_of_port(port)
-        volts = complex(result["v_gap"][port])
-        current = complex(result["i_port"][port])
-        out.append(
-            fmt_aip_row(
-                solver.segments[number - 1].tag,
-                number,
-                volts,
-                current,
-                volts / current if current != 0 else 0j,
-                current / volts if volts != 0 else 0j,
-                0.5 * (volts * np.conj(current)).real,
-            )
-        )
-    return out
-
-
 def _pattern_lines(
     card: Card, solver: DeckSolver, result: dict, freq_mhz: float
 ) -> list[str]:
@@ -2953,7 +2484,7 @@ def _pattern_lines(
         np.radians(thetas),
         np.radians(phis),
         solver.portal_deck.ground,
-        solver.engine._ground_z,
+        solver.ground_z,
         freq_mhz * 1e6,
         cliff=(mode, second) if mode in _CLIFF_KIND and second is not None else None,
     )
@@ -3093,7 +2624,7 @@ def _near_field_lines(card: Card, solver: DeckSolver, result: dict) -> list[str]
         # flip) and NEGATES the charge, which is the same statement: reversing
         # a horizontal current reverses dI/ds, and mirroring a vertical one
         # reverses the arc direction.
-        ground_z = solver.engine._ground_z
+        ground_z = solver.ground_z
         mid_img, moment_img = _image_moments(mid, moment, ground_z)
         nodes_img = nodes.copy()
         nodes_img[:, 2] = 2.0 * ground_z - nodes[:, 2]
@@ -3128,8 +2659,8 @@ def _printed_segments(pt: PrintControl | None, solver: DeckSolver) -> list[_Segm
     """
     if pt is None or not pt.restricted:
         return solver.segments
-    first = solver.global_segment(*_locate(solver.wires, pt.tag, pt.first))
-    last = solver.global_segment(*_locate(solver.wires, pt.tag, pt.last))
+    first = solver.global_segment(*solver.structure.locate(pt.tag, pt.first))
+    last = solver.global_segment(*solver.structure.locate(pt.tag, pt.last))
     return [s for s in solver.segments if first <= s.number <= last]
 
 
@@ -3177,9 +2708,6 @@ def _run_block(
             "",
             "",
         ]
-    if solver.network_rows:
-        out += _network_lines(solver, result)
-        out += ["", ""]
     out += [_AIP_HEADER, *_AIP_TABLE_HEADER]
     i_source = result["i_source"]
     for port, global_seg, volts in result["driven"]:
@@ -3253,7 +2781,7 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
     err: list[str] = []
     try:
         deck = parse_deck(body)
-    except PortalError as exc:
+    except _DECK_REFUSALS as exc:
         _append_error(out, exc)
         return out, err
 
@@ -3320,10 +2848,9 @@ def render_deck(body: str) -> tuple[list[str], list[str]]:
             # A basis that cannot serve this group's kernel (issue #849 —
             # since momwire 0.27.0 the only such combination is EK with
             # singular enrichment; the Galerkin refusal fell with
-            # momwire#246/#287/#299). momwire raises it, and `MomwireEngine`
-            # re-raises it before the fill; either way it is a refusal SimNEC
-            # must see as a NEC ERROR, not as a daemon traceback that costs
-            # the deck its NX sentinel.
+            # momwire#246/#287/#299). It is a refusal SimNEC must see as a NEC
+            # ERROR, not as a daemon traceback that costs the deck its NX
+            # sentinel.
             NotImplementedError,
             np.linalg.LinAlgError,
         ) as exc:
@@ -3377,8 +2904,8 @@ def run_deck(body: str) -> tuple[str, str]:
 
 
 _SELFTEST_DECKS = (
-    # A free-space dipole, the two-source Y probe, a TL station, and a
-    # grounded vertical carrying GD — the four deck shapes a live SimNEC
+    # A free-space dipole, the two-source Y probe, a loaded parasitic pair,
+    # and a grounded vertical carrying GD — the four deck shapes a live SimNEC
     # session leans on hardest.
     # EK rides in deck 1 because the live NECSource path ALWAYS sends it —
     # the card whose absence from the bench corpus caused the first live
@@ -3392,10 +2919,15 @@ _SELFTEST_DECKS = (
     "GE 0\n"
     "EX 0 1 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\n"
     "EX 0 2 6 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
+    # Deck 3 carried a TL station until #930 made TL out of dialect (the
+    # engine is antenna-only, and a network deck goes to antennaknobs'
+    # importer). What it was really smoking out is a MULTI-WIRE deck with a
+    # port on a parasitic element, so it keeps that and takes an LD load —
+    # the other card whose port algebra runs outside the fill.
     "CE selftest 3\n"
     "GW 1 11 0. -5. 10. 0. 5. 10. 0.001\n"
     "GW 2 3 20. -0.5 10. 20. 0.5 10. 0.001\n"
-    "GE 0\nTL 2 2 1 6 600. 20.\n"
+    "GE 0\nLD 0 1 6 6 25. 0. 0.\n"
     "EX 0 2 2 0 1.\nFR 0 1 0 0 14.0 1\nXQ\nNX\n",
     # Deck 4 is the EZNEC-example shape, comma-delimited exactly as
     # NECSource writes it: a ground card followed by GD, the second card
@@ -3446,7 +2978,7 @@ def _selftest(stdout) -> int:
             if ln.lstrip().startswith("DATA CARD No:") and " NX " in ln
         )
         == 4,
-        "TL network row present": "STRAIGHT" in proc.stdout,
+        "LD loading row present": "SERIES" in proc.stdout,
         "stderr quiet": proc.stderr.strip() == "",
     }
 
@@ -3531,8 +3063,9 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
     # arguments — two entries differing only in --basis are two engines. An
     # unknown basis fails FAST and nonzero so the -version probe surfaces the
     # mistake at configure time instead of a silent wrong default.
-    global _active_basis, _cache_serving, _cache_stats_path
+    global _active_basis, _active_basis_name, _cache_serving, _cache_stats_path
     _active_basis = _BASES["bspline"]  # per-invocation default, never sticky
+    _active_basis_name = "bspline"
     # The cross-deck cache and its two flags are per invocation for the same
     # reason, and the cache also because entries built under one basis must not
     # outlive it (the key carries the basis, so they could not be served anyway
@@ -3556,6 +3089,7 @@ def main(argv: list[str] | None = None, stdin=None, stdout=None, stderr=None) ->
             stdout.flush()
             return 3
         _active_basis = _BASES[name]
+        _active_basis_name = name
 
     # --cache-stats PATH writes the measurement file (see `_write_cache_stats`)
     # and, on its own, turns the daemon into a COUNTER: every deck is solved
