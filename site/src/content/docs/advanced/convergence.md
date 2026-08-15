@@ -70,7 +70,7 @@ mostly the **point matching**, not the basis — swap only the testing
 scheme (the `sinusoidal-galerkin` backend) and the junction-heavy gaps
 collapse ~100×, with the residual on clean geometry down at the
 feed-model level. The mechanism write-up is
-[momwire chapter 15](https://momwire.antennaknobs.dev/act-5/the-fourth-cell/).
+[momwire chapter 15](https://momwire.dev/act-5/the-fourth-cell/).
 
 ## The four ways a curve refuses to settle
 
