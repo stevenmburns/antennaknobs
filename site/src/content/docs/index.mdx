@@ -25,23 +25,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.51.0" icon="star">
-  **The apex feed.** Feed an inverted vee at its **exact vertex** — no
-  bridge wire — the way NEC-5 users build them natively. momwire 0.28
-  adds the series node gap (a voltage in series with a named wire-end at
-  a junction, distinct from the shunt junction port), and the new
-  `PortAtVertex` port drives it on **every momwire family, over every
-  ground model**, and on NEC-5 through its native `EX`-at-the-knot
-  source; NEC-2-shaped engines refuse honestly rather than substitute.
-  The new [`dipoles.invvee_apex`](/reference/catalog/) design makes the
-  old question a number: the bridge-feed idiom is worth **about 2 Ω,
-  nearly all reactance**, on a stock 10 m vee — and the NEC-5
-  cross-check lands **0.11 Ω** from momwire under the validation
-  pair recipe. Also new: the
-  [validation story](/reference/validation/) pages with the Leeson
-  tapered-dipole demo, the SimNEC portal serving the `IS`
-  insulated-sheath card, and standalone portal runs — a stock `.nec`
-  deck ending in `EN` now solves directly from the shell.
+<Card title="New in v0.52.0" icon="star">
+  **The memory release.** momwire 0.29.0 lands its memory campaign:
+  grounded and Sommerfeld solves now cost what free-space solves cost —
+  certified at 8,320 basis functions, peak RSS 1.7–2.3 GB across every
+  ground model (the Sommerfeld path alone came down from 11.7 GB), which
+  moves the practical ceiling on a 16 GB machine from roughly 10k to
+  15–18k basis functions. Long single-wire designs (the whip class) lose
+  their biggest hidden transient, and answers are unchanged to printed
+  precision throughout. Also new: the broadband **hexbeam** joins the
+  [validation story](/reference/validation/) with two community-driven
+  verdicts — the single-band catalog design (all three engines agree to
+  0.15 Ω, the collection's first agreement entry) and the 5-band stack,
+  including the physical one-coax feed solved as a network (two
+  formulations within 1.2 Ω on every band). The momwire primer now lives
+  at [momwire.dev](https://momwire.dev).
 </Card>
 
 ## The whole pitch, in one line

@@ -316,4 +316,11 @@ tables), community-submitted problem decks — the intake is
 [antenna-problem-decks](https://github.com/stevenmburns/antenna-problem-decks),
 where every submission gets a committed per-deck verdict (two published
 so far: a 20:1 tapered dipole submitted by Ward Harriman, AE6TY, and
-the hentenna, one NEC-2 defect class each) — and measured-data anchors.
+the hentenna — one NEC-2 defect class each — plus two hexbeam
+verdicts requested via Reddit: the single-band broadband hexbeam,
+the collection's first *agreement* entry (all three engines within
+0.15 Ω, with the wire-gauge sensitivity measured rather than
+assumed), and the 5-band stack (three-engine census on all five
+bands plus the physical one-coax feed solved as a network — two
+formulations within 1.2 Ω on every band; NEC-5 sits that one out,
+having no TL stamping) — and measured-data anchors.
