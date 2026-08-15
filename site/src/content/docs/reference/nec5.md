@@ -140,6 +140,43 @@ N-dependent feed term to the effective shunt capacitance of the source
 gap, whose width scales with segment length (Burke & Poggio, NEC 5.0,
 LLNL-CODE-746721).
 
+## The formulation, and what it costs
+
+NEC-5's wire discretization is identified in the open — from the public
+User's Manual (§1) and black-box printout comparison, with no NEC-5
+source consulted: a tent (triangular) current expansion on segment knots,
+razor-blade mixed-potential testing between adjacent element centroids,
+and ∫A·dl taken as the two-point centroid trapezoid. momwire implements
+that exact scheme as `RazorSolver` with `nec5_quadrature=True`
+(momwire#309, momwire#316), and the resulting *formulation twin*
+reproduces NEC-5's printouts to a constant ≈0.04 Ω down full convergence
+ladders on a thin dipole, a bend, a junction-fed apex and a closed loop;
+on a 10 mm wire the residual grows with a/h to ≤0.07 Ω, the signature of
+a kernel-evaluation nuance rather than a further quadrature difference.
+The [validation page](/reference/validation/) carries the panel. The twin
+is the controlled experiment behind the pair recipe: on a 14 MHz dipole
+the *same* tent basis under Galerkin testing (bs1) sits within 0.5 Ω of
+its converged value at 48 segments where NEC-5's formulation is still
+outside that band at 96, and momwire's degree-2 B-spline (bs2) gets there
+at 12 (16 on an inverted-V, 32 on the fat dipole). Eight times the
+segments is 64× the fill and roughly 500× the dense solve, before the
+second solve the (N, 2N) pair costs.
+
+What each engine spends per solve is measured on the same footing: a
+matched ladder on a 2×4 bowtie array, free space, single frequency, every
+process capped at 8 GB of address space. NEC-5's peak resident set
+converges to about 1.02× the dense N×N matrix plus ~60 MB, and nec2c's to
+the matrix plus 3–5 MB — both are essentially the in-core matrix and
+nothing else, which puts each engine's ceiling near 23k segments in an
+8 GB budget. momwire's B-spline path sits higher, about 1.5× dense in
+free space and 2.1× under full Sommerfeld (its certified figures at 8,320
+basis functions), for a ceiling of 15–18k basis functions: the working
+copies a higher-order basis needs while it assembles in windows. Wall
+clock runs the other way at that size — 8,320 segments takes nec2c 466 s,
+NEC-5 37 s, and momwire's bs2 29 s. NEC-5 is a lean, fast solve; what
+the triangle pays for it is the mesh its formulation asks for, not the
+code that runs it.
+
 ## Importing NEC-5 decks
 
 `@file.nec` import recognises NEC-5's edge-source `EX` spellings (a
