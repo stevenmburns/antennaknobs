@@ -35,6 +35,7 @@ import argparse
 
 from scipy.optimize import minimize
 
+from antennaknobs.builder import resolve_variant_params
 from antennaknobs.designs.multiband.hexbeam_5band import Builder
 from antennaknobs.engines.pynec import PyNECEngine
 
@@ -92,7 +93,15 @@ def tune_band_in_place(
 
 
 def run(passes: int, tol: float, z0: float, param_names: list[str], verbose: bool):
-    b = Builder(params=dict(Builder.opt_params))
+    # params= replaces default_params wholesale, so overlay via
+    # resolve_variant_params — a bare opt_params dict drops
+    # n_bands/daisy_chain/etc. Multi-feed mode must be explicit now that
+    # the design defaults to the one-coax feed: this script's objective
+    # indexes zs[band_idx], the per-band tuning aid. Tuning the physical
+    # coax is scripts/tune_hexbeam_5band_physical.py.
+    params = dict(resolve_variant_params(Builder, "opt"))
+    params["daisy_chain"] = False
+    b = Builder(params=params)
     n_bands = int(b.n_bands)
     print(f"Starting from opt_params; tuning {n_bands} bands → Z = {z0:.1f} + 0j Ω")
 
