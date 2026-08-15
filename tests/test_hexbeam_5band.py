@@ -131,6 +131,24 @@ def test_registered_single_feed_by_default():
     assert ex.multi_feed is False
 
 
+def test_opt_physical_variant_keeps_one_coax_mode():
+    """opt_physical (issue #921) is tuned against the one-coax drive
+    point, so the overlay must leave daisy_chain=True intact and only
+    move the per-band shape factors."""
+    from antennaknobs.builder import resolve_variant_params
+
+    b = Builder(params=resolve_variant_params(Builder, "opt_physical"))
+    assert b.daisy_chain is True
+    assert int(b.n_bands) == 5
+    assert len(b.bands) == 5
+    for band, coupled in zip(b.bands, Builder.opt_coupled_params["bands"]):
+        assert band["freq"] == coupled["freq"]
+        # Same knob family as the other tunes; factors stay in UI bounds.
+        assert 0.9 < band["halfdriver_factor"] < 1.2
+        assert 0.05 < band["t0_factor"] < 0.30
+    assert [s.port for s in b.build_network().sources] == ["feed0"]
+
+
 def test_nominal_nsegs_scales_radiator_edges():
     """Standard convergence-flow contract: bumping nominal_nsegs scales
     the radiator edges (auto_mesh density: N per design_freq

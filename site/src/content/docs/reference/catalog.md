@@ -135,7 +135,7 @@ whole shape with a `Drone` — see
 | Design | Notes |
 | --- | --- |
 | `multiband.fandipole` | Fan dipole — parallel dipoles off one feed for several bands · variants: `five_band`, `pair_12_10`, `pair_17_15` |
-| `multiband.hexbeam_5band` | Stacked hexbeam: up to 5 concentric hexbeam shapes stacked along z, each sized to its own band's wavelength, sharing one common feed by default (band 0 driven, the rest coupled up the stack — see the feed-mode note below) · variants: `opt`, `opt_coupled` |
+| `multiband.hexbeam_5band` | Stacked hexbeam: up to 5 concentric hexbeam shapes stacked along z, each sized to its own band's wavelength, sharing one common feed by default (band 0 driven, the rest coupled up the stack — see the feed-mode note below) · variants: `opt`, `opt_coupled`, `opt_physical` |
 | `multiband.trap_dipole` | Dual-band trap dipole — Load(parallel=True) showcase for issue #65 |
 | `multiband.trap_fan_dipole` | Four-band trapped fan dipole — combines `fandipole` geometry with the `trap_dipole` Load(parallel=True) idiom · variants: `band0_full`, `band0_inner`, `band1_full`, `band1_inner` |
 | `multiband.twoband_fan_dipole` | Two-band fan (parallel) dipole — two dipoles bonded at a common feed · variants: `current_physical`, `s01`, `s015`, `s01_eps001`, `s02`, `s025`, `s03`, `s05`, `s07` |
