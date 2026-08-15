@@ -197,6 +197,44 @@ _BAND_10M_COUPLED = {
 }
 
 
+# Physical-feed tune from scripts/tune_hexbeam_5band_physical.py (issue
+# #921) — the objective is the one-coax (daisy_chain=True) drive point:
+# each evaluation solves the full 5-port Y and reduces the TL jumper
+# chain + single Driven source, so the optimiser tunes the Z a builder's
+# coax actually sees, not the multi-feed aid. Started from _BAND_*_COUPLED;
+# converged in 2 passes to worst |Z - 50| ≈ 0.5 Ω (momwire, base mesh).
+_BAND_20M_PHYSICAL = {
+    "freq": 14.300,
+    "halfdriver_factor": 1.06951,
+    "tipspacer_factor": 0.1312,
+    "t0_factor": 0.14969,
+}
+_BAND_17M_PHYSICAL = {
+    "freq": 18.1575,
+    "halfdriver_factor": 1.04649,
+    "tipspacer_factor": 0.1312,
+    "t0_factor": 0.13153,
+}
+_BAND_15M_PHYSICAL = {
+    "freq": 21.383,
+    "halfdriver_factor": 1.06392,
+    "tipspacer_factor": 0.1312,
+    "t0_factor": 0.16136,
+}
+_BAND_12M_PHYSICAL = {
+    "freq": 24.97,
+    "halfdriver_factor": 1.06099,
+    "tipspacer_factor": 0.1312,
+    "t0_factor": 0.16279,
+}
+_BAND_10M_PHYSICAL = {
+    "freq": 28.47,
+    "halfdriver_factor": 1.07225,
+    "tipspacer_factor": 0.1312,
+    "t0_factor": 0.16442,
+}
+
+
 class Builder(AntennaBuilder):
     default_params = MappingProxyType(
         {
@@ -287,6 +325,21 @@ class Builder(AntennaBuilder):
                 _BAND_15M_COUPLED,
                 _BAND_12M_COUPLED,
                 _BAND_10M_COUPLED,
+            ),
+        }
+    )
+
+    # One-coax physical-feed tune; see _BAND_*_PHYSICAL comment. This is
+    # the variant to build: opt/opt_coupled target the multi-feed tuning
+    # aid, whose drive point is up to 75 Ω away from the coax's.
+    opt_physical_params = MappingProxyType(
+        {
+            "bands": (
+                _BAND_20M_PHYSICAL,
+                _BAND_17M_PHYSICAL,
+                _BAND_15M_PHYSICAL,
+                _BAND_12M_PHYSICAL,
+                _BAND_10M_PHYSICAL,
             ),
         }
     )
