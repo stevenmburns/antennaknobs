@@ -133,7 +133,7 @@ a validated station circuit reading within a few percent of the bundled
 nec2c through a high-Q tuner, pattern levels agreeing to ~0.01 dB once the
 gain/directivity conventions are lined up, and SimNEC's own 4-source
 Lindenblad example matching to 1 Ω of reactance. Under the session sits a
-bench corpus of 40 captured deck/printout pairs reproduced
+bench corpus of 42 captured deck/printout pairs reproduced
 layout-identically. It is still not something SimNEC's author has reviewed
 or endorsed, and no part of SimNEC knows momwire exists — treat it as a
 cross-check you can run yourself, not a supported configuration.
@@ -273,19 +273,26 @@ where bases legitimately disagree at coarse segmentation.
 
 ### What works
 
-Everything SimNEC's portal actually emits for wire antennas:
+Everything SimNEC's portal actually emits for wire antennas. The deck language
+is momwire's own `nec2` dialect — **antenna-only**, and its card-by-card
+grammar is published at
+[momwire.dev/reference/deck-grammar-nec2](https://momwire.dev/reference/deck-grammar-nec2/),
+including the exact text of every refusal. It describes a structure of thin
+wires driven by voltage sources, optionally over a ground; circuits attached to
+that structure are not part of it, so `TL` and `NT` are refused by name and a
+network deck goes to antennaknobs' own importer instead (`--nec` /
+`@file.nec`), which keeps NEC's full grammar.
 
 | | |
 | --- | --- |
 | Feedpoint impedance | `EX 0` voltage sources, one or many — SimNEC probes multi-port antennas with per-source `EX`/`XQ` groups (its old `YY` report directive is abandoned upstream and not served) |
 | Frequency sweeps | multi-point `FR`, the whole sweep in one deck |
-| Geometry | `GW` wires with `GM` / `GX` / `GR` / `GS` / `GA` / `GH` transforms |
+| Geometry | `GW` wires with `GM` / `GS` transforms |
 | Ground | free space, `GE ±1` perfect ground, `GN 0` reflection-coefficient and `GN 2` Sommerfeld finite ground |
 | Loading | `LD 0` / `1` / `4` / `5` — series RLC traps, distributed loading, wire conductivity |
 | Patterns | `RP 0` far-field grids, gain and polarisation, normalised to input power, at a range or in the gain-only `RFLD = 0` form |
 | Cliffs | `RP 2` linear and `RP 3` circular cliffs — the second medium and edge geometry from a `GD` card (or from `GN`'s own `F3`–`F6`), selected per segment at its own reflection point |
 | Near fields | `NE` / `NH` rectangular grids in free space or over perfect ground |
-| Networks | `NT` two-port admittance branches and `TL` transmission lines between segments |
 | Kernel | `EK` — the extended thin-wire kernel, honoured per execute group: the group's solver is built with momwire's own O(a²) tube expansion, and `EK -1` (like an absent card) stays reduced. Every basis serves it, the Galerkin entries included (momwire 0.27.0: momwire#246/#287/#299 — every ground model, non-collinear geometry sound) |
 | Housekeeping | `MP` multicore hints, `PT` print control — accepted and echoed exactly as nec2c does (advisory where momwire's own physics governs) |
 
@@ -300,8 +307,7 @@ The deck need not be the boundary either. The protocol is stateless — a sweep
 arrives as N separate decks, each re-sending the whole geometry — but the
 engine *can* remember: with `--cache`, a solved structure is kept under a key
 built from everything that decides its moment matrix (geometry after
-transforms, ground, loading, port placement, network branches, kernel flag,
-basis), so a knob dragged back to a value already probed, a restarted sweep, or
+transforms, ground, loading, port placement, kernel flag, basis), so a knob dragged back to a value already probed, a restarted sweep, or
 the same antenna handed to another engine in the crew is answered without
 parsing, meshing or filling anything. The same structure at a *new* frequency
 reuses the mesh and pays only the fill. The biggest bench deck (106 segments)
