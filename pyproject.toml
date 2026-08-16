@@ -41,7 +41,7 @@ classifiers = [
 # `pynec-accel` distribution; see README) and must never be declared a
 # dependency of this MIT package.
 dependencies = [
-    "momwire==0.30.0",
+    "momwire==0.31.0",
     "numpy>=1.21",
     "scipy>=1.7",
     "matplotlib>=3.5",
@@ -118,26 +118,6 @@ test = ["antennaknobs[web]", "antennaknobs[schematic]", "pytest", "coverage", "h
 #     CI install never pull it in.
 dev = ["ruff"]
 
-# Console scripts.
-#
-# `momwire-nec2c` is the SimNEC portal daemon (antennaknobs.nec_portal, issue
-# #792) — momwire standing in for the nec2c binary SimNEC shells out to. The
-# NAME IS PART OF THE CONTRACT and must not be "prettified":
-# `nec2/NEC2PortalDialog` accepts a configured engine only if the executable's
-# FILENAME, lowercased, CONTAINS the substring "nec2c" (the same check picks
-# NEC5/NEC4.2 dialects off "nec5"/"nec42", so a name containing one of those
-# instead would select the wrong column layout). A user points the portal
-# dialog at `<venv>/bin/momwire-nec2c`; renaming it to, say, `momwire-portal`
-# makes SimNEC silently refuse the engine with "NO NEC Command Available".
-#
-# SimNEC then probes `<cmd> -version` and matches the first line against
-# `nec2c\.ae6ty\.(.*)` — see nec_portal.PROBE_VERSION for why that tail has to
-# be a bare one-dot number — and afterwards runs the command through `sh -c`
-# with cwd=$HOME, so the entry point must never depend on the working
-# directory. Both properties are pinned in tests/test_nec_portal.py.
-[project.scripts]
-momwire-nec2c = "antennaknobs.nec_portal:main"
-
 [project.urls]
 Homepage = "https://github.com/stevenmburns/antennaknobs"
 Issues = "https://github.com/stevenmburns/antennaknobs/issues"
@@ -166,14 +146,6 @@ markers = [
     # anything heavier goes here and is run manually after nec-import or
     # engine changes: `python -m pytest -m heavy_mesh`.
     "heavy_mesh: benchmark-sized solve, excluded from CI; run manually",
-    # Tests that shell out to the NEC-2 oracle binary SimNEC ships
-    # (nec2c-ubuntu-x86, under ~/.SimNEC/<major>/<minor>/Examples/). CI has no
-    # such binary — that is exactly why tests/fixtures/nec_portal/ is
-    # committed. The marked tests also carry a skipif keyed on the binary
-    # actually existing (not on CI detection), so a developer who has SimNEC
-    # installed runs them by default and everyone else skips cleanly.
-    # Deselect explicitly with `-m \"not oracle_binary\"`.
-    "oracle_binary: shells out to SimNEC's nec2c oracle; skipped when it is not installed",
 ]
 
 [tool.ruff]
