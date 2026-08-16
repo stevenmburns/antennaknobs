@@ -3492,6 +3492,12 @@ def test_the_portal_imports_nothing_from_antennaknobs():
 
     Modelled on momwire's own isolation rule (design doc #846 §4), which is a
     test rather than a convention for the same reason.
+
+    Asserted at the source and NOT at ``sys.modules``, which cannot see it:
+    ``antennaknobs/__init__`` imports most of the package eagerly, so a
+    runtime check of what the portal pulled in is satisfied before the portal
+    is even imported. The grep is the honest instrument here, and it covers
+    function-level imports as well as the header.
     """
     source = Path(nec_portal.__file__).read_text()
     offenders = [
@@ -3506,37 +3512,6 @@ def test_the_portal_imports_nothing_from_antennaknobs():
         "nec_portal must depend on momwire alone (#846 phase II); found:\n  "
         + "\n  ".join(offenders)
     )
-
-
-def test_the_portal_module_imports_no_antennaknobs_submodule_at_runtime():
-    """The same claim from the other side: rendering a deck must not drag a
-    sibling module in.
-
-    Whatever ``antennaknobs/__init__`` imports is the PACKAGE's business and
-    is loaded whether or not the portal is — the module lives inside the
-    package, so that import runs first either way. What this measures is the
-    delta: importing ``nec_portal`` and solving a deck through it must add
-    nothing but ``nec_portal`` itself, which is what a stray import inside a
-    function (the shape a grep over the header would miss) would break.
-    """
-    import subprocess
-
-    code = (
-        "import sys\n"
-        "import antennaknobs\n"
-        "before = {m for m in sys.modules if m.startswith('antennaknobs.')}\n"
-        "import antennaknobs.nec_portal as p\n"
-        "p.run_deck('CE x\\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\\nGE 0\\n"
-        "EX 0 1 5 0 1.\\nFR 0 1 0 0 30. 0\\nXQ')\n"
-        "after = {m for m in sys.modules if m.startswith('antennaknobs.')}\n"
-        "print(sorted(after - before))\n"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, timeout=120
-    )
-    assert proc.returncode == 0, proc.stderr
-    added = eval(proc.stdout.strip())  # noqa: S307 — our own repr, one line
-    assert added == ["antennaknobs.nec_portal"], added
 
 
 # --------------------------------------------------------------------------
