@@ -25,21 +25,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.52.0" icon="star">
-  **The memory release.** momwire 0.29.0 lands its memory campaign:
-  grounded and Sommerfeld solves now cost what free-space solves cost —
-  certified at 8,320 basis functions, peak RSS 1.7–2.3 GB across every
-  ground model (the Sommerfeld path alone came down from 11.7 GB), which
-  moves the practical ceiling on a 16 GB machine from roughly 10k to
-  15–18k basis functions. Long single-wire designs (the whip class) lose
-  their biggest hidden transient, and answers are unchanged to printed
-  precision throughout. Also new: the broadband **hexbeam** joins the
-  [validation story](/reference/validation/) with two community-driven
-  verdicts — the single-band catalog design (all three engines agree to
-  0.15 Ω, the collection's first agreement entry) and the 5-band stack,
-  including the physical one-coax feed solved as a network (two
-  formulations within 1.2 Ω on every band). The momwire primer now lives
-  at [momwire.dev](https://momwire.dev).
+<Card title="New in v0.53.0" icon="star">
+  **The portal moves home.** The SimNEC engine portal now lives in
+  momwire itself: `pip install momwire` provides the `momwire-nec2c`
+  drop-in engine, serving momwire's own antenna-only NEC dialect with a
+  [published grammar](https://momwire.dev/reference/deck-grammar-nec2/)
+  and [usage notes](https://momwire.dev/reference/portal-usage/) — and
+  its version probe now reports the engine's own version. momwire 0.31.0
+  also completes the memory campaign's follow-through: the sinusoidal
+  family joins the certified memory model, and large Sommerfeld solves
+  come out *faster* than before the campaign. The 5-band **hexbeam** is
+  now [tuned against its physical one-coax feed](/reference/validation/)
+  — worst SWR 1.04 across all five bands, two independent formulations
+  in consensus — and the NEC-5 reference page gains the full
+  formulation-and-cost story behind the
+  [validation panel](/reference/nec5/).
 </Card>
 
 ## The whole pitch, in one line
