@@ -53,9 +53,10 @@ if [[ -z $python ]]; then
   exit 1
 fi
 
-# Free space, the two-port YY probe (the sensor path SimNEC drives an N-port
-# antenna with), and a radiation pattern — one deck per printout family.
-decks=(dipole_free_space two_source_yy_card dipole_rp_pattern)
+# Free space, the two-source sensor probe (the path SimNEC drives an N-port
+# antenna with — successor to the YY deck retired in #839), a radiation
+# pattern, and the GN re-arm probe (#933): one deck per printout family.
+decks=(dipole_free_space two_source_sensor_lines dipole_rp_pattern dipole_gn_rearm)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -77,10 +78,11 @@ probe_rc=$?
 check "exit 0" $probe_rc
 [[ $(printf '%s\n' "$probe" | wc -l) -eq 1 ]]
 check "exactly one line of stdout" $?
-# nec2/Execute.versionA, plus the Double.valueOf(group(1)) trap: the tail has
-# to be a bare one-dot number or SimNEC says "nec2c version too old".
-[[ $probe =~ ^nec2c\.ae6ty\.[0-9]+\.[0-9]+$ ]]
-check "matches nec2c.ae6ty.<double>  (got: ${probe:-<empty>})" $?
+# nec2/Execute.versionNECd — `(NEC\d+\D.*)`, the honest-identity probe this
+# build has answered since v0.46. `--legacy-probe` still offers versionA's
+# `nec2c.ae6ty.<double>` shape for a SimNEC old enough to predate it.
+[[ $probe =~ ^NEC2[^0-9].*$ ]]
+check "matches Execute.versionNECd  (got: ${probe:-<empty>})" $?
 [[ ! -s $work/probe.err ]]
 check "stderr empty" $?
 echo
@@ -101,14 +103,14 @@ sentinels=$(grep -cE '^ *DATA CARD No: +[0-9]+ NX' "$work/out.txt")
 check "one NX sentinel per deck (${sentinels}/${#decks[@]})" $?
 
 inputs=$(grep -c 'ANTENNA INPUT PARAMETERS' "$work/out.txt")
-[[ $inputs -ge 4 ]]  # 1 + 2 (the YY probe's two groups) + 1
+[[ $inputs -ge 6 ]]  # 1 + 2 (the sensor probe) + 1 + 2 (the GN re-arm)
 check "every deck produced ANTENNA INPUT PARAMETERS ($inputs)" $?
 
 grep -q 'VERSION:nec2c.ae6ty.momwire' "$work/out.txt"
 check "printout banner carries the momwire identity" $?
 
-grep -qE '^ *-YY ' "$work/out.txt"
-check "the YY report card came back" $?
+grep -q 'PERFECT GROUND' "$work/out.txt"
+check "the GN re-arm's second group answered over ground" $?
 
 grep -q 'RADIATION PATTERNS' "$work/out.txt"
 check "the pattern table came back" $?
