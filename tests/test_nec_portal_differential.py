@@ -19,9 +19,9 @@ against the other, so the default tolerance is **5 % relative** on impedances
 and port currents and **±0.5 dB** on pattern gain.
 
 Measured at authoring time (2026-08-08, momwire 0.23.0, nec2c 5b4az.ae6ty.1.17;
-the two ``dipole_tl_*`` rows added 2026-08-09 for issue #799, the five
-``dipole_rp*`` cliff/gain-only rows the same day for issue #802) — worst case
-over every row of every table in each fixture:
+the five ``dipole_rp*`` cliff/gain-only rows added 2026-08-09 for issue #802;
+the three network rows retired 2026-08-15 for #930) — worst case over every
+row of every table in each fixture:
 
 ===================================  ======  ======  ======  ======  =====
 fixture                               Z err   I err  YY err  I curve  dGain
@@ -51,7 +51,6 @@ dipole_mp_multiprocessor              0.76%   0.76%       -   0.96%      -   (e)
 dipole_mp_single_process              0.76%   0.76%       -   0.96%      -   (e)
 dipole_ne_nearfield                   0.76%   0.76%       -   0.96%      -
 dipole_nh_nearfield                   0.76%   0.76%       -   0.96%      -
-dipole_nt_network                     1.31%   1.31%       -   3.46%      -   (b)
 dipole_pec_ground                     2.23%   2.23%       -   4.35%      -
 dipole_pt_segment_range               2.47%   2.47%       -   0.52%      -
 dipole_pt_toggle                      2.47%   2.47%   2.83%   1.10%      -
@@ -64,8 +63,6 @@ dipole_rp_crossed_quadrature          0.76%   0.76%       -   0.96%   0.09
 dipole_rp_gain_only                   0.76%   0.76%       -   0.96%   0.10   (h)
 dipole_rp_pattern                     0.76%   0.76%       -   0.96%   0.12
 dipole_sommerfeld_ground              2.24%   2.23%       -   4.35%      -
-dipole_tl_network                     0.27%   0.26%       -   1.01%      -   (d)
-dipole_tl_shunt_crossed               1.14%   1.14%       -   0.89%      -
 split_dipole_qq                      12.02%  12.02%       -   6.00%      -   (c)
 split_dipole_qq_daemon_framed        12.02%  12.02%       -   6.00%      -   (c)
 resident_two_decks                    0.77%   0.77%       -   0.96%      -
@@ -80,19 +77,22 @@ makes (a) legible: the short loaded dipole's distribution agrees to 2.2 %, and
 all 45 % of its port disagreement is the one global factor.  Peak-gain
 direction agrees exactly (0 steps) on both pattern fixtures.
 
-Three fixtures need more than 5 %, and all three are the same phenomenon —
-a small residual between two large, nearly cancelling numbers:
+Two fixtures need more than 5 %, and both are the same phenomenon — a small
+residual between two large, nearly cancelling numbers:
 
 (a) ``catalog_dipoles_short_dipole_loaded``: a 0.25 λ dipole with a 4.65 µH
     coil at the feed.  At 28 MHz that coil is +818 Ω, cancelling almost all of
     the antenna's own capacitive reactance.  ``Re(Z)`` agrees to 1.8 %; the
     reactance differs by 8.4 Ω, which is **1.0 % of the coil**.  The 45 % is
     the residual, not the physics.
-(b) ``dipole_nt_network``: the NT branch (j0.02 S) drives most of the current
-    that would otherwise flow in the driven segment, so the segment current
-    printed in STRUCTURE EXCITATION DATA is a residual and differs by 12 %.
-    The number SimNEC actually reads — the ANTENNA INPUT PARAMETERS *source*
-    current — agrees to 1.3 %.
+(b) was ``dipole_nt_network``, retired from this table in #930 along with the
+    two ``dipole_tl_*`` rows and footnote (d): ``TL`` and ``NT`` are out of the
+    engine's dialect now, which is antenna-only, and all three decks are
+    REFUSAL fixtures — see ``test_nec_portal.py``'s ``NETWORK_FIXTURES``. The
+    scores they carried (0.27 %, 1.14 %, 1.31 %, and the residual mechanism
+    behind the last one) are kept in the git history of this docstring rather
+    than deleted, because they are what said the network translation was
+    right while it existed.
 (c) ``split_dipole_qq`` (the jar test deck's YY-free successor, #839):
 port 1 is the gap at the centre of a full-wave split
     dipole, a current null with ``|Z| ≈ 3.5 kΩ``.  High-|Z| feeds are the known
@@ -103,17 +103,9 @@ Each of those is asserted at its own tolerance below, WITH the identity that
 makes it benign, so a future regression that is not this phenomenon still
 fails.
 
-(d) is a *near* miss worth recording rather than an outlier. ``TL`` decks are
-    exposed to the same cancellation the three above are: a line at an odd
-    quarter wave is an impedance INVERTER, so a small basis difference at the
-    far end comes back magnified at the near one, and two branches across one
-    pair of gaps make a loop whose port admittance is a residual. The first
-    draft of ``dipole_tl_shunt_crossed`` hung its NT back across the same pair
-    as the TL and measured 6.6 % — 5× the same deck with the NT chained onto a
-    third dipole (1.14 %), for a structure whose printout layout is identical
-    either way. The committed decks are the chained ones; nothing here needs a
-    widened bar, and if a future TL fixture does, this is the mechanism to
-    check first.
+(d) recorded the ``TL`` decks' exposure to the same cancellation — a line at
+    an odd quarter wave is an impedance INVERTER, so a small basis difference
+    at the far end comes back magnified at the near one. Retired with (b).
 
 (e) is a control rather than a measurement (issue #800). Both ``MP`` fixtures
     are ``dipole_free_space``'s geometry plus one card, and both reproduce its
@@ -387,7 +379,13 @@ def pair():
 # Decks the daemon runs end to end. After unit 3 that is the whole corpus; the
 # list is written out rather than computed so that a card silently falling back
 # to the error path shows up as a failure here instead of as a quiet nothing.
-SUPPORTED = NAMES
+# ...minus the three the dialect refuses by name: TL and NT are circuits
+# attached to the structure, and this engine's language is antenna-only
+# (#930, design doc #846 §1). Their refusal is pinned in
+# ``test_nec_portal.py``'s ``NETWORK_FIXTURES`` battery; here they only have
+# to stay OUT of every gate written against a solved printout.
+REFUSED = ("dipole_nt_network", "dipole_tl_network", "dipole_tl_shunt_crossed")
+SUPPORTED = tuple(n for n in NAMES if n not in REFUSED)
 
 # Portal-dialect cards no fixture covers, with the substring the error path
 # must name. Written as decks rather than fixtures because the oracle's own
@@ -395,10 +393,12 @@ SUPPORTED = NAMES
 # radial screen prints "RADIAL WIRE G.S. APPROXIMATION MAY NOT BE USED WITH
 # SOMMERFELD GROUND OPTION" and exits WITHOUT the NX echo — see grammar doc
 # §11, which is exactly the readLine() stall §10.1 worries about).
-# ``TL`` left this table in issue #799: two fixtures now pin its NETWORK DATA
-# layout, so it runs instead of refusing. ``PT`` and ``MP`` left it in #800,
-# for the same reason, and ``IS`` in #873 (whole-wire lossless jackets ride
-# momwire's insulation model; the unmodelled remainder refuses by field).
+# ``PT`` and ``MP`` left this table in #800 (two fixtures pin their layout, so
+# they run instead of refusing), and ``IS`` in #873 (whole-wire lossless
+# jackets ride momwire's insulation model; the unmodelled remainder refuses by
+# field). ``TL`` and ``NT`` REJOINED it in #930, and are covered by the
+# ``NETWORK_FIXTURES`` battery rather than by a hand-written deck here, since
+# the corpus already carries three of them.
 _GEOM = "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\nGW 2 9 1. 0. -2.5 1. 0. 2.5 0.001\n"
 UNSUPPORTED = {
     "SP": f"CE sp\n{_GEOM}GE 0\nEX 0 1 5 0 1.\nSP 0 0 0. 0. 0. 0. 0. 1.\nFR 0 1 0 0 30. 0\nXQ\n",
@@ -426,7 +426,11 @@ def test_supported_fixtures_run_clean(name):
 
 
 def test_the_support_matrix_covers_the_whole_corpus():
-    assert set(SUPPORTED) == set(NAMES)
+    assert set(SUPPORTED) | set(REFUSED) == set(NAMES)
+    # 41 at the rewire (#930), plus the `dipole_gn_rearm` probe it landed
+    # with. The count is written out so a deck that quietly stops being
+    # measured shows up here.
+    assert len(SUPPORTED) == 42
 
 
 @pytest.mark.parametrize(("marker", "deck"), sorted(UNSUPPORTED.items()))
@@ -463,7 +467,7 @@ def test_unsupported_cards_take_the_documented_error_path(marker, deck):
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("name", SUPPORTED)
 def test_port_impedances_and_currents_agree(name, pair):
     """The two numbers SimNEC keeps, plus the impedance they imply."""
     ours, theirs = pair(name)
@@ -524,27 +528,6 @@ def test_the_split_dipoles_low_z_ports_agree_tightly():
         assert relative(i_a, i_b) <= Z_TOL
 
 
-def test_the_nt_networks_source_current_agrees_even_though_the_segment_does_not():
-    """Justifies the network-table widening.
-
-    The NT branch carries most of what the driven segment would otherwise
-    carry, so the segment current in STRUCTURE EXCITATION DATA is a small
-    residual of two larger numbers. The ANTENNA INPUT PARAMETERS row — the
-    SOURCE current, segment plus network, and the only one SimNEC reads — is
-    not a residual and agrees at the normal bar.
-    """
-    ours, theirs = (
-        read_printout(our_printout("dipole_nt_network")),
-        read_printout(oracle_printout("dipole_nt_network")),
-    )
-    (i_a, z_a) = ours.ports[0][0]
-    (i_b, z_b) = theirs.ports[0][0]
-    assert relative(i_a, i_b) <= Z_TOL, f"source current {i_a} vs {i_b}"
-    assert relative(z_a, z_b) <= Z_TOL
-    # ... and the segment current it is built from is genuinely the small one.
-    assert abs(ours.network[1][0]) < 0.5 * abs(i_a)
-
-
 MP_FIXTURES = ("dipole_mp_multiprocessor", "dipole_mp_single_process")
 
 
@@ -594,59 +577,19 @@ def test_gd_moves_no_number_on_either_engine(name, base, pair):
         assert mine.currents == reference.currents, f"{name}: GD moved a current"
 
 
-TL_FIXTURES = ("dipole_tl_network", "dipole_tl_shunt_crossed")
+def test_no_antenna_deck_prints_a_network_section():
+    """The dialect is antenna-only, so the two network sections are gone from
+    every printout this engine produces — which is also why the gate that used
+    to walk their rows against the oracle is gone. ``Execute`` never read
+    either one (its state machine arms on the ANTENNA INPUT PARAMETERS banner),
+    so nothing downstream notices."""
+    for name in SUPPORTED:
+        text = our_printout(name)
+        assert "NETWORK DATA" not in text, name
+        assert "STRUCTURE EXCITATION DATA" not in text, name
 
 
-def _network_gap_voltages(text: str) -> list[complex]:
-    """The VOLTAGE column of STRUCTURE EXCITATION DATA — fields 2 and 3, which
-    ``read_printout`` does not keep because ``Execute`` never reads them."""
-    out: list[complex] = []
-    armed = False
-    for line in text.splitlines():
-        if "STRUCTURE EXCITATION DATA" in line:
-            armed = True
-            continue
-        if not armed:
-            continue
-        parts = line.split()
-        if len(parts) != 11 or not parts[0].isdigit():
-            if out:
-                break
-            continue
-        out.append(complex(float(parts[2]), float(parts[3])))
-    return out
-
-
-@pytest.mark.parametrize("name", TL_FIXTURES)
-def test_tl_far_end_gap_voltages_agree(name):
-    """The number a TL card's electrical length actually decides.
-
-    A ``TL`` end that nothing drives floats to whatever balances the node
-    through the line, so its gap voltage is the reading that would move if βl,
-    the crossed-line sign, or the end shunts were wrong — and it is invisible
-    to every other assertion here, because ``Execute`` never reads this table
-    and the port test only sees the driven end. Both engines must agree at the
-    ordinary bar; a quarter-wave line's inversion would amplify anything that
-    did not.
-    """
-    ours = _network_gap_voltages(our_printout(name))
-    theirs = _network_gap_voltages(oracle_printout(name))
-    assert len(ours) == len(theirs) >= 2
-    for row, (a, b) in enumerate(zip(ours, theirs, strict=True)):
-        assert relative(a, b) <= Z_TOL, f"{name} network row {row}: {a} vs {b}"
-
-
-@pytest.mark.parametrize("name", NAMES)
-def test_network_excitation_rows_agree_loosely(name, pair):
-    ours, theirs = pair(name)
-    assert len(ours.network) == len(theirs.network), f"{name}: network table shape"
-    for row, ((i_a, _z_a), (i_b, _z_b)) in enumerate(
-        zip(ours.network, theirs.network, strict=True)
-    ):
-        assert relative(i_a, i_b) <= NETWORK_TOL, f"{name} network row {row}"
-
-
-@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("name", SUPPORTED)
 def test_current_distributions_track(name, pair):
     """CURRENTS AND LOCATION, each table normalised by its own peak ROW.
 

@@ -359,6 +359,23 @@ def _synthetic_decks() -> dict[str, str]:
         "EK\n"
         "XQ\n"
     )
+    # The ground card between two execute cards (antennaknobs #933, filed
+    # writing momwire's dialect spec). Measured on this oracle: it re-arms,
+    # each group answers over the ground its own cards had reached, and the
+    # second block is the same partial refill preamble `dipole_ek_rearm` pins
+    # — LOADING / ENVIRONMENT / MATRIX TIMING and no FREQUENCY block, because
+    # no new FR arrived. The wire sits well clear of z = 0 so the GN card is
+    # the only thing that moves.
+    decks["dipole_gn_rearm"] = (
+        "CE gn between executes re-arms\n"
+        "GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001\n"
+        "GE -1\n"
+        "EX 0 1 5 0 1.\n"
+        "FR 0 1 0 0 14.1 0\n"
+        "XQ\n"
+        "GN 1\n"
+        "XQ\n"
+    )
     decks["dipole_pt_toggle"] = (
         "CE pt suppresses then restores the currents table\n"
         + _DIPOLE_GW

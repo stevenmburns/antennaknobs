@@ -142,7 +142,7 @@ import os
 import sys
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
 import numpy as np
@@ -573,13 +573,21 @@ _TERMINATORS = frozenset({"NX", "EN"})
 # Cards that REBUILD THE OPERATOR when they arrive between two execute cards.
 # The oracle then prints the LOADING / ENVIRONMENT / MATRIX TIMING part of the
 # refill preamble but no FREQUENCY block — the ``refilled_partial`` shape
-# ``dipole_ek_rearm`` pins for ``EK``. Measured on the oracle for all three
-# (probes ``XQ / <card> / XQ``, 2026-08-15): ``GN 1`` prints the partial
-# preamble and the impedance moves (issue #933, the bug this replaces — the
-# old ``GN`` branch never reached the arming test at all), ``LD`` prints it
-# with the new row in the loading table, and ``EX`` prints no preamble at all,
-# because moving the drive does not move the matrix.
-_OPERATOR_CARDS = frozenset({"EK", "GN", "LD"})
+# ``dipole_ek_rearm`` pins for ``EK`` and ``dipole_gn_rearm`` for ``GN``.
+#
+# Measured on the oracle (probes ``XQ / <card> / XQ``, 2026-08-15): ``GN 1``
+# prints the partial preamble and the impedance moves (issue #933, the bug
+# this replaces — the old ``GN`` branch never reached the arming test at all),
+# and ``EX`` prints no preamble at all, because moving the drive does not move
+# the matrix.
+#
+# ``LD`` belongs here on the same measurement and is deliberately ABSENT: an
+# ``LD`` between two execute cards makes the loading table itself per group
+# (the oracle's first block reports THIS STRUCTURE IS NOT LOADED), and both
+# the table and the stamped impedance are deck-level here — as they were
+# before this rewire. Fixing it is a separate change with its own fixture;
+# adding the flag alone would print a preamble around an unchanged table.
+_OPERATOR_CARDS = frozenset({"EK", "GN"})
 
 
 @dataclass(frozen=True)
@@ -884,6 +892,22 @@ class ExecuteGroup:
     # refill for us — the cached factors are already momwire's — but the
     # printout must walk the same sections. See ``_OPERATOR_CARDS``.
     refilled_partial: bool = False
+    # The ENVIRONMENT in force when this group fired — the ground the ANTENNA
+    # ENVIRONMENT block names and the operator is filled over, plus the second
+    # medium a cliff-mode pattern reads. Per group because ``GN`` re-arms
+    # (#933): a deck may run once in free space and once over ground, and the
+    # oracle answers each group over the ground the cards had reached.
+    #
+    # ``momwire.deck``'s ``DeckModel`` carries ONE deck-level ground even
+    # though its own spec makes ``GN`` an arming card, so a per-group ground
+    # cannot be read off the model; ``parse_deck`` recovers it by re-reading
+    # the deck prefix that ends at this group's execute card, and
+    # ``DeckSolver`` stamps it onto the model with ``dataclasses.replace``.
+    # ``momwire_ground`` is that model-vocabulary value; ``ground`` and
+    # ``second_medium`` are the printout's view of the same thing.
+    ground: Ground = field(default_factory=Ground)
+    second_medium: SecondMedium | None = None
+    momwire_ground: object = None
 
 
 @dataclass
@@ -943,7 +967,9 @@ def parse_deck(body: str) -> PortalDeck:
       because a source explicitly driven at 0 V is a printed row while an
       undriven port is not — a distinction a voltage vector cannot make;
     * ``refilled_partial``, the partial refill preamble an operator card
-      between two execute cards produces (see ``_OPERATOR_CARDS``).
+      between two execute cards produces (see ``_OPERATOR_CARDS``);
+    * the ENVIRONMENT in force at each execute card, when a ``GN`` or ``GD``
+      arrives after the first one (see :func:`_environments_per_group`).
     """
     model = parse_dialect(body, dialect="nec2")
 
@@ -963,6 +989,12 @@ def parse_deck(body: str) -> PortalDeck:
     # reprints the loading / environment / matrix-timing preamble.
     operator_dirty = False
     sources_stale = False
+    # The deck lines up to and including each execute card, kept only while a
+    # GN or GD is still capable of arriving after one — which is the whole
+    # reason a group's environment can differ from the deck's.
+    prefix: list[str] = []
+    prefixes: list[list[str]] = []
+    env_moves = False
 
     for line in body.splitlines():
         card = parse_card(line)
@@ -970,6 +1002,7 @@ def parse_deck(body: str) -> PortalDeck:
             continue
         if card.mnemonic in _TERMINATORS:
             break
+        prefix.append(line)
         if card.mnemonic in ("CM", "CE"):
             comments.append(card.text)
             continue
@@ -979,6 +1012,8 @@ def parse_deck(body: str) -> PortalDeck:
         data_cards.append(card)
         if card.mnemonic in _OPERATOR_CARDS and executed:
             operator_dirty = True
+        if card.mnemonic in ("GN", "GD") and executed:
+            env_moves = True
         if card.mnemonic == "LD":
             # The loading table echoes the cards in force, and ``LD -1``
             # nullifies every load read so far — the dialect's own rule, and
@@ -1007,6 +1042,7 @@ def parse_deck(body: str) -> PortalDeck:
             armed = (
                 model.groups[len(groups)] if len(groups) < len(model.groups) else None
             )
+            prefixes.append(list(prefix))
             if armed is None:
                 groups.append(None)
                 continue
@@ -1023,11 +1059,17 @@ def parse_deck(body: str) -> PortalDeck:
                         (armed.refilled_partial or operator_dirty)
                         and not armed.refilled
                     ),
+                    ground=Ground.from_model(model.ground),
+                    second_medium=second_medium,
+                    momwire_ground=model.ground,
                 )
             )
             operator_dirty = False
             executed += 1
             sources_stale = True
+
+    if env_moves:
+        _environments_per_group(groups, prefixes)
 
     return PortalDeck(
         comments=tuple(comments),
@@ -1043,6 +1085,44 @@ def parse_deck(body: str) -> PortalDeck:
         model=model,
         structure=build_geometry(geometry),
     )
+
+
+def _environments_per_group(
+    groups: list[ExecuteGroup | None], prefixes: list[list[str]]
+) -> None:
+    """Give each group the ground its own execute card ran under, in place.
+
+    ``GN`` is an arming card (spec ``#arming``, oracle-verified for #933): a
+    deck may execute once in free space and once over ground, and each group
+    answers over the cards that had reached it. ``momwire.deck``'s ``DeckModel``
+    carries ONE ground for the whole deck, so the per-group value has to be
+    recovered — and the honest way to recover it is to ask the same reader
+    again, on the deck PREFIX that ends at this group's execute card, rather
+    than to grow a second ``GN``/``GD`` reader here that could disagree with
+    the first.
+
+    Only the ground and the second medium are taken from a prefix parse.
+    Everything else it computes is wrong on purpose: a prefix has only the
+    ``EX`` cards that arrived before it, so its port set is a subset of the
+    deck's, and the union set is what the one fill serves (spec
+    ``#one-geometry-one-port-set``). Called only when a ``GN``/``GD`` actually
+    arrives after an execute card, which is no deck in the reference corpus
+    but ``dipole_gn_rearm``.
+    """
+    for index, group in enumerate(groups):
+        if group is None:
+            continue
+        try:
+            prefix_model = parse_dialect("\n".join(prefixes[index]), dialect="nec2")
+        except DeckError:
+            # A prefix that does not stand on its own (an execute card ahead
+            # of every EX in the deck). The deck-level environment already on
+            # the group is the best available reading, and the full parse
+            # accepted the deck, so nothing is being hidden.
+            continue
+        group.ground = Ground.from_model(prefix_model.ground)
+        group.second_medium = SecondMedium.from_model(prefix_model.second_medium)
+        group.momwire_ground = prefix_model.ground
 
 
 # --------------------------------------------------------------------------
@@ -1668,6 +1748,10 @@ def _connection_data(wires) -> list[tuple[int, int]]:
     return out
 
 
+# "the deck's own ground", as a default distinct from None (free space).
+_UNSET = object()
+
+
 def _port_signs(built, model) -> np.ndarray:
     """``d_k = ±1`` per solver port: the deck's sign convention over momwire's.
 
@@ -1750,13 +1834,13 @@ class DeckSolver:
         armed = next((g for g in deck.groups if g is not None), None)
         seed = armed.freqs_mhz[0] if armed else 0.0
         seed_ek = bool(armed.ek) if armed else False
-        # The ground plane's height, for the PEC image the near field takes.
-        self.ground_z = self.model.ground_z if self.model.ground is not None else None
+        seed_ground = armed.momwire_ground if armed else self.model.ground
         self._smallest_radius = min(w.radius for w in self.wires)
-        # (frequency, extended kernel) -> one filled and factored operator.
-        self._cache: dict[tuple[float, bool], dict] = {}
+        # (frequency, extended kernel, ground) -> one filled and factored
+        # operator. The ground is in the key because GN arms (#933).
+        self._cache: dict[tuple, dict] = {}
 
-        built = self._build(seed, seed_ek)
+        built = self._build(seed, seed_ek, seed_ground)
         plan = built.ports
         self.plan = plan
         self.n_ports = plan.n_ports
@@ -1779,14 +1863,24 @@ class DeckSolver:
         # insulation). ``momwire.deck`` folds both into the model's per-wire
         # material record.
         self._lossy = any(w.material is not None for w in self.model.wires)
-        self._cache[(seed, seed_ek)] = self._entry(built)
+        self._cache[(seed, seed_ek, seed_ground)] = self._entry(built)
 
     # -- construction ------------------------------------------------------
 
-    def _build(self, freq_mhz: float, extended_kernel: bool):
-        """One constructed solver plus its port plan, at one operating point."""
+    def _build(self, freq_mhz: float, extended_kernel: bool, ground):
+        """One constructed solver plus its port plan, at one operating point.
+
+        ``ground`` is the group's, not the deck's — ``GN`` arms, so two groups
+        of one deck may sit over two different half-spaces (#933). It is
+        stamped onto the model with ``dataclasses.replace``, which is exactly
+        what the frozen model is for: same wires, same feeds, same loads, same
+        union port set, one different ground.
+        """
+        model = self.model
+        if ground != model.ground:
+            model = replace(model, ground=ground)
         return build_solver(
-            self.model,
+            model,
             basis=_active_basis_name,
             group=self._group,
             frequency_mhz=freq_mhz,
@@ -1795,6 +1889,13 @@ class DeckSolver:
 
     def _entry(self, built) -> dict:
         """The cached ``(Y, X, solver)`` behind one constructed solver."""
+        if _cache_serving or _cache_stats_path is not None:
+            # Counted only when something asked to be measured: with the cache
+            # off the instrument is off too, so its zeros are evidence rather
+            # than an unread accumulator. Counted HERE rather than at `at()`'s
+            # miss because the deck's first operating point is filled during
+            # construction, and a fill is a fill wherever it is asked for.
+            _cache_stats["fills"] += 1
         started = time.perf_counter()
         y_solver, coeffs = _y_and_port_coeffs(built.solver)
         fill_ms = int(round((time.perf_counter() - started) * 1000.0))
@@ -1818,7 +1919,7 @@ class DeckSolver:
 
     # -- per-frequency operator -------------------------------------------
 
-    def at(self, freq_mhz: float, extended_kernel: bool = False) -> dict:
+    def at(self, freq_mhz: float, extended_kernel: bool = False, ground=_UNSET) -> dict:
         """The cached (Y, X, solver) for a frequency — one fill, one factor.
 
         When this instance came out of the cross-deck cache (``_solver_for``)
@@ -1834,16 +1935,13 @@ class DeckSolver:
         than as two dicts so that adding a third operator axis later cannot
         forget one of them.
         """
-        key = (freq_mhz, bool(extended_kernel))
+        if ground is _UNSET:
+            ground = self.model.ground
+        key = (freq_mhz, bool(extended_kernel), ground)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        if _cache_serving or _cache_stats_path is not None:
-            # Counted only when something asked to be measured: with the cache
-            # off the instrument is off too, so its zeros are evidence rather
-            # than an unread accumulator.
-            _cache_stats["fills"] += 1
-        entry = self._entry(self._build(freq_mhz, extended_kernel))
+        entry = self._entry(self._build(freq_mhz, extended_kernel, ground))
         self._cache[key] = entry
         return entry
 
@@ -1880,7 +1978,7 @@ class DeckSolver:
 
         The group's ``EK`` picks the operator (issue #849), so two groups of
         one deck under two kernels get two fills and two answers."""
-        entry = self.at(freq_mhz, extended_kernel=group.ek)
+        entry = self.at(freq_mhz, extended_kernel=group.ek, ground=group.momwire_ground)
         omega = 2.0 * math.pi * freq_mhz * 1e6
         y = entry["Y"]
         v_source = np.zeros(self.n_ports, dtype=np.complex128)
@@ -1927,6 +2025,11 @@ class DeckSolver:
             "efficiency": (100.0 * p_rad / p_in) if p_in > 0 else 0.0,
             "fill_ms": entry["fill_ms"],
             "wavelength": entry["wavelength"],
+            # The environment this group ran under, so every readout below the
+            # solve reads the same half-space the fill did (#933).
+            "ground": group.ground,
+            "ground_z": self.model.ground_z if group.momwire_ground else None,
+            "second_medium": group.second_medium,
         }
 
     # -- field sources -----------------------------------------------------
@@ -2183,7 +2286,15 @@ def _operator_key(deck: PortalDeck) -> tuple:
     model = deck.model
     return (
         model.wires,
-        (model.ground, model.ground_z),
+        # The ground: kind, constants, the plane's height — and the GE flag,
+        # which specifies no ground at all (the physics is GN's alone) and is
+        # kept in the key for the same reason it was before the rewire: a deck
+        # whose wire touches the plane would move both, and a self-contained
+        # key cannot be read wrong. The PER-GROUP grounds ride alongside it,
+        # because GN arms (#933) and a cached instance carries one filled
+        # operator per (frequency, kernel, ground).
+        (model.ground, model.ground_z, model.ground_plane_flag),
+        tuple(g.momwire_ground for g in deck.groups if g is not None),
         model.loads,
         tuple((wire, arclength) for wire, arclength, _volts in model.feeds),
         tuple(g.ek for g in deck.groups if g is not None),
@@ -2475,7 +2586,7 @@ def _pattern_lines(
     phis = phi0 + d_phi * np.arange(n_phi)
     wavelength = result["wavelength"]
     k = 2.0 * math.pi / wavelength
-    second = solver.portal_deck.second_medium
+    second = result["second_medium"]
     mid, moment, _nodes, _delta = solver.current_elements(result)
     m_theta, m_phi = _far_moments(
         mid,
@@ -2483,8 +2594,8 @@ def _pattern_lines(
         k,
         np.radians(thetas),
         np.radians(phis),
-        solver.portal_deck.ground,
-        solver.ground_z,
+        result["ground"],
+        result["ground_z"],
         freq_mhz * 1e6,
         cliff=(mode, second) if mode in _CLIFF_KIND and second is not None else None,
     )
@@ -2607,7 +2718,7 @@ def _near_field_lines(card: Card, solver: DeckSolver, result: dict) -> list[str]
             for ix in range(n_x)
         ]
     )
-    ground = solver.portal_deck.ground
+    ground = result["ground"]
     if ground.kind in ("refl", "sommerfeld"):
         raise PortalError(
             f"{card.mnemonic} over a finite ground is not supported by this "
@@ -2624,7 +2735,7 @@ def _near_field_lines(card: Card, solver: DeckSolver, result: dict) -> list[str]
         # flip) and NEGATES the charge, which is the same statement: reversing
         # a horizontal current reverses dI/ds, and mirroring a vertical one
         # reverses the arc direction.
-        ground_z = solver.ground_z
+        ground_z = result["ground_z"]
         mid_img, moment_img = _image_moments(mid, moment, ground_z)
         nodes_img = nodes.copy()
         nodes_img[:, 2] = 2.0 * ground_z - nodes[:, 2]
@@ -2693,7 +2804,7 @@ def _run_block(
         else:
             out.append(_LOADING_NONE)
         out += ["", ""]
-        out += _environment_lines(deck.ground, freq_mhz)
+        out += _environment_lines(group.ground, freq_mhz)
         # The MP advisory sits at column 0 between the environment block and
         # the blanks before MATRIX TIMING, and carries one blank of its own —
         # so a multiprocessing deck shows THREE blanks there and a plain one
