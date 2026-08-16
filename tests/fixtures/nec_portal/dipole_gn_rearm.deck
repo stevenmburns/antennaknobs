@@ -1,0 +1,9 @@
+CE gn between executes re-arms
+GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001
+GE -1
+EX 0 1 5 0 1.
+FR 0 1 0 0 14.1 0
+XQ
+GN 1
+XQ
+NX

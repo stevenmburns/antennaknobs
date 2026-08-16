@@ -47,6 +47,14 @@ ALL_NAMES = tuple(
     for entry in json.loads((FIXTURE_DIR / "manifest.json").read_text())["decks"]
 )
 
+# The three decks the dialect refuses by name: TL and NT are circuits attached
+# to the structure, and this engine's language is antenna-only (#930, design
+# doc #846 §1). They stay in the corpus as REFUSAL fixtures — see
+# ``NETWORK_FIXTURES`` below — so every gate written against a solved printout
+# runs over the other 41.
+REFUSED_NAMES = ("dipole_nt_network", "dipole_tl_network", "dipole_tl_shunt_crossed")
+ANTENNA_NAMES = tuple(n for n in ALL_NAMES if n not in REFUSED_NAMES)
+
 # nec2/Execute.versionA — the regex SimNEC applies to `<cmd> -version`.
 VERSION_A = re.compile(r"nec2c\.ae6ty\.(.*)")
 
@@ -744,7 +752,7 @@ def test_loaded_deck_spends_power_in_the_load():
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", ALL_NAMES)
+@pytest.mark.parametrize("name", ANTENNA_NAMES)
 def test_every_fixture_matches_the_oracle_column_layout(name):
     """The score the unit reports: every committed oracle printout, line for
     line and column for column.
@@ -768,7 +776,7 @@ def test_every_fixture_matches_the_oracle_column_layout(name):
         )
 
 
-@pytest.mark.parametrize("name", ALL_NAMES)
+@pytest.mark.parametrize("name", ANTENNA_NAMES)
 def test_every_fixture_walks_the_oracle_section_order(name):
     assert section_walk(printout(name)) == section_walk(fixture_out(name))
 
@@ -1010,284 +1018,100 @@ def test_a_pec_ground_doubles_the_near_field_sources():
 
 
 # --------------------------------------------------------------------------
-# unit 3: NT networks
+# TL and NT: out of dialect (#930, design doc #846 §1)
 # --------------------------------------------------------------------------
+#
+# This engine's deck language is antenna-only: a structure of thin wires,
+# driven by voltage sources, optionally over a ground. Circuits attached to
+# that structure are somebody else's job — SimNEC's, which recomputes
+# everything it cares about from the ANTENNA INPUT PARAMETERS currents and
+# never reads the NETWORK DATA section at all, or antennaknobs' importer,
+# which keeps NEC's full network grammar for `.nec` import.
+#
+# Until #930 the portal translated both cards into circuit branches and drew
+# the two sections nec2c prints for them. The tests that pinned that behaviour
+# lived here; they are replaced by the refusal, because the refusal IS the
+# behaviour now. The three decks that exercised it stay in the corpus — a
+# refusal fixture is worth as much as a solving one, and more than a deleted
+# deck.
+
+NETWORK_FIXTURES = ("dipole_nt_network", "dipole_tl_network", "dipole_tl_shunt_crossed")
+
+# Quoted from the normative grammar's refusal table
+# (momwire.dev/reference/deck-grammar-nec2/#cards-refused-by-name).
+NETWORK_REFUSALS = {
+    "TL": (
+        "TL (transmission line) is not part of this engine's nec2 dialect, "
+        "which is antenna-only; antennaknobs imports decks with networks"
+    ),
+    "NT": (
+        "NT (two-port network) is not part of this engine's nec2 dialect, "
+        "which is antenna-only; antennaknobs imports decks with networks"
+    ),
+}
 
 
-def test_nt_source_current_is_the_segment_current_plus_the_network_current():
-    """The identity the NT fixture exists to pin.
+@pytest.mark.parametrize("name", NETWORK_FIXTURES)
+def test_the_network_fixtures_refuse_by_name(name):
+    """Each of the three network decks refuses, naming the card that did it.
 
-    ANTENNA INPUT PARAMETERS reports what the SOURCE delivers; CURRENTS AND
-    LOCATION reports what flows in the segment; the difference is exactly what
-    the NT branch draws. Reading the segment current into the impedance table
-    (the obvious mistake) makes the driven-point impedance come out negative,
-    which is what the oracle's own -1.0284E+02 network row looks like — and
-    that row is a DIFFERENT table.
+    ``dipole_tl_shunt_crossed`` carries both cards; the refusal fires on the
+    first one in card order, which is its ``TL``.
     """
-    text = run_deck(fixture_deck("dipole_nt_network"))[0]
-    # STRUCTURE EXCITATION DATA repeats the "No: No: REAL" header, so it is
-    # ALSO an "aip table" to a header-only reader — and it comes first. The
-    # deck has one execute group, so the real one is last. (Execute itself is
-    # not fooled: it arms on the ANTENNA INPUT PARAMETERS banner, and the
-    # differential harness's reader does the same.)
-    source = complex(*(float(v) for v in aip_tables(text)[-1][0][4:6]))
-    port_row = aip_tables(text)[0][1]  # STRUCTURE EXCITATION DATA, port one
-    segment = complex(float(port_row[4]), float(port_row[5]))
-    # NT 1 5 2 5 with Y11 = Y22 = j0.02 and Y12 = -j0.02, so the branch current
-    # at port one is j0.02*(V1 - V2).
-    v1, v2 = 1.0 + 0j, _network_port_voltage(text)
-    branch = 0.02j * (v1 - v2)
-    # 1e-4 is the printout's own resolution: five significant digits.
-    assert source == pytest.approx(segment + branch, rel=1e-4)
-
-    # The same current read off CURRENTS AND LOCATION is the INTERPOLATED
-    # midpoint of the B-spline, not the Galerkin port unknown, so it agrees
-    # only to about a percent (grammar doc §11.8). nec2c's pulse basis makes
-    # the two one number and hides the distinction entirely.
-    midpoint = next(
-        complex(float(p[6]), float(p[7]))
-        for p in (ln.split() for ln in text.splitlines())
-        if len(p) == 10 and p[:2] == ["5", "1"]
+    deck = fixture_deck(name)
+    text = run_deck(deck)[0]
+    first = next(
+        line.split()[0].upper()
+        for line in deck.splitlines()
+        if line.split() and line.split()[0].upper() in ("TL", "NT")
     )
-    assert abs(midpoint - segment) <= 0.01 * abs(source)
+    assert f"ERROR: {NETWORK_REFUSALS[first]}" in text
+    assert f"ERROR-NEC2C: {NETWORK_REFUSALS[first]}" in text
 
 
-def _network_port_voltage(text: str) -> complex:
-    """The gap voltage of the undriven NT port, off the network table."""
-    rows = []
-    armed = False
-    for line in text.splitlines():
-        if "STRUCTURE EXCITATION DATA" in line:
-            armed = True
-            continue
-        if not armed:
-            continue
-        parts = line.split()
-        # The header row is also 11 tokens ("TAG SEG VOLTAGE (VOLTS) ..."), so
-        # arity alone does not identify a data row here.
-        if len(parts) != 11 or not parts[0].isdigit():
-            if rows:
-                break
-            continue
-        rows.append(complex(float(parts[2]), float(parts[3])))
-    return rows[0]
+@pytest.mark.parametrize("name", NETWORK_FIXTURES)
+def test_a_refused_network_deck_still_emits_the_nx_sentinel(name):
+    """The sentinel is mandatory on EVERY path — a refused deck that swallows
+    it leaves SimNEC blocked in ``readLine()`` forever."""
+    text = run_deck(fixture_deck(name))[0]
+    assert NX_ECHO.search(text), "no NX sentinel on the error path"
 
 
-def test_nt_network_loss_is_zero_for_a_lossless_branch():
-    """``NT`` with a purely imaginary Y absorbs nothing, so NETWORK LOSS must
-    be zero and the whole input power must radiate."""
-    text = run_deck(fixture_deck("dipole_nt_network"))[0]
-    budget = {
-        line.split("=")[0].strip(): float(line.split("=")[1].split()[0])
-        for line in text.splitlines()
-        if "=" in line and ("POWER" in line or "LOSS" in line or "EFFICIENCY" in line)
-    }
-    assert abs(budget["NETWORK LOSS"]) < 1e-9 * budget["INPUT POWER"]
-    assert budget["EFFICIENCY"] == pytest.approx(100.0, abs=0.01)
+@pytest.mark.parametrize("name", NETWORK_FIXTURES)
+def test_a_refused_network_deck_prints_no_solved_section(name):
+    """A refusal is a refusal: no impedance table, no currents, no network
+    tables, and none of the numbers a reader could mistake for an answer."""
+    text = run_deck(fixture_deck(name))[0]
+    for banner in (
+        "ANTENNA INPUT PARAMETERS",
+        "CURRENTS AND LOCATION",
+        "NETWORK DATA",
+        "STRUCTURE EXCITATION DATA",
+    ):
+        assert banner not in text, f"{name} still prints {banner}"
 
 
-def test_a_lossy_nt_branch_shows_up_as_network_loss():
-    """The sign convention: a real Y in the branch absorbs power, and the
-    budget must say so rather than crediting it to radiation."""
-    deck = fixture_deck("dipole_nt_network").replace(
-        "NT 1 5 2 5 0. 0.02 0. -0.02 0. 0.02",
-        "NT 1 5 2 5 0.02 0. -0.02 0. 0.02 0.",
-    )
-    budget = {
-        line.split("=")[0].strip(): float(line.split("=")[1].split()[0])
-        for line in run_deck(deck)[0].splitlines()
-        if "=" in line and ("POWER" in line or "LOSS" in line or "EFFICIENCY" in line)
-    }
-    assert budget["NETWORK LOSS"] > 0
-    assert budget["EFFICIENCY"] < 100.0
-    assert budget["RADIATED POWER"] == pytest.approx(
-        budget["INPUT POWER"] - budget["STRUCTURE LOSS"] - budget["NETWORK LOSS"],
-        rel=1e-3,
-    )
+def test_the_refusal_names_the_card_and_points_somewhere():
+    """The migration path is part of the message. A user whose pasted deck
+    stops working has to be told where the network grammar went, not merely
+    that this engine will not run it."""
+    for message in NETWORK_REFUSALS.values():
+        assert "antennaknobs" in message
+        assert "antenna-only" in message
 
 
-def test_an_undriven_nt_port_floats_instead_of_shorting():
-    """A segment with a network on it is CUT: its gap voltage is whatever
-    balances the node, not zero. Shorting it (the unit-2 behaviour for any
-    undriven port) would make the whole branch invisible."""
-    text = run_deck(fixture_deck("dipole_nt_network"))[0]
-    assert abs(_network_port_voltage(text)) > 0.1
-
-
-# --------------------------------------------------------------------------
-# issue #799: TL transmission lines
-# --------------------------------------------------------------------------
-
-
-def _network_data_rows(text: str) -> list[str]:
-    """The NETWORK DATA block: every line between the banner and the blank
-    run that ends it, headers included."""
-    lines = text.splitlines()
-    start = next(i for i, ln in enumerate(lines) if "NETWORK DATA" in ln)
-    out = []
-    for line in lines[start + 1 :]:
-        if not line.strip():
-            break
-        out.append(line)
-    return out
-
-
-def test_tl_prints_its_own_column_header_and_line_type():
-    """The TL row is NOT an NT row: nec2c describes the CARD (z0, length, the
-    two end shunts) under a header of its own, and closes the row with the
-    LINE TYPE word. Both are checked against the committed oracle bytes rather
-    than against a copy of our own constants."""
-    ours = _network_data_rows(run_deck(fixture_deck("dipole_tl_network"))[0])
-    theirs = _network_data_rows(fixture_out("dipole_tl_network"))
-    assert ours[:3] == theirs[:3], "TL column header differs from the oracle's"
-    assert "TRANSMISSION LINE" in ours[0]
-    assert ours[3].endswith(" STRAIGHT")
-    # The card's own numbers are echoed verbatim, so this row IS byte-equal.
-    assert ours[3] == theirs[3]
-
-
-def test_a_crossed_tl_is_a_negative_z0_echoed_as_its_magnitude():
-    """``TL … -450. …`` prints ``4.5000E+02`` and ``CROSSED`` — the sign is a
-    polarity inversion, not part of the impedance."""
-    rows = _network_data_rows(run_deck(fixture_deck("dipole_tl_shunt_crossed"))[0])
-    line = next(r for r in rows if r.rstrip().endswith("CROSSED"))
-    assert line == next(
-        r
-        for r in _network_data_rows(fixture_out("dipole_tl_shunt_crossed"))
-        if r.rstrip().endswith("CROSSED")
-    )
-    assert "4.5000E+02" in line and "-4.5" not in line
-
-
-def test_a_mixed_deck_re_emits_the_header_when_the_row_kind_changes():
-    """One NETWORK DATA banner, two header blocks, interleaved in CARD order.
-
-    ``dipole_tl_shunt_crossed`` is TL then NT; nec2c carries the previous
-    row's kind and re-prints the matching header whenever it changes.
-    """
-    ours = _network_data_rows(run_deck(fixture_deck("dipole_tl_shunt_crossed"))[0])
-    assert ours == _network_data_rows(fixture_out("dipole_tl_shunt_crossed"))
-    assert [i for i, r in enumerate(ours) if "-- FROM -" in r] == [0, 4]
-    assert "TRANSMISSION LINE" in ours[0]
-    assert "ADMITTANCE MATRIX ELEMENTS" in ours[4]
-
-
-def test_a_zero_length_tl_echoes_the_distance_between_its_connection_points():
-    """NEC reads length 0 as "the straight-line distance", and the printout
-    echoes the RESOLVED number — probed against the oracle, whose row for this
-    deck reads ``6.0000E+02  1.0000E+00`` for wires 1 m apart."""
-    deck = fixture_deck("dipole_tl_network").replace(
-        "TL 1 5 2 5 600. 2.5 0. 0. 0. 0.", "TL 1 5 2 5 600. 0. 0. 0. 0. 0."
-    )
-    row = _network_data_rows(run_deck(deck)[0])[3]
-    assert row.split()[4:6] == ["6.0000E+02", "1.0000E+00"]
-
-
-def test_the_portal_and_nec_import_translate_tl_the_same_way():
-    """Two readers of the same card in one repo, held against each other.
-
-    ``nec_import.NecTL`` is the network-mode translation the workbench uses;
-    ``nec_portal.LineBranch`` is the daemon's. Crossed-means-negative-z0,
-    zero-length-means-distance, and the end admittances have to mean the same
-    thing in both or a deck imported one way and run the other silently
-    disagrees.
-    """
-    from antennaknobs.nec_import import parse_nec
-    from antennaknobs.nec_portal import DeckSolver, parse_deck
-
-    body = (
+def test_a_network_card_refuses_wherever_it_sits_in_the_deck():
+    """Refused by NAME, not by position: an ``NT`` after the execute card is
+    as out of dialect as one before it."""
+    deck = (
+        "CE nt after the execute card\n"
         "GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\n"
-        "GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001\n"
-        "GE 0\n"
-        "EX 0 1 5 0 1.\n"
-        "TL 1 5 2 5 -450. 0. 1.e-3 0. 3.e-3 0.\n"
-        "FR 0 1 0 0 30. 0\n"
-        "XQ\n"
-    )
-    solver = DeckSolver(parse_deck("CE tl\n" + body))
-    (_a, _b, branch, length) = solver.line_rows[0]
-    imported = parse_nec(body, name="tl", network=True).tls[0]
-    assert branch.z0 == imported.z0 == 450.0
-    assert branch.crossed is imported.transposed is True
-    assert length == pytest.approx(imported.length)
-    assert length == pytest.approx(1.0)  # the wire spacing, not the card's 0
-    assert (1.0 / branch.y_a.real, 1.0 / branch.y_b.real) == pytest.approx(
-        (imported.shunt_r_a, imported.shunt_r_b)
-    )
-
-
-def test_tl_source_current_is_the_segment_current_plus_the_line_current():
-    """The NT identity again, this time through a line's equivalent network.
-
-    ANTENNA INPUT PARAMETERS reports what the SOURCE delivers, CURRENTS AND
-    LOCATION what flows in the segment, and the difference is exactly what the
-    line draws at that node — ``Y11·V1 + Y12·V2`` for the card's own 2×2. This
-    is where the electrical length of the line has to be right: a
-    quarter-wave 600 Ω line at 30 MHz has ``Y11 ≈ 0`` (cot βl ≈ 0) and
-    ``|Y12| ≈ 1.7 mS``, so essentially the whole difference is the FAR end's
-    voltage coming back through the line.
-    """
-    from antennaknobs.network_reduce import tl_admittance_2x2
-
-    text = run_deck(fixture_deck("dipole_tl_network"))[0]
-    source = complex(*(float(v) for v in aip_tables(text)[-1][0][4:6]))
-    excitation = aip_tables(text)[0]
-    v_far = complex(float(excitation[0][2]), float(excitation[0][3]))
-    near = excitation[1]
-    v_near = complex(float(near[2]), float(near[3]))
-    segment = complex(float(near[4]), float(near[5]))
-
-    wavelength = 299_792_458.0 / 30e6
-    y = tl_admittance_2x2(600.0, 2.5, wavelength)
-    assert abs(y[0, 0]) < 0.02 * abs(y[0, 1]), "not the quarter-wave case any more"
-    branch = y[0, 0] * v_near + y[0, 1] * v_far
-    # 1e-4 is the printout's own resolution: five significant digits.
-    assert source == pytest.approx(segment + branch, rel=1e-4)
-
-
-def test_a_lossless_tl_absorbs_nothing_but_shunt_conductance_does():
-    """NETWORK LOSS is the whole TL power identity: an ideal line is a pure
-    reactance chain and cannot absorb, while the card's end admittances can —
-    and the budget must charge them rather than crediting radiation."""
-    lossless = _power_budget(run_deck(fixture_deck("dipole_tl_network"))[0])
-    assert abs(lossless["NETWORK LOSS"]) < 1e-9 * lossless["INPUT POWER"]
-    assert lossless["EFFICIENCY"] == pytest.approx(100.0, abs=0.01)
-
-    lossy = _power_budget(run_deck(fixture_deck("dipole_tl_shunt_crossed"))[0])
-    assert lossy["NETWORK LOSS"] > 0
-    assert lossy["RADIATED POWER"] == pytest.approx(
-        lossy["INPUT POWER"] - lossy["STRUCTURE LOSS"] - lossy["NETWORK LOSS"],
-        rel=1e-3,
-    )
-
-
-def _power_budget(text: str) -> dict[str, float]:
-    return {
-        line.split("=")[0].strip(): float(line.split("=")[1].split()[0])
-        for line in text.splitlines()
-        if "=" in line and ("POWER" in line or "LOSS" in line or "EFFICIENCY" in line)
-    }
-
-
-def test_a_half_wave_lossless_tl_is_refused_by_name():
-    """The one TL shape that has no admittance matrix at all: at k·λ/2 the
-    line is a through-connection its nodal description cannot spell (sinh γl =
-    0), and nec2c's netwk() divides by the same sinh. Refusing it names the
-    card; guessing would print a table of infinities.
-
-    The bar is deliberately at machine zero, not at "near a half wave": a line
-    a part in 10^7 off length has a large but perfectly finite admittance, and
-    printing it is the honest answer.
-    """
-    half_wave = 299_792_458.0 / 30e6 / 2  # 4.996540966666666 m
-    deck = fixture_deck("dipole_tl_network").replace(
-        "TL 1 5 2 5 600. 2.5 0. 0. 0. 0.",
-        f"TL 1 5 2 5 600. {half_wave!r} 0. 0. 0. 0.",
+        "GE 0\nEX 0 1 5 0 1.\nFR 0 1 0 0 30. 0\nXQ\n"
+        "NT 1 3 1 7 0. 0.02 0. 0. 0. 0.02\n"
     )
     text = run_deck(deck)[0]
-    assert "ERROR-NEC2C: " in text
-    assert "TL" in text
-    assert NX_ECHO.search(text), "no NX sentinel on the error path"
+    assert NETWORK_REFUSALS["NT"] in text
+    assert "ANTENNA INPUT PARAMETERS" not in text
 
 
 # --------------------------------------------------------------------------
@@ -2167,15 +1991,20 @@ def test_the_sinusoidal_shim_columns_are_the_one_volt_drive_coefficients():
 
 
 # The classes that exercise everything the shim's coefficients feed: a
-# Sommerfeld and a two-medium ground (solver-name-gated in engines/momwire.py),
-# both network branch types, a lumped load (power budget), the PT/YY readout,
-# and a pattern (which resamples the solved current through
-# `currents_at_knots`).
+# Sommerfeld and a two-medium ground (both carried on the fill), a lumped load
+# and a series RLC (the power-budget and port-algebra paths), a multi-wire
+# structure with a junction, the PT readout, and a pattern (which resamples the
+# solved current through `currents_at_knots`).
+#
+# The two network decks left this roster in #930 — TL and NT are out of
+# dialect — and the classes they stood for (a second gap the drive does not
+# reach; port algebra outside the fill) are covered by the loaded decks and the
+# multi-wire one that replaced them.
 _SIN_HARD_FIXTURES = (
     "dipole_sommerfeld_ground",
     "dipole_gd_second_medium",
-    "dipole_tl_network",
-    "dipole_nt_network",
+    "dipole_load_ld0",
+    "split_dipole_qq",
     "dipole_load_ld4",
     "dipole_pt_toggle",
     "dipole_rp_pattern",
@@ -2292,15 +2121,7 @@ def test_bspline_d1_basis_flag_solves_and_stamps_the_banner():
 
 @pytest.mark.parametrize(
     "name",
-    [
-        "dipole_sommerfeld_ground",
-        "dipole_gd_second_medium",
-        "dipole_tl_network",
-        "dipole_nt_network",
-        "dipole_load_ld4",
-        "dipole_pt_toggle",
-        "dipole_rp_pattern",
-    ],
+    _SIN_HARD_FIXTURES,
 )
 def test_bspline_d1_basis_solves_hard_fixture_classes(name):
     """bs1 is degree=1 on the exact same BSplineSolver class the default
@@ -2488,22 +2309,14 @@ def test_the_dense_fallback_route_is_still_captured():
     assert x.shape == (18, 2)
 
 
-# The seven classes the roster gates on (#826/#827): a Sommerfeld and a
-# two-medium ground, both network branch types, a lumped load, the PT/YY
-# readout, and a pattern. MEASURED: all seven take the ACCELERATED route under
+# The same seven classes the roster gates on (#826/#827), shared with the
+# sinusoidal gate above so one edit moves both. MEASURED: all seven take the
+# ACCELERATED route under
 # both bases — the ground decks included, because `_hmatrix_unsupported()`
 # tests only `use_singular_enrichment` and every ground model the portal emits
 # (PEC image, reflection coefficient, Sommerfeld) is carried on the fast path.
 # No fixture class reaches the dense fallback.
-_ACCEL_HARD_FIXTURES = (
-    "dipole_sommerfeld_ground",
-    "dipole_gd_second_medium",
-    "dipole_tl_network",
-    "dipole_nt_network",
-    "dipole_load_ld4",
-    "dipole_pt_toggle",
-    "dipole_rp_pattern",
-)
+_ACCEL_HARD_FIXTURES = _SIN_HARD_FIXTURES
 
 
 @pytest.mark.parametrize("basis", ["hmatrix", "arrayblock"])
@@ -2676,9 +2489,9 @@ def restore_basis():
     later test's `run_deck`/`printout` call solves with."""
     from antennaknobs import nec_portal
 
-    saved = nec_portal._active_basis
+    saved = (nec_portal._active_basis, nec_portal._active_basis_name)
     yield
-    nec_portal._active_basis = saved
+    nec_portal._active_basis, nec_portal._active_basis_name = saved
 
 
 def test_the_ek_card_moves_the_impedance_on_a_fat_wire(restore_basis):
@@ -2946,7 +2759,7 @@ def aip_impedances(text: str) -> list[tuple[str, str]]:
     return [(row[6], row[7]) for table in aip_tables(text) for row in table]
 
 
-@pytest.mark.parametrize("name", ALL_NAMES)
+@pytest.mark.parametrize("name", ANTENNA_NAMES)
 def test_a_second_pass_of_every_fixture_prints_what_the_first_did(name):
     """The identity gate, over the whole corpus: every fixture sent TWICE down
     one process, compared under the harness's own canonicalisation.
@@ -3030,12 +2843,13 @@ def mutate(old: str, new: str, base: str = CACHE_BASE) -> str:
     return base.replace(old, new)
 
 
-# The same base with both network branch types hung across the same pair of
-# segments, so a branch's VALUES can be mutated without moving the port set —
-# the case the port component of the key cannot catch.
-CACHE_NET_BASE = mutate(
-    "EX 0 1 5 0 1.\n",
-    "EX 0 1 5 0 1.\nTL 1 3 1 7 600. 2.5 0. 0. 0. 0.\nNT 1 3 1 7 0. 0.02 0. 0. 0. 0.02\n",
+# The same base carrying a SECOND load, so a load's VALUES can be mutated
+# without moving the port set — the case the port component of the key cannot
+# catch. (It carried a TL and an NT branch until #930 put both out of dialect;
+# a load is the remaining card whose value lives outside the fill.)
+CACHE_LOAD_BASE = mutate(
+    "LD 0 1 3 3 50. 1.e-6 0.\n",
+    "LD 0 1 3 3 50. 1.e-6 0.\nLD 4 1 7 7 25. -40.\n",
 )
 
 # A free-space deck at Δ/a = 2.27 — the regime where the extended kernel is
@@ -3070,36 +2884,29 @@ _OPERATOR_MUTATIONS = (
     ("LD removed", CACHE_BASE, mutate("LD 0 1 3 3 50. 1.e-6 0.\n", ""), True),
     ("EX moved", CACHE_BASE, mutate("EX 0 1 5", "EX 0 1 4"), True),
     (
-        "NT added",
+        "LD added",
         CACHE_BASE,
-        mutate("EX 0 1 5 0 1.\n", "EX 0 1 5 0 1.\nNT 1 3 1 7 0. 0.02 0. 0. 0. 0.02\n"),
+        mutate("EX 0 1 5 0 1.\n", "LD 4 1 7 7 25. -40.\nEX 0 1 5 0 1.\n"),
+        True,
+    ),
+    # A load's VALUES across an unchanged pair of segments: the port set is
+    # identical, so only the `loads` component of the key can catch these.
+    (
+        "LD 4 resistance",
+        CACHE_LOAD_BASE,
+        mutate("25. -40.", "60. -40.", CACHE_LOAD_BASE),
         True,
     ),
     (
-        "TL added",
-        CACHE_BASE,
-        mutate("EX 0 1 5 0 1.\n", "EX 0 1 5 0 1.\nTL 1 3 1 7 600. 2.5 0. 0. 0. 0.\n"),
-        True,
-    ),
-    # Branch VALUES across an unchanged pair of segments: the port set is
-    # identical, so only the `networks` component of the key can catch these.
-    (
-        "NT admittance",
-        CACHE_NET_BASE,
-        mutate("0. 0.02 0. 0. 0. 0.02", "0. 0.03 0. 0. 0. 0.03", CACHE_NET_BASE),
+        "LD 4 reactance",
+        CACHE_LOAD_BASE,
+        mutate("25. -40.", "25. 40.", CACHE_LOAD_BASE),
         True,
     ),
     (
-        "TL impedance",
-        CACHE_NET_BASE,
-        mutate("600. 2.5", "450. 2.5", CACHE_NET_BASE),
-        True,
-    ),
-    ("TL length", CACHE_NET_BASE, mutate("600. 2.5", "600. 3.5", CACHE_NET_BASE), True),
-    (
-        "TL crossed",
-        CACHE_NET_BASE,
-        mutate("600. 2.5", "-600. 2.5", CACHE_NET_BASE),
+        "LD 0 inductance",
+        CACHE_LOAD_BASE,
+        mutate("50. 1.e-6 0.", "50. 2.e-6 0.", CACHE_LOAD_BASE),
         True,
     ),
     # EK used to be the conservative key entry — kept for the principle that a
@@ -3664,3 +3471,212 @@ def test_an_unwritable_stats_path_costs_the_measurement_not_the_session(tmp_path
     assert not path.exists()
     chunks = deck_chunks(buffer.getvalue())
     assert len(chunks) == 2 and "ERROR-NEC2C" not in buffer.getvalue()
+
+
+# --------------------------------------------------------------------------
+# #846 phase II: the portal depends on momwire alone
+# --------------------------------------------------------------------------
+
+
+def test_the_portal_imports_nothing_from_antennaknobs():
+    """The structural claim of #846 phase II, pinned as a grep.
+
+    The portal's whole point is that it is momwire's front door: it must
+    install and run with momwire and nothing else, so phase III can move the
+    file into ``momwire/portal/`` verbatim. Before the rewire it reached for
+    five antennaknobs internals — ``AntennaBuilder``, ``MomwireEngine``,
+    ``parse_nec``, ``network._series_rlc_impedance`` and ``network_reduce``'s
+    TL pair. This asserts there are none left, at the SOURCE rather than at
+    ``sys.modules``, because an import that only fires on the error path would
+    hide from a runtime check.
+
+    Modelled on momwire's own isolation rule (design doc #846 §4), which is a
+    test rather than a convention for the same reason.
+    """
+    source = Path(nec_portal.__file__).read_text()
+    offenders = [
+        line.strip()
+        for line in source.splitlines()
+        if re.match(r"\s*(from|import)\s", line)
+        and re.search(
+            r"\bfrom\s+\.|\bfrom\s+antennaknobs|\bimport\s+antennaknobs", line
+        )
+    ]
+    assert not offenders, (
+        "nec_portal must depend on momwire alone (#846 phase II); found:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_the_portal_module_imports_no_antennaknobs_submodule_at_runtime():
+    """The same claim from the other side: rendering a deck must not drag a
+    sibling module in.
+
+    Whatever ``antennaknobs/__init__`` imports is the PACKAGE's business and
+    is loaded whether or not the portal is — the module lives inside the
+    package, so that import runs first either way. What this measures is the
+    delta: importing ``nec_portal`` and solving a deck through it must add
+    nothing but ``nec_portal`` itself, which is what a stray import inside a
+    function (the shape a grep over the header would miss) would break.
+    """
+    import subprocess
+
+    code = (
+        "import sys\n"
+        "import antennaknobs\n"
+        "before = {m for m in sys.modules if m.startswith('antennaknobs.')}\n"
+        "import antennaknobs.nec_portal as p\n"
+        "p.run_deck('CE x\\nGW 1 9 0. 0. -2.5 0. 0. 2.5 0.001\\nGE 0\\n"
+        "EX 0 1 5 0 1.\\nFR 0 1 0 0 30. 0\\nXQ')\n"
+        "after = {m for m in sys.modules if m.startswith('antennaknobs.')}\n"
+        "print(sorted(after - before))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=120
+    )
+    assert proc.returncode == 0, proc.stderr
+    added = eval(proc.stdout.strip())  # noqa: S307 — our own repr, one line
+    assert added == ["antennaknobs.nec_portal"], added
+
+
+# --------------------------------------------------------------------------
+# the two readings of one deck must agree (#846 phase II)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ALL_NAMES)
+def test_the_portal_and_the_dialect_agree_about_every_deck(name):
+    """The proof obligation the double parse takes on.
+
+    ``parse_deck`` reads a deck for the PRINTOUT (the card echo, the report
+    cards, the ``MP``/``PT`` state) while ``momwire.deck.parse`` reads the same
+    deck for the SOLVE. Two readers of one text can drift, so this walks the
+    whole corpus and asserts they agree on everything they both have an
+    opinion about:
+
+    * which execute cards ran, in order (arming — the #933 fix's own claim);
+    * each group's frequency list and extended-kernel flag;
+    * each group's DRIVE, reconstructed from the portal's ``(tag, segment)``
+      source list against the model's voltage vector over the union feed set.
+
+    The last one is the load-bearing check: the portal keeps its own source
+    list because a source explicitly driven at 0 V is a printed row while an
+    undriven port is not, and a voltage vector cannot make that distinction.
+    Everything else about the drive must still match.
+    """
+    from momwire.deck import DeckError
+    from momwire.deck import parse as dialect_parse
+
+    for body in _deck_bodies(name):
+        try:
+            deck = nec_portal.parse_deck(body)
+        except DeckError:
+            continue  # a refusal fixture: there is no second reading to agree with
+        model = dialect_parse(body, dialect="nec2")
+
+        assert len(deck.groups) == len(model.groups), f"{name}: group count"
+        ports = nec_portal._union_ports(deck)
+        assert ports == [
+            (tag, seg) for tag, seg in ports
+        ]  # discovery order, stated for the reader
+        assert len(ports) == len(model.feeds), f"{name}: union port set size"
+
+        for index, (ours, theirs) in enumerate(zip(deck.groups, model.groups)):
+            assert (ours is None) == (theirs is None), f"{name}: group {index} armed"
+            if ours is None:
+                continue
+            assert ours.freqs_mhz == theirs.frequencies, f"{name}: group {index} FR"
+            assert ours.ek == theirs.extended_kernel, f"{name}: group {index} EK"
+            assert ours.refilled == theirs.refilled, f"{name}: group {index} refill"
+            drive = [0j] * len(ports)
+            for tag, seg, volts in ours.sources:
+                drive[ports.index((tag, seg))] = volts
+            assert tuple(drive) == theirs.voltages, f"{name}: group {index} drive"
+
+
+def _deck_bodies(name: str) -> list[str]:
+    """A fixture's deck bodies, split at the ``NX`` cards that frame them."""
+    text = (FIXTURE_DIR / f"{name}.deck").read_text()
+    return [body for body in text.split("\nNX") if body.strip()]
+
+
+# --------------------------------------------------------------------------
+# #933: GN between execute cards re-arms
+# --------------------------------------------------------------------------
+
+# `XQ / GN 1 / XQ` over a wire well clear of the plane, so the ground is the
+# only thing that changes between the two runs. Measured on the oracle
+# (nec2c-ubuntu-x86, 2026-08-15) — fixture `dipole_gn_rearm`.
+GN_REARM_DECK = (
+    "CE gn between executes re-arms\n"
+    "GW 1 9 0. 0. 2.0 0. 0. 7.0 0.001\n"
+    "GE -1\n"
+    "EX 0 1 5 0 1.\n"
+    "FR 0 1 0 0 14.1 0\n"
+    "XQ\n"
+    "GN 1\n"
+    "XQ\n"
+)
+
+
+def test_a_gn_between_execute_cards_runs_a_second_group():
+    """#933. The old ``GN`` branch ``continue``d before the arming test, so a
+    ground card between two execute cards armed nothing and the second ``XQ``
+    printed no block at all. nec2c runs it."""
+    text = run_deck(GN_REARM_DECK)[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 2, (
+        "the second XQ did not run — GN failed to re-arm"
+    )
+
+
+def test_the_second_group_answers_over_the_ground_the_gn_card_named():
+    """And it re-arms because the OPERATOR moved, not merely the printout: the
+    environment block names the new ground and the impedance moves with it."""
+    text = run_deck(GN_REARM_DECK)[0]
+    first, second = text.split("ANTENNA ENVIRONMENT")[1:3]
+    assert "FREE SPACE" in first.split("MATRIX TIMING")[0]
+    assert "PERFECT GROUND" in second.split("MATRIX TIMING")[0]
+
+    free, ground = (complex(row[4], row[5]) for row in _aip_rows(text))
+    assert free != ground, "the ground did not reach the matrix"
+    # The oracle's own numbers for this probe: 12.843 - j938.79 in free space,
+    # 18.771 - j937.26 over perfect ground. A basis difference moves both, but
+    # the DIRECTION and rough size of the shift is physics, not basis.
+    assert ground.real > free.real
+    assert (ground.real - free.real) / free.real > 0.1
+
+
+def test_the_gn_rearm_block_is_a_partial_refill():
+    """The shape the oracle prints for it: LOADING / ENVIRONMENT / MATRIX
+    TIMING, and NO FREQUENCY block — the operator was rebuilt, but the
+    frequency list was not (there is no new ``FR``). Identical to the
+    ``dipole_ek_rearm`` shape, which is why the flag is ``_OPERATOR_CARDS``
+    rather than a GN special case."""
+    text = run_deck(GN_REARM_DECK)[0]
+    second = text.split("ANTENNA INPUT PARAMETERS")[1]
+    # Everything between the first block's table and the second's banner.
+    between = second.split("--------- ANTENNA INPUT PARAMETERS")[0]
+    assert "STRUCTURE IMPEDANCE LOADING" in between
+    assert "ANTENNA ENVIRONMENT" in between
+    assert "MATRIX TIMING" in between
+    assert "FREQUENCY :" not in between, "a GN re-arm must not reprint FREQUENCY"
+
+
+def test_the_gn_rearm_fixture_matches_the_oracle_section_walk():
+    """The committed oracle capture of the same probe, section for section."""
+    assert section_walk(printout("dipole_gn_rearm")) == section_walk(
+        fixture_out("dipole_gn_rearm")
+    )
+
+
+def test_an_ex_between_execute_cards_re_arms_without_a_refill():
+    """The control. Moving the DRIVE re-arms — the second run is real — but
+    the matrix is untouched, so the oracle prints no preamble at all and
+    neither does this engine."""
+    deck = GN_REARM_DECK.replace("GN 1\n", "EX 0 1 3 0 1.\n")
+    text = run_deck(deck)[0]
+    assert text.count("ANTENNA INPUT PARAMETERS") == 2
+    between = text.split("--------- ANTENNA INPUT PARAMETERS")[1]
+    between = between.split("--------- ANTENNA INPUT PARAMETERS")[0]
+    assert "STRUCTURE IMPEDANCE LOADING" not in between
+    assert "MATRIX TIMING" not in between
