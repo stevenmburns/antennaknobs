@@ -55,7 +55,8 @@ def find_deck(capture: Path) -> Path | None:
         if not directory.is_dir():
             continue
         candidates = [
-            p for p in sorted(directory.iterdir())
+            p
+            for p in sorted(directory.iterdir())
             if p.is_file() and p.suffix.upper() == ".NEC"
         ]
         if candidates:
@@ -68,7 +69,8 @@ def find_printout(capture: Path) -> Path | None:
     if not directory.is_dir():
         return None
     candidates = [
-        p for p in sorted(directory.iterdir())
+        p
+        for p in sorted(directory.iterdir())
         if p.is_file() and p.suffix.upper() in (".OUT", ".PRT")
     ]
     return candidates[0] if candidates else None
@@ -114,23 +116,25 @@ def index(root: Path) -> list[dict]:
             deck_text = deck_path.read_text(encoding="utf-8", errors="replace")
             title, counts, freq = parse_deck(deck_text)
 
-        rows.append({
-            "capture": capture.name,
-            "title": title,
-            "freq_mhz": freq,
-            "cards": dict(sorted(counts.items())),
-            "has_tl": counts.get("TL", 0) > 0,
-            "has_nt": counts.get("NT", 0) > 0,
-            "deck": str(deck_path.relative_to(root)) if deck_path else None,
-            "deck_lines": len(deck_text.splitlines()) if deck_text else 0,
-            "printout": str(printout.relative_to(root)) if printout else None,
-            "command_line": meta.get("command_line", ""),
-            "argument_tail": meta.get("argument_tail", ""),
-            "cwd": meta.get("cwd", ""),
-            "stdin_redirected": meta.get("stdin_redirected", ""),
-            "exit_code": meta.get("exit_code", ""),
-            "elapsed_ms": meta.get("elapsed_ms", ""),
-        })
+        rows.append(
+            {
+                "capture": capture.name,
+                "title": title,
+                "freq_mhz": freq,
+                "cards": dict(sorted(counts.items())),
+                "has_tl": counts.get("TL", 0) > 0,
+                "has_nt": counts.get("NT", 0) > 0,
+                "deck": str(deck_path.relative_to(root)) if deck_path else None,
+                "deck_lines": len(deck_text.splitlines()) if deck_text else 0,
+                "printout": str(printout.relative_to(root)) if printout else None,
+                "command_line": meta.get("command_line", ""),
+                "argument_tail": meta.get("argument_tail", ""),
+                "cwd": meta.get("cwd", ""),
+                "stdin_redirected": meta.get("stdin_redirected", ""),
+                "exit_code": meta.get("exit_code", ""),
+                "elapsed_ms": meta.get("elapsed_ms", ""),
+            }
+        )
     return rows
 
 
@@ -235,8 +239,12 @@ def render_markdown(rows: list[dict]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT,
-                        help=f"capture root (default: {DEFAULT_ROOT})")
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=DEFAULT_ROOT,
+        help=f"capture root (default: {DEFAULT_ROOT})",
+    )
     parser.add_argument("--json", type=Path, help="write the raw index here")
     parser.add_argument("--markdown", type=Path, help="write the report here")
     args = parser.parse_args()
