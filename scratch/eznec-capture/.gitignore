@@ -1,0 +1,12 @@
+# The shim snapshots every file in the engine's directory, so each capture carries
+# copies of EZNEC's own housekeeping state. Those are not evidence of the protocol
+# and would triple the file count; the pre/post manifests still record their sizes
+# and SHA-256s, so nothing is lost by leaving the copies untracked.
+#
+# What IS tracked: the deck EZNEC wrote (EZN5.NEC), the printout it read back
+# (NEC5.OUT), the stdio tees, the manifests, and meta.tsv.
+*__EZNEC.INI
+*__LastZ*.txt
+*__LastZ*.s1p
+
+# (LastRun.log copies are already covered by the repo-root *.log rule.)

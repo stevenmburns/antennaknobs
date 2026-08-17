@@ -1,0 +1,5 @@
+# Build artifact — rebuild with build.ps1
+NEC5CL_x13.exe
+
+# Local install provenance, written by install.ps1 on the capture host
+installed.tsv
