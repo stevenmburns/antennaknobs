@@ -1313,21 +1313,24 @@ def test_momwire_sinusoidal_galerkin_parity_matches_sinusoidal():
 
 
 def test_momwire_sinusoidal_galerkin_capability_gates():
-    """The name-keyed capability tuples, both directions.
+    """Reads momwire's own `capabilities` registry (momwire#396), both
+    directions.
 
     Grounds: momwire#182 M4 wired all three ground models onto the Galerkin
-    testing, so ground_eps must NOT be silently dropped. Wire loading: M6
-    left it unwired (the solver raises where reached), so the engine must
-    take the warn-and-drop branch instead — deliberately absent, not
-    forgotten."""
+    testing, so ground_eps must NOT be silently dropped — both the
+    reflection-coefficient and true-Sommerfeld cells. Wire loading:
+    momwire#395 wired the Galerkin overlap term onto SinusoidalGalerkinSolver
+    (it used to be the one gap left by M6, deliberately absent from the old
+    hand-curated tuple), so it is served now too."""
     from momwire import SinusoidalGalerkinSolver
     from antennaknobs.engines.momwire import (
         _solver_supports_ground_eps,
         _solver_supports_wire_loading,
     )
 
-    assert _solver_supports_ground_eps(SinusoidalGalerkinSolver)
-    assert not _solver_supports_wire_loading(SinusoidalGalerkinSolver)
+    assert _solver_supports_ground_eps(SinusoidalGalerkinSolver, "refl-coef")
+    assert _solver_supports_ground_eps(SinusoidalGalerkinSolver, "sommerfeld")
+    assert _solver_supports_wire_loading(SinusoidalGalerkinSolver)
 
 
 def test_momwire_sinusoidal_galerkin_reads_the_hentenna_residue():
@@ -2032,3 +2035,145 @@ def test_solver_diag_absent_for_dense_bspline_engine():
     )
     eng.current_distribution()
     assert eng.solver_diag() is None
+
+
+# --------------------------------------------------------------------------
+# Capability-registry consumption (issue #941): the engine reads
+# `solver.capabilities` (momwire#396) instead of the retired hand-curated
+# `_GROUND_EPS_SOLVERS` / `_WIRE_LOADING_SOLVERS` name tuples. These pin the
+# throwaway-tier guarantee the issue is about: a solver class absent from
+# any curated list — a real solver with a stripped-down declared row, or a
+# solver with no `capabilities` attribute at all — must pass through with
+# graceful warnings, never a crash.
+# --------------------------------------------------------------------------
+
+
+def _loaded_dipole_builder():
+    """A tiny horizontal dipole whose default WireSpec asks for distributed
+    loading (conductivity) — the wire-loading warn-and-drop trigger."""
+    from types import MappingProxyType
+
+    from antennaknobs import AntennaBuilder, Wire, WireSpec
+
+    class _Dip(AntennaBuilder):
+        default_params = MappingProxyType({"freq": 14.1})
+
+        def build_wires(self):
+            return [
+                Wire((0, -5.0, 10.0), (0, -0.05, 10.0), 10, None),
+                Wire((0, -0.05, 10.0), (0, 0.05, 10.0), 1, 1 + 0j),
+                Wire((0, 0.05, 10.0), (0, 5.0, 10.0), 10, None),
+            ]
+
+        def build_wire_material(self):
+            return WireSpec(radius=1e-3, conductivity=5.8e7)
+
+    return _Dip()
+
+
+def _throwaway_capabilities():
+    """The DoD (c) example verbatim (issue #941): an empty declared row —
+    every axis refused, no ground served, no combination reasons."""
+    from momwire import Capabilities
+
+    return Capabilities(
+        grounds=frozenset(),
+        wire_loading=False,
+        extended_kernel=False,
+        junction_ports=False,
+        node_gaps=False,
+        per_wire_radius=False,
+        singular_enrichment=False,
+        refusals={},
+    )
+
+
+def _throwaway_solver_class():
+    """A solver the OLD `_WIRE_LOADING_SOLVERS`/`_GROUND_EPS_SOLVERS` name
+    tuples would have matched by class name (it really is a BSplineSolver
+    underneath, so it can actually run a solve) but whose declared
+    `capabilities` row says it serves nothing. Proves the engine follows the
+    declaration, not the class identity."""
+    from momwire import BSplineSolver
+
+    class _ThrowawaySolver(BSplineSolver):
+        capabilities = _throwaway_capabilities()
+
+    return _ThrowawaySolver
+
+
+def test_throwaway_solver_wire_loading_warns_and_drops_not_crashes(caplog):
+    """Empty capability row, wire_loading axis: same warn-and-drop as any
+    other exotic solver — logged once, the design solves as an ideal (bare)
+    wire instead of crashing on a kwarg this row declares unsupported."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        z = MomwireEngine(
+            _loaded_dipole_builder(), solver=_throwaway_solver_class()
+        ).impedance()[0]
+    assert np.isfinite(z.real) and np.isfinite(z.imag)
+    assert any(
+        "doesn't model distributed wire loading" in r.message for r in caplog.records
+    )
+
+
+def test_throwaway_solver_ground_eps_dropped_not_crashed():
+    """Empty capability row, both ground_eps cells: `grounds=frozenset()`
+    serves neither `refl-coef` nor `sommerfeld`, so the engine drops the
+    finite-ground kwargs (silently, matching the existing ground_eps
+    contract — no warning fires for this axis, only wire_loading warns) and
+    the design solves without them instead of crashing."""
+    from antennaknobs.engines.momwire import _solver_supports_ground_eps
+
+    solver = _throwaway_solver_class()
+    assert not _solver_supports_ground_eps(solver, "refl-coef")
+    assert not _solver_supports_ground_eps(solver, "sommerfeld")
+
+    eng = MomwireEngine(
+        _loaded_dipole_builder(), solver=solver, ground=("finite-fast", 10.0, 0.005)
+    )
+    assert eng._ground_eps is None
+    z = eng.impedance()[0]
+    assert np.isfinite(z.real) and np.isfinite(z.imag)
+
+
+def test_throwaway_solver_extended_kernel_refuses_gracefully():
+    """The EK axis is an early REFUSAL rather than a drop (the engine says
+    no before a fill is attempted) — still graceful: a named
+    NotImplementedError raised at construction, not a traceback out of the
+    middle of a solve."""
+    with pytest.raises(NotImplementedError, match="extended_kernel"):
+        MomwireEngine(
+            _loaded_dipole_builder(),
+            solver=_throwaway_solver_class(),
+            extended_kernel=True,
+        )
+
+
+def test_solver_with_no_capabilities_attribute_is_permissive_with_warning():
+    """The OTHER throwaway tier: a solver class that carries no
+    `capabilities` attribute at all, standing in for a momwire pin that
+    predates the momwire#396 registry. `_capabilities_of` reads None, and
+    every capability check must warn once (naming the gap) and then report
+    the capability as SERVED — the permissive-fallback design constraint
+    (issue #941). A curated name-tuple could never express this
+    degraded-but-working state; it could only ever say yes or no by class
+    name, never 'I don't know, so assume yes and let momwire's own raise be
+    the backstop'."""
+    from antennaknobs.engines.momwire import (
+        _extended_kernel_refusal,
+        _solver_supports_ground_eps,
+        _solver_supports_wire_loading,
+    )
+
+    class _NoRegistrySolver:
+        """Deliberately not a momwire solver subclass: no `capabilities`
+        attribute, inherited or otherwise."""
+
+    with pytest.warns(UserWarning, match="capabilities"):
+        assert _solver_supports_wire_loading(_NoRegistrySolver) is True
+    with pytest.warns(UserWarning, match="capabilities"):
+        assert _solver_supports_ground_eps(_NoRegistrySolver, "refl-coef") is True
+    with pytest.warns(UserWarning, match="capabilities"):
+        assert _extended_kernel_refusal(_NoRegistrySolver, {}) is None

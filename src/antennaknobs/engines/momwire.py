@@ -6,6 +6,7 @@ momwire/web/server.py:_compute_directivity_norm.
 from __future__ import annotations
 
 import logging
+import warnings
 
 import numpy as np
 from momwire import BSplineSolver
@@ -106,85 +107,87 @@ def _normalise_ground(ground):
     raise ValueError(f"unrecognised ground spec: {ground!r}")
 
 
-# Solvers whose impedance solve honours the reflection-coefficient finite
-# ground. BSplineSolver implements it; HMatrixSolver / ArrayBlockSolver
-# subclass it (dense fallback in momwire 0.4.0, fast-path blocks in 0.4.1);
-# SinusoidalSolver grew its own field-based ground_eps in momwire 0.5.0
-# (phase 6 — matches NEC gn 0 at the solver's own discretization floor,
-# ~0.1 ohm on the validation matrix). Every shipping momwire solver is on
-# the list; the guard stays for exotic/user-supplied solver classes.
-_GROUND_EPS_SOLVERS = (
-    "BSplineSolver",
-    "HMatrixSolver",
-    "ArrayBlockSolver",
-    "SinusoidalSolver",
-    # SinusoidalGalerkinSolver wires all three grounds (momwire#182 M4) by
-    # reusing each ground's existing source-field evaluator under the Galerkin
-    # test quadrature — no new field kernels, so it inherits the point-matched
-    # sibling's NEC gn 0 / gn 2 agreement. Caveat, inherited and shared with
-    # SinusoidalSolver: a wire END LYING IN the ground plane is only sound
-    # under the PEC image (the #151 ground-connected basis completes the end
-    # current with an exact mirror, which a Fresnel/Sommerfeld image is not).
-    "SinusoidalGalerkinSolver",
-)
+# --------------------------------------------------------------------------
+# Capability reads (momwire#396 / issue #941). momwire itself now carries
+# the "which solver serves which axis" knowledge as a `capabilities`
+# NamedTuple on every solver class (`from momwire import Capabilities`,
+# `solver_cls.capabilities.refusal(*cells)`). This engine used to hand-curate
+# that same matrix as `_GROUND_EPS_SOLVERS` / `_WIRE_LOADING_SOLVERS` name
+# tuples plus a prose copy of momwire's own EK+enrichment refusal —
+# duplicated knowledge that silently drifted whenever momwire wired a new
+# solver onto an axis (momwire#395 wiring wire loading onto
+# SinusoidalGalerkinSolver is exactly the drift this issue caught). Every
+# gate below now reads the registry instead; the warn-and-drop / early-
+# refusal BEHAVIOR at each call site is unchanged — only where the "does
+# this solver serve X" answer comes from.
+# --------------------------------------------------------------------------
 
 
-def _solver_supports_ground_eps(solver):
-    return getattr(solver, "__name__", None) in _GROUND_EPS_SOLVERS
+def _capabilities_of(solver_cls):
+    """`solver_cls.capabilities`, or None on a momwire pin that predates the
+    registry (momwire#396). The exact pin here is 0.31.0 (pyproject), which
+    lacks it; the submodule dev checkout is on a newer main that has it, so
+    None is exercised only via old-momwire installs, not day to day.
+    # TODO(#941): once the pin floor is bumped past the momwire release that
+    # ships `capabilities` on every solver, this fallback (and the
+    # `_capability_refusal` branch that warns instead of reading it) can be
+    # deleted."""
+    return getattr(solver_cls, "capabilities", None)
 
 
-# Distributed wire loading (issue #316 / momwire#131): every momwire
-# solver models it since momwire 0.11.0 — the BSpline family as a Galerkin
-# overlap, SinusoidalSolver as NEC's impedance boundary condition at the
-# match points (momwire#134). The gate remains as the seam for any future
-# solver that lacks the feature (warn-and-drop, not crash).
-_WIRE_LOADING_SOLVERS = (
-    "BSplineSolver",
-    "HMatrixSolver",
-    "ArrayBlockSolver",
-    "SinusoidalSolver",
-    # SinusoidalGalerkinSolver is DELIBERATELY absent: momwire#182 left wire
-    # loading unwired on it (it raises where reached), so it takes the
-    # warn-and-drop branch below rather than crashing a loaded design. Add it
-    # here when momwire wires loading into the Galerkin testing.
-)
+def _capability_refusal(solver_cls, *cells):
+    """The declared reason `cells` (one cell name, or two naming a
+    combination) is refused on `solver_cls`, or None if served — straight
+    from momwire's own `Capabilities.refusal()`.
+
+    A solver class with no `capabilities` attribute at all — an old momwire
+    pin, never a solver that deliberately declares an empty row — is
+    PERMISSIVE: warn once, naming the gap, and report every capability as
+    served. momwire's own constructor/solve-time refusal remains the
+    backstop on that old pin, so the degradation is a less-friendly error
+    message, not a silent drop.
+    """
+    caps = _capabilities_of(solver_cls)
+    if caps is None:
+        warnings.warn(
+            f"{getattr(solver_cls, '__name__', solver_cls)} has no "
+            "`capabilities` attribute — this momwire pin predates the "
+            "momwire#396 capability registry (issue #941). Treating every "
+            "capability as supported; momwire's own constructor/solve-time "
+            "refusal remains the backstop.",
+            stacklevel=3,
+        )
+        return None
+    return caps.refusal(*cells)
+
+
+def _solver_supports_ground_eps(solver, cell):
+    """Whether `solver` serves the finite-ground `cell` this call site
+    actually means: `"refl-coef"` for NEC's gn 0 reflection-coefficient
+    approximation, `"sommerfeld"` for the true Norton/Sommerfeld ground —
+    the two are independent capability cells, not one "ground_eps" flag."""
+    return _capability_refusal(solver, cell) is None
 
 
 def _solver_supports_wire_loading(solver):
-    return getattr(solver, "__name__", None) in _WIRE_LOADING_SOLVERS
+    return _capability_refusal(solver, "wire_loading") is None
 
 
-# NEC's extended thin-wire kernel — the `EK` card — on the momwire bases that
-# implement it (momwire 0.27.0: every basis — BSpline + its HMatrix/ArrayBlock
-# subclasses, the point-matched SinusoidalSolver, and since momwire#246/#287
-# the SinusoidalGalerkinSolver on every ground model; issues
-# momwire#249/#259/#269/#270/#246/#287/#299). One combination REFUSES
-# upstream, at solver construction, with a NotImplementedError. It is
-# re-raised here — same type, same shape — for one reason: the engine can say
-# no BEFORE a fill is attempted, so the caller's error path (the portal's
-# `NEC ERROR` frame, the web solve's error envelope) reports a named refusal
-# instead of a traceback out of the middle of a solve.
 def _extended_kernel_refusal(solver, solver_kwargs):
-    """Why this solver + kwargs pair cannot run the extended kernel, or None.
+    """Why this solver + kwargs pair cannot run the extended kernel, or
+    None — read straight from the solver's declared `capabilities` row
+    (momwire#396) rather than a curated copy of momwire's own rule.
 
-    * ``use_singular_enrichment=True`` — momwire#271/#249 follow-up C: the
-      enrichment DOFs carry their own singular quadrature and bypass the moment
-      kernels entirely, and the O(a²) tube expansion was never derived for the
-      s^(-1/2) shapes.
-
-    Everything else is served: finite ground (momwire#269), the Galerkin
-    family on every ground model including Sommerfeld (momwire#246/#287,
-    with the node-gated end brackets of momwire#299 making non-collinear
-    decks sound).
+    Raised HERE, at engine construction, for one reason: the engine can say
+    no BEFORE a fill is attempted, so the caller's error path (the portal's
+    `NEC ERROR` frame, the web solve's error envelope) reports a named
+    refusal instead of a traceback out of the middle of a solve. Same
+    exception type/shape as momwire's own refusals — see
+    `_require_extended_kernel`, which raises it.
     """
     if (solver_kwargs or {}).get("use_singular_enrichment"):
-        return (
-            "the extended thin-wire kernel and singular enrichment cannot be "
-            "used together (momwire#271): the enrichment DOFs bypass the "
-            "moment kernels the extended kernel corrects. Turn one of the two "
-            "off"
-        )
-    return None
+        return _capability_refusal(solver, "extended_kernel", "singular_enrichment")
+    return _capability_refusal(solver, "extended_kernel")
 
 
 class MomwireEngine(SimulationEngine):
@@ -478,35 +481,33 @@ class MomwireEngine(SimulationEngine):
         self._ground = _normalise_ground(ground)
         self._ground_z = ground_z if self._ground is not None else None
         # Finite ground constants forwarded to the impedance solve when the
-        # solver supports the reflection-coefficient model; None otherwise
-        # (PEC image).
+        # solver supports the requested ground model; None otherwise (PEC
+        # image). "refl-coef" and "sommerfeld" are independent capability
+        # cells, so each branch checks the one it actually asks the solver
+        # to run rather than one blanket "ground_eps" flag.
         self._ground_eps = None
         self._ground_model = None
         if (
             self._ground is not None
             and self._ground[0] == "terrain"
-            and _solver_supports_ground_eps(self._solver)
+            and _solver_supports_ground_eps(self._solver, "sommerfeld")
         ):
             # Terrain: the matrix never sees the facets — near-field ground
             # interaction is crest-local, so the impedance solve runs true
             # Sommerfeld with the crest medium (issue #534).
             self._ground_eps = self._ground[1].crest_medium
             self._ground_model = "sommerfeld"
-        elif (
-            self._ground is not None
-            and self._ground[0] in ("finite", "finite-fast")
-            and _solver_supports_ground_eps(self._solver)
-        ):
-            self._ground_eps = (float(self._ground[1]), float(self._ground[2]))
+        elif self._ground is not None and self._ground[0] in ("finite", "finite-fast"):
             # "finite" means true Sommerfeld on EVERY momwire solver since
             # momwire 0.8.0 (sinusoidal grew the model; HMatrix/ArrayBlock
             # solve it on their fast paths — C2-scaled image blocks + one
             # global low-rank remainder — so the old dense-solve cliff that
             # kept them on refl-coef is gone). "finite-fast" is refl-coef
             # everywhere.
-            self._ground_model = (
-                "sommerfeld" if self._ground[0] == "finite" else "refl-coef"
-            )
+            model = "sommerfeld" if self._ground[0] == "finite" else "refl-coef"
+            if _solver_supports_ground_eps(self._solver, model):
+                self._ground_eps = (float(self._ground[1]), float(self._ground[2]))
+                self._ground_model = model
 
         # Map TL tags to feed indices for the legacy build_tls() path.
         self._tag_to_feed = {}
