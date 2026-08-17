@@ -1,0 +1,13 @@
+shim_version	1
+started_utc	2026-08-17T00:03:32.1984367Z
+command_line	"C:\EZNEC 7.0\Docs\NEC5CL_x13.exe" "EZN5.NEC" "NEC5.OUT"
+argument_tail	"EZN5.NEC" "NEC5.OUT"
+cwd	C:\EZNEC 7.0\Docs
+real_engine	C:\EZNEC 7.0\Docs\NEC5CL_x13.real.exe
+real_engine_sha256	4ffac7111374583267d08720a6326eb5d8e0f2c417b25c8140263b4e75a01d7c
+stdin_redirected	False
+stdout_redirected	False
+parent_pid	16972 (self)
+exit_code	0
+elapsed_ms	18
+finished_utc	2026-08-17T00:03:32.2784905Z
