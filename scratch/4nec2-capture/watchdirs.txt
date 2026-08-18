@@ -1,0 +1,4 @@
+# Directories the shim snapshots in addition to cwd and the engine directory.
+# 4nec2 runs the engine with cwd = C:\4nec2\exe but reads and writes C:\4nec2\out,
+# so without this line the deck and printout are never captured (momwire#413).
+C:\4nec2\out

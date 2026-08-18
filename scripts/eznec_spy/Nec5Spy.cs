@@ -106,12 +106,36 @@ internal static class Nec5Spy
         return null;
     }
 
-    /// The printout path is the engine's second positional argument.
+    /// Where the printout landed. Hosts disagree about the channel: EZNEC passes
+    /// deck and printout as positional arguments, while 4nec2 (momwire#413) passes
+    /// no arguments at all and feeds the engine a two-line response file on stdin —
+    /// deck first, printout second, relative to the engine's directory. Try argv,
+    /// then fall back to the stdin tee we just recorded.
     private static string OutputPath()
     {
         var argv = Environment.GetCommandLineArgs();
-        if (argv.Length < 3) return null;
-        return Path.GetFullPath(argv[2]);
+        if (argv.Length >= 3)
+        {
+            try { return Path.GetFullPath(argv[2]); } catch { return null; }
+        }
+        return OutputPathFromStdin();
+    }
+
+    private static string OutputPathFromStdin()
+    {
+        if (_captureDir == null) return null;
+        string tee = Path.Combine(_captureDir, "stdin.bin");
+        string[] lines;
+        try { lines = File.ReadAllLines(tee); } catch { return null; }
+
+        var answers = new List<string>();
+        foreach (var line in lines)
+        {
+            string t = line.Trim();
+            if (t.Length > 0) answers.Add(t);
+        }
+        if (answers.Count < 2) return null;
+        try { return Path.GetFullPath(answers[1]); } catch { return null; }
     }
 
     private static int ApplyFault(int exitCode)
@@ -120,8 +144,15 @@ internal static class Nec5Spy
         if (spec == null) return exitCode;
 
         Note("fault_spec", spec);
+
+        // "exit:N" damages nothing on disk, so it works even when the printout
+        // path cannot be determined.
         string outPath = OutputPath();
-        if (outPath == null) { Note("fault_result", "no output argument to damage"); return exitCode; }
+        if (outPath == null && !spec.StartsWith("exit", StringComparison.OrdinalIgnoreCase))
+        {
+            Note("fault_result", "could not locate the printout to damage");
+            return exitCode;
+        }
 
         // Keep the engine's real printout alongside the capture before damaging it.
         try { File.Copy(outPath, Path.Combine(_captureDir, "printout-undamaged.txt"), true); } catch { }
