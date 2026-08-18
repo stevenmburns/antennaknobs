@@ -1,0 +1,15 @@
+shim_version	1
+started_utc	2026-08-18T17:10:36.3711456Z
+command_line	Nec2dXS1k5.exe  
+argument_tail	
+cwd	C:\4nec2\exe
+real_engine	C:\4nec2\exe\nec2dxs1K5.real.exe
+real_engine_sha256	70cf205821423623bded9a2a3ba776ca3adae3eb5d39d4ef7b67637483405841
+stdin_redirected	True
+stdout_redirected	False
+parent_pid	14420 (self)
+fault_spec	empty
+fault_result	applied to C:\4nec2\out\gs_8d_bb.out
+exit_code	0
+elapsed_ms	166
+finished_utc	2026-08-18T17:10:36.6906307Z
