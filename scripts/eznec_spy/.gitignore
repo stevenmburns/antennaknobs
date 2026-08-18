@@ -1,5 +1,7 @@
-# Build artifact — rebuild with build.ps1
-NEC5CL_x13.exe
+# Build artifacts — one shim per engine binary the host may launch, all rebuilt
+# with build.ps1. Named after their target (NEC5CL_x13.exe, nec2dxs11k.exe, ...).
+*.exe
 
-# Local install provenance, written by install.ps1 on the capture host
+# Local install provenance, written by install.ps1 per engine on the capture host
+installed-*.tsv
 installed.tsv
