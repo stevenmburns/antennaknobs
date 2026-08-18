@@ -1459,6 +1459,106 @@ def bench_deck(
     return row
 
 
+def clean_deck(r) -> bool:
+    """Deck-level membership in the clean baseline cohort — the decks whose
+    ΔΓ measures the ENGINE rather than a labeled special case. Engine-level
+    conditions (this engine errored, no comparison) are the caller's."""
+    return (
+        r.get("ground_supported", True)
+        and not r.get("partial_net")
+        and not r.get("virtualized_anchors")
+        # r-flagged decks (reference from our own resolved text, #439)
+        # are a labeled cohort, not the clean baseline: the resolution
+        # and the engines share the SY evaluator, so its bugs cancel
+        and not r["nec2c"].get("resolved_deck")
+        # d-flagged decks measure the reference's stepped-diameter
+        # defect, not the engine (#885) — they get their own section
+        and not r.get("stepped_radius")
+    )
+
+
+# PyNEC is the IMPORT canary (issue #946). PyNEC/nec2++ and nec2c are near
+# enough to the same physics that a large PyNEC ΔΓ does not mean "the solvers
+# disagree" — it means the geometry we handed PyNEC is not the deck nec2c
+# read, i.e. the importer diverged. Corpus evidence: PyNEC's median ΔΓ is
+# 0.0002 with p90 0.0077 (2026-07-17 wild sweep, 1,875 decks), so anything
+# near 0.05 is orders out of family.
+#
+# The floor dominates in practice (25 × a 0.0002 median is 0.005); the
+# multiple only matters if a future corpus is far noisier, where an absolute
+# 0.02 would flag half the run.
+#
+# The multiple is gated on sample size because on a short run the suspect
+# inflates its OWN baseline and hides: a 3-deck run containing k9ay_orig
+# (0.0848) medians at 0.0424, putting the threshold at 1.06 and flagging
+# nothing. Below the gate the median carries no information about corpus
+# noise, so the floor is the honest test.
+_CANARY_FLOOR = 0.02
+_CANARY_MULTIPLE = 25.0
+_CANARY_MIN_BASELINE = 20
+
+# Corroboration, not a gate: when every engine sits at the SAME distance from
+# the reference, the fault is upstream of all of them. Spread within this
+# fraction of the smallest ΔΓ counts as "clustered".
+_CANARY_CLUSTER_FRAC = 0.5
+
+
+def _feed0_dgamma(res):
+    """Feed-0 ΔΓ for one engine result, or None if it did not produce one."""
+    if not res or res.get("error") or engine_error_kind(res):
+        return None
+    cmp = res.get("cmp") or []
+    return cmp[0]["dgamma"] if cmp else None
+
+
+def import_canary(rows, engines):
+    """Decks whose PyNEC ΔΓ is out of family — import-divergence suspects.
+
+    Returns ``(median, threshold, suspects, n_baseline)``; ``suspects`` are
+    ``(row, pynec_dgamma, clustered)`` sorted worst-first. ``clustered``
+    marks the strong signature: every engine the same distance from nec2c,
+    which no solver-physics story explains but a mistranslated deck does.
+    ``n_baseline`` lets the caller say whether the median was trusted — below
+    ``_CANARY_MIN_BASELINE`` it is reported but not used.
+
+    The baseline median is taken over the clean cohort only, so labeled
+    special cases (unsupported ground, partial networks, ...) cannot inflate
+    the threshold and mask a real suspect.
+    """
+    if "pynec" not in engines:
+        return None, None, [], 0
+    ok = [r for r in rows if not r.get("error") and not r.get("nec2c", {}).get("error")]
+    baseline = [
+        dg
+        for r in ok
+        if clean_deck(r)
+        and (dg := _feed0_dgamma(r["engines"].get("pynec"))) is not None
+    ]
+    if not baseline:
+        return None, None, [], 0
+    median = statistics.median(baseline)
+    threshold = _CANARY_FLOOR
+    if len(baseline) >= _CANARY_MIN_BASELINE:
+        threshold = max(threshold, _CANARY_MULTIPLE * median)
+
+    suspects = []
+    for r in ok:
+        dg = _feed0_dgamma(r["engines"].get("pynec"))
+        if dg is None or dg < threshold:
+            continue
+        others = [
+            v for e in engines if (v := _feed0_dgamma(r["engines"].get(e))) is not None
+        ]
+        clustered = (
+            len(others) > 1
+            and min(others) > 0
+            and (max(others) - min(others)) <= _CANARY_CLUSTER_FRAC * min(others)
+        )
+        suspects.append((r, dg, clustered))
+    suspects.sort(key=lambda t: -t[1])
+    return median, threshold, suspects, len(baseline)
+
+
 def fmt_dg(res):
     kind = engine_error_kind(res)
     if kind == "geo":
@@ -1494,7 +1594,8 @@ def print_report(rows, engines):
         " s = EX 6 current-source reference via Y-matrix superposition (#463, #464),"
         " p = gn 2 + near-ground ungrounded wire: pynec known-unreliable (#448),"
         " d = stepped-radius wires: nec2c reference suspect "
-        "(NEC-2 stepped-diameter defect, #885)"
+        "(NEC-2 stepped-diameter defect, #885),"
+        " i = PyNEC ΔΓ out of family: suspect the IMPORTER, not the solver (#946)"
     )
     print("=" * 104)
     hdr = (
@@ -1503,6 +1604,10 @@ def print_report(rows, engines):
     )
     print(hdr)
     print("-" * len(hdr))
+    canary_median, canary_threshold, canary_suspects, canary_n = import_canary(
+        rows, engines
+    )
+    canary_decks = {id(r) for r, _, _ in canary_suspects}
     for r in ok:
         z0 = _z(r["nec2c"]["z"][0])
         flags = (
@@ -1515,6 +1620,7 @@ def print_report(rows, engines):
             + ("s" if r.get("nec2c", {}).get("superposition") else "")
             + ("p" if r.get("pynec_somm_suspect") else "")
             + ("d" if r.get("stepped_radius") else "")
+            + ("i" if id(r) in canary_decks else "")
         )
         cells = " ".join(f"{fmt_dg(r['engines'].get(e)):>11}" for e in engines)
         print(
@@ -1557,16 +1663,7 @@ def print_report(rows, engines):
         dgs = [
             r["engines"][e]["cmp"][0]["dgamma"]
             for r in ok
-            if r.get("ground_supported", True)
-            and not r.get("partial_net")
-            and not r.get("virtualized_anchors")
-            # r-flagged decks (reference from our own resolved text, #439)
-            # are a labeled cohort, not the clean baseline: the resolution
-            # and the engines share the SY evaluator, so its bugs cancel
-            and not r["nec2c"].get("resolved_deck")
-            # d-flagged decks measure the reference's stepped-diameter
-            # defect, not the engine (#885) — they get their own section
-            and not r.get("stepped_radius")
+            if clean_deck(r)
             and not r["engines"].get(e, {}).get("error")
             and r["engines"][e].get("cmp")
         ]
@@ -1579,6 +1676,41 @@ def print_report(rows, engines):
             f"{ENGINE_LABEL[e]:<12} n={len(dgs):>3}  median={statistics.median(dgs):.4f}  "
             f"<0.01:{within(0.01):>3}  <0.05:{within(0.05):>3}  <0.2:{within(0.20):>3}"
         )
+
+    # Import-divergence canary (#946). See import_canary for why PyNEC is the
+    # instrument: it shares nec2c's physics closely enough that its distance
+    # from the reference reads the TRANSLATION, not the solver.
+    if canary_suspects:
+        print("\n" + "=" * 72)
+        trusted = canary_n >= _CANARY_MIN_BASELINE
+        basis = (
+            f"median {canary_median:.4f} over {canary_n} clean decks"
+            if trusted
+            else f"floor; {canary_n}-deck baseline is below the "
+            f"{_CANARY_MIN_BASELINE}-deck gate"
+        )
+        print(
+            f"IMPORT-DIVERGENCE SUSPECTS ({len(canary_suspects)}) — PyNEC ΔΓ "
+            f"≥ {canary_threshold:.4f} ({basis}), #946"
+        )
+        print(
+            "  PyNEC ≈ nec2c physics, so a large PyNEC ΔΓ means the geometry we\n"
+            "  handed it is not the deck nec2c read. 'clustered' = every engine\n"
+            "  the same distance from the reference: the strong signature, since\n"
+            "  no solver-physics story puts them all out by one common offset."
+        )
+        print("=" * 72)
+        print(f"{'deck':<34} {'pynec ΔΓ':>10} {'× median':>10}  signature")
+        for r, dg, clustered in canary_suspects:
+            # The ratio only means something against a trusted baseline; on a
+            # short run the suspect is part of its own median.
+            ratio = f"{dg / canary_median:.0f}x" if trusted and canary_median else "—"
+            sig = (
+                "clustered — import suspect"
+                if clustered
+                else "pynec-only — see #448/#885 first"
+            )
+            print(f"{r['deck']:<34} {dg:>10.4f} {ratio:>10}  {sig}")
 
     # Stepped-radius cohort (#885): on d-flagged decks the trustworthy signal
     # is the bs2↔nec5 MUTUAL distance — two independent formulations that both
