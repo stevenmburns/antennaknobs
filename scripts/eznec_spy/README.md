@@ -155,6 +155,42 @@ scratch/eznec-capture/0007_20260817-101530/
   post/               the same after — the printout the engine produced
 ```
 
+## Fault injection
+
+The engine's error paths all exit 0, so EZNEC must detect failure by reading the
+printout. To find out what it reads for, the shim can damage the printout *after*
+a real run and hand the damaged file back.
+
+Armed by a **marker file**, not an environment variable — EZNEC inherits its
+environment from Explorer, so a variable set in a shell never reaches it:
+
+```powershell
+'error_at:1670' | Set-Content scratch/eznec-capture/fault.txt
+```
+
+The marker is **consumed on read**, so exactly one launch is affected and a session
+can never get stuck failing. The engine always runs for real first, and its
+undamaged printout is saved into the capture as `printout-undamaged.txt`.
+
+| spec | what EZNEC receives |
+| --- | --- |
+| `empty` | printout truncated to 0 bytes |
+| `delete` | printout removed |
+| `truncate:N` | first N bytes only (default 2000) |
+| `error_at:N` | first N bytes, then a `NEC ERROR` refusal line |
+| `nec_error[:msg]` | printout replaced by a single `NEC ERROR` line |
+| `garbage` | printout replaced by non-NEC text |
+| `exit:N` | printout untouched; process exit status forced to N |
+
+Then trigger **one** engine launch in EZNEC. Because EZNEC caches results, an edit
+that returns a model to an already-computed state produces no launch at all —
+nudge the frequency before clicking `Src Dat` so a launch actually happens.
+
+Findings are written up in the status doc under "Error convention"; captures
+0036-0042 are the evidence. In short: the exit status is ignored, the printout must
+echo the deck's `CM` cards or it is rejected as stale, and a `NEC ERROR` line placed
+after that echo is displayed to the user verbatim.
+
 ## Safety notes
 
 - The shim never blocks the session: every capture step is wrapped, and a failure

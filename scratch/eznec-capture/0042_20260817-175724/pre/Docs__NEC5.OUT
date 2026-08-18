@@ -1,0 +1,42 @@
+1
+ x13
+
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-5)    *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          Dipole in free space                                                         
+                                                                                                       
+                          EZNEC Pro/2+ v. 7.0.4  2026-08-17 17:55:54                                   
+                                                                                                       
+                          ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.                              
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+                                 - - - STRUCTURE SPECIFICATION - - -
+
+                                     COORDINATES MUST BE INPUT IN
+                                     METERS OR BE SCALED TO METERS
+                                     BEFORE STRUCTURE INPUT IS ENDED
+
+ Model definition commands:
+
+ GW    1    11  0.00000E+00 -2.50000E-01  0.00000E+00  0.00000E+00  2.50000E-01  0.00000E+00  5.00000E-04
+ GE    0   -1
+
+
+ ***** NEC ERROR - MOMWIRE REFUSES THIS DECK: NT CARD REQUIRES A NETWORK SOLVER

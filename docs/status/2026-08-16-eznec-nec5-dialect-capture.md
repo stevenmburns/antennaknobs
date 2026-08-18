@@ -59,7 +59,74 @@ exit 0, 26 ms
   `ERROR getting output file from command line` and exits 0; `-i`/`-o` flags print
   `GETIOF: ERROR - UNABLE TO OPEN FILE -i` and exit 0. The exit code is therefore
   not a refusal channel — a drop-in must signal refusals in the printout, the way
-  the SimNEC portal emits `NEC ERROR` (antennaknobs#829).
+  the SimNEC portal emits `NEC ERROR` (antennaknobs#829). Confirmed from the other
+  side by fault injection: EZNEC ignores a non-zero exit outright (next section).
+
+## Error convention: EZNEC reads the printout, never the exit status
+
+Established by fault injection, captures 0036-0042. The shim runs the real engine,
+then damages what it left behind before returning to EZNEC; a one-shot marker file
+(`fault.txt`) arms exactly one run, and the engine's real printout is kept beside
+each capture as `printout-undamaged.txt`. Fixture: `Dipole1.ez`, free space, 11
+segments, frequency nudged each run to defeat EZNEC's result cache. Dialog wording
+below is transcribed from the screen; the ellipses are where the operator
+abbreviated.
+
+| what the engine left behind | exit | what EZNEC did |
+| --- | --- | --- |
+| valid printout, **exit code 1** | 1 | **nothing — normal results displayed** |
+| printout deleted | 0 | "Unable to read calculating engine output file ... due to 'File not found'. No results available. This may be due to the location of the external NEC program. Try a different location. Suggestion: ..." |
+| printout emptied to 0 bytes | 0 | "Unable to read calculating engine output file ... due to No results available." |
+| one line, no header echo | 0 | "Calculating engine is malfunctioning or not present. Output file NEC.OUT is present, but was written earlier from another calculation." |
+| header echo intact, results cut | 0 | "Unable to read NEC output file due to NEC program error. **Would you like to view the NEC calculating engine output file NEC5.OUT**" |
+| header echo intact + `NEC ERROR` line | 0 | same dialog; **the refusal text is visible** in the viewer |
+
+Three findings, in rising order of consequence.
+
+**The exit status is not read at all.** A printout that was byte-for-byte correct,
+returned with exit 1, produced normal results and no complaint. This confirms by
+test what the invocation section infers from the engine's own error paths: the
+exit code is not a refusal channel in either direction. A drop-in gains nothing by
+exiting non-zero and loses nothing by exiting zero.
+
+**A printout must prove it belongs to this run.** EZNEC stamps the launch time
+into the deck as a comment card — `CM EZNEC Pro/2+ v. 7.0.4  2026-08-17 17:51:10`,
+matching the capture's own start time — and NEC-5 echoes the comment block back at
+the top of the printout. Replace the printout with content lacking that echo and
+EZNEC reports the file as *"written earlier from another calculation"*, even though
+it was written milliseconds ago: the check is on content, not the filesystem
+timestamp. Keeping the first 1670 bytes (banner, echoed `CM` cards, geometry) and
+cutting everything after clears the check and moves EZNEC to a different branch.
+The experiment does not separate "checks the echoed timestamp" from "requires a
+parseable header" — but the timestamp is the only field in that prefix that
+distinguishes one run from another, so it is almost certainly the discriminator.
+
+**Refusals can speak.** With the header echo intact and results missing, EZNEC
+offers to display the printout, and text placed where the results would have been
+reaches the user verbatim. Injecting
+
+```
+ ***** NEC ERROR - MOMWIRE REFUSES THIS DECK: NT CARD REQUIRES A NETWORK SOLVER
+```
+
+put that line in front of the operator as the last line of the viewer. So the
+`NEC ERROR` frame the SimNEC portal already emits (antennaknobs#829) is the right
+shape here too, and a refusal can name its own reason rather than surfacing as an
+unexplained failure.
+
+### What this obliges a drop-in to do
+
+1. **Always write the output file**, even when refusing. Deleting it sends EZNEC
+   down the "check where you installed the NEC program" path, which blames the
+   user's configuration for what is actually a refusal.
+2. **Always echo the deck's `CM` cards** at the top of the printout, the way NEC-5
+   does. Without that echo every printout is rejected as stale and no message of
+   any kind survives.
+3. **Put the refusal after the echo**, as a `NEC ERROR` line. Exit 0 regardless.
+
+Nothing in this convention is a barrier — it is three lines of formatting
+discipline. The refusal path is the *easy* part of standing in at this seam; the
+hard part remains physics scope.
 
 ## Sweep protocol: one process launch per frequency point
 
