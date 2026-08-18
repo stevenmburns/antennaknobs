@@ -211,6 +211,25 @@ internal static class Nec5Spy
         return candidate;
     }
 
+    /// .NET builds the child's stdin writer from Console.InputEncoding and auto-flushes
+    /// it as the process starts, which emits that encoding's preamble. When the console
+    /// is UTF-8 that puts a BOM ahead of everything the host sends — invisible to a host
+    /// that ignores stdin (EZNEC), fatal to one whose engine reads a response file from
+    /// it: 4nec2's NEC-2 builds answer "Error opening input-file" on the BOM'd first line
+    /// (momwire#413).
+    ///
+    /// Swap in a preamble-free encoding of the SAME codepage, so nothing else shifts.
+    private static void SuppressStdinPreamble()
+    {
+        try
+        {
+            var current = Console.InputEncoding;
+            if (current == null || current.GetPreamble().Length == 0) return;
+            if (current.CodePage == 65001) Console.InputEncoding = new UTF8Encoding(false);
+        }
+        catch { }   // no console, or the host forbids the change — not worth failing a run
+    }
+
     private static int Delegate(string realExe)
     {
         var psi = new ProcessStartInfo(realExe)
@@ -222,6 +241,8 @@ internal static class Nec5Spy
             RedirectStandardError = true,
             WorkingDirectory = Directory.GetCurrentDirectory(),
         };
+
+        SuppressStdinPreamble();
 
         using (var child = Process.Start(psi))
         {
@@ -326,6 +347,14 @@ internal static class Nec5Spy
         return Path.Combine(Path.GetTempPath(), "eznec-capture");
     }
 
+    /// Directory the shim itself sits in — the second place marker files are looked
+    /// for, so a host can be configured without touching the capture root.
+    private static string ShimDir()
+    {
+        try { return Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName); }
+        catch { return null; }
+    }
+
     private static void BeginCapture(string realExe)
     {
         string root = CaptureRoot();
@@ -379,13 +408,48 @@ internal static class Nec5Spy
         FlushMeta();
     }
 
-    /// The two places the engine's file I/O can land: the working directory EZNEC
-    /// chose, and the engine's own directory (where EZN5.NEC / NEC5.OUT live).
+    /// Extra directories to snapshot, one per line, blank and #-comment lines ignored.
+    /// A file rather than an environment variable for the same reason the fault marker
+    /// is: hosts launched from Explorer inherit its environment, not a shell's.
+    private const string WatchFileName = "watchdirs.txt";
+
+    /// Hosts that keep their decks outside the engine directory need to say so.
+    /// 4nec2 (momwire#413) runs the engine with cwd = ..\exe but reads and writes
+    /// ..\out, so without this the deck and printout are never captured.
+    private static IEnumerable<string> ExtraWatchedDirs()
+    {
+        foreach (var dir in new[] { CaptureRoot(), ShimDir() })
+        {
+            if (dir == null) continue;
+            string path = Path.Combine(dir, WatchFileName);
+            if (!File.Exists(path)) continue;
+            string[] lines;
+            try { lines = File.ReadAllLines(path); } catch { continue; }
+            foreach (var line in lines)
+            {
+                string d = line.Trim();
+                if (d.Length == 0 || d.StartsWith("#")) continue;
+                yield return d;
+            }
+            yield break;   // first file found wins
+        }
+    }
+
+    /// The places the engine's file I/O can land: the working directory the host
+    /// chose, the engine's own directory (where EZN5.NEC / NEC5.OUT live), and
+    /// anything watchdirs.txt adds.
     private static IEnumerable<string> WatchedDirs(string realExe)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var d in new[] { Directory.GetCurrentDirectory(), Path.GetDirectoryName(realExe) })
-            if (d != null && seen.Add(d) && Directory.Exists(d)) yield return d;
+        var roots = new List<string> { Directory.GetCurrentDirectory(), Path.GetDirectoryName(realExe) };
+        try { roots.AddRange(ExtraWatchedDirs()); } catch { }
+        foreach (var d in roots)
+        {
+            if (d == null) continue;
+            string full;
+            try { full = Path.GetFullPath(d); } catch { continue; }
+            if (seen.Add(full) && Directory.Exists(full)) yield return full;
+        }
     }
 
     private static void SnapshotWatchedDirs(string phase)
