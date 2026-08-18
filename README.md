@@ -111,7 +111,7 @@ point — agreement between independent engines is your confidence check.
 | | **PyNEC** | **momwire** |
 |---|---|---|
 | What | Python binding to the compiled C++ **NEC2** engine | In-house **method-of-moments** engines, pure-Python core with optional C++ accelerators |
-| Basis | NEC2 thin-wire (pulse/sinusoidal) | Two bases — sinusoidal and B-spline (degree 1–2) — plus H-matrix and array-block accelerators built on them |
+| Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — sinusoidal, B-spline (degree 1–2) and razor (NEC-5's razor-blade testing on a tent basis) — plus H-matrix and array-block accelerators built on the B-spline basis |
 | Speed | Very fast single-frequency solves | Fast; C++ accelerators (pybind11) for assembly/quadrature, pure-Python fallback |
 | Ground | Sommerfeld–Norton finite ground (default) or the faster reflection-coefficient approximation | Same two models on every solver (momwire ≥ 0.8.0): true Sommerfeld–Norton or the faster reflection-coefficient approximation; the engine API defaults to free space (the web workbench turns ground on) |
 | Install | Prebuilt wheel from the `python-necpp` fork release (OpenBLAS vendored) | C++ accelerator built from the `momwire` submodule |
@@ -128,7 +128,22 @@ point — agreement between independent engines is your confidence check.
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
 --engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
 --engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
+--engine momwire:razor-nec5      # NEC-5 formulation twin, interactive lane
+--engine momwire:razor           # same, default (GL) quadrature — convergence/certification lane, not interactive
 ```
+
+**Razor** (`momwire:razor` / `momwire:razor-nec5`) is a tent-basis solver
+tested by NEC-5's own razor-blade (mixed-potential path) rule rather than
+point matching or Galerkin testing — a formulation twin you can check
+without the licensed NEC-5 binary. `razor-nec5` binds NEC-5's identified
+quadrature and is the interactive one (sub-second to N≈300-400 free /
+N≈200-400 grounded); plain `razor` (converged Gauss-Legendre quadrature) is
+12–80× slower and exists for convergence study and certification against
+NEC-5 printouts, not live dragging — it can exceed an 8 GB working set by
+N≈800 grounded / N≈1600 free. See
+[the solver reference](https://antennaknobs.dev/reference/solver/) for the
+full guidance and refusal boundary (no extended kernel, no junction/node-
+gap ports, no ground contact over a finite ground).
 
 **NEC-compatible vs converged feed** (sinusoidal-Galerkin only): the plain
 `sinusoidal-galerkin` drives NEC's segment-wide gap — it reproduces NEC/EZNEC
