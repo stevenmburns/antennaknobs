@@ -18,7 +18,9 @@ cross-checking.
 ## Basis functions
 
 momwire offers two current-expansion basis families in one engine — uncommon
-among free tools, where basis quality is usually a paid feature:
+among free tools, where basis quality is usually a paid feature — plus a
+third TESTING rule (razor, below) on the tent expansion the B-spline
+family's own degree-1 case already uses:
 
 - **B-spline** — a degree-1/2 Galerkin basis, the default (degree 2),
 - **sinusoidal** — a NEC-2-style three-term basis, point-matched like NEC-2;
@@ -52,6 +54,69 @@ Plus two **accelerated** solvers for large problems:
 - **`arrayblock`** — element-aware block-low-rank, near-linear on arrays of
   identical / few-shape elements.
 
+And one **formulation twin**:
+
+- **`razor`** / **`razor-nec5`** — a tent basis tested by NEC-5's own
+  razor-blade rule rather than point matching or Galerkin testing — see
+  below.
+
+## Razor: the NEC-5 formulation twin
+
+`razor` and `razor-nec5` are one solver class (`RazorSolver`) offered as two
+`--basis` names, the way `bspline` / `bspline-d1` are one class on two
+degrees. Unknowns are the same interior-knot tent basis `bspline-d1` uses,
+but the row equations come straight from the public NEC-5 manual's mixed-
+potential method — the E-field boundary condition enforced on *path
+integrals* between element centroids ("razor-blade" testing), not point
+matching and not Galerkin testing. That makes it a formulation **twin**: a
+way to reproduce NEC-5's own convergence behaviour, including its
+well-known O(1/N) reactance walk, without the licensed NEC-5 binary.
+`razor-nec5` additionally binds NEC-5's identified quadrature rule for the
+one path integral the manual leaves numerically open (`nec5_quadrature`);
+plain `razor` keeps the converged Gauss-Legendre quadrature instead, so the
+walk it shows is the testing rule's own discretization error rather than a
+quadrature shortfall.
+
+**Which one to reach for is not a coin flip — measured 2026-08-18:**
+
+| | `razor-nec5` | `razor` (default GL quadrature) |
+| --- | --- | --- |
+| Role | Interactive lane | Convergence / certification lane |
+| Speed | Sub-second to N≈300-400 free, N≈200-400 grounded; 2-4× behind `bspline-d2` beyond that | 12-80× slower than `bspline-d2`; over a second even at N=100 under any ground |
+| Memory | Same order as the other dense bases | Exceeds an 8 GB working set by N≈800 grounded / N≈1600 free |
+| Use for | Live knob-dragging, ordinary A/B checks | Convergence ladders, certification against NEC-5 printouts |
+
+Reach for `razor-nec5` the way you'd reach for `bspline-d2` on an ordinary
+solve; reach for plain `razor` only when the GL-converged testing-rule
+answer itself is what you're checking, and budget the time and memory it
+costs.
+
+**Refusal boundary.** RazorSolver is deliberately scoped to what its
+formulation-twin role needs, and refuses the rest at construction with a
+named message rather than a silent wrong answer:
+
+- **No extended kernel** — it is reduced-kernel only; NEC-5's formulation
+  tests the expansion on the wire axis, and extending it would answer a
+  different question than the one this solver exists to check.
+- **No junction ports, no node gaps** — a junction basis is already a
+  through-current unknown with no unambiguous branch to drive a source or
+  land a series gap on. Ordinary K=2 junctions (a wire split, or two wires
+  meeting end to end) are unaffected — those resolve to the same tent
+  basis automatically, from the geometry, with nothing to configure.
+- **No ground contact over a finite ground** (issue #282) — over both
+  finite-ground flavours, an end resting in the plane would need its
+  grounded-end tent's image wing to carry spurious contact charge, since
+  the fold hard-codes image coefficient 1 (PEC). Ground contact over a
+  **PEC** plane (`ground` = `pec`) is fully served — including a
+  base-fed monopole.
+- **No K≥3 port**, on a feed, load, or junction — the branch pair a source
+  or load would drive is ambiguous at three or more coincident ends.
+
+Free space and all three grounds (PEC, reflection-coefficient, Sommerfeld)
+are otherwise served, along with per-wire radii and both distributed and
+lumped wire loading. Full detail: momwire's
+[`docs/razor-solver.md`](https://github.com/stevenmburns/antennaknobs/blob/main/momwire/docs/razor-solver.md).
+
 ## The extended thin-wire kernel (EK)
 
 Every basis above solves a *thin-wire* integral equation: the current is
@@ -68,18 +133,21 @@ dipole, nec2c reads 123.7+28.6 j reduced and 113.6+29.0 j extended — an 8 %
 step — and momwire's sinusoidal basis tracks both sides of the card to 0.5 %
 and 3.1 % respectively.
 
-momwire serves it on all five solver families — **`sinusoidal`**,
+momwire serves it on five of the six solver families — **`sinusoidal`**,
 **`sinusoidal-galerkin`**, **`bspline`**, **`hmatrix`** and
 **`arrayblock`** — in free space and over every ground model, at about
 1.0–1.3× the reduced-kernel solve. The Galerkin family joined with momwire
 0.27.0: momwire#246 built its extended kernel, momwire#287 measured the
 Sommerfeld ground in, and momwire#299 made non-collinear geometry (vees,
-bent elements, junctions, radius steps) sound. One combination refuses,
+bent elements, junctions, radius steps) sound. Two things refuse it,
 loudly rather than silently:
 
-- **singular enrichment** — the enrichment degrees of freedom carry their own
-  quadrature and bypass the moment kernels the extended kernel corrects
-  (momwire#271).
+- **`razor` / `razor-nec5`** — reduced-kernel only, by design: NEC-5's
+  formulation is the comparison target, and it tests the expansion on the
+  wire axis. See [Razor](#razor-the-nec-5-formulation-twin) above.
+- **singular enrichment**, on the bases that otherwise serve EK — the
+  enrichment degrees of freedom carry their own quadrature and bypass the
+  moment kernels the extended kernel corrects (momwire#271).
 
 Three ways to ask for it: the **extended kernel (EK)** check in a solver
 slot's gear menu (per slot, so you can put the same basis and mesh in two
