@@ -15,7 +15,7 @@ from antennaknobs.cli import (
     _GROUND_UNSET,
 )
 from antennaknobs.engines import PyNECEngine, MomwireEngine
-from momwire import SinusoidalSolver, BSplineSolver
+from momwire import SinusoidalSolver, BSplineSolver, RazorSolver
 
 from conftest import needs_pynec
 
@@ -34,6 +34,7 @@ def test_parse_momwire_default():
     [
         ("sinusoidal", SinusoidalSolver),
         ("bspline", BSplineSolver),
+        ("razor", RazorSolver),
     ],
 )
 def test_parse_momwire_with_basis(basis, cls):
@@ -82,6 +83,7 @@ def test_momwire_bases_keys():
         "bspline",
         "hmatrix",
         "arrayblock",
+        "razor",
     }
 
 
@@ -159,6 +161,43 @@ def test_make_factory_binds_bspline_d1_variant():
     assert factory.keywords == {
         "solver": BSplineSolver,
         "solver_kwargs": {"degree": 1},
+    }
+
+
+def test_make_factory_binds_razor():
+    """Plain `momwire:razor` is the RazorSolver roster entry — the NEC-5
+    formulation twin — with no solver_kwargs (the default converged
+    Gauss-Legendre quadrature)."""
+    factory = make_engine_factory("momwire:razor", _GROUND_UNSET)
+    assert factory.func is MomwireEngine
+    assert factory.keywords == {"solver": RazorSolver}
+
+
+def test_parse_razor_nec5_variant_binds_quadrature_kwarg():
+    """`momwire:razor-nec5` (momwire#316/#432) is the quadrature axis, not a
+    different basis: same RazorSolver class as plain `razor`, with
+    `nec5_quadrature=True` bound as solver kwargs — the interactive lane
+    per the 2026-08-18 benchmark guidance, vs plain `razor`'s slower
+    convergence/certification lane."""
+    name, kw = parse_engine_spec("momwire:razor-nec5")
+    assert name == "momwire"
+    assert kw == {"solver": RazorSolver, "solver_kwargs": {"nec5_quadrature": True}}
+
+
+def test_parse_razor_unchanged_by_nec5_variant():
+    """Plain `razor` still binds no solver_kwargs (default GL quadrature)."""
+    assert parse_engine_spec("momwire:razor") == (
+        "momwire",
+        {"solver": RazorSolver},
+    )
+
+
+def test_make_factory_binds_razor_nec5_variant():
+    factory = make_engine_factory("momwire:razor-nec5", _GROUND_UNSET)
+    assert factory.func is MomwireEngine
+    assert factory.keywords == {
+        "solver": RazorSolver,
+        "solver_kwargs": {"nec5_quadrature": True},
     }
 
 
