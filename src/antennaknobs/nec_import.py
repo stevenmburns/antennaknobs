@@ -257,6 +257,13 @@ class NecDeck:
     # and their TL end becomes a PortVirtual in network(). Empty unless
     # parsed with network=True and virtualize_anchors=True.
     virtual_anchors: frozenset[int] = frozenset()
+    # GX/GR symmetry (issue #946): the cell size in segments while the
+    # symmetry is still live at GE (None when a later GW collapsed it, the
+    # common case), and how many LD segments NEC discarded because they
+    # addressed an image rather than the cell. Reported, not refused — the
+    # discard IS the deck's physics under NEC.
+    symmetry_cell: int | None = None
+    symmetry_dropped_loads: int = 0
 
     def virtual_anchor_tags(self) -> tuple[int, ...]:
         """The NEC tags of the wires virtualized as TL anchors (issue #427),
@@ -315,6 +322,12 @@ class NecDeck:
                 f"{n} remote TL-anchor wire{'s' if n > 1 else ''} "
                 f"(tag{'s' if n > 1 else ''} {tags}) modeled as ideal virtual "
                 f"terminations"
+            )
+        if self.symmetry_dropped_loads:
+            n = self.symmetry_dropped_loads
+            parts.append(
+                f"{n} load segment{'s' if n > 1 else ''} addressed a GX/GR "
+                "image rather than the symmetry cell, which NEC discards"
             )
         if not parts:
             return None
@@ -1485,6 +1498,96 @@ def _segment_range(wires, tag, sf, st, card):
     return [_locate_segment(wires, tag, s, card) for s in range(sf, st + 1)]
 
 
+def _abs_segment(wires, wi, seg):
+    """1-based absolute segment number of local segment ``seg`` on wire
+    ``wi`` — NEC numbers segments consecutively in structure order."""
+    return sum(w[1] for w in wires[:wi]) + seg
+
+
+def _from_abs_segment(wires, idx):
+    """Inverse of ``_abs_segment``: (wire index, local segment), or None
+    when the absolute number falls outside the structure."""
+    for i, w in enumerate(wires):
+        if idx <= w[1]:
+            return (i, idx)
+        idx -= w[1]
+    return None
+
+
+def _symmetry_cell_pairs(wires, pairs, cell):
+    """Apply NEC's symmetry-cell rule to a card's (wire, segment) pairs
+    (issue #946), returning ``(pairs, dropped)``.
+
+    ``GX``/``GR`` declare the structure symmetric, and NEC then builds the
+    matrix on one *cell* — the structure as it stood when the card fired.
+    Anything that enters the matrix can therefore only be expressed
+    cell-wide, and ``LOAD`` finishes by stamping the cell's loading onto
+    every copy (NEC-2 Fortran: ``NOP=N/NP`` then
+    ``DO 3 I=1,NP ... ZARRAY(L1)=ZT``). Two consequences, both reproduced
+    on nec2c and nec5cl:
+
+    * a pair inside the cell applies to the same segment of every copy;
+    * a pair outside the cell is *overwritten* by that pass — the card is
+      written and then destroyed, so it has no effect at all.
+
+    ``cell`` is the cell size in segments, or None when the structure
+    carries no live symmetry (the common case — any ``GW`` after the
+    replication collapses it).
+    """
+    total = sum(w[1] for w in wires)
+    if not cell or cell >= total:
+        return pairs, 0
+    nop = total // cell
+    out: list[tuple[int, int]] = []
+    seen: set[tuple[int, int]] = set()
+    dropped = 0
+    for wi, s in pairs:
+        idx = _abs_segment(wires, wi, s)
+        if idx > cell:
+            dropped += 1
+            continue
+        for k in range(nop):
+            p = _from_abs_segment(wires, idx + k * cell)
+            if p is not None and p not in seen:
+                seen.add(p)
+                out.append(p)
+    return out, dropped
+
+
+def _symmetry_after(mnemonic, card, wires, segs_before, cell):
+    """The symmetry cell (in segments) after a geometry card, or None for
+    no symmetry — the preserve/destroy rules, from the NEC-2 Fortran.
+
+    Only ``GX``/``GR`` create symmetry, and they set the cell to whatever
+    the structure was when they fired (``REFLC``: ``NP=N``). It survives a
+    congruence of the *whole* structure and dies the moment anything is
+    added or transformed selectively:
+
+    * ``GW``/``GA``/``GH`` — ``WIRE``/``HELIX`` unconditionally do
+      ``NP=N; IPSYM=0``: the new structure belongs to no copy.
+    * ``GM`` — ``MOVE`` returns early, leaving symmetry intact, only for
+      ``IF ((NRPT.EQ.0).AND.(IX.EQ.1))``: no replication, and the move
+      starting at the first segment.
+    * ``GS`` — whole-structure scaling keeps it (measured). The tag-ranged
+      form is an xnec2c extension NEC-2 has no field for, and it *is*
+      selective, so it drops symmetry rather than claiming a parity we
+      cannot check.
+    """
+    if mnemonic in ("GX", "GR"):
+        return segs_before or None
+    if mnemonic in ("GW", "GA", "GH"):
+        return None
+    if mnemonic == "GM":
+        its = int(card.f(8) + 0.5)
+        if card.i(1) == 0 and _first_wire_with_tag(wires, its, card) == 0:
+            return cell
+        return None
+    if mnemonic == "GS":
+        lo, hi = card.i(0), card.i(1)
+        return None if lo > 0 and hi >= lo else cell
+    return cell
+
+
 # Clearance, in wavelengths, beyond which a 1-segment TL-terminated wire is
 # treated as an electrically irrelevant remote anchor (issue #427). The
 # corpus family parks anchors ~100–500 λ away; NEC's own thin-wire coupling is
@@ -1599,6 +1702,7 @@ def _translate_network_cards(
     virtualize_anchors,
     fr_first_mhz=None,
     is_raw=(),
+    sym_cell=None,
 ):
     """Turn the collected LD/TL/NT cards into NecLoad/NecTL/NecNT records,
     plus (mnemonic, reason) detail for every card instance that stays
@@ -1706,6 +1810,27 @@ def _translate_network_cards(
     connected = {(t.wire_a, t.seg_a) for t in tls} | {(t.wire_b, t.seg_b) for t in tls}
     connected |= {(t.wire_a, t.seg_a) for t in nts} | {(t.wire_b, t.seg_b) for t in nts}
 
+    dropped_by_symmetry = 0
+
+    def ld_range(tag, sf, st, card):
+        """``_segment_range`` under NEC's symmetry-cell rule (#946). On a
+        structure with live ``GX``/``GR`` symmetry a load lands on the cell
+        and therefore on every copy, or lands outside the cell and is
+        destroyed by the same pass — see ``_symmetry_cell_pairs``."""
+        pairs = _segment_range(wires, tag, sf, st, card)
+        if sym_cell is None:
+            return pairs
+        kept, dropped = _symmetry_cell_pairs(wires, pairs, sym_cell)
+        # Parity with NEC, but not silently: NEC discards these without a
+        # word, and a load the user wrote going missing is worth saying.
+        # Counted rather than routed through ``skip`` on purpose — this is
+        # not a card we failed to express, it is one we express exactly,
+        # so it must not read as a partial network (the same reason remote
+        # TL anchors get their own field instead of an ignored entry).
+        nonlocal dropped_by_symmetry
+        dropped_by_symmetry += dropped
+        return kept
+
     loads: list[NecLoad] = []
     loaded: set[tuple[int, int]] = set()
     conductivity: float | None = None
@@ -1715,7 +1840,7 @@ def _translate_network_cards(
         ldtyp = card.i(0)
         tag, sf, st = card.i(1), card.i(2), card.i(3)
         if ldtyp in (0, 1, 4, 6):
-            pairs = _segment_range(wires, tag, sf, st, card)
+            pairs = ld_range(tag, sf, st, card)
             if len(pairs) > _LD_EXPAND_MAX:
                 skip(
                     "LD",
@@ -1778,7 +1903,7 @@ def _translate_network_cards(
                 # their own WireSpec conductivity, so a range that covers
                 # each touched wire in full translates per wire (NEC's
                 # last-card-wins per segment becomes last-wins per wire).
-                pairs = _segment_range(wires, tag, sf, st, card)
+                pairs = ld_range(tag, sf, st, card)
                 by_wire: dict[int, set[int]] = {}
                 for wi, s in pairs:
                     by_wire.setdefault(wi, set()).add(s)
@@ -1806,7 +1931,7 @@ def _translate_network_cards(
             eps_r, b = card.f(4), card.f(5)
             if b <= 0.0 or eps_r <= 1.0:
                 continue  # no jacket, or a vacuum one — electrically a no-op
-            pairs = _segment_range(wires, tag, sf, st, card)
+            pairs = ld_range(tag, sf, st, card)
             by_wire = {}
             for wi, s in pairs:
                 by_wire.setdefault(wi, set()).add(s)
@@ -1889,6 +2014,7 @@ def _translate_network_cards(
         detail,
         skipped,
         frozenset(virtualized),
+        dropped_by_symmetry,
     )
 
 
@@ -1929,6 +2055,7 @@ def parse_nec(
     ground = False
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
+    sym_cell: int | None = None  # GX/GR symmetry cell, in segments (#946)
 
     geometry = {
         "GW": _gw,
@@ -2040,7 +2167,11 @@ def parse_nec(
         card = _Card(mnemonic, tokens[1:], where, syms)
 
         if mnemonic in geometry:
+            segs_before = sum(w[1] for w in wires)
             geometry[mnemonic](card, wires)
+            # GX/GR leave the structure symmetric, which changes how NEC
+            # resolves anything entering the matrix (#946).
+            sym_cell = _symmetry_after(mnemonic, card, wires, segs_before, sym_cell)
         elif mnemonic == "GE":
             ground = ground or card.i(0) != 0
         elif mnemonic == "FR":
@@ -2141,6 +2272,7 @@ def parse_nec(
     wire_insulation: tuple[tuple[int, tuple[float, float]], ...] = ()
     detail: list[tuple[str, str]] = []
     virtual_anchors: frozenset[int] = frozenset()
+    symmetry_dropped = 0
     if network:
         (
             loads,
@@ -2152,6 +2284,7 @@ def parse_nec(
             detail,
             skipped,
             virtual_anchors,
+            symmetry_dropped,
         ) = _translate_network_cards(
             wires,
             lds_raw,
@@ -2162,6 +2295,7 @@ def parse_nec(
             virtualize_anchors,
             fr_first_mhz,
             is_raw,
+            sym_cell,
         )
         ignored |= skipped
 
@@ -2185,4 +2319,6 @@ def parse_nec(
         network_mode=network,
         extended_kernel=extended_kernel,
         virtual_anchors=virtual_anchors,
+        symmetry_cell=sym_cell,
+        symmetry_dropped_loads=symmetry_dropped,
     )
