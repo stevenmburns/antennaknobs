@@ -70,7 +70,131 @@ internal static class Nec5Spy
         }
         sw.Stop();
 
+        try { exitCode = ApplyFault(exitCode); } catch (Exception ex) { Note("fault_error", ex.ToString()); }
+
         try { EndCapture(realExe, exitCode, sw.ElapsedMilliseconds); } catch { }
+        return exitCode;
+    }
+
+    // ---- fault injection ----------------------------------------------------
+    //
+    // The engine's every error path exits 0, so EZNEC must detect failure by
+    // reading the printout. To find out what it reads for, we damage the printout
+    // after a real run and watch what EZNEC does.
+    //
+    // Armed by a marker file rather than an environment variable: EZNEC inherits
+    // its environment from Explorer, so an env var set in a shell never reaches it.
+    // The marker is CONSUMED on use — one fault per launch, so a session can never
+    // get stuck failing.
+
+    private const string FaultFileName = "fault.txt";
+
+    /// Reads and deletes the fault marker. Returns null when unarmed.
+    private static string TakeFaultSpec()
+    {
+        foreach (var dir in new[] { CaptureRoot(), Path.GetDirectoryName(
+                     Process.GetCurrentProcess().MainModule.FileName) })
+        {
+            if (dir == null) continue;
+            string path = Path.Combine(dir, FaultFileName);
+            if (!File.Exists(path)) continue;
+            string spec;
+            try { spec = File.ReadAllText(path).Trim(); } catch { continue; }
+            try { File.Delete(path); } catch { }   // one-shot: disarm immediately
+            if (spec.Length > 0) return spec;
+        }
+        return null;
+    }
+
+    /// The printout path is the engine's second positional argument.
+    private static string OutputPath()
+    {
+        var argv = Environment.GetCommandLineArgs();
+        if (argv.Length < 3) return null;
+        return Path.GetFullPath(argv[2]);
+    }
+
+    private static int ApplyFault(int exitCode)
+    {
+        string spec = TakeFaultSpec();
+        if (spec == null) return exitCode;
+
+        Note("fault_spec", spec);
+        string outPath = OutputPath();
+        if (outPath == null) { Note("fault_result", "no output argument to damage"); return exitCode; }
+
+        // Keep the engine's real printout alongside the capture before damaging it.
+        try { File.Copy(outPath, Path.Combine(_captureDir, "printout-undamaged.txt"), true); } catch { }
+
+        string verb = spec, arg = null;
+        int colon = spec.IndexOf(':');
+        if (colon > 0) { verb = spec.Substring(0, colon).Trim(); arg = spec.Substring(colon + 1).Trim(); }
+
+        switch (verb.ToLowerInvariant())
+        {
+            case "empty":
+                File.WriteAllText(outPath, string.Empty);
+                break;
+
+            case "delete":
+                File.Delete(outPath);
+                break;
+
+            case "truncate":
+            {
+                int keep;
+                if (!int.TryParse(arg, NumberStyles.Integer, CultureInfo.InvariantCulture, out keep))
+                    keep = 2000;
+                var text = File.ReadAllText(outPath);
+                File.WriteAllText(outPath, text.Substring(0, Math.Min(keep, text.Length)));
+                break;
+            }
+
+            case "nec_error":
+                // The refusal frame the SimNEC portal emits (antennaknobs#829).
+                File.WriteAllText(outPath,
+                    " ***** NEC ERROR - " + (arg ?? "CARD NOT SUPPORTED BY THIS ENGINE") + "\r\n");
+                break;
+
+            case "error_at":
+            {
+                // Keep a valid header (the echoed CM cards carry the timestamp EZNEC
+                // checks for freshness), then append the refusal frame where results
+                // would have been. This is the shape a momwire drop-in would emit.
+                int keep;
+                if (!int.TryParse(arg, NumberStyles.Integer, CultureInfo.InvariantCulture, out keep))
+                    keep = 1670;
+                var head = File.ReadAllText(outPath);
+                File.WriteAllText(outPath,
+                    head.Substring(0, Math.Min(keep, head.Length))
+                    + "\r\n ***** NEC ERROR - MOMWIRE REFUSES THIS DECK: "
+                    + "NT CARD REQUIRES A NETWORK SOLVER\r\n");
+                break;
+            }
+
+            case "garbage":
+                File.WriteAllText(outPath, "not a printout at all\r\nsecond line\r\n");
+                break;
+
+            case "exit":
+            {
+                // Leave the printout intact and only change the exit status, to test
+                // whether EZNEC inspects it at all.
+                int code;
+                if (int.TryParse(arg, NumberStyles.Integer, CultureInfo.InvariantCulture, out code))
+                {
+                    Note("fault_result", "exit code overridden to " + code);
+                    return code;
+                }
+                break;
+            }
+
+            default:
+                Note("fault_result", "unknown verb, nothing done");
+                return exitCode;
+        }
+
+        Note("fault_result", "applied to " + outPath);
         return exitCode;
     }
 
