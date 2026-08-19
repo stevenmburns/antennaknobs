@@ -2288,13 +2288,30 @@ def test_momwire_razor_refuses_node_gaps_automatically():
         MomwireEngine(_ApexDipole(), solver=RazorSolver, ground=None).impedance()
 
 
-def test_momwire_razor_refuses_extended_kernel_automatically():
+def test_momwire_pulse_refuses_extended_kernel_automatically():
     """Same automatic-capability-wiring claim as the node-gaps test above,
     checked on the other early-refusal path (`_require_extended_kernel`,
-    raised at engine CONSTRUCTION rather than inside a solve): RazorSolver's
+    raised at engine CONSTRUCTION rather than inside a solve): the solver's
     `capabilities.refusals["extended_kernel"]` message surfaces unchanged,
-    with no antennaknobs-side copy of the reason."""
-    from momwire import RazorSolver
+    with no antennaknobs-side copy of the reason.
+
+    The refusing solver is PULSE. It was razor until momwire 0.33.0, whose
+    momwire#398 D1 gave razor the extended kernel as an opt-in kwarg — the
+    four-axis NEC-5 twin — so razor's cell is now served (gated below) and
+    pulse carries the wiring claim: it is reduced-kernel only by mechanism
+    (the charge bookkeeping), not by preference, and momwire says so."""
+    from momwire import PulseSolver
 
     with pytest.raises(NotImplementedError, match="reduced-kernel"):
-        MomwireEngine(Builder(), solver=RazorSolver, extended_kernel=True)
+        MomwireEngine(Builder(), solver=PulseSolver, extended_kernel=True)
+
+
+def test_momwire_razor_serves_extended_kernel():
+    """The cell the wiring test used to lean on, now served: momwire 0.33.0
+    ships razor-EK (momwire#398 D1), and the engine passes the kwarg through
+    to a working solve rather than surfacing a stale refusal."""
+    from momwire import RazorSolver
+
+    engine = MomwireEngine(Builder(), solver=RazorSolver, extended_kernel=True)
+    (z,) = engine.impedance()
+    assert abs(z) > 1.0  # a real answer, not a placeholder
