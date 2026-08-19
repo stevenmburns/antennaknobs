@@ -305,9 +305,9 @@ def test_data_contract_is_the_protocol_not_the_parser():
             self.nports = nports
 
         def y_at(self, f_hz):
-            return np.full((self.nports, self.nports), 0.0j) + np.eye(
-                self.nports
-            ) * 0.01
+            return (
+                np.full((self.nports, self.nports), 0.0j) + np.eye(self.nports) * 0.01
+            )
 
     y = synth_y(1, 3)
     net = Network(
