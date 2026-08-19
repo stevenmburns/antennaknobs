@@ -1,0 +1,235 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html xmlns:v="urn:schemas-microsoft-com:vml"
+xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=iso-8859-1">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 9">
+<meta name=Originator content="Microsoft Word 9">
+<link rel=File-List href="./ItsContour_files/filelist.xml">
+<title>ItsContour</title>
+<!--[if gte mso 9]><xml>
+ <o:DocumentProperties>
+  <o:Author>default</o:Author>
+  <o:LastAuthor>default</o:LastAuthor>
+  <o:Revision>4</o:Revision>
+  <o:TotalTime>7</o:TotalTime>
+  <o:Created>2006-01-11T15:37:00Z</o:Created>
+  <o:LastSaved>2006-01-11T15:48:00Z</o:LastSaved>
+  <o:Pages>1</o:Pages>
+  <o:Words>348</o:Words>
+  <o:Characters>1988</o:Characters>
+  <o:Lines>16</o:Lines>
+  <o:Paragraphs>3</o:Paragraphs>
+  <o:CharactersWithSpaces>2441</o:CharactersWithSpaces>
+  <o:Version>9.3821</o:Version>
+ </o:DocumentProperties>
+</xml><![endif]-->
+<style>
+<!--
+ /* Font Definitions */
+@font-face
+	{font-family:Helvetica;
+	panose-1:0 0 0 0 0 0 0 0 0 0;
+	mso-font-alt:Arial;
+	mso-font-charset:0;
+	mso-generic-font-family:swiss;
+	mso-font-format:other;
+	mso-font-pitch:variable;
+	mso-font-signature:3 0 0 0 1 0;}
+ /* Style Definitions */
+p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{mso-style-parent:"";
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";}
+h1
+	{mso-style-next:Normal;
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:12.0pt;
+	margin-left:0in;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:1;
+	font-size:12.0pt;
+	font-family:Helvetica;
+	mso-font-kerning:0pt;
+	text-decoration:underline;
+	text-underline:single;}
+a:link, span.MsoHyperlink
+	{color:blue;
+	text-decoration:underline;
+	text-underline:single;}
+a:visited, span.MsoHyperlinkFollowed
+	{color:blue;
+	text-decoration:underline;
+	text-underline:single;}
+@page Section1
+	{size:8.5in 11.0in;
+	margin:70.85pt 70.85pt 70.85pt 70.85pt;
+	mso-header-margin:35.4pt;
+	mso-footer-margin:35.4pt;
+	mso-paper-source:0;}
+div.Section1
+	{page:Section1;}
+-->
+</style>
+<!--[if gte mso 9]><xml>
+ <o:shapedefaults v:ext="edit" spidmax="1027"/>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <o:shapelayout v:ext="edit">
+  <o:idmap v:ext="edit" data="1"/>
+ </o:shapelayout></xml><![endif]-->
+</head>
+
+<body lang=EN-US link=blue vlink=blue style='tab-interval:.5in'>
+
+<div class=Section1>
+
+<p class=MsoNormal><b><span style='font-family:Arial'>Some explanation about
+Area and Grap contour settings</span></b> <b><span style="mso-spacerun:
+yes">&nbsp;</span></b><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;
+font-family:Arial'>(From www.voacap.com by by Jari Perkiömäki)</span><b><br>
+</b><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:Arial'><br>
+<b><br>
+Fact</b> = multiplying factor<o:p></o:p></span></p>
+
+<p class=MsoNormal><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;
+font-family:Arial'><![if !supportEmptyParas]>&nbsp;<![endif]><o:p></o:p></span></p>
+
+<p class=MsoNormal style='margin-left:30.0pt'><span style='font-size:10.0pt;
+mso-bidi-font-size:12.0pt;font-family:Arial'>Usually either 1. or 100. (100 for
+percents)<o:p></o:p></span></p>
+
+<p class=MsoNormal style='margin-bottom:12.0pt'><span style='font-size:10.0pt;
+mso-bidi-font-size:12.0pt;font-family:Arial'><br>
+<b>Code</b> = calculation code<o:p></o:p></span></p>
+
+<p class=MsoNormal style='margin-left:30.0pt'><span style='font-size:10.0pt;
+mso-bidi-font-size:12.0pt;font-family:Arial'>0 = user-defined values given in
+CON(n) (max of 6 allowed)<br>
+1 = Automatic Max, down to manual MIN in&nbsp;DECR decrements<br>
+2 = Automatic generated/defined steps by program<br>
+3 = Automatic Min, up to manual MAX in INCR steps<o:p></o:p></span></p>
+
+<p class=MsoNormal><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;
+font-family:Arial'><br>
+<b>Args</b> = number of numeric arguments to follow.<br>
+<br>
+<b>Con(n)</b> = numeric arguments, up to args<br>
+<br>
+<br>
+<b>1: USER DEFINED CONTOUR VALUES (CODE = 0) <br style='mso-special-character:
+line-break'>
+<![if !supportLineBreakNewLine]><br style='mso-special-character:line-break'>
+<![endif]></b></span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;
+font-family:Helvetica'><o:p></o:p></span></p>
+
+<p class=MsoNormal><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;
+font-family:"Courier New"'>Param&nbsp;&nbsp; &nbsp; MUF days (MUFday= % of
+days/month sky-wave propagation expected at MUF mode)<br>
+<br>
+Factor&nbsp;&nbsp;&nbsp; 100.<br>
+Code&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;0: user specified<br>
+Args&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;6<br>
+Con(1)&nbsp;&nbsp; &nbsp;1.<br>
+Con(2)&nbsp;&nbsp; &nbsp;10.<br>
+Con(3)&nbsp;&nbsp; &nbsp;50.<br>
+Con(4)&nbsp;&nbsp; &nbsp;90.<br>
+Con(5)&nbsp;&nbsp; &nbsp;99.<br>
+Con(6)&nbsp;&nbsp; &nbsp;110.<br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Helvetica'><br>
+</span><u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'>Explanations: <br>
+</span></u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'><br>
+Multiply values in datafile by 100. <br>
+Use 6 values given. <br>
+<br>
+<br>
+<b>2: PROGRAM DEFINES MAX TO USER DEFINED MIN + DECREMENT (CODE = 1) <br>
+</b><br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+"Courier New"'>Param&nbsp;&nbsp; &nbsp; DBU (Median field strength at receive
+location (dBu))<br>
+<br>
+Factor&nbsp; &nbsp; 1.<br>
+Code&nbsp;&nbsp; &nbsp; &nbsp;1: find max go min<br>
+Args&nbsp;&nbsp; &nbsp; &nbsp;2<br>
+Decr&nbsp;&nbsp; &nbsp; &nbsp;5.<br>
+Min.&nbsp;&nbsp; &nbsp; &nbsp;0.<br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Helvetica'><br>
+</span><u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'>Explanations: <br>
+</span></u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'><br>
+Find MAX in datafile (e.g. say it was 69) <br>
+Round up to the next multiple of CON(1) (70 in this case). <br>
+Contours start at 70 (but you will not see this one) and go down in steps of 5
+[= CON(1)] for 6 contours. The lower limit will be 0 [= CON(2)]. Thus, if max
+was 14, contours would be &gt;10, 5, &lt;0. <br>
+<br>
+<br>
+<b>3. PROGRAM DEFINED MAX, MIN AND INCREMENT (CODE = 2) <br>
+</b><br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+"Courier New"'>Param&nbsp;&nbsp; &nbsp; TANGLE (Radiation angle (degrees))<br>
+<br>
+Factor&nbsp;&nbsp; &nbsp;1.<br>
+Code&nbsp;&nbsp; &nbsp; &nbsp;2: automatic<br>
+Args&nbsp;&nbsp; &nbsp; &nbsp;0<br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Helvetica'><br>
+</span><u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'>Explanations: <br>
+</span></u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'><br>
+Find MIN and MAX in datafile (e.g. 4.6, 32.3) <br>
+The steps are based on a complicated algorithm, but it essentially finds 6
+contours within the min and max. In this case it would find
+&lt;6,12,18,24,30,&gt;30. <br>
+<br>
+<br>
+<b>4. PROGRAM DEFINED MIN TO USER DEFINED MAX AND INCREMENT (CODE = 3) <br>
+</b></span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Helvetica'><br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+"Courier New"'>Param&nbsp;&nbsp; &nbsp; &nbsp;RPWRG (Required power &amp;
+antenna gain to achieve reliab (dB))<br>
+<br>
+Factor&nbsp;&nbsp; &nbsp;1.<br>
+Code&nbsp;&nbsp; &nbsp; &nbsp;3: find min go max<br>
+Args&nbsp;&nbsp; &nbsp; &nbsp;2<br>
+Incr&nbsp;&nbsp; &nbsp; &nbsp;10.<br>
+Max&nbsp;&nbsp; &nbsp; &nbsp; 200.<br>
+</span><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Helvetica'><br>
+</span><u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'>Explanations: <br>
+</span></u><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;font-family:
+Arial'><br>
+Find MIN in datafile <br>
+Round down to the next multiple of CON(1) <br>
+Contours start at this value and go up in steps of 10 [= CON(1)] for 6
+contours. The upper limit is 200 [= CON(2)]. <br>
+code=3 is opposite of code=1, and is used for values that are really negative,
+but are calculated as positive values (such as LOSS &amp; RPWRG).<br>
+<br>
+<br>
+<b>See also:</b> Point-to-Point Time- and&nbsp;Distance &nbsp;<a
+href="ItsScaling.html">Y-axis scaling</a><o:p></o:p></span></p>
+
+</div>
+
+</body>
+
+</html>

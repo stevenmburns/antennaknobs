@@ -1,0 +1,13 @@
+shim_version	1
+started_utc	2026-08-19T17:01:58.9689018Z
+command_line	Nec2dXS3k0.exe  
+argument_tail	
+cwd	C:\4nec2\exe
+real_engine	C:\4nec2\exe\nec2dxs3k0.real.exe
+real_engine_sha256	8c2063661f3ac0bcaf4cd4733d71384e6e450899596badd55a62e2db4a4b840b
+stdin_redirected	True
+stdout_redirected	False
+parent_pid	39024 (self)
+exit_code	0
+elapsed_ms	14745
+finished_utc	2026-08-19T17:02:13.8541225Z

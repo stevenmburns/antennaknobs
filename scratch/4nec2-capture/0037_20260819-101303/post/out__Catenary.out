@@ -1,0 +1,22 @@
+1
+
+
+
+                                 *********************************************
+
+                                    NUMERICAL ELECTROMAGNETICS CODE (NEC-2D)
+
+                                 *********************************************
+
+
+
+
+                                     - - - - COMMENTS - - - -
+
+
+                          Example of NEC-4 catenary wire                                             
+                                                                                                     
+
+
+ ***** CARD ERROR - TOO MANY FIELDS IN RECORD
+ ***** TEXT -->  CW 1 39 -19.64 0.0 20 19.64 0.0 20 0.001 2 19.64 1                              
