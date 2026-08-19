@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
-from typing import Optional, Union
+from typing import Optional, Protocol, Union
 
-from .touchstone import Touchstone
+import numpy as np
 
 # Wire/cable stock split out in momwire#456 ws2 phase A (the circuit half of
 # this module is destined for momwire.networks; the physical-materials half
@@ -513,6 +513,25 @@ class Admittance:
             )
 
 
+class AdmittanceData(Protocol):
+    """What a measured-data branch needs from its ``data``: a port count
+    (validated at construction) and the short-circuit admittance matrix at a
+    solve frequency (what the reducer stamps).
+
+    :class:`~antennaknobs.touchstone.Touchstone` is the canonical
+    implementation. Typing the branches to this protocol instead of that
+    class keeps the circuit spec free of the Touchstone parser — the parser
+    and its file reading stay behind in antennaknobs when the circuit core
+    moves down to ``momwire.networks`` (momwire#456 ws2)."""
+
+    @property
+    def nports(self) -> int: ...
+
+    def y_at(self, f_hz: float) -> np.ndarray:
+        """Admittance matrix (siemens, ``nports × nports``) at ``f_hz``."""
+        ...
+
+
 @dataclass(frozen=True)
 class TouchstoneLoad:
     """A measured / vendor 1-port (``.s1p``) as a frequency-dependent load
@@ -522,11 +541,12 @@ class TouchstoneLoad:
     instead of an ideal one. The admittance is ``y = 1/Z(f)`` from the file, so
     it is the measured-data sibling of a 1-port ``Admittance`` / ``Shunt``.
 
-    ``data`` is a 1-port :class:`~antennaknobs.touchstone.Touchstone`
-    (see ``read_touchstone``). Works on both engines (post-MoM reducer math)."""
+    ``data`` is any 1-port `AdmittanceData` — in practice a
+    :class:`~antennaknobs.touchstone.Touchstone` (see ``read_touchstone``).
+    Works on both engines (post-MoM reducer math)."""
 
     port: str
-    data: Touchstone
+    data: AdmittanceData
 
     def __post_init__(self):
         if self.data.nports != 1:
@@ -544,12 +564,13 @@ class TouchstoneTwoPort:
     like ``TL``/``Admittance`` but from real data: a characterized balun, coax
     section, filter, or tuner dropped in as a black box.
 
-    ``data`` is a 2-port :class:`~antennaknobs.touchstone.Touchstone`
-    (see ``read_touchstone``). Works on both engines (post-MoM reducer math)."""
+    ``data`` is any 2-port `AdmittanceData` — in practice a
+    :class:`~antennaknobs.touchstone.Touchstone` (see ``read_touchstone``).
+    Works on both engines (post-MoM reducer math)."""
 
     a: str
     b: str
-    data: Touchstone
+    data: AdmittanceData
 
     def __post_init__(self):
         if self.data.nports != 2:
