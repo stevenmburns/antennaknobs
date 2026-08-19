@@ -1,0 +1,13 @@
+shim_version	1
+started_utc	2026-08-19T17:11:01.8358388Z
+command_line	NEC42W64CL.exe  
+argument_tail	
+cwd	C:\4nec2\exe
+real_engine	C:\4nec2\exe\NEC42W64CL.real.exe
+real_engine_sha256	2fb857ef4edd15c5a46fb2fe694502e965652e71f69855151b05210ddd410ace
+stdin_redirected	True
+stdout_redirected	False
+parent_pid	35984 (self)
+exit_code	0
+elapsed_ms	201
+finished_utc	2026-08-19T17:11:02.3807419Z

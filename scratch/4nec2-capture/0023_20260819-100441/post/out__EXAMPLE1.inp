@@ -1,0 +1,9 @@
+CM Example 1 :	Dipole in free space 	' Comment cards
+CM See GetStarted.txt
+CE 							' End of comment
+GW 1 9 0 -.2418 0 0 .2418 0 .0001
+GE 0
+EX 0 1 5 0 1 0
+FR 0 1 0 0 300 0
+XQ
+EN
