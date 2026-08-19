@@ -292,6 +292,38 @@ def test_touchstone_load_is_shunt_to_common():
     assert z == pytest.approx(1.0 / (y[0, 0] + 0.01), rel=1e-9)
 
 
+def test_data_contract_is_the_protocol_not_the_parser():
+    """The ``data`` contract is `network.AdmittanceData` — any y_at/nports
+    object, not the Touchstone parser class (momwire#456 ws2 phase A: the
+    circuit core moves to momwire.networks, the parser stays behind). Same
+    oracle as test_touchstone_load_is_shunt_to_common with the parsed file
+    replaced by a hand-rolled stand-in, plus the port-count validation
+    firing on the stand-in's nports."""
+
+    class FixedY:
+        def __init__(self, nports):
+            self.nports = nports
+
+        def y_at(self, f_hz):
+            return np.full((self.nports, self.nports), 0.0j) + np.eye(
+                self.nports
+            ) * 0.01
+
+    y = synth_y(1, 3)
+    net = Network(
+        ports={"a": PortOnWire("a")},
+        branches=[TouchstoneLoad("a", FixedY(1))],
+        sources=[Driven(port="a")],
+    )
+    z = reducer(net, 1).driven_impedance(y, WL)[0]
+    assert z == pytest.approx(1.0 / (y[0, 0] + 0.01), rel=1e-9)
+
+    with pytest.raises(ValueError, match="1-port"):
+        TouchstoneLoad("a", FixedY(2))
+    with pytest.raises(ValueError, match="2-port"):
+        TouchstoneTwoPort("a", "b", FixedY(1))
+
+
 def test_touchstone_twoport_matches_augmented_nodal_solve():
     """A driven port + a measured 2-port to a floating port: the branch is a
     pure group-1 stamp, so the reference is the nodal solve of (antenna Y + [Y])."""
