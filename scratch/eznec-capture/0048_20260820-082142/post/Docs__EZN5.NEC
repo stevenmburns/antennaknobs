@@ -1,0 +1,14 @@
+CM Vertical over real ground
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-08-20 08:21:42
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.
+CE
+GW 1,10,0.,0.,0.,0.,0.,10.3,.02
+GE 1,-1
+FR 0,1,0,0,7.02
+GN 0,0,0,0,13.,.005,1.,0.
+EX 4,1,-1,0,1.414214,0.
+PQ 0
+XQ 0
+EN
