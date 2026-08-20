@@ -155,7 +155,15 @@ def pattern_metrics(ff, *, beamwidth_db=3.0):
     return {
         "peak_gain_dbi": peak,
         "takeoff_deg": float(90.0 - thetas[ti]),
-        "azimuth_deg": float(phis[pi]),
+        # Wrapped into [0, 360): the azimuth grid carries a DUPLICATED
+        # endpoint (φ = 0 and φ = 360 are one direction, both sampled), and
+        # the two copies differ at the last bit — 1.0744769060050083 against
+        # 1.074476906005009 on the pota_performer pattern. Reporting the raw
+        # grid value therefore let a 1-ULP tie decide between "0" and "360"
+        # for the same bearing, which is a property of the build rather than
+        # of the antenna (issue #958). Canonicalise the answer, not the grid:
+        # the ring is closed on purpose, for the polar plots.
+        "azimuth_deg": float(phis[pi]) % 360.0,
         "front_to_back_db": front_to_back,
         "az_beamwidth_deg": _beamwidth_wrapped(phis, ring, pi, thr),
         "el_beamwidth_deg": _beamwidth_linear(90.0 - thetas, rings[:, pi], ti, thr),
