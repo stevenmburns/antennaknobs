@@ -25,21 +25,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.53.0" icon="star">
-  **The portal moves home.** The SimNEC engine portal now lives in
-  momwire itself: `pip install momwire` provides the `momwire-nec2c`
-  drop-in engine, serving momwire's own antenna-only NEC dialect with a
-  [published grammar](https://momwire.dev/reference/deck-grammar-nec2/)
-  and [usage notes](https://momwire.dev/reference/portal-usage/) — and
-  its version probe now reports the engine's own version. momwire 0.31.0
-  also completes the memory campaign's follow-through: the sinusoidal
-  family joins the certified memory model, and large Sommerfeld solves
-  come out *faster* than before the campaign. The 5-band **hexbeam** is
-  now [tuned against its physical one-coax feed](/reference/validation/)
-  — worst SWR 1.04 across all five bands, two independent formulations
-  in consensus — and the NEC-5 reference page gains the full
-  formulation-and-cost story behind the
-  [validation panel](/reference/nec5/).
+<Card title="New in v0.54.0" icon="star">
+  **The razor basis arrives.** momwire 0.32.0's `RazorSolver` — the
+  NEC-5 formulation twin (tent basis, razor-blade testing, the same
+  method the reference code itself uses) — is now a selectable engine:
+  `--engine momwire:razor-nec5` for interactive work, reproducing the
+  licensed binary's printed impedances to a fixed few-hundredths-of-an-ohm
+  offset, and `momwire:razor` as the converged reference lane. The row
+  serves all three ground models clear of the plane, **base-fed monopoles
+  and grounded wire ends over PEC**, wire loading, per-wire radii, and
+  `.nec` decks — and what it refuses, it refuses with the reason in the
+  message. See the [solver reference](/reference/solver/) for the
+  capability table and the measured performance guidance.
 </Card>
 
 ## The whole pitch, in one line

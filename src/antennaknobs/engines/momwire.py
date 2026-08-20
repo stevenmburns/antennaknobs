@@ -9,7 +9,7 @@ import logging
 import warnings
 
 import numpy as np
-from momwire import BSplineSolver
+from momwire import BSplineSolver, RazorSolver
 
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
@@ -37,6 +37,8 @@ def _parity_for_solver(solver, solver_kwargs):
       - BSplineSolver degree=2 → quadratic → odd
       - SinusoidalSolver → odd
       - SinusoidalGalerkinSolver → odd (same basis, Galerkin testing)
+      - RazorSolver → even (also a tent basis, like BSplineSolver degree=1 —
+        see below)
     Anything else falls through as "any" (no coercion)."""
     name = getattr(solver, "__name__", "")
     if name in ("SinusoidalSolver", "SinusoidalGalerkinSolver"):
@@ -55,6 +57,20 @@ def _parity_for_solver(solver, solver_kwargs):
         # bspline path.
         degree = (solver_kwargs or {}).get("degree", 2)
         return "even" if int(degree) == 1 else "odd"
+    if name == "RazorSolver":
+        # RazorSolver is knot-centred like the tent families: one unit tent
+        # per interior knot (momwire's "the interior knots of each wire" —
+        # docs/razor-solver.md), the same expansion BSplineSolver(degree=1)
+        # uses, just tested by the razor-blade rule instead of Galerkin. Its
+        # own feed_arclength doc is explicit about the consequence: "On an
+        # even segment count a midpoint feed is already the exact centre
+        # knot" — a knot sits exactly at the physical centre only when the
+        # segment count is even (N segments, N+1 knots, centre knot index
+        # N/2), so an odd count would force the feed to snap off-centre to
+        # the nearest knot instead. `nec5_quadrature` (the `razor-nec5`
+        # variant) only changes how ∫A·dl is evaluated, not where the basis
+        # or the feed live, so both roster entries share this rule.
+        return "even"
     return "any"
 
 
@@ -173,6 +189,26 @@ def _solver_supports_wire_loading(solver):
     return _capability_refusal(solver, "wire_loading") is None
 
 
+def _solver_accepts_junctions_kwarg(solver_cls):
+    """Whether `solver_cls`'s constructor takes a `junctions=` geometry
+    hint at all — a constructor-SHAPE fact, not a capability cell (there is
+    no "junctions" row in `Capabilities`), so it is checked by class
+    identity here rather than through `_capability_refusal`.
+
+    Every basis but RazorSolver declares (or, for the BSpline fast-path
+    subclasses, forwards through `**kwargs` to a parent that declares)
+    `junctions` as a real parameter, so passing `junctions=None` on a
+    junction-free design is a no-op everywhere except RazorSolver, which
+    detects junctions from the geometry itself and does not declare the
+    parameter at all — not even to accept `None` (momwire's own deck front
+    end hits the identical wrinkle: `momwire.deck._solver._NATIVE_LOADING`
+    is the same one-class special case, there for the same reason). Passing
+    the kwarg anyway would make EVERY razor solve refuse at construction,
+    including a plain junction-free dipole, well before any capability the
+    registry tracks comes into play."""
+    return not issubclass(solver_cls, RazorSolver)
+
+
 def _extended_kernel_refusal(solver, solver_kwargs):
     """Why this solver + kwargs pair cannot run the extended kernel, or
     None — read straight from the solver's declared `capabilities` row
@@ -208,8 +244,8 @@ class MomwireEngine(SimulationEngine):
         """
         solver:
           A momwire solver class — BSplineSolver (default), SinusoidalSolver,
-          SinusoidalGalerkinSolver, or the fast BSpline subclasses
-          (HMatrixSolver, ArrayBlockSolver).
+          SinusoidalGalerkinSolver, the fast BSpline subclasses
+          (HMatrixSolver, ArrayBlockSolver), or RazorSolver.
           Different bases trade speed vs impedance fidelity; on the hentenna
           sinusoidal is typically closer to PyNEC at modest segmentation.
           SinusoidalGalerkinSolver is the same three-term basis as
@@ -218,10 +254,20 @@ class MomwireEngine(SimulationEngine):
           reactance accuracy, and it closes most of the sin↔bs2 gaps this
           repo tracked as basis effects — see momwire
           docs/sinusoidal-galerkin-instrument-report.md.
+          RazorSolver is the NEC-5 formulation twin (momwire#309/#432): a
+          tent basis tested by NEC-5's own razor-blade (mixed-potential
+          path) rule — see momwire/docs/razor-solver.md and this repo's
+          `/reference/solver` doc for the measured performance guidance.
+          `solver_kwargs={"nec5_quadrature": True}` (the CLI's
+          `momwire:razor-nec5`) is the interactive lane; the default
+          Gauss-Legendre quadrature (`momwire:razor`) is the much slower
+          convergence/certification lane and is not meant for interactive
+          use.
         solver_kwargs:
           Dict of solver-specific kwargs passed straight to the constructor
-          (e.g. `{"degree": 1}` for BSplineSolver, or `{"n_qp_const": 16}`
-          for SinusoidalSolver). None = solver defaults.
+          (e.g. `{"degree": 1}` for BSplineSolver, `{"n_qp_const": 16}` for
+          SinusoidalSolver, or `{"nec5_quadrature": True}` for RazorSolver).
+          None = solver defaults.
         extended_kernel:
           NEC's extended thin-wire kernel — the `EK` card (issue #849,
           momwire >= 0.26.0). False (the default) is the reduced kernel every
@@ -715,6 +761,8 @@ class MomwireEngine(SimulationEngine):
         one solver (issue #849 — the portal's per-group ``EK``); None keeps
         it."""
         kw = {}
+        if _solver_accepts_junctions_kwarg(self._solver):
+            kw["junctions"] = self._junctions or None
         if self._end_port_junctions:
             volts = (
                 end_port_voltages
@@ -741,7 +789,6 @@ class MomwireEngine(SimulationEngine):
             wavelength=wavelength,
             wire_radius=self._wire_radius,
             ground_z=self._ground_z,
-            junctions=self._junctions or None,
             cancel=self._cancel,
             **kw,
             **self._loading_kwargs,
@@ -1016,6 +1063,8 @@ class MomwireEngine(SimulationEngine):
             self._excited_p_in = None
             return self._make_solver(wavelength=wavelength)
         kw = {}
+        if _solver_accepts_junctions_kwarg(self._solver):
+            kw["junctions"] = self._junctions or None
         if self._end_port_junctions:
             # Legacy build_tls designs have no end ports, so this only
             # fires on the network path where end_port_voltages is set.
@@ -1035,7 +1084,6 @@ class MomwireEngine(SimulationEngine):
             wavelength=wavelength,
             wire_radius=self._wire_radius,
             ground_z=self._ground_z,
-            junctions=self._junctions or None,
             cancel=self._cancel,
             **kw,
             **self._loading_kwargs,

@@ -2177,3 +2177,141 @@ def test_solver_with_no_capabilities_attribute_is_permissive_with_warning():
         assert _solver_supports_ground_eps(_NoRegistrySolver, "refl-coef") is True
     with pytest.warns(UserWarning, match="capabilities"):
         assert _extended_kernel_refusal(_NoRegistrySolver, {}) is None
+
+
+# --------------------------------------------------------------------------
+# RazorSolver wiring — the NEC-5 formulation twin (momwire#309/#432) joining
+# the `--basis` roster (`razor` / `razor-nec5`).
+# --------------------------------------------------------------------------
+
+
+def test_razor_parity_is_even():
+    """RazorSolver is knot-centred like the tent families — one unit tent
+    per interior knot, the same expansion BSplineSolver(degree=1) uses — and
+    its own feed_arclength doc is explicit that "on an even segment count a
+    midpoint feed is already the exact centre knot". `nec5_quadrature` only
+    changes how the path integral is evaluated, not the basis or the feed
+    placement, so both roster entries (`razor`, `razor-nec5`) share the
+    rule."""
+    from momwire import RazorSolver, BSplineSolver
+    from antennaknobs.engines.momwire import _parity_for_solver
+
+    assert _parity_for_solver(RazorSolver, {}) == "even"
+    assert _parity_for_solver(RazorSolver, {"nec5_quadrature": True}) == "even"
+    assert _parity_for_solver(RazorSolver, {}) == _parity_for_solver(
+        BSplineSolver, {"degree": 1}
+    )
+
+
+@pytest.mark.parametrize(
+    "solver_kwargs", [None, {"nec5_quadrature": True}], ids=["razor", "razor-nec5"]
+)
+def test_momwire_razor_matches_direct_construction(solver_kwargs):
+    """`--basis razor` / `--basis razor-nec5` reach a real dipole solve
+    through MomwireEngine, and the engine's own solver construction is
+    bit-identical to building RazorSolver directly from the same
+    wires/segments/feeds it read off (issue: razor basis-roster exposure).
+    Also exercises the `junctions` kwarg omission (RazorSolver detects
+    junctions from geometry and refuses the kwarg outright, even `None`) —
+    without it, every razor solve through the engine would refuse at
+    construction, including this plain junction-free dipole."""
+    from momwire import RazorSolver
+
+    b = Builder(resolve_variant_params(Builder, "dipole"))
+    eng = MomwireEngine(b, solver=RazorSolver, solver_kwargs=solver_kwargs)
+    (z,) = eng.impedance()
+    assert np.isfinite(z.real) and np.isfinite(z.imag)
+    assert 5 < z.real < 500, z
+
+    direct = RazorSolver(
+        wires=eng._polylines,
+        n_per_edge_per_wire=eng._edge_segments,
+        feeds=eng._solver_feeds(),
+        wavelength=eng._wavelength_for(b.freq),
+        wire_radius=eng._wire_radius,
+        ground_z=eng._ground_z,
+        cancel=None,
+        **(solver_kwargs or {}),
+    )
+    z_direct, _coeffs = direct.compute_impedance()
+    assert z == pytest.approx(complex(z_direct), rel=1e-9)
+
+
+def test_momwire_razor_handles_junction_geometry():
+    """A junction-bearing design (hentenna: two degree-3 tee junctions)
+    solves cleanly through razor — RazorSolver detects junctions from the
+    polyline geometry itself rather than the `junctions=` kwarg the other
+    bases take, so the engine must omit that kwarg rather than pass it
+    (even `None`), which is what `test_momwire_razor_matches_direct_
+    construction` pins on the junction-free case. This is the same wiring,
+    checked on geometry where a broken omission would show up two ways at
+    once: a refusal, or a silently un-shared basis at the junction."""
+    from momwire import RazorSolver
+    from antennaknobs.designs.specialty.hentenna import Builder as H
+
+    z = MomwireEngine(H(), solver=RazorSolver, ground=None).impedance()[0]
+    assert np.isfinite(z.real) and np.isfinite(z.imag)
+
+
+def test_momwire_razor_refuses_node_gaps_automatically():
+    """Capability wiring is AUTOMATIC (momwire#396/#941): a design that
+    needs a `PortAtVertex` series node gap surfaces RazorSolver's OWN
+    refusal message through the engine's ordinary construction path — no
+    curated antennaknobs-side knowledge that razor refuses node gaps, just
+    the kwarg reaching RazorSolver's constructor and it saying no."""
+    from types import MappingProxyType as _MPT
+
+    from momwire import RazorSolver
+    from antennaknobs import AntennaBuilder
+    from antennaknobs.network import Driven, Network, PortAtVertex, Wire
+
+    freq = 27.0
+    arm = 2.6
+
+    class _ApexDipole(AntennaBuilder):
+        default_params = _MPT({"design_freq": freq, "freq": freq})
+
+        def build_wires(self):
+            return [
+                Wire((0, 0, -arm), (0, 0, 0), n_seg=8, name="arm"),
+                Wire((0, 0, 0), (0, 0, arm), n_seg=8, name=None),
+            ]
+
+        def build_network(self):
+            return Network(
+                ports={"apex": PortAtVertex("arm", end="p1")},
+                branches=[],
+                sources=[Driven(port="apex", voltage=1 + 0j)],
+            )
+
+    with pytest.raises(NotImplementedError, match="node gap"):
+        MomwireEngine(_ApexDipole(), solver=RazorSolver, ground=None).impedance()
+
+
+def test_momwire_pulse_refuses_extended_kernel_automatically():
+    """Same automatic-capability-wiring claim as the node-gaps test above,
+    checked on the other early-refusal path (`_require_extended_kernel`,
+    raised at engine CONSTRUCTION rather than inside a solve): the solver's
+    `capabilities.refusals["extended_kernel"]` message surfaces unchanged,
+    with no antennaknobs-side copy of the reason.
+
+    The refusing solver is PULSE. It was razor until momwire 0.33.0, whose
+    momwire#398 D1 gave razor the extended kernel as an opt-in kwarg — the
+    four-axis NEC-5 twin — so razor's cell is now served (gated below) and
+    pulse carries the wiring claim: it is reduced-kernel only by mechanism
+    (the charge bookkeeping), not by preference, and momwire says so."""
+    from momwire import PulseSolver
+
+    with pytest.raises(NotImplementedError, match="reduced-kernel"):
+        MomwireEngine(Builder(), solver=PulseSolver, extended_kernel=True)
+
+
+def test_momwire_razor_serves_extended_kernel():
+    """The cell the wiring test used to lean on, now served: momwire 0.33.0
+    ships razor-EK (momwire#398 D1), and the engine passes the kwarg through
+    to a working solve rather than surfacing a stale refusal."""
+    from momwire import RazorSolver
+
+    engine = MomwireEngine(Builder(), solver=RazorSolver, extended_kernel=True)
+    (z,) = engine.impedance()
+    assert abs(z) > 1.0  # a real answer, not a placeholder

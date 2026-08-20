@@ -1,0 +1,55 @@
+:Base 4nec2.hlp
+:Title 4nec2
+1 Introduction
+ 2 General=IDH_4nec2
+ 2 Print=IDH_capt
+ 2 About=About
+1 View your model
+ 2 Main window=IDH_F2
+ 2 Geometry window=IDH_F3
+ 2 3D-viewer=IDH_F9
+ 2 Povray views=Povray
+ 2 Open file=Open
+1 Calculate data
+ 2 Validate structure=Validate
+ 2 Generate output data=IDH_F7
+ 2 Batch processing=IDH_batch
+ 2 Command-line processing=IDH_command
+ 2 Average Gain Test=Gain
+ 2 Radiation efficiency=Radeff
+1 View output data
+ 2 Pattern window=IDH_F4
+ 2 Line-chart window=IDH_F5
+ 2 Smith-chart window=IDH_F11
+ 2 Impedance matching=IDH_F10
+ 2 Plot using gnuplot=IDH_gpl
+ 2 Save output-file=Save
+1 Entering or modifying your model
+ 2 Edit window=IDH_F6
+ 2 Modeling guidelines=Guide
+ 2 Using variables=symbol
+ 2 Current sources=I-src
+ 2 LC traps=Trap
+ 2 Wire coating=Coat
+1 Options and Settings
+ 2 General settings=settings
+ 2 Auto-segmentation=aseg
+ 2 Step-radius conversion=srad
+1 Optimizer and Sweeper
+ 2 Traditional optimizer=IDH_optim
+ 2 Genetic optimizer=GAopt
+ 2 Genetic algorithms=GA
+ 2 Variable sweeper=Eval
+1 Propagation prediction
+ 2 ItsHF package=itshf
+ 2 360 degree Gain-table=type13
+ 2 Gain @ 30 frequencies=type14
+ 2 S-mtr conversion=S-mtr
+1 Reference data
+ 2 Nec-2 reference=ref
+ 2 Wire conductivity=loading
+ 2 Ground conditions=ground
+ 2 AWG wire table=AWG
+1 More information
+ 2 Troubleshooting=error
+ 2 Ask the author=About

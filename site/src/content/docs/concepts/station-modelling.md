@@ -83,13 +83,22 @@ The whole contract in one place — the simplest station in the catalog
 run) returns exactly this:
 
 ```python
-from antennaknobs.network import Driven, Network, PortOnWire, PortVirtual, TL
+from antennaknobs.network import (
+    Driven,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    TL,
+    cable_from_catalog,
+)
 
 def build_network(self):
     return Network(
         ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
         branches=[
-            TL.from_cable(self.cable, "rig", "feed", self.line_len_m),
+            TL.from_cable(
+                cable_from_catalog(self.cable), "rig", "feed", self.line_len_m
+            ),
         ],
         sources=[Driven(port="rig", voltage=1 + 0j)],
     )
@@ -108,7 +117,7 @@ honest model:
 
 | branch | what it is |
 |---|---|
-| `TL` / `TL.from_cable` | transmission line — ideal, or a real cable from the `CABLES` catalog (RG-58, RG-8X, window line…) with frequency-dependent matched loss; SWR-multiplied loss *emerges* from the circuit solution rather than a formula |
+| `TL` / `TL.from_cable` | transmission line — ideal, or a real cable resolved out of the `CABLES` catalog with `cable_from_catalog` (RG-58, RG-8X, window line…) with frequency-dependent matched loss; SWR-multiplied loss *emerges* from the circuit solution rather than a formula |
 | `BalancedLine` | balanced / differential two-conductor line — the pair sibling of `TL`, carrying ±I with the return riding the partner wire (open-wire feeder, the Sterba curtain's offset-pair risers). Set by a single differential impedance `zdiff`; add an optional common-mode path `zcomm` for a pair that also carries end-to-end conductor continuity. Narrower scope than the rest of this table — see [what `BalancedLine` is good for](#what-balancedline-is-good-for) |
 | `Load` | series R/L/C in a wire's current path — a trap, a terminating resistor |
 | `TwoPort` | series R/L/C between two ports — a tuner's series capacitor |
@@ -177,17 +186,17 @@ degree. A design that attaches through `PortOnWireFloating` keeps both engines.
 ### Naming a line by its geometry instead of its spool
 
 `zdiff` is the number off the spool — 300 / 450 / 600 Ω. When you know the
-*line* instead (conductor size, spacing, jacket), `BalancedLine.from_geometry`
+*line* instead (conductor size, spacing, jacket), `balanced_line_from_geometry`
 computes `zdiff` and `vf` for you:
 
 ```python
 # #12 bare wire on six-inch spreaders — the classic 600 Ω open-wire line
-BalancedLine.from_geometry(
+balanced_line_from_geometry(
     "t1", "t2", "a1", "a2",
     spacing=0.1524, length=20.0, conductor=0.001024,
 )
 # a jacketed catalog wire brings its own insulation along
-BalancedLine.from_geometry(
+balanced_line_from_geometry(
     "t1", "t2", "a1", "a2",
     spacing=0.0254, length=20.0, conductor="18-awg-pvc",
 )
@@ -239,7 +248,7 @@ branches = [
         rig="rig",      # formal → actual port map
         out="li",
     ),
-    TL.from_cable("openwire-600", "li", "feed", 30.48),
+    TL.from_cable(cable_from_catalog("openwire-600"), "li", "feed", 30.48),
 ]
 ```
 

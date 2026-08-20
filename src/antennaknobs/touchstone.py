@@ -27,6 +27,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .design_data import read_data
+from .network_reduce import RCOND_SINGULAR, RCOND_SUSPECT, SingularNetworkError
 
 __all__ = [
     "Touchstone",
@@ -92,17 +93,12 @@ class Touchstone:
         physics — the pole of a network parameter is always a short or an
         open, and saying which is what makes the message actionable.
 
-        The threshold is the reducer's, not a second policy: `network_reduce`
-        is imported here at call time rather than at module scope because
-        network_reduce → network → touchstone would close an import cycle,
-        and touchstone is otherwise a leaf.
+        The threshold is the reducer's, not a second policy. It used to be
+        imported at call time, because network_reduce → network → touchstone
+        closed an import cycle; the cycle dissolved when the circuit core
+        moved to `momwire.networks` (momwire#456 ws2 phase B), so the import
+        is an ordinary module-scope one and touchstone is a leaf again.
         """
-        from .network_reduce import (
-            RCOND_SINGULAR,
-            RCOND_SUSPECT,
-            SingularNetworkError,
-        )
-
         rc = _reciprocal_condition(m, scale)
         where = f"{self.name}: " if self.name else "Touchstone data: "
         if rc < RCOND_SINGULAR:

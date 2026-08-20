@@ -1,0 +1,11 @@
+ 
+ Numerical Electromagnetics Code, double precision version (nec2d)
+ developed at Lawrence Livermore Lab., Livermore, CA., by G. Burke
+ (burke@icdc.llnl.gov) and A. Poggio.
+ Maximum number of segments in core : MAXMAT= 11000
+ 
+ Merged nec2d/som2d file created by Arie Voors. (4nec2@gmx.net)
+ Build 2.7  30-jan-08  (maxLD= 1100, MaxEX= 256, MaxTL= 256)
+ Using MinGW port for G77 version 3.2  
+ 
+ ENTER NAME OF INPUT FILE > ENTER NAME OF OUTPUT FILE > 

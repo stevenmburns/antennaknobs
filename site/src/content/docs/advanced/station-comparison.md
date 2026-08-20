@@ -39,14 +39,17 @@ def build_network(self):
     return Network(
         ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
         branches=[
-            TL.from_cable(self.cable, "rig", "feed", self.line_len_m),
+            TL.from_cable(
+                cable_from_catalog(self.cable), "rig", "feed", self.line_len_m
+            ),
         ],
         sources=[Driven(port="rig", voltage=1 + 0j)],
     )
 ```
 
-`TL.from_cable` pulls attenuation and velocity factor from the built-in
-`CABLES` catalog, so the line is lossy the way real cable is. Open the design
+`cable_from_catalog` looks the reel up in the built-in `CABLES` catalog and
+`TL.from_cable` takes its attenuation and velocity factor, so the line is
+lossy the way real cable is. Open the design
 in the [workbench](https://app.antennaknobs.dev/) and look at three things:
 
 1. **On resonance, coax at 10 m still isn't cheap.** The V is near 50 Ω, the
@@ -78,7 +81,9 @@ def build_network(self):
             "rig": PortVirtual("rig"),
         },
         branches=[
-            TL.from_cable("openwire-600", "li", "feed", self.line_len_m),
+            TL.from_cable(
+                cable_from_catalog("openwire-600"), "li", "feed", self.line_len_m
+            ),
             Instance(
                 "tuner",
                 t_network_tuner(

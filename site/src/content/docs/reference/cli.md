@@ -241,6 +241,8 @@ The `--engine` flag selects the solver:
 --engine momwire:bspline-d1      # …at degree 1 (bs1) — the cheapest d1-vs-d2 convergence check
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
+--engine momwire:razor-nec5      # NEC-5 formulation twin, NEC-5's identified quadrature — the interactive lane
+--engine momwire:razor           # same tent basis, default (converged GL) quadrature — convergence/certification lane
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
 ```
 
@@ -252,6 +254,19 @@ use `-converged` on near-open high-Q feeds (`wire.lazy_h`, `wire.vbeam`
 class), where it removes two to three orders of magnitude of the apparent
 disagreement between solver bases — see
 [Solvers & accuracy](/reference/solver/) for the details.
+
+`razor` and `razor-nec5` are the same RazorSolver class — a tent basis
+tested by NEC-5's own razor-blade (mixed-potential path) rule, transcribed
+from the NEC-5 manual rather than chosen for convenience, so its
+convergence behaviour is checkable without the licensed binary. Reach for
+`razor-nec5` while dragging knobs (sub-second to N≈300-400 free /
+N≈200-400 grounded, 2-4× behind `bspline-d2` beyond); plain `razor` is
+12-80× slower, takes over a second even at N=100 under any ground, and can
+exceed an 8 GB working set by N≈800 grounded / N≈1600 free — it is the
+convergence/certification lane, not for interactive use. Neither serves
+the extended kernel, junction/node-gap ports, or ground contact over a
+finite ground — see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
+for the full guidance and refusal boundary.
 
 `momwire` is the default so a plain install works without the optional
 `pynec-accel` package. See [The solver & accuracy](/reference/solver/) for which
@@ -270,11 +285,15 @@ python -m antennaknobs sweep --builder wire.dipole --extended-kernel
 It matters for **fat wires** — segments not much longer than the wire radius —
 and is a fraction of a percent on ordinary thin wire; see
 [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
-Every momwire basis serves it, `sinusoidal-galerkin` included since momwire
-0.27.0 (momwire#246/#287/#299). The one refusal left is the combination with
+Every momwire basis but `razor`/`razor-nec5` serves it — `sinusoidal-galerkin`
+included since momwire 0.27.0 (momwire#246/#287/#299). On the B-spline/
+sinusoidal families the one refusal left is the combination with
 `use_singular_enrichment` (momwire#271), which exits with a named message
-rather than a reduced-kernel answer under an extended-kernel request. The
-flag applies only to momwire: passing it with `--engine pynec` is an error.
+rather than a reduced-kernel answer under an extended-kernel request; razor
+refuses it outright (it is a reduced-kernel-only formulation twin, out of
+scope by design — see [Razor](/reference/solver/#razor-the-nec-5-formulation-twin)).
+The flag applies only to momwire: passing it with `--engine pynec` is an
+error.
 
 An imported deck brings its own: a `@file.nec` design whose deck carries an
 `EK` card is solved with the kernel on without the flag, and either source
