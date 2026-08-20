@@ -26,6 +26,13 @@ deliberate exclusions documented rather than silent.
 
 ## Verdict
 
+> **Superseded in part — see the [2026-08-19 evening
+> addendum](#addendum-2026-08-19-evening-workstream-2-phase-c-landed--re-baselined).**
+> Workstream 2 phase C and the hygiene wave landed the same day this was
+> written. Today's measured serve is **358 (78.3 %)** with the silent column
+> at **zero**; rows falsified by those waves are corrected in place below and
+> marked *(re-baselined)*.
+
 **4nec2 half: 63.0 % of the 457-model bundle serves today, 28.9 % refuses
 loudly, and 8.1 % is silently wrong — from exactly two mechanisms, both cheap
 to retire.** The silent set is the MININEC ground idiom (`GD` alongside
@@ -92,7 +99,7 @@ is what actually crosses the process boundary.
 | `CM` | 441 (96.5 %) | serve | printout must echo every card as `***** DATA CARD NO. n …` — renderer obligation, not parse |
 | `CE`, incl. trailing text | 457 (100 %) | serve | 4nec2 folds the last `CM` into `CE <text>`; the parser carries the text |
 | `EN` | 447 (97.8 %) | serve | |
-| **missing terminator** (EOF, no `EN`/`NX`) | 5 (1.1 %) | **silently-wrong** | the dialect discards an unterminated body; NEC's own reader synthesizes `EN` at EOF (the `gs_8d_bb` capture). Fix: match NEC |
+| **missing terminator** (EOF, no `EN`/`NX`) | 5 (1.1 %) | serve *(re-baselined)* | was silently-wrong: the dialect discarded an unterminated body. The hygiene wave matched NEC, which synthesizes `EN` at EOF (the `gs_8d_bb` capture) |
 | `NX` | 2 (0.4 %) | serve | frame terminator serves; its only bundle use is the `WG`/`GF` handoff, which doesn't (below) |
 | `XQ`, incl. injected | 6 source + every run | serve | |
 
@@ -104,13 +111,13 @@ is what actually crosses the process boundary.
 | `GE` — bare (32), `0` (237), `1` (167), `-1` (16), two-field `0 1` (6) | 457 (100 %) | serve | flag recorded; ground physics comes from `GN`; extra fields ignored |
 | `GM` | 41 (9.0 %) | serve | |
 | `GS`, incl. ranged | 150 (32.8 %) | serve | a third of the corpus — already served |
-| `GX` reflection | 18 (3.9 %) | refuse-loudly | **work: momwire#415** — the largest geometry rung |
-| `GR` cylindrical | 5 (1.1 %) | refuse-loudly | #415 |
+| `GX` reflection | 18 (3.9 %) | serve *(re-baselined)* | momwire#415 landed; the out-of-cell `LD` drop refuses by name (costs `1MHz_tower`) |
+| `GR` cylindrical | 5 (1.1 %) | serve *(re-baselined)* | #415 |
 | `GH` helix | 4 (0.9 %) | refuse-loudly | #415 |
 | `GC` taper continuation | 3 (0.7 %) | refuse-loudly | #415 — and taper is pillar 1 of the pitch; the `GW` non-positive-radius announcement already refuses by name |
 | `GA` arc | 0 | refuse-loudly | documented in 4nec2's card table, unsampled in the bundle; assume required (#413 open work) |
 | `SP` / `SM` patches | 10 / 9 (2.2 / 2.0 %) | refuse-loudly | deliberate exclusion per #456 — stays, documented |
-| `SC` patch continuation | 15 (3.3 %) | refuse-loudly, **generic** | not on the by-name list — falls to `unrecognised NEC card 'SC'`. Needs a named refusal: it accompanies every `SP`/`SM` deck, and the exclusion should speak |
+| `SC` patch continuation | 15 (3.3 %) | refuse-loudly, **by name** *(re-baselined)* | was the generic `unrecognised NEC card 'SC'`; the hygiene wave gave it a named refusal, so the deliberate patch exclusion now speaks |
 
 ### Ground
 
@@ -122,7 +129,7 @@ is what actually crosses the process boundary.
 | `GN 0` refl-coef, clear of ground | 18 (3.9 %) | serve | |
 | `GN 0` refl-coef, geometry touching z = 0 | 9 (2.0 %) | refuse-loudly, **by design** | momwire#282: NEC-2 itself is wildly wrong here; the message names the fix (`GN 2`). The one refusal that stays at the bottom of the ladder |
 | `GN 0`/`GN 2` with `NRADL` radial screen | 2 (0.4 %) | refuse-loudly | #388 priority 4; workstream-2 decision (no oracle on the NEC-5 dialect either — #444's landmine) |
-| **`GN 3` → `GN 1` + `GD` (manufactured), and hand-written `GD` + `GN 1`** | 45 (9.8 %) | **silently-wrong** | the flagship silent row — mechanism below |
+| **`GN 3` → `GN 1` + `GD` (manufactured), and hand-written `GD` + `GN 1`** | 45 (9.8 %) | refuse-loudly *(re-baselined)* | was the flagship silent row (mechanism below). The hygiene wave refuses the idiom by name, narrowed exactly as wide as the silence: an all-zero `EPSR2`/`SIG2` pair is no medium and does not trip it, and an `RP 2`/`RP 3` cliff request *reads* the record and is answered |
 | `GD` as a genuine NEC-2 cliff | 0 | serve | momwire reads it, `RP 2`/`3` use it; the bundle never does |
 
 ### Excitation
@@ -130,7 +137,7 @@ is what actually crosses the process boundary.
 | statement | models | score | notes |
 | --- | --- | --- | --- |
 | `EX 0` voltage | 447 emitted (97.8 %) | serve | 395 written + 52 manufactured |
-| `EX 6` current → `EX 0` + `NT` + phantom wire | 52 (11.4 %) | refuse-loudly (via `NT`) | serving `NT` covers it, but the gates must pin the **manufactured form** (#456): phantom 1-segment wire parked at z = its own tag, driven and an `NT` endpoint — fails `_anchor_wires`' guards (antennaknobs#427, #944) |
+| `EX 6` current → `EX 0` + `NT` + phantom wire | 52 (11.4 %) | serve *(re-baselined)* | phase C serves `NT`; the manufactured form is pinned end-to-end by momwire's `dipole_ex6_gyrator` fixture and by this census's verbatim constants. The phantom 1-segment wire parked at z = its own tag, driven and an `NT` endpoint, still fails `_anchor_wires`' guards (antennaknobs#427, #944) — an antennaknobs item, not a dialect one |
 | `EX 1` plane wave | 1 (0.2 %) | refuse-loudly | #388 priority 1 (`EX 1–3`) |
 | `EX 5` current-slope | 1 (0.2 %) | refuse-loudly | #388 row |
 | `EX 2/3/4` | 0 | refuse-loudly | #388 rows; `EX 4` is NEC-5-native (the twin uses it) |
@@ -150,8 +157,10 @@ is what actually crosses the process boundary.
 
 | statement | models | score | notes |
 | --- | --- | --- | --- |
-| `TL`, incl. negative-Z₀ crossed lines | 45 (9.8 %) | refuse-loudly | **required** — the #390 verdict, now weighted: second-largest single rung |
-| `NT` | 53 emitted (11.6 %) | refuse-loudly | 1 hand-written (with the `1.E10` open-pin idiom EZNEC also uses) + 52 manufactured from `EX 6` — the **largest** rung. momwire's NT oracle exists (#65's reducer); the SimNEC dialect refuses networks by spec, so this is the workstream-2 serve-path decision |
+| `TL`, incl. negative-Z₀ crossed lines | 45 (9.8 %) | **serve** *(re-baselined)* | momwire#482 phase C. Crossed lines keep sign and magnitude apart; `F2 = 0` is the segment-midpoint distance, not a zero-length line; a zero `Z0` refuses (NEC aborts while reading) |
+| `NT` | 53 emitted (11.6 %) | **serve** *(re-baselined)* | momwire#482 phase C. 1 hand-written (with the `1.E10` open-pin idiom EZNEC also uses) + 52 manufactured from `EX 6`. An all-zero `NT` is **not** a no-op — it open-circuits both addressed segments, and antennaknobs' importer skipping it is a divergence to fix |
+| network **contiguity** — a non-transparent card between two network cards | 11 (2.4 %) *(modelled)* | refuse-loudly, **by design** | new row: NEC silently destroys every earlier `TL`/`NT`. All 11 pair a hand-written `TL` with an `NT` manufactured from `EX 6`; the emission order this rests on is captured once and the pairing is uncaptured — see the addendum |
+| network addressing — segment below 1, or `TL` `Z0 = 0` | 0 | refuse-loudly | measured zero corpus-wide, matching phase C's own scan |
 
 ### Frequency and requests
 
@@ -165,14 +174,19 @@ is what actually crosses the process boundary.
 | `RP 4–6` screens | 0 | refuse-loudly | #388 row |
 | `NE` / `NH` | 5 / 1 (1.1 / 0.2 %) | serve* | rectangular, free-space/PEC; over finite ground refuses — #388's near-field row |
 | `PT`, incl. `PT -1` | 12 (2.6 %) | serve | |
-| `PQ`, emitted as `PQ -1` | 3 (0.7 %) | refuse-loudly | **wrongly so**: `PQ -1` *suppresses* the charge print, and momwire prints no charge report — refusing a suppression card kills runnable decks. Cheap serve: accept `PQ -1`/`PQ 0` as print control, refuse only a positive charge-print *request* if ever seen |
+| `PQ`, emitted as `PQ -1` | 3 (0.7 %) | serve *(re-baselined)* | the hygiene wave made `PQ` a by-value gate: `PQ -1` *suppresses* the charge report and serves, `PQ >= 0` *requests* one and refuses. All three bundle cards are `PQ -1`, so `PQ` costs nothing |
 | `EK` | 105 (23.0 %) | serve | per-group, NEC-exact `I1 == -1` test, honoured not advisory |
 | `KH` / `PL` / `ZO` / `MP` / `IS` | 0 | refuse (`KH`/`PL`/`ZO`) / serve (`MP`/`IS`) | absent from the bundle |
+| **no `EX` card anywhere** | 8 (1.8 %) | refuse-loudly, **by design** | new row: `Objects/`-family display models and the two NGF writers. Nothing drives the structure and NEC solves nothing either — `deck has no EX card` |
 
 ### The frequency-weighted ladder
 
 Model-level classification (a deck scores by its worst statement), with each
-work cluster added in the order the weights argue for:
+work cluster added in the order the weights argue for. **The first three rungs
+have since landed — see the [re-baselined
+ladder](#the-re-baselined-ladder-measured-457-models) in the addendum for
+today's numbers; this table is the morning snapshot that argued for the
+order.**
 
 | step | serve | refuse | silent |
 | --- | --- | --- | --- |
@@ -190,7 +204,13 @@ with the fix in the message. The hygiene step must come **first**: serving
 decks, because a dozen MININEC-ground decks currently hide behind their own
 network refusals.
 
-### The two silent mechanisms
+### The two silent mechanisms — both retired the same day
+
+**Both were fixed by the hygiene wave; the silent column is now zero at every
+rung of the ladder.** The analysis is kept because it is what argued for the
+order, and because mechanism 1's substitution is still an open *physics*
+decision (implement MININEC-type ground, or keep the loud refusal) rather than
+a silence.
 
 **1. The MININEC ground idiom — `GD` alongside `GN 1` (45 decks, 9.8 %).**
 4nec2 rewrites its `GN 3` "MiniNec ground" into `GN 1` + `GD ... ε σ`, and
@@ -275,15 +295,14 @@ physics claim, separate go/no-go per #413/#456.
 
 In order, by weight and by what each unlocks:
 
-1. **Hygiene, immediately** (silent → 0): EOF-as-`EN`; a named refusal for
+1. ~~**Hygiene, immediately** (silent → 0): EOF-as-`EN`; a named refusal for
    `GD`-with-`GN 1` (no false positives corpus-wide); a named refusal for
-   `SC`; serve `PQ -1`/`PQ 0` as print control. All four are small dialect
-   PRs against `deck-grammar-nec2.md` + parser.
-2. **The `NT`/`TL` decision** (+64 decks, and the EZNEC seam's blocking
-   issue): the workstream-2 scope call the capture already framed — momwire's
-   #65 reducer vs the antennaknobs-layering option 3.
-3. **Geometry transforms** (momwire#415: `GX` first at 18 decks, then
-   `GR`/`GH`/`GC`/`GA`) — honest NEC surface, pre-expandable to `GW`+`GM`/`GS`.
+   `SC`; serve `PQ -1`/`PQ 0` as print control.~~ **DONE** — all four landed;
+   silent is 0.
+2. ~~**The `NT`/`TL` decision** (+64 decks, and the EZNEC seam's blocking
+   issue).~~ **DONE** — momwire#482 phase C serves both, in momwire.
+3. **Geometry transforms** — `GX`/`GR` **DONE** (momwire#415, +23 decks);
+   `GH`/`GC`/`GA` remain, 6 decks between them.
 4. **MININEC-type ground** (+45 decks, both frontends, two-host oracle in
    hand) — decide implement vs permanent loud refusal, alongside the
    `NRADL` radial-screen decision (#388 P4).
@@ -295,3 +314,154 @@ Regenerate the numbers with:
 ```
 python scripts/census_4nec2_bundle.py [--root <bundle>] [--json out.json]
 ```
+
+## Addendum, 2026-08-19 (evening): workstream 2 phase C landed — re-baselined
+
+Everything above was written against the dialect as it stood that morning.
+Three waves have landed since, and the census that backs this document has
+been re-baselined against the live one (`scripts/census_4nec2_bundle.py`,
+momwire#456 ws2 phase C). **The rows and the ladder in the body of this
+document are corrected in place where the phase falsified them; this section
+carries the new numbers and what they rest on.**
+
+### What landed
+
+**Phase C — `TL` and `NT` serve (momwire#482, sub-PRs #478/#481).** The
+largest and second-largest rungs of the ladder above, retired together. Four
+semantics were measured on the oracle rather than reasoned about, and each is
+now normative in `deck-grammar-nec2.md`:
+
+- **Networks are exempt from the symmetric-cell rule**
+  ([`#networks-under-a-symmetric-cell`]). A `GX`/`GR` cell replicates what
+  enters the *matrix*, and NEC's network solve is a composition on top of the
+  solved matrix — the same argument that already exempts `EX`. The probe
+  triple under `tests/fixtures/nec2_symmetry/` puts an `NT` under a live
+  `GX 2 100`: the oracle's answer is byte-identical to the hand-expanded deck
+  carrying **one** card as written, and differs from the deck carrying one
+  card per copy. Endpoints resolve against the fully generated structure,
+  image tags and all, and the card attaches exactly once.
+- **The contiguity destroy pattern is refused by name**
+  ([`#network-contiguity`]). NEC resets its network list on reading a network
+  card whose predecessor was not one, so an interposed card of any other kind
+  makes every earlier `TL`/`NT` **vanish with no diagnostic** while still
+  being echoed in the `DATA CARD` list as read. The transparent set is the
+  measured, closed one — `PT`, `PQ`, `MP`, the cards that change what a run
+  reports and not what it computes; everything else destroys.
+- **Nonpositive addressing is refused** ([`#segment-numbers-must-be-positive`]).
+  NEC halts the whole run on an endpoint segment below 1, and does so whether
+  or not the paired tag is zero. Without the guard, `locate` would read a
+  nonpositive segment as 1 and quietly attach to the wrong segment.
+- **An all-zero `NT` is not a no-op** ([`#an-all-zero-nt-is-not-a-no-op`]).
+  It attaches a network of zero admittance, which **open-circuits both
+  addressed segments**. Measured: a probe whose control answers
+  0.10161 + j514.86 answers 0.68923 − j4651.8 with the all-zero card, both
+  connection-point currents at ~1e-20. Note that antennaknobs' own importer
+  *skips* an all-zero `NT` as unmodellable — a divergence this document's
+  successor owns.
+- A `TL` with a zero characteristic impedance is refused; NEC aborts while
+  *reading* the deck ([`#tl--transmission-line`]).
+
+**The hygiene wave**, all four items of the handoff list below: EOF is read
+as `EN`; `GD`-with-`GN 1` refuses by name; `SC` refuses by name; and `PQ` is
+a by-**value** gate — `PQ -1` suppresses the charge report and serves,
+`PQ >= 0` requests one and refuses. All three bundle `PQ` cards are `PQ -1`,
+so `PQ` now costs nothing.
+
+**`GX`/`GR` structure symmetry** (momwire#415), served, with the out-of-cell
+`LD` drop refused by name.
+
+### The re-baselined ladder (measured, 457 models)
+
+| step | serve | refuse | silent |
+| --- | --- | --- | --- |
+| **today (live dialect)** | **358 (78.3 %)** | 99 | **0** |
+| + remaining geometry (`GA` `GH` `GC`) | 364 (79.6 %) | 93 | 0 |
+| + MININEC-type ground (the `GN 3`/`GD` decision) | 406 (88.8 %) | 51 | 0 |
+| + long tail (`PQ` req, `CP`, `WG`/`GF`, `LD 2`/`7`, `RP 1`, `EX 1`/`5`, `NRADL`) | 414 (90.6 %) | 43 | 0 |
+| (+ patches — excluded by #456) | 430 (94.1 %) | 27 | 0 |
+
+**The silent column is zero at every rung, including today.** That was the
+bar, and it is met: no bundled model now reaches the engine meaning something
+the frontend didn't. Today's 78.3 % clears the old `+ NT/TL` projection of
+78.1 %; the three waves together moved serve by 70 models.
+
+The 27 at the bottom are refused **by design**, each because NEC-2 itself is
+wrong or silent there and the dialect says so out loud: 11 network-contiguity,
+9 `GN 0` ground-contact (momwire#282), 8 decks with no `EX` card at all
+(`Objects/`-family display models and the two NGF writers — nothing drives
+the structure, and NEC would solve nothing either).
+
+### Two corrections the re-baseline forced
+
+**1. The census's `EX 6` emission order was wrong, and only phase C could
+show it.** The manufactured cards were expanded *in place*, all three at the
+`EX 6`'s own site. 4nec2 emits them **grouped**: the phantom `GW` at the end
+of the geometry section, the `EX 0` where the `EX 6` was, and the `NT` block
+deferred to just before the execute card. Capture 0036's `out__QFH1280.inp`
+settles it — its source writes both `EX 6` cards *before* its `FR`, and the
+emitted deck writes both `NT` cards *after* it. While `NT` was refused by
+name the order was unobservable; the moment it served, the inline expansion
+invented 87 contiguity destroy patterns that 4nec2 never emits.
+
+With the order corrected, **zero** bundle decks trip the nonpositive-segment
+or zero-`Z0` guards — matching phase C's own corpus scan.
+
+**2. Eleven decks trip contiguity, and that number is a prediction.** Every
+one pairs a hand-written `TL` with an `NT` manufactured from `EX 6`:
+`HFsimple/Coax.nec`, `HFsimple/EDZ_TL.nec`, `HFvertical/4SQTL.NEC`,
+`HFvertical/CardTL.nec`, the three `HFActiveFeed/` Z-match models, and four
+`zz_EZnec/v3.0/` models. Under the captured emission order, `LD`/`EX`/`GN`/
+`FR` sit between the hand-written `TL` and the manufactured `NT`, so NEC
+silently destroys the `TL` — in `Coax.nec`, a model whose entire purpose is
+demonstrating a coaxial feedline as a `TL`.
+
+**No capture holds both card kinds at once**, so the manufactured block's
+placement relative to a hand-written one is unobserved. The census prints
+this as its own sensitivity line: if 4nec2 instead emits the `NT` block
+adjacent to the hand-written network cards, today's serve is 366 (80.1 %)
+rather than 358. **A single capture of `Coax.nec` settles it**, and it is the
+highest-value remaining item on the #413 capture list — either 4nec2 has a
+long-standing silent defect in its own bundled demo, or the census loses a
+refusal class.
+
+### The census now reads the live refusal table
+
+The by-name half of the scoring was a hand-embedded static set, and it went
+stale **twice in three weeks** — it still listed `GX`/`GR` long after #415
+served them, and `TL`/`NT` after phase C did, each time overstating the
+refusal column. It is now imported from
+`momwire.deck._nec2._REFUSED_BY_NAME`, alongside the network-transparent set
+and the card-class sets. A private import across the repo boundary is
+acceptable for a dev-side measurement script that runs against the submodule
+in the same tree and has no runtime contract; it fails **loudly** — an
+`ImportError` before a single number is printed — if momwire renames the
+table, which is the point. A census that cannot read the live table must not
+print a stale one instead.
+
+The by-**value** half cannot come from any table and is still modelled by
+hand, but every gate is now audited against the grammar at re-baseline time
+and the audit is recorded in `score`'s docstring.
+
+### The `EX 6` manufactured form is pinned end-to-end
+
+The census emits the capture's verbatim constants — `-1.1945e-4` /
+`1.19452e-4` / `5.97258e-6`, the phantom wire parked at `z` = its own tag —
+rather than the rounded ones it used to. momwire's
+`tests/fixtures/nec_portal/dipole_ex6_gyrator.deck` pins the same bytes, so
+the form the census models and the form the engine is tested against are one
+form. `EX 6` is now a **serve** row: 52 decks arrive as `EX 0` + `NT` +
+phantom wire and the dialect runs all three cards. The phantom wire still
+fails `_anchor_wires`' guards exactly as EZNEC's does (antennaknobs#427,
+#944) — an antennaknobs-side item, not a dialect one.
+
+One unmodelled variant is worth recording: capture 0036's
+`out__SLOPE1.inp` emits `EX 0 29901 1` and `NT 29901 1 1 51` with **no
+phantom `GW` at all** and a tag of 29901 rather than 9901 — a dangling
+network address. Whether that is a second translation form or a stale file in
+4nec2's output directory is unresolved; the census models the QFH form only.
+
+[`#networks-under-a-symmetric-cell`]: https://momwire.dev/reference/deck-grammar-nec2/#networks-under-a-symmetric-cell
+[`#network-contiguity`]: https://momwire.dev/reference/deck-grammar-nec2/#network-contiguity
+[`#segment-numbers-must-be-positive`]: https://momwire.dev/reference/deck-grammar-nec2/#segment-numbers-must-be-positive
+[`#an-all-zero-nt-is-not-a-no-op`]: https://momwire.dev/reference/deck-grammar-nec2/#an-all-zero-nt-is-not-a-no-op
+[`#tl--transmission-line`]: https://momwire.dev/reference/deck-grammar-nec2/#tl--transmission-line

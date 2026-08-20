@@ -10,7 +10,12 @@ dialect into the emitted engine dialect using the pre-engine resolutions the
   - SY symbol lines never reach the engine (symbols resolve to literals)
   - LD 6 (LC trap) arrives as LD 1; LD 7's translation is unsampled
   - GN 3 (MININEC-type ground) arrives as GN 1 plus a manufactured GD
-  - EX 6 (current source) arrives as EX 0 + NT + a phantom 1-segment wire
+  - EX 6 (current source) arrives as EX 0 + NT + a phantom 1-segment wire,
+    and the three manufactured cards are emitted GROUPED, not in place:
+    the phantom GW at the end of the geometry section, the EX 0 at the
+    EX 6's own site, and the NT block immediately before the execute card
+    (capture 0036, `out__QFH1280.inp`, whose source writes EX 6 before FR
+    and whose emitted deck writes NT after it)
 
 Each emitted deck is then scored against momwire's nec2 dialect refusal
 tables (deck-grammar-nec2.md):
@@ -18,14 +23,50 @@ tables (deck-grammar-nec2.md):
   serve   — every statement runs
   refuse  — at least one statement hits a loud, named (or unrecognised-card)
             refusal; parse() raises, so this preempts any silent risk
-  silent  — the deck parses but means something the frontend didn't:
-            the MININEC GD idiom (GD alongside GN 1 — manufactured from
-            GN 3 or hand-written), or a missing EN/NX terminator (the
-            parser discards an unterminated body; NEC synthesizes EN at EOF)
+  silent  — the deck parses but means something the frontend didn't; the
+            zero-tolerance column, and empty as of the re-baseline below
+
+**"today" tracks the submodule's live dialect, re-baselined 2026-08-19**
+after momwire#456 workstream 2 phase C (momwire#482) landed on momwire main.
+Three waves have moved since the 2026-08-19 matrix was first written, and
+all three are IN the "today" rung now:
+
+  - the hygiene wave — EOF is read as EN, the GD-with-GN-1 MININEC idiom
+    refuses by name, SC refuses by name, and PQ is a by-VALUE gate (PQ -1
+    suppresses and serves; PQ >= 0 requests a report and refuses)
+  - GX/GR structure symmetry (momwire#415), served since then
+  - TL/NT (momwire#482, phase C), served with the by-value guards this
+    script models below
+
+The by-NAME half of the scoring is therefore no longer written out here.
+It is READ from the live table, `momwire.deck._nec2._REFUSED_BY_NAME`,
+because a hand-embedded copy went stale twice in three weeks — it still
+listed GX/GR long after #415 served them, and TL/NT after phase C did.
+Importing a private name across the repo boundary is acceptable here and
+only here: this is a dev-side measurement script, not shipped code, it runs
+against the submodule checkout in the same working tree, and it has no
+runtime contract to keep. It fails LOUDLY if momwire renames the table —
+ImportError at module import, before a single number is printed — which is
+the whole point: a census that cannot read the live table must not print a
+stale one instead. The same argument covers the four card-set imports below.
+
+What CANNOT come from the live table, and is modelled by hand here, is the
+by-VALUE half — a card that refuses on the strength of its fields. Each gate
+is audited against deck-grammar-nec2.md at re-baseline time; see `score`.
+
+One number here is a PREDICTION rather than a measurement, and is printed as
+its own sensitivity line: the 11 decks that trip the network-contiguity
+refusal all pair a hand-written `TL` with an `NT` manufactured from `EX 6`,
+and no capture holds both card kinds at once, so the manufactured block's
+placement relative to the hand-written one is unobserved.  A capture of
+`HFsimple/Coax.nec` — whose whole point is a TL feedline, and whose emitted
+deck under the modelled order has NEC silently destroying that TL — would
+settle it.
 
 Statically undecidable refusals (LD ranges over 8 segments, doubled loads,
-partial-wire LD 5) are not modelled; symbolic fields that resolve at emit
-time are skipped where a value is needed (e.g. the GN 0 contact check).
+partial-wire LD 5, and the momwire#415 out-of-cell LD drop that costs
+`1MHz_tower`) are not modelled; symbolic fields that resolve at emit time
+are skipped where a value is needed (e.g. the GN 0 contact check).
 
 Usage:
     python scripts/census_4nec2_bundle.py [--root DIR] [--json OUT]
@@ -41,35 +82,46 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from momwire.deck._nec2 import (
+    _EXECUTE_CARDS,
+    _GEOMETRY_CARDS,
+    _NETWORK_CARDS,
+    _NETWORK_TRANSPARENT,
+    _REFUSED_BY_NAME,
+    _TERMINATORS,
+)
+
 DEFAULT_ROOT = Path.home() / "antennas/nec-wild/opensource/4nec2"
 
-REFUSE_BY_NAME = {
-    "TL",
-    "NT",
-    "GA",
-    "GH",
-    "GX",
-    "GR",
-    "GC",
-    "GF",
-    "SP",
-    "SM",
-    "KH",
-    "PQ",
-    "CP",
-    "PL",
-    "WG",
-    "ZO",
-    "SY",
-}
-# SC is not on the by-name list; it hits "unrecognised NEC card" — still loud.
-REFUSE_UNRECOGNISED = {"SC"}
+# The live by-name refusal table, read rather than copied (see module docstring).
+REFUSE_BY_NAME = frozenset(_REFUSED_BY_NAME)
 
-GEOMETRY_CLUSTER = {"GX", "GR", "GH", "GC", "GA"}
-NETWORK_CLUSTER = {"NT", "TL"}
+# The cards momwire's reader DISPATCHES.  Everything importable is imported;
+# what remains is the list of singleton handlers in `Nec2Reader.card`, which
+# has no published set to read.  Its only use is computing the generic
+# "unrecognised NEC card" refusal, which the census REPORTS rather than
+# asserts on: a mnemonic that lands here is either a bundle card momwire has
+# never seen or a handler momwire has dropped, and both want a human.
+RECOGNISED = (
+    REFUSE_BY_NAME
+    | frozenset(_GEOMETRY_CARDS)
+    | frozenset(_EXECUTE_CARDS)
+    | frozenset(_NETWORK_CARDS)
+    | frozenset(_TERMINATORS)
+    | frozenset(
+        {"CM", "CE", "GN", "GD", "FR", "EX", "LD", "IS", "EK", "PT", "PQ", "MP"}
+    )
+)
+
+# Cards a network card may be read across without NEC destroying the earlier
+# network list — also read from the live table rather than copied.
+NETWORK_TRANSPARENT = frozenset(_NETWORK_TRANSPARENT) | {"CM", "CE"}
+
+# The remaining geometry work: GX/GR are served (momwire#415), these are not.
+GEOMETRY_CLUSTER = {"GA", "GH", "GC"}
 PATCH_CLUSTER = {"SP", "SM", "SC"}
 LONG_TAIL = {
-    "PQ",
+    "PQ>=0",
     "CP",
     "WG",
     "GF",
@@ -83,6 +135,9 @@ LONG_TAIL = {
     "EX5",
     "GN+NRADL",
 }
+# Refused by DESIGN, and still refused at the bottom of the ladder: each is a
+# place where NEC-2 itself is wrong or silent and the dialect says so out loud.
+BY_DESIGN = {"GN0-contact", "net-contiguity", "no-EX"}
 
 
 def tokens(line: str) -> list[str]:
@@ -128,55 +183,141 @@ def parse_source(path: Path):
 
 
 def emit(cards):
-    """Apply 4nec2's pre-engine resolutions; return the emitted card list."""
-    out = []
+    """Apply 4nec2's pre-engine resolutions; return the emitted card list.
+
+    The `EX 6` translation manufactures three cards, and WHERE each lands is
+    load-bearing now that TL/NT serve: the network-contiguity rule reads the
+    emitted card ORDER, so an inline expansion (all three at the EX 6's own
+    site) would invent destroy patterns that 4nec2 never emits.  The grouping
+    below is the captured one — capture 0036's `out__QFH1280.inp`, whose two
+    phantom `GW` cards sit at the end of the geometry section after `GS`, whose
+    `EX 0` cards sit where its source wrote `EX 6`, and whose `NT` block sits
+    after `FR`, immediately before the injected `XQ`, though its source wrote
+    the `EX 6` cards BEFORE the `FR`.  So the `NT` block is deferred to the
+    execute card, and that is what is modelled.
+    """
+    phantom_gw, phantom_nt, body = [], [], []
     for mn, f in cards:
         if mn == "SY":
             continue
         if mn == "LD":
             t = field_int(f, 0)
             if t == 6:
-                out.append(("LD", ["1"] + f[1:]))
+                body.append(("LD", ["1"] + f[1:]))
                 continue
             # LD 7's translation is unsampled; assume it reaches the engine.
         if mn == "GN" and field_int(f, 0) == 3:
-            out.append(("GN", ["1"]))
-            out.append(("GD", ["0", "0", "0", "0"] + f[4:6]))
+            body.append(("GN", ["1"]))
+            body.append(("GD", ["0", "0", "0", "0"] + f[4:6]))
             continue
         if mn == "EX" and field_int(f, 0) == 6:
-            # Phantom wire parked at z = its own tag, per the capture.
-            out.append(
+            # Phantom 1-segment wire parked at z = its own tag, verbatim from
+            # the capture (docs/status/2026-08-18-4nec2-subengine-capture.md);
+            # momwire's `dipole_ex6_gyrator` fixture pins the same bytes, so
+            # this models the deck that fixture answers.
+            tag = str(9901 + len(phantom_gw))
+            phantom_gw.append(
                 (
                     "GW",
-                    [
-                        "9901",
-                        "1",
-                        "-1.2e-4",
-                        "0",
-                        "9901",
-                        "1.2e-4",
-                        "0",
-                        "9901",
-                        "6e-6",
-                    ],
+                    [tag, "1", "-1.1945e-4", "0", tag,
+                     "1.19452e-4", "0", tag, "5.97258e-6"],
                 )
-            )
-            out.append(("EX", ["0", "9901", "1", "0", "1", "0"]))
-            out.append(("NT", ["9901", "1"] + f[1:3] + ["0", "0", "0", "1"]))
+            )  # fmt: skip
+            phantom_nt.append(("NT", [tag, "1"] + f[1:3] + ["0", "0", "0", "1"]))
+            body.append(("EX", ["0", tag, "1", "0", "0", "1"]))
             continue
+        body.append((mn, f))
+    if not phantom_gw:
+        return body
+    out, placed_gw, placed_nt = [], False, False
+    for mn, f in body:
+        if mn == "GE" and not placed_gw:
+            out.extend(phantom_gw)
+            placed_gw = True
+        if mn in _EXECUTE_CARDS and not placed_nt:
+            out.extend(phantom_nt)
+            placed_nt = True
         out.append((mn, f))
+    # A deck with no GE gets its phantom geometry first; a deck whose execute
+    # cards are all injected at run time gets its NT block at the tail, which
+    # is where 4nec2 puts the injected XQ.
+    if not placed_gw:
+        out = phantom_gw + out
+    if not placed_nt:
+        out = _before_terminator(out, phantom_nt)
     return out
 
 
+def _before_terminator(out, extra):
+    """Insert `extra` ahead of the deck's first EN/NX, or at the tail."""
+    for i, (mn, _) in enumerate(out):
+        if mn in _TERMINATORS:
+            return out[:i] + extra + out[i:]
+    return out + extra
+
+
 def score(emitted):
-    """Return (refusal reasons, silent reasons) for one emitted deck."""
+    """Return (refusal reasons, silent reasons) for one emitted deck.
+
+    The by-VALUE gates, each audited against deck-grammar-nec2.md at the
+    2026-08-19 re-baseline:
+
+      EX          `_ex`: every type but 0 refuses
+      RP          `_RP_MODES`: modes 0, 2, 3 only
+      GN type     `_gn`: -1, 0, 1, 2 only
+      GN + NRADL  `_gn`: a radial screen refuses on the two reflection-
+                  coefficient types (0 and 2) and NOT on PEC or free space
+      GN 0 contact  solver-level, `_ground_spec`: a GN 0 deck whose geometry
+                  reaches z = 0; refused by design (momwire#282)
+      LD type     `_ld`: -1, 0, 1, 4, 5 only — so 2, 3, 6 and 7 all refuse,
+                  and the census sees 6 only as the LD 1 4nec2 emits for it
+      NE/NH       `_near_field`: spherical refuses; so does a finite ground
+                  (GN 0 or GN 2), because a Sommerfeld near field is no image
+      PQ          `_pq`, since the hygiene wave: PQ -1 SUPPRESSES the charge
+                  report and serves; PQ >= 0 REQUESTS one and refuses.  Was a
+                  by-name refusal in the pre-re-baseline census
+      GD + GN 1   `_refuse_the_mininec_ground_idiom`, since the hygiene wave:
+                  a LOUD refusal now, not a silent substitution.  Narrowed
+                  exactly as the live gate is — an all-zero EPSR2/SIG2 pair
+                  describes no medium and does not trip it, and an RP 2/RP 3
+                  cliff request READS the record, so it is answered
+      NT/TL seg   `_network`: an endpoint segment below 1 refuses (NEC halts)
+      TL Z0       `_network`: a zero (or absent) characteristic impedance
+                  refuses (NEC aborts while reading)
+      contiguity  `_network`: a network card with a non-transparent card
+                  between it and an earlier one refuses, because NEC silently
+                  DESTROYS every network card read before it
+      no EX       `parse_nec2`: a deck that drives nothing refuses
+
+    Zero bundle decks trip the nonpositive-segment or zero-Z0 guards, which
+    matches phase C's own corpus scan.  The contiguity guard is the one that
+    bites, and only through the manufactured `NT` — see `emit`.
+    """
     refuse, silent = set(), set()
     mns = {m for m, _ in emitted}
-    has_gn0 = has_gn1 = touches_z0 = False
+    has_gn0 = has_gn1 = has_gn2 = touches_z0 = False
+    cliff_request = saw_network = False
+    destroyer = None
     for mn, f in emitted:
-        if mn in REFUSE_BY_NAME or mn in REFUSE_UNRECOGNISED:
+        if mn in _TERMINATORS:
+            break
+        if mn in REFUSE_BY_NAME:
             refuse.add(mn)
-        elif mn == "EX":
+        elif mn not in RECOGNISED:
+            refuse.add(f"unrecognised-{mn}")
+        if mn in _NETWORK_CARDS:
+            if destroyer is not None:
+                refuse.add("net-contiguity")
+            saw_network = True
+            for idx in (1, 3):
+                seg = field_int(f, idx)
+                if seg is not None and seg < 1:
+                    refuse.add("net-nonpositive-segment")
+            if mn == "TL" and (len(f) <= 4 or num(f[4]) == 0.0):
+                refuse.add("TL-zero-Z0")
+        elif saw_network and destroyer is None and mn not in NETWORK_TRANSPARENT:
+            destroyer = mn
+        if mn == "EX":
             t = field_int(f, 0)
             if t not in (0, None):
                 refuse.add(f"EX{t}")
@@ -184,6 +325,7 @@ def score(emitted):
             m = field_int(f, 0)
             if m not in (0, 2, 3, None):
                 refuse.add(f"RP{m}")
+            cliff_request |= m in (2, 3)
         elif mn == "GN":
             t = field_int(f, 0)
             if t not in (-1, 0, 1, 2, None):
@@ -192,10 +334,15 @@ def score(emitted):
                 refuse.add("GN+NRADL")
             has_gn0 |= t == 0
             has_gn1 |= t == 1
+            has_gn2 |= t == 2
         elif mn == "LD":
             t = field_int(f, 0)
-            if t in (2, 3, 7):
+            if t is not None and t not in (-1, 0, 1, 4, 5):
                 refuse.add(f"LD{t}")
+        elif mn == "PQ":
+            flag = field_int(f, 0)
+            if flag is not None and flag >= 0:
+                refuse.add("PQ>=0")
         elif mn in ("NE", "NH"):
             if field_int(f, 0) not in (0, None):
                 refuse.add(f"{mn}-spherical")
@@ -205,33 +352,23 @@ def score(emitted):
             touches_z0 |= z1 == 0.0 or z2 == 0.0
     if has_gn0 and touches_z0:
         refuse.add("GN0-contact")
-    if (
-        has_gn0
-        or "GN2" not in refuse
-        and any(m == "GN" and field_int(f, 0) == 2 for m, f in emitted)
-    ):
-        if "NE" in mns or "NH" in mns:
-            refuse.add("NE/NH-finite-ground")
-    if "GD" in mns and has_gn1:
-        silent.add("MININEC-GD")
-    if "EN" not in mns and "NX" not in mns:
-        silent.add("no-terminator")
+    if (has_gn0 or has_gn2) and ("NE" in mns or "NH" in mns):
+        refuse.add("NE/NH-finite-ground")
+    if has_gn1 and not cliff_request:
+        for mn, f in emitted:
+            if mn == "GD" and (num(f[4]) or num(f[5])):
+                refuse.add("MININEC-GD")
+                break
+    if "EX" not in mns:
+        refuse.add("no-EX")
     return refuse, silent
 
 
-def classify(
-    refuse,
-    silent,
-    waived_refuse=frozenset(),
-    waived_silent=frozenset(),
-    promoted_silent=frozenset(),
-):
-    """Waived reasons are served; promoted silent reasons refuse loudly."""
-    r = (refuse | (silent & promoted_silent)) - waived_refuse
-    s = silent - waived_silent - promoted_silent
-    if r:
+def classify(refuse, silent, waived_refuse=frozenset()):
+    """Waived reasons are served — that is what a ladder rung buys."""
+    if refuse - waived_refuse:
         return "refuse"
-    return "silent" if s else "serve"
+    return "silent" if silent else "serve"
 
 
 def main():
@@ -269,39 +406,52 @@ def main():
     n = len(decks)
     print(f"models: {n}  (root: {args.root})")
 
-    GATE = frozenset({"MININEC-GD"})
-    EOFEN = frozenset({"no-terminator"})
+    # Each rung waives only work NOT YET DONE.  The hygiene, GX/GR and NT/TL
+    # rungs of the pre-re-baseline ladder are gone because they have landed:
+    # they are inside "today" now.
+    GEOM = frozenset(GEOMETRY_CLUSTER)
+    MININEC = frozenset({"MININEC-GD"})
+    TAIL = frozenset(LONG_TAIL)
     ladder = [
-        ("today", frozenset(), frozenset(), frozenset()),
-        ("hygiene (EOF-as-EN, GD/GN1 gate)", frozenset(), EOFEN, GATE),
-        ("+ NT/TL", NETWORK_CLUSTER, EOFEN, GATE),
-        ("+ geometry transforms", NETWORK_CLUSTER | GEOMETRY_CLUSTER, EOFEN, GATE),
-        (
-            "+ MININEC-type ground",
-            NETWORK_CLUSTER | GEOMETRY_CLUSTER,
-            EOFEN | GATE,
-            frozenset(),
-        ),
-        (
-            "+ long tail",
-            NETWORK_CLUSTER | GEOMETRY_CLUSTER | LONG_TAIL,
-            EOFEN | GATE,
-            frozenset(),
-        ),
+        ("today (live dialect)", frozenset()),
+        ("+ remaining geometry (GA/GH/GC)", GEOM),
+        ("+ MININEC-type ground", GEOM | MININEC),
+        ("+ long tail", GEOM | MININEC | TAIL),
         (
             "(+ patches — excluded by #456)",
-            NETWORK_CLUSTER | GEOMETRY_CLUSTER | LONG_TAIL | PATCH_CLUSTER,
-            EOFEN | GATE,
-            frozenset(),
+            GEOM | MININEC | TAIL | frozenset(PATCH_CLUSTER),
         ),
     ]
     print("\n== serve ladder ==")
-    for label, wr, ws, ps in ladder:
-        c = Counter(classify(r, s, frozenset(wr), ws, ps) for _, r, s in decks)
+    for label, waived in ladder:
+        c = Counter(classify(r, s, waived) for _, r, s in decks)
+        assert c["serve"] + c["refuse"] + c["silent"] == n, label
         print(
             f"  {label:36s} serve {c['serve']:3d} ({100 * c['serve'] / n:5.1f}%)"
             f"  refuse {c['refuse']:3d}  silent {c['silent']:3d}"
         )
+    bottom = Counter()
+    for _, r, s in decks:
+        rest = r - (GEOM | MININEC | TAIL | frozenset(PATCH_CLUSTER))
+        if rest:
+            for x in rest:
+                bottom[x] += 1
+    print("\n== refused by design at the bottom of the ladder ==")
+    for k, v in bottom.most_common():
+        print(f"  {k:24s} {v}{'' if k in BY_DESIGN else '   <- NOT on a ladder rung'}")
+
+    # The one number in this census that rests on a MODELLED emission order
+    # rather than a captured one (see `emit`): every net-contiguity deck pairs
+    # a hand-written TL with an NT manufactured from EX 6, and no capture
+    # holds both card kinds at once.  Printed as its own sensitivity so the
+    # ladder above can be audited without re-deriving it.
+    alt = Counter(classify(r - {"net-contiguity"}, s) for _, r, s in decks)
+    print(
+        f"\nsensitivity — if 4nec2 emits the manufactured NT block ADJACENT to a\n"
+        f"deck's hand-written network cards rather than at the execute card,\n"
+        f"today's serve is {alt['serve']} ({100 * alt['serve'] / n:.1f}%) "
+        f"instead of the {Counter(classify(r, s) for _, r, s in decks)['serve']} above."
+    )
 
     print("\n== refusal reasons today (models, non-exclusive) ==")
     reasons = Counter()
