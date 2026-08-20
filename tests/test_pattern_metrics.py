@@ -74,6 +74,26 @@ def test_peak_takeoff_and_azimuth_locate_the_maximum():
     assert m["azimuth_deg"] == pytest.approx(0.0)
 
 
+def test_azimuth_reports_zero_when_the_duplicated_endpoint_wins():
+    """Issue #958: φ = 0 and φ = 360 are ONE direction, and the grid samples
+    both. A peak there is a tie broken at the last bit — on `pota_performer`
+    the two copies came out 1.0744769060050083 and 1.074476906005009, so
+    `argmax` took φ = 360 and the metric read 360.0 for a bearing of zero.
+
+    Forced here rather than waited for: the φ = 360 column is made the strict
+    maximum, which is what a ULP-level tie amounts to for `argmax`. The
+    reported azimuth must be the bearing, not the grid coordinate.
+    """
+    rings = np.full((90, 361), -50.0)
+    rings[75, 0] = 12.0
+    rings[75, 360] = 12.000000000000002  # the same direction, one ULP up
+    m = pattern_metrics(_make_ff(rings))
+    assert m["azimuth_deg"] == 0.0, "a bearing of 0 must not report as 360"
+    # The rest of the summary must not care which copy won either.
+    assert m["takeoff_deg"] == pytest.approx(15.0)
+    assert m["front_to_back_db"] == pytest.approx(62.0)
+
+
 def test_front_to_back_uses_same_elevation_opposite_azimuth():
     rings = np.full((90, 361), -50.0)
     rings[75, 0] = 10.0  # front
