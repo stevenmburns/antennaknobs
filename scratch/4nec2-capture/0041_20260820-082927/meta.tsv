@@ -1,0 +1,13 @@
+shim_version	1
+started_utc	2026-08-20T15:29:27.5640639Z
+command_line	Nec2dXS1k5.exe  
+argument_tail	
+cwd	C:\4nec2\exe
+real_engine	C:\4nec2\exe\nec2dxs1K5.real.exe
+real_engine_sha256	70cf205821423623bded9a2a3ba776ca3adae3eb5d39d4ef7b67637483405841
+stdin_redirected	True
+stdout_redirected	False
+parent_pid	62708 (self)
+exit_code	0
+elapsed_ms	103
+finished_utc	2026-08-20T15:29:27.7776166Z
