@@ -391,6 +391,38 @@ wrong or silent there and the dialect says so out loud: 11 network-contiguity,
 (`Objects/`-family display models and the two NGF writers — nothing drives
 the structure, and NEC would solve nothing either).
 
+### Re-baselined again 2026-08-20 — the MININEC rung lands (momwire#487)
+
+Workstream 2 took the `GN 3`/`GD` decision the ladder above priced: C0
+measurements (oracle + 4nec2's own manual and bundled engine) showed the
+idiom is **letter-faithful NEC-2 already** — perfect-ground physics under
+`RP 0`/request-less execution, the second medium behind `RP 2`/`RP 3`, which
+is 4nec2's own "circular cliff … distance zero" manufacturing — so the
+refusal came out and the pair serves byte-faithfully (decision record:
+momwire `docs/design/mininec-ground-idiom.md`; arc momwire#487, sub-PRs
+#488/#493/#494). This script's hand-modelled idiom gate went with it, and
+the ladder loses that rung the way it lost hygiene, `GX`/`GR` and `NT`/`TL`:
+
+| step | serve | refuse | silent |
+| --- | --- | --- | --- |
+| **today (live dialect)** | **400 (87.5 %)** | 57 | **0** |
+| + remaining geometry (`GA` `GH` `GC`) | 406 (88.8 %) | 51 | 0 |
+| + long tail (`PQ` req, `CP`, `WG`/`GF`, `LD 2`/`7`, `RP 1`, `EX 1`/`5`, `NRADL`) | 414 (90.6 %) | 43 | 0 |
+| (+ patches — excluded by #456) | 430 (94.1 %) | 27 | 0 |
+
+Today moved 358 → 400 (+42, exactly the rung's price) and the silent column
+stays zero everywhere. The `GD`+`GN 1` rows earlier in this document
+(refuse-loudly) describe the pre-#487 state and stay as written — this
+section is their successor. The arc also filed two divergences its probes
+turned up, neither reachable by a bundle deck: momwire#489 (`GE`'s sign is
+unread by the solve) and momwire#490 (an all-zero second medium under a
+cliff request reflects off vacuum instead of medium 1). The one still-open
+observation is unchanged from the analysis above: no capture yet pairs `GD`
+with a far-field run, so which `RP` mode 4nec2 emits for a `GN 3` model's
+pattern is inferred (`RP 3`, per its manual) rather than observed — one
+Windows capture settles the wording either way, and is worth batching with
+the pending `Coax.nec` contiguity capture.
+
 ### Two corrections the re-baseline forced
 
 **1. The census's `EX 6` emission order was wrong, and only phase C could
