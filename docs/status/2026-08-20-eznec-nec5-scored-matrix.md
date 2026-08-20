@@ -154,7 +154,7 @@ impedance for C.
 | `GW` | 49/49 | serve | |
 | `GE 1,-1` / `GE 0,-1` | 33 / 16 of 49 | serve | ground flag routing; second field `-1` in all 49 |
 | `FR` single-point | 49/49 | serve | |
-| `PQ 0` | 49/49 | serve | measured: **zero charge blocks in 49 printouts** — accepted, prints nothing (unlike the nec2 dialect's by-value gate, nothing to refuse) |
+| `PQ 0` | 49/49 | **work-item** | every printout carries a `Wire Charge Densities` block (all 10 byte-gate fixtures; the header is mixed-case — an all-caps grep misses it, which briefly mis-scored this row as inert). The nec2 dialect refuses charge requests today, so this is a real readout: q = −(1/jω)·dI/ds from the solved current, plus the renderer block |
 | `EN` | 49/49 | serve | |
 
 ### Ground
@@ -231,8 +231,10 @@ guard until virtualization lands). That is the same bar ws1 met on the
 * `TL`/`NT` moved from "the #456 layering decision" to addressing-only
   work — the layering was decided (networks live in momwire) and phase C
   shipped the solve.
-* `PQ 0` moved from "serve (accept)" to measured-inert (49 printouts, no
-  charge block).
+* `PQ 0` moved from "serve (accept)" to a real work-item: every printout
+  carries a `Wire Charge Densities` block, and momwire has no charge
+  readout today (the nec2 dialect refuses charge requests). Corrected
+  2026-08-20 after the first pass mis-graded it inert on an all-caps grep.
 * The byte-gated renderer moved from aspiration to proven (V0).
 * The seam's refusal grammar gained an engine-side precedent (`SORVT1`
   speaks in the printout, exactly where a drop-in's `NEC ERROR` would).
