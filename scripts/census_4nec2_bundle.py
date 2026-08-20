@@ -438,7 +438,6 @@ def main():
     for k, v in bottom.most_common():
         print(f"  {k:24s} {v}{'' if k in BY_DESIGN else '   <- NOT on a ladder rung'}")
 
-
     print("\n== refusal reasons today (models, non-exclusive) ==")
     reasons = Counter()
     for _, r, s in decks:
