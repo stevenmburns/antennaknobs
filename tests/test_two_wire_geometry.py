@@ -15,6 +15,7 @@ from antennaknobs.network import (
     ETA0,
     BalancedLine,
     WireSpec,
+    balanced_line_from_geometry,
     two_wire_params,
 )
 
@@ -168,7 +169,7 @@ def test_nonpositive_radius_is_refused():
 def test_from_geometry_is_exactly_the_element_it_computes():
     """It's a constructor, not a new element: same fields, same stamp."""
     z, vf = two_wire_params(6 * INCH, AWG12)
-    made = BalancedLine.from_geometry(
+    made = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=6 * INCH, length=20.0, conductor=AWG12
     )
     hand = BalancedLine("t1", "t2", "a1", "a2", zdiff=z, length=20.0, vf=vf)
@@ -176,10 +177,10 @@ def test_from_geometry_is_exactly_the_element_it_computes():
 
 
 def test_from_geometry_takes_a_catalog_wire_with_its_jacket():
-    made = BalancedLine.from_geometry(
+    made = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=INCH, length=20.0, conductor="18-awg-pvc"
     )
-    bare = BalancedLine.from_geometry(
+    bare = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=INCH, length=20.0, conductor=0.512e-3
     )
     # The catalog entry carries insulation_radius + eps_r, so the constructed
@@ -191,14 +192,14 @@ def test_from_geometry_takes_a_catalog_wire_with_its_jacket():
 
 def test_from_geometry_takes_a_wire_spec():
     spec = WireSpec(radius=AWG14)
-    made = BalancedLine.from_geometry(
+    made = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=6 * INCH, length=10.0, conductor=spec
     )
     assert made.zdiff == pytest.approx(two_wire_params(6 * INCH, AWG14)[0])
 
 
 def test_from_geometry_supports_an_unequal_pair():
-    made = BalancedLine.from_geometry(
+    made = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=6 * INCH, length=10.0,
         conductor=AWG18, conductor2=AWG12,
     )  # fmt: skip
@@ -207,7 +208,7 @@ def test_from_geometry_supports_an_unequal_pair():
 
 def test_from_geometry_refuses_two_different_jackets():
     with pytest.raises(ValueError, match="different insulation radii"):
-        BalancedLine.from_geometry(
+        balanced_line_from_geometry(
             "t1", "t2", "a1", "a2", spacing=INCH, length=10.0,
             conductor="18-awg-pvc", conductor2="22-awg-pvc",
         )  # fmt: skip
@@ -216,7 +217,7 @@ def test_from_geometry_refuses_two_different_jackets():
 def test_from_geometry_passes_loss_and_common_mode_through():
     """Geometry says nothing about matched loss or the CM path — those stay
     the caller's explicit choice."""
-    made = BalancedLine.from_geometry(
+    made = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=6 * INCH, length=12.5,
         conductor=AWG12, k1=0.02, k2=0.0001, zcomm=300.0,
     )  # fmt: skip
@@ -228,7 +229,7 @@ def test_from_geometry_line_stamps_like_any_other():
     """End to end: the constructed line reduces through the shared reducer."""
     from antennaknobs.network_reduce import balanced_admittance_4x4
 
-    made = BalancedLine.from_geometry(
+    made = balanced_line_from_geometry(
         "t1", "t2", "a1", "a2", spacing=6 * INCH, length=5.0, conductor=AWG12
     )
     y = balanced_admittance_4x4(made.zdiff, made.length, 20.0, vf=made.vf)

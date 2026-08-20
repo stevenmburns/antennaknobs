@@ -71,6 +71,7 @@ from antennaknobs.network import (
     Wire,
     WIRES,
     as_wire,
+    cable_from_catalog,
 )
 from antennaknobs.station import unun
 
@@ -211,7 +212,9 @@ class Builder(AntennaBuilder):
                     line="pri",
                     ant="ant",
                 ),
-                TL.from_cable(self.cable, "rig", "pri", self.line_len_m),
+                TL.from_cable(
+                    cable_from_catalog(self.cable), "rig", "pri", self.line_len_m
+                ),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )
