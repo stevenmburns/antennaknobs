@@ -1,0 +1,39 @@
+{
+  "citation": "NEC-5 printouts captured as End-User Reports; NEC-5 is (c) LLNL, LLNL-CODE-746721. The binary is user-licensed and never distributed with antennaknobs. Decks were emitted by EZNEC Pro/2+ v7.0.4 driving NEC5CL_x13.exe (the 2026-08-16 capture session, momwire#390); printouts are the Windows engine's own, verbatim.",
+  "purpose": "The W7EL signed-node oracle triple: the ws3 (momwire#456) gate that any NEC-5 dialect front-end must pass BEFORE seam code exists. The tag in a node-addressed card is the favored wire and carries physics: configs A and B name the same geometric node two ways and must agree to every printed digit; config C moves one load's favored wire only and must answer ~70% higher. A front-end that canonicalizes node addresses to bare geometric nodes returns config A's impedance for config C.",
+  "verified": "2026-08-20: the locally built nec5cl (linux, same NEC-5 source release) reproduces every printout byte-for-byte except FILL/RUN TIME timing lines and gfortran's -0.00 signed zero in pattern TILT columns.",
+  "fixtures": {
+    "w7el_a_rp": {
+      "deck": "w7el_a_rp.nec",
+      "printout": "w7el_a_rp.out",
+      "capture": "scratch/eznec-capture/0012_20260816-163715",
+      "declared": "both loads on Wire 3, 0% from End 1 -> NT 3,-1,4,1 + NT 3,-1,4,2",
+      "z_ohms": "114.47 + j21.096",
+      "w7el_published": "114.5 + j21.1"
+    },
+    "w7el_a_xq": {
+      "deck": "w7el_a_xq.nec",
+      "printout": "w7el_a_xq.out",
+      "capture": "scratch/eznec-capture/0014_20260816-164111",
+      "declared": "config A, XQ tail — byte-comparable to w7el_c_xq apart from the CM stamp and one NT card",
+      "z_ohms": "114.47 + j21.096"
+    },
+    "w7el_b_rp": {
+      "deck": "w7el_b_rp.nec",
+      "printout": "w7el_b_rp.out",
+      "capture": "scratch/eznec-capture/0016_20260816-164532",
+      "declared": "both loads on Wire 2, 100% from End 1 -> NT 2,3,4,1 + NT 2,3,4,2 — the same geometric node as config A, spelled through the other wire",
+      "z_ohms": "114.47 + j21.096",
+      "gate": "must equal w7el_a_rp to every printed digit"
+    },
+    "w7el_c_xq": {
+      "deck": "w7el_c_xq.nec",
+      "printout": "w7el_c_xq.out",
+      "capture": "scratch/eznec-capture/0017_20260816-164649",
+      "declared": "one load per wire: NT 3,-1,4,1 + NT 2,3,4,2 — same point, different favored wires; the loads combine in series, not parallel",
+      "z_ohms": "195.34 - j57.458",
+      "w7el_published": "195.3 - j57.46",
+      "gate": "a seam that answers 114.47 here has canonicalized the favored wire away and is wrong by 70%"
+    }
+  }
+}
