@@ -12,7 +12,7 @@ formal/actual port map:
     branches = [
         Instance("tuner", t_network_tuner(c1_pF=..., c2_pF=..., l_uH=...),
                  rig="rig", out="li"),
-        TL.from_cable("openwire-600", "li", "feed", 20.0),
+        TL.from_cable(cable_from_catalog("openwire-600"), "li", "feed", 20.0),
     ]
 
 Swapping a box for `bypass()` (same two-port interface, wires straight
@@ -40,6 +40,7 @@ from .network import (
     Shunt,
     Transformer,
     TwoPort,
+    cable_from_catalog,
 )
 
 
@@ -302,12 +303,12 @@ def _stub_line(freq_mhz, length_wl, z0, vf, k1, k2, cable):
     """Resolve a stub's line parameters to ``(z0, length_m, vf, k1, k2)``.
 
     ``cable`` (a `CABLES` key) supersedes z0/vf/k1/k2 wholesale — it is the
-    cable, not a default — and reuses `TL.from_cable`'s unknown-name
-    ergonomics by probing it with a zero length. Then the one length
-    conversion of the module section header, in one place."""
+    cable, not a default — and reuses `cable_from_catalog`'s unknown-name
+    ergonomics. Then the one length conversion of the module section header,
+    in one place."""
     if cable is not None:
-        probe = TL.from_cable(cable, a="_", b="_", length=0.0)
-        z0, vf, k1, k2 = probe.z0, probe.vf, probe.k1, probe.k2
+        spec = cable_from_catalog(cable)
+        z0, vf, k1, k2 = spec.z0, spec.vf, spec.k1, spec.k2
     if freq_mhz <= 0.0:
         raise ValueError(f"stub freq_mhz must be positive, got {freq_mhz!r}")
     return z0, length_wl * vf * C_LIGHT_MHZ_M / freq_mhz, vf, k1, k2

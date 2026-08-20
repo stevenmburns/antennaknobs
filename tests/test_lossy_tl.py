@@ -16,7 +16,15 @@ they are pure circuit oracles:
 import numpy as np
 import pytest
 
-from antennaknobs.network import CABLES, TL, Driven, Network, PortOnWire, PortVirtual
+from antennaknobs.network import (
+    CABLES,
+    TL,
+    Driven,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    cable_from_catalog,
+)
 from antennaknobs.network_reduce import C_LIGHT, NetworkReducer, tl_admittance_2x2
 
 F_MHZ = 10.0
@@ -120,9 +128,17 @@ def test_transposed_flips_only_the_off_diagonal():
 
 
 def test_from_cable_catalog():
-    tl = TL.from_cable("RG-8X", "rig", "ant", FT100)
+    tl = TL.from_cable(cable_from_catalog("RG-8X"), "rig", "ant", FT100)
     c = CABLES["RG-8X"]
     assert (tl.z0, tl.vf, tl.k1, tl.k2) == (c.z0, c.vf, c.k1, c.k2)
     assert (tl.a, tl.b, tl.length) == ("rig", "ant", FT100)
     with pytest.raises(KeyError, match="RG-8X"):  # message lists availables
-        TL.from_cable("RG-9000", "rig", "ant", FT100)
+        cable_from_catalog("RG-9000")
+
+
+def test_from_cable_refuses_a_bare_catalog_name():
+    """momwire#456 ws2: `TL` lives in momwire now, which ships no cable
+    table, so `from_cable` takes the `Cable` SPEC and a name is a TypeError
+    naming the resolver that turns one into the other."""
+    with pytest.raises(TypeError, match="cable_from_catalog"):
+        TL.from_cable("RG-8X", "rig", "ant", FT100)

@@ -28,6 +28,7 @@ from antennaknobs.network import (
     Network,
     PortOnWire,
     PortVirtual,
+    cable_from_catalog,
 )
 from antennaknobs.station import balun
 from antennaknobs.designs.dipoles.folded_invvee import Builder as FoldedInvVee
@@ -76,7 +77,9 @@ class Builder(FoldedInvVee):
                 "rig": PortVirtual("rig"),
             },
             branches=[
-                TL.from_cable(self.cable, "rig", "bal", self.line_len_m),
+                TL.from_cable(
+                    cable_from_catalog(self.cable), "rig", "bal", self.line_len_m
+                ),
                 Instance(
                     "balun",
                     balun(

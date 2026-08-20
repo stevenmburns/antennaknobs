@@ -21,6 +21,7 @@ from antennaknobs.network import (
     PortVirtual,
     Shunt,
     TwoPort,
+    cable_from_catalog,
 )
 from antennaknobs.station import bypass, t_network_tuner, unun
 
@@ -219,7 +220,12 @@ def _tuner_engines():
             return Network(
                 ports=_ports(feed="real", li="virt", m="virt", rig="virt"),
                 branches=[
-                    TL.from_cable("openwire-600", "li", "feed", self.line_len_m),
+                    TL.from_cable(
+                        cable_from_catalog("openwire-600"),
+                        "li",
+                        "feed",
+                        self.line_len_m,
+                    ),
                     TwoPort(a="rig", b="m", c=self.series_c1_pF * 1e-12),
                     Shunt(
                         port="m",

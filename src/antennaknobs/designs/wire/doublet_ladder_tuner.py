@@ -42,6 +42,7 @@ from antennaknobs.network import (
     PortOnWire,
     PortVirtual,
     as_wire,
+    cable_from_catalog,
 )
 from antennaknobs.station import t_network_tuner
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee
@@ -125,7 +126,9 @@ class Builder(InvVee):
                 "rig": PortVirtual("rig"),
             },
             branches=[
-                TL.from_cable("openwire-600", "li", "feed", self.line_len_m),
+                TL.from_cable(
+                    cable_from_catalog("openwire-600"), "li", "feed", self.line_len_m
+                ),
                 # T-network tuner box; its tee midpoint is the instance's
                 # own internal node ("tuner.m" after expansion).
                 Instance(

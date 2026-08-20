@@ -35,6 +35,7 @@ from antennaknobs.network import (
     PortOnWire,
     PortVirtual,
     as_wire,
+    cable_from_catalog,
 )
 from antennaknobs.designs.dipoles.invvee import Builder as InvVee
 
@@ -76,7 +77,9 @@ class Builder(InvVee):
         return Network(
             ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
             branches=[
-                TL.from_cable(self.cable, "rig", "feed", self.line_len_m),
+                TL.from_cable(
+                    cable_from_catalog(self.cable), "rig", "feed", self.line_len_m
+                ),
             ],
             sources=[Driven(port="rig", voltage=1 + 0j)],
         )
