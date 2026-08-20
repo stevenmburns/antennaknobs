@@ -26,17 +26,23 @@ tables (deck-grammar-nec2.md):
   silent  — the deck parses but means something the frontend didn't; the
             zero-tolerance column, and empty as of the re-baseline below
 
-**"today" tracks the submodule's live dialect, re-baselined 2026-08-19**
-after momwire#456 workstream 2 phase C (momwire#482) landed on momwire main.
-Three waves have moved since the 2026-08-19 matrix was first written, and
-all three are IN the "today" rung now:
+**"today" tracks the submodule's live dialect, re-baselined 2026-08-20**
+after momwire#456 workstream 2's MININEC-ground arc (momwire#487) landed on
+momwire main. Four waves have moved since the 2026-08-19 matrix was first
+written, and all four are IN the "today" rung now:
 
-  - the hygiene wave — EOF is read as EN, the GD-with-GN-1 MININEC idiom
-    refuses by name, SC refuses by name, and PQ is a by-VALUE gate (PQ -1
-    suppresses and serves; PQ >= 0 requests a report and refuses)
+  - the hygiene wave — EOF is read as EN, SC refuses by name, and PQ is a
+    by-VALUE gate (PQ -1 suppresses and serves; PQ >= 0 requests a report
+    and refuses)
   - GX/GR structure symmetry (momwire#415), served since then
   - TL/NT (momwire#482, phase C), served with the by-value guards this
     script models below
+  - the MININEC-type ground idiom (momwire#487) — GD with GN 1 SERVES
+    letter-faithfully to NEC-2 (perfect-ground physics under RP 0 or a
+    request-less execute, the second medium behind RP 2/3), so the
+    hygiene wave's idiom gate is gone from this script the way it is gone
+    from the dialect (decision record: momwire
+    docs/design/mininec-ground-idiom.md)
 
 The by-NAME half of the scoring is therefore no longer written out here.
 It is READ from the live table, `momwire.deck._nec2._REFUSED_BY_NAME`,
@@ -276,11 +282,6 @@ def score(emitted):
       PQ          `_pq`, since the hygiene wave: PQ -1 SUPPRESSES the charge
                   report and serves; PQ >= 0 REQUESTS one and refuses.  Was a
                   by-name refusal in the pre-re-baseline census
-      GD + GN 1   `_refuse_the_mininec_ground_idiom`, since the hygiene wave:
-                  a LOUD refusal now, not a silent substitution.  Narrowed
-                  exactly as the live gate is — an all-zero EPSR2/SIG2 pair
-                  describes no medium and does not trip it, and an RP 2/RP 3
-                  cliff request READS the record, so it is answered
       NT/TL seg   `_network`: an endpoint segment below 1 refuses (NEC halts)
       TL Z0       `_network`: a zero (or absent) characteristic impedance
                   refuses (NEC aborts while reading)
@@ -296,7 +297,7 @@ def score(emitted):
     refuse, silent = set(), set()
     mns = {m for m, _ in emitted}
     has_gn0 = has_gn1 = has_gn2 = touches_z0 = False
-    cliff_request = saw_network = False
+    saw_network = False
     destroyer = None
     for mn, f in emitted:
         if mn in _TERMINATORS:
@@ -325,7 +326,6 @@ def score(emitted):
             m = field_int(f, 0)
             if m not in (0, 2, 3, None):
                 refuse.add(f"RP{m}")
-            cliff_request |= m in (2, 3)
         elif mn == "GN":
             t = field_int(f, 0)
             if t not in (-1, 0, 1, 2, None):
@@ -354,11 +354,6 @@ def score(emitted):
         refuse.add("GN0-contact")
     if (has_gn0 or has_gn2) and ("NE" in mns or "NH" in mns):
         refuse.add("NE/NH-finite-ground")
-    if has_gn1 and not cliff_request:
-        for mn, f in emitted:
-            if mn == "GD" and (num(f[4]) or num(f[5])):
-                refuse.add("MININEC-GD")
-                break
     if "EX" not in mns:
         refuse.add("no-EX")
     return refuse, silent
@@ -406,20 +401,18 @@ def main():
     n = len(decks)
     print(f"models: {n}  (root: {args.root})")
 
-    # Each rung waives only work NOT YET DONE.  The hygiene, GX/GR and NT/TL
-    # rungs of the pre-re-baseline ladder are gone because they have landed:
-    # they are inside "today" now.
+    # Each rung waives only work NOT YET DONE.  The hygiene, GX/GR, NT/TL and
+    # MININEC-ground rungs of earlier ladders are gone because they have
+    # landed: they are inside "today" now.
     GEOM = frozenset(GEOMETRY_CLUSTER)
-    MININEC = frozenset({"MININEC-GD"})
     TAIL = frozenset(LONG_TAIL)
     ladder = [
         ("today (live dialect)", frozenset()),
         ("+ remaining geometry (GA/GH/GC)", GEOM),
-        ("+ MININEC-type ground", GEOM | MININEC),
-        ("+ long tail", GEOM | MININEC | TAIL),
+        ("+ long tail", GEOM | TAIL),
         (
             "(+ patches — excluded by #456)",
-            GEOM | MININEC | TAIL | frozenset(PATCH_CLUSTER),
+            GEOM | TAIL | frozenset(PATCH_CLUSTER),
         ),
     ]
     print("\n== serve ladder ==")
@@ -432,7 +425,7 @@ def main():
         )
     bottom = Counter()
     for _, r, s in decks:
-        rest = r - (GEOM | MININEC | TAIL | frozenset(PATCH_CLUSTER))
+        rest = r - (GEOM | TAIL | frozenset(PATCH_CLUSTER))
         if rest:
             for x in rest:
                 bottom[x] += 1
