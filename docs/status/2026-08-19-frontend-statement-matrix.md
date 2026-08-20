@@ -233,6 +233,13 @@ with nothing naming the cause. Fix: match NEC — treat EOF as `EN`.
 
 ## The EZNEC matrix (NEC-5 dialect — workstream 3, seam unbuilt)
 
+> **Superseded 2026-08-20 — see
+> [`2026-08-20-eznec-nec5-scored-matrix.md`](2026-08-20-eznec-nec5-scored-matrix.md).**
+> This planned-disposition table was promoted to a scored matrix after two
+> C0 probe families ran against the licensed oracle (ground-mode routing,
+> the W7EL signed-node triple); the rows below stay as the pre-measurement
+> record.
+
 No drop-in exists at this seam, so "today" is uniformly *nothing runs*; the
 score column here is the **planned disposition** — what the front-end being
 priced in #456 workstream 3 does with each statement, given what momwire and
