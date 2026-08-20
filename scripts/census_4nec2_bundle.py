@@ -60,14 +60,14 @@ What CANNOT come from the live table, and is modelled by hand here, is the
 by-VALUE half — a card that refuses on the strength of its fields. Each gate
 is audited against deck-grammar-nec2.md at re-baseline time; see `score`.
 
-One number here is a PREDICTION rather than a measurement, and is printed as
-its own sensitivity line: the 11 decks that trip the network-contiguity
-refusal all pair a hand-written `TL` with an `NT` manufactured from `EX 6`,
-and no capture holds both card kinds at once, so the manufactured block's
-placement relative to the hand-written one is unobserved.  A capture of
-`HFsimple/Coax.nec` — whose whole point is a TL feedline, and whose emitted
-deck under the modelled order has NEC silently destroying that TL — would
-settle it.
+The manufactured `NT` block's placement, once this census's one modelled
+prediction, is now OBSERVED (capture 0041, `out__Coax.inp`, merged in
+antennaknobs#963): 4nec2 emits it immediately before the deck's first
+hand-written network card — adjacent, no destroy pattern — falling back to
+the execute card only when the deck has no network cards of its own
+(capture 0036, `out__QFH1280.inp`).  The old at-the-execute-card model
+invented destroy patterns 4nec2 never emits; `emit` now implements the
+observed rule, and the former sensitivity line is retired.
 
 Statically undecidable refusals (LD ranges over 8 segments, doubled loads,
 partial-wire LD 5, and the momwire#415 out-of-cell LD drop that costs
@@ -195,12 +195,17 @@ def emit(cards):
     load-bearing now that TL/NT serve: the network-contiguity rule reads the
     emitted card ORDER, so an inline expansion (all three at the EX 6's own
     site) would invent destroy patterns that 4nec2 never emits.  The grouping
-    below is the captured one — capture 0036's `out__QFH1280.inp`, whose two
-    phantom `GW` cards sit at the end of the geometry section after `GS`, whose
-    `EX 0` cards sit where its source wrote `EX 6`, and whose `NT` block sits
-    after `FR`, immediately before the injected `XQ`, though its source wrote
-    the `EX 6` cards BEFORE the `FR`.  So the `NT` block is deferred to the
-    execute card, and that is what is modelled.
+    below is the captured one, from BOTH placements now observed.  Capture
+    0036 (`out__QFH1280.inp`, no hand-written network cards): phantom `GW`
+    cards at the end of the geometry section, `EX 0` where the source wrote
+    `EX 6`, and the `NT` block after `FR`, immediately before the injected
+    `XQ`.  Capture 0041 (`out__Coax.inp`, a hand-written `TL`): the `NT`
+    block sits at the HEAD of the network section, immediately before the
+    hand-written `TL`, with `EX`/`GN`/`FR` after the network block — and the
+    engine's own printout solves the network, so nothing between a network
+    block and the execute card destroys it.  One rule covers both: the
+    manufactured `NT` block lands immediately before the deck's first
+    hand-written network card, or before the execute card when there is none.
     """
     phantom_gw, phantom_nt, body = [], [], []
     for mn, f in cards:
@@ -240,7 +245,7 @@ def emit(cards):
         if mn == "GE" and not placed_gw:
             out.extend(phantom_gw)
             placed_gw = True
-        if mn in _EXECUTE_CARDS and not placed_nt:
+        if (mn in _NETWORK_CARDS or mn in _EXECUTE_CARDS) and not placed_nt:
             out.extend(phantom_nt)
             placed_nt = True
         out.append((mn, f))
@@ -433,18 +438,6 @@ def main():
     for k, v in bottom.most_common():
         print(f"  {k:24s} {v}{'' if k in BY_DESIGN else '   <- NOT on a ladder rung'}")
 
-    # The one number in this census that rests on a MODELLED emission order
-    # rather than a captured one (see `emit`): every net-contiguity deck pairs
-    # a hand-written TL with an NT manufactured from EX 6, and no capture
-    # holds both card kinds at once.  Printed as its own sensitivity so the
-    # ladder above can be audited without re-deriving it.
-    alt = Counter(classify(r - {"net-contiguity"}, s) for _, r, s in decks)
-    print(
-        f"\nsensitivity — if 4nec2 emits the manufactured NT block ADJACENT to a\n"
-        f"deck's hand-written network cards rather than at the execute card,\n"
-        f"today's serve is {alt['serve']} ({100 * alt['serve'] / n:.1f}%) "
-        f"instead of the {Counter(classify(r, s) for _, r, s in decks)['serve']} above."
-    )
 
     print("\n== refusal reasons today (models, non-exclusive) ==")
     reasons = Counter()

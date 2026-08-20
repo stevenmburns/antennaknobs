@@ -416,12 +416,45 @@ stays zero everywhere. The `GD`+`GN 1` rows earlier in this document
 section is their successor. The arc also filed two divergences its probes
 turned up, neither reachable by a bundle deck: momwire#489 (`GE`'s sign is
 unread by the solve) and momwire#490 (an all-zero second medium under a
-cliff request reflects off vacuum instead of medium 1). The one still-open
-observation is unchanged from the analysis above: no capture yet pairs `GD`
-with a far-field run, so which `RP` mode 4nec2 emits for a `GN 3` model's
-pattern is inferred (`RP 3`, per its manual) rather than observed — one
-Windows capture settles the wording either way, and is worth batching with
-the pending `Coax.nec` contiguity capture.
+cliff request reflects off vacuum instead of medium 1).
+
+### The same evening: the Windows captures land (antennaknobs#963)
+
+The batched capture session closed both of this page's remaining
+observations in one sitting, and both landed on the side the analysis
+predicted:
+
+**`RP 3`, observed.** 4nec2's far-field runs of the `GN 3` model emit mode
+digit **3** — `RP 3 19 73 1503` for the pattern, `RP 3 37 1 1500` for the
+sweep (captures 0039/0040) — over the manufactured `GN 1` + `GD`. The
+MININEC decision record's one inference is now capture fact: the finite
+far field is asked for as the circular cliff, exactly as 4nec2's manual
+says, and the served `RP 0`/request-less forms are the impedance runs.
+
+**The `NT` placement, observed — and the contiguity refusals dissolve.**
+Capture 0041 (`Coax.nec`, the deck whose whole point is a hand-written `TL`
+feedline): the manufactured `NT` block is emitted immediately BEFORE the
+first hand-written network card — adjacent, one block — with `EX`/`GN`/`FR`
+after it, and the engine's own printout solves the network. The census's
+old at-the-execute-card model (from capture 0036, a deck with no network
+cards of its own) invented destroy patterns 4nec2 never emits; `emit` now
+implements the observed rule, the sensitivity line is retired, and its
+number becomes the measurement:
+
+| step | serve | refuse | silent |
+| --- | --- | --- | --- |
+| **today (live dialect)** | **411 (89.9 %)** | 46 | **0** |
+| + remaining geometry (`GA` `GH` `GC`) | 417 (91.2 %) | 40 | 0 |
+| + long tail | 425 (93.0 %) | 32 | 0 |
+| (+ patches — excluded by #456) | 441 (96.5 %) | 16 | 0 |
+
+`net-contiguity` is gone from the refusal reasons: the bottom of the ladder
+is now purely by-design — 9 `GN 0` ground-contact (momwire#282) and 8
+no-`EX` display decks. The EZNEC half of the session pinned the ground menu
+byte-for-byte (Perfect → `GN 1`; MININEC type → a bare `GD` with **no `GN`
+at all**; High Accuracy → `GN 0,…`), which is workstream 3's inheritance:
+the NEC-5 dialect must read a bare `GD` as MININEC-type ground, where this
+dialect measured it free-space-inert.
 
 ### Two corrections the re-baseline forced
 
