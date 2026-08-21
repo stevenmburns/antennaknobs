@@ -36,9 +36,65 @@ fourteen mnemonics lands on physics momwire already computes**, with two
 genuine work fronts — the bare-`GD` MININEC ground mode (routing, not
 physics) and NEC-5's node/favored-wire addressing (the W7EL trap, now a
 committed gate) — and one protocol front (the launch-stamp echo and
-byte-gated printout renderer, proven feasible by probe V0 below). The
-cumulative ladder runs 13/49 captures served after the first rung to 49/49
-after the fourth.
+byte-gated printout renderer, proven feasible by probe V0 below).
+
+## Re-score: the build landed (2026-08-20, same day)
+
+The seam-skeleton arc (momwire#497, PR #499) and the ground-rungs arc
+(momwire#504, PR #506) both merged to momwire main the day this matrix was
+scored. The measured, as-built ladder — captures served after each unit,
+counted by the corpus sweep the suite now pins id by id:
+
+| landed | adds | serve |
+| --- | --- | --- |
+| #497 (5 units) | shell, parser, byte-gated renderer, rung-1 physics, node-addressed `TL`/`NT` | **20/49** |
+| #504 U1 | `GN 0`/`GN 2` Sommerfeld (+ 0011/0030/0033/0034 falling in) | **27/49** |
+| #504 U2 | bare-`GD` MININEC mode (+ eleven `GD` feed systems falling in) | **43/49** |
+| #504 U3 | mixed `TL`+`NT` table; 19 printouts promoted to full gates | **46/49** |
+| #504 U4 | phased multi-`EX 4` drive | **48/49** |
+
+The one refusal left is 0022 — `NE`, by NE's name, until the queued Windows
+session captures its gate. 41 of the 48 carry full byte gates (structure
+gate: zero diff lines on every one; round-trip byte-exact); the other seven
+are the frequency-stepping session whose printouts are unusable (see the
+fixture manifest's `withheld_printouts` note — 0036/0038 are landable,
+momwire#511).
+
+What the build measured beyond this matrix:
+
+* **Envelopes, family-wide**: |ΔZ| runs 0.055–16.3 Ω, X-dominated, pinned
+  per capture at measured + 25 %; elevation cuts agree to ≤ 0.06 dB at every
+  printed angle; azimuth lobes to ≤ 0.17 dB (nulls amplify to ~0.7–0.95 dB
+  at −30 dB depth — cancellation arithmetic, not phasing error). The printed
+  εc cell uses the engine's own constant (εr − j·σ·λ·59.96, pinned across a
+  1–299.8 MHz oracle sweep); the negative-σ spelling folds at the door.
+* **The `GD` identity is mechanical**: bare-`GD` Z ≡ `GN 1` Z bit-exact
+  (same solver constructor call), on contacting and elevated geometry; the
+  `GD`/`GN 0` pattern difference is a uniform 1.28 dB level, reproduced to
+  0.02 dB. The environment banner lie is reproduced byte for byte and
+  nothing parses it back.
+* **The virtual-wire hang is gone, not guarded**: momwire#157 was fixed by
+  `57a8b22` (Sommerfeld grid r1_max cap); the 4-square geometry with its
+  100 λ anchor fills+solves in 0.82 s vs 0.17 s without, port Z unmoved.
+  Virtual-wire decks serve as real geometry.
+* **The mixed `TL`+`NT` table was observed all along**: capture 0000's
+  printout shows the layout (one heading, one sub-table per run of same-kind
+  rows) — the rung-1 study missed it to a filename-glob slip on the
+  `0000_preexisting-…` directory. Served, byte-gated on 0000/0023/0025; a
+  deck that INTERLEAVES `NT` before `TL` (0/49) refuses naming the order.
+* **A fourth trap surfaced and is gated**: the elevated-radial captures
+  (0033/0034, radials 1.09e-4 λ over `GN 0`) sit 275/188 Ω from the engine
+  with the reactance sign flipped — momwire's finite-ground solve at grazing
+  height (momwire#510), held by a named divergence gate that fails when
+  fixed, forcing a re-measure.
+* **Multi-`EX` arithmetic**: `INPUT POWER` = Σ per-card rows; 0031's
+  negative-power row (−1.779 Ω, −1.779 W — the element absorbing through
+  mutual coupling) rides through sum, efficiency and pattern normalization
+  untouched. Five multi-source shapes nothing has printed refuse by name.
+
+The statement tables below keep their measure-phase scores as the record of
+what was known before the build; a **[landed]** tag marks every row the two
+arcs closed.
 
 ## C0 probes, run before scoring
 
@@ -139,11 +195,11 @@ impedance for C.
 
 | statement | weight | score | notes |
 | --- | --- | --- | --- |
-| argv invocation, cwd-relative, stdin unused | 49/49 | work-item | trivial: two positional paths |
+| argv invocation, cwd-relative, stdin unused | 49/49 | work-item **[landed #497]** | trivial: two positional paths |
 | exit status unread in both directions | 49/49 | serve (by doing nothing) | exit 0 always; never signal through it |
-| `CM` launch-stamp echo at printout top | 49/49 | **work-item, blocking** | without it every printout is "written earlier from another calculation" and no message survives |
-| refusal = `NEC ERROR` line after the echo | — | work-item | the #829 frame, placed where results would be; fault-injection table says it reaches the operator verbatim |
-| printout renderer, byte-gated | 49/49 | work-item | **feasibility proven by V0**; normalize timing lines, signed zero, `GMPINO` preamble |
+| `CM` launch-stamp echo at printout top | 49/49 | **work-item, blocking** **[landed #497]** | without it every printout is "written earlier from another calculation" and no message survives |
+| refusal = `NEC ERROR` line after the echo | — | work-item **[landed #497]** | the #829 frame, placed where results would be; fault-injection table says it reaches the operator verbatim |
+| printout renderer, byte-gated | 49/49 | work-item **[landed — 41 captures byte-gated]** | **feasibility proven by V0**; normalize timing lines, signed zero, `GMPINO` preamble |
 | one process per frequency point, whole deck regenerated | every sweep | serve (accept) | nothing batches at this seam; warm-server economics stay a separate #456 item |
 | `SOMMPD.NEX` read-only cache in cwd | Sommerfeld decks | serve (accept) | expect present/absent/stale; never depend on writing it back; V0: presence changes preamble lines only |
 
@@ -154,7 +210,7 @@ impedance for C.
 | `GW` | 49/49 | serve | |
 | `GE 1,-1` / `GE 0,-1` | 33 / 16 of 49 | serve | ground flag routing; second field `-1` in all 49 |
 | `FR` single-point | 49/49 | serve | |
-| `PQ 0` | 49/49 | **work-item** | every printout carries a `Wire Charge Densities` block (all 10 byte-gate fixtures; the header is mixed-case — an all-caps grep misses it, which briefly mis-scored this row as inert). The nec2 dialect refuses charge requests today, so this is a real readout: q = −(1/jω)·dI/ds from the solved current, plus the renderer block |
+| `PQ 0` | 49/49 | **work-item** **[landed #497 U4]** | every printout carries a `Wire Charge Densities` block (all 10 byte-gate fixtures; the header is mixed-case — an all-caps grep misses it, which briefly mis-scored this row as inert). The nec2 dialect refuses charge requests today, so this is a real readout: q = −(1/jω)·dI/ds from the solved current, plus the renderer block |
 | `EN` | 49/49 | serve | |
 
 ### Ground
@@ -164,18 +220,18 @@ impedance for C.
 | `GN -1` free space | 16/49 | serve | |
 | `GN 1` perfect | 5/49 | serve | PEC contact is gated momwire physics |
 | `GN 0,…,ε,σ` Sommerfeld | 8/49 | serve | pillar 2; the contact envelope (1.2–4.4 Ω lossy-soil) is named, not hidden; `0047`'s printout carries the engine's own contact-interpolation caveat |
-| **bare `GD …,ε,σ,μr′,μr″`** | 20/49, 8 models | **work-item; trap if aliased** | the second-most-common ground in the corpus. Probe family 1 pinned the whole semantics: PEC currents + second-medium far field on plain requests, μr fields far-field-only, `-1` cancels, last-card-wins. Aliasing onto `GN 0` is 34 % wrong in R; aliasing onto `GN 1` is a PEC pattern. Gate: `0043`–`0048` + the probe matrix. Physics exists (the cliff path); the build is a ground mode + routing |
+| **bare `GD …,ε,σ,μr′,μr″`** | 20/49, 8 models | **work-item; trap if aliased** **[landed #504 U2 — identity gate bit-exact]** | the second-most-common ground in the corpus. Probe family 1 pinned the whole semantics: PEC currents + second-medium far field on plain requests, μr fields far-field-only, `-1` cancels, last-card-wins. Aliasing onto `GN 0` is 34 % wrong in R; aliasing onto `GN 1` is a PEC pattern. Gate: `0043`–`0048` + the probe matrix. Physics exists (the cliff path); the build is a ground mode + routing |
 | non-unity μr on `GD` | 0/49 | refuse loudly | EZNEC always emits `1.,0.`; momwire has no magnetic ground |
-| `GN 2` alias | 0/49 | serve (alias) | measured ≡ `GN 0`; unemitted by EZNEC |
+| `GN 2` alias | 0/49 | serve (alias) **[landed #504 U1]** | measured ≡ `GN 0`; unemitted by EZNEC |
 
 ### Excitation, loads, addressing
 
 | statement | weight | score | notes |
 | --- | --- | --- | --- |
-| `EX 4` current source, single | 47/49 | work-item, tractable | EZNEC's universal drive. Portal drives voltage today; `NEC5Engine` already speaks native `EX 4`; single-source current drive is a readout transform |
-| `EX 4` multi-source phased | 2/49 | work-item | 0/−90/−90/−180 four-square: constrained multi-port current drive; only three drive values corpus-wide |
+| `EX 4` current source, single | 47/49 | work-item, tractable **[landed #497 U4]** | EZNEC's universal drive. Portal drives voltage today; `NEC5Engine` already speaks native `EX 4`; single-source current drive is a readout transform |
+| `EX 4` multi-source phased | 2/49 | work-item **[landed #504 U4]** | 0/−90/−90/−180 four-square: constrained multi-port current drive; only three drive values corpus-wide |
 | `EX 0` voltage | 2/49 | serve | |
-| **signed node addressing on `EX`/`LD`/`TL`/`NT`** (`-1`/`+k`, favored-wire tag) | 38/49, 12 models | **trap — gate committed** | the headline trap. `DeckModel.node_gaps` (B-spline families) is the momwire seam object; the favored wire must survive translation. Gate: `tests/fixtures/eznec_nec5/` (this arc); `-1` is the only negative in all 49 captures |
+| **signed node addressing on `EX`/`LD`/`TL`/`NT`** (`-1`/`+k`, favored-wire tag) | 38/49, 12 models | **trap — gate committed** **[passing since #497 U5]** | the headline trap. `DeckModel.node_gaps` (B-spline families) is the momwire seam object; the favored wire must survive translation. Gate: `tests/fixtures/eznec_nec5/` (this arc); `-1` is the only negative in all 49 captures |
 | `LD 4` fixed Z, single-point | 21/49 | serve | the only load type emitted; rides the addressing trap |
 | `LD 4` `1.E+10` pins | 21/49 | serve | ordinary loads mechanically |
 
@@ -183,20 +239,26 @@ impedance for C.
 
 | statement | weight | score | notes |
 | --- | --- | --- | --- |
-| `TL` (metres pre-resolved; crossed −Z₀; stubs via `1.E+10` shunt) | 19/49 | work-item | **re-priced by momwire#482 phase C**: the network solve is momwire's now, crossed lines and shunt idioms already serve in the nec2 dialect. Remaining work is the NEC-5 addressing (node endpoints, favored wire) — the same trap, same gate |
-| `NT` reciprocal Y; junction loads; L-networks | 8/49 | work-item | junction loads arrive as `NT`, so ordinary loaded models need this — but the solve exists today |
-| **virtual-wire feed idiom** (100 λ out, λ/10000 radius, driven + pinned + `NT`/`TL` endpoint) | 21/49, 7 models | **trap → hang** | fine under free space/PEC (ordinary wires + pins, cheap fill); under `GN 0` a ~100 λ extent is momwire#157's Sommerfeld-grid shape — a hang, not a wrong answer. antennaknobs#944 covers the app importer; the momwire seam needs its own answer (anchor virtualization or a bounded-extent guard + loud refusal) |
+| `TL` (metres pre-resolved; crossed −Z₀; stubs via `1.E+10` shunt) | 19/49 | work-item **[landed #497 U5 + #504 U3]** | **re-priced by momwire#482 phase C**: the network solve is momwire's now, crossed lines and shunt idioms already serve in the nec2 dialect. Remaining work is the NEC-5 addressing (node endpoints, favored wire) — the same trap, same gate |
+| `NT` reciprocal Y; junction loads; L-networks | 8/49 | work-item **[landed #497 U5 + #504 U3]** | junction loads arrive as `NT`, so ordinary loaded models need this — but the solve exists today |
+| **virtual-wire feed idiom** (100 λ out, λ/10000 radius, driven + pinned + `NT`/`TL` endpoint) | 21/49, 7 models | **trap → hang** **[dissolved — momwire#157 fixed by `57a8b22`; served as real geometry]** | fine under free space/PEC (ordinary wires + pins, cheap fill); under `GN 0` a ~100 λ extent is momwire#157's Sommerfeld-grid shape — a hang, not a wrong answer. antennaknobs#944 covers the app importer; the momwire seam needs its own answer (anchor virtualization or a bounded-extent guard + loud refusal) |
 
 ### Requests
 
 | statement | weight | score | notes |
 | --- | --- | --- | --- |
-| `RP 0` 2-D (`XNDA` 1000) | 24/49 | serve; renderer work | pattern physics exists; the format is the byte-gate's business |
-| `RP 0` 3-D (`XNDA` 1001) | 2/49 | serve; renderer work | distinct printout format |
+| `RP 0` 2-D (`XNDA` 1000) | 24/49 | serve; renderer work **[landed]** | pattern physics exists; the format is the byte-gate's business |
+| `RP 0` 3-D (`XNDA` 1001) | 2/49 | serve; renderer work **[landed]** | distinct printout format |
 | `XQ 0` | 22/49 | serve | |
-| `NE` at defaults | 1/49 | serve\* | rectangular E, free-space/PEC; over finite ground refuse loudly (#388's near-field row) |
+| `NE` at defaults | 1/49 | serve\* **[still refused by name — the corpus's one open gate]** | rectangular E, free-space/PEC; over finite ground refuse loudly (#388's near-field row) |
 
-## The priced ladder (cumulative captures served)
+## The priced ladder (cumulative captures served, as planned)
+
+Superseded by the as-built ladder in the re-score section above — kept as
+the measure-phase plan the arcs were decomposed from. The planned counts ran
+low because each ground rung also unlocked network decks the plan had parked
+on rung 5 (nothing refused them once their ground served), and because the
+mixed-table refusal's premise dissolved on contact with capture 0000.
 
 Model-level: a capture serves when its worst statement does. The protocol
 skeleton (stamp echo, renderer, refusal frame) is rung 0 — nothing serves
@@ -242,7 +304,14 @@ guard until virtualization lands). That is the same bar ws1 met on the
 ## Open
 
 * The 33 uncaptured bundled models (checklist `scripts/eznec_spy/README.md`)
-  — next Windows session; weights above are lower bounds on the tail.
+  — next Windows session; weights above are lower bounds on the tail. The
+  same sitting owes the `NE` gate (un-refuses 0022, the last capture), a
+  phased-drive-through-network capture (momwire#511), and the ws5
+  launch-protocol answers.
 * `NE` beyond defaults, `NH`, radial-screen grounds: never emitted so far.
-* The seam-skeleton arc itself: proposed separately (this document is the
-  measurement, not the build).
+* momwire#510: the grazing-height Sommerfeld divergence (0033/0034) — the
+  seam serves those decks under a named divergence gate until the ground
+  model closes the gap.
+* momwire#511: land 0036/0038's withheld printouts.
+* The build itself: **done** — momwire#497 (skeleton, 5 units) and
+  momwire#504 (ground rungs, 4 units), both on momwire main 2026-08-20.
