@@ -113,33 +113,46 @@ Bundled examples in `C:\EZNEC 7.0\Docs\Ant`. Group A decides the headline
 question; group B is the control and coverage set. `LAST.EZ` is EZNEC's
 session-restore copy, not a distinct model — skip it.
 
+**CLOSED** by the 2026-08-20 sitting: 29 models clicked that sitting, 3 already
+covered, `LAST.EZ` skipped. Ids below are capture directory prefixes in
+`scratch/eznec-capture/`. The capture records a model's *title*, not its
+filename, and same-title models never share a deck body — so where one
+checklist line names several files with one title between them, the ids are
+grouped by the distinct deck bodies the sweep found rather than by filename.
+
 **A. Transmission lines and networks (run these first)**
 
-- [ ] `4sqtl.ez` — 4-square, all-transmission-line feed
-- [ ] `4Square TL ARRL Example.ez` — the ARRL "simplest" TL feed
-- [ ] `CardTL.ez` — cardioid with TL feed system
-- [ ] `Cardioid TL ARRL Example.ez` — ARRL cardioid TL feed
-- [ ] `DipTL1.ez` — coax modelled as TL (inside) + wire (outside)
-- [ ] `Logpertl.ez` — log-periodic with TL interelement feed
-- [ ] `Legacy\Diptl.ez`, `Legacy\DipTLxx.ez` — older DipTL variants
-- [ ] `4Square L Network Feed ARRL Example.ez` — L-network feed
-- [ ] `4Square L Network Feed With Z Matching.ez` — + transformer and series C
-- [ ] `Cardioid L Network Feed ARRL Example.ez` — the `0000` capture's model
-- [ ] `Network connection test.EZ` — W7EL's NEC-5 junction-object demonstration
+- [x] `4sqtl.ez` — 4-square, all-transmission-line feed — `0001`–`0009` (a nine-point frequency sweep: EZNEC regenerates the anchor wire and every `TL` length per point), `0097`, `0098` (body 1)
+- [x] `4Square TL ARRL Example.ez` — the ARRL "simplest" TL feed — `0024`, `0049`, `0050` (body 2; both bodies carry the title `4-square array w/feed system`, so which body is which file is not recorded)
+- [x] `CardTL.ez` — cardioid with TL feed system — `0026`, `0051`, `0052` (body 1 of `Cardioid with feed system`)
+- [x] `Cardioid TL ARRL Example.ez` — ARRL cardioid TL feed — `0027`, `0099`, `0100` (body 2, same title caveat)
+- [x] `DipTL1.ez` — coax modelled as TL (inside) + wire (outside) — `0011`, `0029`, `0030`, `0053`–`0056`, `0101`, `0102`
+- [x] `Logpertl.ez` — log-periodic with TL interelement feed — `0028`, `0073`, `0074`
+- [x] `Legacy\Diptl.ez`, `Legacy\DipTLxx.ez` — older DipTL variants — captured under the `Dipole with coax feedline` title, whose nine captures resolve to ONE deck body once frequency-dependent fields are normalized. Either reading is a closed box: the legacy variants emit the same geometry as `DipTL1.ez`, or they are the same model under three filenames
+- [x] `4Square L Network Feed ARRL Example.ez` — L-network feed — `0023`, `0087`, `0088`
+- [x] `4Square L Network Feed With Z Matching.ez` — + transformer and series C — `0025`, `0089`, `0090`
+- [x] `Cardioid L Network Feed ARRL Example.ez` — the `0000` capture's model — `0000`, `0095`, `0096`, and the phased-through-network variants `0118`/`0119`, `0120`/`0121`
+- [x] `Network connection test.EZ` — W7EL's NEC-5 junction-object demonstration — `0012`, `0014`, `0016`, `0017`, `0018` (four configs)
 
 **B. Controls and feature coverage**
 
-- [ ] `Dipole1.ez` — plainest possible control (free space, bare wires)
-- [ ] `Bydipole1.ez`, `Byvee.ez`, `Legacy\Bydipole.ez` — bare-wire controls
-- [ ] `Vert1.ez` — source connected to ground
-- [ ] `Elevrad1.ez`, `Elevrad2.ez` — elevated radials (ground types)
-- [ ] `Vhfgp.ez` — five-wire junction source (the `favored wire` case)
-- [ ] `4square.ez`, `Cardioid.ez` — phased arrays without the TL feed
-- [ ] `15mquad.ez`, `20m5elya.ez`, `Nbsyagi.ez`, `W8jk.ez`, `Logper.ez` — Yagi/quad/array
-- [ ] `Fdsp1.ez`, `Legacy\Fdsp.ez`, `K5rp.ez`, `N4pcloop1.ez`, `Legacy\N4pcloop.ez` — loops and wire antennas
+- [x] `Dipole1.ez` — plainest possible control (free space, bare wires) — `0010`, `0036`–`0042` (the frequency-stepping session)
+- [x] `Bydipole1.ez`, `Byvee.ez`, `Legacy\Bydipole.ez` — bare-wire controls — `Back yard dipole` `0057`, `0058`, `0061`, `0062`, `0113`–`0115` (two bodies); `Back yard inverted vee` `0059`, `0060`
+- [x] `Vert1.ez` — source connected to ground — `0015`, `0019`–`0022`, `0043`–`0048`, `0107`–`0112` (the ground cycle and the near-field family)
+- [x] `Elevrad1.ez`, `Elevrad2.ez` — elevated radials (ground types) — `0033`, `0103`, `0104` and `0034`, `0105`, `0106` (two distinct bodies, one per file)
+- [x] `Vhfgp.ez` — five-wire junction source (the `favored wire` case) — `0013`, `0085`, `0086`
+- [x] `4square.ez`, `Cardioid.ez` — phased arrays without the TL feed — `0031`, `0091`, `0092` (+ the TL variant `0116`/`0117`); `0032`, `0093`, `0094`
+- [x] `15mquad.ez`, `20m5elya.ez`, `Nbsyagi.ez`, `W8jk.ez`, `Logper.ez` — Yagi/quad/array — `0063`/`0064`; `0035`, `0065`, `0066`; `0067`/`0068`; `0069`/`0070`; `0071`/`0072`
+- [x] `Fdsp1.ez`, `Legacy\Fdsp.ez`, `K5rp.ez`, `N4pcloop1.ez`, `Legacy\N4pcloop.ez` — loops and wire antennas — `0075`–`0078` (one body, so the legacy Fdsp deck emits the same geometry); `0079`/`0080` — the corpus's only `EX 0` model outside the elevated radials; `0081`–`0084` (one body, same reading for the legacy N4PC deck, and the corpus's worst impedance disagreement — see the matrix's 2026-08-21 re-weight)
 
 Hand-supplement only where the bundled set leaves a gap — the issue calls out
 Y-parameter networks and ground types that no example exercises.
+
+What the closed checklist bought, measured by `scripts/eznec_serve_sweep.py`
+and scored in `docs/status/2026-08-20-eznec-nec5-scored-matrix.md`: the corpus
+went 49 → 122 captures and 15 → 23 model titles, the seam serves 115 of them,
+and the two cards the bundle had never shown — a phased drive reaching the
+structure through a network, and `NH` — are both in it.
 
 ## Capture layout
 
