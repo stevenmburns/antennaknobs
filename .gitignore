@@ -35,3 +35,6 @@ bench_out/
 scratchpad/
 # Dev-server logs (e.g. `.backend.log` / `.frontend.log` from local runs)
 *.log
+
+# PyInstaller freeze environment (ws5 smoke test)
+.venv-freeze/

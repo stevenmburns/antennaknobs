@@ -1,0 +1,14 @@
+CM Back yard dipole
+CM
+CM EZNEC Pro/2+ v. 7.0.4  2026-08-20 20:59:14
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.
+CE
+GW 1,11,0.,0.,9.144,0.,10.18946,9.144,.0010262
+GE 0,-1
+FR 0,1,0,0,14.
+GN -1
+EX 4,1,6,0,1.414214,0.
+PQ 0
+RP 0,361,1,1000,90.,0.,-1.,0.,0.
+EN

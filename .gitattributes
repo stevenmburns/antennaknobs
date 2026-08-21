@@ -1,0 +1,7 @@
+# Captured engine I/O is a byte oracle: the printouts and decks are compared
+# byte-for-byte against what a real engine emits, and their CRLF line endings
+# are part of the evidence (see the 2026-08-20 ws4 sitting, where momwire's
+# LF-only printout was the reason EZNEC refused the drop-in engine). Never let
+# autocrlf normalise them.
+scratch/eznec-capture/** -text
+scratch/4nec2-capture/** -text
