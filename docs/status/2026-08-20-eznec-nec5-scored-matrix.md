@@ -491,7 +491,7 @@ twenty single-source captures momwire's gates pin. Over the whole corpus,
 
 | abs(ΔZ) | captures | capture Z | seam Z | reading |
 | --- | --- | --- | --- | --- |
-| 3,757.8 / 4,308.6 Ω | `0081`–`0084` (N4PC Loop) | 6948 + j3810 / 7298 + j4230 | 8976 + j646 / 9682 + j641 | **new** — a two-source loop at a ~7–9 kΩ anti-resonance |
+| 3,757.8 / 4,308.6 Ω | `0081`–`0084` (N4PC Loop) | 6948 + j3810 / 7298 + j4230 | 8976 + j646 / 9682 + j641 | ~~new — a two-source loop at a ~7–9 kΩ anti-resonance~~ **resolved 2026-08-21: the CAPTURE's mesh** — see the correction below |
 | 275.3 Ω | `0033`, `0103`, `0104` (Elevrad1) | 38.791 − j49.583 | 45.325 + j225.59 | momwire#510, unchanged |
 | 188.3 Ω | `0034`, `0105`, `0106` (Elevrad2) | 40.730 − j43.452 | 91.615 + j137.87 | momwire#510, unchanged |
 | 21.8 Ω | `0067`, `0068` (NBS Yagi) | 14.301 − j17.726 | 12.055 + j3.982 | **new** — above the quoted ceiling |
@@ -525,6 +525,30 @@ Four things follow, and the fourth is the one worth acting on.
    argument yet for the end/junction charge enrichment #518 proposes, and the
    sharpest available test case for it.
 
+> **CORRECTION (2026-08-21).** Points 3 and 4 are overturned, in opposite
+> directions, by two same-day investigations:
+>
+> * **momwire#518 is not a solver bias.** The coupled-loop ladder's bs1/bs2
+>   models carried a mis-indexed junction list (wire 6 absent); with the
+>   geometry fixed, NEC-5, razor, bs1, bs2 and the electrostatic referee all
+>   converge to one limit. There is no B-spline capacitance bias to attribute
+>   X offsets to; the corpus's X story reverts to "formulation/convergence
+>   difference, disclosed". Postmortem on the issue; repro
+>   `scratch/qrz-lfa-thread/ladder_geometry_postmortem.py`; guardrail shipped
+>   as momwire#522.
+> * **The N4PC row is the CAPTURE's mesh, not the seam's error**
+>   (`scratch/n4pc-study/`). The deviation is ground-independent (GN 0 and GD
+>   agree, exonerating Sommerfeld). At the deck's 16 segs/side the licensed
+>   engine's anti-resonance sits ~0.14 MHz (~1 %) high and the ~1.8 kΩ/50 kHz
+>   slope turns that into the 3.8–4.3 kΩ above; under ×8 refinement its curve
+>   lands on the seam's, which is already converged at the deck's own mesh
+>   (seam 9682 + j641 at ×1 → 9723 − j104 at ×8; NEC-5 7298 + j4230 at ×1 →
+>   9673 + j677 at ×8). The row prices the capture, not the seam — the second
+>   measured case (after the corrected coupled loop) of bs2 out-converging the
+>   licensed engine at a deck's native segmentation. No gate should catch it,
+>   and no issue is needed; a capture-side re-run at finer mesh would close the
+>   row entirely.
+
 ### Open
 
 Superseding the list above.
@@ -536,11 +560,11 @@ Superseding the list above.
 * **momwire#510** — the grazing-height Sommerfeld divergence (radials at
   1.09e-4 λ), now six captures: `0033`, `0034`, `0103`–`0106`. Held by a named
   divergence gate that fails when fixed.
-* **momwire#518** — the B-spline family's ~2 % gap-capacitance bias, adjudicated
-  by an electrostatic referee against the licensed engine and the razor twin.
-  The corpus's X-dominated offsets are its RF-frequency shadow; `0081`–`0084`
-  (N4PC Loop, 3.8–4.3 kΩ) is the corpus's most magnified instance and belongs on
-  that issue as a test case.
+* ~~**momwire#518** — the B-spline family's ~2 % gap-capacitance bias~~ —
+  **overturned and closed 2026-08-21** (ladder geometry artifact; see the
+  correction block above). The N4PC row is likewise resolved as capture-side
+  under-convergence, not a seam item. The guardrail that makes the artifact's
+  class refuse at construction is momwire#522 (shipped).
 * **The multi-request echo, latent.** Every capture in this corpus carries one
   request kind per launch — EZNEC regenerates the whole deck per frequency point
   and per display — so a deck asking for two different requests at once has
