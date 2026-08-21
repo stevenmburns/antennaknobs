@@ -1,8 +1,8 @@
 # EZNEC -> NEC-5 capture corpus
 
-- captures: **124**
-- decks emitting `TL`: **47** / 124
-- decks emitting `NT`: **18** / 124
+- captures: **122**
+- decks emitting `TL`: **47** / 122
+- decks emitting `NT`: **18** / 122
 
 ## Headline verdict (momwire#390)
 
@@ -12,17 +12,17 @@
 
 | card | occurrences | decks |
 | --- | --- | --- |
-| `GW` | 737 | 124 |
+| `GW` | 725 | 122 |
 | `TL` | 160 | 47 |
-| `EX` | 154 | 124 |
+| `EX` | 152 | 122 |
 | `LD` | 149 | 41 |
-| `EN` | 124 | 124 |
-| `FR` | 124 | 124 |
-| `GE` | 124 | 124 |
-| `PQ` | 124 | 124 |
-| `GN` | 74 | 74 |
-| `RP` | 60 | 60 |
-| `XQ` | 55 | 55 |
+| `EN` | 122 | 122 |
+| `FR` | 122 | 122 |
+| `GE` | 122 | 122 |
+| `PQ` | 122 | 122 |
+| `GN` | 72 | 72 |
+| `RP` | 59 | 59 |
+| `XQ` | 54 | 54 |
 | `GD` | 50 | 50 |
 | `NT` | 29 | 18 |
 | `NE` | 8 | 8 |
@@ -140,8 +140,6 @@ A frequency sweep is one engine launch per point, so consecutive captures that d
 | 0119 | Cardioid - L Network Feed | 7.15 | YES | YES | EN EX FR GD GE GWx3 LDx4 NT PQ RP TLx2 | 0 |
 | 0120 | Cardioid - L Network Feed | 7.15 | YES | YES | EN EXx2 FR GD GE GWx3 LDx4 NT PQ TLx2 XQ | 0 |
 | 0121 | Cardioid - L Network Feed | 7.15 | YES | YES | EN EXx2 FR GD GE GWx3 LDx4 NT PQ RP TLx2 | 0 |
-| 0122 | NEC-4 Example | .0005 |  |  | EN EX FR GE GN GWx6 PQ XQ | 0 |
-| 0123 | NEC-4 Example | .0005 |  |  | EN EX FR GE GN GWx6 PQ RP | 0 |
 
 ## Invocation
 
