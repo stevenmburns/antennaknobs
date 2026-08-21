@@ -87,7 +87,7 @@ of which menu setting produced which.
 Plan: `WINDOWS-SESSION-4.local.md`. Five jobs, one trip. Jobs 1–4 run against the
 REAL engine behind the spy shim; Job 5 replaces the engine binary, so it goes last.
 
-**Captures `0049`–`0123`** (75 this sitting; corpus now 124). Harness:
+**Captures `0049`–`0123`** (75 this sitting; 73 committed here — `0122`/`0123` are held in the private W7EL set, see Job 4; public corpus now 122). Harness:
 `scripts/eznec_spy`, shim rebuilt from source this session (capture root baked to
 `scratch/eznec-capture`), installed 20:07 local / 03:08:03Z, uninstalled 23:12 with
 **the hash-verify passing**. Real engine restored to its original 10,804,224 bytes,
@@ -296,6 +296,13 @@ md5 `0659f9d0c7dcd9bb8c18022f421dec7c` - transferred and verified this session.
 |---|---|---|---|---|
 | 1 | `0122` | Src Dat | 25 | `XQ 0`; title `NEC-4 Example` |
 | 2 | `0123` | FF Plot | 19 | `RP 0,1,361,1000,90.,…` |
+
+**`0122`/`0123` are not in this tree.** They are the spy's record of Roy's
+model and carry its full deck, so they live with the rest of the W7EL set in
+the untracked private companion directory (`scratch/qrz-lfa-thread/`) until
+the contact sequence has happened — the same rule the PR applies to the
+`.ez` and the exports. The findings below are the citable record; the
+capture ids refer to the private copies.
 
 ### Every open question in the README, answered
 
