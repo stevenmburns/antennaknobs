@@ -303,6 +303,9 @@ guard until virtualization lands). That is the same bar ws1 met on the
 
 ## Open
 
+*Superseded by the 2026-08-21 re-weight's own "Open" list at the end of this
+document; kept as the record of what was open on 2026-08-20.*
+
 * The 33 uncaptured bundled models (checklist `scripts/eznec_spy/README.md`)
   — next Windows session; weights above are lower bounds on the tail. The
   same sitting owes the `NE` gate (un-refuses 0022, the last capture), a
@@ -315,3 +318,235 @@ guard until virtualization lands). That is the same bar ws1 met on the
 * momwire#511: land 0036/0038's withheld printouts.
 * The build itself: **done** — momwire#497 (skeleton, 5 units) and
   momwire#504 (ground rungs, 4 units), both on momwire main 2026-08-20.
+
+## Re-weighted over the 122-capture corpus (2026-08-21, momwire main @ 5adaae5)
+
+Everything above was weighted out of forty-nine captured launches and scored
+against the same forty-nine. Both denominators moved. The Windows sitting of
+2026-08-20 clicked every remaining bundled model and the near-field family,
+taking the public corpus to **122 captures across 23 distinct model titles**
+(antennaknobs PR #970 regenerated `index.json`; two captures from that sitting
+are Roy's own model and moved to the private set, which is why the public index
+is 122 rather than the sitting's 124). Meanwhile the seam climbed two more
+rungs. So the matrix is re-measured here rather than re-remembered.
+
+**The measurement is a command now**: `scripts/eznec_serve_sweep.py` renders
+every capture in the index through `momwire.eznec.render` in one interpreter —
+122 solves in **13.2 s**, 23 s with the impedance pass — and refuses to report
+anything until two anchors reproduce: the original 49 still stand 48/49 with
+`0022` refusing by `NE`'s name, and momwire's own 62-capture fixture corpus
+stands 55/62 refusing exactly the seven ids its corpus-ladder test names. Every
+number in this section is that script's output.
+
+**Engine state, stated honestly.** This is momwire **main @ `5adaae5`**, which
+is four commits AHEAD of the `momwire==0.35.1` pin this repo ships — by
+momwire#511 (PR #517, the phased drive composing with the network reducer) and
+momwire#516 (PR #519, the `NE`/`NH` rungs). Six of the 115 serve only on main —
+`0116`/`0117`/`0120`/`0121`, the phased-drive-through-network family PR #517
+dissolved the refusal for, and `0109`/`0115`, the two near-field cells PR #519
+turned from refusals into answers. A build from the `0.35.1` pin refuses all
+six; 115/122 is main's number, not the shipping one.
+
+### The ladder, over the whole corpus
+
+| corpus | served | refused |
+| --- | --- | --- |
+| the original 49 (`0000`–`0048`) | **48/49** | `0022` |
+| momwire's fixture corpus (62, post-#516) | **55/62** | the near-field seven |
+| **the public corpus (122)** | **115/122** | **7/122** |
+
+**The seven refusals are the same seven, and the roster did not grow.** Sixty
+of the 122 decks (`0049`–`0106`, `0118`, `0119`) had never been swept — they are
+outside momwire's fixture corpus entirely — and **all sixty serve**. No new
+refusal sentence, and **no crash**: every one of the 122 came back either a
+printout or a named `NEC ERROR`, never an exception — which is the seam's whole
+contract, since the shell writes both of those at exit 0 and has nothing to say
+about a third outcome.
+
+| refusal sentence (verbatim naming clause) | captures |
+| --- | --- |
+| `NE (near electric field) over a GN 0 finite ground` | `0022`, `0110`, `0112`, `0113` |
+| `NE (near electric field) over the bare GD MININEC-type ground` | `0107`, `0108` |
+| `NH (near magnetic field) over a GN 0 finite ground` | `0111` |
+
+That is one work front wearing three sentences — the Sommerfeld near-field
+evaluator momwire does not have — and it is the only thing this corpus asks for
+that the seam cannot answer.
+
+### The statement weights, out of 122
+
+A new table rather than an edit to the old one: the `/49` weights above are the
+record of what the first re-score knew, and they were not wrong, they were
+narrower. Mnemonic counts come from the index's own `cards` census; the finer
+rows (a `GN` is four different grounds, an `EX` is one card or several, an `RP`
+is 2-D or 3-D) are read off the deck text by the same sweep.
+
+| statement | 122-corpus | 49-corpus | share moved |
+| --- | --- | --- | --- |
+| `GW` / `GE` / `FR` / `PQ 0` / `EX` / `EN` | 122/122 | 49/49 | — (every launch) |
+| `GE 1,-1` | 92/122 | 33/49 | 67 % → 75 % |
+| `GE 0,-1` | 30/122 | 16/49 | 33 % → 25 % |
+| `GN` (any) | 72/122 | 29/49 | 59 % → 59 % |
+| `GN -1` free space | 30/122 | 16/49 | 33 % → **25 %** |
+| `GN 0` Sommerfeld | 32/122 | 8/49 | 16 % → **26 %** |
+| `GN 1` perfect | 10/122 | 5/49 | 10 % → 8 % |
+| bare `GD` MININEC | 50/122 | 20/49 | 41 % → 41 % |
+| `GN 2` alias | 0/122 | 0/49 | still never emitted |
+| `EX 4` single | 94/122 | 45/49 | 92 % → **77 %** |
+| `EX 4` phased multi-source | 20/122 | 2/49 | 4 % → **16 %** |
+| `EX 0` voltage | 8/122 | 2/49 | 4 % → 7 % |
+| signed node addressing (`-1` tag) | 86/122 | 38/49 | 78 % → 70 % |
+| `LD 4` fixed Z | 41/122 | 21/49 | 43 % → **34 %** |
+| `TL` | 47/122 | 19/49 | 39 % → 39 % |
+| `NT` | 18/122 | 8/49 | 16 % → 15 % |
+| remote anchor wire (> 10 λ out) | 41/122 | 21/49 | 43 % → 34 % |
+| `RP 0` 2-D (`XNDA` 1000) | 52/122 | 24/49 | 49 % → 43 % |
+| `RP 0` 3-D (`XNDA` 1001) | 7/122 | 2/49 | 4 % → 6 % |
+| `XQ 0` | 54/122 | 22/49 | 45 % → 44 % |
+| `NE` near electric field | 8/122 | 1/49 | 2 % → **7 %** |
+| **`NH` near magnetic field** | **1/122** | 0/49 | the fifteenth mnemonic |
+
+Three movements are worth naming, and none of them is noise:
+
+1. **The phased drive is not a curiosity.** `EX 4` multi-source went from two
+   captures to **twenty**, across six models — the 40-m four-square
+   (`0031`/`0091`/`0092`/`0116`/`0117`, four cards), the Cardioid
+   (`0032`/`0093`/`0094`), the Cardioid L-network (`0120`/`0121`), Field Day
+   Special (`0075`–`0078`), N4PC Loop (`0081`–`0084`) and W8JK (`0069`/`0070`).
+   The first re-score priced this rung off two captures and called out "only
+   three drive values corpus-wide"; the free-space two-element pairs are a whole
+   family the 49 had not shown. `#504 U4` built it wide enough anyway.
+2. **`GN 0` overtook `GN -1`.** Free space fell from a third of the corpus to a
+   quarter while the Sommerfeld ground rose from a sixth to a quarter: the
+   bundled models the first corpus under-sampled mostly stand over real ground.
+   Pillar 2 carries more of this seam than the 49 suggested.
+3. **`NH` exists.** momwire 0.35.0 refused it on the stated premise that EZNEC
+   never emits it; capture `0111` falsified that on one radio button in the Near
+   Field Analysis dialog, and momwire#513 (PR #514, shipped in 0.35.1) added it
+   to the vocabulary. One capture in 122 is a real weight, not a rounding error —
+   the corpus is display-driven and a card nobody clicked is not a card nobody
+   has.
+
+### What changed since the first re-score
+
+* **momwire#511 (PR #517) — the phased drive composes with the network
+  reducer.** No deck in the first 113 captures combined a multi-source drive
+  with a `TL` or an `NT`; the two sets were disjoint, so the composition was
+  untested by construction. The 2026-08-20 sitting made four such decks exist — four sources
+  through a `TL` (`0116`/`0117`) and two sources 90° apart through an L-network
+  plus two `TL`s (`0120`/`0121`) — and all four serve. The same issue landed
+  `0036`/`0038`'s withheld printouts, which is what makes the frequency-stepping
+  session's remaining five (`0037`, `0039`–`0042`) the only captures this sweep
+  cannot compare against an engine printout.
+* **momwire#516 (PR #519) — the near-field rungs, and they came out a matrix
+  rather than a rung.** `NE`/`NH` serve over `GN -1` and `GN 1` and refuse over
+  `GN 0` and the bare `GD`. The finding underneath is that **`GD` solves its own
+  near field**: `0108` and `0110` are one grid over one medium with only the
+  ground mnemonic changed, and their captured tables agree to 4.4 % — including
+  the `EY` column a vertical monopole's symmetry forbids and a PEC image makes
+  exactly zero. So the MININEC-type ground is not a PEC-currents-plus-image
+  shortcut at an observation point the way it is in the far field; the engine
+  evaluates the finite half-space there too. momwire's Sommerfeld machinery
+  fills a matrix between wire elements and has no evaluator at a point in space,
+  and the best image the seam can build is a factor of two low on the captured
+  tables, so those six decks refuse by the ground's name rather than answer
+  wrong. The refusal roster growing from one to seven is that measurement, not a
+  regression: `0022` was refused before this rung and after it, and what changed
+  is that the sentence can now name a ground and a number.
+* **The protocol grew a byte.** momwire#512 (PR #514): the real engine writes
+  **CRLF**, momwire's shell was forcing LF, and EZNEC discards an LF-only
+  printout behind the popup "Output file NEC.OUT is present, but was written
+  earlier from another calculation" — naming a file that never existed in any
+  run. Proven by controlled substitution on the Windows box (a wrapper changing
+  nothing but the line endings made EZNEC render this engine's results first
+  try; the wrapper is kept at `scripts/eznec_spy/diagnostics/`). The byte-gates
+  missed it because they compare the rendering function's *string*, not the
+  bytes the shell *writes* — the protocol table's "printout renderer,
+  byte-gated" row was true and still let this through, so the shell now has its
+  own gate on the written bytes. By the same substitution method, a drop-in
+  needs no name impersonation and no speed; it must live in `Docs` and speak
+  CRLF.
+* **The model checklist is closed.** `scripts/eznec_spy/README.md`'s group A and
+  group B are ticked with their capture ids. The "33 uncaptured bundled models"
+  open item is retired.
+
+### Serving is not agreeing: the corpus-wide impedance envelope
+
+The sweep also reads back every `ANTENNA INPUT PARAMETERS` impedance and
+compares it with the captured printout's, because a ladder counts decks that get
+an *answer* and says nothing about whether the answer is right. **140 printed
+source rows across 110 captures** (four uncomparable — `0037`/`0039`–`0041`,
+the frequency-stepping session's damaged files — and `0042` ships no printout):
+
+| abs(ΔZ) | value |
+| --- | --- |
+| min | **0.055 Ω** |
+| median | **5.469 Ω** |
+| max | **4,308.6 Ω** |
+
+The floor is exactly where the first re-score left it. The ceiling is not: the
+first re-score quoted a family envelope of 0.055–16.3 Ω, measured over the
+twenty single-source captures momwire's gates pin. Over the whole corpus,
+**nineteen rows on fifteen captures sit above 16.3 Ω**, in four groups:
+
+| abs(ΔZ) | captures | capture Z | seam Z | reading |
+| --- | --- | --- | --- | --- |
+| 3,757.8 / 4,308.6 Ω | `0081`–`0084` (N4PC Loop) | 6948 + j3810 / 7298 + j4230 | 8976 + j646 / 9682 + j641 | **new** — a two-source loop at a ~7–9 kΩ anti-resonance |
+| 275.3 Ω | `0033`, `0103`, `0104` (Elevrad1) | 38.791 − j49.583 | 45.325 + j225.59 | momwire#510, unchanged |
+| 188.3 Ω | `0034`, `0105`, `0106` (Elevrad2) | 40.730 − j43.452 | 91.615 + j137.87 | momwire#510, unchanged |
+| 21.8 Ω | `0067`, `0068` (NBS Yagi) | 14.301 − j17.726 | 12.055 + j3.982 | **new** — above the quoted ceiling |
+| 19.5 Ω | `0028`, `0073`, `0074` (Logpertl) | 129.50 − j73.453 | 119.24 − j56.832 | **new**, and `0028` is in the ORIGINAL 49 |
+
+Four things follow, and the fourth is the one worth acting on.
+
+1. **momwire#510's grazing-height divergence now has six captures, not two.**
+   `0103`–`0106` are the same two elevated-radial geometries as `0033`/`0034`
+   asked for different readouts, and they reproduce 275.3 Ω and 188.3 Ω to the
+   digit. Nothing new is wrong; the divergence gate's blast radius tripled.
+2. **`0028` says the old envelope was never corpus-wide.** momwire's pin table
+   covers twenty single-source captures and tops out at 16.278 Ω on the
+   free-space dipole; `0028` was in the first 49 the whole time, sat 19.5 Ω off,
+   and was never enveloped because network decks were structure-gated rather
+   than impedance-pinned. That is a gap in what was measured, not a regression.
+3. **Every one of these is X-dominated in one direction.** The seam's reactance
+   is consistently *less negative* than the engine's — `0058` −58.5 → −43.7,
+   `0075` −46.0 → −31.1, `0069` −32.3 → −19.9, `0067` −17.7 → +4.0 — which is
+   an under-estimated capacitance, not a random spread. That is exactly
+   **momwire#518**'s signature: the B-spline family's smooth charge
+   representation cannot sharpen the end/junction charge peaks that dominate a
+   thin-wire capacitance, adjudicated at 1.9 % against an electrostatic referee
+   on a pure-capacitor structure. The corpus's X offsets are now partially
+   attributed rather than filed under "formulation difference".
+4. **The N4PC Loop is the corpus's worst row and nothing has priced it.** A
+   loop fed at an anti-resonance is a parallel LC, where a ~2 % capacitance bias
+   becomes a several-kΩ reactance swing — which is the #518 mechanism at its
+   most magnified, on a real bundled model, at a feedpoint an operator would
+   actually look at. It serves, so no gate catches it. This is the strongest
+   argument yet for the end/junction charge enrichment #518 proposes, and the
+   sharpest available test case for it.
+
+### Open
+
+Superseding the list above.
+
+* **The Sommerfeld near-field evaluator** — the one thing this corpus asks for
+  that the seam refuses (six `NE` decks and one `NH`, all over `GN 0` or bare
+  `GD`). Inventoried in momwire#388's near-field row; no dedicated issue yet.
+  Until it exists the refusals are correct and the sentence names the ground.
+* **momwire#510** — the grazing-height Sommerfeld divergence (radials at
+  1.09e-4 λ), now six captures: `0033`, `0034`, `0103`–`0106`. Held by a named
+  divergence gate that fails when fixed.
+* **momwire#518** — the B-spline family's ~2 % gap-capacitance bias, adjudicated
+  by an electrostatic referee against the licensed engine and the razor twin.
+  The corpus's X-dominated offsets are its RF-frequency shadow; `0081`–`0084`
+  (N4PC Loop, 3.8–4.3 kΩ) is the corpus's most magnified instance and belongs on
+  that issue as a test case.
+* **The multi-request echo, latent.** Every capture in this corpus carries one
+  request kind per launch — EZNEC regenerates the whole deck per frequency point
+  and per display — so a deck asking for two different requests at once has
+  never been observed and the printout's echo order for one is unpinned. Nothing
+  is wrong today; nothing would catch it if it were.
+* **The pin lags the measurement.** This repo ships `momwire==0.35.1`, which
+  refuses the six captures named at the top of this section. The next momwire
+  release closes the gap and makes 115/122 the shipping number.
+* Re-run: `.venv/bin/python scripts/eznec_serve_sweep.py`.
