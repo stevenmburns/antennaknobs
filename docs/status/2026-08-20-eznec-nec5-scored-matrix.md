@@ -565,6 +565,16 @@ Superseding the list above.
   correction block above). The N4PC row is likewise resolved as capture-side
   under-convergence, not a seam item. The guardrail that makes the artifact's
   class refuse at construction is momwire#522 (shipped).
+* **Buried wires — a capability gap the corpus cannot see (found 2026-08-21).**
+  The licensed engine serves wires below the interface (probe: monopole +
+  radial 15 cm down over `GN 0` → 92.13 − j70.14 Ω); momwire has no
+  lower-half-space source anywhere in the tree, and zero of the 122 captures
+  bury a wire — EZNEC's samples don't — so no serve rate ever noticed.
+  Refuses BY NAME as of momwire#525 (below-plane and in-plane wires both);
+  the capability is momwire#524; the release's honest-disclosure list must
+  carry it. Method lesson: a deck-driven inventory only sees what the sample
+  decks exercise — the manual's capability list is the complement source and
+  deserves one deliberate pass.
 * **The multi-request echo, latent.** Every capture in this corpus carries one
   request kind per launch — EZNEC regenerates the whole deck per frequency point
   and per display — so a deck asking for two different requests at once has
