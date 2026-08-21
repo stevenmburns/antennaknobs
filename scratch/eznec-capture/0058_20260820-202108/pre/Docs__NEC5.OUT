@@ -1,0 +1,160 @@
+1
+ x13
+
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-5)    *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          Back yard dipole                                                             
+                                                                                                       
+                          EZNEC Pro/2+ v. 7.0.4  2026-08-20 20:21:07                                   
+                                                                                                       
+                          ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.                              
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+                                 - - - STRUCTURE SPECIFICATION - - -
+
+                                     COORDINATES MUST BE INPUT IN
+                                     METERS OR BE SCALED TO METERS
+                                     BEFORE STRUCTURE INPUT IS ENDED
+
+ Model definition commands:
+
+ GW    1    11  0.00000E+00  0.00000E+00  9.14400E+00  0.00000E+00  1.01895E+01  9.14400E+00  1.02620E-03
+ GE    1   -1
+
+   GROUND PLANE SPECIFIED.
+
+   WHERE WIRE ENDS TOUCH GROUND, CURRENT WILL BE INTERPOLATED TO IMAGE IN GROUND PLANE.
+
+
+ Number of nodes :    12
+ Number of wire elements :    11
+ Number of patch elements:     0
+ Number unknowns:    10
+
+
+
+
+ ***** INPUT LINE  1  FR   0    1    0    0  1.40000E+01  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  2  GN   0    0    0    0  2.00000E+01  3.03000E-02  1.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  3  EX   4    1    6    0  1.41421E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  4  PQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  5  XQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+
+                                 - - - - - - FREQUENCY - - - - - -
+
+                                    FREQUENCY= 1.4000E+01 MHZ
+                                    WAVELENGTH= 2.1414E+01 METERS
+
+
+
+                                  - - - ANTENNA ENVIRONMENT - - -
+
+
+Sommerfeld integral tables read:
+Potentials: 11 12 13 14 15 21 23 31 33
+E, H:
+                                        FINITE GROUND.  SOMMERFELD SOLUTION
+                                        RELATIVE DIELECTRIC CONST.= 20.000
+                                        CONDUCTIVITY= 3.030E-02 MHOS/METER
+                                        COMPLEX DIELECTRIC CONSTANT= 2.00000E+01-3.89052E+01
+
+
+
+                               - - - STRUCTURE IMPEDANCE LOADING - - -
+
+                                   THIS STRUCTURE IS NOT LOADED
+ALLOCATE CM:            100
+
+
+
+                                - - - MATRIX TIMING - - -
+
+                        FILL=    0.000 SEC.,  FACTOR=    0.000 SEC.
+
+
+
+                                          - - - ANTENNA INPUT PARAMETERS - - -
+
+   TAG   SEG.    VOLTAGE (VOLTS)         CURRENT (AMPS)         IMPEDANCE (OHMS)        ADMITTANCE (MHOS)      POWER
+   NO.   NO.    REAL        IMAG.       REAL        IMAG.       REAL        IMAG.       REAL        IMAG.     (WATTS)
+   1     6 1  1.0236E+02 -8.2799E+01  1.4142E+00  0.0000E+00  7.2380E+01 -5.8548E+01  8.3515E-03  6.7555E-03  7.2380E+01
+
+
+
+                                       - - - Wire Currents - - -
+
+                             Lengths normalized by wavelength (or 2.*pi/CABS(k))
+
+  Elem.  Tag            Coord. of seg. center          Seg.            - - - Current (Amps) - - -
+   No.   No.     X            Y            Z           Length       Real         Imag.        Mag.         Phase
+      1    1  0.00000E+00  2.16284E-02  4.27005E-01  4.32569E-02  2.04022E-01 -1.59801E-02  2.04647E-01   -4.4786
+      2    1  0.00000E+00  6.48853E-02  4.27005E-01  4.32569E-02  5.83960E-01 -4.17952E-02  5.85454E-01   -4.0938
+      3    1  0.00000E+00  1.08142E-01  4.27005E-01  4.32569E-02  9.05053E-01 -5.53135E-02  9.06741E-01   -3.4974
+      4    1  0.00000E+00  1.51399E-01  4.27005E-01  4.32569E-02  1.15676E+00 -5.61745E-02  1.15812E+00   -2.7802
+      5    1  0.00000E+00  1.94656E-01  4.27005E-01  4.32569E-02  1.32486E+00 -4.38367E-02  1.32558E+00   -1.8951
+      6    1  0.00000E+00  2.37913E-01  4.27005E-01  4.32569E-02  1.40032E+00 -1.71605E-02  1.40042E+00   -0.7021
+      7    1  0.00000E+00  2.81170E-01  4.27005E-01  4.32569E-02  1.34996E+00 -1.28826E-02  1.35002E+00   -0.5468
+      8    1  0.00000E+00  3.24426E-01  4.27005E-01  4.32569E-02  1.17696E+00 -3.13401E-02  1.17737E+00   -1.5253
+      9    1  0.00000E+00  3.67683E-01  4.27005E-01  4.32569E-02  9.20456E-01 -3.64315E-02  9.21177E-01   -2.2666
+     10    1  0.00000E+00  4.10940E-01  4.27005E-01  4.32569E-02  5.93785E-01 -2.97881E-02  5.94532E-01   -2.8719
+     11    1  0.00000E+00  4.54197E-01  4.27005E-01  4.32569E-02  2.07438E-01 -1.18141E-02  2.07775E-01   -3.2596
+
+
+
+                             - - - Wire Charge Densities - - -
+
+                     Lengths normalized by wavelength (or 2.*pi/CABS(k))
+
+  ELEM.  TAG          Coord. of Seg. Center           Seg.        Charge Density (C/m)
+   No.   No.     X            Y            Z          Length        Mag.         Phase
+      1    1  0.00000E+00  2.16284E-02  4.27005E-01  4.32569E-02  5.02306E-09   85.5214
+      2    1  0.00000E+00  6.48853E-02  4.27005E-01  4.32569E-02  4.32462E-09   86.8001
+      3    1  0.00000E+00  1.08142E-01  4.27005E-01  4.32569E-02  3.56450E-09   88.5467
+      4    1  0.00000E+00  1.51399E-01  4.27005E-01  4.32569E-02  2.61574E-09   91.5175
+      5    1  0.00000E+00  1.94656E-01  4.27005E-01  4.32569E-02  1.52902E-09   98.7864
+      6    1  0.00000E+00  2.37913E-01  4.27005E-01  4.32569E-02  5.42006E-10  140.9980
+      7    1  0.00000E+00  2.81170E-01  4.27005E-01  4.32569E-02  1.60861E-09  -78.6635
+      8    1  0.00000E+00  3.24426E-01  4.27005E-01  4.32569E-02  2.67253E-09  -87.0651
+      9    1  0.00000E+00  3.67683E-01  4.27005E-01  4.32569E-02  3.62684E-09  -90.1875
+     10    1  0.00000E+00  4.10940E-01  4.27005E-01  4.32569E-02  4.39392E-09  -91.9719
+     11    1  0.00000E+00  4.54197E-01  4.27005E-01  4.32569E-02  5.09983E-09  -93.2596
+
+
+
+                                        - - - POWER BUDGET - - -
+
+                                           INPUT POWER   = 7.2380E+01 WATTS
+                                           RADIATED POWER= 7.2380E+01 WATTS
+                                           WIRE LOSS     = 0.0000E+00 WATTS
+                                           EFFICIENCY    = 100.00 PERCENT
+
+
+
+
+ ***** INPUT LINE  6  EN   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+Sommerfeld integral tables written in previous run:
+Potentials: 11 12 13 14 15 21 23 31 33
+E and H:
+
+ RUN TIME =     0.000
