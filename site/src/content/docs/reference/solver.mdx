@@ -77,19 +77,13 @@ plain `razor` keeps the converged Gauss-Legendre quadrature instead, so the
 walk it shows is the testing rule's own discretization error rather than a
 quadrature shortfall.
 
-**Which one to reach for is not a coin flip — measured 2026-08-18:**
-
-| | `razor-nec5` | `razor` (default GL quadrature) |
-| --- | --- | --- |
-| Role | Interactive lane | Convergence / certification lane |
-| Speed | Sub-second to N≈300-400 free, N≈200-400 grounded; 2-4× behind `bspline-d2` beyond that | 12-80× slower than `bspline-d2`; over a second even at N=100 under any ground |
-| Memory | Same order as the other dense bases | Exceeds an 8 GB working set by N≈800 grounded / N≈1600 free |
-| Use for | Live knob-dragging, ordinary A/B checks | Convergence ladders, certification against NEC-5 printouts |
-
-Reach for `razor-nec5` the way you'd reach for `bspline-d2` on an ordinary
-solve; reach for plain `razor` only when the GL-converged testing-rule
-answer itself is what you're checking, and budget the time and memory it
-costs.
+**Which one to reach for is not a coin flip**: `razor-nec5` is the
+interactive lane (reach for it the way you'd reach for `bspline-d2` on an
+ordinary solve); plain `razor` is the convergence/certification lane —
+12–80× slower and far hungrier for memory, worth it only when the
+GL-converged testing-rule answer itself is what you're checking. The
+measured two-lane table lives on
+[momwire's engine-choice page](https://momwire.dev/reference/choosing-an-engine/).
 
 **Refusal boundary.** RazorSolver is deliberately scoped to what its
 formulation-twin role needs, and refuses the rest at construction with a
@@ -159,85 +153,29 @@ it changes the answer by less than the mesh does.
 
 ## Which solver should I use?
 
-The choice turns on two axes — total problem size, and single-structure vs.
-array geometry. From the [solver-selection
-benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-06-25-solver-selection-benchmark.md)
-(10 designs × 7 engines, free space) and the [ground-model
-benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-08-ground-model-benchmark.md)
-(the same designs × 4 ground models):
+The selection matrix, the runtime findings (the ground-cost ladder, where
+the accelerated engines win and where they lose), the memory envelopes,
+and the fixed-accuracy census verdict behind the `bspline` d=2 default all
+live on momwire's own engine-choice page — one home per fact, keyed to the
+same engine names the workbench's `--basis` control takes:
 
-| Antenna class | Use | Why |
-| --- | --- | --- |
-| Single elements, small loops, beams, multiband dipoles | **`bspline` d=2** (the default), with **`sinusoidal`** / **PyNEC** as cross-checks | all three solve in milliseconds here; d=2 converges at far coarser meshes (see below), the others confirm the answer |
-| Large single-wire structures (rhombic, long-wires, big loops) | **`hmatrix`** (ACA) | sub-quadratic scaling — the only solver that beats PyNEC on `rhombic` at high segmentation |
-| Arrays of identical / few-shape elements (loop/bowtie arrays, LPDA) | **`arrayblock`** | 7–12× faster than PyNEC on large arrays; near-linear scaling |
+<LinkCard
+  title="Choosing an engine: cost, memory, accuracy →"
+  href="https://momwire.dev/reference/choosing-an-engine/"
+  description="The selection matrix, the ground-cost ladder, the razor two-lane table, and memory envelopes — sourced to the three standing benchmark studies."
+/>
 
-The same picks hold with a ground plane in play — the ground model changes
-what a solve *costs*, not which solver wins it.
+Two app-side notes the engine page doesn't carry:
 
-:::caution
-`arrayblock` / `hmatrix` only win at moderate-to-high segment counts on their
-target geometries — below ~N=40 they're slower than a dense solve even there. Don't
-reach for them on small problems.
-:::
-
-### What the numbers show
-
-All timings at N=81 segments/wire on a 4-core box with production-matched
-threading; see the benchmark docs for full tables.
-
-- **The ground-cost ladder is consistent everywhere:
-  `free ≈ PEC < reflection-coefficient < Sommerfeld`.** PEC is nearly free
-  (image method, no material solve); the reflection-coefficient ground runs
-  ~1.5–3× a free-space solve on the dense bases; the full Sommerfeld ground
-  ~2–5×. Since momwire 0.15.0 that Sommerfeld premium is mostly the *first*
-  solve of a session: the interpolation-grid fill grows linearly with
-  antenna size (not quadratically) and is reused across a band's
-  frequencies, so warm sweep ticks on the momwire bases undercut even
-  PyNEC's per-tick steady state on 86/90 catalog designs — see the
-  [session benchmark](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-19-somm-session-benchmark.md).
-- **ACA earns its place on `rhombic`** — fastest engine free-space (~4.0 s,
-  beating PyNEC and every dense basis, scaling ~2×/step where dense solvers go
-  ~5×/step), and under Sommerfeld the low-rank structure survives (the smooth
-  ground remainder rides one compressed term): 9.3 s vs the dense B-spline's
-  18.7 s.
-- **ArrayBlock dominates arrays on every ground** — `lpda` free: ~1.2 s vs
-  PyNEC's **14 s** (12×); Sommerfeld: 2.8 s vs 24 s; `bowtiearray2x4`
-  Sommerfeld: 7.3 s vs 17.3 s.
-- **Against PyNEC, momwire sits within ~2× — or wins — on every
-  ground model × design** (momwire ≥ 0.9.0: a fused Sommerfeld remainder
-  kernel made Sommerfeld solves 14–19× faster, tying or beating PyNEC's native
-  NEC gn 2 on 6 of 10 designs; a compiled reflection-coefficient fill took the
-  sinusoidal basis from 5–9× behind PyNEC to 1.1–1.8×).
-- **PyNEC is a great fast reference, but not universally fast** — it wins
-  Sommerfeld on mid-size single structures (`moxon`: 135 ms vs momwire's best
-  158 ms), yet loses the log-periodic on every ground model (free: 14 s vs
-  ArrayBlock's 1.2 s). "Use PyNEC as the reference" holds for small designs,
-  not arrays.
-- **Among dense bases, `sinusoidal` stays fastest at a FIXED segment
-  count** on small/medium single structures — on every ground model. But
-  the fair comparison is at fixed *accuracy*, and there the
-  [basis-convergence census](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-07-20-basis-convergence-census.md)
-  (91 designs, meshes N=7–641) flipped the verdict: **B-spline d=2 is
-  already within 2 % of the converged answer at N=15–21 on 80 % of
-  scorable designs**, where the sinusoidal basis needs 3–15× more
-  segments to arrive at the same value — which is why d=2 at N=15 is the
-  workbench's default solve. On port-fed, junction-heavy, and
-  closely-spaced-wire geometry the gap is largest, and single closed
-  loops converge on d=2 as coarse as N=7 — ~2–3× below the sinusoidal
-  basis; details and how to
-  check your own design: [How many segments?](/advanced/convergence/)
-- **That census gap is mostly the *point matching*, not the basis.** The
-  momwire#182 instrument (the `sinusoidal-galerkin` backend) re-ran the
-  residue cluster varying only the testing scheme: the junction-heavy
-  sin↔bspline gaps of 1–23 % collapse to 0.01–0.33 %, and with a matched
-  feed model the remaining basis gap on clean geometry is ~4×10⁻⁸. So
-  `sinusoidal-galerkin` converges at B-spline-class meshes while keeping
-  the sinusoidal basis — use it as the second opinion on **junction-port
-  (`PortAtEnd`) designs**, which historically were B-spline-only and now
-  accept either (`bspline` remains the default; the sin-Galerkin junction
-  ports run in free space and over a PEC ground — momwire#191 — with finite
-  grounds still refused).
+- **PyNEC's role here** is the independent NEC-2 reference riding
+  alongside: a great fast cross-check on small/medium single structures,
+  but not universally fast — it loses the log-periodic on every ground
+  model (free space: 14 s vs ArrayBlock's 1.2 s), so "use PyNEC as the
+  reference" holds for small designs, not arrays.
+- **Junction-port (`PortAtEnd`) designs** accept `sinusoidal-galerkin` as
+  the second opinion (historically B-spline-only; the sin-Galerkin
+  junction ports run in free space and over a PEC ground — momwire#191 —
+  with finite grounds still refused). `bspline` remains the default.
 
 ## Segments & convergence
 
