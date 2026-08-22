@@ -65,6 +65,13 @@ EVEN = list(range(12, 101, 4))
 # `pulse_section`), so the interesting part of its march is off the right-hand
 # edge of the other two columns entirely.
 PULSE_N = [13, 25, 51, 101, 201, 401, 801, 1601, 3201, 6401]
+# The Harrington lane stops earlier, for two reasons that point the same way:
+# it is flat to well under an ohm by 1601 (its error is O(1/N), not O(Δ/a)),
+# and its fill is ~5x the nodal row's — the charge cells make the moment
+# block (2n x 2n) — so the 6401 rung the nodal lane NEEDS to reach its limit
+# would be a 12802-square moment matrix for a lane that stopped moving three
+# rungs earlier.
+HARRINGTON_N = PULSE_N[: PULSE_N.index(1601) + 1]
 PULSE_REF_N = 401  # bs2 mesh for the converged free-space limit
 
 
@@ -228,18 +235,32 @@ def recompute_free_ladders() -> dict:
 
 
 def recompute_pulse_ladder() -> dict:
-    from momwire import PulseSolver
+    """Both pulse rows on the same ladder: the charge-support instrument.
+
+    `PulseSolver` and `HarringtonSolver` are the same basis, the same
+    testing, the same kernel and the same feed — they differ in where the
+    charge LIVES, and nothing else. Running both here is what turns the
+    column from an anecdote about one bad row into a measurement of that
+    one ingredient. Recomputing the harrington lane needs momwire >= the
+    #557 branch; page rebuilds from the committed JSON do not.
+    """
+    from momwire import HarringtonSolver, PulseSolver
     from momwire.bspline import BSplineSolver
 
     out = {
         "ref_n": PULSE_REF_N,
         "ref": _ri(_free_wire_solver(PULSE_REF_N, BSplineSolver, degree=2)),
     }
-    rows = []
-    for n in PULSE_N:
-        rows.append([n, *_ri(_free_wire_solver(n, PulseSolver))])
-        print(f"pulse n={n} done", flush=True)
-    out["pulse"] = rows
+    lanes = (
+        ("pulse", PulseSolver, PULSE_N),
+        ("harrington", HarringtonSolver, HARRINGTON_N),
+    )
+    for key, cls, ladder in lanes:
+        rows = []
+        for n in ladder:
+            rows.append([n, *_ri(_free_wire_solver(n, cls))])
+            print(f"{key} n={n} done", flush=True)
+        out[key] = rows
     PULSE_LADDER.write_text(json.dumps(out))
     return out
 
@@ -412,23 +433,37 @@ def bydipole1_section(data: dict) -> str:
     return table, pair_cells
 
 
-def pulse_section(pulse: dict) -> tuple[str, complex, float, int]:
-    """The pulse ladder as a table, plus the numbers the prose quotes.
+def pulse_section(pulse: dict) -> tuple[str, float, float, int]:
+    """Both charge models on one ladder, plus the numbers the prose quotes.
 
-    Returns (table, Z at the coarsest rung, the last rung's error in ohms,
-    the segment count where Δ/a reaches 1 on this wire).
+    Returns (table, the worst-case ratio between the two lanes' errors, the
+    dual-cell lane's error at its last rung, the segment count where Δ/a
+    reaches 1 on this wire).
     """
     ref = complex(*pulse["ref"])
+    dual = {row[0]: complex(row[1], row[2]) for row in pulse["harrington"]}
     rows = [
-        "| Segments | Δ/a | Z (Ω) | \\|Z − limit\\| |",
-        "|---|---|---|---|",
+        "| Segments | Δ/a | charge at a point | error | Harrington's dual cell | error |",
+        "|---|---|---|---|---|---|",
     ]
+    ratios = []
     for n, re_, im in pulse["pulse"]:
         z = complex(re_, im)
-        rows.append(f"| {n} | {L / (n * RAD):.1f} | {fmt_z(z)} | {abs(z - ref):,.1f} |")
-    rows.append(f"| limit (bs2, N={pulse['ref_n']}) | — | {fmt_z(ref)} | — |")
-    last = complex(*pulse["pulse"][-1][1:])
-    return "\n".join(rows), _z(pulse["pulse"][0]), abs(last - ref), round(L / RAD)
+        err = abs(z - ref)
+        if n in dual:
+            d_err = abs(dual[n] - ref)
+            ratios.append(err / d_err)
+            rows.append(
+                f"| {n} | {L / (n * RAD):.0f} | {fmt_z(z)} | {err:,.1f} | "
+                f"{fmt_z(dual[n])} | {d_err:,.2f} |"
+            )
+        else:
+            rows.append(
+                f"| {n} | {L / (n * RAD):.0f} | {fmt_z(z)} | {err:,.1f} | — | — |"
+            )
+    rows.append(f"| limit (bs2, N={pulse['ref_n']}) | — | {fmt_z(ref)} | — | — | — |")
+    last_dual = abs(dual[max(dual)] - ref)
+    return "\n".join(rows), max(ratios), last_dual, round(L / RAD)
 
 
 def phase2_table(phase2: dict) -> str:
@@ -501,6 +536,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
 
     surface = "#fcfcfb"
     ink, ink2, grid = "#1a1a19", "#5f5e56", "#e8e8e6"
@@ -536,6 +572,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
     ]
     dashed = {"razor_n5q"}
     pulse_color = "#c9314b"
+    harrington_color = "#8c4a1f"
 
     # sharex="col", not True: the pulse column's ladder runs to 6401 segments
     # on a log axis and must not drag the other two columns' 8–118 window
@@ -598,37 +635,49 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
         axes[2, col].set_xlabel("Number of segments", color=ink, fontsize=10)
         axes[0, col].set_title(col_title, color=ink, fontsize=10, loc="left", pad=8)
 
-    # Column 2: the pulse basis, point-matched (momwire's PulseSolver) — the
-    # same free-space wire, the same limit, and a ladder 64× longer to reach
-    # it. Every row keeps its quantity and changes scale: the capacitive
-    # excess spans four decades and SWR three, so linear axes would draw one
-    # visible point and a wall. The dashed horizontal is the converged bs2
-    # value the lane is walking toward; the dotted vertical is Δ/a = 1, past
-    # which this scheme's point-charge concentration error REVERSES (momwire
-    # tests/test_pulse.py) — on this thin a wire that limit is off the ladder,
-    # which is the whole reason the column needs its own axes.
+    # Column 2: the same pulse basis under two charge models, on the same
+    # free-space wire. Both lanes are Harrington's expansion with point
+    # matching; they differ in where the CHARGE lives and in nothing else —
+    # `PulseSolver` leaves it as two point charges at the segment ends,
+    # `HarringtonSolver` spreads it over the half-shifted dual cell his 1967
+    # paper specifies. So the gap between these two curves is the price of
+    # one ingredient, which is what earns the column its place beside two
+    # panels about basis and testing.
+    #
+    # Every row keeps its quantity and changes scale: the nodal lane's
+    # capacitive excess spans four decades and its SWR three, so linear axes
+    # would draw one visible point and a wall. The dashed horizontal is the
+    # converged bs2 value both lanes walk toward; the dotted vertical is
+    # Δ/a = 1, past which the NODAL lane's point-charge concentration error
+    # reverses (momwire tests/test_pulse.py) — on a wire this thin that limit
+    # is off the ladder, which is the whole reason the column needs its own
+    # axes. The dual-cell lane has no such wall: its error is O(1/N).
     ref_z = complex(*pulse["ref"])
     pn = [p[0] for p in pulse["pulse"]]
+    hn = [p[0] for p in pulse["harrington"]]
     reversal = L / RAD
     for row, (ax, (ylabel, f), scale) in enumerate(
         zip(axes[:, 2], panels, ("linear", "symlog", "log"))
     ):
         ax.set_facecolor(surface)
-        ys = [f(_z(p)) for p in pulse["pulse"]]
         ax.axhline(f(ref_z), color=ink2, lw=1.2, ls=(0, (5, 3)))
         ax.axvline(reversal, color=ink2, lw=1.0, ls=(0, (1, 3)))
-        ax.plot(
-            pn,
-            ys,
-            color=pulse_color,
-            lw=2,
-            marker="o",
-            ms=3.5,
-            mfc=pulse_color,
-            mec=surface,
-            mew=0.5,
-            label="momwire pulse (point-matched)",
-        )
+        for key, xs, color, label in (
+            ("pulse", pn, pulse_color, "pulse — charge at a point"),
+            ("harrington", hn, harrington_color, "pulse — Harrington's dual cell"),
+        ):
+            ax.plot(
+                xs,
+                [f(_z(p)) for p in pulse[key]],
+                color=color,
+                lw=2,
+                marker="o",
+                ms=3.5,
+                mfc=color,
+                mec=surface,
+                mew=0.5,
+                label=label,
+            )
         ax.set_xscale("log")
         if scale == "symlog":
             ax.set_yscale("symlog", linthresh=100)
@@ -638,35 +687,25 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
         ax.set_xticks([13, 51, 201, 801, 3201])
         ax.set_xticklabels(["13", "51", "201", "801", "3201"])
         ax.set_ylabel(ylabel, color=ink, fontsize=10)
-        ax.text(
-            pn[0] * 1.15,
-            f(ref_z),
-            "converged limit (bs2)",
-            va="bottom",
-            fontsize=9,
-            color=ink2,
-        )
-        if row == 0:
-            ax.text(
-                reversal * 0.9,
-                ax.get_ylim()[0],
-                "Δ/a = 1 ",
-                va="bottom",
-                ha="right",
-                rotation=90,
-                fontsize=8,
-                color=ink2,
-            )
         ax.grid(True, color=grid, lw=0.8)
         for s in ("top", "right"):
             ax.spines[s].set_visible(False)
         for s in ("left", "bottom"):
             ax.spines[s].set_color(ink2)
         ax.tick_params(colors=ink2, labelsize=9)
-    axes[0, 2].legend(loc="lower right", frameon=False, fontsize=9, labelcolor=ink)
+    # The two reference marks are legend entries rather than in-axes text:
+    # every x they could be written at has a curve running through it.
+    handles, labels = axes[0, 2].get_legend_handles_labels()
+    handles.append(Line2D([], [], color=ink2, lw=1.2, ls=(0, (5, 3))))
+    labels.append("converged limit (bs2)")
+    handles.append(Line2D([], [], color=ink2, lw=1.0, ls=(0, (1, 3))))
+    labels.append("Δ/a = 1 — the point charge's wall")
+    axes[0, 2].legend(
+        handles, labels, loc="lower right", frameon=False, fontsize=9, labelcolor=ink
+    )
     axes[2, 2].set_xlabel("Number of segments", color=ink, fontsize=10)
     axes[0, 2].set_title(
-        "free space — the pulse basis, point-matched (momwire#416)",
+        "free space — one basis, two charge models (momwire#416/#557)",
         color=ink,
         fontsize=10,
         loc="left",
@@ -781,8 +820,8 @@ def build_page(
     anchors: dict,
 ) -> str:
     bd_table, bd_pairs = bydipole1_section(data)
-    pulse_table, pulse_coarse, pulse_err, pulse_reversal = pulse_section(pulse)
-    pulse_101 = _z(next(r for r in pulse["pulse"] if r[0] == 101))
+    pulse_table, pulse_ratio, pulse_dual_err, pulse_reversal = pulse_section(pulse)
+    pulse_dual_n = max(row[0] for row in pulse["harrington"])
     razor_diffs = [
         _z(free["razor"][EVEN.index(2 * n)]).imag
         - _z(free["razor"][EVEN.index(n)]).imag
@@ -877,10 +916,12 @@ space: momwire's razor solver shares NEC-5's first-order march and lands
 on the same limit, bs1 on the same tent basis with Galerkin testing
 converges faster, and a dashed razor lane using NEC-5's identified
 quadrature lies directly on the NEC-5 curve. Right, on log axes running to
-6401 segments: the pulse basis with point matching walks to the same
-converged limit from kilohms of capacitive excess, reaching it only as the
-segment length approaches the wire
-radius.](../../../assets/validation/bydipole1-convergence.png)
+6401 segments: the same pulse basis under two charge models — a point charge
+at each segment end, which walks to the converged limit from kilohms of
+capacitive excess and only closes as the segment length approaches the wire
+radius, and Harrington's half-shifted dual cell, which converges first-order
+with no such
+wall.](../../../assets/validation/bydipole1-convergence.png)
 
 {bd_table}
 
@@ -929,48 +970,63 @@ the two codes on this wire. (The twin panel is free-space because
 RazorSolver deliberately carries no ground: NEC-5's Michalski ground has
 its own small limit offset that would blur the formulation comparison.)
 
-### The same limit, 64× later: pulse basis with point matching
+### What the charge model is worth: one basis, two ways to place it
 
-The right-hand column is the oldest thin-wire scheme there is — Harrington's
-piecewise-constant current expansion, point-matched — on the same free-space
-wire. momwire ships it as `PulseSolver`, and it is on this page for the same
-reason it exists: it is the control that shows what the other columns' basis
-and testing choices are actually buying.
+The right-hand column holds the oldest thin-wire scheme there is —
+Harrington's piecewise-constant current, point-matched, 1967 — twice. Both
+lanes use the same basis, the same testing, the same kernel and the same
+feed. They differ in one thing: **where the charge lives.**
 
-It converges — to the *same* limit, monotonically, every rung better than the
-last — and it needs about 64× the mesh of any other lane to get there:
+A pulse current is discontinuous, so its charge is exactly two spikes at the
+segment ends. You can take that literally and put a point charge there, which
+is what momwire's `PulseSolver` does. Or you can do what Harrington's paper
+actually specifies — spread each one over a half-shifted cell straddling the
+node, his equations (95)/(96)/(100) — which is `HarringtonSolver`. Everything
+else about the two rows is the same code.
 
 {pulse_table}
 
-At thirteen segments — about the mesh at which bs2 is already census-grade —
-pulse reads {fmt_z(pulse_coarse)}. At 101 it still reads
-{fmt_z(pulse_101)}: kilohms of capacitive excess, far off the bottom of the
-centre column's axes. It lands within {pulse_err:.1f} Ω of the limit only at
-6401 segments.
+That is a factor of **{pulse_ratio:.0f}×** between two solvers that differ by
+one modelling decision, and it is the sharpest statement this page can make
+about why formulations are worth arguing over. Neither lane is wrong about the
+physics; both walk to the same limit. One of them just needs 300 times the
+accuracy budget to get there.
 
-The reason is the third axis on that column. This scheme's error is governed
-by **Δ/a — segment length in wire radii — not Δ/λ**. Its charge is two point
-charges per basis function, observed at their own location and regularized
-only by the reduced kernel's a², so the mesh has to approach the *conductor
-radius* before the concentration error retires. ByDipole1's #14 wire is
-1.03 mm in radius, which puts Δ/a = 1 at about {pulse_reversal:,} segments —
-and refining past that point does not merely stop helping, it reverses
-(momwire's `test_the_scheme_is_governed_by_delta_over_a_not_delta_over_lambda`
-measures the reversal rather than warning about it). The dotted vertical in
-that column is where the useful ladder ends.
+**Why the point charge costs so much.** Its error is governed by **Δ/a —
+segment length in wire radii — not Δ/λ**. A point charge's potential at its
+own location is finite only because the thin-wire kernel floors the distance
+at the conductor radius, so the mesh has to approach the *radius* before that
+error retires. ByDipole1's #14 wire is 1.03 mm, which puts Δ/a = 1 at about
+{pulse_reversal:,} segments — the dotted vertical — and refining past it does
+not merely stop helping, it reverses. The usable window is the sliver between
+that wall and a mesh nobody would pay for.
 
-That gap — a converged answer at eleven segments versus six thousand, on
-identical physics — is what "the formulation matters" means quantitatively,
-and it is why antennaknobs ships no pulse lane in production.
+Give the charge a cell of its own length and the wire radius stops setting the
+scale. The dual-cell lane converges O(1/N) like any classical scheme, reaching
+{pulse_dual_err:.2f} Ω at {pulse_dual_n:,} segments, with no wall anywhere on
+the axis.
+
+**What this column is not.** It is not a claim that the 1967 scheme is
+obsolete — it is on the roster, as `pulse`, and it is a perfectly reasonable
+base case. It is a control: the two panels to its left vary the basis and the
+testing, and this one varies neither. Whatever separates these two curves
+cannot be blamed on either, which is what makes the number mean something.
+Harrington's own advice, on page 145 of the same paper, is to move on anyway:
+"faster convergence can be obtained by going from a step approximation to a
+piecewise-linear approximation to the current" — the tent basis, which is the
+`bs1` lane in the middle column.
 
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed
 (driving-point impedance is source-type independent; the equivalence is
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
 EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
-`RazorSolver` on the momwire#311 branch; the pulse lane is momwire's
-`PulseSolver`, and its 6401-segment rung is a 6401×6401 dense solve — about
-40 s and 5 GB, which is the other half of what that column costs.
+`RazorSolver` on the momwire#311 branch. The two pulse lanes are momwire's
+`PulseSolver` and `HarringtonSolver` (momwire#557); the point-charge lane's
+6401-segment rung is a 6401×6401 dense solve, about 40 s and 5 GB, and the
+dual-cell lane stops at 1601 because its charge cells make the moment block
+twice as wide in each direction and it has been flat for three rungs by
+then.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
