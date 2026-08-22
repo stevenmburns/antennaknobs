@@ -553,13 +553,17 @@ Four things follow, and the fourth is the one worth acting on.
 
 Superseding the list above.
 
-* **The Sommerfeld near-field evaluator** — the one thing this corpus asks for
-  that the seam refuses (six `NE` decks and one `NH`, all over `GN 0` or bare
-  `GD`). Inventoried in momwire#388's near-field row; no dedicated issue yet.
-  Until it exists the refusals are correct and the sentence names the ground.
+* ~~**The Sommerfeld near-field evaluator**~~ — **built and shipped
+  (momwire#520 → the #545 arc → v0.37.0); see the 2026-08-22 re-score below.**
+  Four of the seven refusals became served envelopes; the three left are one
+  sentence about one observation point. The nec2 portal's own near-field row
+  is the follow-up, momwire#550.
 * **momwire#510** — the grazing-height Sommerfeld divergence (radials at
   1.09e-4 λ), now six captures: `0033`, `0034`, `0103`–`0106`. Held by a named
-  divergence gate that fails when fixed.
+  divergence gate that fails when fixed. **Re-measured 2026-08-22 with the
+  #545 evaluator: unchanged, and the grid-interpolation layer is measured out
+  of the suspect list (≤ 7.8e-4 of surface scale at the deck's own grazing
+  query population, against the 2e-3 design bar) — findings on the issue.**
 * ~~**momwire#518** — the B-spline family's ~2 % gap-capacitance bias~~ —
   **overturned and closed 2026-08-21** (ladder geometry artifact; see the
   correction block above). The N4PC row is likewise resolved as capture-side
@@ -580,7 +584,36 @@ Superseding the list above.
   and per display — so a deck asking for two different requests at once has
   never been observed and the printout's echo order for one is unpinned. Nothing
   is wrong today; nothing would catch it if it were.
-* **The pin lags the measurement.** This repo ships `momwire==0.35.1`, which
-  refuses the six captures named at the top of this section. The next momwire
-  release closes the gap and makes 115/122 the shipping number.
+* ~~**The pin lags the measurement.**~~ **Closed 2026-08-22: the pin is
+  `momwire==0.37.0` and 119/122 is the shipping number** (re-score below).
 * Re-run: `.venv/bin/python scripts/eznec_serve_sweep.py`.
+
+## Re-score 2026-08-22 — the near-field rungs land (momwire#545, v0.37.0)
+
+momwire#520's evaluator shipped as the #545 stacked arc (arc PR momwire#547;
+`momwire._field_point`, keyed by (source-medium, observer-medium) so the
+buried-wire surfaces of momwire#524 extend a table rather than a refactor), and
+the ladder moved for the first time since the re-weight:
+
+| corpus | served | refused |
+| --- | --- | --- |
+| the original 49 | 48/49 | `0022` |
+| momwire's fixture corpus (62, post-#545) | **59/62** | `0022`, `0107`, `0112` |
+| **the public corpus (122)** | **119/122** | **3/122** |
+
+The refusal table above ("one work front wearing three sentences") is retired:
+`0108`, `0110`, `0111` and `0113` serve with measured envelopes — worst printed
+cell 1.8–5.5 % of table scale, phases within 1.3°, the `NH` table by a budgeted
+numerical curl, and the bare `GD` evaluated **in the medium** exactly as the
+#516 measurement said the engine does (the served `GD`/`GN 0` tables sit 1.54 %
+apart, inside the captures' own 4.4 %). What is left is ONE sentence on three
+captures, and it is about a POINT rather than a capability: `0022`, `0107` and
+`0112` all ask for the field at exactly (0, 0, 0) — the base of a contact-fed
+monopole on a finite ground — where the composed field is singular and does not
+converge under refinement (measured 36.6 → 1230 V/m over subdiv 1 → 64), and
+the engine's own printed cell sits BETWEEN the rungs of that ladder. Neither
+number is an answer; the seam refuses naming the point and the wire, and the
+same grid one step off the contact serves. The refusal roster shrinking from
+seven captures to three, with the ground's name leaving the sentence, is the
+rung landing — not a partial failure of it. Full measurement trail: the #545
+issue and its four sub-PR reviews.

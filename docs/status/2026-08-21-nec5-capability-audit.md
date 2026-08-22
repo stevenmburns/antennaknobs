@@ -91,3 +91,11 @@ momwire#525.
 5. **Method rule, going forward**: a deck-driven inventory sees only what
    sample decks exercise; pair every corpus-based serve matrix with one
    top-down capability pass like this one.
+
+> **Addendum (2026-08-22).** The `NE`/`NH` grid row above is superseded:
+> momwire#520's evaluator shipped as the #545 arc (momwire 0.37.0), and near
+> fields now serve over ALL four ground cards, with the refusal narrowed to a
+> single observation point on a wire's ground contact (see the scored matrix's
+> 2026-08-22 re-score). The `LE`/`LH` line-field row stands — same evaluator
+> family, still vocabulary-refused; the nec2 portal's near-field row is
+> momwire#550.

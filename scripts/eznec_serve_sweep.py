@@ -28,9 +28,10 @@ Sanity anchors, checked on every run and fatal when they fail (``--json`` still
 gets written so a failed anchor is debuggable):
 
 * the original 49-capture corpus (``0000``-``0048``) still stands 48 of 49,
-  with ``0022`` the one refusal and its sentence naming ``NE`` over ``GN 0``;
-* the 62 captures momwire's own fixture corpus pins stand 55 of 62, refusing
-  exactly the seven ids momwire's corpus-ladder test names.
+  with ``0022`` the one refusal and its sentence naming the OBSERVATION POINT
+  on its monopole's ground contact (momwire#545 narrowed it from the ground);
+* the 62 captures momwire's own fixture corpus pins stand 59 of 62, refusing
+  exactly the three ids momwire's corpus-ladder test names.
 
 Usage::
 
@@ -63,10 +64,14 @@ NAMING_SPLIT = " is not served at this seam"
 
 # The two anchors.  Both are other people's numbers — the first is this doc's
 # own first re-score (2026-08-20, momwire#504 U4), the second is momwire's
-# ``tests/test_eznec_serve.py::test_the_corpus_ladder_stands_where_516_left_it``
+# ``tests/test_eznec_serve.py::test_the_corpus_ladder_stands_where_545_left_it``
 # — and a sweep that cannot reproduce them is measuring something else.
 ANCHOR_49 = {"served": 48, "refused": ["0022"]}
-ANCHOR_49_SENTENCE = "NE (near electric field) over a GN 0 finite ground"
+# The sentence's stable NAMING prefix, compared with startswith: momwire#545's
+# contact-point refusal carries the measured ladder in its explanation, and an
+# anchor that pinned the whole paragraph would break on every re-measure of the
+# numbers it quotes.  What is anchored is what the refusal is ABOUT.
+ANCHOR_49_SENTENCE = "NE (near electric field) asks for the field at (0, 0, 0) metres"
 ANCHOR_FIXTURE_IDS = tuple(
     f"{n:04d}"
     for n in (
@@ -82,8 +87,8 @@ ANCHOR_FIXTURE_IDS = tuple(
 ENVELOPE_CEILING = 16.3
 
 ANCHOR_FIXTURE = {
-    "served": 55,
-    "refused": ["0022", "0107", "0108", "0110", "0111", "0112", "0113"],
+    "served": 59,
+    "refused": ["0022", "0107", "0112"],
 }
 
 
@@ -354,9 +359,10 @@ def check_anchors(results: list[dict]) -> list[str]:
         (row["reason"] for row in results if row["id"] == "0022"),
         None,
     )
-    if sentence != ANCHOR_49_SENTENCE:
+    if sentence is None or not sentence.startswith(ANCHOR_49_SENTENCE):
         problems.append(
-            f"0022 refuses with {sentence!r}, anchor says {ANCHOR_49_SENTENCE!r}"
+            f"0022 refuses with {sentence!r}, anchor says it starts with "
+            f"{ANCHOR_49_SENTENCE!r}"
         )
     problems += subset_check(
         results,
@@ -438,7 +444,11 @@ def report(summary: dict, problems: list[str]) -> None:
                 print(f"\n--- {row['id']} {row['title']} crashed ---")
                 print(row["crash"])
     else:
-        print("anchors: 48/49 on the original corpus, 55/62 on momwire's — both hold")
+        print(
+            "anchors: 48/49 on the original corpus, "
+            f"{ANCHOR_FIXTURE['served']}/{len(ANCHOR_FIXTURE_IDS)} on momwire's "
+            "— both hold"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
