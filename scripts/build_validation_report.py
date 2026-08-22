@@ -7,6 +7,8 @@ committed artifact or a cited literal from a docs/status writeup:
   scratch/bydipole1-ladders.json      ByDipole1 four-engine ladders (computed)
   scratch/bydipole1-freespace-ladders.json  the free-space twin panel: bs1 /
                                       razor (momwire#311) / NEC-5 (computed)
+  scratch/bydipole1-pulse-ladder.json  the pulse column: PulseSolver out to
+                                      6401 segments vs the bs2 limit (computed)
   scratch/leeson-cebik.json           the Leeson demo cases (computed; the
                                       published Cebik values ride inside)
   scratch/nec5-convergence-phase2.json  fixed-mesh self-convergence (computed)
@@ -38,6 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LADDERS = ROOT / "scratch" / "bydipole1-ladders.json"
 FREE_LADDERS = ROOT / "scratch" / "bydipole1-freespace-ladders.json"
+PULSE_LADDER = ROOT / "scratch" / "bydipole1-pulse-ladder.json"
 ANCHORS = ROOT / "scratch" / "analytic-anchors.json"
 LEESON = ROOT / "scratch" / "leeson-cebik.json"
 PHASE2 = ROOT / "scratch" / "nec5-convergence-phase2.json"
@@ -54,6 +57,15 @@ EPS, SIG = 20.0, 0.0303
 GROUND = ("finite", EPS, SIG)
 ODD = list(range(11, 102, 4))
 EVEN = list(range(12, 101, 4))
+
+# The pulse column's own ladder. Odd counts, because a pulse row IS a segment
+# and the feed snaps to the nearest centroid — an odd count puts one segment
+# centred on the wire's middle, the same parity nec2c and bs2 want. It runs
+# to 6401 because this scheme's error is set by Δ/a rather than Δ/λ (see
+# `pulse_section`), so the interesting part of its march is off the right-hand
+# edge of the other two columns entirely.
+PULSE_N = [13, 25, 51, 101, 201, 401, 801, 1601, 3201, 6401]
+PULSE_REF_N = 401  # bs2 mesh for the converged free-space limit
 
 
 # --------------------------------------------------------------------------
@@ -205,6 +217,31 @@ def recompute_free_ladders() -> dict:
     print("razor_n5q done", flush=True)
     FREE_LADDERS.write_text(json.dumps(free))
     return free
+
+
+# --------------------------------------------------------------------------
+# The pulse column: the oldest thin-wire scheme there is, on the same wire.
+# Harrington's piecewise-constant expansion with point matching (momwire's
+# `PulseSolver`, the momwire#416 architecture probe) reaches the SAME limit
+# as every other lane — it just needs about 64× the mesh to get there, so it
+# gets its own log-x column instead of a fourth line on the free-space axes.
+
+
+def recompute_pulse_ladder() -> dict:
+    from momwire import PulseSolver
+    from momwire.bspline import BSplineSolver
+
+    out = {
+        "ref_n": PULSE_REF_N,
+        "ref": _ri(_free_wire_solver(PULSE_REF_N, BSplineSolver, degree=2)),
+    }
+    rows = []
+    for n in PULSE_N:
+        rows.append([n, *_ri(_free_wire_solver(n, PulseSolver))])
+        print(f"pulse n={n} done", flush=True)
+    out["pulse"] = rows
+    PULSE_LADDER.write_text(json.dumps(out))
+    return out
 
 
 def recompute_anchors() -> dict:
@@ -375,6 +412,25 @@ def bydipole1_section(data: dict) -> str:
     return table, pair_cells
 
 
+def pulse_section(pulse: dict) -> tuple[str, complex, float, int]:
+    """The pulse ladder as a table, plus the numbers the prose quotes.
+
+    Returns (table, Z at the coarsest rung, the last rung's error in ohms,
+    the segment count where Δ/a reaches 1 on this wire).
+    """
+    ref = complex(*pulse["ref"])
+    rows = [
+        "| Segments | Δ/a | Z (Ω) | \\|Z − limit\\| |",
+        "|---|---|---|---|",
+    ]
+    for n, re_, im in pulse["pulse"]:
+        z = complex(re_, im)
+        rows.append(f"| {n} | {L / (n * RAD):.1f} | {fmt_z(z)} | {abs(z - ref):,.1f} |")
+    rows.append(f"| limit (bs2, N={pulse['ref_n']}) | — | {fmt_z(ref)} | — |")
+    last = complex(*pulse["pulse"][-1][1:])
+    return "\n".join(rows), _z(pulse["pulse"][0]), abs(last - ref), round(L / RAD)
+
+
 def phase2_table(phase2: dict) -> str:
     lines = [
         "| design | NEC-5 raw | momwire bs2 | momwire sin |",
@@ -440,7 +496,7 @@ def votes_split(votes: list[dict]) -> tuple[int, int, int]:
 # exhibit already published on the groups.io thread)
 
 
-def render_figure(data: dict, free: dict) -> None:
+def render_figure(data: dict, free: dict, pulse: dict) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -479,8 +535,14 @@ def render_figure(data: dict, free: dict) -> None:
         ),
     ]
     dashed = {"razor_n5q"}
+    pulse_color = "#c9314b"
 
-    fig, axes = plt.subplots(3, 2, figsize=(12.8, 10.2), sharex=True, facecolor=surface)
+    # sharex="col", not True: the pulse column's ladder runs to 6401 segments
+    # on a log axis and must not drag the other two columns' 8–118 window
+    # with it.
+    fig, axes = plt.subplots(
+        3, 3, figsize=(18.6, 10.2), sharex="col", facecolor=surface
+    )
     panels = [
         ("Source R (Ω)", lambda z: z.real),
         ("Source X (Ω)", lambda z: z.imag),
@@ -535,10 +597,96 @@ def render_figure(data: dict, free: dict) -> None:
         )
         axes[2, col].set_xlabel("Number of segments", color=ink, fontsize=10)
         axes[0, col].set_title(col_title, color=ink, fontsize=10, loc="left", pad=8)
+
+    # Column 2: the pulse basis, point-matched (momwire's PulseSolver) — the
+    # same free-space wire, the same limit, and a ladder 64× longer to reach
+    # it. Every row keeps its quantity and changes scale: the capacitive
+    # excess spans four decades and SWR three, so linear axes would draw one
+    # visible point and a wall. The dashed horizontal is the converged bs2
+    # value the lane is walking toward; the dotted vertical is Δ/a = 1, past
+    # which this scheme's point-charge concentration error REVERSES (momwire
+    # tests/test_pulse.py) — on this thin a wire that limit is off the ladder,
+    # which is the whole reason the column needs its own axes.
+    ref_z = complex(*pulse["ref"])
+    pn = [p[0] for p in pulse["pulse"]]
+    reversal = L / RAD
+    for row, (ax, (ylabel, f), scale) in enumerate(
+        zip(axes[:, 2], panels, ("linear", "symlog", "log"))
+    ):
+        ax.set_facecolor(surface)
+        ys = [f(_z(p)) for p in pulse["pulse"]]
+        ax.axhline(f(ref_z), color=ink2, lw=1.2, ls=(0, (5, 3)))
+        ax.axvline(reversal, color=ink2, lw=1.0, ls=(0, (1, 3)))
+        ax.plot(
+            pn,
+            ys,
+            color=pulse_color,
+            lw=2,
+            marker="o",
+            ms=3.5,
+            mfc=pulse_color,
+            mec=surface,
+            mew=0.5,
+            label="momwire pulse (point-matched)",
+        )
+        ax.set_xscale("log")
+        if scale == "symlog":
+            ax.set_yscale("symlog", linthresh=100)
+        elif scale == "log":
+            ax.set_yscale("log")
+        ax.set_xlim(11, 16000)
+        ax.set_xticks([13, 51, 201, 801, 3201])
+        ax.set_xticklabels(["13", "51", "201", "801", "3201"])
+        ax.set_ylabel(ylabel, color=ink, fontsize=10)
+        ax.text(
+            pn[0] * 1.15,
+            f(ref_z),
+            "converged limit (bs2)",
+            va="bottom",
+            fontsize=9,
+            color=ink2,
+        )
+        if row == 0:
+            ax.text(
+                reversal * 0.9,
+                ax.get_ylim()[0],
+                "Δ/a = 1 ",
+                va="bottom",
+                ha="right",
+                rotation=90,
+                fontsize=8,
+                color=ink2,
+            )
+        ax.grid(True, color=grid, lw=0.8)
+        for s in ("top", "right"):
+            ax.spines[s].set_visible(False)
+        for s in ("left", "bottom"):
+            ax.spines[s].set_color(ink2)
+        ax.tick_params(colors=ink2, labelsize=9)
+    axes[0, 2].legend(loc="lower right", frameon=False, fontsize=9, labelcolor=ink)
+    axes[2, 2].set_xlabel("Number of segments", color=ink, fontsize=10)
+    axes[0, 2].set_title(
+        "free space — the pulse basis, point-matched (momwire#416)",
+        color=ink,
+        fontsize=10,
+        loc="left",
+        pad=34,
+    )
+
+    # Δ/a is the axis this scheme actually converges on, and it is its own
+    # inverse here: Δ/a = L/(N a) and N = L/((Δ/a) a).
+    def _delta_over_a(x):
+        import numpy as np
+
+        return L / (np.clip(np.abs(x), 1e-9, None) * RAD)
+
+    secax = axes[0, 2].secondary_xaxis("top", functions=(_delta_over_a, _delta_over_a))
+    secax.set_xlabel("Δ / a  (segment length in wire radii)", color=ink2, fontsize=9)
+    secax.tick_params(colors=ink2, labelsize=8)
     fig.suptitle(
         "ByDipole1 (EZNEC 7 sample) — feed-point convergence vs engine\n"
-        "10.19 m dipole (#14 wire), 14 MHz; left at 9.14 m over ground, "
-        "right the same wire in free space",
+        "10.19 m dipole (#14 wire), 14 MHz; left at 9.14 m over ground, centre "
+        "and right the same wire in free space (right on its own log ladder)",
         color=ink,
         fontsize=11,
         x=0.02,
@@ -624,9 +772,17 @@ def render_leeson_figure(leeson: dict) -> None:
 
 
 def build_page(
-    data: dict, free: dict, phase2: dict, votes: list[dict], leeson: dict, anchors: dict
+    data: dict,
+    free: dict,
+    pulse: dict,
+    phase2: dict,
+    votes: list[dict],
+    leeson: dict,
+    anchors: dict,
 ) -> str:
     bd_table, bd_pairs = bydipole1_section(data)
+    pulse_table, pulse_coarse, pulse_err, pulse_reversal = pulse_section(pulse)
+    pulse_101 = _z(next(r for r in pulse["pulse"] if r[0] == 101))
     razor_diffs = [
         _z(free["razor"][EVEN.index(2 * n)]).imag
         - _z(free["razor"][EVEN.index(n)]).imag
@@ -713,15 +869,18 @@ regime (single radius, no junctions), which makes it a *convergence-rate*
 exhibit: every engine here converges to the same answer, and the question
 is how many segments each needs to get there.
 
-![Two-column convergence plot: feed-point R, X and SWR versus segment
+![Three-column convergence plot: feed-point R, X and SWR versus segment
 count on ByDipole1. Left, over ground: momwire bs2, momwire bs1, NEC-5 and
 nec2c — the bs2 curve is flat from eleven segments while NEC-5 approaches
-the common limit in a first-order march. Right, the same wire in free
+the common limit in a first-order march. Centre, the same wire in free
 space: momwire's razor solver shares NEC-5's first-order march and lands
 on the same limit, bs1 on the same tent basis with Galerkin testing
 converges faster, and a dashed razor lane using NEC-5's identified
-quadrature lies directly on the NEC-5
-curve.](../../../assets/validation/bydipole1-convergence.png)
+quadrature lies directly on the NEC-5 curve. Right, on log axes running to
+6401 segments: the pulse basis with point matching walks to the same
+converged limit from kilohms of capacitive excess, reaching it only as the
+segment length approaches the wire
+radius.](../../../assets/validation/bydipole1-convergence.png)
 
 {bd_table}
 
@@ -746,7 +905,7 @@ What the plot shows:
   our runner and a second, unrelated NEC-5 host produce the same numbers
   from the same physics.
 
-The right-hand column is the same wire in free space, and it explains WHY
+The centre column is the same wire in free space, and it explains WHY
 NEC-5 marches. NEC-5's public manual states its formulation — a triangular
 (tent) current expansion tested by Rao-Wilton-Glisson path integrals
 between element centroids ("razor-blade" testing) — and momwire now
@@ -770,12 +929,48 @@ the two codes on this wire. (The twin panel is free-space because
 RazorSolver deliberately carries no ground: NEC-5's Michalski ground has
 its own small limit offset that would blur the formulation comparison.)
 
+### The same limit, 64× later: pulse basis with point matching
+
+The right-hand column is the oldest thin-wire scheme there is — Harrington's
+piecewise-constant current expansion, point-matched — on the same free-space
+wire. momwire ships it as `PulseSolver`, and it is on this page for the same
+reason it exists: it is the control that shows what the other columns' basis
+and testing choices are actually buying.
+
+It converges — to the *same* limit, monotonically, every rung better than the
+last — and it needs about 64× the mesh of any other lane to get there:
+
+{pulse_table}
+
+At thirteen segments — about the mesh at which bs2 is already census-grade —
+pulse reads {fmt_z(pulse_coarse)}. At 101 it still reads
+{fmt_z(pulse_101)}: kilohms of capacitive excess, far off the bottom of the
+centre column's axes. It lands within {pulse_err:.1f} Ω of the limit only at
+6401 segments.
+
+The reason is the third axis on that column. This scheme's error is governed
+by **Δ/a — segment length in wire radii — not Δ/λ**. Its charge is two point
+charges per basis function, observed at their own location and regularized
+only by the reduced kernel's a², so the mesh has to approach the *conductor
+radius* before the concentration error retires. ByDipole1's #14 wire is
+1.03 mm in radius, which puts Δ/a = 1 at about {pulse_reversal:,} segments —
+and refining past that point does not merely stop helping, it reverses
+(momwire's `test_the_scheme_is_governed_by_delta_over_a_not_delta_over_lambda`
+measures the reversal rather than warning about it). The dotted vertical in
+that column is where the useful ladder ends.
+
+That gap — a converged answer at eleven segments versus six thousand, on
+identical physics — is what "the formulation matters" means quantitatively,
+and it is why antennaknobs ships no pulse lane in production.
+
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed
 (driving-point impedance is source-type independent; the equivalence is
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
 EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
-`RazorSolver` on the momwire#311 branch.
+`RazorSolver` on the momwire#311 branch; the pulse lane is momwire's
+`PulseSolver`, and its 6401-segment rung is a 6401×6401 dense solve — about
+40 s and 5 GB, which is the other half of what that column costs.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
@@ -961,6 +1156,10 @@ def main() -> int:
         free = recompute_free_ladders()
     else:
         free = json.loads(FREE_LADDERS.read_text())
+    if args.recompute or not PULSE_LADDER.exists():
+        pulse = recompute_pulse_ladder()
+    else:
+        pulse = json.loads(PULSE_LADDER.read_text())
     if args.recompute or not ANCHORS.exists():
         anchors = recompute_anchors()
     else:
@@ -969,9 +1168,9 @@ def main() -> int:
     votes = json.loads(VOTES.read_text())
     leeson = json.loads(LEESON.read_text())
 
-    render_figure(data, free)
+    render_figure(data, free, pulse)
     render_leeson_figure(leeson)
-    PAGE.write_text(build_page(data, free, phase2, votes, leeson, anchors))
+    PAGE.write_text(build_page(data, free, pulse, phase2, votes, leeson, anchors))
     print(f"wrote {PAGE.relative_to(ROOT)}")
     return 0
 
