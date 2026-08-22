@@ -68,10 +68,12 @@ space: momwire's razor solver shares NEC-5's first-order march and lands
 on the same limit, bs1 on the same tent basis with Galerkin testing
 converges faster, and a dashed razor lane using NEC-5's identified
 quadrature lies directly on the NEC-5 curve. Right, on log axes running to
-6401 segments: the pulse basis with point matching walks to the same
-converged limit from kilohms of capacitive excess, reaching it only as the
-segment length approaches the wire
-radius.](../../../assets/validation/bydipole1-convergence.png)
+6401 segments: the same pulse basis under two charge models — a point charge
+at each segment end, which walks to the converged limit from kilohms of
+capacitive excess and only closes as the segment length approaches the wire
+radius, and Harrington's half-shifted dual cell, which converges first-order
+with no such
+wall.](../../../assets/validation/bydipole1-convergence.png)
 
 | engine | coarsest read — Z in Ω (SWR₅₀) @ N | finest read @ N |
 | --- | --- | --- |
@@ -125,60 +127,75 @@ the two codes on this wire. (The twin panel is free-space because
 RazorSolver deliberately carries no ground: NEC-5's Michalski ground has
 its own small limit offset that would blur the formulation comparison.)
 
-### The same limit, 64× later: pulse basis with point matching
+### What the charge model is worth: one basis, two ways to place it
 
-The right-hand column is the oldest thin-wire scheme there is — Harrington's
-piecewise-constant current expansion, point-matched — on the same free-space
-wire. momwire ships it as `PulseSolver`, and it is on this page for the same
-reason it exists: it is the control that shows what the other columns' basis
-and testing choices are actually buying.
+The right-hand column holds the oldest thin-wire scheme there is —
+Harrington's piecewise-constant current, point-matched, 1967 — twice. Both
+lanes use the same basis, the same testing, the same kernel and the same
+feed. They differ in one thing: **where the charge lives.**
 
-It converges — to the *same* limit, monotonically, every rung better than the
-last — and it needs about 64× the mesh of any other lane to get there:
+A pulse current is discontinuous, so its charge is exactly two spikes at the
+segment ends. You can take that literally and put a point charge there, which
+is what momwire's `PulseSolver` does. Or you can do what Harrington's paper
+actually specifies — spread each one over a half-shifted cell straddling the
+node, his equations (95)/(96)/(100) — which is `HarringtonSolver`. Everything
+else about the two rows is the same code.
 
-| Segments | Δ/a | Z (Ω) | \|Z − limit\| |
-|---|---|---|---|
-| 13 | 763.8 | 48.15 -27987.58j | 27,959.7 |
-| 25 | 397.2 | 45.38 -14926.38j | 14,898.5 |
-| 51 | 194.7 | 44.34 -7331.53j | 7,303.7 |
-| 101 | 98.3 | 44.69 -3632.16j | 3,604.3 |
-| 201 | 49.4 | 46.47 -1748.57j | 1,720.8 |
-| 401 | 24.8 | 50.14 -809.91j | 782.2 |
-| 801 | 12.4 | 55.91 -351.02j | 323.3 |
-| 1601 | 6.2 | 62.26 -136.75j | 109.0 |
-| 3201 | 3.1 | 66.42 -51.58j | 23.7 |
-| 6401 | 1.6 | 67.73 -29.72j | 1.8 |
-| limit (bs2, N=401) | — | 67.86 -27.89j | — |
+| Segments | Δ/a | charge at a point | error | Harrington's dual cell | error |
+|---|---|---|---|---|---|
+| 13 | 764 | 48.15 -27987.58j | 27,959.7 | 83.67 +73.28j | 102.39 |
+| 25 | 397 | 45.38 -14926.38j | 14,898.5 | 75.53 +22.46j | 50.93 |
+| 51 | 195 | 44.34 -7331.53j | 7,303.7 | 71.42 -4.18j | 23.97 |
+| 101 | 98 | 44.69 -3632.16j | 3,604.3 | 69.58 -16.38j | 11.64 |
+| 201 | 49 | 46.47 -1748.57j | 1,720.8 | 68.68 -22.36j | 5.60 |
+| 401 | 25 | 50.14 -809.91j | 782.2 | 68.24 -25.25j | 2.67 |
+| 801 | 12 | 55.91 -351.02j | 323.3 | 68.03 -26.63j | 1.28 |
+| 1601 | 6 | 62.26 -136.75j | 109.0 | 67.93 -27.26j | 0.63 |
+| 3201 | 3 | 66.42 -51.58j | 23.7 | — | — |
+| 6401 | 2 | 67.73 -29.72j | 1.8 | — | — |
+| limit (bs2, N=401) | — | 67.86 -27.89j | — | — | — |
 
-At thirteen segments — about the mesh at which bs2 is already census-grade —
-pulse reads 48.15 -27987.58j. At 101 it still reads
-44.69 -3632.16j: kilohms of capacitive excess, far off the bottom of the
-centre column's axes. It lands within 1.8 Ω of the limit only at
-6401 segments.
+That is a factor of **310×** between two solvers that differ by
+one modelling decision, and it is the sharpest statement this page can make
+about why formulations are worth arguing over. Neither lane is wrong about the
+physics; both walk to the same limit. One of them just needs 300 times the
+accuracy budget to get there.
 
-The reason is the third axis on that column. This scheme's error is governed
-by **Δ/a — segment length in wire radii — not Δ/λ**. Its charge is two point
-charges per basis function, observed at their own location and regularized
-only by the reduced kernel's a², so the mesh has to approach the *conductor
-radius* before the concentration error retires. ByDipole1's #14 wire is
-1.03 mm in radius, which puts Δ/a = 1 at about 9,929 segments —
-and refining past that point does not merely stop helping, it reverses
-(momwire's `test_the_scheme_is_governed_by_delta_over_a_not_delta_over_lambda`
-measures the reversal rather than warning about it). The dotted vertical in
-that column is where the useful ladder ends.
+**Why the point charge costs so much.** Its error is governed by **Δ/a —
+segment length in wire radii — not Δ/λ**. A point charge's potential at its
+own location is finite only because the thin-wire kernel floors the distance
+at the conductor radius, so the mesh has to approach the *radius* before that
+error retires. ByDipole1's #14 wire is 1.03 mm, which puts Δ/a = 1 at about
+9,929 segments — the dotted vertical — and refining past it does
+not merely stop helping, it reverses. The usable window is the sliver between
+that wall and a mesh nobody would pay for.
 
-That gap — a converged answer at eleven segments versus six thousand, on
-identical physics — is what "the formulation matters" means quantitatively,
-and it is why antennaknobs ships no pulse lane in production.
+Give the charge a cell of its own length and the wire radius stops setting the
+scale. The dual-cell lane converges O(1/N) like any classical scheme, reaching
+0.63 Ω at 1,601 segments, with no wall anywhere on
+the axis.
+
+**What this column is not.** It is not a claim that the 1967 scheme is
+obsolete — it is on the roster, as `pulse`, and it is a perfectly reasonable
+base case. It is a control: the two panels to its left vary the basis and the
+testing, and this one varies neither. Whatever separates these two curves
+cannot be blamed on either, which is what makes the number mean something.
+Harrington's own advice, on page 145 of the same paper, is to move on anyway:
+"faster convergence can be obtained by going from a step approximation to a
+piecewise-linear approximation to the current" — the tent basis, which is the
+`bs1` lane in the middle column.
 
 Provenance: geometry translated from the EZNEC 7 distribution, with
 EZNEC's current-source feed idiom replaced by a direct center voltage feed
 (driving-point impedance is source-type independent; the equivalence is
 pinned in the test suite). The NEC-2 curve is nec2c — the same lineage as
 EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
-`RazorSolver` on the momwire#311 branch; the pulse lane is momwire's
-`PulseSolver`, and its 6401-segment rung is a 6401×6401 dense solve — about
-40 s and 5 GB, which is the other half of what that column costs.
+`RazorSolver` on the momwire#311 branch. The two pulse lanes are momwire's
+`PulseSolver` and `HarringtonSolver` (momwire#557); the point-charge lane's
+6401-segment rung is a 6401×6401 dense solve, about 40 s and 5 GB, and the
+dual-cell lane stops at 1601 because its charge cells make the moment block
+twice as wide in each direction and it has been flat for three rungs by
+then.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
