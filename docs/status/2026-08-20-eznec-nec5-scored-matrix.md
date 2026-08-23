@@ -617,3 +617,23 @@ same grid one step off the contact serves. The refusal roster shrinking from
 seven captures to three, with the ground's name leaving the sentence, is the
 rung landing — not a partial failure of it. Full measurement trail: the #545
 issue and its four sub-PR reviews.
+
+## Re-score 2026-08-23 — the buried serve changes nothing here, verified (momwire#553, v0.38.0)
+
+momwire 0.38.0 ("below the interface") lands the buried-radials/screens serve
+on the bspline lane. The corpus prediction was *no movement* — no captured
+EZNEC sample buries a wire — and the sweep confirms it:
+
+| corpus | served | refused |
+| --- | --- | --- |
+| the original 49 | 48/49 | `0022` |
+| momwire's fixture corpus (62) | 59/62 | `0022`, `0107`, `0112` |
+| **the public corpus (122)** | **119/122** | **3/122** |
+
+122 solves in 14.0 s; both sanity anchors hold; the refusal roster is still
+the one contact-point `NE` sentence on three captures, unchanged from the
+2026-08-22 re-score. The buried capability is invisible to this corpus by
+construction — its measurement lives in momwire's own #553 gates (the exact
+lossless-limit and deep-burial identities, the radial-class ladder limits),
+not here. A future capture that *does* bury a radial field would enter the
+ladder as a served deck, not a refusal.
