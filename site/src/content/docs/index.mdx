@@ -25,16 +25,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.56.0" icon="star">
-  **The NEC-5 portal answers near fields over every ground.** momwire
-  0.37.0 ships a Sommerfeld point evaluator, so `NE`/`NH` requests serve
-  over real ground and the MININEC-type ground with measured envelopes —
-  119 of the 122 captured EZNEC launches in the reference corpus now
-  come back with an answer, and the three that refuse share one honest
-  sentence about one singular observation point. The corpus itself grew
-  from 49 to 122 public captures since the last release; the
-  [scored matrix](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-08-20-eznec-nec5-scored-matrix.md)
-  carries the re-score.
+<Card title="New in v0.57.0" icon="star">
+  **Wires below the interface.** momwire 0.38.0 lands the buried serve:
+  buried radials, screens, and buried fed elements get impedance,
+  currents, and charges over the Sommerfeld ground on the `bspline`
+  lane — at deck level today — and the edges are named rather than
+  papered over: interface crossings, ground-contact wires mixed with
+  buried wires, and near fields or patterns of buried decks refuse by
+  name. Validation below ground is deliberately engine-independent; the
+  [solver guide](/reference/solver/#honest-limitations) and the
+  [validation page](/reference/validation/#honest-limits) carry the
+  story.
 </Card>
 
 ## The whole pitch, in one line
