@@ -52,8 +52,8 @@ pages; the short form:
 
 ## Case: ByDipole1 — the EZNEC sample everyone can re-run
 
-ByDipole1 ships with EZNEC 7: a 10.19 m dipole at 9.144 m height, #14
-wire, 14 MHz, over real Sommerfeld ground (εr 20, σ 0.0303 S/m). It is a
+ByDipole1 ships with EZNEC 7: a 10.19 m dipole at 9.144 m height, #12
+wire (1.0262 mm radius), 14 MHz, over real Sommerfeld ground (εr 20, σ 0.0303 S/m). It is a
 community-recognizable case — NEC-2 vs NEC-5 convergence plots for it were
 independently published by AC6LA — and it sits squarely in NEC-2's good
 regime (single radius, no junctions), which makes it a *convergence-rate*
@@ -143,29 +143,30 @@ else about the two rows is the same code.
 
 | Segments | Δ/a | charge at a point | error | Harrington's dual cell | error |
 |---|---|---|---|---|---|
-| 13 | 764 | 48.15 -27987.58j | 27,959.7 | 83.67 +73.28j | 102.39 |
-| 25 | 397 | 45.38 -14926.38j | 14,898.5 | 75.53 +22.46j | 50.93 |
-| 51 | 195 | 44.34 -7331.53j | 7,303.7 | 71.42 -4.18j | 23.97 |
-| 101 | 98 | 44.69 -3632.16j | 3,604.3 | 69.58 -16.38j | 11.64 |
-| 201 | 49 | 46.47 -1748.57j | 1,720.8 | 68.68 -22.36j | 5.60 |
-| 401 | 25 | 50.14 -809.91j | 782.2 | 68.24 -25.25j | 2.67 |
-| 801 | 12 | 55.91 -351.02j | 323.3 | 68.03 -26.63j | 1.28 |
-| 1601 | 6 | 62.26 -136.75j | 109.0 | 67.93 -27.26j | 0.63 |
-| 3201 | 3 | 66.42 -51.58j | 23.7 | — | — |
-| 6401 | 2 | 67.73 -29.72j | 1.8 | — | — |
+| 13 | 763.8 | 48.15 -27987.58j | 27,959.7 | 83.67 +73.28j | 102.39 |
+| 25 | 397.2 | 45.38 -14926.38j | 14,898.5 | 75.53 +22.46j | 50.93 |
+| 51 | 194.7 | 44.34 -7331.53j | 7,303.7 | 71.42 -4.18j | 23.97 |
+| 101 | 98.31 | 44.69 -3632.16j | 3,604.3 | 69.58 -16.38j | 11.64 |
+| 201 | 49.4 | 46.47 -1748.57j | 1,720.8 | 68.68 -22.36j | 5.60 |
+| 401 | 24.76 | 50.14 -809.91j | 782.2 | 68.24 -25.25j | 2.67 |
+| 801 | 12.4 | 55.91 -351.02j | 323.3 | 68.03 -26.63j | 1.28 |
+| 1601 | 6.202 | 62.26 -136.75j | 109.0 | 67.93 -27.26j | 0.63 |
+| 3201 | 3.102 | 66.42 -51.58j | 23.7 | — | — |
+| 6401 | 1.551 | 67.73 -29.72j | 1.8 | — | — |
 | limit (bs2, N=401) | — | 67.86 -27.89j | — | — | — |
 
 That is a factor of **310×** between two solvers that differ by
 one modelling decision, and it is the sharpest statement this page can make
 about why formulations are worth arguing over. Neither lane is wrong about the
-physics; both walk to the same limit. One of them just needs 300 times the
-accuracy budget to get there.
+physics; both walk to the same limit. One of them just needs 310
+times the accuracy budget to get there.
 
 **Why the point charge costs so much.** Its error is governed by **Δ/a —
 segment length in wire radii — not Δ/λ**. A point charge's potential at its
 own location is finite only because the thin-wire kernel floors the distance
 at the conductor radius, so the mesh has to approach the *radius* before that
-error retires. ByDipole1's #14 wire is 1.03 mm, which puts Δ/a = 1 at about
+error retires. ByDipole1's wire is 1.0262 mm in radius — #12 AWG — which
+puts Δ/a = 1 at about
 9,929 segments — the dotted vertical — and refining past it does
 not merely stop helping, it reverses. The usable window is the sliver between
 that wall and a mesh nobody would pay for.
@@ -194,8 +195,9 @@ EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
 `PulseSolver` and `HarringtonSolver` (momwire#557); the point-charge lane's
 6401-segment rung is a 6401×6401 dense solve, about 40 s and 5 GB, and the
 dual-cell lane stops at 1601 because its charge cells make the moment block
-twice as wide in each direction and it has been flat for three rungs by
-then.
+twice as wide in each direction, and by then it is inside an ohm of the
+limit — still halving per rung, but far below anything the figure's axes
+can show.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
@@ -383,5 +385,12 @@ This page grows as the validation story does: further analytic anchors
 tables), community-submitted problem decks — the intake is
 [antenna-problem-decks](https://github.com/stevenmburns/antenna-problem-decks),
 where every submission gets a committed per-deck verdict (two published
-so far: a 20:1 tapered dipole and the hentenna, one NEC-2 defect class
-each) — and measured-data anchors.
+so far: a 20:1 tapered dipole submitted by Ward Harriman, AE6TY, and
+the hentenna — one NEC-2 defect class each — plus two hexbeam
+verdicts requested via Reddit: the single-band broadband hexbeam,
+the collection's first *agreement* entry (all three engines within
+0.15 Ω, with the wire-gauge sensitivity measured rather than
+assumed), and the 5-band stack (three-engine census on all five
+bands plus the physical one-coax feed solved as a network — two
+formulations within 1.2 Ω on every band; NEC-5 sits that one out,
+having no TL stamping) — and measured-data anchors.

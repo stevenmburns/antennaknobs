@@ -234,6 +234,28 @@ def recompute_free_ladders() -> dict:
 # gets its own log-x column instead of a fourth line on the free-space axes.
 
 
+def _require_solvers() -> dict:
+    """Both pulse rows, or a sentence naming what is missing and why.
+
+    `HarringtonSolver` arrived with momwire#557/#559. A submodule pinned
+    before that imports fine and then fails on the attribute, so this asks
+    the question once, up front, rather than letting an hour of solves
+    discover it.
+    """
+    import momwire
+
+    missing = [
+        n for n in ("PulseSolver", "HarringtonSolver") if not hasattr(momwire, n)
+    ]
+    if missing:
+        raise SystemExit(
+            f"--recompute needs {', '.join(missing)}, which this momwire does "
+            f"not export (momwire#557/#559). Update the submodule, or drop "
+            f"--recompute to rebuild the page from the committed ladder JSON."
+        )
+    return {"pulse": momwire.PulseSolver, "harrington": momwire.HarringtonSolver}
+
+
 def recompute_pulse_ladder() -> dict:
     """Both pulse rows on the same ladder: the charge-support instrument.
 
@@ -244,16 +266,27 @@ def recompute_pulse_ladder() -> dict:
     one ingredient. Recomputing the harrington lane needs momwire >= the
     #557 branch; page rebuilds from the committed JSON do not.
     """
-    from momwire import HarringtonSolver, PulseSolver
     from momwire.bspline import BSplineSolver
+
+    # Probe both solvers BEFORE spending anything. `HarringtonSolver` is
+    # momwire#557/#559 and a submodule older than that does not have it —
+    # importing lazily further down meant a stock-pin recompute burned the
+    # whole nodal ladder (~40 s and ~5 GB on the 6401 rung alone) and then
+    # died with nothing written.
+    solvers = _require_solvers()
 
     out = {
         "ref_n": PULSE_REF_N,
         "ref": _ri(_free_wire_solver(PULSE_REF_N, BSplineSolver, degree=2)),
     }
+    # Harrington first, deliberately: it is the cheap ladder AND the one
+    # whose availability is version-dependent, so if anything is going to
+    # fail it fails before the expensive lane rather than after it. The JSON
+    # is written after EACH lane for the same reason — a failure in lane two
+    # used to discard lane one's solves.
     lanes = (
-        ("pulse", PulseSolver, PULSE_N),
-        ("harrington", HarringtonSolver, HARRINGTON_N),
+        ("harrington", solvers["harrington"], HARRINGTON_N),
+        ("pulse", solvers["pulse"], PULSE_N),
     )
     for key, cls, ladder in lanes:
         rows = []
@@ -261,7 +294,7 @@ def recompute_pulse_ladder() -> dict:
             rows.append([n, *_ri(_free_wire_solver(n, cls))])
             print(f"{key} n={n} done", flush=True)
         out[key] = rows
-    PULSE_LADDER.write_text(json.dumps(out))
+        PULSE_LADDER.write_text(json.dumps(out))
     return out
 
 
@@ -441,25 +474,25 @@ def pulse_section(pulse: dict) -> tuple[str, float, float, int]:
     reaches 1 on this wire).
     """
     ref = complex(*pulse["ref"])
-    dual = {row[0]: complex(row[1], row[2]) for row in pulse["harrington"]}
+    dual = {row[0]: _z(row) for row in pulse["harrington"]}
     rows = [
         "| Segments | Δ/a | charge at a point | error | Harrington's dual cell | error |",
         "|---|---|---|---|---|---|",
     ]
     ratios = []
-    for n, re_, im in pulse["pulse"]:
-        z = complex(re_, im)
+    for row in pulse["pulse"]:
+        n, z = row[0], _z(row)
         err = abs(z - ref)
         if n in dual:
             d_err = abs(dual[n] - ref)
             ratios.append(err / d_err)
             rows.append(
-                f"| {n} | {L / (n * RAD):.0f} | {fmt_z(z)} | {err:,.1f} | "
+                f"| {n} | {L / (n * RAD):.4g} | {fmt_z(z)} | {err:,.1f} | "
                 f"{fmt_z(dual[n])} | {d_err:,.2f} |"
             )
         else:
             rows.append(
-                f"| {n} | {L / (n * RAD):.0f} | {fmt_z(z)} | {err:,.1f} | — | — |"
+                f"| {n} | {L / (n * RAD):.4g} | {fmt_z(z)} | {err:,.1f} | — | — |"
             )
     rows.append(f"| limit (bs2, N={pulse['ref_n']}) | — | {fmt_z(ref)} | — | — | — |")
     last_dual = abs(dual[max(dual)] - ref)
@@ -529,6 +562,21 @@ def votes_split(votes: list[dict]) -> tuple[int, int, int]:
 # --------------------------------------------------------------------------
 # Figure (the AC6LA-style three-panel convergence plot; layout matches the
 # exhibit already published on the groups.io thread)
+
+
+def _style_axis(ax, grid: str, ink2: str) -> None:
+    """The figure's axis furniture, in one place.
+
+    Three panels' worth of columns had this block byte-for-byte, which is
+    three chances for one of them to drift into looking subtly unlike the
+    others.
+    """
+    ax.grid(True, color=grid, lw=0.8)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(ink2)
+    ax.tick_params(colors=ink2, labelsize=9)
 
 
 def render_figure(data: dict, free: dict, pulse: dict) -> None:
@@ -622,12 +670,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
                 ax.text(n + 2.5, ly, label, va="center", fontsize=9, color=color)
             if col == 0:
                 ax.set_ylabel(ylabel, color=ink, fontsize=10)
-            ax.grid(True, color=grid, lw=0.8)
-            for s in ("top", "right"):
-                ax.spines[s].set_visible(False)
-            for s in ("left", "bottom"):
-                ax.spines[s].set_color(ink2)
-            ax.tick_params(colors=ink2, labelsize=9)
+            _style_axis(ax, grid, ink2)
             ax.set_xlim(8, 118)
         axes[0, col].legend(
             loc="lower right", frameon=False, fontsize=9, labelcolor=ink
@@ -687,12 +730,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
         ax.set_xticks([13, 51, 201, 801, 3201])
         ax.set_xticklabels(["13", "51", "201", "801", "3201"])
         ax.set_ylabel(ylabel, color=ink, fontsize=10)
-        ax.grid(True, color=grid, lw=0.8)
-        for s in ("top", "right"):
-            ax.spines[s].set_visible(False)
-        for s in ("left", "bottom"):
-            ax.spines[s].set_color(ink2)
-        ax.tick_params(colors=ink2, labelsize=9)
+        _style_axis(ax, grid, ink2)
     # The two reference marks are legend entries rather than in-axes text:
     # every x they could be written at has a curve running through it.
     handles, labels = axes[0, 2].get_legend_handles_labels()
@@ -724,7 +762,8 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
     secax.tick_params(colors=ink2, labelsize=8)
     fig.suptitle(
         "ByDipole1 (EZNEC 7 sample) — feed-point convergence vs engine\n"
-        "10.19 m dipole (#14 wire), 14 MHz; left at 9.14 m over ground, centre "
+        "10.19 m dipole (#12 wire, 1.0262 mm radius), 14 MHz; left at 9.14 m "
+        "over ground, centre "
         "and right the same wire in free space (right on its own log ladder)",
         color=ink,
         fontsize=11,
@@ -785,12 +824,7 @@ def render_leeson_figure(leeson: dict) -> None:
     ax.set_xlim(0.9, 7.5)
     ax.set_xlabel("Mesh density (1× ≈ 0.25 m segments)", color=ink, fontsize=10)
     ax.set_ylabel("Feed X (Ω)", color=ink, fontsize=10)
-    ax.grid(True, color=grid, lw=0.8)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    for s in ("left", "bottom"):
-        ax.spines[s].set_color(ink2)
-    ax.tick_params(colors=ink2, labelsize=9)
+    _style_axis(ax, grid, ink2)
     ax.legend(loc="center right", frameon=False, fontsize=9, labelcolor=ink)
     ax.set_title(
         "Extreme stepped-diameter dipole (Cebik case 5) — feed reactance vs mesh\n"
@@ -900,8 +934,8 @@ pages; the short form:
 
 ## Case: ByDipole1 — the EZNEC sample everyone can re-run
 
-ByDipole1 ships with EZNEC 7: a 10.19 m dipole at 9.144 m height, #14
-wire, 14 MHz, over real Sommerfeld ground (εr 20, σ 0.0303 S/m). It is a
+ByDipole1 ships with EZNEC 7: a 10.19 m dipole at 9.144 m height, #12
+wire (1.0262 mm radius), 14 MHz, over real Sommerfeld ground (εr 20, σ 0.0303 S/m). It is a
 community-recognizable case — NEC-2 vs NEC-5 convergence plots for it were
 independently published by AC6LA — and it sits squarely in NEC-2's good
 regime (single radius, no junctions), which makes it a *convergence-rate*
@@ -989,14 +1023,15 @@ else about the two rows is the same code.
 That is a factor of **{pulse_ratio:.0f}×** between two solvers that differ by
 one modelling decision, and it is the sharpest statement this page can make
 about why formulations are worth arguing over. Neither lane is wrong about the
-physics; both walk to the same limit. One of them just needs 300 times the
-accuracy budget to get there.
+physics; both walk to the same limit. One of them just needs {pulse_ratio:.0f}
+times the accuracy budget to get there.
 
 **Why the point charge costs so much.** Its error is governed by **Δ/a —
 segment length in wire radii — not Δ/λ**. A point charge's potential at its
 own location is finite only because the thin-wire kernel floors the distance
 at the conductor radius, so the mesh has to approach the *radius* before that
-error retires. ByDipole1's #14 wire is 1.03 mm, which puts Δ/a = 1 at about
+error retires. ByDipole1's wire is 1.0262 mm in radius — #12 AWG — which
+puts Δ/a = 1 at about
 {pulse_reversal:,} segments — the dotted vertical — and refining past it does
 not merely stop helping, it reverses. The usable window is the sliver between
 that wall and a mesh nobody would pay for.
@@ -1025,8 +1060,9 @@ EZNEC's NEC-2D, independently implemented. The razor lane is momwire's
 `PulseSolver` and `HarringtonSolver` (momwire#557); the point-charge lane's
 6401-segment rung is a 6401×6401 dense solve, about 40 s and 5 GB, and the
 dual-cell lane stops at 1601 because its charge cells make the moment block
-twice as wide in each direction and it has been flat for three rungs by
-then.
+twice as wide in each direction, and by then it is inside an ohm of the
+limit — still halving per rung, but far below anything the figure's axes
+can show.
 
 ## Case: the Leeson demo — stepped-diameter elements
 
@@ -1189,8 +1225,15 @@ This page grows as the validation story does: further analytic anchors
 tables), community-submitted problem decks — the intake is
 [antenna-problem-decks](https://github.com/stevenmburns/antenna-problem-decks),
 where every submission gets a committed per-deck verdict (two published
-so far: a 20:1 tapered dipole and the hentenna, one NEC-2 defect class
-each) — and measured-data anchors.
+so far: a 20:1 tapered dipole submitted by Ward Harriman, AE6TY, and
+the hentenna — one NEC-2 defect class each — plus two hexbeam
+verdicts requested via Reddit: the single-band broadband hexbeam,
+the collection's first *agreement* entry (all three engines within
+0.15 Ω, with the wire-gauge sensitivity measured rather than
+assumed), and the 5-band stack (three-engine census on all five
+bands plus the physical one-coax feed solved as a network — two
+formulations within 1.2 Ω on every band; NEC-5 sits that one out,
+having no TL stamping) — and measured-data anchors.
 """
 
 
