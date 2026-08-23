@@ -328,10 +328,22 @@ refusal or a flag, not a number.
 | limit | treatment |
 | --- | --- |
 | Surface patches (SM/SP) | Not modelled. Patch decks refuse at import with the feature named. |
-| Buried wires / below-ground conductors | Refused by name in every engine lane. |
+| Buried wires / below-ground conductors | Served on the momwire `bspline` lane since momwire 0.38.0 — impedance, currents and charges over the Sommerfeld ground, for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), at deck level today. What remains refuses by name: interface crossings, ground-contact wires mixed with buried wires, and near fields / patterns of buried decks. Every other engine lane refuses buried decks by name. The validation stance below ground is its own paragraph under this table. |
 | Electrically tiny, fat-conductor loops (magloop class) | Kernel-sensitive beyond any single-kernel read — reduced vs extended thin-wire kernels move results both ways by amounts that swamp formulation agreement. Census rows carry a kernel-sensitivity flag rather than a false-precision number. |
 | `sin` basis on junction fans | A documented instability class on multi-wire junction geometries. bs2 is the default and census basis; `sin` remains available with the caveat attached. |
 | Stepped-radius decks scored against NEC-2 references | The reference is the suspect (two independent formulations agree against it). Census rows carry the stepped-radius flag and score against NEC-5 mutually instead of pretending the nec2c number is truth. |
+
+**Below the interface, validation is deliberately engine-independent.** The
+NEC family's buried-conductor weakness is documented publicly
+(LLNL-TR-490316) and corroborated in our licensed materials (details in
+private notes), so no engine number is quoted for a fully buried fed
+element — on this page or anywhere else. The gates are exact identities
+instead: the lossless-limit collapse onto the free-space solve, the
+deep-burial limit onto the infinite-medium solve, and a quasi-static
+two-electrode cross-estimate — plus, on the buried radial and counterpoise
+classes where the reference engine's convergence ladders are clean,
+ladder-limit agreement at the half-percent class with the
+with/without-radials coupling differential matching to about a milliohm.
 
 ## Reproducibility
 

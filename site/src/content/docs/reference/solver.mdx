@@ -261,5 +261,27 @@ reflection-coefficient model remains the default and the NEC path offers its
 own Sommerfeld–Norton — so real-ground results cross-check across two
 independent engines at every height.
 
+**Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
+plane — buried radials and screens, buried fed elements, elevated feeds over
+buried counterpoises — serve **impedance, currents and charges** on the
+`bspline` lane over the Sommerfeld ground. The capability is deck-level
+today: imported decks bring their own segmentation and solve directly, while
+the design builder does not yet author buried geometry (in-medium
+auto-meshing is
+[antennaknobs#983](https://github.com/stevenmburns/antennaknobs/issues/983)).
+What still refuses does so by name: a wire crossing the interface, a
+ground-contact wire combined with buried wires, and near fields or patterns
+of buried decks. Validation below ground is deliberately engine-independent —
+the NEC family's buried-conductor weakness is documented publicly
+(LLNL-TR-490316; corroborated in our licensed materials, details in private
+notes) — so the gates are exact identities (the lossless-limit collapse onto
+free space, the deep-burial limit onto the infinite-medium solve) plus
+ladder-limit agreement at the half-percent class on the radial and
+counterpoise classes, with the with/without-radials coupling differential
+matching to about a milliohm; no engine numbers are quoted for fully buried
+fed elements. One cost note: a deck's first buried solve builds its
+below-interface Sommerfeld tables — a minute or two today (accelerated fills
+are momwire#568).
+
 {/* TODO: embed the benchmark plots once generated, and a parity/differentiator
      table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. */}
