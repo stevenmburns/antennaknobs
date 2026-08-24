@@ -1775,9 +1775,15 @@ def _translate_network_cards(
         y11 = complex(card.f(4), card.f(5))
         y12 = complex(card.f(6), card.f(7))
         y22 = complex(card.f(8), card.f(9))
-        if y11 == y12 == y22 == 0.0:
-            skip("NT", "all-zero Y-parameters")
-            continue
+        # An all-zero Y is NOT a no-op (issue #961). nec2c accepts the card
+        # and OPEN-circuits both addressed segments — measured 0.68923 −
+        # j4651.8 against a no-card control's 0.10161 + j514.86 on the same
+        # deck. Skipping it here left the segments UNCUT, i.e. a shorted gap
+        # where NEC has an open: a different antenna, silently. So it falls
+        # through like any other real-Y card and lands on the resistive pi
+        # below with every leg zero — which is exactly the open, because the
+        # ports still get CUT and `network()` emits no branch for a None
+        # leg. The cutting is the whole content of the card.
         if card.f(5) or card.f(7) or card.f(9):
             # Susceptance anywhere: no resistive pi. Keep the full complex Y —
             # network() emits it as a general Admittance branch (issue #416).

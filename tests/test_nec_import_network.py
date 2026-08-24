@@ -231,3 +231,85 @@ def test_whip_deck_full_size_benchmark():
         assert 50.0 < z.real < 75.0
         assert abs(z.imag) < 20.0
     assert z_mom == pytest.approx(z_nec, rel=0.05)
+
+
+# --------------------------------------------------------------------------
+# An all-zero NT is an OPEN, not a no-op (issue #961)
+# --------------------------------------------------------------------------
+
+#: momwire's byte fixture `dipole_nt_all_zero`, inlined rather than read out
+#: of the submodule's test tree (those fixtures are not installed with
+#: antennaknobs, and a path into `momwire/tests/` would break the moment the
+#: submodule moves). Two parallel 5 m dipoles 1 m apart at 30 MHz; the NT
+#: addresses the fed segment and its opposite number on the parasite.
+_ALL_ZERO_NT_DECK = """CE an all-zero NT is not a no-op
+GW 1 9 0. 0. -2.5 0. 0. 2.5 0.001
+GW 2 9 1.0 0. -2.5 1.0 0. 2.5 0.001
+GE 0
+EX 0 1 5 0 1.
+NT 1 5 2 5 0. 0. 0. 0. 0. 0.
+FR 0 1 0 0 30. 0
+EN
+"""
+
+#: nec2c's own answer for that deck, read from the committed capture
+#: `momwire/tests/fixtures/nec_portal/dipole_nt_all_zero.out` (ANTENNA INPUT
+#: PARAMETERS, tag 1 seg 5). nec2c ACCEPTS the all-zero card and opens the
+#: gap it addresses; this is the number that behaviour produces.
+_ALL_ZERO_NT_NEC2C_Z = complex(8.0243e01, 4.3247e01)
+
+
+def test_all_zero_nt_is_translated_not_skipped():
+    """The card is expressed, not ignored.
+
+    Skipping it (the behaviour before #961) left the addressed segments
+    UNCUT — a short where NEC has an open — and reported the deck as
+    partially understood. The card now falls through to the resistive pi
+    with every leg zero, which is exactly the open: the ports still get
+    cut, and `network()` emits no branch for a None leg.
+    """
+    deck = parse_nec(_ALL_ZERO_NT_DECK, network=True)
+
+    assert "NT" not in deck.ignored, deck.ignored_detail
+    (nt,) = deck.nts
+    assert (nt.series_r, nt.shunt_r_a, nt.shunt_r_b, nt.y) == (None, None, None, None)
+
+    # The cut is the whole content of the card: the parasite's segment 5
+    # becomes a port, and nothing is stamped across it.
+    assert (nt.wire_b, nt.seg_b) in deck._port_plan
+    assert deck.network().branches == []
+
+
+def test_all_zero_nt_opens_the_gap_and_tracks_nec2c():
+    """The oracle, and the antenna the old skip was answering instead.
+
+    Deliberately gated against nec2c's captured answer for THIS deck rather
+    than against a hand-built equivalent: the whole claim of #961 is that
+    the importer and NEC agree about what the card MEANS, so a hand-built
+    twin would only pin our own translation against itself.
+
+    The control is the same deck with the NT card deleted — which is
+    precisely what skipping it produced. It is nowhere near, which is why
+    this was a wrong answer rather than a harmless omission.
+    """
+    z_open = _momwire_z(
+        _deck_builder(parse_nec(_ALL_ZERO_NT_DECK, network=True), freq=30.0)
+    )
+
+    # Measured 80.536 + 43.63j against nec2c's 80.243 + 43.247j — 0.4 % and
+    # 0.9 %, the ordinary BSpline-degree-2 vs NEC-2-pulse basis difference on
+    # this geometry. Pinned at 3 % for mesh/basis headroom; it is two orders
+    # of magnitude tighter than the gap to the control below.
+    assert z_open == pytest.approx(_ALL_ZERO_NT_NEC2C_Z, rel=0.03)
+
+    control_deck = "\n".join(
+        ln for ln in _ALL_ZERO_NT_DECK.splitlines() if not ln.startswith("NT")
+    )
+    z_short = _momwire_z(
+        _deck_builder(parse_nec(control_deck, network=True), freq=30.0)
+    )
+
+    # Measured 24.47 + 66.35j: the resistance is off by 3.3x. A gate that
+    # only checked `z_open` would still pass if the translation regressed to
+    # a short AND the tolerance were loosened, so the distance is pinned too.
+    assert abs(z_short - _ALL_ZERO_NT_NEC2C_Z) > 0.5 * abs(_ALL_ZERO_NT_NEC2C_Z)
