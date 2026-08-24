@@ -2151,32 +2151,36 @@ def test_throwaway_solver_extended_kernel_refuses_gracefully():
         )
 
 
-def test_solver_with_no_capabilities_attribute_is_permissive_with_warning():
-    """The OTHER throwaway tier: a solver class that carries no
-    `capabilities` attribute at all, standing in for a momwire pin that
-    predates the momwire#396 registry. `_capabilities_of` reads None, and
-    every capability check must warn once (naming the gap) and then report
-    the capability as SERVED — the permissive-fallback design constraint
-    (issue #941). A curated name-tuple could never express this
-    degraded-but-working state; it could only ever say yes or no by class
-    name, never 'I don't know, so assume yes and let momwire's own raise be
-    the backstop'."""
-    from antennaknobs.engines.momwire import (
-        _extended_kernel_refusal,
-        _solver_supports_ground_eps,
-        _solver_supports_wire_loading,
+def test_every_momwire_solver_declares_a_capability_row():
+    """The condition #966 deleted the permissive fallback ON.
+
+    That fallback existed for a momwire pin predating the momwire#396
+    registry, and it failed OPEN — a solver class with no `capabilities`
+    attribute was reported as serving everything. It is gone, so this is
+    the tripwire that replaces it: if a future pin bump ever introduces an
+    exported solver without a declared row, `_capability_refusal` would
+    raise AttributeError from inside a solve, and this test says so first,
+    naming the solver.
+
+    Deliberately reads momwire's exported roster rather than a list copied
+    into this file — a curated list would go stale the same way the
+    fallback's own removal conditions did.
+    """
+    import importlib.metadata
+
+    import momwire
+
+    missing = [
+        name
+        for name in dir(momwire)
+        if name.endswith("Solver")
+        and not hasattr(getattr(momwire, name), "capabilities")
+    ]
+    assert not missing, (
+        f"momwire {importlib.metadata.version('momwire')} exports solver "
+        f"classes with no `capabilities` row: {missing}. `_capability_refusal` "
+        "reads the attribute unconditionally since #966."
     )
-
-    class _NoRegistrySolver:
-        """Deliberately not a momwire solver subclass: no `capabilities`
-        attribute, inherited or otherwise."""
-
-    with pytest.warns(UserWarning, match="capabilities"):
-        assert _solver_supports_wire_loading(_NoRegistrySolver) is True
-    with pytest.warns(UserWarning, match="capabilities"):
-        assert _solver_supports_ground_eps(_NoRegistrySolver, "refl-coef") is True
-    with pytest.warns(UserWarning, match="capabilities"):
-        assert _extended_kernel_refusal(_NoRegistrySolver, {}) is None
 
 
 # --------------------------------------------------------------------------
