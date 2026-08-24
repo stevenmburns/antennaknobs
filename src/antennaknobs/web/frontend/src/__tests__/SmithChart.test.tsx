@@ -260,6 +260,17 @@ describe("live per-feed trial rings (issue #789)", () => {
     return arcs.filter((a) => a.radius === 5 || a.radius === 3.5);
   }
 
+  // Rings are not drawn in feed order (the bright one goes last), so locate
+  // each feed's ring by where it landed rather than by draw index.
+  function ringAt(arcs: ArcCall[], z_re: number, z_im: number): ArcCall {
+    const p = gammaPoint(z_re, z_im);
+    const hit = trialRings(arcs).find(
+      (a) => Math.abs(a.x - p.x) < 1e-6 && Math.abs(a.y - p.y) < 1e-6,
+    );
+    expect(hit).toBeTruthy();
+    return hit as ArcCall;
+  }
+
   it("draws one ring per feed, each at its own impedance", () => {
     const { arcs } = renderSmith({
       trial: true,
@@ -269,13 +280,8 @@ describe("live per-feed trial rings (issue #789)", () => {
       trialWorstFeed: WORST,
       multiFeed: true,
     });
-    const rings = trialRings(arcs);
-    expect(rings).toHaveLength(TRIAL_FEEDS.length);
-    TRIAL_FEEDS.forEach((f, i) => {
-      const expected = gammaPoint(f.z_re, f.z_im);
-      expect(rings[i].x).toBeCloseTo(expected.x, 5);
-      expect(rings[i].y).toBeCloseTo(expected.y, 5);
-    });
+    expect(trialRings(arcs)).toHaveLength(TRIAL_FEEDS.length);
+    for (const f of TRIAL_FEEDS) ringAt(arcs, f.z_re, f.z_im);
   });
 
   it("draws the feed the objective is chasing bright, the rest dimmed", () => {
@@ -287,15 +293,60 @@ describe("live per-feed trial rings (issue #789)", () => {
       trialWorstFeed: WORST,
       multiFeed: true,
     });
-    const rings = trialRings(arcs);
-    expect(rings[WORST].radius).toBe(5);
-    expect(rings[WORST].lineWidth).toBe(2);
-    expect(rings[WORST].strokeStyle).toBe(feedColor(WORST, 0.85));
+    const worst = ringAt(arcs, TRIAL_FEEDS[WORST].z_re, TRIAL_FEEDS[WORST].z_im);
+    expect(worst.radius).toBe(5);
+    expect(worst.lineWidth).toBe(2);
+    expect(worst.strokeStyle).toBe(feedColor(WORST, 0.85));
     for (const i of [0, 2]) {
-      expect(rings[i].radius).toBe(3.5);
-      expect(rings[i].strokeStyle).toBe(feedColor(i, 0.32));
-      expect(rings[i].lineWidth).toBeLessThan(rings[WORST].lineWidth);
+      const dim = ringAt(arcs, TRIAL_FEEDS[i].z_re, TRIAL_FEEDS[i].z_im);
+      expect(dim.radius).toBe(3.5);
+      expect(dim.strokeStyle).toBe(feedColor(i, 0.32));
+      expect(dim.lineWidth).toBeLessThan(worst.lineWidth);
     }
+  });
+
+  it("paints the bright ring last so a dim one cannot cover it", () => {
+    // Measured on arrays.bowtiearray2x4: symmetric, so its 8 feeds are 4
+    // exactly-coincident pairs inside a ~15 px cluster on a 300 px chart.
+    // The rings stack rather than scatter, so draw order decides whether the
+    // one mark that identifies the limiting feed survives. Feed order alone
+    // would bury it whenever the worst feed is not the last one.
+    const { arcs } = renderSmith({
+      trial: true,
+      r: 50,
+      x: 0,
+      trialFeeds: TRIAL_FEEDS,
+      trialWorstFeed: WORST,
+      multiFeed: true,
+    });
+    const rings = trialRings(arcs);
+    expect(rings[rings.length - 1].strokeStyle).toBe(feedColor(WORST, 0.85));
+  });
+
+  it("stacks coincident feeds without losing the bright one", () => {
+    // Two feeds at the SAME impedance is the symmetric-array case, not a
+    // pathology: identical elements have identical Z, forever. The bright
+    // ring must still be on top when its twin is drawn at the same pixel.
+    const TWINS = [
+      { z_re: 50, z_im: 0 },
+      { z_re: 120, z_im: 20 },
+      { z_re: 120, z_im: 20 },
+    ];
+    const { arcs } = renderSmith({
+      trial: true,
+      r: 50,
+      x: 0,
+      trialFeeds: TWINS,
+      trialWorstFeed: 1,
+      multiFeed: true,
+    });
+    const rings = trialRings(arcs);
+    expect(rings).toHaveLength(3);
+    const top = rings[rings.length - 1];
+    expect(top.strokeStyle).toBe(feedColor(1, 0.85));
+    const p = gammaPoint(120, 20);
+    expect(top.x).toBeCloseTo(p.x, 5);
+    expect(top.y).toBeCloseTo(p.y, 5);
   });
 
   it("falls back to the single r/x ring when the proposer sends no table", () => {

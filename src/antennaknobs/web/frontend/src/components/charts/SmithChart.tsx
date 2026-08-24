@@ -512,7 +512,21 @@ export function SmithChart({
         : r > 0 || x !== 0
           ? [{ re: r, im: x, fi: 0 }]
           : [];
-    for (const m of markerPoints) {
+    // The bright ring goes LAST so nothing paints over it. Measured on
+    // arrays.bowtiearray2x4: the array is symmetric, so its 8 feeds are 4
+    // exactly-coincident PAIRS inside a ~15 px cluster on a 300 px chart —
+    // the rings do not scatter, they stack. In feed order the worst feed is
+    // whichever the search says, so half the time a dim 0.32-alpha stroke
+    // landed on top of the bright one and muddied the only mark that says
+    // which feed is holding the array back.
+    const drawOrder =
+      trial && trialWorstFeed !== undefined
+        ? [
+            ...markerPoints.filter((m) => m.fi !== trialWorstFeed),
+            ...markerPoints.filter((m) => m.fi === trialWorstFeed),
+          ]
+        : markerPoints;
+    for (const m of drawOrder) {
       if (m.re <= 0 && m.im === 0) continue;
       const { gRe, gIm } = reflectionCoefficient(m.re, m.im, z0);
       const px = cx + gRe * R;
