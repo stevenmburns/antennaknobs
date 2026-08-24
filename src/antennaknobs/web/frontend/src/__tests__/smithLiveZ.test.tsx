@@ -94,3 +94,54 @@ describe("Smith chart during a streamed optimizer run", () => {
     expect(p.z0).toBe(75);
   });
 });
+
+// Issue #789: on a multi-feed design the trial frame carries the whole port
+// table, not just feed 0. `z_in_re`/`z_in_im` remain feed 0 — so a chart
+// reading only those describes one element of an array whose OTHER element is
+// the one the minimax objective is driving.
+describe("the trial point's per-feed table reaches the chart", () => {
+  const MULTI = {
+    z_in_re: 50.0,
+    z_in_im: 0.0,
+    z0_ohms: 50,
+    worst_feed: 1,
+    n_feeds: 2,
+    feeds: [
+      { z_re: 50.0, z_im: 0.0 },
+      { z_re: 91.0, z_im: -34.0 },
+    ],
+  };
+
+  it("passes the trial feeds and the worst-feed index through", () => {
+    const p = renderSmith({ result: SETTLED, liveZ: MULTI, multiFeed: true });
+    expect(p.trial).toBe(true);
+    expect(p.trialFeeds).toEqual(MULTI.feeds);
+    expect(p.trialWorstFeed).toBe(1);
+    // r/x still carry feed 0, unchanged — the chart's fallback for a
+    // proposer with no table, and the readout the rest of the UI shows.
+    expect(p.r).toBe(50.0);
+  });
+
+  it("keeps the settled feeds separate from the trial ones", () => {
+    // Both props are populated during a run and they disagree on purpose:
+    // `feeds` is the pre-run solve, `trialFeeds` is this eval.
+    const p = renderSmith({ result: SETTLED, liveZ: MULTI, multiFeed: true });
+    expect(p.feeds).toEqual(SETTLED.feeds);
+    expect(p.trialFeeds).not.toEqual(p.feeds);
+  });
+
+  it("sends no trial table for a single-feed run", () => {
+    // The single-feed payload omits `feeds`/`worst_feed` entirely (pinned
+    // server-side as byte-compatible), so both props must arrive undefined
+    // rather than as an empty array the chart would have to special-case.
+    const p = renderSmith({ result: SETTLED, liveZ: TRIAL });
+    expect(p.trialFeeds).toBeUndefined();
+    expect(p.trialWorstFeed).toBeUndefined();
+  });
+
+  it("stops feeding the chart a trial table once the run ends", () => {
+    const p = renderSmith({ result: SETTLED, liveZ: null });
+    expect(p.trial).toBe(false);
+    expect(p.trialFeeds).toBeUndefined();
+  });
+});

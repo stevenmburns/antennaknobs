@@ -19,6 +19,8 @@ export function SmithChart({
   multiFeed,
   connectSweep = false,
   trial = false,
+  trialFeeds,
+  trialWorstFeed,
 }: {
   r: number;
   x: number;
@@ -50,6 +52,15 @@ export function SmithChart({
    *  settled solve: draw a hollow ring and ignore `feeds`, which still holds
    *  the previous solve's per-port dots. */
   trial?: boolean;
+  /** The proposed point's OWN per-feed table (#789), when the proposer has
+   *  one. Distinct from `feeds` because they disagree during a run: these are
+   *  this eval's impedances, `feeds` is the last settled solve's. Absent on a
+   *  single-feed design, where `r`/`x` already are the whole story. */
+  trialFeeds?: Array<{ z_re: number; z_im: number }> | undefined;
+  /** Which entry of `trialFeeds` the minimax objective is currently chasing
+   *  (#785). That ring is drawn bright and the rest dimmed — without it eight
+   *  equal rings say "something is moving" but not what is being optimised. */
+  trialWorstFeed?: number | undefined;
 }) {
   const theme = useContext(ThemeContext); // repaint on theme toggle (dep below)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -480,14 +491,22 @@ export function SmithChart({
     // glow + line-from-centre treatment for single-feed is gone —
     // single-feed and feed-0-of-multi-feed now look identical.
     // `trial` overrides the feed list rather than joining it: a proposed
-    // point is one driven-port impedance, while `feeds` still holds the LAST
+    // point is a proposed port table, while `feeds` still holds the LAST
     // SOLVE's per-port dots. Letting those win would leave a multi-feed
     // design showing stale dots and no trial point at all — the frozen-dot
     // bug this prop exists to fix, hiding in the multi-feed branch.
+    //
+    // `trialFeeds` is the same override one level finer (#789): a multi-feed
+    // proposer sends every port's Z, so the run draws the array coming into
+    // balance rather than feed 0 alone, which the minimax objective may not
+    // even be the one chasing. Falls back to r/x when the proposer has no
+    // table — single-feed designs, and any other source of a trial point.
     const markerPoints: Array<{ re: number; im: number; fi: number }> = trial
-      ? r > 0 || x !== 0
-        ? [{ re: r, im: x, fi: 0 }]
-        : []
+      ? trialFeeds && trialFeeds.length > 0
+        ? trialFeeds.map((f, fi) => ({ re: f.z_re, im: f.z_im, fi }))
+        : r > 0 || x !== 0
+          ? [{ re: r, im: x, fi: 0 }]
+          : []
       : feeds && feeds.length > 0
         ? feeds.map((f, fi) => ({ re: f.z_re, im: f.z_im, fi }))
         : r > 0 || x !== 0
@@ -505,10 +524,20 @@ export function SmithChart({
         // matters because nothing else on the chart has caught up yet: the
         // sweep locus and any measured overlay still describe the geometry
         // as it was before the run started.
-        ctx.strokeStyle = feedColor(m.fi);
-        ctx.lineWidth = 2;
+        //
+        // With a table of rings, the one the objective is driving is bright
+        // and full-width and the rest recede (#789). Eight equal rings
+        // wandering per eval read as chaos; one bright ring among seven
+        // faint ones reads as "this is the feed holding the array back",
+        // which is exactly what a minimax run is doing.
+        const isWorst =
+          markerPoints.length === 1 ||
+          trialWorstFeed === undefined ||
+          m.fi === trialWorstFeed;
+        ctx.strokeStyle = feedColor(m.fi, isWorst ? 0.85 : 0.32);
+        ctx.lineWidth = isWorst ? 2 : 1.25;
         ctx.beginPath();
-        ctx.arc(px, py, 5, 0, 2 * Math.PI);
+        ctx.arc(px, py, isWorst ? 5 : 3.5, 0, 2 * Math.PI);
         ctx.stroke();
         continue;
       }
@@ -611,8 +640,11 @@ export function SmithChart({
     // legend because the closure stayed wedged on the single-feed branch.
     // `trial` is in the deps for the same reason: it decides both the marker
     // shape and whether `feeds` is consulted at all, so a stale closure would
-    // leave the last trial ring on screen after a run settled.
-  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, trial, theme]);
+    // leave the last trial ring on screen after a run settled. `trialFeeds`
+    // and `trialWorstFeed` likewise carry the whole per-eval picture (#789):
+    // r/x still change every frame on a multi-feed run, but they are only
+    // feed 0, so a run where feed 0 sat still would freeze every ring.
+  }, [r, x, z0, size, sweep, converge, measured, measFreqMhz, running, convergeRunning, feeds, multiFeed, connectSweep, trial, trialFeeds, trialWorstFeed, theme]);
 
   // data-connect mirrors the trail mode (locus vs. dot cloud) for tests —
   // canvas pixels are invisible to jsdom, the attribute is not (the same

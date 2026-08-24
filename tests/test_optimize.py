@@ -241,6 +241,43 @@ def test_multifeed_metrics_report_worst_feed_swr():
     assert set(single) == {"z_in_re", "z_in_im", "z0_ohms", "swr"}
 
 
+def test_multifeed_metrics_carry_every_feed_z():
+    """#789: the live Smith chart draws a ring per feed, so the per-eval
+    payload has to carry the whole table — not just feed 0's Z (which is what
+    `z_in_re`/`z_in_im` are) and not just the worst feed's index."""
+    out = _two_feed_out(complex(50.0, 0.0), complex(100.0, -20.0))
+    m = _metrics(out)
+    assert m["feeds"] == [
+        {"z_re": 50.0, "z_im": 0.0},
+        {"z_re": 100.0, "z_im": -20.0},
+    ]
+    # Z only. Position and drive voltage are in the settled solve's feed rows
+    # and do not move during a run, so streaming them per eval buys nothing.
+    assert all(set(f) == {"z_re", "z_im"} for f in m["feeds"])
+    # The bright ring is addressable: worst_feed indexes into this list.
+    assert m["feeds"][m["worst_feed"]] == {"z_re": 100.0, "z_im": -20.0}
+
+
+def test_single_feed_metrics_gain_no_feed_table():
+    """The additive half of the contract: a single-feed design's payload is
+    byte-identical to before #789, so the frontend's four-key OptMetrics and
+    the /optimize JSON key-order gate both still hold."""
+    single = _metrics({"z_in_re": 50.0, "z_in_im": 0.0, "z0_ohms": 50.0})
+    assert "feeds" not in single
+    assert list(single) == ["z_in_re", "z_in_im", "z0_ohms", "swr"]
+    # One feed in the table is still one ring: the key appears only where it
+    # says something z_in doesn't already say.
+    one = _metrics(
+        {
+            "z_in_re": 50.0,
+            "z_in_im": 0.0,
+            "z0_ohms": 50.0,
+            "feeds": [{"z_re": 50.0, "z_im": 0.0}],
+        }
+    )
+    assert list(one) == ["z_in_re", "z_in_im", "z0_ohms", "swr"]
+
+
 def test_optimize_minimax_balances_opposed_feeds():
     """End-to-end discriminator: two feeds whose reactances cross zero at
     different knob values (1.0 and 1.2). Scoring feed 0 alone would drive x

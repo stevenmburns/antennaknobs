@@ -82,7 +82,14 @@ def _metrics(out: dict) -> dict:
     On a multi-feed design ``swr`` is the WORST feed's — the number the
     objective drives (#785) — while ``z_in_re``/``z_in_im`` stay feed 0 to
     match the primary readout; ``worst_feed``/``n_feeds`` say which and how
-    many. Single-feed responses keep the exact four-key shape."""
+    many. Single-feed responses keep the exact four-key shape.
+
+    ``feeds`` carries every port's Z (#789) so a live Smith chart can draw the
+    whole array mid-run. Without it the chart plots ``z_in`` — feed 0 — while
+    the minimax objective chases some other feed, so the ring can sit still
+    while the impedance actually being optimised walks off screen. Z only:
+    the settled solve's feed rows carry position and drive voltage too, and
+    neither changes during a run."""
     z0 = float(out.get("z0_ohms", 50.0))
     z_re = float(out["z_in_re"])
     z_im = float(out["z_in_im"])
@@ -99,6 +106,7 @@ def _metrics(out: dict) -> dict:
         m["swr"] = swrs[worst]
         m["worst_feed"] = worst
         m["n_feeds"] = len(zs)
+        m["feeds"] = [{"z_re": z.real, "z_im": z.imag} for z in zs]
     return m
 
 

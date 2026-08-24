@@ -57,7 +57,17 @@ export type ViewRenderProps = {
   // care who is proposing the point. REQUIRED, not defaulted — a new view
   // surface that forgot it would silently show a frozen dot again, which is
   // the defect this exists to fix, so the compiler names every call site.
-  liveZ: { z_in_re: number; z_in_im: number; z0_ohms: number } | null;
+  //
+  // `feeds`/`worst_feed` ride along on a multi-feed design (#789): the trial
+  // point is then a whole port table, and `z_in_re`/`z_in_im` are just its
+  // feed 0. Optional so a single-feed proposer stays a three-field object.
+  liveZ: {
+    z_in_re: number;
+    z_in_im: number;
+    z0_ohms: number;
+    feeds?: Array<{ z_re: number; z_im: number }>;
+    worst_feed?: number;
+  } | null;
   schematicSvg: string | null;
   schematicUnavailable: boolean;
 };
@@ -123,6 +133,8 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       x={p.liveZ?.z_in_im ?? p.result?.z_in_im ?? 0}
       z0={p.liveZ?.z0_ohms ?? p.result?.z0_ohms ?? 50}
       trial={p.liveZ != null}
+      trialFeeds={p.liveZ?.feeds}
+      trialWorstFeed={p.liveZ?.worst_feed}
       size={p.size}
       sweep={p.sweep}
       converge={p.converge}
