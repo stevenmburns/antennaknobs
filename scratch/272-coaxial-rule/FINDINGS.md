@@ -3,9 +3,78 @@
 Measured 2026-08-24. Script: `measure_coaxial_rule.py`. Raw readings:
 `readings.json`. Every deck and every nec2c printout: `decks/`.
 
-**Status: the Δ/a question is answered. The O(h) question is NOT, and the
-reason is a confound in the estimate itself — see "What could not be
-separated". No engine change is proposed either way.**
+**Status: RESOLVED. The declined pairs cost at most 0.27 % of Z anywhere in
+the window, and the estimate's O(h) clause is wrong — the cost is set by wire
+radius and does not improve under refinement. No engine change is warranted.
+See "The answer" below; the nec2c legs that follow are how it was reached and
+why they could not settle it alone.**
+
+## The answer
+
+Script: `bracket_in_basis.py`. Raw: `bracket.json`.
+
+The cross-solver measurement below has a noise floor as large as the effect,
+so it cannot settle a 1 % question on its own. Removing the floor means never
+leaving momwire: force `_ek_axis_groups` to a single label and the EK extends
+**every** pair — strictly more than NEC's per-end gating does — then diff
+against the shipped coaxial-only gate. Same solver, same mesh, same
+quadrature; only the gate moves. That bounds what the declined pairs can cost.
+
+**The straight-wire control reads exactly 0.00000 % at every rung.** Nothing
+is declined on a straight wire, so there is nothing for the swap to change.
+The metric has no noise floor at all — by construction, and confirmed to
+every printed digit.
+
+| Δ/a | a/λ | bent | k3 |
+| ---: | ---: | ---: | ---: |
+| 2 | 0.01136 | **0.273 %** | 0.207 % |
+| 3 | 0.00758 | 0.138 % | 0.108 % |
+| 4 | 0.00568 | 0.082 % | 0.069 % |
+| 6 | 0.00379 | 0.039 % | 0.040 % |
+| 10 | 0.00227 | 0.017 % | 0.026 % |
+| 25 | 0.00091 | 0.004 % | 0.007 % |
+
+**Below 1 % everywhere, by a factor of four at the worst rung**, and that is an
+upper bound on a strictly-more-generous rule than NEC's. The estimate's
+first clause is vindicated with room to spare.
+
+### The O(h) clause is wrong
+
+Refining at **fixed** radius — the only sweep in which h moves and a/λ does
+not — the bound is flat, not decaying:
+
+| n/arm | h | Δ/a | bent | k3 |
+| ---: | ---: | ---: | ---: | ---: |
+| 5 | 0.0500 | 8.80 | 0.0812 % | 0.1209 % |
+| 11 | 0.0227 | 4.00 | 0.0823 % | 0.1295 % |
+| 21 | 0.0119 | 2.10 | 0.0910 % | 0.1265 % |
+| 31 | 0.0081 | 1.42 | 0.0867 % | 0.1525 % |
+
+Six-fold refinement moves it by a few percent of itself. Against that, the
+radius sweep moves it 60-fold. **The cost is O(a), not O(h)**: it is set by how
+fat the wire is, not by how finely it is meshed, and you cannot refine it
+away. Practically this does not matter — it is small at any radius a
+thin-wire code is valid for — but `_bspline_kernels.py`'s "O(h) in the
+refinement limit" and #249 §4.3 both name the wrong variable and should be
+corrected to say so.
+
+### Against the outcomes fixed on the issue
+
+**Below 1 % across the usable window — the estimate holds and the coaxial rule
+is vindicated**, which is the branch the decision pre-assigned to that result.
+The bar question raised by the nec2c legs below turns out not to need
+settling: 0.27 % is under 1 % on any reading.
+
+The caveat that survives is the bound's slack — extending *every* pair also
+extends far pairs NEC never touches. That makes the true cost lower than
+0.27 %, not higher, so it cannot flip the verdict.
+
+## How it was reached — the nec2c legs
+
+The two legs below are the measurement #272 literally specifies. They are
+kept because they are what showed the method needed replacing: their control
+reads 1.35 % where the true answer is 0, which is the whole reason the
+in-basis bracket exists.
 
 ## What was measured
 
@@ -61,43 +130,20 @@ control anywhere in the window.
 | 15 | 0.0167 | 2.93 | 0.326 % | +0.074 | +0.819 |
 | 21 | 0.0119 | 2.10 | 0.496 % | +0.470 | +1.333 |
 
-## What could not be separated
+## What the nec2c legs could not separate
 
-**Leg 2 does not test O(h), and no sweep of this shape can.** At fixed radius,
-h and Δ/a are the same motion — Δ/a *is* h/a. Refining the mesh walks Δ/a
-*down* toward 2, which is where the extended kernel matters most, so the
-excess grows as h shrinks. That is not the cost failing to decay under
-refinement; it is the two clauses of the estimate being one axis.
+At fixed radius, h and Δ/a are one motion — Δ/a *is* h/a — so leg 2 walks Δ/a
+down toward 2 as it refines, and the excess grows rather than decays. The legs
+also disagree at equal Δ/a (0.97 % vs 2.09 %), which is what first showed a/λ
+to be a second axis. The in-basis bracket answers both by having no noise to
+confound: its leg B holds a/λ fixed while h moves, which is the sweep the O(h)
+claim is actually about, and it is flat there.
 
-Separating them needs a third variable held fixed, and the two legs disagree
-enough to show a/λ is that variable: at Δ/a ≈ 2.1 leg 2 reads a bent gap of
-0.97 % where leg 1 at Δ/a = 2 reads 2.09 %, the difference being a/λ (0.0057
-vs 0.0114). **So the gap depends on a/λ as well as Δ/a, and #249 §4.3's
-one-number estimate is under-specified.** A follow-up wanting the O(h) claim
-should sweep a/λ at fixed Δ/a.
+## A defect this measurement found in its own first draft
 
-## Against the outcomes fixed on the issue
-
-The decision fixed two meanings in advance. The measurement lands between
-them, and which one fires depends on a question the decision did not settle:
-
-- **The literal metric exceeds 1 %.** Raw gap at Δ/a = 2 is 2.09 % (bent) and
-  1.32 % (k3) — the "above 1 % anywhere" branch.
-- **The control shows most of that is not the coaxial rule.** The same metric
-  reads 1.35 % on a geometry where the declined-pair cost is zero by
-  construction. Net of control, the worst rung in the whole window is
-  **+0.74 pp**, and every other rung is at or below zero — the "below 1 %
-  across the usable window" branch, with the estimate vindicated.
-
-**This is a maintainer call, not a measurement one**, and it is recorded here
-undecided rather than resolved in whichever direction reads better. The
-question is whether the 1 % bar was meant to apply to the raw shift residual
-or to the part attributable to the declined pairs. Nothing in the issue or the
-decision says, and the control was not part of the design when the bar was
-set.
-
-My recommendation, for the record and as a recommendation only: subtract the
-control. A bar that a zero-declined-pairs geometry fails is not measuring what
-the bar was written to measure. On that reading the estimate holds, the
-coaxial rule is vindicated, and #272 closes with +0.74 pp at Δ/a = 2 as the
-number — with the caveat above that a/λ is a second axis nobody has swept.
+`BSplineSolver` does **not** infer junctions. Three arms sharing a coordinate
+with no `junctions=` argument are three electrically disconnected wires, and
+the first K=3 run reported momwire's EK shift as 15× nec2c's — an artefact of
+that, not a kernel gap. `RazorSolver` and `HarringtonSolver` detect the same
+geometry automatically; `PulseSolver` has no junction concept at all. That
+inconsistency is filed separately.
