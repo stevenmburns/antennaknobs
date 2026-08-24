@@ -24,6 +24,7 @@ import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import { SmithChart } from "../components/charts/SmithChart";
 import { reflectionCoefficient } from "../lib/format";
+import { feedColor } from "../components/charts/palette";
 import type { SweepData } from "../lib/api";
 
 type ArcCall = {
@@ -233,5 +234,127 @@ describe("frequency-anchor ring (issue #719)", () => {
         Math.abs(a.y - expected.y) < 1e-6,
     );
     expect(marker).toBeTruthy();
+  });
+});
+
+// The live trial rings (issue #789). During a streamed optimizer run the
+// chart is the only thing on screen describing the geometry as it is NOW, and
+// before this it described only feed 0 — while the minimax objective (#785)
+// chases whichever feed is worst. On an 8-feed array that means the ring
+// could sit still while the impedance actually being optimised walked away.
+//
+// Radii 5 (worst) and 3.5 (the rest) are unique to these rings: the settled
+// marker is 4, the frequency anchor 6, trail dots 1.5/1.8/3, and no grid arc
+// lands on either (r-circles are R/3 and R/6, x-arcs R/{0.2..5}, R = 100).
+describe("live per-feed trial rings (issue #789)", () => {
+  // Three feeds at distinct, well-separated impedances so a ring drawn at the
+  // wrong feed's Z cannot coincide with the right answer.
+  const TRIAL_FEEDS = [
+    { z_re: 50, z_im: 0 },
+    { z_re: 100, z_im: 0 },
+    { z_re: 25, z_im: 0 },
+  ];
+  const WORST = 1;
+
+  function trialRings(arcs: ArcCall[]): ArcCall[] {
+    return arcs.filter((a) => a.radius === 5 || a.radius === 3.5);
+  }
+
+  it("draws one ring per feed, each at its own impedance", () => {
+    const { arcs } = renderSmith({
+      trial: true,
+      r: 50,
+      x: 0,
+      trialFeeds: TRIAL_FEEDS,
+      trialWorstFeed: WORST,
+      multiFeed: true,
+    });
+    const rings = trialRings(arcs);
+    expect(rings).toHaveLength(TRIAL_FEEDS.length);
+    TRIAL_FEEDS.forEach((f, i) => {
+      const expected = gammaPoint(f.z_re, f.z_im);
+      expect(rings[i].x).toBeCloseTo(expected.x, 5);
+      expect(rings[i].y).toBeCloseTo(expected.y, 5);
+    });
+  });
+
+  it("draws the feed the objective is chasing bright, the rest dimmed", () => {
+    const { arcs } = renderSmith({
+      trial: true,
+      r: 50,
+      x: 0,
+      trialFeeds: TRIAL_FEEDS,
+      trialWorstFeed: WORST,
+      multiFeed: true,
+    });
+    const rings = trialRings(arcs);
+    expect(rings[WORST].radius).toBe(5);
+    expect(rings[WORST].lineWidth).toBe(2);
+    expect(rings[WORST].strokeStyle).toBe(feedColor(WORST, 0.85));
+    for (const i of [0, 2]) {
+      expect(rings[i].radius).toBe(3.5);
+      expect(rings[i].strokeStyle).toBe(feedColor(i, 0.32));
+      expect(rings[i].lineWidth).toBeLessThan(rings[WORST].lineWidth);
+    }
+  });
+
+  it("falls back to the single r/x ring when the proposer sends no table", () => {
+    // A single-feed design's payload omits `feeds` entirely — that shape is
+    // byte-compatible on purpose, so the chart must not need the key.
+    const { arcs } = renderSmith({ trial: true, r: 75, x: 10 });
+    const rings = trialRings(arcs);
+    expect(rings).toHaveLength(1);
+    const expected = gammaPoint(75, 10);
+    expect(rings[0].x).toBeCloseTo(expected.x, 5);
+    expect(rings[0].y).toBeCloseTo(expected.y, 5);
+    // A lone ring is the one being optimised by definition, so it stays
+    // bright even though no worst-feed index came with it.
+    expect(rings[0].radius).toBe(5);
+    expect(rings[0].strokeStyle).toBe(feedColor(0, 0.85));
+  });
+
+  it("draws the trial table, not the settled solve's stale feeds", () => {
+    // `feeds` still holds the PRE-RUN solve for the whole run: the knobs are
+    // not touched until it ends. Drawing those was the frozen-dot defect;
+    // drawing them ALONGSIDE the trial rings would be the same lie twice.
+    const STALE = [
+      { z_re: 5, z_im: 5, wire_index: 0, knot_index: 0, v_re: 1, v_im: 0 },
+      { z_re: 7, z_im: -7, wire_index: 1, knot_index: 0, v_re: 1, v_im: 0 },
+      { z_re: 9, z_im: 9, wire_index: 2, knot_index: 0, v_re: 1, v_im: 0 },
+    ];
+    const { arcs } = renderSmith({
+      trial: true,
+      r: 50,
+      x: 0,
+      feeds: STALE,
+      trialFeeds: TRIAL_FEEDS,
+      trialWorstFeed: WORST,
+      multiFeed: true,
+    });
+    expect(trialRings(arcs)).toHaveLength(TRIAL_FEEDS.length);
+    // No settled marker anywhere, and nothing drawn at a stale impedance.
+    expect(arcs.filter((a) => a.radius === 4)).toHaveLength(0);
+    for (const f of STALE) {
+      const stale = gammaPoint(f.z_re, f.z_im);
+      const hit = arcs.find(
+        (a) => Math.abs(a.x - stale.x) < 1e-6 && Math.abs(a.y - stale.y) < 1e-6,
+      );
+      expect(hit).toBeUndefined();
+    }
+  });
+
+  it("goes back to filled per-feed dots once the run settles", () => {
+    // trial=false is the post-run state: the solve channel has caught up and
+    // `feeds` is current again, so the grammar returns to filled dots.
+    const SETTLED = TRIAL_FEEDS.map((f, i) => ({
+      ...f,
+      wire_index: i,
+      knot_index: 0,
+      v_re: 1,
+      v_im: 0,
+    }));
+    const { arcs } = renderSmith({ feeds: SETTLED, multiFeed: true, r: 50, x: 0 });
+    expect(trialRings(arcs)).toHaveLength(0);
+    expect(arcs.filter((a) => a.radius === 4)).toHaveLength(SETTLED.length);
   });
 });

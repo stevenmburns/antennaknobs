@@ -4,7 +4,23 @@ import { useState } from "react";
 import type { BandSpec, ExampleDescriptor } from "../../lib/params";
 
 // Response from POST /optimize.
-export type OptMetrics = { z_in_re: number; z_in_im: number; z0_ohms: number; swr: number };
+//
+// The first four keys are always present. The rest appear only on a bare
+// multi-feed design, where feed 0's `z_in` stops speaking for the array:
+// `swr` is then the WORST feed's, the number the objective drives (#785),
+// and `feeds` is every port's Z so the chart can draw the whole array
+// mid-run (#789). Optional because a single-feed payload still omits them —
+// that shape is byte-compatible on purpose and pinned server-side.
+export type OptFeedZ = { z_re: number; z_im: number };
+export type OptMetrics = {
+  z_in_re: number;
+  z_in_im: number;
+  z0_ohms: number;
+  swr: number;
+  worst_feed?: number;
+  n_feeds?: number;
+  feeds?: OptFeedZ[];
+};
 export type OptimizeResult = {
   objective: string;
   params: Record<string, number>;

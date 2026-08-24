@@ -221,7 +221,10 @@ knobs you've marked to hit a target:
 **A run shows its work.** Progress streams back per evaluation: the VFO
 panel's readout ticks through each candidate's eval count, impedance, and SWR
 as the search moves, and the **Smith chart follows the run live** — its dot
-walks the Γ-plane with every trial. Every other view keeps describing the
+walks the Γ-plane with every trial. On a multi-feed design it draws one hollow
+ring *per feed*, so you watch the array come into balance rather than one
+element of it; the feed the objective is currently chasing (the worst one) is
+drawn bright and the others recede. Every other view keeps describing the
 design you started from (the knobs aren't touched until the run finishes), so
 those views **dim** for the duration — the same stale-fade a mid-solve view
 wears — and light up when the result lands. The schematic stays bright: it's
@@ -238,7 +241,9 @@ independently driven ports (a bowtie array, a pair of phased verticals), the
 objective is evaluated per feed and the optimizer minimizes the *worst* one —
 so "SWR 1.4" after a run means *no* element sits worse than 1.4, and one bad
 feed can't hide behind several good ones. The SWR shown while optimizing is
-that worst feed's. A design that feeds its elements from a single source
+that worst feed's, and it is the bright ring on the Smith chart — which feed
+that is can change from one evaluation to the next as the search rebalances
+them. A design that feeds its elements from a single source
 through a network is different: there the match that matters is the network's
 input, so the optimizer scores the driven plane — the same impedance the
 readout shows. The CLI's `optimize` aggregates feeds the same way (it differs
