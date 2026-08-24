@@ -1,0 +1,260 @@
+{
+  "issue": "momwire#272",
+  "note": "upper_bound = |Z(EK extends every pair) - Z(EK coaxial only)| / |Z(coaxial only)|, both from BSplineSolver with only _ek_axis_groups swapped. Extending every pair is strictly more than NEC's per-end gating, so this bounds what the declined pairs can cost. The straight rows read exactly zero: nothing is declined on a straight wire, so there is no basis noise in this metric at all.",
+  "radius_leg": [
+    {
+      "geometry": "straight",
+      "delta_over_a": 2.0,
+      "radius_m": 0.011363636363636364,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "delta_over_a": 3.0,
+      "radius_m": 0.007575757575757576,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "delta_over_a": 4.0,
+      "radius_m": 0.005681818181818182,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "delta_over_a": 6.0,
+      "radius_m": 0.003787878787878788,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "delta_over_a": 10.0,
+      "radius_m": 0.0022727272727272726,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "delta_over_a": 15.0,
+      "radius_m": 0.0015151515151515152,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "delta_over_a": 25.0,
+      "radius_m": 0.0009090909090909091,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 2.0,
+      "radius_m": 0.011363636363636364,
+      "upper_bound_frac_of_z": 0.002730531532917013
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 3.0,
+      "radius_m": 0.007575757575757576,
+      "upper_bound_frac_of_z": 0.001379095459130338
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 4.0,
+      "radius_m": 0.005681818181818182,
+      "upper_bound_frac_of_z": 0.0008226278254881399
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 6.0,
+      "radius_m": 0.003787878787878788,
+      "upper_bound_frac_of_z": 0.00039068122772757766
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 10.0,
+      "radius_m": 0.0022727272727272726,
+      "upper_bound_frac_of_z": 0.00017100980149311907
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 15.0,
+      "radius_m": 0.0015151515151515152,
+      "upper_bound_frac_of_z": 9.688073325868812e-05
+    },
+    {
+      "geometry": "bent",
+      "delta_over_a": 25.0,
+      "radius_m": 0.0009090909090909091,
+      "upper_bound_frac_of_z": 4.226772078528797e-05
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 2.0,
+      "radius_m": 0.007575757575757575,
+      "upper_bound_frac_of_z": 0.0020719164344140894
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 3.0,
+      "radius_m": 0.00505050505050505,
+      "upper_bound_frac_of_z": 0.0010756396845845691
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 4.0,
+      "radius_m": 0.0037878787878787876,
+      "upper_bound_frac_of_z": 0.0006893599568242759
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 6.0,
+      "radius_m": 0.002525252525252525,
+      "upper_bound_frac_of_z": 0.00040237739342502947
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 10.0,
+      "radius_m": 0.001515151515151515,
+      "upper_bound_frac_of_z": 0.0002561570266831106
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 15.0,
+      "radius_m": 0.00101010101010101,
+      "upper_bound_frac_of_z": 0.0001645224923714526
+    },
+    {
+      "geometry": "k3",
+      "delta_over_a": 25.0,
+      "radius_m": 0.0006060606060606061,
+      "upper_bound_frac_of_z": 7.144610119670757e-05
+    }
+  ],
+  "refinement_leg": [
+    {
+      "geometry": "straight",
+      "n_per_arm": 5,
+      "h_m": 0.05,
+      "delta_over_a": 8.80000028160001,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "n_per_arm": 7,
+      "h_m": 0.03571428571428571,
+      "delta_over_a": 6.285714486857149,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "n_per_arm": 11,
+      "h_m": 0.022727272727272728,
+      "delta_over_a": 4.000000128000004,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "n_per_arm": 15,
+      "h_m": 0.016666666666666666,
+      "delta_over_a": 2.933333427200003,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "n_per_arm": 21,
+      "h_m": 0.011904761904761904,
+      "delta_over_a": 2.095238162285716,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "straight",
+      "n_per_arm": 31,
+      "h_m": 0.008064516129032258,
+      "delta_over_a": 1.4193548841290338,
+      "upper_bound_frac_of_z": 0.0
+    },
+    {
+      "geometry": "bent",
+      "n_per_arm": 5,
+      "h_m": 0.05,
+      "delta_over_a": 8.80000028160001,
+      "upper_bound_frac_of_z": 0.0008119702780752467
+    },
+    {
+      "geometry": "bent",
+      "n_per_arm": 7,
+      "h_m": 0.03571428571428571,
+      "delta_over_a": 6.285714486857149,
+      "upper_bound_frac_of_z": 0.000784101882588773
+    },
+    {
+      "geometry": "bent",
+      "n_per_arm": 11,
+      "h_m": 0.022727272727272728,
+      "delta_over_a": 4.000000128000004,
+      "upper_bound_frac_of_z": 0.0008226277772514606
+    },
+    {
+      "geometry": "bent",
+      "n_per_arm": 15,
+      "h_m": 0.016666666666666666,
+      "delta_over_a": 2.933333427200003,
+      "upper_bound_frac_of_z": 0.00087064183143252
+    },
+    {
+      "geometry": "bent",
+      "n_per_arm": 21,
+      "h_m": 0.011904761904761904,
+      "delta_over_a": 2.095238162285716,
+      "upper_bound_frac_of_z": 0.0009096468605576098
+    },
+    {
+      "geometry": "bent",
+      "n_per_arm": 31,
+      "h_m": 0.008064516129032258,
+      "delta_over_a": 1.4193548841290338,
+      "upper_bound_frac_of_z": 0.0008668031660019492
+    },
+    {
+      "geometry": "k3",
+      "n_per_arm": 5,
+      "h_m": 0.03333333333333333,
+      "delta_over_a": 5.866666854400006,
+      "upper_bound_frac_of_z": 0.0012091721872564839
+    },
+    {
+      "geometry": "k3",
+      "n_per_arm": 7,
+      "h_m": 0.023809523809523808,
+      "delta_over_a": 4.190476324571432,
+      "upper_bound_frac_of_z": 0.0012492472247521461
+    },
+    {
+      "geometry": "k3",
+      "n_per_arm": 11,
+      "h_m": 0.01515151515151515,
+      "delta_over_a": 2.6666667520000025,
+      "upper_bound_frac_of_z": 0.0012954045024449565
+    },
+    {
+      "geometry": "k3",
+      "n_per_arm": 15,
+      "h_m": 0.01111111111111111,
+      "delta_over_a": 1.9555556181333351,
+      "upper_bound_frac_of_z": 0.0012694568857934136
+    },
+    {
+      "geometry": "k3",
+      "n_per_arm": 21,
+      "h_m": 0.007936507936507936,
+      "delta_over_a": 1.3968254415238108,
+      "upper_bound_frac_of_z": 0.0012646100408224288
+    },
+    {
+      "geometry": "k3",
+      "n_per_arm": 31,
+      "h_m": 0.005376344086021505,
+      "delta_over_a": 0.9462365894193557,
+      "upper_bound_frac_of_z": 0.001524785640381542
+    }
+  ]
+}
