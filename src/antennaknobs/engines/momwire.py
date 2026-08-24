@@ -6,7 +6,6 @@ momwire/web/server.py:_compute_directivity_norm.
 from __future__ import annotations
 
 import logging
-import warnings
 
 import numpy as np
 from momwire import BSplineSolver, RazorSolver
@@ -139,42 +138,22 @@ def _normalise_ground(ground):
 # --------------------------------------------------------------------------
 
 
-def _capabilities_of(solver_cls):
-    """`solver_cls.capabilities`, or None on a momwire pin that predates the
-    registry (momwire#396). The exact pin here is 0.31.0 (pyproject), which
-    lacks it; the submodule dev checkout is on a newer main that has it, so
-    None is exercised only via old-momwire installs, not day to day.
-    # TODO(#941): once the pin floor is bumped past the momwire release that
-    # ships `capabilities` on every solver, this fallback (and the
-    # `_capability_refusal` branch that warns instead of reading it) can be
-    # deleted."""
-    return getattr(solver_cls, "capabilities", None)
-
-
 def _capability_refusal(solver_cls, *cells):
     """The declared reason `cells` (one cell name, or two naming a
     combination) is refused on `solver_cls`, or None if served — straight
     from momwire's own `Capabilities.refusal()`.
 
-    A solver class with no `capabilities` attribute at all — an old momwire
-    pin, never a solver that deliberately declares an empty row — is
-    PERMISSIVE: warn once, naming the gap, and report every capability as
-    served. momwire's own constructor/solve-time refusal remains the
-    backstop on that old pin, so the degradation is a less-friendly error
-    message, not a silent drop.
+    Read unconditionally. There used to be a `getattr(..., None)` fallback
+    here for a momwire pin predating the momwire#396 registry, which warned
+    and then reported every capability as SERVED; it was deleted at #966
+    once the pin floor passed the release that ships `capabilities` on
+    every solver (verified at momwire 0.38.0: all eight exported solver
+    classes declare a row). A missing attribute is now an AttributeError
+    rather than a permissive shrug — the failure this layer exists to
+    prevent is a silent drop, so the dead branch fell open in exactly the
+    direction that matters.
     """
-    caps = _capabilities_of(solver_cls)
-    if caps is None:
-        warnings.warn(
-            f"{getattr(solver_cls, '__name__', solver_cls)} has no "
-            "`capabilities` attribute — this momwire pin predates the "
-            "momwire#396 capability registry (issue #941). Treating every "
-            "capability as supported; momwire's own constructor/solve-time "
-            "refusal remains the backstop.",
-            stacklevel=3,
-        )
-        return None
-    return caps.refusal(*cells)
+    return solver_cls.capabilities.refusal(*cells)
 
 
 def _solver_supports_ground_eps(solver, cell):
