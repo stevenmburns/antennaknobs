@@ -38,3 +38,14 @@ scratchpad/
 
 # PyInstaller freeze environment (ws5 smoke test)
 .venv-freeze/
+
+# Session handoff notes, restart prompts and unsent outreach drafts. The
+# `.local.md` suffix is the marker and it has always meant "not for the
+# repo" — nothing matching it has ever been tracked. Ignored rather than
+# merely conventional because a wide `git add` sweeps in whatever is
+# untracked, and several of these are drafts addressed to real people.
+#
+# NOTE this is deliberately narrow. `scratch/` is NOT ignored: it is a
+# tracked evidence directory (capture corpora, oracle runs), and hiding it
+# would hide study output that belongs in the repo.
+*.local.md
