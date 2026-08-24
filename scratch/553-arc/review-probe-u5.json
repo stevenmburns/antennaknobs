@@ -1,0 +1,26 @@
+{
+ "meta": {
+  "written": "2026-08-23",
+  "deck": "blind two-radial fan, eps 13.5, sigma 0.0045, 7.15 MHz, depth -0.11 m",
+  "engine": "licensed NEC-5 binary, fresh tempdir per run (auto *.NEX scrub), fed seg 7/20/33",
+  "decks_dir": "scratchpad u5-blind/ (session-local)"
+ },
+ "engine_rungs_ohm": {
+  "1": [
+   96.136,
+   -35.89
+  ],
+  "3": [
+   104.15,
+   -34.305
+  ],
+  "5": [
+   105.86,
+   -34.013
+  ]
+ },
+ "engine_limit_est_ohm": [
+  106.3,
+  -33.9
+ ]
+}

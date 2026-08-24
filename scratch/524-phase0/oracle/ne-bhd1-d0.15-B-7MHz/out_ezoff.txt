@@ -1,0 +1,272 @@
+1
+ x13
+
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-5)    *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          524p0 bhd1 d=0.15 soilB 7MHz                                                 
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+                                 - - - STRUCTURE SPECIFICATION - - -
+
+                                     COORDINATES MUST BE INPUT IN
+                                     METERS OR BE SCALED TO METERS
+                                     BEFORE STRUCTURE INPUT IS ENDED
+
+ Model definition commands:
+
+ GW    1    11 -5.00000E-01  0.00000E+00 -1.50000E-01  5.00000E-01  0.00000E+00 -1.50000E-01  1.00000E-03
+ GE    1   -1
+
+   GROUND PLANE SPECIFIED.
+
+   WHERE WIRE ENDS TOUCH GROUND, CURRENT WILL BE INTERPOLATED TO IMAGE IN GROUND PLANE.
+
+
+ Number of nodes :    12
+ Number of wire elements :    11
+ Number of patch elements:     0
+ Number unknowns:    22
+
+
+
+
+ ***** INPUT LINE  1  FR   0    1    0    0  7.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  2  GN   0    0    0    0  2.00000E+01  3.00000E-02  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  3  EX   4    1    6    0  1.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  4  PQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  5  NE   0   15    1    1  2.00000E+00  0.00000E+00  1.00000E+00  2.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+
+                                 - - - - - - FREQUENCY - - - - - -
+
+                                    FREQUENCY= 7.0000E+00 MHZ
+                                    WAVELENGTH= 4.2829E+01 METERS
+
+
+
+                                  - - - ANTENNA ENVIRONMENT - - -
+
+
+ GMPINO: Unable to open file SOMMPD.NEX                              
+ Will compute Sommerfeld-ground tables
+                                        FINITE GROUND.  SOMMERFELD SOLUTION
+                                        RELATIVE DIELECTRIC CONST.= 20.000
+                                        CONDUCTIVITY= 3.000E-02 MHOS/METER
+                                        COMPLEX DIELECTRIC CONSTANT= 2.00000E+01-7.70400E+01
+
+
+
+                               - - - STRUCTURE IMPEDANCE LOADING - - -
+
+                                   THIS STRUCTURE IS NOT LOADED
+ALLOCATE CM:            484
+
+
+
+                                - - - MATRIX TIMING - - -
+
+                        FILL=    1.035 SEC.,  FACTOR=    0.000 SEC.
+
+
+
+                                          - - - ANTENNA INPUT PARAMETERS - - -
+
+   TAG   SEG.    VOLTAGE (VOLTS)         CURRENT (AMPS)         IMPEDANCE (OHMS)        ADMITTANCE (MHOS)      POWER
+   NO.   NO.    REAL        IMAG.       REAL        IMAG.       REAL        IMAG.       REAL        IMAG.     (WATTS)
+   1     6 1  2.8195E-02  3.4838E+00  1.0000E+00  0.0000E+00  2.8195E-02  3.4838E+00  2.3229E-03 -2.8703E-01  1.4097E-02
+
+
+
+                                       - - - Wire Currents - - -
+
+                             Lengths normalized by wavelength (or 2.*pi/CABS(k))
+
+  Elem.  Tag            Coord. of seg. center          Seg.            - - - Current (Amps) - - -
+   No.   No.     X            Y            Z           Length       Real         Imag.        Mag.         Phase
+      1    1 -9.46854E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -8.93656E-03  3.34446E-03  9.54189E-03  159.4819
+      2    1 -7.57484E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -1.16366E-02  3.30331E-03  1.20964E-02  164.1522
+      3    1 -5.68113E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -1.75771E-02  3.55694E-03  1.79334E-02  168.5600
+      4    1 -3.78742E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -3.15281E-02  3.98163E-03  3.17785E-02  172.8023
+      5    1 -1.89371E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -1.04739E-01  5.10881E-03  1.04864E-01  177.2075
+      6    1  1.44543E-17  0.00000E+00 -3.12462E-02  1.89371E-02  1.00087E+00 -3.37734E-03  1.00087E+00   -0.1933
+      7    1  1.89371E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -1.04700E-01  4.94912E-03  1.04817E-01  177.2937
+      8    1  3.78742E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -3.15271E-02  3.97767E-03  3.17771E-02  172.8092
+      9    1  5.68113E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -1.75768E-02  3.55592E-03  1.79329E-02  168.5630
+     10    1  7.57484E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -1.16366E-02  3.30345E-03  1.20964E-02  164.1516
+     11    1  9.46854E-02  0.00000E+00 -3.12462E-02  1.89371E-02 -8.93660E-03  3.34738E-03  9.54295E-03  159.4656
+
+
+
+                             - - - Wire Charge Densities - - -
+
+                     Lengths normalized by wavelength (or 2.*pi/CABS(k))
+
+  ELEM.  TAG          Coord. of Seg. Center           Seg.        Charge Density (C/m)
+   No.   No.     X            Y            Z          Length        Mag.         Phase
+      1    1 -9.46854E-02  0.00000E+00 -3.12462E-02  1.89371E-02  3.06669E-11    2.0631
+      2    1 -7.57484E-02  0.00000E+00 -3.12462E-02  1.89371E-02  3.62540E-11    4.3702
+      3    1 -5.68113E-02  0.00000E+00 -3.12462E-02  1.89371E-02  4.95500E-11    6.5863
+      4    1 -3.78742E-02  0.00000E+00 -3.12462E-02  1.89371E-02  7.81738E-11    8.8825
+      5    1 -1.89371E-02  0.00000E+00 -3.12462E-02  1.89371E-02  2.11676E-10   11.9185
+      6    1  1.44543E-17  0.00000E+00 -3.12462E-02  1.89371E-02  1.74404E-09 -165.6140
+      7    1  1.89371E-02  0.00000E+00 -3.12462E-02  1.89371E-02  2.11676E-10   11.9185
+      8    1  3.78742E-02  0.00000E+00 -3.12462E-02  1.89371E-02  7.81738E-11    8.8825
+      9    1  5.68113E-02  0.00000E+00 -3.12462E-02  1.89371E-02  4.95500E-11    6.5863
+     10    1  7.57484E-02  0.00000E+00 -3.12462E-02  1.89371E-02  3.62540E-11    4.3702
+     11    1  9.46854E-02  0.00000E+00 -3.12462E-02  1.89371E-02  3.06669E-11    2.0631
+
+
+
+                                        - - - POWER BUDGET - - -
+
+                                           INPUT POWER   = 1.4097E-02 WATTS
+                                           RADIATED POWER= 1.4097E-02 WATTS
+                                           WIRE LOSS     = 0.0000E+00 WATTS
+                                           EFFICIENCY    = 100.00 PERCENT
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    2.0000E+00  0.0000E+00  1.0000E+00     3.3525E-02   -89.86    2.7956E-05   162.19    6.2004E-02   -35.27
+    4.0000E+00  0.0000E+00  1.0000E+00     5.0311E-03  -114.20    2.9719E-06   157.81    2.0328E-02     1.42
+    6.0000E+00  0.0000E+00  1.0000E+00     1.1890E-03  -131.10    6.9537E-07   156.02    1.2150E-02     7.23
+    8.0000E+00  0.0000E+00  1.0000E+00     3.8673E-04  -156.03    2.5736E-07   153.41    8.4047E-03     8.92
+    1.0000E+01  0.0000E+00  1.0000E+00     1.4085E-04   153.53    1.2440E-07   148.98    6.2431E-03    10.17
+    1.2000E+01  0.0000E+00  1.0000E+00     1.0872E-04    82.81    7.1377E-08   142.72    4.6878E-03    11.29
+    1.4000E+01  0.0000E+00  1.0000E+00     1.2838E-04    42.20    4.5962E-08   134.68    3.4151E-03    12.64
+    1.6000E+01  0.0000E+00  1.0000E+00     1.4131E-04    16.34    3.2056E-08   125.09    2.3090E-03    14.79
+    1.8000E+01  0.0000E+00  1.0000E+00     1.4623E-04    -4.86    2.3668E-08   114.22    1.3362E-03    19.39
+    2.0000E+01  0.0000E+00  1.0000E+00     1.4634E-04   -24.23    1.8224E-08   102.30    5.1662E-04    37.02
+    2.2000E+01  0.0000E+00  1.0000E+00     1.4381E-04   -42.72    1.4487E-08    89.56    3.5854E-04   147.32
+    2.4000E+01  0.0000E+00  1.0000E+00     1.3989E-04   -60.75    1.1807E-08    76.15    8.7541E-04   173.91
+    2.6000E+01  0.0000E+00  1.0000E+00     1.3530E-04   -78.47    9.8137E-09    62.21    1.2847E-03   179.54
+    2.8000E+01  0.0000E+00  1.0000E+00     1.3044E-04   -96.05    8.2928E-09    47.83    1.5422E-03  -178.02
+    3.0000E+01  0.0000E+00  1.0000E+00     1.2557E-04  -113.52    7.1033E-09    33.09    1.6482E-03  -176.58
+
+
+
+
+ ***** INPUT LINE  6  NE   0    1    1    1  1.00000E+01  0.00000E+00  1.00000E-01  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    1.0000E+01  0.0000E+00  1.0000E-01     4.4712E-04    12.79    1.2803E-07   148.51    6.4428E-03    10.25
+
+
+
+
+ ***** INPUT LINE  7  NE   0    1    1    1  1.00000E+01  0.00000E+00  3.00000E-01  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    1.0000E+01  0.0000E+00  3.0000E-01     3.2290E-04    16.22    1.2757E-07   148.64    6.4167E-03    10.23
+
+
+
+
+ ***** INPUT LINE  8  NE   0    1    1    1  1.00000E+01  0.00000E+00  1.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    1.0000E+01  0.0000E+00  1.0000E+00     1.4085E-04   153.53    1.2440E-07   148.98    6.2431E-03    10.17
+
+
+
+
+ ***** INPUT LINE  9  NE   0    1    1    1  1.00000E+01  0.00000E+00  3.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    1.0000E+01  0.0000E+00  3.0000E+00     1.2362E-03   177.25    1.0473E-07   148.96    5.1770E-03    11.06
+
+
+
+
+ ***** INPUT LINE 10  NE   0    1    1    1  1.00000E+01  0.00000E+00  1.00000E+01  0.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    1.0000E+01  0.0000E+00  1.0000E+01     2.5554E-03   153.99    3.0756E-08   138.01    2.0370E-03    72.70
+
+
+
+
+ ***** INPUT LINE 11  NE   0   10    1    1  1.00000E+00  0.00000E+00 -5.00000E-01  1.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+                                      - - - NEAR ELECTRIC FIELDS - - -
+
+              -  LOCATION  -                     -  EX  -               -  EY  -               -  EZ  -
+        X           Y           Z           MAGNITUDE   PHASE      MAGNITUDE   PHASE      MAGNITUDE   PHASE
+      METERS      METERS      METERS         VOLTS/M   DEGREES      VOLTS/M   DEGREES      VOLTS/M   DEGREES
+    1.0000E+00  0.0000E+00 -5.0000E-01     1.3925E-01  -153.84    5.7785E-05  -124.04    5.2441E-03    68.13
+    2.0000E+00  0.0000E+00 -5.0000E-01     3.1832E-02   132.29    2.2958E-05  -154.92    8.9115E-04    60.90
+    3.0000E+00  0.0000E+00 -5.0000E-01     1.3316E-02    57.21    9.0847E-06   174.00    3.4363E-04    98.93
+    4.0000E+00  0.0000E+00 -5.0000E-01     6.9447E-03     2.75    3.6597E-06   146.41    2.3216E-04   103.13
+    5.0000E+00  0.0000E+00 -5.0000E-01     3.3592E-03   -36.06    1.4717E-06   125.12    1.6023E-04    97.39
+    6.0000E+00  0.0000E+00 -5.0000E-01     1.3773E-03   -60.52    6.0025E-07   113.87    1.1503E-04    92.37
+    7.0000E+00  0.0000E+00 -5.0000E-01     4.8267E-04   -55.86    2.7770E-07   115.24    8.6801E-05    90.10
+    8.0000E+00  0.0000E+00 -5.0000E-01     3.4128E-04   -18.03    1.6631E-07   121.44    6.8113E-05    89.47
+    9.0000E+00  0.0000E+00 -5.0000E-01     3.7124E-04   -11.31    1.1745E-07   122.69    5.4543E-05    89.30
+    1.0000E+01  0.0000E+00 -5.0000E-01     3.5304E-04   -15.53    8.6337E-08   119.93    4.3897E-05    89.21
+
+
+
+
+ ***** INPUT LINE 12  XQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE 13  EN   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+
+Sommerfeld integral tables written in previous run:
+Potentials: 11 12 13 14 15
+E and H: 21 23 11 12 13 14 15 31 33 41 43
+
+ RUN TIME =     1.872
