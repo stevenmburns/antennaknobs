@@ -1,0 +1,34 @@
+CM Cardioid - L Network Feed
+CM
+CM ! Written by EZNEC/Pro+ v. 7.0 in NEC-5 format.
+CM
+CM ! *Wire #3 for virtual segments.
+CM ! NT #1 is EZNEC L network
+CM
+CM This is an example of a 2 element cardioid array fed with an L network
+CM type feed system. The design of L network feed systems is described in
+CM Chapter 8 of the 21st Edition of the ARRL Antenna book, and this array
+CM is one of the examples. It wasn't possible to analyze this array/feed
+CM system with EZNEC prior to v. 5.0, when the L network object was
+CM introduced. This feed system delivers nearly identical results to the
+CM all-transmission line feed system of example model Cardioid TL ARRL
+CM Example.ez.
+CM 
+CM Step-by-step design of this model (beginning with Cardioid TL ARRL
+CM Example.ez) is described in the "A Lap Around Track 5" section of the
+CM Test Drive tutorial in the EZNEC manual.
+CE
+GW 1,30,0.,0.,0.,0.,0.,10.0584,.0127
+GW 2,30,10.48226,0.,0.,10.48226,0.,10.0584,.0127
+GW 3,3,4192.901,4192.901,4234.831,4193.027,4193.027,4234.957,.0041929
+GE 1
+LD 4,1,-1,0,18.,0.
+LD 4,2,-1,0,18.,0.
+FR 0,1,0,0,7.15
+GD 0,0,0,0,13.,.005,1.,0.
+EX 4,3,1,0,1.414214,0.
+TL 3,1,1,-1,75.,10.48235,0.,0.,0.,0.
+TL 3,2,2,-1,75.,10.48235,0.,0.,0.,0.
+NT 3,1,3,2,1.5041E-7,-1.226E-2,-1.504E-7,1.2264E-2,2.309E-7,-3.293E-3
+RP 0,1,361,1000,80.,0.,0.,1.,0.
+EN

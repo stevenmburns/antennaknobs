@@ -150,6 +150,11 @@ markers = [
 
 [tool.ruff]
 # momwire is a submodule with its own config.
+#
+# scratch/ is NOT excluded, deliberately. It is checked in, so it is linted —
+# the study scripts under it are the record of what produced a published
+# number, and a record worth keeping is worth keeping readable. Banking a
+# study means cleaning it on the way in.
 extend-exclude = ["momwire"]
 
 [tool.ruff.lint]

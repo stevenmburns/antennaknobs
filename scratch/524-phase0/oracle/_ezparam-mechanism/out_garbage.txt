@@ -1,0 +1,68 @@
+1
+ x13
+
+
+
+                                ***********************************************
+                                *                                             *
+                                *  NUMERICAL ELECTROMAGNETICS CODE (NEC-5)    *
+                                *                                             *
+                                ***********************************************
+
+
+
+
+                      **********************************************************
+
+                          524p0 bhd10 d=0.05 soilA 7MHz                                                
+                                                                                                       
+
+                      **********************************************************
+
+
+
+
+
+                                 - - - STRUCTURE SPECIFICATION - - -
+
+                                     COORDINATES MUST BE INPUT IN
+                                     METERS OR BE SCALED TO METERS
+                                     BEFORE STRUCTURE INPUT IS ENDED
+
+ Model definition commands:
+
+ GW    1    21 -5.00000E+00  0.00000E+00 -5.00000E-02  5.00000E+00  0.00000E+00 -5.00000E-02  1.00000E-03
+ GE    1   -1
+
+   GROUND PLANE SPECIFIED.
+
+   WHERE WIRE ENDS TOUCH GROUND, CURRENT WILL BE INTERPOLATED TO IMAGE IN GROUND PLANE.
+
+
+ Number of nodes :    22
+ Number of wire elements :    21
+ Number of patch elements:     0
+ Number unknowns:    42
+
+
+
+
+ ***** INPUT LINE  1  FR   0    1    0    0  7.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  2  GN   0    0    0    0  1.30000E+01  5.00000E-03  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  3  EX   4    1   11    0  1.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  4  PQ   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
+ ***** INPUT LINE  5  NE   0   15    1    1  2.00000E+00  0.00000E+00  1.00000E+00  2.00000E+00  0.00000E+00  0.00000E+00
+
+
+
+
+                                 - - - - - - FREQUENCY - - - - - -
+
+                                    FREQUENCY= 7.0000E+00 MHZ
+                                    WAVELENGTH= 4.2829E+01 METERS
+
+
+
+                                  - - - ANTENNA ENVIRONMENT - - -
+
+Definition not found for parameterTHIS                          
