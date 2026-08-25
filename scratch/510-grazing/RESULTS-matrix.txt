@@ -1,0 +1,28 @@
+the ground-correction matrix on the one-wire reproducer
+L = 39.624 m, 5 segments, driven at node 2
+eps~ = 13-49.06j; quasi-static |1 - Gamma| = 0.03920
+
+h/lambda = 0.01
+       bspline N=7   asym(PEC) 1.636e-15  asym(GN0) 1.644e-15  asym(dZ) 1.262e-14  |dZ|/|Z_pec| 0.0046
+                 |dZ| by |i-j|: 7.38  4.13  2.41  1.33  0.487  0.11  0.0216
+                 |dZ|/|PEC image|: 0.0603  0.0785  0.0411   (quasi-static predicts 0.0392)
+    razor-nec5 N=4   asym(PEC) 6.899e-17  asym(GN0) 6.807e-17  asym(dZ) 7.977e-16  |dZ|/|Z_pec| 0.0042
+                 |dZ| by |i-j|: 13.2  5.4  1.03  0.145
+                 |dZ|/|PEC image|: 0.0656  0.0813  0.0292   (quasi-static predicts 0.0392)
+
+h/lambda = 0.001
+       bspline N=7   asym(PEC) 2.724e-15  asym(GN0) 2.745e-15  asym(dZ) 1.488e-15  |dZ|/|Z_pec| 0.0401
+                 |dZ| by |i-j|: 42  20.3  8.51  2.02  0.55  0.107  0.0453
+                 |dZ|/|PEC image|: 0.0498  0.0728  0.0399   (quasi-static predicts 0.0392)
+    razor-nec5 N=4   asym(PEC) 1.510e-16  asym(GN0) 1.030e-16  asym(dZ) 2.133e-15  |dZ|/|Z_pec| 0.0299
+                 |dZ| by |i-j|: 62.8  34.5  0.915  0.0958
+                 |dZ|/|PEC image|: 0.0620  0.0716  0.0201   (quasi-static predicts 0.0392)
+
+h/lambda = 0.000109
+       bspline N=7   asym(PEC) 6.176e-16  asym(GN0) 6.210e-16  asym(dZ) 5.752e-16  |dZ|/|Z_pec| 0.0697
+                 |dZ| by |i-j|: 325  156  49.5  2.05  0.548  0.113  0.0506
+                 |dZ|/|PEC image|: 0.0484  0.0740  0.0408   (quasi-static predicts 0.0392)
+    razor-nec5 N=4   asym(PEC) 2.427e-16  asym(GN0) 3.148e-16  asym(dZ) 1.539e-16  |dZ|/|Z_pec| 0.3464
+                 |dZ| by |i-j|: 439  235  0.873  0.11
+                 |dZ|/|PEC image|: 0.2357  0.2537  0.0192   (quasi-static predicts 0.0392)
+
