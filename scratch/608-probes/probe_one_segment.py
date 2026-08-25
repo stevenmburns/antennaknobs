@@ -26,26 +26,44 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 RAZOR = ROOT / "momwire" / "src" / "momwire" / "razor.py"
 PROBE = ROOT / "momwire" / "src" / "momwire" / "_razor_nogate_probe.py"
 
-GUARD = "            if sum(npe) < 2:\n                raise ValueError("
+# The guard as momwire#608 found it: every wire with one segment, refused.
+BEFORE = "            if sum(npe) < 2:\n                raise ValueError("
+BEFORE_OFF = "            if False:\n                raise ValueError("
+# ...and as #608 left it: only a wire junctioned at neither end. Neutering
+# the second condition is what re-opens case (c) on a fixed tree.
+AFTER = '            if (i, "start") in joined or (i, "end") in joined:\n                continue'
+AFTER_OFF = "            if True:\n                continue"
+# Removed by #608 (it counted interior knots and forgot junction tents), so
+# on a fixed tree there is nothing here to neuter.
 NO_UNKNOWNS = '        if n_interior == 0:\n            raise ValueError("no unknowns'
+NO_UNKNOWNS_OFF = '        if False:\n            raise ValueError("no unknowns'
+
+
+def fixed_tree():
+    """Is momwire#608 already applied to the tree this is pointed at?"""
+    return BEFORE not in RAZOR.read_text()
 
 
 def install_neutered(also_n_interior=False):
-    """Write a copy of razor.py with the one-segment guard(s) disabled.
+    """Write a copy of razor.py with the one-segment refusal disabled.
+
+    Works against the tree either side of momwire#608, so the measurement
+    stays reproducible after the fix lands: before, one guard refuses all
+    three cases; after, a narrowed one refuses only case (c).
 
     The guard is inline in `__init__` and cannot be monkeypatched. The copy
     must live INSIDE the package or its relative imports fail.
     """
     src = RAZOR.read_text()
-    assert GUARD in src, "the per-wire guard moved"
-    patched = src.replace(GUARD, "            if False:\n                raise ValueError(", 1)
-    if also_n_interior:
-        assert NO_UNKNOWNS in src, "the n_interior guard moved"
-        patched = patched.replace(
-            NO_UNKNOWNS,
-            '        if False:\n            raise ValueError("no unknowns',
-            1,
-        )
+    if BEFORE in src:
+        patched = src.replace(BEFORE, BEFORE_OFF, 1)
+        if also_n_interior:
+            assert NO_UNKNOWNS in src, "the n_interior guard moved"
+            patched = patched.replace(NO_UNKNOWNS, NO_UNKNOWNS_OFF, 1)
+    else:
+        assert AFTER in src, "neither the pre- nor the post-#608 guard is here"
+        patched = src.replace(AFTER, AFTER_OFF, 1)
+        assert NO_UNKNOWNS not in src, "#608 was supposed to remove this one"
     PROBE.write_text(patched)
     for mod in [m for m in sys.modules if "_razor_nogate_probe" in m]:
         del sys.modules[mod]
@@ -72,10 +90,16 @@ def rel(a, b):
 
 
 def report(name, z, z_ref, note=""):
-    print(f"  {name:<34s} {z.real:11.6f}{z.imag:+11.6f}j   rel {rel(z, z_ref):.3e} {note}")
+    print(
+        f"  {name:<34s} {z.real:11.6f}{z.imag:+11.6f}j   rel {rel(z, z_ref):.3e} {note}"
+    )
 
 
 def main():
+    print(
+        "razor.py is the "
+        + ("POST-#608 tree (narrowed guard)" if fixed_tree() else "PRE-#608 tree")
+    )
     Razor = install_neutered()
 
     # ---------------- the reference: one unsplit 20-segment wire ----------
@@ -156,7 +180,9 @@ def main():
     z_c, coeffs_c = c_with.compute_impedance()
     geom = c_with._build_geometry()
     print(f"  bases: {coeffs_c.shape[0]} (the lone wire alone has {c_ref.shape[0]})")
-    print(f"  n_basis_interior={geom['n_basis_interior']}  junctions={len(geom['junctions'])}")
+    print(
+        f"  n_basis_interior={geom['n_basis_interior']}  junctions={len(geom['junctions'])}"
+    )
     report("dipole + inert 1-seg floater", z_c, z_ref, "<- vs the floater-free dipole")
 
     # The same model with the floater given 2 segments, so it carries a real
@@ -174,7 +200,11 @@ def main():
     from momwire import BSplineSolver
 
     print("\n  BSplineSolver (degree 2) on the same three models:")
-    for label, npe in (("floater absent", None), ("1-seg floater", [[N], [1]]), ("2-seg floater", [[N], [2]])):
+    for label, npe in (
+        ("floater absent", None),
+        ("1-seg floater", [[N], [1]]),
+        ("2-seg floater", [[N], [2]]),
+    ):
         wires = [np.array([pt(0.0), pt(LEN)])]
         if npe is not None:
             wires.append(floater)
@@ -185,15 +215,24 @@ def main():
             **KW,
         )
         z_bs, c_bs = bs.compute_impedance()
-        print(f"    {label:<20s} {z_bs.real:11.6f}{z_bs.imag:+11.6f}j   ({c_bs.shape[0]} bases)")
+        print(
+            f"    {label:<20s} {z_bs.real:11.6f}{z_bs.imag:+11.6f}j   ({c_bs.shape[0]} bases)"
+        )
 
     # ---------------- the all-one-segment corner --------------------------
     # A closed triangle of three one-segment wires: n_interior == 0, but
-    # three junction tents. The SECOND guard ("no unknowns") refuses it.
+    # three junction tents. Pre-#608 the SECOND guard ("no unknowns: every
+    # wire needs >= 2 segments") refused it for counting the interior knots
+    # and forgetting the tents; #608 deleted that guard, so on a fixed tree
+    # this shape simply builds.
     print("\n(d) corner: a triangle of three 1-seg wires (n_interior == 0)")
     Razor2 = install_neutered(also_n_interior=True)
     s = 1.0
-    v = [np.array([0.0, 0.0, 0.0]), np.array([s, 0.0, 0.0]), np.array([s / 2, s * 0.866, 0.0])]
+    v = [
+        np.array([0.0, 0.0, 0.0]),
+        np.array([s, 0.0, 0.0]),
+        np.array([s / 2, s * 0.866, 0.0]),
+    ]
     try:
         tri = Razor2(
             wires=[

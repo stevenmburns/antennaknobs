@@ -1,3 +1,4 @@
+razor.py is the POST-#608 tree (narrowed guard)
 
 reference: unsplit 20-seg wire, 19 bases
                                        66.842153 -33.721914j

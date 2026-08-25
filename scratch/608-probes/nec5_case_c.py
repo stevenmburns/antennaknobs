@@ -47,9 +47,7 @@ def deck(floater_segs: int | None) -> str:
     ]
     if floater_segs is not None:
         y0, y1 = LEN / 2 - D / 2, LEN / 2 + D / 2
-        lines.append(
-            f"GW 2,{floater_segs},{FX},{y0:.6f},0.,{FX},{y1:.6f},0.,{RAD:.7f}"
-        )
+        lines.append(f"GW 2,{floater_segs},{FX},{y0:.6f},0.,{FX},{y1:.6f},0.,{RAD:.7f}")
     lines += [
         "GE 0",
         f"EX 0,1,{N // 2},0,1.,0.",
@@ -104,13 +102,19 @@ def main():
     if not EXE.is_file():
         raise SystemExit(f"NEC5_EXE not found: {EXE}")
     print(f"  {'deck':<16s} {'Z (printed)':>22s}  elements  unknowns")
-    for label, segs in (("no floater", None), ("1-seg floater", 1), ("2-seg floater", 2)):
+    for label, segs in (
+        ("no floater", None),
+        ("1-seg floater", 1),
+        ("2-seg floater", 2),
+    ):
         report, _stdout = run(deck(segs))
         z = impedance(report)
         n_el, n_un = counts(report)
         err = [ln.strip() for ln in report.splitlines() if "ERROR" in ln.upper()]
         shown = f"{z[0]:10.4f}{z[1]:+10.4f}j" if z else "     (none printed)"
-        print(f"  {label:<16s} {shown:>22s}  {n_el:>8}  {n_un:>8}  {err if err else ''}")
+        print(
+            f"  {label:<16s} {shown:>22s}  {n_el:>8}  {n_un:>8}  {err if err else ''}"
+        )
     print(
         "\n  The 1-seg floater adds an ELEMENT and no UNKNOWN, and Z does not\n"
         "  move: the licensed engine drops it exactly as razor does. The\n"

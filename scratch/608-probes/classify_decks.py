@@ -18,7 +18,9 @@ from __future__ import annotations
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "momwire" / "tests"))
+sys.path.insert(
+    0, str(pathlib.Path(__file__).resolve().parents[2] / "momwire" / "tests")
+)
 
 from momwire.deck._nec5 import parse_nec5  # noqa: E402
 from momwire.eznec import _serve  # noqa: E402
@@ -55,7 +57,9 @@ def classify(cid):
 
 
 def main():
-    print(f"{'deck':<8s} {'pieces':>7s} {'1-seg':>6s}   (a) both   (b) one   (c) NEITHER")
+    print(
+        f"{'deck':<8s} {'pieces':>7s} {'1-seg':>6s}   (a) both   (b) one   (c) NEITHER"
+    )
     total = {"a": 0, "b": 0, "c": 0}
     for cid in CAPTURE_IDS:
         n_pieces, rows = classify(cid)
