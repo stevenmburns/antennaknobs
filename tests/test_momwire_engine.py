@@ -2257,17 +2257,37 @@ def test_momwire_razor_handles_junction_geometry():
     assert np.isfinite(z.real) and np.isfinite(z.imag)
 
 
-def test_momwire_razor_refuses_node_gaps_automatically():
-    """Capability wiring is AUTOMATIC (momwire#396/#941): a design that
-    needs a `PortAtVertex` series node gap surfaces RazorSolver's OWN
-    refusal message through the engine's ordinary construction path — no
-    curated antennaknobs-side knowledge that razor refuses node gaps, just
-    the kwarg reaching RazorSolver's constructor and it saying no."""
+def test_momwire_razor_serves_node_gaps_now():
+    """momwire#603 U4 gave RazorSolver the node-gap PORT, and this is the
+    antennaknobs-side pin of that gain.
+
+    This test used to assert the opposite — that a `PortAtVertex` series node
+    gap surfaced razor's OWN refusal through the engine's ordinary
+    construction path, with no curated antennaknobs-side knowledge of what
+    razor refuses. The wiring claim was right and is unchanged; what moved is
+    the answer razor gives, because U4 was a PORT and not a basis (razor
+    always had the K-1 tents). `capabilities.node_gaps` is now True and the
+    `node_gaps` refusal key is gone, so the automatic wiring correctly stops
+    refusing.
+
+    The automatic-refusal half of that claim is still witnessed, on a refusal
+    that is still live, by
+    `test_momwire_pulse_refuses_extended_kernel_automatically` below.
+
+    Pinned two ways so a silent regression in either direction is caught: the
+    declared capability, and an answer that agrees with the default basis.
+    Measured 63.398 - 58.236j against bspline's 64.466 - 52.346j; gated as a
+    band because the two formulations legitimately differ at a feed region,
+    not as a bit pin.
+    """
     from types import MappingProxyType as _MPT
 
     from momwire import RazorSolver
     from antennaknobs import AntennaBuilder
     from antennaknobs.network import Driven, Network, PortAtVertex, Wire
+
+    assert RazorSolver.capabilities.node_gaps is True
+    assert "node_gaps" not in RazorSolver.capabilities.refusals
 
     freq = 27.0
     arm = 2.6
@@ -2288,8 +2308,15 @@ def test_momwire_razor_refuses_node_gaps_automatically():
                 sources=[Driven(port="apex", voltage=1 + 0j)],
             )
 
-    with pytest.raises(NotImplementedError, match="node gap"):
-        MomwireEngine(_ApexDipole(), solver=RazorSolver, ground=None).impedance()
+    (z_razor,) = MomwireEngine(
+        _ApexDipole(), solver=RazorSolver, ground=None
+    ).impedance()
+    (z_default,) = MomwireEngine(_ApexDipole(), ground=None).impedance()
+    assert np.isfinite(z_razor.real) and np.isfinite(z_razor.imag)
+    assert abs(z_razor - z_default) < 15.0, (
+        f"razor {z_razor} against the default basis {z_default} — the node-gap "
+        "port is answering, but not the same antenna"
+    )
 
 
 def test_momwire_pulse_refuses_extended_kernel_automatically():
