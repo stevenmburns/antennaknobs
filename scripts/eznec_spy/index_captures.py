@@ -212,8 +212,16 @@ def render_markdown(rows: list[dict]) -> str:
         span = head["capture"][:4]
         if len(group) > 1:
             span = f"{span}–{group[-1]['capture'][:4]} ({len(group)}×)"
+        # A capture can legitimately carry no deck: the W7EL runs (0122/0123) had
+        # their deck and printout moved out to the private set, leaving the shell
+        # behind so the sequence stays honest.  Such a group has no frequency.
         freqs = [r["freq_mhz"] for r in group if r["freq_mhz"]]
-        freq = freqs[0] if len(set(freqs)) <= 1 else f"{freqs[0]}–{freqs[-1]}"
+        if not freqs:
+            freq = ""
+        elif len(set(freqs)) <= 1:
+            freq = freqs[0]
+        else:
+            freq = f"{freqs[0]}–{freqs[-1]}"
         exits = sorted({r["exit_code"] for r in group})
         out.append(
             f"| {span} | {head['title'] or '-'} | {freq or '-'} "
