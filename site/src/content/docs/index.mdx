@@ -25,17 +25,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.57.0" icon="star">
-  **Wires below the interface.** momwire 0.38.0 lands the buried serve:
-  buried radials, screens, and buried fed elements get impedance,
-  currents, and charges over the Sommerfeld ground on the `bspline`
-  lane — at deck level today — and the edges are named rather than
-  papered over: interface crossings, ground-contact wires mixed with
-  buried wires, and near fields or patterns of buried decks refuse by
-  name. Validation below ground is deliberately engine-independent; the
-  [solver guide](/reference/solver/#honest-limitations) and the
-  [validation page](/reference/validation/#honest-limits) carry the
-  story.
+<Card title="New in v0.58.0" icon="star">
+  **Antennas that graze the ground.** momwire 0.39.0 closes a defect that
+  made wires very close to a real earth — elevated radial systems, ground
+  screens, low horizontal runs — diverge instead of converge. Two captured
+  radial systems that were 275 Ω and 188 Ω away from their reference
+  printouts now land 12.3 Ω and 5.2 Ω away, with the pattern peak in
+  exactly the right direction, and two different meshes of the same
+  antenna agree with each other to 0.6 Ω where they used to be 100 Ω
+  apart. Both solver lanes are fixed, so the second opinion is a real
+  one. The [solver guide](/reference/solver/#honest-limitations) has the
+  numbers and names what still refuses.
 </Card>
 
 ## The whole pitch, in one line

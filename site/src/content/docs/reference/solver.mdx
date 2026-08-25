@@ -261,6 +261,31 @@ reflection-coefficient model remains the default and the NEC path offers its
 own Sommerfeld–Norton — so real-ground results cross-check across two
 independent engines at every height.
 
+**Grazing heights** (momwire ≥ 0.39.0): a wire very close to a finite ground
+— an elevated radial system, a ground screen, a low horizontal run — used to
+get *worse* with mesh refinement rather than better, which is the signature
+of a numerical defect rather than a modelling limit. It was two of them, in
+two different places, and both are fixed. Against captured reference
+printouts of the same 1.832 MHz radial system standing 1.8 cm (1.09e-4 λ)
+above earth, the served impedance moved from 275 Ω and 188 Ω away to
+**12.3 Ω and 5.2 Ω**, the pattern peak now lands in exactly the captured
+direction with the level inside 0.3 dB, and — the tell that matters — two
+different meshes of that one antenna now agree with **each other** to 0.6 Ω
+where they previously disagreed by 100 Ω. Both the default `bspline` lane
+and the NEC-5 formulation twin are fixed, so the cross-check at grazing
+height is a genuine second opinion rather than two copies of one bug.
+
+Two things to know about the edges. Standing a wire *in* a finite ground —
+ground **contact**, as distinct from grazing above it — is served on the
+`bspline` lane only, at about 7 % on impedance; the formulation twin refuses
+it by name rather than guess
+([momwire#624](https://github.com/stevenmburns/momwire/issues/624)). And the
+accelerated solvers (`HMatrixSolver`, `ArrayBlockSolver`) reach the ground
+image by their own path and have **not** received the grazing fix
+([momwire#634](https://github.com/stevenmburns/momwire/issues/634)) — they
+are accurate at ordinary heights and should not be selected for a grazing
+model; the default solver is unaffected.
+
 **Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
 plane — buried radials and screens, buried fed elements, elevated feeds over
 buried counterpoises — serve **impedance, currents and charges** on the
