@@ -444,13 +444,93 @@ What is left: **the assembled ground-correction entries themselves are wrong
 for grazing horizontal pairs**, additively and soil-independently on lossy
 ground, with a sign and a resonant structure that both depend on geometry.
 
-## What this does not yet say
+---
 
-- **Which line.** Still not identified — but the search space is now one wire,
-  six unknowns, and a matrix whose entries can be compared term by term.
-- Whether the ~116 Ω plateau is the same defect in both trunks or two of
-  similar size.
-- What the moving pole resonates *with*. It tracks radial length but not
-  monotonically in the direction a simple guided-wave story predicts
-  (longer → *higher* ε_r), so the obvious λ/√ε reading does not fit as-is.
+# Named: razor's near-diagonal ground entries, ~4× too big
+
+`--mode matrix`, on the six-unknown reproducer. **This one needs no binary at
+all.** Raw output in `RESULTS-matrix.txt`.
+
+## Reciprocity is clean
+
+‖Z − Zᵀ‖/‖Z‖ sits at 1e-15 to 1e-17 for both trunks, at every height, over PEC
+and over `GN 0` alike. No asymmetry bug.
+
+## The correction lives entirely in the near-diagonal band
+
+|ΔZ| averaged by |i−j|, razor-nec5:
+
+| \|i−j\| | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| h/λ = 1e-2 | 13.2 | 5.4 | 1.03 | 0.145 |
+| h/λ = 1e-3 | 62.8 | 34.5 | 0.915 | 0.0958 |
+| h/λ = 1.09e-4 | **439** | **235** | 0.873 | 0.11 |
+
+33× on the diagonal, 43× on the first off-diagonal — and **every entry at
+|i−j| ≥ 2 is height-independent.** Whatever is wrong is in the self and
+nearest-neighbour terms, the ones where a source and its own image nearly
+coincide (R₁ → 2h).
+
+## The limit that settles it — computable from momwire's own machinery
+
+The growth is not by itself an error: a horizontal wire close to a dielectric
+genuinely couples hard to it. What settles it is the **limit**.
+
+As h → 0 the near-diagonal correction is the incomplete cancellation of an
+antiparallel image — PEC images a horizontal current at exactly −1, a
+half-space at −Γ — so
+
+> |ΔZ| / |PEC image term| → |1 − Γ| = |2/(ε̃ + 1)|
+
+and the PEC image term is measurable with no reference at all, as
+Z(`GN 1`) − Z(`GN -1`). For average soil at 1.832 MHz, ε̃ = 13 − 49.06j and the
+limit is **0.0392**.
+
+|ΔZ| / |PEC image|, bands 0 / 1 / 2:
+
+| h/λ | bspline | razor-nec5 |
+|---|---|---|
+| 1e-2 | 0.0603 0.0785 0.0411 | 0.0656 0.0813 0.0292 |
+| 1e-3 | 0.0498 0.0728 0.0399 | 0.0620 0.0716 0.0201 |
+| 1.09e-4 | 0.0484 0.0740 0.0408 | **0.2357 0.2537** 0.0192 |
+
+**bspline is height-stable and razor is not.** bspline holds ~0.05 / 0.074 /
+0.041 at all three heights — converging to a constant, as the physics
+requires. razor tracks it down to 1e-3 and then **jumps 4× at the last
+height**, to 0.236 and 0.254, exactly where the quasi-static limit is most
+valid.
+
+The finding does **not** rest on absolute agreement with 0.0392 (bspline sits
+within a factor ~2, which is what a leading-order estimate is worth). It rests
+on razor's own ratio *moving* 0.062 → 0.236 between two heights where it
+should be settling to a constant, on a band whose neighbours are
+height-independent, in a basis whose sibling does settle.
+
+## The finding
+
+> **razor's self and nearest-neighbour finite-ground entries carry about 4×
+> too much of the perfect-image term at deep grazing.**
+
+The surfaces are right, the medium is right, the matrix is symmetric and well
+conditioned, and bspline's identical band converges.
+
+## The acceptance test this hands a fix
+
+On the one-wire reproducer: **|ΔZ|/|PEC image| in the near-diagonal band must
+tend to a constant as h → 0, and that constant must be |2/(ε̃+1)|.** No binary,
+no captured deck, six unknowns, milliseconds. That is a gate the fix can be
+written against directly, and it is the first thing in this arc that is one.
+
+## What this still does not say
+
+- **The line of code.** The band is named and the magnitude is measured; the
+  assembly has not been read. That is the next step and it is now a targeted
+  read rather than a search.
+- Whether fixing the near-diagonal band also removes the moving ε_r pole and
+  the ~116 Ω plateau, or whether those are separate.
+- Whether the ~116 Ω plateau is one defect in both trunks or two of similar
+  size — bspline's band *is* stable here, which now argues they differ.
+- What the moving pole resonates *with*. It tracks radial length but not in
+  the direction a simple λ/√ε guided-wave story predicts (longer → *higher*
+  ε_r), so that reading does not fit as-is.
 - Exactly where a refusal predicate should sit, if refusal is still wanted.
