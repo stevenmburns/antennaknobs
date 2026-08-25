@@ -295,16 +295,84 @@ loss term". Same qualitative shape here, two decades larger.
 *Suggestive, not proven:* the two were measured on different geometries at
 different heights, and nothing here has walked the σ axis.
 
+---
+
+# The orthogonal axes — two defects, not one
+
+`--mode sigma` / `--mode epsr`. The five golden soils confound σ with ε_r
+(`diel` is the least conductive *and* the least dense; `sea` is both the most),
+so neither can be read off them. These are #282 stage 2's own two sweeps,
+asked at grazing. Absolute error in the ground correction, |Δ_mw − Δ_true| in
+Ω, razor-nec5 at the native height:
+
+| σ | 0 | 1e-6 | 1e-5 | 1e-4 | 3e-4 | 1e-3 | 3e-3 | 1e-2 | 1e-1 |
+|---|---|---|---|---|---|---|---|---|---|
+| ε_r = 5 | 300.2 | 300.3 | 300.7 | 279.8 | 205.8 | 136.3 | 120.4 | 117.1 | 116.3 |
+| ε_r = 20 | 26.6 | 26.6 | 26.9 | 29.3 | 35.0 | 54.1 | 86.7 | 111.2 | 116.2 |
+
+| ε_r | 1.05 | 1.5 | 2.5 | 3.0 | 3.10 | 3.6 | 5 | 13 | 20 | 81 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| \|err\| | 18.95 | 96.71 | 563.58 | 2480.3 | **3343.9** | 939.6 | 300.7 | 63.92 | 26.85 | 67.53 |
+
+**There are two separate things here, and the controls separate them.**
+
+### One: a shared, soil-independent, *additive* grazing defect
+
+Both σ sweeps converge on the **same ~116 Ω plateau** once the ground conducts
+(tan δ ≳ 5) — from opposite directions. Across the four lossy golden soils the
+*absolute* error is 82–136 Ω while the true correction varies 23–63 Ω.
+
+So it is an **additive** error that barely depends on the half-space, not a
+multiplicative one. That is sharper than the soil mode's ratio column supports
+on its own (the ratio varied mostly because Δ_true varied), and it is a second
+and better reason row-halving is the wrong suspect: **a mis-scaled row would
+give error ∝ Δ_true, and this does not.**
+
+At 1.832 MHz every real soil is lossy (tan δ 2–600), so every real deck sits on
+this plateau. This is #510 proper.
+
+### Two: a razor-specific pole in ε_r at ≈ 3.1
+
+Resolved finely at the native height, and it is a pole, not a bump:
+
+| ε_r | 2.60 | 2.80 | 2.90 | 3.00 | 3.05 | **3.10** | 3.20 | 3.40 | 3.60 |
+|---|---|---|---|---|---|---|---|---|---|
+| razor \|err\| | 695.7 | 1171.9 | 1650.9 | 2480.3 | 3002.4 | **3343.9** | 2797.1 | 1442.3 | 939.6 |
+| arg | −44.1° | −46.5° | −53.2° | −69.3° | −84.1° | −104.1° | −142.2° | −170.5° | −177.6° |
+| bspline \|err\| | 99.3 | 109.6 | 114.3 | 118.7 | 120.7 | 122.8 | 126.7 | 133.8 | 140.3 |
+
+A magnitude peak with a **~135° phase sweep** through it, **in razor alone** —
+bspline walks smoothly 99 → 140 Ω across the same window with no feature at
+all. That reads as a **spurious pole in razor's assembly**.
+
+And `--mode direct --eps-r 3.0` confirms it is not the Sommerfeld evaluation:
+grid 2466.91 % against direct 2470.40 %. **The one-soil exoneration survives
+its worst corner.**
+
+ε_r ≈ 3 is outside real ground (5–81), so no captured deck meets this pole. It
+is a diagnostic pointer, not a user symptom — but it is the sharpest handle in
+the whole arc on where razor's ground assembly goes wrong.
+
+### Correcting an earlier reading in this same record
+
+The soil-sweep section above proposed that the lossless-dielectric behaviour
+resembled #282 stage 2's σ story ("a loss term must vanish with σ"). **It does
+not.** ε_r = 5 sits on the resonance's shoulder, and what σ damps there is the
+pole. Clear of it at ε_r = 20 the trend *reverses* (26.6 → 116 Ω). The
+resemblance was an artifact of holding ε_r at 5, and the orthogonal sweep is
+what caught it.
+
 ## What this does not yet say
 
-- **Which** scaling. "Q's contribution is ~2.5× too large on average soil" is
-  measured; the line of code is not found — and it is now known not to be a
-  single constant.
-- **The σ axis at grazing.** #282's kill used `--mode sigma` to show the
-  contact discrepancy falling monotonically to a floor as the ground became
-  conductive. The same sweep here would turn the lossless-dielectric
-  resemblance into evidence or kill it. This is the obvious next lever.
-- Whether the onset moves with mesh in the *overshoot* measure (experiment 1
-  showed the raw error does, erratically).
+- **Which line.** The defect is now characterized two ways — additive and
+  soil-independent on lossy ground, plus a razor-only pole at ε_r ≈ 3.1 — but
+  no line of code is identified. The pole is the sharpest lead: it is in
+  razor's assembly, not the Sommerfeld evaluation, and bspline does not have
+  it, so the two trunks' ground assembly can be diffed against each other.
+- Whether the ~116 Ω plateau is the *same* defect in both trunks or two that
+  happen to be similar in size (bspline's plateau across the fine window is
+  99–140 Ω, comparably sized).
+- Whether the pole moves with geometry (height, radial count, mesh) — which
+  would say what it is resonating with.
 - Exactly where a refusal predicate should sit, if refusal is still wanted.
   These rungs bound it; they do not design it — and it cannot be bare height.
