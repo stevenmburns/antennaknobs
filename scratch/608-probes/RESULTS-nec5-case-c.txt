@@ -1,0 +1,8 @@
+  deck                        Z (printed)  elements  unknowns
+  no floater           66.6810  -35.6310j        20        19  
+  1-seg floater        66.6810  -35.6310j        21        19  
+  2-seg floater        66.6800  -35.6340j        22        20  
+
+  The 1-seg floater adds an ELEMENT and no UNKNOWN, and Z does not
+  move: the licensed engine drops it exactly as razor does. The
+  2-seg floater carries an unknown and scatters.

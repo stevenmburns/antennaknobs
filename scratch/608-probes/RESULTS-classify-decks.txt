@@ -1,0 +1,11 @@
+deck      pieces  1-seg   (a) both   (b) one   (c) NEITHER
+0011*         5      2          1         1           0
+0029*         5      2          1         1           0
+0030*         5      2          1         1           0
+0034*        44     38         38         0           0
+0035*        55     30         30         0           0
+
+total one-segment polylines across the corpus: 74
+  (a) junctioned at both ends : 71
+  (b) junctioned at one end   : 3
+  (c) junctioned at neither   : 0
