@@ -100,11 +100,96 @@ both, it is the row halving. (D3 refuses refl-coef at contact on every shipped
 solver because the *model* is broken there — hundreds of ohms — so this is a
 spike-only diagnostic and cannot be gated against the binary.)
 
+## The discriminator, run — and it kills the term outright
+
+*(`RESULTS-stub-ladder.txt`, harness
+`momwire/scripts/spike_contact_stub_ladder.py`. Added after the above.)*
+
+**The discriminator proposed above could not be run as written.** It needed
+the licensed binary as the reference under refl-coef, and refl-coef at
+contact sits **26 Ω** from it (52.006+21.505j against 26.643+10.767j,
+average soil, N=21). That is the model error D3 withdrew refl-coef at contact
+for, and it dwarfs the ~3 Ω the term is worth: fitting a 5 Ω knob to close a
+26 Ω model gap measures the gap. The reference had to go.
+
+### Half the question needed no experiment
+
+Read from `razor.py`: T2's `M0c` is the reduced-kernel static moments times
+`w_Φ` and nothing else. `rem_fn` — the Sommerfeld remainder — is built at
+:2558 and used only at :2653/:2661, in the Q FIELD term, after T2 is already
+assembled. So the folded scalar potential at the plane is
+
+| ground | Φ(plane) | the term |
+|---|---|---|
+| refl-coef | `(1 − w_Φ)·M0(plane)` | complete, by construction |
+| sommerfeld | `(1 − w_Φ)·M0(plane) + Φ_Q(plane)` | missing the remainder |
+
+by construction, not by measurement. But that predicts a **soil-dependent**
+deficit, and the measured argmin did not vary with soil — ≈0.4 on very good,
+average and poor alike. A single coefficient across grounds with very
+different remainders looks like a model-independent factor, not the
+remainder's.
+
+### The instrument that does work: the stubbed ladder
+
+Momwire against momwire, no binary: the same antenna with its contacting
+element replaced by a vanishing grounded stub, over a 100× range of stub
+heights. Two corrections from the stage-2 record are built in — the feed goes
+on the **radiator**, not the stub's base, and the mesh above the stub is held
+**fixed** (spelling the radiator on a fixed segment COUNT re-meshes the whole
+antenna every rung and drifts the PEC control 2.5 Ω, which is a mesh artefact
+with no contact node in it).
+
+**PEC control: flat to 2.15e-3 Ω** across the ladder, certifying the harness
+before any finite-ground row is read.
+
+Ladder spread, worst rung against the smallest stub:
+
+| ground | coeff 0.0 | 0.25 | 0.40 | 0.50 | 0.75 | 1.00 |
+|---|---|---|---|---|---|---|
+| average, refl-coef | **0.285** | 5.58 | 9.20 | 11.63 | 17.16 | 5.67 |
+| average, sommerfeld | **0.551** | 2.63 | 3.80 | 4.55 | 5.83 | 2.43 |
+| poor, refl-coef | **0.410** | 7.56 | 12.68 | 16.23 | 24.91 | 8.21 |
+| poor, sommerfeld | **0.209** | 5.20 | 8.26 | 10.27 | 14.75 | 5.23 |
+
+**Coefficient 0 is flattest on every row.** The term at any nonzero
+coefficient makes razor's contact node LESS self-consistent, and by an order
+of magnitude. At coefficient 0.4 the ladder slides 42.18+25.82j → 33.58+16.50j
+as the stub shrinks — converging back onto the coefficient-0 answer, i.e. the
+term's whole contribution evaporates with the contacting element.
+
+### What that settles, and what it does not
+
+**Settled: §4.3's term is not the missing physics.** Not mis-scaled — *no*
+scale makes it self-consistent. The accuracy sweep's ≈0.4 preference was a fit
+at one fixed mesh that does not survive an instrument needing no reference,
+which is exactly why the study insists on such instruments.
+
+**Also settled: the deficit is not the remainder Q.** refl-coef (no remainder)
+and sommerfeld behave the same, both preferring 0.
+
+**Not settled, and the honest limit of this:** it tests §4.3's term *as
+implemented here* — `(1 − w_Φ)·M0(plane)` reconstructed from the T2 moment
+table. A structurally different reading of §4.3 is not excluded by it.
+
+### The finding worth keeping
+
+At coefficient 0 the finite-ground ladders spread **0.21–0.55 Ω** where PEC
+holds **0.002 Ω** — two orders worse. So razor's contact node IS internally
+inconsistent over a finite ground; it just is not §4.3's term.
+
+That is a **new instrument with a target**: a self-consistency residual, no
+binary required, that a correct contact-node fix must drive toward the PEC
+control's 1e-3. Stage 3 gets a gate it did not have.
+
 ## What this changes about Stage 3
 
-Stage 3 was scoped as "restore the term". It should be rescoped as **"resolve
-the grounded row's scale, of which the plane-reference term is one part"** —
-the two cannot be measured independently, and the term alone is not a fix.
+Stage 3 was scoped as "restore the term". The term is now measured and does
+not survive. Rescope to **"find what makes the grounded row inconsistent over
+a finite ground, gated on the stubbed ladder"** — with §4.3 recorded as
+tested and rejected, and the row-halving still untested and now the leading
+suspect, since it is exactly the kind of model-independent factor the
+soil-independent behaviour points at.
 
-Parity does not have to wait for that. §2 stands on its own: razor serves,
-bounded, at bspline's accuracy, today.
+Parity does not have to wait for any of it. §2 stands on its own: razor
+serves, bounded, at bspline's accuracy, today, with the term off.
