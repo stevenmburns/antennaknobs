@@ -329,14 +329,26 @@ same machine, minutes apart - only the engine changed:
 
 | engine | source current | max loop current (wires 2-6) |
 |---|---|---|
-| **NEC-5** (external, capture `0122`) | 1.0367 A | **1.0 x 10^-6 A** |
+| **NEC-5** (external, capture `0122`) | 1.0524 A | **0.4792 A** |
 | **NEC-2** (internal `EZCalcD_70_x64.EXE`) | **0.7325 A** | **162 A** |
 
 Both halves of Roy's QRZ post #11 claim land as stated: the source delivers **under
 1 A** while the small horizontal loop carries **over 150 A**. Between engines the loop
-current differs by a factor of **1.6 x 10^8**. Under NEC-5 the loop current is
-221 million times *smaller* than the feed current; under NEC-2 it is 221 times
-*larger*.
+current differs by a factor of about **338**. Under NEC-5 the loop carries roughly
+half the feed current (0.46x), which is legitimate through-current - charge
+distributed onto the loop by the 404 kV drive; under NEC-2 it is 221 times *larger*
+than the feed, which is the pathology.
+
+> **CORRECTION (2026-08-25).** As first written this table read `1.0 x 10^-6 A` for
+> the NEC-5 loop current, and claimed a `1.6 x 10^8` ratio. **Both were wrong.** The
+> figure was taken from the printout's **Wire Charge Densities** block, whose values
+> are C/m, mistaken for a row of the Wire Currents block above it. Re-derived from
+> capture `0122`'s own printout: vertical (tag 1) max 1.0524 A, loop (tags 2-6) max
+> **4.79204E-01 A**. The qualitative finding is unchanged - NEC-2 exhibits the
+> pathology and NEC-5 does not - but the magnitude was inflated by six orders of
+> magnitude. Quote the printout, never the display, and never a neighbouring block.
+> The corrected number agrees with `scratch/qrz-lfa-thread/README.md`, which reached
+> it independently, and with momwire's own run (loop 4.80727E-01 A, within 0.5%).
 
 This is consistent with Burke's attribution (quoted by Roy): quadrature error in the
 line integral of grad(phi) around the loop, growing as 1/f - hence the deliberate
