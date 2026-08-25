@@ -521,16 +521,88 @@ tend to a constant as h → 0, and that constant must be |2/(ε̃+1)|.** No bina
 no captured deck, six unknowns, milliseconds. That is a gate the fix can be
 written against directly, and it is the first thing in this arc that is one.
 
-## What this still does not say
+---
 
-- **The line of code.** The band is named and the magnitude is measured; the
-  assembly has not been read. That is the next step and it is now a targeted
-  read rather than a search.
-- Whether fixing the near-diagonal band also removes the moving ε_r pole and
-  the ~116 Ω plateau, or whether those are separate.
-- Whether the ~116 Ω plateau is one defect in both trunks or two of similar
-  size — bspline's band *is* stable here, which now argues they differ.
-- What the moving pole resonates *with*. It tracks radial length but not in
-  the direction a simple λ/√ε guided-wave story predicts (longer → *higher*
-  ε_r), so that reading does not fit as-is.
-- Exactly where a refusal predicate should sit, if refusal is still wanted.
+# SOLVED: `n_qp_sommerfeld = 3` under-resolves Q's source quadrature
+
+`--mode nqp`. Raw output in `RESULTS-nqp.txt`.
+
+## The mechanism
+
+With the band named, razor's assembly reads straight to it. The remainder Q
+rides the T1 window and is integrated **over each source segment with
+`n_qp_sommerfeld` Gauss points, default 3** (`razor.py`, the
+`n_qp_sommerfeld=3` constructor default).
+
+For a grazing horizontal pair the Q integrand has a **spike of width ~2h**
+where the observer sits over the source's image — 1.78 cm inside a 7.92 m
+segment, a relative width of 0.0022. Three Gauss points cannot see a feature
+that narrow, and the spike **sharpens as h → 0**. That is exactly the band,
+and exactly the height dependence, that `--mode matrix` measured.
+
+It is consistent with every earlier elimination, which is what made it worth
+testing rather than merely plausible:
+
+- The direct-grid bypass changed how each quadrature point's *surface* is
+  evaluated, **not how many points there are** — so exonerating the surfaces
+  said nothing about the order.
+- momwire#282 raised n_qp 3 → 12 at **contact** and moved 0.03 Ω. Not a
+  counterexample: contact is a *vertical* wire, its image is collinear, and
+  there is no spike to miss. That is also why this wasn't tried sooner.
+
+## The band collapses at n_qp = 6
+
+|ΔZ|/|PEC image| against the 0.0392 quasi-static limit:
+
+| n_qp | 3 | 6 | 12 | 24 | 48 | 96 |
+|---|---|---|---|---|---|---|
+| h/λ = 1e-3 | 0.0620 | 0.0457 | 0.0469 | 0.0474 | 0.0475 | 0.0475 |
+| h/λ = 1.09e-4 | **0.2357** | 0.0416 | 0.0419 | 0.0425 | 0.0433 | 0.0440 |
+
+The 4× excess is gone at n_qp = 6, landing on bspline's value.
+
+## End to end against the binary — 171.86 % → 1.44 %
+
+razor-nec5 on 0033, error as % of |Z|:
+
+| h/λ | n_qp=3 | 12 | 24 | 48 | 96 | 192 |
+|---|---|---|---|---|---|---|
+| 1.09e-4 | **171.86** | 61.02 | 44.15 | 26.05 | 9.87 | **1.44** |
+| 2e-4 | 239.54 | 31.86 | 19.18 | 7.74 | 1.32 | 0.08 |
+| 5e-4 | 230.91 | 10.02 | 3.24 | 0.37 | 0.05 | 0.05 |
+| 1e-3 | 44.18 | 2.52 | 0.28 | | | |
+| 3e-3 | 3.91 | 0.02 | 0.01 | | | |
+| 1e-2 | 0.06 | 0.01 | 0.01 | | | |
+
+**0033 and 0034 have been "divergent" for want of Gauss points.** #510 is a
+quadrature-**order** defect, entirely fixable, and nothing else in the
+elimination list has to be revisited.
+
+## The fix is a keying rule, not a global raise
+
+The order needed scales as the spike is narrow: h/Δ = 0.0103 wants ~48,
+h/Δ = 0.00225 wants ~192 — roughly
+
+> **n_qp ≈ 0.4 · Δ/h**
+
+the same shape momwire#443 already applied to the grid's boundary layer.
+**Keying is the design point.** 192 points on every pair would be ruinous, and
+the spike exists only where an observer sits over a source segment's
+near-coincident image — a per-pair or per-source-segment condition, not a
+global one.
+
+## What is left for the fix
+
+- Design and implement the keying (per-pair predicate + order rule), and pin
+  the cost. The reference-free acceptance test from the previous round is the
+  gate: |ΔZ|/|PEC image| → |2/(ε̃+1)| on the one-wire reproducer.
+- Whether bspline needs the same treatment. Its band is stable and its
+  near-diagonal ratio is right, so its own grazing error (the ~5 % basis floor
+  and the 82–136 Ω plateau) is probably a different and smaller story — but it
+  has not been measured with n_qp raised.
+- Whether the keying also removes the razor-only ε_r ≈ 3.1 pole. That pole was
+  measured at n_qp = 3 throughout and may simply be the same defect seen at a
+  half-space where it is worst.
+- The ~116 Ω conductive-ground plateau: same question.
+- The option-E *Honest limits* row, which was always independent of all of it —
+  and which may no longer be needed if the fix lands.
