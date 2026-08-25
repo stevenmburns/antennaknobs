@@ -1,0 +1,25 @@
+
+reference: unsplit 20-seg wire, 19 bases
+                                       66.842153 -33.721914j
+
+(b) one-segment wire junctioned at ONE end  [split at knot 1]
+  split, 1-seg tip piece               66.842153 -33.721914j   rel 2.707e-14 (19 bases)
+
+(a) one-segment wire junctioned at BOTH ends  [split at knots 8, 9]
+  split, 1-seg middle piece            66.842153 -33.721914j   rel 6.077e-15 (19 bases)
+  same, middle spelled backwards       66.842153 -33.721914j   rel 6.077e-15 
+  fed AT the 1-seg piece's junction    66.842153 -33.721914j   rel 4.180e-15 
+
+(c) one-segment wire junctioned at NEITHER end  [a free floater]
+  bases: 19 (the lone wire alone has 19)
+  n_basis_interior=19  junctions=0
+  dipole + inert 1-seg floater         66.842153 -33.721914j   rel 0.000e+00 <- vs the floater-free dipole
+  dipole + 2-seg floater               66.840760 -33.724045j   rel 3.401e-05 (20 bases)
+
+  BSplineSolver (degree 2) on the same three models:
+    floater absent         68.063196 -28.233123j   (20 bases)
+    1-seg floater          68.061689 -28.236102j   (21 bases)
+    2-seg floater          68.061689 -28.236102j   (22 bases)
+
+(d) corner: a triangle of three 1-seg wires (n_interior == 0)
+  solved: 63.794345-901.593538j  (3 bases; interior=0, junction tents=3)
