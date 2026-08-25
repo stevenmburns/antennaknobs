@@ -4,6 +4,40 @@
 `fix/510-grazing-quadrature-keying`. This is a **separate defect** from #510's
 and wants its own issue.
 
+> ## MECHANISM FOUND — read this first
+>
+> Later the same day, momwire#632. **The reading below is half right and the
+> half that is wrong is the framing.** Two of its three observations were
+> taken on 0033 and the third on the one-wire reproducer, and splitting those
+> two decks apart overturns the conclusion.
+>
+> - **"PEC converges" is 0033's column only.** On the bare grazing wire
+>   bspline's PEC control is 998.67 / 458.80 / 195.12 / 112.07 / 73.04 % at
+>   n = 4…32, where razor is 0.00 %. 0033's PEC looked healthy because its
+>   non-grazing vertical dominates Z and dilutes the radials.
+> - **The defect is grazing-keyed with no soil in the deck.** Free space is
+>   flat (1.21 % at n = 16 across six decades of height); the PEC column
+>   tracks that basis-error baseline to 3e-3 λ and then detonates to 195 %.
+>   So it reproduces over a **closed-form image** — no Sommerfeld surface, no
+>   interpolation grid, no soil.
+> - **Which is exactly why §3's entries looked right.** The band test's
+>   denominator is Z(`GN 1`) − Z(`GN -1`), so a broken image term sits in
+>   both halves of the ratio and divides out. The reference-free test is
+>   **blind to this defect by construction** — the one thing to carry
+>   forward, since the arc banked it as the candidate CI gate.
+> - **Source:** `_build_J_image_blocks` premises the image on being "always
+>   far enough from the original" and integrates every image pair at a fixed
+>   `n_qp_pair` (default 4). At grazing a segment's own image is 2h away —
+>   3.6 cm under a 2.48 m segment. Same defect *shape* as #510's, different
+>   code path.
+> - **It takes BOTH orders.** Image order alone plateaus at 152 %, remainder
+>   order alone at 306 %, both together reach 0.62 %. §1 below is therefore
+>   true as measured and wrong as evidence: it moved one of two broken terms.
+>
+> Fix obstacle: the C++ off-edge kernel refuses `n_qp > 8` ("scratch buffer
+> size"), so the working orders exist only in the numpy fallback. Not a
+> mechanical port of #630.
+
 ## Why it is separate
 
 #510's cause is razor's remainder source-quadrature order. With that keyed,
