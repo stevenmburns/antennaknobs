@@ -1,0 +1,13 @@
+contact monopole 5.3535 m, r=0.005 m, 14.0 MHz, base-fed
+
+delta = Z(soil) - Z(PEC); |diff| = |delta_momwire - delta_binary|
+
+soil        N |  |diff| d=1 (tent)   |diff| d=2 |              delta d=1           delta binary
+poor       11 |              2.912        2.915 |        1.252   -5.740j        3.689   -4.147j
+poor       21 |              3.141        3.151 |        1.279   -5.702j        3.865   -3.918j
+poor       41 |              3.262        3.269 |        1.294   -5.697j        3.944   -3.796j
+
+average    11 |              0.679        0.672 |       10.729   +0.021j       11.404   -0.053j
+average    21 |              0.958        0.963 |       10.776   -0.023j       11.627   +0.418j
+average    41 |              1.158        1.163 |       10.834   -0.068j       11.729   +0.667j
+
