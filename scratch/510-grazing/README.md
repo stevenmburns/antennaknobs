@@ -248,15 +248,63 @@ error rides on a correction that is only 1.7 Ω at 1e-2 λ, which is what makes
 that row 4.77×. razor's is the clean column, and it is clean precisely because
 razor over PEC is exact.)*
 
+---
+
+# The soil sweep — row-halving is out, the lossless dielectric is in
+
+`--mode soil`. Raw output in `RESULTS-soil.txt`. razor-nec5 only: bspline's
+~5 % basis error rides on the same correction and contaminates the ratio,
+while razor is exact over `GN 1` at every height, which is what makes the PEC
+baseline genuinely shared.
+
+The **complex** ratio Δ_momwire / Δ_true is what is read, not its magnitude. A
+model-independent scale factor is *real* and *constant in soil*; a
+mis-weighted physics term tracks ε̃ and wanders in phase.
+
+|Δ_mw/Δ_true| across the five golden half-spaces:
+
+| h/λ | sea | vgood | avg | poor | diel | arg spread |
+|---|---|---|---|---|---|---|
+| 1e-2 | 1.066 | 1.025 | 1.019 | 0.978 | 0.997 | 0.0 … 2.0° |
+| 3e-3 | 2.048 | 1.482 | 1.456 | 1.661 | 0.889 | −8.8 … 7.8° |
+| 1e-3 | 5.455 | 3.183 | 3.063 | 3.261 | 1.946 | −77.7 … 12.3° |
+| 1.09e-4 | 4.436 | 3.033 | 2.652 | 3.232 | **61.188** | −45.8 … 1.9° |
+
+**The control first:** at 1e-2 λ the correction is right on all five
+half-spaces (0.98–1.07, phase ≤ 2°). The floor is a property of **height**,
+not of any one soil.
+
+**Row-halving is ruled out.** Below the floor the overshoot is
+soil-*dependent* — 2.65× to 4.44× across the four conducting soils at the
+native height, phase wandering −16° to −57°. No single real constant describes
+that, so the model-independent-scale-factor lead inherited by analogy from
+#624 does not carry. It was worth testing and it is dead.
+
+**What replaces it: the lossless dielectric is catastrophic.** 61× at the
+native height against 2.6–4.4× for soils that conduct. It is also the one
+half-space whose *true* correction has a negative real part (−5.288 + 7.670j —
+a lossless dielectric lowers the resistance relative to a perfect image).
+momwire answers 110.7 + 559.2j to that.
+
+That is momwire#282 stage 2's signature seen from the other side: its
+half-space sweep found the contact discrepancy **peaking over a lossless
+dielectric** (4.36 Ω at ε_r ≈ 2.5) and falling monotonically as the ground
+became conductive — the measurement that killed "the missing resistance is a
+loss term". Same qualitative shape here, two decades larger.
+
+*Suggestive, not proven:* the two were measured on different geometries at
+different heights, and nothing here has walked the σ axis.
+
 ## What this does not yet say
 
-- **Which** scaling. "Q's contribution is 2.5× too large" is measured; the line
-  of code is not found. Row-halving is the leading suspect by analogy with
-  #624, and it is an analogy, not evidence.
-- Whether the overshoot factor is soil-dependent. Average only, so far — and
-  soil-independence is exactly what would confirm a model-independent scale
-  factor.
-- Whether the onset moves with mesh in the overshoot measure (experiment 1
+- **Which** scaling. "Q's contribution is ~2.5× too large on average soil" is
+  measured; the line of code is not found — and it is now known not to be a
+  single constant.
+- **The σ axis at grazing.** #282's kill used `--mode sigma` to show the
+  contact discrepancy falling monotonically to a floor as the ground became
+  conductive. The same sweep here would turn the lossless-dielectric
+  resemblance into evidence or kill it. This is the obvious next lever.
+- Whether the onset moves with mesh in the *overshoot* measure (experiment 1
   showed the raw error does, erratically).
 - Exactly where a refusal predicate should sit, if refusal is still wanted.
   These rungs bound it; they do not design it — and it cannot be bare height.
