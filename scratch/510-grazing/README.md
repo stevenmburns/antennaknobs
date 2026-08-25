@@ -362,17 +362,95 @@ pole. Clear of it at ε_r = 20 the trend *reverses* (26.6 → 116 Ω). The
 resemblance was an artifact of holding ε_r at 5, and the orthogonal sweep is
 what caught it.
 
+---
+
+# The pole moves, conditioning is innocent, one wire reproduces it
+
+## The pole is not a coefficient singularity — it moves with geometry
+
+`--radial-lens`. |err| in Ω at the native height, razor-nec5:
+
+| ε_r | 1.8 | 2.2 | 2.6 | 3.0 | 3.4 | 4.0 | 5.0 | 6.5 | 8.0 |
+|---|---|---|---|---|---|---|---|---|---|
+| L = 20 m | 21.5 | 29.4 | 36.1 | 41.9 | 46.9 | 53.4 | 62.1 | 72.0 | 79.5 |
+| L = 30 m | 61.5 | 89.4 | 117.2 | 145.5 | 175.2 | 223.7 | 322.8 | 557.7 | 1087.4 |
+| L = 39.6 m | 171.8 | 330.0 | 695.7 | **2480.3** | 1442.3 | 565.6 | 300.7 | 184.2 | 133.5 |
+| L = 60 m | 332.5 | 209.0 | 139.0 | 76.4 | 15.2 | 208.2 | **4217.2** | 948.2 | 640.5 |
+
+L = 39.6 peaks near ε_r 3.0, L = 60 near 5.0, and L = 20/30 show no peak below
+8 at all. **A coefficient singularity would sit at one ε̃ whatever the antenna
+is.** At L = 60, ε_r = 5 the solved impedance reaches 3600 + 2678j — an
+anti-resonance, an open circuit where the antenna has no business having one.
+
+## Conditioning is innocent — and inversely so
+
+`--mode cond`, wrapping `scipy.linalg.solve` (the per-class `_assemble_Z` hook
+was wrong twice: razor reaches its solve by more than one assembly path so it
+never fired, and bspline's returns a partial block whose cond came out
+identical at every ε_r — the tell that it wasn't the inverted matrix):
+
+| ε_r | 1.8 | 2.6 | 3.0 | **3.1** | 3.6 | 5.0 | 8.0 | 13.0 |
+|---|---|---|---|---|---|---|---|---|
+| razor cond | 442.2 | 109.3 | 78.33 | **73.26** | 60.23 | 82.95 | 126.2 | 1410 |
+| razor \|err\| | 171.8 | 695.7 | 2480.3 | **3343.9** | 939.6 | 300.7 | 133.5 | 63.9 |
+| bspline cond | 113.8 | 119.6 | 120.0 | 120.1 | 128.6 | 172.4 | 221.4 | 256.4 |
+
+The correlation is **inverse**. razor's operator is at its *best* conditioned
+(cond 73, σ_min 136) exactly where the error is *worst*, and at its worst
+(cond 1410) where the error is smallest. bspline's is smooth and featureless.
+
+**So the matrix is fine and its entries are wrong.** The anti-resonance is not
+rank loss. Ill-conditioning joins the interpolation lattice, the integration
+tolerance and row-halving on the list of things this is not.
+
+## One horizontal wire reproduces it — the reproducer is now 6 unknowns
+
+`--mode wire`. One 39.624 m horizontal wire, five segments, driven at node 2.
+No junction, no screen, no vertical.
+
+| h/λ | ε_r 2.5 | 3.0 | 3.1 | 5.0 | 13.0 |
+|---|---|---|---|---|---|
+| 1e-2 | 0.23 | 0.20 | 0.22 | 0.26 | 0.27 |
+| 1e-3 | 33.0 | 39.7 | 40.9 | 57.1 | 79.7 |
+| 1.09e-4 | 599.6 | 753.7 | 783.0 | 1283.9 | 3281.7 |
+
+(razor-nec5 |err| in Ω; ratio at 1e-2 is 0.996–1.005.)
+
+Clean at 1e-2 λ, broken below. **The reproducer drops from 24 unknowns to 6** —
+entry-by-entry diagnosis becomes tractable and a fix gets a millisecond unit
+test. It also confirms experiment 3 from the smallest possible model: **the
+horizontal wire alone is sufficient**; the screen and the junction are not part
+of the mechanism.
+
+Two cautions, banked with it:
+
+- The wire is far more sensitive than 0033 — Z over `GN 1` at the clean rung is
+  0.0395 − 1035.2j, a real part of 0.04 Ω — so the ground correction dwarfs the
+  PEC answer and bspline's own basis error is amplified with it. bspline is
+  35–39 Ω out even at the clean rung here, and its column is **not** readable
+  as basis-independent evidence.
+- razor **undershoots** here at 1e-3 (ratio 0.73–0.83) where on 0033 it
+  overshot 3.06×. The error's *sign* is geometry-dependent — a third reason no
+  single scale factor describes it.
+
+## Where the elimination stands
+
+Ruled out, each by measurement: the mesh · the junction · the drive spelling ·
+the seam's addressing · the interpolation lattice · the integration tolerance ·
+a model-independent scale factor (row-halving) · ill-conditioning /
+rank loss · a coefficient singularity at a fixed ε̃.
+
+What is left: **the assembled ground-correction entries themselves are wrong
+for grazing horizontal pairs**, additively and soil-independently on lossy
+ground, with a sign and a resonant structure that both depend on geometry.
+
 ## What this does not yet say
 
-- **Which line.** The defect is now characterized two ways — additive and
-  soil-independent on lossy ground, plus a razor-only pole at ε_r ≈ 3.1 — but
-  no line of code is identified. The pole is the sharpest lead: it is in
-  razor's assembly, not the Sommerfeld evaluation, and bspline does not have
-  it, so the two trunks' ground assembly can be diffed against each other.
-- Whether the ~116 Ω plateau is the *same* defect in both trunks or two that
-  happen to be similar in size (bspline's plateau across the fine window is
-  99–140 Ω, comparably sized).
-- Whether the pole moves with geometry (height, radial count, mesh) — which
-  would say what it is resonating with.
+- **Which line.** Still not identified — but the search space is now one wire,
+  six unknowns, and a matrix whose entries can be compared term by term.
+- Whether the ~116 Ω plateau is the same defect in both trunks or two of
+  similar size.
+- What the moving pole resonates *with*. It tracks radial length but not
+  monotonically in the direction a simple guided-wave story predicts
+  (longer → *higher* ε_r), so the obvious λ/√ε reading does not fit as-is.
 - Exactly where a refusal predicate should sit, if refusal is still wanted.
-  These rungs bound it; they do not design it — and it cannot be bare height.
