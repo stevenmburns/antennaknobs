@@ -578,3 +578,129 @@ gates everything; the server is the follow-on that makes the drop-in pleasant ra
 than merely possible.
 
 **Job 5 complete.**
+
+---
+
+# EZNEC capture session — 2026-08-25 (windows sitting 5, momwire#456 ws3)
+
+Plan: `WINDOWS-SESSION-5.local.md`. Two jobs as handed over; **Job B was not run** -
+see "Job B was already done" below. Engine binary untouched this trip.
+
+**Captures `0124`-`0182`** (59 this sitting; corpus now 183). Harness: `scripts/eznec_spy`, shim rebuilt from source,
+installed 22:53:32Z. Real engine archived to `NEC5CL_x13.real.exe`, sha256
+`4FFAC711...5A01D7C`, 10,804,224 bytes - same engine as sitting 4.
+
+Pre-flight: repo at `49eccf18c` / v0.58.0, momwire submodule fast-forwarded to
+`a1bbbe5` / v0.39.0. As in sitting 4, the calculating-engine selection did **not**
+persist across launches - EZNEC opened on `EZCalcD` and was re-pointed at
+`External NEC5`.
+
+## Job A — an NE grid with NY > 1
+
+Grid throughout: **NX=2, NY=3, NZ=4** - three deliberately different counts, so row
+order alone fixes the nesting with no ambiguity. Start (1,2,3), step (2,2,2), all
+points >=1 unit clear of the wire and >=3 above ground so the contact cell cannot
+swallow the capture. Emitted as `NE 0,2,3,4,1.,2.,3.,2.,2.,2.`, 24 rows.
+
+| # | capture | model | ground | FR | ms | rows |
+|---|---|---|---|---|---|---|
+| 1 | `0124` | `Vert1` | `GD 0` MININEC | 7.00 | 277 | 24 |
+| 2 | `0125` | `Vert1` | `GN 1` perfect | 7.00 | 24 | 24 |
+| 3 | `0126` | `Vert1` | `GN 1` perfect | 7.01 | 27 | 24 |
+| 4 | `0127` | `Vert1` | `GN 0` Sommerfeld | 7.02 | 333 | 24 |
+| 5 | `0128` | `Vert1` | `GN 0` Sommerfeld | 7.00 | 329 | 24 |
+| — | — | `Vert1` | free space | — | — | **refused, no launch** ("sources incorrectly placed", as sitting 4) |
+| 6 | `0129` | `Bydipole1` | `GN 0` Sommerfeld | 14.0 | 652 | 24 |
+| 7 | `0130` | `Bydipole1` | `GN -1` free space | 14.0 | 20 | 24 |
+
+`0124` / `0125` / `0128` are a **clean three-ground family**: identical `NE` card,
+identical `FR 7.`, differing only in the ground card. (`0126` and `0127` are the
+frequency-nudged runs taken on the way and are not byte-comparable to them.)
+`0130` supplies the free space that `Vert1` cannot produce.
+
+### RESULT — the X/Y/Z nesting is now confirmed against EZNEC's own engine
+
+The deliverable this trip existed for. Printed row order, `0124`:
+
+    X   Y   Z            X   Y   Z
+    1   2   3            1   2   5
+    3   2   3    ...     3   2   5
+    1   4   3            1   4   5
+    3   4   3            3   4   5
+    1   6   3            1   6   5
+    3   6   3            3   6   5
+
+**X varies fastest, then Y, then Z outermost** - exactly what `_serve.py:846-850`
+assumed. With counts 2/3/4 all distinct there is no alternative reading, and the
+feet-model captures (`0129`/`0130`) print the same order in converted metres
+(0.3048/0.9144 fastest, then 0.6096/1.2192/1.8288, then Z), so the nesting is a
+property of the card and not of the model's units.
+
+This retires the "no capture separates the Y nesting from the Z one - every captured
+grid is NY = 1" caveat in `_serve._grid_points`' docstring. The NE format family can
+now be gated against EZNEC's own engine rather than the linux oracle of 2026-08-21.
+
+## Job B — already done, not run
+
+The plan listed eleven bundled models as "still uncaptured" (`Byvee`, `15mquad`,
+`20m5elya`, `Nbsyagi`, `W8jk`, `Fdsp1`, `Legacy\Fdsp`, `K5rp`, `N4pcloop1`,
+`Legacy\N4pcloop`, `Legacy\Bydipole`). **All eleven were captured in sitting 4** and
+are on main: 0059/0060, 0063/0064, 0065/0066, 0067/0068, 0069/0070, 0075/0076,
+0077/0078, 0079/0080, 0081/0082, 0083/0084, 0061/0062 respectively. Sitting 4 reached
+every bundled model except `LAST.EZ`, so nothing in `Docs\Ant` was left to capture.
+
+Its side-asks were stale for the same reason: 3-D `XNDA 1001` captures stand at
+**7**, not 2, across three grid shapes (37x73, 19x73, 13x49).
+
+**Where the plan's numbers came from.** "16 distinct models across 62 deck files"
+describes **momwire's fixture corpus**, not this one - `momwire/tests/fixtures/eznec/`
+holds exactly 62 decks / 16 model slugs, highest index 0121. The capture corpus holds
+124 captures / 23 titles. So the models are not uncaptured; they are **captured but
+not promoted into momwire's fixtures**, and closing that gap is a desk task in
+momwire, not a trip to this box.
+
+Running Job B as written would have been ~22 launches re-answering closed questions.
+
+## The H field at NY > 1, and the format family closed
+
+| # | capture | model | card | rows | header |
+|---|---|---|---|---|---|
+| 8 | `0131` | `Bydipole1` | `NH 0,2,3,4,.3048,…` | 24 | `- - - NEAR MAGNETIC FIELDS - - -` |
+
+`NH` now exists at **both** NY=1 (`0111`, sitting 4) and NY>1 (`0131`), same as `NE`,
+so the H-field column presence, the `AMPS/M` units and the row counts can be gated
+across the same grid shapes as the electric family rather than at one shape only.
+
+Still true, and still the open item from sitting 4: momwire 0.35.0 refuses `NH` by
+name (momwire#513). These captures are its oracle whenever that is taken up.
+
+## Launch economics of a real SWR sweep — the engine is 10 % of it
+
+`Dipole1`, 51-point sweep, one launch per frequency point (`FR 300.`, `301.`, `302.`
+… each with an `XQ 0` tail). Captures `0132`-`0182`.
+
+| | |
+|---|---|
+| launches | 51 |
+| engine ms, min / median / max | 15 / 24 / 36 |
+| engine total | 1.27 s |
+| wall-clock span (first start to last finish) | 12.41 s |
+| per point | 243 ms |
+| **engine share of wall clock** | **10.3 %** |
+
+The median 24 ms sits inside sitting 4's 18-37 ms single-launch band, so the engine
+does not slow down under repetition. **The other ~220 ms per point is EZNEC's own
+work** - writing the deck, reading the printout, updating the plot - and it is paid
+no matter how fast the engine is.
+
+That puts a floor under any sweep and gives the client/server plan a concrete target:
+
+| engine per launch | projected 51-point sweep |
+|---|---|
+| real NEC-5 (24 ms) | ~12.4 s (measured) |
+| momwire one-dir frozen (~1,300 ms) | ~79 s |
+| a client/server momwire at ~30 ms | ~12.7 s - indistinguishable from the real engine |
+
+So the client/server shape does not need to be fast in absolute terms; it needs to
+get under EZNEC's own per-point overhead, at which point the difference stops being
+observable to the operator.
