@@ -25,6 +25,12 @@ Neuters the guard in an off-tree copy of `razor.py` (it is inline in
 package or its relative imports fail) and runs the split identity at the two
 knots that produce a one-segment piece.
 
+It runs against the tree **either side of #608** — before, one guard refuses
+all three cases; after, a narrowed one refuses only (c), and neutering its
+second condition is what re-opens (c). The banked output is from the fixed
+tree and is number-for-number what the pre-fix run gave, which is one more
+way of saying the fix touched no numerical path.
+
 The finding that settled it: cases (a) and (b) are **exact**, not
 approximate. A wire split at a knot is the same linear system with one basis
 re-labelled, so a split leaving a one-segment piece reproduces the unsplit
