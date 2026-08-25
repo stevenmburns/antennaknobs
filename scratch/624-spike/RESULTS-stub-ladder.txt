@@ -1,0 +1,77 @@
+stubbed monopole 5.3535 m, r=0.005 m, 14.0 MHz
+stub heights (m): 0.1, 0.03, 0.01, 0.003, 0.001
+feed on the RADIATOR's midpoint (stage-2 correction)
+
+CONTROL — PEC, where the restored term is identically zero.
+A flat ladder here is the harness certifying itself.
+
+   h=0.1       75.53731 +41.15998j
+   h=0.03      75.53662 +41.15883j
+   h=0.01      75.53631 +41.15834j
+   h=0.003     75.53620 +41.15819j
+   h=0.001     75.53617 +41.15816j
+   spread vs smallest stub: 2.15e-03 ohm
+
+
+average soil, refl-coef — ladder spread vs the term's coefficient
+
+    coeff |  spread (ohm) |         Z at smallest stub
+     0.00 |        0.2854 |     47.45227   +21.40700j
+     0.25 |        5.5811 |     47.79997   +21.69593j
+     0.40 |        9.2018 |     48.13508   +21.97655j
+     0.50 |       11.6310 |     48.45824   +22.24921j
+     0.75 |       17.1600 |     50.17835   +23.73496j
+     1.00 |        5.6720 |     65.89890   +40.63330j
+   -> flattest at coefficient 0.0
+
+average soil, sommerfeld — ladder spread vs the term's coefficient
+
+    coeff |  spread (ohm) |         Z at smallest stub
+     0.00 |        0.5513 |     96.82382   +39.72555j
+     0.25 |        2.6286 |     97.14810   +39.96443j
+     0.40 |        3.7994 |     97.43992   +40.19245j
+     0.50 |        4.5468 |     97.70348   +40.40969j
+     0.75 |        5.8317 |     98.85780   +41.50763j
+     1.00 |        2.4259 |    102.03817   +47.17797j
+   -> flattest at coefficient 0.0
+
+poor soil, refl-coef — ladder spread vs the term's coefficient
+
+    coeff |  spread (ohm) |         Z at smallest stub
+     0.00 |        0.4101 |     32.87362   +15.87695j
+     0.25 |        7.5569 |     33.23304   +16.19264j
+     0.40 |       12.6774 |     33.58351   +16.50076j
+     0.50 |       16.2327 |     33.92535   +16.80157j
+     0.75 |       24.9106 |     35.81192   +18.46661j
+     1.00 |        8.2091 |     61.35221   +41.85561j
+   -> flattest at coefficient 0.0
+
+poor soil, sommerfeld — ladder spread vs the term's coefficient
+
+    coeff |  spread (ohm) |         Z at smallest stub
+     0.00 |        0.2089 |     76.43531   +30.22034j
+     0.25 |        5.2047 |     76.80633   +30.49404j
+     0.40 |        8.2593 |     77.16079   +30.75881j
+     0.50 |       10.2672 |     77.49977   +31.01504j
+     0.75 |       14.7547 |     79.25755   +32.39277j
+     1.00 |        5.2301 |     92.19514   +45.77967j
+   -> flattest at coefficient 0.0
+ladder shape, poor soil / refl-coef
+  coeff 0.0:
+     h=0.1        32.89279  +15.46729j
+     h=0.03       32.89229  +15.51850j
+     h=0.01       32.87897  +15.69425j
+     h=0.003      32.87446  +15.82585j
+     h=0.001      32.87362  +15.87695j
+  coeff 0.4:
+     h=0.1        42.18157  +25.81683j
+     h=0.03       41.25455  +25.27166j
+     h=0.01       39.52698  +23.42576j
+     h=0.003      35.84029  +18.93376j
+     h=0.001      33.58351  +16.50076j
+  coeff 1.0:
+     h=0.1        61.72765  +46.39620j
+     h=0.03       61.98805  +48.76032j
+     h=0.01       62.08178  +50.03226j
+     h=0.003      61.96624  +48.10696j
+     h=0.001      61.35221  +41.85561j
