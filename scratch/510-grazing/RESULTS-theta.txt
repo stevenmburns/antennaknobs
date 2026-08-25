@@ -1,0 +1,59 @@
+0033's mesh — every pair's (R1, theta) against the shipped lattice
+lambda = 163.64 m, soil eps_r=13.0 sigma=0.005
+
+h/lambda = 0.000109   h = 0.017837 m   (325 pairs)
+   grid theta cells (deg), by R1 band:
+      R1  0.0000 .. 0.2000  lambda   theta0  0.0  dtheta 10.000
+      R1  0.0000 .. 0.2013  lambda   theta0 30.0  dtheta 10.000
+      R1  0.2000 .. 0.5148  lambda   theta0  0.0  dtheta 5.000
+      R1  0.2000 .. 0.5148  lambda   theta0 30.0  dtheta 10.000
+   queried theta: min 0.02579 deg, median 0.1153, max 90
+   pairs inside their band's FIRST theta cell: 210 / 325  (64.6 %)
+
+h/lambda = 0.001      h = 0.16364 m   (325 pairs)
+   grid theta cells (deg), by R1 band:
+      R1  0.0000 .. 0.2000  lambda   theta0  0.0  dtheta 10.000
+      R1  0.0000 .. 0.2013  lambda   theta0 30.0  dtheta 10.000
+      R1  0.2000 .. 0.5148  lambda   theta0  0.0  dtheta 5.000
+      R1  0.2000 .. 0.5148  lambda   theta0 30.0  dtheta 10.000
+   queried theta: min 0.2366 deg, median 1.058, max 90
+   pairs inside their band's FIRST theta cell: 210 / 325  (64.6 %)
+
+h/lambda = 0.003      h = 0.49093 m   (325 pairs)
+   grid theta cells (deg), by R1 band:
+      R1  0.0000 .. 0.2000  lambda   theta0  0.0  dtheta 10.000
+      R1  0.0000 .. 0.2013  lambda   theta0 30.0  dtheta 10.000
+      R1  0.2000 .. 0.5148  lambda   theta0  0.0  dtheta 5.000
+      R1  0.2000 .. 0.5148  lambda   theta0 30.0  dtheta 10.000
+   queried theta: min 0.7098 deg, median 3.171, max 90
+   pairs inside their band's FIRST theta cell: 210 / 325  (64.6 %)
+
+h/lambda = 0.01       h = 1.6364 m   (325 pairs)
+   grid theta cells (deg), by R1 band:
+      R1  0.0000 .. 0.2000  lambda   theta0  0.0  dtheta 10.000
+      R1  0.0000 .. 0.2013  lambda   theta0 30.0  dtheta 10.000
+      R1  0.2000 .. 0.5148  lambda   theta0  0.0  dtheta 5.000
+      R1  0.2000 .. 0.5148  lambda   theta0 30.0  dtheta 10.000
+   queried theta: min 2.365 deg, median 10.46, max 90
+   pairs inside their band's FIRST theta cell: 140 / 325  (43.1 %)
+
+h/lambda = 0.03       h = 4.9093 m   (325 pairs)
+   grid theta cells (deg), by R1 band:
+      R1  0.0000 .. 0.2000  lambda   theta0  0.0  dtheta 10.000
+      R1  0.0000 .. 0.2013  lambda   theta0 30.0  dtheta 10.000
+      R1  0.2000 .. 0.5148  lambda   theta0  0.0  dtheta 5.000
+      R1  0.2000 .. 0.5148  lambda   theta0 30.0  dtheta 10.000
+   queried theta: min 7.063 deg, median 23.66, max 90
+   pairs inside their band's FIRST theta cell: 0 / 325  (0.0 %)
+
+h/lambda = 0.1        h = 16.364 m   (325 pairs)
+   grid theta cells (deg), by R1 band:
+      R1  0.0000 .. 0.2000  lambda   theta0  0.0  dtheta 10.000
+      R1  0.0000 .. 0.2013  lambda   theta0 30.0  dtheta 10.000
+      R1  0.2000 .. 0.6460  lambda   theta0  0.0  dtheta 5.000
+      R1  0.2000 .. 0.6460  lambda   theta0 30.0  dtheta 10.000
+   queried theta: min 22.44 deg, median 54, max 90
+   pairs inside their band's FIRST theta cell: 0 / 325  (0.0 %)
+
+
+wrote /home/smburns/antennas/antennaknobs/scratch/510-grazing/510-theta.json

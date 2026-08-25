@@ -159,16 +159,104 @@ refusal predicate, if it is still wanted, cannot be bare height — a lone
 vertical at 1.09e-4 λ is exact and a height-keyed refusal would refuse it.
 It needs an orientation/extent term.
 
+---
+
+# Which part of the finite-ground path? Not the evaluation — the scaling.
+
+Probe: `momwire/scripts/probe_grazing_ground_path.py`, three modes. Raw output
+in `RESULTS-theta.txt` / `RESULTS-direct.txt` / `RESULTS-reflcoef.txt`.
+
+## A clean-looking hypothesis, measured and killed
+
+The grid's own layout comment names the premise 0033 breaks:
+
+> *The grazing band (region 0) keeps the 0.01-lambda spacing: there the layer
+> variable h = R1 sin(theta) stretches it out in R1, **no physical deck queries
+> small R1 at grazing (two points at grazing-small R1 means both are ON the
+> plane — radial screens, which are refused)***
+
+0033 **is** an elevated radial screen and it is **not** refused. And the
+mechanism behind the premise fails for it: h = R₁·sinθ "stretches out in R₁"
+for a general pair, but for two points both at a fixed grazing height it is
+pinned at z_s + z_o however large R₁ grows.
+
+`--mode theta` confirms the geometry exactly:
+
+| h/λ | 1.09e-4 | 1e-3 | 3e-3 | 1e-2 | 3e-2 | 1e-1 |
+|---|---|---|---|---|---|---|
+| median queried θ | 0.115° | 1.058° | 3.171° | 10.46° | 23.66° | 54° |
+| pairs in first θ cell | 64.6 % | 64.6 % | 64.6 % | 43.1 % | 0 % | 0 % |
+| razor-nec5 err% | 171.86 | 44.18 | 3.91 | 0.06 | 0.00 | 0.01 |
+
+The grazing band's θ cell is **10°** and at the native height the median query
+sits at **0.115°** — 87× inside the first cell — with the error tracking how
+deep into that cell the queries fall. A textbook interpolation-resolution
+story.
+
+**And it is wrong.** `--mode direct` removes the lattice entirely and
+evaluates the surfaces directly at rtol 1e-11:
+
+| h/λ | grid err% | direct err% | |
+|---|---|---|---|
+| 1.09e-4 | 435.18 | 435.23 | bspline |
+| 1.09e-4 | 171.86 | 172.08 | razor-nec5 |
+| 1e-3 | 44.18 | 44.19 | razor-nec5 |
+| 3e-3 | 3.91 | 3.91 | razor-nec5 |
+| 1e-2 | 0.06 | 0.06 | razor-nec5 |
+
+Identical to three figures. **The interpolation lattice is exonerated, and so
+is the integration tolerance** — direct evaluation *is* the grid's own fill
+function, swept two decades past production. The surfaces are evidently smooth
+enough in θ near zero that a cubic across 10° carries them.
+
+## Where it actually is
+
+`--mode reflcoef` forces the seam's ground kwargs to refl-coef with the deck,
+drive, mesh and route all held. refl-coef **does not track** sommerfeld here —
+which is where this parts company with #624's contact finding — and the gap
+grows exactly as the error does (razor-nec5, |Z_somm − Z_refl|): 10.0 Ω at
+1e-2 λ, 22.9 at 3e-3, 71.9 at 1e-3, **176.3 at 1.09e-4**. The two differ only
+by the remainder Q, so that gap *is* Q's contribution.
+
+The sharpest form — the **ground correction**, Z(`GN 0`) − Z(`GN 1`), which is
+what the finite ground is worth on top of a perfect image. razor over `GN 1`
+reproduces the binary to 0.00 % at every height, so the binary's PEC answer is
+a baseline both sides share exactly:
+
+| h/λ | true (binary) | momwire (razor) | overshoot |
+|---|---|---|---|
+| 1e-2 | 1.577 + 0.670j | 1.582 + 0.739j | **1.02×** |
+| 3e-3 | 3.084 + 8.700j | 3.391 + 13.009j | **1.46×** |
+| 1e-3 | 4.473 + 20.397j | 9.065 + 63.307j | **3.06×** |
+| 1.09e-4 | 13.900 + 61.346j | 82.971 + 144.743j | **2.65×** |
+
+**momwire over-computes the finite-ground correction by up to ~3× at grazing,
+and is exact at 1e-2 λ.** Backing refl-coef's undershoot out, Q is worth 176 Ω
+at the native height where it should be worth 71 Ω.
+
+So the defect is in **how Q is scaled or folded into the system, not in
+computing it**: its evaluation is verified correct by `--mode direct`, and its
+contribution is 2.5× too large regardless. That is a bounded, well-localized
+target rather than a formulation dead end.
+
+It also rhymes with #624's row-halving suspicion — a model-independent scale
+factor on a near-plane row — without contradicting experiment 3. Different
+geometric trigger, different symptom, possibly one defect family.
+
+*(bspline's overshoot column is not readable the same way: its own ~5 % basis
+error rides on a correction that is only 1.7 Ω at 1e-2 λ, which is what makes
+that row 4.77×. razor's is the clean column, and it is clean precisely because
+razor over PEC is exact.)*
+
 ## What this does not yet say
 
-- Whether the onset moves with the integrator's own accuracy setting — the
-  rtol / interpolation-grid axis `probe_contact_direct_remainder.py` found
-  *saturated at contact*. That is a different regime, so it has to be asked
-  again here. This is the next lever and the one that decides fix vs refuse.
-- Whether `refl-coef` breaks in the same place. #624 found refl-coef and
-  Sommerfeld behaving alike at contact; if they agree here too the remainder
-  is exonerated again and the shared machinery is the suspect. The deck route
-  cannot ask for refl-coef, so that needs a direct-solver lane.
-- Whether the onset moves with soil. Average only, so far.
-- Exactly where the refusal predicate should sit, if refusal survives the
-  rtol test. These rungs bound it; they do not design it.
+- **Which** scaling. "Q's contribution is 2.5× too large" is measured; the line
+  of code is not found. Row-halving is the leading suspect by analogy with
+  #624, and it is an analogy, not evidence.
+- Whether the overshoot factor is soil-dependent. Average only, so far — and
+  soil-independence is exactly what would confirm a model-independent scale
+  factor.
+- Whether the onset moves with mesh in the overshoot measure (experiment 1
+  showed the raw error does, erratically).
+- Exactly where a refusal predicate should sit, if refusal is still wanted.
+  These rungs bound it; they do not design it — and it cannot be bare height.
