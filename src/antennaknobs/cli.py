@@ -109,22 +109,6 @@ MOMWIRE_BASES = {
 # under any ground, and it exceeds an 8 GB memory cap by N≈800 grounded /
 # N≈1600 free) — see `/reference/solver` for the full guidance.
 MOMWIRE_BASIS_VARIANTS = {
-    # TODO(momwire#654 release): delete this entry and let `sinusoidal-galerkin`
-    # resolve through MOMWIRE_BASES as a bare class again.
-    #
-    # momwire#654 made `feed_model="point"` the solver's default, so binding it
-    # here is a no-op against the submodule — and NOT against the PINNED
-    # momwire, which is what a PyPI install and the Fly image resolve. The pin
-    # is `momwire==0.39.0`, which still defaults to the segment gap, so without
-    # this line those installs would answer `--engine momwire:sinusoidal-galerkin`
-    # with NEC's segment gap while every doc and label here calls it converged.
-    #
-    # VARIANTS are matched before BASES in `parse_engine_spec`, so this shadows
-    # the BASES entry of the same name and both spellings stay listed once.
-    # `test_the_galerkin_point_binding_is_deletable_once_the_pin_moves` is the
-    # self-firing tripwire: it is green while the pin reads 0.39.0 and fails the
-    # moment it is anything else, naming this comment.
-    "sinusoidal-galerkin": (SinusoidalGalerkinSolver, {"feed_model": "point"}),
     "bspline-d1": (BSplineSolver, {"degree": 1}),
     "razor-nec5": (RazorSolver, {"nec5_quadrature": True}),
 }

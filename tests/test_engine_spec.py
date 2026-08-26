@@ -95,12 +95,9 @@ def test_make_factory_binds_sinusoidal_galerkin():
 
     factory = make_engine_factory("momwire:sinusoidal-galerkin", _GROUND_UNSET)
     assert factory.func is MomwireEngine
-    # `feed_model` rides along while the pin fallback is in place — see
-    # `test_the_galerkin_point_binding_is_deletable_once_the_pin_moves`.
-    assert factory.keywords == {
-        "solver": SinusoidalGalerkinSolver,
-        "solver_kwargs": {"feed_model": "point"},
-    }
+    # A bare roster class again, now that the pin carries momwire#654's
+    # point-gap default and the explicit binding is gone.
+    assert factory.keywords == {"solver": SinusoidalGalerkinSolver}
 
 
 def test_parse_variant_binds_kwargs_and_hands_back_a_fresh_dict():
@@ -137,46 +134,27 @@ def test_the_galerkin_name_is_the_point_gap():
     """What replaced the `-converged` variant (momwire#654): one name, and it
     is the converged one.
 
-    Bound EXPLICITLY rather than inherited, which is the pin fallback and not
-    a preference — see the TODO in `cli.py`. momwire#654 made the point gap
-    the solver's default, but `momwire==0.39.0` (what a PyPI install and the
-    Fly image resolve) still defaults to the segment gap, so the binding is
-    what makes this name mean the same thing on every install.
+    INHERITED rather than bound, as of the momwire 0.40.0 pin. The name used
+    to carry an explicit `feed_model="point"` because the pinned 0.39.0 still
+    defaulted to the segment gap, so a PyPI install and the Fly image would
+    otherwise have answered this name with NEC's segment gap while every doc
+    and label here called it converged. The pin now carries the default and
+    the binding is gone; what this test still guards is that the name MEANS
+    the point gap, whichever side supplies it.
     """
     from momwire import SinusoidalGalerkinSolver
 
     name, kw = parse_engine_spec("momwire:sinusoidal-galerkin")
     assert name == "momwire"
-    assert kw == {
-        "solver": SinusoidalGalerkinSolver,
-        "solver_kwargs": {"feed_model": "point"},
-    }
+    assert kw == {"solver": SinusoidalGalerkinSolver}
+    # Inherited is only as good as what it inherits, so read the default off
+    # the installed class rather than trusting the pin string. This is the
+    # capability probe the tripwire deliberately was NOT — a probe was wrong
+    # while the submodule and the pin disagreed, and is right now they do not.
+    import inspect
 
-
-def test_the_galerkin_point_binding_is_deletable_once_the_pin_moves():
-    """Self-firing tripwire for `cli.py`'s TODO(momwire#654 release).
-
-    The explicit `feed_model="point"` binding exists only for the window in
-    which the PINNED momwire still defaults to the segment gap. Keyed on the
-    PIN STRING and not on a capability probe: the submodule already carries
-    the new default, so a probe would read "safe to delete" immediately and
-    this would never fire.
-    """
-    import re
-    import tomllib
-    from pathlib import Path
-
-    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
-    deps = tomllib.loads(pyproject.read_text())["project"]["dependencies"]
-    pin = next(
-        m.group(1) for m in (re.fullmatch(r"momwire==([\w.]+)", d) for d in deps) if m
-    )
-    assert pin == "0.39.0", (
-        f"the momwire pin moved to {pin}: if it now carries momwire#654's "
-        "point-gap default, delete the `sinusoidal-galerkin` entry from "
-        "MOMWIRE_BASIS_VARIANTS in cli.py (and this test) so the name "
-        "resolves through MOMWIRE_BASES as a bare class again."
-    )
+    signature = inspect.signature(SinusoidalGalerkinSolver)
+    assert signature.parameters["feed_model"].default == "point"
 
 
 def test_no_converged_variant_for_plain_sinusoidal():
