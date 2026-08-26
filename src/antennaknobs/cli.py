@@ -69,16 +69,26 @@ MOMWIRE_BASES = {
     "razor": RazorSolver,
 }
 
-# Roster variants: a basis name bound to solver kwargs. The `-converged` entry
-# is the feed-model axis (issue #640): the plain `sinusoidal-galerkin` keeps
-# NEC's segment-wide gap (NEC-compatible — reproduces NEC/EZNEC behaviour,
-# including the reactance walk with mesh density), while `-converged` opts
-# into the zero-width point gap that converges to the B-spline answer
-# (momwire#192) and is the recommended setting for near-open high-Q designs —
-# up to 992× tighter cross-basis agreement on the antennaknobs#478 class
-# (momwire#213). No such variant exists for plain `sinusoidal`: the point gap
-# has no collocation RHS (momwire#212), and the solver refuses it rather than
-# silently serving the segment gap.
+# Roster variants: a basis name bound to solver kwargs.
+#
+# There is no longer a `-converged` entry (momwire#654). It bound
+# `feed_model="point"`, which is now `SinusoidalGalerkinSolver`'s DEFAULT, so
+# the suffix meant nothing the plain name did not — and the point gap is what
+# you want: it converges to the B-spline answer (momwire#192), it is exactly
+# self-dual under the default centre readout, and it removes up to 992× of the
+# cross-basis disagreement on the antennaknobs#478 class (momwire#213).
+#
+# The comment here used to call the segment-gap configuration "NEC-compatible
+# — reproduces NEC/EZNEC behaviour". That overclaimed. NEC-2's formulation is
+# `sinusoidal`: the same three-term basis, the same POINT MATCHING, the same
+# segment gap. Galerkin-with-a-segment-gap reproduces NEC's reactance WALK,
+# because the walk comes from the source, but not NEC's formulation — it is a
+# control for isolating the testing axis, not a compatibility lane. For NEC
+# cross-checks use `momwire:sinusoidal`.
+#
+# The feed model itself is still a choice, and the web app is where it belongs:
+# the Sin-Galerkin backend's panel renders it as a toggle (issue #640). What
+# went is asking a CLI user to pick between two basis NAMES for it.
 #
 # `bspline-d1` is the degree axis, not the feed-model axis: same BSplineSolver
 # class as plain `bspline` (d=2) with `degree=1` bound, so an intra-family
@@ -99,10 +109,6 @@ MOMWIRE_BASES = {
 # under any ground, and it exceeds an 8 GB memory cap by N≈800 grounded /
 # N≈1600 free) — see `/reference/solver` for the full guidance.
 MOMWIRE_BASIS_VARIANTS = {
-    "sinusoidal-galerkin-converged": (
-        SinusoidalGalerkinSolver,
-        {"feed_model": "point"},
-    ),
     "bspline-d1": (BSplineSolver, {"degree": 1}),
     "razor-nec5": (RazorSolver, {"nec5_quadrature": True}),
 }
@@ -353,12 +359,10 @@ def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
     Forms: "pynec", "momwire",
-    "momwire:sinusoidal|sinusoidal-galerkin|sinusoidal-galerkin-converged|
-    bspline|bspline-d1|hmatrix|arrayblock|razor|razor-nec5". The `-converged`
-    variant is sinusoidal-galerkin with the point-gap feed model (issue
-    #640); `bspline-d1` is bspline with degree=1 bound (issue #821);
-    `razor-nec5` is razor with NEC-5's identified quadrature bound (see
-    MOMWIRE_BASES for `razor` itself). All three are in
+    "momwire:sinusoidal|sinusoidal-galerkin|bspline|bspline-d1|hmatrix|
+    arrayblock|razor|razor-nec5". `bspline-d1` is bspline with degree=1
+    bound (issue #821); `razor-nec5` is razor with NEC-5's identified
+    quadrature bound (see MOMWIRE_BASES for `razor` itself). Both are in
     MOMWIRE_BASIS_VARIANTS.
     """
     name, _, basis = spec.partition(":")
@@ -484,13 +488,12 @@ def cli(arguments=None):
                 nargs="+",
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
-                '"momwire[:sinusoidal|sinusoidal-galerkin|'
-                "sinusoidal-galerkin-converged|bspline|bspline-d1|"
-                'hmatrix|arrayblock|razor|razor-nec5]" or "pynec". '
-                "The -converged variant uses the point-gap feed model — "
-                "converges to the B-spline answer instead of reproducing "
-                "NEC's segment gap; recommended for near-open high-Q "
-                "designs. bspline-d1 is bspline with degree=1 (tent basis) "
+                '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
+                'bspline-d1|hmatrix|arrayblock|razor|razor-nec5]" or '
+                '"pynec". sinusoidal is NEC-2\'s own formulation; '
+                "sinusoidal-galerkin is the same basis tested variationally "
+                "and with the point-gap feed model. bspline-d1 is bspline "
+                "with degree=1 (tent basis) "
                 "instead of the default degree=2. razor is the NEC-5 "
                 "formulation twin (razor-blade testing on a tent basis); "
                 "razor-nec5 binds its identified quadrature and is the "
@@ -506,13 +509,12 @@ def cli(arguments=None):
                 default="momwire",
                 help="Simulation backend: momwire | "
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
-                "momwire:sinusoidal-galerkin-converged | "
                 "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
                 "momwire:arrayblock | momwire:razor | momwire:razor-nec5 | "
-                "pynec (default: momwire). The "
-                "-converged variant uses the point-gap feed model "
-                "(converges to the B-spline answer; recommended for "
-                "near-open high-Q designs). bspline-d1 is bspline with "
+                "pynec (default: momwire). sinusoidal is NEC-2's own "
+                "formulation; sinusoidal-galerkin is the same basis tested "
+                "variationally and with the point-gap feed model. "
+                "bspline-d1 is bspline with "
                 "degree=1 (tent basis) instead of the default degree=2. "
                 "razor is the NEC-5 formulation twin (razor-blade testing "
                 "on a tent basis) — use razor-nec5 (its identified "
@@ -537,9 +539,9 @@ def cli(arguments=None):
             action="store_true",
             help="Apply NEC's extended thin-wire kernel (the EK card) on the "
             "momwire engine (issue #849, needs momwire >= 0.26.0). Every "
-            "momwire basis serves it except sinusoidal-galerkin, which "
-            "refuses (momwire#246 — no EKSCX counterpart for its folded "
-            "testing shape); combining it with model_options "
+            "momwire basis serves it, sinusoidal-galerkin included since "
+            "momwire#246/#287/#299 implemented it on the Galerkin fill; "
+            "combining it with model_options "
             "use_singular_enrichment also refuses (momwire#271). Matters for "
             "fat wires (radius comparable to segment length). A "
             '"@file.nec" deck\'s own EK card is honoured too — either one '

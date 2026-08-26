@@ -1,6 +1,7 @@
 import argparse
 from types import MappingProxyType
 
+import numpy as np
 import pytest
 
 import antennaknobs as ant
@@ -98,36 +99,61 @@ def test_make_factory_binds_sinusoidal_galerkin():
     assert factory.keywords == {"solver": SinusoidalGalerkinSolver}
 
 
-def test_parse_converged_variant_binds_feed_model():
-    """`momwire:sinusoidal-galerkin-converged` is the point-gap feed model as
-    a roster variant (issue #640): same solver class, `feed_model="point"`
-    bound as solver kwargs. The kwargs are a fresh dict per parse so a caller
-    mutating them cannot poison the roster."""
-    from momwire import SinusoidalGalerkinSolver
+def test_parse_variant_binds_kwargs_and_hands_back_a_fresh_dict():
+    """A roster variant is a name bound to solver kwargs, and the kwargs are a
+    fresh dict per parse so a caller mutating them cannot poison the roster.
 
-    name, kw = parse_engine_spec("momwire:sinusoidal-galerkin-converged")
+    Written against `bspline-d1` because the variant it used to be written
+    against is gone: `sinusoidal-galerkin-converged` bound
+    `feed_model="point"`, which momwire#654 made the class default, so the
+    name bound nothing the plain name did not already mean. The two claims
+    here are about the VARIANT MECHANISM and outlive any one variant.
+    """
+    from momwire import BSplineSolver
+
+    name, kw = parse_engine_spec("momwire:bspline-d1")
     assert name == "momwire"
-    assert kw == {
-        "solver": SinusoidalGalerkinSolver,
-        "solver_kwargs": {"feed_model": "point"},
-    }
-    kw["solver_kwargs"]["feed_model"] = "mutated"
-    assert parse_engine_spec("momwire:sinusoidal-galerkin-converged")[1][
-        "solver_kwargs"
-    ] == {"feed_model": "point"}
+    assert kw == {"solver": BSplineSolver, "solver_kwargs": {"degree": 1}}
+    kw["solver_kwargs"]["degree"] = "mutated"
+    assert parse_engine_spec("momwire:bspline-d1")[1]["solver_kwargs"] == {"degree": 1}
 
 
-def test_make_factory_binds_converged_variant():
-    from momwire import SinusoidalGalerkinSolver
+def test_make_factory_binds_a_variants_kwargs():
+    from momwire import BSplineSolver
 
-    factory = make_engine_factory(
-        "momwire:sinusoidal-galerkin-converged", _GROUND_UNSET
-    )
+    factory = make_engine_factory("momwire:bspline-d1", _GROUND_UNSET)
     assert factory.func is MomwireEngine
     assert factory.keywords == {
-        "solver": SinusoidalGalerkinSolver,
-        "solver_kwargs": {"feed_model": "point"},
+        "solver": BSplineSolver,
+        "solver_kwargs": {"degree": 1},
     }
+
+
+def test_the_galerkin_name_is_the_point_gap_and_binds_nothing():
+    """What replaced the `-converged` variant (momwire#654).
+
+    The point gap is `SinusoidalGalerkinSolver`'s default now, so the plain
+    name reaches it with no kwargs bound — one name, meaning the same thing
+    through this CLI, both momwire portals and the library. Asserted on the
+    CONSTRUCTED solver rather than on the roster table, because "binds
+    nothing" is only the good news while the default is the thing worth
+    getting.
+    """
+    from momwire import SinusoidalGalerkinSolver
+
+    name, kw = parse_engine_spec("momwire:sinusoidal-galerkin")
+    assert name == "momwire"
+    assert kw == {"solver": SinusoidalGalerkinSolver}
+    assert "solver_kwargs" not in kw
+    assert (
+        SinusoidalGalerkinSolver(
+            wires=[np.array([(0.0, -0.25, 0.0), (0.0, 0.25, 0.0)])],
+            nsegs=11,
+            wavelength=1.0,
+            wire_radius=5e-4,
+        ).feed_model
+        == "point"
+    )
 
 
 def test_no_converged_variant_for_plain_sinusoidal():

@@ -126,8 +126,11 @@ describe("modelOptionsForRequest", () => {
       '"tikhonov_lambda":0.1,"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,' +
       '"enrichment_min_k":3}';
     expect(stock("sinusoidal")).toBe('{"n_qp_const":8}');
+    // "point" since momwire#654 made it the solver's default — the wire
+    // format still carries the value explicitly, so a request says which
+    // source ran regardless of which momwire the server has.
     expect(stock("sinusoidal-galerkin")).toBe(
-      '{"n_qp_const":8,"feed_model":"segment"}',
+      '{"n_qp_const":8,"feed_model":"point"}',
     );
     expect(stock("bspline")).toBe(BSPLINE_JSON);
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
@@ -194,7 +197,7 @@ describe("modelOptionsForRequest", () => {
           entry("sinusoidal-galerkin"),
           armed("sinusoidal-galerkin"),
         ),
-      ).toEqual({ n_qp_const: 8, feed_model: "segment", extended_kernel: true });
+      ).toEqual({ n_qp_const: 8, feed_model: "point", extended_kernel: true });
       // Singular enrichment: momwire#271. Sending both would be a refusal at
       // engine construction; the UI greys the pair out, and this is the lock
       // behind that.

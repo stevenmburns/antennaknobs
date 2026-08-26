@@ -33,19 +33,21 @@ family's own degree-1 case already uses:
   testing effects can be told apart — the full story is
   [momwire's chapter 15](https://momwire.dev/act-5/the-fourth-cell/).
   It also carries the one user-facing **feed-model choice**:
-  *NEC-compatible* (the default segment-wide gap — reproduces NEC/EZNEC
-  behaviour, including the reactance drift as the mesh refines) or
-  *Converged* (a zero-width gap — converges to the B-spline answer, exactly
-  reciprocal Y). In the workbench it is the "feed model" control in the
-  Sin-Galerkin slot's gear menu; on the CLI,
-  `momwire:sinusoidal-galerkin-converged`. Pick *NEC-compatible* when
-  cross-checking against NEC results, *Converged* on near-open high-Q
-  feeds (the workbench recommends it on the designs that need it —
-  momwire#213 measured it removing 992×/374× of the cross-basis
-  disagreement on `lazy_h`/`vbeam`, without reducing the mesh those
-  designs genuinely need). The plain `sinusoidal` solver offers no such
-  choice: a zero-width gap cannot be expressed under point matching
-  (momwire#212).
+  *Converged* (the default zero-width gap — converges to the B-spline
+  answer, exactly reciprocal Y) or *NEC-compatible* (a segment-wide gap —
+  NEC's own source, including the reactance drift as the mesh refines).
+  It is the "feed model" control in the Sin-Galerkin slot's gear menu, and
+  the workbench is the only place it is offered: the CLI and both momwire
+  portals carry one `sinusoidal-galerkin` name, and it is the converged
+  one (momwire#654). Reach for *NEC-compatible* when you want NEC's
+  source specifically — but for cross-checking against NEC, prefer
+  `momwire:sinusoidal`, which is NEC-2's whole formulation rather than
+  just its feed. *Converged* is what near-open high-Q feeds want, and the
+  workbench recommends it on the designs that need it — momwire#213
+  measured it removing 992×/374× of the cross-basis disagreement on
+  `lazy_h`/`vbeam`, without reducing the mesh those designs genuinely
+  need. The plain `sinusoidal` solver offers no such choice: a zero-width
+  gap cannot be expressed under point matching (momwire#212).
 
 Plus two **accelerated** solvers for large problems:
 
