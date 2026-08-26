@@ -89,7 +89,7 @@ describe("defaultOptsFor", () => {
   it("attaches bespoke panel state only for the entry that names that panel", () => {
     expect(defaultOptsFor(entry("bspline")).bspline).toEqual(BSPLINE_DEFAULT_OPTS);
     expect(defaultOptsFor(entry("bspline")).feedModel).toBeUndefined();
-    expect(defaultOptsFor(entry("sinusoidal-galerkin")).feedModel).toBe("segment");
+    expect(defaultOptsFor(entry("sinusoidal-galerkin")).feedModel).toBe("point");
     expect(defaultOptsFor(entry("sinusoidal-galerkin")).bspline).toBeUndefined();
     expect(defaultOptsFor(entry("sinusoidal")).bspline).toBeUndefined();
     expect(defaultOptsFor(entry("sinusoidal")).feedModel).toBeUndefined();
@@ -302,18 +302,22 @@ describe("backendDisplayLabel", () => {
     expect(withDegree("arrayblock", 1)).toBe("Array-block d=1");
   });
 
-  it('suffixes "(converged)" for the sin-galerkin panel with the point feed model', () => {
+  it('suffixes "(NEC gap)" for the sin-galerkin panel with the segment feed model', () => {
     const opts = defaultOptsFor(entry("sinusoidal-galerkin"));
     expect(
       backendDisplayLabel(entry("sinusoidal-galerkin"), {
         ...opts,
-        feedModel: "point",
+        feedModel: "segment",
       }),
-    ).toBe("Sin-Galerkin (converged)");
+    ).toBe("Sin-Galerkin (NEC gap)");
   });
 
-  it("stays plain for the sin-galerkin panel with the segment feed model", () => {
+  // The chip marks the DEVIATION, and which value that is flipped with
+  // momwire#654: the point gap is the solver's default now, so a plain chip
+  // is the converged one.
+  it("stays plain for the sin-galerkin panel with the default point feed model", () => {
     const opts = defaultOptsFor(entry("sinusoidal-galerkin"));
+    expect(opts.feedModel).toBe("point");
     expect(backendDisplayLabel(entry("sinusoidal-galerkin"), opts)).toBe(
       "Sin-Galerkin",
     );
@@ -362,10 +366,10 @@ describe("backendDisplayLabel", () => {
     expect(
       backendDisplayLabel(entry("sinusoidal-galerkin"), {
         ...defaultOptsFor(entry("sinusoidal-galerkin")),
-        feedModel: "point",
+        feedModel: "segment",
         extendedKernel: true,
       }),
-    ).toBe("Sin-Galerkin (converged) +EK");
+    ).toBe("Sin-Galerkin (NEC gap) +EK");
     // Refused by enrichment.
     expect(
       backendDisplayLabel(entry("bspline"), {

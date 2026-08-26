@@ -192,12 +192,15 @@ export type BackendOpts = {
   schema: Record<string, number>;
   bspline?: BSplineOpts;
   // Sin-Galerkin only (PANEL_SIN_GALERKIN, issue #640, momwire#192).
-  // "segment" = NEC-compatible (NEC's segment-wide gap — reproduces
-  // NEC/EZNEC behaviour, including the reactance walk with mesh density);
-  // "point" = Converged (zero-width gap — converges to the B-spline answer;
-  // recommended for near-open high-Q designs, momwire#213). Deliberately not
-  // offered on plain sinusoidal: the point gap has no collocation RHS
-  // (momwire#212), so that solver's roster entry names no panel.
+  // "point" = Converged (zero-width gap — converges to the B-spline answer,
+  // exactly reciprocal Y; the solver's default since momwire#654, and
+  // recommended for near-open high-Q designs, momwire#213); "segment" =
+  // NEC-compatible (NEC's own segment-wide gap, including the reactance walk
+  // with mesh density). "NEC-compatible" is a claim about the SOURCE and not
+  // about the formulation — for a NEC cross-check the whole formulation is
+  // the `sinusoidal` backend. Deliberately not offered on plain sinusoidal:
+  // the point gap has no collocation RHS (momwire#212), so that solver's
+  // roster entry names no panel.
   feedModel?: FeedModel;
   // NEC's extended thin-wire kernel — the `EK` card (issue #849, momwire >=
   // 0.26.0). Common to every momwire backend rather than panel-specific, so
@@ -218,9 +221,11 @@ export function defaultOptsFor(b: BackendEntry): BackendOpts {
     schema: Object.fromEntries(b.options_schema.map((f) => [f.key, f.default])),
   };
   if (b.panel === PANEL_BSPLINE) opts.bspline = { ...BSPLINE_DEFAULT_OPTS };
-  // The solver's own default; the gear menu recommends "point" (Converged)
-  // on near-open designs (#640).
-  if (b.panel === PANEL_SIN_GALERKIN) opts.feedModel = "segment";
+  // The solver's own default (momwire#654 made it the point gap), and the
+  // one the gear menu recommends on near-open designs (#640). Sent
+  // explicitly rather than left unset so the wire format says which source
+  // ran regardless of which momwire the server is carrying.
+  if (b.panel === PANEL_SIN_GALERKIN) opts.feedModel = "point";
   return opts;
 }
 
@@ -298,8 +303,11 @@ export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string 
     return `${b.label} d=${opts.bspline?.degree ?? BSPLINE_DEFAULT_OPTS.degree}${ek}`;
   // Surface the non-default feed model on the slot chip: two Sin-Galerkin
   // slots differing only in feed model must be tellable apart at a glance.
-  if (b.panel === PANEL_SIN_GALERKIN && opts.feedModel === "point")
-    return `${b.label} (converged)${ek}`;
+  // Which value IS the deviation flipped with momwire#654 — the point gap is
+  // the solver's default now, so a plain chip means converged and the chip
+  // that carries a suffix is the one asking for NEC's source.
+  if (b.panel === PANEL_SIN_GALERKIN && opts.feedModel === "segment")
+    return `${b.label} (NEC gap)${ek}`;
   return `${b.label}${ek}`;
 }
 
@@ -384,8 +392,10 @@ export function modelOptionsForRequest(
   }
   if (b.panel === PANEL_SIN_GALERKIN) {
     // feed_model only here: plain sinusoidal cannot carry the point gap
-    // (momwire#212) and must not receive the key at all.
-    out.feed_model = opts.feedModel ?? "segment";
+    // (momwire#212) and must not receive the key at all. The fallback is the
+    // solver's own default (momwire#654); a design saved before that default
+    // moved carries its own explicit value and is unaffected.
+    out.feed_model = opts.feedModel ?? "point";
   }
   // The extended thin-wire kernel travels as a model option (the server pulls
   // it back out of model_options and passes it as the named `extended_kernel=`

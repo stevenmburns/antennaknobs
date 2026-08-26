@@ -234,9 +234,8 @@ The `--engine` flag selects the solver:
 
 ```bash
 --engine momwire                 # momwire (default), default (B-spline) basis
---engine momwire:sinusoidal      # NEC-2-style three-term basis
---engine momwire:sinusoidal-galerkin            # same basis, Galerkin testing
---engine momwire:sinusoidal-galerkin-converged  # …with the converged feed model
+--engine momwire:sinusoidal      # NEC-2's own formulation (basis, testing and feed)
+--engine momwire:sinusoidal-galerkin            # same basis, Galerkin testing, converged feed
 --engine momwire:bspline         # B-spline Galerkin basis
 --engine momwire:bspline-d1      # …at degree 1 (bs1) — the cheapest d1-vs-d2 convergence check
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
