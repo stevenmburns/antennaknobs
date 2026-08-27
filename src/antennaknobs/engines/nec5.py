@@ -17,7 +17,9 @@ stage-1 dialect deltas vs NEC-2 that shape this module:
 - Input is near-free-format (comma/space separated); blanks inside a
   record are NOT zero-defaults.
 - ``GE I1 I2`` grew an error-check flag I2 (0 = default: check and stop
-  on errors).
+  on errors). Buried decks ride ``I2 = -1`` so the below-plane geometry
+  is accepted — the spelling the momwire#567 anchor captures pinned
+  against the binary's own printouts (the buried stage of this wrapper).
 
 The printout layout is not documented in the manual; the parsers below are
 pinned by captured printouts committed under ``tests/fixtures/nec5/``
@@ -204,8 +206,10 @@ class NEC5Engine(SimulationEngine):
                 spec.radius, spec.insulation_radius, spec.insulation_eps_r
             )
             self._material_lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
+        self._has_buried_wires = False
+        self._check_no_coincident_wires()
         if self.ground is not None:
-            self._check_geometry_above_ground()
+            self._check_geometry_against_ground()
 
     def _resolve_network_sources(self, network):
         """Map a build_network() spec onto NEC-5 edge sources — stage 4 of
@@ -328,25 +332,79 @@ class NEC5Engine(SimulationEngine):
             )
         raise ValueError(f"unrecognised ground spec: {ground!r}")
 
-    def _check_geometry_above_ground(self):
-        """NEC-5's ``GE 1`` ground demands no segment below z=0 and no wire
-        lying in the plane; a wire END at z=0 is the legal ground contact.
-        Refuse violations here, at construction, rather than letting the
-        binary's looser-than-documented checks decide (stage-1 lesson: it
-        ran a mid-segment wire crossing without complaint)."""
+    def _check_no_coincident_wires(self):
+        """Refuse geometrically coincident wires (same endpoint pair) BY
+        NAME. The N-coincident-rise bundle is momwire's crossing-serve
+        spelling — N coincident thin wires are deliberately a DIFFERENT
+        conductor than one wire there, exactly regularized at rho_eff =
+        sqrt(rho^2 + a^2) — but NEC-5 runs the overlap without complaint
+        and prints garbage (measured on the buried-radial catalog design:
+        3271-3374j ohm with a 2e+25 % radiated power, against the ~90 ohm
+        class its own detached-radial convention prints). Same philosophy
+        as the mid-span check: the wrapper refuses what the binary will
+        not."""
+        seen: dict[tuple, int] = {}
+        for i, w in enumerate(self._wires):
+            key = tuple(sorted((tuple(map(float, w.p0)), tuple(map(float, w.p1)))))
+            j = seen.get(key)
+            if j is not None:
+                raise NotImplementedError(
+                    f"wires {j + 1} and {i + 1} are geometrically "
+                    "coincident (identical endpoints): the N-coincident-"
+                    "rise bundle is momwire's crossing-serve spelling and "
+                    "NEC-5 prints garbage for it silently — de-duplicate "
+                    "the bundle, or use the detached-radial spelling "
+                    "NEC-5's own convention serves (the momwire#567 "
+                    "anchor deck class)"
+                )
+            seen[key] = i
+
+    def _check_geometry_against_ground(self):
+        """NEC-5's ground geometry rules, enforced at construction rather
+        than by the binary's looser-than-documented checks (the stage-1
+        lesson: it ran a mid-segment wire crossing without complaint).
+
+        Above the plane nothing changed. BELOW it is the buried stage:
+        wires wholly below z=0 (an end AT z=0 is legal, and is how a
+        buried screen meets a contact monopole) ride NEC-5's native
+        buried-wire support — the ``GE`` card's second field goes ``-1``
+        and the Sommerfeld ``GN 0`` card carries the medium, the exact
+        spelling the momwire#567 anchor captures pinned and banked
+        (momwire ``tests/golden_buried_anchor_nec5.py``: the binary
+        prints 90.051-70.731j for the four-radial anchor over
+        eps_r 13 / sigma 0.005). Three refusals remain, each a real
+        limit rather than an unpinned one:
+
+        * a wire crossing the plane MID-SPAN — the binary runs it
+          without complaint and prints garbage (stage-1 capture), so
+          the wrapper refuses what the binary will not;
+        * a wire lying IN the plane (both ends z=0);
+        * buried wires under the PEC ground — image theory has no
+          buried side; NEC-5's buried serve is its Sommerfeld path.
+        """
+        self._has_buried_wires = False
         for i, w in enumerate(self._wires):
             z0, z1 = float(w.p0[2]), float(w.p1[2])
-            if z0 < 0.0 or z1 < 0.0:
+            if (z0 < 0.0 < z1) or (z1 < 0.0 < z0):
                 raise NotImplementedError(
-                    f"wire {i + 1} dips below z=0: buried conductors are not "
-                    "served (NEC-5's GE 1 ground forbids them; a buried-wire "
-                    "stage would need GE -1 semantics pinned first)"
+                    f"wire {i + 1} crosses the ground plane mid-span: "
+                    "split it AT z=0 — NEC-5 runs a straddling wire "
+                    "without complaint and prints garbage (stage-1 "
+                    "capture), so the wrapper refuses it outright"
                 )
             if z0 == 0.0 and z1 == 0.0:
                 raise ValueError(
                     f"wire {i + 1} lies in the ground plane (z=0), which "
-                    "NEC-5's GE 1 ground forbids"
+                    "NEC-5's ground forbids"
                 )
+            if z0 < 0.0 or z1 < 0.0:
+                if self.ground[0] != "finite":
+                    raise NotImplementedError(
+                        f"wire {i + 1} dips below z=0: NEC-5 serves buried "
+                        "conductors only over its Sommerfeld ground — use "
+                        "ground=('finite', eps_r, sigma), not PEC"
+                    )
+                self._has_buried_wires = True
 
     def _ground_lines(self) -> tuple[str, list[str]]:
         """(GE line, GN lines) for the current ground spec.
@@ -364,8 +422,11 @@ class NEC5Engine(SimulationEngine):
         _, eps_r, sigma = self.ground
         # FMUR/FMUI are written explicitly (free space's mu) so the NOFILE
         # token cannot be misread into the permeability fields — the file
-        # name is positional after F4.
-        return "GE 1 0", [
+        # name is positional after F4. GE's second field is -1 exactly when
+        # the deck carries buried wires — the momwire#567 anchor spelling —
+        # and stays 0 for the served-since-stage-1 above-ground decks.
+        ge = "GE 1 -1" if self._has_buried_wires else "GE 1 0"
+        return ge, [
             f"GN 0 0 0 0 {_num(eps_r)} {_num(sigma)} {_num(1.0)} {_num(0.0)} NOFILE"
         ]
 
