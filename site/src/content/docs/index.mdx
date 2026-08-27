@@ -25,17 +25,18 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.58.0" icon="star">
-  **Antennas that graze the ground.** momwire 0.39.0 closes a defect that
-  made wires very close to a real earth — elevated radial systems, ground
-  screens, low horizontal runs — diverge instead of converge. Two captured
-  radial systems that were 275 Ω and 188 Ω away from their reference
-  printouts now land 12.3 Ω and 5.2 Ω away, with the pattern peak in
-  exactly the right direction, and two different meshes of the same
-  antenna agree with each other to 0.6 Ω where they used to be 100 Ω
-  apart. Both solver lanes are fixed, so the second opinion is a real
-  one. The [solver guide](/reference/solver/#honest-limitations) has the
-  numbers and names what still refuses.
+<Card title="New in v0.59.0" icon="star">
+  **One name for the converged Galerkin solver.** The
+  `sinusoidal-galerkin-converged` engine name is gone: the zero-width feed
+  it selected is now the solver's own default, so plain
+  `sinusoidal-galerkin` means what the suffixed name used to. On near-open
+  high-Q feeds — the `wire.lazy_h` and `wire.vbeam` class — that removes two
+  to three orders of magnitude of apparent disagreement between solver
+  bases, and you no longer have to know to ask for it. **If you have a
+  script or a saved slot spelling `-converged`, drop the suffix**; NEC's
+  segment-wide gap survives as a feed-model control in the web panel for
+  when reproducing NEC's mesh walk is the point. Details in the
+  [CLI reference](/reference/cli/#choosing-an-engine).
 </Card>
 
 ## The whole pitch, in one line

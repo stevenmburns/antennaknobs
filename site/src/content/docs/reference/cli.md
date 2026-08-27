@@ -245,14 +245,21 @@ The `--engine` flag selects the solver:
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
 ```
 
-The `-converged` variant swaps the sinusoidal-Galerkin solver's NEC-style
-segment-wide gap for a zero-width one: the impedance converges to the
-B-spline answer instead of reproducing NEC's mesh-dependent reactance
-drift. Use the plain form when cross-checking against NEC/EZNEC results;
-use `-converged` on near-open high-Q feeds (`wire.lazy_h`, `wire.vbeam`
-class), where it removes two to three orders of magnitude of the apparent
-disagreement between solver bases — see
-[Solvers & accuracy](/reference/solver/) for the details.
+**There is no `-converged` suffix any more** (momwire#654). It bound a
+zero-width gap in place of the sinusoidal-Galerkin solver's NEC-style
+segment-wide one, and that zero-width gap is now the solver's own default —
+so the plain `sinusoidal-galerkin` name means what the suffixed one used to,
+and a command line carrying the old spelling should simply drop it. The
+impedance converges to the B-spline answer instead of reproducing NEC's
+mesh-dependent reactance drift, which is worth two to three orders of
+magnitude of apparent cross-basis disagreement on near-open high-Q feeds
+(`wire.lazy_h`, `wire.vbeam` class).
+
+If you specifically want NEC's segment-wide gap back — cross-checking against
+a NEC or EZNEC result, where reproducing the mesh walk is the point — it
+survives as a solver option rather than a roster name: pick it from the web
+panel's feed-model control, or pass `feed_model="segment"` when constructing
+the solver yourself. See [Solvers & accuracy](/reference/solver/).
 
 `razor` and `razor-nec5` are the same RazorSolver class — a tent basis
 tested by NEC-5's own razor-blade (mixed-potential path) rule, transcribed
