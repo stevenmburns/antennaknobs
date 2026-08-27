@@ -291,14 +291,20 @@ model; the default solver is unaffected.
 **Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
 plane — buried radials and screens, buried fed elements, elevated feeds over
 buried counterpoises — serve **impedance, currents and charges** on the
-`bspline` lane over the Sommerfeld ground. The capability is deck-level
-today: imported decks bring their own segmentation and solve directly, while
-the design builder does not yet author buried geometry (in-medium
-auto-meshing is
+`bspline` lane over the Sommerfeld ground. Since momwire 0.41.0 a wire may
+also **cross the interface at a declared junction**: a buried wire whose end
+stands in the ground plane, junction-joined there to one above-ground wire
+(one above × N below, so a connected radial screen spells as N rises meeting
+the monopole at the surface, and a buried hub joining the radials at depth
+is allowed). The [design catalog](/reference/catalog/) now authors buried
+geometry directly — a buried-radial vertical, an elevated counterpoise over
+buried radials, and a buried dipole — with their own in-medium meshing
+(medium-aware auto-meshing in the builder at large remains
 [antennaknobs#983](https://github.com/stevenmburns/antennaknobs/issues/983)).
-What still refuses does so by name: a wire crossing the interface, a
-ground-contact wire combined with buried wires, and near fields or patterns
-of buried decks. Validation below ground is deliberately engine-independent —
+What still refuses does so by name: a wire crossing the interface mid-span,
+a ground-contact wire combined with buried wires (the rise respelling is
+the served path), and near fields or patterns of buried decks. Validation
+below ground is deliberately engine-independent —
 the NEC family's buried-conductor weakness is documented publicly
 (LLNL-TR-490316; corroborated in our licensed materials, details in private
 notes) — so the gates are exact identities (the lossless-limit collapse onto
@@ -307,8 +313,10 @@ ladder-limit agreement at the half-percent class on the radial and
 counterpoise classes, with the with/without-radials coupling differential
 matching to about a milliohm; no engine numbers are quoted for fully buried
 fed elements. One cost note: a deck's first buried solve builds its
-below-interface Sommerfeld tables — a minute or two today (accelerated fills
-are momwire#568).
+below-interface Sommerfeld tables (C++-accelerated since momwire 0.39.0,
+and cached on disk thereafter); crossing-junction pairs use a direct
+designed evaluation whose C++ twin landed in momwire 0.41.0, so a
+crossing-class solve runs in seconds warm.
 
 {/* TODO: embed the benchmark plots once generated, and a parity/differentiator
      table vs PyNEC / 4nec2 / EZNEC / AN-SOF from the market-research doc. */}

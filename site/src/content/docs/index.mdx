@@ -25,18 +25,19 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.59.0" icon="star">
-  **One name for the converged Galerkin solver.** The
-  `sinusoidal-galerkin-converged` engine name is gone: the zero-width feed
-  it selected is now the solver's own default, so plain
-  `sinusoidal-galerkin` means what the suffixed name used to. On near-open
-  high-Q feeds — the `wire.lazy_h` and `wire.vbeam` class — that removes two
-  to three orders of magnitude of apparent disagreement between solver
-  bases, and you no longer have to know to ask for it. **If you have a
-  script or a saved slot spelling `-converged`, drop the suffix**; NEC's
-  segment-wide gap survives as a feed-model control in the web panel for
-  when reproducing NEC's mesh walk is the point. Details in the
-  [CLI reference](/reference/cli/#choosing-an-engine).
+<Card title="New in v0.60.0" icon="star">
+  **Radials in the dirt.** Three catalog designs put conductors where real
+  installations put them — below the surface: a ground-mounted quarter-wave
+  vertical over a **buried radial screen** (the classic base-fed 40 m
+  vertical, radials actually in the ground), an elevated-feed vertical over
+  a buried counterpoise, and a wholly buried dipole. Under the hood this
+  adopts momwire 0.41.0: the interface-**crossing junction** (a monopole
+  meeting its buried screen at the surface) is served exactly over the
+  Sommerfeld ground, and its kernels gained a C++ twin, so crossing-class
+  solves run in seconds. Solve them with a finite ground, e.g.
+  `--ground finite:13,0.005` — details and honest caveats in the
+  [design catalog](/reference/catalog/) and the
+  [solver reference](/reference/solver/).
 </Card>
 
 ## The whole pitch, in one line
