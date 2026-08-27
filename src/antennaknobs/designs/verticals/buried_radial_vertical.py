@@ -201,7 +201,16 @@ class Builder(AntennaBuilder):
             x = radial * (0.0 if abs(c) < 1e-15 else c)
             y = radial * (0.0 if abs(s) < 1e-15 else s)
 
-            tups.append(Wire((x, y, -depth), hub))
+            # HUB FIRST, deliberately. The polyline walk starts new walks
+            # at boundary nodes in registration order; a tip-first FIRST
+            # radial registers its tip as node 0 and gets walked tip->hub
+            # while the siblings walk hub->tip — and mesh interpolation is
+            # not direction-symmetric in the last bits, so the screen's
+            # fourfold mirror breaks and the crossing fill's exact-triple
+            # memo loses its ~4x dedup (momwire#688's census measured the
+            # miss on this very deck). Hub-first makes every radial leave
+            # the hub, so the +/-x and +/-y meshes are exact negations.
+            tups.append(Wire(hub, (x, y, -depth)))
             if not detached:
                 # This radial's rise to the node. Coincident with every
                 # other radial's rise by construction — see the module
