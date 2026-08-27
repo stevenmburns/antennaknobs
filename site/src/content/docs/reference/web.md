@@ -341,8 +341,11 @@ of the apparent disagreement between solver bases (momwire#213). What it does
 **not** do is reduce the mesh such a design needs — budget fine segments
 either way; see
 [the near-open feed](/advanced/convergence/#the-four-ways-a-curve-refuses-to-settle).
-A slot running the non-default setting is labelled **Sin-Galerkin
-(converged)**, so two Sin-Galerkin slots stay tellable apart at a glance.
+A slot running the non-default setting carries a suffix on its chip, so two
+Sin-Galerkin slots stay tellable apart at a glance — and **which value is the
+deviation flipped with momwire#654**. The point gap is the solver's default
+now, so a plain **Sin-Galerkin** chip is the converged one and the chip
+reading **Sin-Galerkin (NEC gap)** is the slot asking for NEC's source.
 
 No other engine carries the control: the plain **Sinusoidal** solver cannot
 express a zero-width gap under point matching (momwire#212), and the B-spline
