@@ -44,11 +44,13 @@ makes it a junction. The upper bound of 4 is the fan widening's own
 adjudicated bank.
 
 The screen is spelled as N coincident rises (one per radial) rather than
-one shared rise: at rho = 0 the mutual is the self under the same
-rho_eff regularization, so the two spellings are the same conductor, and
-momwire gates them against each other. The coincident spelling is the one
-this framework can express, because a shared rise would again leave the
-node at degree 2.
+one shared rise, because a shared rise would again leave the node at
+degree 2. The two spellings are NOT interchangeable: a bundle of N
+coincident thin wires is a different conductor than one wire of the same
+radius (momwire's fan-widening adjudication measured the two spellings
+several ohms apart on the same screen — they are two structures, never
+gated against each other), so this design is the N-rise structure
+specifically: the model of N radials each brought up to the base plate.
 
 FEED. The house eps-gap idiom, verbatim: a short driven wire at the foot
 of the radiator with the radiator stacked on top. That is the physically
