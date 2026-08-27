@@ -31,19 +31,41 @@ _logger = logging.getLogger(__name__)
 
 
 def _parity_for_solver(solver, solver_kwargs):
-    """The basis types have fixed parity expectations:
+    """Where each basis wants a mid-wire attachment to land:
       - BSplineSolver degree=1 → tent basis, even (feed straddles 2 segs)
       - BSplineSolver degree=2 → quadratic → odd
       - SinusoidalSolver → odd
       - SinusoidalGalerkinSolver → odd (same basis, Galerkin testing)
       - RazorSolver → even (also a tent basis, like BSplineSolver degree=1 —
         see below)
-    Anything else falls through as "any" (no coercion)."""
+    Anything else falls through as "any" (no coercion). `PulseSolver` is in
+    that fall-through today and would want "odd" if it ever joined the roster
+    (`cli.py` keeps it off `--basis`): a pulse row IS a segment, so it has no
+    sub-grid position at all and a midpoint feed on an even count lands
+    exactly between two cells.
+
+    These are not all requirements of the same strength, and momwire#623
+    measured the difference. A family that resolves a feed by snapping to its
+    own grid is QUANTISED — the port physically moves half a cell when the
+    request lands between two, worth 8-24 % of Z on an asymmetric deck. A
+    family that excites the arclength it was given is not: `BSplineSolver`
+    never snaps at all, and `SinusoidalGalerkinSolver` under
+    `feed_model="point"` (momwire#654's default) carries the remainder in
+    `feed_xi` and lands within 1e-9 of the no-snap answer either way.
+
+    So for `SinusoidalSolver`, `RazorSolver` and the d=1 tent the coercion is
+    a CORRECTNESS requirement, and for `SinusoidalGalerkinSolver` under the
+    default feed model it is a strong PREFERENCE — accuracy at the segment
+    centre, and the mesh comparability the note below is about. It goes back
+    to being a requirement under `feed_model="segment"`, which the web
+    adapter exposes as a knob, so this coerces under both and does not read
+    the feed model to decide."""
     name = getattr(solver, "__name__", "")
     if name in ("SinusoidalSolver", "SinusoidalGalerkinSolver"):
         # SinusoidalGalerkinSolver subclasses SinusoidalSolver — same three-term
-        # basis and the same delta-gap feed, so it inherits the odd-segment
-        # rule. Load-bearing for the whole point of the class: the basis ×
+        # basis, so it inherits the odd-segment rule even though its default
+        # point gap could honour any arclength. Load-bearing for the whole
+        # point of the class: the basis ×
         # testing instrument (momwire#182) only reads cleanly when the two
         # sinusoidal cells differ in exactly ONE thing (the testing), and a
         # parity fall-through to "any" would have them differ in the mesh too.

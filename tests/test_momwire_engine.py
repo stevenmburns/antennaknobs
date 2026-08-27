@@ -1312,6 +1312,34 @@ def test_momwire_sinusoidal_galerkin_parity_matches_sinusoidal():
     )
 
 
+def test_momwire_sinusoidal_galerkin_parity_ignores_the_feed_model():
+    """The coercion holds under BOTH feed models, for two different reasons.
+
+    Under `feed_model="segment"` the gap is spread over one whole segment and
+    an odd count is a CORRECTNESS requirement: a midpoint feed on an even
+    count lands between two cells and the port moves half a cell, which
+    momwire#623 measured at 21 % of Z on an asymmetric deck. Under the
+    default `"point"` it is a strong PREFERENCE — the gap honours the exact
+    arclength either way (momwire#648's `feed_xi`, within 1e-9 of the
+    no-snap answer), so what is left is accuracy at the segment centre and
+    the mesh comparability the sibling test above is about.
+
+    Pinned because the docstring now says "preference" out loud, and the next
+    reader's obvious move is to stop coercing under the default. The web
+    adapter exposes `feed_model` as a knob, so both settings are reachable
+    and neither may build a different mesh from the other.
+    """
+    from momwire import SinusoidalGalerkinSolver
+
+    from antennaknobs.engines.momwire import _parity_for_solver
+
+    for feed_model in ("point", "segment"):
+        assert (
+            _parity_for_solver(SinusoidalGalerkinSolver, {"feed_model": feed_model})
+            == "odd"
+        )
+
+
 def test_momwire_sinusoidal_galerkin_capability_gates():
     """Reads momwire's own `capabilities` registry (momwire#396), both
     directions.
