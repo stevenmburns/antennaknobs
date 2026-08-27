@@ -25,19 +25,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.60.0" icon="star">
-  **Radials in the dirt.** Three catalog designs put conductors where real
-  installations put them — below the surface: a ground-mounted quarter-wave
-  vertical over a **buried radial screen** (the classic base-fed 40 m
-  vertical, radials actually in the ground), an elevated-feed vertical over
-  a buried counterpoise, and a wholly buried dipole. Under the hood this
-  adopts momwire 0.41.0: the interface-**crossing junction** (a monopole
-  meeting its buried screen at the surface) is served exactly over the
-  Sommerfeld ground, and its kernels gained a C++ twin, so crossing-class
-  solves run in seconds. Solve them with a finite ground, e.g.
-  `--ground finite:13,0.005` — details and honest caveats in the
-  [design catalog](/reference/catalog/) and the
-  [solver reference](/reference/solver/).
+<Card title="New in v0.61.0" icon="star">
+  **Both engines, both conventions.** The buried-radial vertical now drives
+  through a licensed local NEC-5 too: the wrapper serves **buried decks**
+  (NEC-5's native `GE 1,-1` + Sommerfeld support), and the design grows a
+  `detached` variant — the **stake convention**, radials lying in the dirt
+  touching nothing — which is the spelling NEC-5's own junction convention
+  serves. momwire solves the default connected screen and refuses
+  `detached`; NEC-5 solves `detached` and refuses the default's coincident
+  bundle — each refusal names the variant the other engine serves, because
+  the two conventions are **two different antennas**, tens of ohms apart.
+  Also: `--engine nec5` finally shows itself in the CLI help (it was
+  always there, gated on `$NEC5_EXE`), and the buried catalog designs now
+  declare their ground — the web app auto-selects finite + Sommerfeld on
+  load instead of walking you into a refusal. NEC-5 stays strictly local
+  (pip users with their own licensed binary; the hosted simulator never
+  ships it) — see [NEC-5 as a third engine](/reference/nec5/).
 </Card>
 
 ## The whole pitch, in one line

@@ -63,15 +63,29 @@ frequencies into a single run using NEC-5's linear `FR` stepping.
 | --- | --- |
 | Impedance, currents, frequency sweeps | served |
 | Grounds | free space, PEC, and NEC-5's **native Sommerfeld** (`("finite", eps_r, sigma)`) |
+| Buried wires | served (v0.61.0) over the Sommerfeld ground — wholly-below wires ride NEC-5's native buried support (`GE 1,-1` + `GN 0`), and an end standing **at** `z = 0` is the legal contact that joins a monopole to its detached screen |
 | Radiation patterns | served (`compare_patterns`, the web far-field views) |
 | Feeds | plain `Wire.ex`, network `Driven`, and `DrivenCurrent` via NEC-5's **native current source** (`EX 4` — NEC-2 has no equivalent) |
 | Loads | `Load` branches (fixed-Z and series/parallel RLC) at the port |
 | Wire material | conductor loss natively; insulation via the same distributed-inductance emulation momwire uses — NEC-5 dropped NEC-4's insulated-wire card |
 | Power budget | input/radiated/wire-loss/efficiency, plus hemisphere average gain (the ground-absorption readout) |
-| Transmission lines, two-ports, `ql`/`qc` loads, distributed ports, buried wires | **refuse loudly**, each naming what is unsupported |
+| Transmission lines, two-ports, `ql`/`qc` loads, distributed ports | **refuse loudly**, each naming what is unsupported |
+| Ground-geometry refusals | mid-span interface crossings (the binary runs them and prints garbage), wires lying **in** the plane, buried wires under a PEC ground (image theory has no buried side), and **coincident wires** — each refused by name at construction |
 
 Refusals are the design: NEC-5 either solves exactly what you asked or
-tells you precisely why not — never a silently simplified model.
+tells you precisely why not — never a silently simplified model. The
+coincident-wire refusal is the buried screen's sharp edge: momwire's
+connected-radial spelling brings each radial up as one of N coincident
+rises, a bundle momwire regularizes exactly but NEC-5 silently prints
+garbage for (measured: thousands of ohms and an astronomically wrong
+radiated power). So the [buried-radial vertical](/reference/catalog/)
+carries **two variants, one per engine**: the default connected screen
+solves through momwire and refuses here; its `detached` variant — the
+stake convention, radials lying at depth touching nothing — solves here
+(the momwire#567 anchor class NEC-5's own convention serves) and refuses
+through momwire. The two conventions are two different structures, tens
+of ohms apart over average soil; comparing them compares junction
+physics, not solver accuracy — never expect the numbers to agree.
 
 Two conventions worth knowing, both pinned from the NEC-5 User's Manual
 during development:
