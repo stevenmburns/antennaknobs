@@ -9,6 +9,17 @@ meant to be read and copied. Address them as `family.name` (the same names
 simulator](https://app.antennaknobs.dev/) to drag its knobs. Many are modelled
 after L. B. Cebik (W4RNL)'s articles.
 
+:::caution[Buried-wire designs need a finite ground]
+Three designs put conductors *below* the surface —
+`verticals.buried_radial_vertical`, `verticals.elevated_buried_counterpoise`,
+and `specialty.buried_dipole`. A buried wire only means anything under a
+Sommerfeld half-space, which is chosen at solve time rather than by the
+design, so solve them with `--ground finite:<eps_r>,<sigma>` (e.g.
+`--ground finite:13,0.005`). They are momwire-only: the NEC-5 and PyNEC
+wrappers refuse a wire below `z = 0` outright. The mixed-medium fill is slow
+— expect minutes, not seconds.
+:::
+
 ## Dipoles
 
 <!-- catalog:begin dipoles -->
@@ -78,8 +89,10 @@ whole shape with a `Drone` — see
 | --- | --- |
 | `verticals.bobtail` | Bobtail curtain: a 3-element vertically-polarised broadside array (L. B. Cebik, W4RNL) |
 | `verticals.bruce` | Bruce array: a series-fed vertically-polarised curtain (L. B. Cebik, W4RNL) |
+| `verticals.buried_radial_vertical` | Ground-mounted quarter-wave vertical over a BURIED radial screen — the classic 40 m base-fed vertical, modelled with the radials where they actually are: in the dirt (momwire#524 phase 2, the crossing serve) |
 | `verticals.challenger` | KJ6ER's "Challenger" — off-center-fed halfwave vertical with 4:1 unun · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `plus` |
 | `verticals.dominator` | KJ6ER's "Dominator" — end-fed halfwave vertical with 49:1 transformer · variants: `band10`, `band12`, `band17`, `plus` |
+| `verticals.elevated_buried_counterpoise` | Elevated-feed vertical over a buried radial screen — the antenna whose counterpoise is capacitive, not galvanic (momwire#553, the buried serve) |
 | `verticals.elt_whip` | Parametric rebuild of the ELT whip on a 96-inch rounded ground-plane grid — the heavier of the two classic NEC performance benchmarks (``whip_antenna_8ft_groundplane.nec`` from the W8IO NEC benchmarks page, http://www.w8io.com/nec-benchmarks.htm): 434 deck wires, ~4,400 segments · variants: `coarse` |
 | `verticals.four_square` | Four-square phased vertical array -- the diagonal-firing quadrature box (L. B. Cebik, W4RNL) |
 | `verticals.half_square` | Half-square: a vertically-polarised wire antenna (L. B. Cebik, W4RNL) |
@@ -175,6 +188,7 @@ showcase (see [the solver guide](/reference/solver/)):
 | Design | Notes |
 | --- | --- |
 | `specialty.bowtie` | Bowtie dipole — triangular fan arms for broadened bandwidth |
+| `specialty.buried_dipole` | Wholly-buried horizontal dipole — the underground cousin of the beverage-on-ground, and the simplest thing momwire's buried serve can be asked (momwire#553 phase 0) |
 | `specialty.continuous_helix` | Normal-mode helical vertical, continuous winding (L. B. Cebik, W4RNL) |
 | `specialty.faceted_helix` | Normal-mode helical vertical, faceted winding (L. B. Cebik, W4RNL) |
 | `specialty.hentenna` | Hentenna — the Japanese rectangular loop, fed off-center for vertical polarization · variants: `z100`, `z50` |
