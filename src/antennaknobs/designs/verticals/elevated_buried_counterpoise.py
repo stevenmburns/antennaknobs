@@ -61,9 +61,12 @@ class Builder(AntennaBuilder):
             # installation (the radiator's foot on an insulator on a post),
             # large enough that no basis function reaches the plane.
             "base": 0.5,
-            # Buried screen, as in `buried_radial_vertical`.
+            # Buried screen, as in `buried_radial_vertical` — including the
+            # truncated 0.6 default, which keeps opposite radial tips inside
+            # the 2-lambda_m below/below range momwire tabulates (full-size
+            # tips refuse by name over eps_r 13 soil).
             "n_radials": 4,
-            "radial_factor": 1.0,
+            "radial_factor": 0.6,
             "depth": 0.15,
             "ui_params": MappingProxyType(
                 {

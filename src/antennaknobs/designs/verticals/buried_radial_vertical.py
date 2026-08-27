@@ -96,11 +96,15 @@ class Builder(AntennaBuilder):
             "design_freq": 7.1,
             # Radiator height as a fraction of the design quarter-wave.
             "length_factor": 1.0,
-            # Radials, and their length relative to the radiator. Equal-length
-            # radials are the textbook screen; the knob is here because a real
-            # yard truncates them.
+            # Radials, and their length relative to the radiator. The textbook
+            # screen uses equal-length radials, but the DEFAULT is a truncated
+            # 0.6 (~21 ft on 40 m) because momwire tabulates the below/below
+            # remainder to 2 in-medium wavelengths: full-size opposite radials
+            # span 2.13 lambda_m over eps_r 13 soil and REFUSE by name. Long
+            # radials over dense/conductive soil hit the same cap — shrink
+            # this knob when they do.
             "n_radials": 4,
-            "radial_factor": 1.0,
+            "radial_factor": 0.6,
             # Burial depth, metres. 0.15 m is a spade's depth, the depth the
             # phase-0/phase-2 anchors were measured at. Keep it shallow: the
             # transmitted-field ladder momwire integrates across the interface
