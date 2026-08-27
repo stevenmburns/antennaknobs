@@ -105,9 +105,13 @@ def test_brv_each_radial_runs_at_depth_then_rises_at_a_right_angle():
     assert len(runs) == len(rises) == 4
 
     for run, rise in zip(runs, rises):
-        # The horizontal leg lies wholly at depth and ends on the hub.
+        # The horizontal leg lies wholly at depth and LEAVES the hub —
+        # hub-first authoring is load-bearing: it makes the polyline walk
+        # start every radial at the hub, which keeps the +/-x and +/-y
+        # meshes exact mirror images and the crossing fill's exact-triple
+        # memo at its full ~4x dedup (momwire#688's census).
         assert run.p0[2] == -depth and run.p1[2] == -depth
-        assert tuple(run.p1) == hub
+        assert tuple(run.p0) == hub
         # ...and the rise leaves that same point straight up to the node.
         assert tuple(rise.p0) == hub
         assert tuple(rise.p1) == node
@@ -126,7 +130,7 @@ def test_brv_radial_tips_are_free_and_only_the_node_touches_the_plane():
     ws = _wires(b)
     radial = 0.25 * b.design_wavelength * b.length_factor * b.radial_factor
 
-    tips = [w.p0 for w in ws[0 : 2 * b.n_radials : 2]]
+    tips = [w.p1 for w in ws[0 : 2 * b.n_radials : 2]]
     for tip in tips:
         assert tip[2] == -b.depth  # buried, not reaching the plane
         assert math.hypot(tip[0], tip[1]) == pytest.approx(radial)
@@ -183,7 +187,7 @@ def test_brv_knobs_move_the_geometry():
 
     longer = BuriedRadialVertical()
     longer.radial_factor = 0.5
-    tip = _wires(longer)[0].p0
+    tip = _wires(longer)[0].p1
     assert math.hypot(tip[0], tip[1]) == pytest.approx(
         0.5 * 0.25 * longer.design_wavelength
     )
@@ -228,7 +232,7 @@ def test_brv_detached_has_no_rises_and_a_contact_end():
     runs, gap, radiator = ws[: b.n_radials], ws[-2], ws[-1]
     for run in runs:
         assert run.p0[2] == run.p1[2] == -b.depth
-        assert tuple(run.p1) == hub
+        assert tuple(run.p0) == hub
     # The gap contacts the plane from above; only it touches z = 0.
     assert tuple(gap.p0) == (0.0, 0.0, 0.0) and gap.ex == 1 + 0j
     assert gap.p1[2] > 0.0 and radiator.p1[2] > 0.0
@@ -260,7 +264,7 @@ def test_brv_detached_same_knobs_move_the_same_geometry():
 
     longer = _detached()
     longer.radial_factor = 0.5
-    tip = _wires(longer)[0].p0
+    tip = _wires(longer)[0].p1
     assert math.hypot(tip[0], tip[1]) == pytest.approx(
         0.5 * 0.25 * longer.design_wavelength
     )
