@@ -70,6 +70,14 @@ shorted to the image plane, and the answer is meaningless. The NEC-5 and
 PyNEC engine wrappers both refuse a wire below z = 0 outright, so this is a
 momwire-only design; expect a long solve (the mixed-medium fill is minutes,
 not seconds).
+
+MESH CONVERGENCE, read before trusting a number. The N-member crossing
+node carries a slow, measured convergence class in the node mesh
+(momwire#674): momwire's own 4-radial adjudication deck moved ~7.5 ohm
+between an ungraded and a node-graded mesh over eps_r 13 / sigma 0.005
+soil. The default mesh here is a starting point for the knobs, not a
+converged answer — sweep the density upward (and expect the solve time to
+climb with it) before quoting an impedance to anyone.
 """
 
 import math
