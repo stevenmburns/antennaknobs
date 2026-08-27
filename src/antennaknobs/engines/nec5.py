@@ -355,7 +355,9 @@ class NEC5Engine(SimulationEngine):
                     "NEC-5 prints garbage for it silently — de-duplicate "
                     "the bundle, or use the detached-radial spelling "
                     "NEC-5's own convention serves (the momwire#567 "
-                    "anchor deck class)"
+                    "anchor deck class; on the buried-radial catalog "
+                    "design that is the `detached` variant, "
+                    "`verticals.buried_radial_vertical:detached`)"
                 )
             seen[key] = i
 

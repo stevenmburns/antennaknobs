@@ -15,11 +15,19 @@ Three designs put conductors *below* the surface —
 and `specialty.buried_dipole`. A buried wire only means anything under a
 Sommerfeld half-space, which is chosen at solve time rather than by the
 design, so solve them with `--ground finite:<eps_r>,<sigma>` (e.g.
-`--ground finite:13,0.005`). They are momwire-only: the NEC-5 and PyNEC
-wrappers refuse a wire below `z = 0` outright. A deck's first solve builds
-its below-interface Sommerfeld tables (cached on disk thereafter); warm
-solves run in seconds — the crossing-junction kernels got their C++ twin in
-momwire 0.41.0.
+`--ground finite:13,0.005`). The PyNEC wrapper refuses a wire below `z = 0`
+outright; a licensed local NEC-5 (`--engine nec5`) serves buried decks as
+of v0.61.0 — but the two engines serve **different junction conventions**
+of the buried-radial vertical, never the same spelling: momwire solves the
+default (radials bonded to the monopole through a crossing junction) and
+refuses the `detached` variant; NEC-5 solves `detached` (the stake
+convention — radials lying in the dirt, touching nothing) and refuses the
+default's coincident-rise bundle. Each refusal message names the variant
+that engine does serve, and the two answers differ by design — tens of
+ohms at 40 m over average soil — because they are two different antennas.
+A deck's first momwire solve builds its below-interface Sommerfeld tables
+(cached on disk thereafter); warm solves run in seconds — the
+crossing-junction kernels got their C++ twin in momwire 0.41.0.
 :::
 
 ## Dipoles
@@ -91,7 +99,7 @@ whole shape with a `Drone` — see
 | --- | --- |
 | `verticals.bobtail` | Bobtail curtain: a 3-element vertically-polarised broadside array (L. B. Cebik, W4RNL) |
 | `verticals.bruce` | Bruce array: a series-fed vertically-polarised curtain (L. B. Cebik, W4RNL) |
-| `verticals.buried_radial_vertical` | Ground-mounted quarter-wave vertical over a BURIED radial screen — the classic 40 m base-fed vertical, modelled with the radials where they actually are: in the dirt (momwire#524 phase 2, the crossing serve) |
+| `verticals.buried_radial_vertical` | Ground-mounted quarter-wave vertical over a BURIED radial screen — the classic 40 m base-fed vertical, modelled with the radials where they actually are: in the dirt (momwire#524 phase 2, the crossing serve) · variants: `detached` |
 | `verticals.challenger` | KJ6ER's "Challenger" — off-center-fed halfwave vertical with 4:1 unun · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `plus` |
 | `verticals.dominator` | KJ6ER's "Dominator" — end-fed halfwave vertical with 49:1 transformer · variants: `band10`, `band12`, `band17`, `plus` |
 | `verticals.elevated_buried_counterpoise` | Elevated-feed vertical over a buried radial screen — the antenna whose counterpoise is capacitive, not galvanic (momwire#553, the buried serve) |

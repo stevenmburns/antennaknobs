@@ -4,8 +4,11 @@ The value of `verticals.buried_radial_vertical`,
 `verticals.elevated_buried_counterpoise` and `specialty.buried_dipole` is
 that they sit INSIDE momwire's served scope — the crossing serve
 (momwire#524 phase 2) for the bonded screen, the buried serve (momwire#553)
-for the two detached ones. Scope is a property of the geometry, so it is
-checkable without solving, and these tests check it two ways:
+for the two detached ones. The buried-radial vertical's `detached` variant
+is the deliberate exception: it sits inside NEC-5's scope and OUTSIDE
+momwire's (#567), and its gates pin that mirror in both directions. Scope
+is a property of the geometry, so it is checkable without solving, and
+these tests check it two ways:
 
   * directly on `build_wires()` — segment orientation, the right-angle
     rise, the node topology, the feed spelling, and that the knobs move
@@ -25,10 +28,11 @@ does (`momwire/tests/test_crossing_serve_524.py`,
 from __future__ import annotations
 
 import math
+import sys
 
 import pytest
 
-from antennaknobs import as_wire
+from antennaknobs import as_wire, resolve_variant_params
 from antennaknobs.designs.specialty.buried_dipole import Builder as BuriedDipole
 from antennaknobs.designs.verticals.buried_radial_vertical import (
     Builder as BuriedRadialVertical,
@@ -37,6 +41,7 @@ from antennaknobs.designs.verticals.elevated_buried_counterpoise import (
     Builder as ElevatedBuriedCounterpoise,
 )
 from antennaknobs.engines.momwire import MomwireEngine
+from antennaknobs.engines.nec5 import NEC5Engine
 
 C_LIGHT = 299792458.0
 
@@ -193,6 +198,100 @@ def test_brv_n_radials_floor_keeps_the_node_a_junction():
     one = BuriedRadialVertical()
     one.n_radials = 1
     assert len(_wires(one)) == 2 * 2 + 2
+
+
+# ---------------------------------------------------------------------------
+# verticals.buried_radial_vertical:detached — the stake-convention mirror
+# ---------------------------------------------------------------------------
+
+
+def _detached():
+    return BuriedRadialVertical(
+        params=resolve_variant_params(BuriedRadialVertical, "detached")
+    )
+
+
+def test_brv_detached_has_no_rises_and_a_contact_end():
+    """The stake convention (momwire#567 anchor class): N radial runs at
+    depth joined at a centre point, NO rises, and the monopole's driven
+    gap standing its lower end in the plane as a ground CONTACT — the
+    exact structural difference from the default, which is what makes the
+    two variants two different antennas rather than two meshes."""
+    b = _detached()
+    ws = _wires(b)
+    hub = (0.0, 0.0, -b.depth)
+
+    # n_radials runs + gap + radiator, and nothing else: the rises' absence
+    # IS the variant.
+    assert len(ws) == b.n_radials + 2
+
+    runs, gap, radiator = ws[: b.n_radials], ws[-2], ws[-1]
+    for run in runs:
+        assert run.p0[2] == run.p1[2] == -b.depth
+        assert tuple(run.p1) == hub
+    # The gap contacts the plane from above; only it touches z = 0.
+    assert tuple(gap.p0) == (0.0, 0.0, 0.0) and gap.ex == 1 + 0j
+    assert gap.p1[2] > 0.0 and radiator.p1[2] > 0.0
+    assert [w for w in ws if w.p0[2] == 0.0 or w.p1[2] == 0.0] == [gap]
+
+
+def test_brv_detached_spells_no_coincident_wires():
+    """The default's N-coincident-rise bundle is exactly what the NEC-5
+    wrapper refuses by name; the variant must not carry a single duplicated
+    endpoint pair, at any radial count."""
+    for n in (2, 3, 4):
+        b = _detached()
+        b.n_radials = n
+        keys = [
+            tuple(sorted((tuple(w.p0), tuple(w.p1)))) for w in _wires(b)
+        ]
+        assert len(keys) == len(set(keys))
+
+
+def test_brv_detached_same_knobs_move_the_same_geometry():
+    """The variant promises the DEFAULT's knobs, unchanged in meaning."""
+    fewer = _detached()
+    fewer.n_radials = 2
+    assert len(_wires(fewer)) == 2 + 2
+
+    deeper = _detached()
+    deeper.depth = 0.4
+    assert {w.p0[2] for w in _wires(deeper)[:4]} == {-0.4}
+    # No rise to lengthen: the radiator still starts at the plane.
+    assert _wires(deeper)[-2].p0[2] == 0.0
+
+    longer = _detached()
+    longer.radial_factor = 0.5
+    tip = _wires(longer)[0].p0
+    assert math.hypot(tip[0], tip[1]) == pytest.approx(
+        0.5 * 0.25 * longer.design_wavelength
+    )
+
+
+def test_brv_detached_momwire_refuses_by_name():
+    """momwire's #567 scope sentence, on the deck the adapter actually
+    builds: ground contact plus a buried wire is the combination its
+    contact-image fiction cannot serve, and the refusal fires at the
+    labeling step — before any fill — pointing back at the connected
+    spelling it does serve."""
+    _engine, s = _solver(_detached())
+    with pytest.raises(ValueError, match="ground CONTACT"):
+        s._wire_media()
+
+
+def test_brv_detached_nec5_serves_what_the_default_refuses(monkeypatch):
+    """The engine mirror, both directions, at construction time: NEC-5
+    takes the detached spelling (and rides the buried GE 1 -1 stage), and
+    refuses the default's coincident bundle with a message that names this
+    variant as the way out."""
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+
+    b = _detached()
+    engine = NEC5Engine(b, ground=("finite",) + SOIL_A)
+    assert "GE 1 -1" in engine.deck([b.freq]).splitlines()
+
+    with pytest.raises(NotImplementedError, match="detached"):
+        NEC5Engine(BuriedRadialVertical(), ground=("finite",) + SOIL_A)
 
 
 # ---------------------------------------------------------------------------
