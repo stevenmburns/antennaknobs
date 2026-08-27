@@ -489,8 +489,8 @@ def cli(arguments=None):
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
                 '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
-                'bspline-d1|hmatrix|arrayblock|razor|razor-nec5]" or '
-                '"pynec". sinusoidal is NEC-2\'s own formulation; '
+                'bspline-d1|hmatrix|arrayblock|razor|razor-nec5]", '
+                '"pynec", or "nec5". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
                 "with degree=1 (tent basis) "
@@ -500,6 +500,10 @@ def cli(arguments=None):
                 "interactive lane — plain razor is 12-80x slower and is "
                 "the convergence/certification lane instead. See "
                 "docs/reference/solver for the measured guidance. "
+                "nec5 drives a licensed LOCAL NEC-5 binary and joins the "
+                "roster only when $NEC5_EXE points at one — the real "
+                "engine, not momwire:razor-nec5, which is momwire's "
+                "independently written formulation twin. "
                 "Cross-products with --builders.",
             )
         else:
@@ -511,7 +515,7 @@ def cli(arguments=None):
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
                 "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
                 "momwire:arrayblock | momwire:razor | momwire:razor-nec5 | "
-                "pynec (default: momwire). sinusoidal is NEC-2's own "
+                "pynec | nec5 (default: momwire). sinusoidal is NEC-2's own "
                 "formulation; sinusoidal-galerkin is the same basis tested "
                 "variationally and with the point-gap feed model. "
                 "bspline-d1 is bspline with "
@@ -521,8 +525,11 @@ def cli(arguments=None):
                 "quadrature) for interactive work; plain razor is the "
                 "slower convergence/certification lane. See "
                 "docs/reference/solver for the measured guidance. "
-                "pynec needs the optional pynec-accel package; momwire is "
-                "always available.",
+                "pynec needs the optional pynec-accel package; nec5 drives "
+                "a licensed LOCAL NEC-5 binary and joins the roster only "
+                "when $NEC5_EXE points at one — the real engine, not "
+                "momwire:razor-nec5, momwire's independently written "
+                "formulation twin; momwire is always available.",
             )
         p.add_argument(
             "--ground",

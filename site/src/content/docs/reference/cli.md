@@ -243,7 +243,16 @@ The `--engine` flag selects the solver:
 --engine momwire:razor-nec5      # NEC-5 formulation twin, NEC-5's identified quadrature — the interactive lane
 --engine momwire:razor           # same tent basis, default (converged GL) quadrature — convergence/certification lane
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
+--engine nec5                    # a licensed LOCAL NEC-5 binary (joins the roster only when $NEC5_EXE points at one)
 ```
+
+`nec5` is the real engine, not to be confused with `momwire:razor-nec5`:
+the latter is momwire's independently written formulation *twin* (same
+basis and testing rule, transcribed from the manual), while `--engine nec5`
+drives an actual user-licensed NEC-5 binary through its card deck and
+printout. It never appears in the roster unless `$NEC5_EXE` points at the
+binary — see [NEC-5 as a third engine](/reference/nec5/) for setup,
+capabilities, and the license terms that keep it strictly local.
 
 **There is no `-converged` suffix any more** (momwire#654). It bound a
 zero-width gap in place of the sinusoidal-Galerkin solver's NEC-style
