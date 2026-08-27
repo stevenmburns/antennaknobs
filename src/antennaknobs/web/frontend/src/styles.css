@@ -591,6 +591,10 @@ button:focus-visible,
 
 .geometry-tabs {
   display: flex;
+  /* Wrap instead of clip: the solver roster is server-defined (#628) and
+     grows on machines that resolve extra engines (a local NEC5_EXE adds a
+     fourth button the 420px modal cannot hold on one row). */
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
 }
@@ -1060,7 +1064,9 @@ button:focus-visible,
 }
 
 .geometry-tabs button {
-  flex: 1;
+  /* min 88px basis so a wrapped row shares space evenly without any one
+     button collapsing below its label. */
+  flex: 1 1 88px;
   background: var(--inset);
   color: var(--muted);
   border: 1px solid var(--border-control);
