@@ -16,8 +16,10 @@ and `specialty.buried_dipole`. A buried wire only means anything under a
 Sommerfeld half-space, which is chosen at solve time rather than by the
 design, so solve them with `--ground finite:<eps_r>,<sigma>` (e.g.
 `--ground finite:13,0.005`). They are momwire-only: the NEC-5 and PyNEC
-wrappers refuse a wire below `z = 0` outright. The mixed-medium fill is slow
-— expect minutes, not seconds.
+wrappers refuse a wire below `z = 0` outright. A deck's first solve builds
+its below-interface Sommerfeld tables (cached on disk thereafter); warm
+solves run in seconds — the crossing-junction kernels got their C++ twin in
+momwire 0.41.0.
 :::
 
 ## Dipoles
