@@ -70,6 +70,10 @@ class Builder(AntennaBuilder):
             "depth": 0.15,
             "ui_params": MappingProxyType(
                 {
+                    # The buried screen exists only under a Sommerfeld
+                    # half-space: the web app auto-selects finite + Sommerfeld
+                    # on load.
+                    "ground_requirement": "sommerfeld",
                     # Radial 0 runs along +x, so x-z shows one radial at full
                     # length under the radiator with both clearances visible.
                     "default_view": "xz",

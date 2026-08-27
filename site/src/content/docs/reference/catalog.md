@@ -27,7 +27,11 @@ that engine does serve, and the two answers differ by design — tens of
 ohms at 40 m over average soil — because they are two different antennas.
 A deck's first momwire solve builds its below-interface Sommerfeld tables
 (cached on disk thereafter); warm solves run in seconds — the
-crossing-junction kernels got their C++ twin in momwire 0.41.0.
+crossing-junction kernels got their C++ twin in momwire 0.41.0. In the
+[web app](https://app.antennaknobs.dev/) these designs declare the
+requirement themselves: loading one auto-selects finite ground with the
+Sommerfeld method (the panel notes it), so the default
+reflection-coefficient method's by-name refusal never lands in your lap.
 :::
 
 ## Dipoles
