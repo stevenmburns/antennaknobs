@@ -68,6 +68,9 @@ class Builder(AntennaBuilder):
             "depth": 0.15,
             "ui_params": MappingProxyType(
                 {
+                    # A buried wire exists only under a Sommerfeld half-space:
+                    # the web app auto-selects finite + Sommerfeld on load.
+                    "ground_requirement": "sommerfeld",
                     # The wire runs along x at a fixed depth, so x-z is the
                     # only view that shows both the wire and how far under
                     # the surface it is.

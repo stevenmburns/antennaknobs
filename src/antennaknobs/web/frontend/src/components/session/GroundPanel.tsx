@@ -21,6 +21,7 @@ export function GroundPanel({
   setTerrainPreset,
   terrainParams,
   setTerrainParams,
+  groundRequirement = null,
 }: {
   backend: BackendEntry;
   groundEnabled: boolean;
@@ -34,6 +35,10 @@ export function GroundPanel({
   setTerrainPreset: (v: string) => void;
   terrainParams: TerrainParams;
   setTerrainParams: (fn: (p: TerrainParams) => TerrainParams) => void;
+  /** The active design's required ground model ("sommerfeld" for the
+   *  buried-wire designs), or null. Renders the auto-selection notice —
+   *  the selection itself is DesignSession's ground-requirement effect. */
+  groundRequirement?: string | null;
 }) {
   return (
     <>
@@ -41,6 +46,17 @@ export function GroundPanel({
         <div className="field" title="This backend doesn't model ground; ignored until you switch to one that does.">
           <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
             ground plane ignored for {backend.label}
+          </em>
+        </div>
+      )}
+
+      {groundRequirement === "sommerfeld" && (
+        <div
+          className="field"
+          title="This design puts conductors below the surface, which only exist under a Sommerfeld half-space — the reflection-coefficient approximation refuses them by name. Selected automatically when the design loaded; you can still change it, but the solver will refuse anything else."
+        >
+          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+            buried design — Sommerfeld ground selected automatically
           </em>
         </div>
       )}

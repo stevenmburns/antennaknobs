@@ -961,6 +961,23 @@ function DesignSessionBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExample]);
 
+  // Ground-requirement seed: the buried-wire designs declare
+  // ground_requirement="sommerfeld" (conductors below z=0 only exist under
+  // a Sommerfeld half-space — the refl-coef default refuses them by name),
+  // so seed finite + Sommerfeld on selection instead of letting the first
+  // solve hit the refusal wall. Keyed on the example switch, like the
+  // band-snap above: the user can still flip anything afterwards, and the
+  // solver's by-name refusal remains the enforcement. GroundPanel shows the
+  // one-line notice whenever the requirement is present.
+  useEffect(() => {
+    if (currentExample?.ground_requirement !== "sommerfeld") return;
+    setGroundEnabled(true);
+    setGroundType("finite");
+    setFiniteGroundMethod("sommerfeld");
+    // Setters are stable useState setters; currentExample is the switch key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentExample]);
+
   function selectBand(nextKey: string) {
     const nb = currentBands.find((b) => b.key === nextKey);
     if (!nb) return;
@@ -1497,6 +1514,7 @@ function DesignSessionBody({
           setTerrainPreset={setTerrainPreset}
           terrainParams={terrainParams}
           setTerrainParams={setTerrainParams}
+          groundRequirement={currentExample?.ground_requirement ?? null}
         />
 
         {gearOpen && (

@@ -154,6 +154,11 @@ class Builder(AntennaBuilder):
             "convention": "connected",
             "ui_params": MappingProxyType(
                 {
+                    # Buried conductors exist only under a Sommerfeld
+                    # half-space: the web app auto-selects finite ground +
+                    # the Sommerfeld method on load (with a notice) instead
+                    # of letting the refl-coef default hit the refusal wall.
+                    "ground_requirement": "sommerfeld",
                     # Radial 0 always runs along +x, so the x-z plane always
                     # shows one radial full-length beside the radiator and the
                     # buried hub below the surface — the elevation profile

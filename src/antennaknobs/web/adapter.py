@@ -18,6 +18,12 @@ Reserved keys inside `ui_params`:
                      selector (deck-backed designs fill it from
                      NecDeck.skipped_note() to list the cards the import
                      recorded but did not apply)
+  ground_requirement : "sommerfeld" — the design only means anything under
+                     that ground model (the buried-wire designs); the
+                     frontend auto-selects finite ground + the Sommerfeld
+                     method on load and notes it in the ground panel
+                     instead of letting the default refl-coef method hit
+                     the solver's by-name refusal
   budget_labels    : dict {structural_label: display_label} — display
                      renames for power-budget rows (issue #489). Keys are
                      the STRUCTURAL labels the solver emits ("unun:
@@ -2994,6 +3000,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # deferred (user) designs, unlike the geometry hints above.
         converged_feed_suggested=bool(
             _ui_scalar(dp, "converged_feed_suggested", False)
+        ),
+        # Same static-pin contract: the buried-wire designs declare
+        # "sommerfeld" so the frontend never seeds them onto the refl-coef
+        # wall (see AntennaExample.ground_requirement).
+        ground_requirement=(
+            str(gr) if (gr := _ui_scalar(dp, "ground_requirement", None)) else None
         ),
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,

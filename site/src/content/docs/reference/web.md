@@ -407,6 +407,15 @@ was actually used, and over a finite ground the
 **radiated** percentage — the share of your input power that actually
 leaves as sky wave. The rest is absorbed power, not error.
 
+One class of designs picks its own method: the **buried-wire designs**
+(`verticals.buried_radial_vertical`, `verticals.elevated_buried_counterpoise`,
+`specialty.buried_dipole`) declare that they require the Sommerfeld model —
+a conductor below the surface only exists under a Sommerfeld half-space,
+and the reflection-coefficient approximation refuses it by name. Loading
+one auto-selects finite ground with the Sommerfeld method and notes it in
+the ground panel; you can still flip the radio back, but the solver's
+refusal is the answer you'll get.
+
 ### Faceted terrain
 
 The **terrain** ground type models a site whose ground is *not* an infinite

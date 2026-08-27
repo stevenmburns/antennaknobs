@@ -326,6 +326,15 @@ class AntennaExample:
     # empirical classification, not derivable from geometry. The frontend uses
     # it to recommend "Converged" in the Sin-Galerkin feed-model control.
     converged_feed_suggested: bool = False
+    # Ground model this design REQUIRES to mean anything, or None for the
+    # ordinary no-requirement case. Today's only value: "sommerfeld" —
+    # declared statically in the design's ui_params by the buried-wire
+    # designs, whose conductors below z = 0 exist only under a Sommerfeld
+    # half-space (the web default refl-coef method refuses them by name,
+    # a wall the user shouldn't have to hit to discover the requirement).
+    # The frontend auto-selects finite ground + the Sommerfeld method when
+    # such a design loads and shows a small notice in the ground panel.
+    ground_requirement: Optional[str] = None
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
     #: NEC-5 twins (issue #825): same request/response contracts as the

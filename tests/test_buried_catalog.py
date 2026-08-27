@@ -242,9 +242,7 @@ def test_brv_detached_spells_no_coincident_wires():
     for n in (2, 3, 4):
         b = _detached()
         b.n_radials = n
-        keys = [
-            tuple(sorted((tuple(w.p0), tuple(w.p1)))) for w in _wires(b)
-        ]
+        keys = [tuple(sorted((tuple(w.p0), tuple(w.p1)))) for w in _wires(b)]
         assert len(keys) == len(set(keys))
 
 

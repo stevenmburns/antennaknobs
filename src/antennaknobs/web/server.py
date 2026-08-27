@@ -2466,6 +2466,7 @@ def examples_endpoint():
                     else None
                 ),
                 "converged_feed_suggested": ex.converged_feed_suggested,
+                "ground_requirement": ex.ground_requirement,
                 "has_design_freq": ex.has_design_freq,
                 "variants": list(ex.variants),
                 "variant_values": dict(ex.variant_values),

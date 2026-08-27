@@ -437,3 +437,29 @@ describe("GroundPanel — PEC excludes finite-method and terrain content", () =>
     expect(screen.queryByRole("radio", { name: "Levee crest" })).toBeNull();
   });
 });
+
+describe("GroundPanel — ground-requirement notice", () => {
+  const NOTICE = "buried design — Sommerfeld ground selected automatically";
+
+  it("renders the notice when the design declares sommerfeld", () => {
+    renderGroundPanel({ groundEnabled: true, groundRequirement: "sommerfeld" });
+    expect(screen.queryByText(NOTICE)).not.toBeNull();
+  });
+
+  it("renders no notice without a requirement (absent or null)", () => {
+    const absent = renderGroundPanel({ groundEnabled: true });
+    expect(screen.queryByText(NOTICE)).toBeNull();
+    absent.unmount();
+
+    renderGroundPanel({ groundEnabled: true, groundRequirement: null });
+    expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it("shows the notice even while ground is toggled off — the requirement text explains why it will come back", () => {
+    // The notice is keyed on the DESIGN, not on the current selection state:
+    // a user who unchecks the ground plane should still see why the panel
+    // seeded itself (the by-name solver refusal remains the enforcement).
+    renderGroundPanel({ groundEnabled: false, groundRequirement: "sommerfeld" });
+    expect(screen.queryByText(NOTICE)).not.toBeNull();
+  });
+});
