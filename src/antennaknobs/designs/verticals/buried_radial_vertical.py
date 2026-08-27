@@ -62,14 +62,48 @@ avoid a stub: a whole-wire excitation lands at that wire's MIDPOINT, which
 would silently model a mid-element shunt tap (a different, much higher-Z
 antenna) rather than a base feed.
 
-REQUIRES A FINITE GROUND, and momwire. Buried conductors only exist under
-a Sommerfeld half-space, which antennaknobs chooses at SOLVE time, not in
-the design: pass ``--ground finite:13,0.005`` (or another eps_r/sigma
-pair). Under ``free`` or ``pec`` the radials are just wires in the air or
-shorted to the image plane, and the answer is meaningless. The NEC-5 and
-PyNEC engine wrappers both refuse a wire below z = 0 outright, so this is a
-momwire-only design; expect a long solve (the mixed-medium fill is minutes,
-not seconds).
+REQUIRES A FINITE GROUND. Buried conductors only exist under a Sommerfeld
+half-space, which antennaknobs chooses at SOLVE time, not in the design:
+pass ``--ground finite:13,0.005`` (or another eps_r/sigma pair). Under
+``free`` or ``pec`` the radials are just wires in the air or shorted to
+the image plane, and the answer is meaningless. Expect a long momwire
+solve (the mixed-medium fill takes seconds warm, minutes cold); a local
+NEC-5 (``--engine nec5``, needs ``$NEC5_EXE``) solves its convention in
+under a second.
+
+TWO CONVENTIONS, TWO ENGINES — the ``detached`` variant. The screen can be
+spelled two ways, and they are TWO DIFFERENT STRUCTURES, not two meshes of
+one:
+
+  * The DEFAULT (connected) convention above: radials rise to the surface
+    and junction-join the monopole at z = 0 — the crossing junction.
+    momwire serves it (the #524 phase-2 crossing serve); the NEC-5 wrapper
+    REFUSES it, because the N-coincident-rise bundle is momwire's exactly-
+    regularized spelling and the NEC-5 binary silently prints garbage for
+    coincident wires (measured on this design: 3271-3374j ohm with a
+    2e+25 % radiated power).
+  * The ``detached`` variant: the STAKE convention — the monopole stands
+    its end in the ground plane (ground contact) and the N radials lie at
+    ``depth``, joined to each other at a common centre point but touching
+    neither the surface nor the monopole. No rises, no crossing node. This
+    is the momwire#567 anchor-class geometry: NEC-5 serves it natively
+    (its point-electrode junction fiction carries the contact current into
+    the soil; the banked binary print for the four-radial anchor mesh is
+    90.051 - 70.731j ohm over eps_r 13 / sigma 0.005 at 7 MHz), while
+    momwire REFUSES it by name — its contact image fiction has no
+    conductor for the spreading soil current a buried observer sees
+    (momwire#567), and its refusal message points back at the connected
+    spelling it does serve.
+
+Each engine serves exactly one convention and refuses the other, and each
+refusal names the spelling that engine DOES serve. Comparing the default
+through momwire against ``detached`` through NEC-5 compares the two
+JUNCTION CONVENTIONS, not two solvers on one antenna — at this design's
+default knobs over eps_r 13 / sigma 0.005 soil the pair reads
+75.94 + 77.24j ohm (connected, momwire) against 50.24 + 22.14j ohm
+(detached, NEC-5), ~61 ohm apart before either engine's mesh envelope is
+even counted. That gap is adjudicated physics (momwire#524 phase 2),
+never a bug to gate away.
 
 MESH CONVERGENCE, read before trusting a number. The N-member crossing
 node carries a slow, measured convergence class in the node mesh
@@ -111,6 +145,13 @@ class Builder(AntennaBuilder):
             # is priced for a screen near the surface, and a deep screen walks
             # off the measured envelope.
             "depth": 0.15,
+            # Junction convention — see "TWO CONVENTIONS, TWO ENGINES" in the
+            # module docstring. "connected" rises the radials to a crossing
+            # junction at z = 0 (momwire's serve); "detached" is the stake
+            # convention, radials lying at depth touching nothing (NEC-5's
+            # serve). A bare string with no enum_options renders no knob:
+            # the convention is chosen by the variant picker, not a slider.
+            "convention": "connected",
             "ui_params": MappingProxyType(
                 {
                     # Radial 0 always runs along +x, so the x-z plane always
@@ -127,6 +168,12 @@ class Builder(AntennaBuilder):
         }
     )
 
+    # The stake convention (momwire#567 anchor class): same knobs, no rise
+    # wires — the monopole stands its end in the plane, the radials lie at
+    # depth. NEC-5 serves this spelling and refuses the default's bundle;
+    # momwire mirrors it exactly the other way. See the module docstring.
+    detached_params = MappingProxyType({"convention": "detached"})
+
     def build_wires(self):
         eps = 0.05
 
@@ -134,6 +181,7 @@ class Builder(AntennaBuilder):
         radial = height * self.radial_factor
         depth = self.depth
         n_radials = max(2, round(self.n_radials))
+        detached = self.convention == "detached"
 
         node = (0.0, 0.0, 0.0)
         hub = (0.0, 0.0, -depth)
@@ -149,11 +197,16 @@ class Builder(AntennaBuilder):
             y = radial * (0.0 if abs(s) < 1e-15 else s)
 
             tups.append(Wire((x, y, -depth), hub))
-            # This radial's rise to the node. Coincident with every other
-            # radial's rise by construction — see the module docstring.
-            tups.append(Wire(hub, node))
+            if not detached:
+                # This radial's rise to the node. Coincident with every
+                # other radial's rise by construction — see the module
+                # docstring. The detached variant has no rises at all:
+                # that absence IS the stake convention.
+                tups.append(Wire(hub, node))
 
         # Driven gap at the radiator foot; the radiator stacks on top of it.
+        # In the detached variant the gap's lower end stands in the plane as
+        # a legal ground CONTACT end, touching nothing below.
         tups.append(Wire(node, (0.0, 0.0, eps), ex=1 + 0j))
         tups.append(Wire((0.0, 0.0, eps), (0.0, 0.0, height)))
 

@@ -260,6 +260,27 @@ def test_buried_anchor_print_reproduces_through_the_wrapper():
 
 
 @needs_nec5
+def test_buried_radial_catalog_detached_variant_solves():
+    """The catalog's stake-convention variant, end to end through the
+    binary: `verticals.buried_radial_vertical:detached` is the anchor-CLASS
+    geometry (contact monopole, four detached radials 15 cm down) at the
+    catalog's own knobs — 7.1 MHz, truncated radials — so the value is a
+    smoke bound on the ~90-71j class, not the anchor literal."""
+    from antennaknobs.designs.verticals.buried_radial_vertical import (
+        Builder as BuriedRadialVertical,
+    )
+
+    b = BuriedRadialVertical(
+        params=resolve_variant_params(BuriedRadialVertical, "detached")
+    )
+    e = NEC5Engine(b, ground=("finite", 13.0, 0.005))
+    (z,) = e.impedance()
+    assert np.isfinite(z.real) and np.isfinite(z.imag)
+    assert 10.0 < abs(z) < 1000.0
+    assert z.real > 0.0
+
+
+@needs_nec5
 def test_buried_radial_deck_solves_through_the_wrapper():
     """The wrapper's own deck path on the anchor-class geometry: a contact
     monopole over four buried radials, wrapper-built cards (center-knot
