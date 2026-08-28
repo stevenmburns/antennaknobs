@@ -42,7 +42,7 @@ def _terrain_req(**terrain) -> dict:
 
 
 def test_ground_for_engine_builds_levee_by_default():
-    spec = _ground_for_engine(_terrain_req(), 0.0)
+    spec = _ground_for_engine(_terrain_req())
     assert isinstance(spec, tuple) and spec[0] == "terrain"
     t = spec[1]
     assert isinstance(t, Terrain)
