@@ -1257,7 +1257,7 @@ def _pack_terrain(t: Terrain) -> dict:
     }
 
 
-def _ground_for_engine(req: dict, ground_z: float):
+def _ground_for_engine(req: dict):
     """Map the frontend's ground knobs to MomwireEngine's ground spec —
     same three-way model as `_pynec_ground_spec`, one shared selector
     describing the GROUND; each engine approximates it as best it can.
@@ -1514,7 +1514,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     model = req.get("momwire_model", "bspline")
     solver_cls = _MOMWIRE_MODELS.get(model, BSplineSolver)
     wire_radius = _positive_finite("wire_radius", req.get("wire_radius", 0.0005))
-    ground = _ground_for_engine(req, 0.0)
+    ground = _ground_for_engine(req)
     solver_kwargs = sanitize_model_options(req)
     # Extended thin-wire kernel (issue #849): pulled out of model_options and
     # passed as the named constructor kwarg instead, so it reaches the engine
@@ -2890,7 +2890,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
-        ground = _ground_for_engine(req, 0.0) or "free"
+        ground = _ground_for_engine(req) or "free"
         if isinstance(ground, tuple) and ground[0] == "terrain":
             # A NEC deck can't carry the facet model (and the GD card is
             # silently ignored under RP 0 anyway — see
