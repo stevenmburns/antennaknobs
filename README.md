@@ -93,7 +93,7 @@
 | src/antennaknobs/designs/verticals/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/bobtail.py                        |       15 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/bruce.py                          |       34 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       28 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       30 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                     |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                      |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       24 |        0 |    100% |           |
@@ -128,21 +128,21 @@
 | src/antennaknobs/designs/wire/w8jk.py                                |       22 |        0 |    100% |           |
 | src/antennaknobs/designs/wire/zepp.py                                |       15 |        0 |    100% |           |
 | src/antennaknobs/drone.py                                            |      131 |        4 |     97% |208, 249-250, 261 |
-| src/antennaknobs/engine.py                                           |       48 |        2 |     96% |  132, 138 |
+| src/antennaknobs/engine.py                                           |       55 |        2 |     96% |  154, 160 |
 | src/antennaknobs/engines/\_\_init\_\_.py                             |        7 |        2 |     71% |       3-4 |
 | src/antennaknobs/engines/momwire.py                                  |      526 |       18 |     97% |144, 506, 959, 1276, 1336-1352 |
-| src/antennaknobs/engines/nec5.py                                     |      433 |      108 |     75% |77, 140, 184, 236, 247, 249, 256, 273, 287, 333, 473, 572-573, 576-577, 604-607, 610, 637, 644, 658-659, 675, 680, 687-709, 726-727, 740, 747, 755-775, 823-839, 846-847, 857-867, 870-896 |
-| src/antennaknobs/engines/pynec.py                                    |      457 |       30 |     93% |64-66, 311-316, 421, 441, 470, 478, 488, 497, 519, 526, 560, 591, 630, 640, 646, 660, 778-779, 959, 984, 988-999, 1001, 1006 |
+| src/antennaknobs/engines/nec5.py                                     |      434 |      108 |     75% |77, 140, 184, 241, 252, 254, 261, 278, 292, 338, 478, 577-578, 581-582, 609-612, 615, 642, 649, 663-664, 680, 685, 692-714, 731-732, 745, 752, 760-780, 828-844, 851-852, 862-872, 875-901 |
+| src/antennaknobs/engines/pynec.py                                    |      458 |       30 |     93% |64-66, 312-317, 422, 442, 471, 479, 489, 498, 520, 527, 561, 592, 631, 641, 647, 661, 779-780, 960, 985, 989-1000, 1002, 1007 |
 | src/antennaknobs/far\_field.py                                       |      184 |        2 |     99% |    92, 96 |
 | src/antennaknobs/ferrite.py                                          |      116 |        5 |     96% |287, 290, 298-299, 353 |
 | src/antennaknobs/file\_designs.py                                    |       67 |        2 |     97% |  119, 142 |
 | src/antennaknobs/fit.py                                              |      221 |       14 |     94% |247, 265, 277-278, 304, 314, 346, 350-352, 387, 402, 412-413 |
-| src/antennaknobs/geometry.py                                         |      199 |        6 |     97% |84, 106-107, 111, 130, 156 |
+| src/antennaknobs/geometry.py                                         |      212 |        6 |     97% |85, 107-108, 112, 143, 169 |
 | src/antennaknobs/measured.py                                         |       61 |        0 |    100% |           |
 | src/antennaknobs/module.py                                           |       84 |        5 |     94% |85, 90, 147, 153, 185 |
 | src/antennaknobs/nec\_export.py                                      |       57 |        3 |     95% |60, 107, 113 |
 | src/antennaknobs/nec\_import.py                                      |     1116 |       52 |     95% |304-305, 309, 312, 358, 389, 481, 574, 642, 649, 690, 744, 763, 773, 911, 927, 977, 983, 991, 1015, 1024, 1047, 1062, 1066, 1120, 1255, 1257, 1259, 1277, 1279, 1281, 1286, 1292-1293, 1312, 1386, 1409, 1424, 1495, 1514, 1539, 1588, 1636-1637, 1640, 1643, 1741, 1765, 1966, 2096, 2217, 2244 |
-| src/antennaknobs/network.py                                          |      116 |        4 |     97% |156, 355, 361, 375 |
+| src/antennaknobs/network.py                                          |      116 |        4 |     97% |158, 357, 363, 377 |
 | src/antennaknobs/network\_reduce.py                                  |        4 |        0 |    100% |           |
 | src/antennaknobs/opt.py                                              |       90 |       14 |     84% |54-55, 57-60, 65-66, 72-76, 151 |
 | src/antennaknobs/plane.py                                            |       74 |        5 |     93% |59, 92, 158, 161-162 |
@@ -160,7 +160,7 @@
 | src/antennaknobs/user\_designs.py                                    |       67 |        5 |     93% |35, 45, 77, 99, 104 |
 | src/antennaknobs/vna.py                                              |      112 |       17 |     85% |83, 96-105, 108, 112, 115, 129-134, 260 |
 | src/antennaknobs/web/\_\_init\_\_.py                                 |        0 |        0 |    100% |           |
-| src/antennaknobs/web/adapter.py                                      |     1142 |      153 |     87% |84-86, 363, 375, 377, 381, 512, 608-609, 643, 647, 698, 701, 706-709, 712, 722, 727, 891, 901, 915, 917, 919, 922, 942, 952, 962-963, 1194, 1332-1340, 1344-1348, 1352, 1498-1503, 1633, 1666, 1669, 1672, 1684, 1687, 1702, 1721-1722, 1748-1749, 1803, 1831, 1835, 1848-1867, 1869, 1898, 1968-1969, 2000-2001, 2026-2027, 2098-2099, 2157-2158, 2161-2162, 2201, 2684-2686, 2702-2773, 2778-2800, 2832, 3059, 3081-3083, 3086, 3091-3092 |
+| src/antennaknobs/web/adapter.py                                      |     1142 |      151 |     87% |84-86, 363, 375, 377, 381, 512, 608-609, 643, 647, 698, 701, 706-709, 712, 722, 727, 891, 901, 915, 917, 919, 922, 942, 952, 962-963, 1194, 1332-1340, 1344-1348, 1352, 1498-1503, 1633, 1666, 1669, 1672, 1684, 1687, 1702, 1721-1722, 1748-1749, 1803, 1831, 1835, 1848-1867, 1869, 1898, 1968-1969, 2000-2001, 2026-2027, 2098-2099, 2161-2162, 2201, 2684-2686, 2702-2773, 2778-2800, 2832, 3059, 3081-3083, 3086, 3091-3092 |
 | src/antennaknobs/web/cost.py                                         |       43 |        0 |    100% |           |
 | src/antennaknobs/web/examples/\_\_init\_\_.py                        |       11 |        1 |     91% |        24 |
 | src/antennaknobs/web/examples/\_base.py                              |       98 |        0 |    100% |           |
@@ -172,8 +172,8 @@
 | src/antennaknobs/web/pynec\_backend.py                               |       92 |       38 |     59% |20-22, 73-91, 118, 129-132, 178-185, 197-207, 214-219 |
 | src/antennaknobs/web/server.py                                       |     1056 |       97 |     91% |74-76, 144-148, 279-280, 347, 653-655, 766, 821, 924-927, 1235, 1290, 1346, 1364-1366, 1426, 1452, 1465-1468, 1480-1492, 1499, 1524, 1551-1565, 1614-1616, 1664, 1678, 1707-1708, 1733-1734, 1766, 1846-1853, 1865-1878, 1900, 1903-1909, 1963, 1991, 1994-1995, 2071, 2089-2092, 2108, 2268, 2278, 2580, 2676, 2711, 2713, 2717-2718, 2731, 2742, 2746, 2798-2799, 2822-2830 |
 | src/antennaknobs/web/user\_designs.py                                |       62 |        6 |     90% |59-60, 91-92, 97-98 |
-| src/antennaknobs/wire\_catalog.py                                    |       93 |        0 |    100% |           |
-| **TOTAL**                                                            | **13356** |  **876** | **93%** |           |
+| src/antennaknobs/wire\_catalog.py                                    |      123 |        0 |    100% |           |
+| **TOTAL**                                                            | **13410** |  **874** | **93%** |           |
 
 
 ## Setup coverage badge
