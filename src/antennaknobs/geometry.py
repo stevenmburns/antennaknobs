@@ -337,9 +337,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
         # Polyline 0: the cut edge alone, A → B. It hosts the delta-gap feed
         # when the cut was a port edge; for a parasitic loop it is just passive.
         # ([A, B] = authored p0 -> p1, so emit_polyline records walk dir +1.)
-        cut_pl_idx = emit_polyline(
-            [cut_a, cut_b], [cut_ei], register_junctions=False
-        )
+        cut_pl_idx = emit_polyline([cut_a, cut_b], [cut_ei], register_junctions=False)
 
         # Polyline 1 (long way): walk B → ... → A via the remaining edges.
         # The cut nodes are now polyline boundaries; the walker stops there.
