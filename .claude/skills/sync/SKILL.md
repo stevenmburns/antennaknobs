@@ -83,12 +83,11 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    the source trees (not site-packages) and that `importlib.metadata` versions
    match the pyproject versions.
 
-   Note there are several other `_accelerators*.so` on disk that are NOT the
-   live one — a stale copy under `momwire/build/`, one in `.venv-pypi` (an old
-   released momwire, kept deliberately), and one per agent worktree under
-   `.claude/worktrees/`. None is on `sys.path`, so trust the imported
-   `__file__` over a bare `find`, and do not delete any of them as part of a
-   sync.
+   Beware that other `_accelerators*.so` can exist on disk without being the
+   live one: `setup.py build_ext` leaves a copy under `momwire/build/`, and any
+   sibling venv or agent worktree carries its own. None of those is on
+   `sys.path`, so trust the imported `__file__` over a bare `find` — and do not
+   delete anything as part of a sync, which is a read-and-rebuild operation.
 
 Report: old → new commit for each repo, the per-extension status from step 5
 (and whether anything was rebuilt), and the final installed versions.
