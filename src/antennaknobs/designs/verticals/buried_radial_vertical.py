@@ -134,6 +134,19 @@ class Builder(AntennaBuilder):
             # is the standard answer on.
             "freq": 7.1,
             "design_freq": 7.1,
+            # NOMINAL SOIL — the mesh's stated assumption about the dirt,
+            # not the solve's. `auto_mesh` sizes below-interface wires
+            # against the IN-MEDIUM quarter-wave, which is shorter than the
+            # free-space one by |n| = |sqrt(eps_r - j*sigma/(omega*eps_0))|
+            # (~4.26x here); without a declaration a buried wire meshes
+            # against lambda_0 and is under-resolved by exactly that factor
+            # (issue #983). These are the constants the numbers quoted in
+            # the module docstring were measured over. The half-space the
+            # solve actually uses still comes from `--ground` and may
+            # differ — the mesh deliberately does not track it, so sweeping
+            # or fitting soil never remeshes the geometry.
+            "design_eps_r": 13.0,
+            "design_sigma": 0.005,
             # Radiator height as a fraction of the design quarter-wave.
             "length_factor": 1.0,
             # Radials, and their length relative to the radiator. The textbook

@@ -180,6 +180,53 @@ class AntennaBuilder:
         """Spelling alias for :attr:`design_wavelength`."""
         return self.design_wavelength
 
+    @property
+    def design_medium_wavelength(self):
+        """In-medium wavelength in metres BELOW the interface, or ``None``.
+
+        ``lambda_m = lambda_0 / |n|``, refractive-index magnitude
+        ``|n| = |sqrt(eps_tilde)|``, ``eps_tilde = eps_r - j*sigma/(omega*eps_0)``
+        — the wavelength a buried conductor actually sees. Returns ``None``
+        unless the design declares BOTH ``design_eps_r`` and ``design_sigma``;
+        a design with no soil declaration meshes everything against free space
+        exactly as before (issue #983).
+
+        The soil is the design's stated ASSUMPTION about the dirt, held next
+        to ``design_freq`` and for the same reason: the mesh is a property of
+        the geometry, so it must not move when the solve-time ``--ground``
+        moves. antennaknobs chooses the actual half-space at SOLVE time, and a
+        solve over different dirt keeps this mesh -- close, not exact, which is
+        what makes it a *nominal* declaration. Sweeping or fitting soil
+        therefore never remeshes, matching :meth:`auto_mesh`'s standing rule
+        that the measurement ``freq`` never does either.
+
+        Every quantity here is momwire's: ``eps_0`` off a solver class,
+        ``eps_tilde`` from ``_ground_refl``, and the wavelength from
+        ``_sommerfeld_below.lambda_medium``, which momwire#553 U4 shipped as
+        the ONE owner of ``|n|``. Nothing here re-derives it -- the lossless
+        ``1/sqrt(eps_r)`` shortcut is NOT this quantity (it drops the
+        conduction term, and at eps_r 13 / sigma 0.005 / 7 MHz reads 3.61
+        against a true 4.27: an under-mesh that looks fine).
+        """
+        eps_r = getattr(self, "design_eps_r", None)
+        sigma = getattr(self, "design_sigma", None)
+        if eps_r is None or sigma is None:
+            return None
+
+        import math as _math
+
+        from momwire import RazorSolver as _Solver
+        from momwire._ground_refl import eps_tilde as _eps_tilde
+        from momwire._sommerfeld_below import lambda_medium as _lambda_medium
+
+        # Derived from design_wavelength, so a soil declaration without a
+        # design_freq raises that property's error rather than a bare
+        # AttributeError, and design_freq is read in exactly one place.
+        k0 = 2.0 * _math.pi / self.design_wavelength
+        omega = k0 * C_LIGHT_MHZ_M * 1e6
+        eps_t = _eps_tilde((float(eps_r), float(sigma)), omega, _Solver.eps)
+        return float(_lambda_medium(eps_t, k0))
+
     def build_tls(self):
         return []
 
@@ -249,9 +296,18 @@ class AntennaBuilder:
 
         The rules, deliberately per-wire with no interactions:
 
-        * ``None`` — the wire gets ``max(1, round(N * L / (lambda/4)))``
+        * ``None`` -- the wire gets ``max(1, round(N * L / (lambda/4)))``
           segments, lambda from ``design_freq``. The measurement ``freq``
           plays no part, so sweeping it never remeshes the geometry.
+        * ``None`` on a wire below the z = 0 interface -- same rule, but
+          against the IN-MEDIUM wavelength (:attr:`design_medium_wavelength`),
+          which is shorter by ``|n|``. Only for designs declaring
+          ``design_eps_r``/``design_sigma``; without them every wire meshes
+          against free space as before. A buried wire meshed against lambda_0
+          is under-resolved by exactly the refractive index the free-space
+          mesher never knew about -- ~4.3x at eps_r 13 / sigma 0.005 / 7 MHz
+          (issue #983). The soil is DECLARED, not read from the solve-time
+          ground, so sweeping ``--ground`` never remeshes either.
         * an int — taken verbatim. This is the legacy path (builders may
           still compute counts with ``segs_for``); it is allowed but not
           recommended — the catalog lint polices the outcome either way.
@@ -281,11 +337,33 @@ class AntennaBuilder:
                 "or give every wire an explicit segment count."
             )
         quarter_wave = 0.25 * C_LIGHT_MHZ_M / float(design_freq)
+        # Below the interface the wave is shorter by |n|, so the same
+        # nominal_nsegs-per-quarter-wave density needs a different reference
+        # there (issue #983). None when the design declares no soil: every
+        # wire then meshes against free space, as it always has.
+        lam_m = self.design_medium_wavelength
+        quarter_wave_below = None if lam_m is None else 0.25 * lam_m
+
+        def _is_below(t):
+            """True if any of this wire lies under the z = 0 interface.
+
+            A wire that STRADDLES the interface counts as below and meshes
+            at the denser in-medium reference over its whole length: the
+            buried part is what the free-space reference under-resolves, and
+            splitting the count mid-wire is not something a single ``n_seg``
+            can express. Denser than needed above the interface is the safe
+            direction, and the straddling wires in this catalog are short
+            interface-adjacent rises where that costs a segment or two.
+            """
+            return min(t[0][2], t[1][2]) < 0.0
 
         def resolve(t):
             if t[2] is not None:
                 return t
-            n = self.segs_for(_math.dist(t[0], t[1]), quarter_wave)
+            ref = quarter_wave
+            if quarter_wave_below is not None and _is_below(t):
+                ref = quarter_wave_below
+            n = self.segs_for(_math.dist(t[0], t[1]), ref)
             if isinstance(t, Wire):
                 return t._replace(n_seg=n)
             return (t[0], t[1], n, *t[3:])
