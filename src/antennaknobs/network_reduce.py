@@ -40,17 +40,6 @@ from momwire.networks import (
     tl_admittance_2x2,
 )
 
-# Private names that were reachable here before the move. Nothing in
-# antennaknobs imports them today, but they were part of this module's
-# surface and the shim costs nothing — momwire's own tests are written
-# against them.
-from momwire.networks._reduce import (  # noqa: F401
-    _Group2Element,
-    _series_group2,
-    _stamp_abcd,
-    _tl_gamma_l,
-)
-
 __all__ = [
     "C_LIGHT",
     "FEET_PER_M",
