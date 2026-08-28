@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import math
 
+from antennaknobs.network import GradedSegments
+
 FLOOR = 2.0
 CAP = 100_000
 DEFAULT_RADIUS = 0.0005
@@ -39,6 +41,16 @@ def min_delta_a(builder_cls, n: int) -> float:
         p0, p1, ns = w[0], w[1], w[2]
         spec = getattr(w, "spec", None)
         r = getattr(spec, "radius", None) or default_r
+        if isinstance(ns, GradedSegments):
+            # A graded wire's panels are FIXED lengths (density-
+            # independent — the recipe, not nominal_nsegs, sets them),
+            # so its worst sub-edge Δ/a is a constant per design; the
+            # #674 node panel is 6.25 mm ≈ 12.5 radii at catalog wire.
+            for q0, q1, n_sub in ns.subdivide(p0, p1):
+                sub_len = math.dist(q0, q1)
+                if n_sub > 0 and sub_len > 0:
+                    worst = min(worst, (sub_len / n_sub) / r)
+            continue
         length = math.dist(p0, p1)
         if ns > 0 and length > 0:
             worst = min(worst, (length / ns) / r)

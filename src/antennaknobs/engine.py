@@ -4,7 +4,7 @@ from typing import ClassVar, Literal, NamedTuple
 
 import numpy as np
 
-from .network import Wire, as_wire
+from .network import GradedSegments, Wire, as_wire
 
 _logger = logging.getLogger(__name__)
 
@@ -17,6 +17,22 @@ class FarField(NamedTuple):
     min_gain: float
     thetas: np.ndarray
     phis: np.ndarray
+
+
+def refuse_graded_wires(tups, engine_name):
+    """Card-based engines take one uniform count per wire; the graded-mesh
+    spelling (``GradedSegments``, momwire#674's node grading) is
+    momwire-only today. Expanding to GW sub-wires is possible in principle
+    but shifts every downstream tag (EX/LD/NT reference wires by index),
+    so these engines refuse by name instead."""
+    for i, t in enumerate(tups):
+        if isinstance(as_wire(t).n_seg, GradedSegments):
+            raise NotImplementedError(
+                f"{engine_name}: wire {i} uses the graded-mesh spelling "
+                "(GradedSegments), which only the momwire engine consumes "
+                "today — a card deck numbers wires by tag, and a graded "
+                "expansion would shift every EX/LD/NT reference"
+            )
 
 
 class WireCurrents(NamedTuple):
@@ -81,6 +97,12 @@ class SimulationEngine(ABC):
         out = []
         for t in tups:
             w = as_wire(t)
+            if isinstance(w.n_seg, GradedSegments):
+                # Graded wires are structural (no ex/name — the geometry
+                # walk enforces it) and carry explicit per-panel counts;
+                # parity coercion never applies to them.
+                out.append(t)
+                continue
             # Parity coercion exists to land an engine attachment on a wire's
             # middle segment: a feed's delta gap (odd parity) or an even-parity
             # solver's midpoint. Only wires that HOST an attachment — a legacy

@@ -29,6 +29,7 @@ from __future__ import annotations
 import numpy as np
 
 from .network import as_wire
+from .wire_catalog import GradedSegments
 
 
 def _round_point(p, eps):
@@ -109,7 +110,19 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
         b = node_id(p1)
         if a == b:
             raise ValueError(f"tuple {i}: degenerate edge (p0==p1 within eps)")
-        edges.append((a, b, int(n_seg), ev, i))
+        if isinstance(n_seg, GradedSegments):
+            # A graded wire is structural only: a delta gap or port inside
+            # a graded chain would re-mesh the feed model, and the graded
+            # spelling exists precisely so the mesh can refine without
+            # touching topology or ports.
+            if ev is not None or name is not None:
+                raise ValueError(
+                    f"tuple {i}: a graded wire cannot carry an excitation "
+                    "or a port name — put the port on its own (plain) wire"
+                )
+            edges.append((a, b, n_seg, ev, i))
+        else:
+            edges.append((a, b, int(n_seg), ev, i))
         tup_names.append(name)
         tup_specs.append(spec)
 
@@ -202,6 +215,48 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
     # "the port's + terminal is toward p1" is the design-visible contract).
     edge_walk_dir = {}
 
+    def emit_polyline(path_nodes, path_edges, register_junctions):
+        """Append one polyline from a walked path, expanding any graded
+        edge (`GradedSegments`) into interior vertices + per-sub-edge
+        counts INSIDE the polyline — the graded spelling's whole point:
+        mesh grading that cannot change junction topology (hand-split
+        wires on a coincident bundle mint spurious KCL rows at every
+        shared split point). `edge_to_polyline` records each tuple's
+        FIRST expanded edge index; feed arclengths sum sub-edge lengths
+        (identical total), and a graded edge itself is never a feed/port
+        edge (rejected at intake)."""
+        polyline_idx = len(polylines)
+        verts = [nodes[path_nodes[0]]]
+        counts = []
+        for k, e in enumerate(path_edges):
+            ea, _eb, n_seg, _ev, tup_i = edges[e]
+            walked_fwd = ea == path_nodes[k]
+            edge_to_polyline[tup_i] = (polyline_idx, len(counts))
+            edge_walk_dir[tup_i] = 1 if walked_fwd else -1
+            p_from = nodes[path_nodes[k]]
+            p_to = nodes[path_nodes[k + 1]]
+            if isinstance(n_seg, GradedSegments):
+                fr = (
+                    n_seg.fracs
+                    if walked_fwd
+                    else tuple(1.0 - f for f in reversed(n_seg.fracs))
+                )
+                cts = n_seg.counts if walked_fwd else tuple(reversed(n_seg.counts))
+                for f in fr:
+                    verts.append(p_from + f * (p_to - p_from))
+                verts.append(p_to)
+                counts.extend(int(c) for c in cts)
+            else:
+                verts.append(p_to)
+                counts.append(int(n_seg))
+        polylines.append(np.stack(verts, axis=0))
+        edge_segments.append(counts)
+        polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
+        if register_junctions:
+            junction_ends[path_nodes[0]].append((polyline_idx, "start"))
+            junction_ends[path_nodes[-1]].append((polyline_idx, "end"))
+        return polyline_idx
+
     def walk_from(start_nid, first_edge):
         path_nodes = [start_nid]
         path_edges = []
@@ -233,18 +288,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
             if edge_seen[ei]:
                 continue
             path_nodes, path_edges = walk_from(start, ei)
-
-            polyline_idx = len(polylines)
-            polylines.append(np.stack([nodes[n] for n in path_nodes], axis=0))
-            edge_segments.append([edges[e][2] for e in path_edges])
-            polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
-            for k, e in enumerate(path_edges):
-                edge_to_polyline[edges[e][4]] = (polyline_idx, k)
-                # Edge k was walked path_nodes[k] -> path_nodes[k+1];
-                # authored direction is edges[e][0] -> edges[e][1].
-                edge_walk_dir[edges[e][4]] = 1 if edges[e][0] == path_nodes[k] else -1
-            junction_ends[path_nodes[0]].append((polyline_idx, "start"))
-            junction_ends[path_nodes[-1]].append((polyline_idx, "end"))
+            emit_polyline(path_nodes, path_edges, register_junctions=True)
 
     # Pure-cycle components — every node degree 2, no boundary to start
     # the walk from — are left untouched by the loop above. Cut each at
@@ -288,17 +332,14 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
             if edges[ei][3] is not None or tup_names[edges[ei][4]] is not None
         ]
         cut_ei = excited_in_comp[0] if excited_in_comp else comp_edges[0]
-        cut_a, cut_b, cut_n_seg, _, cut_tup_idx = edges[cut_ei]
+        cut_a, cut_b, _cut_n_seg, _, cut_tup_idx = edges[cut_ei]
 
         # Polyline 0: the cut edge alone, A → B. It hosts the delta-gap feed
         # when the cut was a port edge; for a parasitic loop it is just passive.
-        cut_pl_idx = len(polylines)
-        polylines.append(np.stack([nodes[cut_a], nodes[cut_b]], axis=0))
-        edge_segments.append([cut_n_seg])
-        polyline_specs.append(tup_specs[cut_tup_idx])
-        edge_to_polyline[cut_tup_idx] = (cut_pl_idx, 0)
-        # The cut polyline is stacked [A, B] = authored p0 -> p1.
-        edge_walk_dir[cut_tup_idx] = 1
+        # ([A, B] = authored p0 -> p1, so emit_polyline records walk dir +1.)
+        cut_pl_idx = emit_polyline(
+            [cut_a, cut_b], [cut_ei], register_junctions=False
+        )
 
         # Polyline 1 (long way): walk B → ... → A via the remaining edges.
         # The cut nodes are now polyline boundaries; the walker stops there.
@@ -322,13 +363,7 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
         # remaining edge at cut_b after consuming the cut edge.
         assert first is not None, "cycle cut left no continuation"
         path_nodes, path_edges = walk_from(cut_b, first)
-        loop_pl_idx = len(polylines)
-        polylines.append(np.stack([nodes[n] for n in path_nodes], axis=0))
-        edge_segments.append([edges[e][2] for e in path_edges])
-        polyline_specs.append(tup_specs[edges[path_edges[0]][4]])
-        for k, e in enumerate(path_edges):
-            edge_to_polyline[edges[e][4]] = (loop_pl_idx, k)
-            edge_walk_dir[edges[e][4]] = 1 if edges[e][0] == path_nodes[k] else -1
+        loop_pl_idx = emit_polyline(path_nodes, path_edges, register_junctions=False)
 
         # Register the cut endpoints as junctions: the cut polyline has
         # path [A, B] so its start=A, end=B; loop polyline was walked
