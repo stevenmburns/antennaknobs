@@ -37,8 +37,18 @@ DECK_FAITHFUL = {"verticals.elt_whip"}
 
 
 def _seg_ratio(builder_cls, n):
-    """Max/min segment length over the refining (ns > 1) wires at nominal
-    ``n``, or None if fewer than two such wires. 1-segment wires stay out
+    """Max/min segment length IN WAVELENGTHS over the refining (ns > 1)
+    wires at nominal ``n``, or None if fewer than two such wires.
+
+    Per-wavelength, not per-metre: below the z = 0 interface the wave is
+    shorter by |n|, so a correctly-meshed buried wire carries physically
+    SHORTER segments than its air partners by exactly that factor and is
+    at the same density (issue #983). Measuring the ratio in metres would
+    read that as a 4.3x defect. Designs that declare no soil have no
+    second wavelength, every segment is divided by the same constant, and
+    the ratio is identically what it always was.
+
+    1-segment wires stay out
     of the ratio: density rounding legitimately produces them on short
     wires (max(1, ...)), and a geometry-only scan cannot tell those from
     legacy fixed counts — the solve-level census polices the latter (cf.
@@ -51,6 +61,10 @@ def _seg_ratio(builder_cls, n):
 
     b = builder_cls()
     b.nominal_nsegs = n
+    # None unless the design declares a nominal soil; when None every wire
+    # scales by 1.0 and this is a pure no-op on the ratio.
+    lam_m = b.design_medium_wavelength
+    lam_0 = b.design_wavelength if lam_m is not None else None
     segs = []
     for w in b.build_wires():
         if isinstance(w[2], GradedSegments):
@@ -65,7 +79,10 @@ def _seg_ratio(builder_cls, n):
             # the 1-seg rounding exclusion above.
             continue
         if int(w[2]) > 1 and math.dist(w[0], w[1]) > 0:
-            segs.append(math.dist(w[0], w[1]) / int(w[2]))
+            lam = 1.0
+            if lam_m is not None:
+                lam = lam_m if min(w[0][2], w[1][2]) < 0.0 else lam_0
+            segs.append(math.dist(w[0], w[1]) / int(w[2]) / lam)
     if len(segs) < 2:
         return None
     return max(segs) / min(segs)
@@ -134,7 +151,8 @@ def test_twoband_fan_sin_ladder_stays_flat():
 @pytest.mark.parametrize("name", sorted(list_builtin_designs()))
 def test_segment_density_is_uniform(name):
     """Every refining wire in a design must carry roughly the same segment
-    length (issue #521/#522): a wire meshed out of step with its junction
+    length IN WAVELENGTHS OF ITS OWN MEDIUM (issues #521/#522, #983): a
+    wire meshed out of step with its junction
     partners is the catalog's most-recurring defect class — over-dense
     short wires (folded links, fan risers, moxon tails) or fixed counts
     the rest of the mesh refines past (twoband links, hexbeam spacers).
@@ -215,3 +233,41 @@ def test_folded_invvee_sin_ladder_stays_flat():
     b.nominal_nsegs = 161
     z = MomwireEngine(b, solver=SinusoidalSolver).impedance()[0]
     assert abs(z - (223 - 30j)) < 5.0, z
+
+
+def test_the_uniformity_gate_and_the_mesher_share_one_reference():
+    """#983 coupled two halves: ``auto_mesh`` sizes buried wires against
+    lambda_m, and ``_seg_ratio`` above measures the result in wavelengths
+    of each wire's own medium. This pins that they are genuinely coupled
+    — the SAME mesh read in metres is 4.3x, far outside the 3.0 bound —
+    so a partial revert (mesher back to lambda_0 while this file keeps
+    normalising per-medium, or the reverse) leaves the bound and fires
+    the gate.
+
+    What this gate CANNOT catch, stated so nobody mistakes it for
+    coverage it does not give: a clean revert of BOTH halves. A
+    free-space buried mesh measured in metres is perfectly uniform in
+    metres and reads 1.31x — the pre-#983 catalog passed this file for
+    exactly that reason. The defect was never a non-uniformity; it was
+    uniformity against the wrong reference. The gates that actually
+    catch it are the medium ones in tests/test_auto_mesh.py."""
+    import math
+
+    from antennaknobs.designs.verticals.buried_radial_vertical import Builder
+    from antennaknobs.network import GradedSegments
+
+    b = Builder()
+    b.nominal_nsegs = 321
+    metres = [
+        math.dist(w[0], w[1]) / int(w[2])
+        for w in b.build_wires()
+        if not isinstance(w[2], GradedSegments)
+        and int(w[2]) > 1
+        and math.dist(w[0], w[1]) > 0
+    ]
+    in_metres = max(metres) / min(metres)
+    assert in_metres > 3.0, (
+        f"the buried mesh reads {in_metres:.2f}x in metres — the two halves "
+        "have drifted onto one reference and the coupling is untested"
+    )
+    assert _seg_ratio(Builder, 321) <= 3.0
