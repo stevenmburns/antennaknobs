@@ -46,10 +46,6 @@ ALLOWED = {
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),
     ("network.py", "momwire.networks._spec", "_parallel_rlc_admittance"),
     ("network.py", "momwire.networks._spec", "_rewrite_branch"),
-    ("network_reduce.py", "momwire.networks._reduce", "_Group2Element"),
-    ("network_reduce.py", "momwire.networks._reduce", "_series_group2"),
-    ("network_reduce.py", "momwire.networks._reduce", "_stamp_abcd"),
-    ("network_reduce.py", "momwire.networks._reduce", "_tl_gamma_l"),
 }
 
 
