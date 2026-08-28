@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-28 17:01 +0000
+            created at 2026-08-28 18:25 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -2222,7 +2222,7 @@
     <p class="pln"><span class="n"><a id="t2140" href="#t2140">2140</a></span><span class="t"><span class="str">    call site.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2141" href="#t2141">2141</a></span><span class="t"><span class="str">    &quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2142" href="#t2142">2142</a></span><span class="t">    <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t2143" href="#t2143">2143</a></span><span class="t">        <span class="key">from</span> <span class="nam">momwire</span><span class="op">.</span><span class="nam">array_block</span> <span class="key">import</span> <span class="nam">_wire_to_element</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t2143" href="#t2143">2143</a></span><span class="t">        <span class="key">from</span> <span class="nam">momwire</span><span class="op">.</span><span class="nam">array_block</span> <span class="key">import</span> <span class="nam">wire_to_element</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2144" href="#t2144">2144</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2145" href="#t2145">2145</a></span><span class="t">        <span class="nam">builder</span> <span class="op">=</span> <span class="nam">_build_builder</span><span class="op">(</span><span class="nam">cls</span><span class="op">,</span> <span class="op">{</span><span class="op">}</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2146" href="#t2146">2146</a></span><span class="t">        <span class="com"># B-spline basis estimate without meshing: explicit segments plus</span>&nbsp;</span><span class="r"></span></p>
@@ -2244,7 +2244,7 @@
     <p class="mis show_mis"><span class="n"><a id="t2162" href="#t2162">2162</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2163" href="#t2163">2163</a></span><span class="t">    <span class="key">if</span> <span class="nam">len</span><span class="op">(</span><span class="nam">polylines</span><span class="op">)</span> <span class="op">&lt;</span> <span class="num">2</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2164" href="#t2164">2164</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t2165" href="#t2165">2165</a></span><span class="t">    <span class="nam">wire_elem</span><span class="op">,</span> <span class="nam">n_elem</span> <span class="op">=</span> <span class="nam">_wire_to_element</span><span class="op">(</span><span class="nam">polylines</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t2165" href="#t2165">2165</a></span><span class="t">    <span class="nam">wire_elem</span><span class="op">,</span> <span class="nam">n_elem</span> <span class="op">=</span> <span class="nam">wire_to_element</span><span class="op">(</span><span class="nam">polylines</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2166" href="#t2166">2166</a></span><span class="t">    <span class="com"># array-block only pays off for a genuine grid array: several elements where</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2167" href="#t2167">2167</a></span><span class="t">    <span class="com"># ONE shape repeats many times (so per-shape block reuse dominates). Require</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2168" href="#t2168">2168</a></span><span class="t">    <span class="com"># at least 4 elements &#8212; below that the speedup is marginal and 2-element</span>&nbsp;</span><span class="r"></span></p>
@@ -3182,7 +3182,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-28 17:01 +0000
+            created at 2026-08-28 18:25 +0000
         </p>
     </div>
 </footer>
