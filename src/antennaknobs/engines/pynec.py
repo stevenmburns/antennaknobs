@@ -9,7 +9,7 @@ import PyNEC as nec
 # momwire exports since 0.11.0 (momwire#133).
 from momwire import insulation_inductance, wire_internal_impedance
 
-from ..engine import FarField, SimulationEngine, WireCurrents
+from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wires
 from ..network import as_wire
 from ..network import (
     Admittance,
@@ -195,6 +195,7 @@ class PyNECEngine(SimulationEngine):
         self._check_intersections = check_intersections
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
+        refuse_graded_wires(self.tups, "PyNEC")
         self._network = builder.build_network()
         # End ports are momwire-only (issue #579): NEC-2 has no junction-node
         # port — NT/TL cards attach to segment interiors, and synthesizing a

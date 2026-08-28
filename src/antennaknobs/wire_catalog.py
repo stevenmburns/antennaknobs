@@ -371,6 +371,99 @@ class Wire(NamedTuple):
     spec: WireSpec | None = None
 
 
+class GradedSegments(NamedTuple):
+    """``n_seg`` spelling for a wire meshed geometrically toward one end
+    (momwire#674's node-grading recipe, promoted to a first-class
+    spelling by the buried-radial default-mesh fix).
+
+    The wire stays ONE ``build_wires()`` entry and ONE polyline edge
+    chain: `flat_wires_to_polylines` expands it into interior vertices
+    with per-edge counts INSIDE its polyline, so grading can never
+    change the junction topology — the defect hand-split wires have on
+    coincident bundles, where every shared split point mints a spurious
+    KCL row (measured on the buried screen: 8-member junctions at every
+    graded vertex).
+
+    ``fracs``: interior vertex positions as fractions of the wire length
+    measured from ``p0``, strictly increasing in (0, 1). ``counts``:
+    per-sub-edge segment counts, ``p0 → p1`` order, one longer than
+    ``fracs``. Build these with :func:`graded_wire` rather than by hand.
+
+    A graded wire is structural only — the geometry walk rejects one
+    carrying an excitation or a port name (a delta gap inside a graded
+    chain would re-mesh the feed model; see the buried-radial builder's
+    feed-gap note).
+    """
+
+    fracs: tuple
+    counts: tuple
+
+    def subdivide(self, p0, p1):
+        """Expand to explicit ``(q0, q1, n)`` sub-wires — for card-based
+        consumers (the .nec exporter) where per-wire uniform segment
+        counts are the native spelling anyway."""
+        import numpy as _np
+
+        a = _np.asarray(p0, dtype=float)
+        b = _np.asarray(p1, dtype=float)
+        cuts = [a] + [a + f * (b - a) for f in self.fracs] + [b]
+        return [
+            (tuple(q0), tuple(q1), int(n))
+            for q0, q1, n in zip(cuts, cuts[1:], self.counts)
+        ]
+
+
+def graded_wire(
+    p0,
+    p1,
+    *,
+    toward,
+    h_node=0.0125,
+    growth=4.0,
+    per_panel=2,
+    rest_h=None,
+    name=None,
+    spec=None,
+) -> Wire:
+    """A structural wire graded toward one end (``toward`` = ``"p0"`` or
+    ``"p1"``): panel boundaries at ``h_node * growth**k`` from the graded
+    end (the #674 recipe — its defaults reproduce the measured-converged
+    6.25 mm node mesh: boundaries 12.5 mm, 50 mm, … capped at the wire
+    length), ``per_panel`` segments per panel. ``rest_h`` (metres), when
+    given, meshes the final far panel at that segment length instead —
+    pass the design's own segment length so a long wire's far end stays
+    at catalog density.
+    """
+    import math as _math
+
+    length = _math.dist(tuple(p0), tuple(p1))
+    if toward not in ("p0", "p1"):
+        raise ValueError(f"toward must be 'p0' or 'p1', got {toward!r}")
+    if not 0 < h_node < length:
+        raise ValueError(f"h_node {h_node} outside (0, wire length {length:.4g})")
+    bounds = []
+    b = h_node
+    while b < length * (1 - 1e-9):
+        bounds.append(b)
+        b *= growth
+    counts = [per_panel] * (len(bounds) + 1)
+    if rest_h is not None:
+        rest_len = length - (bounds[-1] if bounds else 0.0)
+        counts[-1] = max(per_panel, round(rest_len / rest_h))
+    if toward == "p1":
+        fracs = tuple(1.0 - b / length for b in reversed(bounds))
+        counts = list(reversed(counts))
+    else:
+        fracs = tuple(b / length for b in bounds)
+    return Wire(
+        tuple(p0),
+        tuple(p1),
+        n_seg=GradedSegments(fracs=fracs, counts=tuple(int(c) for c in counts)),
+        name=name,
+        spec=spec,
+    )
+
+
 def as_wire(t) -> Wire:
     """Normalize one ``build_wires()`` entry — plain 4/5/6-tuple or
     ``Wire`` — to a ``Wire``. This is the single choke point for

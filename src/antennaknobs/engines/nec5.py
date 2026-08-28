@@ -40,7 +40,7 @@ import numpy as np
 
 from momwire import insulation_inductance
 
-from ..engine import FarField, SimulationEngine, WireCurrents
+from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wires
 from ..network import (
     Driven,
     DrivenCurrent,
@@ -207,7 +207,12 @@ class NEC5Engine(SimulationEngine):
             )
             self._material_lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
         self._has_buried_wires = False
+        # Coincident-bundle first: its refusal names the `detached`
+        # variant this engine DOES serve (the design-level message);
+        # the generic graded-mesh refusal is the fallback for graded
+        # decks with no bundle.
         self._check_no_coincident_wires()
+        refuse_graded_wires(self.tups, "NEC-5")
         if self.ground is not None:
             self._check_geometry_against_ground()
 

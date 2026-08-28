@@ -47,13 +47,25 @@ def _seg_ratio(builder_cls, n):
     being retired, not blessed)."""
     import math
 
+    from antennaknobs.network import GradedSegments
+
     b = builder_cls()
     b.nominal_nsegs = n
-    segs = [
-        math.dist(w[0], w[1]) / int(w[2])
-        for w in b.build_wires()
-        if int(w[2]) > 1 and math.dist(w[0], w[1]) > 0
-    ]
+    segs = []
+    for w in b.build_wires():
+        if isinstance(w[2], GradedSegments):
+            # Graded wires are the DECLARED exception to the uniformity
+            # rule: their panels are deliberate, physics-anchored
+            # absolute lengths (the #674 node-grading recipe — converged
+            # by measurement, pinned by the design's own tests, and
+            # density-independent so they cannot drift against refining
+            # partners the way legacy fixed counts do). The Δ/a headroom
+            # lint still checks every graded sub-edge for thin-wire
+            # validity; the uniformity/growth ratios exclude them, like
+            # the 1-seg rounding exclusion above.
+            continue
+        if int(w[2]) > 1 and math.dist(w[0], w[1]) > 0:
+            segs.append(math.dist(w[0], w[1]) / int(w[2]))
     if len(segs) < 2:
         return None
     return max(segs) / min(segs)

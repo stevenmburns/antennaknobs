@@ -99,26 +99,32 @@ Each engine serves exactly one convention and refuses the other, and each
 refusal names the spelling that engine DOES serve. Comparing the default
 through momwire against ``detached`` through NEC-5 compares the two
 JUNCTION CONVENTIONS, not two solvers on one antenna — at this design's
-default knobs over eps_r 13 / sigma 0.005 soil the pair reads
-75.94 + 77.24j ohm (connected, momwire) against 50.24 + 22.14j ohm
-(detached, NEC-5), ~61 ohm apart before either engine's mesh envelope is
-even counted. That gap is adjudicated physics (momwire#524 phase 2),
-never a bug to gate away.
+default knobs over eps_r 13 / sigma 0.005 soil the converged pair reads
+75.86 + 47.46j ohm (connected, momwire, ±0.10 mesh envelope) against
+~50.6 + 24.0j ohm (detached, NEC-5 at 252 segments per quarter-wave,
+still settling by ~0.1 ohm per density step), ~35 ohm apart. That gap is
+adjudicated physics (momwire#524 phase 2), never a bug to gate away.
 
-MESH CONVERGENCE, read before trusting a number. The N-member crossing
-node carries a slow, measured convergence class in the node mesh
-(momwire#674): momwire's own 4-radial adjudication deck moved ~7.5 ohm
-between an ungraded and a node-graded mesh over eps_r 13 / sigma 0.005
-soil. The default mesh here is a starting point for the knobs, not a
-converged answer — sweep the density upward (and expect the solve time to
-climb with it) before quoting an impedance to anyone.
+MESH CONVERGENCE — the default mesh IS the converged rung. The N-member
+crossing node carries a slow, measured convergence class in the node
+mesh (momwire#674, first order in the node-adjacent segment length).
+The original auto-meshed default put ONE segment on each 15 cm rise
+(the density floor: 0.15 m against a 40 m quarter-wave) and sat 29 ohm
+of reactance off the converged answer on a FALSE PLATEAU — global
+density sweeps to 4x moved it < 0.2 ohm (node mesh frozen by the
+floor), then N=126 jumped 20 ohm in one rung. Since the graded-mesh
+default (the `graded_wire` rises + radiator below), the design loads at
+the h_node = 6.25 mm rung: the next grading rung moves it 0.019 ohm and
+a doubled far mesh 0.043 ohm. Sweeping the density still only refines
+the FAR mesh — the graded node panels are fixed by the recipe — so a
+convergence sweep here now measures the axis it actually refines.
 """
 
 import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire
+from antennaknobs.network import Wire, graded_wire
 
 
 class Builder(AntennaBuilder):
@@ -216,12 +222,47 @@ class Builder(AntennaBuilder):
                 # other radial's rise by construction — see the module
                 # docstring. The detached variant has no rises at all:
                 # that absence IS the stake convention.
-                tups.append(Wire(hub, node))
+                #
+                # The rise is GRADED toward the node (momwire#674's
+                # recipe, promoted to the `graded_wire` spelling by this
+                # design's default-mesh fix and validated to 1 m depth by
+                # the #692 deep-deck ladder): geometric panels toward
+                # (0,0,0), node segment 6.25 mm at every depth. A plain
+                # auto-meshed rise is pinned to ONE segment by the
+                # density floor (0.15 m against a 40 m quarter-wave),
+                # which froze the crossing node's convergence class into
+                # the default answer — measured 29 Ω of reactance on
+                # this design, a false plateau a uniform density sweep
+                # cannot escape below ~5× density (and then only via a
+                # 20 Ω single-rung jump). The graded spelling stays ONE
+                # wire and ONE polyline — hand-split wires on the
+                # coincident bundle mint spurious 8-member junctions at
+                # every shared split point.
+                tups.append(graded_wire(hub, node, toward="p1"))
 
         # Driven gap at the radiator foot; the radiator stacks on top of it.
         # In the detached variant the gap's lower end stands in the plane as
         # a legal ground CONTACT end, touching nothing below.
         tups.append(Wire(node, (0.0, 0.0, eps), ex=1 + 0j))
-        tups.append(Wire((0.0, 0.0, eps), (0.0, 0.0, height)))
+        if not detached and height > 1.0:
+            # The radiator's node end is graded too (#674: the above
+            # arm's interface-adjacent h is the dominant term of the
+            # crossing node's convergence class), with the far panel at
+            # the design's own segment length. The 5 cm feed-gap wire
+            # above stays exactly as it is — re-meshing it would change
+            # the FEED MODEL, not the mesh. The detached variant keeps
+            # the plain radiator: its mesh is banked against the NEC-5
+            # print and its contact node is a different (served-by-NEC-5)
+            # convention with no crossing junction to grade for.
+            tups.append(
+                graded_wire(
+                    (0.0, 0.0, eps),
+                    (0.0, 0.0, height),
+                    toward="p0",
+                    rest_h=0.25 * self.design_wavelength / self.nominal_nsegs,
+                )
+            )
+        else:
+            tups.append(Wire((0.0, 0.0, eps), (0.0, 0.0, height)))
 
         return tups
