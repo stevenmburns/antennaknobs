@@ -2140,7 +2140,7 @@ def _recommended_backend(cls) -> str | None:
     call site.
     """
     try:
-        from momwire.array_block import _wire_to_element
+        from momwire.array_block import wire_to_element
 
         builder = _build_builder(cls, {})
         # B-spline basis estimate without meshing: explicit segments plus
@@ -2162,7 +2162,7 @@ def _recommended_backend(cls) -> str | None:
         return None
     if len(polylines) < 2:
         return None
-    wire_elem, n_elem = _wire_to_element(polylines)
+    wire_elem, n_elem = wire_to_element(polylines)
     # array-block only pays off for a genuine grid array: several elements where
     # ONE shape repeats many times (so per-shape block reuse dominates). Require
     # at least 4 elements — below that the speedup is marginal and 2-element
