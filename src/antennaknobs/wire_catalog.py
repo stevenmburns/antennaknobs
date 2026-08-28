@@ -353,7 +353,11 @@ class Wire(NamedTuple):
     ``n_seg=None`` means "mesh me at the design density" — resolved by
     ``AntennaBuilder.auto_mesh`` as part of the stack (nominal_nsegs
     segments per design_freq quarter-wave); an integer is honored
-    verbatim.
+    verbatim. ``n_seg`` may also be a :class:`GradedSegments` (a wire
+    meshed geometrically toward one end) — always built via
+    :func:`graded_wire`, never by hand; generic consumers doing
+    ``int(w[2])`` arithmetic must treat that case (isinstance-check it)
+    or refuse it by name.
 
     ``spec=None`` means "the design default": engines fall back to
     ``build_wire_material()``. Precedence, defined once: an explicit
@@ -393,6 +397,18 @@ class GradedSegments(NamedTuple):
     carrying an excitation or a port name (a delta gap inside a graded
     chain would re-mesh the feed model; see the buried-radial builder's
     feed-gap note).
+
+    SCOPE-FROZEN (maintainer decision, 2026-08-28, PR #1024): this
+    spelling has ONE consumer (the buried-radial vertical's default
+    mesh) and stays exactly this size until a second consumer exists.
+    Extensions each have a recorded unfreeze trigger — card-engine
+    expansion via :meth:`subdivide` (a graded design needing NEC
+    export), bend-grading (someone chasing the measured hub-bend
+    0.1–0.2 Ω class), momwire-side knot multiplicity (a second
+    slope-freedom consumer; momwire#449's closure records it) — and
+    every unfreeze starts with a named consumer, an issue, and a
+    measurement, in that order. Do not grow this spelling ahead of
+    that.
     """
 
     fracs: tuple
