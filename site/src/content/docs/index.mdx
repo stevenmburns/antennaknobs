@@ -25,21 +25,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.62.0" icon="star">
-  **Buried solves got ~4× faster.** momwire 0.42.0 rebuilt the
-  mixed-medium crossing fill around an admissibility split: pairs near
-  the ground interface keep the designed dense evaluation, far pairs run
-  on coarser quadrature (with a low-rank pass on dense meshes), and a
-  deep-deck ladder then proved the near pairs could carry the same
-  density too. Together with a screen-symmetry fix in the catalog
-  geometry, the buried-radial vertical's warm solve went from ~12 s to
-  **~3 s** — with every certification anchor reproduced to a few 10⁻⁴ Ω.
-  The K&gt;2 junction node (a monopole meeting several buried radials)
-  also gained a **convergence study**: the composition's residual is now
-  a measured first-order class with a graded-mesh recipe that converges
-  it to the measurement floor, and the four-radial fan carries a banked,
-  converged soil-A anchor for the first time. Faster answers, same
-  physics, better-pinned.
+<Card title="New in v0.63.0" icon="star">
+  **Buried radials, cross-validated.** A new case study —
+  [Buried radials, two engines](/advanced/buried-radials/) — runs the
+  elevated-vertical-over-buried-radials family through momwire and a
+  licensed NEC-5 **on the same card files**: converged agreement at the
+  0.2–2 Ω level, a feed-convention lesson that scales as Z², and the one
+  genuine disagreement (the buried-coupling delta) attributed with an
+  independent EM reference siding with momwire's kernels. Under the
+  hood, the buried-radial vertical now **ships converged by default**
+  (the graded-wire spelling), `auto_mesh` densifies below-ground wire
+  by the soil's own wavelength, and momwire 0.43.0 re-derives the
+  ground-contact counterpoise refusal record at the corrected feed —
+  that story is the momwire primer's new
+  [counterpoise chapter](https://momwire.antennaknobs.dev/act-5/counterpoise/).
 </Card>
 
 ## The whole pitch, in one line
