@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-28 20:16 +0000
+            created at 2026-08-28 20:22 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1339,7 +1339,7 @@
     <p class="run run2"><span class="n"><a id="t1257" href="#t1257">1257</a></span><span class="t">    <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1258" href="#t1258">1258</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1259" href="#t1259">1259</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1260" href="#t1260">1260</a></span><span class="t"><span class="key">def</span> <span class="nam">_ground_for_engine</span><span class="op">(</span><span class="nam">req</span><span class="op">:</span> <span class="nam">dict</span><span class="op">,</span> <span class="nam">ground_z</span><span class="op">:</span> <span class="nam">float</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1260" href="#t1260">1260</a></span><span class="t"><span class="key">def</span> <span class="nam">_ground_for_engine</span><span class="op">(</span><span class="nam">req</span><span class="op">:</span> <span class="nam">dict</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1261" href="#t1261">1261</a></span><span class="t">    <span class="str">&quot;&quot;&quot;Map the frontend&#x27;s ground knobs to MomwireEngine&#x27;s ground spec &#8212;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1262" href="#t1262">1262</a></span><span class="t"><span class="str">    same three-way model as `_pynec_ground_spec`, one shared selector</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1263" href="#t1263">1263</a></span><span class="t"><span class="str">    describing the GROUND; each engine approximates it as best it can.</span>&nbsp;</span><span class="r"></span></p>
@@ -1596,7 +1596,7 @@
     <p class="run"><span class="n"><a id="t1514" href="#t1514">1514</a></span><span class="t">    <span class="nam">model</span> <span class="op">=</span> <span class="nam">req</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">&quot;momwire_model&quot;</span><span class="op">,</span> <span class="str">&quot;bspline&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1515" href="#t1515">1515</a></span><span class="t">    <span class="nam">solver_cls</span> <span class="op">=</span> <span class="nam">_MOMWIRE_MODELS</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="nam">model</span><span class="op">,</span> <span class="nam">BSplineSolver</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1516" href="#t1516">1516</a></span><span class="t">    <span class="nam">wire_radius</span> <span class="op">=</span> <span class="nam">_positive_finite</span><span class="op">(</span><span class="str">&quot;wire_radius&quot;</span><span class="op">,</span> <span class="nam">req</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">&quot;wire_radius&quot;</span><span class="op">,</span> <span class="num">0.0005</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1517" href="#t1517">1517</a></span><span class="t">    <span class="nam">ground</span> <span class="op">=</span> <span class="nam">_ground_for_engine</span><span class="op">(</span><span class="nam">req</span><span class="op">,</span> <span class="num">0.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1517" href="#t1517">1517</a></span><span class="t">    <span class="nam">ground</span> <span class="op">=</span> <span class="nam">_ground_for_engine</span><span class="op">(</span><span class="nam">req</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1518" href="#t1518">1518</a></span><span class="t">    <span class="nam">solver_kwargs</span> <span class="op">=</span> <span class="nam">sanitize_model_options</span><span class="op">(</span><span class="nam">req</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1519" href="#t1519">1519</a></span><span class="t">    <span class="com"># Extended thin-wire kernel (issue #849): pulled out of model_options and</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1520" href="#t1520">1520</a></span><span class="t">    <span class="com"># passed as the named constructor kwarg instead, so it reaches the engine</span>&nbsp;</span><span class="r"></span></p>
@@ -2972,7 +2972,7 @@
     <p class="run"><span class="n"><a id="t2890" href="#t2890">2890</a></span><span class="t">        <span class="nam">builder</span><span class="op">.</span><span class="nam">freq</span> <span class="op">=</span> <span class="nam">meas_freq</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2891" href="#t2891">2891</a></span><span class="t">        <span class="key">if</span> <span class="nam">has_design_freq</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2892" href="#t2892">2892</a></span><span class="t">            <span class="nam">builder</span><span class="op">.</span><span class="nam">design_freq</span> <span class="op">=</span> <span class="nam">design_freq</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t2893" href="#t2893">2893</a></span><span class="t">        <span class="nam">ground</span> <span class="op">=</span> <span class="nam">_ground_for_engine</span><span class="op">(</span><span class="nam">req</span><span class="op">,</span> <span class="num">0.0</span><span class="op">)</span> <span class="key">or</span> <span class="str">&quot;free&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t2893" href="#t2893">2893</a></span><span class="t">        <span class="nam">ground</span> <span class="op">=</span> <span class="nam">_ground_for_engine</span><span class="op">(</span><span class="nam">req</span><span class="op">)</span> <span class="key">or</span> <span class="str">&quot;free&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2894" href="#t2894">2894</a></span><span class="t">        <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">ground</span><span class="op">,</span> <span class="nam">tuple</span><span class="op">)</span> <span class="key">and</span> <span class="nam">ground</span><span class="op">[</span><span class="num">0</span><span class="op">]</span> <span class="op">==</span> <span class="str">&quot;terrain&quot;</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2895" href="#t2895">2895</a></span><span class="t">            <span class="com"># A NEC deck can&#x27;t carry the facet model (and the GD card is</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2896" href="#t2896">2896</a></span><span class="t">            <span class="com"># silently ignored under RP 0 anyway &#8212; see</span>&nbsp;</span><span class="r"></span></p>
@@ -3182,7 +3182,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-28 20:16 +0000
+            created at 2026-08-28 20:22 +0000
         </p>
     </div>
 </footer>
