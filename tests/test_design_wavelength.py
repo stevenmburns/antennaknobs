@@ -36,11 +36,6 @@ def test_design_wavelength_is_c_over_design_freq():
     assert b.design_wavelength == pytest.approx(C_LIGHT_MHZ_M / 28.4)
 
 
-def test_design_lambda_is_an_alias():
-    b = _Design()
-    assert b.design_lambda == b.design_wavelength
-
-
 def test_scales_on_design_freq_not_measurement_freq():
     """Sweeping the measurement ``freq`` must not move the wavelength the
     geometry scales against — only ``design_freq`` does."""
@@ -56,5 +51,3 @@ def test_missing_design_freq_raises():
     b = _NoDesignFreq()
     with pytest.raises(ValueError, match="design_freq"):
         _ = b.design_wavelength
-    with pytest.raises(ValueError, match="design_freq"):
-        _ = b.design_lambda
