@@ -164,8 +164,7 @@ class AntennaBuilder:
         Raises ``ValueError`` if the design declares no ``design_freq`` — a
         builder holding its geometry in wavelength fractions must say what
         frequency those fractions are of, the same contract ``auto_mesh``
-        enforces for ``None`` segment counts. ``design_lambda`` is a spelling
-        alias for the same value."""
+        enforces for ``None`` segment counts."""
         design_freq = getattr(self, "design_freq", None)
         if not design_freq:
             raise ValueError(
@@ -174,11 +173,6 @@ class AntennaBuilder:
                 "one in default_params."
             )
         return C_LIGHT_MHZ_M / float(design_freq)
-
-    @property
-    def design_lambda(self):
-        """Spelling alias for :attr:`design_wavelength`."""
-        return self.design_wavelength
 
     @property
     def design_medium_wavelength(self):
