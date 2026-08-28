@@ -118,6 +118,4 @@ def test_graded_wire_cannot_carry_a_feed_or_name():
 
 def test_card_engines_refuse_by_name():
     with pytest.raises(NotImplementedError, match="graded-mesh spelling"):
-        refuse_graded_wires(
-            [graded_wire((0, 0, 0), (0, 0, 1.0), toward="p0")], "NEC-5"
-        )
+        refuse_graded_wires([graded_wire((0, 0, 0), (0, 0, 1.0), toward="p0")], "NEC-5")
