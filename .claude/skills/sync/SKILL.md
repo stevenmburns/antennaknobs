@@ -38,10 +38,33 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    `<root>/momwire` respectively. If either is missing or non-editable,
    reinstall it with `.venv/bin/pip install -e <path> --no-deps`.
 
-5. **Rebuild the accelerator if stale**: compare mtimes of
-   `momwire/src/momwire/_accelerators.cpp` and the
-   `_accelerators.cpython-*.so` next to it. If the `.cpp` is newer (or the
-   `.so` is missing), rebuild in place:
+5. **Rebuild the accelerators if stale.** momwire builds *more than one*
+   extension — `setup.py` declares `momwire._accelerators` and
+   `momwire._near_interface_accel` today, and has grown the list before — so
+   check every one rather than a named binary. Each extension also has a
+   `depends=` list of `*_inline.h` headers, and a header edit alone makes a
+   `.so` stale with its `.cpp` untouched.
+
+   Run this from the repo root; it derives the extension list from what is on
+   disk, so a third extension is covered with no edit here:
+   ```bash
+   cd momwire/src/momwire && stale=0
+   for cpp in *.cpp; do
+     base=${cpp%.cpp}
+     so=$(ls "${base}".cpython-*.so 2>/dev/null | head -1)
+     if [ -z "$so" ]; then echo "MISSING  $base"; stale=1; continue; fi
+     newer=$(find . -maxdepth 1 \( -name '*.h' -o -name "$cpp" \) -newer "$so" -printf '%f ' 2>/dev/null)
+     if [ -n "$newer" ]; then echo "STALE    $base  <- $newer"; stale=1; else echo "current  $base"; fi
+   done
+   [ $stale -eq 1 ] && echo "REBUILD NEEDED" || echo "all extensions current"
+   ```
+   It compares every header against every `.so`, which is deliberately
+   conservative: the two `depends=` lists differ, so a shared-header edit may
+   rebuild one extension unnecessarily. That is much cheaper than shipping a
+   stale binary.
+
+   If anything reports `STALE` or `MISSING`, rebuild in place — one command
+   builds every extension:
    ```
    cd momwire && ../.venv/bin/python setup.py build_ext --inplace
    ```
@@ -55,9 +78,17 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    ```
 
 7. **Verify**: with `.venv/bin/python`, import `antennaknobs`, `momwire`, and
-   `momwire._accelerators`; check each `__file__` resolves into the source
-   trees (not site-packages) and that `importlib.metadata` versions match the
-   pyproject versions.
+   **every** extension found in step 5 (`momwire._accelerators`,
+   `momwire._near_interface_accel`, ...); check each `__file__` resolves into
+   the source trees (not site-packages) and that `importlib.metadata` versions
+   match the pyproject versions.
 
-Report: old → new commit for each repo, whether the `.so` was rebuilt, and
-the final installed versions.
+   Note there are several other `_accelerators*.so` on disk that are NOT the
+   live one — a stale copy under `momwire/build/`, one in `.venv-pypi` (an old
+   released momwire, kept deliberately), and one per agent worktree under
+   `.claude/worktrees/`. None is on `sys.path`, so trust the imported
+   `__file__` over a bare `find`, and do not delete any of them as part of a
+   sync.
+
+Report: old → new commit for each repo, the per-extension status from step 5
+(and whether anything was rebuilt), and the final installed versions.
