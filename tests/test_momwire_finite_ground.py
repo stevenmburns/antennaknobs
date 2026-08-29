@@ -21,11 +21,11 @@ import pytest
 
 pytest.importorskip("PyNEC")
 
-from momwire import BSplineSolver, SinusoidalSolver  # noqa: E402
+from momwire import BSplineSolver, SinusoidalSolver
 
-from antennaknobs import resolve_variant_params  # noqa: E402
-from antennaknobs.designs.dipoles.invvee import Builder as InvVee  # noqa: E402
-from antennaknobs.engines import MomwireEngine, PyNECEngine  # noqa: E402
+from antennaknobs import resolve_variant_params
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
+from antennaknobs.engines import MomwireEngine, PyNECEngine
 
 GROUND = ("finite-fast", 10.0, 0.002)
 

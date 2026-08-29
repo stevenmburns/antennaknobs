@@ -25,8 +25,8 @@ from antennaknobs.network import as_wire
 # The bug lived in the shared coercion path and hit BOTH engines, so the
 # regression pins momwire too and stays alive where PyNEC is absent — momwire is
 # the core engine, PyNEC only skips its own test.
-from antennaknobs.engines.momwire import MomwireEngine  # noqa: E402
-from momwire import SinusoidalSolver  # noqa: E402
+from antennaknobs.engines.momwire import MomwireEngine
+from momwire import SinusoidalSolver
 
 _GROUND = ("finite", 13.0, 0.005)
 

@@ -13,11 +13,11 @@ import pytest
 
 pytest.importorskip("PyNEC")
 
-from antennaknobs import resolve_variant_params  # noqa: E402
-from antennaknobs.cli import parse_ground  # noqa: E402
-from antennaknobs.designs.dipoles.invvee import Builder as InvVee  # noqa: E402
-from antennaknobs.engines import PyNECEngine  # noqa: E402
-from antennaknobs.engines.momwire import _normalise_ground  # noqa: E402
+from antennaknobs import resolve_variant_params
+from antennaknobs.cli import parse_ground
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
+from antennaknobs.engines import PyNECEngine
+from antennaknobs.engines.momwire import _normalise_ground
 
 
 def _flat_dipole(height_m):

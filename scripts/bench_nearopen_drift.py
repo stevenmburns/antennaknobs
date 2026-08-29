@@ -44,14 +44,14 @@ import os
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
-import argparse  # noqa: E402
-import json  # noqa: E402
-import resource  # noqa: E402
-import sys  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import json
+import resource
+import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_converge as bc  # noqa: E402 — load_design / solve_design
+import bench_converge as bc  # load_design / solve_design
 
 # The #478 near-open suspects, from the feed-drift census.
 DEFAULT_DESIGNS = (

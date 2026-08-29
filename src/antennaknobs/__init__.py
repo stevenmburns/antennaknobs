@@ -108,8 +108,8 @@ from .cli import cli
 # We pin the root logger at WARNING and only flip the antennaknobs
 # namespace; otherwise basicConfig(level=DEBUG) bleeds into matplotlib,
 # PIL, and every other library that uses the stdlib logger.
-import logging as _logging  # noqa: E402
-import os as _os  # noqa: E402
+import logging as _logging
+import os as _os
 
 if _level := _os.getenv("ANTENNAKNOBS_LOG"):
     _logging.basicConfig(level=_logging.WARNING)

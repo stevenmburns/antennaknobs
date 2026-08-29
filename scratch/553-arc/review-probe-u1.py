@@ -29,7 +29,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "524-phase0", "proto"))
-from buried_proto import HalfSpace, fs_field  # noqa: E402
+from buried_proto import HalfSpace, fs_field
 
 SOILS = {"A": (13.0, 0.005), "B": (20.0, 0.03), "C": (5.0, 0.001)}
 FREQS = {"7MHz": 7.0e6, "21MHz": 21.0e6}

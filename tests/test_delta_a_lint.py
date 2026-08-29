@@ -24,9 +24,9 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-import bench_delta_a_headroom as hd  # noqa: E402
+import bench_delta_a_headroom as hd
 
-from antennaknobs.cli import list_builtin_designs  # noqa: E402
+from antennaknobs.cli import list_builtin_designs
 
 CENSUS_TOP_RUNG = 641
 

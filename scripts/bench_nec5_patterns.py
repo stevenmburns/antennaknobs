@@ -32,7 +32,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_converge as bc  # noqa: E402 — sibling: design loading
+import bench_converge as bc  # sibling: design loading
 
 PREFERRED_NSEG = 81
 DEFAULT_SEG_CAP = 3000

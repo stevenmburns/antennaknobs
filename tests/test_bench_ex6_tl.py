@@ -16,9 +16,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from bench_nec_corpus import feeds_sharing_tl_nt  # noqa: E402
+from bench_nec_corpus import feeds_sharing_tl_nt
 
-from antennaknobs.nec_import import parse_nec  # noqa: E402
+from antennaknobs.nec_import import parse_nec
 
 _DIPOLE = "GW 1 11 0 -5 10 0 5 10 0.001\n"  # 11 segs → feedable middle seg 6
 

@@ -37,7 +37,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bench_nec_corpus import run_nec2c  # noqa: E402
+from bench_nec_corpus import run_nec2c
 
 FREQ = 28.5  # MHz
 LAM = 299.792458 / FREQ

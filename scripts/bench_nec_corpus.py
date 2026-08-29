@@ -76,20 +76,20 @@ import os
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
-import argparse  # noqa: E402
-import json  # noqa: E402
-import math  # noqa: E402
-import re  # noqa: E402
-import resource  # noqa: E402
-import shutil  # noqa: E402
-import statistics  # noqa: E402
-import subprocess  # noqa: E402
-import sys  # noqa: E402
-import tempfile  # noqa: E402
-import time  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import json
+import math
+import re
+import resource
+import shutil
+import statistics
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
 
-import numpy as np  # noqa: E402
+import numpy as np
 
 XNEC2C_EXAMPLES = Path.home() / "antennas" / "xnec2c" / "examples"
 Z0 = 50.0  # system impedance for the reflection-coefficient metric (issue #407)

@@ -25,7 +25,7 @@ sys.path.insert(
         os.path.dirname(os.path.abspath(__file__)), "..", "524-phase0", "proto"
     ),
 )
-from buried_proto import HalfSpace, field_in_medium  # noqa: E402
+from buried_proto import HalfSpace, field_in_medium
 
 SOILS = {"A": (13.0, 0.005), "B": (20.0, 0.03), "C": (5.0, 0.001)}
 FREQS = {"7MHz": 7.0e6, "21MHz": 21.0e6}
