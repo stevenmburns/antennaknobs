@@ -120,7 +120,7 @@ PROBES = [
 def seam_status(text):
     try:
         out = render(text)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
         return f"EXCEPTION {type(e).__name__}: {str(e)[:90]}"
     if " ***** NEC ERROR - " in out:
         return "refuse: " + out.split(" ***** NEC ERROR - ")[1].split("\n")[0][:130]

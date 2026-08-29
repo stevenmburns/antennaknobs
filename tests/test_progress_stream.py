@@ -169,7 +169,7 @@ def test_consumer_disconnect_raises_in_the_producer_and_frees_its_thread():
                     permit.clear()
                     stream.publish({"n": n})
                     published.append(n)
-            except BaseException as exc:
+            except BaseException as exc:  # noqa: BLE001 — the test's whole point is that the publisher survives whatever the consumer raises
                 raised.append(exc)
 
         thread = threading.Thread(target=producer, name="disconnect-producer")
@@ -514,7 +514,7 @@ def test_sealed_converts_a_dead_producer_into_an_error_event():
                 with stream.sealed():
                     stream.publish({"n": 0})
                     raise ValueError("boom")
-            except BaseException as exc:
+            except BaseException as exc:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
                 escaped.append(exc)
 
         thread = threading.Thread(target=producer, name="dying-producer")

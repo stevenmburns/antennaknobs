@@ -1965,7 +1965,7 @@ def _auto_target_z0(cls) -> float:
     try:
         b = cls()
         n_feeds = sum(1 for t in b.build_wires() if as_wire(t).ex is not None)
-    except Exception:
+    except Exception:  # noqa: BLE001 — a design that will not construct gets the 50 ohm default; the real solve reports the failure
         return 50.0
     return 50.0 * max(1, n_feeds)
 
@@ -2023,7 +2023,7 @@ def _auto_default_view(cls) -> str:
             pts.append(w.p0)
             pts.append(w.p1)
         a = np.asarray(pts, dtype=float)
-    except Exception:
+    except Exception:  # noqa: BLE001 — the derived view is a hint, not a contract; 'xy' is the safe default
         return "xy"
     sx = float(a[:, 0].max() - a[:, 0].min())
     sy = float(a[:, 1].max() - a[:, 1].min())
@@ -2095,7 +2095,7 @@ def _required_backends(cls) -> tuple[str, ...] | None:
     junction-port support only needs to widen `_JUNCTION_PORT_BACKENDS`."""
     try:
         net = _build_builder(cls, {}).build_network()
-    except Exception:
+    except Exception:  # noqa: BLE001 — capability probe at registry build — a design that cannot build a network simply has no junction ports
         return None
     if net is None:
         return None
@@ -2154,11 +2154,11 @@ def _recommended_backend(cls) -> str | None:
             est_basis = sum(int(w[2]) for w in wires) + 2 * len(wires)
             if est_basis > _SINUSOIDAL_RECOMMEND_MIN_BASIS:
                 return "sinusoidal"
-        except Exception:
+        except Exception:  # noqa: BLE001 — designs that defer segmentation raise on int(); fall through to the array detection below
             pass
         eng = _make_momwire_engine({}, builder)
         polylines = [np.asarray(p, dtype=float) for p in eng._polylines]
-    except Exception:
+    except Exception:  # noqa: BLE001 — the recommendation is geometry-only and advisory; any failure means 'no recommendation'
         return None
     if len(polylines) < 2:
         return None
@@ -2413,7 +2413,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         try:
             builder = _build_builder(cls, req)
             return sum(int(w[2]) for w in builder.build_wires())
-        except Exception:
+        except Exception:  # noqa: BLE001 — size probe only — returning None lets the real solve surface the underlying error instead of a spurious size rejection
             return None
 
     def momwire_solve(req: dict, cancel=None) -> dict:
@@ -3078,7 +3078,7 @@ def register_all() -> list[str]:
     for name in list_designs():
         try:
             mod = importlib.import_module(f"{DESIGNS_PKG}.{name}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — registry walk: one broken design must not take down the whole web UI
             print(f"[adapter] skip {name}: import error: {exc!r}")
             continue
         cls = getattr(mod, "Builder", None)
@@ -3088,6 +3088,6 @@ def register_all() -> list[str]:
             cls()  # smoke-test that default_params constructs cleanly
             register(_make_example(name, cls))
             registered.append(name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same walk — a design whose default_params will not construct is skipped and logged
             print(f"[adapter] skip {name}: {exc!r}")
     return registered

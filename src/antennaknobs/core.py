@@ -9,7 +9,7 @@ def _get_brand_tag():
             from importlib.metadata import version
 
             _brand_tag = f"AntennaKNoBs {version('antennaknobs')}"
-        except Exception:
+        except Exception:  # noqa: BLE001 — the version lookup is cosmetic; an unversioned brand tag is a fine answer
             _brand_tag = "AntennaKNoBs"
     return _brand_tag
 

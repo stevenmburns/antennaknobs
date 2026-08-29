@@ -225,7 +225,7 @@ def run_design(
                     times_ms = [
                         time_one(fn, builder_cls, n, f, ground) * 1e3 for f in pts
                     ]
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
                     cells.append(f"ERR: {type(e).__name__}")
                     continue
                 mean = sum(times_ms) / len(times_ms)

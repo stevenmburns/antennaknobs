@@ -61,7 +61,7 @@ def _pynec_somm_fixed():
 
         m = re.match(r"(\d+)\.(\d+)\.(\d+)", version("pynec-accel"))
         return m is not None and tuple(int(g) for g in m.groups()) >= (1, 7, 6)
-    except Exception:
+    except Exception:  # noqa: BLE001 — unknown provenance (source build, upstream PyNEC) keeps the warning — the conservative answer
         # Unknown provenance (source build, upstream PyNEC): keep warning.
         return False
 

@@ -146,7 +146,7 @@ def main():
             setattr(b, n, x)
         try:
             z1, z2, peak, _, _ = evaluate(b)
-        except Exception:
+        except Exception:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
             return 1e9
         cost = abs(z1 - args.z0) + abs(z2 - args.z0)
         if args.opt_gain:

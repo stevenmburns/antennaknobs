@@ -128,7 +128,7 @@ def network_only(factory, names, xs, ys) -> bool:
         ref = _wires_of(factory, names, (xs[0], ys[0]))
         corners = ((xs[-1], ys[0]), (xs[0], ys[-1]), (xs[-1], ys[-1]))
         return all(_wires_of(factory, names, c) == ref for c in corners)
-    except Exception:
+    except Exception:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
         return False
 
 

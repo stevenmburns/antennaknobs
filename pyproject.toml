@@ -189,7 +189,14 @@ ignore = ["E741"]
 # was consumed inside its own iteration, i.e. zero real bugs. Kept on for the
 # case it exists to catch — closures stashed in a loop and called after it
 # ends — which no test here would reliably notice.
-extend-select = ["TID252", "B023"]
+# BLE001 (blind-except) is selected repo-wide, deliberately UNLIKE B023 above,
+# which is per-file-ignored under scratch/ and scripts/. The asymmetry is
+# evidence-based: 38 of the 56 blind excepts already annotated when this landed
+# were in scripts/, i.e. the authors of the bench and study code were already
+# marking them by hand. Exempting those trees would have deleted 38 deliberate
+# annotations as newly-dead. Every `except Exception` in the repo is now either
+# justified in a comment or a lint error.
+extend-select = ["TID252", "B023", "BLE001"]
 # Keep "imported but unused" as a warning instead of auto-stripping.
 # Without this, multi-pass edits (add imports first, then add code that
 # uses them) can have the import deleted between edits — by the editor's

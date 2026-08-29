@@ -35,14 +35,14 @@ def bench_one(name: str, n_iter: int = 1000) -> dict:
         return {"name": name, "status": "no Builder class"}
     try:
         inst = cls()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
         return {"name": name, "status": f"ctor: {exc!r}"}
 
     sink = io.StringIO()
     with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
         try:
             wires = inst.build_wires()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
             return {"name": name, "status": f"build: {exc!r}"}
 
         n_wires = len(wires)
@@ -69,7 +69,7 @@ def main() -> None:
     for n in names:
         try:
             rows.append(bench_one(n))
-        except Exception:
+        except Exception:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
             rows.append(
                 {
                     "name": n,

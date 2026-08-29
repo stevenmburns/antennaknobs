@@ -1676,7 +1676,7 @@ async def converge_endpoint(req: dict, request: Request):
                         )
             except (Superseded, momwire.SolveAborted):
                 return
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — one-off solver failures must not abort the whole sweep; the error is noted per N
                 # One-off solver failures (e.g. degenerate geometry at very
                 # small N) or a size rejection shouldn't abort the whole sweep —
                 # note the error for this N and keep going.
@@ -2697,7 +2697,7 @@ async def ws_endpoint(ws: WebSocket):
                         az_angles,
                         elev_angles,
                     )
-                except Exception:  # noqa: BLE001 — junk angles must not kill the socket
+                except Exception:  # junk angles must not kill the socket; logged below, which BLE001 permits
                     _logger.exception("ws cuts request failed")
                     cuts = None
                 # Unknown id (restart/eviction) or junk request → ok:false;

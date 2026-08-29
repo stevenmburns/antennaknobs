@@ -125,7 +125,7 @@ def physical_cpu_count() -> int:
         n = psutil.cpu_count(logical=False)
         if n:
             return int(n)
-    except Exception:
+    except Exception:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
         pass
     return max(1, os.cpu_count() or 1)
 

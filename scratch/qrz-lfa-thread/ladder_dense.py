@@ -191,7 +191,7 @@ def main():
                 continue
             try:
                 i, lm = fn(k)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
                 print(f"{name} k={k}: {type(e).__name__}: {str(e)[:80]}", flush=True)
                 continue
             out[name][str(k)] = [i.real, i.imag, lm]
