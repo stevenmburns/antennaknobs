@@ -20,9 +20,9 @@ jobs:
       # bump deliberately alongside a repo-wide `ruff check` cleanup.
       - uses: astral-sh/ruff-action@v1
         with:
-          version: "0.15.21"
+          version: "0.16.5"
           args: "check"
       - uses: astral-sh/ruff-action@v1
         with:
-          version: "0.15.21"
+          version: "0.16.5"
           args: "format --check"

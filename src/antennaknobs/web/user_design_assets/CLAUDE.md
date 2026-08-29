@@ -77,9 +77,10 @@ be pointed at your private files, so a data-driven design stays safe to share:
 ```python
 from antennaknobs import AntennaBuilder, read_json
 
+
 class Builder(AntennaBuilder):
     def build_wires(self):
-        spec = read_json(self, "my_wires.json")   # file sits next to this .py
+        spec = read_json(self, "my_wires.json")  # file sits next to this .py
         ...
 ```
 
@@ -115,6 +116,7 @@ transmission lines, and (resistive) NT networks into the app's own
 
 ```python
 from antennaknobs import AntennaBuilder, read_nec
+
 
 class Builder(AntennaBuilder):
     def build_wires(self):
@@ -182,11 +184,10 @@ one extra hop, and the frozen-geometry expectations above apply unchanged:
 ```python
 from antennaknobs import AntennaBuilder, read_ssn
 
+
 class Builder(AntennaBuilder):
     def build_wires(self):
-        return read_ssn(self, "station.ssn", network=True).deck.wire_tuples(
-            specs=True
-        )
+        return read_ssn(self, "station.ssn", network=True).deck.wire_tuples(specs=True)
 
     def build_network(self):
         # deck loads/feed PLUS the file's station chain (see below)
@@ -277,11 +278,11 @@ two mix freely in one list:
 ```python
 from antennaknobs import AntennaBuilder, Wire, WireSpec
 
-TUBE = WireSpec(radius=6e-3)                       # 12 mm boom element
-WIRE = WireSpec(radius=1e-3, conductivity=5.8e7)   # copper radial
+TUBE = WireSpec(radius=6e-3)  # 12 mm boom element
+WIRE = WireSpec(radius=1e-3, conductivity=5.8e7)  # copper radial
 
-(start, end, n_segments, feed)                     # plain tuple: design default
-Wire(start, end, n_segments, feed, spec=TUBE)      # this wire is the fat tube
+(start, end, n_segments, feed)  # plain tuple: design default
+Wire(start, end, n_segments, feed, spec=TUBE)  # this wire is the fat tube
 ```
 
 A wire without a `spec` uses `build_wire_material()` (or the 0.5 mm ideal).

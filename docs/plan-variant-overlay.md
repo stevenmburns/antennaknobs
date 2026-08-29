@@ -84,10 +84,11 @@ def merge_params(base, over):
         # Match Mapping, not dict: ui_params is a MappingProxyType, which is
         # a Mapping but not a dict subclass.
         if isinstance(out.get(k), Mapping) and isinstance(v, Mapping):
-            out[k] = merge_params(out[k], v)   # recurse into dicts / proxies
+            out[k] = merge_params(out[k], v)  # recurse into dicts / proxies
         else:
-            out[k] = v                          # scalars, tuples: replace
+            out[k] = v  # scalars, tuples: replace
     return out
+
 
 def resolve_variant_params(cls, variant):
     base = dict(cls.default_params)

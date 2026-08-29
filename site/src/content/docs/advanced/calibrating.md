@@ -155,8 +155,8 @@ defaults:
 
 ```python
 measured_params = {
-    'length_factor': 0.992629,
-    'angle_deg': 34.670689,
+    "length_factor": 0.992629,
+    "angle_deg": 34.670689,
 }
 ```
 

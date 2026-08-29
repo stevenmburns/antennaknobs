@@ -33,11 +33,13 @@ remember either. The builder's only meshing obligation is to declare the
 frequency that anchors the density:
 
 ```python
-default_params = MappingProxyType({
-    "freq": 28.57,
-    "design_freq": 28.57,   # anchors the mesh density (see below)
-    # ... the geometry knobs ...
-})
+default_params = MappingProxyType(
+    {
+        "freq": 28.57,
+        "design_freq": 28.57,  # anchors the mesh density (see below)
+        # ... the geometry knobs ...
+    }
+)
 ```
 
 ## The rule behind `None`
@@ -84,7 +86,7 @@ def build_wires(self):
     # ... geometry: corner points S, A, B, C, D, E, F, G, H, T ...
 
     n_seg0 = self.nominal_nsegs
-    ref = math.dist(S, A)          # the reference wire's length
+    ref = math.dist(S, A)  # the reference wire's length
     n_seg1 = self.segs_for(math.dist(T, S), ref)
 
     def path(lst):
@@ -94,11 +96,11 @@ def build_wires(self):
         ]
 
     tups = []
-    tups.append((S, A, n_seg0, None))   # reference: carries nominal_nsegs
-    tups.extend(path([A, B]))           # tail, at the arm's density
-    tups.extend(path([C, D, E, F]))     # reflector run, same density
-    tups.extend(path([G, H, T]))        # tail + arm, same density
-    tups.append((T, S, n_seg1, 1 + 0j)) # feed, same density
+    tups.append((S, A, n_seg0, None))  # reference: carries nominal_nsegs
+    tups.extend(path([A, B]))  # tail, at the arm's density
+    tups.extend(path([C, D, E, F]))  # reflector run, same density
+    tups.extend(path([G, H, T]))  # tail + arm, same density
+    tups.append((T, S, n_seg1, 1 + 0j))  # feed, same density
     return tups
 ```
 

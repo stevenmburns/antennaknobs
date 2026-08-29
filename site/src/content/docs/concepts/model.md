@@ -13,6 +13,7 @@ A design subclasses `AntennaBuilder` and declares its parameters:
 ```python
 from antennaknobs import AntennaBuilder
 
+
 class Builder(AntennaBuilder):
     default_params = {
         "design_freq": 28.47,
@@ -21,8 +22,7 @@ class Builder(AntennaBuilder):
         # ...
     }
 
-    def build_wires(self):
-        ...
+    def build_wires(self): ...
 ```
 
 Parameters are read and written as plain attributes (`ant.length = 5.2`); under
@@ -62,9 +62,9 @@ tuple superset whose fields after the endpoints all default, so keywords
 replace positional `None` placeholders:
 
 ```python
-Wire(a, b)                     # structural wire, design density
-Wire(t, s, ex=1 + 0j)          # the feed
-Wire(ti, to, name="trap_b0")   # a named attachment wire
+Wire(a, b)  # structural wire, design density
+Wire(t, s, ex=1 + 0j)  # the feed
+Wire(ti, to, name="trap_b0")  # a named attachment wire
 ```
 
 (Plain tuples stay 4–6 fields — there is deliberately no 2/3-tuple form,

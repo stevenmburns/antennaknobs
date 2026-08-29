@@ -56,15 +56,15 @@ Every design is an [`AntennaBuilder`](/concepts/model/). Wrap one in an
 from antennaknobs import Antenna
 from antennaknobs.designs.dipoles.invvee import Builder
 
-ant = Antenna(Builder())     # an inverted-vee dipole, default parameters
-print(ant.impedance())       # -> [(48.6-8.8j)]  ohms, one entry per feed port
+ant = Antenna(Builder())  # an inverted-vee dipole, default parameters
+print(ant.impedance())  # -> [(48.6-8.8j)]  ohms, one entry per feed port
 ```
 
 Tune a knob and re-solve — parameters are plain attributes:
 
 ```python
 b = Builder()
-b.length_factor = 1.0        # stretch the arms
+b.length_factor = 1.0  # stretch the arms
 print(Antenna(b).impedance())
 ```
 
@@ -72,7 +72,7 @@ print(Antenna(b).impedance())
 impedance, and the current distribution:
 
 ```python
-ant.far_field()          # full-sphere far-field rings
+ant.far_field()  # full-sphere far-field rings
 ant.impedance_sweep(...)  # impedance across a frequency range
 ```
 

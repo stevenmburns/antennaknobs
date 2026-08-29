@@ -67,19 +67,19 @@ sharing a latest-wins mailbox:
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
-    mailbox: list[dict] = []          # size-1, newest only
-    newer = asyncio.Event()           # "mailbox refilled"
+    mailbox: list[dict] = []  # size-1, newest only
+    newer = asyncio.Event()  # "mailbox refilled"
     closed = asyncio.Event()
 
     async def reader():
         try:
             while True:
                 req = json.loads(await ws.receive_text())
-                mailbox[:] = [req]    # overwrite: squash anything unsolved
+                mailbox[:] = [req]  # overwrite: squash anything unsolved
                 newer.set()
         except WebSocketDisconnect:
             closed.set()
-            newer.set()               # wake the solver so it can exit
+            newer.set()  # wake the solver so it can exit
 
     reader_task = asyncio.create_task(reader())
     try:
@@ -92,8 +92,10 @@ async def ws_endpoint(ws: WebSocket):
             try:
                 result = await run_in_threadpool(solve, req)
             except Exception as exc:
-                result = {"geometry": req.get("geometry"),
-                          "error": user_designs.format_solve_error(exc)}
+                result = {
+                    "geometry": req.get("geometry"),
+                    "error": user_designs.format_solve_error(exc),
+                }
             result["_seq"] = req.get("_seq")
             # Superseded while solving? Skip the send — the newer request's
             # response will carry a higher _seq and the client renders

@@ -27,8 +27,12 @@ Repro snippet:
 from antenna_designer.designs.bowtiearray2x4 import Builder
 from antenna_designer.engines import PysimEngine
 from pysim import ArrayBlockPySim
-b = Builder(); b.nominal_nsegs = 21
-eng = PysimEngine(b, solver=ArrayBlockPySim, solver_kwargs={"degree": 2}, ground="pec")  # vs ground=None
+
+b = Builder()
+b.nominal_nsegs = 21
+eng = PysimEngine(
+    b, solver=ArrayBlockPySim, solver_kwargs={"degree": 2}, ground="pec"
+)  # vs ground=None
 eng.impedance()
 ```
 
@@ -40,17 +44,19 @@ A single hard gate disables the accelerated path whenever ground is on:
 
 `pysim/src/pysim/hmatrix.py`
 ```python
-def _hmatrix_unsupported(self):                    # line 757
+def _hmatrix_unsupported(self):  # line 757
     """The H-matrix path is free-space, no-enrichment only for now."""
-    return self.ground_z is not None or self.use_singular_enrichment   # line 759
+    return self.ground_z is not None or self.use_singular_enrichment  # line 759
 
-def compute_y_matrix(self):                        # line 769
-    if self._hmatrix_unsupported():
-        return super().compute_y_matrix()          # -> BSplinePySim dense path
 
-def compute_impedance(self):                       # line 793
+def compute_y_matrix(self):  # line 769
     if self._hmatrix_unsupported():
-        return super().compute_impedance()         # -> BSplinePySim dense path
+        return super().compute_y_matrix()  # -> BSplinePySim dense path
+
+
+def compute_impedance(self):  # line 793
+    if self._hmatrix_unsupported():
+        return super().compute_impedance()  # -> BSplinePySim dense path
 ```
 
 `ArrayBlockPySim` subclasses `HMatrixPySim`, so it inherits the gate. With ground on, both impedance and Y fall through to `BSplinePySim`, which assembles the full dense `Z` (free-space **minus** the image assembly) and does a dense LU:

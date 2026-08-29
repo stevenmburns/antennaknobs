@@ -16,7 +16,7 @@
 ```python
 def _hmatrix_unsupported(self):
     """The H-matrix path is free-space, no-enrichment only for now."""
-    return self.ground_z is not None or self.use_singular_enrichment   # 833
+    return self.ground_z is not None or self.use_singular_enrichment  # 833
 ```
 
 So a non-array design (or an array the user runs on the generic solver) under PEC ground pays the full dense `O(N²)` assembly + dense LU, losing the H-matrix speedup that free space enjoys. `ArrayBlockPySim` overrides this gate (it now supports ground); the base class does not.
@@ -51,7 +51,7 @@ For an antenna *above* a ground plane the answer is essentially yes, and here is
 `hmatrix.py:624`
 ```python
 if r * (mI + nJ) >= mI * nJ:
-    near_blocks.append((I, J, dense()))   # no compression → store dense
+    near_blocks.append((I, J, dense()))  # no compression → store dense
 ```
 
 A block whose combined rank is too high simply falls back to dense storage — **correct, just less compressed**. So the worst case is graceful perf degradation for a near-ground antenna, never a wrong answer. We measure the compression hit; we do not need to prevent it.

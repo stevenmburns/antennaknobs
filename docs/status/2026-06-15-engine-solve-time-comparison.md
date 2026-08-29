@@ -243,7 +243,7 @@ Earlier analysis suggested LU-factor reuse inside `_solve_with_kcl`
 misread of the cProfile. The two solves use *different* matrices:
 
 ```python
-sol = scipy.linalg.solve(Z, rhs)              # Z is (n_b, n_b)
+sol = scipy.linalg.solve(Z, rhs)  # Z is (n_b, n_b)
 lam = scipy.linalg.solve(kcl_A @ X, kcl_A @ w)  # (n_c, n_c) Schur
 ```
 
