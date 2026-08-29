@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_user_designs_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-29 19:17 +0000
+            created at 2026-08-29 20:46 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1758,7 +1758,7 @@
     <p class="run run2"><span class="n"><a id="t1676" href="#t1676">1676</a></span><span class="t">                        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1677" href="#t1677">1677</a></span><span class="t">            <span class="key">except</span> <span class="op">(</span><span class="nam">Superseded</span><span class="op">,</span> <span class="nam">momwire</span><span class="op">.</span><span class="nam">SolveAborted</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1678" href="#t1678">1678</a></span><span class="t">                <span class="key">return</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1679" href="#t1679">1679</a></span><span class="t">            <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1679" href="#t1679">1679</a></span><span class="t">            <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>  <span class="com"># noqa: BLE001 &#8212; one-off solver failures must not abort the whole sweep; the error is noted per N</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1680" href="#t1680">1680</a></span><span class="t">                <span class="com"># One-off solver failures (e.g. degenerate geometry at very</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1681" href="#t1681">1681</a></span><span class="t">                <span class="com"># small N) or a size rejection shouldn&#x27;t abort the whole sweep &#8212;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1682" href="#t1682">1682</a></span><span class="t">                <span class="com"># note the error for this N and keep going.</span>&nbsp;</span><span class="r"></span></p>
@@ -2779,7 +2779,7 @@
     <p class="run run2"><span class="n"><a id="t2697" href="#t2697">2697</a></span><span class="t">                        <span class="nam">az_angles</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t2698" href="#t2698">2698</a></span><span class="t">                        <span class="nam">elev_angles</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t2699" href="#t2699">2699</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t2700" href="#t2700">2700</a></span><span class="t">                <span class="key">except</span> <span class="nam">Exception</span><span class="op">:</span>  <span class="com"># noqa: BLE001 &#8212; junk angles must not kill the socket</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t2700" href="#t2700">2700</a></span><span class="t">                <span class="key">except</span> <span class="nam">Exception</span><span class="op">:</span>  <span class="com"># junk angles must not kill the socket; logged below, which BLE001 permits</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2701" href="#t2701">2701</a></span><span class="t">                    <span class="nam">_logger</span><span class="op">.</span><span class="nam">exception</span><span class="op">(</span><span class="str">&quot;ws cuts request failed&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2702" href="#t2702">2702</a></span><span class="t">                    <span class="nam">cuts</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2703" href="#t2703">2703</a></span><span class="t">                <span class="com"># Unknown id (restart/eviction) or junk request &#8594; ok:false;</span>&nbsp;</span><span class="r"></span></p>
@@ -2919,7 +2919,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_user_designs_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-29 19:17 +0000
+            created at 2026-08-29 20:46 +0000
         </p>
     </div>
 </footer>
