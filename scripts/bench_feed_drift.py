@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_converge as bc  # noqa: E402 — sibling script, reused ladder machinery
+import bench_converge as bc  # sibling script, reused ladder machinery
 
 DEFAULT_LADDER = (21, 61, 161)
 DEFAULT_SEG_CAP = 3000

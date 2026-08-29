@@ -55,18 +55,18 @@ import os
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
-import argparse  # noqa: E402
-import json  # noqa: E402
-import resource  # noqa: E402
-import statistics  # noqa: E402
-import subprocess  # noqa: E402
-import sys  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import json
+import resource
+import statistics
+import subprocess
+import sys
+from pathlib import Path
 
 # Reuse bench_converge.py (which itself reuses bench_nec_corpus.py's harness).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_converge as cvg  # noqa: E402
-import bench_nec_corpus as bnc  # noqa: E402
+import bench_converge as cvg
+import bench_nec_corpus as bnc
 
 ENGINE_KEYS = cvg.ENGINE_KEYS  # ("pynec", "sin", "sing", "bs1", "bs2")
 DEFAULT_ENGINE_KEYS = cvg.DEFAULT_ENGINE_KEYS

@@ -22,10 +22,10 @@ sys.path.insert(
     0, str(pathlib.Path(__file__).resolve().parents[2] / "momwire" / "tests")
 )
 
-from momwire.deck._nec5 import parse_nec5  # noqa: E402
-from momwire.eznec import _serve  # noqa: E402
-from momwire.razor import RazorSolver  # noqa: E402
-from test_eznec_printout import MANIFEST, deck_text  # noqa: E402
+from momwire.deck._nec5 import parse_nec5
+from momwire.eznec import _serve
+from momwire.razor import RazorSolver
+from test_eznec_printout import MANIFEST, deck_text
 
 CAPTURE_IDS = tuple(entry["id"] for entry in MANIFEST["captures"])
 FIVE = ("0011", "0029", "0030", "0034", "0035")

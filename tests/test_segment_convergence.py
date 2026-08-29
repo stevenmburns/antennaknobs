@@ -11,8 +11,8 @@ from antennaknobs.designs.dipoles.invvee import Builder as InvVeeBuilder
 from antennaknobs.engine import SimulationEngine
 
 pytest.importorskip("PyNEC")
-from antennaknobs.engines.pynec import PyNECEngine  # noqa: E402
-from antennaknobs.engines.momwire import MomwireEngine  # noqa: E402
+from antennaknobs.engines.pynec import PyNECEngine
+from antennaknobs.engines.momwire import MomwireEngine
 
 
 def test_coerce_n_seg_any_passes_through():

@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 
 from antennaknobs.web import server as _server
 
-from antennaknobs.web import nec5_backend  # noqa: E402
-from antennaknobs.web.examples._base import AntennaExample  # noqa: E402
+from antennaknobs.web import nec5_backend
+from antennaknobs.web.examples._base import AntennaExample
 
 from conftest import needs_nec5
 

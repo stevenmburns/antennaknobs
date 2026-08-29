@@ -49,12 +49,12 @@ import os
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
-import argparse  # noqa: E402
-import importlib  # noqa: E402
-import json  # noqa: E402
-import resource  # noqa: E402
-import sys  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import importlib
+import json
+import resource
+import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 

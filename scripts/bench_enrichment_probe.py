@@ -60,17 +60,17 @@ import os
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
-import argparse  # noqa: E402
-import json  # noqa: E402
-import math  # noqa: E402
-import resource  # noqa: E402
-import sys  # noqa: E402
-import time  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import json
+import math
+import resource
+import sys
+import time
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_converge as bc  # noqa: E402 — load_design / total_nominal_segs
-import bench_delta_a_headroom as dah  # noqa: E402 — Δ/a headroom clamp (#484)
+import bench_converge as bc  # load_design / total_nominal_segs
+import bench_delta_a_headroom as dah  # Δ/a headroom clamp (#484)
 
 # The #521 no-mutual-limit junction-residue cluster (issue #565): T-junctions
 # (hentenna feed↔loop), a degree-4 X-crossing (hourglass), an apex fan

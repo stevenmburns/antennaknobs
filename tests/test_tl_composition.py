@@ -24,10 +24,10 @@ import pytest
 
 pytest.importorskip("PyNEC")
 
-from antennaknobs import AntennaBuilder  # noqa: E402
-from antennaknobs.network import Driven, Network, PortOnWire, TL  # noqa: E402
-from antennaknobs.engines import MomwireEngine, PyNECEngine  # noqa: E402
-from momwire import BSplineSolver  # noqa: E402
+from antennaknobs import AntennaBuilder
+from antennaknobs.network import Driven, Network, PortOnWire, TL
+from antennaknobs.engines import MomwireEngine, PyNECEngine
+from momwire import BSplineSolver
 
 FREQ = 28.57
 WL = 299.792458 / FREQ

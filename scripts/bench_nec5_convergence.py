@@ -39,8 +39,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_converge as bc  # noqa: E402 — sibling: ladder + engine dispatch
-import bench_delta_a_headroom as dah  # noqa: E402 — Δ/a clamp (#484 discipline)
+import bench_converge as bc  # sibling: ladder + engine dispatch
+import bench_delta_a_headroom as dah  # Δ/a clamp (#484 discipline)
 
 Z0 = 50.0
 ENGINES = ("nec5", "bs2", "sin")

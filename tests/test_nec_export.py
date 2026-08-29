@@ -14,11 +14,11 @@ import pytest
 
 pytest.importorskip("PyNEC")
 
-from antennaknobs import resolve_variant_params  # noqa: E402
-from antennaknobs.designs.dipoles.invvee import Builder as InvVee  # noqa: E402
-from antennaknobs.designs.beams.yagi import Builder as Yagi  # noqa: E402
-from antennaknobs.engines import PyNECEngine  # noqa: E402
-from antennaknobs.nec_export import export_nec  # noqa: E402
+from antennaknobs import resolve_variant_params
+from antennaknobs.designs.dipoles.invvee import Builder as InvVee
+from antennaknobs.designs.beams.yagi import Builder as Yagi
+from antennaknobs.engines import PyNECEngine
+from antennaknobs.nec_export import export_nec
 
 # InvVee's `dipole` variant is a partial overlay on default_params; resolve it
 # to a complete param set before constructing the Builder directly.

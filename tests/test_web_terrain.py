@@ -20,8 +20,8 @@ from antennaknobs.web.server import _EPS0, _pattern_cuts, app
 
 # Imported after server: adapter and examples import each other cyclically,
 # and only the examples-first entry order (which server triggers) resolves.
-import antennaknobs.web.adapter as adapter  # noqa: E402
-from antennaknobs.web.adapter import (  # noqa: E402
+import antennaknobs.web.adapter as adapter
+from antennaknobs.web.adapter import (
     _ground_for_engine,
     _pack_terrain,
     _pynec_ground_spec,

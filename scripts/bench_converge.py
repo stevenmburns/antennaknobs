@@ -38,20 +38,20 @@ import os
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
 
-import argparse  # noqa: E402
-import importlib  # noqa: E402
-import json  # noqa: E402
-import resource  # noqa: E402
-import shutil  # noqa: E402
-import subprocess  # noqa: E402
-import sys  # noqa: E402
-import tempfile  # noqa: E402
-import time  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import importlib
+import json
+import resource
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
 
 # Reuse bench_nec_corpus.py's harness (same directory, not on the package path).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bench_nec_corpus as bnc  # noqa: E402
+import bench_nec_corpus as bnc
 
 # Loop-heavy default set: the corpus sweep found closed loops are where the
 # higher-order basis diverges most from NEC's segmentation, so they are the

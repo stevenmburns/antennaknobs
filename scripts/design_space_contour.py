@@ -59,10 +59,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from antennaknobs.cli import get_builder  # noqa: E402
-from antennaknobs.engines.momwire import MomwireEngine  # noqa: E402
-from antennaknobs.network_reduce import NetworkReducer  # noqa: E402
-from antennaknobs.opt import _get_path, _set_path  # noqa: E402
+from antennaknobs.cli import get_builder
+from antennaknobs.engines.momwire import MomwireEngine
+from antennaknobs.network_reduce import NetworkReducer
+from antennaknobs.opt import _get_path, _set_path
 
 # The SWR values an operator actually thinks in. Labelling contours "2:1"
 # rather than "-9.5 dB" is the difference between a chart you read and a

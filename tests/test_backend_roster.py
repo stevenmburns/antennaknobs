@@ -22,8 +22,8 @@ from fastapi.testclient import TestClient
 # web test uses).
 from antennaknobs.web import server as _server
 
-import antennaknobs.web.adapter as adapter  # noqa: E402
-from antennaknobs.web.adapter import (  # noqa: E402
+import antennaknobs.web.adapter as adapter
+from antennaknobs.web.adapter import (
     _BACKENDS,
     _HOSTED_MODEL_OPTIONS,
     _MOMWIRE_MODELS,
