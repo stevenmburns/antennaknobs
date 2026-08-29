@@ -380,7 +380,7 @@ class Builder(AntennaBuilder):
             zoff = self.base + (n_bands - 1 - band_idx) * self.z_spacing
 
             def at_z(p):
-                return (p[0], p[1], p[2] + zoff)
+                return (p[0], p[1], p[2] + zoff)  # noqa: B023 — `at_z` is called on the eleven anchors immediately below and never stored, so `zoff` is this band's throughout.
 
             S = at_z(anchors["S"])
             A = at_z(anchors["A"])

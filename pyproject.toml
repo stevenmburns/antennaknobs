@@ -165,7 +165,17 @@ ignore = ["E741"]
 # where it is loaded by file path with no package context, so relative
 # imports break on the first line. Core modules keep the usual
 # relative-intra-package style.
-extend-select = ["TID252"]
+# B023 (function-uses-loop-variable) is opted into EXPLICITLY: it is not in
+# ruff's default set at the pinned version, and inheriting it would mean
+# upgrading ruff, which brings ~400 other rules and ~900 findings with it.
+#
+# It is a MAY-escape warning, not a bug detector — it fires whenever a closure
+# reads a loop variable, because it cannot prove the closure outlives the
+# iteration. Audited 2026-08-29 across all 60 findings then present: every one
+# was consumed inside its own iteration, i.e. zero real bugs. Kept on for the
+# case it exists to catch — closures stashed in a loop and called after it
+# ends — which no test here would reliably notice.
+extend-select = ["TID252", "B023"]
 # Keep "imported but unused" as a warning instead of auto-stripping.
 # Without this, multi-pass edits (add imports first, then add code that
 # uses them) can have the import deleted between edits — by the editor's
@@ -181,3 +191,10 @@ ban-relative-imports = "all"
 [tool.ruff.lint.per-file-ignores]
 # Relative imports are banned only under designs/ (see extend-select above).
 "!src/antennaknobs/designs/**" = ["TID252"]
+# B023 off for the banked studies and bench scripts. NOT an exclusion of those
+# trees — scratch/ stays linted on purpose (see the note above [tool.ruff]) —
+# just this one rule, which is noise there: study and bench code builds
+# throwaway closures over sweep variables and consumes them on the next line.
+# 46 of the 60 findings audited were in one prototype. src/ keeps the rule.
+"scratch/**" = ["B023"]
+"scripts/**" = ["B023"]

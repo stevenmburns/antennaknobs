@@ -973,7 +973,7 @@ def lower(net, *, title: str = "", budget=None, p_in=None, plane=None) -> Schema
 
             def _rank(cg):
                 path = grouped[cg[0]][0][cg[1]][1]
-                depth = len(path) if paths[ridx].startswith(path) else -1
+                depth = len(path) if paths[ridx].startswith(path) else -1  # noqa: B023 — `_rank` is consumed by the `max(cands, key=_rank)` on the next line; it never outlives this row.
                 return (depth, -cg[0], -cg[1])
 
             owner.setdefault(max(cands, key=_rank), []).append(ridx)
