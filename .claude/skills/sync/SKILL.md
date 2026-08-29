@@ -38,36 +38,41 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    `<root>/momwire` respectively. If either is missing or non-editable,
    reinstall it with `.venv/bin/pip install -e <path> --no-deps`.
 
-5. **Rebuild the accelerators if stale.** momwire builds *more than one*
-   extension — `setup.py` declares `momwire._accelerators` and
-   `momwire._near_interface_accel` today, and has grown the list before — so
-   check every one rather than a named binary. Each extension also has a
-   `depends=` list of `*_inline.h` headers, and a header edit alone makes a
-   `.so` stale with its `.cpp` untouched.
-
-   Run this from the repo root; it derives the extension list from what is on
-   disk, so a third extension is covered with no edit here:
-   ```bash
-   cd momwire/src/momwire && stale=0
-   for cpp in *.cpp; do
-     base=${cpp%.cpp}
-     so=$(ls "${base}".cpython-*.so 2>/dev/null | head -1)
-     if [ -z "$so" ]; then echo "MISSING  $base"; stale=1; continue; fi
-     newer=$(find . -maxdepth 1 \( -name '*.h' -o -name "$cpp" \) -newer "$so" -printf '%f ' 2>/dev/null)
-     if [ -n "$newer" ]; then echo "STALE    $base  <- $newer"; stale=1; else echo "current  $base"; fi
-   done
-   [ $stale -eq 1 ] && echo "REBUILD NEEDED" || echo "all extensions current"
-   ```
-   It compares every header against every `.so`, which is deliberately
-   conservative: the two `depends=` lists differ, so a shared-header edit may
-   rebuild one extension unnecessarily. That is much cheaper than shipping a
-   stale binary.
-
-   If anything reports `STALE` or `MISSING`, rebuild in place — one command
-   builds every extension:
+5. **Rebuild the accelerators.** Do not hand-roll a staleness check — just
+   run the build. `build_ext` already decides per extension, via
+   `newer_group(sources + depends, ext_path)`, and it is a **no-op when
+   nothing changed**: measured 0 compile invocations in 0.20 s even without
+   ccache.
    ```
    cd momwire && ../.venv/bin/python setup.py build_ext --inplace
    ```
+   If it prints `c++ ...` lines, the extensions were stale and are now
+   rebuilt; if it only prints `copying`, they were already current. Either way
+   the tree ends correct, which a check that merely *reports* does not
+   guarantee.
+
+   **Why not an mtime check.** Two were tried here and both were wrong, for
+   reasons worth recording so a third is not attempted:
+
+   * *One `.cpp` per `.so`* — false since momwire#687. `_accelerators` is
+     built from FIVE sources (`_accelerators.cpp` plus four `_accel_*.cpp`
+     section TUs) into one binary, so the four section TUs have no
+     same-named `.so` and a name-matching check reports them `MISSING`.
+   * *Compare every source against the OLDEST `.so`* — permanently red.
+     `build_ext` relinks only the extensions whose own sources changed, so
+     the two `.so` mtimes legitimately diverge; any source newer than the
+     least-recently-relinked extension then reports `STALE` forever, even
+     with everything correctly built.
+
+   The mapping that would make an mtime check correct is the `sources=` and
+   `depends=` lists in `setup.py` — which is precisely what `build_ext`
+   consults. Reimplementing it is how you get a second source of truth that
+   drifts, the momwire#568 stale-`.so` lesson in a new spelling.
+
+   With `ccache` wired (`CC="ccache gcc" CXX="ccache g++"`, or just
+   `make build` from `momwire/`), a real edit costs 12–28 s instead of ~48 s:
+   setuptools recompiles *every* source in a stale extension, so ccache is
+   what makes the untouched TUs free.
 
 6. **Refresh version metadata if needed**: if either `pyproject.toml` version
    changed in the pull, `importlib.metadata` still reports the old number
@@ -78,10 +83,11 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    ```
 
 7. **Verify**: with `.venv/bin/python`, import `antennaknobs`, `momwire`, and
-   **every** extension found in step 5 (`momwire._accelerators`,
-   `momwire._near_interface_accel`, ...); check each `__file__` resolves into
-   the source trees (not site-packages) and that `importlib.metadata` versions
-   match the pyproject versions.
+   **every built extension** — one per `.so`, not one per source file:
+   `ls momwire/src/momwire/*.cpython-*.so` names them (today
+   `momwire._accelerators` and `momwire._near_interface_accel`). Check each
+   `__file__` resolves into the source trees (not site-packages) and that
+   `importlib.metadata` versions match the pyproject versions.
 
    Beware that other `_accelerators*.so` can exist on disk without being the
    live one: `setup.py build_ext` leaves a copy under `momwire/build/`, and any
@@ -89,5 +95,6 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    `sys.path`, so trust the imported `__file__` over a bare `find` — and do not
    delete anything as part of a sync, which is a read-and-rebuild operation.
 
-Report: old → new commit for each repo, the per-extension status from step 5
-(and whether anything was rebuilt), and the final installed versions.
+Report: old → new commit for each repo, whether step 5 actually rebuilt
+anything (compile lines printed vs `copying` only), and the final installed
+versions.
