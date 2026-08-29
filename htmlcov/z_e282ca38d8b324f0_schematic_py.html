@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_serialize_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-29 17:04 +0000
+            created at 2026-08-29 18:48 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1055,7 +1055,7 @@
     <p class="pln"><span class="n"><a id="t973" href="#t973">973</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t974" href="#t974">974</a></span><span class="t">            <span class="key">def</span> <span class="nam">_rank</span><span class="op">(</span><span class="nam">cg</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t975" href="#t975">975</a></span><span class="t">                <span class="nam">path</span> <span class="op">=</span> <span class="nam">grouped</span><span class="op">[</span><span class="nam">cg</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">]</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">[</span><span class="nam">cg</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">]</span><span class="op">[</span><span class="num">1</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t976" href="#t976">976</a></span><span class="t">                <span class="nam">depth</span> <span class="op">=</span> <span class="nam">len</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span> <span class="key">if</span> <span class="nam">paths</span><span class="op">[</span><span class="nam">ridx</span><span class="op">]</span><span class="op">.</span><span class="nam">startswith</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span> <span class="key">else</span> <span class="op">-</span><span class="num">1</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t976" href="#t976">976</a></span><span class="t">                <span class="nam">depth</span> <span class="op">=</span> <span class="nam">len</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span> <span class="key">if</span> <span class="nam">paths</span><span class="op">[</span><span class="nam">ridx</span><span class="op">]</span><span class="op">.</span><span class="nam">startswith</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span> <span class="key">else</span> <span class="op">-</span><span class="num">1</span>  <span class="com"># noqa: B023 &#8212; `_rank` is consumed by the `max(cands, key=_rank)` on the next line; it never outlives this row.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t977" href="#t977">977</a></span><span class="t">                <span class="key">return</span> <span class="op">(</span><span class="nam">depth</span><span class="op">,</span> <span class="op">-</span><span class="nam">cg</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="op">-</span><span class="nam">cg</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t978" href="#t978">978</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t979" href="#t979">979</a></span><span class="t">            <span class="nam">owner</span><span class="op">.</span><span class="nam">setdefault</span><span class="op">(</span><span class="nam">max</span><span class="op">(</span><span class="nam">cands</span><span class="op">,</span> <span class="nam">key</span><span class="op">=</span><span class="nam">_rank</span><span class="op">)</span><span class="op">,</span> <span class="op">[</span><span class="op">]</span><span class="op">)</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">ridx</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1893,7 +1893,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_serialize_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-29 17:04 +0000
+            created at 2026-08-29 18:48 +0000
         </p>
     </div>
 </footer>

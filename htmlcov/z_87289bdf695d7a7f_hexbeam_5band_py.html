@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_87289bdf695d7a7f_trap_dipole_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-29 17:04 +0000
+            created at 2026-08-29 18:48 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -462,7 +462,7 @@
     <p class="run"><span class="n"><a id="t380" href="#t380">380</a></span><span class="t">            <span class="nam">zoff</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">base</span> <span class="op">+</span> <span class="op">(</span><span class="nam">n_bands</span> <span class="op">-</span> <span class="num">1</span> <span class="op">-</span> <span class="nam">band_idx</span><span class="op">)</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">z_spacing</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t381" href="#t381">381</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t382" href="#t382">382</a></span><span class="t">            <span class="key">def</span> <span class="nam">at_z</span><span class="op">(</span><span class="nam">p</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t383" href="#t383">383</a></span><span class="t">                <span class="key">return</span> <span class="op">(</span><span class="nam">p</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">p</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="nam">p</span><span class="op">[</span><span class="num">2</span><span class="op">]</span> <span class="op">+</span> <span class="nam">zoff</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t383" href="#t383">383</a></span><span class="t">                <span class="key">return</span> <span class="op">(</span><span class="nam">p</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">p</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="nam">p</span><span class="op">[</span><span class="num">2</span><span class="op">]</span> <span class="op">+</span> <span class="nam">zoff</span><span class="op">)</span>  <span class="com"># noqa: B023 &#8212; `at_z` is called on the eleven anchors immediately below and never stored, so `zoff` is this band&#x27;s throughout.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t384" href="#t384">384</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t385" href="#t385">385</a></span><span class="t">            <span class="nam">S</span> <span class="op">=</span> <span class="nam">at_z</span><span class="op">(</span><span class="nam">anchors</span><span class="op">[</span><span class="str">&quot;S&quot;</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t386" href="#t386">386</a></span><span class="t">            <span class="nam">A</span> <span class="op">=</span> <span class="nam">at_z</span><span class="op">(</span><span class="nam">anchors</span><span class="op">[</span><span class="str">&quot;A&quot;</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -533,7 +533,7 @@
             <a class="nav" href="z_87289bdf695d7a7f_trap_dipole_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-29 17:04 +0000
+            created at 2026-08-29 18:48 +0000
         </p>
     </div>
 </footer>
