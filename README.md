@@ -206,7 +206,7 @@ class Builder(AntennaBuilder):
         {
             "freq": 28.57,
             "base": 7.0,
-            "halfdriver": 2.4597430629596713,   # length of one radiating side
+            "halfdriver": 2.4597430629596713,  # length of one radiating side
             "aspect_ratio": 0.3646010186757216,  # short side / long side
             "tipspacer_factor": 0.07729647745945359,
             "t0_factor": 0.4078045966770739,
@@ -224,8 +224,12 @@ class Builder(AntennaBuilder):
 
         def build_path(lst, ns, ex):
             return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
-        def rx(p): return -p[0], p[1], p[2]   # mirror across x
-        def ry(p): return p[0], -p[1], p[2]   # mirror across y
+
+        def rx(p):
+            return -p[0], p[1], p[2]  # mirror across x
+
+        def ry(p):
+            return p[0], -p[1], p[2]  # mirror across y
 
         S = (short / 2, eps, base)
         A = (S[0], long / 2, base)
@@ -239,7 +243,7 @@ class Builder(AntennaBuilder):
         tups.extend(build_path([S, A, B], n_seg0, None))
         tups.extend(build_path([C, D, E, F], n_seg0, None))
         tups.extend(build_path([G, H, T], n_seg0, None))
-        tups.append((T, S, n_seg1, 1 + 0j))   # the driven segment
+        tups.append((T, S, n_seg1, 1 + 0j))  # the driven segment
         return tups
 ```
 
@@ -252,12 +256,14 @@ import antennaknobs as ant
 from antennaknobs.designs.dipoles.invvee import Builder
 
 p = dict(Builder.default_params)
-bounds = ((p['length_factor'] * .8, p['length_factor'] * 1.25), (0, 60))
+bounds = ((p["length_factor"] * 0.8, p["length_factor"] * 1.25), (0, 60))
 
 builders = (
     ant.optimize(
         Builder(dict(p, base=base)),
-        ['length_factor', 'angle_deg'], z0=50, bounds=bounds,
+        ["length_factor", "angle_deg"],
+        z0=50,
+        bounds=bounds,
     )
     for base in [5, 6, 7, 8]
 )

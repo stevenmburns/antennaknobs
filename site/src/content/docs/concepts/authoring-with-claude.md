@@ -75,21 +75,21 @@ from antennaknobs.network import Wire
 
 class Builder(AntennaBuilder):
     default_params = {
-        "design_freq": 14.1,   # MHz — the band this is cut for
-        "freq": 14.1,          # MHz — measurement frequency
+        "design_freq": 14.1,  # MHz — the band this is cut for
+        "freq": 14.1,  # MHz — measurement frequency
         "length_factor": 0.96,
-        "height": 10.0,        # metres
+        "height": 10.0,  # metres
         "ui_params": {"default_view": "xz"},
     }
 
     def build_wires(self):
-        wavelength = self.design_wavelength   # = C_LIGHT_MHZ_M / design_freq, in metres
+        wavelength = self.design_wavelength  # = C_LIGHT_MHZ_M / design_freq, in metres
         h = (wavelength / 4.0) * self.length_factor
         z, eps = self.height, 0.01
         return [
-            Wire((0.0, -h, z), (0.0, -eps, z)),               # left arm
-            Wire((0.0, eps, z), (0.0, h, z)),                 # right arm
-            Wire((0.0, -eps, z), (0.0, eps, z), ex=1 + 0j),   # driven feed gap
+            Wire((0.0, -h, z), (0.0, -eps, z)),  # left arm
+            Wire((0.0, eps, z), (0.0, h, z)),  # right arm
+            Wire((0.0, -eps, z), (0.0, eps, z), ex=1 + 0j),  # driven feed gap
         ]
 ```
 

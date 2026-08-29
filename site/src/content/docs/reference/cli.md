@@ -384,7 +384,7 @@ other key is inherited from `default_params`.
 ```python
 class Builder(AntennaBuilder):
     default_params = {"freq": 28.5, "halfdriver": 2.46, "tipspacer_factor": 0.077}
-    original_params = {"halfdriver": 2.4336}   # just the delta — the rest inherit
+    original_params = {"halfdriver": 2.4336}  # just the delta — the rest inherit
 ```
 
 That is exactly the form `params name:variant` emits, so the round-trip is

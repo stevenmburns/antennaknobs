@@ -122,16 +122,16 @@ from antennaknobs import Drone
 
 drone = Drone(position=S, nominal_nsegs=n_body, ref=quarter)
 drone.face(heading=(0.0, 1.0, 0.0), up=(1.0, 0.0, 0.0))
-drone.yaw(self.angle_deg)                # tilt up onto the right slant
+drone.yaw(self.angle_deg)  # tilt up onto the right slant
 
 drone.pay_out()
-drone.forward(side, nsegs=n_body)                                # S -> A  (right slant)
-drone.yaw(180 - self.angle_deg)                                  # exterior angle at A
+drone.forward(side, nsegs=n_body)  # S -> A  (right slant)
+drone.yaw(180 - self.angle_deg)  # exterior angle at A
 drone.forward_through_plane((0.0, 1.0, 0.0, 0.0), nsegs=n_body)  # A -> B  (top edge)
-drone.yaw(180 - self.angle_deg)                                  # exterior angle at B
-drone.forward(side, nsegs=n_body)                                # B -> T  (left slant)
+drone.yaw(180 - self.angle_deg)  # exterior angle at B
+drone.forward(side, nsegs=n_body)  # B -> T  (left slant)
 drone.feed(1 + 0j)
-drone.close(nsegs=n_feed)                                        # T -> S  (feed gap, fly home)
+drone.close(nsegs=n_feed)  # T -> S  (feed gap, fly home)
 
 return drone.wires()
 ```
@@ -188,8 +188,9 @@ structure, then read local points through the composed frame.
 from antennaknobs import Transform, TransformStack
 
 st = TransformStack()
-st.push(Transform.translate(0, 0, b))     # to base height
+st.push(Transform.translate(0, 0, b))  # to base height
 st.push(Transform.rotX(-self.slant_deg))  # tilt the structure
+
 
 def build_path(lst, ns, ex):
     return ((st.hit(a), st.hit(b), ns, ex) for a, b in zip(lst[:-1], lst[1:]))

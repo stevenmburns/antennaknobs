@@ -78,19 +78,24 @@ on abort latency (~20 ms at N=160, per the PR #13 numbers in momwire's
 class SolveAborted(Exception):
     """Solve was cancelled via CancelToken; no result was produced."""
 
+
 class CancelToken:
     def __init__(self):
         self._flag = np.zeros(1, dtype=np.int32)
-    def cancel(self):            # any thread; idempotent
+
+    def cancel(self):  # any thread; idempotent
         self._flag[0] = 1
+
     @property
     def cancelled(self):
         return bool(self._flag[0])
+
     def raise_if_cancelled(self):
         if self._flag[0]:
             raise SolveAborted()
+
     @property
-    def ptr(self):               # raw address for the C++ kernels
+    def ptr(self):  # raw address for the C++ kernels
         return self._flag.ctypes.data
 ```
 

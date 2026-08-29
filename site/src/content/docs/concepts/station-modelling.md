@@ -92,6 +92,7 @@ from antennaknobs.network import (
     cable_from_catalog,
 )
 
+
 def build_network(self):
     return Network(
         ports={"feed": PortOnWire("feed"), "rig": PortVirtual("rig")},
@@ -192,13 +193,23 @@ computes `zdiff` and `vf` for you:
 ```python
 # #12 bare wire on six-inch spreaders — the classic 600 Ω open-wire line
 balanced_line_from_geometry(
-    "t1", "t2", "a1", "a2",
-    spacing=0.1524, length=20.0, conductor=0.001024,
+    "t1",
+    "t2",
+    "a1",
+    "a2",
+    spacing=0.1524,
+    length=20.0,
+    conductor=0.001024,
 )
 # a jacketed catalog wire brings its own insulation along
 balanced_line_from_geometry(
-    "t1", "t2", "a1", "a2",
-    spacing=0.0254, length=20.0, conductor="18-awg-pvc",
+    "t1",
+    "t2",
+    "a1",
+    "a2",
+    spacing=0.0254,
+    length=20.0,
+    conductor="18-awg-pvc",
 )
 ```
 
@@ -245,7 +256,7 @@ branches = [
     Instance(
         "tuner",
         t_network_tuner(c1_pF=81.2, c2_pF=500, l_uH=4.218, ql=200),
-        rig="rig",      # formal → actual port map
+        rig="rig",  # formal → actual port map
         out="li",
     ),
     TL.from_cable(cable_from_catalog("openwire-600"), "li", "feed", 30.48),
@@ -295,7 +306,7 @@ from antennaknobs.ferrite import core_from_catalog
 from antennaknobs.station import unun
 
 core = core_from_catalog("FT-240", "43", turns=11, c_stray_pF=3.0)
-unun(7.0, core=core)     # 49:1, wound on that core
+unun(7.0, core=core)  # 49:1, wound on that core
 ```
 
 `core` supersedes `lmag`/`qlmag` wholesale — it *is* the core, the same way
@@ -340,7 +351,7 @@ from antennaknobs.station import autotransformer, autotransformer_ratio
 
 # 4 µH from ground to the tap, 1.05 µH from the tap to the top
 Instance("xf", autotransformer(4.0, 1.05, k=0.99), tap="feed", top="rig")
-autotransformer_ratio(4.0, 1.05)   # 1.51 — impedance ratio n² ≈ 2.3
+autotransformer_ratio(4.0, 1.05)  # 1.51 — impedance ratio n² ≈ 2.3
 ```
 
 Turns go as √L on one core, so the ideal ratio is `n = 1 + √(upper/lower)` and

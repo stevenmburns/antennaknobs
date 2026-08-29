@@ -39,13 +39,16 @@ from antennaknobs import AntennaBuilder, read_nec
 
 WIRES_FILE = "my_yagi.nec"
 
+
 class Builder(AntennaBuilder):
     label = "My Yagi (NEC deck)"
-    default_params = MappingProxyType({
-        "freq": 14.1,
-        "scale": 1.0,          # stretches the whole deck; drag to resonate
-        "height": 10.0,        # lifts a z=0 deck above the ground plane
-    })
+    default_params = MappingProxyType(
+        {
+            "freq": 14.1,
+            "scale": 1.0,  # stretches the whole deck; drag to resonate
+            "height": 10.0,  # lifts a z=0 deck above the ground plane
+        }
+    )
 
     def build_wires(self):
         deck = read_nec(self, WIRES_FILE, network=True)
@@ -277,6 +280,7 @@ line number (`my_yagi.nec, line 7: GW card: segment count must be >= 1, got 0`).
 
 ```python
 from antennaknobs.nec_import import parse_nec
+
 deck = parse_nec(open("some.nec").read(), name="some.nec")
 ```
 
