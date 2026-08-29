@@ -1050,8 +1050,8 @@ def main(argv=None):
     order = ["DIAG", "G0", "G1", "G2", "G3", "G5", "G6", "G4", "G7"]
     if args.only:
         order = args.only.split(",")
-    import gate_g4  # noqa: PLC0415
-    import gate_g7  # noqa: PLC0415
+    import gate_g4
+    import gate_g7
 
     fns = {
         "DIAG": diagnostics,
@@ -1080,6 +1080,6 @@ if __name__ == "__main__":
     # Re-enter through the module object: `gate_g4` does `import buried_proto`,
     # and running this file directly would otherwise give it a SECOND module
     # instance whose STATS tally is separate from __main__'s.
-    import buried_proto  # noqa: PLC0415
+    import buried_proto
 
     sys.exit(buried_proto.main())

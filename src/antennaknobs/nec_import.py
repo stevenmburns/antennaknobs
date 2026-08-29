@@ -148,7 +148,7 @@ class NecLoad:
     wire: int
     seg: int
     r: float | None
-    l: float | None  # noqa: E741 — matches network.Load's field name
+    l: float | None  # named to match network.Load's field name
     c: float | None
     parallel: bool
     z: complex | None = None

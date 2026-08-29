@@ -147,7 +147,7 @@ def test_both_engines_agree_on_the_reduced_network():
     """The stubs are reducer-level circuit math on a shunt topology, so PyNEC
     and momwire should agree to MoM-basis tolerance. This design is the
     end-to-end proof of that claim, which #598 could only assert."""
-    from antennaknobs.engines.pynec import PyNECEngine  # noqa: PLC0415
+    from antennaknobs.engines.pynec import PyNECEngine
 
     zm = z_at()
     zp = z_at(engine=PyNECEngine)
@@ -163,7 +163,7 @@ def test_both_engines_agree_on_the_bare_antenna_too():
     """The control for the test above: if the bare feedpoints already differ by
     more than the matched ones, the parity claim would be about the antenna,
     not the network."""
-    from antennaknobs.engines.pynec import PyNECEngine  # noqa: PLC0415
+    from antennaknobs.engines.pynec import PyNECEngine
 
     zm = z_at(match="bypass")
     zp = z_at(match="bypass", engine=PyNECEngine)
