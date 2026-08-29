@@ -202,7 +202,15 @@ extend-select = ["TID252", "B023", "BLE001"]
 # uses them) can have the import deleted between edits — by the editor's
 # format-on-save, the project's auto-fix hook, or a pre-commit run —
 # producing a broken next edit. Manual cleanup of unused imports is fine.
-unfixable = ["F401"]
+# RUF100 for the same reason, learned the hard way in the #1037 audit: its fix
+# deletes the WHOLE comment, prose included. A directive like
+# `# noqa: PLC0415 — optional extra, imported on use` is documentation of why
+# an import is lazy; auto-stripping it discards the explanation along with the
+# suppression. Worse, a `--fix` run before a rule is selected reads that rule's
+# annotations as dead and removes them — which would have deleted all 56
+# BLE001 justifications in #1037 rather than revealing them as the reason to
+# turn the rule on. RUF100 stays reportable, never auto-fixable.
+unfixable = ["F401", "RUF100"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 # "all" also bans single-dot imports: a copied design must not assume it has
