@@ -158,6 +158,20 @@ markers = [
 extend-exclude = ["momwire"]
 
 [tool.ruff.lint]
+# `select` is pinned EXPLICITLY, and the value is exactly ruff's default at
+# the currently pinned version — verified rule-by-rule, so setting it changes
+# nothing today.
+#
+# It is here because the default is not a constant. Between ruff 0.15.21 and
+# 0.16.5 the implicit default grew from 59 enabled rules to 414, which turned
+# ~900 pre-existing lines in this repo into errors with no code change. That is
+# the mechanism behind every "a new ruff release turned CI red" note in
+# .github/workflows/ruff.yml. With `select` written down, a ruff upgrade can
+# change how a rule behaves but can no longer change WHICH rules run.
+#
+# Adding a rule is now a deliberate edit here (see extend-select below), not a
+# side effect of a version bump.
+select = ["E4", "E7", "E9", "F"]
 ignore = ["E741"]
 # TID252 bans relative imports, scoped (via the negated per-file-ignore
 # below) to the design files only. Designs are user-facing exemplars: any
