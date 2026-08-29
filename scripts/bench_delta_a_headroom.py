@@ -34,7 +34,7 @@ def min_delta_a(builder_cls, n: int) -> float:
     try:
         mat = b.build_wire_material()
         default_r = getattr(mat, "radius", DEFAULT_RADIUS) or DEFAULT_RADIUS
-    except Exception:
+    except Exception:  # noqa: BLE001 — probe harness — a failing case is recorded and the sweep continues
         default_r = DEFAULT_RADIUS
     worst = math.inf
     for w in b.build_wires():
