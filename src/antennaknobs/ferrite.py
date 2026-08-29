@@ -282,8 +282,10 @@ def fetch_material(mix: str, *, refresh: bool = False) -> FerriteMaterial:
         try:
             from urllib.request import Request, urlopen
 
-            req = Request(url, headers={"User-Agent": "antennaknobs"})
-            with urlopen(req, timeout=30) as fh:  # noqa: S310 — fixed https URL
+            # S310 twice below: both calls take MATERIAL_URLS[mix], a fixed
+            # https URL from this module, never a caller-supplied string.
+            req = Request(url, headers={"User-Agent": "antennaknobs"})  # noqa: S310
+            with urlopen(req, timeout=30) as fh:  # noqa: S310
                 data = fh.read()
         except Exception as e:
             if path.exists():

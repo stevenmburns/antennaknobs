@@ -196,7 +196,13 @@ ignore = ["E741"]
 # marking them by hand. Exempting those trees would have deleted 38 deliberate
 # annotations as newly-dead. Every `except Exception` in the repo is now either
 # justified in a comment or a lint error.
-extend-select = ["TID252", "B023", "BLE001"]
+# S310 (suspicious-url-open-usage) is opted into for one reason: this repo
+# opens exactly one URL, from a module-level table of fixed https endpoints,
+# and that is the property worth freezing. The rule was already annotated by
+# hand at both call sites before it was selected; selecting it turns those
+# annotations from prose into a gate, so a future `urlopen` of a
+# caller-supplied string cannot land without someone writing down why.
+extend-select = ["TID252", "B023", "BLE001", "S310"]
 # Keep "imported but unused" as a warning instead of auto-stripping.
 # Without this, multi-pass edits (add imports first, then add code that
 # uses them) can have the import deleted between edits — by the editor's
