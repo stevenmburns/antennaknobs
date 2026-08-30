@@ -1,0 +1,33 @@
+         53925641 function calls (53865844 primitive calls) in 158.525 seconds
+
+   Ordered by: cumulative time
+   List reduced from 388 to 25 due to restriction <25>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000  158.525  158.525 /home/smburns/antennas/antennaknobs/momwire/src/momwire/bspline.py:4920(compute_impedance)
+        1    0.000    0.000  158.524  158.524 /home/smburns/antennas/antennaknobs/momwire/src/momwire/bspline.py:4695(_compute_Z_operator)
+        1    0.000    0.000  158.524  158.524 /home/smburns/antennas/antennaknobs/momwire/src/momwire/bspline.py:4504(_compute_Z_operator_buried)
+        1    0.001    0.001  157.995  157.995 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_crossing_fill.py:190(cross_complete_block)
+        3    0.000    0.000  157.973   52.658 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_crossing_fill.py:183(_tables)
+        3    0.000    0.000  157.973   52.658 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:212(radius_tables)
+        3    0.106    0.035  157.973   52.658 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:190(designed_tables)
+    15385    0.222    0.000  157.888    0.010 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:121(six_point)
+608229/548491    5.181    0.000  153.394    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_sommerfeld_below.py:450(_adaptive_segment)
+  1764949   13.021    0.000  142.553    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_sommerfeld_below.py:444(_gauss_segment)
+    15385    0.615    0.000   77.309    0.005 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_sommerfeld_below.py:503(_head)
+    30770    1.697    0.000   76.057    0.002 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:82(_ray_integral)
+  1764949    1.350    0.000   74.660    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:146(f_core)
+  1764949   29.984    0.000   73.310    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:65(_core)
+   738480   10.294    0.000   66.586    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_sommerfeld_below.py:521(ft)
+   786303    4.224    0.000   59.599    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:149(f_j0)
+   978646    7.893    0.000   59.361    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:94(ft)
+  3529898   23.928    0.000   23.928    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_sommerfeld.py:208(_gamma)
+   786303   21.130    0.000   21.762    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_sommerfeld.py:224(_bessel_j0_j1x)
+  1764969   14.365    0.000   16.593    0.000 /home/smburns/antennas/antennaknobs/.venv/lib/python3.14/site-packages/numpy/_core/shape_base.py:378(stack)
+  1790355    1.705    0.000    6.918    0.000 /home/smburns/antennas/antennaknobs/.venv/lib/python3.14/site-packages/numpy/_core/fromnumeric.py:3049(max)
+  1790367    2.647    0.000    5.213    0.000 /home/smburns/antennas/antennaknobs/.venv/lib/python3.14/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)
+   489323    5.030    0.000    5.030    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:172(<lambda>)
+   489323    5.007    0.000    5.007    0.000 /home/smburns/antennas/antennaknobs/momwire/src/momwire/_near_interface.py:180(<lambda>)
+  1764969    0.789    0.000    2.316    0.000 /home/smburns/antennas/antennaknobs/.venv/lib/python3.14/site-packages/numpy/_core/shape_base.py:368(_stack_dispatcher)
+
+

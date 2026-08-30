@@ -1,0 +1,18 @@
+{
+ "nodeAxnodeB": {
+  "V_rel": "5.738e-11",
+  "W_rel": "7.430e-14"
+ },
+ "nodeAxintB": {
+  "V_rel": "1.412e-19",
+  "W_rel": "8.493e-17"
+ },
+ "intAxnodeB": {
+  "V_rel": "1.629e-19",
+  "W_rel": "2.888e-16"
+ },
+ "intAxintB": {
+  "V_rel": "7.543e-20",
+  "W_rel": "4.247e-17"
+ }
+}

@@ -58,3 +58,20 @@ scratchpad/
 # .NEX); left implicit there, stated here because scratch/524-phase0 brings
 # 33 MB of them and a wide `git add` would otherwise bank the lot.
 *.NEX
+
+# Probe block caches. A .npz here is a matrix block re-dumped so a probe can
+# resume in seconds instead of minutes — scratch/524-phase2/PLAN.md calls
+# them "cached" at every mention and names the regeneration cost (4 min for
+# the fan tables). Same rule as the .NEX above: an intermediate, not an
+# answer, and the answer is the JSON receipt beside it. 1.2 MB in
+# scratch/524-phase2 alone, cited by nothing in either repo.
+scratch/**/*.npz
+
+# Licensed NEC-5 printouts inside the phase-2/phase-3 capture trees. A .OUT
+# here is DERIVED: the deck beside it plus the licensed engine regenerates it
+# exactly, so storing it banks another vendor's engine output in a PUBLIC repo
+# to save a re-run. momwire#553's standing rule already says the licensed
+# engine enters as a data oracle and that public artifacts carry conclusions,
+# not its tables. The deck is the evidence and it stays.
+scratch/**/probe*-nec5-cap/*.out
+scratch/**/r5-captures/*.out

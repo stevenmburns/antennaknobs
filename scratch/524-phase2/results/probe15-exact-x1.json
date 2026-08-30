@@ -1,0 +1,34 @@
+{
+ "mono": "71.5556-49.4339j",
+ "engine_delta": "-2.3260-0.7130j",
+ "naive+none+split": {
+  "z": "24.8200-1013.5571j",
+  "delta": "-46.7356-964.1232j",
+  "dist_ohm": 964.433
+ },
+ "MPcrossA+none+merged": {
+  "z": "-41.9048+208.4005j",
+  "delta": "-113.4604+257.8343j",
+  "dist_ohm": 281.421
+ },
+ "MPcrossA+BND+split": {
+  "z": "154.3883-103.2066j",
+  "delta": "82.8327-53.7727j",
+  "dist_ohm": 100.336
+ },
+ "MPcrossA+BND+merged": {
+  "z": "152.0275-104.0495j",
+  "delta": "80.4719-54.6156j",
+  "dist_ohm": 98.798
+ },
+ "shipped+BND+merged": {
+  "z": "-76.0251-1070.5553j",
+  "delta": "-147.5807-1021.1214j",
+  "dist_ohm": 1030.695
+ },
+ "MPcrossA+BND+COR+merged": {
+  "z": "38.0802-972.0210j",
+  "delta": "-33.4754-922.5872j",
+  "dist_ohm": 922.4
+ }
+}
