@@ -290,3 +290,171 @@ fallback warning verified to return. No engine processes are left running.
 EZNEC's own configuration was never touched (see the scope note at the top),
 and `NEC5CL_x13.exe` was read-only throughout — invoked for the comparison
 column, never modified.
+
+---
+
+# Sitting 7 — the accelerated re-measure (2026-08-30)
+
+Driven from `WINDOWS-SESSION-7.local.md`. Same box, same model, same harness
+as sitting 6, so every column below is comparable to the ones above.
+
+- antennaknobs `85b151dcf` (sitting 6's PR #1039 merged), momwire `dbf66a7`
+- Bundle: run **33288451391**, unzipped **fresh** into `bundle7/` — the first
+  build carrying its own OpenMP runtime (momwire#737, fixed in PR #739)
+- Sitting 6's leftover hand-staged `libomp140.x86_64.dll` was **deleted**
+  before any measurement, so nothing here can be contaminated by it
+
+Same scope limit as sitting 6: **the EZNEC GUI was still not driven.** Engines
+were invoked exactly as EZNEC invokes them. The one GUI-driven sweep remains
+the open box on AK#1039's test plan.
+
+## Job A — gate 7 confirmed in the field
+
+One launcher solve into a private room (`MOMWIRE_PORTAL_RUNTIME_DIR`), then
+the daemon's own log:
+
+    accelerators: loaded (_accelerators, _near_interface_accel)
+    openmp runtime: ...\bundle7\momwire-eznec\_internal\libomp140.x86_64.dll
+
+Both required lines present, and the runtime path resolves **inside the
+bundle** — not System32. The box does still have no system `libomp140`, so
+this is the strong form of the test: the bundle is genuinely self-contained.
+No fallback warning appears anywhere, in any room, for the whole sitting.
+
+The shipped DLL is 661,856 bytes (the MSVC redistributable copy) — a
+different build from the 698,944-byte one borrowed from Autodesk's ngspice in
+sitting 6. Worth knowing when comparing the two sittings' solve times.
+
+## Job B — the honest economics
+
+50 points, 14.000–14.350 MHz, 11-segment dipole over real ground, one process
+launch per point. All three columns measured today on the accelerated bundle:
+
+| | per-launch (median) | 50-point sweep |
+|---|---|---|
+| **launcher**, warm resident | **22.3 ms** | **1.18 s** |
+| **engine-direct** (the old one-shot) | 2060 ms | **103.2 s** |
+| **licensed** `NEC5CL_x13` | 22.6 ms | 6.93 s |
+
+Three warm launcher sweeps: 1.18 / 1.19 / 1.53 s. The engine-direct column is
+measured over all 50 points, not extrapolated.
+
+- **The phase-3 delta, both engines accelerated, is 87x** (103.2 s -> 1.18 s).
+  Sitting 6's 127x compared two *pure-Python* engines; this is the honest
+  like-for-like number now that both halves are fast, and it is the one for
+  the site.
+- **The shipped bundle beats sitting 6's hand-patched result.** Sitting 6
+  measured 1.65 s with the DLL added by hand; shipped it is **1.18 s** at
+  22.3 ms/point, better than the plan's ~33 ms/pt expectation.
+- **The launcher now ties the licensed engine per launch and beats it 5.9x on
+  the sweep** (22.3 vs 22.6 ms median; 1.18 s vs 6.93 s). Same story as
+  sitting 6 and now for a better reason: it is bounded (max 39 ms) where
+  process-per-point is erratic (max 457 ms).
+
+### Dense decks — the accelerator recovery
+
+Via `dense.ps1` / `dense_vary.ps1`; `dense_vary` gives every timed run its own
+frequency, which is the cache control.
+
+| model | sitting 6, as shipped (pure Python) | sitting 7, shipped accelerated | recovery |
+|---|---|---|---|
+| 201-seg, repeated deck | 1666 ms | 184 ms | 9.1x |
+| 401-seg, repeated deck | 5741 ms | 372 ms | 15.4x |
+| 201-seg, distinct freqs | — | 219 ms | — |
+| 401-seg, distinct freqs | 5777 ms | 376 / 428 ms | ~14x |
+
+The predicted 15.6x/20.8x recovery is met at 201 and approached at 401.
+
+**One honest discrepancy.** Sitting 6's *hand-patched* 401-segment figure was
+277 ms; today's shipped bundle gives 376–428 ms across two runs — about 1.4x
+slower. Both are internally consistent and the answers are identical, so this
+is not a correctness issue. The candidates are the different `libomp` build
+(see Job A) and machine state; it was not chased further. Quote the shipped
+number, 376–428 ms, since that is what users get.
+
+## Job C — momwire#738 is not a defect, and here is what it actually is
+
+**The stalls reproduced, and they are deterministic.** The first 50-launch
+sweep on the fresh accelerated bundle stalled at sweep indices **9, 29, 43 and
+49** — *exactly* the four indices sitting 6 saw, on a different bundle, a
+different day, pure-Python versus accelerated. That immediately kills the
+Defender/first-touch theory the last two write-ups (mine included) leaned on:
+scanning does not pick the same four indices three times.
+
+The magnitudes track the accelerator, which says the cost is compute:
+
+| index | sitting 6 (pure Python) | sitting 7 (accelerated) |
+|---|---|---|
+| 9 | 4008 ms | 907 ms |
+| 29 | 3762 ms | 836 ms |
+| 43 | 5952 ms | 998 ms |
+| 49 | 5613 ms | 894 ms |
+
+Ratio ~4.4-6.3x, i.e. the accelerator's own ratio.
+
+**Cause: Sommerfeld ground-grid fills, one per frequency ladder rung.** Three
+experiments, each on a freshly killed daemon:
+
+| condition | stalls |
+|---|---|
+| real ground, 14.00–14.35 (2.5% span) | i = 9, 29, 43, 49 |
+| **free space**, same band | **none** |
+| real ground, **14.00–14.01** (0.07% span) | **none** |
+| same sweep, **warm** daemon | **none** |
+
+Ground-dependent, span-dependent, cold-daemon-only. That is precisely the
+cache described in momwire's own source at `src/momwire/_sommerfeld.py`
+L117-137, "Frequency-axis grid reuse (issue #159, phase 2)": the normalized
+master grid is keyed on `Im(eps_t)` quantized onto a geometric ladder
+(`_SOMM_EPS_IM_BUCKET`, default 0.01), so a band sweep costs one fill per rung
+crossed instead of one per frequency. The comment even predicts the count —
+*"a 3%-span sweep: 21 fills -> ~4"*. Our span is 2.5% and we measure exactly 4.
+
+Proved causally with the documented override:
+
+| `MOMWIRE_SOMM_EPS_IM_BUCKET` | stalls in the same sweep |
+|---|---|
+| 0.20 (coarse) | 1 |
+| 0.01 (default) | 4 |
+| 0.002 (fine) | 13 |
+
+The stall count moves with the ladder step exactly as the design says it
+should. **#738 should close as working-as-designed** — it is cold-cache grid
+fill, not a portal, launcher or residency defect.
+
+**And it is an argument *for* residency, not against it.** A one-shot engine
+has no cache to carry, so it refills on every point. Measured on the same
+deck: one-shot with real ground **2023 ms/pt** vs free space **1321 ms/pt** —
+about 700 ms of ground fill on *every* launch. The resident daemon pays that
+four times for a whole sweep. That is a second, independent win from phase 3
+that the plan never claimed.
+
+Practical consequence worth a line on the site: a user's **first** sweep over
+a band with real ground pays roughly 4 x 0.9 s of grid fill; every later sweep
+in the same session is clean. It is not a hang and it is not per-point.
+
+## Job D — observations
+
+- **Exactly one `momwire-eznec-engine.exe` while warm**, throughout. None left
+  at hand-back.
+- **No Defender detections in the last 24 hours**, no quarantine, no prompt,
+  and no scan-delay resembling sitting 6's 58 s first-run tax on the phase-2
+  bundle.
+- **SmartScreen was never actually exercised — do not read this as a pass.**
+  None of the three exes carries a `Zone.Identifier` stream: `gh run download`
+  plus a command-line unzip do not apply Mark-of-the-Web, and SmartScreen keys
+  off exactly that. A user who downloads the zip in a browser gets MOTW and
+  may well see a prompt this sitting could not provoke. The same caveat
+  applies retroactively to sitting 6's "no prompt appeared" note. **The SAC
+  sitting must fetch the signed zip through a browser** (or apply MOTW by
+  hand) or it will measure nothing.
+- Cold spawn on the fresh bundle was 8.1 s, versus 5.3 s in sitting 6 —
+  first-touch of a newly unzipped `_internal` tree. It settles immediately.
+- Launchers remain 184,832 bytes; the plan's "~31 KB" is still stale.
+
+## What sitting 7 did not do
+
+- No GUI-driven EZNEC sweep (Steve remote). Still the open box on AK#1039.
+- Idle-retire was not re-measured; sitting 6 established it (14.0/14.5 min,
+  `idle 900s; exiting`) and nothing in this bundle touches that path.
+- `NEC5CL_x13.exe` invoked read-only for the third column, never modified.
