@@ -75,3 +75,17 @@ scratch/**/*.npz
 # not its tables. The deck is the evidence and it stays.
 scratch/**/probe*-nec5-cap/*.out
 scratch/**/r5-captures/*.out
+# Licensed NEC-5 printouts inside capture trees. A .OUT here is DERIVED: the
+# deck beside it plus the licensed engine regenerates it exactly, so storing
+# it banks 12 MB of somebody else's engine output in a PUBLIC repo to save a
+# re-run. #553's standing rule already says the licensed engine enters as a
+# data oracle and that public artifacts carry conclusions, not its tables.
+# The deck is the evidence and it stays.
+#
+# index.json still NAMES the printout each capture produced — that is a
+# record of what EZNEC wrote, not a promise the file is here; see the README
+# in scratch/eznec-capture/.
+#
+# nec2c/4nec2 output is deliberately NOT covered: nec2c is open source, so
+# its printouts are ours to publish and scratch/4nec2-capture keeps them.
+scratch/eznec-capture/**/*.OUT
