@@ -276,9 +276,13 @@ from the NEC-5 manual rather than chosen for convenience, so its
 convergence behaviour is checkable without the licensed binary. Reach for
 `razor-nec5` while dragging knobs (sub-second to N≈300-400 free /
 N≈200-400 grounded, 2-4× behind `bspline-d2` beyond); plain `razor` is
-12-80× slower, takes over a second even at N=100 under any ground, and can
-exceed an 8 GB working set by N≈800 grounded / N≈1600 free — it is the
-convergence/certification lane, not for interactive use. Neither serves
+still the slower of the two — roughly 10-20× behind `razor-nec5` at
+N=100-300 — and remains the convergence/certification lane rather than an
+interactive one. Its cost stopped being *prohibitive* in momwire 0.44.0,
+whose fused threaded fill rewrote the old warning here: measured on one
+box over a finite ground, N=800 now runs in ~11 s inside 200 MB, and
+N=1600 in free space in ~20 s inside 520 MB, where this page previously
+warned of an 8 GB working set. Neither serves
 the extended kernel, junction/node-gap ports, or ground contact over a
 finite ground — see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
 for the full guidance and refusal boundary.

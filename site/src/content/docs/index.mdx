@@ -25,20 +25,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.63.0" icon="star">
-  **Buried radials, cross-validated.** A new case study —
-  [Buried radials, two engines](/advanced/buried-radials/) — runs the
-  elevated-vertical-over-buried-radials family through momwire and a
-  licensed NEC-5 **on the same card files**: converged agreement at the
-  0.2–2 Ω level, a feed-convention lesson that scales as Z², and the one
-  genuine disagreement (the buried-coupling delta) attributed with an
-  independent EM reference siding with momwire's kernels. Under the
-  hood, the buried-radial vertical now **ships converged by default**
-  (the graded-wire spelling), `auto_mesh` densifies below-ground wire
-  by the soil's own wavelength, and momwire 0.43.0 re-derives the
-  ground-contact counterpoise refusal record at the corrected feed —
-  that story is the momwire primer's new
-  [counterpoise chapter](https://momwire.antennaknobs.dev/act-5/counterpoise/).
+<Card title="New in v0.64.0" icon="star">
+  **The NEC-5 twin stopped being expensive.** momwire 0.44.0 rebuilt the
+  `razor` fill as a fused, threaded kernel, and the lane that was reserved
+  for certification runs is now merely slow rather than prohibitive: a
+  1600-segment free-space solve takes about 20 s inside 520 MB, where the
+  CLI reference used to warn of an 8 GB working set — with every printed
+  byte of the validation corpus unchanged. Same answers, a fraction of the
+  machine. Nothing you write changes; the
+  [CLI guidance](/reference/cli/) carries the new numbers.
+
+  Under the hood this release is momwire 0.44.0 throughout, whose other
+  half is the [EZNEC drop-in](https://momwire.dev/reference/eznec-nec5/):
+  it now keeps a warm engine resident between EZNEC's per-point launches —
+  **3.7× faster than the licensed NEC-5 console engine** on a 51-point
+  sweep measured inside EZNEC itself — and ships as the first
+  Authenticode-signed release.
 </Card>
 
 ## The whole pitch, in one line
