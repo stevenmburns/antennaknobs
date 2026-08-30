@@ -75,6 +75,8 @@ scratch/**/*.npz
 # not its tables. The deck is the evidence and it stays.
 scratch/**/probe*-nec5-cap/*.out
 scratch/**/r5-captures/*.out
+scratch/**/nec5-cap*/*.out
+scratch/**/seam*/*.out
 # Licensed NEC-5 printouts inside capture trees. A .OUT here is DERIVED: the
 # deck beside it plus the licensed engine regenerates it exactly, so storing
 # it banks 12 MB of somebody else's engine output in a PUBLIC repo to save a
@@ -89,3 +91,13 @@ scratch/**/r5-captures/*.out
 # nec2c/4nec2 output is deliberately NOT covered: nec2c is open source, so
 # its printouts are ours to publish and scratch/4nec2-capture keeps them.
 scratch/eznec-capture/**/*.OUT
+
+# The licensed NEC-5 binary itself. A study tree sometimes gets a COPY of the
+# engine beside its captures so a probe can re-run without a path lookup
+# (scratch/567-phase0/results/nec5-ab/nec5cl, 1.3 MB ELF). Committing that to
+# a PUBLIC repo would be redistributing the licensed engine — a different and
+# much larger thing than storing its printouts. Ignored by name and by shape.
+nec5cl
+nec5cl.exe
+NEC5CL*
+scratch/**/nec5-ab/nec5cl
