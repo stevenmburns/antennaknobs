@@ -101,3 +101,20 @@ nec5cl
 nec5cl.exe
 NEC5CL*
 scratch/**/nec5-ab/nec5cl
+
+# Wild-corpus census sweep artifacts. `scratch/nec5-wild-phase5.jsonl` is the
+# raw 3,147-row output of the #872 phase-5 three-way sweep (4 MB), and
+# `.pre-ek` beside it is the first-run backup kept across the EK re-solve of
+# 310 decks. Same rule as the .npz and .NEX above: the raw sweep is an
+# intermediate, and the ANSWER is committed twice over — the census totals
+# live as cited literals in docs/status/2026-08-12-nec5-wild-phase5.md, and
+# scripts/build_validation_report.py reads those literals (not the jsonl) to
+# generate the public validation page, which it says in as many words at the
+# `cited` comment. The status doc already records this file as untracked.
+#
+# Ignored by name rather than as `scratch/*.jsonl`: three smaller sweep
+# artifacts ARE tracked (nec-connection-snap-rerun, nec5-xnec2c-shakedown,
+# runtime-arcs-ladders), so a glob here would misdescribe the convention.
+# Named because a wide `git add` would otherwise bank 8 MB of it.
+scratch/nec5-wild-phase5.jsonl
+scratch/nec5-wild-phase5.jsonl.pre-ek
