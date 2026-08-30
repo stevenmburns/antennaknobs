@@ -1,0 +1,4 @@
+# The measured artifact and its working files are not repo content.
+bundle/
+rig/
+retire.log
