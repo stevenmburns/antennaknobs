@@ -587,3 +587,110 @@ L2391/L2693 block the work but are sized for convenience, not for cache.
 So a thread pool over the existing chunks would hit memory bandwidth almost
 immediately. Tiling the fill for cache residency first, then parallelizing
 over tiles, is the order that matters — details and targets in momwire#742.
+
+## Sitting 7 addendum 2 — the GUI-driven sweep, at last
+
+The open box on AK#1039's test plan is now closed. Steve drove EZNEC by hand
+on 2026-08-30 while a 15 ms watcher timestamped every external-engine
+invocation (each one rewrites `NEC5.OUT` exactly once, so no stopwatch was
+needed). 184 invocations captured. Model: `Bydipole1`, real ground, 51-point
+SWR sweep, 14.00-14.50 MHz.
+
+Engine path pointed at the accelerated bundle's launcher
+(`bundle7\momwire-eznec\momwire-eznec.exe`); EZNEC had still been pointed at
+the stale phase-2 bundle in `~/Downloads` from a previous sitting, which is
+worth remembering before any future GUI run.
+
+### The result
+
+| 51-point SWR sweep | wall | per point |
+|---|---|---|
+| **momwire, warm** | **2.975 s** | 58 ms |
+| momwire, first sweep (ladder filling) | 5.882 s | 115 ms |
+| **licensed `NEC5CL_x13`** | **10.950 s** | 215 ms |
+
+**momwire is 3.7x faster than the licensed engine inside real EZNEC** — same
+model, same session, minutes apart. The shell harness said 5.9x (1.18 s vs
+6.93 s over 50 points); the GUI figure is the honest one to quote to users
+because it includes what EZNEC itself costs.
+
+**EZNEC's own overhead is about 35 ms per point.** momwire measured 23.6 ms
+per point from the shell and 58 ms per point through the GUI on the same
+engine. That is the ceiling on how much engine speed a user can actually
+feel, and it means the last few milliseconds of launch cost are not where
+remaining wins live.
+
+### What the GUI confirmed that the harness could not
+
+- **Residency held perfectly.** `engines=1` on every one of the 184
+  invocations — never a second engine, never a fallback to the one-shot
+  ladder, across 153 swept points plus the individual Src Dat clicks. The
+  phase-3 mechanism works under the real client, not just under a script.
+- **The Sommerfeld ladder is visible in the GUI, and it is exactly the
+  momwire#738 mechanism.** The first sweep shows **five** spikes of 597-796 ms
+  against a 51 ms median; the warm second sweep shows **none** (median
+  54.7 ms, no delta over 200 ms). A human clicking through EZNEC reproduced
+  the cold-daemon grid fill independently of the harness that found it, which
+  is far better evidence than anything self-generated.
+- **No caching.** Steve deliberately changed frequency between runs to rule
+  it out. The warm sweep stayed flat, and `LastZ.txt` carries a distinct
+  impedance per point.
+
+### Cross-checks
+
+The licensed sweep's `LastZ.txt` reads **72.37945 - 58.54773j** at 14 MHz,
+matching the shell licensed measurement (72.38 - 58.548j) exactly — the GUI
+and the harness are measuring the same thing.
+
+One asymmetry worth noting: the licensed engine produced **79 writes for 51
+points** (~1.55 each, in a big-then-small pattern), so it appears to flush
+`NEC5.OUT` incrementally, where momwire writes once per point. It does not
+affect the wall times, but it is why per-write medians are not comparable
+between the two columns — only sweep totals are.
+
+### Job D, settled properly
+
+Machine state read from the registry and Defender rather than inferred:
+
+| | state | does the observation count? |
+|---|---|---|
+| Defender real-time protection | **On** | **Yes** — active throughout, zero detections, zero prompts |
+| SmartScreen | **not configured** | **No** — and no Mark-of-the-Web either |
+| Smart App Control | **Off** | **No** |
+
+So sitting 6 and sitting 7's "no SmartScreen prompt" notes should be struck
+from the record, not softened: SmartScreen is not enabled on this box at all,
+and the bundle carries no Mark-of-the-Web because `gh run download` plus a CLI
+unzip do not apply one. Two independent reasons the test could not have fired.
+
+The Defender result, by contrast, **does** stand: real-time protection was on
+for every run in both sittings and produced nothing.
+
+**This box cannot host the SAC sitting.** Smart App Control reads `Off`, and
+SAC cannot be switched back on once off — it only leaves Evaluation mode in
+one direction. The signed-zip sitting needs a different machine with SAC in
+Evaluation or On, and the zip must arrive **through a browser** so it carries
+Mark-of-the-Web. Worth settling before anyone books that trip.
+
+### The cold start does read as a hang — confirmed by the human
+
+Steve's verdict on the first calculation, unprompted: *"It took a long time.
+Maybe someone would think it was a hang."* That settles the Job D question
+sitting 6 could only guess at. EZNEC shows nothing at all during an external
+engine run, so the ~5-8 s cold spawn is a dead window with no feedback, and it
+is a user's **very first** experience of the drop-in — the worst possible
+place to put it.
+
+It also recurs: the engine retires after 15 idle minutes, so anyone who
+thinks between calculations meets it again.
+
+His proposed fix is the right shape — **start the daemon before EZNEC needs
+it**, so the cost is paid where nobody is waiting on it. Filed as momwire#743.
+Options worth weighing there: a `--warm` flag or small warmup executable the
+user runs (or a Startup shortcut runs) before opening EZNEC; and, since
+nothing about the spawn depends on the deck, the launcher could start the
+daemon at the *end* of a run so the next click is already warm — which would
+also cover the idle-retire case without asking the user to do anything.
+
+Worth pairing with the 35 ms/point EZNEC overhead measured above: per-launch
+milliseconds are no longer where the felt experience lives. The cold spawn is.
