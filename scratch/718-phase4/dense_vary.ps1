@@ -1,6 +1,6 @@
-param([int]$Segs = 401)
+param([int]$Segs = 401, [string]$Bundle = "bundle")
 $rig = "C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\rig"
-$B   = "C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle\momwire-eznec"
+$B   = "C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\$Bundle\momwire-eznec"
 Set-Location $rig
 $mid = [int](($Segs + 1) / 2); $deck = "$rig\dense_v.nec"
 # warm-up on a frequency none of the timed runs reuse

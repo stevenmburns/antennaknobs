@@ -1,6 +1,6 @@
-param([string]$Tag, [int]$Segs = 201)
+param([string]$Tag, [int]$Segs = 201, [string]$Bundle = "bundle")
 $rig = "C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\rig"
-$B   = "C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle\momwire-eznec"
+$B   = "C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\$Bundle\momwire-eznec"
 Set-Location $rig
 $mid = [int](($Segs + 1) / 2)
 $deck = "$rig\dense.nec"
