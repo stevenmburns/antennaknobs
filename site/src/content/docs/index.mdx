@@ -26,20 +26,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
     swap the highlights) — a stale "new" box is worse than none. */}
 
 <Card title="New in v0.64.0" icon="star">
-  **The NEC-5 twin stopped being expensive.** momwire 0.44.0 rebuilt the
-  `razor` fill as a fused, threaded kernel, and the lane that was reserved
-  for certification runs is now merely slow rather than prohibitive: a
-  1600-segment free-space solve takes about 20 s inside 520 MB, where the
-  CLI reference used to warn of an 8 GB working set — with every printed
-  byte of the validation corpus unchanged. Same answers, a fraction of the
-  machine. Nothing you write changes; the
-  [CLI guidance](/reference/cli/) carries the new numbers.
+  **The NEC-5 twin got its first C++ kernel.** `razor-nec5` is what you
+  reach for when you want what NEC-5 would have said — and until now its
+  matrix fill was plain NumPy, single-threaded, with no accelerated path
+  at all. momwire 0.44.0 gives it a fused, tiled, threaded kernel, with
+  every printed byte of the validation corpus unchanged. Measured on one
+  box: a 1600-segment free-space solve in **1.1 s**, an 800-segment solve
+  over real ground in **0.64 s**, both inside a few hundred MB, where the
+  [CLI reference](/reference/cli/) used to warn about multi-gigabyte
+  working sets at fine mesh. Same answers, a fraction of the machine, and
+  nothing you write changes.
 
-  Under the hood this release is momwire 0.44.0 throughout, whose other
-  half is the [EZNEC drop-in](https://momwire.dev/reference/eznec-nec5/):
-  it now keeps a warm engine resident between EZNEC's per-point launches —
-  **3.7× faster than the licensed NEC-5 console engine** on a 51-point
-  sweep measured inside EZNEC itself — and ships as the first
+  The other half of momwire 0.44.0 is the
+  [EZNEC drop-in](https://momwire.dev/reference/eznec-nec5/): it now keeps
+  a warm engine resident between EZNEC's per-point launches — **3.7×
+  faster than the licensed NEC-5 console engine** on a 51-point sweep
+  measured inside EZNEC itself — and ships as the first
   Authenticode-signed release.
 </Card>
 
