@@ -1,0 +1,188 @@
+{
+  "D015-base": {
+    "truth": "33.1382-332.2637j",
+    "rungs": {
+      "baseline": {
+        "soil_z": "143.9327-26.2135j",
+        "eps1_margin": 0.2269,
+        "soil_secs": 3.2
+      },
+      "q4": {
+        "soil_z": "143.9327-26.2135j",
+        "eps1_margin": 0.2269,
+        "soil_secs": 2.6,
+        "soil_dz": 0.0,
+        "margin_shift": -0.0
+      },
+      "panels": {
+        "soil_z": "143.9327-26.2136j",
+        "eps1_margin": 0.2267,
+        "soil_secs": 1.6,
+        "soil_dz": 0.0001,
+        "margin_shift": -0.0002
+      },
+      "combo": {
+        "soil_z": "143.9327-26.2136j",
+        "eps1_margin": 0.2268,
+        "soil_secs": 1.6,
+        "soil_dz": 0.0001,
+        "margin_shift": -0.0001
+      }
+    }
+  },
+  "D015-g2": {
+    "truth": "32.8736-337.1265j",
+    "rungs": {
+      "baseline": {
+        "soil_z": "142.1922-36.4711j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 3.5
+      },
+      "q4": {
+        "soil_z": "142.1923-36.4707j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 2.7,
+        "soil_dz": 0.0004,
+        "margin_shift": 0.0
+      },
+      "panels": {
+        "soil_z": "142.1922-36.4711j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 2.7,
+        "soil_dz": 0.0,
+        "margin_shift": -0.0
+      },
+      "combo": {
+        "soil_z": "142.1923-36.4707j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 2.5,
+        "soil_dz": 0.0004,
+        "margin_shift": 0.0
+      }
+    }
+  },
+  "D050-base": {
+    "truth": "38.5633-274.8129j",
+    "rungs": {
+      "baseline": {
+        "soil_z": "164.5393+59.9217j",
+        "eps1_margin": 0.2647,
+        "soil_secs": 4.1
+      },
+      "q4": {
+        "soil_z": "164.5393+59.9217j",
+        "eps1_margin": 0.2647,
+        "soil_secs": 4.1,
+        "soil_dz": 0.0001,
+        "margin_shift": -0.0
+      },
+      "panels": {
+        "soil_z": "164.5393+59.9217j",
+        "eps1_margin": 0.2646,
+        "soil_secs": 2.4,
+        "soil_dz": 0.0,
+        "margin_shift": -0.0001
+      },
+      "combo": {
+        "soil_z": "164.5393+59.9217j",
+        "eps1_margin": 0.2646,
+        "soil_secs": 2.8,
+        "soil_dz": 0.0,
+        "margin_shift": -0.0001
+      }
+    }
+  },
+  "D050-g": {
+    "truth": "38.4523-275.6284j",
+    "rungs": {
+      "baseline": {
+        "soil_z": "165.4535+58.1217j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 3.8
+      },
+      "q4": {
+        "soil_z": "165.4536+58.1222j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 3.5,
+        "soil_dz": 0.0005,
+        "margin_shift": 0.0
+      },
+      "panels": {
+        "soil_z": "165.4535+58.1217j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 3.2,
+        "soil_dz": 0.0001,
+        "margin_shift": 0.0
+      },
+      "combo": {
+        "soil_z": "165.4536+58.1222j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 2.9,
+        "soil_dz": 0.0005,
+        "margin_shift": 0.0
+      }
+    }
+  },
+  "D100-base": {
+    "truth": "48.8620-176.5015j",
+    "rungs": {
+      "baseline": {
+        "soil_z": "260.7881+231.2931j",
+        "eps1_margin": 0.3323,
+        "soil_secs": 5.7
+      },
+      "q4": {
+        "soil_z": "260.7881+231.2931j",
+        "eps1_margin": 0.3323,
+        "soil_secs": 4.1,
+        "soil_dz": 0.0,
+        "margin_shift": 0.0
+      },
+      "panels": {
+        "soil_z": "260.7882+231.2931j",
+        "eps1_margin": 0.3322,
+        "soil_secs": 2.9,
+        "soil_dz": 0.0001,
+        "margin_shift": -0.0001
+      },
+      "combo": {
+        "soil_z": "260.7882+231.2931j",
+        "eps1_margin": 0.3322,
+        "soil_secs": 2.7,
+        "soil_dz": 0.0001,
+        "margin_shift": -0.0001
+      }
+    }
+  },
+  "D100-g": {
+    "truth": "48.7306-177.7895j",
+    "rungs": {
+      "baseline": {
+        "soil_z": "267.6958+228.3120j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 4.0
+      },
+      "q4": {
+        "soil_z": "267.6961+228.3127j",
+        "eps1_margin": 0.0002,
+        "soil_secs": 4.1,
+        "soil_dz": 0.0007,
+        "margin_shift": 0.0001
+      },
+      "panels": {
+        "soil_z": "267.6958+228.3120j",
+        "eps1_margin": 0.0001,
+        "soil_secs": 3.9,
+        "soil_dz": 0.0,
+        "margin_shift": 0.0
+      },
+      "combo": {
+        "soil_z": "267.6961+228.3127j",
+        "eps1_margin": 0.0002,
+        "soil_secs": 3.9,
+        "soil_dz": 0.0007,
+        "margin_shift": 0.0001
+      }
+    }
+  }
+}

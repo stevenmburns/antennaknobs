@@ -1,0 +1,115 @@
+{
+ "census-g1-k2": {
+  "nA": 180,
+  "nB": 84,
+  "pairs": 15120,
+  "unique": 15120,
+  "dup_factor": 1.0
+ },
+ "census-fan-n4": {
+  "nA": 164,
+  "nB": 488,
+  "pairs": 80032,
+  "unique": 20008,
+  "dup_factor": 4.0
+ },
+ "g1-profile": {
+  "wall_s": 158.5,
+  "z": "138.7671-102.9889j",
+  "named": {
+   "_image_Z_weighted": {
+    "ncalls": 2,
+    "tottime": 0.0,
+    "cumtime": 0.0
+   },
+   "_field_galerkin_block": {
+    "ncalls": 2,
+    "tottime": 0.0,
+    "cumtime": 0.0
+   },
+   "_build_J_blocks_subset": {
+    "ncalls": 4,
+    "tottime": 0.0,
+    "cumtime": 0.01
+   },
+   "compute_impedance": {
+    "ncalls": 1,
+    "tottime": 0.0,
+    "cumtime": 158.53
+   },
+   "_adaptive_segment": {
+    "ncalls": 608229,
+    "tottime": 5.18,
+    "cumtime": 153.39
+   },
+   "_head": {
+    "ncalls": 15385,
+    "tottime": 0.62,
+    "cumtime": 77.31
+   },
+   "axis_data": {
+    "ncalls": 2,
+    "tottime": 0.01,
+    "cumtime": 0.01
+   },
+   "_ray_integral": {
+    "ncalls": 30770,
+    "tottime": 1.7,
+    "cumtime": 76.06
+   },
+   "self_completions": {
+    "ncalls": 1,
+    "tottime": 0.0,
+    "cumtime": 0.0
+   },
+   "six_point": {
+    "ncalls": 15385,
+    "tottime": 0.22,
+    "cumtime": 157.89
+   },
+   "cross_complete_block": {
+    "ncalls": 1,
+    "tottime": 0.0,
+    "cumtime": 158.0
+   },
+   "designed_tables": {
+    "ncalls": 3,
+    "tottime": 0.11,
+    "cumtime": 157.97
+   },
+   "get_grid_below": {
+    "ncalls": 1,
+    "tottime": 0.0,
+    "cumtime": 0.39
+   },
+   "radius_tables": {
+    "ncalls": 3,
+    "tottime": 0.0,
+    "cumtime": 157.97
+   },
+   "_somm_grid": {
+    "ncalls": 1,
+    "tottime": 0.0,
+    "cumtime": 0.11
+   }
+  },
+  "ms_per_point": 10.262
+ },
+ "accel-microbench": {
+  "n_unique": 15120,
+  "batch_s": 3.354,
+  "ms_per_point_parallel": 0.2218,
+  "ms_per_point_serial": 1.5811,
+  "ms_per_point_numpy": 11.438,
+  "speedup_serial": 7.2,
+  "sample": 64
+ },
+ "accel-solve-g1-k2": {
+  "wall_s": 4.3,
+  "z": "138.7671-102.9889j"
+ },
+ "accel-solve-fan-n4": {
+  "wall_s": 6.6,
+  "z": "143.9327-26.2135j"
+ }
+}

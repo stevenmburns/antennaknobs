@@ -1,0 +1,78 @@
+{
+ "lone-x1+shipped": {
+  "z": "77.6278-20.7953j",
+  "vs_engine_x1_ohm": 51.433
+ },
+ "lone-x1+M": {
+  "z": "93.6495-67.0165j",
+  "vs_engine_x1_ohm": 3.474
+ },
+ "lone-x2+shipped": {
+  "z": "76.7965-19.1345j",
+  "vs_engine_x1_ohm": 53.261
+ },
+ "lone-x2+M": {
+  "z": "93.4219-66.7778j",
+  "vs_engine_x1_ohm": 3.603
+ },
+ "lone-x3+shipped": {
+  "z": "76.7436-18.9184j",
+  "vs_engine_x1_ohm": 53.484
+ },
+ "lone-x3+M": {
+  "z": "93.3374-66.6857j",
+  "vs_engine_x1_ohm": 3.66
+ },
+ "lone-x4+shipped": {
+  "z": "76.7331-18.8376j",
+  "vs_engine_x1_ohm": 53.564
+ },
+ "lone-x4+M": {
+  "z": "93.2919-66.6345j",
+  "vs_engine_x1_ohm": 3.694
+ },
+ "fan-x1+shipped": {
+  "z": "19.9835+47.3634j",
+  "vs_engine_x1_ohm": 137.316
+ },
+ "fan-x1+M": {
+  "z": "94.9507-69.8634j",
+  "vs_engine_x1_ohm": 4.976
+ },
+ "fan-x1+M+hub": {
+  "z": "94.9507-69.8634j",
+  "vs_engine_x1_ohm": 4.976
+ },
+ "fan-x2+shipped": {
+  "z": "19.8749+47.5639j",
+  "vs_engine_x1_ohm": 137.544
+ },
+ "fan-x2+M": {
+  "z": "94.7084-69.6248j",
+  "vs_engine_x1_ohm": 4.787
+ },
+ "fan-x3+shipped": {
+  "z": "20.0473+47.5532j",
+  "vs_engine_x1_ohm": 137.447
+ },
+ "fan-x3+M": {
+  "z": "94.6184-69.5326j",
+  "vs_engine_x1_ohm": 4.722
+ },
+ "lone-x5+M": {
+  "z": "93.2629-66.6010j",
+  "vs_engine_x1_ohm": 3.717
+ },
+ "lone-x6+M": {
+  "z": "93.2426-66.5769j",
+  "vs_engine_x1_ohm": 3.734
+ },
+ "fan-x4+M": {
+  "z": "94.5698-69.4814j",
+  "vs_engine_x1_ohm": 4.688
+ },
+ "fan-x5+M": {
+  "z": "94.5389-69.4479j",
+  "vs_engine_x1_ohm": 4.668
+ }
+}

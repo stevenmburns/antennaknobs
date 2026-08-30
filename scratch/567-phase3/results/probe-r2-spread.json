@@ -1,0 +1,35 @@
+{
+ "lone base a4 p8 L8.4": {
+  "z": "104.0340-75.4347j",
+  "miss_ohm": 13.028,
+  "worst_fit": "7.04e-02"
+ },
+ "lone a3": {
+  "z": "103.9634-75.4773j",
+  "miss_ohm": 12.981,
+  "worst_fit": "7.04e-02"
+ },
+ "lone p16": {
+  "z": "103.9119-75.6002j",
+  "miss_ohm": 12.985,
+  "worst_fit": "7.04e-02"
+ },
+ "lone rot": {
+  "z": "103.7751-75.7688j",
+  "miss_ohm": 12.934,
+  "worst_fit": "7.04e-02"
+ },
+ "lone L4.2": {
+  "z": "103.9525-75.4819j",
+  "miss_ohm": 12.973,
+  "worst_fit": "1.06e-01"
+ },
+ "diag vertical control": {
+  "z": "102.6249-76.3749j",
+  "miss_ohm": 12.207
+ },
+ "control r1-via-r2": {
+  "z": "96.2251-76.8549j",
+  "delta_vs_r1": 0.1593
+ }
+}
