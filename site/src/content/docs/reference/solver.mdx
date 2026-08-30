@@ -79,12 +79,20 @@ plain `razor` keeps the converged Gauss-Legendre quadrature instead, so the
 walk it shows is the testing rule's own discretization error rather than a
 quadrature shortfall.
 
-**Which one to reach for is not a coin flip**: `razor-nec5` is the
-interactive lane (reach for it the way you'd reach for `bspline-d2` on an
-ordinary solve); plain `razor` is the convergence/certification lane —
-12–80× slower and far hungrier for memory, worth it only when the
-GL-converged testing-rule answer itself is what you're checking. The
-measured two-lane table lives on
+**Reach for `razor-nec5`.** It is the twin: the one that answers what
+NEC-5 would have said, which is the only reason to be on this solver at
+all. If that is not the question, `bspline-d2` is the better answer.
+
+Plain `razor` came first — it was built as the twin, before momwire#316's
+residue study identified the two-point quadrature rule that made the match
+near-exact — and what it is now is an *instrument*, not a third choice: it
+answers "is this coarse-mesh disagreement the testing rule or NEC-5's
+quadrature shortcut?", and nothing a model needs. It costs about 20× the
+time for that (free space at N=1600, one box, momwire 0.44.0: 20.2 s
+against `razor-nec5`'s 0.97 s) and, since momwire#742 gave both lanes the
+same fill, essentially the same memory (520 MB against 479 MB). At a fine
+mesh the two agree to 0.001 Ω, so the quadrature question it exists to
+answer is a coarse-mesh one. The measured two-lane table lives on
 [momwire's engine-choice page](https://momwire.dev/reference/choosing-an-engine/).
 
 **Refusal boundary.** RazorSolver is deliberately scoped to what its

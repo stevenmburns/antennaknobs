@@ -275,22 +275,23 @@ tested by NEC-5's own razor-blade (mixed-potential path) rule, transcribed
 from the NEC-5 manual rather than chosen for convenience, so its
 convergence behaviour is checkable without the licensed binary.
 
-**`razor-nec5` is the one to reach for**: it is the twin, so it is what
-you use when you want what NEC-5 would have said, and that is the whole
-criterion. Plain `razor` is the same basis and the same razor-blade
-testing with the path quadrature left at full order instead of NEC-5's
-two-point rule — the same formulation *without* NEC-5's quadrature
-approximation, which is a convergence question rather than a better
-answer. At a fine mesh the distinction nearly vanishes: at N=1600 the two
-agree to 0.001 Ω.
+**Use `razor-nec5`.** It is the twin — the one that answers what NEC-5
+would have said — and that is the only reason to be on this solver rather
+than `bspline-d2`.
 
-The order costs, though. Measured on one box, momwire 0.44.0: over a
-finite ground at N=800, `razor-nec5` takes 0.64 s against plain `razor`'s
-11.1 s; in free space at N=1600, 1.08 s against 20.0 s — a factor of
-17-19 for quadrature that changes the third decimal. Peak working sets in
-that release are a few hundred MB at these meshes (198 MB grounded N=800,
-520 MB free N=1600); the razor fill gained its first C++ kernel — there
-was none before — in momwire#742. Neither serves
+Plain `razor` is not a second choice for a model. It came first, built as
+the twin before momwire#316's residue study identified the two-point
+quadrature rule that made the match near-exact; keeping full-order
+Gauss-Legendre on the testing path is now useful for exactly one question
+— whether a coarse-mesh disagreement is the testing rule's own error or
+NEC-5's quadrature shortcut — and it costs about 20× the time to ask it
+(free space N=1600, one box, momwire 0.44.0: 20.2 s against 0.97 s; over
+a finite ground at N=800, 11.1 s against 0.64 s). Memory is no longer the
+differentiator it once was: since momwire#742 gave both lanes the same
+C++ fill — the razor family had no accelerated path at all before that —
+they sit within a tenth of each other (520 MB against 479 MB, free
+N=1600). And at a fine mesh the answers converge anyway: 0.001 Ω apart at
+N=1600. Neither serves
 the extended kernel, junction/node-gap ports, or ground contact over a
 finite ground — see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
 for the full guidance and refusal boundary.
