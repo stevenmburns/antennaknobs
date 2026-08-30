@@ -1,0 +1,187 @@
+09:14:53.649  watcher armed; watching:
+  C:\EZNEC 7.0\Docs\NEC5.OUT
+  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec\NEC5.OUT
+09:18:48.527  run #1  delta=(first)  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:13.925  run #2  delta=25398.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:24.227  run #3  delta=10301.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:39.859  run #4  delta=15632.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:39.953  run #5  delta=93.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.004  run #6  delta=51.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.082  run #7  delta=77.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.144  run #8  delta=61.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.215  run #9  delta=71.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.246  run #10  delta=30.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.843  run #11  delta=596.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.890  run #12  delta=47.3 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.938  run #13  delta=48.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:40.987  run #14  delta=48.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.067  run #15  delta=80.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.131  run #16  delta=63.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.227  run #17  delta=96.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.281  run #18  delta=54 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.330  run #19  delta=48.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.393  run #20  delta=63.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.440  run #21  delta=47 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.488  run #22  delta=48.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.535  run #23  delta=47 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:41.585  run #24  delta=49.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.192  run #25  delta=607.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.240  run #26  delta=47.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.288  run #27  delta=48.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.347  run #28  delta=58.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.412  run #29  delta=65.3 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.460  run #30  delta=47.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.524  run #31  delta=63.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.588  run #32  delta=64.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.634  run #33  delta=45.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:42.683  run #34  delta=48.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:43.387  run #35  delta=704.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:43.430  run #36  delta=43.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:43.478  run #37  delta=47.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:43.527  run #38  delta=48.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.138  run #39  delta=611.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.170  run #40  delta=32.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.219  run #41  delta=48.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.267  run #42  delta=48.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.330  run #43  delta=62.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.395  run #44  delta=65.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.426  run #45  delta=31.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.480  run #46  delta=53.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.546  run #47  delta=65.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.609  run #48  delta=63.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.657  run #49  delta=48.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.721  run #50  delta=63.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.801  run #51  delta=79.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:44.881  run #52  delta=80.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:45.677  run #53  delta=796 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:19:45.741  run #54  delta=63.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.134  run #55  delta=17393.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.214  run #56  delta=79.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.277  run #57  delta=63.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.324  run #58  delta=47 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.379  run #59  delta=54.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.426  run #60  delta=47.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.474  run #61  delta=47.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.522  run #62  delta=48 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.570  run #63  delta=48.3 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.617  run #64  delta=46.3 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.666  run #65  delta=49 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.714  run #66  delta=47.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.779  run #67  delta=65.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.840  run #68  delta=61.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.896  run #69  delta=55.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:03.944  run #70  delta=47.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.022  run #71  delta=77.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.069  run #72  delta=47.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.133  run #73  delta=63.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.181  run #74  delta=48.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.230  run #75  delta=49 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.275  run #76  delta=45.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.339  run #77  delta=63.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.412  run #78  delta=72.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.462  run #79  delta=50.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.527  run #80  delta=64.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.605  run #81  delta=78.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.638  run #82  delta=32.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.685  run #83  delta=47 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.733  run #84  delta=48 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.780  run #85  delta=46.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.843  run #86  delta=63.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.876  run #87  delta=32.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.926  run #88  delta=49.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:04.980  run #89  delta=54.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.043  run #90  delta=62.2 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.090  run #91  delta=47.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.138  run #92  delta=48 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.187  run #93  delta=48.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.235  run #94  delta=48.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.313  run #95  delta=77.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.393  run #96  delta=80.1 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.479  run #97  delta=85.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.544  run #98  delta=65.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.610  run #99  delta=65.6 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.674  run #100  delta=63.7 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.736  run #101  delta=61.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.816  run #102  delta=80.4 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:05.898  run #103  delta=81.8 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:06.009  run #104  delta=111.5 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:06.109  run #105  delta=99.9 ms  engines=1  C:\Users\smbur\antennas\antennaknobs\scratch\718-phase4\bundle7\momwire-eznec
+09:20:37.784  run #106  delta=31674.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:37.846  run #107  delta=62.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:37.894  run #108  delta=47.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:37.941  run #109  delta=47.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.195  run #110  delta=253.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.283  run #111  delta=88.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.348  run #112  delta=64.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.604  run #113  delta=256 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.667  run #114  delta=63 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.715  run #115  delta=47.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:38.988  run #116  delta=273.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.053  run #117  delta=65 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.148  run #118  delta=94.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.413  run #119  delta=264.9 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.462  run #120  delta=49 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.557  run #121  delta=95.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.812  run #122  delta=255.2 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.893  run #123  delta=81.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:39.942  run #124  delta=48.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.196  run #125  delta=253.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.260  run #126  delta=64.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.323  run #127  delta=63.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.387  run #128  delta=63.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.605  run #129  delta=218.2 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.653  run #130  delta=47.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:40.733  run #131  delta=80.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.012  run #132  delta=278.9 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.093  run #133  delta=80.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.157  run #134  delta=64.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.427  run #135  delta=270 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.505  run #136  delta=78.2 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.573  run #137  delta=68.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.845  run #138  delta=271.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.909  run #139  delta=63.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:41.957  run #140  delta=48.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:42.225  run #141  delta=268.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:42.273  run #142  delta=47.6 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:42.354  run #143  delta=81.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:42.649  run #144  delta=295 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:42.697  run #145  delta=48.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:42.777  run #146  delta=79.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.047  run #147  delta=270.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.132  run #148  delta=84.6 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.212  run #149  delta=80.2 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.485  run #150  delta=272.6 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.549  run #151  delta=64.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.597  run #152  delta=47.5 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.661  run #153  delta=63.9 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.916  run #154  delta=255.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:43.979  run #155  delta=63.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.044  run #156  delta=64.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.313  run #157  delta=269.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.378  run #158  delta=64.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.457  run #159  delta=79.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.695  run #160  delta=238.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.749  run #161  delta=53.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:44.817  run #162  delta=67.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:45.082  run #163  delta=265.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:45.146  run #164  delta=64.2 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:45.195  run #165  delta=48.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:45.586  run #166  delta=391.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:45.650  run #167  delta=63.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:45.713  run #168  delta=63.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:46.063  run #169  delta=350.3 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:46.143  run #170  delta=79.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:46.223  run #171  delta=79.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:46.618  run #172  delta=395.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:46.681  run #173  delta=63.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:46.763  run #174  delta=81.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:47.120  run #175  delta=357 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:47.185  run #176  delta=64.7 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:47.264  run #177  delta=79.8 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:47.660  run #178  delta=395.4 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:47.740  run #179  delta=80 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:47.820  run #180  delta=80.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:48.183  run #181  delta=363.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:48.262  run #182  delta=79.2 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:48.342  run #183  delta=80.1 ms  engines=1  C:\EZNEC 7.0\Docs
+09:20:48.734  run #184  delta=391.1 ms  engines=1  C:\EZNEC 7.0\Docs
