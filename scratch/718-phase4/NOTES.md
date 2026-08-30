@@ -458,3 +458,132 @@ in the same session is clean. It is not a hang and it is not per-point.
 - Idle-retire was not re-measured; sitting 6 established it (14.0/14.5 min,
   `idle 900s; exiting`) and nothing in this bundle touches that path.
 - `NEC5CL_x13.exe` invoked read-only for the third column, never modified.
+
+## Sitting 7 addendum — scaling to bigger designs, and where the threads go
+
+The box: **Intel i5-1240P**, 12 physical cores (4 performance + 8 efficiency),
+16 logical, 15.6 GB RAM, 1.7 GHz base. A hybrid laptop part, which turns out
+to matter a lot below.
+
+Method: the Bydipole1 geometry with the segment count scaled up, 14 MHz, real
+ground, warm resident daemon, best of 2. Frequency is held fixed while N
+varies, so the Sommerfeld grid is filled once and what is timed is the solve.
+
+### momwire against the licensed engine, as the design grows
+
+Wall time, ms:
+
+| segments | momwire bs2 | momwire twin (razor) | licensed `NEC5CL_x13` | bs2 vs licensed |
+|---|---|---|---|---|
+| 101 | 75 | 140 | **39** | 0.52x |
+| 401 | 349 | 1,355 | **309** | 0.89x |
+| 801 | **690** | 5,501 | 1,327 | **1.92x** |
+| 1601 | **2,484** | 20,332 | 5,603 | **2.26x** |
+| 3201 | **9,810** | 117,440 | 25,320 | **2.58x** |
+| 6401 | **59,590** | not run | 111,220 | **1.87x** |
+
+**The crossover is around 400-500 segments.** Below it the licensed Fortran
+wins on raw efficiency; above it momwire's parallel fill pulls ahead and the
+lead grows to ~2.6x by 3201.
+
+The reason is simple and worth stating plainly: **the licensed engine is
+single-threaded.** Measured directly at 3201 segments, `NEC5CL_x13` used
+24.94 s of CPU in 25.32 s of wall — 1.0x. momwire's daemon on the same deck
+ran at 7.4x. Per core the Fortran is far more efficient (momwire spends
+92.6 s of CPU to the licensed engine's 24.9 s for the same answer); momwire
+wins on wall-clock purely by spending more cores.
+
+The 6401 row breaks the trend (1.87x, down from 2.58x). Peak working set
+there is well into multiple GB, so this is likely memory pressure on a
+15.6 GB box rather than anything about the algorithm. Not chased.
+
+Accuracy across the range is unchanged: the twin tracks the licensed engine
+to ~1e-3 ohm at every size (at 1601, 73.828 - 41.380j vs 73.828 - 41.393j).
+
+### How many threads actually help
+
+`OMP_NUM_THREADS` swept at 1601 segments, bs2:
+
+| threads | wall | CPU | speedup | efficiency |
+|---|---|---|---|---|
+| 1 | 10.07 s | 9.81 s | 1.00x | 100% |
+| 2 | 5.04 s | 8.67 s | 2.00x | 100% |
+| **4** | **3.19 s** | **8.88 s** | **3.16x** | **79%** |
+| 6 | 3.06 s | 11.36 s | 3.29x | 55% |
+| 8 | 2.89 s | 13.97 s | 3.48x | 44% |
+| 12 | 2.66 s | 16.86 s | 3.79x | 32% |
+| 16 | 2.95 s | 25.00 s | 3.41x | 21% |
+
+**Speedup saturates just under 4x**, and 16 threads is *slower* than 12 while
+burning 2.8x the CPU of the 4-thread run. By Amdahl a ~3.8x ceiling implies
+roughly a quarter of the work is still serial — worth knowing before anyone
+optimizes for more cores.
+
+Practical reading: **4 threads is the efficiency knee.** It gives 3.16x for
+essentially the single-thread CPU budget; everything past it buys single-digit
+percentages of wall time for multiples of the energy. On a laptop that is the
+difference between a warm fan and a hot one.
+
+### Yes, you can pin the cores — and it helps
+
+Windows process affinity on the daemon (`$proc.ProcessorAffinity`) works
+fine. On this part logical 0-7 are the four P-cores with hyperthreading and
+8-15 are the eight E-cores. At 1601 segments:
+
+| configuration | mask | wall | CPU |
+|---|---|---|---|
+| 4 threads, free | — | 3.28 s | 9.17 s |
+| **4 threads, one per P-core** | `0x55` | **3.09 s** | **8.56 s** |
+| 4 threads, P-cores + HT | `0xFF` | 3.34 s | 9.50 s |
+| 4 threads, E-cores only | `0xF00` | 6.78 s | 20.89 s |
+| 8 threads, P-cores + HT | `0xFF` | 3.22 s | 15.59 s |
+| 8 threads, E-cores only | `0xFF00` | 4.48 s | 22.08 s |
+
+- **E-cores are ~2.2x slower per core** (6.78 s vs 3.09 s for the same four
+  threads). Letting OpenMP scatter work onto them is why the free-threaded
+  runs are erratic.
+- **Hyperthread siblings contend**: four threads spread one-per-P-core beats
+  four threads on `0xFF` where two may land on the same physical core.
+- Best overall config measured: **4 threads pinned to the four P-cores** —
+  3.09 s at 8.56 s of CPU, versus the default 16-thread run's 2.95 s at
+  25.00 s. Five percent slower for a third of the energy.
+
+`OMP_PLACES` / `OMP_PROC_BIND` are also available (this is LLVM's libomp), but
+the affinity mask is the blunt instrument that definitely works and needs no
+cooperation from the engine.
+
+### Why the twin is slow — filed as momwire#742
+
+The twin's problem is not that it computes more. At 1601 segments razor burns
+29.6 s of CPU to bs2's 19.4 s — comparable work — but takes 20.45 s of wall
+to bs2's 2.56 s. The difference is entirely parallelism: **bs2 runs at 7.6x,
+razor at 1.4x.**
+
+Threads do nothing for it: razor at `OMP_NUM_THREADS=1` is 22.41 s (1.0x) and
+at 16 is 19.90 s (1.4x) — 11% for sixteen times the threads. The residual is
+BLAS inside the LU solve; the fill is flat serial. And the fill is what
+dominates: razor scales 4.06x then 3.70x per doubling of N, i.e. O(N^2).
+
+**There is no razor kernel to add pragmas to.** `setup.py` builds
+`_accel_bspline`, `_accel_sinusoidal`, `_accel_somm` and `_accel_mw568`; there
+is no `_accel_razor.cpp`, and `razor.py` never imports `._accel` — where
+`bspline.py` dispatches to `_acc.assemble_Z_bspline*` throughout.
+
+The memory numbers say the fix is not just threading, it is the temporaries:
+
+| basis | segments | peak working set | Z-matrix alone |
+|---|---|---|---|
+| bs2 | 1601 | 808 MB | 39 MB |
+| razor | 1601 | **2,110 MB** | 39 MB |
+| bs2 | 3201 | 2,979 MB | 156 MB |
+| razor | 3201 | **8,067 MB** | 156 MB |
+
+At 3201 segments razor materializes **52x the size of the matrix it is
+building** and takes over half the machine's RAM. `_seg_moments_from_prepared`
+allocates full `(n_obs, n_seg)` complex128 `M0`/`M1` planes (razor.py
+L1844-1845) and folds them with `np.einsum` (L1875-1877); the chunk loops at
+L2391/L2693 block the work but are sized for convenience, not for cache.
+
+So a thread pool over the existing chunks would hit memory bandwidth almost
+immediately. Tiling the fill for cache residency first, then parallelizing
+over tiles, is the order that matters — details and targets in momwire#742.
