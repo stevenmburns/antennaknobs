@@ -14,10 +14,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Pinned: the unpinned action installs the latest ruff, and 0.16.0
-      # (released 2026-07-23, ~90 min after main's last green run) flags
-      # long-standing files repo-wide. Keep in sync with the local dev venv;
-      # bump deliberately alongside a repo-wide `ruff check` cleanup.
+      # Pinned, and kept in sync with the local dev venv.
+      #
+      # The pin STARTED as damage control: the unpinned action installs the
+      # latest ruff, and 0.16.0 (released 2026-07-23, ~90 min after main's
+      # last green run) flagged long-standing files repo-wide with no repo
+      # change at all.
+      #
+      # That failure mode is gone, so do not repeat the old advice here.
+      # `[tool.ruff.lint] select` is pinned explicitly in pyproject.toml
+      # (#1036), so a ruff upgrade can change how a rule BEHAVES but never
+      # WHICH rules run. Bumping is now a one-line edit in each of the two
+      # `version:` fields below -- NOT the repo-wide `ruff check` cleanup it
+      # used to imply.
+      #
+      # One thing a bump still moves: FORMATTING is not governed by `select`,
+      # and 0.16 added Markdown to the formatter's scope. So re-run
+      # `ruff format` after a bump and take the diff -- `format --check`
+      # below will fail on .md files a pre-0.16 ruff never touched.
       - uses: astral-sh/ruff-action@v1
         with:
           version: "0.16.5"
