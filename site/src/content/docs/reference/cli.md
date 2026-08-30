@@ -273,16 +273,24 @@ the solver yourself. See [Solvers & accuracy](/reference/solver/).
 `razor` and `razor-nec5` are the same RazorSolver class — a tent basis
 tested by NEC-5's own razor-blade (mixed-potential path) rule, transcribed
 from the NEC-5 manual rather than chosen for convenience, so its
-convergence behaviour is checkable without the licensed binary. Reach for
-`razor-nec5` while dragging knobs (sub-second to N≈300-400 free /
-N≈200-400 grounded, 2-4× behind `bspline-d2` beyond); plain `razor` is
-still the slower of the two — roughly 10-20× behind `razor-nec5` at
-N=100-300 — and remains the convergence/certification lane rather than an
-interactive one. Its cost stopped being *prohibitive* in momwire 0.44.0,
-whose fused threaded fill rewrote the old warning here: measured on one
-box over a finite ground, N=800 now runs in ~11 s inside 200 MB, and
-N=1600 in free space in ~20 s inside 520 MB, where this page previously
-warned of an 8 GB working set. Neither serves
+convergence behaviour is checkable without the licensed binary.
+
+**`razor-nec5` is the one to reach for**: it is the twin, so it is what
+you use when you want what NEC-5 would have said, and that is the whole
+criterion. Plain `razor` is the same basis and the same razor-blade
+testing with the path quadrature left at full order instead of NEC-5's
+two-point rule — the same formulation *without* NEC-5's quadrature
+approximation, which is a convergence question rather than a better
+answer. At a fine mesh the distinction nearly vanishes: at N=1600 the two
+agree to 0.001 Ω.
+
+The order costs, though. Measured on one box, momwire 0.44.0: over a
+finite ground at N=800, `razor-nec5` takes 0.64 s against plain `razor`'s
+11.1 s; in free space at N=1600, 1.08 s against 20.0 s — a factor of
+17-19 for quadrature that changes the third decimal. Peak working sets in
+that release are a few hundred MB at these meshes (198 MB grounded N=800,
+520 MB free N=1600); the razor fill gained its first C++ kernel — there
+was none before — in momwire#742. Neither serves
 the extended kernel, junction/node-gap ports, or ground contact over a
 finite ground — see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
 for the full guidance and refusal boundary.
