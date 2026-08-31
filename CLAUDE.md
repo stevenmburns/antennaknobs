@@ -81,8 +81,14 @@ which is the case the rule is actually for.
 - **`E741`** is in `ignore`: 33 sites, all `I` (current) and `l` (length /
   inductance), which are the correct physics names.
 
-`BLE001` **is** selected repo-wide: a new `except Exception` fails lint until
-it carries `# noqa: BLE001 — <reason>`.
+`BLE001` **is** selected repo-wide, but it is weaker than it looks: since ruff
+0.16.5 it **exempts a handler that logs with `exc_info=True`** (0.15.21 flagged
+it). So a new `except Exception` fails lint until it carries
+`# noqa: BLE001 — <reason>` *unless* it logs a traceback, in which case it
+passes silently. Two sites in `web/adapter.py` rely on that today.
+
+Annotating an exempt site does not help — BLE001 does not fire there, so the
+`# noqa` is dead on arrival and RUF100 reports it.
 
 `scratch/` is linted on purpose (not excluded): the study scripts under it are
 the record of what produced a published number, and a record worth keeping is
