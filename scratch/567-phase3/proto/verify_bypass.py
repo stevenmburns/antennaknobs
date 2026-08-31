@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "momwire" / "tests"))
 
-from momwire.bspline import BSplineSolver  # noqa: E402
-from test_buried_serve_553 import contact_deck  # noqa: E402
+from momwire.bspline import BSplineSolver
+from test_buried_serve_553 import contact_deck
 
 
 def main():

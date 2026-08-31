@@ -22,9 +22,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "momwire" / "tests"))
 
-from momwire import BSplineSolver, _medium_spec  # noqa: E402
-from momwire._sommerfeld_transmitted import k_medium  # noqa: E402
-from test_buried_serve_553 import SOIL_A, WL7  # noqa: E402
+from momwire import BSplineSolver, _medium_spec
+from momwire._sommerfeld_transmitted import k_medium
+from test_buried_serve_553 import SOIL_A, WL7
 
 # --- convention assertion -------------------------------------------------
 EPS0 = 8.8541878128e-12

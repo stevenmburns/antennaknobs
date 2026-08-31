@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "momwire" / "tests"))
 
-from momwire.bspline import BSplineSolver  # noqa: E402
-from test_crossing_serve_524 import (  # noqa: E402
+from momwire.bspline import BSplineSolver
+from test_crossing_serve_524 import (
     crossing_deck,
     fan_rise_deck,
     fan_rise_deck_graded,
