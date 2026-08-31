@@ -426,7 +426,7 @@ def test_t2fd_broadband_low_swr():
     swrs = [
         _swr(_z(Builder(dict(Builder.default_params, freq=f))), z0) for f in _T2FD_BAND
     ]
-    assert max(swrs) < 2.5, dict(zip(_T2FD_BAND, swrs))
+    assert max(swrs) < 2.5, dict(zip(_T2FD_BAND, swrs, strict=True))
 
 
 def test_t2fd_termination_flattens_the_response():
@@ -792,7 +792,7 @@ def test_discone_broadband_match():
         _swr(_z(Builder(dict(Builder.default_params, freq=f))), 50.0)
         for f in _DISCONE_BAND
     ]
-    assert max(swrs) < 3.0, dict(zip(_DISCONE_BAND, swrs))
+    assert max(swrs) < 3.0, dict(zip(_DISCONE_BAND, swrs, strict=True))
 
 
 def test_discone_match_beats_a_resonant_vertical_off_band():

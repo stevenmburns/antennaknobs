@@ -487,7 +487,7 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
                 solve_s = time.perf_counter() - t0
                 result["nec5_z_native"] = [[z.real, z.imag] for z in zs]
                 result["nec5_z_doubled"] = [[z.real, z.imag] for z in zs2]
-                zs = [2 * z2 - z1 for z1, z2 in zip(zs, zs2)]
+                zs = [2 * z2 - z1 for z1, z2 in zip(zs, zs2, strict=True)]
                 result["nec5_pair"] = True
                 eng.run_log.extend(eng2.run_log)
             result["nec5_runs"] = eng.run_log

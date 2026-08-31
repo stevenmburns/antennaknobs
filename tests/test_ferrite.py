@@ -7,6 +7,7 @@ inductance, μ″ the loss), the bridge back to the scalar model, and the choke
 behaviour the frequency dependence exists to reproduce.
 """
 
+import itertools
 import math
 
 import numpy as np
@@ -170,7 +171,7 @@ def test_without_stray_capacitance_the_one_pole_model_saturates():
     of modelling a real choke and not an optional refinement."""
     c = a_core(11)
     mags = [abs(c.impedance(f)) for f in (1.0, 3.5, 14.0, 50.0, 200.0)]
-    assert all(b >= a * 0.999 for a, b in zip(mags, mags[1:]))  # monotone
+    assert all(b >= a * 0.999 for a, b in itertools.pairwise(mags))  # monotone
 
 
 def test_more_turns_is_more_impedance():
@@ -325,7 +326,7 @@ def test_material_loss_has_a_frequency_shape_a_flat_q_cannot():
     scalar /= scalar.max()
     assert np.max(np.abs(material - scalar)) > 0.25
     # The scalar model can only ever fall monotonically here.
-    assert all(b <= a for a, b in zip(scalar, scalar[1:]))
+    assert all(b <= a for a, b in itertools.pairwise(scalar))
 
 
 def test_a_lossless_material_burns_nothing():

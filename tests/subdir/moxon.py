@@ -1,3 +1,4 @@
+import itertools
 from antennaknobs import AntennaBuilder
 from types import MappingProxyType
 
@@ -54,7 +55,7 @@ class Builder(AntennaBuilder):
         t0 = short * self.t0_factor
 
         def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
+            return ((a, b, ns, ex) for a, b in itertools.pairwise(lst))
 
         def rx(p):
             return -p[0], p[1], p[2]

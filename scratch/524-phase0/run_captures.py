@@ -125,10 +125,10 @@ def ne_spread(blocks_a, blocks_b):
     if len(blocks_a) != len(blocks_b):
         return None
     worst = 0.0
-    for ba, bb in zip(blocks_a, blocks_b):
+    for ba, bb in zip(blocks_a, blocks_b, strict=True):
         if len(ba["rows"]) != len(bb["rows"]):
             return None
-        for ra, rb in zip(ba["rows"], bb["rows"]):
+        for ra, rb in zip(ba["rows"], bb["rows"], strict=True):
             va, vb = ra["vals"], rb["vals"]
             for i in range(0, min(len(va), len(vb)) - 1, 2):
                 ca = va[i] * complex(

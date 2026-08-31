@@ -452,7 +452,7 @@ def _assemble(
     h = tension[0]
     v = tension[1]
     shapes: list[SegmentShape] = []
-    for seg, march in zip(segments, marched):
+    for seg, march in zip(segments, marched, strict=True):
         steps = np.diff(march.points, axis=0)
         polyline_length = float(np.hypot(steps[:, 0], steps[:, 1]).sum())
         shapes.append(

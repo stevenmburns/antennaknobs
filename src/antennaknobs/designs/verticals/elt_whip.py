@@ -65,6 +65,7 @@ Constraints worth knowing:
     vs PyNEC 63.02+8.06j through the matching network (0.072 Ω apart).
 """
 
+import itertools
 import math
 from types import MappingProxyType
 
@@ -248,7 +249,7 @@ class Builder(AntennaBuilder):
         n_levels = max(1, int((l1 - base) / spacing + 1e-9) + 1)
         levels = [base + l * spacing for l in range(n_levels)]
         for m in range(m_cage):
-            for za, zb in zip(levels, levels[1:]):
+            for za, zb in itertools.pairwise(levels):
                 add(cage_pt(m, za), cage_pt(m, zb), 1)
         for z in levels:
             for m in range(m_cage):
@@ -317,7 +318,9 @@ class Builder(AntennaBuilder):
             ]
             pts.sort()
             seg = min(r, pitch / s)
-            return [(a, b, max(1, round((b - a) / seg))) for a, b in zip(pts, pts[1:])]
+            return [
+                (a, b, max(1, round((b - a) / seg))) for a, b in itertools.pairwise(pts)
+            ]
 
         for u in range(-s, s + 1):
             x = fine(u)

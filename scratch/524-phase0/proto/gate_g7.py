@@ -213,10 +213,10 @@ def predict(hs, obs, centres, tangents, dls, I, nq=1):
         nodes, wts = np.array([0.0]), np.array([2.0])
     else:
         nodes, wts = _GAUSS3
-    for c, t, dl, cur in zip(centres, tangents, dls, I):
+    for c, t, dl, cur in zip(centres, tangents, dls, I, strict=True):
         if abs(t[2]) > 1e-12 or abs(t[1]) > 1e-12:
             raise ParseError("non-x-directed segment: G7 assumes an HED deck")
-        for u, w in zip(nodes, wts):
+        for u, w in zip(nodes, wts, strict=True):
             src = c + t * (0.5 * dl * u)
             rel = (obs[0] - src[0], obs[1] - src[1], obs[2])
             if above:

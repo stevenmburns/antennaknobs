@@ -63,7 +63,7 @@ def test_set_path_works_through_optimize_signature():
     b = Builder()
     names = ["bands.0.halfdriver_factor", "bands.0.t0_factor"]
     values = [1.05, 0.15]
-    for v, nm in zip(values, names):
+    for v, nm in zip(values, names, strict=True):
         _set_path(b, nm, v)
     assert _get_path(b, names[0]) == 1.05
     assert _get_path(b, names[1]) == 0.15

@@ -109,7 +109,9 @@ def main():
     r_agard = 1.0 / eps_t  # eps~_+ / eps~_- with eps~_+ = 1 (air)
     print(f"eps_t = {eps_t:.4f}, r = eps~+/eps~- = {r_agard:.6f}")
     nz = np.nonzero(row_v)[0]
-    print(f"row V nonzeros: {dict(zip(nz.tolist(), row_v[nz].round(4).tolist()))}")
+    print(
+        f"row V nonzeros: {dict(zip(nz.tolist(), row_v[nz].round(4).tolist(), strict=True))}"
+    )
 
     spellings = {
         "S1_V_only": [row_v],

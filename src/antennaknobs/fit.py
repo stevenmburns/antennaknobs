@@ -164,7 +164,7 @@ class FitResult:
         knob. Either way the value is not a measurement.
         """
         out = []
-        for nm, v, (lo, hi) in zip(self.names, self.fitted, self.bounds):
+        for nm, v, (lo, hi) in zip(self.names, self.fitted, self.bounds, strict=True):
             span = hi - lo
             if span > 0 and (v - lo < 1e-6 * span or hi - v < 1e-6 * span):
                 out.append(nm)
@@ -178,7 +178,7 @@ class FitResult:
             "",
             f"{'parameter':<28} {'nominal':>12} {'fitted':>12} {'shift':>12}",
         ]
-        for nm, a, b in zip(self.names, self.nominal, self.fitted):
+        for nm, a, b in zip(self.names, self.nominal, self.fitted, strict=True):
             pct = f"{100.0 * (b - a) / a:+.2f}%" if a else "—"
             lines.append(f"{nm:<28} {a:>12.6g} {b:>12.6g} {b - a:>+12.6g}  {pct}")
         lines += [
@@ -194,7 +194,7 @@ class FitResult:
             )
         if not np.isfinite(self.condition) or self.condition > ILL_CONDITIONED:
             combo = "  ".join(
-                f"{w:+.2f}·{nm}" for w, nm in zip(self.weakest, self.names)
+                f"{w:+.2f}·{nm}" for w, nm in zip(self.weakest, self.names, strict=True)
             )
             lines += [
                 f"WARNING: under-determined (Jacobian condition {self.condition:.3g}). "
@@ -280,7 +280,7 @@ def _resolve_bounds(x0, bounds, fractions):
                 "(pass one value, or one per parameter)"
             )
     out = []
-    for x, f in zip(x0, fracs):
+    for x, f in zip(x0, fracs, strict=True):
         # A parameter nominally 0 (a stray reactance, a length correction) has
         # no multiplicative window; give it an absolute one instead.
         lo, hi = (-f, f) if x == 0 else sorted((x * (1 - f), x * (1 + f)))
@@ -415,7 +415,7 @@ def fit(
     evals = {"n": 0}
 
     def model_gamma(x) -> np.ndarray:
-        for v, nm in zip(x, names):
+        for v, nm in zip(x, names, strict=True):
             _set_path(antenna_builder, nm, float(v))
         a = engine(antenna_builder)
         zs = np.asarray(a.impedance_sweep(grid))

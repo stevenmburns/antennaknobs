@@ -361,7 +361,9 @@ def format_s1p(
         raise ValueError(f"{f.size} frequencies but {g.size} S11 values")
     lines = [f"! {c}" for c in comments]
     lines.append(f"# MHZ S RI R {z0:g}")
-    lines += [f"{a / 1e6:.6f} {v.real:+.9f} {v.imag:+.9f}" for a, v in zip(f, g)]
+    lines += [
+        f"{a / 1e6:.6f} {v.real:+.9f} {v.imag:+.9f}" for a, v in zip(f, g, strict=True)
+    ]
     return "\n".join(lines) + "\n"
 
 

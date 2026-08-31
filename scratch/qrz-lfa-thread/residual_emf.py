@@ -276,7 +276,7 @@ def main():
         "sin_loglog_slope_vs_f": slope,
     }
     print("\nspurious loop EMF per ampere of loop current (k=1):")
-    for mhz, vs, vp in zip(ladder, sin_per_amp, per_amp_p):
+    for mhz, vs, vp in zip(ladder, sin_per_amp, per_amp_p, strict=True):
         print(
             f"  f={mhz * 1e6:>9.1f} Hz   sin {abs(vs):.4e} V/A   "
             f"harrington {abs(vp):.4e} V/A",

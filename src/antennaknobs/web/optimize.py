@@ -140,7 +140,7 @@ def optimize(
 
     # Start from each param's current value, clipped into its bound.
     x0 = []
-    for name, lob, hib in zip(names, lo, hi):
+    for name, lob, hib in zip(names, lo, hi, strict=True):
         cur = float(base_req.get(name, 0.5 * (lob + hib)))
         x0.append(min(max(cur, lob), hib))
 
@@ -150,7 +150,7 @@ def optimize(
         nonlocal n_evals
         req = dict(base_req)
         params = {}
-        for name, v in zip(names, x):
+        for name, v in zip(names, x, strict=True):
             val = float(v)
             req[name] = val
             params[name] = val
@@ -187,19 +187,25 @@ def optimize(
         f,
         x0,
         method="Nelder-Mead",
-        bounds=list(zip(lo, hi)),
+        bounds=list(zip(lo, hi, strict=True)),
         options={"maxfev": maxfev, "xatol": 1e-4, "fatol": 1e-5},
     )
 
     # res.x can sit a hair outside bounds after the final reflection; clip.
-    x_best = [min(max(float(v), lob), hib) for v, lob, hib in zip(res.x, lo, hi)]
+    x_best = [
+        min(max(float(v), lob), hib) for v, lob, hib in zip(res.x, lo, hi, strict=True)
+    ]
     out1 = _solve_at(x_best)
 
     before = _objective_value(out0, objective)
     after = _objective_value(out1, objective)
     # Only claim the optimum if it actually didn't get worse (Nelder–Mead can
     # report success while terminating at the start point for a flat objective).
-    best_params = dict(zip(names, x_best)) if after <= before else dict(zip(names, x0))
+    best_params = (
+        dict(zip(names, x_best, strict=True))
+        if after <= before
+        else dict(zip(names, x0, strict=True))
+    )
 
     return {
         "objective": objective,

@@ -22,7 +22,9 @@ def write_s1p(tmp_path, freqs_mhz, zs, *, z0=50.0, name="meas.s1p"):
     """A synthetic RI-format .s1p for impedances ``zs`` at ``freqs_mhz``."""
     g = gamma_of(np.asarray(zs, dtype=complex), z0)
     lines = [f"# MHZ S RI R {z0:g}"]
-    lines += [f"{f:.6f} {v.real:.9f} {v.imag:.9f}" for f, v in zip(freqs_mhz, g)]
+    lines += [
+        f"{f:.6f} {v.real:.9f} {v.imag:.9f}" for f, v in zip(freqs_mhz, g, strict=True)
+    ]
     p = tmp_path / name
     p.write_text("\n".join(lines) + "\n")
     return p
@@ -46,7 +48,7 @@ def test_z_parameter_file_converts_to_reflection(tmp_path):
     """An .s1p written as R+jX overlays exactly like one written as S11."""
     freqs, zs = [14.0, 14.2], [40 - 30j, 60 + 25j]
     text = "# MHZ Z RI R 50\n" + "\n".join(
-        f"{f} {z.real} {z.imag}" for f, z in zip(freqs, zs)
+        f"{f} {z.real} {z.imag}" for f, z in zip(freqs, zs, strict=True)
     )
     trace = MeasuredTrace.from_touchstone(parse_touchstone(text, nports=1))
     np.testing.assert_allclose(trace.gamma, gamma_of(np.array(zs)), atol=1e-12)

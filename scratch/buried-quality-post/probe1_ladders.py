@@ -88,7 +88,7 @@ H_NODE_MM = {"g1": 25.0, "g2": 6.25, "g3": 1.5625}
 def graded(kw, depth, rung="g2"):
     rise_z, rise_npe = RISE_RUNGS[rung]
     wires, npe = [], []
-    for pts, counts in zip(kw["wires"], kw["n_per_edge_per_wire"]):
+    for pts, counts in zip(kw["wires"], kw["n_per_edge_per_wire"], strict=True):
         pts = [tuple(float(c) for c in p) for p in pts]
         if (
             len(pts) == 2

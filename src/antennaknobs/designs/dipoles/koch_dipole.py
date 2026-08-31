@@ -30,6 +30,7 @@ Geometry, in the framework's (x, y, z) convention:
     ___/  \\__F __/  \\___       F = centre feed at y = 0
 """
 
+import itertools
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import Wire
 import math
@@ -44,7 +45,7 @@ def _koch(p0, p1, iterations):
     for _ in range(iterations):
         new = [pts[0]]
         cos60, sin60 = 0.5, math.sqrt(3) / 2
-        for a, b in zip(pts[:-1], pts[1:]):
+        for a, b in itertools.pairwise(pts):
             vy, vz = b[0] - a[0], b[1] - a[1]
             c1 = (a[0] + vy / 3, a[1] + vz / 3)
             c2 = (a[0] + 2 * vy / 3, a[1] + 2 * vz / 3)
@@ -103,12 +104,12 @@ class Builder(AntennaBuilder):
         # Right arm: Koch curve from the feed edge (y=+eps) out to the tip,
         # built in the (y, z) plane then emitted as straight chords.
         right = _koch((eps, 0.0), (half, 0.0), it)
-        for (ya, za), (yb, zb) in zip(right[:-1], right[1:]):
+        for (ya, za), (yb, zb) in itertools.pairwise(right):
             tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
 
         # Left arm: mirror of the right arm in y.
         left = _koch((-eps, 0.0), (-half, 0.0), it)
-        for (ya, za), (yb, zb) in zip(left[:-1], left[1:]):
+        for (ya, za), (yb, zb) in itertools.pairwise(left):
             tups.append(Wire((0.0, ya, z + za), (0.0, yb, z + zb)))
 
         return tups

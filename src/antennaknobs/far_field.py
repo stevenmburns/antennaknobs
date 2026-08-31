@@ -215,8 +215,8 @@ def plot_patterns(
 
     _init_dbi_polar(axes[0])
 
-    for nm, rings in zip(names, rings_lst):
-        for theta, ring in list(zip(thetas, rings)):
+    for nm, rings in zip(names, rings_lst, strict=True):
+        for theta, ring in list(zip(thetas, rings, strict=True)):
             if abs(theta - (90 - elevation_angle)) < 0.1:
                 axes[0].plot(np.deg2rad(phis), ring, marker="", label=str(nm))
 
@@ -283,7 +283,7 @@ def _print_metrics_table(names, metrics_lst):
     header = "design".ljust(name_w) + "  " + "  ".join(h.rjust(8) for h, _, _ in cols)
     print(header)
     print("-" * len(header))
-    for nm, m in zip(names, metrics_lst):
+    for nm, m in zip(names, metrics_lst, strict=True):
         row = str(nm).ljust(name_w)
         for _, key, fmt in cols:
             row += "  " + fmt.format(m[key]).rjust(8)
@@ -350,7 +350,7 @@ def pattern(builder_or_engine, elevation_angle=15, fn=None):
 
     _init_dbi_polar(axes[0])
 
-    for theta, ring in list(zip(thetas, rings)):
+    for theta, ring in list(zip(thetas, rings, strict=True)):
         if abs(theta - (90 - elevation_angle)) < 0.1:
             axes[0].plot(np.deg2rad(phis), ring, marker="")
 

@@ -1370,7 +1370,7 @@ def _wire_material_results(builder) -> dict:
     if default is None and not any(s is not None for s in specs):
         return {}
     length = weight = 0.0
-    for t, s in zip(tups, specs):
+    for t, s in zip(tups, specs, strict=True):
         p0 = np.asarray(t[0], dtype=float)
         p1 = np.asarray(t[1], dtype=float)
         ln = float(np.linalg.norm(p1 - p0))
@@ -2507,7 +2507,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                     "v_re": float(v.real),
                     "v_im": float(v.imag),
                 }
-                for z, v in zip(zs, voltages)
+                for z, v in zip(zs, voltages, strict=True)
             ]
         return out
 
@@ -2694,7 +2694,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                     "v_re": float(v.real),
                     "v_im": float(v.imag),
                 }
-                for z, v in zip(zs, voltages)
+                for z, v in zip(zs, voltages, strict=True)
             ]
         return out
 
@@ -2772,7 +2772,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                     "v_re": float(v.real),
                     "v_im": float(v.imag),
                 }
-                for z, v in zip(zs, values)
+                for z, v in zip(zs, values, strict=True)
             ]
         return out
 

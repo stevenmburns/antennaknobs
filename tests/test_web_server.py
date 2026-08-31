@@ -1347,7 +1347,7 @@ def test_sweep_endpoint_streams_one_record_per_freq_then_done(client: TestClient
     assert len(recs) == len(freqs) + 1
     *points, terminator = recs
     assert terminator == {"done": True, "solver": "momwire"}
-    for f, rec in zip(freqs, points):
+    for f, rec in zip(freqs, points, strict=True):
         assert rec["freq_mhz"] == f
         assert rec["solver"] == "momwire"
         assert isinstance(rec["z_re"], float)
@@ -1380,7 +1380,7 @@ def test_converge_endpoint_streams_one_record_per_n_then_done(client: TestClient
     assert len(recs) == len(ns) + 1
     *points, terminator = recs
     assert terminator == {"done": True, "solver": "momwire"}
-    for n, rec in zip(ns, points):
+    for n, rec in zip(ns, points, strict=True):
         assert rec["n_per_wire"] == n
         assert rec["solver"] == "momwire"
         # Convergence trace should always carry real impedance fields —
@@ -1757,7 +1757,7 @@ def test_sweep_endpoint_with_pynec_streams_per_point(client: TestClient):
     assert len(recs) == len(freqs) + 1
     *points, terminator = recs
     assert terminator == {"done": True, "solver": "pynec"}
-    for f, rec in zip(freqs, points):
+    for f, rec in zip(freqs, points, strict=True):
         assert rec["freq_mhz"] == f
         assert rec["solver"] == "pynec"
         assert isinstance(rec["z_re"], float) and isinstance(rec["z_im"], float)

@@ -212,11 +212,11 @@ class Builder(AntennaBuilder):
         tups = []
         for G in junctions:
             tups.append(Wire(S, G, n_seg=n_link))
-        for G, tip in zip(junctions, tips):
+        for G, tip in zip(junctions, tips, strict=True):
             tups.append(Wire(G, tip))
         for G in junctions:
             tups.append(Wire(T, ry(G), n_seg=n_link))
-        for G, tip in zip(junctions, tips):
+        for G, tip in zip(junctions, tips, strict=True):
             tups.append(Wire(ry(G), ry(tip)))
         tups.append(Wire(T, S, ex=1 + 0j))
 

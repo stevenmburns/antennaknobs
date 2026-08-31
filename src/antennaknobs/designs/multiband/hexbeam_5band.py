@@ -24,6 +24,7 @@ Two feed modes are exposed via daisy_chain:
 daisy chain; momwire could not model the jumpers. That path is gone.)
 """
 
+import itertools
 import math
 from types import MappingProxyType
 
@@ -396,7 +397,7 @@ class Builder(AntennaBuilder):
             T = at_z(anchors["T"])
 
             def build_path(lst):
-                return [Wire(a, b) for a, b in zip(lst[:-1], lst[1:])]
+                return [Wire(a, b) for a, b in itertools.pairwise(lst)]
 
             tups.extend(build_path([S, A, B]))
             tups.extend(build_path([C, D]))

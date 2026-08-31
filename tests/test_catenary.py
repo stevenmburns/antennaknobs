@@ -16,6 +16,7 @@ tiny (the taut regime), so the taut tests use the algebraically identical
 ``2a·sinh(u/2)²``, which does not.
 """
 
+import itertools
 import math
 
 import numpy as np
@@ -276,7 +277,7 @@ def test_sampled_polyline_length_converges_to_the_arc_length():
         assert shape.arc_length_m == pytest.approx(arc, rel=1e-15)
         assert shape.polyline_length_m < arc  # chords cut corners
         errors.append(arc - shape.polyline_length_m)
-    for coarse, fine in zip(errors, errors[1:]):
+    for coarse, fine in itertools.pairwise(errors):
         assert fine < coarse / 3.5  # second-order: each halving gains ~4x
     assert errors[-1] / arc < 1e-5
 
@@ -371,13 +372,13 @@ def test_anchored_rope_takeup_raises_tension_and_reduces_sag():
     wire_sags = [s.segments[0].max_sag_m for s in sols]
     rope_sags = [s.segments[1].max_sag_m for s in sols]
 
-    for prev, nxt in zip(tensions, tensions[1:]):
+    for prev, nxt in itertools.pairwise(tensions):
         assert nxt > prev
-    for prev, nxt in zip(h_values, h_values[1:]):
+    for prev, nxt in itertools.pairwise(h_values):
         assert nxt > prev
-    for prev, nxt in zip(wire_sags, wire_sags[1:]):
+    for prev, nxt in itertools.pairwise(wire_sags):
         assert nxt < prev
-    for prev, nxt in zip(rope_sags, rope_sags[1:]):
+    for prev, nxt in itertools.pairwise(rope_sags):
         assert nxt < prev
 
 
@@ -486,7 +487,7 @@ def test_tensioned_taut_limit_approaches_the_straight_chord():
 
 def test_tensioned_more_tension_means_less_sag():
     sags = [_tensioned(t).max_sag_m for t in (5.0, 20.0, 80.0, 320.0)]
-    for prev, nxt in zip(sags, sags[1:]):
+    for prev, nxt in itertools.pairwise(sags):
         assert nxt < prev
 
 

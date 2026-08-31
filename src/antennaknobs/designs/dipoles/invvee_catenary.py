@@ -162,6 +162,7 @@ conventions; `dipoles.invvee` for the base design and param conventions;
 Issue #698.
 """
 
+import itertools
 import math
 from types import MappingProxyType
 
@@ -512,7 +513,5 @@ class Builder(AntennaBuilder):
         ]
         for sign in (1.0, -1.0):
             arm_points = [(0.0, sign * h, z) for h, z in plane_points]
-            wires.extend(
-                Wire(p0, p1) for p0, p1 in zip(arm_points[:-1], arm_points[1:])
-            )
+            wires.extend(Wire(p0, p1) for p0, p1 in itertools.pairwise(arm_points))
         return wires

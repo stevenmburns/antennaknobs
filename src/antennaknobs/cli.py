@@ -344,7 +344,7 @@ def broadcast_pairs(builders, engines):
     """
     nb, ne = len(builders), len(engines)
     if nb == ne:
-        return list(zip(builders, engines))
+        return list(zip(builders, engines, strict=True))
     if nb == 1:
         return [(builders[0], e) for e in engines]
     if ne == 1:
@@ -900,7 +900,7 @@ def cli(arguments=None):
                     f"--bounds takes 'lo hi' per free parameter: "
                     f"{2 * len(args.params)} numbers for {len(args.params)} params"
                 )
-            pairs = list(zip(args.bounds[0::2], args.bounds[1::2]))
+            pairs = list(zip(args.bounds[0::2], args.bounds[1::2], strict=True))
         line = None
         if args.plane == "station":
             if not args.line:

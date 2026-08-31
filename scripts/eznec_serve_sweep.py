@@ -304,7 +304,7 @@ def envelope(entries: list[dict], results: list[dict]) -> dict:
         if not captured or len(captured) != len(served):
             uncomparable.append(cid)
             continue
-        for source, (want, got) in enumerate(zip(captured, served)):
+        for source, (want, got) in enumerate(zip(captured, served, strict=True)):
             deltas.append(
                 {
                     "id": cid,

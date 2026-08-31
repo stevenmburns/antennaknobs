@@ -32,6 +32,7 @@ ground bit-for-bit — that is acceptance gate 1 of issue #534 and a test.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass
 
@@ -74,7 +75,7 @@ class Sector:
         xs = [f.x1 for f in self.facets[:-1]]
         if any(f is None for f in xs):
             raise ValueError("only the last facet may be infinite")
-        if any(b <= a for a, b in zip(xs, xs[1:])):
+        if any(b <= a for a, b in itertools.pairwise(xs)):
             raise ValueError(f"facet edges must increase outward, got {xs}")
 
     @property
@@ -104,7 +105,7 @@ class Terrain:
         # another sector's start (single-cover tiling).
         starts = sorted(s.az0 % 360.0 for s in self.sectors)
         ends = sorted((s.az0 + s.arc_deg) % 360.0 for s in self.sectors)
-        if any(abs(a - b) > 1e-9 for a, b in zip(starts, ends)):
+        if any(abs(a - b) > 1e-9 for a, b in zip(starts, ends, strict=True)):
             raise ValueError("sector arcs overlap or leave a gap")
         m0 = self.crest_medium
         for s in self.sectors:

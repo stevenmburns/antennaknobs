@@ -277,7 +277,7 @@ def main(argv=None):
             )
         # Walk residual vs the slide bound, per rung.
         print(f"  {'N':>4} {'walk |Z(N)-Z∞|':>15} {'slide bound /2':>15}")
-        for row, (_, zb) in zip(rows, base_series):
+        for row, (_, zb) in zip(rows, base_series, strict=True):
             walk = abs(zb - zinf)
             row["walk_residual"] = walk
             bound = row["d_slide"] / 2 if row["d_slide"] is not None else None
@@ -389,8 +389,8 @@ def main(argv=None):
                 "per_wire_bs2": bs2_counts,
             }
         )
-        d5 = sum(a != b_ for a, b_ in zip(nominal, nec5_counts))
-        d2 = sum(a != b_ for a, b_ in zip(nominal, bs2_counts))
+        d5 = sum(a != b_ for a, b_ in zip(nominal, nec5_counts, strict=True))
+        d2 = sum(a != b_ for a, b_ in zip(nominal, bs2_counts, strict=True))
         print(
             f"  nominal {nseg:>4}: total {sum(nominal)}"
             f"  nec5 shifts {d5} wire(s) -> {sum(nec5_counts)}"
@@ -447,8 +447,8 @@ def main(argv=None):
                 worst = 0.0
                 worst_rel = 0.0
                 n_rows = 0
-                for fo, ft in zip(ours, theirs):
-                    for (tg, sg, zo), (tg2, sg2, zt) in zip(fo, ft):
+                for fo, ft in zip(ours, theirs, strict=True):
+                    for (tg, sg, zo), (tg2, sg2, zt) in zip(fo, ft, strict=True):
                         if (tg, sg) != (tg2, sg2):
                             raise RuntimeError(
                                 f"row addressing mismatch {(tg, sg)} vs {(tg2, sg2)}"

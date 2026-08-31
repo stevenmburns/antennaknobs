@@ -646,7 +646,7 @@ class MomwireEngine(SimulationEngine):
         its d_k — they lie on the same walked edge)."""
         pos, cols = [], []
         for k, ((pl, arc, _v), (epl, eidx)) in enumerate(
-            zip(self._feeds, self._feed_edges)
+            zip(self._feeds, self._feed_edges, strict=True)
         ):
             d = float(self._feed_dirs[k])
             if k in dist_idx:
@@ -675,9 +675,15 @@ class MomwireEngine(SimulationEngine):
         if voltages is None:
             voltages = [v for *_, v in self._feeds]
         if self._feed_W is None:
-            return [(w, a, complex(v)) for (w, a, _v), v in zip(self._feeds, voltages)]
+            return [
+                (w, a, complex(v))
+                for (w, a, _v), v in zip(self._feeds, voltages, strict=True)
+            ]
         v_exp = self._feed_W @ np.asarray(voltages, dtype=np.complex128)
-        return [(w, a, complex(v)) for (w, a), v in zip(self._exp_feed_pos, v_exp)]
+        return [
+            (w, a, complex(v))
+            for (w, a), v in zip(self._exp_feed_pos, v_exp, strict=True)
+        ]
 
     def _contract_y(self, Y):
         """Contract a solver Y (sub-feed granularity) to port granularity;
@@ -771,7 +777,8 @@ class MomwireEngine(SimulationEngine):
                 else [0j] * len(self._end_port_junctions)
             )
             kw["junction_ports"] = [
-                (j, complex(v)) for j, v in zip(self._end_port_junctions, volts)
+                (j, complex(v))
+                for j, v in zip(self._end_port_junctions, volts, strict=True)
             ]
         if self._vertex_port_members:
             v_volts = (
@@ -781,7 +788,7 @@ class MomwireEngine(SimulationEngine):
             )
             kw["node_gaps"] = [
                 (pl, end, complex(v))
-                for (pl, end), v in zip(self._vertex_port_members, v_volts)
+                for (pl, end), v in zip(self._vertex_port_members, v_volts, strict=True)
             ]
         return self._solver(
             wires=self._polylines,
@@ -1070,13 +1077,18 @@ class MomwireEngine(SimulationEngine):
             # Legacy build_tls designs have no end ports, so this only
             # fires on the network path where end_port_voltages is set.
             kw["junction_ports"] = [
-                (j, v) for j, v in zip(self._end_port_junctions, end_port_voltages)
+                (j, v)
+                for j, v in zip(
+                    self._end_port_junctions, end_port_voltages, strict=True
+                )
             ]
         if self._vertex_port_members:
             # Same guard: only the network path declares vertex ports.
             kw["node_gaps"] = [
                 (pl, end, complex(v))
-                for (pl, end), v in zip(self._vertex_port_members, vertex_port_voltages)
+                for (pl, end), v in zip(
+                    self._vertex_port_members, vertex_port_voltages, strict=True
+                )
             ]
         return self._solver(
             wires=self._polylines,

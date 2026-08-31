@@ -68,7 +68,7 @@ def tune_band_in_place(
     b.freq = float(band["freq"])
 
     def objective(xs):
-        for name, x in zip(param_names, xs):
+        for name, x in zip(param_names, xs, strict=True):
             band[name] = float(x)
         cur_bands[band_idx] = band
         b.bands = tuple(cur_bands)
@@ -76,7 +76,9 @@ def tune_band_in_place(
         z = zs[band_idx]
         loss = abs(z - z0)
         if verbose:
-            kvs = ", ".join(f"{n}={x:.5f}" for n, x in zip(param_names, xs))
+            kvs = ", ".join(
+                f"{n}={x:.5f}" for n, x in zip(param_names, xs, strict=True)
+            )
             print(
                 f"    [band {band_idx}] {kvs} → "
                 f"Z={z.real:7.3f}{z.imag:+7.3f}j  loss={loss:6.3f}"

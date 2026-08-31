@@ -1,5 +1,6 @@
 """Hourglass loop tilted out of the vertical plane."""
 
+import itertools
 import math
 
 from antennaknobs import AntennaBuilder
@@ -82,7 +83,7 @@ class Builder(AntennaBuilder):
 
         def build_path(lst, ex=None):
             return (
-                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in zip(lst[:-1], lst[1:])
+                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in itertools.pairwise(lst)
             )
 
         tups = []

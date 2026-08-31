@@ -277,7 +277,7 @@ class Builder(AntennaBuilder):
         ]
 
         def dist(p0, p1):
-            return math.sqrt(sum((x0 - x1) ** 2 for x0, x1 in zip(p0, p1)))
+            return math.sqrt(sum((x0 - x1) ** 2 for x0, x1 in zip(p0, p1, strict=True)))
 
         # Outward direction shared by every spoke beyond the cone (the
         # "fan" direction): pure (0, Zc, −Zs).

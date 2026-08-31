@@ -38,6 +38,7 @@ Wire layout (unchanged from the legacy implementation):
  E-------------FF-------------F
 """
 
+import itertools
 import math
 from types import MappingProxyType
 
@@ -160,7 +161,7 @@ class Builder(AntennaBuilder):
 
         def build_path(lst, ex=None):
             return (
-                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in zip(lst[:-1], lst[1:])
+                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in itertools.pairwise(lst)
             )
 
         tups = []

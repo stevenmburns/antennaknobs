@@ -658,7 +658,7 @@ def test_live_phased_current_pair():
     z5s = NEC5Engine(p).impedance()
     zms = MomwireEngine(p).impedance()
     assert len(z5s) == 2
-    for a, m in zip(z5s, zms):
+    for a, m in zip(z5s, zms, strict=True):
         assert abs(a - m) < 10.0
 
 

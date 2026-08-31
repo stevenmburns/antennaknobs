@@ -113,7 +113,7 @@ def test_momwire_multi_feed_impedance_matches_pynec(design_module, max_dR, max_d
     assert len(z_nec) == len(z_ps) > 1, (
         f"expected multi-feed, got {len(z_nec)}/{len(z_ps)}"
     )
-    for i, (zn, zp) in enumerate(zip(z_nec, z_ps)):
+    for i, (zn, zp) in enumerate(zip(z_nec, z_ps, strict=True)):
         assert abs(zn.real - zp.real) < max_dR, (
             f"feed {i}: R diverged nec={zn} momwire={zp}"
         )
@@ -213,7 +213,7 @@ def test_momwire_tl_impedance_sweep_matches_per_freq():
     b = TLBuilder()
     zs = MomwireEngine(b).impedance_sweep(freqs)
     assert zs.shape == (3, 1), zs.shape
-    for i, (zp, zs_i) in enumerate(zip(z_per, zs[:, 0])):
+    for i, (zp, zs_i) in enumerate(zip(z_per, zs[:, 0], strict=True)):
         assert abs(zp - zs_i) < 1e-9, f"f={freqs[i]}: per={zp}, swept={zs_i}"
 
 
@@ -581,7 +581,7 @@ def test_momwire_multifeed_bowtie_1x2_matches_pynec():
     z_ps = MomwireEngine(b).impedance()
     z_nec = PyNECEngine(b, ground=None).impedance()
     assert len(z_ps) == len(z_nec) == 2
-    for zp, zn in zip(z_ps, z_nec):
+    for zp, zn in zip(z_ps, z_nec, strict=True):
         assert abs(zp - zn) < 0.05 * abs(zn) + 3.0, (zp, zn)
     # In-phase symmetric drive → the two ports see the same Z.
     assert abs(z_ps[0] - z_ps[1]) < 1.0
@@ -597,7 +597,7 @@ def test_momwire_multifeed_bowtie_1x2_phased_matches_pynec():
     b.phase_lr = 90.0
     z_ps = MomwireEngine(b).impedance()
     z_nec = PyNECEngine(b, ground=None).impedance()
-    for zp, zn in zip(z_ps, z_nec):
+    for zp, zn in zip(z_ps, z_nec, strict=True):
         assert abs(zp - zn) < 0.05 * abs(zn) + 3.0, (zp, zn)
     # Asymmetry must actually appear, otherwise both backends could
     # be silently degenerate.
@@ -1266,7 +1266,7 @@ def test_momwire_arrayblock_matches_dense_bspline(design_module):
     z_dense = MomwireEngine(b, solver=BSplineSolver, **kw).impedance()
     z_block = MomwireEngine(b, solver=ArrayBlockSolver, **kw).impedance()
     assert len(z_dense) == len(z_block) > 1
-    for i, (zd, zb) in enumerate(zip(z_dense, z_block)):
+    for i, (zd, zb) in enumerate(zip(z_dense, z_block, strict=True)):
         assert abs(zd - zb) / abs(zd) < 1e-3, f"feed {i}: {zd} vs {zb}"
 
 
@@ -1966,7 +1966,7 @@ def test_lattice_fft_matches_dense_bspline_on_4x4_bowtie_array():
     # Tight bound on purpose: the exact displacement blocks put this at ~1e-5,
     # so a real regression (a mis-indexed kernel slot, a wrapped convolution)
     # cannot hide under a loose 1e-3 array-solver tolerance.
-    for i, (zd, zf) in enumerate(zip(z_dense, z_fft)):
+    for i, (zd, zf) in enumerate(zip(z_dense, z_fft, strict=True)):
         assert abs(zd - zf) / abs(zd) < 1e-4, f"feed {i}: {zd} vs {zf}"
 
 

@@ -87,7 +87,7 @@ def leg_dirs(n_alpha, n_phi, offset=0.0):
     mu = 0.5 * (xg + 1.0)
     wmu = 0.5 * wg
     out = []
-    for m_i, w_i in zip(mu, wmu):
+    for m_i, w_i in zip(mu, wmu, strict=True):
         sa = float(np.sqrt(1.0 - m_i * m_i))
         for j in range(n_phi):
             ph = 2.0 * np.pi * (j + offset) / n_phi

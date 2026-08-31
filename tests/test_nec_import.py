@@ -160,7 +160,7 @@ def test_gr_forms_cylindrical_structure():
     assert [w.tag for w in deck.wires] == [1, 11, 21, 31]
     angles = [math.atan2(w.p1[1], w.p1[0]) for w in deck.wires]
     expected = [0.0, math.pi / 2, math.pi, -math.pi / 2]
-    for got, want in zip(angles, expected):
+    for got, want in zip(angles, expected, strict=True):
         assert math.remainder(got - want, 2 * math.pi) == pytest.approx(0.0, abs=1e-12)
     assert all(math.hypot(w.p1[0], w.p1[1]) == pytest.approx(1.0) for w in deck.wires)
 

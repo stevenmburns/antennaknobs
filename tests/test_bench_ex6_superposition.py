@@ -140,7 +140,7 @@ def test_superposition_matches_engine_on_phased_pair():
     z_eng = MomwireEngine(B(), solver=SinusoidalSolver, ground="pec").impedance()
 
     assert len(z_ref) == len(z_eng) == 2
-    for zr, ze in zip(z_ref, z_eng):
+    for zr, ze in zip(z_ref, z_eng, strict=True):
         assert abs(zr - ze) / abs(ze) < 0.03, f"ref {zr:.1f} vs engine {ze:.1f}"
 
 

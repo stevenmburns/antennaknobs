@@ -65,7 +65,7 @@ def c1_tie():
             s_eval = knots[-1] if w_idx == 0 else 0.0
             n_b = len(knots) - d - 1
             kept, local_to_global = wire_basis_global[w_idx]
-            for k_entry, g_idx in zip(kept, local_to_global):
+            for k_entry, g_idx in zip(kept, local_to_global, strict=True):
                 basis_j = k_entry[0]
                 c = np.zeros(n_b)
                 c[basis_j] = 1.0

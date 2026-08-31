@@ -121,7 +121,7 @@ def test_lattice_geometry_matches_manual_shift_entry_grid():
             manual.extend(_shift_entry(w, yoff, zoff, lambda ex: ex) for w in ew)
 
     assert len(a.wires) == len(manual) == 6 * len(ew)
-    for p, m in zip(a.wires, manual):
+    for p, m in zip(a.wires, manual, strict=True):
         assert p.p0 == pytest.approx(m.p0)
         assert p.p1 == pytest.approx(m.p1)
 

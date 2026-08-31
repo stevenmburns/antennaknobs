@@ -1,5 +1,6 @@
 """Hentenna — the Japanese rectangular loop, fed off-center for vertical polarization."""
 
+import itertools
 from antennaknobs import AntennaBuilder
 from antennaknobs import Transform, TransformStack
 from antennaknobs.network import Wire
@@ -77,7 +78,7 @@ class Builder(AntennaBuilder):
 
         def build_path(lst, ex=None):
             return (
-                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in zip(lst[:-1], lst[1:])
+                Wire(st.hit(a), st.hit(b), ex=ex) for a, b in itertools.pairwise(lst)
             )
 
         tups = []

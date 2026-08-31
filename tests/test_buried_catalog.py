@@ -104,7 +104,7 @@ def test_brv_each_radial_runs_at_depth_then_rises_at_a_right_angle():
     rises = ws[1:8:2]
     assert len(runs) == len(rises) == 4
 
-    for run, rise in zip(runs, rises):
+    for run, rise in zip(runs, rises, strict=True):
         # The horizontal leg lies wholly at depth and LEAVES the hub —
         # hub-first authoring is load-bearing: it makes the polyline walk
         # start every radial at the hub, which keeps the +/-x and +/-y

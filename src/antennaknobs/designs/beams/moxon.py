@@ -1,5 +1,6 @@
 """Moxon rectangle — a 2-element beam with folded-back element tips."""
 
+import itertools
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import Wire
 from types import MappingProxyType
@@ -97,7 +98,7 @@ class Builder(AntennaBuilder):
         # fine mesh (39.2-21.2j vs 43.6-16.3j at N=321). At uniform
         # design density sin lands on bs2 to 0.1% there.
         def path(lst):
-            return [Wire(a, b) for a, b in zip(lst[:-1], lst[1:])]
+            return [Wire(a, b) for a, b in itertools.pairwise(lst)]
 
         tups = []
         tups.extend(path([S, A, B]))

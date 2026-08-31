@@ -5,6 +5,7 @@ precedent — build a `MomwireEngine` directly over the default (finite)
 ground and read `.impedance()`.
 """
 
+import itertools
 import math
 
 import pytest
@@ -68,7 +69,7 @@ def test_taut_limit_matches_straight_arm_oracle():
             wires = [Wire((0.0, -_EPS, apex_z), (0.0, _EPS, apex_z), ex=1 + 0j)]
             for sign in (1.0, -1.0):
                 arm_pts = [(0.0, sign * h, z) for h, z in plane_points]
-                wires.extend(Wire(p0, p1) for p0, p1 in zip(arm_pts[:-1], arm_pts[1:]))
+                wires.extend(Wire(p0, p1) for p0, p1 in itertools.pairwise(arm_pts))
             return wires
 
     z_oracle = _z(StraightArmOracle(dict(b._params)))
@@ -292,9 +293,9 @@ def test_rope_takeup_raises_tension_and_lowers_sag():
     tensions = [r["apex_tension_n"] for r in reports]
     sags = [r["wire_sag_m"] for r in reports]
 
-    for prev, nxt in zip(tensions, tensions[1:]):
+    for prev, nxt in itertools.pairwise(tensions):
         assert nxt > prev
-    for prev, nxt in zip(sags, sags[1:]):
+    for prev, nxt in itertools.pairwise(sags):
         assert nxt < prev
 
 

@@ -140,7 +140,7 @@ def test_reference_deck_emits_ld2_emulation():
     ld_lines = [ln for ln in prepared.splitlines() if ln.startswith("LD")]
     assert len(ld_lines) == 2  # whole-structure card expands per tag
     l_exp = insulation_inductance(0.0005, B_M, EPS_R)
-    for tag, ld in zip((1, 2), ld_lines):
+    for tag, ld in zip((1, 2), ld_lines, strict=True):
         toks = ld.split()
         assert toks[1] == "2" and toks[2] == str(tag)
         assert float(toks[5]) == 0.0

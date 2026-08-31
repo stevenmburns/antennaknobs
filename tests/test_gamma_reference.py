@@ -176,7 +176,7 @@ def test_two_generators_keep_the_ideal_operating_point():
     ideal = red.impedance_from_y(red.apply_branches(y, WL))
     np.testing.assert_allclose(zs, ideal, rtol=1e-12)
     gs = red.reflection_from_y(system)
-    for g, z in zip(gs, zs):
+    for g, z in zip(gs, zs, strict=True):
         assert g == pytest.approx((z - 50.0) / (z + 50.0), rel=1e-12)
 
 
@@ -264,7 +264,7 @@ def test_the_reference_leaves_no_trace_in_the_power_budget():
         watts.append(system.branch_power(probe))
     # ½·R·|j|² at each stamp's own current; the referenced solve draws less,
     # but neither reading contains a watt of z_ref.
-    for w, system_zr in zip(watts, (0j, Z_REF_DEFAULT)):
+    for w, system_zr in zip(watts, (0j, Z_REF_DEFAULT), strict=True):
         system = red.apply_branches(y, WL, z_ref=system_zr)
         _v, j = system.solve()
         col = system.terminations[0][0]

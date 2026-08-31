@@ -103,7 +103,9 @@ def main():
         l for l in t.split("\n") if "FILL=" not in l and not l.startswith(" RUN TIME =")
     ]
     diff = [
-        (i, a, b) for i, (a, b) in enumerate(zip(strip(warm), strip(cold))) if a != b
+        (i, a, b)
+        for i, (a, b) in enumerate(zip(strip(warm), strip(cold), strict=True))
+        if a != b
     ]
     print(f"\n== warm-vs-cold 0117 on this machine: {len(diff)} differing lines ==")
     for i, a, b in diff[:10]:
