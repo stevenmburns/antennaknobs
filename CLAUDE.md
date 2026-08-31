@@ -74,12 +74,43 @@ which is the case the rule is actually for.
 
 ### Rules deliberately not selected
 
-- **`PLC0415` (import-outside-top-level)** reports **940** violations,
+Counts below are from the #1059 survey (`--select ALL`, ruff 0.16.5,
+2026-08-31): **829 stable rules, 177 fire here, 29,328 findings.**
+
+- **`PLC0415` (import-outside-top-level)** reports **989** violations,
   because lazy imports are an architectural choice here (startup cost). The
   rule contradicts the design rather than finding bugs. Two annotated sites
   survive in `vna.py` as prose; they are documentation, not suppression.
 - **`E741`** is in `ignore`: 33 sites, all `I` (current) and `l` (length /
   inductance), which are the correct physics names.
+- **`S101` (assert)** — 4,282, essentially all in `tests/`. The rule is for
+  production code that uses `assert` as validation; that is not what these
+  are.
+- **`ANN*` (annotations)** — 7,859. There is no annotation policy here, and
+  adopting one is a project decision, not a lint decision.
+- **`D*` (pydocstyle)** — 5,243. Same: no docstring policy.
+- **`T201` (print)** — 1,144. The study scripts under `scratch/` and
+  `scripts/` print their results by design; that IS their output.
+- **`N806` / `N803` (non-lowercase names)** — 1,038. Same argument as
+  `E741`: `Z`, `I`, `V` are the correct names for the quantities.
+- **`RUF001-003` (ambiguous unicode)** — 655. The prose uses Ω, μ, λ and em
+  dashes deliberately.
+- **`SLF001` (private-member-access)** — 653. The tests reach into solver
+  internals on purpose.
+- **`PLR2004` (magic value)** — 1,475. Numerical code compares against
+  physical constants.
+- **`COM812` (trailing comma)** — 1,731, and ruff warns it can fight the
+  formatter.
+- **`FIX001-004` (flake8-fixme)** — reports **zero**, and was still left out.
+  `FIX002` fires on any line containing TODO, even a well-formed
+  `# TODO(#941): ...`, so it is a ban on TODO comments rather than a rule
+  about them — and it would make the adopted `TD*` rules dead letters.
+
+**Deferred, not rejected** (adoptable later on the same pattern, each needing
+real edits rather than a config line): `B905` zip-strict (171 — filed as
+#1061, the highest-value rule in the survey), `PTH*` os.path→pathlib (114),
+`FBT*` boolean traps (150), `PT*` pytest idiom (362), `I001` import sorting
+(252, autofixable).
 
 `BLE001` **is** selected repo-wide, but it is weaker than it looks: since ruff
 0.16.5 it **exempts a handler that logs with `exc_info=True`** (0.15.21 flagged

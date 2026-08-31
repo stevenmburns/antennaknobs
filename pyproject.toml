@@ -212,7 +212,75 @@ ignore = ["E741"]
 # hand at both call sites before it was selected; selecting it turns those
 # annotations from prose into a gate, so a future `urlopen` of a
 # caller-supplied string cannot land without someone writing down why.
-extend-select = ["TID252", "B023", "BLE001", "S310"]
+extend-select = [
+    # Opted in one at a time, each argued in the comments above.
+    "TID252",
+    "B023",
+    "BLE001",
+    "S310",
+    # ------------------------------------------------------------------
+    # Zero-finding adoption (#1059). Every code below already reports ZERO
+    # violations in this tree, so selecting it changes no source line — it
+    # only stops the first violation from landing unnoticed. That is the
+    # whole point: these are cheap to adopt NOW and expensive later, once
+    # the first violation exists and someone has to argue about it.
+    #
+    # Written as explicit CODES, not family prefixes, for the reason the
+    # `select` comment above gives: a prefix silently grows when ruff adds
+    # a rule to that family, which is the mechanism that used to turn CI
+    # red on unchanged code. `"DTZ"` is one line but not a fixed rule set;
+    # the ten DTZ codes are.
+    #
+    # The prefix trap is not hypothetical here: flake8-debugger is `T10`
+    # and is clean, while flake8-print is `T20` with 1,144 violations.
+    # Selecting `"T"` to get the former turns on the latter.
+    #
+    # NOT adopted, though it also reports zero: flake8-fixme (FIX001-004).
+    # FIX002 fires on ANY line containing TODO, including a well-formed
+    # `# TODO(#941): ...` with an issue link — measured, not assumed. It is
+    # a "no TODO comments, ever" policy, and it would make the TD rules
+    # below dead letters, since those exist to say how a TODO should be
+    # written. Keeping TD and dropping FIX is the coherent pair.
+
+    # FastAPI — the web app is FastAPI, so these are live gates.
+    "FAST001", "FAST002", "FAST003",
+    # flake8-2020 — sys.version comparisons that break at 3.10 / 4.x.
+    "YTT101", "YTT102", "YTT103",
+    "YTT201", "YTT202", "YTT203", "YTT204",
+    "YTT301", "YTT302", "YTT303",
+    # flake8-builtins — shadowing a builtin with a local, arg, or module.
+    "A001", "A002", "A003", "A004", "A005", "A006",
+    # flake8-datetimez — naive datetimes. Real risk here: solve timestamps
+    # and cache keys compare wrongly across a DST boundary if tz is absent.
+    "DTZ001", "DTZ002", "DTZ003", "DTZ004", "DTZ005",
+    "DTZ006", "DTZ007", "DTZ011", "DTZ012", "DTZ901",
+    # flake8-debugger — a stray pdb/breakpoint import reaching main.
+    "T100",
+    # flake8-future-annotations.
+    "FA100", "FA102",
+    # flake8-gettext — latent: only fires on gettext-style `_()` calls,
+    # which this repo does not currently make. Cheap to keep armed.
+    "INT001", "INT002", "INT003",
+    # flake8-logging / flake8-logging-format — the web server and the
+    # study scripts both log; G004 (f-string in log call) is the one that
+    # actually bites, since it formats even when the record is filtered.
+    "LOG001", "LOG002", "LOG004", "LOG007", "LOG009", "LOG014", "LOG015",
+    "G001", "G002", "G003", "G004", "G010", "G101", "G201", "G202",
+    # flake8-quotes — verified NOT to conflict with the formatter here.
+    "Q000", "Q001", "Q002", "Q003", "Q004",
+    # flake8-slots.
+    "SLOT000", "SLOT001", "SLOT002",
+    # flake8-tidy-imports — the rest of the family alongside TID252.
+    # Latent: both need their own config table to fire, so they are armed
+    # for whoever adds one, not gates today.
+    "TID251", "TID253",
+    # flake8-todos — a TODO must name an author and link an issue. The
+    # tree has no TODO comments at all right now, so this costs nothing
+    # and fixes the format of the next one.
+    "TD001", "TD002", "TD003", "TD004", "TD005", "TD006", "TD007",
+    # flynt.
+    "FLY002",
+]
 # Keep "imported but unused" as a warning instead of auto-stripping.
 # Without this, multi-pass edits (add imports first, then add code that
 # uses them) can have the import deleted between edits — by the editor's
