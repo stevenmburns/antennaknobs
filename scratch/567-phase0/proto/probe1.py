@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "momwire" / "tests"
 from mp_cross import axis_data, mp_cross_block, mp_tables, seeded, _pair_geometry  # noqa: F401 — kept: imported for its import-time effect / to document the probe's inputs
 from momwire._sommerfeld_transmitted import divide_out_transmitted, t_surfaces_direct
 
-from test_buried_serve_553 import contact_deck, fan_deck  # noqa: E402
+from test_buried_serve_553 import contact_deck, fan_deck
 
 
 def field_block_direct(s, A, B, swap_roles=False, rtol=1e-10):
