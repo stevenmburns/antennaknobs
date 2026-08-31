@@ -59,11 +59,36 @@ _logger = logging.getLogger(__name__)
 def _physical_cpu_count() -> int:
     """Number of physical cores (not logical / HT siblings).
 
-    Our quadrature kernels are FP-vector-saturated (libmvec AVX2 sin/cos
-    inner loops, no spare FU bandwidth), so two HT siblings on one physical
-    core contend for execution units rather than overlap. Ad-hoc bench on
-    KBL-R 4C/8T showed 4-thread runs ~15% faster than 8-thread runs of the
-    swept-ground hot path. Pin to physical-core count to skip that loss.
+    A DEFAULT, not a claim that physical is always right — see below. Override
+    with OMP_NUM_THREADS / OPENBLAS_NUM_THREADS if your workload disagrees.
+
+    The old rationale here said the quadrature kernels are FP-vector-saturated
+    (libmvec AVX2 sin/cos, no spare FU bandwidth) so HT siblings contend rather
+    than overlap, citing an ad-hoc KBL-R bench where 4 threads beat 8 by ~15%
+    on the swept-ground path. Re-measured on two machines with OpenBLAS's
+    spin-wait fixed (issue #1050 — that bench was taken with it on, which
+    produces the same "fewer threads is faster" signature for a different
+    reason), the picture is that the preference follows the KERNEL PATH, not
+    the engine and not the server (issue #1051):
+
+      swept refl-coef   physical wins, +9.4% (laptop) / +8..15% (desktop)
+      swept Sommerfeld  a tie
+      free space        LOGICAL wins, -12.1% / -1.9%
+      pynec (2 decks)   LOGICAL wins, -6% to -15%
+
+    So the FP-saturation argument is real where it applies — it just does not
+    apply everywhere this pin does, and pynec pays 10-15% for it.
+
+    We keep the physical-core default anyway, deliberately:
+
+      - the honest margins are single digits, an order of magnitude below the
+        20-30% run-to-run spread of a thermally limited laptop, so no automatic
+        policy could deliver a benefit a user would actually observe;
+      - on a hybrid P/E-core part `psutil.cpu_count(logical=False)` returns
+        P-cores + E-cores, whose members differ in throughput. For a
+        barrier-synchronised fill gated by its slowest thread, "physical core
+        count" is not merely a poor policy input there, it is not a well-defined
+        one. Nobody has measured that case.
 
     Uses psutil for a portable answer (Windows/macOS/Linux). The previous
     /proc/cpuinfo + "assume 2 HT siblings" fallback misfired on chips
@@ -107,9 +132,13 @@ def _physical_cpu_count() -> int:
 #     stack it would serialize the LU phase of every big solve — the pin vs
 #     NPROC is 2.3× on pynec (12.8 → 5.5 s) and 1.6× on bspline (7.3 →
 #     4.6 s) at ~4000 basis on a 4C/8T box (issue #377).
-#   - The FP-vector-saturated quadrature inner loops gain nothing from HT
-#     siblings and lose ~15% to execution-unit contention on KBL-class
-#     chips — see _physical_cpu_count().
+#   - Physical over logical is a DEFAULT, not a measured win everywhere: the
+#     preference follows the kernel path (refl-coef prefers physical, free
+#     space and pynec prefer logical), and the margins are single digits once
+#     OpenBLAS's spin-wait is off. Kept because no automatic policy can beat
+#     that spread on real hardware, and because the count is not even
+#     well-defined on a hybrid P/E part — see _physical_cpu_count() and
+#     issue #1051. Override per-pool with the env vars below.
 #
 # Operators can still override per-pool via the usual env vars (honored by
 # the libraries at load AND respected here). Three knobs remain env-only —
