@@ -194,8 +194,18 @@ ignore = ["E741"]
 # evidence-based: 38 of the 56 blind excepts already annotated when this landed
 # were in scripts/, i.e. the authors of the bench and study code were already
 # marking them by hand. Exempting those trees would have deleted 38 deliberate
-# annotations as newly-dead. Every `except Exception` in the repo is now either
-# justified in a comment or a lint error.
+# annotations as newly-dead.
+#
+# The invariant this buys is NOT "every `except Exception` is justified or a
+# lint error" — that claim was true when written and is not true at the pinned
+# ruff. Since 0.16.5 BLE001 EXEMPTS a handler that logs with `exc_info=True`
+# (0.15.21 flagged it), so the real invariant is: every `except Exception` is
+# justified in a comment, a lint error, or logs a traceback. Two sites rely on
+# the exemption today, both in web/adapter.py.
+#
+# Do not "fix" that by annotating them. BLE001 does not fire there, so a
+# `# noqa: BLE001` would itself be reported dead by RUF100 — the exemption
+# cannot be re-tightened from this end, only upstream.
 # S310 (suspicious-url-open-usage) is opted into for one reason: this repo
 # opens exactly one URL, from a module-level table of fixed https endpoints,
 # and that is the property worth freezing. The rule was already annotated by
