@@ -480,6 +480,69 @@ def run_cell(go, threads: int, budget: float) -> dict:
     }
 
 
+def run_paired(go, threads_a: int, threads_b: int, budget: float, block: int) -> dict:
+    """Interleave two thread counts so both see the same thermal envelope.
+
+    Why this exists: on a thermally limited part the dominant noise source is
+    slow clock drift, which is COMMON MODE between measurements taken close
+    together in time. Measuring all of A and then all of B puts minutes between
+    the arms and lets that drift land entirely in the difference -- which is the
+    quantity of interest. Measured that way on an xps13 the repeat spread was
+    24-37% against a pin effect of 7-15%: ~39 repeats per cell to resolve, ~46
+    hours for the matrix. Interleaving in short blocks makes the drift cancel in
+    the RATIO instead of accumulating in it.
+
+    The statistic is the median of per-pair ratios, not a ratio of medians. Each
+    pair is self-contained, so a pair spanning a thermal excursion is one noisy
+    sample rather than a shift of a whole arm.
+
+    Blocks rather than single iterations because changing a pool's thread count
+    is not free: OpenBLAS may tear down and respawn workers, which is itself
+    entangled with the spin behaviour under test.
+    """
+    import threadpoolctl
+
+    def block_median(threads: int) -> float:
+        with threadpoolctl.threadpool_limits(limits=threads):
+            return statistics.median([go()[0] for _ in range(block)])
+
+    with ClockSampler() as clk:
+        warm_until = max(0.5, budget / 8)
+        warmed = 0.0
+        while warmed < warm_until:
+            warmed += go()[0]
+
+        a_blocks: list[float] = []
+        b_blocks: list[float] = []
+        spent = 0.0
+        while spent < budget:
+            t0 = time.perf_counter()
+            a_blocks.append(block_median(threads_a))
+            b_blocks.append(block_median(threads_b))
+            spent += time.perf_counter() - t0
+
+    ratios = [b / a for a, b in zip(a_blocks, b_blocks, strict=False)]
+    if not ratios:
+        return {"kind": "paired", "pairs": 0, "clock": clk.summary()}
+    ordered = sorted(ratios)
+    med = statistics.median(ratios)
+    return {
+        "kind": "paired",
+        "threads_a": threads_a,
+        "threads_b": threads_b,
+        "pairs": len(ratios),
+        "block": block,
+        "ratio_median": med,
+        "ratio_pct": (med - 1) * 100,
+        "ratio_spread_pct": (max(ratios) - min(ratios)) / med * 100,
+        "ratio_p25": ordered[len(ordered) // 4],
+        "ratio_p75": ordered[3 * len(ordered) // 4],
+        "a_median_ms": statistics.median(a_blocks) * 1000,
+        "b_median_ms": statistics.median(b_blocks) * 1000,
+        "clock": clk.summary(),
+    }
+
+
 # --- spin re-exec -----------------------------------------------------------
 
 
@@ -534,6 +597,19 @@ def main() -> None:
     p.add_argument(
         "--repeats", type=int, default=1, help="independent repeats per cell"
     )
+    p.add_argument(
+        "--paired",
+        action="store_true",
+        help="interleave the two --threads values in short blocks so both see "
+        "the same thermal envelope; reports the median per-pair RATIO. Use on any "
+        "box whose repeat spread is comparable to the effect being chased",
+    )
+    p.add_argument(
+        "--pair-block",
+        type=int,
+        default=3,
+        help="iterations per arm before switching, with --paired",
+    )
     args = p.parse_args()
 
     if args.spin == "both":
@@ -563,9 +639,29 @@ def main() -> None:
     _install_lu_probe()
     print(json.dumps(provenance(args)), flush=True)
 
+    thread_list = [int(x) for x in args.threads.split(",")]
+    if args.paired and len(thread_list) != 2:
+        raise SystemExit(
+            "--paired needs exactly two --threads values, e.g. --threads 4,8"
+        )
+
     for n in [int(x) for x in args.nsegs.split(",")]:
         go = build(args.workload, n)
-        for threads in [int(x) for x in args.threads.split(",")]:
+        if args.paired:
+            for rep in range(args.repeats):
+                row = run_paired(
+                    go, thread_list[0], thread_list[1], args.budget, args.pair_block
+                )
+                row.update(
+                    workload=args.workload,
+                    engine=WORKLOADS[args.workload][0],
+                    n=n,
+                    spin=_spin_state(),
+                    rep=rep,
+                )
+                print(json.dumps(row), flush=True)
+            continue
+        for threads in thread_list:
             for rep in range(args.repeats):
                 row = run_cell(go, threads, args.budget)
                 row.update(

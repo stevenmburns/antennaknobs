@@ -144,6 +144,40 @@ existed.)
   count" is not a meaningful policy input and the pin question is not the
   question these rows measure. Neither box measured so far is heterogeneous.
 
+## `--paired` — when the noise floor swamps the effect
+
+On a thermally limited part the dominant noise is slow clock drift. Measuring
+all of thread-count A and then all of B puts minutes between the arms and lets
+that drift land entirely in the difference, which is the quantity of interest.
+Observed on an xps13: repeat spread 24-37% against a pin effect of 7-15%.
+
+That is not a tuning problem, it is a resolution problem. Unpaired, resolving a
+10% effect against σ≈22% needs ~39 repeats per cell — about **46 hours** for a
+144-cell matrix at `--budget 15`. The pin question is simply not answerable
+that way on that box. (`#1050`'s effects, +26% to 174%, sit far above the floor
+and stay readable.)
+
+`--paired` interleaves the two thread counts in short blocks so both arms see
+the same thermal envelope, and reports the median of per-pair **ratios**:
+
+```
+--threads 4,8 --paired --pair-block 3 --repeats 3
+```
+
+Per-pair, not a ratio of medians: each pair is self-contained, so a pair
+spanning a thermal excursion is one noisy sample rather than a shift of a whole
+arm. Blocks rather than single iterations because changing a pool's thread
+count is not free — OpenBLAS may respawn workers, which is itself entangled
+with the spin behaviour under test.
+
+**Validation status.** Correctness is confirmed on haswell: paired reports
++11.9 / +10.6 / +4.9% where unpaired reports +12.6% on the same cell, i.e. it
+recovers the same answer. The **variance reduction is not demonstrated here and
+cannot be** — a quiet desktop has almost no drift to cancel, which is the whole
+point. The decisive check costs one cell on a noisy box: run it both ways and
+compare `ratio_spread_pct` against the unpaired repeat spread. If pairing does
+not shrink it, the noise is not drift and this mode does not help.
+
 ## Reading a row
 
 `drift_pct` is the first thing to look at. Under a few percent, read the row at
