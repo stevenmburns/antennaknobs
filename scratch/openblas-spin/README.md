@@ -113,6 +113,37 @@ to spin. None of this describes the hosted server. The beneficiaries are people
 running the app **locally** and the bench scripts, which is why a thermally
 limited laptop is the target population and a quiet desktop is the control.
 
+## Ordering and cooldown — not cosmetic
+
+`--spin both` runs two child processes, because the variable is read at import.
+Back to back, the second half inherits a hotter machine, which is a systematic
+bias against whichever spin state runs second — and that is exactly the
+comparison the issues turn on. Free on a quiet desktop, decisive on a 15 W
+part.
+
+So on a thermally limited box:
+
+```
+--cooldown 90 --spin-order on-first    # then off-first on the next workload
+```
+
+Alternating `--spin-order` across workloads makes any residual bias cancel
+across the matrix instead of accumulating in one direction. (Credit where due:
+this was found by driving the halves by hand on an xps13 before the flags
+existed.)
+
+## Provenance fields worth checking before trusting a comparison
+
+- `harness.commit` / `harness.dirty` — "both boxes ran the same harness" is the
+  premise of every cross-machine row here. A `dirty: true` row came from a
+  locally edited script and is not comparable to anything.
+- `topology.heterogeneous` — true on hybrid P/E-core parts (Alder Lake and
+  later), where `psutil.cpu_count(logical=False)` returns P-cores + E-cores as
+  one number over members with very different throughput. A barrier-synchronised
+  OpenMP fill is gated by its slowest thread, so on such a part "physical core
+  count" is not a meaningful policy input and the pin question is not the
+  question these rows measure. Neither box measured so far is heterogeneous.
+
 ## Reading a row
 
 `drift_pct` is the first thing to look at. Under a few percent, read the row at
