@@ -407,7 +407,11 @@ def _enum_opt(*allowed: str):
 _HOSTED_MODEL_OPTIONS = {
     "degree": _int_in(1, 2),
     "n_qp_const": _int_in(1, 64),
-    "n_qp_pair": _int_in(1, 64),
+    # Capped at 8, not 64: momwire's accelerated pair kernels carry a fixed
+    # n_qp^2 <= 64 scratch buffer and raise RuntimeError above that
+    # (_accel_bspline.cpp, six sites). 64 here advertised a range four of
+    # whose five octaves crash the solve (momwire#743).
+    "n_qp_pair": _int_in(1, 8),
     "n_qp_source": _int_in(1, 64),
     "n_qp_sing": _int_in(1, 128),
     "feed_smoothing_factor": _float_in(0.0, 100.0, allow_none=True),

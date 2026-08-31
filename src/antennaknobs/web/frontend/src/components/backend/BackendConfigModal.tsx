@@ -318,9 +318,10 @@ function BSplineFields({
       </div>
       <NumberField
         label="n_qp_pair (GL pts/axis)"
+        title="Gauss-Legendre points per segment per axis for pair moments. Capped at 8: momwire's accelerated kernel has a fixed n_qp^2 <= 64 scratch buffer and refuses more."
         value={opts.nQpPair}
         min={2}
-        max={16}
+        max={8}
         step={1}
         onChange={(v) => onPatch({ nQpPair: v })}
       />
