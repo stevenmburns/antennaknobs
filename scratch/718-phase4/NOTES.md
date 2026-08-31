@@ -719,8 +719,15 @@ That is the strong form of the test. SAC in enforcement mode does not merely
 check that a signature is valid — it also weighs reputation through the
 Intelligent Security Graph, and a brand-new signed binary from a small
 publisher can be blocked despite a perfectly good certificate. That was the
-outcome worth fearing, and it did not happen: the Microsoft-issued certificate
-carries enough trust on its own.
+outcome worth fearing, and it did not happen.
+
+What this does NOT establish is *which* path let it through. SAC admits an app
+the ISG classifies as safe **or** one correctly signed by a CA in the
+Microsoft Trusted Root Program (`momwire/docs/code-signing.md` records both
+criteria). A single pass on a single machine cannot tell those apart, and the
+release was hours old, so reputation had had little time to accrue. The honest
+reading is that the result is consistent with the signature alone sufficing —
+which is what the published criteria predict — not that it proves it.
 
 ### The release artifact, verified independently
 
@@ -752,9 +759,16 @@ a nicety.** A future release that ever ships unstamped would verify correctly
 in CI, pass every local signature check on the build day, and then begin
 failing SAC roughly 72 hours later — with nothing in the build output pointing
 at the cause, and the failure appearing only on end-user machines that enforce
-SAC. If the signing step does not already assert that
-`TimeStamperCertificate` is present on every signed binary, that is a cheap
-guard against a genuinely nasty delayed failure.
+SAC.
+
+**Checked, and the guard is missing.** `scripts/eznec_freeze/sign.py` does
+timestamp on the way in — `/tr <url> /td SHA256` at L194-197, under a comment
+saying timestamping is not optional — but the verification that follows it,
+`_verify()` at L224, runs `signtool verify /pa /v` **without `/tw`**. Without
+that flag signtool checks the chain and is perfectly content with a signature
+carrying no countersignature, so a build that failed to timestamp would still
+print `chain verified` and ship. Adding `/tw` to that one existing line closes
+it. Filed as momwire#755.
 
 Related: the existing note that the Azure client secret expiry is the thing
 that bites mid-release. Both are the same shape of hazard — signing that looks
@@ -776,6 +790,14 @@ With this, every item on the phase-4 plan is closed:
 - The GUI-driven sweep done, closing AK#1039's last open box
 - **Smart App Control tested properly and passing**
 
-Open follow-ups live in momwire: **#747** (pre-warm the engine — the cold
-spawn reads as a hang) and the razor performance work decomposed into
-**#743 / #744 / #745**.
+Phase 4 closing is not #718 closing: **phase 5 remains** — re-scoping
+momwire#385 (the concurrent parse/cache front and sweep rebatching) against
+the consolidated server that actually shipped. Its own scope-honesty note
+demands that re-evaluation now a resident mode exists, and only its large-N
+crossover measurement is unconditional. That is the last thing standing
+between here and closing the umbrella.
+
+Other open follow-ups live in momwire: **#747** (pre-warm the engine — the
+cold spawn reads as a hang), the razor performance work decomposed into
+**#743 / #744 / #745**, **#753** (whether plain `razor` should keep a roster
+entry at all) and **#755** (the `/tw` guard above).
