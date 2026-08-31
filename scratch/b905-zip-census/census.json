@@ -1,0 +1,855 @@
+{
+ "scripts/design_space_contour.py:114": {
+  "calls": 19,
+  "equal": 19,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "scripts/design_space_contour.py:143": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "scripts/design_space_contour.py:159": {
+  "calls": 18,
+  "equal": 18,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "scripts/design_space_contour.py:170": {
+  "calls": 4,
+  "equal": 4,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/catenary.py:455": {
+  "calls": 161,
+  "equal": 161,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/cli.py:347": {
+  "calls": 3,
+  "equal": 3,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/beams/hexbeam.py:58": {
+  "calls": 155,
+  "equal": 155,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/beams/moxon.py:100": {
+  "calls": 726,
+  "equal": 726,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/dipoles/invvee_catenary.py:516": {
+  "calls": 128,
+  "equal": 128,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/dipoles/koch_dipole.py:106": {
+  "calls": 33,
+  "equal": 33,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/dipoles/koch_dipole.py:111": {
+  "calls": 33,
+  "equal": 33,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/dipoles/koch_dipole.py:47": {
+  "calls": 128,
+  "equal": 128,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/fandipole.py:157": {
+  "calls": 1170,
+  "equal": 1170,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/fandipole.py:169": {
+  "calls": 45,
+  "equal": 45,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/fandipole.py:171": {
+  "calls": 45,
+  "equal": 45,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/hexbeam_5band.py:399": {
+  "calls": 915,
+  "equal": 915,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/trap_fan_dipole.py:280": {
+  "calls": 56,
+  "equal": 56,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/twoband_fan_dipole.py:215": {
+  "calls": 30,
+  "equal": 30,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/multiband/twoband_fan_dipole.py:219": {
+  "calls": 30,
+  "equal": 30,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/specialty/hentenna.py:80": {
+  "calls": 350,
+  "equal": 350,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/specialty/hentenna_slant.py:163": {
+  "calls": 145,
+  "equal": 145,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/specialty/hourglass.py:63": {
+  "calls": 315,
+  "equal": 315,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/specialty/hourglass_slant.py:85": {
+  "calls": 150,
+  "equal": 150,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/verticals/bruce.py:129": {
+  "calls": 33,
+  "equal": 33,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/verticals/elt_whip.py:251": {
+  "calls": 260,
+  "equal": 0,
+  "shapes": [
+   [
+    14,
+    13
+   ]
+  ],
+  "unequal": 260,
+  "unsized": 0
+ },
+ "src/antennaknobs/designs/verticals/elt_whip.py:320": {
+  "calls": 22,
+  "equal": 0,
+  "shapes": [
+   [
+    7,
+    6
+   ]
+  ],
+  "unequal": 22,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:1073": {
+  "calls": 28,
+  "equal": 28,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:1079": {
+  "calls": 3,
+  "equal": 3,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:649": {
+  "calls": 925,
+  "equal": 925,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:678": {
+  "calls": 564,
+  "equal": 564,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:680": {
+  "calls": 1660,
+  "equal": 1660,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:774": {
+  "calls": 43,
+  "equal": 43,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/engines/momwire.py:784": {
+  "calls": 16,
+  "equal": 16,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/far_field.py:218": {
+  "calls": 15,
+  "equal": 15,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/far_field.py:219": {
+  "calls": 31,
+  "equal": 31,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/far_field.py:286": {
+  "calls": 15,
+  "equal": 15,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/far_field.py:353": {
+  "calls": 8,
+  "equal": 8,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/fit.py:167": {
+  "calls": 12,
+  "equal": 12,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/fit.py:181": {
+  "calls": 8,
+  "equal": 8,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/fit.py:197": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/fit.py:283": {
+  "calls": 16,
+  "equal": 16,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/fit.py:418": {
+  "calls": 233,
+  "equal": 233,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/nec_import.py:1174": {
+  "calls": 11140,
+  "equal": 11140,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/nec_import.py:1231": {
+  "calls": 31520,
+  "equal": 31520,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/nec_import.py:1454": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/nec_import.py:1656": {
+  "calls": 338,
+  "equal": 338,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/nec_import.py:420": {
+  "calls": 48478,
+  "equal": 48478,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/nec_import.py:554": {
+  "calls": 8844,
+  "equal": 8844,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/opt.py:164": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/opt.py:99": {
+  "calls": 493,
+  "equal": 493,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/terrain.py:107": {
+  "calls": 45,
+  "equal": 45,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/terrain.py:77": {
+  "calls": 85,
+  "equal": 11,
+  "shapes": [
+   [
+    2,
+    1
+   ],
+   [
+    11,
+    10
+   ]
+  ],
+  "unequal": 74,
+  "unsized": 0
+ },
+ "src/antennaknobs/touchstone.py:364": {
+  "calls": 3,
+  "equal": 3,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/adapter.py:1373": {
+  "calls": 10,
+  "equal": 10,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/adapter.py:2510": {
+  "calls": 8,
+  "equal": 8,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/optimize.py:143": {
+  "calls": 25,
+  "equal": 25,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/optimize.py:153": {
+  "calls": 577,
+  "equal": 577,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/optimize.py:190": {
+  "calls": 23,
+  "equal": 23,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/optimize.py:195": {
+  "calls": 21,
+  "equal": 21,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/web/optimize.py:202": {
+  "calls": 21,
+  "equal": 21,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "src/antennaknobs/wire_catalog.py:428": {
+  "calls": 100,
+  "equal": 0,
+  "shapes": [
+   [
+    4,
+    3,
+    3
+   ],
+   [
+    7,
+    6,
+    6
+   ]
+  ],
+  "unequal": 100,
+  "unsized": 0
+ },
+ "tests/fixtures/delta_looparray_with_tls.py:116": {
+  "calls": 8,
+  "equal": 8,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_bench_ex6_gyrator.py:189": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_bench_ex6_gyrator.py:204": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_bench_ex6_gyrator.py:247": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_bench_ex6_superposition.py:143": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_bench_import_canary.py:37": {
+  "calls": 146,
+  "equal": 146,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_buried_catalog.py:107": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_catenary.py:279": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    5,
+    4
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_catenary.py:374": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    6,
+    5
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_catenary.py:376": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    6,
+    5
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_catenary.py:378": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    6,
+    5
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_catenary.py:380": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    6,
+    5
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_catenary.py:489": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    4,
+    3
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_cell.py:105": {
+  "calls": 3,
+  "equal": 3,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_cell.py:256": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_drone.py:207": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    5,
+    4
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_ferrite.py:173": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    5,
+    4
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_ferrite.py:328": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    5,
+    4
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_fit.py:347": {
+  "calls": 3,
+  "equal": 3,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_gamma_reference.py:179": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_gamma_reference.py:267": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_graded_wire.py:70": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_hexbeam_5band.py:144": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_invvee_catenary.py:295": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    3,
+    2
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_invvee_catenary.py:297": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    3,
+    2
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_invvee_catenary.py:71": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_measured.py:25": {
+  "calls": 14,
+  "equal": 14,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_measured.py:49": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_module.py:124": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_momwire_engine.py:116": {
+  "calls": 3,
+  "equal": 3,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_momwire_engine.py:1269": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_momwire_engine.py:1969": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_momwire_engine.py:216": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_momwire_engine.py:584": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_momwire_engine.py:600": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_nec_import.py:163": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_nec_import_ld7.py:143": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_opt_nested_params.py:66": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_per_wire_specs.py:125": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_per_wire_specs.py:144": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_refine_acceptance.py:279": {
+  "calls": 4,
+  "equal": 4,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_resolve_sy.py:37": {
+  "calls": 2,
+  "equal": 2,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_terrain_ground.py:169": {
+  "calls": 1,
+  "equal": 0,
+  "shapes": [
+   [
+    10,
+    9
+   ]
+  ],
+  "unequal": 1,
+  "unsized": 0
+ },
+ "tests/test_unit.py:134": {
+  "calls": 8,
+  "equal": 8,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_vna.py:82": {
+  "calls": 5,
+  "equal": 5,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_web_server.py:1350": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_web_server.py:1383": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ },
+ "tests/test_web_server.py:1760": {
+  "calls": 1,
+  "equal": 1,
+  "shapes": [],
+  "unequal": 0,
+  "unsized": 0
+ }
+}
