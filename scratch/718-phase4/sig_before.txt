@@ -1,0 +1,44 @@
+SIGNATURE BASELINE - BEFORE CERTIFICATE EXPIRY
+captured: 2026-08-31 06:39:50 -07:00  |  UTC: 2026-08-31 13:39:50Z
+cert NotAfter: 2026-08-31 17:55:02Z  -> baseline taken with 255.2 min remaining
+signtool.exe: NOT PRESENT on this box (no Windows SDK / MSVC toolchain installed)
+
+=== momwire-eznec.exe ===
+SHA256          : 111B8A48085BA68090891FB221DF8FB73D3E5EB98344F1271BE572A4A7A2AAE8
+Size            : 192768
+Status          : Valid
+StatusMessage   : Signature verified.
+SignerSubject   : CN=Steve Burns, O=Steve Burns, L=Portland, S=or, C=US
+SignerNotBefore : 08/28/2026 17:55:02
+SignerNotAfter  : 08/31/2026 17:55:02
+SignerThumbprint: B3AD53C43F560F738AE2AA1E40C1CCC372A1DDDA
+TSA Subject     : CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7800-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+TSA Thumbprint  : FD2F31399C42510141364ACDF168A28F5C79CBC3
+TSA NotAfter    : 10/22/2026 13:46:53
+
+=== momwire-eznec-razor-nec5.exe ===
+SHA256          : 111B8A48085BA68090891FB221DF8FB73D3E5EB98344F1271BE572A4A7A2AAE8
+Size            : 192768
+Status          : Valid
+StatusMessage   : Signature verified.
+SignerSubject   : CN=Steve Burns, O=Steve Burns, L=Portland, S=or, C=US
+SignerNotBefore : 08/28/2026 17:55:02
+SignerNotAfter  : 08/31/2026 17:55:02
+SignerThumbprint: B3AD53C43F560F738AE2AA1E40C1CCC372A1DDDA
+TSA Subject     : CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7800-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+TSA Thumbprint  : FD2F31399C42510141364ACDF168A28F5C79CBC3
+TSA NotAfter    : 10/22/2026 13:46:53
+
+=== momwire-eznec-engine.exe ===
+SHA256          : 9A45201CB02A9292F0B42A997116B7CE65E3276716AE77AACEDBC6320ACD961F
+Size            : 9669488
+Status          : Valid
+StatusMessage   : Signature verified.
+SignerSubject   : CN=Steve Burns, O=Steve Burns, L=Portland, S=or, C=US
+SignerNotBefore : 08/28/2026 17:55:02
+SignerNotAfter  : 08/31/2026 17:55:02
+SignerThumbprint: B3AD53C43F560F738AE2AA1E40C1CCC372A1DDDA
+TSA Subject     : CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7800-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US
+TSA Thumbprint  : FD2F31399C42510141364ACDF168A28F5C79CBC3
+TSA NotAfter    : 10/22/2026 13:46:53
+
