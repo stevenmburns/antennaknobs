@@ -694,3 +694,88 @@ also cover the idle-retire case without asking the user to do anything.
 
 Worth pairing with the 35 ms/point EZNEC overhead measured above: per-launch
 milliseconds are no longer where the felt experience lives. The cold spawn is.
+
+## Smart App Control — settled, and it passes
+
+The SAC question was scheduled as a separate sitting on a separate machine.
+It is now answered, on 2026-08-30, against the **released** bundle rather than
+a rehearsal one — and it passes.
+
+### What was tested, and why it counts
+
+The trap identified in sitting 7 was that neither of the earlier sittings
+could have tested SAC even in principle: this box has SmartScreen unconfigured
+and Smart App Control `Off`, and a bundle fetched with `gh run download` plus
+a CLI unzip carries no Mark-of-the-Web. Both conditions are now met properly:
+
+| condition | this run |
+|---|---|
+| Smart App Control state | **`On`** (enforcement, not Evaluation) |
+| How the zip arrived | **Downloaded through a browser** from momwire.dev, so Mark-of-the-Web applied |
+| What was exercised | **EZNEC driven end to end on two models**, not just launching the exes |
+| Result | **Nothing blocked. Everything worked.** |
+
+That is the strong form of the test. SAC in enforcement mode does not merely
+check that a signature is valid — it also weighs reputation through the
+Intelligent Security Graph, and a brand-new signed binary from a small
+publisher can be blocked despite a perfectly good certificate. That was the
+outcome worth fearing, and it did not happen: the Microsoft-issued certificate
+carries enough trust on its own.
+
+### The release artifact, verified independently
+
+Checked on the EZNEC box against `momwire-eznec-windows.zip` from the v0.44.0
+release (published 2026-08-30T19:20Z), downloaded fresh:
+
+| check | result |
+|---|---|
+| Authenticode, all three exes | **Valid** — `CN=Steve Burns, O=Steve Burns, L=Portland, S=or, C=US` |
+| Issuer | `CN=Microsoft ID Verified CS AOC CA 04` (Trusted Signing) |
+| Timestamp countersignature | **Present** — Microsoft Public RSA Time Stamping Authority |
+| `libomp140.x86_64.dll` bundled | **Yes**, 661,856 bytes — gate-7 certified |
+| Accelerator at runtime | `accelerators: loaded (_accelerators, _near_interface_accel)`, OpenMP runtime resolving **inside** the bundle |
+| Numerics | bit-identical to sitting 7 (79.068 - 8.5099j at 14.35 MHz) |
+
+So the shipped release carries the momwire#737 fix, loads its own runtime, and
+answers exactly as the rehearsal bundle did.
+
+### One thing to guard: the certificate lives three days
+
+The signing certificate is valid **2026-08-28 17:55 to 2026-08-31 17:55** — a
+72-hour window. That is normal for Microsoft Trusted Signing, which issues
+very short-lived certificates and relies on the timestamp countersignature for
+durability. This release has that countersignature, so the signature stays
+valid long after the certificate expires.
+
+The consequence is worth stating plainly: **the timestamp is load-bearing, not
+a nicety.** A future release that ever ships unstamped would verify correctly
+in CI, pass every local signature check on the build day, and then begin
+failing SAC roughly 72 hours later — with nothing in the build output pointing
+at the cause, and the failure appearing only on end-user machines that enforce
+SAC. If the signing step does not already assert that
+`TimeStamperCertificate` is present on every signed binary, that is a cheap
+guard against a genuinely nasty delayed failure.
+
+Related: the existing note that the Azure client secret expiry is the thing
+that bites mid-release. Both are the same shape of hazard — signing that looks
+fine until it silently is not.
+
+### Phase 4 status
+
+With this, every item on the phase-4 plan is closed:
+
+- Launch economics measured, against the old behaviour on the same box (87x
+  like-for-like, 3.7x against the licensed engine inside real EZNEC)
+- The twin verified against the licensed engine, including bit-identically
+  across the phase-2 to phase-3 rearchitecture
+- Residency, portal hygiene and idle-retire confirmed, including under the
+  real GUI
+- momwire#738 explained as the Sommerfeld ladder and closed
+- momwire#737 (dead accelerator) fixed, and the fix confirmed in the field on
+  the released artifact
+- The GUI-driven sweep done, closing AK#1039's last open box
+- **Smart App Control tested properly and passing**
+
+Open follow-ups live in momwire: **#747** (pre-warm the engine — the cold
+spawn reads as a hang) and the razor performance work decomposed into
+**#743 / #744 / #745**.
