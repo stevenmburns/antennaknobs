@@ -178,6 +178,49 @@ point. The decisive check costs one cell on a noisy box: run it both ways and
 compare `ratio_spread_pct` against the unpaired repeat spread. If pairing does
 not shrink it, the noise is not drift and this mode does not help.
 
+## Pairing is the default, and blocks are sized by time
+
+`--paired` is **on by default** whenever `--threads` names two counts. The
+unpaired failure mode is not noise, it is a confident wrong sign: on an xps13,
+`free` N=200 read **+10.0% physical and was marked resolved**, because the delta
+exceeded the within-arm scatter. That test is structurally blind to
+between-cell drift, which is what dominates a drifting box. Paired on the same
+cell: **−12.1%**, spread 3.2 points, agreeing with the desktop. `--no-paired`
+restores the old arms and warns on stderr.
+
+Block size is a *duration* (`--pair-secs`, default 1.0 s), not an iteration
+count. A fixed count makes block length scale with the cell, so a setting ample
+at N=400 is 156 ms at N=100 — short enough that the pool-switch overhead and
+per-iteration jitter dominate. Measured on refl N=100, everything else held:
+
+| block | ratio | spread |
+|---|---|---|
+| 3 iters | −3.0% | 41.9% |
+| 10 iters | −2.6% | 21.5% |
+| 25 iters | −3.7% | **2.4%** |
+
+The estimate never moved; only the spread did. Time-sizing gets the tight end
+automatically at every N.
+
+## `--spin-paired`: pairing across a process boundary
+
+`OPENBLAS_THREAD_TIMEOUT` is read at library init, so the two spin states can
+never share a process — which appears to leave #1050-style comparisons stuck
+with the resample-the-thermal-lottery repeat structure that produced that wrong
+sign. The boundary is not the obstacle. Interleave short-lived **child
+processes** instead of running two long halves:
+
+```
+--threads 4 --spin-paired --pairs 5 --block-secs 3
+```
+
+Adjacent blocks sit seconds apart in the same thermal window, so the drift is
+common mode and cancels in the ratio. Cost is one interpreter start per block
+(~1 s of Python + NumPy import); `--block-secs` makes that a tunable fraction
+rather than a fixed tax — ~25% at the default. Validated on haswell refl N=200
+thr=4: reports on 268.9 ms / off 208.1 ms, +28.2%, against 265.7 / 210.1
+measured unpaired earlier.
+
 ## Reading a row
 
 `drift_pct` is the first thing to look at. Under a few percent, read the row at

@@ -480,7 +480,14 @@ def run_cell(go, threads: int, budget: float) -> dict:
     }
 
 
-def run_paired(go, threads_a: int, threads_b: int, budget: float, block: int) -> dict:
+def run_paired(
+    go,
+    threads_a: int,
+    threads_b: int,
+    budget: float,
+    block: int,
+    pair_secs: float,
+) -> dict:
     """Interleave two thread counts so both see the same thermal envelope.
 
     Why this exists: on a thermally limited part the dominant noise source is
@@ -503,8 +510,25 @@ def run_paired(go, threads_a: int, threads_b: int, budget: float, block: int) ->
     import threadpoolctl
 
     def block_median(threads: int) -> float:
+        """One arm's block, sized by TIME rather than iteration count.
+
+        A fixed count is the wrong knob: it makes a block's duration scale
+        with the cell, so the same `--pair-block 3` that is ample at N=400 is
+        156 ms at N=100 -- short enough that per-switch overhead and
+        per-iteration jitter dominate the ratio. Measured on refl N=100,
+        holding everything else fixed, the ratio spread went 41.9% -> 21.5%
+        -> 2.4% for blocks of 3 -> 10 -> 25 iterations while the estimate
+        stayed put (-3.0 / -2.6 / -3.7%). Sizing by seconds gets the tight
+        end automatically at every N.
+        """
         with threadpoolctl.threadpool_limits(limits=threads):
-            return statistics.median([go()[0] for _ in range(block)])
+            ts = [go()[0]]
+            spent = ts[0]
+            while spent < pair_secs and len(ts) < block:
+                dt = go()[0]
+                ts.append(dt)
+                spent += dt
+            return statistics.median(ts)
 
     with ClockSampler() as clk:
         warm_until = max(0.5, budget / 8)
@@ -539,6 +563,93 @@ def run_paired(go, threads_a: int, threads_b: int, budget: float, block: int) ->
         "ratio_p75": ordered[3 * len(ordered) // 4],
         "a_median_ms": statistics.median(a_blocks) * 1000,
         "b_median_ms": statistics.median(b_blocks) * 1000,
+        "clock": clk.summary(),
+    }
+
+
+def run_spin_paired(args, n: int, threads: int) -> dict:
+    """Pair the two SPIN states ACROSS process boundaries.
+
+    ``OPENBLAS_THREAD_TIMEOUT`` is read at library init, so the two states can
+    never share a process and cannot be interleaved the way two thread counts
+    can. That looked like it left #1050-style comparisons stuck with the
+    resample-the-thermal-lottery repeat structure that produced a confidently
+    WRONG SIGN on an xps13 free N=200 cell.
+
+    The boundary is not actually the obstacle. Interleave short-lived CHILD
+    processes instead of running two long halves: on-block, off-block,
+    on-block, ... Adjacent blocks sit seconds apart in the same thermal
+    window, so the drift is common mode and cancels in the ratio, exactly as
+    it does for the in-process thread pairing.
+
+    The cost is one interpreter start per block (~1 s of Python + NumPy
+    import). ``--block-secs`` sets the work per block, so the overhead is a
+    tunable fraction rather than a fixed tax; at the 3 s default it is ~25%.
+    That is the price of pairing something that cannot be paired in-process,
+    and it buys a sign you can trust.
+    """
+
+    def one_block(spin: str) -> float | None:
+        env = dict(os.environ)
+        env["_AK_SPIN_SET"] = "1"
+        env.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+        env.setdefault("GOMP_SPINCOUNT", "0")
+        if spin == "off":
+            env["OPENBLAS_THREAD_TIMEOUT"] = "1"
+        else:
+            env.pop("OPENBLAS_THREAD_TIMEOUT", None)
+        cmd = [
+            sys.executable,
+            os.path.abspath(__file__),
+            "--workload",
+            args.workload,
+            "--nsegs",
+            str(n),
+            "--threads",
+            str(threads),
+            "--spin",
+            spin,
+            "--budget",
+            str(args.block_secs),
+            "--emit-block",
+        ]
+        out = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
+        for line in out.stdout.splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if row.get("kind") == "block":
+                return row["median_ms"]
+        return None
+
+    on_b: list[float] = []
+    off_b: list[float] = []
+    with ClockSampler() as clk:
+        for _ in range(args.pairs):
+            a = one_block("on")
+            b = one_block("off")
+            if a is None or b is None:
+                continue
+            on_b.append(a)
+            off_b.append(b)
+
+    ratios = [a / b for a, b in zip(on_b, off_b, strict=False)]
+    if not ratios:
+        return {"kind": "spin_paired", "pairs": 0}
+    med = statistics.median(ratios)
+    return {
+        "kind": "spin_paired",
+        "workload": args.workload,
+        "n": n,
+        "threads": threads,
+        "pairs": len(ratios),
+        "block_secs": args.block_secs,
+        "speedup_median": med,
+        "gain_pct": (med - 1) * 100,
+        "spread_pct": (max(ratios) - min(ratios)) / med * 100,
+        "on_median_ms": statistics.median(on_b),
+        "off_median_ms": statistics.median(off_b),
         "clock": clk.summary(),
     }
 
@@ -597,20 +708,74 @@ def main() -> None:
     p.add_argument(
         "--repeats", type=int, default=1, help="independent repeats per cell"
     )
+    # Paired is the DEFAULT whenever there are two thread counts to compare.
+    # Unpaired's failure mode is not noise, it is a confident WRONG SIGN: on an
+    # xps13, free N=200 read +10.0% physical and was marked resolved, because
+    # the delta exceeded the within-arm scatter. That test is structurally
+    # blind to between-cell drift, which is what dominates a drifting box.
+    # Paired on the same cell: -12.1%, spread 3.2 points, agreeing with the
+    # desktop. A default whose failure mode is a wrong sign is the wrong
+    # default; `kind` records which mode produced every row.
     p.add_argument(
         "--paired",
         action="store_true",
+        default=None,
         help="interleave the two --threads values in short blocks so both see "
-        "the same thermal envelope; reports the median per-pair RATIO. Use on any "
-        "box whose repeat spread is comparable to the effect being chased",
+        "the same thermal envelope; reports the median per-pair RATIO. ON BY "
+        "DEFAULT when --threads names two counts",
+    )
+    p.add_argument(
+        "--no-paired",
+        dest="paired",
+        action="store_false",
+        help="force the old unpaired arms. Between-cell drift is then "
+        "uncontrolled, so do not read a sign off a drifting box",
     )
     p.add_argument(
         "--pair-block",
         type=int,
-        default=3,
-        help="iterations per arm before switching, with --paired",
+        default=200,
+        help="CAP on iterations per arm before switching, with --paired; "
+        "--pair-secs is the real knob and normally binds first",
+    )
+    p.add_argument(
+        "--pair-secs",
+        type=float,
+        default=1.0,
+        help="seconds of work per arm before switching, with --paired. Blocks "
+        "too short to amortise the pool switch inflate the ratio spread "
+        "without moving the estimate",
+    )
+    p.add_argument(
+        "--spin-paired",
+        action="store_true",
+        help="pair the two SPIN states across process boundaries, for "
+        "#1050-style comparisons that cannot be interleaved in-process",
+    )
+    p.add_argument(
+        "--pairs", type=int, default=5, help="on/off block pairs, with --spin-paired"
+    )
+    p.add_argument(
+        "--block-secs",
+        type=float,
+        default=3.0,
+        help="work per child block, with --spin-paired; larger amortises the "
+        "~1 s interpreter start over more measurement",
+    )
+    p.add_argument(
+        "--emit-block",
+        action="store_true",
+        help=argparse.SUPPRESS,  # internal: one block, one median, for a parent
     )
     args = p.parse_args()
+
+    if args.spin_paired:
+        _install_lu_probe()
+        print(json.dumps(provenance(args)), flush=True)
+        for n in [int(x) for x in args.nsegs.split(",")]:
+            for threads in [int(x) for x in args.threads.split(",")]:
+                print(json.dumps(run_spin_paired(args, n, threads)), flush=True)
+        return
 
     if args.spin == "both":
         # Each half needs its own process: the variable is read at import.
@@ -637,12 +802,28 @@ def main() -> None:
     maybe_reexec(args)
 
     _install_lu_probe()
+
+    if args.emit_block:
+        n = int(args.nsegs.split(",")[0])
+        threads = int(args.threads.split(",")[0])
+        cell = run_cell(build(args.workload, n), threads, args.budget)
+        print(json.dumps({"kind": "block", "median_ms": cell["steady_ms"]}), flush=True)
+        return
+
     print(json.dumps(provenance(args)), flush=True)
 
     thread_list = [int(x) for x in args.threads.split(",")]
+    if args.paired is None:
+        args.paired = len(thread_list) == 2
     if args.paired and len(thread_list) != 2:
         raise SystemExit(
             "--paired needs exactly two --threads values, e.g. --threads 4,8"
+        )
+    if not args.paired and len(thread_list) > 1:
+        print(
+            "# NOTE unpaired arms: between-cell drift is uncontrolled. On a box "
+            "that drifts this can report a confident WRONG SIGN -- see --paired.",
+            file=sys.stderr,
         )
 
     for n in [int(x) for x in args.nsegs.split(",")]:
@@ -650,7 +831,12 @@ def main() -> None:
         if args.paired:
             for rep in range(args.repeats):
                 row = run_paired(
-                    go, thread_list[0], thread_list[1], args.budget, args.pair_block
+                    go,
+                    thread_list[0],
+                    thread_list[1],
+                    args.budget,
+                    args.pair_block,
+                    args.pair_secs,
                 )
                 row.update(
                     workload=args.workload,
