@@ -143,12 +143,15 @@ def main() -> None:
                             continue
                         d = _gain(a["ms"], b["ms"])  # + means hi (logical) faster
                         win = f"logical({hi})" if d > 0 else f"physical({lo})"
-                        margin = abs(d)
-                        note = (
-                            "  (inside spread)"
-                            if margin <= max(a["spread_pct"], b["spread_pct"])
-                            else ""
-                        )
+                        # No verdict from unpaired rows. The tempting test
+                        # -- |delta| > spread -- compares a BETWEEN-arm
+                        # difference against WITHIN-arm scatter, and is blind
+                        # to the between-cell thermal drift that dominates a
+                        # mobile part. On this very data it called free N=200
+                        # "+10.0% physical, resolved" where the paired rows
+                        # say -12.1% logical. Show the spread as context and
+                        # let --paired rows carry any verdict.
+                        note = "  [unpaired: within-arm spread only]"
                         print(
                             f"{n:>6} {spin:>5} {a['ms']:>10.1f} {b['ms']:>10.1f} "
                             f"{-d:>+9.1f}%  {win}{note}"
