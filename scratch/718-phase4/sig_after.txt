@@ -29,3 +29,19 @@ SignerNotAfter  : 08/31/2026 17:55:02
 SignerThumbprint: B3AD53C43F560F738AE2AA1E40C1CCC372A1DDDA
 TSA Thumbprint  : FD2F31399C42510141364ACDF168A28F5C79CBC3
 
+
+=== THIRD POST-EXPIRY SAMPLE ===
+captured: 2026-08-31 19:30:46Z  -> leaf expired 95.7 min ago
+fresh process; taken to remove any argument that a cached validation
+result was being served at the +1 min and +2.2 min samples.
+
+momwire-eznec.exe             Status=Valid  "Signature verified."
+momwire-eznec-razor-nec5.exe  Status=Valid  "Signature verified."
+momwire-eznec-engine.exe      Status=Valid  "Signature verified."
+
+SignerNotAfter   : 08/31/2026 17:55:02 (in the past), all three
+SignerThumbprint : B3AD53C43F560F738AE2AA1E40C1CCC372A1DDDA, unchanged
+TSA Thumbprint   : FD2F31399C42510141364ACDF168A28F5C79CBC3, unchanged
+SHA256           : unchanged from the 13:39:50Z baseline, all three
+
+Samples: +61 s, +2.2 min, +95.7 min past expiry. All Valid.
