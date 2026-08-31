@@ -417,7 +417,7 @@ class NecDeck:
             # Must match wire_tuples' point() bitwise so the shattered
             # pieces land exactly on the detected nodes.
             t = k / w.n_seg
-            return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2))
+            return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2, strict=True))
 
         owners: dict[tuple, set[int]] = {}
         for i, w in enumerate(self.wires):
@@ -551,7 +551,7 @@ class NecDeck:
                 expression for adjoining pieces yields bitwise-equal points,
                 which is how wires are recognised as connected."""
                 t = k / n
-                return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2))
+                return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2, strict=True))
 
             # Cut at every junction boundary, around every marked segment
             # so it sits alone on a 1-segment piece, and at every claimed
@@ -1171,7 +1171,7 @@ def _snap_nec_connections(wires):
     """
 
     def l1(a, b):
-        return sum(abs(x - y) for x, y in zip(a, b))
+        return sum(abs(x - y) for x, y in zip(a, b, strict=True))
 
     end_seg_len = []  # per endpoint (2 per wire): its wire's segment length
     pts = []  # (coordinate tuple) per endpoint, index = 2*wire + (0|1)
@@ -1228,7 +1228,7 @@ def _snap_nec_connections(wires):
     for wi, (_tag, n_seg, p1, p2, _rad) in enumerate(wires):
         for k in range(1, n_seg):
             t = k / n_seg
-            b = tuple(a + (b_ - a) * t for a, b_ in zip(p1, p2))
+            b = tuple(a + (b_ - a) * t for a, b_ in zip(p1, p2, strict=True))
             bgrid.setdefault(cell(b), []).append(len(boundaries))
             boundaries.append((wi, b))
 
@@ -1451,7 +1451,7 @@ def _seg_mid(w, seg: int):
     ``[tag, n_seg, p1, p2, radius]`` — NEC's connection point for a
     zero-length TL's straight-line-distance rule."""
     t = (seg - 0.5) / w[1]
-    return [a + (b - a) * t for a, b in zip(w[2], w[3])]
+    return [a + (b - a) * t for a, b in zip(w[2], w[3], strict=True)]
 
 
 def _end_shunt(y: complex, virtual: bool) -> tuple[float | None, complex | None]:
@@ -1653,7 +1653,7 @@ def _anchor_wires(wires, tls_raw, nts_raw, feeds, lds_raw, freq_mhz):
 
     def boundary(w, k):
         t = k / w[1]
-        return tuple(a + (b - a) * t for a, b in zip(w[2], w[3]))
+        return tuple(a + (b - a) * t for a, b in zip(w[2], w[3], strict=True))
 
     owners: dict[tuple, set[int]] = {}
     for i, w in enumerate(wires):

@@ -16,6 +16,7 @@ Usage:
 
 from __future__ import annotations
 
+import itertools
 import argparse
 import math
 from types import MappingProxyType
@@ -55,7 +56,7 @@ class BroadsideTuningBuilder(AntennaBuilder):
         tan_t = math.tan(angle)
 
         def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
+            return ((a, b, ns, ex) for a, b in itertools.pairwise(lst))
 
         def ry(p):
             return p[0], -p[1], p[2]
@@ -142,7 +143,7 @@ def main():
     bounds = [(x * 0.7, x * 1.3) for x in x0]
 
     def objective(xs):
-        for n, x in zip(knob_names, xs):
+        for n, x in zip(knob_names, xs, strict=True):
             setattr(b, n, x)
         try:
             z1, z2, peak, _, _ = evaluate(b)
@@ -160,7 +161,7 @@ def main():
         options={"maxiter": 200, "disp": True, "xtol": 1e-4},
         bounds=bounds,
     )
-    for n, x in zip(knob_names, res.x):
+    for n, x in zip(knob_names, res.x, strict=True):
         setattr(b, n, x)
     print()
     print("optimised:")

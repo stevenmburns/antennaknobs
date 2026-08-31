@@ -1,5 +1,6 @@
 """Tests for the 3D-turtle Drone and the delta_loop twins built with it."""
 
+import itertools
 import math
 
 import numpy as np
@@ -204,7 +205,7 @@ def test_horizontal_loop_drone_is_a_closed_planar_square():
 
     # The loop closes exactly, and is a connected walk.
     assert wires[0][0] == pytest.approx(wires[-1][1])
-    for prev, nxt in zip(wires, wires[1:]):
+    for prev, nxt in itertools.pairwise(wires):
         assert prev[1] == pytest.approx(nxt[0])
 
 

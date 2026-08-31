@@ -89,7 +89,7 @@ for name, (color, label, ls) in SERIES.items():
         zorder=5,
     )
     if name == "sin-nec2":
-        for k, cx, cy in zip(ks, xs, ys):
+        for k, cx, cy in zip(ks, xs, ys, strict=True):
             if k not in LABEL_KS:
                 continue
             dx = -22 if cx > 0.3 else 8

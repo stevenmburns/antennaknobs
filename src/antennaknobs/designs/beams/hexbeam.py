@@ -1,5 +1,6 @@
 """Hex beam — a W-folded 2-element beam on a hexagonal spreader footprint."""
 
+import itertools
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import Wire
 import math
@@ -55,7 +56,7 @@ class Builder(AntennaBuilder):
         # x is the beam direction
 
         def build_path(lst, ex=None):
-            return (Wire(a, b, ex=ex) for a, b in zip(lst[:-1], lst[1:]))
+            return (Wire(a, b, ex=ex) for a, b in itertools.pairwise(lst))
 
         def rx(p):
             return -p[0], p[1], p[2]

@@ -18,6 +18,7 @@ direct phase-drive case.
 
 from __future__ import annotations
 
+import itertools
 import math
 from types import MappingProxyType
 
@@ -77,7 +78,7 @@ class TLArrayBuilder(AntennaBuilder):
         tan_t = math.tan(angle)
 
         def build_path(lst, ns, ex):
-            return ((a, b, ns, ex) for a, b in zip(lst[:-1], lst[1:]))
+            return ((a, b, ns, ex) for a, b in itertools.pairwise(lst))
 
         def ry(p):
             return p[0], -p[1], p[2]
@@ -117,7 +118,9 @@ class TLArrayBuilder(AntennaBuilder):
         feedpoints = [(i, x) for i, x in enumerate(tups, start=1) if x[3] is not None]
         assert len(feedpoints) == 3
         tl_lengths = (self.tl_len_1, self.tl_len_2)
-        for (idx, (p0, p1, nsegs, _ev)), tl_length in zip(feedpoints[:2], tl_lengths):
+        for (idx, (p0, p1, nsegs, _ev)), tl_length in zip(
+            feedpoints[:2], tl_lengths, strict=True
+        ):
             self.tls.append(
                 (
                     idx,

@@ -19,6 +19,7 @@ Run: prlimit --as=$((8*1024*1024*1024)) .venv/bin/python \
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import sys
@@ -80,7 +81,7 @@ def fit_orders(out):
     rows = [(s, out["rungs"][str(s)]["diff_ohm"]) for s in rungs]
     print("\n[fit] adjacent-pair orders (diff = C h^p, h ~ 1/s):", flush=True)
     pairs = []
-    for (s1, d1), (s2, d2) in zip(rows, rows[1:]):
+    for (s1, d1), (s2, d2) in itertools.pairwise(rows):
         if d1 <= 0 or d2 <= 0:
             continue
         p = math.log(d1 / d2) / math.log(s2 / s1)

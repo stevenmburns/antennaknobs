@@ -157,8 +157,12 @@ def print_report(rows, ladder):
         notes = []
         if sin_z and bs2_z and pyn_z:
             # momwire bases agree tightly but PyNEC swings → PyNEC artifact
-            mw_spread = max(abs(a - b) / (abs(b) or 1) for a, b in zip(sin_z, bs2_z))
-            pyn_vs_mw = max(abs(p - s) / (abs(s) or 1) for p, s in zip(pyn_z, sin_z))
+            mw_spread = max(
+                abs(a - b) / (abs(b) or 1) for a, b in zip(sin_z, bs2_z, strict=True)
+            )
+            pyn_vs_mw = max(
+                abs(p - s) / (abs(s) or 1) for p, s in zip(pyn_z, sin_z, strict=True)
+            )
             if mw_spread < 0.05 and pyn_vs_mw > 0.5:
                 notes.append(
                     "PyNEC swings hard where BOTH momwire bases sit flat → likely "

@@ -111,7 +111,7 @@ def axis_range(builder, name, explicit):
 
 def _wires_of(factory, names, values):
     b = factory()
-    for nm, v in zip(names, values):
+    for nm, v in zip(names, values, strict=True):
         _set_path(b, nm, float(v))
     return repr(b.build_wires())
 
@@ -140,7 +140,7 @@ def sweep(factory, names, xs, ys, ground, *, verbose=True):
     fast = network_only(factory, names, xs, ys)
     if fast:
         b0 = factory()
-        for nm, v in zip(names, (xs[0], ys[0])):
+        for nm, v in zip(names, (xs[0], ys[0]), strict=True):
             _set_path(b0, nm, float(v))
         eng = MomwireEngine(b0, ground=ground)
         if eng._network is None:
@@ -156,7 +156,7 @@ def sweep(factory, names, xs, ys, ground, *, verbose=True):
             for j, x in enumerate(xs):
                 for i, y in enumerate(ys):
                     b = factory()
-                    for nm, v in zip(names, (x, y)):
+                    for nm, v in zip(names, (x, y), strict=True):
                         _set_path(b, nm, float(v))
                     red = NetworkReducer(b.build_network(), port_to_idx, n_total)
                     Z[i, j] = red.driven_impedance(Y, wl)[0]
@@ -167,7 +167,7 @@ def sweep(factory, names, xs, ys, ground, *, verbose=True):
         for j, x in enumerate(xs):
             for i, y in enumerate(ys):
                 b = factory()
-                for nm, v in zip(names, (x, y)):
+                for nm, v in zip(names, (x, y), strict=True):
                     _set_path(b, nm, float(v))
                 Z[i, j] = MomwireEngine(b, ground=ground).impedance()[0]
             if verbose and len(xs) > 20 and j % max(1, len(xs) // 8) == 0:

@@ -49,7 +49,7 @@ def tune(
 
     def objective(xs):
         new_band = dict(band)
-        for name, x in zip(param_names, xs):
+        for name, x in zip(param_names, xs, strict=True):
             new_band[name] = float(x)
         b.bands = (new_band,)
         eng = PyNECEngine(b, ground=None)
@@ -60,7 +60,7 @@ def tune(
         # naturally weights resistance and reactance equally in Ω.
         loss = abs(z.imag) if resonance_only else abs(z - z0)
         print(
-            f"  {dict(zip(param_names, xs))} → "
+            f"  {dict(zip(param_names, xs, strict=True))} → "
             f"Z=({z.real:.2f} {z.imag:+.2f}j) Ω  loss={loss:.3f}"
         )
         return loss
@@ -81,7 +81,7 @@ def tune(
         bounds=bounds,
         options={"maxiter": 100, "xtol": 1e-4, "disp": True},
     )
-    final = {name: float(x) for name, x in zip(param_names, result.x)}
+    final = {name: float(x) for name, x in zip(param_names, result.x, strict=True)}
     print(f"\nOptimised: {final}")
     return final
 

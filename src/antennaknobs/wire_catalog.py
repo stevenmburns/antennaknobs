@@ -24,6 +24,7 @@ working unchanged.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass
 from typing import NamedTuple
@@ -425,7 +426,7 @@ class GradedSegments(NamedTuple):
         cuts = [a] + [a + f * (b - a) for f in self.fracs] + [b]
         return [
             (tuple(q0), tuple(q1), int(n))
-            for q0, q1, n in zip(cuts, cuts[1:], self.counts)
+            for (q0, q1), n in zip(itertools.pairwise(cuts), self.counts, strict=True)
         ]
 
 

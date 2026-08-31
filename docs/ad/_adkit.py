@@ -161,7 +161,7 @@ def draw_panels(dr, step, n):
     dr.line([pcx, pcy - pr, pcx, pcy + pr], fill=GRID, width=lw(1))
     pts = [
         (pcx + pr * rr * math.cos(p), pcy - pr * rr * math.sin(p))
-        for rr, p in zip(r, ph)
+        for rr, p in zip(r, ph, strict=True)
     ]
     dr.line(pts + [pts[0]], fill=ACCENT, width=lw(2), joint="curve")
 

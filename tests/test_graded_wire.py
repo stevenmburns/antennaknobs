@@ -67,7 +67,7 @@ def test_bundle_expansion_is_topology_invariant():
     assert sizes == [5, 8]  # node: 4 rises + gap; hub: 4 runs + 4 rises
     rises = [
         (pl, segs)
-        for pl, segs in zip(out["polylines"], out["edge_segments"])
+        for pl, segs in zip(out["polylines"], out["edge_segments"], strict=True)
         if len(segs) == 3 and segs == [2, 2, 2]
     ]
     assert len(rises) == 4

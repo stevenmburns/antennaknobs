@@ -193,7 +193,7 @@ def designed_tables(eps_t, k2, rho, z, zp, rtol=1e-10, lam_mult=_LAM_MULT):
             rtol=rtol,
             lam_mult=lam_mult,
         )
-    return dict(zip(KEYS, out))
+    return dict(zip(KEYS, out, strict=True))
 
 
 def radius_tables(wire_radius):

@@ -238,7 +238,7 @@ def run_empymod():
         wts = np.asarray(r[key]["tent_wts"])
         fv = np.asarray(r[key]["tent_f"])
         Ex = np.zeros(len(pts), dtype=complex)
-        for zc, hh, ii in zip(mid_z, h_seg, i_up):
+        for zc, hh, ii in zip(mid_z, h_seg, i_up, strict=True):
             for k in range(nsub):
                 zs = zc + hh * ((k + 0.5) / nsub - 0.5)
                 with warnings.catch_warnings():
@@ -328,7 +328,7 @@ def verdict():
     alpha = (np.vdot(mw, emp)) / np.vdot(mw, mw)
     resid = np.abs(alpha * mw - emp) / np.abs(emp)
     print(f"momwire vs empymod: one global alpha = {alpha:.4e}")
-    for (x, d), rr in zip(pts, resid):
+    for (x, d), rr in zip(pts, resid, strict=True):
         print(f"  x={x} d={d}: relative residual {rr:.3f}")
     print(f"  worst {resid.max():.3f}, median {np.median(resid):.3f}\n")
 

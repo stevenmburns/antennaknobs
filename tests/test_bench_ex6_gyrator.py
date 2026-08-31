@@ -186,7 +186,7 @@ def test_gyrator_matches_engine_on_phased_pair():
     z_ref = [complex(re, im) for re, im in gyr["z"]]
     z_eng = _engine_z(_PHASED2, "phased2", 7.0)
     assert len(z_ref) == len(z_eng) == 2
-    for zr, ze in zip(z_ref, z_eng):
+    for zr, ze in zip(z_ref, z_eng, strict=True):
         assert abs(zr - ze) / abs(ze) < 0.03, f"ref {zr:.1f} vs engine {ze:.1f}"
 
 
@@ -201,7 +201,7 @@ def test_gyrator_matches_superposition():
         gyr = bnc.gyrator_reference(text, name, deck, 60.0, None)
         sup = bnc.superposition_reference(text, name, 60.0, None)
         assert gyr.get("error") is None and sup.get("error") is None
-        for zg, zs in zip(gyr["z"], sup["z"]):
+        for zg, zs in zip(gyr["z"], sup["z"], strict=True):
             zg, zs = complex(*zg), complex(*zs)
             assert abs(zg - zs) / abs(zs) < 0.002, f"{name}: {zg:.3f} vs {zs:.3f}"
 
@@ -244,5 +244,5 @@ def test_gyrator_mixed_voltage_and_current_feeds():
     z_ref = [complex(re, im) for re, im in gyr["z"]]
     z_eng = _engine_z(_MIXED, "mixed", 7.0)
     assert len(z_ref) == len(z_eng) == 2
-    for zr, ze in zip(z_ref, z_eng):
+    for zr, ze in zip(z_ref, z_eng, strict=True):
         assert abs(zr - ze) / abs(ze) < 0.03, f"ref {zr:.1f} vs engine {ze:.1f}"

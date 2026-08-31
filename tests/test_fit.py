@@ -344,7 +344,9 @@ def invvee_s1p(tmp_path):
     p = tmp_path / "asbuilt.s1p"
     p.write_text(
         "# MHZ S RI R 50\n"
-        + "\n".join(f"{f:.6f} {v.real:.9f} {v.imag:.9f}" for f, v in zip(freqs, g))
+        + "\n".join(
+            f"{f:.6f} {v.real:.9f} {v.imag:.9f}" for f, v in zip(freqs, g, strict=True)
+        )
         + "\n"
     )
     return p

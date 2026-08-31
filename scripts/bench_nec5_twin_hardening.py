@@ -231,7 +231,7 @@ def main() -> None:
     for name, lanes in data.items():
         res = [
             complex(a[1], a[2]) - complex(b[1], b[2])
-            for a, b in zip(lanes["nec5"], lanes["n5q"])
+            for a, b in zip(lanes["nec5"], lanes["n5q"], strict=True)
         ]
         mean = sum(res) / len(res)
         spread = max(abs(r - mean) for r in res)

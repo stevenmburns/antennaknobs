@@ -113,7 +113,7 @@ class Builder(AntennaBuilder):
             self.del_y + wavelength * self.twist,
         )
 
-        for (idx, w), tl_length in zip(feedpoints[:2], tl_lengths):
+        for (idx, w), tl_length in zip(feedpoints[:2], tl_lengths, strict=True):
             self.tls.append(
                 (idx, (w.n_seg + 1) // 2, len(tups), (n_seg1 + 1) // 2, 100, tl_length)
             )

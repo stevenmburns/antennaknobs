@@ -34,7 +34,7 @@ def row(deck, dgammas, **flags):
         "nec2c": {"z": [[50.0, 0.0]]},
         "engines": {
             e: {"cmp": [{"dgamma": dg, "abs": 0.0, "engine": [50.0, 0.0]}]}
-            for e, dg in zip(ENGINES, dgammas)
+            for e, dg in zip(ENGINES, dgammas, strict=True)
         },
     }
     r.update(flags)

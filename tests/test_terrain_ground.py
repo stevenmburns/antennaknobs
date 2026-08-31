@@ -13,6 +13,7 @@ The three acceptance gates from the issue, plus the terrain type system:
 
 from __future__ import annotations
 
+import itertools
 import importlib.util
 import shutil
 from pathlib import Path
@@ -166,7 +167,7 @@ def test_hillside_terrain_structure():
     assert t.crest_medium == (13.0, 0.005)
     # Ramp subdivision: strictly increasing edges, monotone heights.
     zs = [f.z1 for f in down.facets[1:-1]]
-    assert all(b < a for a, b in zip(zs, zs[1:]))
+    assert all(b < a for a, b in itertools.pairwise(zs))
     # Downhill ramp run matches the slope: total 150 m drop at 10 deg.
     run = down.facets[-2].x1 - down.facets[0].x1
     assert np.degrees(np.arctan2(150.0, run)) == pytest.approx(10.0)

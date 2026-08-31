@@ -132,7 +132,7 @@ def probe_b(cid="0033"):
     )
     total = direct + (c2 * img + rem)
     print(f"{cid}: E at (10, 0, z) per component, radial height 0.01778 m marked")
-    for h, row in zip(heights, total):
+    for h, row in zip(heights, total, strict=True):
         mark = "  <-- radial height" if abs(h - 0.01778) < 1e-9 else ""
         print(
             f"  z={h:7.4f} m  Ex={abs(row[0]):9.4f}  Ez={abs(row[2]):9.4f} "

@@ -102,7 +102,7 @@ def test_translate_matches_shift_entry_on_a_bowtie_element():
         )
         manual = [_shift_entry(w, yoff, zoff, lambda ex: ex) for w in element_wires]
         assert len(placed) == len(manual)
-        for p, m in zip(placed, manual):
+        for p, m in zip(placed, manual, strict=True):
             assert p.p0 == pytest.approx(m.p0)
             assert p.p1 == pytest.approx(m.p1)
             assert p.ex == m.ex  # excitation passes through the placement untouched
@@ -253,7 +253,7 @@ def test_4x4_grid_reproduces_manual_builder_and_names_every_feed():
 
     # Same wire count; endpoints agree element-for-element.
     assert len(placed) == len(manual) == 16 * len(element_wires)
-    for p, m in zip(placed, manual):
+    for p, m in zip(placed, manual, strict=True):
         assert p.p0 == pytest.approx(m.p0)
         assert p.p1 == pytest.approx(m.p1)
 

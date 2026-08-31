@@ -634,7 +634,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
         ("SWR(50)", swr),
     ]
     for col, (col_data, series, col_title) in enumerate(columns):
-        for ax, (ylabel, f) in zip(axes[:, col], panels):
+        for ax, (ylabel, f) in zip(axes[:, col], panels, strict=True):
             ax.set_facecolor(surface)
             ends = []
             for key, (color, label) in series.items():
@@ -666,7 +666,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
             placed = []
             for y, _n, _label, _color in ends:
                 placed.append(y if not placed else max(y, placed[-1] + min_gap))
-            for (y, n, label, color), ly in zip(ends, placed):
+            for (y, n, label, color), ly in zip(ends, placed, strict=True):
                 ax.text(n + 2.5, ly, label, va="center", fontsize=9, color=color)
             if col == 0:
                 ax.set_ylabel(ylabel, color=ink, fontsize=10)
@@ -700,7 +700,7 @@ def render_figure(data: dict, free: dict, pulse: dict) -> None:
     hn = [p[0] for p in pulse["harrington"]]
     reversal = L / RAD
     for row, (ax, (ylabel, f), scale) in enumerate(
-        zip(axes[:, 2], panels, ("linear", "symlog", "log"))
+        zip(axes[:, 2], panels, ("linear", "symlog", "log"), strict=True)
     ):
         ax.set_facecolor(surface)
         ax.axhline(f(ref_z), color=ink2, lw=1.2, ls=(0, (5, 3)))

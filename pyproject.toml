@@ -280,6 +280,32 @@ extend-select = [
     "TD001", "TD002", "TD003", "TD004", "TD005", "TD006", "TD007",
     # flynt.
     "FLY002",
+    # ------------------------------------------------------------------
+    # B905 / RUF007 (#1061). zip() truncates to the shortest argument
+    # SILENTLY. In this codebase a length mismatch between, say, segments
+    # and currents is not a crash — it is a shorter answer that still looks
+    # like an answer, which is the worst failure mode available to us.
+    #
+    # All 171 sites were decided with evidence, not by reading: `zip` was
+    # wrapped to record each caller's file:line and whether its arguments
+    # had equal len(), then the suite was run (3,890 tests). 93 sites were
+    # observed always-equal; every site that EVER saw a mismatch was the
+    # `zip(xs, xs[1:])` successive-pairs idiom, which is definitionally
+    # off-by-one and is now `itertools.pairwise` — hence RUF007 alongside,
+    # which deletes the zip rather than suppressing the finding. The 55
+    # sites the suite never reached were read individually; all were
+    # parallel-by-construction, none an intentional truncation.
+    #
+    # Do NOT reach for B905's autofix. It is offered only under
+    # --unsafe-fixes and it inserts `strict=False`, preserving current
+    # behaviour — it would silence all 171 findings while changing nothing,
+    # locking in exactly the truncation the rule exists to catch.
+    #
+    # The asymmetry that makes strict=True the right default: a wrong
+    # strict=True raises and the suite catches it; a wrong strict=False is
+    # silent and nothing catches it. So False must be argued per site.
+    "B905",
+    "RUF007",
 ]
 # Keep "imported but unused" as a warning instead of auto-stripping.
 # Without this, multi-pass edits (add imports first, then add code that

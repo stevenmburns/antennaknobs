@@ -44,6 +44,7 @@ Geometry, in the framework's (x, y, z) convention:
    F  |__|      |__|      |       z = base        (bottom jogs); F = end feed
 """
 
+import itertools
 from antennaknobs import AntennaBuilder
 from antennaknobs.network import Wire
 from types import MappingProxyType
@@ -126,7 +127,7 @@ class Builder(AntennaBuilder):
         zf = z_riser_bot + self.feed_height_frac * vert
 
         tups = []
-        for k, ((ya, za), (yb, zb)) in enumerate(zip(nodes[:-1], nodes[1:])):
+        for k, ((ya, za), (yb, zb)) in enumerate(itertools.pairwise(nodes)):
             if k == fa:
                 # Split the end riser: passive below, 1-seg driven gap, passive
                 # above (a current-maximum-style tap, but on a current minimum).

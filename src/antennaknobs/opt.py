@@ -96,7 +96,9 @@ def optimize(
 
     def objective(independent_variables):
 
-        for v, nm in zip(independent_variables, independent_variable_names):
+        for v, nm in zip(
+            independent_variables, independent_variable_names, strict=True
+        ):
             _set_path(antenna_builder, nm, v)
 
         a = engine(antenna_builder)
@@ -148,7 +150,9 @@ def optimize(
             frac = 5 / 3 if fractions is None else fractions[0]
             bounds = tuple((x / frac, x * frac) for x in x0)
         else:
-            bounds = tuple((x / frac, x * frac) for x, frac in zip(x0, fractions))
+            bounds = tuple(
+                (x / frac, x * frac) for x, frac in zip(x0, fractions, strict=True)
+            )
 
     result = minimize(
         objective,
@@ -161,7 +165,7 @@ def optimize(
 
     print(result)
 
-    for x, nm in zip(result.x, independent_variable_names):
+    for x, nm in zip(result.x, independent_variable_names, strict=True):
         _set_path(antenna_builder, nm, x)
 
     print(objective(result.x))

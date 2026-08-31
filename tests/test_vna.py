@@ -79,7 +79,9 @@ class FakeNanoVNA:
             f, g = self._points(start, stop, n)
             if self.descending:  # some firmware/segments report high → low
                 f, g = f[::-1], g[::-1]
-            return "".join(f"{a:.0f} {v.real} {v.imag}\r\n" for a, v in zip(f, g))
+            return "".join(
+                f"{a:.0f} {v.real} {v.imag}\r\n" for a, v in zip(f, g, strict=True)
+            )
         if head[0] == "sweep":
             self._span = (float(head[1]), float(head[2]), int(head[3]))
             return ""

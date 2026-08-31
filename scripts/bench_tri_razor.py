@@ -159,7 +159,7 @@ def razor_impedance(
             t1 = np.zeros(m_int, dtype=complex)
             for lo, hi in ((cent[m - 1], knots[m]), (knots[m], cent[m])):
                 mid, half = 0.5 * (lo + hi), 0.5 * (hi - lo)
-                for xq, wq in zip(xg_o, wg_o):
+                for xq, wq in zip(xg_o, wg_o, strict=True):
                     t1 += (wq * half) * _tent_potentials(
                         mid + half * xq, knots, a, k, xg_r, wg_r
                     )

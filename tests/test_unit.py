@@ -131,7 +131,7 @@ def test_resolve_range():
     # test all eight cases of potential None arguments
 
     def check(res, gold):
-        return all(abs(r - g) < 0.01 for r, g in zip(res, gold))
+        return all(abs(r - g) < 0.01 for r, g in zip(res, gold, strict=True))
 
     check(
         resolve_range(default_value=100, rng=None, center=None, fraction=None),

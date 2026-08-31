@@ -122,7 +122,7 @@ def test_mixed_spec_loop_still_translates():
     out = flat_wires_to_polylines(tups)
     # Two spec-uniform chains (THICK pair split by the feed edge is allowed
     # to be more pieces; what matters is uniformity per polyline).
-    for pl_spec, segs in zip(out["polyline_specs"], out["edge_segments"]):
+    for pl_spec, segs in zip(out["polyline_specs"], out["edge_segments"], strict=True):
         assert pl_spec in (THICK, THIN)
     total_edges = sum(len(s) for s in out["edge_segments"])
     assert total_edges == 4
@@ -141,7 +141,7 @@ def test_uniform_loop_unchanged_by_spec_field():
     out_p = flat_wires_to_polylines(plain)
     out_n = flat_wires_to_polylines(named)
     assert len(out_p["polylines"]) == len(out_n["polylines"]) == 2
-    for a, b in zip(out_p["polylines"], out_n["polylines"]):
+    for a, b in zip(out_p["polylines"], out_n["polylines"], strict=True):
         np.testing.assert_array_equal(a, b)
     assert out_n["polyline_specs"] == [THIN, THIN]
 

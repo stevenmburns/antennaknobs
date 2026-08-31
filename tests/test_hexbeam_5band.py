@@ -141,7 +141,7 @@ def test_opt_physical_variant_keeps_one_coax_mode():
     assert b.daisy_chain is True
     assert int(b.n_bands) == 5
     assert len(b.bands) == 5
-    for band, coupled in zip(b.bands, Builder.opt_coupled_params["bands"]):
+    for band, coupled in zip(b.bands, Builder.opt_coupled_params["bands"], strict=True):
         assert band["freq"] == coupled["freq"]
         # Same knob family as the other tunes; factors stay in UI bounds.
         assert 0.9 < band["halfdriver_factor"] < 1.2

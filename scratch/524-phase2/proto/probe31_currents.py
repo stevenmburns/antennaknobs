@@ -197,7 +197,7 @@ def main():
         rows = eval_rows(s, geom, z_prof)
         prof = rows @ sol
         print("  profile (z [m], I norm to feed):")
-        for zt, I in zip(z_prof, prof):
+        for zt, I in zip(z_prof, prof, strict=True):
             In = I / I_feed
             print(
                 f"    z = {zt:+8.3f}   I = {cfmt(In)}   |I| = {abs(In):.4f}"
@@ -215,7 +215,8 @@ def main():
             agard=str(complex(agard)),
             kcl_deficit=str(I0p - I0m),
             profile={
-                f"{zt:+.4f}": str(complex(I / I_feed)) for zt, I in zip(z_prof, prof)
+                f"{zt:+.4f}": str(complex(I / I_feed))
+                for zt, I in zip(z_prof, prof, strict=True)
             },
         )
 

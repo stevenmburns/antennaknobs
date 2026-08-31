@@ -34,7 +34,7 @@ def _assert_same_deck(original, resolved):
     a = parse_nec(original, name="orig")
     b = parse_nec(resolved, name="resolved")
     assert len(a.wires) == len(b.wires)
-    for wa, wb in zip(a.wires, b.wires):
+    for wa, wb in zip(a.wires, b.wires, strict=True):
         assert wa.n_seg == wb.n_seg
         assert wa.p1 == pytest.approx(wb.p1)
         assert wa.p2 == pytest.approx(wb.p2)

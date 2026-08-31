@@ -19,6 +19,7 @@ Run: prlimit --as=$((8*1024*1024*1024)) .venv/bin/python \
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import sys
@@ -113,7 +114,7 @@ def fit(out):
     rungs = [r for r in ("n1", "n2", "n3") if r in out["cases"]]
     print("\n[fit] node-graded orders vs h_node (x4 per rung):", flush=True)
     fits = []
-    for r1, r2 in zip(rungs, rungs[1:]):
+    for r1, r2 in itertools.pairwise(rungs):
         d1, d2 = out["cases"][r1]["diff_ohm"], out["cases"][r2]["diff_ohm"]
         if d1 <= 0 or d2 <= 0:
             continue

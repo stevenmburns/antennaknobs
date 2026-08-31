@@ -154,7 +154,7 @@ class Builder(AntennaBuilder):
         ]
 
         def dist(p0, p1):
-            return math.sqrt(sum((x0 - x1) ** 2 for x0, x1 in zip(p0, p1)))
+            return math.sqrt(sum((x0 - x1) ** 2 for x0, x1 in zip(p0, p1, strict=True)))
 
         logger.debug("t0: %s dist: %s", t0, dist(S, C))
         logger.debug("t0: %s dists from C: %s", t0, [dist(C, a) for a in A])
@@ -166,9 +166,11 @@ class Builder(AntennaBuilder):
             for b in active_bands
         ]
 
-        ls = [(q / 2 - dist(S, a)) for (q, a) in zip(lengths, A)]
+        ls = [(q / 2 - dist(S, a)) for (q, a) in zip(lengths, A, strict=True)]
 
-        B = [(AA[0], AA[1] + q * Zc, AA[2] - q * Zs) for q, AA in zip(ls, A)]
+        B = [
+            (AA[0], AA[1] + q * Zc, AA[2] - q * Zs) for q, AA in zip(ls, A, strict=True)
+        ]
 
         Ay = [ry(p) for p in A]
         By = [ry(p) for p in B]

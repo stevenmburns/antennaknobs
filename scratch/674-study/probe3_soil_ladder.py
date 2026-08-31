@@ -20,6 +20,7 @@ Run: prlimit --as=$((8*1024*1024*1024)) [env MOMWIRE_CROSSING_FORCE_DENSE=1] \
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import os
@@ -87,7 +88,7 @@ def trend(out):
     lane = out.get(LANE, {})
     rungs = [r for r in ("n1", "n2", "n3") if r in lane]
     print(f"\n[trend/{LANE}] rung-to-rung movement:", flush=True)
-    for r1, r2 in zip(rungs, rungs[1:]):
+    for r1, r2 in itertools.pairwise(rungs):
         z1, z2 = complex(lane[r1]["z"]), complex(lane[r2]["z"])
         print(f"  {r1}->{r2}: |dZ| = {abs(z2 - z1):.4f} ohm", flush=True)
     if len(rungs) == 3:

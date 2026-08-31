@@ -192,7 +192,7 @@ def frame(step, n):
     dr.line([PCX, PCY - PR, PCX, PCY + PR], fill=GRID, width=lw(1))
     pts = [
         (PCX + PR * rr * math.cos(p), PCY - PR * rr * math.sin(p))
-        for rr, p in zip(r, ph)
+        for rr, p in zip(r, ph, strict=True)
     ]
     dr.line(pts + [pts[0]], fill=ACCENT, width=lw(2), joint="curve")
     return im.resize((W, H), Image.LANCZOS)

@@ -20,6 +20,7 @@ Run: prlimit --as=$((8*1024*1024*1024)) .venv/bin/python \
 
 from __future__ import annotations
 
+import itertools
 import json
 import sys
 import time
@@ -68,14 +69,14 @@ def x1_bend_c1(kw):
     the mono start. Runs are re-authored tip-first so the polyline
     walks tip -> node (interior hub vertex)."""
     runs, rises, others = [], [], []
-    for pts, c in zip(kw["wires"], kw["n_per_edge_per_wire"]):
+    for pts, c in zip(kw["wires"], kw["n_per_edge_per_wire"], strict=True):
         p = [tuple(float(x) for x in q) for q in pts]
         (runs if is_run(pts) else rises if is_rise(pts) else others).append(
             (p, list(c))
         )
     assert len(runs) == 4 and len(rises) == 4
     wires, npe = [], []
-    for (rp, rc), (sp, sc) in zip(runs, rises):
+    for (rp, rc), (sp, sc) in zip(runs, rises, strict=True):
         tip = rp[1] if rp[0] == (0.0, 0.0, -0.15) else rp[0]
         wires.append(np.array([tip] + [(0.0, 0.0, z) for z in RISE_Z]))
         npe.append([rc[0]] + sc)
@@ -97,10 +98,10 @@ def x2_rise_split(kw):
     the shared-point junctions the AK walk would create (8-member at
     -0.05 and -0.0125). Keeps everything else identical."""
     wires, npe, rise_slots = [], [], []
-    for pts, c in zip(kw["wires"], kw["n_per_edge_per_wire"]):
+    for pts, c in zip(kw["wires"], kw["n_per_edge_per_wire"], strict=True):
         if is_rise(pts):
             rise_slots.append(len(wires))
-            for z0, z1 in zip(RISE_Z, RISE_Z[1:]):
+            for z0, z1 in itertools.pairwise(RISE_Z):
                 wires.append(np.array([(0.0, 0.0, z0), (0.0, 0.0, z1)]))
                 npe.append([2])
             continue
@@ -131,7 +132,7 @@ def x3_mono_split(kw):
     """B spelling: cut the mono polyline at the 0.05 knot — gap wire and
     radiator become separate wires with a 2-member junction (C0)."""
     wires, npe = [], []
-    for pts, c in zip(kw["wires"], kw["n_per_edge_per_wire"]):
+    for pts, c in zip(kw["wires"], kw["n_per_edge_per_wire"], strict=True):
         p = [tuple(float(x) for x in q) for q in pts]
         if p[0] == (0.0, 0.0, 0.0) and len(p) > 2 and p[1][2] > 0:
             wires.append(np.array(p[:2]))
