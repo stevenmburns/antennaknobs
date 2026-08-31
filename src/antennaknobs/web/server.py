@@ -9,10 +9,15 @@ The response shape is uniform across geometries — each wire is a sequence of
 knots with per-knot complex currents and the feed lives on one of the wires —
 so the frontend draws every geometry the same way.
 
-Run: OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 uvicorn antennaknobs.web.server:app --reload
+Run:
+    OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 OPENBLAS_THREAD_TIMEOUT=1 \\
+        uvicorn antennaknobs.web.server:app --reload
+
 (needs uvicorn[standard] — /ws is a WebSocket upgrade. The env prefix parks
-idle OMP workers between solves — see the thread-policy block below; the
-server works without it at ~15% higher interactive-solve latency.)
+the idle workers of BOTH pools — libgomp's and OpenBLAS's — between solves;
+see the thread-policy block below. The server works without it, at roughly
+15% higher interactive-solve latency for the OMP half and 26-49% for the
+OpenBLAS half on the swept-ground path.)
 """
 
 from __future__ import annotations
@@ -107,12 +112,22 @@ def _physical_cpu_count() -> int:
 #     chips — see _physical_cpu_count().
 #
 # Operators can still override per-pool via the usual env vars (honored by
-# the libraries at load AND respected here). Two knobs remain env-only —
-# libgomp reads them once at load, before any Python code can run, so they
-# must be set in the launch environment (the Dockerfile CMD does; for local
-# runs see the docstring): OMP_WAIT_POLICY=PASSIVE + GOMP_SPINCOUNT=0 park
-# idle OMP workers instead of busy-spinning through each solve's Python
-# phases (~13–20% off small-solve latency, hentenna N=21).
+# the libraries at load AND respected here). Three knobs remain env-only —
+# each library reads its own once at load, before any Python code can run, so
+# they must be set in the launch environment (the Dockerfile CMD does; for
+# local runs see the docstring). threadpoolctl is no escape hatch for these:
+# it expresses thread COUNTS only, never a wait policy or a timeout.
+#   - OMP_WAIT_POLICY=PASSIVE + GOMP_SPINCOUNT=0 park idle OMP workers
+#     instead of busy-spinning through each solve's Python phases (~13–20%
+#     off small-solve latency, hentenna N=21).
+#   - OPENBLAS_THREAD_TIMEOUT=1 does the same for OpenBLAS. Its workers
+#     otherwise keep spinning after a factorization returns and steal cores
+#     from the NEXT solve's OpenMP fill — isolated by pinning BLAS to 1
+#     DURING the fill, where raising LU threads 1->8 still made the fill 39%
+#     slower. Worth +26%/+49% on swept-ground (N=200/400) and +37%/+39% on
+#     Sommerfeld (N=100/200) at the thread count pinned below; nothing
+#     measured across 2 engines, 4 decks and 3 ground models got worse
+#     (issue #1050).
 _NPROC = _physical_cpu_count()
 threadpool_limits(
     limits={

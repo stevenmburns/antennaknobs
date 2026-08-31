@@ -59,6 +59,7 @@ import os
 
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
+os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "1")
 
 import argparse
 import json
@@ -516,8 +517,8 @@ def main(argv=None):
     )
     print(
         "concurrency (mirrors web/server.py): "
-        f"BLAS={cores} OpenMP={cores} OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0  "
-        "(serial dispatch, one rung at a time)"
+        f"BLAS={cores} OpenMP={cores} OMP_WAIT_POLICY=PASSIVE GOMP_SPINCOUNT=0 "
+        "OPENBLAS_THREAD_TIMEOUT=1  (serial dispatch, one rung at a time)"
     )
 
     started = time.perf_counter()

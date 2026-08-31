@@ -82,6 +82,7 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
+os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "1")
 
 import argparse  # noqa: E402
 import time  # noqa: E402

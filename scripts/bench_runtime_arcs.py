@@ -200,6 +200,7 @@ def pinned_env() -> dict:
             "MKL_NUM_THREADS": "4",
             "OMP_WAIT_POLICY": "PASSIVE",
             "GOMP_SPINCOUNT": "0",
+            "OPENBLAS_THREAD_TIMEOUT": "1",
         }
     )
     return env
