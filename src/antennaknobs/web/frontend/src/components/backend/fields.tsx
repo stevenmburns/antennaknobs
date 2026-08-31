@@ -53,6 +53,7 @@ export function KnobMenuNumber({
 
 export function NumberField({
   label,
+  title,
   value,
   min,
   max,
@@ -60,6 +61,9 @@ export function NumberField({
   onChange,
 }: {
   label: string;
+  // Hover text for a bound that is not self-explanatory — e.g. a cap that
+  // comes from the solver rather than from physics.
+  title?: string;
   value: number;
   min?: number;
   max?: number;
@@ -73,12 +77,13 @@ export function NumberField({
   const [draft, setDraft] = useNumericDraft(value);
   return (
     <div className="field">
-      <label>
+      <label title={title}>
         <span>{label}</span>
         <span>{value}</span>
       </label>
       <input
         type="number"
+        title={title}
         value={draft}
         min={min}
         max={max}

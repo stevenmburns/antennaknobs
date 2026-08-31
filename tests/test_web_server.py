@@ -2730,6 +2730,21 @@ def test_hosted_model_options_filtered_to_whitelist(monkeypatch):
         )
 
 
+def test_hosted_n_qp_pair_capped_at_the_solvers_real_limit(monkeypatch):
+    """momwire#743: momwire's accelerated pair kernels carry a fixed
+    n_qp**2 <= 64 scratch buffer and raise RuntimeError above n_qp=8. The
+    allowlist advertised [1, 64], so four of its five octaves crashed the
+    solve rather than being rejected."""
+    from antennaknobs.web import adapter
+
+    monkeypatch.setattr(adapter, "_HOSTED", True)
+    assert adapter.sanitize_model_options({"model_options": {"n_qp_pair": 8}}) == {
+        "n_qp_pair": 8
+    }
+    with pytest.raises(ValueError, match="n_qp_pair"):
+        adapter.sanitize_model_options({"model_options": {"n_qp_pair": 9}})
+
+
 def test_local_model_options_forward_verbatim():
     from antennaknobs.web import adapter
 
