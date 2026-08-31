@@ -125,9 +125,12 @@ def _physical_cpu_count() -> int:
 #     from the NEXT solve's OpenMP fill — isolated by pinning BLAS to 1
 #     DURING the fill, where raising LU threads 1->8 still made the fill 39%
 #     slower. Worth +26%/+49% on swept-ground (N=200/400) and +37%/+39% on
-#     Sommerfeld (N=100/200) at the thread count pinned below; nothing
-#     measured across 2 engines, 4 decks and 3 ground models got worse
-#     (issue #1050).
+#     Sommerfeld (N=100/200) at the thread count pinned below, and up to 5x
+#     on a 15W laptop, where the spinners cost ~250 MHz of clock as well as
+#     cores. Across 2 engines, 4 decks and 3 ground models: 22 cells gained,
+#     2 were null, none regressed. The nulls are pynec's large decks, where
+#     the time is inside the C extension and there is no fill to steal from
+#     — the mechanism predicting its own null case (issue #1050).
 _NPROC = _physical_cpu_count()
 threadpool_limits(
     limits={
