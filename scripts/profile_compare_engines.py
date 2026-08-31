@@ -62,6 +62,7 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_NUM_THREADS", _NPROC)
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
+os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "1")
 
 import time  # noqa: E402
 
@@ -182,7 +183,8 @@ def main():
         f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} "
         f"OPENBLAS_NUM_THREADS={os.environ['OPENBLAS_NUM_THREADS']} "
         f"OMP_WAIT_POLICY={os.environ['OMP_WAIT_POLICY']} "
-        f"GOMP_SPINCOUNT={os.environ['GOMP_SPINCOUNT']}"
+        f"GOMP_SPINCOUNT={os.environ['GOMP_SPINCOUNT']} "
+        f"OPENBLAS_THREAD_TIMEOUT={os.environ['OPENBLAS_THREAD_TIMEOUT']}"
     )
     # Ordered small -> large so the timing matrix reads as a size sweep. Classes:
     # single element, small loop, beams, multiband dipoles, large single-wire

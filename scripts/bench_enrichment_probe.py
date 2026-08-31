@@ -59,6 +59,7 @@ import os
 
 os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
 os.environ.setdefault("GOMP_SPINCOUNT", "0")
+os.environ.setdefault("OPENBLAS_THREAD_TIMEOUT", "1")
 
 import argparse
 import json
