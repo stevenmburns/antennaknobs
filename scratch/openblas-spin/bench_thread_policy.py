@@ -156,8 +156,75 @@ def provenance(args) -> dict:
         "args": vars(args),
         "pools": _pools(),
         "versions": _versions(),
+        "harness": _git_rev(),
+        "topology": _topology(),
         "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+
+
+def _git_rev() -> dict:
+    """Which commit produced this row.
+
+    "Both boxes ran the same harness" is the premise of every cross-machine
+    comparison here, and until this field existed nothing in a row backed it.
+    A dirty tree is recorded rather than hidden: a locally-edited harness is
+    exactly the thing that silently breaks comparability.
+    """
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        rev = subprocess.run(
+            ["git", "-C", here, "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        dirty = subprocess.run(
+            ["git", "-C", here, "status", "--porcelain", "--", __file__],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if rev.returncode:
+            return {"commit": None, "dirty": None}
+        return {
+            "commit": rev.stdout.strip()[:12],
+            "dirty": bool(dirty.stdout.strip()),
+        }
+    except (OSError, subprocess.SubprocessError):
+        return {"commit": None, "dirty": None}
+
+
+def _topology() -> dict:
+    """Per-core max frequency, so heterogeneous parts are visible.
+
+    ``psutil.cpu_count(logical=False)`` returns P-cores + E-cores as ONE number
+    on Alder Lake and later, over members with very different throughput. For a
+    barrier-synchronised OpenMP fill the slowest thread gates the team, so a
+    "physical core count" is not a meaningful policy input on such a part. This
+    records the distinct max clocks: more than one value means the pin question
+    is not the question we have been measuring.
+    """
+    try:
+        import glob
+
+        freqs = []
+        for p in sorted(
+            glob.glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq")
+        ):
+            with open(p) as fh:
+                freqs.append(int(fh.read().strip()) // 1000)
+        if not freqs:
+            return {}
+        distinct = sorted(set(freqs))
+        return {
+            "max_mhz_distinct": distinct,
+            "heterogeneous": len(distinct) > 1,
+            "cpus": len(freqs),
+        }
+    except (OSError, ValueError):
+        return {}
 
 
 def _versions() -> dict:
@@ -451,13 +518,38 @@ def main() -> None:
     )
     p.add_argument("--budget", type=float, default=8.0, help="seconds per cell")
     p.add_argument(
+        "--cooldown",
+        type=float,
+        default=0.0,
+        help="seconds to park between the two halves of --spin both; use 60-120 "
+        "on a thermally limited part so the second half does not inherit heat",
+    )
+    p.add_argument(
+        "--spin-order",
+        default="on-first",
+        choices=("on-first", "off-first"),
+        help="which half of --spin both runs first; alternate it across "
+        "workloads so any residual thermal bias cancels",
+    )
+    p.add_argument(
         "--repeats", type=int, default=1, help="independent repeats per cell"
     )
     args = p.parse_args()
 
     if args.spin == "both":
         # Each half needs its own process: the variable is read at import.
-        for spin in ("on", "off"):
+        #
+        # Order and cooldown are NOT cosmetic. Back-to-back halves hand the
+        # second one a hotter machine, which is a systematic bias against
+        # whichever spin state runs second -- and that is precisely the
+        # comparison this script exists to make. Free on a quiet desktop,
+        # decisive on a 15W part. --cooldown parks between halves and
+        # --spin-order alternates which goes first, so residual bias cancels
+        # across a matrix instead of accumulating in one direction.
+        order = ("off", "on") if args.spin_order == "off-first" else ("on", "off")
+        for k, spin in enumerate(order):
+            if k and args.cooldown:
+                time.sleep(args.cooldown)
             child = [*sys.argv]
             i = child.index("--spin")
             child[i + 1] = spin
