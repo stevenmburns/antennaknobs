@@ -47,7 +47,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.event_name == 'push' }}
 
       - name: Build (and push on tag)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           # momwire's PyPI wheels are manylinux x86_64; arm64 would fall
