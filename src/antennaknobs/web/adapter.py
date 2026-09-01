@@ -62,7 +62,7 @@ import os
 import pathlib
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
@@ -96,6 +96,7 @@ from momwire import (
     ArrayBlockSolver,
     BSplineSolver,
     HMatrixSolver,
+    RazorSolver,
     SinusoidalGalerkinSolver,
     SinusoidalSolver,
 )
@@ -207,6 +208,11 @@ class _BackendSpec:
     # `dense_family` = minutes per solve on a benchmark-class mesh.
     accelerator: bool = False
     dense_family: bool = False
+    # Constructor kwargs this roster entry BINDS, the shape momwire's own deck
+    # roster and antennaknobs' CLI variants already use (class + kwargs). They
+    # are applied after the request's model_options and win over them, so a
+    # bound lane cannot be flipped into a different one from the wire.
+    bound: Mapping[str, object] = field(default_factory=dict)
 
 
 _N_QP_CONST = _BackendOption(
@@ -276,6 +282,36 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         accelerator=True,
         dense_family=True,
     ),
+    # Tent basis tested by NEC-5's razor-blade (mixed-potential) rule rather
+    # than point-matched or Galerkin (momwire#309/#432), with the two-point
+    # centroid trapezoid momwire#316 identified for the testing-path integral.
+    #
+    # ONLY THE TWO-POINT LANE IS OFFERED HERE. `RazorSolver`'s other lane takes
+    # `n_qp_path` Gauss-Legendre nodes per wing instead, and momwire renamed
+    # these `razor` (GL) and `razor-2p` so the names describe the rule. Measured
+    # on the ByDipole1 ladder, the GL rule's advantage over this one evaporates
+    # by N~192 -- the two agree within 3% of each other's self-convergence at
+    # N=384, having been 2x apart at N=12 -- while costing ~10x the wall time
+    # (momwire#780). A knob that buys nothing on any mesh a person would sit
+    # and wait for is not a knob; the GL lane stays on the CLI and the
+    # constructor for convergence work.
+    #
+    # `bound` rather than a served option for the same reason: `n_qp_path` is
+    # IGNORED under this rule (momwire's own docstring says so), so exposing it
+    # would render an inert control.
+    #
+    # Slower-converging than bspline, and honestly so: ~16x the mesh for the
+    # same self-convergence on that ladder, which is why the default segment
+    # count is higher than bspline's. Even, because a centre-fed deck wants a
+    # knot at the feed for this basis.
+    _BackendSpec(
+        name="razor-2p",
+        label="Razor (2-point)",
+        solver=RazorSolver,
+        default_n_per_wire=40,
+        dense_family=True,
+        bound={"nec5_quadrature": True},
+    ),
     # Optional (needs pynec-accel): served only when HAVE_PYNEC, so the
     # frontend derives availability from roster membership instead of a
     # second flag (#429). `kind` — not the name — is what marks it as the
@@ -304,6 +340,9 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
 )
 
 _MOMWIRE_MODELS = {b.name: b.solver for b in _BACKENDS if b.kind == "momwire"}
+_MOMWIRE_BOUND = {
+    b.name: dict(b.bound) for b in _BACKENDS if b.kind == "momwire" and b.bound
+}
 
 
 def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
@@ -1527,6 +1566,12 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     wire_radius = _positive_finite("wire_radius", req.get("wire_radius", 0.0005))
     ground = _ground_for_engine(req)
     solver_kwargs = sanitize_model_options(req)
+    # A roster entry's bound kwargs are applied AFTER the request's options and
+    # win over them: `razor-2p` must stay the two-point lane whatever a client
+    # sends, or the name on the tab stops describing what ran.
+    if model in _MOMWIRE_BOUND:
+        solver_kwargs = dict(solver_kwargs or {})
+        solver_kwargs.update(_MOMWIRE_BOUND[model])
     # Extended thin-wire kernel (issue #849): pulled out of model_options and
     # passed as the named constructor kwarg instead, so it reaches the engine
     # the same way whether hosted (filtered through _HOSTED_MODEL_OPTIONS

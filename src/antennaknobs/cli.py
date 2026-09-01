@@ -110,6 +110,15 @@ MOMWIRE_BASES = {
 # N≈1600 free) — see `/reference/solver` for the full guidance.
 MOMWIRE_BASIS_VARIANTS = {
     "bspline-d1": (BSplineSolver, {"degree": 1}),
+    # `razor-2p` is the current spelling: it names the RULE (the two-point
+    # centroid trapezoid momwire#316 identified) rather than another vendor's
+    # product. It is also the only razor lane the web engine picker offers,
+    # because the Gauss-Legendre lane's advantage evaporates by N~192 while
+    # costing ~10x the wall time (momwire#780, and the ByDipole1 sweep in
+    # scripts/bench_bydipole1_bases.py).
+    "razor-2p": (RazorSolver, {"nec5_quadrature": True}),
+    # Deprecated spelling of razor-2p, kept because it shipped. Identical
+    # binding, so an existing command line keeps working unchanged.
     "razor-nec5": (RazorSolver, {"nec5_quadrature": True}),
 }
 
