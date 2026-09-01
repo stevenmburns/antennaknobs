@@ -79,3 +79,83 @@ the interface point (0,0,0). Base npe [10,2]×4 + [15].
   G-674-1 (graded ε̃=1 collapse ≤ 0.005) + G-674-2 (soil-A fan anchor
   ≤ 0.05), module/g524_7 docstrings updated. Measurement bank posted as
   the second #674 comment. Closes #674 on merge.
+
+## 2026-09-01 — RE-DERIVED AT CONVERGED QUADRATURE (momwire#760). Most of this study measured the wrong axis.
+
+Every measurement above was taken at whatever `n_qp_pair` defaulted to, which
+was **4**. momwire#760 then measured that on a crossing node at a lossy
+interface the cross-edge quadrature error is **first order** in that knob — a
+lost convergence rate, not a slow one. A mesh ladder taken at fixed quadrature
+converges to the wrong limit, so the axis this study swept was never the axis
+that dominated it.
+
+The probes now take `PROBE_N_QP_PAIR` and key their output by it, so a
+re-derivation cannot overwrite the record it corrects. momwire#762 tiled the
+`qr` loop, so high orders run on the accelerated path and the whole re-run costs
+minutes.
+
+### probe1 — the ε̃ = 1 composition error does not exist
+
+The study's foundational claim was "clean first order under uniform
+refinement", orders 1.086 / 1.167 / 1.175.
+
+| rung | h_node | q=8 | q=32 |
+|---|---|---|---|
+| s1 | 75.0 mm | 0.0544 | **0.0000** |
+| s2 | 37.5 mm | 0.0224 | 0.0001 |
+| s3 | 25.0 mm | 0.0121 | **0.0000** |
+| s4 | 18.8 mm | 0.0073 | **0.0000** |
+
+There is no K>2 composition error at ε̃ = 1. The ladder was measuring
+quadrature. momwire#760 guessed this case "may well be clean, since the
+near-singular transmitted kernel is exactly what ε̃ = 1 removes" — the
+conclusion is right and the reasoning is not: ε̃ = 1 removes the *lossy*
+transmitted kernel, but four rises meeting at a point still make the cross-edge
+pairs near-singular geometrically, which is why q=4 saw an error here at all.
+
+### probe2 — no arm dominates
+
+| `n_qp_pair` | mono-only | rise-only |
+|---|---|---|
+| 4 | 0.0171 | **0.2214** ← the ATTRIBUTION above |
+| 8 | 0.0007 | 0.0540 |
+| 16 | 0.0003 | 0.0082 |
+| 32 | 0.0002 | **0.0001** |
+
+The 13× asymmetry the attribution rests on is 0.5× at converged quadrature.
+Withdrawn in momwire#774, including from the user-visible `CoarseCrossingNode`
+warning that quoted it.
+
+### probe3 — the dominant MESH axis inverts
+
+Soil-A fan, split lane. `|base − n3|` is what node grading buys; `|n2 − n2-far2|`
+is what doubling the far mesh buys.
+
+| `n_qp_pair` | base | n3 | node grading | far-mesh ×2 | Richardson p |
+|---|---|---|---|---|---|
+| 4 | 143.9327−26.2135j | 142.1918−36.4770j | **10.4101** | 0.0215 | 3.361 |
+| 8 | 142.1384−36.2122j | 141.3995−40.6478j | 4.4967 | 0.0968 | 4.144 |
+| 16 | 141.3093−40.9316j | 141.0606−42.4745j | 1.5628 | 0.1182 | 2.521 |
+| 32 | 140.9938−42.7580j | 140.9548−43.0580j | 0.3025 | 0.1227 | 0.193 |
+| 64 | 140.9123−43.2310j | 140.9371−43.1568j | **0.0782** | **0.1224** | 0.825 |
+
+- "The 7.48 Ω probe38 move was ALL node class" — no. At q=64 the whole
+  base→graded move is **0.078 Ω**.
+- "Far-mesh doubling worth 0.022 Ω" — that was itself a q=4 artifact. The real
+  figure is **~0.12 Ω, stable at every order**, and it overtakes node grading
+  between q=16 and q=32. The far mesh is the dominant mesh axis, not the node.
+- The Richardson orders (3.4 at q=4) are not a convergence rate; they wander
+  (3.36 → 4.14 → 2.52 → 0.19 → 0.83) because the quantity being extrapolated
+  was mostly quadrature error. At q=64 the rungs move ~0.001 Ω — the ladder is
+  converged at n1 and there is no order left to fit.
+- The q=64 n2 rung, **140.9366−43.1577j**, agrees with `FAN_SOIL_A_N2` as
+  re-banked by momwire#758 (140.9358−43.1622j) to 0.005 Ω. The anchor is right;
+  it was the study around it that was not.
+
+### What survives
+
+The grading itself. At the shipped default of 8 it is worth ~4.5 Ω on the
+soil-A fan, so `fan_rise_deck_graded`, `_FAN_GRADES` and both G-674 gates stay
+exactly as they are. What does not survive is the *reason* — this was never a
+mesh convergence class — and the claim that the node mesh is where the error
+lives.
