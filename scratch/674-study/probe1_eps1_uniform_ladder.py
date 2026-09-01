@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import os
 import math
 import sys
 import time
@@ -34,11 +35,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "momwire" / "tests"
 from momwire.bspline import BSplineSolver  # noqa: E402
 from test_crossing_serve_524 import fan_rise_deck  # noqa: E402
 
+# momwire#760: this study was run at whatever `n_qp_pair` defaulted to, which
+# was 4 — and on a crossing node at a lossy interface the cross-edge error is
+# FIRST ORDER in that knob, so a mesh ladder taken at fixed quadrature
+# converges to the wrong limit. The order is now an explicit axis rather than
+# an inherited default. momwire#762 tiled the qr loop, so high orders run on
+# the accelerated path and this is affordable.
+N_QP_PAIR = int(os.environ.get("PROBE_N_QP_PAIR", "0"))
+
+
+def _with_nqp(build):
+    if N_QP_PAIR:
+        build = dict(build, n_qp_pair=N_QP_PAIR)
+    return build
+
+
 DEPTH = 0.15  # fan_rise_deck default; rise edge npe = 2s -> h_node = DEPTH/(2s)
 
 
 def _solve(build, tag):
-    s = BSplineSolver(**build)
+    s = BSplineSolver(**_with_nqp(build))
     t0 = time.time()
     z, _ = s.compute_impedance()
     dt = time.time() - t0
@@ -112,7 +128,10 @@ def fit_orders(out):
 
 def main():
     out = {"rungs": {}}
-    path = HERE / "results" / "probe1-eps1-uniform-ladder.json"
+    # Keyed by quadrature order so a re-derivation never overwrites the record
+    # it is correcting (momwire#760).
+    _suffix = f"-q{N_QP_PAIR}" if N_QP_PAIR else ""
+    path = HERE / "results" / f"probe1-eps1-uniform-ladder{_suffix}.json"
     path.parent.mkdir(exist_ok=True)
     if path.exists():
         out = json.loads(path.read_text())

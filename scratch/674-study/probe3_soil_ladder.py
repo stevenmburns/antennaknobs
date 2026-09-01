@@ -38,6 +38,21 @@ from momwire.bspline import BSplineSolver  # noqa: E402
 from probe2_node_graded_ladder import MONO_GRADES, RISE_GRADES, H_NODE_MM  # noqa: E402,F401
 from test_crossing_serve_524 import fan_rise_deck  # noqa: E402
 
+# momwire#760: this study was run at whatever `n_qp_pair` defaulted to, which
+# was 4 — and on a crossing node at a lossy interface the cross-edge error is
+# FIRST ORDER in that knob, so a mesh ladder taken at fixed quadrature
+# converges to the wrong limit. The order is now an explicit axis rather than
+# an inherited default. momwire#762 tiled the qr loop, so high orders run on
+# the accelerated path and this is affordable.
+N_QP_PAIR = int(os.environ.get("PROBE_N_QP_PAIR", "0"))
+
+
+def _with_nqp(build):
+    if N_QP_PAIR:
+        build = dict(build, n_qp_pair=N_QP_PAIR)
+    return build
+
+
 DEPTH = 0.15
 LANE = "dense" if os.environ.get("MOMWIRE_CROSSING_FORCE_DENSE") else "split"
 
@@ -76,7 +91,7 @@ CASES = {
 
 
 def run_case(name, out):
-    s = BSplineSolver(**_graded_soil_build(**CASES[name]))
+    s = BSplineSolver(**_with_nqp(_graded_soil_build(**CASES[name])))
     t0 = time.time()
     z, _ = s.compute_impedance()
     dt = time.time() - t0
@@ -106,7 +121,10 @@ def trend(out):
 
 
 def main():
-    path = HERE / "results" / "probe3-soil-ladder.json"
+    # Keyed by quadrature order so a re-derivation never overwrites the record
+    # it is correcting (momwire#760).
+    _suffix = f"-q{N_QP_PAIR}" if N_QP_PAIR else ""
+    path = HERE / "results" / f"probe3-soil-ladder{_suffix}.json"
     path.parent.mkdir(exist_ok=True)
     out = json.loads(path.read_text()) if path.exists() else {}
     for name in sys.argv[1:] or ["base", "n1", "n2", "n3", "n2-far2"]:
