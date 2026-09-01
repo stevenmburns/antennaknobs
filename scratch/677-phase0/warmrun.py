@@ -7,6 +7,7 @@ created — the candidate leak channels — and whether its warm printout
 matches a cold (fresh-process) printout on this machine.
 """
 
+import itertools
 import subprocess
 import sys
 from pathlib import Path
@@ -102,9 +103,15 @@ def main():
     strip = lambda t: [  # noqa: E731 — kept: the probe reads as the algebra it is checking
         l for l in t.split("\n") if "FILL=" not in l and not l.startswith(" RUN TIME =")
     ]
+    # zip_longest, not zip: this is a DIFF, so a line present in one run and
+    # absent from the other is exactly the finding. Plain zip truncates to the
+    # shorter side and would report "0 differing lines" over a tail it never
+    # looked at — a false negative in the tool you are using to find
+    # differences. strict=True is no better here: it raises instead of
+    # reporting, destroying the diff. The None shows up as the difference.
     diff = [
         (i, a, b)
-        for i, (a, b) in enumerate(zip(strip(warm), strip(cold), strict=True))
+        for i, (a, b) in enumerate(itertools.zip_longest(strip(warm), strip(cold)))
         if a != b
     ]
     print(f"\n== warm-vs-cold 0117 on this machine: {len(diff)} differing lines ==")
