@@ -411,6 +411,13 @@ _HOSTED_MODEL_OPTIONS = {
     # n_qp^2 <= 64 scratch buffer and raise RuntimeError above that
     # (_accel_bspline.cpp, six sites). 64 here advertised a range four of
     # whose five octaves crash the solve (momwire#743).
+    #
+    # 8 is a HARD LIMIT, not a converged one. On a crossing junction at a
+    # lossy-soil interface the cross-edge error falls only as C/q (momwire#760),
+    # so 8 leaves ~7% of the reactance on the table for that class and the
+    # allowlist cannot offer the order that would fix it. Lifting it needs
+    # momwire#762 (tile the qr loop); momwire#769 tracks the refusal being a
+    # crash rather than a numpy fallback.
     "n_qp_pair": _int_in(1, 8),
     "n_qp_source": _int_in(1, 64),
     "n_qp_sing": _int_in(1, 128),

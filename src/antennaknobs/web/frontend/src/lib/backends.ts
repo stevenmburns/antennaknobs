@@ -168,7 +168,11 @@ export type BSplineOpts = {
 
 export const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
   degree: 2,
-  nQpPair: 4,
+  // Cross-edge Gauss order. Tracks momwire's own default, which moved 4 -> 8 in
+  // 0.45.0 (momwire#743/#758). It matters that this is not left at 4: the value
+  // is sent UNCONDITIONALLY below, so a stale default here silently overrides
+  // the library's and no hosted user would see the change (antennaknobs#1064).
+  nQpPair: 8,
   feedSmoothingFactor: null,
   useSingularEnrichment: false,
   enrichmentVariant: "raw",

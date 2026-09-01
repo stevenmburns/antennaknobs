@@ -120,8 +120,12 @@ describe("modelOptionsForRequest", () => {
       const b = entry(name);
       return JSON.stringify(modelOptionsForRequest(b, defaultOptsFor(b)));
     };
+    // n_qp_pair is 8, not the 4 this pinned until momwire 0.45.0: momwire#758
+    // raised its own cross-edge default and this value is sent
+    // unconditionally, so leaving it at 4 would have silently overridden the
+    // library for every hosted solve (antennaknobs#1064).
     const BSPLINE_JSON =
-      '{"degree":2,"n_qp_pair":4,"n_qp_source":16,"feed_smoothing_factor":null,' +
+      '{"degree":2,"n_qp_pair":8,"n_qp_source":16,"feed_smoothing_factor":null,' +
       '"use_singular_enrichment":false,"enrichment_variant":"raw",' +
       '"tikhonov_lambda":0.1,"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,' +
       '"enrichment_min_k":3}';
