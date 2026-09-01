@@ -32,11 +32,11 @@ jobs:
       # and 0.16 added Markdown to the formatter's scope. So re-run
       # `ruff format` after a bump and take the diff -- `format --check`
       # below will fail on .md files a pre-0.16 ruff never touched.
-      - uses: astral-sh/ruff-action@v1
+      - uses: astral-sh/ruff-action@v3
         with:
           version: "0.16.5"
           args: "check"
-      - uses: astral-sh/ruff-action@v1
+      - uses: astral-sh/ruff-action@v3
         with:
           version: "0.16.5"
           args: "format --check"
