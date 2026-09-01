@@ -318,7 +318,7 @@ function BSplineFields({
       </div>
       <NumberField
         label="n_qp_pair (GL pts/axis)"
-        title="Gauss-Legendre points per segment per axis for pair moments. Capped at 8: momwire's accelerated kernel has a fixed n_qp^2 <= 64 scratch buffer and refuses more."
+        title="Gauss-Legendre points per segment per axis for cross-edge pair moments. 8 is the default and also the ceiling — momwire's accelerated kernel has a fixed n_qp^2 <= 64 scratch buffer and refuses more. The ceiling is not a convergence guarantee: on a crossing junction over lossy soil (a buried radial fan, say) the error falls only as 1/n_qp, and 8 still sits ~7% of the reactance from the converged answer."
         value={opts.nQpPair}
         min={2}
         max={8}
