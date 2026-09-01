@@ -25,24 +25,32 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.64.0" icon="star">
-  **The NEC-5 twin got its first C++ kernel.** `razor-nec5` is what you
-  reach for when you want what NEC-5 would have said — and until now its
-  matrix fill was plain NumPy, single-threaded, with no accelerated path
-  at all. momwire 0.44.0 gives it a fused, tiled, threaded kernel, with
-  every printed byte of the validation corpus unchanged. Measured on one
-  box: a 1600-segment free-space solve in **1.1 s**, an 800-segment solve
-  over real ground in **0.64 s**, both inside a few hundred MB, where the
-  [CLI reference](/reference/cli/) used to warn about multi-gigabyte
-  working sets at fine mesh. Same answers, a fraction of the machine, and
-  nothing you write changes.
+<Card title="New in v0.65.0" icon="star">
+  **The quadrature default moved, and your numbers move with it.** momwire
+  0.45.0 re-derived a Gauss-Legendre order that had been set once at first
+  implementation and never revisited. It turned out to be serving two
+  different jobs badly: pairs on the *same* wire edge were over-integrated,
+  and pairs across *different* edges were under-integrated. Splitting them
+  raised the cross-edge order from 4 to 8, so impedances on any multi-edge
+  model change — modestly on a bent wire, sharply on buried radials. The
+  simulator now sends the new default; it had been pinning the old one, so
+  this is the release where the fix actually reaches you.
 
-  The other half of momwire 0.44.0 is the
-  [EZNEC drop-in](https://momwire.dev/reference/eznec-nec5/): it now keeps
-  a warm engine resident between EZNEC's per-point launches — **3.7×
-  faster than the licensed NEC-5 console engine** on a 51-point sweep
-  measured inside EZNEC itself — and ships as the first
-  Authenticode-signed release.
+  **Where it matters most: wires that cross the soil surface.** On a
+  buried radial vertical the reactance moves from 47.5 Ω to 43.6 Ω, and
+  the converged answer is nearer 40.8 Ω. The resistance barely moves at
+  all — this is almost purely a reactive error, on exactly the designs
+  people build to tune. If you have modelled a ground system here, re-run
+  it.
+
+  We would rather say this plainly than quietly: **8 is the current
+  ceiling, not a converged answer** for that class. It is where momwire's
+  accelerated kernel stops, and on a crossing junction over lossy soil it
+  still leaves roughly 7 % of the reactance on the table. Lifting the
+  ceiling is
+  [tracked upstream](https://github.com/stevenmburns/momwire/issues/762),
+  and the `n_qp_pair` tooltip in the simulator's solver settings now says
+  so where you would actually read it.
 </Card>
 
 ## The whole pitch, in one line

@@ -45,6 +45,21 @@ the vertical, then ×3, ×8) plus the Richardson-extrapolated limit;
 | 1 radial | 100.46+19.62j | 100.55+20.15j | 98.89+13.08j | 100.21+18.62j | 100.56+20.07j | 100.76+20.95j | **0.83 Ω** |
 | 4 radials | 100.09+20.11j | 100.17+20.64j | 98.84+14.56j | 100.15+20.14j | 100.50+21.60j | 100.70+22.49j | **1.94 Ω** |
 
+:::caution[These momwire columns were computed at `n_qp_pair = 4`]
+That was momwire's cross-edge quadrature default when this study ran
+(August 2026). momwire 0.45.0 raised it to 8, after measuring that on buried
+wire at a lossy interface the error falls only as `1/n_qp` — first order, a
+lost convergence rate rather than a slow one. The error is on momwire's side
+only, and grows with the number of buried members meeting at a junction, which
+is the same ordering as the residual in the last column. Whether that residual
+survives at converged quadrature is **not yet measured**; this deck is
+elevated-*detached* rather than the crossing-junction class the effect was
+measured on. Tracked as
+[antennaknobs#1068](https://github.com/stevenmburns/antennaknobs/issues/1068)
+— until it is settled, read the last column as an upper bound on the physical
+disagreement, not as a measurement of it.
+:::
+
 Two things worth absorbing before any conclusion:
 
 1. **The engine's coarse print is 7–8 Ω from its own converged value**
