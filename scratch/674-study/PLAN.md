@@ -159,3 +159,85 @@ soil-A fan, so `fan_rise_deck_graded`, `_FAN_GRADES` and both G-674 gates stay
 exactly as they are. What does not survive is the *reason* — this was never a
 mesh convergence class — and the claim that the node mesh is where the error
 lives.
+
+## 2026-09-01 — probe4: first-order sensitivity, and why adaptive order is unsafe here
+
+Built to settle unit 4's design question before any rule gets written: is the
+q=8 cross-edge error carried by a few pairs (build adaptive order) or spread
+across the class (build singularity subtraction)?
+
+### The estimator
+
+The fill error is a pure perturbation of Z at fixed dimension, so with `Z c = v`
+and `I = v^T c`, `dZ_in = u^T dZ u` exactly to first order, `u = c / I`. No
+adjoint solve: the Galerkin fill is complex-symmetric (measured asymmetry
+1e-13, the momwire#249 §4.1 gate keeps it so) and `compute_impedance` reads the
+port current with the SAME vector that drives the RHS (`bspline.py:5148`, and
+`v == port_vectors[0]` is exactly True). A KCL block, where a deck has one,
+leaves the augmented matrix symmetric and is annihilated by the perturbation.
+
+Validated on three decks against the real q=8 -> q=32 move:
+
+| deck / case | move | `u^T dZ u` | residual | corrected vs reference |
+|---|---|---|---|---|
+| fan base | 6.6451 | 6.6834 | 0.0404 (0.61 %) | 140.9743−42.7934j vs 140.9938−42.7580j |
+| fan n2 | 2.4513 | 2.4566 | 0.0062 (0.25 %) | 140.9502−43.0636j vs 140.9543−43.0589j |
+| brv base | 2.8179 | 2.8144 | 0.0045 (0.16 %) | 75.8497+40.7619j vs 75.8525+40.7584j |
+
+So the correction is worth 165x (fan) to 627x (brv) on the quadrature axis for
+one extra fill and NO extra solve. The brv 2.818 Ω is the ~2.8 Ω reactive floor
+of #760/#1068; first order removes all but 0.0045 of it.
+
+### Where dZ lives
+
+Entirely on pairs whose supports touch: on the fan, `max|dZ|` is 1.007e+03 there
+and 4.9e-06 everywhere else (L1 8826.647 vs 2.4e-05). The knob does not move far
+pairs at all. **A segment-pair attribution shows a spurious tail to 5 m** — an
+artifact of splitting a touching ENTRY across its own 2 m-long support, not a
+real far contribution. Judge locality on entries, not on attributed blocks.
+
+### The finding: partial refinement is catastrophic
+
+Within the touching class the L1 mass overstates the signed move by 1321x (fan),
+2756x (fan n2), 5282x (brv). That cancellation is BETWEEN pairs, so refining a
+subset breaks it. Ranked by the first-order weight, corrected exactly, and
+re-SOLVED (not extrapolated):
+
+| top k pairs | fan base `vs_coarse` | fan n2 | brv |
+|---|---|---|---|
+| 1 | 11.5x worse | 35.1x | 0.6x |
+| 4 | **238.7x worse** | 575.1x | **37554x worse** |
+| 32 | 215.4x | 508.8x | 10757x |
+| 128 | 0.001x | 16.6x | 221.5x |
+| all touching | exact | exact | exact |
+
+Correcting the top 4 pairs on brv returns −24848+17294j. The curve is a cliff,
+not a slope: nothing is gained until roughly a third of the class is corrected,
+then it snaps to exact.
+
+**Consequence for unit 4.** A rule that refines a geometric or sensitivity-
+selected SUBSET of the near-singular class trades a ~6 Ω error for a ~1000 Ω one.
+Adaptive order is not merely lower-value than #760 assumed, it is unsafe unless
+the refinement unit is the whole touching class — at which point it is just the
+existing global knob. The family that survives is singularity subtraction (or a
+Duffy-type transformation): a better RULE applied uniformly across the class,
+which preserves the cancellation instead of breaking it.
+
+What the sensitivity analysis is for here is therefore the ERROR BAR, not the
+selector — a per-deck number for the quadrature axis, which is what "a user
+should not have to know" actually needs.
+
+### Cost note
+
+Raising q is nearly free on the fan (1.9 s at q=8, 1.8 s at q=32) but not on brv
+(10.6 s -> 37.5 s, 3.5x). The estimator needs the same fine fill on the touching
+class that the fine answer does, so it is not cheaper than q=32 — its value is
+that it QUANTIFIES the residual rather than merely moving it.
+
+### Limits
+
+Quadrature axis only. It says nothing about the ~0.12 Ω far-mesh error of the
+2026-09-01 re-derivation above, and the two must never be summed into one bar.
+Single-feed decks only (probe4 refuses otherwise). `RazorSolver` is razor-blade
+tested, hence Petrov-Galerkin and NOT symmetric — the free adjoint does not
+transfer to it.
