@@ -124,6 +124,7 @@ def test_backend_roster_served_shape(client):
         "bspline",
         "hmatrix",
         "arrayblock",
+        "razor-2p",
         "pynec",
         "nec5",
     ]
@@ -134,6 +135,7 @@ def test_backend_roster_served_shape(client):
         "B-spline",
         "H-matrix (ACA)",
         "Array-block",
+        "Razor (2-point)",
         "PyNEC",
         "NEC-5",
     ]
@@ -146,6 +148,7 @@ def test_backend_roster_served_shape(client):
         "bspline": "bspline",
         "hmatrix": "bspline",
         "arrayblock": "bspline",
+        "razor-2p": None,
         "pynec": "pynec",
         "nec5": "nec5",
     }
@@ -158,6 +161,9 @@ def test_backend_roster_served_shape(client):
         "bspline": [],
         "hmatrix": [],
         "arrayblock": [],
+        # razor-2p's only quadrature knob (n_qp_path) is inert under the
+        # two-point rule, so it serves none rather than an inert one.
+        "razor-2p": [],
         "pynec": [],
         "nec5": [],
     }
@@ -170,13 +176,17 @@ def test_backend_roster_served_shape(client):
         "default": 8,
     }
     # Interactive mesh defaults: 21 (odd, interior knot at the feed) for the
-    # array-block solver and PyNEC, 30 elsewhere.
+    # array-block solver and PyNEC, 30 elsewhere. razor-2p asks for more
+    # because it converges slower -- ~16x the mesh of bspline for the same
+    # self-convergence on the ByDipole1 ladder -- and EVEN, because a
+    # centre-fed deck wants a knot at the feed for that basis.
     assert {n: e["default_n_per_wire"] for n, e in by_name.items()} == {
         "sinusoidal": 30,
         "sinusoidal-galerkin": 30,
         "bspline": 30,
         "hmatrix": 30,
         "arrayblock": 21,
+        "razor-2p": 40,
         "pynec": 21,
         # NEC-5 sources sit at segment ends: an EVEN count puts the feed
         # knot at the wire's exact middle (issue #825).
@@ -193,6 +203,7 @@ def test_backend_roster_served_shape(client):
         "bspline",
         "hmatrix",
         "arrayblock",
+        "razor-2p",
     }
     # The catalog rides /capabilities so the frontend learns the roster on
     # mount, exactly like terrain_presets.
@@ -257,3 +268,35 @@ def test_nec5_entry_is_gated_on_the_binary_probe_at_request_time(client, monkeyp
     monkeypatch.setenv("NEC5_EXE", sys.executable)
     served = client.get("/capabilities").json()
     assert "nec5" in {e["name"] for e in served["backends"]}
+
+
+# ---------------------------------------------------------------------------
+# Bound kwargs (razor-2p)
+# ---------------------------------------------------------------------------
+
+
+def test_razor_2p_binds_the_two_point_rule_and_the_wire_cannot_unbind_it():
+    """`razor-2p` is a lane, not just a class, so the roster BINDS the kwarg.
+
+    `RazorSolver` serves two quadrature rules off one class and momwire names
+    them `razor` (Gauss-Legendre) and `razor-2p` (the two-point centroid
+    trapezoid). Only the second is offered here, so the binding has to survive
+    whatever a client sends: if `model_options` could flip it, the label on the
+    tab would stop describing what ran.
+    """
+    from antennaknobs.web.adapter import _MOMWIRE_BOUND
+
+    assert _MOMWIRE_BOUND["razor-2p"] == {"nec5_quadrature": True}
+    # Bound kwargs are applied last, so a hostile or stale option loses.
+    merged = dict({"nec5_quadrature": False})
+    merged.update(_MOMWIRE_BOUND["razor-2p"])
+    assert merged["nec5_quadrature"] is True
+
+
+def test_razor_2p_exposes_no_inert_quadrature_knob():
+    """`n_qp_path` is IGNORED under the two-point rule (momwire's own
+    docstring), so serving it would render a control that does nothing."""
+    roster = _roster()
+    entry = next(e for e in roster if e["name"] == "razor-2p")
+    keys = {f["key"] for f in entry["options_schema"]}
+    assert "n_qp_path" not in keys, entry["options_schema"]
