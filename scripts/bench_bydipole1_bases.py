@@ -130,6 +130,73 @@ def richardson(zs, ns):
     return complex(z_star), float(p)
 
 
+def mutual(args):
+    """Do two lanes converge to the SAME value, or to values a constant apart?
+
+    A shrinking gap is not enough on its own — it could be shrinking toward a
+    nonzero offset. So the gap is fitted as `gap(N) = c*N^-p + d` over
+    consecutive triples: `d` is the separation the two would keep forever, and
+    a real offset shows up as a STABLE d (with the step ratio decaying toward
+    1.0). A d that wanders while the ratio holds well above 1.0 is d = 0 plus
+    fitting noise, i.e. a shared limit.
+    """
+    a_name, b_name = args.mutual
+    for nm in (a_name, b_name):
+        if nm not in LANES:
+            raise SystemExit(f"unknown lane {nm!r}; have {sorted(LANES)}")
+    ek = {"extended_kernel": True} if args.ek else {}
+    ca, ka, pa = LANES[a_name]
+    cb, kb, pb = LANES[b_name]
+
+    print(f"Do {a_name} and {b_name} converge to the same value?")
+    print(f"kernel: {'EXTENDED' if args.ek else 'reduced'}\n")
+    print(
+        f"{'N':>6} {'Delta/a':>8} {a_name:>22} {b_name:>22} {'|gap|':>9} {'ratio':>7}"
+    )
+    gaps, ns = [], []
+    prev = None
+    for n_base in args.ladder:
+        na, nb = rung_for(n_base, pa), rung_for(n_base, pb)
+        za, _ = solve(ca, na, **ka, **ek)
+        zb, _ = solve(cb, nb, **kb, **ek)
+        gap = abs(za - zb)
+        r = "" if prev is None else f"{prev / gap:>7.2f}"
+        print(
+            f"{n_base:>6} {BD1_LEN / n_base / BD1_RAD:>8.2f} "
+            f"{za:>22.5f} {zb:>22.5f} {gap:>9.4f} {r}"
+        )
+        gaps.append(gap)
+        ns.append(n_base)
+        prev = gap
+
+    if len(gaps) < 3:
+        return
+    print(f"\n{'triple':<24} {'p':>6} {'d (ohm)':>10}")
+    ds = []
+    for i in range(len(gaps) - 2):
+        g1, g2, g3 = gaps[i], gaps[i + 1], gaps[i + 2]
+        den = 2 * g2 - g1 - g3
+        d = (g2 * g2 - g1 * g3) / den if den else float("nan")
+        ds.append(d)
+        pw = np.log((g1 - d) / (g2 - d)) / np.log(2) if g2 > d else float("nan")
+        print(f"N={ns[i]}/{ns[i + 1]}/{ns[i + 2]:<12} {pw:>6.2f} {d:>10.4f}")
+    slope = np.polyfit(np.log(ns), np.log(gaps), 1)[0]
+    spread = max(ds) - min(ds)
+    print(f"\npure power law (d forced to 0): gap ~ N^{slope:.2f}")
+    print(f"d over the triples: {' '.join(f'{d:.4f}' for d in ds)}")
+    print(f"  spread {spread:.4f} ohm vs mean {np.mean(ds):.4f}")
+    if spread > abs(np.mean(ds)):
+        print("  -> d WANDERS more than its own size: consistent with d = 0,")
+        print("     i.e. a shared limit approached slowly, not a constant offset.")
+    else:
+        print("  -> d is STABLE: the two lanes keep a constant separation.")
+    print(
+        f"\nfinal gap {gaps[-1]:.4f} ohm at N={ns[-1]} "
+        f"({100 * gaps[-1] / 73.0:.3f}% of |Z|) — an extrapolation, not a"
+    )
+    print("measurement: closing to 0.01 ohm at this rate needs N ~ 1e5.")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ladder", type=int, nargs="+", default=list(DEFAULT_LADDER))
@@ -141,6 +208,13 @@ def main():
         help="extended kernel on every lane (see THE KERNEL in the docstring)",
     )
     ap.add_argument("--out", help="also write raw rows as JSON")
+    ap.add_argument(
+        "--mutual",
+        nargs=2,
+        metavar=("LANE_A", "LANE_B"),
+        help="instead of the table, drive two lanes deep and ask whether their "
+        "gap closes to zero (a shared limit) or to a constant",
+    )
     args = ap.parse_args()
 
     ladder = list(args.ladder)
@@ -152,6 +226,10 @@ def main():
             k: (c, dict(kw, extended_kernel=True), par)
             for k, (c, kw, par) in lanes.items()
         }
+
+    if args.mutual:
+        mutual(args)
+        return
 
     print(f"ByDipole1  L={BD1_LEN} m  a={BD1_RAD} m  14 MHz  free space")
     print(f"base ladder {ladder}; odd-parity lanes solve N+1")
