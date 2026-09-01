@@ -99,13 +99,41 @@ Each engine serves exactly one convention and refuses the other, and each
 refusal names the spelling that engine DOES serve. Comparing the default
 through momwire against ``detached`` through NEC-5 compares the two
 JUNCTION CONVENTIONS, not two solvers on one antenna — at this design's
-default knobs over eps_r 13 / sigma 0.005 soil the converged pair reads
-75.86 + 47.46j ohm (connected, momwire, ±0.10 mesh envelope) against
-~50.6 + 24.0j ohm (detached, NEC-5 at 252 segments per quarter-wave,
-still settling by ~0.1 ohm per density step), ~35 ohm apart. That gap is
-adjudicated physics (momwire#524 phase 2), never a bug to gate away.
+default knobs over eps_r 13 / sigma 0.005 soil the pair reads
+75.86 + 43.58j ohm (connected, momwire at its n_qp_pair = 8 default)
+against ~50.6 + 24.0j ohm (detached, NEC-5 at 252 segments per
+quarter-wave, still settling by ~0.1 ohm per density step), ~30 ohm
+apart. That gap is adjudicated physics (momwire#524 phase 2), never a
+bug to gate away. Read QUADRATURE below before quoting either the
+momwire number or the size of the gap: both move with n_qp_pair, and
+the "~35 ohm" this paragraph used to claim was the n_qp_pair = 4 print.
 
-MESH CONVERGENCE — the default mesh IS the converged rung. The N-member
+QUADRATURE — the axis with the largest error here, and the one the mesh
+envelope below does not cover. This deck is exactly momwire#760's class:
+ONE crossing junction at a lossy-soil interface, where the cross-edge
+quadrature error falls only as C/q — FIRST order in n_qp_pair, a lost
+convergence rate rather than a slow one. Walking the knob at fixed mesh:
+
+    n_qp_pair   Z                     from the q=32 reference
+        4       75.8604 + 47.4594j    6.70 ohm  <- shipped before momwire 0.45.0
+        8       75.8619 + 43.5763j    2.82 ohm  <- the default today
+       16       75.8562 + 41.5914j    0.83 ohm
+       32       75.8525 + 40.7584j    reference, still moving ~0.25 ohm at 24->32
+
+The error is almost purely REACTIVE — R is converged to 0.009 ohm across
+the whole ladder — on a design whose entire purpose is tuning. 8 is also
+momwire's accelerated ceiling (a fixed n_qp^2 <= 64 scratch buffer), so
+the bottom two rows need the numpy path today and the hosted UI cannot
+offer them at all; momwire#762 tiles the loop to lift that. Until it
+lands, anything quoted from this design carries a ~2.8 ohm reactive
+floor.
+
+MESH CONVERGENCE — the default mesh IS the converged rung IN MESH, at
+fixed quadrature. Everything in this paragraph was measured at
+n_qp_pair = 4 and none of it carries a quadrature axis, which at that
+order is 6.70 ohm — 155x the largest term quoted here. Mesh convergence
+at fixed quadrature converges to the wrong limit (momwire#760); this
+paragraph bounds the mesh axis and no other. The N-member
 crossing node carries a slow, measured convergence class in the node
 mesh (momwire#674, first order in the node-adjacent segment length).
 The original auto-meshed default put ONE segment on each 15 cm rise
