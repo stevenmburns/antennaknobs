@@ -52,25 +52,51 @@ When auditing dead directives, measure with **`--extend-select RUF100`**, not
 `--select RUF100`. The latter *replaces* the rule set, so every directive
 naming a now-unselected rule reads as unused.
 
-### `# noqa: E402` on the `sys.path` idiom is always dead
+### `# noqa: E402` on the `sys.path` idiom — dead only in the INLINED form
 
-Ruff's E402 **already exempts imports that follow a `sys.path` mutation**, so
-the scratch-probe idiom needs no directive at all:
+Ruff's E402 exempts an import only when *every* statement above it is itself
+exempt: imports, the docstring, comments, dunder assignments, and `sys.path`
+mutations. One ordinary assignment anywhere above the import ends the
+exemption — its position relative to the mutation is irrelevant. Measured
+2026-09-01, and identical under `ruff@0.15.21` and `ruff@0.16.5`:
 
-```python
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "momwire" / "tests"))
+| shape | E402 |
+|---|---|
+| `sys.path.insert(0, str(Path(__file__)...))` then the import | exempt |
+| `HERE = Path(__file__).resolve().parent` **before** the mutation | **fires** |
+| the same assignment **after** the mutation, above the import | **fires** |
+| `__version__ = "1"` (dunder), then the mutation | exempt |
+| `sys.path.append(...)` | exempt |
+| ordinary `X = 1` then the import | fires (the case the rule is for) |
 
-from momwire import BSplineSolver  # no E402 — exempt, no noqa needed
-```
+So the directive is a no-op in the fully inlined form and load-bearing the
+moment a `HERE =` binding appears above the import. **The two repos sit on
+opposite sides of that line**, which is why one audit does not transfer:
 
-Writing `# noqa: E402` there is a no-op that RUF100 then reports as dead. This
-is the largest single source of dead-directive drift here: the count went from
-2 to 10 in one day (#1057), entirely from newly written probe files, and the
-same cargo-cult accounts for 13 of momwire's 16 (momwire#761).
+- **antennaknobs: 320 directives across 69 files, ZERO of them dead.** The
+  probes bind `HERE = Path(__file__).resolve().parent` first, so E402 genuinely
+  fires and the directives are required. The only dead directives in the whole
+  repo are the two deliberate `PLC0415` prose sites in `vna.py`.
+- **momwire: 24 dead, 14 of them E402** — its scripts inline the path
+  expression (`scripts/compare_refl_coef_ground.py` is the shape), so there the
+  cargo-cult reading does hold.
 
-It is **not** version-dependent — identical under `ruff@0.15.21` and
-`ruff@0.16.5`. E402 still fires for an import after ordinary code (`X = 1`),
-which is the case the rule is actually for.
+An earlier version of this section called the directive "always dead" here and
+cited drift from 2 to 10 in a day (#1057). **That did not survive measurement**,
+and the likely cause is the `--select RUF100` trap documented just above:
+`--select` reports **445** dead directives in antennaknobs today where
+`--extend-select` reports **2**. Re-measure with `--extend-select` before
+deleting any E402 directive — deleting the 320 live ones turns CI red.
+
+Writing a new probe: prefer the inlined form and no directive at all, binding
+`HERE` / `ROOT` *after* the imports if they are needed
+(`scratch/674-study/probe4_sensitivity_ranking.py` is the worked example).
+
+**Self-quoting trap.** Ruff parses the literal directive text wherever it
+appears in a Python *comment*, so writing about one in prose inside a `.py`
+file emits `Invalid # noqa directive` — the same shape as the CI-skip bite in
+the global instructions. Paraphrase it in code comments; markdown like this
+file is safe.
 
 ### Rules deliberately not selected
 
