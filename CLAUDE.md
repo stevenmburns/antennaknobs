@@ -82,11 +82,22 @@ opposite sides of that line**, which is why one audit does not transfer:
   cargo-cult reading does hold.
 
 An earlier version of this section called the directive "always dead" here and
-cited drift from 2 to 10 in a day (#1057). **That did not survive measurement**,
-and the likely cause is the `--select RUF100` trap documented just above:
-`--select` reports **445** dead directives in antennaknobs today where
-`--extend-select` reports **2**. Re-measure with `--extend-select` before
-deleting any E402 directive — deleting the 320 live ones turns CI red.
+cited drift from 2 to 10 in a day (#1057). **That measurement was right; the
+tree moved under it.** At `e1759fcb3`, the commit before the #1060 cleanup,
+`--extend-select RUF100` reports 10 dead, 8 of them E402 — and all 8 sit in
+four probe files carrying no `HERE` binding, i.e. genuinely inlined and
+genuinely dead, which is what #1060's "drop 8 dead" removed. `--select` reports
+449 at that same commit, so the trap is not where the 10 came from. Further
+back, `1ef4ac7a2` carries **131** dead E402: the inlined form used to be the
+house style here.
+
+So the old rule did not stop being true — the probes migrated. New ones bind
+`HERE` first, which is why the count today is 320 live and zero dead. The trap
+two paragraphs above is real and worth respecting (`--select` reports **445**
+dead here today where `--extend-select` reports **2**), it just is not the
+explanation for this one. Re-measure with `--extend-select` before deleting any
+E402 directive — deleting the 320 live ones turns CI red — and expect the answer
+to keep moving as the idiom does.
 
 Writing a new probe: prefer the inlined form and no directive at all, binding
 `HERE` / `ROOT` *after* the imports if they are needed
