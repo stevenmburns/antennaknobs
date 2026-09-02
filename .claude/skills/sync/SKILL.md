@@ -29,6 +29,27 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    If either pull cannot fast-forward, stop and report — do not merge or
    rebase without being asked.
 
+   **Confirm the submodule is initialized first — the branch check cannot.**
+   An uninitialized `momwire/` is an empty directory with no `.git`, so git
+   walks *up* to the parent and every command run inside it answers about
+   antennaknobs instead: `git rev-parse --abbrev-ref HEAD` prints `main`,
+   `git rev-parse HEAD` prints the antennaknobs commit, and `git remote -v`
+   points at `antennaknobs.git`. All three are exactly what a correctly
+   checked-out submodule sitting on the dev tip looks like, so the
+   confirm-it-is-on-`main` step above passes, the `git pull --ff-only` below
+   fast-forwards the **parent** a second time, and the sync reports success
+   having never touched momwire. Measured 2026-09-02 on a fresh clone.
+
+   ```
+   git submodule status   # a leading "-" means never initialized
+   ```
+   `test -e momwire/.git` answers the same question. If it is uninitialized
+   this is a bootstrap rather than a sync, and the dev-model warning above
+   needs care: `git submodule update --init momwire` is the way in, but it
+   leaves momwire **detached at the recorded pin**, so it is only half the
+   job. Follow it with `git checkout main && git pull --ff-only` inside
+   `momwire/` to land on the dev tip.
+
 3. **Expect a dirty submodule pointer.** After both pulls, `git status` in
    antennaknobs usually shows `M momwire` because the momwire tip is ahead of
    the recorded pin. That is the normal dev-model state — leave it uncommitted.
@@ -47,9 +68,24 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    cd momwire && ../.venv/bin/python setup.py build_ext --inplace
    ```
    If it prints `c++ ...` lines, the extensions were stale and are now
-   rebuilt; if it only prints `copying`, they were already current. Either way
-   the tree ends correct, which a check that merely *reports* does not
-   guarantee.
+   rebuilt; if it only prints `copying`, they were already current. With a
+   working toolchain the tree ends correct either way, which a check that
+   merely *reports* does not guarantee.
+
+   **Compile lines are not proof of a rebuild, and the exit status is proof
+   of nothing.** `setup.py` catches a per-extension `CompileError` and falls
+   back to pure-Python mode with a `UserWarning`, so a build in which every
+   translation unit failed still prints a screen of `c++ ...` lines and then
+   exits **0**. Measured 2026-09-02: with the CPython development headers
+   absent, all five `_accelerators` TUs died on `fatal error: Python.h: No
+   such file or directory`, the run exited 0, and **no `.so` was produced** —
+   byte for byte the same exit code as a good build. The warning scrolls past
+   in the compiler noise.
+
+   So step 7 is load-bearing rather than ceremonial: importing each extension
+   is the only check here that separates an accelerated tree from a silently
+   pure-Python one. `ls momwire/src/momwire/*.cpython-*.so` is the cheap first
+   look — zero files means the fallback fired.
 
    **Why not an mtime check.** Two were tried here and both were wrong, for
    reasons worth recording so a third is not attempted:
