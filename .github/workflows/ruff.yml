@@ -32,11 +32,20 @@ jobs:
       # and 0.16 added Markdown to the formatter's scope. So re-run
       # `ruff format` after a bump and take the diff -- `format --check`
       # below will fail on .md files a pre-0.16 ruff never touched.
-      - uses: astral-sh/ruff-action@v1
+      #
+      # The `version:` inputs below are also load-bearing for a second reason
+      # since the action went to v3. v3 changed what happens when `version:`
+      # is OMITTED: it now reads the root pyproject.toml (`dependencies` and
+      # `dependency-groups.dev`) to pick a ruff, and falls back to `latest`
+      # when it finds none -- which this repo's pyproject does not pin. So
+      # deleting these two lines does not inherit the pin, it silently
+      # restores the unpinned behaviour the comment above describes, and
+      # `format --check` starts failing on files nobody edited. Keep them.
+      - uses: astral-sh/ruff-action@v3
         with:
           version: "0.16.5"
           args: "check"
-      - uses: astral-sh/ruff-action@v1
+      - uses: astral-sh/ruff-action@v3
         with:
           version: "0.16.5"
           args: "format --check"
