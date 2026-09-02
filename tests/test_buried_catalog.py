@@ -486,6 +486,19 @@ def test_buried_decks_stay_inside_the_one_radius_rule():
 # same deck (which needs razor to expose `_wire_media` /
 # `_crossing_junctions` as bspline does — a momwire#813 step-3 item).
 # Nothing here solves; construction only, as above.
+#
+# The cell itself is newer than the last momwire RELEASE (the arc's #651/#812
+# work landed after v0.46.0, and the release is held), so on an installed
+# momwire that predates it these SKIP with that reason — the dev checkout is
+# where they run today, and CI picks them up at the next momwire pin bump.
+# A skip, not a fallback: the memory of the deleted `getattr` shrug in
+# `engines/momwire.py` is why nothing here reads a missing cell as served.
+
+_HAS_BURIED_CELL = hasattr(RazorSolver.capabilities, "buried")
+_needs_buried_cell = pytest.mark.skipif(
+    not _HAS_BURIED_CELL,
+    reason="installed momwire predates the `buried` capability cell (unreleased)",
+)
 
 
 def _razor_solver(builder):
@@ -507,6 +520,7 @@ _RAZOR_BURIED_CASES = (
 )
 
 
+@_needs_buried_cell
 @pytest.mark.parametrize("cls,cells", _RAZOR_BURIED_CASES)
 def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
     """While razor's `buried` cell is False, each buried deck refuses at
@@ -536,6 +550,7 @@ def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
     assert rz._crossing_junctions() == bs._crossing_junctions()
 
 
+@_needs_buried_cell
 def test_the_razor_buried_gate_does_not_pass_by_accident():
     """The cell-keyed test above has two arms; this pins that the arm it is
     on today is the refusing one, so a momwire pin bump that flips the cell
