@@ -25,32 +25,42 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.65.0" icon="star">
-  **The quadrature default moved, and your numbers move with it.** momwire
-  0.45.0 re-derived a Gauss-Legendre order that had been set once at first
-  implementation and never revisited. It turned out to be serving two
-  different jobs badly: pairs on the *same* wire edge were over-integrated,
-  and pairs across *different* edges were under-integrated. Splitting them
-  raised the cross-edge order from 4 to 8, so impedances on any multi-edge
-  model change — modestly on a bent wire, sharply on buried radials. The
-  simulator now sends the new default; it had been pinning the old one, so
-  this is the release where the fix actually reaches you.
+<Card title="New in v0.66.0" icon="star">
+  **The ceiling we told you about last release is gone.** v0.65.0 said
+  plainly that `n_qp_pair = 8` was "the current ceiling, not a converged
+  answer" — where momwire's accelerated kernel stopped, not where the
+  physics settled. momwire 0.46.0 removed that limit
+  ([#762](https://github.com/stevenmburns/momwire/issues/762),
+  [#769](https://github.com/stevenmburns/momwire/issues/769)), and the
+  simulator's control now goes to **32**.
 
-  **Where it matters most: wires that cross the soil surface.** On a
-  buried radial vertical the reactance moves from 47.5 Ω to 43.6 Ω, and
-  the converged answer is nearer 40.8 Ω. The resistance barely moves at
-  all — this is almost purely a reactive error, on exactly the designs
-  people build to tune. If you have modelled a ground system here, re-run
-  it.
+  **What that was costing.** On a buried radial vertical, the default of 8
+  sits **3.1 Ω from the converged answer** — essentially all of it
+  reactance, with resistance pinned at 75.85 Ω while X runs 43.6 Ω down to
+  40.5 Ω. Turning the knob to 32 closes that to 0.3 Ω. If you model ground
+  systems, this is the release where that error becomes something you can
+  actually dial out.
 
-  We would rather say this plainly than quietly: **8 is the current
-  ceiling, not a converged answer** for that class. It is where momwire's
-  accelerated kernel stops, and on a crossing junction over lossy soil it
-  still leaves roughly 7 % of the reactance on the table. Lifting the
-  ceiling is
-  [tracked upstream](https://github.com/stevenmburns/momwire/issues/762),
-  and the `n_qp_pair` tooltip in the simulator's solver settings now says
-  so where you would actually read it.
+  **And it is nearly free now.** A separate fix stopped the buried fill
+  from leaving the accelerator on every below-surface pair, so the whole
+  ladder from 4 to 32 costs about the same as it used to cost at 8.
+
+  **The knob is honest about itself, too.** It matters on decks with wire
+  at or below the ground and does almost nothing on decks standing clear —
+  0.02 Ω between 8 and 32 on an elevated antenna. The tooltip now says so,
+  because trying it on a dipole, seeing nothing move, and concluding the
+  control is broken was a reasonable thing to do.
+
+  **Razor joins the engine picker**, as `razor-2p` — the tent basis tested
+  by NEC-5's razor-blade rule, offered as the two-point lane only.
+
+  **We also attacked our own published result.** The
+  [buried radials](/advanced/buried-radials/) case study's central finding
+  — a disagreement that *grows* with radial count — was measured at the
+  old quadrature, and the error we had just characterised had the same
+  shape. Re-run at converged quadrature, it held: the quadrature part is
+  common-mode, the same with four buried radials as with none. The page
+  now carries the converged numbers.
 </Card>
 
 ## The whole pitch, in one line
