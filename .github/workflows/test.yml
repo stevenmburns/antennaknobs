@@ -160,6 +160,26 @@ jobs:
     if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
+    # SERIALISED, because this job pushes to a branch it shares with every
+    # other run of itself (#1087). The action commits the badge and coverage
+    # data to `python-coverage-comment-action-data`; two runs that overlap
+    # compute their push from different tips of that branch and the loser is
+    # rejected outright — `GitError` out of `storage.py`'s `git.push`. Three
+    # merges inside ~70 seconds did exactly that and left a RED run on main
+    # against a commit that was not broken, which is worse than a slow job:
+    # the standing rule here is to check whether main is already red before
+    # blaming your own branch (#748), and a false red costs precisely the time
+    # that rule exists to save.
+    #
+    # `cancel-in-progress: false` is the load-bearing half and differs on
+    # purpose from `fly-deploy.yml` / `deploy-docs.yml`, the repo's two other
+    # shared-destination writers. A superseded DEPLOY is worth cancelling
+    # because the next one replaces it wholesale; a superseded coverage run is
+    # not, because each push's data is its own artifact. Queue them, do not
+    # drop one.
+    concurrency:
+      group: coverage-comment-data
+      cancel-in-progress: false
     permissions:
       # The workflow default is contents: read; the action pushes the badge/
       # data to its python-coverage-comment-action-data branch, which the old
