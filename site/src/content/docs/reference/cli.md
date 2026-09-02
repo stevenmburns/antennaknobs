@@ -241,7 +241,6 @@ The `--engine` flag selects the solver:
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine momwire:razor-2p      # NEC-5 formulation twin, NEC-5's identified quadrature — the interactive lane
---engine momwire:razor           # same tent basis, default (converged GL) quadrature — convergence/certification lane
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
 --engine nec5                    # a licensed LOCAL NEC-5 binary (joins the roster only when $NEC5_EXE points at one)
 ```
@@ -270,26 +269,27 @@ survives as a solver option rather than a roster name: pick it from the web
 panel's feed-model control, or pass `feed_model="segment"` when constructing
 the solver yourself. See [Solvers & accuracy](/reference/solver/).
 
-`razor` and `razor-2p` are the same RazorSolver class — a tent basis
+`razor-2p` is `RazorSolver`'s only `--basis` roster name — a tent basis
 tested by NEC-5's own razor-blade (mixed-potential path) rule, transcribed
 from the NEC-5 manual rather than chosen for convenience, so its
-convergence behaviour is checkable without the licensed binary.
-
-**Use `razor-2p`.** Of the two lanes it is the one to reach for — it binds
-the two-point testing-path rule (momwire#316), where plain `razor` pays
-about 10× the wall time for an advantage gone by N≈192. It reproduces
-NEC-5's testing *formulation* without the licensed binary, and at a working
-mesh it does track the licensed engine closely (0.003–0.007 Ω, momwire#603).
-What the new name drops is the implication that it converges somewhere
-NEC-5-specific: its limit is `bspline-d2`'s, reached more slowly. `razor-nec5` remains as a deprecated alias, so an existing
+convergence behaviour is checkable without the licensed binary. It binds
+the two-point testing-path rule (momwire#316), reproduces NEC-5's testing
+*formulation* without the licensed binary, and at a working mesh it does
+track the licensed engine closely (0.003–0.007 Ω, momwire#603). Its limit
+is `bspline-d2`'s, reached more slowly — it does not converge somewhere
+NEC-5-specific. `razor-nec5` remains as a deprecated alias, so an existing
 command line keeps working.
 
-Plain `razor` is not a second choice for a model. It came first, built as
-the twin before momwire#316's residue study identified the two-point
-quadrature rule that made the match near-exact; keeping full-order
-Gauss-Legendre on the testing path is now useful for exactly one question
-— whether a coarse-mesh disagreement is the testing rule's own error or
-NEC-5's quadrature shortcut — and it costs about 20× the time to ask it
+The class's other quadrature — the default, converged Gauss-Legendre lane
+— is not a `--basis` name: it left the roster in momwire#753 (2026-09-02,
+"a roster entry is a menu item that must be worth ordering", momwire#654),
+and is reached only by constructing `RazorSolver(...)` directly. It came
+first, built as the twin before momwire#316's residue study identified the
+two-point quadrature rule that made the match near-exact; keeping
+full-order Gauss-Legendre on the testing path is now useful for exactly
+one question — whether a coarse-mesh disagreement is the testing rule's
+own error or NEC-5's quadrature shortcut — and it costs about 20× the
+time to ask it versus `razor-2p`
 (free space N=1600, one box, momwire 0.44.0: 20.2 s against 0.97 s; over
 a finite ground at N=800, 11.1 s against 0.64 s). Memory is no longer the
 differentiator it once was: since momwire#742 gave both lanes the same
@@ -318,13 +318,14 @@ python -m antennaknobs sweep --builder wire.dipole --extended-kernel
 It matters for **fat wires** — segments not much longer than the wire radius —
 and is a fraction of a percent on ordinary thin wire; see
 [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
-Every momwire basis but `razor`/`razor-2p` serves it — `sinusoidal-galerkin`
-included since momwire 0.27.0 (momwire#246/#287/#299). On the B-spline/
-sinusoidal families the one refusal left is the combination with
-`use_singular_enrichment` (momwire#271), which exits with a named message
-rather than a reduced-kernel answer under an extended-kernel request; razor
-refuses it outright (it is a reduced-kernel-only formulation twin, out of
-scope by design — see [Razor](/reference/solver/#razor-the-nec-5-formulation-twin)).
+Every momwire basis but `razor-2p` (and `RazorSolver`'s unrostered
+Gauss-Legendre quadrature) serves it — `sinusoidal-galerkin` included since
+momwire 0.27.0 (momwire#246/#287/#299). On the B-spline/sinusoidal families
+the one refusal left is the combination with `use_singular_enrichment`
+(momwire#271), which exits with a named message rather than a
+reduced-kernel answer under an extended-kernel request; razor refuses it
+outright (it is a reduced-kernel-only formulation twin, out of scope by
+design — see [Razor](/reference/solver/#razor-the-nec-5-formulation-twin)).
 The flag applies only to momwire: passing it with `--engine pynec` is an
 error.
 
