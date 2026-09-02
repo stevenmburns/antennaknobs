@@ -98,6 +98,9 @@ _UNSUPPORTED_CARDS = {
     "SP": "a surface patch (SP)",
     "SM": "a multiple-patch surface (SM)",
     "GF": "a numerical Green's function file (GF)",
+    # NEC-5's triangle-mesh surface (stl2nec5 / gmsh2nec5 output, #1067).
+    # Listed here so the filename field never reaches the SY evaluator.
+    "NL": "an NL triangle-mesh surface (NEC-5)",
 }
 
 
@@ -2129,8 +2132,18 @@ def parse_nec(
                 f"which antennaknobs cannot model"
             )
         if mnemonic == "GN":
-            ground = True
-            ignored.add(mnemonic)
+            # The type field decides (#1066): GN -1 is NEC's "nullify the
+            # ground parameters and set the free-space condition", the same
+            # I1 = -1 convention LD and NT use below. Any other GN asks for
+            # a ground plane. Nullification also drops the earlier GN from
+            # the skipped note, since nothing of it survives to be skipped.
+            card = _Card(mnemonic, tokens[1:], where, syms)
+            if card.i(0) == -1:
+                ground = False
+                ignored.discard(mnemonic)
+            else:
+                ground = True
+                ignored.add(mnemonic)
             continue
         if network and mnemonic in ("LD", "TL", "NT", "IS"):
             # Collected raw and translated after the loop, once the wire
