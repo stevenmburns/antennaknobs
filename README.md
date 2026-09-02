@@ -144,14 +144,14 @@ point — agreement between independent engines is your confidence check.
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
 --engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
 --engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
---engine momwire:razor-nec5      # NEC-5 formulation twin, interactive lane
+--engine momwire:razor-2p      # NEC-5 formulation twin, interactive lane
 --engine momwire:razor           # same, default (GL) quadrature — convergence/certification lane, not interactive
 ```
 
-**Razor** (`momwire:razor` / `momwire:razor-nec5`) is a tent-basis solver
+**Razor** (`momwire:razor` / `momwire:razor-2p`) is a tent-basis solver
 tested by NEC-5's own razor-blade (mixed-potential path) rule rather than
 point matching or Galerkin testing — a formulation twin you can check
-without the licensed NEC-5 binary. `razor-nec5` binds NEC-5's identified
+without the licensed NEC-5 binary. `razor-2p` binds NEC-5's identified
 quadrature and is the interactive one (sub-second to N≈300-400 free /
 N≈200-400 grounded); plain `razor` (converged Gauss-Legendre quadrature) is
 12–80× slower and exists for convergence study and certification against
