@@ -2213,7 +2213,10 @@ def test_every_momwire_solver_declares_a_capability_row():
 
 # --------------------------------------------------------------------------
 # RazorSolver wiring — the NEC-5 formulation twin (momwire#309/#432) joining
-# the `--basis` roster (`razor` / `razor-nec5`).
+# the `--basis` roster (`razor-2p` / `razor-nec5`). Plain `razor` (the
+# default Gauss-Legendre quadrature) is off the roster since momwire#753
+# (2026-09-02); the tests below still exercise it via direct
+# `solver=RazorSolver` construction, which bypasses `--basis` entirely.
 # --------------------------------------------------------------------------
 
 
@@ -2223,8 +2226,8 @@ def test_razor_parity_is_even():
     its own feed_arclength doc is explicit that "on an even segment count a
     midpoint feed is already the exact centre knot". `nec5_quadrature` only
     changes how the path integral is evaluated, not the basis or the feed
-    placement, so both roster entries (`razor`, `razor-nec5`) share the
-    rule."""
+    placement, so `razor-2p` and its deprecated spelling `razor-nec5` share
+    the rule."""
     from momwire import RazorSolver, BSplineSolver
     from antennaknobs.engines.momwire import _parity_for_solver
 
@@ -2236,13 +2239,17 @@ def test_razor_parity_is_even():
 
 
 @pytest.mark.parametrize(
-    "solver_kwargs", [None, {"nec5_quadrature": True}], ids=["razor", "razor-nec5"]
+    "solver_kwargs",
+    [None, {"nec5_quadrature": True}],
+    ids=["razor-gl-direct", "razor-nec5"],
 )
 def test_momwire_razor_matches_direct_construction(solver_kwargs):
-    """`--basis razor` / `--basis razor-nec5` reach a real dipole solve
-    through MomwireEngine, and the engine's own solver construction is
-    bit-identical to building RazorSolver directly from the same
-    wires/segments/feeds it read off (issue: razor basis-roster exposure).
+    """A dipole solved through `MomwireEngine(solver=RazorSolver, ...)` —
+    constructed directly, the only way to reach RazorSolver's default
+    Gauss-Legendre quadrature since plain `razor` left the `--basis` roster
+    (momwire#753); `nec5_quadrature=True` is also `--basis razor-2p` /
+    `razor-nec5` — is bit-identical to building RazorSolver directly from
+    the same wires/segments/feeds it read off.
     Also exercises the `junctions` kwarg omission (RazorSolver detects
     junctions from geometry and refuses the kwarg outright, even `None`) —
     without it, every razor solve through the engine would refuse at

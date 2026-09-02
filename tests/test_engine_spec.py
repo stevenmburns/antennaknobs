@@ -34,13 +34,19 @@ def test_parse_momwire_default():
     [
         ("sinusoidal", SinusoidalSolver),
         ("bspline", BSplineSolver),
-        ("razor", RazorSolver),
     ],
 )
 def test_parse_momwire_with_basis(basis, cls):
     name, kw = parse_engine_spec(f"momwire:{basis}")
     assert name == "momwire"
     assert kw == {"solver": cls}
+
+
+# `razor` isn't in this list: it left the MOMWIRE_BASES roster (momwire#753,
+# 2026-09-02), and its still-orderable spellings, `razor-2p`/`razor-nec5`,
+# are MOMWIRE_BASIS_VARIANTS entries that bind solver_kwargs — a different
+# return shape than this test asserts. See test_parse_razor_is_unknown_basis
+# and test_parse_razor_2p_and_razor_nec5_bind_quadrature_kwarg below.
 
 
 def test_parse_unknown_engine_raises():
@@ -83,7 +89,6 @@ def test_momwire_bases_keys():
         "bspline",
         "hmatrix",
         "arrayblock",
-        "razor",
     }
 
 
@@ -191,32 +196,41 @@ def test_make_factory_binds_bspline_d1_variant():
     }
 
 
-def test_make_factory_binds_razor():
-    """Plain `momwire:razor` is the RazorSolver roster entry — the NEC-5
-    formulation twin — with no solver_kwargs (the default converged
-    Gauss-Legendre quadrature)."""
-    factory = make_engine_factory("momwire:razor", _GROUND_UNSET)
+def test_make_factory_binds_razor_2p():
+    """`momwire:razor-2p` (momwire#316/#432) is RazorSolver with
+    `nec5_quadrature=True` bound — the identified-quadrature lane, and (since
+    momwire#753, 2026-09-02) the only orderable razor lane on the CLI
+    roster."""
+    factory = make_engine_factory("momwire:razor-2p", _GROUND_UNSET)
     assert factory.func is MomwireEngine
-    assert factory.keywords == {"solver": RazorSolver}
+    assert factory.keywords == {
+        "solver": RazorSolver,
+        "solver_kwargs": {"nec5_quadrature": True},
+    }
 
 
-def test_parse_razor_nec5_variant_binds_quadrature_kwarg():
-    """`momwire:razor-nec5` (momwire#316/#432) is the quadrature axis, not a
-    different basis: same RazorSolver class as plain `razor`, with
-    `nec5_quadrature=True` bound as solver kwargs — the interactive lane
-    per the 2026-08-18 benchmark guidance, vs plain `razor`'s slower
-    convergence/certification lane."""
-    name, kw = parse_engine_spec("momwire:razor-nec5")
-    assert name == "momwire"
-    assert kw == {"solver": RazorSolver, "solver_kwargs": {"nec5_quadrature": True}}
+def test_parse_razor_2p_and_razor_nec5_bind_quadrature_kwarg():
+    """`momwire:razor-2p` and its deprecated spelling `momwire:razor-nec5`
+    both bind the same RazorSolver `nec5_quadrature=True` kwargs — the
+    interactive lane per the 2026-08-18 benchmark guidance, vs the default
+    Gauss-Legendre quadrature's slower convergence/certification lane
+    (reached only by constructing RazorSolver directly since plain `razor`
+    left the roster, momwire#753)."""
+    for spec in ("momwire:razor-2p", "momwire:razor-nec5"):
+        name, kw = parse_engine_spec(spec)
+        assert name == "momwire"
+        assert kw == {
+            "solver": RazorSolver,
+            "solver_kwargs": {"nec5_quadrature": True},
+        }
 
 
-def test_parse_razor_unchanged_by_nec5_variant():
-    """Plain `razor` still binds no solver_kwargs (default GL quadrature)."""
-    assert parse_engine_spec("momwire:razor") == (
-        "momwire",
-        {"solver": RazorSolver},
-    )
+def test_parse_razor_is_unknown_basis():
+    """Plain `razor` left the roster (momwire#753, 2026-09-02): `momwire:razor`
+    now fails exactly like any other unrecognized basis name, and the error
+    lists `razor-2p` among the available spellings."""
+    with pytest.raises(argparse.ArgumentTypeError, match="razor-2p"):
+        parse_engine_spec("momwire:razor")
 
 
 def test_make_factory_binds_razor_nec5_variant():
