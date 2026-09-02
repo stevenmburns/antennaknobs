@@ -41,23 +41,35 @@ the vertical, then ×3, ×8) plus the Richardson-extrapolated limit;
 
 | deck | seam ×1 | seam ×3 | engine ×1 | engine ×3 | engine ×8 | engine → limit | \|seam ×3 − limit\| |
 |---|---|---|---|---|---|---|---|
-| no radials | 100.53+19.38j | 100.62+19.91j | 98.74+12.28j | 100.06+17.77j | 100.42+19.21j | 100.64+20.08j | **0.17 Ω** |
-| 1 radial | 100.46+19.62j | 100.55+20.15j | 98.89+13.08j | 100.21+18.62j | 100.56+20.07j | 100.76+20.95j | **0.83 Ω** |
-| 4 radials | 100.09+20.11j | 100.17+20.64j | 98.84+14.56j | 100.15+20.14j | 100.50+21.60j | 100.70+22.49j | **1.94 Ω** |
+| no radials | 100.54+19.70j | 100.62+20.01j | 98.74+12.28j | 100.06+17.77j | 100.42+19.21j | 100.64+20.08j | **0.07 Ω** |
+| 1 radial | 100.46+19.94j | 100.55+20.25j | 98.89+13.08j | 100.21+18.62j | 100.56+20.07j | 100.76+20.95j | **0.73 Ω** |
+| 4 radials | 100.09+20.43j | 100.18+20.74j | 98.84+14.56j | 100.15+20.14j | 100.50+21.60j | 100.70+22.49j | **1.82 Ω** |
 
-:::caution[These momwire columns were computed at `n_qp_pair = 4`]
-That was momwire's cross-edge quadrature default when this study ran
-(August 2026). momwire 0.45.0 raised it to 8, after measuring that on buried
-wire at a lossy interface the error falls only as `1/n_qp` — first order, a
-lost convergence rate rather than a slow one. The error is on momwire's side
-only, and grows with the number of buried members meeting at a junction, which
-is the same ordering as the residual in the last column. Whether that residual
-survives at converged quadrature is **not yet measured**; this deck is
-elevated-*detached* rather than the crossing-junction class the effect was
-measured on. Tracked as
-[antennaknobs#1068](https://github.com/stevenmburns/antennaknobs/issues/1068)
-— until it is settled, read the last column as an upper bound on the physical
-disagreement, not as a measurement of it.
+:::note[The momwire columns are converged in quadrature, not just in mesh]
+An earlier version of this table was computed at `n_qp_pair = 4`, momwire's
+cross-edge quadrature default when the study ran (August 2026). That mattered
+more than routine bookkeeping: momwire#760 had measured cross-edge error at a
+lossy-soil interface falling only as `1/n_qp` — first order, a lost convergence
+rate rather than a slow one — on momwire's side only, and growing with the
+number of buried members meeting at a junction. Same side, same direction, and
+the same ordering as the residual in the last column, which made that residual
+unfalsifiable from this page.
+
+It has now been swept, q = 4 through 128, and the columns above are the
+converged answer (identical at 32, 64 and 128). **The residual is not
+quadrature.** Quadrature is worth 0.10 Ω on the four-radial deck — and 0.10 Ω
+on the no-radial deck, which has no buried wire at all. It is a common-mode
+shift, so it cannot produce a residual that grows by 1.75 Ω across that same
+span, and it does not: the four-radial-minus-no-radial spread was 1.75 Ω at
+`n_qp_pair = 4` and is 1.75 Ω converged.
+
+The delta instrument in
+[the disagreement section](#the-one-real-disagreement-and-whos-right) is
+unaffected to four decimals, by the same cancellation.
+
+Reproducing these rows: momwire's shipped default is now `n_qp_pair = 8`,
+which lands within 0.02 Ω of the converged values above. Measured in
+[antennaknobs#1068](https://github.com/stevenmburns/antennaknobs/issues/1068).
 :::
 
 Two things worth absorbing before any conclusion:
@@ -68,7 +80,7 @@ Two things worth absorbing before any conclusion:
    discretization error, not physics. Ladders or nothing.
 2. Once both sides converge, the no-radial decks agree to a
    **fraction of an ohm**, and the residual **grows with radial
-   count** — 0.2 → 0.8 → 1.9 Ω. That ordering is not noise; it is the
+   count** — 0.07 → 0.7 → 1.8 Ω. That ordering is not noise; it is the
    one genuine disagreement this study found, and it gets its own
    section below.
 
@@ -83,6 +95,11 @@ each side's own ladder:
 - **Insulated-base family (10 m vertical fed 4.67 m from the top,
   \|Z\| ≈ 960)**: 0.26–1.17 Ω converged — **0.03–0.12 %** on a
   thousand-ohm reactive deck.
+
+These panel columns come from momwire's *native* builder rather than the
+seam above, and they are already converged in quadrature: `n_qp_pair` = 4 and
+128 agree to 1.2e-4 Ω on all nine combinations, with q = 2 as a live control
+that does move. The sweep described above does not shift them.
 
 For a class of antenna that people actually build — a vertical raised a
 little above its buried counterpoise — the two independently-derived,
