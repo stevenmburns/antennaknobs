@@ -42,6 +42,7 @@ from antennaknobs.designs.verticals.elevated_buried_counterpoise import (
 )
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.engines.nec5 import NEC5Engine
+from momwire import RazorSolver
 
 C_LIGHT = 299792458.0
 
@@ -469,3 +470,77 @@ def test_buried_decks_stay_inside_the_one_radius_rule():
         b = cls()
         assert b.build_wire_material() is None, cls
         assert all(w.spec is None for w in _wires(b)), cls
+
+
+# ---------------------------------------------------------------------------
+# razor-2p on the buried decks — the unit-3 gate, keyed on the capability cell
+# ---------------------------------------------------------------------------
+#
+# momwire#814 (the razor buried arc, unit 3) ends with `razor-2p` serving
+# these three decks. Until it does, `RazorSolver.capabilities.buried` is
+# False and the constructor refuses each deck by name with the sentence its
+# row declares — which is what these pin TODAY. The tests are written
+# against the cell rather than against today's answer, so the arc's last
+# unit flips them rather than rewriting them: when the cell becomes True
+# the same tests demand razor's medium labels agree with bspline's on the
+# same deck (which needs razor to expose `_wire_media` /
+# `_crossing_junctions` as bspline does — a momwire#813 step-3 item).
+# Nothing here solves; construction only, as above.
+
+
+def _razor_solver(builder):
+    engine = MomwireEngine(
+        builder,
+        solver=RazorSolver,
+        solver_kwargs={"nec5_quadrature": True},
+        ground=("finite",) + SOIL_A,
+        ground_z=0.0,
+    )
+    return engine, engine._make_solver(wavelength=C_LIGHT / (builder.freq * 1e6))
+
+
+_RAZOR_BURIED_CASES = (
+    # (builder, the refusal cell(s) the deck reaches while `buried` is False)
+    pytest.param(BuriedRadialVertical, ("buried", "crossing"), id="brv-crossing"),
+    pytest.param(ElevatedBuriedCounterpoise, ("buried",), id="ebc-detached-screen"),
+    pytest.param(BuriedDipole, ("buried",), id="bd-wholly-below"),
+)
+
+
+@pytest.mark.parametrize("cls,cells", _RAZOR_BURIED_CASES)
+def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
+    """While razor's `buried` cell is False, each buried deck refuses at
+    construction with exactly the sentence the row declares for the cell
+    the geometry reaches (`buried+crossing` for the bonded screen, plain
+    `buried` for the two detached ones). Once the cell is True, razor must
+    label the same deck the way bspline does — the crossing serve's fan,
+    the detached screens' wholly-below wires — so the flip is one line in
+    momwire and this test is the antennaknobs half of momwire#814's DoD."""
+    b = cls()
+    caps = RazorSolver.capabilities
+    if not caps.buried:
+        reason = caps.refusal(*cells)
+        assert reason, f"{cls.__name__}: no declared refusal for {cells}"
+        with pytest.raises(ValueError) as excinfo:
+            _razor_solver(b)
+        assert str(excinfo.value).endswith(reason), str(excinfo.value)
+        return
+
+    # The flipped side: razor serves what bspline serves, and says so with
+    # the same labels. `_wire_media` / `_crossing_junctions` are bspline's
+    # names; the razor twin (momwire#812's medium labels) must spell them
+    # the same way for the catalog to read one answer off both.
+    _engine, bs = _solver(b)
+    _engine, rz = _razor_solver(b)
+    assert rz._wire_media() == bs._wire_media()
+    assert rz._crossing_junctions() == bs._crossing_junctions()
+
+
+def test_the_razor_buried_gate_does_not_pass_by_accident():
+    """The cell-keyed test above has two arms; this pins that the arm it is
+    on today is the refusing one, so a momwire pin bump that flips the cell
+    is noticed here as a change in which arm runs (and fails until razor
+    carries the labels), never as a silently green test."""
+    assert RazorSolver.capabilities.buried is False
+    for cells in (("buried",), ("buried", "crossing")):
+        assert RazorSolver.capabilities.refusal(*cells)
