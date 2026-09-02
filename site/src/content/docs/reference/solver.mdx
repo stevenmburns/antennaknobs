@@ -58,13 +58,13 @@ Plus two **accelerated** solvers for large problems:
 
 And one **formulation twin**:
 
-- **`razor`** / **`razor-nec5`** — a tent basis tested by NEC-5's own
+- **`razor`** / **`razor-2p`** — a tent basis tested by NEC-5's own
   razor-blade rule rather than point matching or Galerkin testing — see
   below.
 
 ## Razor: the NEC-5 formulation twin
 
-`razor` and `razor-nec5` are one solver class (`RazorSolver`) offered as two
+`razor` and `razor-2p` are one solver class (`RazorSolver`) offered as two
 `--basis` names, the way `bspline` / `bspline-d1` are one class on two
 degrees. Unknowns are the same interior-knot tent basis `bspline-d1` uses,
 but the row equations come straight from the public NEC-5 manual's mixed-
@@ -73,15 +73,34 @@ integrals* between element centroids ("razor-blade" testing), not point
 matching and not Galerkin testing. That makes it a formulation **twin**: a
 way to reproduce NEC-5's own convergence behaviour, including its
 well-known O(1/N) reactance walk, without the licensed NEC-5 binary.
-`razor-nec5` additionally binds NEC-5's identified quadrature rule for the
+`razor-2p` additionally binds NEC-5's identified quadrature rule for the
 one path integral the manual leaves numerically open (`nec5_quadrature`);
 plain `razor` keeps the converged Gauss-Legendre quadrature instead, so the
 walk it shows is the testing rule's own discretization error rather than a
 quadrature shortfall.
 
-**Reach for `razor-nec5`.** It is the twin: the one that answers what
-NEC-5 would have said, which is the only reason to be on this solver at
-all. If that is not the question, `bspline-d2` is the better answer.
+**Reach for `razor-2p`.** Between the two lanes it is the one to use: it
+binds the two-point rule momwire#316 identified for the testing-path
+integral, where plain `razor` spends roughly 10× the wall time on
+Gauss-Legendre nodes for an advantage that has evaporated by N≈192.
+
+The name describes that rule rather than another vendor's product, and the
+change is deliberate (momwire#785). Two things are true at once here, and it
+is worth keeping them apart:
+
+- **At a working mesh it does track NEC-5**, because it reproduces NEC-5's
+  testing formulation and therefore its discretization behaviour — measured
+  against the licensed binary at 0.003–0.007 Ω across the drop-in's ladder
+  (momwire#603). That is the whole reason the lane exists.
+- **It is not converging somewhere different.** The limit it walks toward is
+  the same one `bspline-d2` reaches, and it gets there more slowly — roughly
+  16× the mesh for the same self-convergence on the ByDipole1 ladder. So the
+  old name's implication, that this lane is accurate *because* it is NEC-5's,
+  is the part that does not survive: it reproduces a formulation, not a
+  privileged answer.
+
+If reproducing that formulation is not your question, `bspline-d2` is the
+better answer. `razor-nec5` still works as a deprecated alias.
 
 Plain `razor` came first — it was built as the twin, before momwire#316's
 residue study identified the two-point quadrature rule that made the match
@@ -89,7 +108,7 @@ near-exact — and what it is now is an *instrument*, not a third choice: it
 answers "is this coarse-mesh disagreement the testing rule or NEC-5's
 quadrature shortcut?", and nothing a model needs. It costs about 20× the
 time for that (free space at N=1600, one box, momwire 0.44.0: 20.2 s
-against `razor-nec5`'s 0.97 s) and, since momwire#742 gave both lanes the
+against `razor-2p`'s 0.97 s) and, since momwire#742 gave both lanes the
 same fill, essentially the same memory (520 MB against 479 MB). At a fine
 mesh the two agree to 0.001 Ω, so the quadrature question it exists to
 answer is a coarse-mesh one. The measured two-lane table lives on
@@ -146,7 +165,7 @@ Sommerfeld ground in, and momwire#299 made non-collinear geometry (vees,
 bent elements, junctions, radius steps) sound. Two things refuse it,
 loudly rather than silently:
 
-- **`razor` / `razor-nec5`** — reduced-kernel only, by design: NEC-5's
+- **`razor` / `razor-2p`** — reduced-kernel only, by design: NEC-5's
   formulation is the comparison target, and it tests the expansion on the
   wire axis. See [Razor](#razor-the-nec-5-formulation-twin) above.
 - **singular enrichment**, on the bases that otherwise serve EK — the
