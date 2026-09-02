@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push'
@@ -39,7 +39,7 @@ jobs:
 
       - name: Image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/antennaknobs
           tags: |
@@ -47,7 +47,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.event_name == 'push' }}
 
       - name: Build (and push on tag)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           # momwire's PyPI wheels are manylinux x86_64; arm64 would fall
