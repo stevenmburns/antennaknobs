@@ -2730,19 +2730,30 @@ def test_hosted_model_options_filtered_to_whitelist(monkeypatch):
         )
 
 
-def test_hosted_n_qp_pair_capped_at_the_solvers_real_limit(monkeypatch):
-    """momwire#743: momwire's accelerated pair kernels carry a fixed
-    n_qp**2 <= 64 scratch buffer and raise RuntimeError above n_qp=8. The
-    allowlist advertised [1, 64], so four of its five octaves crashed the
-    solve rather than being rejected."""
+def test_hosted_n_qp_pair_is_bounded_but_no_longer_at_the_crash_limit(monkeypatch):
+    """#1089: the bound is a COST choice now, not a crash guard.
+
+    It was 8 because momwire's accelerated pair kernels carried a fixed
+    n_qp**2 <= 64 scratch buffer and raised RuntimeError above n_qp=8
+    (momwire#743, capped by #1055). momwire#769 routes past that ceiling to
+    numpy and momwire#762 tiled it away, both in momwire 0.46.0, so 8 stopped
+    being a limit and started being a 3.12 ohm error on the buried
+    crossing-junction class (momwire#760).
+
+    Still bounded, deliberately: hosted is a public endpoint, so this is a
+    raise and not a removal. 33 must still be refused."""
     from antennaknobs.web import adapter
 
     monkeypatch.setattr(adapter, "_HOSTED", True)
-    assert adapter.sanitize_model_options({"model_options": {"n_qp_pair": 8}}) == {
-        "n_qp_pair": 8
+    assert adapter.sanitize_model_options({"model_options": {"n_qp_pair": 32}}) == {
+        "n_qp_pair": 32
+    }
+    # The old ceiling is now an ordinary accepted value, which is the point.
+    assert adapter.sanitize_model_options({"model_options": {"n_qp_pair": 9}}) == {
+        "n_qp_pair": 9
     }
     with pytest.raises(ValueError, match="n_qp_pair"):
-        adapter.sanitize_model_options({"model_options": {"n_qp_pair": 9}})
+        adapter.sanitize_model_options({"model_options": {"n_qp_pair": 33}})
 
 
 def test_local_model_options_forward_verbatim():
