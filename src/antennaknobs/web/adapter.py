@@ -446,18 +446,23 @@ def _enum_opt(*allowed: str):
 _HOSTED_MODEL_OPTIONS = {
     "degree": _int_in(1, 2),
     "n_qp_const": _int_in(1, 64),
-    # Capped at 8, not 64: momwire's accelerated pair kernels carry a fixed
-    # n_qp^2 <= 64 scratch buffer and raise RuntimeError above that
-    # (_accel_bspline.cpp, six sites). 64 here advertised a range four of
-    # whose five octaves crash the solve (momwire#743).
+    # Capped at 32, and the bound is now a COST choice rather than a crash
+    # guard. It used to be 8 because momwire's accelerated pair kernels carried
+    # a fixed n_qp^2 <= 64 scratch buffer and raised RuntimeError above that
+    # (_accel_bspline.cpp, six sites); momwire#769 routes past the ceiling to
+    # numpy instead of raising and momwire#762 tiled the qr loop away entirely,
+    # both released in momwire 0.46.0. Raising this ahead of that pin
+    # re-introduces the crash of #1055 on the hosted deployment.
     #
-    # 8 is a HARD LIMIT, not a converged one. On a crossing junction at a
-    # lossy-soil interface the cross-edge error falls only as C/q (momwire#760),
-    # so 8 leaves ~7% of the reactance on the table for that class and the
-    # allowlist cannot offer the order that would fix it. Lifting it needs
-    # momwire#762 (tile the qr loop); momwire#769 tracks the refusal being a
-    # crash rather than a numpy fallback.
-    "n_qp_pair": _int_in(1, 8),
+    # Why 32 and not higher: on the crossing-junction class the cross-edge
+    # error falls only as C/q (momwire#760), so the old cap of 8 sat 3.12 ohm
+    # from converged on `verticals.buried_radial_vertical` — essentially all of
+    # it reactive. 32 closes that to 0.30 ohm, and momwire#778 made the whole
+    # q=4..32 ladder cost about the same, so the ceiling is no longer paid for
+    # in wall time. 64 would buy a further 0.26 ohm if it is ever wanted.
+    # Hosted is a public endpoint, so SOME bound stays: this is a raise, not a
+    # removal.
+    "n_qp_pair": _int_in(1, 32),
     "n_qp_source": _int_in(1, 64),
     "n_qp_sing": _int_in(1, 128),
     "feed_smoothing_factor": _float_in(0.0, 100.0, allow_none=True),

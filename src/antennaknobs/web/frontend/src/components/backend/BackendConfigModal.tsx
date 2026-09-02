@@ -318,10 +318,10 @@ function BSplineFields({
       </div>
       <NumberField
         label="n_qp_pair (GL pts/axis)"
-        title="Gauss-Legendre points per segment per axis for cross-edge pair moments. 8 is the default and also the ceiling — momwire's accelerated kernel has a fixed n_qp^2 <= 64 scratch buffer and refuses more. The ceiling is not a convergence guarantee: on a crossing junction over lossy soil (a buried radial fan, say) the error falls only as 1/n_qp, and 8 still sits ~7% of the reactance from the converged answer."
+        title="Gauss-Legendre points per segment per axis for cross-edge pair moments. It matters on decks with wire at or below the ground and does almost nothing on decks standing clear of it. On a buried radial vertical the default of 8 sits 3.1 Ω from the converged answer, essentially all of it reactive, and 32 closes that to 0.3 Ω; on an elevated deck 8 and 32 differ by 0.02 Ω, so if you are trying it on a dipole expect to see nothing. Raising it is cheap — q=4 through 32 cost about the same since momwire#778."
         value={opts.nQpPair}
         min={2}
-        max={8}
+        max={32}
         step={1}
         onChange={(v) => onPatch({ nQpPair: v })}
       />
