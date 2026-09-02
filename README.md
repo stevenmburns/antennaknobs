@@ -127,7 +127,7 @@ point — agreement between independent engines is your confidence check.
 | | **PyNEC** | **momwire** |
 |---|---|---|
 | What | Python binding to the compiled C++ **NEC2** engine | In-house **method-of-moments** engines, pure-Python core with optional C++ accelerators |
-| Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — sinusoidal, B-spline (degree 1–2) and razor (NEC-5's razor-blade testing on a tent basis) — plus H-matrix and array-block accelerators built on the B-spline basis |
+| Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — sinusoidal, B-spline (degree 1–2) and razor-2p (NEC-5's razor-blade testing on a tent basis) — plus H-matrix and array-block accelerators built on the B-spline basis |
 | Speed | Very fast single-frequency solves | Fast; C++ accelerators (pybind11) for assembly/quadrature, pure-Python fallback |
 | Ground | Sommerfeld–Norton finite ground (default) or the faster reflection-coefficient approximation | Same two models on every solver (momwire ≥ 0.8.0): true Sommerfeld–Norton or the faster reflection-coefficient approximation; the engine API defaults to free space (the web workbench turns ground on) |
 | Install | Prebuilt wheel from the `python-necpp` fork release (OpenBLAS vendored) | C++ accelerator built from the `momwire` submodule |
@@ -144,19 +144,20 @@ point — agreement between independent engines is your confidence check.
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
 --engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
 --engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
---engine momwire:razor-2p      # NEC-5 formulation twin, interactive lane
---engine momwire:razor           # same, default (GL) quadrature — convergence/certification lane, not interactive
+--engine momwire:razor-2p      # NEC-5 razor-blade testing on a tent basis, the interactive lane
 ```
 
-**Razor** (`momwire:razor` / `momwire:razor-2p`) is a tent-basis solver
-tested by NEC-5's own razor-blade (mixed-potential path) rule rather than
-point matching or Galerkin testing — a formulation twin you can check
-without the licensed NEC-5 binary. `razor-2p` binds NEC-5's identified
-quadrature and is the interactive one (sub-second to N≈300-400 free /
-N≈200-400 grounded); plain `razor` (converged Gauss-Legendre quadrature) is
-12–80× slower and exists for convergence study and certification against
-NEC-5 printouts, not live dragging — it can exceed an 8 GB working set by
-N≈800 grounded / N≈1600 free. See
+**Razor-2p** (`momwire:razor-2p`, deprecated spelling `momwire:razor-nec5`)
+is a tent-basis solver tested by NEC-5's own razor-blade (mixed-potential
+path) rule rather than point matching or Galerkin testing — a check you can
+run without the licensed NEC-5 binary. It binds NEC-5's identified
+quadrature and is the interactive lane (sub-second to N≈300-400 free /
+N≈200-400 grounded). RazorSolver's other quadrature (the default, converged
+Gauss-Legendre) is off the CLI roster since momwire#753 (2026-09-02) — it's
+12–80× slower for a difference (0.001 Ω at N=1600 free space) too small to
+be worth ordering, and it can exceed an 8 GB working set by N≈800 grounded /
+N≈1600 free — reach it by constructing `RazorSolver(...)` directly for
+convergence study and certification against NEC-5 printouts. See
 [the solver reference](https://antennaknobs.dev/reference/solver/) for the
 full guidance and refusal boundary (no extended kernel, no junction/node-
 gap ports, no ground contact over a finite ground).
