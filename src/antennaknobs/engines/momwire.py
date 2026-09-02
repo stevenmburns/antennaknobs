@@ -260,10 +260,11 @@ class MomwireEngine(SimulationEngine):
           path) rule — see momwire/docs/razor-solver.md and this repo's
           `/reference/solver` doc for the measured performance guidance.
           `solver_kwargs={"nec5_quadrature": True}` (the CLI's
-          `momwire:razor-nec5`) is the interactive lane; the default
-          Gauss-Legendre quadrature (`momwire:razor`) is the much slower
-          convergence/certification lane and is not meant for interactive
-          use.
+          `momwire:razor-2p`) is the interactive lane and the only one on
+          the CLI roster. The default Gauss-Legendre quadrature — the much
+          slower convergence/certification lane — is off the roster since
+          momwire#753 (2026-09-02); reach it by constructing
+          `RazorSolver(...)` directly.
         solver_kwargs:
           Dict of solver-specific kwargs passed straight to the constructor
           (e.g. `{"degree": 1}` for BSplineSolver, `{"n_qp_const": 16}` for

@@ -293,8 +293,9 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # by N~192 -- the two agree within 3% of each other's self-convergence at
     # N=384, having been 2x apart at N=12 -- while costing ~10x the wall time
     # (momwire#780). A knob that buys nothing on any mesh a person would sit
-    # and wait for is not a knob; the GL lane stays on the CLI and the
-    # constructor for convergence work.
+    # and wait for is not a knob; the GL lane is off the CLI roster too
+    # (momwire#753, 2026-09-02) and reached only via the constructor, for
+    # convergence work.
     #
     # `bound` rather than a served option for the same reason: `n_qp_path` is
     # IGNORED under this rule (momwire's own docstring says so), so exposing it

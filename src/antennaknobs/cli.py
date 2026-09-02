@@ -60,14 +60,19 @@ MOMWIRE_BASES = {
     "bspline": BSplineSolver,
     "hmatrix": HMatrixSolver,
     "arrayblock": ArrayBlockSolver,
-    # The NEC-5 formulation twin (momwire#309/#432): a tent basis tested by
-    # NEC-5's own razor-blade (mixed-potential path) rule rather than point
-    # matching or Galerkin testing — see momwire/docs/razor-solver.md and
-    # `/reference/solver` for the measured performance guidance. Default
-    # (converged Gauss-Legendre) quadrature; `razor-nec5` below is the same
-    # class with NEC-5's identified quadrature bound instead.
-    "razor": RazorSolver,
 }
+
+# RazorSolver (momwire#309/#432) is a tent basis tested by NEC-5's own
+# razor-blade (mixed-potential path) rule rather than point matching or
+# Galerkin testing — see momwire/docs/razor-solver.md and
+# `/reference/solver` for the measured performance guidance. Plain `razor`
+# (RazorSolver's default, converged Gauss-Legendre quadrature) retired from
+# this roster in momwire#753 (2026-09-02): it costs ~20x the wall time of
+# `razor-2p` below for a 0.001 Ω difference (momwire#654's "a roster entry
+# must be worth ordering"), so it's no longer a menu item — the class stays
+# for tests and studies, reached by constructing `RazorSolver(...)`
+# directly. `razor-2p` is the identified-quadrature lane and the only
+# orderable razor entry.
 
 # Roster variants: a basis name bound to solver kwargs.
 #
@@ -95,19 +100,19 @@ MOMWIRE_BASES = {
 # d1-vs-d2 comparison is one flag away (issue #821) — it's the basis half the
 # convergence census ran on.
 #
-# `razor-nec5` is the quadrature axis, not a different basis: same
-# RazorSolver class as plain `razor`, `nec5_quadrature=True` bound — the
-# same "one class, one extra kwarg" shape `bspline-d1` uses for its degree
-# axis, and the same two names momwire's own deck front end
-# (`momwire.deck.BASES`) already uses, so a deck solved through either
-# front end is asked for the same physics by the same word. Interactive
-# guidance (2026-08-18 benchmark, coordinator-verified): `razor-nec5` is
+# `razor-2p`/`razor-nec5` bind RazorSolver's identified quadrature
+# (`nec5_quadrature=True`) — the same "one class, one extra kwarg" shape
+# `bspline-d1` uses for its degree axis, and the same names momwire's own
+# deck front end (`momwire.deck.BASES`) uses, so a deck solved through
+# either front end is asked for the same physics by the same word. This is
 # the interactive lane (sub-second to N≈300-400 free / N≈200-400 grounded,
-# 2-4× behind `bspline-d2` beyond); plain `razor` (the default
-# Gauss-Legendre quadrature) is the convergence/certification lane, NOT for
-# interactive use (12-80× slower than `bspline-d2`, >1 s even at N=100
-# under any ground, and it exceeds an 8 GB memory cap by N≈800 grounded /
-# N≈1600 free) — see `/reference/solver` for the full guidance.
+# 2-4× behind `bspline-d2` beyond). RazorSolver's other quadrature (its
+# default, converged Gauss-Legendre) is NOT in this roster (momwire#753,
+# 2026-09-02): 12-80× slower than `bspline-d2`, >1 s even at N=100 under
+# any ground, and it exceeds an 8 GB memory cap by N≈800 grounded /
+# N≈1600 free — construct `RazorSolver(...)` directly for
+# convergence/certification work; see `/reference/solver` for the full
+# guidance.
 MOMWIRE_BASIS_VARIANTS = {
     "bspline-d1": (BSplineSolver, {"degree": 1}),
     # `razor-2p` is the current spelling: it names the RULE (the two-point
@@ -369,10 +374,11 @@ def parse_engine_spec(spec):
 
     Forms: "pynec", "momwire",
     "momwire:sinusoidal|sinusoidal-galerkin|bspline|bspline-d1|hmatrix|
-    arrayblock|razor|razor-nec5". `bspline-d1` is bspline with degree=1
-    bound (issue #821); `razor-nec5` is razor with NEC-5's identified
-    quadrature bound (see MOMWIRE_BASES for `razor` itself). Both are in
-    MOMWIRE_BASIS_VARIANTS.
+    arrayblock|razor-2p|razor-nec5". `bspline-d1` is bspline with degree=1
+    bound (issue #821); `razor-2p` binds RazorSolver's identified quadrature
+    (`razor-nec5` is the deprecated spelling of the same binding). Both are
+    in MOMWIRE_BASIS_VARIANTS. Plain `razor` is off the roster (momwire#753)
+    and always raises the unknown-basis error.
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -498,20 +504,22 @@ def cli(arguments=None):
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
                 '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
-                'bspline-d1|hmatrix|arrayblock|razor|razor-nec5]", '
+                'bspline-d1|hmatrix|arrayblock|razor-2p]", '
                 '"pynec", or "nec5". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
                 "with degree=1 (tent basis) "
-                "instead of the default degree=2. razor is the NEC-5 "
-                "formulation twin (razor-blade testing on a tent basis); "
-                "razor-nec5 binds its identified quadrature and is the "
-                "interactive lane — plain razor is 12-80x slower and is "
-                "the convergence/certification lane instead. See "
+                "instead of the default degree=2. razor-2p is a tent basis "
+                "tested by NEC-5's own razor-blade rule (razor-blade "
+                "testing) with its identified quadrature bound "
+                "(razor-nec5 is the deprecated spelling of the same "
+                "binding); plain razor (converged Gauss-Legendre "
+                "quadrature) is off the roster (momwire#753) — construct "
+                "RazorSolver(...) directly for that lane. See "
                 "docs/reference/solver for the measured guidance. "
                 "nec5 drives a licensed LOCAL NEC-5 binary and joins the "
                 "roster only when $NEC5_EXE points at one — the real "
-                "engine, not momwire:razor-nec5, which is momwire's "
+                "engine, not momwire:razor-2p, which is momwire's "
                 "independently written formulation twin. "
                 "Cross-products with --builders.",
             )
@@ -523,21 +531,23 @@ def cli(arguments=None):
                 help="Simulation backend: momwire | "
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
                 "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
-                "momwire:arrayblock | momwire:razor | momwire:razor-nec5 | "
+                "momwire:arrayblock | momwire:razor-2p | "
                 "pynec | nec5 (default: momwire). sinusoidal is NEC-2's own "
                 "formulation; sinusoidal-galerkin is the same basis tested "
                 "variationally and with the point-gap feed model. "
                 "bspline-d1 is bspline with "
                 "degree=1 (tent basis) instead of the default degree=2. "
-                "razor is the NEC-5 formulation twin (razor-blade testing "
-                "on a tent basis) — use razor-nec5 (its identified "
-                "quadrature) for interactive work; plain razor is the "
-                "slower convergence/certification lane. See "
+                "razor-2p is a tent basis tested by NEC-5's own "
+                "razor-blade rule with its identified quadrature bound "
+                "(razor-nec5 is the deprecated spelling of the same "
+                "binding); plain razor (converged Gauss-Legendre "
+                "quadrature) is off the roster (momwire#753) — construct "
+                "RazorSolver(...) directly for that lane. See "
                 "docs/reference/solver for the measured guidance. "
                 "pynec needs the optional pynec-accel package; nec5 drives "
                 "a licensed LOCAL NEC-5 binary and joins the roster only "
                 "when $NEC5_EXE points at one — the real engine, not "
-                "momwire:razor-nec5, momwire's independently written "
+                "momwire:razor-2p, momwire's independently written "
                 "formulation twin; momwire is always available.",
             )
         p.add_argument(
