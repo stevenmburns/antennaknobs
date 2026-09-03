@@ -29,28 +29,35 @@ rather than silently approximated:
     no ``build_wire_material`` override) — the corner's rho_eff =
     sqrt(rho^2 + a^2) regularization is defined for a single radius.
   * Exactly ONE crossing junction, the node at z = 0, with exactly ONE
-    above member (the radiator) and N below members (the rises). A second
-    above member is an above-tent x above-tent corner, which is refused.
+    above member (the radiator) and ONE below member (the rise) — the
+    simplest shape the crossing serve has. A second above member is an
+    above-tent x above-tent corner, which is refused.
   * The radial tips stay free — nothing else touches or crosses z = 0.
 
-``n_radials`` FLOOR OF 2, which is not a physics limit. antennaknobs
-derives momwire's junction list from wire-endpoint degree, so a node where
-only two wires meet is threaded THROUGH as an interior polyline vertex
-rather than becoming a junction. With one radial the rise and the radiator
-are collinear neighbours at z = 0, the node is degree 2, and the deck
-reaches momwire as a single polyline crossing the interface mid-span — the
-refusal. Two or more radials put >= 3 wire ends at the node, which is what
-makes it a junction. The upper bound of 4 is the fan widening's own
+``n_radials`` GOES DOWN TO 1. It used to floor at 2, and the reason was
+never physics: antennaknobs derived momwire's junction list from
+wire-endpoint degree, so a single shared rise left the node at degree 2, the
+polyline walk threaded straight through it, and momwire received one polyline
+crossing the interface mid-span — the refusal. Issue #1109 ends a polyline at
+every wire end lying in the ground plane, so the node is a declared junction
+at any radial count. The upper bound of 4 is the fan widening's own
 adjudicated bank.
 
-The screen is spelled as N coincident rises (one per radial) rather than
-one shared rise, because a shared rise would again leave the node at
-degree 2. The two spellings are NOT interchangeable: a bundle of N
-coincident thin wires is a different conductor than one wire of the same
-radius (momwire's fan-widening adjudication measured the two spellings
-several ohms apart on the same screen — they are two structures, never
-gated against each other), so this design is the N-rise structure
-specifically: the model of N radials each brought up to the base plate.
+THE SCREEN IS ONE RISE TO A BURIED HUB (issue #1108). Radials meet at
+(0, 0, -depth), and a single graded rise carries their combined current to
+the node. That is a conductor someone actually builds, and it is the spelling
+every engine here can take: NEC-5 accepts it (it refuses coincident wires),
+razor's tent basis sees one column rather than N identical ones
+(momwire#846), and momwire's crossing serve reads the node as a 1-above x
+1-below junction.
+
+The pre-#1108 spelling — N COINCIDENT rises, one per radial — survives as the
+``bundle`` variant, and it is a DIFFERENT CONDUCTOR rather than a different
+mesh: a bundle of N coincident thin wires is not one wire of the same radius,
+which is momwire's fan-widening adjudication (momwire#524 phase 2). The two
+are never gated against each other. Every number this design banked before
+2026-09-03 was measured on the bundle and is attributed to it below; the size
+of the difference is smaller than it looks, and QUADRATURE says why.
 
 FEED. The house eps-gap idiom, verbatim: a short driven wire at the foot
 of the radiator with the radiator stacked on top. That is the physically
@@ -71,17 +78,24 @@ solve (the mixed-medium fill takes seconds warm, minutes cold); a local
 NEC-5 (``--engine nec5``, needs ``$NEC5_EXE``) solves its convention in
 under a second.
 
-TWO CONVENTIONS, TWO ENGINES — the ``detached`` variant. The screen can be
-spelled two ways, and they are TWO DIFFERENT STRUCTURES, not two meshes of
-one:
+THREE SPELLINGS, AND WHAT EACH ENGINE DOES WITH THEM. The screen can be
+spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
 
-  * The DEFAULT (connected) convention above: radials rise to the surface
-    and junction-join the monopole at z = 0 — the crossing junction.
-    momwire serves it (the #524 phase-2 crossing serve); the NEC-5 wrapper
-    REFUSES it, because the N-coincident-rise bundle is momwire's exactly-
-    regularized spelling and the NEC-5 binary silently prints garbage for
-    coincident wires (measured on this design: 3271-3374j ohm with a
-    2e+25 % radiated power).
+  * The DEFAULT (connected, hub) convention above: N radials to a buried hub,
+    ONE rise to the node, junction-joined to the monopole at z = 0 — the
+    crossing junction. **Every engine here takes it.** momwire serves it (the
+    #524 phase-2 crossing serve), razor constructs it and serves it once
+    momwire#814 flips its buried cell, and NEC-5 builds the same conductor
+    (issue #1108; the graded wires reach it as consecutive GW cards, issue
+    #1110). What the engines then DISAGREE about is the node model, not the
+    geometry — see below.
+  * The ``bundle`` variant: the pre-#1108 connected spelling, N coincident
+    rises. momwire's B-spline crossing serve is the only thing that solves
+    it — the NEC-5 binary silently prints garbage for coincident wires
+    (measured on this design: 3271-3374j ohm with a 2e+25 % radiated power)
+    and razor's tent basis gets N identical columns and a singular matrix
+    (momwire#846). It is kept because the fan-widening record and every
+    number banked here before 2026-09-03 belong to it.
   * The ``detached`` variant: the STAKE convention — the monopole stands
     its end in the ground plane (ground contact) and the N radials lie at
     ``depth``, joined to each other at a common centre point but touching
@@ -95,20 +109,22 @@ one:
     (momwire#567), and its refusal message points back at the connected
     spelling it does serve.
 
-Each engine serves exactly one convention and refuses the other, and each
-refusal names the spelling that engine DOES serve. But the two spellings
-are NOT why the engines disagree. Measured 2026-09-02 on the licensed
+The ``detached`` and ``bundle`` spellings each have exactly one engine, and
+each refusal names a spelling that engine DOES serve. The DEFAULT has all of
+them — that is what issue #1108 bought — and the spellings were never why the
+engines disagree anyway. Measured 2026-09-02 on the licensed
 NEC-5 binary at this design's default knobs over eps_r 13 / sigma 0.005
 (scratch/ble-1937/RESULTS.md, momwire#838, #1104): NEC-5 reads
 49.78 + 20.95j ohm with the radials CONNECTED to the base through one
-15 cm rise (the single-rise spelling it accepts; it refuses only the
-coincident bundle) and 50.11 + 21.46j ohm detached. The same answer
-either way: NEC-5's interface node injects the base current into the
-soil as a point electrode (momwire#524 phase 2, momwire#567), so a
-screen bonded to the mast and a screen lying loose underneath cost it
-the same. momwire's connected serve reads 75.86 + 43.58j ohm at its
-n_qp_pair = 8 default, ~30 ohm away, and that gap is NEC-5's node, not
-a convention.
+15 cm rise — which is now this design's DEFAULT geometry — and
+50.11 + 21.46j ohm detached. The same answer either way: NEC-5's
+interface node injects the base current into the soil as a point
+electrode (momwire#524 phase 2, momwire#567), so a screen bonded to the
+mast and a screen lying loose underneath cost it the same. momwire's
+connected serve reads 75.85 + 40.45j ohm on the same geometry at
+converged quadrature, 32.5 ohm away, and that gap is NEC-5's node, not
+a convention. Both engines now run the SAME deck, which is what makes
+the comparison a node-model measurement instead of a spelling one.
 
 The measurement decides whose radial-count law is physical. Brown,
 Lewis and Epstein (Proc. IRE, June 1937, Fig. 36; buried radials at
@@ -120,52 +136,78 @@ spans only 36 -> 28 ohm; momwire's crossing serve falls 114 / 81 / 62 /
 quote momwire's number as the connected answer, and do NOT quote the
 NEC-5 ``detached`` print as "the other convention's" answer to the same
 antenna: it is a different node model, and its flat law is the wrong
-shape. The connected convention still has no spelling both engines
-serve, because antennaknobs' polyline walk turns a single rise into a
-degree-2 node (see above) and momwire refuses the mid-span crossing.
+shape.
 
-Read QUADRATURE below before quoting the momwire number: it moves with
-n_qp_pair, and the "~35 ohm" an earlier version of this paragraph
-claimed for the gap was the n_qp_pair = 4 print.
+Read QUADRATURE below before quoting the momwire number. The gap has been
+quoted at three sizes here as the quadrature moved and the spelling changed
+("~35 ohm" was the bundle at n_qp_pair = 4, "~30 ohm" the bundle at 8);
+32.5 ohm is the hub at n_qp_pair = 32, and it is the first one measured on
+the deck BOTH engines run.
 
-QUADRATURE — the axis with the largest error here, and the one the mesh
-envelope below does not cover. This deck is exactly momwire#760's class:
-ONE crossing junction at a lossy-soil interface, where the cross-edge
-quadrature error falls only as C/q — FIRST order in n_qp_pair, a lost
-convergence rate rather than a slow one. Walking the knob at fixed mesh:
+QUADRATURE — and the spelling change moved this axis more than it moved
+the answer. This deck is momwire#760's class: ONE crossing junction at a
+lossy-soil interface, where the cross-edge quadrature error falls only as
+C/q — FIRST order in n_qp_pair, a lost convergence rate rather than a slow
+one. Both ladders below are at fixed mesh, at this design's default knobs
+over eps_r 13 / sigma 0.005 at 7.1 MHz.
+
+The DEFAULT (hub) spelling, measured 2026-09-03:
+
+    n_qp_pair   Z                     from the q=32 reference
+        8       75.8371 + 40.2843j    0.167 ohm  <- the default today
+       16       75.8475 + 40.4189j    0.032 ohm
+       32       75.8502 + 40.4507j    reference
+
+The ``bundle`` variant — and every one of these numbers belongs to IT, not
+to the design's default; they were this file's headline figures before
+2026-09-03:
 
     n_qp_pair   Z                     from the q=32 reference
         4       75.8604 + 47.4594j    6.70 ohm  <- shipped before momwire 0.45.0
-        8       75.8619 + 43.5763j    2.82 ohm  <- the default today
+        8       75.8619 + 43.5763j    2.82 ohm
        16       75.8562 + 41.5914j    0.83 ohm
        32       75.8525 + 40.7584j    reference, still moving ~0.25 ohm at 24->32
 
-The error is almost purely REACTIVE — R is converged to 0.009 ohm across
-the whole ladder — on a design whose entire purpose is tuning. 8 is also
-momwire's accelerated ceiling (a fixed n_qp^2 <= 64 scratch buffer), so
-the bottom two rows need the numpy path today and the hosted UI cannot
-offer them at all; momwire#762 tiles the loop to lift that. Until it
-lands, anything quoted from this design carries a ~2.8 ohm reactive
-floor.
+**The N coincident rises were most of the quadrature problem.** At the
+shipped n_qp_pair = 8 the hub sits 0.167 ohm from its own converged answer
+where the bundle sat 2.82 — a factor of 17 — and the old "~2.8 ohm reactive
+floor on anything quoted from this design" simply does not apply to the
+default any more. The error is still almost purely REACTIVE (R is converged
+to 0.02 ohm across both ladders) on a design whose entire purpose is tuning,
+so the ladder stays here; it is just no longer the dominant term.
+
+TWO STRUCTURES, AND HOW FAR APART THEY REALLY ARE. At n_qp_pair = 8 the hub
+and the bundle read 3.29 ohm apart, which is the number a casual comparison
+would quote. At n_qp_pair = 32 they are **0.31 ohm** apart. Nearly all of the
+apparent difference was the bundle's own quadrature error, not the structural
+difference between one conductor and a bundle of N. That does NOT license
+gating one against the other — 0.31 ohm is not zero, and they remain two
+structures under momwire#524's fan-widening adjudication — but any claim
+about "how different the two spellings are" has to be made at converged
+quadrature or it is measuring the wrong thing.
 
 MESH CONVERGENCE — the default mesh IS the converged rung IN MESH, at
-fixed quadrature. Everything in this paragraph was measured at
-n_qp_pair = 4 and none of it carries a quadrature axis, which at that
-order is 6.70 ohm — 155x the largest term quoted here. Mesh convergence
-at fixed quadrature converges to the wrong limit (momwire#760); this
-paragraph bounds the mesh axis and no other. The N-member
-crossing node carries a slow, measured convergence class in the node
+fixed quadrature. Mesh convergence at fixed quadrature converges to the
+wrong limit (momwire#760); this paragraph bounds the mesh axis and no other.
+The crossing node carries a slow, measured convergence class in the node
 mesh (momwire#674, first order in the node-adjacent segment length).
-The original auto-meshed default put ONE segment on each 15 cm rise
-(the density floor: 0.15 m against a 40 m quarter-wave) and sat 29 ohm
-of reactance off the converged answer on a FALSE PLATEAU — global
-density sweeps to 4x moved it < 0.2 ohm (node mesh frozen by the
-floor), then N=126 jumped 20 ohm in one rung. Since the graded-mesh
-default (the `graded_wire` rises + radiator below), the design loads at
-the h_node = 6.25 mm rung: the next grading rung moves it 0.019 ohm and
-a doubled far mesh 0.043 ohm. Sweeping the density still only refines
-the FAR mesh — the graded node panels are fixed by the recipe — so a
-convergence sweep here now measures the axis it actually refines.
+
+On the DEFAULT (hub) spelling, measured 2026-09-03 at n_qp_pair = 8:
+doubling the far mesh moves the answer **0.050 ohm** (75.8475 + 40.3334j
+against 75.8371 + 40.2843j). The graded node panels are fixed by the recipe,
+so sweeping the density only refines the FAR mesh — which is the axis that
+sweep actually measures.
+
+The history below belongs to the ``bundle`` spelling and was measured at
+n_qp_pair = 4, where the quadrature axis it does not carry is 6.70 ohm —
+155x the largest term in it. The original auto-meshed default put ONE segment
+on each 15 cm rise (the density floor: 0.15 m against a 40 m quarter-wave)
+and sat 29 ohm of reactance off the converged answer on a FALSE PLATEAU:
+global density sweeps to 4x moved it < 0.2 ohm with the node mesh frozen by
+the floor, then N=126 jumped 20 ohm in one rung. The graded-mesh default
+(the `graded_wire` rise + radiator below) is what retired that, at the
+h_node = 6.25 mm rung, where the next grading rung moved it 0.019 ohm and a
+doubled far mesh 0.043 ohm.
 """
 
 import math
@@ -231,7 +273,7 @@ class Builder(AntennaBuilder):
                     # buried hub below the surface — the elevation profile
                     # that makes the depth knob legible.
                     "default_view": "xz",
-                    "n_radials": {"min": 2, "max": 4, "step": 1},
+                    "n_radials": {"min": 1, "max": 4, "step": 1},
                     "depth": {"min": 0.05, "max": 0.5, "unit": "m"},
                     "length_factor": {"min": 0.8, "max": 1.2},
                     "radial_factor": {"min": 0.3, "max": 1.5},
@@ -246,14 +288,24 @@ class Builder(AntennaBuilder):
     # momwire mirrors it exactly the other way. See the module docstring.
     detached_params = MappingProxyType({"convention": "detached"})
 
+    # The pre-#1108 connected spelling: N coincident rises, one per radial.
+    # Kept as a named variant because it is a DIFFERENT CONDUCTOR from the
+    # default hub (a bundle of N coincident thin wires is not one wire of the
+    # same radius) and because every number banked on this design before
+    # 2026-09-03 was measured on it. NEC-5 refuses it (coincident wires) and
+    # razor's tent basis is singular on it (momwire#846); momwire's B-spline
+    # crossing serve is the only thing that solves it.
+    bundle_params = MappingProxyType({"convention": "bundle"})
+
     def build_wires(self):
         eps = 0.05
 
         height = 0.25 * self.design_wavelength * self.length_factor
         radial = height * self.radial_factor
         depth = self.depth
-        n_radials = max(2, round(self.n_radials))
+        n_radials = max(1, round(self.n_radials))
         detached = self.convention == "detached"
+        bundle = self.convention == "bundle"
 
         node = (0.0, 0.0, 0.0)
         hub = (0.0, 0.0, -depth)
@@ -278,11 +330,13 @@ class Builder(AntennaBuilder):
             # miss on this very deck). Hub-first makes every radial leave
             # the hub, so the +/-x and +/-y meshes are exact negations.
             tups.append(Wire(hub, (x, y, -depth)))
-            if not detached:
-                # This radial's rise to the node. Coincident with every
-                # other radial's rise by construction — see the module
-                # docstring. The detached variant has no rises at all:
-                # that absence IS the stake convention.
+            if bundle:
+                # The `bundle` variant's per-radial rise, coincident with
+                # every other radial's by construction — the pre-#1108
+                # default, kept because the fan-widening record and every
+                # number banked before 2026-09-03 were measured on it. The
+                # DEFAULT now puts one shared rise below this loop, and the
+                # detached variant has no rise at all.
                 #
                 # The rise is GRADED toward the node (momwire#674's
                 # recipe, promoted to the `graded_wire` spelling by this
@@ -300,6 +354,22 @@ class Builder(AntennaBuilder):
                 # coincident bundle mint spurious 8-member junctions at
                 # every shared split point.
                 tups.append(graded_wire(hub, node, toward="p1"))
+
+        if not detached and not bundle:
+            # THE HUB SPELLING (issue #1108), and the default connected
+            # convention: ONE rise from the buried hub to the node. Graded
+            # toward the node on the same momwire#674 recipe the bundle's
+            # rises used.
+            #
+            # A single rise leaves the node at degree 2 — one rise below, the
+            # feed gap above — which the polyline walk used to thread THROUGH,
+            # handing momwire one polyline crossing the interface mid-span
+            # (the refusal). `MomwireEngine` now ends a polyline at every wire
+            # end lying in the plane (issue #1109), so the node is a declared
+            # junction with no bundle needed, and the screen is a conductor
+            # someone actually builds: NEC-5 takes it, and razor's tent basis
+            # no longer sees N identical columns (momwire#846).
+            tups.append(graded_wire(hub, node, toward="p1"))
 
         # Driven gap at the radiator foot; the radiator stacks on top of it.
         # In the detached variant the gap's lower end stands in the plane as

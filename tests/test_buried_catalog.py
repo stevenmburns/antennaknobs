@@ -42,6 +42,9 @@ from antennaknobs.designs.verticals.elevated_buried_counterpoise import (
 )
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.engines.nec5 import NEC5Engine
+from momwire import _medium_spec
+
+from conftest import needs_nec5
 from momwire import RazorSolver
 
 C_LIGHT = 299792458.0
@@ -92,7 +95,11 @@ def test_brv_every_segment_is_horizontal_or_vertical():
         assert _is_horizontal(w) or _is_vertical(w), w
 
 
-def test_brv_each_radial_runs_at_depth_then_rises_at_a_right_angle():
+def test_brv_radials_run_at_depth_to_a_hub_with_ONE_rise():
+    """The hub spelling (issue #1108): N radial runs to a shared hub and a
+    SINGLE rise from it to the node. The pre-#1108 default put one rise per
+    radial, coincident by construction — that spelling survives as the
+    `bundle` variant and is gated separately."""
     b = BuriedRadialVertical()
     b.n_radials = 4
     ws = _wires(b)
@@ -100,12 +107,11 @@ def test_brv_each_radial_runs_at_depth_then_rises_at_a_right_angle():
     hub = (0.0, 0.0, -depth)
     node = (0.0, 0.0, 0.0)
 
-    # Wire pairs 0..7 are (radial run, its rise); 8/9 are feed gap + radiator.
-    runs = ws[0:8:2]
-    rises = ws[1:8:2]
-    assert len(runs) == len(rises) == 4
+    runs = ws[0:4]
+    (rise,) = ws[4:5]
+    assert len(runs) == 4
 
-    for run, rise in zip(runs, rises, strict=True):
+    for run in runs:
         # The horizontal leg lies wholly at depth and LEAVES the hub —
         # hub-first authoring is load-bearing: it makes the polyline walk
         # start every radial at the hub, which keeps the +/-x and +/-y
@@ -113,15 +119,33 @@ def test_brv_each_radial_runs_at_depth_then_rises_at_a_right_angle():
         # memo at its full ~4x dedup (momwire#688's census).
         assert run.p0[2] == -depth and run.p1[2] == -depth
         assert tuple(run.p0) == hub
-        # ...and the rise leaves that same point straight up to the node.
-        assert tuple(rise.p0) == hub
-        assert tuple(rise.p1) == node
-        assert _is_vertical(rise)
-        # The bend is a right angle: the run has no z component, the rise
-        # no x/y component.
+        # The bend is a right angle: the run has no z component...
         assert run.p0[2] - run.p1[2] == 0.0
-        assert rise.p0[0] == rise.p1[0] == 0.0
-        assert rise.p0[1] == rise.p1[1] == 0.0
+
+    # ...and exactly one rise leaves that same point straight up to the node.
+    assert tuple(rise.p0) == hub
+    assert tuple(rise.p1) == node
+    assert _is_vertical(rise)
+    assert rise.p0[0] == rise.p1[0] == 0.0
+    assert rise.p0[1] == rise.p1[1] == 0.0
+    assert sum(1 for w in ws if tuple(w.p0) == hub and tuple(w.p1) == node) == 1
+
+
+def test_brv_the_bundle_variant_keeps_the_pre_1108_spelling():
+    """The record the `bundle` variant exists to preserve: one rise per
+    radial, every one of them coincident. Two structures, not two meshes —
+    a bundle of N coincident thin wires is not one wire of the same radius
+    (momwire#524's fan widening), so the two are never gated against each
+    other."""
+    b = BuriedRadialVertical(
+        params=resolve_variant_params(BuriedRadialVertical, "bundle")
+    )
+    ws = _wires(b)
+    hub = (0.0, 0.0, -b.depth)
+    node = (0.0, 0.0, 0.0)
+    rises = [w for w in ws if tuple(w.p0) == hub and tuple(w.p1) == node]
+    assert len(rises) == b.n_radials
+    assert len(ws) == 2 * b.n_radials + 2
 
 
 def test_brv_radial_tips_are_free_and_only_the_node_touches_the_plane():
@@ -131,15 +155,15 @@ def test_brv_radial_tips_are_free_and_only_the_node_touches_the_plane():
     ws = _wires(b)
     radial = 0.25 * b.design_wavelength * b.length_factor * b.radial_factor
 
-    tips = [w.p1 for w in ws[0 : 2 * b.n_radials : 2]]
+    tips = [w.p1 for w in ws[: b.n_radials]]
     for tip in tips:
         assert tip[2] == -b.depth  # buried, not reaching the plane
         assert math.hypot(tip[0], tip[1]) == pytest.approx(radial)
 
     at_plane = [w for w in ws if w.p0[2] == 0.0 or w.p1[2] == 0.0]
-    # The N rises, the driven gap: every one of them ends AT the node, and
-    # none of them lies in the plane.
-    assert len(at_plane) == b.n_radials + 1
+    # The ONE rise and the driven gap: both end AT the node, and neither
+    # lies in the plane (issue #1108 — before it, N rises did).
+    assert len(at_plane) == 2
     for w in at_plane:
         assert not (w.p0[2] == 0.0 and w.p1[2] == 0.0)
 
@@ -173,17 +197,17 @@ def test_brv_knobs_move_the_geometry():
     """n_radials and depth are the two knobs the served spelling is most
     sensitive to; pin that they reach the wires."""
     base = BuriedRadialVertical()
-    assert len(_wires(base)) == 2 * 4 + 2  # 4 x (run + rise) + gap + radiator
+    assert len(_wires(base)) == 4 + 1 + 2  # 4 runs + ONE rise + gap + radiator
 
     more = BuriedRadialVertical()
     more.n_radials = 2
-    assert len(_wires(more)) == 2 * 2 + 2
+    assert len(_wires(more)) == 2 + 1 + 2
 
     deeper = BuriedRadialVertical()
     deeper.depth = 0.4
-    assert {w.p0[2] for w in _wires(deeper)[0:8:2]} == {-0.4}
+    assert {w.p0[2] for w in _wires(deeper)[:4]} == {-0.4}
     # The rise lengthens with the depth; the radiator does not move.
-    assert _wires(deeper)[1].p0[2] == -0.4
+    assert _wires(deeper)[4].p0[2] == -0.4
     assert _wires(deeper)[-1].p1[2] == _wires(base)[-1].p1[2]
 
     longer = BuriedRadialVertical()
@@ -194,15 +218,24 @@ def test_brv_knobs_move_the_geometry():
     )
 
 
-def test_brv_n_radials_floor_keeps_the_node_a_junction():
-    """The floor of 2 is a framework constraint, not a physics one: this
-    package derives junctions from endpoint DEGREE, so a one-radial screen
-    leaves the node degree-2, the walk threads straight through it, and
-    momwire receives a single polyline crossing the interface mid-span.
-    The builder clamps rather than emitting that deck."""
+def test_brv_one_radial_is_a_deck_now():
+    """The old floor of 2 was never physics. It was the polyline walk: a
+    one-radial screen left the node at degree 2, the walk threaded straight
+    through it, and momwire received a single polyline crossing the interface
+    mid-span. Issue #1109 ends a polyline at every wire end lying in the
+    plane, so the node is a declared junction at ANY radial count and the
+    clamp is 1."""
     one = BuriedRadialVertical()
     one.n_radials = 1
-    assert len(_wires(one)) == 2 * 2 + 2
+    assert len(_wires(one)) == 1 + 1 + 2
+
+    _engine, s = _solver(one)
+    crossing = s._crossing_junctions()
+    assert len(crossing) == 1
+    media = s._wire_media()
+    members = s.junctions[crossing[0]]
+    assert sum(1 for w, _e in members if media[w] == _medium_spec.ABOVE) == 1
+    assert sum(1 for w, _e in members if media[w] == _medium_spec.BELOW) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -282,19 +315,59 @@ def test_brv_detached_momwire_refuses_by_name():
         s._wire_media()
 
 
-def test_brv_detached_nec5_serves_what_the_default_refuses(monkeypatch):
-    """The engine mirror, both directions, at construction time: NEC-5
-    takes the detached spelling (and rides the buried GE 1 -1 stage), and
-    refuses the default's coincident bundle with a message that names this
-    variant as the way out."""
+def test_brv_nec5_now_takes_the_connected_default_too(monkeypatch):
+    """The mirror is gone on this side, and that is issue #1108's point.
+
+    NEC-5 used to refuse the connected spelling — not because of the physics
+    but because the DEFAULT was N coincident rises, for which the binary
+    silently prints garbage. The hub spelling has one rise and no coincident
+    wires, and #1110 expands its graded wires into GW cards, so NEC-5 now
+    builds the same conductor momwire does. The `bundle` variant keeps the
+    old refusal, with the message that names a way out.
+    """
     monkeypatch.setenv("NEC5_EXE", sys.executable)
 
-    b = _detached()
+    b = BuriedRadialVertical()
     engine = NEC5Engine(b, ground=("finite",) + SOIL_A)
-    assert "GE 1 -1" in engine.deck([b.freq]).splitlines()
+    lines = engine.deck([b.freq]).splitlines()
+    assert "GE 1 -1" in lines
+    # the graded rise and radiator became several GW cards, and the deck
+    # carries exactly one rise from the hub to the node
+    gw = [ln for ln in lines if ln.startswith("GW ")]
+    assert len(gw) > len(_wires(b))
+
+    detached = _detached()
+    d_engine = NEC5Engine(detached, ground=("finite",) + SOIL_A)
+    assert "GE 1 -1" in d_engine.deck([detached.freq]).splitlines()
 
     with pytest.raises(NotImplementedError, match="detached"):
-        NEC5Engine(BuriedRadialVertical(), ground=("finite",) + SOIL_A)
+        NEC5Engine(
+            BuriedRadialVertical(
+                params=resolve_variant_params(BuriedRadialVertical, "bundle")
+            ),
+            ground=("finite",) + SOIL_A,
+        )
+
+
+@needs_nec5
+def test_brv_nec5_solves_the_connected_default_and_banks_its_print(record_property):
+    """The record, not a gate on agreement (#1104): NEC-5's interface node is
+    a point electrode and momwire's is the crossing fill, so the two answers
+    for this deck are ~30 ohm apart by construction and neither is a bar for
+    the other. What IS pinned is that the binary now takes the design's
+    DEFAULT — before #1108 it could only be given the single-rise spelling by
+    hand — and lands where #1104 measured that spelling: 49.78 + 20.95j ohm at
+    these knobs over eps_r 13 / sigma 0.005.
+
+    The bar is deliberately loose (5 ohm). It exists to catch a deck that
+    stopped being this antenna, not to re-derive #1104's number; the banked
+    value is the record and this run reports its own.
+    """
+    b = BuriedRadialVertical()
+    z = NEC5Engine(b, ground=("finite",) + SOIL_A).impedance()
+    z = complex(z[0] if isinstance(z, list) else z)
+    record_property("nec5_Z", f"{z:.4f}")
+    assert abs(z - (49.78 + 20.95j)) < 5.0, z
 
 
 # ---------------------------------------------------------------------------
@@ -397,39 +470,35 @@ def test_brv_labels_as_the_crossing_serve(n_radials):
     actually builds: N below members meeting ONE above member at a
     crossing junction in the plane.
 
-    Two things differ from momwire's own `fan_rise_deck` fixture, both
-    consequences of this package deriving polylines from wire endpoints
-    rather than authoring them:
+    The hub spelling (issue #1108) makes this the SIMPLEST shape the crossing
+    serve has: ONE above member against ONE below member, whatever the radial
+    count. Before it, the node carried N coincident rises purely to raise its
+    degree, and the serve saw a 1-above x N-below fan.
 
-      * momwire spells each radial as one polyline that runs at depth and
-        then rises; here the shared hub at (0, 0, -depth) is a degree-2N
-        node, so the walk splits every radial into a run and a rise. The
-        media tuple is therefore 2N below labels, not N.
-      * that same hub becomes junction 0 (an ordinary wholly-below OTHER
-        junction, which the scope allows), so the crossing junction is
-        index 1, not 0.
+    What the walk produces here: N radial runs, each its own polyline off the
+    degree-(N+1) hub, plus the single rise — N+1 below labels — and the
+    radiator above. The hub itself is junction 0, an ordinary wholly-below
+    OTHER junction that the scope allows, so the crossing junction is index 1.
 
-    The scope-relevant facts are unchanged and are what this asserts: the
-    grounded junction has exactly one above member, everything else is
-    below, and `_crossing_junctions` returns without raising.
+    The scope-relevant facts are what this asserts: the grounded junction has
+    exactly one above member and one below member, everything else is below,
+    and `_crossing_junctions` returns without raising.
     """
-    from momwire import _medium_spec
-
     b = BuriedRadialVertical()
     b.n_radials = n_radials
     _engine, s = _solver(b)
 
     media = s._wire_media()
-    assert media == (_medium_spec.BELOW,) * (2 * n_radials) + (_medium_spec.ABOVE,)
+    assert media == (_medium_spec.BELOW,) * (n_radials + 1) + (_medium_spec.ABOVE,)
 
     crossing = s._crossing_junctions()
     assert crossing == (1,)
 
-    # The crossing node: N rises below, the radiator above — the 1-above x
-    # N-below fan the serve is scoped to.
+    # The crossing node: ONE rise below, the radiator above.
     members = s.junctions[crossing[0]]
+    assert len(members) == 2
     assert sum(1 for w, _e in members if media[w] == _medium_spec.ABOVE) == 1
-    assert sum(1 for w, _e in members if media[w] == _medium_spec.BELOW) == n_radials
+    assert sum(1 for w, _e in members if media[w] == _medium_spec.BELOW) == 1
     # ...and the hub is the allowed below-side other junction.
     assert all(media[w] == _medium_spec.BELOW for w, _e in s.junctions[0])
 
