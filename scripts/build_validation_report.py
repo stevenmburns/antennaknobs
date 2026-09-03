@@ -1240,6 +1240,96 @@ Three things this is **not**, each of which it would be easy to read into it:
   does. Those decks are gated on shape — monotone and shrinking — which is
   what they can honestly carry.
 
+## The buried radial vertical: what a user may claim
+
+`verticals.buried_radial_vertical` is the design with the most anchors behind
+it below ground, so this is what each of them actually holds — and, at the
+end, what none of them do.
+
+**The reference is a measurement, not an engine.** Brown, Lewis and Epstein's
+1937 buried-radial curves, gated in momwire as `tests/test_ble_1937_838.py`:
+3 MHz, a 21.4 m mast (77°), No. 8 copper throughout, σ = 2×10⁻³. **ε_r = 15 is
+an ASSUMPTION** — the paper states conductivity only, and that single
+assumption is worth about 3.6 Ω of what follows. Against Fig. 37 (45 ft
+radials) the gate pins a *shape* rather than a number: steep fall, knee near
+N = 15, plateau, with the plateau inside ±6 Ω of the figure's ~31 Ω. momwire
+sits ~4 Ω low there. Against Fig. 36 (135 ft radials) agreement is markedly
+better — within 1.4 Ω at every rung:
+
+| N | 2 | 15 | 30 | 60 | 113 |
+|---|---|---|---|---|---|
+| momwire | 84.11 | 35.37 | 30.52 | 27.30 | 25.22 |
+| Fig. 36 | ≥50 | 34 | 30 | 26 | 24.3 |
+
+**The ±6 Ω envelope is falsifiable, and was falsified on purpose:** the same
+deck at σ = 2×10⁻⁴ — a decade worse soil — reads R(30) = 24.76 Ω and is
+rejected. Wide enough to carry the stated assumptions, narrow enough that
+getting the ground wrong by a decade fails.
+
+**One residual, recorded rather than smoothed.** The measurement's whole point
+is that longer radials help. Fig. 36 and Fig. 37 separate by 6.7 Ω at N = 113;
+momwire separates them by 1.75 Ω. It reproduces the ordering and the crossing,
+and under-states the benefit. Not gated, because a gate on a 1.75-against-6.7
+residual would be pinning a known disagreement.
+
+**The second reading is the degree pair**, not a second engine — see
+[Underground: what the second reading is](#underground-what-the-second-reading-is)
+above; the catalog deck's row is there.
+
+**The mesh is proven at the corners the app exposes, not just the default.**
+Over the 11 solvable corners of the design's own knob ranges, refining each
+axis independently moves the answer by at most: node grading ×3 **0.100 Ω**,
+far mesh ×3 **0.126 Ω**, cross-edge quadrature at 64 **0.007 Ω**. The gate
+holds each corner's banked answer to **0.10 Ω** — a tolerance measured rather
+than chosen, and one whose limit is stated: it catches a 3× mesh coarsening and
+**does not catch a 2×** one.
+
+**Where the watts go has a physics gate and an outside reference.** The
+hemispherical integral of linear gain is P_rad / P_in, so it must not exceed
+one, and burying radials must raise it — which is the entire reason to bury
+them. On the catalog deck at ε_r 13 / σ 0.005:
+
+| radials | Z_in (Ω) | radiated fraction |
+|---|---|---|
+| 1 | 168.186 + 43.070j | 0.0766 |
+| 2 | 107.964 + 43.057j | 0.1189 |
+| 3 | 87.020 + 41.693j | 0.1479 |
+| 4 | 75.850 + 40.451j | 0.1699 |
+
+The same ordering holds on poor soil (5/0.001: 0.060 → 0.143) and good
+(20/0.03: 0.223 → 0.349), with good > average > poor at every count.
+
+The buried deck has no second engine to check the pattern code against, so the
+cross-check runs on `verticals.raised_vertical`, which both engines serve, and
+on the quantity that does not depend on whose input resistance you believe:
+**radiated power for a fixed drive**, η·R_in. momwire against nec2++ reads
+49.52 vs 49.57 over PEC, 14.88 vs 14.90 over 13/0.005, and 17.96 vs 17.98 over
+20/0.03 — **0.10–0.13 %**, against a 1 % bar. The two engines differ by 9 % in
+R_in on that deck; their far-field integrals agree to a tenth of a percent once
+that is divided out.
+
+**Two things are refused by name rather than approximated.** A wire lying *in*
+the interface plane is not served (momwire#865) — that is the surface-radial
+class, and it is being built. And a buried structure whose opposite radial tips
+exceed 4 in-medium wavelengths apart is refused: the below/below remainder is
+tabulated to that range, and unlike the reflected-wave remainder above the
+interface it *grows* relative to the direct term with distance, so there is no
+honest clamp beyond the table.
+
+### What is not measured
+
+- **Efficiency has no field-strength reference.** The radiated fraction above
+  is a self-consistency bound plus a far-field cross-check on a *different*
+  deck. Nothing here compares a computed efficiency against a measured one.
+- **The surface class — radials lying on the ground — is refused**, not
+  approximated (momwire#865). Its low-height limit is under study; a bare
+  buried wire is not a model for an insulated one lying in grass, because the
+  bare wire collects return current galvanically along its length.
+- **nec2++'s own radiated fraction over PEC reads 1.057** — above unity —
+  where momwire's reads 0.963. Grid clipping at the horizon, where a PEC
+  vertical peaks. Recorded, not gated, and it is why the cross-check above is
+  stated as η·R_in rather than as a fraction.
+
 ## Reproducibility
 
 - **The corpus is public.** The wild decks are collected from published
