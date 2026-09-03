@@ -1,0 +1,709 @@
+[
+  {
+    "corner": "default",
+    "params": {},
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          75.85020430911293,
+          40.45067143571216
+        ],
+        "s": 7.096646690741181,
+        "segs": 248,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          75.67744775506841,
+          39.927536774539654
+        ],
+        "s": 6.19110755994916,
+        "segs": 248,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          75.86425691042486,
+          40.52803509787856
+        ],
+        "s": 15.761341276578605,
+        "segs": 310,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          75.86511018364767,
+          40.521647352409076
+        ],
+        "s": 26.285980963148177,
+        "segs": 705,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          75.85065455301302,
+          40.45547499750005
+        ],
+        "s": 7.674889891408384,
+        "segs": 248,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.07862958620919158,
+      "far": 0.0725242431647049,
+      "quad": 0.004824616608563538,
+      "bs1": 0.5509216828964046
+    }
+  },
+  {
+    "corner": "n_radials_min",
+    "params": {
+      "n_radials": 1
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          168.18571762822305,
+          43.07019861287615
+        ],
+        "s": 5.522561942227185,
+        "segs": 86,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          168.026173786203,
+          42.499040014862935
+        ],
+        "s": 5.142706827260554,
+        "segs": 86,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          168.20089239261242,
+          43.145784305337344
+        ],
+        "s": 9.770962468348444,
+        "segs": 148,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          168.19617836718658,
+          43.14120327097753
+        ],
+        "s": 13.825396125204861,
+        "segs": 222,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          168.1862229573567,
+          43.07498793250751
+        ],
+        "s": 5.272146201692522,
+        "segs": 86,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.0770939062385054,
+      "far": 0.07177108423144365,
+      "quad": 0.004815904906109673,
+      "bs1": 0.5930230869122508
+    }
+  },
+  {
+    "corner": "depth_min",
+    "params": {
+      "depth": 0.05
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          76.28646261224814,
+          37.57765245697121
+        ],
+        "s": 8.096299679018557,
+        "segs": 246,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          76.11420267469234,
+          37.050196340446455
+        ],
+        "s": 6.017762259580195,
+        "segs": 246,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          76.30033716742881,
+          37.65531361699822
+        ],
+        "s": 15.125265885144472,
+        "segs": 304,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          76.30170826452661,
+          37.649431311836516
+        ],
+        "s": 26.404586473479867,
+        "segs": 703,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          76.28690935318355,
+          37.58245717442392
+        ],
+        "s": 7.489624654874206,
+        "segs": 246,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.07889080464922762,
+      "far": 0.07338006486213257,
+      "quad": 0.0048254416651514875,
+      "bs1": 0.5548724546651284
+    }
+  },
+  {
+    "corner": "depth_max",
+    "params": {
+      "depth": 0.5
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          76.41304501712497,
+          56.675864524335715
+        ],
+        "s": 6.5192600302398205,
+        "segs": 250,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          76.23564086777029,
+          56.163833976115136
+        ],
+        "s": 6.237796543166041,
+        "segs": 250,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          76.42723456599623,
+          56.75243278506843
+        ],
+        "s": 16.35199922323227,
+        "segs": 316,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          76.42704662213211,
+          56.74517700865971
+        ],
+        "s": 25.823740353807807,
+        "segs": 707,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          76.41349793837595,
+          56.68065159213613
+        ],
+        "s": 7.7452750112861395,
+        "segs": 250,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.0778719580388385,
+      "far": 0.07071255493856708,
+      "quad": 0.004808446296399346,
+      "bs1": 0.541892530414774
+    }
+  },
+  {
+    "corner": "length_min",
+    "params": {
+      "length_factor": 0.8
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          46.80086277886891,
+          -134.67502393595348
+        ],
+        "s": 5.0571683924645185,
+        "segs": 199,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          46.65500240288743,
+          -135.01469692489567
+        ],
+        "s": 4.297474250197411,
+        "segs": 199,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          46.808298474171245,
+          -134.59197563895427
+        ],
+        "s": 10.857323898933828,
+        "segs": 251,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          46.81287631063432,
+          -134.59327528677085
+        ],
+        "s": 16.91181372385472,
+        "segs": 564,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          46.801174559589114,
+          -134.6729073757233
+        ],
+        "s": 5.227139465510845,
+        "segs": 199,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.08338050850827176,
+      "far": 0.08262666995990493,
+      "quad": 0.002139400482719566,
+      "bs1": 0.3696660502377577
+    }
+  },
+  {
+    "corner": "length_max",
+    "params": {
+      "length_factor": 1.2
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          117.9832281903296,
+          225.78937851986825
+        ],
+        "s": 8.616863626986742,
+        "segs": 292,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          117.7795874417432,
+          225.1328163453552
+        ],
+        "s": 7.923752881586552,
+        "segs": 292,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          118.0127740813622,
+          225.88455009752929
+        ],
+        "s": 15.646702393889427,
+        "segs": 362,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          118.0088501048682,
+          225.87467702803573
+        ],
+        "s": 31.554498854093254,
+        "segs": 845,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          117.98365267205718,
+          225.79591657197187
+        ],
+        "s": 10.294720483012497,
+        "segs": 292,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.09965234001969249,
+      "far": 0.08906356157386537,
+      "quad": 0.006551817308710662,
+      "bs1": 0.6874179540033409
+    }
+  },
+  {
+    "corner": "radial_min",
+    "params": {
+      "radial_factor": 0.3
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          63.730376205352705,
+          25.08689372756339
+        ],
+        "s": 3.4380104979500175,
+        "segs": 140,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          63.57206646381932,
+          24.565299908837744
+        ],
+        "s": 3.342765682376921,
+        "segs": 140,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          63.743408045778466,
+          25.163672119381303
+        ],
+        "s": 9.141127657145262,
+        "segs": 202,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          63.74180032976275,
+          25.164496164107664
+        ],
+        "s": 11.94046834204346,
+        "segs": 385,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          63.730813514961866,
+          25.091641233478043
+        ],
+        "s": 3.802668652497232,
+        "segs": 140,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.0778765068234807,
+      "far": 0.0784388218686662,
+      "quad": 0.0047676044408006,
+      "bs1": 0.5450890624449994
+    }
+  },
+  {
+    "corner": "radial_max",
+    "params": {
+      "radial_factor": 1.5
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          75.73918998289524,
+          37.6876082106519
+        ],
+        "s": 23.469571514055133,
+        "segs": 568,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          75.56455301658573,
+          37.16359644888393
+        ],
+        "s": 17.285110348835588,
+        "segs": 568,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          75.75340425840652,
+          37.76481678760862
+        ],
+        "s": 30.489214406348765,
+        "segs": 630,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          75.75326370589302,
+          37.7598009903635
+        ],
+        "s": 99.5594966839999,
+        "segs": 1673,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          75.73965164690249,
+          37.69240426208606
+        ],
+        "s": 26.1507800295949,
+        "segs": 568,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.07850611430960318,
+      "far": 0.07355179890054182,
+      "quad": 0.0048182199010268776,
+      "bs1": 0.5523462650122317
+    }
+  },
+  {
+    "corner": "soil_B_dense",
+    "params": {},
+    "soil": "B",
+    "axes": {
+      "auto": {
+        "z": [
+          56.946582665107755,
+          35.67876348887121
+        ],
+        "s": 9.036188549362123,
+        "segs": 248,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          56.79911069139746,
+          35.148820527799366
+        ],
+        "s": 6.0547053618356586,
+        "segs": 248,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          56.95949758769416,
+          35.756930057091175
+        ],
+        "s": 15.480454341508448,
+        "segs": 310,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          56.95939823820436,
+          35.75127022890896
+        ],
+        "s": 26.099936427548528,
+        "segs": 705,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          56.946982136871185,
+          35.68357731898282
+        ],
+        "s": 7.547898265533149,
+        "segs": 248,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.07922630631740284,
+      "far": 0.07363060684725867,
+      "quad": 0.004830376593310769,
+      "bs1": 0.5500795624449308
+    }
+  },
+  {
+    "corner": "soil_C_sparse",
+    "params": {},
+    "soil": "C",
+    "axes": {
+      "auto": {
+        "z": [
+          58.063209739578234,
+          35.529957691690875
+        ],
+        "s": 6.836586030200124,
+        "segs": 248,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          57.921889139301655,
+          35.00199805315461
+        ],
+        "s": 6.21920526959002,
+        "segs": 248,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          58.074945079212995,
+          35.60665225718498
+        ],
+        "s": 15.901589455083013,
+        "segs": 310,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          58.075452575698044,
+          35.609923686266974
+        ],
+        "s": 26.184876401908696,
+        "segs": 705,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          58.06359591096737,
+          35.5346859137322
+        ],
+        "s": 7.704264964908361,
+        "segs": 248,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.0775872062435119,
+      "far": 0.08089775846586406,
+      "quad": 0.004743965852937265,
+      "bs1": 0.5465463310515202
+    }
+  },
+  {
+    "corner": "worst_dense",
+    "params": {
+      "n_radials": 4,
+      "depth": 0.5,
+      "length_factor": 1.2,
+      "radial_factor": 1.5
+    },
+    "soil": "B",
+    "axes": {
+      "auto": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "bs1": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "node": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "far": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.0124 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "quad": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": null,
+      "far": null,
+      "quad": null,
+      "bs1": null
+    }
+  },
+  {
+    "corner": "mild_sparse",
+    "params": {
+      "n_radials": 1,
+      "depth": 0.05,
+      "length_factor": 0.8,
+      "radial_factor": 0.3
+    },
+    "soil": "C",
+    "axes": {
+      "auto": {
+        "z": [
+          139.9202467998442,
+          -344.1216180028116
+        ],
+        "s": 2.270145593211055,
+        "segs": 46,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          139.5860075165959,
+          -344.26422704659507
+        ],
+        "s": 1.9863865161314607,
+        "segs": 46,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          139.92084797408583,
+          -344.03631514645673
+        ],
+        "s": 6.076491322368383,
+        "segs": 94,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          139.91304422987068,
+          -343.99596800973814
+        ],
+        "s": 6.099899114109576,
+        "segs": 110,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          139.92060415661487,
+          -344.1197466464892
+        ],
+        "s": 2.041798430494964,
+        "segs": 46,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.08530497472462387,
+      "far": 0.125856258380684,
+      "quad": 0.001905171474414892,
+      "bs1": 0.3633913012651218
+    }
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "corner": "radial_max",
+    "params": {
+      "radial_factor": 1.5
+    },
+    "soil": "A",
+    "axes": {
+      "auto": {
+        "z": [
+          75.73918998289524,
+          37.6876082106519
+        ],
+        "s": 23.469571514055133,
+        "segs": 568,
+        "warnings": []
+      },
+      "bs1": {
+        "z": [
+          75.56455301658573,
+          37.16359644888393
+        ],
+        "s": 17.285110348835588,
+        "segs": 568,
+        "warnings": []
+      },
+      "node": {
+        "z": [
+          75.75340425840652,
+          37.76481678760862
+        ],
+        "s": 30.489214406348765,
+        "segs": 630,
+        "warnings": []
+      },
+      "far": {
+        "z": [
+          75.75326370589302,
+          37.7598009903635
+        ],
+        "s": 99.5594966839999,
+        "segs": 1673,
+        "warnings": []
+      },
+      "quad": {
+        "z": [
+          75.73965164690249,
+          37.69240426208606
+        ],
+        "s": 26.1507800295949,
+        "segs": 568,
+        "warnings": []
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": 0.07850611430960318,
+      "far": 0.07355179890054182,
+      "quad": 0.0048182199010268776,
+      "bs1": 0.5523462650122317
+    }
+  },
+  {
+    "corner": "worst_dense",
+    "params": {
+      "n_radials": 4,
+      "depth": 0.5,
+      "length_factor": 1.2,
+      "radial_factor": 1.5
+    },
+    "soil": "B",
+    "axes": {
+      "auto": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "bs1": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "node": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "far": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.0124 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      },
+      "quad": {
+        "error": "ValueError: this deck's buried wires reach a below/below pair separation of R1 = 38.007 m (7.98 in-medium wavelengths), past the 19.0579 m (4 in-medium wavelengths, lambda_m = 4.764 m) the below/below remainder is tabulated to. There is no honest clamp out there: unlike the reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)",
+        "trace_tail": "he reflected-wave remainder above the interface, the below/below remainder GROWS relative to the direct term with range (measured 12x and 168x direct+image at working range, momwire#553 U2), so freezing the surface amplitude would return a confident wrong number. Shrink the buried structure, or densify the far annulus of the below/below grid (a recorded follow-up, and it wants the C++ twin first)\n"
+      }
+    },
+    "warnings_seen": [],
+    "deltas": {
+      "node": null,
+      "far": null,
+      "quad": null,
+      "bs1": null
+    }
+  }
+]
