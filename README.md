@@ -93,7 +93,7 @@
 | src/antennaknobs/designs/verticals/\_\_init\_\_.py                   |        0 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/bobtail.py                        |       15 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/bruce.py                          |       35 |        0 |    100% |           |
-| src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       30 |        0 |    100% |           |
+| src/antennaknobs/designs/verticals/buried\_radial\_vertical.py       |       34 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/challenger.py                     |       25 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/dominator.py                      |       23 |        0 |    100% |           |
 | src/antennaknobs/designs/verticals/elevated\_buried\_counterpoise.py |       24 |        0 |    100% |           |
@@ -173,7 +173,7 @@
 | src/antennaknobs/web/server.py                                       |     1056 |       97 |     91% |104-106, 191-195, 326-327, 394, 700-702, 813, 868, 971-974, 1282, 1337, 1393, 1411-1413, 1473, 1499, 1512-1515, 1527-1539, 1546, 1571, 1598-1612, 1661-1663, 1711, 1725, 1754-1755, 1780-1781, 1813, 1893-1900, 1912-1925, 1947, 1950-1956, 2010, 2038, 2041-2042, 2118, 2136-2139, 2155, 2315, 2325, 2627, 2723, 2758, 2760, 2764-2765, 2778, 2789, 2793, 2845-2846, 2869-2877 |
 | src/antennaknobs/web/user\_designs.py                                |       62 |        6 |     90% |59-60, 91-92, 97-98 |
 | src/antennaknobs/wire\_catalog.py                                    |      124 |        0 |    100% |           |
-| **TOTAL**                                                            | **13492** |  **854** | **94%** |           |
+| **TOTAL**                                                            | **13496** |  **854** | **94%** |           |
 
 
 ## Setup coverage badge
