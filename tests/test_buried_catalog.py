@@ -514,7 +514,13 @@ def _razor_solver(builder):
 
 _RAZOR_BURIED_CASES = (
     # (builder, the refusal cell(s) the deck reaches while `buried` is False)
-    pytest.param(BuriedRadialVertical, ("buried", "crossing"), id="brv-crossing"),
+    # Since #1109 the bonded screen's node is a DECLARED junction, so razor
+    # reaches its declared-junction cell (`buried+crossing_junction`,
+    # momwire#850) rather than the mid-span `buried+crossing` one; the plain
+    # `buried` cell is always in the reached set below.
+    pytest.param(
+        BuriedRadialVertical, ("buried", "crossing_junction"), id="brv-crossing"
+    ),
     pytest.param(ElevatedBuriedCounterpoise, ("buried",), id="ebc-detached-screen"),
     pytest.param(BuriedDipole, ("buried",), id="bd-wholly-below"),
 )
@@ -525,12 +531,13 @@ _RAZOR_BURIED_CASES = (
 def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
     """While razor's `buried` cell is False, each buried deck refuses at
     construction with exactly a sentence the row DECLARES for a cell the
-    geometry reaches — `buried` for all three, `buried+crossing` too for the
-    bonded screen. Which of the two the bonded screen gets depends on the
-    order razor's constructor walks its refusals: before momwire#833 it
-    detected the crossing first and refused with the crossing sentence,
-    since #833 it refuses at the `buried` cell before crossing detection
-    (#1105). Both are the declared refusal-by-name this gate is for; an
+    geometry reaches — `buried` for all three, `buried+crossing_junction`
+    too for the bonded screen. Which of the two the bonded screen gets
+    depends on the order razor's constructor walks its refusals: before
+    momwire#833 it detected the crossing first, since #833 it refuses at the
+    `buried` cell unless the node is a declared junction (#1105), and since
+    #1109 the node IS declared, so razor reaches its declared-junction cell
+    (momwire#850). Both are the declared refusal-by-name this gate is for; an
     undeclared sentence, or none, is the failure. Once the cell is True,
     razor must label the same deck the way bspline does — the crossing
     serve's fan, the detached screens' wholly-below wires — so the flip is
