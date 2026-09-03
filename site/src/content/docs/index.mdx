@@ -25,42 +25,40 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.66.0" icon="star">
-  **The ceiling we told you about last release is gone.** v0.65.0 said
-  plainly that `n_qp_pair = 8` was "the current ceiling, not a converged
-  answer" — where momwire's accelerated kernel stopped, not where the
-  physics settled. momwire 0.46.0 removed that limit
-  ([#762](https://github.com/stevenmburns/momwire/issues/762),
-  [#769](https://github.com/stevenmburns/momwire/issues/769)), and the
-  simulator's control now goes to **32**.
+<Card title="New in v0.67.0" icon="star">
+  **Underground, the reference is now a measurement.** Brown, Lewis and
+  Epstein's 1937 buried-radial screens — base resistance against radial
+  count, measured with a meter at 3 MHz — are gated in momwire 0.47.0
+  ([#838](https://github.com/stevenmburns/momwire/issues/838)) for both the
+  45 ft and 135 ft radial lengths. It is the first below-ground reference in
+  either project that was not another program's output.
 
-  **What that was costing.** On a buried radial vertical, the default of 8
-  sits **3.1 Ω from the converged answer** — essentially all of it
-  reactance, with resistance pinned at 75.85 Ω while X runs 43.6 Ω down to
-  40.5 Ω. Turning the knob to 32 closes that to 0.3 Ω. If you model ground
-  systems, this is the release where that error becomes something you can
-  actually dial out.
+  **Two readings of one engine.** Below ground the engine is the B-spline
+  basis at degree 2, and its second reading is the same solver at degree 1:
+  the pair agrees within about 1 Ω on every buried anchor and on the
+  catalog's buried radial vertical, and the
+  [validation page](/reference/validation/) now says so, with the table.
+  That replaces the NEC-5 comparison underground — deliberately. NEC-5's
+  interface node was measured against the same 1937 curves this week and
+  comes out nearly flat in radial count; we built the NEC-5-style crossing
+  fill, measured it, and chose not to ship it as the buried engine
+  ([#813](https://github.com/stevenmburns/momwire/issues/813)). `razor-2p`
+  stays what it is: the above-ground twin of licensed NEC-5.
 
-  **And it is nearly free now.** A separate fix stopped the buried fill
-  from leaving the accelerator on every below-surface pair, so the whole
-  ladder from 4 to 32 costs about the same as it used to cost at 8.
+  **It now tells you its accuracy class.** Building a `razor-2p` solver
+  states, once, how far its path-tested rows sit from converged at the
+  catalog mesh — median 3.3 %, tail 34 %, halving per mesh doubling
+  ([#845](https://github.com/stevenmburns/momwire/issues/845)). The number
+  comes from a committed sweep of 88 decks, not from prose.
 
-  **The knob is honest about itself, too.** It matters on decks with wire
-  at or below the ground and does almost nothing on decks standing clear —
-  0.02 Ω between 8 and 32 on an elevated antenna. The tooltip now says so,
-  because trying it on a dipole, seeing nothing move, and concluding the
-  control is broken was a reasonable thing to do.
-
-  **Razor joins the engine picker**, as `razor-2p` — the tent basis tested
-  by NEC-5's razor-blade rule, offered as the two-point lane only.
-
-  **We also attacked our own published result.** The
-  [buried radials](/advanced/buried-radials/) case study's central finding
-  — a disagreement that *grows* with radial count — was measured at the
-  old quadrature, and the error we had just characterised had the same
-  shape. Re-run at converged quadrature, it held: the quadrature part is
-  common-mode, the same with four buried radials as with none. The page
-  now carries the converged numbers.
+  **Buried decks solve at converged quadrature out of the box.** The
+  cross-edge order now follows the geometry: 32 when any wire sits below the
+  interface, 8 otherwise, and the hosted simulator's control defaults to
+  *auto* so that decision reaches you
+  ([#760](https://github.com/stevenmburns/momwire/issues/760)). On the
+  graded four-radial screen that moves the answer 2.5 Ω toward its
+  converged value for a 1–2 % cost; on decks standing clear of the ground it
+  changes nothing.
 </Card>
 
 ## The whole pitch, in one line
