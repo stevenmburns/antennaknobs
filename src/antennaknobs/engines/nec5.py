@@ -40,10 +40,11 @@ import numpy as np
 
 from momwire import insulation_inductance
 
-from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wires
+from ..engine import FarField, SimulationEngine, WireCurrents
 from ..network import (
     Driven,
     DrivenCurrent,
+    GradedSegments,
     Load,
     PortAtVertex,
     PortOnWire,
@@ -84,6 +85,36 @@ class NEC5Error(RuntimeError):
 
 def _num(x) -> str:
     return f"{float(x):.6E}"
+
+
+def _expand_graded(w):
+    """One authored wire as the GW cards it needs: ``[(p0, p1, n_seg), ...]``.
+
+    An ordinary wire is one card and is emitted byte-identically to what this
+    writer emitted before the expansion existed. A `graded_wire`
+    (`GradedSegments`, momwire#674's node grading) becomes ONE CARD PER PANEL,
+    chained end to end at the panel boundaries, each with that panel's own
+    segment count — the same vertices and the same counts
+    `flat_wires_to_polylines` puts inside a momwire polyline, so all three
+    engines mesh the deck identically (issue #1108).
+
+    This is what a card deck can express and a polyline cannot: NEC has no
+    per-edge count within one GW, so the grading has to become geometry. The
+    cost is that tags no longer equal "authored wire index + 1", which is why
+    every tag-addressed site in this engine goes through `_tag_of`.
+    """
+    n_seg = w.n_seg
+    if not isinstance(n_seg, GradedSegments):
+        return [
+            (np.asarray(w.p0, dtype=float), np.asarray(w.p1, dtype=float), int(n_seg))
+        ]
+    p0 = np.asarray(w.p0, dtype=float)
+    p1 = np.asarray(w.p1, dtype=float)
+    bounds = [0.0, *n_seg.fracs, 1.0]
+    return [
+        (p0 + bounds[k] * (p1 - p0), p0 + bounds[k + 1] * (p1 - p0), int(c))
+        for k, c in enumerate(n_seg.counts)
+    ]
 
 
 class NEC5Engine(SimulationEngine):
@@ -212,7 +243,17 @@ class NEC5Engine(SimulationEngine):
         # the generic graded-mesh refusal is the fallback for graded
         # decks with no bundle.
         self._check_no_coincident_wires()
-        refuse_graded_wires(self.tups, "NEC-5")
+        # A graded wire is expanded into consecutive GW cards (issue #1108)
+        # rather than refused, so `_cards` — not `_wires` — is what the deck
+        # is written from, and `_tag_of` is the only way to name a tag.
+        self._cards = []
+        self._tags_of = []
+        for i, w in enumerate(self._wires):
+            sub = _expand_graded(w)
+            self._tags_of.append(
+                tuple(range(len(self._cards) + 1, len(self._cards) + 1 + len(sub)))
+            )
+            self._cards.extend((i, *c) for c in sub)
         if self.ground is not None:
             self._check_geometry_against_ground()
 
@@ -446,6 +487,25 @@ class NEC5Engine(SimulationEngine):
         even parity exists to put a knot at the MIDDLE (issue #898)."""
         return self._vertex_only_names
 
+    def _tag_of(self, idx):
+        """The GW tag naming authored wire ``idx``.
+
+        Not ``idx + 1`` since issue #1108: a graded wire expands into one card
+        per panel, so every tag after the first graded wire shifts. A source
+        or load can never address a graded wire — the geometry layer rejects
+        an excitation or a port name on one, which is what makes "the FIRST
+        tag" the whole answer here rather than a per-knot search.
+        """
+        tags = self._tags_of[idx]
+        if len(tags) != 1:
+            raise NEC5Error(
+                f"wire {idx} is graded ({len(tags)} GW cards) and cannot host a "
+                "source or a load: a port inside a graded chain would re-mesh "
+                "the feed model, which is why the geometry layer rejects an "
+                "excitation or a port name on a graded wire"
+            )
+        return tags[0]
+
     def _source_address(self, idx, knot):
         """NEC-5 EX addressing (tag-relative segment, end code) for a knot
         of wire ``idx``: the center knot is end 2 of the middle segment
@@ -479,11 +539,10 @@ class NEC5Engine(SimulationEngine):
         else:
             df = 0.0
         lines = ["CM antennaknobs NEC5Engine deck", "CE"]
-        for i, w in enumerate(self._wires):
-            tag, r = i + 1, self._radii[i]
-            p0, p1 = w.p0, w.p1
+        for tag, (i, p0, p1, n_seg) in enumerate(self._cards, start=1):
+            r = self._radii[i]
             lines.append(
-                f"GW {tag} {w.n_seg} "
+                f"GW {tag} {n_seg} "
                 f"{_num(p0[0])} {_num(p0[1])} {_num(p0[2])} "
                 f"{_num(p1[0])} {_num(p1[1])} {_num(p1[2])} {_num(r)}"
             )
@@ -497,7 +556,7 @@ class NEC5Engine(SimulationEngine):
             # source occupies: end 2 of the middle segment for center
             # ports, the wire's own end knot for vertex ports (#910).
             seg, end = self._source_address(idx, knot)
-            where = f"{idx + 1} {seg} {end}"
+            where = f"{self._tag_of(idx)} {seg} {end}"
             if br.z is not None:
                 z = complex(br.z)
                 lines.append(f"LD 4 {where} {_num(z.real)} {_num(z.imag)} 0.")
@@ -510,7 +569,7 @@ class NEC5Engine(SimulationEngine):
         for idx, ex_type, value, knot in self._sources:
             seg, end = self._source_address(idx, knot)
             lines.append(
-                f"EX {ex_type} {idx + 1} {seg} {end} "
+                f"EX {ex_type} {self._tag_of(idx)} {seg} {end} "
                 f"{_num(value.real)} {_num(value.imag)}"
             )
         lines.append(f"FR 0 {freqs.size} 0 0 {_num(freqs[0])} {_num(df)}")
@@ -790,9 +849,17 @@ class NEC5Engine(SimulationEngine):
         # tag-relative — translate before comparing. End-knot sources (#898)
         # translate through the same offsets: their row prints the END
         # segment's absolute number (segment 1 or n_seg of the tag).
-        offsets = np.cumsum([0] + [w.n_seg for w in self._wires[:-1]])
+        # Over the CARDS, not the authored wires (issue #1108): a graded wire
+        # contributes several, so "segments before this tag" is a card-level
+        # sum and the tag is `_tag_of`'s.
+        card_segs = [n for _i, _a, _b, n in self._cards]
+        offsets = np.cumsum([0] + card_segs[:-1])
         expect = [
-            (idx + 1, int(offsets[idx]) + self._source_address(idx, knot)[0])
+            (
+                self._tag_of(idx),
+                int(offsets[self._tags_of[idx][0] - 1])
+                + self._source_address(idx, knot)[0],
+            )
             for idx, _, _, knot in self._sources
         ]
         got = [(tag, seg) for tag, seg, _ in rows]
@@ -882,15 +949,29 @@ class NEC5Engine(SimulationEngine):
 
         out = []
         for i, w in enumerate(self._wires):
-            cur_per_seg = np.asarray(per_tag.get(i + 1, []), dtype=np.complex128)
-            if cur_per_seg.shape[0] != w.n_seg:
+            # One authored wire may be several tags (issue #1108); its
+            # currents are their concatenation, in card order, and its knots
+            # are the panel boundaries rather than a uniform linspace.
+            sub = _expand_graded(w)
+            cur_per_seg = np.concatenate(
+                [
+                    np.asarray(per_tag.get(tag, []), dtype=np.complex128)
+                    for tag in self._tags_of[i]
+                ]
+                or [np.zeros(0, dtype=np.complex128)]
+            )
+            n_total = sum(c[2] for c in sub)
+            if cur_per_seg.shape[0] != n_total:
                 raise NEC5Error(
-                    f"tag {i + 1}: expected {w.n_seg} segment currents, "
-                    f"got {cur_per_seg.shape[0]}"
+                    f"tags {list(self._tags_of[i])}: expected {n_total} segment "
+                    f"currents, got {cur_per_seg.shape[0]}"
                 )
-            knots = np.linspace(w.p0, w.p1, w.n_seg + 1)
-            knot_cur = np.zeros(w.n_seg + 1, dtype=np.complex128)
-            if w.n_seg >= 2:
+            knots = np.concatenate(
+                [np.linspace(a, b, n + 1)[:-1] for a, b, n in sub]
+                + [np.asarray(sub[-1][1], dtype=float)[None, :]]
+            )
+            knot_cur = np.zeros(n_total + 1, dtype=np.complex128)
+            if n_total >= 2:
                 knot_cur[1:-1] = 0.5 * (cur_per_seg[:-1] + cur_per_seg[1:])
             if cur_per_seg.shape[0] >= 1:
                 if endpoint_count.get(_key(w.p0), 0) >= 2:

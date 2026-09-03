@@ -20,11 +20,17 @@ class FarField(NamedTuple):
 
 
 def refuse_graded_wires(tups, engine_name):
-    """Card-based engines take one uniform count per wire; the graded-mesh
-    spelling (``GradedSegments``, momwire#674's node grading) is
-    momwire-only today. Expanding to GW sub-wires is possible in principle
-    but shifts every downstream tag (EX/LD/NT reference wires by index),
-    so these engines refuse by name instead."""
+    """A card deck takes one uniform count per wire; the graded-mesh spelling
+    (``GradedSegments``, momwire#674's node grading) carries a count per EDGE.
+
+    NEC-5 expands a graded wire into consecutive GW cards since issue #1108 —
+    one per panel, chained, each with its own count — and renumbers every
+    tag-addressed site through `NEC5Engine._tag_of`. **PyNEC is the caller
+    that is left**, and the reason is the one this docstring always gave: a
+    NEC-2 deck's EX/LD/NT cards reference wires by tag, and this package does
+    not renumber them, so expanding there would silently move every downstream
+    reference. Doing for PyNEC what #1108 did for NEC-5 is a real change, not
+    a config line."""
     for i, t in enumerate(tups):
         if isinstance(as_wire(t).n_seg, GradedSegments):
             raise NotImplementedError(

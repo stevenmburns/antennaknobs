@@ -116,6 +116,11 @@ def test_graded_wire_cannot_carry_a_feed_or_name():
         flat_wires_to_polylines([named, Wire((0, 0, 1.0), (0, 0, 2.0), 4)])
 
 
-def test_card_engines_refuse_by_name():
+def test_the_remaining_card_engine_refuses_by_name():
+    """PyNEC is the only caller left (issue #1108): NEC-5 now EXPANDS a graded
+    wire into consecutive GW cards instead of refusing it, so the same deck
+    meshes identically on all three engines. The helper's sentence is still
+    the right answer for a NEC-2 deck, whose EX/LD/NT tags this package does
+    not renumber."""
     with pytest.raises(NotImplementedError, match="graded-mesh spelling"):
-        refuse_graded_wires([graded_wire((0, 0, 0), (0, 0, 1.0), toward="p0")], "NEC-5")
+        refuse_graded_wires([graded_wire((0, 0, 0), (0, 0, 1.0), toward="p0")], "PyNEC")
