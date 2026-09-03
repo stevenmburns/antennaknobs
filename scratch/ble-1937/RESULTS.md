@@ -59,3 +59,57 @@ Readings are from `ble_fig36_crop.png` (260 dpi crop of pdf page 142): the resis
 
 Cross-check, N6LF (QEX Mar/Apr 2009 part 3, Table 1; 7.2 MHz; 33 ft No. 18 radials ON the surface; σ 0.015–0.02, εr 30): 64 → 39.7−1.2j, 32 → 42.9+2.1j, 16 → 56.1+6.2j, 8 → 85.5+8.0j, 4 → 137+14.9j. QEX Jan/Feb 2009 part 2, Table 4 (33 ft): 4 → 89.8, 8 → 51.8, 16 → 40.5.
 
+
+## 2026-09-03 — G1-A: the 1.75-vs-6.7 Ω separation is the ε_r assumption
+
+The paper states σ = 2e-3 S/m and no permittivity; the gate assumes ε_r = 15.
+At that soil momwire separates the 45 ft and 135 ft screens by 1.75 Ω at
+N = 113 where the figures separate by 6.7, with the 45 ft series reading low.
+Sweeping ε_r and σ at N = 30 (momwire main 84211f8 / v0.47.0, `ble_deck`,
+q = 16, auto default otherwise; laptop):
+
+45 ft, N = 30 (Fig. 37 reads ~31 on the plateau):
+
+| ε_r | σ 0.001 | σ 0.002 | σ 0.005 | σ 0.01 |
+|---|---|---|---|---|
+| 5 | 30.90 | **31.53** | 30.25 | 29.14 |
+| 15 | 26.94 | 28.51 | 29.47 | 28.99 |
+| 30 | 27.53 | 27.94 | 28.72 | 28.74 |
+
+135 ft at N = 30 (Fig. 36 reads 30): ε_r 5 / σ 0.002 → 29.72 (ε_r 15 → 30.52).
+ε_r 5 with σ ≥ 0.005, and ε_r 30 at σ 0.002, refuse the 135 ft screen on the
+4 λ_m below/below cap (λ_m grows as |ε̃| falls).
+
+Both ladders at ε_r 5, σ 0.002 (the paper's σ):
+
+| N | 45 ft momwire | Fig. 37 | 135 ft momwire | Fig. 36 |
+|---|---|---|---|---|
+| 2 | 83.59 | ≥ 50 | | ≥ 50 |
+| 4 | 54.03 | | | |
+| 8 | 40.40 | | | |
+| 15 | 34.58 | | 35.33 | 34 |
+| 30 | 31.53 | ~31 | 29.72 | 30 |
+| 60 | 30.12 | | 26.03 | 26 |
+| 113 | 29.47 | ~31 | 23.96 | 24.3 |
+
+Separation at N = 113: **5.51 Ω** against the measured 6.7 (1.75 at ε_r 15).
+Every 135 ft rung is within 1.3 Ω of the figure and the plateau rungs within
+0.35; the 45 ft plateau sits 1.5 Ω low at N = 113 and on the figure at N = 30.
+
+Reading: a single permittivity in the plausible band for a σ = 0.002 S/m soil
+(dry-to-medium ground) brings nine readings across two radial lengths to
+within the figures' reading error, so the residual the gate carried as
+"everything else" is mostly the ε_r term, and it acts through the SHORT
+screen — the loss outside a 0.137 λ screen is set by the soil, and the long
+screen covers that region. This is a one-parameter fit, so the gate keeps its
+a-priori ε_r = 15 and its measurement-built envelope (the rule: envelopes
+come from the measurement, not from what makes the test pass); what changes
+is the record — the envelope's ±3.2 "everything else" term is now mostly
+attributable. A follow-up gate could marginalise ε_r over the plausible band
+instead of fixing it; that is a design question for the BLE test, not a
+result here.
+
+Not done: N = 4 and 8 at 135 ft (cheap; not needed for the reading), and the
+ε_r 5 ladder on the 90 ft radials (Fig. 36's middle series, not yet in the
+test). The 45 ft N = 113 solve is 386 s and the 135 ft one 365 s on the
+laptop.
