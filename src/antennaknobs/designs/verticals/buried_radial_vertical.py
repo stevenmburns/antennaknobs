@@ -281,12 +281,33 @@ class Builder(AntennaBuilder):
             # Radiator height as a fraction of the design quarter-wave.
             "length_factor": 1.0,
             # Radials, and their length relative to the radiator. The textbook
-            # screen uses equal-length radials, but the DEFAULT is a truncated
-            # 0.6 (~21 ft on 40 m) because momwire tabulates the below/below
-            # remainder to 2 in-medium wavelengths: full-size opposite radials
-            # span 2.13 lambda_m over eps_r 13 soil and REFUSE by name. Long
-            # radials over dense/conductive soil hit the same cap — shrink
-            # this knob when they do.
+            # screen uses equal-length radials; the DEFAULT is a truncated 0.6
+            # (~21 ft on 40 m).
+            #
+            # The reason that default was chosen has since LAPSED, and the
+            # number is left alone here rather than quietly changed. The
+            # original comment read: momwire tabulates the below/below
+            # remainder to 2 in-medium wavelengths, so full-size opposite
+            # radials span 2.13 lambda_m over eps_r 13 soil and refuse by
+            # name. **momwire#847 moved that cap from 2 to 4 lambda_m**, and
+            # full-size radials now serve over the nominal soil. Measured
+            # 2026-09-03 (issue #1131), radial_factor 1.0 / 1.2 / 1.5 all
+            # solve over eps_r 13, sigma 0.005.
+            #
+            # The cap is still real, and it is a SOIL question rather than a
+            # length one. Two opposite tips sit 2*radial_factor*length_factor
+            # *(lambda_0/4) apart and must stay inside 4*lambda_m, so the deck
+            # serves iff radial_factor*length_factor <= 8/|n|. At 7.1 MHz:
+            #
+            #   eps_r 13, sigma 0.005  |n| 4.26  ->  <= 1.88   full size SERVES
+            #   eps_r 20, sigma 0.03   |n| 8.86  ->  <= 0.90   full size REFUSES
+            #   eps_r  5, sigma 0.001  |n| 2.37  ->  <= 3.38   full size SERVES
+            #
+            # (Boundary verified by solving across it: over eps_r 20 soil,
+            # 0.85 serves and 0.95 refuses.) So the knob that has to shrink is
+            # the one over dense, conductive ground — where 0.6 is still
+            # right — and not the one over average dirt. Whether the default
+            # should move is a design call, not a docs one; see #1131.
             "n_radials": 4,
             "radial_factor": 0.6,
             # Burial depth, metres. 0.15 m is a spade's depth, the depth the
