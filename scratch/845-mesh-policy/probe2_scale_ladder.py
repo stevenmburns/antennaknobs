@@ -20,6 +20,10 @@ construction-time advisory. Either way the number wanted here is the one a
 policy would be written against, so it is worth one cheap ladder to stop
 guessing.
 
+THE RULE, in one line: a |dZ| is only meaningful to the extent its reference
+has settled -- a row whose reference moved by more than a THIRD of the
+tolerance being tested is an artifact of the reference, not a measurement.
+
 Reference choice. Both solvers are scored against **bspline d2 at the finest
 rung**, not against each own's finest: the question is distance from the
 converged answer, and #845 already establishes bspline d2 as the converged one
