@@ -83,12 +83,15 @@ spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
 
   * The DEFAULT (connected, hub) convention above: N radials to a buried hub,
     ONE rise to the node, junction-joined to the monopole at z = 0 — the
-    crossing junction. **Every engine here takes it.** momwire serves it (the
-    #524 phase-2 crossing serve), razor constructs it and serves it once
-    momwire#814 flips its buried cell, and NEC-5 builds the same conductor
-    (issue #1108; the graded wires reach it as consecutive GW cards, issue
-    #1110). What the engines then DISAGREE about is the node model, not the
-    geometry — see below.
+    crossing junction. **Every engine here takes the geometry.** momwire's
+    B-spline serves it (the #524 phase-2 crossing serve), NEC-5 builds the
+    same conductor (issue #1108; the graded wires reach it as consecutive GW
+    cards, issue #1110), and razor-2p constructs it and REFUSES it by name:
+    by decision (2026-09-03, momwire#813/#814) razor-2p is the above-ground
+    twin of licensed NEC-5 and B-spline is the buried and contact engine —
+    the underground reference is measurement (Brown-Lewis-Epstein 1937,
+    momwire#838), not the binary. What momwire and NEC-5 then DISAGREE about
+    is the node model, not the geometry — see below.
   * The ``bundle`` variant: the pre-#1108 connected spelling, N coincident
     rises. momwire's B-spline crossing serve is the only thing that solves
     it — the NEC-5 binary silently prints garbage for coincident wires
