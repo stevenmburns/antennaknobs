@@ -93,6 +93,23 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    binaries. Under `make build` that mistake is impossible in two independent
    ways.
 
+   **A build that SUCCEEDS can lie too, so the rule is rebuild after any
+   PULL — not merely after a failed compile.** This is a third shape, and
+   `make build` does not protect against it, because nothing about the
+   invocation is wrong. Reported from a Haswell / g++ 11.4 tree at momwire
+   `main`: the build ran clean and exited 0, and the staleness surfaced only
+   at import time, as
+
+   ```
+   RuntimeError: ... stale _sommerfeld_below.py
+   ```
+
+   from a `.so` built before momwire#838 in a tree that had since been pulled
+   past it. So "the build succeeded" is not evidence the extension matches the
+   sources it is sitting next to; only a build that ran *after* the pull is.
+   Pulling and skipping the build because the last one was fine is exactly the
+   case this catches.
+
    **Compile lines are not proof of a rebuild, and the exit status is proof
    of nothing** — unless `MOMWIRE_REQUIRE_ACCEL=1` is set, which is the whole
    reason step 5 goes through `make build`. Without it `setup.py` catches a
