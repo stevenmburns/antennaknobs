@@ -18,9 +18,15 @@ release PR). Three places, one commit — all of them, every time:
 1. `pyproject.toml` → `momwire==X.Y.Z` (EXACT pin, never a floor)
 2. `Dockerfile` → `pip install "momwire==X.Y.Z"`
 3. The `momwire` submodule pointer → checkout the release's bump commit,
-   `git add momwire`. CI won't catch a stale pointer (`--remote`); a fresh
-   dev clone silently loses its editable momwire to the PyPI wheel
-   (learned in PRs #268/#270 — see the README's drift check).
+   `git add momwire`. A fresh dev clone silently loses its editable
+   momwire to the PyPI wheel when the pointer is stale (learned in PRs
+   #268/#270 — see the README's drift check).
+
+Between releases the pointer is ALLOWED to run ahead on momwire `main`
+(CI's test lane builds the submodule editable at the recorded pointer; the
+PyPI pin is what users get — two contracts, see CLAUDE.md), moved in its
+own pointer PR. The release is where they re-converge: this step moves the
+pointer to the TAG, never leaves it on an unreleased commit.
 
 Wait for PyPI to serve the momwire version before opening the PR (the
 wheel-smoke job races the publish, ~9 min after the momwire tag). If the
