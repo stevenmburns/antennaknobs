@@ -96,17 +96,37 @@ one:
     spelling it does serve.
 
 Each engine serves exactly one convention and refuses the other, and each
-refusal names the spelling that engine DOES serve. Comparing the default
-through momwire against ``detached`` through NEC-5 compares the two
-JUNCTION CONVENTIONS, not two solvers on one antenna — at this design's
-default knobs over eps_r 13 / sigma 0.005 soil the pair reads
-75.86 + 43.58j ohm (connected, momwire at its n_qp_pair = 8 default)
-against ~50.6 + 24.0j ohm (detached, NEC-5 at 252 segments per
-quarter-wave, still settling by ~0.1 ohm per density step), ~30 ohm
-apart. That gap is adjudicated physics (momwire#524 phase 2), never a
-bug to gate away. Read QUADRATURE below before quoting either the
-momwire number or the size of the gap: both move with n_qp_pair, and
-the "~35 ohm" this paragraph used to claim was the n_qp_pair = 4 print.
+refusal names the spelling that engine DOES serve. But the two spellings
+are NOT why the engines disagree. Measured 2026-09-02 on the licensed
+NEC-5 binary at this design's default knobs over eps_r 13 / sigma 0.005
+(scratch/ble-1937/RESULTS.md, momwire#838, #1104): NEC-5 reads
+49.78 + 20.95j ohm with the radials CONNECTED to the base through one
+15 cm rise (the single-rise spelling it accepts; it refuses only the
+coincident bundle) and 50.11 + 21.46j ohm detached. The same answer
+either way: NEC-5's interface node injects the base current into the
+soil as a point electrode (momwire#524 phase 2, momwire#567), so a
+screen bonded to the mast and a screen lying loose underneath cost it
+the same. momwire's connected serve reads 75.86 + 43.58j ohm at its
+n_qp_pair = 8 default, ~30 ohm away, and that gap is NEC-5's node, not
+a convention.
+
+The measurement decides whose radial-count law is physical. Brown,
+Lewis and Epstein (Proc. IRE, June 1937, Fig. 36; buried radials at
+3 MHz) measured base resistance falling from >= 50 ohm at 2 radials to
+24 ohm at 113; N6LF (QEX, 2009) measured 137 / 86 / 56 / 43 / 40 ohm
+at 4 / 8 / 16 / 32 / 64 surface radials. NEC-5 on BLE's exact geometry
+spans only 36 -> 28 ohm; momwire's crossing serve falls 114 / 81 / 62 /
+50 ohm at N = 2 / 4 / 8 / 16 on a deep screen both engines serve. So
+quote momwire's number as the connected answer, and do NOT quote the
+NEC-5 ``detached`` print as "the other convention's" answer to the same
+antenna: it is a different node model, and its flat law is the wrong
+shape. The connected convention still has no spelling both engines
+serve, because antennaknobs' polyline walk turns a single rise into a
+degree-2 node (see above) and momwire refuses the mid-span crossing.
+
+Read QUADRATURE below before quoting the momwire number: it moves with
+n_qp_pair, and the "~35 ohm" an earlier version of this paragraph
+claimed for the gap was the n_qp_pair = 4 print.
 
 QUADRATURE — the axis with the largest error here, and the one the mesh
 envelope below does not cover. This deck is exactly momwire#760's class:
