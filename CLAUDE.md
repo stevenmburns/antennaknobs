@@ -167,9 +167,24 @@ worth keeping readable.
 `momwire/` is a git submodule with **its own** ruff config, excluded here via
 `extend-exclude`. Two hazards follow:
 
-- **Never `git add -A`.** It sweeps the momwire submodule pointer (kept
-  intentionally modified during development) and untracked `scratch/*.jsonl`
-  into the commit. Stage explicit paths.
+- **Never `git add -A`.** It sweeps the momwire submodule pointer and
+  untracked `scratch/*.jsonl` into the commit. Stage explicit paths.
+- **The submodule pointer is what the TESTS run against; the PyPI pin is
+  what USERS get. They are two contracts.** CI's test lane installs momwire
+  editable from the submodule at the recorded pointer and builds its C++;
+  the wheel-smoke lane and the hosted app's Dockerfile install
+  `momwire==X.Y.Z` from PyPI. So the pointer may (and normally does) run
+  AHEAD of the release on momwire `main`, moved deliberately in its own
+  small "pointer" PR (`git add momwire` is the whole diff) whenever
+  antennaknobs gates need a momwire change that has landed but not shipped
+  — that is how those gates run on CI without a momwire release and
+  without a second lane. `tests/test_momwire_pin.py` holds the version
+  TRIPLE (pyproject pin / Dockerfile pin / the submodule's declared
+  version) equal, which stays true anywhere on momwire `main` until its
+  next version bump; at a momwire release the release skill moves all
+  three to the tag together, and the two contracts re-converge. Never move
+  the pointer as a side effect of another PR, never move it past a momwire
+  version bump without the pin, and never move it backwards.
 - **Always pass `gh -R <owner>/<repo>`.** The two repos have overlapping
   issue numbers and the shell's cwd persists across calls, so a bare
   `gh issue` can land on the wrong tracker.

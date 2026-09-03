@@ -12,6 +12,17 @@ adopts it are deliberately separate events, per the release skill). It only
 asserts the three recorded locations still agree with each other, so it
 stays green across a correctly-executed bump and fails the moment one of the
 three places is missed.
+
+TWO CONTRACTS, NOT ONE (2026-09-03). The submodule pointer is what CI's test
+lane builds and runs the suite against (editable, C++ from source); the
+pyproject/Dockerfile pin is what users and the hosted app install from PyPI.
+Between momwire releases the pointer runs AHEAD on momwire `main`, moved in
+its own small pointer PR so gates that need unreleased momwire run on CI
+without a release and without a second lane; the triple still agrees
+because momwire's declared version only changes at its bump commit. At a
+momwire release all three move to the tag together and the two contracts
+re-converge. This test therefore checks VERSIONS, deliberately not the
+pointer's commit or tag.
 """
 
 from __future__ import annotations
