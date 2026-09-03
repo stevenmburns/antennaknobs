@@ -1192,6 +1192,54 @@ classes where the reference engine's convergence ladders are clean,
 ladder-limit agreement at the half-percent class with the
 with/without-radials coupling differential matching to about a milliohm.
 
+## Underground: what the second reading is
+
+Above ground, a number is checked against another engine. Underground that
+option is deliberately closed, so the structure is different and worth stating
+plainly. The **reference is a measurement** — Brown, Lewis and Epstein's 1937
+buried-radial curves, gated. The **engine** is momwire's bspline at degree 2.
+The **second reading** is bspline at degree 1: the same trunk, a different
+basis (a tent under Galerkin testing rather than a quadratic B-spline). It is
+not an independent engine and is not offered as one. `razor-2p` is the
+above-ground twin of licensed NEC-5 and is **not gated below ground, by
+decision**; the NEC family's buried-conductor weakness is the same reason no
+engine number is quoted for a fully buried fed element anywhere on this page.
+
+What the pair buys is a check that the answer is a property of the
+formulation rather than of one basis. |bs1 − bs2| at each anchor's own mesh,
+in ohms, against a 1.5 Ω bar:
+
+| anchor (fed above ground) | \\|bs1 − bs2\\| |
+| --- | --- |
+| crossing deck | 0.96 |
+| hub deck | 0.48 |
+| graded fan (far mesh only) | 0.40 |
+| BLE 45 ft, 2 radials | 0.08 |
+| BLE 45 ft, 15 radials | 0.24 |
+| BLE 45 ft, 30 radials | 0.24 |
+| catalog `buried_radial_vertical` | 0.55 |
+
+Gated in momwire as `tests/test_bspline_pair_g1b.py`, with degree 2 solved
+rather than read from the bank, so an ignored `degree` argument fails the
+distinct-bases check rather than passing quietly.
+
+Three things this is **not**, each of which it would be easy to read into it:
+
+- **Not an agreement with razor or NEC-5.** Neither is asked below ground, so
+  no such claim is available from these numbers.
+- **Not a convergence rate.** It is a separation at the anchor mesh. Degree 1
+  oscillates in R as the mesh refines — the crossing deck reads 139.58, 138.19,
+  138.56, 138.15 Ω at ×1/3/5/9 — so the pair agrees on a value, not on a
+  shrinking sequence, and quoting it as the latter would overstate it.
+- **Not a claim about decks fed *in* the soil.** Those are not impedance
+  anchors at any reachable mesh: both degrees still move ohms per rung, and
+  the movement is the fed segment's own length rather than the mesh around it
+  (about 20 Ω along the gap axis against 4.5 Ω along the side-refinement axis
+  on the same deck). The same relative movement appears in free space, so it
+  is the delta-gap source region's capacitance rather than anything the soil
+  does. Those decks are gated on shape — monotone and shrinking — which is
+  what they can honestly carry.
+
 ## Reproducibility
 
 - **The corpus is public.** The wild decks are collected from published
