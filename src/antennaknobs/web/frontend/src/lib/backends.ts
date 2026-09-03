@@ -140,7 +140,7 @@ export type FeedModel = "segment" | "point";
 // further knobs.
 export type BSplineOpts = {
   degree: 1 | 2;
-  nQpPair: number;
+  nQpPair: number | null; // null = auto (let momwire choose)
   feedSmoothingFactor: number | null; // null = sharp delta-gap
   useSingularEnrichment: boolean;
   // "raw"      → Φ_sing(t) = t·log(t), PR #45/#47 original shape.
@@ -168,11 +168,18 @@ export type BSplineOpts = {
 
 export const BSPLINE_DEFAULT_OPTS: BSplineOpts = {
   degree: 2,
-  // Cross-edge Gauss order. Tracks momwire's own default, which moved 4 -> 8 in
-  // 0.45.0 (momwire#743/#758). It matters that this is not left at 4: the value
-  // is sent UNCONDITIONALLY below, so a stale default here silently overrides
-  // the library's and no hosted user would see the change (antennaknobs#1064).
-  nQpPair: 8,
+  // Cross-edge Gauss order, or null for AUTO — the knob is then omitted from
+  // the request entirely and momwire picks per deck (32 with wire below the
+  // interface, 8 otherwise; momwire#863).
+  //
+  // Auto rather than a number because this value is sent only when non-null:
+  // a literal here is sent UNCONDITIONALLY and silently overrides the library
+  // for every hosted solve, which is antennaknobs#1064. That bit us exactly
+  // once more — #1064 was raised when this pinned 4 against a library default
+  // of 8, and pinning 8 then hid momwire#863's per-deck default the same way.
+  // A fixed number here cannot track a default that depends on the GEOMETRY,
+  // so the fix is to stop sending one rather than to update it again.
+  nQpPair: null,
   feedSmoothingFactor: null,
   useSingularEnrichment: false,
   enrichmentVariant: "raw",
@@ -384,7 +391,11 @@ export function modelOptionsForRequest(
     // accelerators read additional aca_tol/solve_tol from their own defaults.
     const o = opts.bspline ?? BSPLINE_DEFAULT_OPTS;
     out.degree = o.degree;
-    out.n_qp_pair = o.nQpPair;
+    // Omitted when auto, so momwire's own per-deck default decides. Never
+    // substitute a literal here: translating auto into 8 or 32 on this side
+    // re-creates the override #1064 is about, and AK does not know the
+    // geometry rule.
+    if (o.nQpPair != null) out.n_qp_pair = o.nQpPair;
     out.n_qp_source = o.nQpSource;
     out.feed_smoothing_factor = o.feedSmoothingFactor;
     out.use_singular_enrichment = o.useSingularEnrichment;

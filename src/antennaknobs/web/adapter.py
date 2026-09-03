@@ -470,6 +470,12 @@ def _enum_opt(*allowed: str):
 # tolerances, the server-owned swept_mem_mb, arbitrary constructor kwargs) is
 # dropped, so a hand-crafted request can't amplify per-solve CPU beyond what
 # the segment-count cap models.
+# Keys whose null means "let the solver decide" rather than "use null". Only
+# n_qp_pair today: momwire#863 made its default depend on whether the deck has
+# wire below the interface, which is a question this layer cannot answer and
+# must not pretend to.
+_AUTO_WHEN_NULL = frozenset({"n_qp_pair"})
+
 _HOSTED_MODEL_OPTIONS = {
     "degree": _int_in(1, 2),
     "n_qp_const": _int_in(1, 64),
@@ -481,14 +487,19 @@ _HOSTED_MODEL_OPTIONS = {
     # both released in momwire 0.46.0. Raising this ahead of that pin
     # re-introduces the crash of #1055 on the hosted deployment.
     #
-    # Why 32 and not higher: on the crossing-junction class the cross-edge
-    # error falls only as C/q (momwire#760), so the old cap of 8 sat 3.12 ohm
-    # from converged on `verticals.buried_radial_vertical` — essentially all of
-    # it reactive. 32 closes that to 0.30 ohm, and momwire#778 made the whole
-    # q=4..32 ladder cost about the same, so the ceiling is no longer paid for
-    # in wall time. 64 would buy a further 0.26 ohm if it is ever wanted.
+    # Why 32 and not higher. The figures this comment used to carry (8 sitting
+    # 3.12 ohm from converged, 32 closing it to 0.30) were measured on
+    # `buried_radial_vertical`'s **bundle** variant, the coincident-rise
+    # spelling antennaknobs#1108 retired; the shipped hub is 0.17 ohm at 8 and
+    # 0.0047 at 32 — a factor of 18 apart, so the old text overstated the knob
+    # by that much. It also called the class "C/q, first order", which
+    # momwire#760 closed as wrong: the error is superalgebraic (hub q^-3.11,
+    # bundle q^-1.78), a large constant rather than a lost rate. Raising the
+    # order is cheap on these decks (momwire#778), 32 is on the plateau for
+    # every spelling that ships, and 64 is what the retired bundle would want.
     # Hosted is a public endpoint, so SOME bound stays: this is a raise, not a
-    # removal.
+    # removal. Since momwire#863 the usual case is that this key is ABSENT —
+    # see `_AUTO_WHEN_NULL`.
     "n_qp_pair": _int_in(1, 32),
     "n_qp_source": _int_in(1, 64),
     "n_qp_sing": _int_in(1, 128),
@@ -530,6 +541,13 @@ def sanitize_model_options(req: dict) -> dict | None:
         return None
     if not isinstance(raw, dict):
         raise ValueError("model_options must be an object of solver keyword arguments")
+    # "auto": drop the key entirely rather than forwarding a null or
+    # substituting a number. Dropped on BOTH paths, including the verbatim
+    # local one, because a literal `None` reaching a momwire older than #863
+    # is a TypeError in the constructor, and because choosing a value here is
+    # exactly the override antennaknobs#1064 is about — the rule is geometric
+    # and it is momwire's to apply, not ours.
+    raw = {k: v for k, v in raw.items() if not (v is None and k in _AUTO_WHEN_NULL)}
     if not _HOSTED:
         return dict(raw) or None
     out = {}

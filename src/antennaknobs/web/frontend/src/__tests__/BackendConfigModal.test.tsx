@@ -183,7 +183,12 @@ describe("BackendConfigModal — per-backend knob visibility", () => {
   it.each(BSPLINE_PANEL)("shows the B-spline knobs for %s", (name) => {
     renderModal({ backend: name });
     expect(screen.queryByRole("tab", { name: "d=2" })).not.toBeNull();
-    expect(screen.queryByText(N_QP_PAIR)).not.toBeNull();
+    // The n_qp_pair CONTROL is the auto toggle at stock settings; the number
+    // field appears only once auto is unticked (antennaknobs#1064).
+    expect(
+      screen.queryByRole("checkbox", { name: /n_qp_pair: auto/ }),
+    ).not.toBeNull();
+    expect(screen.queryByText(N_QP_PAIR)).toBeNull();
   });
 
   it.each(NAMES.filter((n) => !BSPLINE_PANEL.includes(n)))(
@@ -370,6 +375,38 @@ describe("BSplineFields — degree and feed smoothing", () => {
     await user.type(numberField(N_QP_PAIR), "2"); // "4" -> "42"
     expect(onPatch).toHaveBeenCalledWith({
       bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: 42 },
+    });
+  });
+
+  it("hides the n_qp_pair field while the order is auto", () => {
+    renderModal({
+      backend: "bspline",
+      opts: bsplineOpts("bspline", { nQpPair: null }),
+    });
+    const box = screen.getByRole("checkbox", { name: /n_qp_pair: auto/ });
+    expect(box).toHaveProperty("checked", true);
+    expect(screen.queryByText(N_QP_PAIR)).toBeNull();
+  });
+
+  it("unticking auto pins a number, and reticking returns to auto", async () => {
+    const { user, onPatch } = renderModal({
+      backend: "bspline",
+      opts: bsplineOpts("bspline", { nQpPair: null }),
+    });
+    await user.click(screen.getByRole("checkbox", { name: /n_qp_pair: auto/ }));
+    expect(onPatch).toHaveBeenCalledWith({
+      bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: 8 },
+    });
+
+    const back = renderModal({
+      backend: "bspline",
+      opts: bsplineOpts("bspline", { nQpPair: 16 }),
+    });
+    await back.user.click(
+      screen.getAllByRole("checkbox", { name: /n_qp_pair: auto/ })[1],
+    );
+    expect(back.onPatch).toHaveBeenCalledWith({
+      bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: null },
     });
   });
 

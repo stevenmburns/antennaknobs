@@ -38,6 +38,10 @@ export type BackendConfigProps = {
   onClose: () => void;
 };
 
+// Shared by the auto toggle and the pinned field so the two cannot drift.
+const N_QP_PAIR_TITLE =
+  "Gauss-Legendre points per segment per axis for cross-edge pair moments. Auto lets momwire choose per deck — it uses a higher order when the deck has wire at or below the ground, and the shipped order otherwise. It matters only on decks that reach the ground: on a buried radial vertical the shipped order of 8 sits 0.17 \u03a9 from the converged answer, essentially all of it reactive, and 32 closes that to 0.005 \u03a9; on a deck standing clear of the ground the two differ by 0.02 \u03a9, so on a dipole expect to see nothing. Pin a number only to reproduce a specific run \u2014 raising it is cheap on these decks (momwire#778).";
+
 export function BackendConfigModal({
   slot,
   backend,
@@ -316,15 +320,27 @@ function BSplineFields({
           ))}
         </div>
       </div>
-      <NumberField
-        label="n_qp_pair (GL pts/axis)"
-        title="Gauss-Legendre points per segment per axis for cross-edge pair moments. It matters on decks with wire at or below the ground and does almost nothing on decks standing clear of it. On a buried radial vertical the default of 8 sits 3.1 Ω from the converged answer, essentially all of it reactive, and 32 closes that to 0.3 Ω; on an elevated deck 8 and 32 differ by 0.02 Ω, so if you are trying it on a dipole expect to see nothing. Raising it is cheap — q=4 through 32 cost about the same since momwire#778."
-        value={opts.nQpPair}
-        min={2}
-        max={32}
-        step={1}
-        onChange={(v) => onPatch({ nQpPair: v })}
-      />
+      <div className="field">
+        <label className="link-toggle" title={N_QP_PAIR_TITLE}>
+          <input
+            type="checkbox"
+            checked={opts.nQpPair == null}
+            onChange={(e) => onPatch({ nQpPair: e.target.checked ? null : 8 })}
+          />
+          n_qp_pair: auto
+        </label>
+        {opts.nQpPair != null && (
+          <NumberField
+            label="n_qp_pair (GL pts/axis)"
+            title={N_QP_PAIR_TITLE}
+            value={opts.nQpPair}
+            min={2}
+            max={32}
+            step={1}
+            onChange={(v) => onPatch({ nQpPair: v })}
+          />
+        )}
+      </div>
       <div className="field">
         <label className="link-toggle" title="Replace the delta-gap with a cos² source of width α·h_feed; removes the delta-gap's O(1/N) convergence cap so a straight-wire feed converges at the basis rate.">
           <input
