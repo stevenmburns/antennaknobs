@@ -26,6 +26,13 @@ Two categories are deliberately distinguished, because only one is a smell:
   helper and took the private path to it. These are the ones worth retiring;
   each needs a public momwire name to land first.
 
+The second category is not theoretical: `engines/momwire.py` reached through
+`_ground_spec` and `_medium_spec` for the two interface-side geometry answers,
+momwire#855 promoted both to public names, and this file's own
+`test_allowlist_has_no_stale_entry` is what required the lines to come out
+with the switch. That is the loop working as designed — an entry here is a
+debt with a named payoff, not a permanent exemption.
+
 Adding a line here is not forbidden — it is a deliberate act that says the
 private path is the only one available. If a public equivalent exists, use it.
 """
@@ -41,19 +48,6 @@ ALLOWED = {
     # Incidental reach-throughs: no public momwire equivalent today.
     ("builder.py", "momwire._ground_refl", "eps_tilde"),
     ("builder.py", "momwire._sommerfeld_below", "lambda_medium"),
-    # The buried capability gate (issue #1108, momwire#814). Both are the
-    # SHARED spelling of a question this engine must answer the same way
-    # momwire does — "is this wire below the interface", and "does this
-    # in-plane junction earn the crossing exemption" (momwire#848). Answering
-    # either with a local copy is the defect momwire#848 was filed for: two
-    # spellings of one geometric test, drifting apart until a refusal fires on
-    # a deck it was never about. Retiring these wants momwire to promote a
-    # public name for the pair; until then the private path is the only one
-    # that keeps the two sides in step. Both are imported lazily and behind a
-    # capability guard, so a momwire pin without them is skipped rather than
-    # broken (issue #1103).
-    ("engines/momwire.py", "momwire", "_ground_spec"),
-    ("engines/momwire.py", "momwire", "_medium_spec"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
     ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),
@@ -136,3 +130,26 @@ def test_the_adapter_uses_the_public_wire_to_element():
     adapter = (SRC / "web" / "adapter.py").read_text()
     assert "import _wire_to_element" not in adapter
     assert "from momwire.array_block import wire_to_element" in adapter
+
+
+def test_the_engine_uses_the_public_interface_geometry_names():
+    """The retirement momwire#855 unblocked, pinned the way #932's was.
+
+    `is`, not `==`: these must be the very objects the solvers call. Two
+    implementations that merely agree today is exactly how the two copies of
+    the exemption test momwire#848 merged got away with disagreeing for as
+    long as they did — so a momwire that reimplemented the public name as a
+    wrapper should fail here and be looked at, not pass quietly.
+    """
+    import momwire
+    from momwire import _ground_spec, _medium_spec
+
+    assert momwire.ground_touch_tol is _ground_spec.ground_touch_tol
+    assert (
+        momwire.grounded_crossing_exemption is _medium_spec.grounded_crossing_exemption
+    )
+
+    engine = (SRC / "engines" / "momwire.py").read_text()
+    assert "from momwire import ground_touch_tol, grounded_crossing_exemption" in engine
+    assert "import _ground_spec" not in engine
+    assert "import _medium_spec" not in engine

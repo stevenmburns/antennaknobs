@@ -197,3 +197,29 @@ def test_an_unaskable_row_reports_none_and_not_false():
     assert all(
         entry["buried"] is None for entry in r.values() if entry["kind"] == "momwire"
     )
+
+
+def test_a_pin_with_the_cell_but_without_the_public_names_is_unaskable(monkeypatch):
+    """The other end of the same trap, and a real window rather than a
+    hypothetical one.
+
+    The `buried` cell landed in momwire#853; the public `ground_touch_tol` /
+    `grounded_crossing_exemption` names landed two PRs later in momwire#855.
+    A pin in between declares the cell and so passes the `_fields` test, but
+    has no public names for `_buried_refusal` to import — so the guard has to
+    probe what the code actually imports, not merely what the row declares.
+    Probing the pre-#855 private spelling would wave such a pin through and
+    then raise ImportError on the very deck it had just claimed to handle.
+
+    Both names are checked because both are imported: dropping either one is
+    enough to make the deck unaskable.
+    """
+    import momwire
+
+    for name in ("ground_touch_tol", "grounded_crossing_exemption"):
+        with monkeypatch.context() as mp:
+            mp.delattr(momwire, name)
+            assert _buried_cell_is_declared(RazorSolver) is False, name
+            # And it declines rather than exploding on the deck.
+            buried = [[(0.0, 0.0, -0.15), (5.0, 0.0, -0.15)]]
+            assert _buried_refusal(RazorSolver, buried, [], 0.0) is None, name
