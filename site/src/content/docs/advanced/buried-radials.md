@@ -48,12 +48,14 @@ the vertical, then ×3, ×8) plus the Richardson-extrapolated limit;
 :::note[The momwire columns are converged in quadrature, not just in mesh]
 An earlier version of this table was computed at `n_qp_pair = 4`, momwire's
 cross-edge quadrature default when the study ran (August 2026). That mattered
-more than routine bookkeeping: momwire#760 had measured cross-edge error at a
-lossy-soil interface falling only as `1/n_qp` — first order, a lost convergence
-rate rather than a slow one — on momwire's side only, and growing with the
-number of buried members meeting at a junction. Same side, same direction, and
-the same ordering as the residual in the last column, which made that residual
-unfalsifiable from this page.
+more than routine bookkeeping: momwire#760 had, at the time, read the
+cross-edge error at a lossy-soil interface as falling only as `1/n_qp` — on
+momwire's side only, and growing with the number of buried members meeting at a
+junction. Same side, same direction, and the same ordering as the residual in
+the last column, which made that residual unfalsifiable from this page. (That
+first-order reading was later corrected — the error is superalgebraic on every
+shipped deck, and the `C/q` was the bottom of one ladder read as a rate — but
+the correction does not change what had to be done here: sweep it.)
 
 It has now been swept, q = 4 through 128, and the columns above are the
 converged answer (identical at 32, 64 and 128). **The residual is not
@@ -198,6 +200,15 @@ NE tables — nothing more.)
 - The remaining cross-engine disagreement is confined to the
   buried-coupling delta, it is 2–5×, and the independent-reference
   evidence sides with the smaller number.
+- **Since this page was written** (September 2026) the below-ground
+  reference has changed from another engine to a measurement: momwire
+  gates Brown, Lewis and Epstein's 1937 buried-radial screens, and its
+  second reading underground is the same solver at a different basis
+  degree, not NEC-5 — whose interface node, on the same 1937 geometry,
+  comes out nearly flat in radial count. The
+  [validation page](/reference/validation/) carries the current state.
+  Nothing on this page needed to change: the elevated-detached class it
+  studies is one both engines serve, and the attribution above stands.
 
 The companion piece on the momwire primer —
 [the counterpoise question](https://momwire.antennaknobs.dev/act-5/counterpoise/) —
