@@ -524,20 +524,29 @@ _RAZOR_BURIED_CASES = (
 @pytest.mark.parametrize("cls,cells", _RAZOR_BURIED_CASES)
 def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
     """While razor's `buried` cell is False, each buried deck refuses at
-    construction with exactly the sentence the row declares for the cell
-    the geometry reaches (`buried+crossing` for the bonded screen, plain
-    `buried` for the two detached ones). Once the cell is True, razor must
-    label the same deck the way bspline does — the crossing serve's fan,
-    the detached screens' wholly-below wires — so the flip is one line in
-    momwire and this test is the antennaknobs half of momwire#814's DoD."""
+    construction with exactly a sentence the row DECLARES for a cell the
+    geometry reaches — `buried` for all three, `buried+crossing` too for the
+    bonded screen. Which of the two the bonded screen gets depends on the
+    order razor's constructor walks its refusals: before momwire#833 it
+    detected the crossing first and refused with the crossing sentence,
+    since #833 it refuses at the `buried` cell before crossing detection
+    (#1105). Both are the declared refusal-by-name this gate is for; an
+    undeclared sentence, or none, is the failure. Once the cell is True,
+    razor must label the same deck the way bspline does — the crossing
+    serve's fan, the detached screens' wholly-below wires — so the flip is
+    one line in momwire and this test is the antennaknobs half of
+    momwire#814's DoD."""
     b = cls()
     caps = RazorSolver.capabilities
     if not caps.buried:
-        reason = caps.refusal(*cells)
-        assert reason, f"{cls.__name__}: no declared refusal for {cells}"
+        reached = {c: caps.refusal(*c) for c in ({("buried",), cells})}
+        for c, reason in reached.items():
+            assert reason, f"{cls.__name__}: no declared refusal for {c}"
         with pytest.raises(ValueError) as excinfo:
             _razor_solver(b)
-        assert str(excinfo.value).endswith(reason), str(excinfo.value)
+        msg = str(excinfo.value)
+        hit = [c for c, reason in reached.items() if msg.endswith(reason)]
+        assert hit, f"{cls.__name__}: refusal is not a declared sentence: {msg}"
         return
 
     # The flipped side: razor serves what bspline serves, and says so with
