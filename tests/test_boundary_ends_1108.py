@@ -160,11 +160,18 @@ def _solver(builder, **kw):
     return engine, engine._make_solver(wavelength=C_LIGHT / (builder.freq * 1e6))
 
 
-def test_the_existing_buried_decks_walk_exactly_as_they_did():
-    """The coincident-rise default and the detached variant both have their
+def test_the_decks_the_rule_is_a_no_op_for_walk_exactly_as_they_did():
+    """The coincident-rise spelling and the detached variant both have their
     plane node at a degree the walk already broke on, so the new rule is a
-    no-op for them. Values are the ones they produced before #1108."""
-    engine, _ = _solver(BuriedRadialVertical())
+    no-op for them. Values are the ones they produced before #1108 — the
+    coincident spelling is the `bundle` variant since #1108 made the one-rise
+    hub the default, and it is kept precisely so this record stays runnable.
+    """
+    engine, _ = _solver(
+        BuriedRadialVertical(
+            params=resolve_variant_params(BuriedRadialVertical, "bundle")
+        )
+    )
     assert len(engine._polylines) == 9
     assert engine._junctions == [
         [(i, "start") for i in range(8)],
