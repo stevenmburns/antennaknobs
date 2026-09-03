@@ -41,6 +41,19 @@ ALLOWED = {
     # Incidental reach-throughs: no public momwire equivalent today.
     ("builder.py", "momwire._ground_refl", "eps_tilde"),
     ("builder.py", "momwire._sommerfeld_below", "lambda_medium"),
+    # The buried capability gate (issue #1108, momwire#814). Both are the
+    # SHARED spelling of a question this engine must answer the same way
+    # momwire does — "is this wire below the interface", and "does this
+    # in-plane junction earn the crossing exemption" (momwire#848). Answering
+    # either with a local copy is the defect momwire#848 was filed for: two
+    # spellings of one geometric test, drifting apart until a refusal fires on
+    # a deck it was never about. Retiring these wants momwire to promote a
+    # public name for the pair; until then the private path is the only one
+    # that keeps the two sides in step. Both are imported lazily and behind a
+    # capability guard, so a momwire pin without them is skipped rather than
+    # broken (issue #1103).
+    ("engines/momwire.py", "momwire", "_ground_spec"),
+    ("engines/momwire.py", "momwire", "_medium_spec"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
     ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),
