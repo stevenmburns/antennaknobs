@@ -84,7 +84,9 @@ describe("modelOptionsForRequest", () => {
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("hmatrix and arrayblock (the rest of the b-spline family) get the same ten keys", () => {
+  // Nine, not ten: `n_qp_pair` is absent at stock settings because it defaults
+  // to auto and is only sent when pinned (antennaknobs#1064, momwire#863).
+  it("hmatrix and arrayblock (the rest of the b-spline family) get the same nine keys", () => {
     for (const name of ["hmatrix", "arrayblock"]) {
       const b = entry(name);
       const result = modelOptionsForRequest(b, defaultOptsFor(b));
@@ -95,13 +97,18 @@ describe("modelOptionsForRequest", () => {
           "enrichment_min_k",
           "enrichment_variant",
           "feed_smoothing_factor",
-          "n_qp_pair",
           "n_qp_sing",
           "n_qp_source",
           "tikhonov_lambda",
           "use_singular_enrichment",
         ].sort(),
       );
+      // ...and pinning it puts the tenth key back on the wire.
+      const pinned = modelOptionsForRequest(b, {
+        ...defaultOptsFor(b),
+        bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: 16 },
+      });
+      expect(pinned.n_qp_pair).toBe(16);
       expect(result).not.toHaveProperty("feed_model");
     }
   });
@@ -120,12 +127,13 @@ describe("modelOptionsForRequest", () => {
       const b = entry(name);
       return JSON.stringify(modelOptionsForRequest(b, defaultOptsFor(b)));
     };
-    // n_qp_pair is 8, not the 4 this pinned until momwire 0.45.0: momwire#758
-    // raised its own cross-edge default and this value is sent
-    // unconditionally, so leaving it at 4 would have silently overridden the
-    // library for every hosted solve (antennaknobs#1064).
+    // n_qp_pair is ABSENT, and that is the assertion. It pinned 4 until
+    // momwire 0.45.0 and then 8; both silently overrode the library for every
+    // hosted solve, which is antennaknobs#1064. Since momwire#863 the default
+    // depends on the GEOMETRY (32 with wire below the interface, 8 otherwise),
+    // so no literal here can track it and the key is omitted instead.
     const BSPLINE_JSON =
-      '{"degree":2,"n_qp_pair":8,"n_qp_source":16,"feed_smoothing_factor":null,' +
+      '{"degree":2,"n_qp_source":16,"feed_smoothing_factor":null,' +
       '"use_singular_enrichment":false,"enrichment_variant":"raw",' +
       '"tikhonov_lambda":0.1,"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,' +
       '"enrichment_min_k":3}';
@@ -226,6 +234,10 @@ describe("modelOptionsForRequest", () => {
       schema: {},
     });
     expect(result.degree).toBe(BSPLINE_DEFAULT_OPTS.degree);
-    expect(result.n_qp_pair).toBe(BSPLINE_DEFAULT_OPTS.nQpPair);
+    // Auto by default, so the key does not reach the wire at all — asserted as
+    // absence, not as a value, because `toBe(undefined)` would also pass if
+    // the key were present and undefined (antennaknobs#1064).
+    expect(BSPLINE_DEFAULT_OPTS.nQpPair).toBeNull();
+    expect("n_qp_pair" in result).toBe(false);
   });
 });

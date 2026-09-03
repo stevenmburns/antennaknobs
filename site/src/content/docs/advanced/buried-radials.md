@@ -67,9 +67,16 @@ The delta instrument in
 [the disagreement section](#the-one-real-disagreement-and-whos-right) is
 unaffected to four decimals, by the same cancellation.
 
-Reproducing these rows: momwire's shipped default is now `n_qp_pair = 8`,
-which lands within 0.02 Ω of the converged values above. Measured in
-[antennaknobs#1068](https://github.com/stevenmburns/antennaknobs/issues/1068).
+Reproducing these rows: on a deck like this one — wire below the interface —
+momwire now chooses `n_qp_pair = 32` for itself rather than the free-space
+default of 8, so the rows reproduce without setting the knob at all. The web
+UI leaves it on **auto** for the same reason, and sends nothing. Pin a number
+only to reproduce a specific older run; `n_qp_pair = 8` was the shipped value
+before momwire 0.47.0 and lands within 0.02 Ω of the converged values above.
+Measured in
+[antennaknobs#1068](https://github.com/stevenmburns/antennaknobs/issues/1068),
+default per deck since
+[momwire#863](https://github.com/stevenmburns/momwire/issues/863).
 :::
 
 Two things worth absorbing before any conclusion:

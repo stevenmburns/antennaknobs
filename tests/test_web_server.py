@@ -2737,8 +2737,11 @@ def test_hosted_n_qp_pair_is_bounded_but_no_longer_at_the_crash_limit(monkeypatc
     n_qp**2 <= 64 scratch buffer and raised RuntimeError above n_qp=8
     (momwire#743, capped by #1055). momwire#769 routes past that ceiling to
     numpy and momwire#762 tiled it away, both in momwire 0.46.0, so 8 stopped
-    being a limit and started being a 3.12 ohm error on the buried
-    crossing-junction class (momwire#760).
+    being a limit and started being an accuracy choice on the buried
+    crossing-junction class (momwire#760). The 3.12 ohm this docstring used to
+    quote was the RETIRED bundle spelling; the shipped hub is 0.17 ohm at 8 and
+    0.0047 at 32. Since momwire#863 the usual request omits the key entirely --
+    see the auto test below.
 
     Still bounded, deliberately: hosted is a public endpoint, so this is a
     raise and not a removal. 33 must still be refused."""
@@ -2754,6 +2757,60 @@ def test_hosted_n_qp_pair_is_bounded_but_no_longer_at_the_crash_limit(monkeypatc
     }
     with pytest.raises(ValueError, match="n_qp_pair"):
         adapter.sanitize_model_options({"model_options": {"n_qp_pair": 33}})
+
+
+def test_n_qp_pair_auto_reaches_the_solver_as_an_ABSENT_kwarg(monkeypatch):
+    """The web default is "auto", and auto must be spelled as SILENCE.
+
+    momwire#863 made the cross-edge default depend on the geometry (32 with
+    wire below the interface, 8 otherwise). This layer cannot answer that
+    question, so it must not answer it: substituting a literal here is exactly
+    the override antennaknobs#1064 was raised for, and it would pin every
+    hosted solve to one order the way `nQpPair: 8` just did.
+
+    A null is dropped rather than forwarded on BOTH paths, hosted and local.
+    Local forwards `model_options` verbatim, so a surviving `None` would reach
+    the constructor as `int(None)` on any momwire older than #863.
+    """
+    from antennaknobs.web import adapter
+
+    for hosted in (True, False):
+        monkeypatch.setattr(adapter, "_HOSTED", hosted)
+
+        # Absent entirely: nothing to forward, and no key invented.
+        out = adapter.sanitize_model_options({"model_options": {"degree": 2}})
+        assert "n_qp_pair" not in (out or {}), (hosted, out)
+
+        # Explicit null means auto too, and is dropped rather than passed on.
+        out = adapter.sanitize_model_options(
+            {"model_options": {"degree": 2, "n_qp_pair": None}}
+        )
+        assert out == {"degree": 2}, (hosted, out)
+
+        # A null-only body collapses to None, not to `{"n_qp_pair": None}`.
+        out = adapter.sanitize_model_options({"model_options": {"n_qp_pair": None}})
+        assert out is None, (hosted, out)
+
+        # And a pinned value still goes through untouched.
+        out = adapter.sanitize_model_options({"model_options": {"n_qp_pair": 16}})
+        assert out == {"n_qp_pair": 16}, (hosted, out)
+
+
+def test_only_n_qp_pair_treats_null_as_auto(monkeypatch):
+    """The null-dropping is keyed on an explicit set, not on null-ness.
+
+    `feed_smoothing_factor` accepts None as a REAL value (null = sharp
+    delta-gap), so a blanket "drop every null" would silently change the feed
+    model. Pinned because the two look identical on the wire.
+    """
+    from antennaknobs.web import adapter
+
+    monkeypatch.setattr(adapter, "_HOSTED", True)
+    out = adapter.sanitize_model_options(
+        {"model_options": {"feed_smoothing_factor": None}}
+    )
+    assert out == {"feed_smoothing_factor": None}
+    assert adapter._AUTO_WHEN_NULL == frozenset({"n_qp_pair"})
 
 
 def test_local_model_options_forward_verbatim():
