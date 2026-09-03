@@ -190,6 +190,69 @@ def _solver_supports_wire_loading(solver):
     return _capability_refusal(solver, "wire_loading") is None
 
 
+def _buried_cell_is_declared(solver_cls):
+    """Whether the installed momwire declares a `buried` capability cell.
+
+    Asked as a FIELD test and not by calling `refusal("buried")`, because a
+    momwire that predates the cell answers that call `None` — "served" — and
+    `None` is the one answer this gate must never accept by default. Measured
+    on the pinned momwire 0.46.0: `capabilities._fields` has no `buried`, and
+    `refusal("buried")` and `refusal("buried", "crossing_junction")` both come
+    back None on `RazorSolver`, which has no buried fill at all.
+
+    That is the whole reason for this function. `_capability_refusal`'s own
+    docstring records the same shape of trap from issue #966 — a permissive
+    fallback that reported every capability as served — and the rule taken
+    from it (issue #1103) is: where the row cannot be asked, SKIP the gate
+    and say so, never conclude that the deck is served.
+
+    The `_medium_spec` half is the same question about the same pin: choosing
+    WHICH buried cell to ask about needs `grounded_crossing_exemption`
+    (momwire#848), which landed alongside the cell. One guard covers both, and
+    the field test comes first so a pin without the cell never reaches the
+    import.
+    """
+    if "buried" not in solver_cls.capabilities._fields:
+        return False
+    from momwire import _medium_spec
+
+    return hasattr(_medium_spec, "grounded_crossing_exemption")
+
+
+def _buried_refusal(solver_cls, polylines, junctions, ground_z):
+    """The declared reason this solver refuses this buried deck, or None.
+
+    None means one of two different things, deliberately collapsed because
+    the caller does the same thing with both: the deck is served, or the
+    installed momwire is too old to be asked (see
+    `_buried_cell_is_declared`). What it never means is "served" on a solver
+    that would have refused.
+
+    WHICH cell is a geometry question, and it is `_medium_spec`'s to answer:
+    a junction whose shared point lies in the plane, with two or more members
+    and at least one reaching above it, is the declared-crossing case and
+    carries its own sentence (momwire#850); anything else buried is the base
+    `buried` cell. Asked through momwire's own helper rather than re-derived
+    here — a second copy of that test is how a refusal comes to fire on a
+    deck it was never about (momwire#848).
+    """
+    if ground_z is None or not _buried_cell_is_declared(solver_cls):
+        return None
+    from momwire import _ground_spec, _medium_spec
+
+    gz = float(ground_z)
+    below = [
+        i
+        for i, pl in enumerate(polylines)
+        if float(np.asarray(pl)[:, 2].min()) < gz - _ground_spec.ground_touch_tol(pl)
+    ]
+    if not below:
+        return None
+    crossing = _medium_spec.grounded_crossing_exemption(polylines, gz, junctions or ())
+    cells = ("buried", "crossing_junction") if crossing else ("buried",)
+    return _capability_refusal(solver_cls, *cells)
+
+
 def _solver_accepts_junctions_kwarg(solver_cls):
     """Whether `solver_cls`'s constructor takes a `junctions=` geometry
     hint at all — a constructor-SHAPE fact, not a capability cell (there is
@@ -446,6 +509,22 @@ class MomwireEngine(SimulationEngine):
         self._feed_names = translated["feed_names"]
         self._feed_edges = translated["feed_edges"]
         self._junctions = translated["junctions"]
+        # A buried deck on a family with no buried fill, refused HERE with the
+        # sentence the solver's own row declares (momwire#814). Raised at
+        # construction for the reason `_extended_kernel_refusal` is: the
+        # engine can say no BEFORE a fill is attempted, so the caller's error
+        # path reports a named refusal instead of a bare ValueError out of the
+        # middle of momwire. Before this, `MomwireEngine(buried_deck,
+        # solver=RazorSolver)` constructed cleanly and failed at solve time
+        # with an internal message.
+        buried = _buried_refusal(
+            self._solver, self._polylines, self._junctions, self._ground_z
+        )
+        if buried is not None:
+            raise ValueError(
+                f"{getattr(self._solver, '__name__', self._solver)} cannot "
+                f"solve this design's buried geometry: {buried}"
+            )
         # Junction index per end port, in self._end_ports order.
         self._end_port_junctions = [
             translated["end_port_junctions"][(w, e)] for _n, w, e in self._end_ports

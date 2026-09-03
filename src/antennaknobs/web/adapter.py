@@ -377,10 +377,36 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "default_n_per_wire": b.default_n_per_wire,
             "accelerator": b.accelerator,
             "dense_family": b.dense_family,
+            "buried": _backend_serves_buried(b),
         }
         for b in _BACKENDS
         if availability.get(b.kind, True)
     ]
+
+
+def _backend_serves_buried(spec):
+    """Whether this backend serves BURIED geometry: True, False, or None when
+    the question cannot be asked (issue #1108, momwire#814).
+
+    Three states and not two, on purpose. The buried designs are the one place
+    in the catalog where a backend the roster offers can be structurally unable
+    to answer, and the frontend needs to tell "this one cannot" from "nobody
+    here knows yet" — a momwire predating the `buried` capability cell answers
+    `refusal("buried")` with None, which reads as SERVED and is the one answer
+    that must never be inferred (issue #1103's rule, and issue #966's trap in
+    the engine before it).
+
+    Non-momwire backends answer None for a different reason and it is the
+    honest one: their buried scope is their own wrapper's business (PyNEC
+    refuses a wire below z = 0 outright; NEC-5 serves buried decks natively
+    since issue #825's stage), not a momwire capability row.
+    """
+    if spec.kind != "momwire" or spec.solver is None:
+        return None
+    caps = getattr(spec.solver, "capabilities", None)
+    if caps is None or "buried" not in getattr(caps, "_fields", ()):
+        return None
+    return bool(caps.buried)
 
 
 # ---------------------------------------------------------------------------
