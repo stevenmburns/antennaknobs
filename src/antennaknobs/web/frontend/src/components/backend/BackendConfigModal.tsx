@@ -40,7 +40,7 @@ export type BackendConfigProps = {
 
 // Shared by the auto toggle and the pinned field so the two cannot drift.
 const N_QP_PAIR_TITLE =
-  "Gauss-Legendre points per segment per axis for cross-edge pair moments. Auto lets momwire choose per deck — it uses a higher order when the deck has wire at or below the ground, and the shipped order otherwise. It matters only on decks that reach the ground: on a buried radial vertical the shipped order of 8 sits 0.17 \u03a9 from the converged answer, essentially all of it reactive, and 32 closes that to 0.005 \u03a9; on a deck standing clear of the ground the two differ by 0.02 \u03a9, so on a dipole expect to see nothing. Pin a number only to reproduce a specific run \u2014 raising it is cheap on these decks (momwire#778).";
+  "Gauss-Legendre points per segment per axis for cross-edge pair moments. Auto lets momwire choose per deck — it uses a higher order when the deck has wire at or below the ground, and the shipped order otherwise. It matters only on decks that reach the ground: on `verticals.buried_radial_vertical` at its default hub spelling the shipped order of 8 sits 0.17 \u03a9 from the converged answer, essentially all of it reactive, and 32 closes that to 0.0047 \u03a9; on a deck standing clear of the ground the two differ by 0.02 \u03a9, so on a dipole expect to see nothing. Pin a number only to reproduce a specific run \u2014 raising it is cheap on these decks (momwire#778).";
 
 export function BackendConfigModal({
   slot,
