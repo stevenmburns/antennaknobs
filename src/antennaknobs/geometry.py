@@ -38,7 +38,7 @@ def _round_point(p, eps):
     return tuple(round(float(c) / eps) * eps for c in p)
 
 
-def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
+def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None, boundary_ends=None):
     """Convert flat wire tuples to momwire polyline form.
 
     ``end_ports`` (issue #579): iterable of ``(wire_name, "p0"|"p1")`` pairs
@@ -51,6 +51,25 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
     cut in it); it identifies the wire only. The returned
     ``end_port_junctions`` maps each ``(wire_name, end)`` to its junction
     index — pass those straight to a momwire solver's ``junction_ports=``.
+
+    ``boundary_ends`` (issue #1108): iterable of ``(tuple_index, "p0"|"p1")``
+    pairs naming wire ENDPOINTS that must end a polyline even when only two
+    edges meet there. Unlike ``end_ports`` this registers no port and names
+    no wire — it is a pure walk instruction, and a degree-2 node it splits
+    becomes an ordinary 2-entry junction group exactly as a wire-spec change
+    (issue #388) or a cycle cut does, so KCL still carries the current
+    through. A node that is already a boundary is unaffected, which is why
+    passing ends that are ALREADY degree-1 or degree>=3 changes nothing.
+
+    It exists because a conductor that reaches the ground plane and continues
+    above it is one polyline to this walk and a refused mid-span interface
+    crossing to momwire, so the buried designs had to spell their screens as
+    N COINCIDENT rises purely to raise the node's degree — a bundle no one
+    builds, which NEC-5 refuses outright and which makes razor's tent basis
+    singular (momwire#846). The caller decides which ends qualify; this layer
+    only splits where it is told. `MomwireEngine` passes every wire end lying
+    in the ground plane, which keeps the rule geometric and keeps every
+    media question on momwire's side of the seam.
 
     Returns a dict with keys:
         polylines       : list of (M, 3) np.ndarray
@@ -158,6 +177,25 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
             end_port_names.add(nm)
             end_port_nodes.append((nm, which, a if which == "p0" else b))
 
+    # Forced boundaries (issue #1108): resolve each named END to its node.
+    # Tuple INDEX rather than wire name, deliberately — the ends that want
+    # this are structural wires (a rise, a radial) that carry no name and
+    # should not have to grow one to be split at.
+    forced_boundary_nodes = set()
+    for entry in boundary_ends or ():
+        i, which = entry
+        if which not in ("p0", "p1"):
+            raise ValueError(
+                f"boundary end on tuple {i}: end must be 'p0' or 'p1', got {which!r}"
+            )
+        if not 0 <= i < len(edges):
+            raise ValueError(
+                f"boundary end names tuple {i}, but build_wires() produced "
+                f"{len(edges)} tuples"
+            )
+        a, b, *_ = edges[i]
+        forced_boundary_nodes.add(a if which == "p0" else b)
+
     # adj[nid] = list of (other_node, edge_index), in registration order.
     adj = [[] for _ in nodes]
     for ei, (a, b, _, _, _) in enumerate(edges):
@@ -191,6 +229,11 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None):
     # and the port injects into the shared node). Degree-1 nodes become
     # 1-entry junction groups (legal since momwire#172).
     for _nm, _which, nid in end_port_nodes:
+        is_boundary[nid] = True
+
+    # A caller-forced boundary (issue #1108): same split, no port. Applied
+    # last so it composes with the two rules above rather than racing them.
+    for nid in forced_boundary_nodes:
         is_boundary[nid] = True
 
     edge_seen = [False] * len(edges)

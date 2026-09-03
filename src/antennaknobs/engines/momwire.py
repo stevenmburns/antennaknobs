@@ -227,6 +227,47 @@ def _extended_kernel_refusal(solver, solver_kwargs):
     return _capability_refusal(solver, "extended_kernel")
 
 
+def _ends_in_the_plane(tups, ground_z, *, tol=1e-6):
+    """Every ``(tuple_index, "p0"|"p1")`` whose z lies in the ground plane.
+
+    The engine's half of issue #1108. A conductor that reaches the interface
+    and continues above it is ONE polyline to the walk — degree 2 at the node
+    — and momwire refuses that as a mid-span interface crossing, which is why
+    the buried designs spelled their screens as N coincident rises just to
+    raise the node's degree. Ending a polyline at the interface instead makes
+    the node a declared junction, which is the shape momwire's crossing serve
+    asks for (momwire#524 phase 2) and the shape NEC-5 and razor can both
+    take.
+
+    The rule is deliberately geometric and lives HERE rather than in the
+    walk: `flat_wires_to_polylines` knows nothing about grounds, and this
+    engine is where `ground_z` is known. It says nothing about media — which
+    side of the interface a wire is on, and whether a junction actually
+    crosses it, are momwire's questions, answered there by name.
+
+    Over free space (`ground_z is None`) this is empty and the walk is
+    unchanged, which is what keeps every free-space design byte-identical.
+    Splitting is also a no-op at a node that is ALREADY a boundary, so a
+    plain ground CONTACT end (degree 1) and an ordinary multi-wire ground
+    junction (degree >= 3) both walk exactly as they did.
+
+    `tol` is an ABSOLUTE metre tolerance rather than the walk's per-wire
+    relative one: this asks "is this endpoint in the plane", which is a
+    question about a coordinate and not about a wire's length.
+    """
+    if ground_z is None:
+        return ()
+    gz = float(ground_z)
+    out = []
+    for i, t in enumerate(tups):
+        w = as_wire(t)
+        if abs(float(w.p0[2]) - gz) <= tol:
+            out.append((i, "p0"))
+        if abs(float(w.p1[2]) - gz) <= tol:
+            out.append((i, "p1"))
+    return tuple(out)
+
+
 class MomwireEngine(SimulationEngine):
     supports_far_field = True
 
@@ -386,10 +427,17 @@ class MomwireEngine(SimulationEngine):
             else []
         )
 
+        # Hoisted above the walk (issue #1108): the translation now needs to
+        # know where the interface is, and this is a pure function of the
+        # `ground` argument.
+        self._ground = _normalise_ground(ground)
+        self._ground_z = ground_z if self._ground is not None else None
+
         translated = flat_wires_to_polylines(
             tups,
             end_ports=[(w, e) for _n, w, e in self._end_ports]
             + [(w, e) for _n, w, e in self._vertex_ports],
+            boundary_ends=_ends_in_the_plane(tups, self._ground_z),
         )
         self._polylines = translated["polylines"]
         self._edge_segments = translated["edge_segments"]
@@ -526,8 +574,6 @@ class MomwireEngine(SimulationEngine):
                     getattr(self._solver, "__name__", self._solver),
                     type(builder).__name__,
                 )
-        self._ground = _normalise_ground(ground)
-        self._ground_z = ground_z if self._ground is not None else None
         # Finite ground constants forwarded to the impedance solve when the
         # solver supports the requested ground model; None otherwise (PEC
         # image). "refl-coef" and "sommerfeld" are independent capability
