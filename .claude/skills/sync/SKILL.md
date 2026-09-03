@@ -65,17 +65,40 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    nothing changed**: measured 0 compile invocations in 0.20 s even without
    ccache.
    ```
-   cd momwire && ../.venv/bin/python setup.py build_ext --inplace
+   cd momwire && make build
    ```
    If it prints `c++ ...` lines, the extensions were stale and are now
    rebuilt; if it only prints `copying`, they were already current. With a
    working toolchain the tree ends correct either way, which a check that
    merely *reports* does not guarantee.
 
+   **Use `make build`, not bare `setup.py build_ext --inplace`.** The two are
+   not equivalent, and the difference is exactly the fail-open below:
+   `make build` sets **`MOMWIRE_REQUIRE_ACCEL=1`**, which `setup.py:70` reads
+   to **re-raise** the `CompileError` instead of warning and falling back. Its
+   own comment says why — *"a DEVELOPMENT build wants the opposite … so a
+   broken toolchain fails the lane instead of exiting 0 and leaving a stale
+   in-place `.so`"* (#716 review). `make build` also wires ccache only when it
+   is actually on `PATH` (`CCACHE := $(shell command -v ccache)`), so it
+   cannot be broken by naming a compiler wrapper that is not installed.
+
+   Prior versions of this step recommended the bare `setup.py` invocation,
+   which opts out of that guard while the paragraphs below explain at length
+   why its exit code cannot be trusted. Measured 2026-09-03: exporting
+   `CXX="ccache g++"` on a box **without** ccache printed six convincing
+   `ccache g++ ...` lines for `_accelerators`, failed it with
+   `CompileError(FileNotFoundError(2, 'No such file or directory'))` — the
+   missing wrapper, not any compile error — then exited **0** and left the
+   previous day's `.so` in place. A sync that reported success over stale
+   binaries. Under `make build` that mistake is impossible in two independent
+   ways.
+
    **Compile lines are not proof of a rebuild, and the exit status is proof
-   of nothing.** `setup.py` catches a per-extension `CompileError` and falls
-   back to pure-Python mode with a `UserWarning`, so a build in which every
-   translation unit failed still prints a screen of `c++ ...` lines and then
+   of nothing** — unless `MOMWIRE_REQUIRE_ACCEL=1` is set, which is the whole
+   reason step 5 goes through `make build`. Without it `setup.py` catches a
+   per-extension `CompileError` and falls back to pure-Python mode with a
+   `UserWarning`, so a build in which every translation unit failed still
+   prints a screen of `c++ ...` lines and then
    exits **0**. Measured 2026-09-02: with the CPython development headers
    absent, all five `_accelerators` TUs died on `fatal error: Python.h: No
    such file or directory`, the run exited 0, and **no `.so` was produced** —
@@ -105,10 +128,19 @@ commit. The pin only moves during the release ritual (see the `release` skill).
    consults. Reimplementing it is how you get a second source of truth that
    drifts, the momwire#568 stale-`.so` lesson in a new spelling.
 
-   With `ccache` wired (`CC="ccache gcc" CXX="ccache g++"`, or just
-   `make build` from `momwire/`), a real edit costs 12–28 s instead of ~48 s:
-   setuptools recompiles *every* source in a stale extension, so ccache is
-   what makes the untouched TUs free.
+   With `ccache` wired — which `make build` does for you — a real edit costs
+   12–28 s instead of ~48 s: setuptools recompiles *every* source in a stale
+   extension, so ccache is what makes the untouched TUs free.
+
+   Do **not** wire it by hand with `CC=`/`CXX=` just to get that speedup.
+   `make build` already skips ccache when it is absent, whereas naming it
+   yourself on a box that lacks it is the silent-fallback bite above. ccache
+   is **not** preinstalled on every dev box here, and `sudo` may want a
+   password; a static build from the ccache GitHub release dropped in
+   `~/.local/bin` needs neither. Confirm a wired build actually cached with
+   `make ccache-stats` (or `ccache -s`) rather than by reading compile lines
+   — on 2026-09-03 a cold run measured 6 misses / 29 s and the warm rerun
+   6 hits / 0.8 s.
 
 6. **Refresh version metadata if needed**: if either `pyproject.toml` version
    changed in the pull, `importlib.metadata` still reports the old number

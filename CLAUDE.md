@@ -165,7 +165,7 @@ worth keeping readable.
 ## Two repos, one working tree
 
 `momwire/` is a git submodule with **its own** ruff config, excluded here via
-`extend-exclude`. Two hazards follow:
+`extend-exclude`. Four hazards follow:
 
 - **Never `git add -A`.** It sweeps the momwire submodule pointer and
   untracked `scratch/*.jsonl` into the commit. Stage explicit paths.
@@ -188,6 +188,16 @@ worth keeping readable.
 - **Always pass `gh -R <owner>/<repo>`.** The two repos have overlapping
   issue numbers and the shell's cwd persists across calls, so a bare
   `gh issue` can land on the wrong tracker.
+- **Moving momwire invalidates a binary the venv imports.** The `.venv` has
+  both packages editable, so `import momwire` resolves to
+  `momwire/src/momwire/` — the submodule *working tree*, compiled `.so` and
+  all. Checking momwire out to a different commit therefore leaves AK
+  importing accelerators built from the old sources, and nothing in AK's own
+  test run says so. Rebuild with **`cd momwire && make build`** after any
+  submodule checkout, and never with bare `setup.py build_ext --inplace`:
+  `make build` sets `MOMWIRE_REQUIRE_ACCEL=1`, without which a failed build
+  warns, falls back to pure Python, and **exits 0** over the stale `.so`.
+  The `sync` skill's step 5 is the long version.
 
 ## Frontend
 
