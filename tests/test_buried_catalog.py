@@ -644,3 +644,118 @@ def test_the_razor_buried_gate_does_not_pass_by_accident():
     assert RazorSolver.capabilities.buried is False
     for cells in (("buried",), ("buried", "crossing")):
         assert RazorSolver.capabilities.refusal(*cells)
+
+
+# ---------------------------------------------------------------------------
+# The `bundle` variant — a razor refusal the buried flip will NOT retire
+# ---------------------------------------------------------------------------
+#
+# momwire#856 gave razor a name for the bundle instead of a LAPACK death. The
+# antennaknobs half of that is here, and it is a different shape from the
+# cell-keyed gates above: the coincidence is singular "at any mesh, in free
+# space and in soil alike, and whatever the quadrature", so unlike `buried`
+# this refusal is permanent and is gated unconditionally.
+#
+# FREE SPACE on purpose. Razor's `buried` cell is False today, so a buried
+# bundle refuses at CONSTRUCTION with the crossing sentence and never reaches
+# the coincidence check at all — the bundle sentence is masked. Free space
+# reaches it in 0.07 s and pays no buried fill (razor's buried crossing fill
+# runs 20-45x bspline's, up to ~405 s on a hub deck, momwire#814).
+
+
+def _razor_free_space(builder):
+    engine = MomwireEngine(
+        builder,
+        solver=RazorSolver,
+        solver_kwargs={"nec5_quadrature": True},
+        ground=None,
+        ground_z=None,
+    )
+    return engine, engine._make_solver(wavelength=C_LIGHT / (builder.freq * 1e6))
+
+
+def _bundle_builder():
+    return BuriedRadialVertical(
+        params=resolve_variant_params(BuriedRadialVertical, "bundle")
+    )
+
+
+def test_brv_bundle_razor_refuses_the_coincidence_by_declared_name():
+    """The declared sentence, read off the PUBLIC row rather than imported
+    from `razor._BUNDLE_REFUSAL` — refusal-by-name means the name the row
+    publishes, and reaching for the private constant would be a reach-through
+    `tests/test_momwire_private_imports.py` exists to discourage.
+
+    Pinned at SOLVE, and construction pinned to SUCCEED, because where this
+    check sits is a design decision and not a placement detail (momwire#846):
+    momwire#813's collapse adjudicators FILL a coincident deck and compare
+    matrices without ever solving it, so moving the refusal earlier — the
+    obvious tidy-up — would silently cost #813 its adjudicators. The fill is
+    well defined on this deck; it is the SOLVE that has no answer.
+    """
+    declared = RazorSolver.capabilities.refusals["bundle"]
+    assert declared, "razor's row no longer declares a `bundle` sentence"
+
+    _engine, solver = _razor_free_space(_bundle_builder())  # must NOT raise
+
+    with pytest.raises(ValueError) as excinfo:
+        solver.compute_impedance()
+    msg = str(excinfo.value)
+    assert msg.endswith(declared), f"not the declared bundle sentence: {msg}"
+    # The prefix is the diagnostic half: WHICH two segments coincide.
+    assert "run between the same two points" in msg
+
+
+def test_the_bundle_axis_is_not_reachable_through_the_refusal_cell_algebra():
+    """`refusal("bundle")` answers None — which is how a row spells SERVED —
+    on the one solver that cannot solve a bundle at all.
+
+    This is the trap the whole #814 arc is about, in a third place: a
+    capability question may only be asked of a row that HAS the field, and
+    `bundle` is deliberately not promoted to an axis (momwire#846 leaves it as
+    prose, because promoting it means declaring the axis on all eight rows
+    against decks nobody has measured). So the declared sentence lives in
+    `capabilities.refusals`, and asking the cell algebra instead gets a
+    confident wrong answer. Pinned so nobody gates a bundle deck that way.
+    """
+    caps = RazorSolver.capabilities
+    assert caps.refusal("bundle") is None
+    assert "bundle" not in caps._fields
+    assert caps.refusals["bundle"]
+
+
+@_needs_buried_cell
+def test_brv_bundle_buried_refuses_before_it_can_reach_the_coincidence():
+    """Why the gate above is spelled in free space, pinned rather than
+    described.
+
+    While `buried` is False the buried refusal fires at construction, so the
+    buried bundle never reaches the solve-time coincidence check. Both
+    sentences are real and neither is wrong — they are two refusals of one
+    deck, and which one you see is an ordering fact.
+
+    That ordering is now expected to hold indefinitely: razor-2p's buried
+    serve is SHELVED, not pending (momwire#813's parking comment). razor-2p
+    stays the above-ground twin of licensed NEC-5, and bspline is the buried
+    engine, because NEC-5's interface node is a known limitation underground
+    (measured against Brown-Lewis-Epstein 1937) and razor-2p is first order in
+    the far mesh besides (momwire#845). So this test's second arm is not a
+    countdown — it is kept because the capability cell stays the single source
+    of truth and a decision is not a guarantee.
+
+    Nothing here solves a buried bundle either way: it would pay the 20-45x
+    buried fill for a sentence the free-space gate above already holds.
+    """
+    caps = RazorSolver.capabilities
+    b = _bundle_builder()
+    if not caps.buried:
+        with pytest.raises(ValueError) as excinfo:
+            _razor_solver(b)
+        msg = str(excinfo.value)
+        declared = [s for s in caps.refusals.values() if s and msg.endswith(s)]
+        assert declared, f"refusal is not a declared sentence: {msg}"
+        return
+
+    # Flipped: construction no longer refuses, and the coincidence is what is
+    # left. Not solved here — see the docstring.
+    _engine, _solver = _razor_solver(b)

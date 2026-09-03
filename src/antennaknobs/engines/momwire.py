@@ -206,17 +206,27 @@ def _buried_cell_is_declared(solver_cls):
     from it (issue #1103) is: where the row cannot be asked, SKIP the gate
     and say so, never conclude that the deck is served.
 
-    The `_medium_spec` half is the same question about the same pin: choosing
-    WHICH buried cell to ask about needs `grounded_crossing_exemption`
-    (momwire#848), which landed alongside the cell. One guard covers both, and
-    the field test comes first so a pin without the cell never reaches the
-    import.
+    The second half is the same question about the same pin: choosing WHICH
+    buried cell to ask about needs `grounded_crossing_exemption` and
+    `ground_touch_tol` (momwire#848), promoted to public names by momwire#855.
+    One guard covers both, and the field test comes first so a pin without the
+    cell never reaches the `hasattr`.
+
+    It probes the PUBLIC names because those are the ones `_buried_refusal`
+    imports. The cell (momwire#853) landed two PRs before the promotion
+    (momwire#855), so a pin in between has the cell and the private helpers but
+    no public re-export — probing the private spelling would pass that pin and
+    then raise ImportError on the deck it just claimed to handle. Ask the
+    capability question of the thing you actually depend on.
     """
     if "buried" not in solver_cls.capabilities._fields:
         return False
-    from momwire import _medium_spec
+    import momwire
 
-    return hasattr(_medium_spec, "grounded_crossing_exemption")
+    return all(
+        hasattr(momwire, name)
+        for name in ("ground_touch_tol", "grounded_crossing_exemption")
+    )
 
 
 def _buried_refusal(solver_cls, polylines, junctions, ground_z):
@@ -228,27 +238,29 @@ def _buried_refusal(solver_cls, polylines, junctions, ground_z):
     `_buried_cell_is_declared`). What it never means is "served" on a solver
     that would have refused.
 
-    WHICH cell is a geometry question, and it is `_medium_spec`'s to answer:
-    a junction whose shared point lies in the plane, with two or more members
+    WHICH cell is a geometry question, and it is momwire's to answer: a
+    junction whose shared point lies in the plane, with two or more members
     and at least one reaching above it, is the declared-crossing case and
     carries its own sentence (momwire#850); anything else buried is the base
-    `buried` cell. Asked through momwire's own helper rather than re-derived
+    `buried` cell. Asked through momwire's own helpers rather than re-derived
     here — a second copy of that test is how a refusal comes to fire on a
-    deck it was never about (momwire#848).
+    deck it was never about (momwire#848). momwire#855 promoted both to public
+    names, and they re-export the very objects the solvers call, so this asks
+    the same question the same way by construction rather than by agreement.
     """
     if ground_z is None or not _buried_cell_is_declared(solver_cls):
         return None
-    from momwire import _ground_spec, _medium_spec
+    from momwire import ground_touch_tol, grounded_crossing_exemption
 
     gz = float(ground_z)
     below = [
         i
         for i, pl in enumerate(polylines)
-        if float(np.asarray(pl)[:, 2].min()) < gz - _ground_spec.ground_touch_tol(pl)
+        if float(np.asarray(pl)[:, 2].min()) < gz - ground_touch_tol(pl)
     ]
     if not below:
         return None
-    crossing = _medium_spec.grounded_crossing_exemption(polylines, gz, junctions or ())
+    crossing = grounded_crossing_exemption(polylines, gz, junctions or ())
     cells = ("buried", "crossing_junction") if crossing else ("buried",)
     return _capability_refusal(solver_cls, *cells)
 
