@@ -149,31 +149,55 @@ the deck BOTH engines run.
 
 QUADRATURE — and the spelling change moved this axis more than it moved
 the answer. This deck is momwire#760's class: ONE crossing junction at a
-lossy-soil interface, where the cross-edge quadrature error falls only as
-C/q — FIRST order in n_qp_pair, a lost convergence rate rather than a slow
-one. Both ladders below are at fixed mesh, at this design's default knobs
-over eps_r 13 / sigma 0.005 at 7.1 MHz.
+lossy-soil interface. That issue long recorded the class as losing its
+convergence RATE — "the cross-edge quadrature error falls only as C/q,
+FIRST order in n_qp_pair" — and this file was where that claim was
+measured. **It does not survive a converged reference.** Both ladders
+below are re-referenced to q=256 (they used to be referenced to q=32,
+which the old text itself noted was "still moving ~0.25 ohm at 24->32";
+an unconverged reference flattens the tail of a ladder). Fixed mesh, this
+design's default knobs, eps_r 13 / sigma 0.005 at 7.1 MHz, momwire
+9eda56f — the commit this repo pins.
 
-The DEFAULT (hub) spelling, measured 2026-09-03:
+The DEFAULT (hub) spelling — the shipped one, and the ladder to quote:
 
-    n_qp_pair   Z                     from the q=32 reference
-        8       75.8371 + 40.2843j    0.167 ohm  <- the default today
-       16       75.8475 + 40.4189j    0.032 ohm
-       32       75.8502 + 40.4507j    reference
+    n_qp_pair   Z                     from q=256    local slope
+        4       75.8015 + 39.7820j    0.6752
+        8       75.8371 + 40.2843j    0.1717        1.98   <- the default today
+       16       75.8475 + 40.4189j    0.0367        2.23
+       32       75.8502 + 40.4507j    0.0047        3.36
+       64       75.8507 + 40.4555j    0.0001        6.75
+                                      fit q^-3.11
 
-The ``bundle`` variant — and every one of these numbers belongs to IT, not
-to the design's default; they were this file's headline figures before
-2026-09-03:
+The ``bundle`` variant, the RETIRED spelling (pre-#1108). Kept as the
+record it is: every headline figure this file carried before 2026-09-03
+was measured on it, and none of them belongs to the default.
 
-    n_qp_pair   Z                     from the q=32 reference
-        4       75.8604 + 47.4594j    6.70 ohm  <- shipped before momwire 0.45.0
-        8       75.8619 + 43.5763j    2.82 ohm
-       16       75.8562 + 41.5914j    0.83 ohm
-       32       75.8525 + 40.7584j    reference, still moving ~0.25 ohm at 24->32
+    n_qp_pair   Z                     from q=256    local slope
+        4       75.8604 + 47.4594j    7.0040               <- shipped before momwire 0.45.0
+        8       75.8619 + 43.5763j    3.1209        1.17
+       16       75.8562 + 41.5914j    1.1360        1.46
+       32       75.8525 + 40.7584j    0.3030        2.08
+       64       75.8510 + 40.5007j    0.0453        3.09
+                                      fit q^-1.78
+
+THE RATE IS NOT FIRST ORDER, and the bundle is where the claim came from.
+Its local slope RISES monotonically, 1.17 at q=4->8 to 3.09 by q=64 —
+superalgebraic, not the constant slope an unsubtracted singularity pins.
+Sampled only at the bottom of the ladder, which is where q=4/8/16 sits and
+all anyone could reach before momwire#762 lifted the accelerator's n_qp<=8
+ceiling, a bundle reads as C/q. It is a large quadrature CONSTANT on the
+worst spelling, not a lost rate; the remedy is order, and momwire#760
+closed on this record.
+
+So the reactive-floor caveat this file used to carry is the BUNDLE's, and
+it is quadrature error rather than anything structural. The hub at the
+shipped n_qp_pair=8 sits 0.17 ohm from its own converged answer, and at
+q=32 it is 0.0047 ohm — on the plateau. The bundle needs ~64 to get there.
 
 **The N coincident rises were most of the quadrature problem.** At the
-shipped n_qp_pair = 8 the hub sits 0.167 ohm from its own converged answer
-where the bundle sat 2.82 — a factor of 17 — and the old "~2.8 ohm reactive
+shipped n_qp_pair = 8 the hub sits 0.172 ohm from its own converged answer
+where the bundle sat 3.12 — a factor of 18 — and the old "~2.8 ohm reactive
 floor on anything quoted from this design" simply does not apply to the
 default any more. The error is still almost purely REACTIVE (R is converged
 to 0.02 ohm across both ladders) on a design whose entire purpose is tuning,
@@ -181,17 +205,31 @@ so the ladder stays here; it is just no longer the dominant term.
 
 TWO STRUCTURES, AND HOW FAR APART THEY REALLY ARE. At n_qp_pair = 8 the hub
 and the bundle read 3.29 ohm apart, which is the number a casual comparison
-would quote. At n_qp_pair = 32 they are **0.31 ohm** apart. Nearly all of the
-apparent difference was the bundle's own quadrature error, not the structural
-difference between one conductor and a bundle of N. That does NOT license
-gating one against the other — 0.31 ohm is not zero, and they remain two
-structures under momwire#524's fan-widening adjudication — but any claim
-about "how different the two spellings are" has to be made at converged
-quadrature or it is measuring the wrong thing.
+would quote. At n_qp_pair = 32 they are 0.31 ohm apart — which is where this
+file used to stop, and calling that residue structural was wrong. Carried to
+converged quadrature they agree to **5.2e-06 ohm**:
+
+    n_qp_pair   |Z_bundle - Z_hub|
+       32       0.31 ohm       <- what this file used to quote as structural
+      128       1.9e-03 ohm
+      256       5.2e-06 ohm
+
+So it was not "nearly all" of the apparent difference that was the bundle's
+own quadrature error — it was essentially ALL of it. They are genuinely
+different decks (10 wires against 7, and 7 ohm apart at q=4), so this is two
+structures converging to one answer rather than one deck measured twice;
+if anything it reads as momwire#524's fan widening doing its job.
+
+That still does NOT license gating one against the other. They remain two
+structures under momwire#524's fan-widening adjudication, and one deck at one
+soil, mesh and frequency is a measurement rather than an equivalence theorem.
+What it does settle is that any claim about "how different the two spellings
+are" has to be made at converged quadrature or it is measuring quadrature.
 
 MESH CONVERGENCE — the default mesh IS the converged rung IN MESH, at
 fixed quadrature. Mesh convergence at fixed quadrature converges to the
-wrong limit (momwire#760); this paragraph bounds the mesh axis and no other.
+wrong limit (momwire#760: the two axes interact, so a global density sweep
+reports converged while the quadrature axis is still moving); this paragraph bounds the mesh axis and no other.
 The crossing node carries a slow, measured convergence class in the node
 mesh (momwire#674, first order in the node-adjacent segment length).
 
@@ -202,8 +240,8 @@ so sweeping the density only refines the FAR mesh — which is the axis that
 sweep actually measures.
 
 The history below belongs to the ``bundle`` spelling and was measured at
-n_qp_pair = 4, where the quadrature axis it does not carry is 6.70 ohm —
-155x the largest term in it. The original auto-meshed default put ONE segment
+n_qp_pair = 4, where the quadrature axis it does not carry is 7.00 ohm
+against a converged reference — 162x the largest term in it. The original auto-meshed default put ONE segment
 on each 15 cm rise (the density floor: 0.15 m against a 40 m quarter-wave)
 and sat 29 ohm of reactance off the converged answer on a FALSE PLATEAU:
 global density sweeps to 4x moved it < 0.2 ohm with the node mesh frozen by
