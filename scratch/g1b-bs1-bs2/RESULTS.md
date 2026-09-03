@@ -84,3 +84,51 @@ diagnoses it.
 - Not gated: the AK catalog deck's pair (20 s per row at q=32 is past AK's
   per-test budget; the momwire hub_deck row is the same structure class). The
   buried-fed class, as above. Any agreement with razor or NEC-5 underground.
+
+## Addendum (same day): the buried-fed drift is the FEED-GAP axis, and it is not the soil's
+
+`feedgap.py` splits the two axes on bvd1 (1 m vertical dipole, top 0.15 m
+down, a = 1 mm, 7 MHz, degree 2). The fed segment is spelled as its own
+polyline edge so its length can be held or shrunk independently of the rest.
+
+Fed segment HELD at bvd1's 0.0909 m, sides refined 5 → 75 per side (Ω):
+
+| | soil A | free space |
+|---|---|---|
+| Z | 341.55−329.37j → 337.44−325.51j | 0.108−8801.2j → 0.107−8695.5j |
+| total movement | 4.5 | 106 (1.2 % of \|X\|) |
+
+Sides HELD at 45 per side, fed segment shrunk 0.0909 → 0.0011 m (Δ/a 91 → 1.1):
+
+| gap (m) | soil Z | step | free Z | step |
+|---|---|---|---|---|
+| 0.0909 | 337.89−325.93j | | 0.107−8706.95j | |
+| 0.0303 | 328.00−316.83j | 13.44 | 0.101−8454.13j | 252.8 |
+| 0.0101 | 322.73−311.97j | 7.18 | 0.097−8319.20j | 134.9 |
+| 0.0034 | 319.41−308.91j | 4.51 | 0.096−8234.35j | 84.9 |
+| 0.0011 | 317.34−306.99j | 2.82 | 0.094−8181.35j | 53.0 |
+
+So the drift the whole-mesh ladders showed is the fed segment's length, not
+the mesh around it: 20 Ω from the gap axis against 4.5 Ω from the side axis
+over the same range. The steps fall by ×0.55–0.63 per ×3 in the gap — about
+gap^0.5, a finite limit approached slowly, NOT a log divergence (a pure
+ln(gap) term would give constant steps; they halve).
+
+It is not the soil's doing. The relative movement is the same in free space
+(6 % of |Z| both ways), and the soil answer is the free-space one divided by
+the complex permittivity: with ε̃ = 13.000 − 12.839j at 7 MHz,
+Z_soil / (Z_free / ε̃) = 0.985 + 0.024j at both gaps tested. A 1 m dipole is
+0.1 λ_m here (λ_m = 10.0 m); its impedance is the near-field capacitance of
+the source region divided by ε̃, and the "R" is the medium's conduction loss
+in that near field, not radiation. The 10 m horizontal (bhd10, 1 λ_m) shows
+the same split with the same absolute gap steps in soil and free space
+(11.3 / 5.1 / 2.5 vs 10.9 / 5.0 / 2.5 Ω).
+
+What this settles for G1-C: an electrically short bare-wire deck's input
+impedance depends on the fed segment's length at the several-percent level,
+in any medium, because the delta-gap source region's capacitance is a
+material part of |Z|. Both bspline degrees carry it identically. The claim
+boundary is: state the fed segment (or the physical gap it stands for) as
+part of the model, or quote ±5 %. Decks fed near resonance — every anchor
+in the pair gate — do not show it because the gap term is a small part of
+|Z| there. Nothing here is a bug or buried-specific.
