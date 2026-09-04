@@ -119,6 +119,20 @@ export type BackendEntry = {
    *  This says what may be SENT, not what may be CHOSEN — see THE OFFERED-VS-
    *  SENT RULE beside `axisControls`. */
   model_kwargs?: string[];
+  /** Does this backend serve BURIED geometry? Three states: true, false, and
+   *  null for "cannot be asked" — a momwire predating the capability, or a
+   *  non-momwire wrapper whose buried scope is its own business. Null must
+   *  never be read as "cannot" (#1103).
+   *
+   *  SERVED SINCE #1108 AND UNTYPED HERE UNTIL NOW, which is a large part of
+   *  why nothing gated on it: the fact was on the wire and invisible to the
+   *  client. */
+  buried?: boolean | null;
+  /** momwire's sentence for why it cannot, or null. The boolean alone was not
+   *  enough — with no prose, nothing could gate without inventing a reason,
+   *  so nothing gated at all, and `razor-2p` on a buried design solved,
+   *  raised, and showed a traceback instead of a refusal. */
+  buried_refusal?: string | null;
 };
 
 /** One refused combination, as momwire measured it (momwire#885). */
@@ -623,8 +637,49 @@ export function designRefusal(
   design: DesignConstraintInputs,
 ): BackendConstraint | null {
   return (
-    backendOptsAllowed(b, opts, design) ?? steppedJunctionNote(b, opts, design)
+    capabilityRefusal(b, design) ??
+    backendOptsAllowed(b, opts, design) ??
+    steppedJunctionNote(b, opts, design)
   );
+}
+
+/** A refusal of the DECK ITSELF, independent of any option.
+ *
+ *  A THIRD SHAPE, and the gate missed it entirely until a review found
+ *  `razor-2p` solving a buried design and showing the user a traceback.
+ *  The other two ask "which COMBINATIONS are refused" — they are couplings,
+ *  and `COUPLINGS` rightly does not name this, because a solver with no
+ *  buried fill refuses the deck whatever else is set. Different question,
+ *  and the gate needs both.
+ *
+ *  Checked FIRST: a backend that cannot take the deck at all should say so
+ *  rather than report a narrower option-level reason that is also true.
+ *
+ *  `buried: null` is "cannot be asked" and must not be read as "cannot" —
+ *  #1103's rule. pynec and nec5 answer null because their buried scope is
+ *  their own wrapper's business and AK has no MEASURED fact about it; a
+ *  docstring sentence is not a capability.
+ */
+export function capabilityRefusal(
+  b: BackendEntry,
+  design: DesignConstraintInputs | null | undefined,
+): BackendConstraint | null {
+  if (!design?.buried) return null;
+  if (b.buried !== false) return null;
+  const reason = b.buried_refusal;
+  if (!reason) return null;
+  return {
+    axis: "wire_position",
+    value: "buried",
+    forbids_axis: "backend",
+    forbids_value: b.name,
+    // Not a cell in the product space: this is the solver declining the deck,
+    // not one axis value excluding another.
+    forbids_is_axis: false,
+    condition: null,
+    reason,
+    issue: "momwire#553",
+  };
 }
 
 /** Is the extended kernel actually in force for this slot?
