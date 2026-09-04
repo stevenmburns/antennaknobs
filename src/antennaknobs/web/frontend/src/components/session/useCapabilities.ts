@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import type { BackendRoster, ModelOptionSpecs } from "../../lib/backends";
+import type {
+  BackendRoster,
+  ModelOptionSpecs,
+  ServedSlotSeed,
+} from "../../lib/backends";
 import type { TerrainPresetSchema } from "../../lib/ground";
 
 /** GET /capabilities, typed. `have_pynec` is still served for compatibility
@@ -8,6 +12,8 @@ type CapabilitiesPayload = {
   backends?: BackendRoster;
   terrain_presets?: TerrainPresetSchema[];
   model_option_specs?: ModelOptionSpecs;
+  backend_aliases?: Record<string, string>;
+  default_slots?: ServedSlotSeed[];
 };
 
 export type CapabilitiesState = {
@@ -21,6 +27,12 @@ export type CapabilitiesState = {
    *  model options rather than a guess at some. Not an error path: the roster
    *  is what a session cannot start without. */
   modelOptionSpecs: ModelOptionSpecs;
+  /** Retired backend names -> what supersedes each (#1006 G2-6). Empty from a
+   *  server predating it, which simply means no name is rewritten. */
+  backendAliases: Record<string, string>;
+  /** The stock A/B/C seeds. Empty falls back to the roster's first entry for
+   *  every slot — the same tolerance an absent seeded backend already got. */
+  defaultSlotSeeds: ServedSlotSeed[];
   error: string | null;
 };
 
@@ -35,6 +47,8 @@ export function useCapabilities(): CapabilitiesState {
     [],
   );
   const [modelOptionSpecs, setModelOptionSpecs] = useState<ModelOptionSpecs>({});
+  const [backendAliases, setBackendAliases] = useState<Record<string, string>>({});
+  const [defaultSlotSeeds, setDefaultSlotSeeds] = useState<ServedSlotSeed[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,6 +67,14 @@ export function useCapabilities(): CapabilitiesState {
             ? c.model_option_specs
             : {},
         );
+        setBackendAliases(
+          c.backend_aliases && typeof c.backend_aliases === "object"
+            ? c.backend_aliases
+            : {},
+        );
+        setDefaultSlotSeeds(
+          Array.isArray(c.default_slots) ? c.default_slots : [],
+        );
         // An empty roster is as unusable as a failed fetch — there would be
         // no solver to pick — so it takes the error path rather than
         // stranding the session on the loading note.
@@ -70,5 +92,12 @@ export function useCapabilities(): CapabilitiesState {
     };
   }, []);
 
-  return { roster, terrainPresets, modelOptionSpecs, error };
+  return {
+    roster,
+    terrainPresets,
+    modelOptionSpecs,
+    backendAliases,
+    defaultSlotSeeds,
+    error,
+  };
 }

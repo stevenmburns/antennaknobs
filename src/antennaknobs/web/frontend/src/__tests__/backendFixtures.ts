@@ -10,7 +10,11 @@
 // `backendEntry()` instead — including capabilities no real backend has yet
 // (supports_ground: false) and backends that don't exist at all (the
 // zero-frontend-change probe in newBackend.test.tsx).
-import { defaultOptsFor, type BackendOpts } from "../lib/backends";
+import {
+  defaultOptsFor,
+  type BackendOpts,
+  type ServedSlotSeed,
+} from "../lib/backends";
 import { SERVED_CONSTRAINTS } from "./backendConstraintFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 import type {
@@ -227,3 +231,37 @@ export function optsWithModel(
   const base = defaultOptsFor(entry(name), SERVED_OPTION_SPECS);
   return { ...base, model: { ...base.model, ...model } };
 }
+
+
+/** The stock A/B/C seeds, as the server sends them (#1006 G2-6).
+ *
+ *  Generated from a live `default_slots()`; pinned Python-side by
+ *  tests/test_frontend_option_spec_fixture.py alongside the other two
+ *  generated fixtures, on the same argument — a generated copy nothing
+ *  compares to its source is a hand-written copy with a misleading header.
+ */
+export const SERVED_SLOT_SEEDS: ServedSlotSeed[] = [
+  {
+    "slot": "A",
+    "backend": "bspline",
+    "n_per_wire": 15,
+    "model": {}
+  },
+  {
+    "slot": "B",
+    "backend": "bspline",
+    "n_per_wire": 20,
+    "model": {
+      "degree": 1
+    }
+  },
+  {
+    "slot": "C",
+    "backend": "pynec",
+    "n_per_wire": null,
+    "model": {}
+  }
+];
+
+/** Retired backend names, as served. */
+export const SERVED_ALIASES: Record<string, string> = {"triangular": "bspline"};

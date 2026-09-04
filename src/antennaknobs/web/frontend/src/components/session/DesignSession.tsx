@@ -17,6 +17,7 @@ import {
   normalizeBackend,
   type BackendRoster,
   type ModelOptionSpecs,
+  type ServedSlotSeed,
 } from "../../lib/backends";
 import {
   bandContaining as bandContainingIn,
@@ -107,7 +108,14 @@ import { VfoPanel } from "./VfoPanel";
 // answered; this wrapper holds the one hook that decides, which keeps the
 // body's own (large, order-sensitive) hook sequence untouched.
 export function DesignSession({ id, active }: { id: number; active: boolean }) {
-  const { roster, terrainPresets, modelOptionSpecs, error } = useCapabilities();
+  const {
+    roster,
+    terrainPresets,
+    modelOptionSpecs,
+    backendAliases,
+    defaultSlotSeeds,
+    error,
+  } = useCapabilities();
   if (error !== null)
     return (
       <div className="app app-capabilities" role="alert">
@@ -124,6 +132,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       roster={roster}
       terrainPresets={terrainPresets}
       modelOptionSpecs={modelOptionSpecs}
+      backendAliases={backendAliases}
+      defaultSlotSeeds={defaultSlotSeeds}
     />
   );
 }
@@ -134,6 +144,8 @@ function DesignSessionBody({
   roster,
   terrainPresets,
   modelOptionSpecs,
+  backendAliases,
+  defaultSlotSeeds,
 }: {
   id: number;
   active: boolean;
@@ -141,6 +153,8 @@ function DesignSessionBody({
   terrainPresets: TerrainPresetSchema[];
   /** The served solver-knob catalogue (#1006 G2-6). */
   modelOptionSpecs: ModelOptionSpecs;
+  backendAliases: Record<string, string>;
+  defaultSlotSeeds: ServedSlotSeed[];
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -371,7 +385,11 @@ function DesignSessionBody({
     updateSlotOpts,
     setSlotBackend,
     resetSlot,
-  } = useSolverSlots({ roster, specs: modelOptionSpecs });
+  } = useSolverSlots({
+    roster,
+    specs: modelOptionSpecs,
+    seeds: defaultSlotSeeds,
+  });
   // True once the user clicked "Solve anyway" for the current design+solver
   // combo, so re-solves (knob drags) don't re-warn. Reset whenever the design or
   // solver changes (see the reset effect below). Mirrored into state so the
@@ -492,6 +510,7 @@ function DesignSessionBody({
     return normalizeBackend(
       preview?.default_backend ?? currentExample?.default_backend,
       roster,
+      backendAliases,
     );
   })();
   // The active design's backend allowlist (null = unrestricted). Only
@@ -1566,6 +1585,7 @@ function DesignSessionBody({
             backend={slots[gearOpen].backend}
             backends={roster}
             requiredBackends={requiredBackends}
+            specs={modelOptionSpecs}
             suggestConvergedFeed={
               currentExample?.converged_feed_suggested ?? false
             }
@@ -1592,6 +1612,7 @@ function DesignSessionBody({
       backend={backend}
       roster={roster}
       requiredBackends={requiredBackends}
+      aliases={backendAliases}
       optionRefusal={optionRefusal}
       onSwitchBackend={(target) => {
         backendTouchedRef.current = true;

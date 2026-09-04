@@ -15,7 +15,6 @@ import {
   defaultSlots,
   extendedKernelActive,
   findBackend,
-  hasBSplinePanel,
   normalizeBackend,
   slotFromSeed,
   type BackendEntry,
@@ -26,6 +25,8 @@ import {
   entry,
   optsWithModel,
   ROSTER_NO_PYNEC,
+  SERVED_ALIASES,
+  SERVED_SLOT_SEEDS,
   SERVED_ROSTER,
 } from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
@@ -34,7 +35,7 @@ const NAMES = SERVED_ROSTER.map((b) => b.name);
 
 describe("normalizeBackend", () => {
   it("maps the retired 'triangular' name to the bspline entry", () => {
-    expect(normalizeBackend("triangular", SERVED_ROSTER)).toBe(entry("bspline"));
+    expect(normalizeBackend("triangular", SERVED_ROSTER, SERVED_ALIASES)).toBe(entry("bspline"));
   });
 
   it("resolves every served name to its own entry", () => {
@@ -140,7 +141,7 @@ describe("defaultOptsFor", () => {
 
 describe("slotFromSeed / defaultSlots", () => {
   it("resolves the stock A/B/C seeds against the full roster", () => {
-    const slots = defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS);
+    const slots = defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS, SERVED_SLOT_SEEDS);
     expect(slots.A.backend).toBe(entry("bspline"));
     expect(slots.A.opts.nPerWire).toBe(15);
     expect(slots.A.opts.model.degree).toBe(2);
@@ -151,7 +152,7 @@ describe("slotFromSeed / defaultSlots", () => {
   });
 
   it("falls back to the roster's first entry when the seeded backend is absent (#429)", () => {
-    const slots = defaultSlots(ROSTER_NO_PYNEC, SERVED_OPTION_SPECS);
+    const slots = defaultSlots(ROSTER_NO_PYNEC, SERVED_OPTION_SPECS, SERVED_SLOT_SEEDS);
     expect(slots.C.backend).toBe(ROSTER_NO_PYNEC[0]);
     expect(slots.C.opts).toEqual(
       defaultOptsFor(ROSTER_NO_PYNEC[0], SERVED_OPTION_SPECS),
@@ -273,29 +274,14 @@ describe("backendAllowed", () => {
   });
 });
 
-describe("hasBSplinePanel / backendSupportsGround / backendSupportsTerrain", () => {
-  const bsplinePanel: Record<string, boolean> = {
-    sinusoidal: false,
-    "sinusoidal-galerkin": false,
-    bspline: true,
-    hmatrix: true,
-    arrayblock: true,
-    "razor-2p": false,
-    pynec: false,
-  };
+describe("backendSupportsGround / backendSupportsTerrain", () => {
+  // `hasBSplinePanel` is DELETED (#1006 G2-6). A panel name selected a
+  // bespoke component; the knobs come from the served catalogue now, so
+  // there is nothing for the predicate to answer. The expectation table it
+  // needed — and the completeness guard that table required, added when
+  // `razor-2p` turned out to be missing from both — go with it.
 
-  // The table is keyed by name while the cases come from the roster, so a
-  // roster row with no key here looks up `undefined` — and would PASS for any
-  // backend whose helper also answered undefined. That is not hypothetical:
-  // `razor-2p` was missing from the fixture AND from this table, so the tab
-  // was uncovered in a suite that looks like it iterates everything.
-  it("has an expectation for every served backend", () => {
-    expect(Object.keys(bsplinePanel).sort()).toEqual([...NAMES].sort());
-  });
 
-  it.each(NAMES)("hasBSplinePanel(%s)", (name) => {
-    expect(hasBSplinePanel(entry(name))).toBe(bsplinePanel[name]);
-  });
 
   // Every solver the server currently registers models a ground, so the flag
   // is true across the served roster — but it is now DATA, and a roster entry

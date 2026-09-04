@@ -16,6 +16,7 @@ export function SolveOverlays({
   backend,
   roster,
   requiredBackends,
+  aliases,
   onSwitchBackend,
   onPause,
   recommendedBackend,
@@ -38,6 +39,9 @@ export function SolveOverlays({
    *  (which may include the retired "triangular") into offerable entries. */
   roster: BackendRoster;
   requiredBackends: string[] | null;
+  /** Retired backend names, served (#1006 G2-6) — a design's
+   *  `requires_backends` may still carry one. */
+  aliases: Record<string, string>;
   onSwitchBackend: (target: BackendEntry) => void;
   onPause: () => void;
   recommendedBackend: BackendEntry | null;
@@ -106,7 +110,7 @@ export function SolveOverlays({
             <span className="solver-suggest-sub">
               {RESTRICTED_BACKEND_REASON} Switch to{" "}
               {(requiredBackends ?? [])
-                .map((r) => normalizeBackend(r, roster))
+                .map((r) => normalizeBackend(r, roster, aliases))
                 .filter((r): r is BackendEntry => r !== null)
                 .map((r) => r.label)
                 .join(" / ") || "a supported solver"}{" "}
@@ -114,7 +118,7 @@ export function SolveOverlays({
             </span>
             <div className="solver-suggest-actions">
               {(() => {
-                const target = normalizeBackend(requiredBackends?.[0], roster);
+                const target = normalizeBackend(requiredBackends?.[0], roster, aliases);
                 return target ? (
                   <button
                     type="button"

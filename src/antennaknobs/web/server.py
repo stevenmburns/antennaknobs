@@ -2568,7 +2568,9 @@ def capabilities_endpoint():
     the current frontend gates on.
     """
     from .adapter import (
+        backend_aliases,
         backend_roster,
+        default_slots,
         model_option_specs,
         terrain_presets_schema,
     )
@@ -2580,6 +2582,8 @@ def capabilities_endpoint():
             have_nec5=nec5_backend.have_nec5(),
         ),
         "model_option_specs": model_option_specs(),
+        "backend_aliases": backend_aliases(),
+        "default_slots": default_slots(),
         "terrain_presets": terrain_presets_schema(),
     }
 

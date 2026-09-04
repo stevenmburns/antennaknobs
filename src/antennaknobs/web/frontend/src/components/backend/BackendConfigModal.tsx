@@ -3,12 +3,13 @@ import {
   backendAllowed,
   EK_HINT,
   extendedKernelActive,
-  PANEL_BSPLINE,
+  AXIS_KWARG,
   degreeChoices,
+  renderableOptions,
+  type ModelOptionSpecs,
   feedModelChoices,
   offersFeedModelChoice,
   type FeedModelChoice,
-  PANEL_PYNEC,
   RESTRICTED_BACKEND_REASON,
   type BackendEntry,
   type BackendOpts,
@@ -16,14 +17,44 @@ import {
   type Slot,
 } from "../../lib/backends";
 import { NumberField } from "./fields";
+import { OptionField, specShownWith } from "./OptionField";
 
 // Narrowing helpers for the flat option map (#1006 G2-6). `opts.model` is
 // `Record<string, unknown>` because its KEYS are the server's, so the widgets
 // narrow at the point of use rather than the map pretending to a shape it
 // cannot have until the schema can describe every knob.
+// The kwargs an AXIS governs — these keep bespoke widgets (tab pairs with
+// their own vocabulary, the EK card) and are filtered out of the generic
+// loop. Derived from `AXIS_KWARG` rather than listed again, so a new axis
+// cannot be drawn twice.
+const AXIS_GOVERNED = new Set(Object.values(AXIS_KWARG));
+
+/** Why this knob is unavailable on this slot, or null — from the SERVED
+ *  constraints, never from a rule written here.
+ *
+ *  The one live case is momwire's extended-kernel / singular-enrichment
+ *  exclusion (momwire#888). The frontend used to carry its own sentence for
+ *  that, which had drifted to citing a different issue than momwire's own
+ *  prose; this reads the served row instead, so the two cannot disagree.
+ */
+function disabledReasonFor(
+  b: BackendEntry,
+  opts: BackendOpts,
+  kwarg: string,
+): string | null {
+  if (!opts.model.extended_kernel) return null;
+  const hit = (b.constraints ?? []).find(
+    (c) =>
+      c.axis === "kernel" &&
+      c.value === "extended" &&
+      c.forbids_axis === "singular_enrichment",
+  );
+  if (!hit || kwarg !== "use_singular_enrichment") return null;
+  return hit.reason;
+}
+
 const num = (v: unknown): number | undefined =>
   typeof v === "number" ? v : undefined;
-const bool = (v: unknown): boolean => v === true;
 const str = (v: unknown): string | undefined =>
   typeof v === "string" ? v : undefined;
 
@@ -36,6 +67,10 @@ export type BackendConfigProps = {
    *  explaining why, rather than disappearing — the picker stays stable
    *  across design switches and the restriction itself is the signal. */
   requiredBackends: string[] | null;
+  /** The served solver-knob catalogue (#1006 G2-6): every knob's kind,
+   *  bounds, captions and gate. The panel is drawn from this, not from a
+   *  per-engine table here. */
+  specs: ModelOptionSpecs;
   /** Current design recommends the Converged feed model (near-open high-Q,
    *  antennaknobs#478) — shown as a hint on the Sin-Galerkin feed-model
    *  control. */
@@ -47,15 +82,13 @@ export type BackendConfigProps = {
   onClose: () => void;
 };
 
-// Shared by the auto toggle and the pinned field so the two cannot drift.
-const N_QP_PAIR_TITLE =
-  "Gauss-Legendre points per segment per axis for cross-edge pair moments. Auto lets momwire choose per deck — it uses a higher order when the deck has wire at or below the ground, and the shipped order otherwise. It matters only on decks that reach the ground: on `verticals.buried_radial_vertical` at its default hub spelling the shipped order of 8 sits 0.17 \u03a9 from the converged answer, essentially all of it reactive, and 32 closes that to 0.0047 \u03a9; on a deck standing clear of the ground the two differ by 0.02 \u03a9, so on a dipole expect to see nothing. Pin a number only to reproduce a specific run \u2014 raising it is cheap on these decks (momwire#778).";
 
 export function BackendConfigModal({
   slot,
   backend,
   backends,
   requiredBackends,
+  specs,
   suggestConvergedFeed,
   opts,
   onChangeBackend,
@@ -141,32 +174,37 @@ export function BackendConfigModal({
             <ExtendedKernelField backend={backend} opts={opts} onPatch={onPatch} />
           )}
 
-          {/* Generic numeric knobs, straight from the served options_schema —
-              the same schema-driven loop the terrain panel uses (#560). */}
-          {backend.options_schema.map((f) => (
-            <NumberField
-              key={f.key}
-              label={f.label}
-              value={num(opts.model[f.key]) ?? f.default}
-              min={f.min}
-              max={f.max}
-              step={f.step}
-              onChange={(v) =>
-                onPatch({ model: { ...opts.model, [f.key]: v } })
-              }
-            />
-          ))}
+          {/* THE SOLVER KNOBS, drawn from the served catalogue (#1006 G2-6).
+              No engine names, no panel hints, no per-knob branches: which
+              knobs appear is `renderableOptions`, and each one's widget,
+              bounds, captions and gate are the server's.
 
-          {/* The feed-model control is AXIS-DERIVED (#1006 G2-5): it renders
+              The AXIS-GOVERNED controls are not here — `feed_model` and
+              `degree` are compositional choices with their own vocabulary
+              (tab pairs with real labels and tooltips) and `extended_kernel`
+              is the EK card above. They keep their bespoke widgets, which is
+              the same split the offered-vs-sent rule describes. */}
+          {renderableOptions(backend, specs)
+            .filter((k) => !AXIS_GOVERNED.has(k))
+            .filter((k) => specShownWith(specs[k]!, opts.model, specs))
+            .map((k) => (
+              <OptionField
+                key={k}
+                name={k}
+                spec={specs[k]!}
+                model={opts.model}
+                disabledReason={disabledReasonFor(backend, opts, k)}
+                onPatch={(patch) =>
+                  onPatch({ model: { ...opts.model, ...patch } })
+                }
+              />
+            ))}
+
+          {/* The axis-derived feed-model control (#1006 G2-5): it renders
               wherever `feed_model` is multi-valued, which is what the
               `sin-galerkin` panel hint used to mean. The hint survives only
-              inside `feedModelChoices` as the fallback for a momwire that
-              cannot describe itself.
-
-              The B-spline panel stays bespoke and is still selected by the
-              hint. Only its degree tabs are an axis; the quadrature orders,
-              bump width, singular enrichment and its variant are not, so
-              there is nothing for the axis vocabulary to replace them with. */}
+              inside `feedModelChoices`, as the fallback for a momwire that
+              cannot describe itself — it goes with the PyPI pin bump. */}
           {offersFeedModelChoice(backend) && (
             <FeedModelField
               choices={feedModelChoices(backend)}
@@ -178,21 +216,28 @@ export function BackendConfigModal({
             />
           )}
 
-          {backend.panel === PANEL_BSPLINE && (
-            <BSplineFields
-              model={opts.model}
+          {/* Degree tabs, from the `basis` axis (#1006 G2-5). Rendered
+              whenever the backend offers ANY degree, not only two: that is
+              what the bespoke panel did, and a backend whose basis axis
+              carried one value would otherwise lose the control that says
+              which. `degreeChoices` already returns [] for a backend that
+              does not expose `degree` at all, which is what keeps this off
+              pynec. */}
+          {degreeChoices(backend).length > 0 && (
+            <DegreeField
               degrees={degreeChoices(backend)}
-              extendedKernel={extendedKernelActive(backend, opts)}
-              onPatch={(p) => onPatch({ model: { ...opts.model, ...p } })}
+              value={num(opts.model.degree)}
+              onSelect={(d) => onPatch({ model: { ...opts.model, degree: d } })}
             />
           )}
 
-          {backend.panel === PANEL_PYNEC && (
-            <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
-              PyNEC has no extra solver knobs here — ground type / fast ground
-              live in the main panel.
-            </em>
-          )}
+          {renderableOptions(backend, specs).length === 0 &&
+            backend.kind !== "momwire" && (
+              <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+                {backend.label} has no extra solver knobs here — ground type /
+                fast ground live in the main panel.
+              </em>
+            )}
         </div>
 
         <div className="backend-config-footer">
@@ -300,190 +345,41 @@ function FeedModelField({
   );
 }
 
-function BSplineFields({
-  model,
+/** The B-spline degree tabs, from the `basis` AXIS (#1006 G2-5).
+ *
+ *  The one control the old bespoke panel held that IS a compositional
+ *  choice. The other nine — quadrature orders, the bump width, singular
+ *  enrichment and its variant — are ordinary knobs and are drawn by
+ *  `OptionField` from the served catalogue, which is why that panel is gone.
+ */
+function DegreeField({
   degrees,
-  extendedKernel,
-  onPatch,
+  value,
+  onSelect,
 }: {
-  /** The slot's solver kwargs, keyed by the SERVER's own names (#1006 G2-6).
-   *  This panel used to hold a camelCase mirror (`BSplineOpts`) that had to be
-   *  translated back on the way out; the flat map removes the translation and
-   *  the engine name from the data model. The panel itself is still bespoke —
-   *  the served schema cannot yet express its render ranges, gate captions, or
-   *  its gate on a nullable number, which is the next PR. */
-  model: Record<string, unknown>;
-  /** The degree tabs, from the `basis` AXIS. The ONLY axis-derived control in
-   *  this panel — the quadrature orders, bump width and singular enrichment
-   *  below are not axes, which is why this panel survives #1006 G2-5 while the
-   *  sin-Galerkin one dissolved into its single axis. */
   degrees: (1 | 2)[];
-  /** The slot's extended kernel is in force — enrichment is unavailable while
-   *  it is (momwire#271). The exclusion is symmetric (the EK row greys out
-   *  while enrichment is on), so neither box can lock the other. */
-  extendedKernel: boolean;
-  onPatch: (p: Record<string, unknown>) => void;
+  value: number | undefined;
+  onSelect: (d: 1 | 2) => void;
 }) {
   return (
-    <>
-      <div className="field">
-        <label>
-          <span>degree</span>
-          <span>{num(model.degree)}</span>
-        </label>
-        <div className="geometry-tabs" role="tablist">
-          {degrees.map((d) => (
-            <button
-              key={d}
-              role="tab"
-              aria-selected={num(model.degree) === d}
-              className={num(model.degree) === d ? "active" : ""}
-              onClick={() => onPatch({ degree: d })}
-            >
-              d={d}
-            </button>
-          ))}
-        </div>
+    <div className="field">
+      <label>
+        <span>degree</span>
+        <span>{value}</span>
+      </label>
+      <div className="geometry-tabs" role="tablist">
+        {degrees.map((d) => (
+          <button
+            key={d}
+            role="tab"
+            aria-selected={value === d}
+            className={value === d ? "active" : ""}
+            onClick={() => onSelect(d)}
+          >
+            d={d}
+          </button>
+        ))}
       </div>
-      <div className="field">
-        <label className="link-toggle" title={N_QP_PAIR_TITLE}>
-          <input
-            type="checkbox"
-            checked={model.n_qp_pair == null}
-            onChange={(e) => onPatch({ n_qp_pair: e.target.checked ? null : 8 })}
-          />
-          n_qp_pair: auto
-        </label>
-        {model.n_qp_pair != null && (
-          <NumberField
-            label="n_qp_pair (GL pts/axis)"
-            title={N_QP_PAIR_TITLE}
-            value={num(model.n_qp_pair) ?? 8}
-            min={2}
-            max={32}
-            step={1}
-            onChange={(v) => onPatch({ n_qp_pair: v })}
-          />
-        )}
-      </div>
-      <div className="field">
-        <label className="link-toggle" title="Replace the delta-gap with a cos² source of width α·h_feed; removes the delta-gap's O(1/N) convergence cap so a straight-wire feed converges at the basis rate.">
-          <input
-            type="checkbox"
-            checked={model.feed_smoothing_factor != null}
-            onChange={(e) =>
-              onPatch({ feed_smoothing_factor: e.target.checked ? 3 : null })
-            }
-          />
-          feed source smoothing
-        </label>
-        {model.feed_smoothing_factor != null && (
-          <NumberField
-            label="α (bump width / h_feed)"
-            value={num(model.feed_smoothing_factor) ?? 3}
-            min={0.5}
-            max={10}
-            step={0.5}
-            onChange={(v) => onPatch({ feed_smoothing_factor: v })}
-          />
-        )}
-        {model.feed_smoothing_factor != null && (
-          <NumberField
-            label="n_qp_source"
-            value={num(model.n_qp_source) ?? 16}
-            min={4}
-            max={64}
-            step={1}
-            onChange={(v) => onPatch({ n_qp_source: v })}
-          />
-        )}
-      </div>
-      <div className="backend-config-section">validation · experimental</div>
-      <p className="backend-config-note">
-        The d=2 basis already resolves K≥3 junctions — enrichment does not
-        improve a d=2 solve, and worsens it at coarse mesh (issue #565). Kept
-        as a validation tool against the low-order (sinusoidal) basis, where the
-        junction singularity genuinely matters. Not needed for production.
-      </p>
-      <div className="field">
-        <label
-          className="link-toggle"
-          title={
-            extendedKernel
-              ? // momwire refuses this combination; the sentence is momwire's
-                // and now travels in the served constraints (momwire#888)
-                // rather than being retyped here, so this control shows only
-                // that it is unavailable and the solve path carries the why.
-                "Unavailable while the extended kernel is on."
-              : "VALIDATION ONLY. Adds (u/h)·log(u/h) singular basis at K ≥ enrichment_min_k junctions. This flips O(1/N) → ~O(1/N^(d+1)) for LOW-ORDER bases (sinusoidal); the d=2 B-spline already converges at that rate on its own, so enrichment is redundant here and adds a coarse-mesh transient. See issue #565."
-          }
-        >
-          <input
-            type="checkbox"
-            checked={bool(model.use_singular_enrichment)}
-            disabled={extendedKernel}
-            onChange={(e) => onPatch({ use_singular_enrichment: e.target.checked })}
-          />
-          K≥3 junction singular enrichment
-        </label>
-        {bool(model.use_singular_enrichment) && (
-          <>
-            <NumberField
-              label="n_qp_sing (GL pts/axis)"
-              value={num(model.n_qp_sing) ?? 32}
-              min={8}
-              max={64}
-              step={1}
-              onChange={(v) => onPatch({ n_qp_sing: v })}
-            />
-            <NumberField
-              label="enrichment_min_k"
-              value={num(model.enrichment_min_k) ?? 3}
-              min={2}
-              max={6}
-              step={1}
-              onChange={(v) => onPatch({ enrichment_min_k: v })}
-            />
-            <label
-              className="link-toggle"
-              title="raw = original Φ_sing = (u/h)·log(u/h); stable = Φ_sing minus bubble-subspace L²-projection (loses Y cusp); tikhonov = raw + λ·s·I penalty on Z_ee (shrinks all α uniformly); auto = two-pass per-junction selectivity via tap_ratio (dominant-pair K=3 → off, balanced 3-way → on)."
-            >
-              variant:
-              <select
-                value={str(model.enrichment_variant)}
-                onChange={(e) =>
-                  onPatch({ enrichment_variant: e.target.value })
-                }
-              >
-                <option value="raw">raw</option>
-                <option value="stable">stable</option>
-                <option value="tikhonov">tikhonov</option>
-                <option value="auto">auto</option>
-              </select>
-            </label>
-            {str(model.enrichment_variant) === "tikhonov" && (
-              <NumberField
-                label="tikhonov_lambda (λ)"
-                value={num(model.tikhonov_lambda) ?? 0.1}
-                min={0}
-                max={10}
-                step={0.05}
-                onChange={(v) => onPatch({ tikhonov_lambda: v })}
-              />
-            )}
-            {str(model.enrichment_variant) === "auto" && (
-              <NumberField
-                label="auto_tap_ratio_threshold"
-                value={num(model.auto_tap_ratio_threshold) ?? 0.3}
-                min={0}
-                max={1}
-                step={0.05}
-                onChange={(v) => onPatch({ auto_tap_ratio_threshold: v })}
-              />
-            )}
-          </>
-        )}
-      </div>
-    </>
+    </div>
   );
 }

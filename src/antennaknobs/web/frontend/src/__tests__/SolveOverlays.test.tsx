@@ -22,7 +22,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SolveOverlays } from "../components/session/SolveOverlays";
 import { normalizeBackend } from "../lib/backends";
-import { entry, SERVED_ROSTER } from "./backendFixtures";
+import { entry, SERVED_ROSTER,
+  SERVED_ALIASES,
+} from "./backendFixtures";
 
 // --- fixtures --------------------------------------------------------------
 // Labels and the poor-match copy branch come off the served roster (issue
@@ -57,6 +59,7 @@ function renderOverlays(overrides: OverlayOverrides = {}) {
       solverWarning={false}
       backendDisallowed={false}
       optionRefusal={null}
+      aliases={SERVED_ALIASES}
       roster={SERVED_ROSTER}
       requiredBackends={null}
       solveError={null}
@@ -149,7 +152,11 @@ describe("SolveOverlays — disallowed banner", () => {
   // normalizeBackend maps the retired "triangular" name to "bspline" — the
   // load-bearing mapping a stale recommendation depends on.
   it("normalizes a retired backend name (triangular) before offering the switch", async () => {
-    expect(normalizeBackend("triangular", SERVED_ROSTER)).toBe(entry("bspline"));
+    // The alias map is SERVED now (#1006 G2-6) — the retired name used to be
+    // rewritten by an inline branch in lib/backends.ts.
+    expect(normalizeBackend("triangular", SERVED_ROSTER, SERVED_ALIASES)).toBe(
+      entry("bspline"),
+    );
     const { user, onSwitchBackend } = renderOverlays({
       solverWarning: true,
       backendDisallowed: true,

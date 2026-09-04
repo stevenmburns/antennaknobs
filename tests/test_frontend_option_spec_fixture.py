@@ -114,3 +114,50 @@ def test_the_accepted_but_unexposed_knobs_stay_unexposed():
     # ...and the sinusoidal case, which is the one that was actually a bug.
     assert "feed_model" not in live["sinusoidal"]["model_kwargs"]
     assert "feed_model" in live["sinusoidal-galerkin"]["model_kwargs"]
+
+
+def test_the_served_slot_seeds_and_aliases_reach_the_frontend_fixture():
+    """The last two engine-name facts to leave the client (#1006 G2-6).
+
+    `DEFAULT_SLOT_SEEDS` was three product decisions written as three engine
+    names, and `normalizeBackend` carried an inline `"triangular" -> "bspline"`
+    rewrite. Both are served now, so both need the same regeneration gate as
+    the catalogue beside them — a generated copy nothing compares to its
+    source is a hand-written copy with a misleading header.
+    """
+    import json
+    import re
+
+    from antennaknobs.web.adapter import backend_aliases, default_slots
+
+    src = ROSTER_FIXTURE.read_text()
+    m = re.search(r"SERVED_SLOT_SEEDS: ServedSlotSeed\[\] = (\[.*?\]);", src, re.S)
+    assert m, "SERVED_SLOT_SEEDS not found in the fixture"
+    assert json.loads(m.group(1)) == default_slots(), REGENERATE
+
+    m = re.search(r"SERVED_ALIASES: Record<string, string> = (\{[^}]*\});", src)
+    assert m, "SERVED_ALIASES not found in the fixture"
+    assert json.loads(m.group(1)) == backend_aliases(), REGENERATE
+
+
+def test_the_seeds_name_backends_the_roster_actually_serves():
+    """A seed naming an absent backend is tolerated by the client (it falls
+    back to the roster head, #429) — but a seed naming one that NEVER exists
+    is a typo that would silently downgrade a slot forever."""
+    from antennaknobs.web.adapter import default_slots
+
+    served = {r["name"] for r in backend_roster(have_pynec=True, have_nec5=True)}
+    for seed in default_slots():
+        assert seed["backend"] in served, seed
+    assert [s["slot"] for s in default_slots()] == ["A", "B", "C"]
+
+
+def test_every_alias_target_is_a_real_backend_and_no_alias_shadows_one():
+    """An alias pointing at nothing silently resolves to null; an alias whose
+    KEY is a live backend name would rewrite a working name."""
+    from antennaknobs.web.adapter import backend_aliases
+
+    served = {r["name"] for r in backend_roster(have_pynec=True, have_nec5=True)}
+    for old, new in backend_aliases().items():
+        assert new in served, (old, new)
+        assert old not in served, f"{old} is a live backend name, not a retired one"

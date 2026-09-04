@@ -130,17 +130,28 @@ def test_shown_when_names_a_real_option_and_never_encodes_a_refusal():
         if spec.shown_when is None:
             continue
         assert spec.shown_when in _OPTION_SPECS, (name, spec.shown_when)
-        # TRUTHY, not "is True". `n_qp_source` is shown while
-        # `feed_smoothing_factor` is a non-null number, so a gate naming a
-        # boolean is the common case and not the rule. What IS required is
-        # that the gate can be falsy at all — a gate on a knob that is always
-        # set would be a control that never hides, i.e. not a gate.
+        # A GATE MUST BE ABLE TO FAIL, or it is not a gate. Three shapes
+        # qualify and all three are live:
+        #   * a boolean       (`use_singular_enrichment`)
+        #   * a nullable knob (`feed_smoothing_factor` gates `n_qp_source`)
+        #   * an enum WITH a value condition (`enrichment_variant` gates the
+        #     two variant knobs, each on a different value)
+        # An enum gate WITHOUT a value condition would be a no-op, since an
+        # enum is always set to something truthy.
         gate = _OPTION_SPECS[spec.shown_when]
-        assert gate.kind == "bool" or gate.allow_none or gate.auto_when_null, (
-            f"{name}: shown_when names {spec.shown_when}, which is neither a "
-            "boolean nor nullable — it can never be falsy, so the gate is a "
-            "no-op"
-        )
+        if spec.shown_when_value is not None:
+            assert gate.kind == "enum", (
+                f"{name}: shown_when_value only makes sense against an enum"
+            )
+            assert spec.shown_when_value in gate.values, (
+                f"{name}: gates on {spec.shown_when}=={spec.shown_when_value!r}, "
+                f"which is not one of {gate.values}"
+            )
+        else:
+            assert gate.kind == "bool" or gate.allow_none or gate.auto_when_null, (
+                f"{name}: shown_when names {spec.shown_when}, which can never "
+                "be falsy and carries no value condition — the gate is a no-op"
+            )
         assert "extended_kernel" != spec.shown_when, (
             f"{name}: the EK/enrichment exclusion is a momwire REFUSAL "
             "(momwire#888), not UI gating — it belongs in served constraints"
@@ -313,3 +324,54 @@ def test_the_gate_polarity_is_derivable_and_the_two_cases_both_exist():
     ]
     assert auto == ["n_qp_pair"], auto
     assert optional == ["feed_smoothing_factor"], optional
+
+
+def test_a_gate_chain_terminates_and_every_link_is_itself_shown():
+    """Gates CHAIN — `tikhonov_lambda` -> `enrichment_variant` ->
+    `use_singular_enrichment` — which is how the old panel's nesting is
+    reproduced without a chain syntax. Two things must hold for that to be
+    safe: no cycles (a renderer resolving transitively would not terminate),
+    and every link must itself be a described option.
+    """
+    for name in _OPTION_SPECS:
+        seen = [name]
+        cur = _OPTION_SPECS[name].shown_when
+        while cur is not None:
+            assert cur in _OPTION_SPECS, f"{name}: gate chain leaves the table at {cur}"
+            assert cur not in seen, f"{name}: gate chain cycles through {cur}"
+            seen.append(cur)
+            cur = _OPTION_SPECS[cur].shown_when
+        assert len(seen) <= 4, f"{name}: gate chain is {len(seen)} deep"
+
+
+def test_the_chain_that_exists_is_the_one_the_panel_had():
+    """Pinned, because it is load-bearing and easy to flatten by accident.
+
+    Flattening `tikhonov_lambda` to gate directly on `use_singular_enrichment`
+    would show it for every variant — two extra controls on the commonest
+    setting — and the equivalence fixture is what would catch it.
+    """
+    assert _OPTION_SPECS["tikhonov_lambda"].shown_when == "enrichment_variant"
+    assert _OPTION_SPECS["tikhonov_lambda"].shown_when_value == "tikhonov"
+    assert _OPTION_SPECS["auto_tap_ratio_threshold"].shown_when == "enrichment_variant"
+    assert _OPTION_SPECS["auto_tap_ratio_threshold"].shown_when_value == "auto"
+    assert _OPTION_SPECS["enrichment_variant"].shown_when == "use_singular_enrichment"
+    assert _OPTION_SPECS["use_singular_enrichment"].shown_when is None
+
+
+def test_a_gate_on_value_exists_exactly_where_a_gate_switches_something_on():
+    """`gate_on_value` is what unticking "auto" (or ticking "smoothing") sets.
+
+    Not derivable and NOT the default: `n_qp_pair`'s default IS null, and
+    unticking auto has always pinned 8. Recording it is the difference between
+    reproducing the panel and inventing a new one.
+    """
+    for name, spec in _OPTION_SPECS.items():
+        if spec.auto_when_null or spec.allow_none:
+            assert spec.gate_on_value is not None, f"{name}: gate with no on-value"
+            assert spec.render_lo is None or spec.gate_on_value >= spec.render_lo
+            assert spec.render_hi is None or spec.gate_on_value <= spec.render_hi
+        else:
+            assert spec.gate_on_value is None, name
+    assert _OPTION_SPECS["n_qp_pair"].gate_on_value == 8
+    assert _OPTION_SPECS["feed_smoothing_factor"].gate_on_value == 3

@@ -12,7 +12,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DesignSession } from "../components/session/DesignSession";
 import type { ExampleDescriptor } from "../lib/params";
-import { SERVED_ROSTER } from "./backendFixtures";
+import {
+  SERVED_ROSTER,
+  SERVED_ALIASES,
+  SERVED_SLOT_SEEDS,
+} from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const EXAMPLE: ExampleDescriptor = {
@@ -59,6 +63,8 @@ beforeEach(() => {
         have_pynec: true,
         backends: SERVED_ROSTER,
         model_option_specs: SERVED_OPTION_SPECS,
+        backend_aliases: SERVED_ALIASES,
+        default_slots: SERVED_SLOT_SEEDS,
         terrain_presets: [],
       });
     if (path.startsWith("/examples"))
