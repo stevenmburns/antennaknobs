@@ -379,9 +379,68 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "dense_family": b.dense_family,
             "buried": _backend_serves_buried(b),
             "axes": _backend_axes(b),
+            "constraints": _backend_constraints(b),
         }
         for b in _BACKENDS
         if availability.get(b.kind, True)
+    ]
+
+
+def _backend_constraints(spec):
+    """Which axis values this backend cannot combine, with momwire's reason —
+    or None when that cannot be asked (antennaknobs#1006 G2-4b).
+
+    The axes are NOT freely combinable, so a panel rendering them as
+    independent controls would offer a user a combination momwire refuses.
+    momwire#885 measured five such couplings and holds them as data, each
+    carrying the prose its own refusal raises.
+
+    FILTERED ON `applies_to`, NEVER ON VALUE REACHABILITY. A coupling belongs
+    to the class that raises it. Filtering by "can this backend be configured
+    to `value_a`" mis-attributes three of the six rows — it would tell a
+    `bspline` user that the extended kernel forbids `near_correction=False`,
+    a keyword `BSplineSolver` does not have (measured: TypeError, not a
+    refusal). That mis-attribution is exactly why `applies_to` exists.
+
+    Matched EXACTLY, not by subclass. `ArrayBlockSolver` inherits
+    `HMatrixSolver`'s buried refusal but carries its own row, because the two
+    rows exist precisely to say their solve strategies differ; an
+    `issubclass` match would hand it both and undo that.
+
+    Probed as a feature on `_backend_axes`' precedent: the pointer runs ahead
+    of the PyPI pin, so momwire reports the same version with and without this
+    table — it reported 0.47.0 both before and after the pointer move that
+    brought it. None means "cannot be asked" and renders as *not described*,
+    the same unknown state an undeclared row already gets.
+
+    The two rows whose `forbids_axis` is a constructor keyword rather than an
+    axis are served WITH their marker rather than dropped, so the frontend
+    decides what to do about a constraint it cannot draw as a cell — that is a
+    presentation choice and it does not belong in this seam.
+    """
+    if spec.kind != "momwire" or spec.solver is None:
+        return None
+    try:
+        from momwire._couplings import COUPLINGS
+    except ImportError:  # a momwire predating momwire#885
+        return None
+    name = spec.solver.__name__
+    return [
+        {
+            "axis": c.axis_a,
+            "value": c.value_a,
+            "forbids_axis": c.axis_b,
+            "forbids_value": c.value_b,
+            "forbids_is_axis": c.b_is_axis,
+            # Verbatim, and None for a flat refusal: "refused" and "refused
+            # when X" are different sentences and collapsing them overstates
+            # the first.
+            "condition": c.condition,
+            "reason": c.reason,
+            "issue": c.issue,
+        }
+        for c in COUPLINGS
+        if name in c.applies_to
     ]
 
 
