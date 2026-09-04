@@ -179,22 +179,130 @@ def test_cross_engine_skin_loss_oracle():
     assert dr_momwire == pytest.approx(dr_pynec, rel=0.05)
 
 
+# ----------------------------------------------------------------------
+# The coated-wire oracles (momwire#874)
+# ----------------------------------------------------------------------
+#
+# momwire models a jacketed wire as the Popovic-Nesic PAIR: the kernel takes
+# an equivalent radius a' = a·(b/a)^((eps_r-1)/eps_r), and the series
+# inductance L = (mu0/2pi)·ln(a'/a) puts back what enlarging the radius
+# removed. NEC's LD 2 is the L half ALONE — same velocity to first order,
+# but the wrong characteristic impedance (C unchanged, L raised, rather than
+# C raised, L unchanged). The two are different models, so a same-model
+# comparison needs NEC given the pair too.
+#
+# GIVING NEC THE PAIR TAKES THREE COUPLED DETAILS, and getting any one wrong
+# reproduces a ~5 % gap that looks like a momwire defect:
+#
+#   1. GW radius = a'  (not the conductor's a)
+#   2. LD 2 carries L PLUS the conductor's internal REACTANCE X_int/omega
+#   3. LD 5 is dropped and the conductor's R folded into that same LD 2 card,
+#      because LD 5 derives R from the GW radius, which is no longer the
+#      conductor's
+#
+# Detail 2 is the one that bites: momwire's skin loading is the exact Bessel
+# internal impedance, so it carries R + jX_int, and deep in the skin regime
+# X_int ~= R (measured 1.4399 and 1.3830 ohm/m here, X/R = 0.961). Dropping
+# it costs several ohms of reactance and reads as a model error.
+#
+# THAT IS WHY THE TIGHT ORACLE BELOW IS PEC: with no conductor loss there is
+# nothing to fold, no LD 5 to drop, and detail 2 cannot be got wrong. Do not
+# "improve" it back into the lossy form.
+
+
+def _pair_pynec(builder, *, lossy):
+    """PyNEC given the same coated-wire model momwire runs (see above)."""
+    from momwire._wire_loading import (
+        equivalent_radius,
+        insulation_inductance,
+        wire_internal_impedance,
+    )
+
+    class _Pair(PyNECEngine):
+        def _radius_for(self, t):
+            spec = self._wire_spec
+            r = super()._radius_for(t)
+            if spec is not None and spec.insulation_radius:
+                return equivalent_radius(
+                    r, spec.insulation_radius, spec.insulation_eps_r
+                )
+            return r
+
+        def _emit_wire_material_cards(self, c):
+            spec = self._wire_spec
+            if spec is None or not spec.insulation_radius:
+                return super()._emit_wire_material_cards(c)
+            a = spec.radius if spec.radius else self._wire_radius
+            L = insulation_inductance(a, spec.insulation_radius, spec.insulation_eps_r)
+            if not lossy or spec.conductivity is None:
+                return c.ld_card(2, 0, 0, 0, 0.0, L, 0.0)
+            omega = 2.0 * np.pi * self.builder.freq * 1e6
+            zint = wire_internal_impedance(omega, a, spec.conductivity)
+            c.ld_card(2, 0, 0, 0, zint.real, L + zint.imag / omega, 0.0)
+
+    return _Pair(builder, ground=None)
+
+
+def _pec(wire_type):
+    """The catalog wire with conductor loss switched off, both engines."""
+    import dataclasses
+
+    spec = dataclasses.replace(WIRES[wire_type], conductivity=None)
+    WIRES.setdefault(f"_pec_{wire_type}", spec)
+    return _builder(f"_pec_{wire_type}")
+
+
 @needs_pynec
-def test_cross_engine_insulation_vf_oracle():
-    """momwire's insulation loading vs NEC's LD 2 distributed inductance
-    on the same free-space invvee: the bare→PVC ΔX from two independent
-    implementations of the same quasi-static jacket L' must agree to a
-    few percent — and it also proves NEC stacks LD 2 with the LD 5
-    conductor loss rather than replacing it."""
-    dx_momwire = (
+def test_cross_engine_coated_pair_oracle():
+    """THE tight cross-engine pin for a jacketed wire: momwire (a'+L) against
+    NEC given the SAME pair, PEC on both sides.
+
+    PEC deliberately — see the module note above. With no conductor loss the
+    comparison has one moving part (the jacket), and it lands at the engines'
+    own noise floor: measured 0.61 % on the bare->PVC dX against a bare-deck
+    baseline of 0.47 % (at a) and 0.56 % (at a'), and 0.80 % absolute.
+    """
+    dx_m = (
+        _z(MomwireEngine(_pec("28-awg-pvc"), ground=None)).imag
+        - _z(MomwireEngine(_pec("28-awg"), ground=None)).imag
+    )
+    dx_n = (
+        _z(_pair_pynec(_pec("28-awg-pvc"), lossy=False)).imag
+        - _z(PyNECEngine(_pec("28-awg"), ground=None)).imag
+    )
+    assert dx_m == pytest.approx(dx_n, rel=0.015)
+
+
+@needs_pynec
+def test_the_pair_and_LD2_alone_differ_by_the_equivalent_radius():
+    """The LOOSE assertion, and the sign of its failure matters more than
+    its size.
+
+    momwire's a'+L against NEC's LD-2-alone is a comparison of two DIFFERENT
+    models, so a residual is expected and correct: the pair raises C and
+    leaves L, LD 2 alone raises L and leaves C. Measured 7.5 % on the
+    bare->PVC dX for 28 AWG under PVC (a'/a = 2.26), which is the a'
+    end-effect.
+
+    **A residual near ZERO would be the alarm**, not a success: it would mean
+    momwire had silently lost the equivalent radius and gone back to being
+    NEC's velocity-matching approximation. The lower bound below is the real
+    content of this test; the upper bound only catches a wild divergence.
+    """
+    dx_m = (
         _z(MomwireEngine(_builder("28-awg-pvc"), ground=None)).imag
         - _z(MomwireEngine(_builder("28-awg"), ground=None)).imag
     )
-    dx_pynec = (
+    dx_n = (
         _z(PyNECEngine(_builder("28-awg-pvc"), ground=None)).imag
         - _z(PyNECEngine(_builder("28-awg"), ground=None)).imag
     )
-    assert dx_momwire == pytest.approx(dx_pynec, rel=0.05)
+    rel = abs(dx_m - dx_n) / abs(dx_n)
+    assert rel < 0.10, f"the two models diverged further than the a' end-effect: {rel}"
+    assert rel > 0.03, (
+        f"momwire and NEC-LD2-only agree to {rel:.4f} — the equivalent radius "
+        "looks LOST (momwire#874); these are different models and should differ"
+    )
 
 
 @needs_pynec
@@ -202,12 +310,18 @@ def test_matched_basis_lossy_oracle():
     """The strongest cross-engine pin (momwire#134): SAME basis family
     (sinusoidal = NEC's) and SAME wire physics on both engines — the
     absolute lossy-PVC impedance, not just deltas, must agree tightly.
-    Before momwire 0.11.0 this comparison required wire_type=None because
-    the sinusoidal solver dropped the loading."""
+
+    Now a same-model comparison (momwire#874): NEC is given the pair,
+    lossily, which needs all three details in the module note — including
+    X_int, without which this reads 5.6 % instead of 0.1 %. Kept LOSSY rather
+    than made PEC like the tight oracle above, because conductor loss on the
+    matched basis is exactly what momwire#134 put here, and it clears the
+    1 % bar by a factor of ten.
+    """
     from momwire import SinusoidalSolver
 
     z_m = _z(
         MomwireEngine(_builder("28-awg-pvc"), ground=None, solver=SinusoidalSolver)
     )
-    z_n = _z(PyNECEngine(_builder("28-awg-pvc"), ground=None))
+    z_n = _z(_pair_pynec(_builder("28-awg-pvc"), lossy=True))
     assert abs(z_m - z_n) / abs(z_m) < 0.01
