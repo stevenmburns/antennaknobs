@@ -343,6 +343,63 @@ def _ends_in_the_plane(tups, ground_z, *, tol=1e-6):
     return tuple(out)
 
 
+def _require_coated_wire_support(polylines, specs, ground_z):
+    """Refuse by NAME on a momwire that would answer a SURFACE deck silently
+    and differently (momwire#865).
+
+    A FEATURE check, never a version one, and that distinction is the whole
+    point. momwire's submodule pointer runs ahead of its PyPI version by
+    convention, so a build with the coated-wire pair and one without BOTH
+    declare the same version — a version comparison cannot separate them and
+    would wave the older build straight through.
+
+    Through is exactly where it must not go. Measured on the surface-radial
+    deck with the jacket resting on the soil (h = b):
+
+        momwire 0.47.0 (PyPI)         221.712 - 144.270j    NO warning
+        momwire with #872/#874/#875   159.184 -  35.308j    advisory fires
+
+    62 ohm apart in R, 109 in X, in silence. The older build does not refuse
+    the deck; it answers it, which is the one failure mode a hosted app must
+    not have.
+
+    Narrow trigger: only a JACKETED wire lying within momwire's own
+    low-stand-off band (h/a < 20, where the class is sensitive to h at all).
+    A jacketed dipole in free space, or one well clear of the ground, is
+    unaffected and keeps working on any momwire.
+    """
+    if ground_z is None:
+        return
+    for pl, spec in zip(polylines, specs, strict=False):
+        if spec is None or not getattr(spec, "insulation_radius", None):
+            continue
+        pts = np.asarray(pl, dtype=float)
+        if pts.shape[0] < 2:
+            continue
+        h = pts[:, 2] - ground_z
+        flat = np.isclose(h[:-1], h[1:])
+        if not np.any(flat & (h[:-1] > 0.0)):
+            continue
+        if float(np.min(h[h > 0.0], initial=np.inf)) >= 20.0 * spec.radius:
+            continue
+        try:
+            from momwire._surface_height import SURFACE_HEIGHT_CLASS  # noqa: F401
+            from momwire._wire_loading import equivalent_radius  # noqa: F401
+        except ImportError as exc:
+            raise ValueError(
+                "this deck has an insulated wire lying within a few radii of "
+                "the ground, and the installed momwire does not model a "
+                "coated wire as the equivalent-radius PAIR "
+                "(momwire#874/#872/#875). It would still SOLVE and answer "
+                "221.7 - 144.3j where the correct model gives 159.2 - 35.3j "
+                "— a silent 62 ohm error. Checking the momwire VERSION does "
+                "not help: the pointer runs ahead of the release, so the "
+                "build without this declares the same version. Update the "
+                "momwire submodule pointer."
+            ) from exc
+        return
+
+
 class MomwireEngine(SimulationEngine):
     supports_far_field = True
 
@@ -600,6 +657,7 @@ class MomwireEngine(SimulationEngine):
         # Distributed loading rides only the solvers that model it; warn
         # once (not raise) so a matched-basis sinusoidal comparison of a
         # lossy design still solves — as the ideal wire, stated plainly.
+        _require_coated_wire_support(self._polylines, self._polyline_specs, ground_z)
         self._loading_kwargs = {}
         spec = self._wire_spec
         if any(s is not None for s in specs):

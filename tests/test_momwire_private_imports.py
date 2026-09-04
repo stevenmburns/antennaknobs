@@ -48,6 +48,23 @@ ALLOWED = {
     # Incidental reach-throughs: no public momwire equivalent today.
     ("builder.py", "momwire._ground_refl", "eps_tilde"),
     ("builder.py", "momwire._sommerfeld_below", "lambda_medium"),
+    # The coated-wire capability guard (momwire#865). Both are FEATURE
+    # probes, not calls: the engine refuses a surface deck when the installed
+    # momwire lacks the equivalent-radius pair, because that momwire does not
+    # refuse the deck — it answers it, 62 ohm out, in silence.
+    #
+    # A version check cannot replace them. momwire's pointer runs ahead of its
+    # PyPI version by convention, so the build with the pair and the build
+    # without BOTH declare the same version; that is the same property that
+    # lets an AK pointer bump land without touching the pin triple. So the
+    # private path is not merely the easiest one here, it is the only one that
+    # answers the question at all.
+    #
+    # Retiring these wants momwire to promote public names, exactly as
+    # momwire#855 did for the two interface-side geometry answers. Filed as
+    # the follow-up; until then these are the names the engine depends on.
+    ("engines/momwire.py", "momwire._surface_height", "SURFACE_HEIGHT_CLASS"),
+    ("engines/momwire.py", "momwire._wire_loading", "equivalent_radius"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
     ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),
