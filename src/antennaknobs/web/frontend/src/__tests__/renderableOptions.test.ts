@@ -27,18 +27,24 @@ import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 const SPECS: ModelOptionSpecs = SERVED_OPTION_SPECS;
 
 describe("rule 2 — an axis governs whether its kwarg is offered", () => {
-  it("does NOT offer feed_model on bspline", () => {
+  it("DOES offer feed_model on bspline now", () => {
+    // This test used to assert the opposite, and the change is the point.
+    // The row declared `feed_model: ("segment-gap",)` while the constructor
+    // defaulted to the POINT gap (momwire#891) — so the axis was
+    // mis-declared as single-valued and rule 2 correctly hid a control that
+    // should have existed. The rule did not change; the data it reads was
+    // wrong, and a rule reading wrong data is exactly as wrong as the data.
     const b = entry("bspline");
-    // TWO INDEPENDENT REASONS, both asserted, because either alone would be
-    // enough and relying on one silently would be fragile:
-    //   1. the server does not EXPOSE it (`model_kwargs`), which is what
-    //      keeps it off the request payload;
-    //   2. its axis is single-valued, which is rule 2 here.
-    // `model_kwargs` used to mean "accepts" and DID contain feed_model — the
-    // request builder fed from it then sent a point gap to `SinusoidalSolver`,
-    // the one solver that refuses it (momwire#212). That is why the field
-    // means "exposes" now.
-    expect(b.model_kwargs).not.toContain("feed_model");
+    expect(b.model_kwargs).toContain("feed_model");
+    expect(b.axes!.feed_model).toEqual(["point-gap", "segment-gap"]);
+    expect(renderableOptions(b, SPECS)).toContain("feed_model");
+  });
+
+  it("still does NOT offer it where the solver refuses the value", () => {
+    // `sinusoidal` accepts the kwarg and REFUSES "point" (momwire#212), so
+    // its axis is honestly single-valued and rule 2 hides the control. That
+    // is the case that keeps rule 2 meaningful now that bspline offers it.
+    const b = entry("sinusoidal");
     expect(b.axes!.feed_model).toEqual(["segment-gap"]);
     expect(renderableOptions(b, SPECS)).not.toContain("feed_model");
   });

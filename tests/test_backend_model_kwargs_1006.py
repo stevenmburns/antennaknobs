@@ -139,8 +139,14 @@ def test_the_deliberately_unexposed_kwargs_are_ACCEPTED_and_still_not_listed():
     adding what the constructor happens to take.
     """
     by_name = {b.name: b for b in MOMWIRE}
+    # `("bspline", "feed_model")` used to be here and is NOT any more: the
+    # row that justified it was wrong. It declared only the segment gap while
+    # the constructor defaulted to the point gap, so "accepted and
+    # deliberately not exposed" was really "accepted, mis-declared, and
+    # therefore invisible". momwire#891 corrected the row and the choice is
+    # offered now — the exclusion went away because its premise did, which is
+    # the right way for one to end.
     cases = [
-        ("bspline", "feed_model", "segment"),
         ("razor-2p", "degree", 2),
         ("razor-2p", "n_qp_source", 16),
     ]
@@ -177,7 +183,8 @@ def test_the_families_share_a_list_exactly_where_they_share_a_surface():
 
 
 def test_the_exposed_lists_reproduce_the_pre_refactor_request_payloads():
-    """The lists are not free choices — they are what the bespoke panels sent.
+    """The lists are not free choices — they are what the bespoke panels sent,
+    plus ONE deliberate addition.
 
     Recorded from the frontend before any of this moved (the eight-state
     fixture), so the renderer swap can be a refactor rather than a change.
@@ -190,6 +197,12 @@ def test_the_exposed_lists_reproduce_the_pre_refactor_request_payloads():
         "bspline": {
             "auto_tap_ratio_threshold",
             "degree",
+            # ADDED DELIBERATELY. The stock request for this family now
+            # carries `feed_model`, which it did not before — and it does not
+            # move a number, because "point" was already the solver's default.
+            # The request states explicitly what it was getting implicitly,
+            # and test_feed_model_exposure_1006.py anchors that bit for bit.
+            "feed_model",
             "enrichment_min_k",
             "enrichment_variant",
             "feed_smoothing_factor",

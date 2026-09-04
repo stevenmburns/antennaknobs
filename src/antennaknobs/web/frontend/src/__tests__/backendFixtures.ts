@@ -16,6 +16,7 @@ import {
   type ServedSlotSeed,
   type CompositionVocabulary,
 } from "../lib/backends";
+import { SERVED_AXES } from "./axesFixtures";
 import { SERVED_CONSTRAINTS } from "./backendConstraintFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 import type {
@@ -70,25 +71,21 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // tests/test_frontend_option_spec_fixture.py.
 const SIN_KWARGS = ["n_qp_const", "extended_kernel"];
 const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
-const BSPLINE_KWARGS = ["degree", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
+const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
 const RAZOR_KWARGS = ["extended_kernel"];
 
-const BSPLINE_AXES = {
-  basis: ["bspline-1", "bspline-2"],
-  testing: ["galerkin"],
-  charge_support: ["spline"],
-  kernel: ["extended", "reduced"],
-  quadrature: ["converged"],
-  solve_strategy: ["dense"],
-  feed_model: ["segment-gap"],
-  ground_model: ["free", "pec", "refl-coef", "sommerfeld"],
-  wire_position: ["above", "buried", "contact"],
-};
 
 // Each entry's `constraints` come from the generated fixture, keyed by name,
 // so the payload a test sees is the payload the server sends — prose included.
 function withConstraints(b: BackendEntry): BackendEntry {
-  return { ...b, constraints: SERVED_CONSTRAINTS[b.name] ?? null };
+  // Axes come from the GENERATED fixture, never a shared literal here. They
+  // used to be built by spreading one base object, and fixing that base for
+  // one family silently changed another's — see axesFixtures.ts.
+  return {
+    ...b,
+    axes: SERVED_AXES[b.name] ?? null,
+    constraints: SERVED_CONSTRAINTS[b.name] ?? null,
+  };
 }
 
 export const SERVED_ROSTER: BackendRoster = ([
@@ -97,13 +94,6 @@ export const SERVED_ROSTER: BackendRoster = ([
     label: "Sinusoidal",
     model_kwargs: SIN_KWARGS,
     options_schema: [backendOption()],
-    axes: {
-      ...BSPLINE_AXES,
-      basis: ["sinusoidal-3term"],
-      testing: ["point-matching"],
-      charge_support: ["basis-implied"],
-      wire_position: ["above", "contact"],
-    },
   }),
   backendEntry({
     name: "sinusoidal-galerkin",
@@ -112,13 +102,6 @@ export const SERVED_ROSTER: BackendRoster = ([
     options_schema: [backendOption()],
     panel: "sin-galerkin",
     dense_family: true,
-    axes: {
-      ...BSPLINE_AXES,
-      basis: ["sinusoidal-3term"],
-      charge_support: ["basis-implied"],
-      feed_model: ["point-gap", "segment-gap"],
-      wire_position: ["above", "contact"],
-    },
   }),
   backendEntry({
     name: "bspline",
@@ -126,7 +109,6 @@ export const SERVED_ROSTER: BackendRoster = ([
     panel: "bspline",
     model_kwargs: BSPLINE_KWARGS,
     dense_family: true,
-    axes: BSPLINE_AXES,
   }),
   backendEntry({
     name: "hmatrix",
@@ -135,11 +117,6 @@ export const SERVED_ROSTER: BackendRoster = ([
     panel: "bspline",
     accelerator: true,
     dense_family: true,
-    axes: {
-      ...BSPLINE_AXES,
-      solve_strategy: ["aca"],
-      wire_position: ["above", "contact"],
-    },
   }),
   backendEntry({
     name: "arrayblock",
@@ -149,11 +126,6 @@ export const SERVED_ROSTER: BackendRoster = ([
     default_n_per_wire: 21,
     accelerator: true,
     dense_family: true,
-    axes: {
-      ...BSPLINE_AXES,
-      solve_strategy: ["element-block"],
-      wire_position: ["above", "contact"],
-    },
   }),
   // Absent from this fixture until #1006 G2-5, though the server has served it
   // since the razor tab landed and the Python twin
@@ -166,15 +138,6 @@ export const SERVED_ROSTER: BackendRoster = ([
     label: "Razor (2-point)",
     model_kwargs: RAZOR_KWARGS,
     dense_family: true,
-    axes: {
-      ...BSPLINE_AXES,
-      basis: ["tent"],
-      testing: ["path"],
-      charge_support: ["basis-implied"],
-      quadrature: ["converged", "nec5"],
-      feed_model: ["node-port"],
-      wire_position: ["above", "contact"],
-    },
     bound: { nec5_quadrature: true },
     bound_axes: {"quadrature": "nec5"},
   }),

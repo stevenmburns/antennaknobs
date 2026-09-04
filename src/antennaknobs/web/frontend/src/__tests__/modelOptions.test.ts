@@ -39,7 +39,7 @@ describe("modelOptionsForRequest", () => {
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bspline sends exactly the ten snake_case b-spline kwargs, values mapped from camelCase", () => {
+  it("bspline sends the eleven b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -63,6 +63,13 @@ describe("modelOptionsForRequest", () => {
         "degree",
         "enrichment_min_k",
         "enrichment_variant",
+        // ADDED DELIBERATELY (momwire#891). The row declared this axis
+        // single-valued while the constructor defaulted to the OTHER value,
+        // so the family had a feed model nobody could ask about. The key is
+        // on the wire now and it moves no number: "point" was already the
+        // default, anchored bit-for-bit in
+        // tests/test_feed_model_exposure_1006.py.
+        "feed_model",
         "feed_smoothing_factor",
         "n_qp_pair",
         "n_qp_sing",
@@ -73,6 +80,7 @@ describe("modelOptionsForRequest", () => {
     );
     expect(result).toEqual({
       degree: 1,
+      feed_model: "point",
       n_qp_pair: 5,
       n_qp_source: 17,
       feed_smoothing_factor: 0.25,
@@ -83,12 +91,14 @@ describe("modelOptionsForRequest", () => {
       n_qp_sing: 40,
       enrichment_min_k: 4,
     });
-    expect(result).not.toHaveProperty("feed_model");
+    // Not set in the model literal above, so it carries the SERVED default —
+    // which is the value this family was already solving with.
+    expect(result.feed_model).toBe("point");
   });
 
-  // Nine, not ten: `n_qp_pair` is absent at stock settings because it defaults
+  // Ten, not eleven: `n_qp_pair` is absent at stock settings because it defaults
   // to auto and is only sent when pinned (antennaknobs#1064, momwire#863).
-  it("hmatrix and arrayblock (the rest of the b-spline family) get the same nine keys", () => {
+  it("hmatrix and arrayblock (the rest of the b-spline family) get the same ten keys", () => {
     for (const name of ["hmatrix", "arrayblock"]) {
       const b = entry(name);
       const result = modelOptionsForRequest(b, defaultOptsFor(b, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS);
@@ -98,6 +108,7 @@ describe("modelOptionsForRequest", () => {
           "degree",
           "enrichment_min_k",
           "enrichment_variant",
+          "feed_model",
           "feed_smoothing_factor",
           "n_qp_sing",
           "n_qp_source",
@@ -114,7 +125,7 @@ describe("modelOptionsForRequest", () => {
         },
       }, SERVED_OPTION_SPECS);
       expect(pinned.n_qp_pair).toBe(16);
-      expect(result).not.toHaveProperty("feed_model");
+      expect(result.feed_model).toBe("point");
     }
   });
 
@@ -137,11 +148,19 @@ describe("modelOptionsForRequest", () => {
     // hosted solve, which is antennaknobs#1064. Since momwire#863 the default
     // depends on the GEOMETRY (32 with wire below the interface, 8 otherwise),
     // so no literal here can track it and the key is omitted instead.
+    // `feed_model` JOINED THIS BODY DELIBERATELY (momwire#891), and this
+    // fixture is the reason the change is reviewable rather than invisible.
+    // The row declared the axis single-valued while the constructor defaulted
+    // to the OTHER value, so the family was solving with a point gap while
+    // claiming a segment one. The key is on the wire now and it moves NO
+    // NUMBER: "point" was already the default, anchored bit-for-bit in
+    // tests/test_feed_model_exposure_1006.py, which also asserts the keyword
+    // is not simply ignored.
     const BSPLINE_JSON =
-      '{"degree":2,"n_qp_source":16,"feed_smoothing_factor":null,' +
-      '"use_singular_enrichment":false,"enrichment_variant":"raw",' +
-      '"tikhonov_lambda":0.1,"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,' +
-      '"enrichment_min_k":3}';
+      '{"degree":2,"feed_model":"point","n_qp_source":16,' +
+      '"feed_smoothing_factor":null,"use_singular_enrichment":false,' +
+      '"enrichment_variant":"raw","tikhonov_lambda":0.1,' +
+      '"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,"enrichment_min_k":3}';
     expect(stock("sinusoidal")).toBe('{"n_qp_const":8}');
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which
