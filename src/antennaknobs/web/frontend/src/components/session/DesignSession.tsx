@@ -565,6 +565,7 @@ function DesignSessionBody({
   // solve waiting for a socket event to fire it.
   function withhold() {
     controlsRef.current = null;
+    withheldRef.current = true;
     setSolverWarning(true);
   }
 
@@ -1099,6 +1100,10 @@ function DesignSessionBody({
   // useSolveChannel defers a send it cannot fill, exactly as it already
   // defers one it cannot deliver down a closed socket.
   const controlsRef = useRef<SolveRequest | null>(null);
+  // Mirrors "a solve is currently refused", for the channel to check at SEND
+  // time. Kept as a ref because the channel's senders are per-socket closures
+  // and a value would be whichever render created them.
+  const withheldRef = useRef(false);
 
   // The /ws solve channel (#642 seam 5b-3): the socket, the latest-wins `_seq`
   // protocol and the busy-chrome dwell. Called right after controlsRef — the
@@ -1116,6 +1121,7 @@ function DesignSessionBody({
   } = useSolveChannel({
     active,
     controlsRef,
+    withheldRef,
     geometryRef,
     previewSigRef,
     setResult,
@@ -1281,6 +1287,7 @@ function DesignSessionBody({
       setSolverWarning(true);
       return;
     }
+    withheldRef.current = false;
     setSolverWarning(false);
     requestSolve();
     // backendDisallowed/recommendedBackend derive from currentExample/preview/

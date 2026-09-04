@@ -108,6 +108,11 @@ const RESTRICTED: ExampleDescriptor = {
     "arrayblock",
     "nec5",
   ],
+  // A single-element design recommends the dense solver, so an accelerator
+  // here is "overkill" and the SOFT mismatch overlay shows. That state before
+  // the switch is what Steve's repro starts from and what my earlier tests
+  // omitted.
+  default_backend: "bspline",
   has_stepped_radius_junction: false,
   has_buried_wire: false,
 };
@@ -329,5 +334,49 @@ describe("Steve's exact repro: restricted design, slot B, then switch", () => {
     expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
     expect(shown.textContent).toMatch(/buried|below the ground plane/i);
     expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
+  });
+});
+
+
+describe("switching AWAY from a showing soft mismatch (Steve's instrumented repro)", () => {
+  it("keeps the hard gate up and sends nothing", async () => {
+    // TIMELINE FROM THE BROWSER: the hard gate fired correctly, was removed
+    // 24 ms later with nothing clicked, and a solve went out —
+    // "ValueError: ArrayBlockSolver cannot solve this design's buried
+    // geometry". So the gate is right and something clears it a tick later.
+    //
+    // The soft overlay must be SHOWING and unapproved before the switch;
+    // starting from a design with no overlay is why the two earlier tests
+    // here pass.
+    const user = userEvent.setup();
+    render(<DesignSession id={1} active />);
+    await screen.findByRole("tab", { name: /Solver slot A/ });
+
+    await selectDesign(user, "invvee apex");
+    await user.click(screen.getByRole("tab", { name: /Solver slot B/ }));
+    await user.click(screen.getByRole("button", { name: "Slot B options" }));
+    await user.click(screen.getByRole("tab", { name: /Array-block/ }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    // The soft overlay is up and NOT approved.
+    await screen.findByRole("alertdialog", { name: "Solver mismatch" });
+
+    await selectDesign(user, "buried radial vertical");
+
+    // Let every effect settle — the browser saw the gate appear and vanish
+    // within two ticks, so an immediate assertion would pass on the flash.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("alertdialog", { name: "Solver mismatch" }),
+      ).toBeNull(),
+    );
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Solver option unavailable for this design",
+      }),
+    ).toBeTruthy();
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
   });
 });
