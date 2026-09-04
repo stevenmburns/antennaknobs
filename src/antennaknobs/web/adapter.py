@@ -101,6 +101,7 @@ from momwire import (
     SinusoidalSolver,
 )
 
+from ..geometry import flat_wires_to_polylines
 from .examples import register
 from .examples._base import (
     DEFAULT_AMATEUR_BANDS,
@@ -380,6 +381,18 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "buried": _backend_serves_buried(b),
             "axes": _backend_axes(b),
             "constraints": _backend_constraints(b),
+            # The roster entry's bound kwargs, verbatim (antennaknobs#1006
+            # G2-5). `axes` says what the CLASS can be configured to; `bound`
+            # says what this PRESET pins, and the two must stay separable or
+            # the class/preset distinction the unit exists to make is lost.
+            #
+            # The rule the panel derives from them: an axis is a CONTROL iff
+            # it is multi-valued in `axes` AND not pinned by `bound` AND (on
+            # the hosted instance) its kwarg is on the model-options
+            # allowlist. `razor-2p` binds `nec5_quadrature`, so its quadrature
+            # axis is fixed on a LOCAL install too — the preset is the reason,
+            # not host policy.
+            "bound": dict(b.bound),
         }
         for b in _BACKENDS
         if availability.get(b.kind, True)
@@ -2282,6 +2295,100 @@ _VERTEX_PORT_BACKENDS = (
 )
 
 
+# Backend restriction copy, server-side (antennaknobs#1006 G2-5). It lived in
+# the frontend as `RESTRICTED_BACKEND_REASON`, whose own comment said to
+# broaden it "if _required_backends ever grows another cause" — G2-5 is that
+# cause, and a reason served beside the restriction is what lets the gate stop
+# carrying one hardcoded sentence for every cause. momwire's own prose is used
+# for the axis COUPLINGS; this cause is antennaknobs' own restriction, so the
+# sentence is antennaknobs'.
+# ONE REASON PER CAUSE, and there are two — which is the bug retiring the
+# frontend constant fixes rather than merely tidies. `RESTRICTED_BACKEND_REASON`
+# says "only the B-spline and sinusoidal-Galerkin solvers implement them", and
+# that is already FALSE for a vertex-port design: `dipoles.invvee_apex` allows
+# five backends including NEC-5. The frontend comment asked for broadening "if
+# _required_backends ever grows another cause"; it grew one at issue #898 and
+# the copy did not follow.
+_RESTRICTION_REASONS = {
+    "junction_ports": (
+        "This design attaches network elements at conductor ends "
+        "(junction-node ports) — only the B-spline and sinusoidal-Galerkin "
+        "solvers implement them, and NEC-2 has no equivalent card."
+    ),
+    "vertex_ports": (
+        "This design attaches a network element in the middle of a conductor "
+        "(a series vertex port) — the dense and accelerated momwire solvers "
+        "serve it, and NEC-5 serves it natively, but the point-matched "
+        "sinusoidal and razor solvers do not."
+    ),
+}
+
+
+def _backend_restriction(required) -> dict | None:
+    """The restriction with the reason for ITS cause, or None.
+
+    Keyed off the allowlist identity rather than off a re-derivation: the two
+    causes ARE the two tuples, so `is` on them cannot disagree with what
+    `_required_backends` returned. A third cause that forgets a reason here
+    gets a None reason rather than the wrong one — the gate then falls back to
+    its generic copy, which is a worse message but not a false one.
+    """
+    if required is None:
+        return None
+    if required is _JUNCTION_PORT_BACKENDS:
+        reason = _RESTRICTION_REASONS["junction_ports"]
+    elif required is _VERTEX_PORT_BACKENDS:
+        reason = _RESTRICTION_REASONS["vertex_ports"]
+    else:
+        reason = None
+    return {"backends": list(required), "reason": reason}
+
+
+def _has_stepped_radius_junction(cls, params=None) -> bool:
+    """Whether any junction in this design joins wires of DIFFERENT radii.
+
+    momwire refuses `extended_kernel=True` on such a deck
+    (`_EK_STEPPED_RADIUS_JUNCTION_REFUSAL`, momwire#398 D2), so the panel warns
+    before the user solves rather than letting the solve raise. Asked of the
+    DESIGN because that is what the refusal is about; the backend and the
+    kernel setting are the other two thirds of the condition and live on the
+    other side.
+
+    Computed the way momwire computes it: distinct radii among a junction's
+    members, EXACT float equality — per-wire radii only ever differ when the
+    caller asked them to, never from solver-side rounding. This reimplements
+    the QUESTION, not the rule; the refusal stays momwire's.
+
+    Cheap enough to ask per design: `flat_wires_to_polylines` is a pure
+    function over the built wires, no solver and no engine. Measured 27 ms on
+    `verticals.elt_whip` — 4067 wires, the catalog's largest and its only
+    stepped-junction design — and sub-millisecond on everything else.
+
+    Radius precedence mirrors `MomwireEngine`: an explicit per-wire `spec`
+    beats the design's `build_wire_material()`, which beats the 0.5 mm
+    idealisation. The web's `wire_radius` override only moves the DEFAULT, so
+    it cannot create or remove a step — a design with one radius everywhere
+    stays uniform whatever the user sets.
+    """
+    try:
+        builder = _build_builder(cls, params or {})
+        tups = builder.build_wires()
+        translated = flat_wires_to_polylines(tups)
+        junctions = translated.get("junctions") or []
+        if not junctions:
+            return False
+        specs = translated["polyline_specs"]
+        stock = builder.build_wire_material()
+        default = stock.radius if stock is not None else 0.0005
+        radii = [s.radius if s is not None else default for s in specs]
+        return any(len({radii[w] for w, _end in jw}) > 1 for jw in junctions)
+    except Exception:  # noqa: BLE001 — a design that will not build has its
+        # real error surfaced through the normal solve path, exactly as
+        # `_required_backends` does; a hint must never be the thing that
+        # breaks a listing.
+        return False
+
+
 @lru_cache(maxsize=None)
 def _required_backends(cls) -> tuple[str, ...] | None:
     """Backend allowlist a design is restricted to, or None (no restriction).
@@ -2473,6 +2580,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             # backend the design cannot run would seed a guaranteed failure.
             required = _required_backends(cls)
             _hints["requires_backends"] = required
+            _hints["backend_restriction"] = _backend_restriction(required)
+            _hints["has_stepped_radius_junction"] = _has_stepped_radius_junction(cls)
             _hints["default_backend"] = (
                 required[0] if required else _recommended_backend(cls)
             )
@@ -3187,12 +3296,20 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # stays enabled, and a PortAtEnd user design surfaces the solver's
         # hard error through the normal solve-error banner instead.
         field_requires_backends = None
+        field_backend_restriction = None
+        # Deferred (user) designs: False rather than None, on
+        # `requires_backends`' precedent — an unmeasured design gets every
+        # control enabled and the solver's own error if it is wrong. The
+        # panel treats False as "no note", which is the same non-claim.
+        field_has_stepped_radius_junction = False
     else:
         h = hints()
         field_multi_feed = h["multi_feed"]
         field_default_view = h["default_view"]
         field_default_backend = h["default_backend"]
         field_requires_backends = h["requires_backends"]
+        field_backend_restriction = h["backend_restriction"]
+        field_has_stepped_radius_junction = h["has_stepped_radius_junction"]
 
     return AntennaExample(
         name=name,
@@ -3203,6 +3320,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         count_basis=count_basis,
         default_backend=field_default_backend,
         requires_backends=field_requires_backends,
+        backend_restriction=field_backend_restriction,
+        has_stepped_radius_junction=field_has_stepped_radius_junction,
         # Static ui_params pin, never derived — safe to read eagerly even for
         # deferred (user) designs, unlike the geometry hints above.
         converged_feed_suggested=bool(
