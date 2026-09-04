@@ -42,6 +42,7 @@ const BUSY_MIN_VISIBLE_MS = 400;
 export function useSolveChannel({
   active,
   controlsRef,
+  withheldRef,
   geometryRef,
   previewSigRef,
   setResult,
@@ -49,6 +50,20 @@ export function useSolveChannel({
 }: {
   active: boolean;
   controlsRef: MutableRefObject<SolveRequest | null>;
+  /** Is a solve currently REFUSED? Checked at SEND time, not only when a send
+   *  is scheduled (#1006 review).
+   *
+   *  Sending is deferred to the next animation frame to coalesce knob drags,
+   *  and `onopen` resends on reconnect — so between deciding to solve and
+   *  actually solving, the design can change under the request. A browser
+   *  trace of the switch-design path showed exactly that window: the gate
+   *  fired, was cleared a tick later, and a refused solve went out ~24 ms
+   *  after being scheduled.
+   *
+   *  A ref rather than a value because this hook's senders are closures
+   *  captured per socket; a value would be the one from whichever render
+   *  created them. */
+  withheldRef: MutableRefObject<boolean>;
   geometryRef: MutableRefObject<string>;
   previewSigRef: MutableRefObject<string | null>;
   setResult: (r: SolveResponse | null) => void;
@@ -175,6 +190,10 @@ export function useSolveChannel({
       // failure mode: the solve effect sends as soon as it has a request.
       const controls = controlsRef.current;
       if (!controls) return;
+      // REVALIDATE AT THE MOMENT OF SENDING. The decision to solve was made
+      // when this frame was scheduled; the design may have changed since, and
+      // a refusal that lands in that gap must win.
+      if (withheldRef.current) return;
       const seq = ++seqRef.current;
       lastSentSeqRef.current = seq;
       sentAtRef.current.set(seq, performance.now());
@@ -215,6 +234,11 @@ export function useSolveChannel({
       // refs, so they must never rewind below what's already been received.
       lastReceivedSeqRef.current = lastSentSeqRef.current;
       sentAtRef.current.clear();
+      // Deliberately unguarded: `requestSolve` schedules the same frame the
+      // send-time check below guards, so a reconnect while refused schedules
+      // a frame that then declines to send. A second check here would be
+      // unreachable — mutating it away leaves every test green — and one gate
+      // at the boundary is easier to reason about than two that must agree.
       requestSolve();
     };
     ws.onclose = () => {

@@ -51,11 +51,17 @@ const flushFrame = () => {
 const realRaf = globalThis.requestAnimationFrame;
 const realWs = globalThis.WebSocket;
 
-function mount(controlsRef: { current: SolveRequest | null }) {
+const withheldRef = { current: false };
+
+function mount(
+  controlsRef: { current: SolveRequest | null },
+  withheld: { current: boolean } = withheldRef,
+) {
   return renderHook(() =>
     useSolveChannel({
       active: true,
       controlsRef,
+      withheldRef: withheld,
       geometryRef: { current: "dipoles.probe" },
       previewSigRef: { current: null },
       setResult: () => {},
@@ -109,5 +115,75 @@ describe("useSolveChannel first send", () => {
     // deferred send must not burn a sequence number, or the watermark would
     // run ahead of what was actually put on the wire.
     expect(payload._seq).toBe(1);
+  });
+});
+
+
+// --------------------------------------------------------------------------
+// A refusal that lands between scheduling and sending must win
+// --------------------------------------------------------------------------
+//
+// Sending is deferred to the next animation frame so a knob drag coalesces to
+// one message. The decision to solve is therefore made at SCHEDULE time and
+// the send happens later — and in that gap the design can change under the
+// request. A browser trace of the switch-design path showed the gate fire, be
+// cleared a tick later, and a refused solve go out ~24 ms after scheduling.
+//
+// The frames array here is the whole point: it holds the callback so the test
+// can decide what happens BEFORE the frame runs, which is the window that
+// cannot be reached by asserting on rendered output.
+
+describe("a refusal between scheduling and sending", () => {
+  beforeEach(() => {
+    FakeWebSocket.last = null;
+    globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+    frames.length = 0;
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) =>
+      frames.push(cb)) as typeof requestAnimationFrame;
+  });
+  afterEach(() => {
+    globalThis.WebSocket = realWs;
+    globalThis.requestAnimationFrame = realRaf;
+  });
+
+  it("does not send when the solve is refused after the frame is scheduled", () => {
+    const controlsRef = { current: { geometry: "x" } as unknown as SolveRequest };
+    const withheld = { current: false };
+    const { result } = mount(controlsRef, withheld);
+    FakeWebSocket.last!.open();
+
+    result.current.requestSolve();
+    expect(frames).toHaveLength(1);
+
+    // The gate fires in the gap — exactly what the browser trace showed.
+    withheld.current = true;
+    frames.forEach((f) => f(0));
+
+    expect(FakeWebSocket.last!.sent).toHaveLength(0);
+  });
+
+  it("still sends when nothing refused it", () => {
+    // The other half: without this, "never send" would satisfy the test above
+    // and the app would simply stop solving.
+    const controlsRef = { current: { geometry: "x" } as unknown as SolveRequest };
+    const withheld = { current: false };
+    const { result } = mount(controlsRef, withheld);
+    FakeWebSocket.last!.open();
+
+    result.current.requestSolve();
+    frames.forEach((f) => f(0));
+
+    expect(FakeWebSocket.last!.sent).toHaveLength(1);
+  });
+
+  it("does not resend on reconnect while refused", () => {
+    // `onopen` resends the current request unconditionally. A reconnect must
+    // not become the thing that fires a solve the gate already turned down.
+    const controlsRef = { current: { geometry: "x" } as unknown as SolveRequest };
+    const withheld = { current: true };
+    mount(controlsRef, withheld);
+    FakeWebSocket.last!.open();
+    frames.forEach((f) => f(0));
+    expect(FakeWebSocket.last!.sent).toHaveLength(0);
   });
 });
