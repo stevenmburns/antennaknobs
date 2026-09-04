@@ -615,5 +615,13 @@ def ft240_43_unun_49_1(comp_c_pF: float | None = 100.0) -> Composite:
     turns → 8 µH magnetizing, core Q ≈ 10), landing in the 85–90 %
     efficiency range bench-measured for such builds, with the customary
     100 pF compensation capacitor across the primary (pass ``None`` to
-    omit it). The stock box of ``wire.efhw_sloper``."""
+    omit it).
+
+    ``wire.efhw_sloper`` builds ITS box from this preset but overrides the
+    capacitor to 60 pF (momwire#874): the coated-wire model lowered that
+    antenna's feed resistance ~19 %, and no unun ratio or length restores
+    the match at 100 pF — the standard cap bottoms out at SWR 1.327. The
+    default here stays the customary value, because 100 pF is what the
+    generic FT240-43 box is built with; a design that needs another value
+    says so itself."""
     return unun(turns=7.0, lmag_uH=8.0, qlmag=10.0, comp_c_pF=comp_c_pF)
