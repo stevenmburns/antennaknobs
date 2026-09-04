@@ -35,6 +35,23 @@
  * in momwire#890). Telling those apart from the three false alarms is the
  * whole skill, and the tell is the same either way: go and measure.
  *
+ * THREE LESSONS FROM BUILDING THIS UNIT, kept together because they are one
+ * family seen from three sides:
+ *
+ *   1. A ONE-DIRECTIONAL GATE PASSES ON THE DIRECTION IN FRONT OF THE AUTHOR.
+ *      Three times in a day: a coverage checklist satisfied by editing it,
+ *      an `exposed`/`accepted` split gated one way, and `applies_to` guarded
+ *      against over-attribution but not under — which silently cost two
+ *      backends a guard. Whenever you write a gate, write its mirror.
+ *
+ *   2. A FRESHLY WRITTEN EQUIVALENCE TEST'S EXPECTATIONS ARE THE NEWEST
+ *      THING IN THE ROOM. See the three false accusations above.
+ *
+ *   3. A PER-ITEM COMPARISON CANNOT SEE A REORDERING OF THE ITEMS. This file
+ *      compared every control's attributes independently and passed while
+ *      `degree` migrated to the bottom of the panel. Snapshot a rendered
+ *      panel as an ORDERED LIST, never as a set.
+ *
  * WHAT IS DELIBERATELY NOT COMPARED: nothing. Captions, bounds, steps,
  * checked/disabled state, enum options and the request payload are all
  * compared, because every one of them was a thing the panel encoded that the
@@ -52,7 +69,9 @@ import {
   type BackendEntry,
   type BackendOpts,
 } from "../lib/backends";
-import { entry, SERVED_ROSTER } from "./backendFixtures";
+import { entry, SERVED_ROSTER,
+  SERVED_VOCAB,
+} from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const BSPLINE_FAMILY = ["bspline", "hmatrix", "arrayblock"];
@@ -120,6 +139,8 @@ function mount(b: BackendEntry, opts: BackendOpts) {
       requiredBackends={null}
       design={{}}
       specs={SERVED_OPTION_SPECS}
+      vocab={SERVED_VOCAB}
+      designRefusalNote={null}
       suggestConvergedFeed={false}
       opts={opts}
       onChangeBackend={vi.fn()}
