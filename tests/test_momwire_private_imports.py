@@ -65,6 +65,25 @@ ALLOWED = {
     # the follow-up; until then these are the names the engine depends on.
     ("engines/momwire.py", "momwire._surface_height", "SURFACE_HEIGHT_CLASS"),
     ("engines/momwire.py", "momwire._wire_loading", "equivalent_radius"),
+    # The capability axes (antennaknobs#1006 G2-3, momwire#882). `/capabilities`
+    # serves what each backend is MADE OF, and `axes_for` is by design the
+    # SINGLE place the derived axes are computed — `ground_model` from
+    # `grounds`, `wire_position` from `buried`/`contact`. `_capabilities.py`
+    # says so in as many words, and a re-derivation on this side is the exact
+    # drift that module refuses to allow. So calling it is right; reaching
+    # into a private module to call it is the debt recorded here.
+    #
+    # A version check is not the alternative, and not theoretically: momwire's
+    # pointer runs ahead of its PyPI version, so the build WITH `axes_for` and
+    # the build without both declare 0.47.0 — which is the state #1145 left
+    # this tree in, measured. The feature probe in `_backend_axes` is the only
+    # thing that can tell those apart.
+    #
+    # Retiring it wants momwire to promote `axes_for` (and `AXIS_VALUES`, which
+    # the panel will reach for next) to public names, on momwire#855's
+    # precedent. Filed as momwire#884, sibling of momwire#876 rather than an
+    # extension of it — #876 is scoped to the coated-wire pair by its title.
+    ("web/adapter.py", "momwire._capabilities", "axes_for"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
     ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),
