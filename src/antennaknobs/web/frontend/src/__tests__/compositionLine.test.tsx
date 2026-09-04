@@ -39,13 +39,20 @@ const text = (name: string, opts = stock(name)) =>
 
 describe("the default line per tab", () => {
   it("bspline", () => {
+    // "point gap", NOT "segment gap" — and this line is why the whole
+    // momwire#891 chain happened. Steve read the composition line in the app
+    // and saw it claim a segment gap on a tab whose stock solve uses a point
+    // gap; the row had declared the axis single-valued while the constructor
+    // defaulted to the other value. The feature's first act was to state
+    // something false about the engine, out loud, where someone could catch
+    // it — which is exactly what a description is FOR.
     expect(text("bspline")).toEqual([
       "degree 2",
       "Galerkin",
       "reduced kernel",
       "converged quadrature",
       "dense",
-      "segment gap",
+      "point gap",
     ]);
   });
 
