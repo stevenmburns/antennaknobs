@@ -398,7 +398,15 @@ def test_ft240_preset_pins_efhw_stock_values():
     from antennaknobs.station import ft240_43_unun_49_1
 
     e = Efhw()
-    assert ft240_43_unun_49_1() == unun(
+    # The design's box IS this preset, at the design's own capacitor. Since
+    # momwire#874 the two differ in that one value: the preset keeps the
+    # customary 100 pF of a generic FT240-43 build, and the sloper specifies
+    # 60 pF because the coated-wire model lowered its feed R ~19 % and no
+    # ratio or length restores the match at 100 pF (best 1.327 against a 1.3
+    # gate). Everything else — turns, magnetizing inductance, core Q — must
+    # still come from the preset rather than drifting on its own.
+    assert e.comp_c_pF == 60.0
+    assert ft240_43_unun_49_1(comp_c_pF=e.comp_c_pF) == unun(
         turns=UNUN_TURNS[e.unun_ratio],
         lmag_uH=e.lmag_uH,
         qlmag=e.qlmag,
