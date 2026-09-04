@@ -24,11 +24,18 @@ export function CompositionLine({
     // (e) — stated once, never fabricated. `axes: null` means "cannot be
     // asked", and inventing segments would be this feature's worst failure:
     // asserting a composition nobody measured.
+    //
+    // "External engine" opens the sentence because a bare "not described
+    // compositionally" beside six tabs that all say something concrete reads
+    // as an error rather than a statement. Naming what the thing IS first
+    // makes the absence a fact about PyNEC/NEC-5 rather than a gap.
     return (
       <div className="composition-line" data-testid="composition-line">
         <span className="composition-tab">{label}</span>
         <span className="composition-sep"> · </span>
-        <em className="composition-undescribed">not described compositionally</em>
+        <em className="composition-undescribed">
+          External engine, not described compositionally
+        </em>
       </div>
     );
   }
@@ -47,7 +54,11 @@ export function CompositionLine({
           <span className="composition-seg" data-axis={s.axis}>
             {s.text}
             {s.pinned && (
-              <span className="composition-pin">, pinned</span>
+              // A PARENTHETICAL, not a comma. The comma read as another unit
+              // separator beside the middle dots, so the annotation looked
+              // like punctuation in a list rather than a note about the
+              // segment it belongs to.
+              <span className="composition-pin"> (pinned)</span>
             )}
           </span>
         </span>

@@ -6,6 +6,14 @@
  * say what an engine is made of. A line that says something FALSE about the
  * engine is therefore worse than no line: it speaks with authority.
  *
+ * A DESIGN DOCUMENT IS NOT EVIDENCE. One test here first asserted that the
+ * sinusoidal pair differ in exactly ONE segment — because that is what the
+ * design I had just written said, and I wrote the test from the design
+ * instead of from the payload. They differ in two: `testing`, and
+ * `feed_model` as its consequence. The corrected version is below, and it is
+ * a better test than the tidy one would have been. Write the assertion from
+ * the system; the document is a plan, and a plan can be wrong.
+ *
  * SNAPSHOTTED AS AN ORDERED LIST OF SEGMENTS, never a set and never one
  * joined string. Ordered because a per-item comparison cannot see a
  * reordering — that is exactly what let `degree` migrate to the bottom of the
@@ -14,6 +22,9 @@
  * Segments rather than a string so a diff names the axis that changed.
  */
 import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+
+import { CompositionLine } from "../components/backend/CompositionLine";
 
 import { compositionLine, type BackendEntry } from "../lib/backends";
 import { entry, optsWithModel, SERVED_ROSTER, SERVED_VOCAB } from "./backendFixtures";
@@ -23,7 +34,7 @@ import { defaultOptsFor } from "../lib/backends";
 const stock = (name: string) => defaultOptsFor(entry(name), SERVED_OPTION_SPECS);
 const text = (name: string, opts = stock(name)) =>
   (compositionLine(entry(name), opts, SERVED_VOCAB) ?? []).map((s) =>
-    s.pinned ? `${s.text}, pinned` : s.text,
+    s.pinned ? `${s.text} (pinned)` : s.text,
   );
 
 describe("the default line per tab", () => {
@@ -92,9 +103,9 @@ describe("the default line per tab", () => {
     const segs = compositionLine(entry("razor-2p"), stock("razor-2p"), SERVED_VOCAB)!;
     const pinned = segs.filter((s) => s.pinned).map((s) => s.axis);
     expect(pinned).toEqual(["quadrature"]);
-    expect(text("razor-2p")).toContain("two-point quadrature, pinned");
+    expect(text("razor-2p")).toContain("two-point quadrature (pinned)");
     expect(text("razor-2p")).toContain("reduced kernel");
-    expect(text("razor-2p")).not.toContain("reduced kernel, pinned");
+    expect(text("razor-2p")).not.toContain("reduced kernel (pinned)");
   });
 
   it("pynec and nec5 get NO line at all, never a fabricated one", () => {
@@ -142,7 +153,7 @@ describe("a moved control rewrites its one segment, in place", () => {
     const after = text("razor-2p", optsWithModel("razor-2p", { extended_kernel: true }));
     const q = (l: string[]) => l.find((x) => x.includes("quadrature"));
     expect(q(after)).toBe(q(before));
-    expect(q(after)).toBe("two-point quadrature, pinned");
+    expect(q(after)).toBe("two-point quadrature (pinned)");
   });
 });
 
@@ -199,5 +210,64 @@ describe("the fixed/free/pinned kinds", () => {
     // the other is #1103's rule.
     const legacy: BackendEntry = { ...entry("bspline"), axes: null };
     expect(compositionLine(legacy, stock("bspline"), SERVED_VOCAB)).toBeNull();
+  });
+});
+
+// --------------------------------------------------------------------------
+// The RENDERED line, not just the builder
+// --------------------------------------------------------------------------
+//
+// Both of Steve's review changes were rendered TEXT — "External engine, …"
+// and the pin marker becoming a parenthetical — and every test above works on
+// the builder's segments. A regression on either would have passed the whole
+// file. The builder says what the segments ARE; these say what a user reads.
+
+describe("what a user actually reads", () => {
+  const render1 = (b: BackendEntry, opts = stock(b.name)) =>
+    render(
+      <CompositionLine
+        label={b.label}
+        segments={compositionLine(b, opts, SERVED_VOCAB)}
+      />,
+    );
+
+  it("names the engine before saying it cannot be described", () => {
+    // A bare "not described compositionally" beside six tabs that all say
+    // something concrete reads as an ERROR rather than a statement. Naming
+    // what the thing is first makes the absence a fact about PyNEC.
+    render1(entry("pynec"));
+    const line = screen.getByTestId("composition-line");
+    expect(line.textContent).toContain("External engine");
+    expect(line.textContent).toContain("not described compositionally");
+    // ...and it does not invent a single segment.
+    expect(line.textContent).not.toContain("·  ");
+    expect(line.querySelectorAll("[data-axis]")).toHaveLength(0);
+  });
+
+  it("renders the pin as a parenthetical, not as a comma", () => {
+    // The comma read as another unit separator beside the middle dots, so the
+    // annotation looked like punctuation in a list rather than a note on the
+    // segment it belongs to.
+    render1(entry("razor-2p"));
+    const t = screen.getByTestId("composition-line").textContent ?? "";
+    expect(t).toContain("two-point quadrature (pinned)");
+    expect(t).not.toContain(", pinned");
+  });
+
+  it("separates units with the middle dot and nothing else", () => {
+    // The separator is the only thing marking unit boundaries, so a comma
+    // anywhere in the rendered line is ambiguous with it. razor-2p is the
+    // longest line and the one that showed the problem.
+    render1(entry("razor-2p"));
+    const t = screen.getByTestId("composition-line").textContent ?? "";
+    expect(t).not.toContain(",");
+    expect(t.split("·")).toHaveLength(7); // label + six segments
+  });
+
+  it("opens with the tab's own label", () => {
+    render1(entry("bspline"));
+    expect(screen.getByTestId("composition-line").textContent).toMatch(
+      /^B-spline · degree 2 · /,
+    );
   });
 });

@@ -3385,10 +3385,18 @@ canvas {
   color: var(--fg);
 }
 .composition-sep {
-  opacity: 0.55;
+  /* A middle dot at this size and opacity was mistaken for a comma in
+     review. It is the only thing separating units, so it has to be
+     unmistakably NOT punctuation inside a unit: more weight, and a little
+     air on each side so the eye reads it as a break rather than a mark. */
+  opacity: 0.75;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 /* The pin is the one thing that must not read as ordinary prose: it says the
-   preset fixed this axis, so it is not a control on this tab. */
+   preset fixed this axis, so it is not a control on this tab. Rendered as a
+   parenthetical rather than ", pinned" — the comma read as another unit
+   separator beside the middle dots. */
 .composition-pin {
   font-style: italic;
   opacity: 0.85;
