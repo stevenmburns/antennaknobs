@@ -115,9 +115,16 @@ def test_cross_engine_pynec():
     high-Z end well-conditioned — far from the zepp's bare-end-port
     spread."""
     pytest.importorskip("antennaknobs.engines.pynec")
-    from antennaknobs.engines import PyNECEngine
     from momwire import SinusoidalSolver
 
+    from conftest import pair_pynec
+
+    # NEC is given the same coated-wire model momwire runs (momwire#874):
+    # the stock wire is 28 AWG PVC, and since #874 momwire reads a jacket as
+    # the equivalent-radius PAIR while NEC's LD 2 alone is the inductance
+    # half. Comparing them directly compares two models and reads ~5 %.
+    # `pair_pynec` carries the three details that make it one model; its
+    # docstring says which, and X_int is the one that bites.
     zm = MomwireEngine(Builder(), ground=None, solver=SinusoidalSolver).impedance()[0]
-    zn = PyNECEngine(Builder(), ground=None).impedance()[0]
+    zn = pair_pynec(Builder(), lossy=True).impedance()[0]
     assert abs(zm - zn) / abs(zm) < 0.01

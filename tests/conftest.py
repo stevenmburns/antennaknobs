@@ -91,6 +91,68 @@ needs_pynec = pytest.mark.skipif(
 # off the committed fixtures.
 from antennaknobs.engines import find_nec5  # noqa: E402
 
+
+def pair_pynec(builder, *, lossy, ground=None):
+    """PyNEC given the SAME coated-wire model momwire runs (momwire#874).
+
+    momwire models a jacket as the Popovic-Nesic PAIR: kernel radius
+    a' = a*(b/a)**((eps_r-1)/eps_r) plus the series inductance
+    L = (mu0/2pi)*ln(a'/a). NEC's LD 2 is the L half alone, so a same-model
+    comparison has to hand NEC the pair as well.
+
+    THREE COUPLED DETAILS, and getting any one wrong reproduces a ~5 % gap
+    that reads like a momwire defect:
+
+      1. GW radius = a', not the conductor's a
+      2. LD 2 carries L PLUS the conductor's internal REACTANCE X_int/omega
+      3. LD 5 dropped, the conductor's R folded into that same LD 2 card,
+         because LD 5 derives R from the GW radius which is no longer the
+         conductor's
+
+    Detail 2 bites hardest: momwire's skin loading is the exact Bessel
+    internal impedance, so deep in the skin regime X_int ~= R (measured
+    1.4399 and 1.3830 ohm/m on 28 AWG at 14.1 MHz, X/R = 0.961). Omitting
+    it turns a 0.1 % agreement into 5.6 %.
+
+    Lives in conftest because two oracle modules need one spelling of it;
+    duplicating it is how the three details drift apart.
+    """
+    import numpy as np
+
+    from antennaknobs.engines import PyNECEngine
+    from momwire._wire_loading import (
+        equivalent_radius,
+        insulation_inductance,
+        wire_internal_impedance,
+    )
+
+    class _Pair(PyNECEngine):
+        def _radius_for(self, t):
+            spec = self._wire_spec
+            r = super()._radius_for(t)
+            if spec is not None and spec.insulation_radius:
+                return equivalent_radius(
+                    r, spec.insulation_radius, spec.insulation_eps_r
+                )
+            return r
+
+        def _emit_wire_material_cards(self, c):
+            spec = self._wire_spec
+            if spec is None or not spec.insulation_radius:
+                return super()._emit_wire_material_cards(c)
+            a = spec.radius if spec.radius else self._wire_radius
+            ind = insulation_inductance(
+                a, spec.insulation_radius, spec.insulation_eps_r
+            )
+            if not lossy or spec.conductivity is None:
+                return c.ld_card(2, 0, 0, 0, 0.0, ind, 0.0)
+            omega = 2.0 * np.pi * self.builder.freq * 1e6
+            zint = wire_internal_impedance(omega, a, spec.conductivity)
+            c.ld_card(2, 0, 0, 0, zint.real, ind + zint.imag / omega, 0.0)
+
+    return _Pair(builder, ground=ground)
+
+
 needs_nec5 = pytest.mark.skipif(
     find_nec5() is None, reason="no licensed NEC-5 binary ($NEC5_EXE unset)"
 )

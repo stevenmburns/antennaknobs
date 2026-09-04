@@ -13,7 +13,7 @@ from antennaknobs.designs.dipoles.invvee import Builder
 from antennaknobs.engines import MomwireEngine, PyNECEngine
 from antennaknobs.network import COPPER_CONDUCTIVITY, WIRES, wire_from_catalog
 
-from conftest import needs_pynec
+from conftest import needs_pynec, pair_pynec
 
 
 def _z(engine):
@@ -210,39 +210,6 @@ def test_cross_engine_skin_loss_oracle():
 # "improve" it back into the lossy form.
 
 
-def _pair_pynec(builder, *, lossy):
-    """PyNEC given the same coated-wire model momwire runs (see above)."""
-    from momwire._wire_loading import (
-        equivalent_radius,
-        insulation_inductance,
-        wire_internal_impedance,
-    )
-
-    class _Pair(PyNECEngine):
-        def _radius_for(self, t):
-            spec = self._wire_spec
-            r = super()._radius_for(t)
-            if spec is not None and spec.insulation_radius:
-                return equivalent_radius(
-                    r, spec.insulation_radius, spec.insulation_eps_r
-                )
-            return r
-
-        def _emit_wire_material_cards(self, c):
-            spec = self._wire_spec
-            if spec is None or not spec.insulation_radius:
-                return super()._emit_wire_material_cards(c)
-            a = spec.radius if spec.radius else self._wire_radius
-            L = insulation_inductance(a, spec.insulation_radius, spec.insulation_eps_r)
-            if not lossy or spec.conductivity is None:
-                return c.ld_card(2, 0, 0, 0, 0.0, L, 0.0)
-            omega = 2.0 * np.pi * self.builder.freq * 1e6
-            zint = wire_internal_impedance(omega, a, spec.conductivity)
-            c.ld_card(2, 0, 0, 0, zint.real, L + zint.imag / omega, 0.0)
-
-    return _Pair(builder, ground=None)
-
-
 def _pec(wire_type):
     """The catalog wire with conductor loss switched off, both engines."""
     import dataclasses
@@ -267,7 +234,7 @@ def test_cross_engine_coated_pair_oracle():
         - _z(MomwireEngine(_pec("28-awg"), ground=None)).imag
     )
     dx_n = (
-        _z(_pair_pynec(_pec("28-awg-pvc"), lossy=False)).imag
+        _z(pair_pynec(_pec("28-awg-pvc"), lossy=False)).imag
         - _z(PyNECEngine(_pec("28-awg"), ground=None)).imag
     )
     assert dx_m == pytest.approx(dx_n, rel=0.015)
@@ -323,5 +290,5 @@ def test_matched_basis_lossy_oracle():
     z_m = _z(
         MomwireEngine(_builder("28-awg-pvc"), ground=None, solver=SinusoidalSolver)
     )
-    z_n = _z(_pair_pynec(_builder("28-awg-pvc"), lossy=True))
+    z_n = _z(pair_pynec(_builder("28-awg-pvc"), lossy=True))
     assert abs(z_m - z_n) / abs(z_m) < 0.01
