@@ -6,6 +6,9 @@ import {
   EK_HINT,
   extendedKernelActive,
   AXIS_KWARG,
+  compositionLine,
+  type CompositionVocabulary,
+  type BackendConstraint,
   degreeChoices,
   renderableOptions,
   type ModelOptionSpecs,
@@ -19,6 +22,7 @@ import {
   type Slot,
 } from "../../lib/backends";
 import { NumberField } from "./fields";
+import { CompositionLine } from "./CompositionLine";
 import { OptionField, specShownWith } from "./OptionField";
 
 // Narrowing helpers for the flat option map (#1006 G2-6). `opts.model` is
@@ -76,6 +80,12 @@ export type BackendConfigProps = {
    *  bounds, captions and gate. The panel is drawn from this, not from a
    *  per-engine table here. */
   specs: ModelOptionSpecs;
+  /** The served composition vocabulary (#1006 G2-7): which axes the line
+   *  states, in reading order, and the phrase for every value. */
+  vocab: CompositionVocabulary;
+  /** The refusal this slot's options hit on the CURRENT design, or null —
+   *  served prose, recomputed on every design switch (#1006 G2-5/G2-7). */
+  designRefusalNote: BackendConstraint | null;
   /** Current design recommends the Converged feed model (near-open high-Q,
    *  antennaknobs#478) — shown as a hint on the Sin-Galerkin feed-model
    *  control. */
@@ -95,6 +105,8 @@ export function BackendConfigModal({
   requiredBackends,
   design,
   specs,
+  vocab,
+  designRefusalNote,
   suggestConvergedFeed,
   opts,
   onChangeBackend,
@@ -167,6 +179,31 @@ export function BackendConfigModal({
               })}
             </div>
           </div>
+
+          {/* The composition line (#1006 G2-7): what this tab is made of,
+              in words, from served `axes` + `bound`. Sits with the TAB
+              because it describes the tab, and above every control that
+              changes it, so a moved control visibly rewrites the line. */}
+          <CompositionLine
+            label={backend.label}
+            segments={compositionLine(backend, opts, vocab)}
+          />
+
+          {/* (d) The design-dependent refusal, stated INLINE and not only in
+              the solve-gate overlay. It is momwire's own sentence, arriving
+              in the served constraints, and it is LIVE — `designRefusal`
+              takes the current design, so switching design re-answers it
+              while the composition line above stays put. That is the split:
+              the line describes the ENGINE, this describes the engine
+              against THIS DECK. */}
+          {designRefusalNote && (
+            <em className="composition-refusal" role="note">
+              {designRefusalNote.reason}
+              {designRefusalNote.condition
+                ? ` (here: ${designRefusalNote.condition})`
+                : ""}
+            </em>
+          )}
 
           {/* Mesh sizing is common to every backend and stays client-side —
               it is geometry, not a solver kwarg (it never rides

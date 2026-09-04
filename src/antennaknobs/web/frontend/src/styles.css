@@ -3359,3 +3359,48 @@ canvas {
 .solve-cancel:hover {
   border-color: var(--border-hover);
 }
+
+/* The composition line (antennaknobs#1006 G2-7): what a solver tab is made
+   of, in words. Sits under the tab strip, above every control that changes
+   it, so a moved control visibly rewrites the line above.
+
+   ONE ROW, WRAPPING, NEVER TRUNCATED. A description of the engine cut short
+   is a confident half-sentence — worse than a long one. `razor-2p` is the
+   longest at six segments and is the case to check when this is reviewed in
+   the app.
+
+   NO DIMMING of the fixed segments, deliberately: the line should read as one
+   sentence rather than as a form, and the pin marker is the only typography
+   here that carries meaning. Both that and the wrapping are judgement calls
+   made by looking at it, and either is a change to this block alone. */
+.composition-line {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+.composition-tab {
+  font-weight: 600;
+  color: var(--fg);
+}
+.composition-sep {
+  opacity: 0.55;
+}
+/* The pin is the one thing that must not read as ordinary prose: it says the
+   preset fixed this axis, so it is not a control on this tab. */
+.composition-pin {
+  font-style: italic;
+  opacity: 0.85;
+}
+.composition-undescribed {
+  opacity: 0.8;
+}
+/* momwire's own refusal sentence, inline at the panel rather than only in the
+   solve-gate overlay. Live: it is recomputed on every design switch. */
+.composition-refusal {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: 0 0 var(--space-2);
+}

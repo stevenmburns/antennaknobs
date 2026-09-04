@@ -451,6 +451,8 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             # descriptions copied across eight rows is the duplication this
             # unit exists to remove, not a new one to add.
             "model_kwargs": list(b.model_kwargs),
+            # Axis -> the value this preset pins it to (#1006 G2-7).
+            "bound_axes": _bound_axes(b),
             "options_schema": [
                 {
                     "key": o.key,
@@ -3829,6 +3831,115 @@ def default_slots() -> list[dict]:
     serve is the frontend's to fall back on — the same tolerance a parked
     terrain preset gets (#560, #429)."""
     return [dict(s) for s in _DEFAULT_SLOTS]
+
+
+# The axes a tab's COMPOSITION LINE states, in reading order (#1006 G2-7).
+#
+# Six of the seven. `charge_support` is omitted because it is a FUNCTION OF
+# BASIS today — bspline-1/bspline-2 imply "spline", sinusoidal-3term/tent
+# imply "basis-implied" — so a segment for it restates the basis segment in
+# other words. Measured, not assumed, and pinned by
+# test_composition_line_1006.py::test_charge_support_is_still_a_function_of_basis:
+# if it ever varies independently, that test fails and this list should gain
+# it rather than the line quietly staying wrong.
+#
+# The DERIVED axes (`ground_model`, `wire_position`) are absent for the reason
+# they are never controls either: they describe the deck a solver can be
+# pointed at, not how the solver is built. A line about the engine that
+# changed when you switched design would be describing the wrong thing.
+_COMPOSITION_AXES = (
+    "basis",
+    "testing",
+    "kernel",
+    "quadrature",
+    "solve_strategy",
+    "feed_model",
+)
+
+
+# Which AXIS VALUE each bound kwarg pins its axis to (#1006 G2-7).
+#
+# `bound` is keyed by constructor kwarg (`nec5_quadrature: True`); a
+# composition line needs the axis VALUE ("nec5") to look up its phrase. That
+# translation is engine vocabulary and is resolved here, not in the client —
+# the frontend briefly did it and the no-engine-name grep caught it, because
+# "nec5" is BOTH a backend name and a quadrature value and the ambiguity is
+# exactly the sort a client should not be adjudicating.
+_BOUND_AXIS_VALUES = {
+    ("nec5_quadrature", True): ("quadrature", "nec5"),
+    ("nec5_quadrature", False): ("quadrature", "converged"),
+    ("extended_kernel", True): ("kernel", "extended"),
+    ("extended_kernel", False): ("kernel", "reduced"),
+}
+
+
+def _bound_axes(spec) -> dict[str, str]:
+    """Axis -> the value this preset pins it to. Empty when nothing is bound."""
+    out = {}
+    for kwarg, value in (spec.bound or {}).items():
+        hit = _BOUND_AXIS_VALUES.get((kwarg, value))
+        if hit is not None:
+            out[hit[0]] = hit[1]
+    return out
+
+
+def composition_axes() -> list[str]:
+    """The axes a composition line states, in reading order."""
+    return list(_COMPOSITION_AXES)
+
+
+# Axis value -> the phrase a composition line uses for it (#1006 G2-7).
+#
+# momwire's axis values are its own vocabulary ("bspline-2", "refl-coef");
+# a line a user reads needs English. That mapping is UI COPY ABOUT ENGINES,
+# so it lives here rather than in the client, on the same argument as
+# `gate_label` and the served slot seeds — and the frontend's no-engine-name
+# grep test is what keeps it here.
+#
+# Phrasing rules, so additions stay consistent:
+#   * lower case except proper names (Galerkin, NEC), because the segments
+#     read as a sentence rather than as labels;
+#   * say the QUANTITY where the raw value is a bare number ("degree 2", not
+#     "2"), since a lone digit in a list of words reads as noise;
+#   * name what the thing IS, not what it is called internally ("two-point
+#     quadrature", not "nec5").
+_AXIS_VALUE_LABELS = {
+    "basis": {
+        "bspline-1": "degree 1",
+        "bspline-2": "degree 2",
+        "sinusoidal-3term": "3-term sinusoidal",
+        "tent": "tent",
+    },
+    "testing": {
+        "galerkin": "Galerkin",
+        "point-matching": "point-matched",
+        "path": "path-tested",
+    },
+    "kernel": {"extended": "extended kernel", "reduced": "reduced kernel"},
+    "quadrature": {
+        "converged": "converged quadrature",
+        "nec5": "two-point quadrature",
+    },
+    "solve_strategy": {
+        "dense": "dense",
+        "aca": "ACA",
+        "element-block": "element-block",
+    },
+    "feed_model": {
+        "segment-gap": "segment gap",
+        "point-gap": "point gap",
+        "node-port": "node port",
+    },
+    "charge_support": {
+        "spline": "spline charge",
+        "basis-implied": "basis-implied charge",
+    },
+}
+
+
+def axis_value_labels() -> dict[str, dict[str, str]]:
+    """Axis value -> the phrase a composition line uses."""
+    return {a: dict(v) for a, v in _AXIS_VALUE_LABELS.items()}
 
 
 def model_option_specs() -> dict[str, dict]:

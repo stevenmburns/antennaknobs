@@ -33,7 +33,9 @@ import {
   backendDisplayLabel,
   type BackendEntry,
 } from "../lib/backends";
-import { entry, optsWithModel, SERVED_ROSTER } from "./backendFixtures";
+import { entry, optsWithModel, SERVED_ROSTER,
+  SERVED_VOCAB,
+} from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 function renderModal(b: BackendEntry) {
@@ -45,6 +47,8 @@ function renderModal(b: BackendEntry) {
       requiredBackends={null}
       design={{}}
       specs={SERVED_OPTION_SPECS}
+      vocab={SERVED_VOCAB}
+      designRefusalNote={null}
       suggestConvergedFeed={false}
       opts={defaultOptsFor(b, SERVED_OPTION_SPECS)}
       onChangeBackend={vi.fn()}

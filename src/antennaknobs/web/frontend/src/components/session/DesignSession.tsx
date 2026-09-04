@@ -18,6 +18,7 @@ import {
   type BackendRoster,
   type ModelOptionSpecs,
   type ServedSlotSeed,
+  type CompositionVocabulary,
 } from "../../lib/backends";
 import {
   bandContaining as bandContainingIn,
@@ -114,6 +115,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
     modelOptionSpecs,
     backendAliases,
     defaultSlotSeeds,
+    compositionVocab,
     error,
   } = useCapabilities();
   if (error !== null)
@@ -134,6 +136,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       modelOptionSpecs={modelOptionSpecs}
       backendAliases={backendAliases}
       defaultSlotSeeds={defaultSlotSeeds}
+      compositionVocab={compositionVocab}
     />
   );
 }
@@ -146,6 +149,7 @@ function DesignSessionBody({
   modelOptionSpecs,
   backendAliases,
   defaultSlotSeeds,
+  compositionVocab,
 }: {
   id: number;
   active: boolean;
@@ -155,6 +159,7 @@ function DesignSessionBody({
   modelOptionSpecs: ModelOptionSpecs;
   backendAliases: Record<string, string>;
   defaultSlotSeeds: ServedSlotSeed[];
+  compositionVocab: CompositionVocabulary;
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -1599,6 +1604,8 @@ function DesignSessionBody({
             requiredBackends={requiredBackends}
             design={designConstraintInputs}
             specs={modelOptionSpecs}
+            vocab={compositionVocab}
+            designRefusalNote={optionRefusal}
             suggestConvergedFeed={
               currentExample?.converged_feed_suggested ?? false
             }

@@ -2568,8 +2568,10 @@ def capabilities_endpoint():
     the current frontend gates on.
     """
     from .adapter import (
+        axis_value_labels,
         backend_aliases,
         backend_roster,
+        composition_axes,
         default_slots,
         model_option_specs,
         terrain_presets_schema,
@@ -2583,6 +2585,8 @@ def capabilities_endpoint():
         ),
         "model_option_specs": model_option_specs(),
         "backend_aliases": backend_aliases(),
+        "composition_axes": composition_axes(),
+        "axis_value_labels": axis_value_labels(),
         "default_slots": default_slots(),
         "terrain_presets": terrain_presets_schema(),
     }

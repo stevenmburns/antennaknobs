@@ -80,6 +80,23 @@ export type ModelOptionSpec = {
 
 export type ModelOptionSpecs = Record<string, ModelOptionSpec>;
 
+/** One segment of a tab's composition line (#1006 G2-7). */
+export type CompositionSegment = {
+  axis: string;
+  /** The phrase to render — served UI copy, never a raw momwire token. */
+  text: string;
+  /** The preset binds this axis, so it is not a control here and says so. */
+  pinned: boolean;
+  /** Single-valued on this backend: the tab's identity rather than a choice. */
+  fixed: boolean;
+};
+
+/** The served vocabulary a composition line is written from. */
+export type CompositionVocabulary = {
+  axes: string[];
+  labels: Record<string, Record<string, string>>;
+};
+
 /** A served roster entry. Mirrors adapter.backend_roster(); snake_case
  *  because it is wire data, not a local shape. */
 export type BackendEntry = {
@@ -108,6 +125,11 @@ export type BackendEntry = {
    *  policy. This is #1006's "names are saved presets over a product space",
    *  in the payload. */
   bound?: Record<string, unknown>;
+  /** Axis -> the value this preset PINS it to (#1006 G2-7), resolved
+   *  server-side from `bound`. Empty when the preset binds nothing. Separate
+   *  from `bound` because that is keyed by constructor kwarg and a line needs
+   *  the axis value. */
+  bound_axes?: Record<string, string>;
   /** Which axis values this backend cannot combine, with momwire's own
    *  refusal prose. Null when it cannot be asked; [] when there are none —
    *  different answers, rendered differently. */
@@ -904,3 +926,83 @@ export function specShown(
 ): boolean {
   return spec.shown_when === null || Boolean(values[spec.shown_when]);
 }
+
+
+/** A tab's composition line: what this engine is made of, in words (#1006
+ *  point 2, G2-7).
+ *
+ *  Returns null when the backend cannot describe itself (`axes: null` — the
+ *  released momwire, and pynec/nec5 always). The caller states that once, in
+ *  words; it must never invent a line, because a line speaks with authority
+ *  about the engine and a fabricated one is the worst answer this feature
+ *  could give.
+ *
+ *  FREE segments read the CURRENT option value, so the line rewrites itself
+ *  as a control moves. FIXED and PINNED segments never change, which is what
+ *  makes the pin marker mean something.
+ *
+ *  It does NOT depend on the design. The line describes the engine; switching
+ *  design changes which combinations are refused (the constraint notes), not
+ *  what the engine is made of.
+ */
+export function compositionLine(
+  b: BackendEntry,
+  opts: BackendOpts,
+  vocab: CompositionVocabulary,
+): CompositionSegment[] | null {
+  const axes = b.axes;
+  if (!axes) return null;
+  const bound = b.bound_axes ?? {};
+  const out: CompositionSegment[] = [];
+  for (const axis of vocab.axes) {
+    const values = axes[axis];
+    if (!values || values.length === 0) continue;
+    // PINNED IFF THE SERVER RESOLVED THIS AXIS as bound — not "bound is
+    // non-empty". `razor-2p` binds `nec5_quadrature` alone; its kernel is
+    // free, and a segment reading "reduced kernel, pinned" there would assert
+    // a constraint the engine does not have.
+    //
+    // The axis VALUE comes from the server too (`bound_axes`), because
+    // translating `nec5_quadrature: true` into the axis value "nec5" is
+    // engine vocabulary — and "nec5" is both a quadrature value and a backend
+    // name, which is not an ambiguity a client should adjudicate.
+    const pinnedValue = bound[axis];
+    const pinned = pinnedValue !== undefined;
+    const fixed = values.length === 1;
+
+    let value: string | undefined;
+    if (fixed) {
+      value = values[0];
+    } else if (pinned) {
+      value = pinnedValue;
+    } else {
+      value = currentAxisValue(axis, opts) ?? values[0];
+    }
+    const text = vocab.labels[axis]?.[value!];
+    // No phrase means the server described a value it has no words for.
+    // Skipping is the honest failure: a raw momwire token in an English
+    // sentence reads as a bug, and the Python side fails the build for it.
+    if (!text) continue;
+    out.push({ axis, text, pinned, fixed });
+  }
+  return out;
+}
+
+/** Which axis value the slot's options currently select. */
+function currentAxisValue(axis: string, opts: BackendOpts): string | undefined {
+  switch (axis) {
+    case "basis": {
+      const d = opts.model.degree;
+      return typeof d === "number" ? `bspline-${d}` : undefined;
+    }
+    case "kernel":
+      return opts.model.extended_kernel === true ? "extended" : "reduced";
+    case "feed_model": {
+      const f = opts.model.feed_model;
+      return f === "point" ? "point-gap" : f === "segment" ? "segment-gap" : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+

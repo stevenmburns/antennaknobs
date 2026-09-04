@@ -3,6 +3,7 @@ import type {
   BackendRoster,
   ModelOptionSpecs,
   ServedSlotSeed,
+  CompositionVocabulary,
 } from "../../lib/backends";
 import type { TerrainPresetSchema } from "../../lib/ground";
 
@@ -14,6 +15,8 @@ type CapabilitiesPayload = {
   model_option_specs?: ModelOptionSpecs;
   backend_aliases?: Record<string, string>;
   default_slots?: ServedSlotSeed[];
+  composition_axes?: string[];
+  axis_value_labels?: Record<string, Record<string, string>>;
 };
 
 export type CapabilitiesState = {
@@ -33,6 +36,9 @@ export type CapabilitiesState = {
   /** The stock A/B/C seeds. Empty falls back to the roster's first entry for
    *  every slot — the same tolerance an absent seeded backend already got. */
   defaultSlotSeeds: ServedSlotSeed[];
+  /** The composition line's vocabulary (#1006 G2-7). Empty axes from a server
+   *  predating it, which renders no line rather than a guessed one. */
+  compositionVocab: CompositionVocabulary;
   error: string | null;
 };
 
@@ -49,6 +55,10 @@ export function useCapabilities(): CapabilitiesState {
   const [modelOptionSpecs, setModelOptionSpecs] = useState<ModelOptionSpecs>({});
   const [backendAliases, setBackendAliases] = useState<Record<string, string>>({});
   const [defaultSlotSeeds, setDefaultSlotSeeds] = useState<ServedSlotSeed[]>([]);
+  const [compositionVocab, setCompositionVocab] = useState<CompositionVocabulary>({
+    axes: [],
+    labels: {},
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,6 +85,13 @@ export function useCapabilities(): CapabilitiesState {
         setDefaultSlotSeeds(
           Array.isArray(c.default_slots) ? c.default_slots : [],
         );
+        setCompositionVocab({
+          axes: Array.isArray(c.composition_axes) ? c.composition_axes : [],
+          labels:
+            c.axis_value_labels && typeof c.axis_value_labels === "object"
+              ? c.axis_value_labels
+              : {},
+        });
         // An empty roster is as unusable as a failed fetch — there would be
         // no solver to pick — so it takes the error path rather than
         // stranding the session on the loading note.
@@ -98,6 +115,7 @@ export function useCapabilities(): CapabilitiesState {
     modelOptionSpecs,
     backendAliases,
     defaultSlotSeeds,
+    compositionVocab,
     error,
   };
 }

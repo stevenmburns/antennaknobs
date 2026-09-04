@@ -22,7 +22,9 @@ import {
   defaultOptsFor,
   type BackendOpts,
 } from "../lib/backends";
-import { entry, optsWithModel, SERVED_ROSTER } from "./backendFixtures";
+import { entry, optsWithModel, SERVED_ROSTER,
+  SERVED_VOCAB,
+} from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 // --- fixtures --------------------------------------------------------------
@@ -65,6 +67,8 @@ function renderModal(overrides: ModalOverrides = {}) {
       requiredBackends={null}
       design={{}}
       specs={SERVED_OPTION_SPECS}
+      vocab={SERVED_VOCAB}
+      designRefusalNote={null}
       suggestConvergedFeed={false}
       opts={defaultOptsFor(backend, SERVED_OPTION_SPECS)}
       {...rest}

@@ -14,6 +14,7 @@ import {
   defaultOptsFor,
   type BackendOpts,
   type ServedSlotSeed,
+  type CompositionVocabulary,
 } from "../lib/backends";
 import { SERVED_CONSTRAINTS } from "./backendConstraintFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
@@ -50,6 +51,7 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
     dense_family: false,
     axes: null,
     bound: {},
+    bound_axes: {},
     constraints: null,
     model_kwargs: [],
     ...over,
@@ -174,6 +176,7 @@ export const SERVED_ROSTER: BackendRoster = ([
       wire_position: ["above", "contact"],
     },
     bound: { nec5_quadrature: true },
+    bound_axes: {"quadrature": "nec5"},
   }),
   backendEntry({
     name: "pynec",
@@ -265,3 +268,45 @@ export const SERVED_SLOT_SEEDS: ServedSlotSeed[] = [
 
 /** Retired backend names, as served. */
 export const SERVED_ALIASES: Record<string, string> = {"triangular": "bspline"};
+
+
+/** The composition line's served vocabulary (#1006 G2-7). Generated; pinned
+ *  Python-side beside the other fixtures. */
+export const SERVED_VOCAB: CompositionVocabulary = {
+  axes: ["basis", "testing", "kernel", "quadrature", "solve_strategy", "feed_model"],
+  labels: {
+  "basis": {
+    "bspline-1": "degree 1",
+    "bspline-2": "degree 2",
+    "sinusoidal-3term": "3-term sinusoidal",
+    "tent": "tent"
+  },
+  "testing": {
+    "galerkin": "Galerkin",
+    "point-matching": "point-matched",
+    "path": "path-tested"
+  },
+  "kernel": {
+    "extended": "extended kernel",
+    "reduced": "reduced kernel"
+  },
+  "quadrature": {
+    "converged": "converged quadrature",
+    "nec5": "two-point quadrature"
+  },
+  "solve_strategy": {
+    "dense": "dense",
+    "aca": "ACA",
+    "element-block": "element-block"
+  },
+  "feed_model": {
+    "segment-gap": "segment gap",
+    "point-gap": "point gap",
+    "node-port": "node port"
+  },
+  "charge_support": {
+    "spline": "spline charge",
+    "basis-implied": "basis-implied charge"
+  }
+},
+};
