@@ -2567,7 +2567,11 @@ def capabilities_endpoint():
     `have_pynec` stays for compatibility — the roster's membership is what
     the current frontend gates on.
     """
-    from .adapter import backend_roster, terrain_presets_schema
+    from .adapter import (
+        backend_roster,
+        model_option_specs,
+        terrain_presets_schema,
+    )
 
     return {
         "have_pynec": pynec_backend.HAVE_PYNEC,
@@ -2575,6 +2579,7 @@ def capabilities_endpoint():
             have_pynec=pynec_backend.HAVE_PYNEC,
             have_nec5=nec5_backend.have_nec5(),
         ),
+        "model_option_specs": model_option_specs(),
         "terrain_presets": terrain_presets_schema(),
     }
 
