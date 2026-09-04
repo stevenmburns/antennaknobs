@@ -76,6 +76,10 @@ export type BackendConfigProps = {
   /** The loaded design's constraint inputs, so a tab can say it cannot take
    *  THIS deck before the user selects it. */
   design: DesignConstraintInputs;
+  /** The served reason for THIS design's backend allowlist, or null — one
+   *  sentence per cause (#1153). Falls back to the generic constant only
+   *  when the server sent none. */
+  restrictionReason: string | null;
   /** The served solver-knob catalogue (#1006 G2-6): every knob's kind,
    *  bounds, captions and gate. The panel is drawn from this, not from a
    *  per-engine table here. */
@@ -104,6 +108,7 @@ export function BackendConfigModal({
   backends,
   requiredBackends,
   design,
+  restrictionReason,
   specs,
   vocab,
   designRefusalNote,
@@ -169,7 +174,16 @@ export function BackendConfigModal({
                     title={
                       allowed
                         ? (refused?.reason ?? undefined)
-                        : RESTRICTED_BACKEND_REASON
+                        : // THE SERVED REASON, not the local constant. #1153
+                          // measured that constant already FALSE for a
+                          // vertex-port design — it claims "only the B-spline
+                          // and sinusoidal-Galerkin solvers" while such a
+                          // design allows five, including NEC-5 — and served
+                          // the per-cause sentence instead. The overlay was
+                          // switched then; this tooltip was not, so the
+                          // falsehood survived exactly where a user hovers to
+                          // find out why a tab is off.
+                          (restrictionReason ?? RESTRICTED_BACKEND_REASON)
                     }
                     onClick={() => usable && onChangeBackend(b)}
                   >

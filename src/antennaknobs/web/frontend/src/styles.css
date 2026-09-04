@@ -1077,6 +1077,20 @@ button:focus-visible,
   cursor: pointer;
 }
 
+/* A disabled tab must LOOK disabled. Review found the buried-design tabs
+   correctly `aria-disabled` with momwire's reason as the tooltip and visually
+   identical to the live ones — so a user got no signal at all until they
+   happened to hover. The tooltip is the detail; this is the signal. */
+.geometry-tabs button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.geometry-tabs button:disabled:hover {
+  background: var(--inset);
+  color: var(--muted);
+}
+
 .geometry-tabs button:hover {
   color: var(--fg);
   border-color: var(--border-hover);
@@ -1701,6 +1715,15 @@ input[type=checkbox] {
   flex-direction: column;
   gap: var(--space-5);
   overflow-y: auto;
+  /* A flex item's min-width defaults to `auto`, so a child wider than the
+     modal pushes the body wider rather than wrapping — which is where the
+     horizontal scrollbar on every tab came from. `min-width: 0` lets the
+     column shrink to its container and the children wrap inside it. */
+  min-width: 0;
+}
+.backend-config-body > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Section divider inside the backend-config body — marks the enrichment block

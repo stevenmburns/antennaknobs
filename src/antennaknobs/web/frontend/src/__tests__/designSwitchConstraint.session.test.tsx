@@ -95,6 +95,23 @@ const BURIED: ExampleDescriptor = {
   has_buried_wire: true,
 };
 
+// A vertex-port design: RESTRICTED to a backend allowlist, which is the
+// other state the switch has to survive. Steve's repro used this one.
+const RESTRICTED: ExampleDescriptor = {
+  ...BASE,
+  name: "dipoles.invvee_apex",
+  label: "invvee apex",
+  requires_backends: [
+    "bspline",
+    "sinusoidal-galerkin",
+    "hmatrix",
+    "arrayblock",
+    "nec5",
+  ],
+  has_stepped_radius_junction: false,
+  has_buried_wire: false,
+};
+
 const STEPPED: ExampleDescriptor = {
   ...BASE,
   name: "verticals.elt_whip",
@@ -137,7 +154,10 @@ beforeEach(() => {
         terrain_presets: [],
       });
     if (path.startsWith("/examples"))
-      return jsonResponse({ examples: [UNIFORM, STEPPED, BURIED], errors: [] });
+      return jsonResponse({
+        examples: [UNIFORM, STEPPED, BURIED, RESTRICTED],
+        errors: [],
+      });
     if (path.startsWith("/geometry")) return jsonResponse({ wires: [] });
     return jsonResponse({});
   });
@@ -254,5 +274,60 @@ describe("a buried deck on an accelerated backend shows ONE overlay", () => {
     expect(
       screen.getByRole("alertdialog").textContent,
     ).toMatch(/wire below the ground plane/i);
+  });
+});
+
+
+describe("switching TO a buried design withholds the solve", () => {
+  it("gates when the backend was chosen on a design that allowed it", async () => {
+    // THE ORDER IS THE BUG. Picking an accelerated backend while a buried
+    // design is loaded is now prevented by the modal (the tab is disabled),
+    // so the only way to reach the bad state is the other order: choose the
+    // backend on a design that allows it, THEN switch. Found in review; the
+    // solve fired and the banner showed
+    // "ValueError: ArrayBlockSolver cannot solve this design's buried geometry".
+    const user = userEvent.setup();
+    render(<DesignSession id={1} active />);
+    await screen.findByRole("tab", { name: /Solver slot A/ });
+
+    await selectDesign(user, "Probe dipole");
+    await user.click(screen.getByRole("button", { name: "Slot A options" }));
+    await user.click(screen.getByRole("tab", { name: /Array-block/ }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    // Allowed here: nothing withheld on an above-ground deck.
+    await waitFor(() => expect(gate()).toBeNull());
+
+    await selectDesign(user, "buried radial vertical");
+
+    // ONE overlay, momwire's own sentence, and no override.
+    const shown = await screen.findByRole("alertdialog");
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+    expect(shown.textContent).toMatch(/buried|below the ground plane/i);
+    expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
+  });
+});
+
+
+describe("Steve's exact repro: restricted design, slot B, then switch", () => {
+  it("withholds when slot B's backend cannot take the new design", async () => {
+    const user = userEvent.setup();
+    render(<DesignSession id={1} active />);
+    await screen.findByRole("tab", { name: /Solver slot A/ });
+
+    // Slot B, Array-block, on a design whose allowlist permits it.
+    await selectDesign(user, "invvee apex");
+    await user.click(screen.getByRole("tab", { name: /Solver slot B/ }));
+    await user.click(screen.getByRole("button", { name: "Slot B options" }));
+    await user.click(screen.getByRole("tab", { name: /Array-block/ }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(gate()).toBeNull());
+
+    // ...then switch to a deck it cannot take at all.
+    await selectDesign(user, "buried radial vertical");
+
+    const shown = await screen.findByRole("alertdialog");
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+    expect(shown.textContent).toMatch(/buried|below the ground plane/i);
+    expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
   });
 });

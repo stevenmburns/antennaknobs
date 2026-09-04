@@ -554,6 +554,20 @@ function DesignSessionBody({
   // anyway (issue #382) — this gate is UX, not the enforcement. A
   // backend-disallowed design withholds unconditionally: there is no
   // approval path around a solver that raises.
+  // Withhold, and DROP THE PENDING REQUEST.
+  //
+  // `controlsRef.current` is filled earlier in the solve effect, before these
+  // guards run — deliberately, so a PAUSED session resumes with the latest
+  // design. But paused and refused are different: a paused request is valid
+  // and waiting, a refused one must never be sent. The channel resends
+  // whatever is in that ref on (re)connect, with no gate of its own
+  // (useSolveChannel's onopen, #768), so leaving a refused request there is a
+  // solve waiting for a socket event to fire it.
+  function withhold() {
+    controlsRef.current = null;
+    setSolverWarning(true);
+  }
+
   function solveWithheld(): boolean {
     return (
       backendDisallowed ||
@@ -1239,7 +1253,7 @@ function DesignSessionBody({
     // raises). Same withhold UI, but the banner offers "switch", never
     // "solve anyway". The app still never switches the solver itself.
     if (backendDisallowed) {
-      setSolverWarning(true);
+      withhold();
       return;
     }
     // The design-dependent OPTION refusal (#1006 G2-5). Same withhold UI as
@@ -1253,7 +1267,7 @@ function DesignSessionBody({
     // the object itself would re-run this effect every render, since it is
     // rebuilt each time.
     if (optionRefusal !== null) {
-      setSolverWarning(true);
+      withhold();
       return;
     }
     // Withhold the solve when the design/solver combo is a poor match and the
@@ -1603,6 +1617,9 @@ function DesignSessionBody({
             backends={roster}
             requiredBackends={requiredBackends}
             design={designConstraintInputs}
+            restrictionReason={
+              currentExample?.backend_restriction?.reason ?? null
+            }
             specs={modelOptionSpecs}
             vocab={compositionVocab}
             designRefusalNote={optionRefusal}

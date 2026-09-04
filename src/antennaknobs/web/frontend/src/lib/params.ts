@@ -139,6 +139,13 @@ export type ExampleDescriptor = {
    *  treats as no claim — the same non-answer `requires_backends: null` makes. */
   has_stepped_radius_junction?: boolean;
   has_buried_wire?: boolean;
+  /** The backend allowlist's own reason, one sentence per CAUSE (#1153).
+   *  The frontend's single `RESTRICTED_BACKEND_REASON` was already false for
+   *  a vertex-port design — it names two solvers where five are allowed. */
+  backend_restriction?: {
+    backends: string[];
+    reason: string | null;
+  } | null;
   /** Near-open high-Q feed (antennaknobs#478): the Sin-Galerkin solver's
    *  "Converged" (point-gap) feed model is recommended for this design —
    *  it collapses the cross-basis residual by 2-3 orders on this class

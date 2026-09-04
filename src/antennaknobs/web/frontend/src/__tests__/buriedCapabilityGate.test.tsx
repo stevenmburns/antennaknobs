@@ -112,6 +112,7 @@ describe("the tab itself says it cannot take this deck", () => {
         backends={roster}
         requiredBackends={null}
         design={design}
+        restrictionReason={null}
         specs={SERVED_OPTION_SPECS}
         vocab={SERVED_VOCAB}
         designRefusalNote={null}
@@ -148,5 +149,66 @@ describe("the tab itself says it cannot take this deck", () => {
         (screen.getByRole("tab", { name }) as HTMLButtonElement).disabled,
       ).toBe(false);
     }
+  });
+});
+
+describe("the tooltip on a RESTRICTED tab is the served sentence", () => {
+  // #1153 measured the frontend's single `RESTRICTED_BACKEND_REASON` already
+  // FALSE for a vertex-port design: it claims "only the B-spline and
+  // sinusoidal-Galerkin solvers" while such a design allows five, including
+  // NEC-5. The overlay was switched to the served per-cause sentence then;
+  // this tooltip was not — so the falsehood survived exactly where a user
+  // hovers to find out why a tab is off. Found in review.
+  it("prefers the served reason over the local constant", () => {
+    render(
+      <BackendConfigModal
+        slot="A"
+        backend={entry("bspline")}
+        backends={SERVED_ROSTER}
+        requiredBackends={["bspline", "sinusoidal-galerkin"]}
+        design={{}}
+        restrictionReason="this design drives a vertex port, which five solvers implement"
+        specs={SERVED_OPTION_SPECS}
+        vocab={SERVED_VOCAB}
+        designRefusalNote={null}
+        suggestConvergedFeed={false}
+        opts={defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)}
+        onChangeBackend={vi.fn()}
+        onPatch={vi.fn()}
+        onReset={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const off = screen.getByRole("tab", { name: "PyNEC" }) as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.title).toContain("five solvers");
+    // ...and not the constant it replaced.
+    expect(off.title).not.toContain("only the B-spline and sinusoidal-Galerkin");
+  });
+
+  it("falls back to the constant when the server sent no reason", () => {
+    // A third restriction cause that forgets a sentence gets generic copy,
+    // which is a worse message rather than a false one (#1153's rule).
+    render(
+      <BackendConfigModal
+        slot="A"
+        backend={entry("bspline")}
+        backends={SERVED_ROSTER}
+        requiredBackends={["bspline"]}
+        design={{}}
+        restrictionReason={null}
+        specs={SERVED_OPTION_SPECS}
+        vocab={SERVED_VOCAB}
+        designRefusalNote={null}
+        suggestConvergedFeed={false}
+        opts={defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)}
+        onChangeBackend={vi.fn()}
+        onPatch={vi.fn()}
+        onReset={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const off = screen.getByRole("tab", { name: "PyNEC" }) as HTMLButtonElement;
+    expect(off.title.length).toBeGreaterThan(20);
   });
 });
