@@ -269,23 +269,31 @@ _N_QP_CONST = _BackendOption(
 # reproduce the request payloads the bespoke panels produced, which is what
 # makes the renderer swap a refactor rather than a behaviour change.
 #
+# THE ORDER IS THE WIRE ORDER, and it is the panels' emission order rather
+# than alphabetical for exactly one reason: it makes the serialized request
+# BYTE-IDENTICAL to the pre-refactor one, so the equivalence fixture can
+# compare bytes instead of parsed objects. JSON key order carries no meaning
+# to the server — these are constructor kwargs — so this ordering is a
+# testing affordance, not a contract, and it can be re-sorted freely once
+# that fixture is retired.
+#
 # `feed_model` is exposed by the GALERKIN member only: the point-matched
 # `SinusoidalSolver` refuses the point gap (momwire#212), so exposing it there
 # would offer — and default to — a value that raises.
-_SIN_KWARGS = ("extended_kernel", "n_qp_const")
-_SIN_GALERKIN_KWARGS = ("extended_kernel", "feed_model", "n_qp_const")
+_SIN_KWARGS = ("n_qp_const", "extended_kernel")
+_SIN_GALERKIN_KWARGS = ("n_qp_const", "feed_model", "extended_kernel")
 _BSPLINE_FAMILY_KWARGS = (
-    "auto_tap_ratio_threshold",
     "degree",
-    "enrichment_min_k",
-    "enrichment_variant",
-    "extended_kernel",
-    "feed_smoothing_factor",
     "n_qp_pair",
-    "n_qp_sing",
     "n_qp_source",
-    "tikhonov_lambda",
+    "feed_smoothing_factor",
     "use_singular_enrichment",
+    "enrichment_variant",
+    "tikhonov_lambda",
+    "auto_tap_ratio_threshold",
+    "n_qp_sing",
+    "enrichment_min_k",
+    "extended_kernel",
 )
 # `degree` and `n_qp_source` are ACCEPTED here and have never been offered:
 # the basis axis is ("tent",), and the razor panel has only ever shown the

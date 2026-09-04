@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import {
+  type ModelOptionSpecs,
   defaultOptsFor,
   defaultSlots,
   type BackendEntry,
@@ -22,13 +23,20 @@ import {
 //
 // backendTouchedRef comes back raw: the two "the user picked a backend by
 // hand" call sites stay in the component's JSX and set it directly.
-export function useSolverSlots({ roster }: { roster: BackendRoster }) {
+export function useSolverSlots({
+  roster,
+  specs,
+}: {
+  roster: BackendRoster;
+  /** The served knob catalogue — slot defaults come from it (#1006 G2-6). */
+  specs: ModelOptionSpecs;
+}) {
   // Solver slots A / B / C — each one holds its own backend + options so
   // the user can switch between configured solvers with a single click
   // and tune each one independently from its gear menu.
   const [activeSlot, setActiveSlot] = useState<Slot>("A");
   const [slots, setSlots] = useState<Record<Slot, SlotConfig>>(() =>
-    defaultSlots(roster),
+    defaultSlots(roster, specs),
   );
   // Set once the user picks a backend by hand; after that we stop auto-seeding
   // the per-antenna recommended solver so their choice sticks.
@@ -60,7 +68,7 @@ export function useSolverSlots({ roster }: { roster: BackendRoster }) {
         [slot]: {
           backend: newBackend,
           opts: {
-            ...defaultOptsFor(newBackend),
+            ...defaultOptsFor(newBackend, specs),
             nPerWire: prevOpts.nPerWire,
             wireRadius: prevOpts.wireRadius,
           },
@@ -69,7 +77,7 @@ export function useSolverSlots({ roster }: { roster: BackendRoster }) {
     });
   }
   function resetSlot(slot: Slot) {
-    setSlots((prev) => ({ ...prev, [slot]: defaultSlots(roster)[slot] }));
+    setSlots((prev) => ({ ...prev, [slot]: defaultSlots(roster, specs)[slot] }));
   }
 
   return {

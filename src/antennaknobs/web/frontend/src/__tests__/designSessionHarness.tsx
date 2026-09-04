@@ -20,6 +20,7 @@ import { VIEWS, type View } from "../lib/view";
 import type { ExampleDescriptor } from "../lib/params";
 import type { BackendRoster } from "../lib/backends";
 import { SERVED_ROSTER } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 // A minimal but representative example descriptor — the same fixture
 // DesignSession.mobile.test.tsx (and newBackend.test.tsx before it) used, so
@@ -140,6 +141,7 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
         return jsonResponse({
           have_pynec: true,
           backends: roster,
+          model_option_specs: SERVED_OPTION_SPECS,
           terrain_presets: [],
         });
       if (path.startsWith("/examples"))

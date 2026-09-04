@@ -10,6 +10,7 @@ import {
   modelOptionsForRequest,
 } from "../lib/backends";
 import { ROSTER_WITH_NEC5, SERVED_ROSTER } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 describe("nec5 backend entry", () => {
   it("is absent from the default served roster (hosted shape)", () => {
@@ -19,11 +20,11 @@ describe("nec5 backend entry", () => {
   it("resolves by name when served and labels its chip plainly", () => {
     const b = findBackend(ROSTER_WITH_NEC5, "nec5");
     expect(b?.kind).toBe("nec5");
-    expect(backendDisplayLabel(b!, defaultOptsFor(b!))).toContain("NEC-5");
+    expect(backendDisplayLabel(b!, defaultOptsFor(b!, SERVED_OPTION_SPECS))).toContain("NEC-5");
   });
 
   it("contributes no momwire model options", () => {
     const b = findBackend(ROSTER_WITH_NEC5, "nec5");
-    expect(modelOptionsForRequest(b!, defaultOptsFor(b!))).toEqual({});
+    expect(modelOptionsForRequest(b!, defaultOptsFor(b!, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS)).toEqual({});
   });
 });

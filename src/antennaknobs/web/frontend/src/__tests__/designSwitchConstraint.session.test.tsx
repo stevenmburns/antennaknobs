@@ -48,6 +48,7 @@ import userEvent from "@testing-library/user-event";
 import { DesignSession } from "../components/session/DesignSession";
 import type { ExampleDescriptor } from "../lib/params";
 import { SERVED_ROSTER } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const BASE: Omit<ExampleDescriptor, "name" | "label"> = {
   multi_feed: false,
@@ -113,6 +114,7 @@ beforeEach(() => {
       return jsonResponse({
         have_pynec: true,
         backends: SERVED_ROSTER,
+        model_option_specs: SERVED_OPTION_SPECS,
         terrain_presets: [],
       });
     if (path.startsWith("/examples"))

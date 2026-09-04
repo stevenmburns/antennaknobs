@@ -18,14 +18,12 @@ import {
   type BackendConfigProps,
 } from "../components/backend/BackendConfigModal";
 import {
-  BSPLINE_DEFAULT_OPTS,
-  EK_ENRICHMENT_REASON,
   RESTRICTED_BACKEND_REASON,
   defaultOptsFor,
   type BackendOpts,
-  type BSplineOpts,
 } from "../lib/backends";
-import { entry, SERVED_ROSTER } from "./backendFixtures";
+import { entry, optsWithModel, SERVED_ROSTER } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 // --- fixtures --------------------------------------------------------------
 
@@ -35,10 +33,12 @@ const BSPLINE_PANEL = SERVED_ROSTER.filter((b) => b.panel === "bspline").map(
 );
 
 /** Stock opts for a backend, with the b-spline panel state overridden. */
-function bsplineOpts(name: string, over: Partial<BSplineOpts> = {}): BackendOpts {
-  const opts = defaultOptsFor(entry(name));
-  opts.bspline = { ...BSPLINE_DEFAULT_OPTS, ...over };
-  return opts;
+/** Stock options with b-spline knobs overridden, by SERVED kwarg name. */
+function bsplineOpts(
+  name: string,
+  over: Record<string, unknown> = {},
+): BackendOpts {
+  return optsWithModel(name, over);
 }
 
 // Callbacks are supplied by the harness (and returned as spies) rather than
@@ -64,7 +64,7 @@ function renderModal(overrides: ModalOverrides = {}) {
       backends={SERVED_ROSTER}
       requiredBackends={null}
       suggestConvergedFeed={false}
-      opts={defaultOptsFor(backend)}
+      opts={defaultOptsFor(backend, SERVED_OPTION_SPECS)}
       {...rest}
       {...spies}
     />,
@@ -177,7 +177,7 @@ describe("BackendConfigModal — per-backend knob visibility", () => {
   it("patches the generic knob under its served (wire) key", async () => {
     const { user, onPatch } = renderModal({ backend: "sinusoidal" });
     await user.type(numberField(N_QP_CONST), "1"); // "8" -> "81"
-    expect(onPatch).toHaveBeenCalledWith({ schema: { n_qp_const: 81 } });
+    expect(onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ n_qp_const: 81 }) });
   });
 
   it.each(BSPLINE_PANEL)("shows the B-spline knobs for %s", (name) => {
@@ -230,16 +230,16 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
   it("patches extendedKernel on and off", async () => {
     const off = renderModal({ backend: "bspline" });
     await off.user.click(screen.getByRole("checkbox", { name: EK }));
-    expect(off.onPatch).toHaveBeenCalledWith({ extendedKernel: true });
+    expect(off.onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ extended_kernel: true }) });
     off.unmount();
 
     const on = renderModal({
       backend: "bspline",
-      opts: { ...defaultOptsFor(entry("bspline")), extendedKernel: true },
+      opts: optsWithModel("bspline", { extended_kernel: true }),
     });
     expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("checked", true);
     await on.user.click(screen.getByRole("checkbox", { name: EK }));
-    expect(on.onPatch).toHaveBeenCalledWith({ extendedKernel: false });
+    expect(on.onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ extended_kernel: false }) });
   });
 
   it("serves the toggle on Sin-Galerkin (momwire 0.27.0 un-refusal)", async () => {
@@ -248,16 +248,13 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
     // kernel, so the box is live and patches like any other basis.
     const { user, onPatch } = renderModal({
       backend: "sinusoidal-galerkin",
-      opts: {
-        ...defaultOptsFor(entry("sinusoidal-galerkin")),
-        extendedKernel: true,
-      },
+      opts: optsWithModel("sinusoidal-galerkin", { extended_kernel: true }),
     });
     const box = screen.getByRole("checkbox", { name: EK });
     expect(box).toHaveProperty("disabled", false);
     expect(box).toHaveProperty("checked", true);
     await user.click(box);
-    expect(onPatch).toHaveBeenCalledWith({ extendedKernel: false });
+    expect(onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ extended_kernel: false }) });
   });
 
   it("keeps the Δ/a hint on the servable backends", () => {
@@ -267,26 +264,28 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
 
   // momwire#271: the two are mutually exclusive, and the exclusion is
   // symmetric so neither box can lock the other out permanently.
-  it("greys the kernel out while enrichment is on", () => {
-    renderModal({
-      backend: "bspline",
-      opts: bsplineOpts("bspline", { useSingularEnrichment: true }),
-    });
-    expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("disabled", true);
-    expect(screen.getByText(EK_ENRICHMENT_REASON)).toBeTruthy();
-    // …and enrichment itself is still live, so the user can back out.
-    expect(screen.getByRole("checkbox", { name: ENRICHMENT })).toHaveProperty(
-      "disabled",
-      false,
-    );
-  });
+  // The kernel is no longer greyed by enrichment HERE (#1006 G2-6).
+  //
+  // `extendedKernelRefusal` and `EK_ENRICHMENT_REASON` were a hand-written
+  // copy of momwire's refusal, and a drifted one — they cited momwire#271
+  // where momwire cites momwire#249 follow-up C, and gave one reason where it
+  // gives three. momwire#888 added the served coupling row, so the exclusion
+  // is now data on the roster and is exercised by `designRefusal`. The
+  // enrichment box still greys while the kernel is on (below): that direction
+  // is a local UI affordance, not a restatement of momwire's prose.
 
   it("greys enrichment out while the kernel is on", () => {
-    const opts = bsplineOpts("bspline", { useSingularEnrichment: false });
-    renderModal({ backend: "bspline", opts: { ...opts, extendedKernel: true } });
+    renderModal({
+      backend: "bspline",
+      opts: optsWithModel("bspline", { extended_kernel: true }),
+    });
     const enrich = screen.getByRole("checkbox", { name: ENRICHMENT });
     expect(enrich).toHaveProperty("disabled", true);
-    expect(within(screen.getByTitle(EK_ENRICHMENT_REASON)).getByRole("checkbox")).toBe(enrich);
+    expect(
+      within(screen.getByTitle(/Unavailable while the extended kernel/)).getByRole(
+        "checkbox",
+      ),
+    ).toBe(enrich);
     // …and the kernel itself is still live.
     expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("disabled", false);
   });
@@ -315,10 +314,10 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
     const b = entry("sinusoidal-galerkin");
     const { user, onPatch } = renderModal({
       backend: b.name,
-      opts: { ...defaultOptsFor(b), feedModel: "segment" },
+      opts: optsWithModel(b.name, { feed_model: "segment" }),
     });
     await user.click(screen.getByRole("tab", { name: "Converged" }));
-    expect(onPatch).toHaveBeenCalledWith({ feedModel: "point" });
+    expect(onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ feed_model: "point" }) });
     expect(onPatch).toHaveBeenCalledTimes(1);
   });
 
@@ -326,10 +325,10 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
     const b = entry("sinusoidal-galerkin");
     const { user, onPatch } = renderModal({
       backend: b.name,
-      opts: { ...defaultOptsFor(b), feedModel: "point" },
+      opts: optsWithModel(b.name, { feed_model: "point" }),
     });
     await user.click(screen.getByRole("tab", { name: "NEC-compatible" }));
-    expect(onPatch).toHaveBeenCalledWith({ feedModel: "segment" });
+    expect(onPatch).toHaveBeenCalledWith({ model: expect.objectContaining({ feed_model: "segment" }) });
   });
 
   it("shows the Converged hint only when recommended and still on segment", () => {
@@ -345,7 +344,7 @@ describe("BackendConfigModal — Sin-Galerkin feed model", () => {
       const { unmount } = renderModal({
         backend: b.name,
         suggestConvergedFeed,
-        opts: { ...defaultOptsFor(b), feedModel },
+        opts: optsWithModel(b.name, { feed_model: feedModel }),
       });
       expect(screen.queryByText(hint) !== null).toBe(shown);
       unmount();
@@ -362,7 +361,7 @@ describe("BSplineFields — degree and feed smoothing", () => {
     expect(screen.getByRole("tab", { name: "d=2" }).getAttribute("aria-selected")).toBe("true");
     await user.click(screen.getByRole("tab", { name: "d=1" }));
     expect(onPatch).toHaveBeenCalledWith({
-      bspline: { ...BSPLINE_DEFAULT_OPTS, degree: 1 },
+      model: expect.objectContaining({ degree: 1 }),
     });
     expect(onPatch).toHaveBeenCalledTimes(1);
   });
@@ -370,18 +369,18 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("commits an edited number field as a patch on that key alone", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { nQpPair: 4 }),
+      opts: bsplineOpts("bspline", { n_qp_pair: 4 }),
     });
     await user.type(numberField(N_QP_PAIR), "2"); // "4" -> "42"
     expect(onPatch).toHaveBeenCalledWith({
-      bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: 42 },
+      model: expect.objectContaining({ n_qp_pair: 42 }),
     });
   });
 
   it("hides the n_qp_pair field while the order is auto", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { nQpPair: null }),
+      opts: bsplineOpts("bspline", { n_qp_pair: null }),
     });
     const box = screen.getByRole("checkbox", { name: /n_qp_pair: auto/ });
     expect(box).toHaveProperty("checked", true);
@@ -391,29 +390,29 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("unticking auto pins a number, and reticking returns to auto", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { nQpPair: null }),
+      opts: bsplineOpts("bspline", { n_qp_pair: null }),
     });
     await user.click(screen.getByRole("checkbox", { name: /n_qp_pair: auto/ }));
     expect(onPatch).toHaveBeenCalledWith({
-      bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: 8 },
+      model: expect.objectContaining({ n_qp_pair: 8 }),
     });
 
     const back = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { nQpPair: 16 }),
+      opts: bsplineOpts("bspline", { n_qp_pair: 16 }),
     });
     await back.user.click(
       screen.getAllByRole("checkbox", { name: /n_qp_pair: auto/ })[1],
     );
     expect(back.onPatch).toHaveBeenCalledWith({
-      bspline: { ...BSPLINE_DEFAULT_OPTS, nQpPair: null },
+      model: expect.objectContaining({ n_qp_pair: null }),
     });
   });
 
   it("hides the smoothing sub-fields while the delta-gap is sharp", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { feedSmoothingFactor: null }),
+      opts: bsplineOpts("bspline", { feed_smoothing_factor: null }),
     });
     const box = screen.getByRole("checkbox", { name: /feed source smoothing/ });
     expect(box).toHaveProperty("checked", false);
@@ -424,7 +423,7 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("shows the smoothing sub-fields once a factor is set", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { feedSmoothingFactor: 3 }),
+      opts: bsplineOpts("bspline", { feed_smoothing_factor: 3 }),
     });
     expect(
       screen.getByRole("checkbox", { name: /feed source smoothing/ }),
@@ -436,22 +435,22 @@ describe("BSplineFields — degree and feed smoothing", () => {
   it("toggles feedSmoothingFactor between the default 3 and null", async () => {
     const off = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { feedSmoothingFactor: null }),
+      opts: bsplineOpts("bspline", { feed_smoothing_factor: null }),
     });
     await off.user.click(
       screen.getByRole("checkbox", { name: /feed source smoothing/ }),
     );
-    expect(off.onPatch.mock.calls[0][0].bspline.feedSmoothingFactor).toBe(3);
+    expect(off.onPatch.mock.calls[0][0].model.feed_smoothing_factor).toBe(3);
     off.unmount();
 
     const on = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { feedSmoothingFactor: 3 }),
+      opts: bsplineOpts("bspline", { feed_smoothing_factor: 3 }),
     });
     await on.user.click(
       screen.getByRole("checkbox", { name: /feed source smoothing/ }),
     );
-    expect(on.onPatch.mock.calls[0][0].bspline.feedSmoothingFactor).toBeNull();
+    expect(on.onPatch.mock.calls[0][0].model.feed_smoothing_factor).toBeNull();
   });
 });
 
@@ -459,7 +458,7 @@ describe("BSplineFields — singular enrichment", () => {
   it("hides every enrichment sub-field while enrichment is off", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { useSingularEnrichment: false }),
+      opts: bsplineOpts("bspline", { use_singular_enrichment: false }),
     });
     expect(
       screen.getByRole("checkbox", { name: /junction singular enrichment/ }),
@@ -472,7 +471,7 @@ describe("BSplineFields — singular enrichment", () => {
   it("reveals the enrichment sub-fields when it is on", () => {
     renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { useSingularEnrichment: true }),
+      opts: bsplineOpts("bspline", { use_singular_enrichment: true }),
     });
     expect(screen.queryByText(N_QP_SING)).not.toBeNull();
     expect(screen.queryByText(ENRICHMENT_MIN_K)).not.toBeNull();
@@ -482,21 +481,21 @@ describe("BSplineFields — singular enrichment", () => {
   it("patches useSingularEnrichment on toggle", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { useSingularEnrichment: false }),
+      opts: bsplineOpts("bspline", { use_singular_enrichment: false }),
     });
     await user.click(
       screen.getByRole("checkbox", { name: /junction singular enrichment/ }),
     );
-    expect(onPatch.mock.calls[0][0].bspline.useSingularEnrichment).toBe(true);
+    expect(onPatch.mock.calls[0][0].model.use_singular_enrichment).toBe(true);
   });
 
   it("patches enrichmentVariant from the select", async () => {
     const { user, onPatch } = renderModal({
       backend: "bspline",
-      opts: bsplineOpts("bspline", { useSingularEnrichment: true }),
+      opts: bsplineOpts("bspline", { use_singular_enrichment: true }),
     });
     await user.selectOptions(screen.getByRole("combobox"), "auto");
-    expect(onPatch.mock.calls[0][0].bspline.enrichmentVariant).toBe("auto");
+    expect(onPatch.mock.calls[0][0].model.enrichment_variant).toBe("auto");
   });
 
   // Each variant owns exactly one extra knob; the other must stay hidden.
@@ -511,8 +510,8 @@ describe("BSplineFields — singular enrichment", () => {
       renderModal({
         backend: "bspline",
         opts: bsplineOpts("bspline", {
-          useSingularEnrichment: true,
-          enrichmentVariant,
+          use_singular_enrichment: true,
+          enrichment_variant: enrichmentVariant,
         }),
       });
       expect(screen.queryByText(TIKHONOV_LAMBDA) !== null).toBe(lambdaShown);
@@ -524,8 +523,8 @@ describe("BSplineFields — singular enrichment", () => {
     renderModal({
       backend: "bspline",
       opts: bsplineOpts("bspline", {
-        useSingularEnrichment: false,
-        enrichmentVariant: "tikhonov",
+        use_singular_enrichment: false,
+        enrichment_variant: "tikhonov",
       }),
     });
     expect(screen.queryByText(TIKHONOV_LAMBDA)).toBeNull();

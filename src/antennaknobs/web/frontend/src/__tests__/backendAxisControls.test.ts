@@ -73,8 +73,10 @@ const STEP_CONSTRAINT: BackendConstraint = {
   issue: "momwire#398",
 };
 
-const OPTS = (over: Partial<BackendOpts> = {}): BackendOpts =>
-  ({ ...over }) as BackendOpts;
+// Only the model map matters to these predicates; nPerWire/wireRadius are
+// geometry and never reach them.
+const OPTS = (model: Record<string, unknown> = {}): BackendOpts =>
+  ({ model }) as BackendOpts;
 
 describe("axisControls — the class, the preset, and host policy are different", () => {
   it("offers only the multi-valued axes", () => {
@@ -111,7 +113,7 @@ describe("backendOptsAllowed — live, and design-dependent", () => {
   it("permits the extended kernel on a design that is not buried", () => {
     const b = { ...BASE, constraints: [BURIED_CONSTRAINT] };
     expect(
-      backendOptsAllowed(b, OPTS({ extendedKernel: true }), { buried: false }),
+      backendOptsAllowed(b, OPTS({ extended_kernel: true }), { buried: false }),
     ).toBeNull();
   });
 
@@ -120,7 +122,7 @@ describe("backendOptsAllowed — live, and design-dependent", () => {
     // the answer flips because the design did. A one-time check at engine
     // selection would still be reporting the first answer.
     const b = { ...BASE, constraints: [BURIED_CONSTRAINT] };
-    const opts = OPTS({ extendedKernel: true });
+    const opts = OPTS({ extended_kernel: true });
     expect(backendOptsAllowed(b, opts, { buried: false })).toBeNull();
     const hit = backendOptsAllowed(b, opts, { buried: true });
     expect(hit).not.toBeNull();
@@ -133,7 +135,7 @@ describe("backendOptsAllowed — live, and design-dependent", () => {
     // greying the whole tab would be wrong.
     const b = { ...BASE, constraints: [BURIED_CONSTRAINT] };
     expect(
-      backendOptsAllowed(b, OPTS({ extendedKernel: false }), { buried: true }),
+      backendOptsAllowed(b, OPTS({ extended_kernel: false }), { buried: true }),
     ).toBeNull();
   });
 
@@ -141,7 +143,7 @@ describe("backendOptsAllowed — live, and design-dependent", () => {
     // Served for API consumers and the inventory; not renderable as a cell.
     const b = { ...BASE, constraints: [STEP_CONSTRAINT] };
     expect(
-      backendOptsAllowed(b, OPTS({ extendedKernel: true }), {
+      backendOptsAllowed(b, OPTS({ extended_kernel: true }), {
         has_stepped_radius_junction: true,
       }),
     ).toBeNull();
@@ -149,7 +151,7 @@ describe("backendOptsAllowed — live, and design-dependent", () => {
 
   it("answers null when the backend cannot be asked at all", () => {
     expect(
-      backendOptsAllowed({ ...BASE, constraints: null }, OPTS({ extendedKernel: true }), {
+      backendOptsAllowed({ ...BASE, constraints: null }, OPTS({ extended_kernel: true }), {
         buried: true,
       }),
     ).toBeNull();
@@ -161,24 +163,24 @@ describe("steppedJunctionNote — the note, and it needs all three", () => {
 
   it("fires only with the kernel selected AND a stepped design", () => {
     expect(
-      steppedJunctionNote(b, OPTS({ extendedKernel: true }), {
+      steppedJunctionNote(b, OPTS({ extended_kernel: true }), {
         has_stepped_radius_junction: true,
       }),
     ).not.toBeNull();
     expect(
-      steppedJunctionNote(b, OPTS({ extendedKernel: false }), {
+      steppedJunctionNote(b, OPTS({ extended_kernel: false }), {
         has_stepped_radius_junction: true,
       }),
     ).toBeNull();
     expect(
-      steppedJunctionNote(b, OPTS({ extendedKernel: true }), {
+      steppedJunctionNote(b, OPTS({ extended_kernel: true }), {
         has_stepped_radius_junction: false,
       }),
     ).toBeNull();
   });
 
   it("carries momwire's own sentence and its condition, not a paraphrase", () => {
-    const note = steppedJunctionNote(b, OPTS({ extendedKernel: true }), {
+    const note = steppedJunctionNote(b, OPTS({ extended_kernel: true }), {
       has_stepped_radius_junction: true,
     })!;
     expect(note.reason).toBe(STEP_CONSTRAINT.reason);
