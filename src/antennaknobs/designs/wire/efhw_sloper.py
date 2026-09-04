@@ -111,7 +111,26 @@ class Builder(AntennaBuilder):
             "lmag_uH": 8.0,
             "qlmag": 10.0,
             # Compensation capacitor across the primary.
-            "comp_c_pF": 100.0,
+            #
+            # 100 -> 60 pF at momwire#874, which gave the jacket its
+            # equivalent radius. That LOWERED the antenna-side feed
+            # resistance at the X = 0 point from 3240.8 to 2611.7 ohm
+            # (-19.4 %, measured at the `ant` port with the unun, comp cap
+            # and coax removed) — the direction theory requires, since an
+            # end-fed half-wave's feed R scales roughly with Zc squared and
+            # the pair LOWERS Zc where inductance alone raises it.
+            #
+            # The rig-side SWR rose (1.20 -> 1.33) not because the antenna
+            # got worse but because this resonant match was tuned for the
+            # old antenna-side value; the naive turns-squared step-down does
+            # not even predict the direction (3240.8/49 = 66.1 against
+            # 2611.7/49 = 53.3), which is how you can tell the comp cap and
+            # lmag are doing the work. Retuning THIS knob alone restores it:
+            # 60 pF gives 56.30 - 4.84j, SWR 1.161, at the unchanged stock
+            # length and unchanged 49:1 ratio — better than the 1.20 it had
+            # before. Length cannot do it: the SWR bowl bottoms at 1.321
+            # across 0.880-0.910 because the problem is R, not X.
+            "comp_c_pF": 60.0,
             "cable": "RG-58",
             "line_len_m": 5.0,
             "ui_params": MappingProxyType(
