@@ -125,3 +125,57 @@ def test_a_design_that_genuinely_cannot_BUILD_still_reports_its_error(
     got = _preview(client, BURIED, "arrayblock", ground=SOMMERFELD)
     assert got.get("error"), "a genuine failure must still reach the client"
     assert "deliberate build failure" in got["error"]
+
+
+def test_the_fallback_survives_options_the_default_model_would_reject(client):
+    """The fallback keeps `model_options` while swapping the model — so it
+    hands one solver's options to another. That is SAFE, and the reason is
+    worth pinning rather than trusting.
+
+    `BSplineSolver` genuinely rejects `n_qp_const` (TypeError: unexpected
+    keyword argument) — it belongs to the sinusoidal family. `sinusoidal`
+    cannot preview a buried deck, so it takes the fallback, and the fallback
+    hands B-spline exactly that option. It still draws.
+
+    WHY: the engine applies `solver_kwargs` at SOLVE time, not at
+    construction — `geometry_distribution()` never instantiates the solver
+    with them. The refusal that DOES fire in the constructor
+    (`_buried_refusal`) depends on the solver CLASS, not its kwargs. So no
+    model option can reach a constructor on this path, and the fallback
+    cannot be broken by one.
+
+    Asserted with the option that would actually bite, so this stays a
+    measurement rather than a hope: if the engine ever moves kwargs into
+    construction, this fails.
+    """
+    got = _preview(
+        client,
+        BURIED,
+        "sinusoidal",
+        ground=SOMMERFELD,
+        model_options={"n_qp_const": 8},
+    )
+    assert not got.get("error"), got.get("error")
+    assert got.get("wires")
+
+
+def test_that_option_really_is_one_the_default_model_rejects():
+    """Otherwise the test above proves nothing — it would be asserting that a
+    harmless option is harmless."""
+    import warnings
+
+    import numpy as np
+    import pytest as _pytest
+    from momwire import BSplineSolver
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with _pytest.raises(TypeError, match="n_qp_const"):
+            BSplineSolver(
+                wires=[np.array([(0.0, 0.0, 5.0), (0.0, 0.0, -5.0)])],
+                n_per_edge_per_wire=[[9]],
+                feeds=[(0, 5.0, 1 + 0j)],
+                wavelength=42.83,
+                wire_radius=1e-3,
+                n_qp_const=8,
+            )
