@@ -10,6 +10,7 @@
 // `backendEntry()` instead — including capabilities no real backend has yet
 // (supports_ground: false) and backends that don't exist at all (the
 // zero-frontend-change probe in newBackend.test.tsx).
+import { SERVED_CONSTRAINTS } from "./backendConstraintFixtures";
 import type {
   BackendEntry,
   BackendOptionField,
@@ -41,15 +42,49 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
     default_n_per_wire: 30,
     accelerator: false,
     dense_family: false,
+    axes: null,
+    bound: {},
+    constraints: null,
     ...over,
   };
 }
 
-export const SERVED_ROSTER: BackendRoster = [
+// The axis payloads below are momwire's own, copied from a live
+// `backend_roster(have_pynec=True, have_nec5=True)`. Only the axes each tab
+// actually varies are interesting, but they are written out in full because a
+// TRIMMED fixture would let `axisControls` pass here while returning something
+// else against the real payload — the single-valued axes are precisely what
+// the "multi-valued" clause has to see in order to reject them.
+const BSPLINE_AXES = {
+  basis: ["bspline-1", "bspline-2"],
+  testing: ["galerkin"],
+  charge_support: ["spline"],
+  kernel: ["extended", "reduced"],
+  quadrature: ["converged"],
+  solve_strategy: ["dense"],
+  feed_model: ["segment-gap"],
+  ground_model: ["free", "pec", "refl-coef", "sommerfeld"],
+  wire_position: ["above", "buried", "contact"],
+};
+
+// Each entry's `constraints` come from the generated fixture, keyed by name,
+// so the payload a test sees is the payload the server sends — prose included.
+function withConstraints(b: BackendEntry): BackendEntry {
+  return { ...b, constraints: SERVED_CONSTRAINTS[b.name] ?? null };
+}
+
+export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "sinusoidal",
     label: "Sinusoidal",
     options_schema: [backendOption()],
+    axes: {
+      ...BSPLINE_AXES,
+      basis: ["sinusoidal-3term"],
+      testing: ["point-matching"],
+      charge_support: ["basis-implied"],
+      wire_position: ["above", "contact"],
+    },
   }),
   backendEntry({
     name: "sinusoidal-galerkin",
@@ -57,14 +92,32 @@ export const SERVED_ROSTER: BackendRoster = [
     options_schema: [backendOption()],
     panel: "sin-galerkin",
     dense_family: true,
+    axes: {
+      ...BSPLINE_AXES,
+      basis: ["sinusoidal-3term"],
+      charge_support: ["basis-implied"],
+      feed_model: ["point-gap", "segment-gap"],
+      wire_position: ["above", "contact"],
+    },
   }),
-  backendEntry({ name: "bspline", label: "B-spline", panel: "bspline", dense_family: true }),
+  backendEntry({
+    name: "bspline",
+    label: "B-spline",
+    panel: "bspline",
+    dense_family: true,
+    axes: BSPLINE_AXES,
+  }),
   backendEntry({
     name: "hmatrix",
     label: "H-matrix (ACA)",
     panel: "bspline",
     accelerator: true,
     dense_family: true,
+    axes: {
+      ...BSPLINE_AXES,
+      solve_strategy: ["aca"],
+      wire_position: ["above", "contact"],
+    },
   }),
   backendEntry({
     name: "arrayblock",
@@ -73,6 +126,32 @@ export const SERVED_ROSTER: BackendRoster = [
     default_n_per_wire: 21,
     accelerator: true,
     dense_family: true,
+    axes: {
+      ...BSPLINE_AXES,
+      solve_strategy: ["element-block"],
+      wire_position: ["above", "contact"],
+    },
+  }),
+  // Absent from this fixture until #1006 G2-5, though the server has served it
+  // since the razor tab landed and the Python twin
+  // (test_backend_roster_served_shape) has always named it. The two disagreed
+  // and, as the header says, one of them was the bug — this one. Nothing here
+  // asserted the roster LENGTH, so the missing row cost nothing until a test
+  // needed the one tab whose preset pins an axis.
+  backendEntry({
+    name: "razor-2p",
+    label: "Razor (2-point)",
+    dense_family: true,
+    axes: {
+      ...BSPLINE_AXES,
+      basis: ["tent"],
+      testing: ["path"],
+      charge_support: ["basis-implied"],
+      quadrature: ["converged", "nec5"],
+      feed_model: ["node-port"],
+      wire_position: ["above", "contact"],
+    },
+    bound: { nec5_quadrature: true },
   }),
   backendEntry({
     name: "pynec",
@@ -81,7 +160,7 @@ export const SERVED_ROSTER: BackendRoster = [
     panel: "pynec",
     default_n_per_wire: 21,
   }),
-];
+] as BackendRoster).map(withConstraints);
 
 /** The roster a server without pynec-accel serves (#429): the entry is
  *  absent, not flagged. */

@@ -2389,6 +2389,37 @@ def _has_stepped_radius_junction(cls, params=None) -> bool:
         return False
 
 
+def _has_buried_wire(cls, params=None) -> bool:
+    """Whether any conductor in this design sits BELOW the interface (z < 0).
+
+    The design-side third of momwire's buried refusal: `HMatrixSolver` and
+    `ArrayBlockSolver` refuse `extended_kernel=True` on a deck with a buried
+    wire (momwire#553), and the ACA/element-block panels need to say so before
+    the solve rather than after it raises.
+
+    Distinct from `ground_requirement == "sommerfeld"`, which is the nearest
+    existing field and NOT the same fact: that one is a statement about which
+    ground MODEL the design needs to mean anything, declared by hand in
+    `ui_params`. This is a measurement of the geometry. They agree on today's
+    catalog, and relying on that agreement would be reading a hand-written
+    hint as if it were geometry — the failure `_has_stepped_radius_junction`
+    was written to avoid.
+
+    STRICTLY below. A wire lying exactly on the interface is the `contact`
+    case, which is a different axis value with different refusals; treating
+    z == 0 as buried would grey out the extended kernel on every ground-plane
+    design in the catalog.
+    """
+    try:
+        builder = _build_builder(cls, params or {})
+        translated = flat_wires_to_polylines(builder.build_wires())
+        return any(z < 0.0 for poly in translated["polylines"] for (_x, _y, z) in poly)
+    except Exception:  # noqa: BLE001 — same contract as the stepped-junction
+        # helper above: a design that will not build surfaces its real error
+        # on the solve path, and a hint never breaks a listing.
+        return False
+
+
 @lru_cache(maxsize=None)
 def _required_backends(cls) -> tuple[str, ...] | None:
     """Backend allowlist a design is restricted to, or None (no restriction).
@@ -2582,6 +2613,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             _hints["requires_backends"] = required
             _hints["backend_restriction"] = _backend_restriction(required)
             _hints["has_stepped_radius_junction"] = _has_stepped_radius_junction(cls)
+            _hints["has_buried_wire"] = _has_buried_wire(cls)
             _hints["default_backend"] = (
                 required[0] if required else _recommended_backend(cls)
             )
@@ -3302,6 +3334,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # control enabled and the solver's own error if it is wrong. The
         # panel treats False as "no note", which is the same non-claim.
         field_has_stepped_radius_junction = False
+        field_has_buried_wire = False
     else:
         h = hints()
         field_multi_feed = h["multi_feed"]
@@ -3310,6 +3343,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         field_requires_backends = h["requires_backends"]
         field_backend_restriction = h["backend_restriction"]
         field_has_stepped_radius_junction = h["has_stepped_radius_junction"]
+        field_has_buried_wire = h["has_buried_wire"]
 
     return AntennaExample(
         name=name,
@@ -3322,6 +3356,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         requires_backends=field_requires_backends,
         backend_restriction=field_backend_restriction,
         has_stepped_radius_junction=field_has_stepped_radius_junction,
+        has_buried_wire=field_has_buried_wire,
         # Static ui_params pin, never derived — safe to read eagerly even for
         # deferred (user) designs, unlike the geometry hints above.
         converged_feed_suggested=bool(

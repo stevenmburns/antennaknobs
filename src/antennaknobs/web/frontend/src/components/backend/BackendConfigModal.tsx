@@ -7,8 +7,11 @@ import {
   extendedKernelActive,
   extendedKernelRefusal,
   PANEL_BSPLINE,
+  degreeChoices,
+  feedModelChoices,
+  offersFeedModelChoice,
+  type FeedModelChoice,
   PANEL_PYNEC,
-  PANEL_SIN_GALERKIN,
   RESTRICTED_BACKEND_REASON,
   type BackendEntry,
   type BackendOpts,
@@ -148,11 +151,19 @@ export function BackendConfigModal({
             />
           ))}
 
-          {/* Bespoke panels: selected by the served `panel` hint, never by
-              backend name. Each carries the controls a numeric schema can't
-              express (tab pairs, gated sub-forms, an enum select). */}
-          {backend.panel === PANEL_SIN_GALERKIN && (
+          {/* The feed-model control is AXIS-DERIVED (#1006 G2-5): it renders
+              wherever `feed_model` is multi-valued, which is what the
+              `sin-galerkin` panel hint used to mean. The hint survives only
+              inside `feedModelChoices` as the fallback for a momwire that
+              cannot describe itself.
+
+              The B-spline panel stays bespoke and is still selected by the
+              hint. Only its degree tabs are an axis; the quadrature orders,
+              bump width, singular enrichment and its variant are not, so
+              there is nothing for the axis vocabulary to replace them with. */}
+          {offersFeedModelChoice(backend) && (
             <FeedModelField
+              choices={feedModelChoices(backend)}
               value={opts.feedModel ?? "segment"}
               suggestConvergedFeed={suggestConvergedFeed}
               onPatch={onPatch}
@@ -162,6 +173,7 @@ export function BackendConfigModal({
           {backend.panel === PANEL_BSPLINE && (
             <BSplineFields
               opts={opts.bspline ?? BSPLINE_DEFAULT_OPTS}
+              degrees={degreeChoices(backend)}
               extendedKernel={extendedKernelActive(backend, opts)}
               onPatch={(p) =>
                 onPatch({
@@ -228,10 +240,15 @@ function ExtendedKernelField({
 }
 
 function FeedModelField({
+  choices,
   value,
   suggestConvergedFeed,
   onPatch,
 }: {
+  /** From the `feed_model` AXIS (lib/backends.ts), not a literal here. The
+   *  labels and tooltips still live in that table — the axis says which gaps
+   *  the solver implements, not what to call them. */
+  choices: FeedModelChoice[];
   value: FeedModel;
   suggestConvergedFeed: boolean;
   onPatch: (patch: Partial<BackendOpts>) => void;
@@ -242,31 +259,16 @@ function FeedModelField({
         <span>feed model</span>
       </label>
       <div className="geometry-tabs" role="tablist">
-        {(
-          [
-            ["segment", "NEC-compatible"],
-            ["point", "Converged"],
-          ] as const
-        ).map(([v, label]) => (
+        {choices.map((c) => (
           <button
-            key={v}
+            key={c.value}
             role="tab"
-            aria-selected={value === v}
-            className={value === v ? "active" : ""}
-            title={
-              v === "segment"
-                ? "NEC's segment-wide gap: reproduces NEC/EZNEC " +
-                  "behaviour, including reactance drift with mesh " +
-                  "density. Use when cross-checking against NEC " +
-                  "results."
-                : "Zero-width (point) gap: converges to the " +
-                  "B-spline answer and gives a reciprocal Y. " +
-                  "Recommended for near-open high-Q designs " +
-                  "(momwire#213)."
-            }
-            onClick={() => onPatch({ feedModel: v })}
+            aria-selected={value === c.value}
+            className={value === c.value ? "active" : ""}
+            title={c.title}
+            onClick={() => onPatch({ feedModel: c.value })}
           >
-            {label}
+            {c.label}
           </button>
         ))}
       </div>
@@ -289,10 +291,16 @@ function FeedModelField({
 
 function BSplineFields({
   opts,
+  degrees,
   extendedKernel,
   onPatch,
 }: {
   opts: BSplineOpts;
+  /** The degree tabs, from the `basis` AXIS. The ONLY axis-derived control in
+   *  this panel — the quadrature orders, bump width and singular enrichment
+   *  below are not axes, which is why this panel survives #1006 G2-5 while the
+   *  sin-Galerkin one dissolved into its single axis. */
+  degrees: (1 | 2)[];
   /** The slot's extended kernel is in force — enrichment is unavailable while
    *  it is (momwire#271). The exclusion is symmetric (the EK row greys out
    *  while enrichment is on), so neither box can lock the other. */
@@ -307,7 +315,7 @@ function BSplineFields({
           <span>{opts.degree}</span>
         </label>
         <div className="geometry-tabs" role="tablist">
-          {[1, 2].map((d) => (
+          {degrees.map((d) => (
             <button
               key={d}
               role="tab"

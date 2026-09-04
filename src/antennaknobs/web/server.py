@@ -2514,6 +2514,7 @@ def examples_endpoint():
                 ),
                 "backend_restriction": ex.backend_restriction,
                 "has_stepped_radius_junction": ex.has_stepped_radius_junction,
+                "has_buried_wire": ex.has_buried_wire,
                 "converged_feed_suggested": ex.converged_feed_suggested,
                 "ground_requirement": ex.ground_requirement,
                 "has_design_freq": ex.has_design_freq,

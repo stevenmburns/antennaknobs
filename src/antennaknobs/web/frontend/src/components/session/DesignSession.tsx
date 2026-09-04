@@ -8,6 +8,8 @@ import {
 } from "react";
 import {
   backendAllowed,
+  designRefusal,
+  type DesignConstraintInputs,
   backendDisplayLabel,
   backendSupportsGround,
   comboInappropriate,
@@ -497,6 +499,24 @@ function DesignSessionBody({
   // (the solver raises). Distinct from comboInappropriate, which is a
   // performance mismatch the user may override.
   const backendDisallowed = !backendAllowed(backend, requiredBackends);
+  // The design-dependent refusal (#1006 G2-5): this backend, with these
+  // options, on THIS design. Recomputed every render from the live descriptor,
+  // so switching design re-answers it — the property `requires_backends` has
+  // and a check made when the engine was picked would not.
+  //
+  // The inputs come from the descriptor rather than being re-derived here:
+  // whether the deck has a stepped-radius junction is a fact about geometry
+  // the server already computed while building it.
+  const designConstraintInputs: DesignConstraintInputs = {
+    has_stepped_radius_junction:
+      currentExample?.has_stepped_radius_junction ?? false,
+    buried: currentExample?.has_buried_wire ?? false,
+  };
+  const optionRefusal = designRefusal(
+    backend,
+    currentOpts,
+    designConstraintInputs,
+  );
   // True while the live solve is being withheld by the solver-mismatch gate.
   // The batch runners (sweep / converge / norm-check) decline to fire on
   // this: they are batches of the same solves the gate is protecting the
@@ -509,6 +529,11 @@ function DesignSessionBody({
   function solveWithheld(): boolean {
     return (
       backendDisallowed ||
+      // No approval path around this one either: momwire RAISES on the
+      // combination, so "Solve anyway" would buy an error dialog. The user's
+      // way out is the option, not an override — which is why the overlay
+      // names the option rather than offering a button.
+      optionRefusal !== null ||
       (comboInappropriate(backend, recommendedBackend) &&
         !approvedComboRef.current)
     );
@@ -1177,6 +1202,20 @@ function DesignSessionBody({
       setSolverWarning(true);
       return;
     }
+    // The design-dependent OPTION refusal (#1006 G2-5). Same withhold UI as
+    // the hard gate above and for the same reason — momwire raises on the
+    // combination — but the banner names the option rather than offering a
+    // solver switch, because the solver is not the problem here.
+    //
+    // Not in the dep list, on the same grounds as `backendDisallowed`: it
+    // derives from `backend`, the slot's options and `currentExample`, and
+    // `backend`, `backendOptsKey` and `geometry` are all already deps. Adding
+    // the object itself would re-run this effect every render, since it is
+    // rebuilt each time.
+    if (optionRefusal !== null) {
+      setSolverWarning(true);
+      return;
+    }
     // Withhold the solve when the design/solver combo is a poor match and the
     // user hasn't approved it — show a warning instead. The app never switches
     // the solver itself; the user does that in the gear menu, which changes
@@ -1549,6 +1588,7 @@ function DesignSessionBody({
       backend={backend}
       roster={roster}
       requiredBackends={requiredBackends}
+      optionRefusal={optionRefusal}
       onSwitchBackend={(target) => {
         backendTouchedRef.current = true;
         setSlotBackend(activeSlot, target);

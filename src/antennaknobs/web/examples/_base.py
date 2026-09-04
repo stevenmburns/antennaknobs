@@ -332,6 +332,12 @@ class AntennaExample:
     # and therefore LIVE — re-read on every design change exactly as
     # `requires_backends` is, never checked once at selection.
     has_stepped_radius_junction: bool = False
+    # Any conductor below z = 0 (measured from the built geometry, not
+    # declared). The design-side input to momwire's buried + extended-kernel
+    # refusal (momwire#553). Agrees with `ground_requirement == "sommerfeld"`
+    # on today's catalog and is NOT the same fact — that one is a hand-declared
+    # statement about the ground model, this is geometry.
+    has_buried_wire: bool = False
     # Near-open high-Q feed (antennaknobs#478): the design benefits from the
     # sinusoidal-Galerkin solver's converged (point-gap) feed model, which
     # collapses the cross-basis residual by 2-3 orders on this class
