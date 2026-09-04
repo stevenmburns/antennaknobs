@@ -46,6 +46,23 @@ def user_design_dirs() -> list[Path]:
     return dirs
 
 
+class NoBuilderError(AttributeError):
+    """The file imported cleanly but defines no ``Builder``.
+
+    Its own class, not a bare ``AttributeError``, because the two callers want
+    opposite things and only the *cause* tells them apart. A CLI user who typed
+    a design name deserves the message; the web's registry sweep is looking at
+    every ``.py`` in the folder, and a user's scratch program sitting next to
+    their designs is not a broken design — it is not a design at all. An
+    ``AttributeError`` raised from INSIDE a user's module (a typo in their
+    ``Builder``) must keep reaching the error panel, which is exactly what a
+    shared exception type could not distinguish.
+
+    Subclasses ``AttributeError`` so existing handlers and the CLI's message
+    are unchanged.
+    """
+
+
 def _is_design_file(path: Path) -> bool:
     """Skip private files and the copied authoring template."""
     stem = path.stem
@@ -84,7 +101,7 @@ def load_builder(path: Path, *, trust: bool | None = None):
         raise
     cls = getattr(mod, "Builder", None)
     if cls is None:
-        raise AttributeError(
+        raise NoBuilderError(
             "no `Builder` class found — define `class Builder(AntennaBuilder): ...`"
         )
     return cls

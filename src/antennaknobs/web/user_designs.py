@@ -16,6 +16,7 @@ from pathlib import Path
 
 from antennaknobs.design_trust import DesignNotTrustedError
 from antennaknobs.user_designs import (
+    NoBuilderError,
     USER_NS,
     default_user_dir,
     iter_design_files,
@@ -148,6 +149,15 @@ def refresh() -> list[dict]:
                     ],
                 }
             )
+        except NoBuilderError:
+            # NOT an error: a .py file in the designs folder that defines no
+            # Builder is somebody's scratch program sitting next to their
+            # designs, and the folder is a plain directory a user is free to
+            # keep other work in. Skipping silently is the whole point —
+            # surfacing it trained the eye to ignore a banner that also
+            # carries real breakage. A file that DOES define a Builder and
+            # then fails keeps the banner, below.
+            continue
         except Exception as exc:  # noqa: BLE001 — surface, don't crash
             errors.append(
                 {
