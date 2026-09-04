@@ -1000,9 +1000,12 @@ centroids, the literal reading of "path integrals between centroids".
 With that one rule adopted (`nec5_quadrature=True`), the razor lane lands
 on NEC-5's curve at every rung, to a constant −0.004−0.037j Ω — an
 N-independent kernel nuance and the entire remaining difference between
-the two codes on this wire. (The twin panel is free-space because
-RazorSolver deliberately carries no ground: NEC-5's Michalski ground has
-its own small limit offset that would blur the formulation comparison.)
+the two codes on this wire. (The twin panel is free-space by choice, not
+necessity: `RazorSolver` serves the PEC and Sommerfeld grounds, and
+`razor-2p` is the app's above-ground lane over both. NEC-5's Michalski
+ground has its own small limit offset that would blur the formulation
+comparison, so the twin is compared where the formulation is the only
+difference.)
 
 ### What the charge model is worth: one basis, two ways to place it
 
@@ -1042,8 +1045,10 @@ scale. The dual-cell lane converges O(1/N) like any classical scheme, reaching
 the axis.
 
 **What this column is not.** It is not a claim that the 1967 scheme is
-obsolete — it is on the roster, as `pulse`, and it is a perfectly reasonable
-base case. It is a control: the two panels to its left vary the basis and the
+obsolete — momwire ships it as `HarringtonSolver`, and it is a perfectly
+reasonable base case. (`PulseSolver`, the point-charge lane beside it, is
+momwire's own literal reading of the same basis, not Harrington's scheme;
+neither is in the app's `--basis` roster.) It is a control: the two panels to its left vary the basis and the
 testing, and this one varies neither. Whatever separates these two curves
 cannot be blamed on either, which is what makes the number mean something.
 Harrington's own advice, on page 145 of the same paper, is to move on anyway:
@@ -1173,12 +1178,11 @@ refusal or a flag, not a number.
 | limit | treatment |
 | --- | --- |
 | Surface patches (SM/SP) | Not modelled. Patch decks refuse at import with the feature named. |
-| Buried wires / below-ground conductors | Served on the momwire `bspline` lane since momwire 0.38.0 — impedance, currents and charges over the Sommerfeld ground, for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises). Since momwire 0.41.0, interface **crossings at a declared junction** are served too (one above-ground wire joined at the surface to N buried wires — the connected-radial-screen spelling), and the design catalog authors buried geometry directly. What remains refuses by name: mid-span interface crossings, ground-contact wires mixed with buried wires, and near fields / patterns of buried decks. A licensed local NEC-5 (v0.61.0) serves buried decks too. Until the one-rise hub spelling (issue #1108) the two engines could not be pointed at the same connected screen at all — momwire's spelling needed N coincident rises to make the interface node a junction, which NEC-5 refuses — so each solved only its own convention. The hub removed that: both engines now run the buried-radial vertical's default deck, and what is left between them is the **node model** (NEC-5's point-electrode stake against momwire's crossing fill), measured 32.5 Ω apart on that design's defaults. NEC-5 keeps its own **detached (stake) convention**, which momwire still refuses by name. On the **elevated-detached** class — a feed clear of the ground over detached buried radials, a deck both engines serve as the same well-posed problem — they are cross-validated directly: converged agreement at the 0.2–2 Ω level on the same card files, with the full ladders on [the buried-radials study](/advanced/buried-radials/). The PyNEC lane refuses buried decks outright. The validation stance below ground is its own paragraph under this table. |
+| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane; a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5 serves buried decks with its own detached-stake convention, which momwire refuses by name; on the buried-radial vertical's connected deck the two engines differ by the node model (NEC-5's point-electrode stake against momwire's crossing fill), 32.5 Ω apart on that design's defaults. On the elevated-detached class, which both serve as the same problem, they agree at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The PyNEC lane refuses buried decks outright. The validation stance below ground is its own paragraph under this table. |
 | Electrically tiny, fat-conductor loops (magloop class) | Kernel-sensitive beyond any single-kernel read — reduced vs extended thin-wire kernels move results both ways by amounts that swamp formulation agreement. Census rows carry a kernel-sensitivity flag rather than a false-precision number. |
 | `sin` basis on junction fans | A documented instability class on multi-wire junction geometries. bs2 is the default and census basis; `sin` remains available with the caveat attached. |
 | Stepped-radius decks scored against NEC-2 references | The reference is the suspect (two independent formulations agree against it). Census rows carry the stepped-radius flag and score against NEC-5 mutually instead of pretending the nec2c number is truth. |
 | `wire.sterba_bl` on the momwire `razor` lanes | Not served, at any mesh, with or without ground. The deck carries a junction PORT, and a junction basis is already a through-current unknown, so the razor formulation has nowhere to put one — it refuses by name with `junction_ports` rather than quietly dropping the port. `bspline` serves the deck normally, and is the lane the census uses for it. |
-| `arrays.bowtie1x2_bl` over a finite ground | Free space only. Both momwire lanes refuse it below the interface, for *different* reasons, which is worth stating because lifting either one alone would not serve the deck: `bspline` refuses the DEPTH (the deck buries a wire 3.834 m down, past the 0.829 m limit — a quarter of the in-medium wavelength, λ_m = 3.317 m at the design frequency), while `razor` has no buried fill at all and refuses on that basis whatever the depth. Over free space every lane serves it. |
 
 **Below the interface, validation is deliberately engine-independent.** The
 NEC family's buried-conductor weakness is documented publicly
