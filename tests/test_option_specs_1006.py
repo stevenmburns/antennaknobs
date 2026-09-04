@@ -130,8 +130,16 @@ def test_shown_when_names_a_real_option_and_never_encodes_a_refusal():
         if spec.shown_when is None:
             continue
         assert spec.shown_when in _OPTION_SPECS, (name, spec.shown_when)
-        assert _OPTION_SPECS[spec.shown_when].kind == "bool", (
-            f"{name}: shown_when must name a boolean, not {spec.shown_when}"
+        # TRUTHY, not "is True". `n_qp_source` is shown while
+        # `feed_smoothing_factor` is a non-null number, so a gate naming a
+        # boolean is the common case and not the rule. What IS required is
+        # that the gate can be falsy at all — a gate on a knob that is always
+        # set would be a control that never hides, i.e. not a gate.
+        gate = _OPTION_SPECS[spec.shown_when]
+        assert gate.kind == "bool" or gate.allow_none or gate.auto_when_null, (
+            f"{name}: shown_when names {spec.shown_when}, which is neither a "
+            "boolean nor nullable — it can never be falsy, so the gate is a "
+            "no-op"
         )
         assert "extended_kernel" != spec.shown_when, (
             f"{name}: the EK/enrichment exclusion is a momwire REFUSAL "
@@ -181,13 +189,14 @@ def test_every_served_row_carries_what_a_renderer_needs_for_its_kind():
             assert row["default"] in (True, False), key
 
 
-def test_the_served_bounds_ARE_the_sanitiser_bounds():
+def test_the_served_ACCEPTS_bounds_are_the_sanitiser_bounds():
     """The claim the whole refactor rests on: one source.
 
-    Mutate the SPEC and both the schema and the validator must move together.
-    Asserted by pushing each served bound through the live sanitiser — the
-    endpoint must accept `max` and reject just past it. If these ever
-    disagreed, the UI would offer a value the server refuses.
+    Now stated against `accepts_min`/`accepts_max`, because `min`/`max` became
+    the RENDER pair (#1006 G2-6) and are deliberately narrower. Mutate the
+    spec and both the served numbers and the validator must move together;
+    asserted by pushing each served accepted bound through the live sanitiser
+    and requiring just past it to fail.
     """
     from antennaknobs.web.adapter import _HOSTED_MODEL_OPTIONS, model_option_specs
 
@@ -195,13 +204,12 @@ def test_the_served_bounds_ARE_the_sanitiser_bounds():
         check = _HOSTED_MODEL_OPTIONS[key]
         if row["kind"] not in ("int", "float"):
             continue
-        assert check(row["max"]) is not None
-        assert check(row["min"]) is not None or row["min"] == 0
+        assert check(row["accepts_max"]) is not None
         step = 1 if row["kind"] == "int" else 0.5
         with pytest.raises(ValueError):
-            check(row["max"] + step)
+            check(row["accepts_max"] + step)
         with pytest.raises(ValueError):
-            check(row["min"] - step)
+            check(row["accepts_min"] - step)
 
 
 def test_the_roster_names_only_kwargs_the_catalogue_describes():
@@ -219,3 +227,89 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
             seen.add(k)
     # ...and the catalogue is not carrying descriptions nobody can reach.
     assert seen == described, f"described but unreachable: {sorted(described - seen)}"
+
+
+# --------------------------------------------------------------------------
+# Render bounds (#1006 G2-6): what the control OFFERS vs what the server TAKES
+# --------------------------------------------------------------------------
+
+
+def test_the_render_range_is_a_SUBSET_of_what_the_sanitiser_accepts():
+    """The one shape that must be impossible.
+
+    A control offering a value the endpoint rejects is a knob that looks
+    available and fails on solve — the user does the right thing and gets an
+    error. The reverse (a control narrower than the sanitiser) is fine and is
+    the normal case: `feed_smoothing_factor` offers 0.5..10 of an accepted
+    0..100, because the panel has always been the tighter of the two.
+    """
+    from antennaknobs.web.adapter import model_option_specs
+
+    served = model_option_specs()
+    checked = 0
+    for key, row in served.items():
+        if row["kind"] not in ("int", "float"):
+            continue
+        assert row["min"] >= row["accepts_min"], f"{key}: render min below accepted"
+        assert row["max"] <= row["accepts_max"], f"{key}: render max above accepted"
+        checked += 1
+    assert checked >= 8, checked
+
+
+def test_the_subset_gate_is_not_vacuous():
+    """At least one option must actually NARROW, or the check above passes for
+    a table where render bounds were never set at all."""
+    from antennaknobs.web.adapter import model_option_specs
+
+    served = model_option_specs()
+    narrowed = [
+        k
+        for k, r in served.items()
+        if r["kind"] in ("int", "float")
+        and (r["min"] > r["accepts_min"] or r["max"] < r["accepts_max"])
+    ]
+    assert "feed_smoothing_factor" in narrowed, narrowed
+    assert len(narrowed) >= 4, narrowed
+
+
+def test_every_render_bound_still_passes_the_sanitiser():
+    """The subset claim, exercised rather than compared.
+
+    Pushing the served min and max through the live validator is what proves
+    a renderer can offer them — an off-by-one in the subset arithmetic would
+    satisfy the comparison above and still hand a user a rejected value.
+    """
+    from antennaknobs.web.adapter import _HOSTED_MODEL_OPTIONS, model_option_specs
+
+    for key, row in model_option_specs().items():
+        if row["kind"] not in ("int", "float"):
+            continue
+        check = _HOSTED_MODEL_OPTIONS[key]
+        assert check(row["min"]) is not None or row["min"] == 0
+        assert check(row["max"]) is not None
+
+
+def test_a_gate_label_exists_wherever_a_knob_can_be_switched_off():
+    """A nullable knob renders as a checkbox plus a field, and the checkbox
+    needs a caption that `label` does not supply: the gates read
+    "n_qp_pair: auto" and "feed source smoothing" against labels of
+    "n_qp_pair (GL pts/axis)" and "α (bump width / h_feed)"."""
+    for name, spec in _OPTION_SPECS.items():
+        if spec.allow_none or spec.auto_when_null:
+            assert spec.gate_label, f"{name}: nullable with no gate caption"
+        else:
+            assert spec.gate_label is None, (
+                f"{name}: has a gate caption but nothing to gate"
+            )
+
+
+def test_the_gate_polarity_is_derivable_and_the_two_cases_both_exist():
+    """`auto_when_null` means checked-when-null ("auto"); `allow_none` alone
+    means checked-when-set. The polarity is therefore not stored — but that
+    only works while both cases are real, so both are pinned here."""
+    auto = [k for k, s in _OPTION_SPECS.items() if s.auto_when_null]
+    optional = [
+        k for k, s in _OPTION_SPECS.items() if s.allow_none and not s.auto_when_null
+    ]
+    assert auto == ["n_qp_pair"], auto
+    assert optional == ["feed_smoothing_factor"], optional

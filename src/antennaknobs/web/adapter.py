@@ -214,23 +214,34 @@ class _BackendSpec:
     # are applied after the request's model_options and win over them, so a
     # bound lane cannot be flipped into a different one from the wire.
     bound: Mapping[str, object] = field(default_factory=dict)
-    # Which of `_OPTION_SPECS` this solver's constructor ACCEPTS — measured by
-    # construction, never by `inspect.signature` (#1006 G2-6).
+    # Which of `_OPTION_SPECS` this backend EXPOSES (antennaknobs#1006 G2-6).
     #
-    # The signature is not the answer: `HMatrixSolver` reports NO keyword
-    # arguments at all and takes the full B-spline set through `**kwargs`, and
-    # `SinusoidalGalerkinSolver` reports only `feed_model` while plainly
-    # accepting `extended_kernel`. Four of the six route options through
-    # `**kwargs`. So this list is DECLARED here and GATED by constructing each
-    # cell (tests/test_backend_model_kwargs_1006.py), in both directions — a
-    # listed kwarg must be accepted and an unlisted one must raise TypeError —
-    # which is what stops it drifting from the runtime.
+    # "ACCEPTS" AND "EXPOSES" ARE DIFFERENT FACTS AND THIS FIELD IS THE
+    # SECOND ONE. What a constructor accepts is measurable — construct it and
+    # see. What the product offers is a DECISION, and it used to be encoded by
+    # the `panel` hint. This field is the decision; the `panel` hint is what it
+    # replaces.
     #
-    # ACCEPTING A KWARG IS NOT OFFERING A CHOICE. `razor-2p` accepts `degree`,
-    # but its `basis` axis holds the single value "tent", so a degree control
-    # there would be a lie about the engine. What a user may CHOOSE is the
-    # axes question (`axisControls`, G2-5); this is only what the constructor
-    # takes without a TypeError.
+    # The distinction is not academic. `BSplineSolver` accepts `feed_model`
+    # and its `feed_model` axis holds only "segment-gap", so the panel has
+    # never offered or sent it. `SinusoidalSolver` accepts it too and REFUSES
+    # the value "point" (momwire#212) — which is the served default — so a
+    # roster built from what the class accepts would have sent a point gap to
+    # the one solver that raises on it, on every stock request. `RazorSolver`
+    # accepts `degree` and `n_qp_source` and has never shown either.
+    #
+    # GATED AS `exposed ⊆ accepted`, by construction, in
+    # tests/test_backend_model_kwargs_1006.py: every exposed kwarg must be
+    # constructible on this class, so the product can never offer a knob the
+    # engine rejects. The reverse is deliberately NOT gated — requiring
+    # accepted ⊆ exposed would assert a product decision as if it were a fact
+    # about the class, which is precisely the error that produced the
+    # `feed_model` bug above.
+    #
+    # `inspect.signature` cannot measure the "accepted" half either:
+    # `HMatrixSolver` reports NO keyword arguments and takes the full B-spline
+    # set through `**kwargs`, and `SinusoidalGalerkinSolver` reports only
+    # `feed_model` while plainly accepting `extended_kernel`. Construct it.
     model_kwargs: tuple[str, ...] = ()
 
 
@@ -254,14 +265,21 @@ _N_QP_CONST = _BackendOption(
 # That is not an oversight — the two families quadrature differently, and it
 # is exactly the kind of fact the `panel` hint could not express, since it
 # named a panel rather than a set of knobs.
-_SIN_FAMILY_KWARGS = ("extended_kernel", "feed_model", "n_qp_const")
+# EXPOSED, not accepted — see `_BackendSpec.model_kwargs`. These lists
+# reproduce the request payloads the bespoke panels produced, which is what
+# makes the renderer swap a refactor rather than a behaviour change.
+#
+# `feed_model` is exposed by the GALERKIN member only: the point-matched
+# `SinusoidalSolver` refuses the point gap (momwire#212), so exposing it there
+# would offer — and default to — a value that raises.
+_SIN_KWARGS = ("extended_kernel", "n_qp_const")
+_SIN_GALERKIN_KWARGS = ("extended_kernel", "feed_model", "n_qp_const")
 _BSPLINE_FAMILY_KWARGS = (
     "auto_tap_ratio_threshold",
     "degree",
     "enrichment_min_k",
     "enrichment_variant",
     "extended_kernel",
-    "feed_model",
     "feed_smoothing_factor",
     "n_qp_pair",
     "n_qp_sing",
@@ -269,14 +287,16 @@ _BSPLINE_FAMILY_KWARGS = (
     "tikhonov_lambda",
     "use_singular_enrichment",
 )
-# `degree` is accepted and is NOT a control: the basis axis is ("tent",).
-_RAZOR_KWARGS = ("degree", "extended_kernel", "n_qp_source")
+# `degree` and `n_qp_source` are ACCEPTED here and have never been offered:
+# the basis axis is ("tent",), and the razor panel has only ever shown the
+# kernel toggle. Exposing either would change the request payload.
+_RAZOR_KWARGS = ("extended_kernel",)
 
 
 _BACKENDS: tuple[_BackendSpec, ...] = (
     _BackendSpec(
         name="sinusoidal",
-        model_kwargs=_SIN_FAMILY_KWARGS,
+        model_kwargs=_SIN_KWARGS,
         label="Sinusoidal",
         solver=SinusoidalSolver,
         options=(_N_QP_CONST,),
@@ -289,7 +309,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # issue #640), which is what its bespoke panel renders.
     _BackendSpec(
         name="sinusoidal-galerkin",
-        model_kwargs=_SIN_FAMILY_KWARGS,
+        model_kwargs=_SIN_GALERKIN_KWARGS,
         label="Sin-Galerkin",
         solver=SinusoidalGalerkinSolver,
         options=(_N_QP_CONST,),
@@ -686,8 +706,34 @@ class _OptionSpec(NamedTuple):
     label: str = ""
     step: float = 1
     default: object = None
-    # Rendered only when this other option is truthy — pure UI gating, not a
-    # refusal. A genuine cross-axis refusal (the extended kernel vs singular
+    # RENDER bounds, which are NOT the sanitiser's. `lo`/`hi` are what the
+    # hosted endpoint ACCEPTS and are deliberately loose; these are what the
+    # control OFFERS. `feed_smoothing_factor` is the case that forced the
+    # split — the panel has always offered 0.5..10 step 0.5 while the
+    # sanitiser accepts 0..100, and a renderer fed the sanitiser bounds would
+    # widen that knob tenfold and change its step.
+    #
+    # None means "same as the sanitiser bound". Gated as a SUBSET of it
+    # (test_option_specs_1006), because the one shape that must be impossible
+    # is a control offering a value the server will reject: the user would see
+    # an available knob and a failed solve.
+    render_lo: float | None = None
+    render_hi: float | None = None
+    render_step: float | None = None
+    # Caption for the checkbox that turns a nullable knob on (or to auto),
+    # when it has one. Not derivable from `label`: the gates read
+    # "n_qp_pair: auto" and "feed source smoothing" against labels of
+    # "n_qp_pair (GL pts/axis)" and "α (bump width / h_feed)".
+    #
+    # The POLARITY is not stored because it falls out: `auto_when_null` means
+    # checked-when-null ("auto"), `allow_none` alone means checked-when-set.
+    gate_label: str | None = None
+    # Rendered only while this other option is TRUTHY — pure UI gating, not a
+    # refusal. Truthy, not "is True": `n_qp_source` is shown only while
+    # `feed_smoothing_factor` is a non-null number, so a gate naming a
+    # boolean is the common case and not the rule.
+    #
+    # A genuine cross-axis refusal (the extended kernel vs singular
     # enrichment) is momwire's to state and reaches the client through the
     # served `constraints`, never through a field here: a refusal invented in
     # this table would be the retyped-prose failure momwire#888 is about.
@@ -714,7 +760,15 @@ def _sanitiser_for(name: str, spec: _OptionSpec):
 
 _OPTION_SPECS: dict[str, _OptionSpec] = {
     "degree": _OptionSpec("int", 1, 2, label="degree", default=2),
-    "n_qp_const": _OptionSpec("int", 1, 64, label="n_qp_const (GL pts)", default=8),
+    "n_qp_const": _OptionSpec(
+        "int",
+        1,
+        64,
+        label="n_qp_const (GL pts)",
+        default=8,
+        render_lo=2,
+        render_hi=32,
+    ),
     # Capped at 32, and the bound is now a COST choice rather than a crash
     # guard. It used to be 8 because momwire's accelerated pair kernels carried
     # a fixed n_qp^2 <= 64 scratch buffer and raised RuntimeError above that
@@ -742,10 +796,29 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         auto_when_null=True,
         label="n_qp_pair (GL pts/axis)",
         default=None,
+        render_lo=2,
+        gate_label="n_qp_pair: auto",
     ),
-    "n_qp_source": _OptionSpec("int", 1, 64, label="n_qp_source", default=16),
+    "n_qp_source": _OptionSpec(
+        "int",
+        1,
+        64,
+        label="n_qp_source",
+        default=16,
+        render_lo=4,
+        # The gate that widened `shown_when` past booleans: this knob is only
+        # meaningful while the smoothed source is on, and that switch is a
+        # nullable float rather than a flag.
+        shown_when="feed_smoothing_factor",
+    ),
     "n_qp_sing": _OptionSpec(
-        "int", 1, 128, label="n_qp_sing (GL pts/axis)", default=32
+        "int",
+        1,
+        128,
+        label="n_qp_sing (GL pts/axis)",
+        default=32,
+        render_lo=8,
+        shown_when="use_singular_enrichment",
     ),
     "feed_smoothing_factor": _OptionSpec(
         "float",
@@ -755,6 +828,12 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         label="\u03b1 (bump width / h_feed)",
         step=0.1,
         default=None,
+        # The panel has always offered a far narrower range than the
+        # sanitiser accepts; 3 is what the gate switches on to.
+        render_lo=0.5,
+        render_hi=10.0,
+        render_step=0.5,
+        gate_label="feed source smoothing",
     ),
     # Gap-source model on the solvers that offer it (momwire#192/#216):
     # "segment" is NEC's segment-wide gap, "point" the zero-width (converged)
@@ -781,6 +860,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         label="tikhonov_lambda (\u03bb)",
         step=0.01,
         default=0.1,
+        render_hi=10.0,
         shown_when="use_singular_enrichment",
     ),
     "auto_tap_ratio_threshold": _OptionSpec(
@@ -798,6 +878,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         64,
         label="enrichment_min_k",
         default=3,
+        render_hi=8,
         shown_when="use_singular_enrichment",
     ),
     # NEC's extended thin-wire kernel (the EK card, issue #849, momwire >=
@@ -3659,12 +3740,22 @@ def model_option_specs() -> dict[str, dict]:
             "default": spec.default,
             "auto_when_null": spec.auto_when_null,
             "shown_when": spec.shown_when,
+            "gate_label": spec.gate_label,
         }
         if spec.kind in ("int", "float"):
-            row["min"] = spec.lo
-            row["max"] = spec.hi
-            row["step"] = spec.step
+            # The RENDER bounds, falling back to the sanitiser's. What the
+            # control offers, never what the endpoint merely tolerates —
+            # `feed_smoothing_factor` differs by 10x, and a renderer given the
+            # looser pair would widen the knob and change its step.
+            row["min"] = spec.lo if spec.render_lo is None else spec.render_lo
+            row["max"] = spec.hi if spec.render_hi is None else spec.render_hi
+            row["step"] = spec.step if spec.render_step is None else spec.render_step
             row["allow_none"] = spec.allow_none
+            # Served too, so a client can tell "the server would take this"
+            # from "the control offers this" — the sweep UI and the API docs
+            # both want the wider pair.
+            row["accepts_min"] = spec.lo
+            row["accepts_max"] = spec.hi
         if spec.kind == "enum":
             row["values"] = list(spec.values)
         out[key] = row

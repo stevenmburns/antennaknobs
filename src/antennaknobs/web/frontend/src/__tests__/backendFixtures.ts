@@ -60,9 +60,10 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // genuinely share a constructor surface, so three literals here would be three
 // things to drift. Pinned against the live payload by
 // tests/test_frontend_option_spec_fixture.py.
-const SIN_KWARGS = ["extended_kernel", "feed_model", "n_qp_const"];
-const BSPLINE_KWARGS = ["auto_tap_ratio_threshold", "degree", "enrichment_min_k", "enrichment_variant", "extended_kernel", "feed_model", "feed_smoothing_factor", "n_qp_pair", "n_qp_sing", "n_qp_source", "tikhonov_lambda", "use_singular_enrichment"];
-const RAZOR_KWARGS = ["degree", "extended_kernel", "n_qp_source"];
+const SIN_KWARGS = ["extended_kernel", "n_qp_const"];
+const SIN_GALERKIN_KWARGS = ["extended_kernel", "feed_model", "n_qp_const"];
+const BSPLINE_KWARGS = ["auto_tap_ratio_threshold", "degree", "enrichment_min_k", "enrichment_variant", "extended_kernel", "feed_smoothing_factor", "n_qp_pair", "n_qp_sing", "n_qp_source", "tikhonov_lambda", "use_singular_enrichment"];
+const RAZOR_KWARGS = ["extended_kernel"];
 
 const BSPLINE_AXES = {
   basis: ["bspline-1", "bspline-2"],
@@ -99,7 +100,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "sinusoidal-galerkin",
     label: "Sin-Galerkin",
-    model_kwargs: SIN_KWARGS,
+    model_kwargs: SIN_GALERKIN_KWARGS,
     options_schema: [backendOption()],
     panel: "sin-galerkin",
     dense_family: true,

@@ -1,4 +1,10 @@
-"""`_BackendSpec.model_kwargs` is measured, not believed (#1006 G2-6).
+"""`_BackendSpec.model_kwargs` — what a backend EXPOSES — is constructible.
+
+"ACCEPTS" AND "EXPOSES" ARE DIFFERENT FACTS. What a constructor accepts is
+measurable: construct it and see. What the product offers is a DECISION, and
+before #1006 G2-6 it was encoded by the `panel` hint. `model_kwargs` is the
+decision; this file gates it against the measurement in the ONE direction
+that can hurt a user.
 
 Deleting the `panel` hint deletes the only record of WHICH solver knobs apply
 to WHICH backend, so that fact has to be written down somewhere. Written down
@@ -14,14 +20,27 @@ Both take the full set through `**kwargs`. A gate built on signatures would
 have declared `hmatrix` optionless and been green. So every cell below is
 built.
 
-BOTH DIRECTIONS, which is the whole point. A listed kwarg must be ACCEPTED,
-and an unlisted one must raise TypeError. A one-directional gate lets the list
-rot the other way: listing everything everywhere would satisfy "listed implies
-accepted" for every backend that has `**kwargs`, i.e. four of the six.
+`exposed ⊆ accepted`, AND NOT THE REVERSE. Every exposed kwarg must construct,
+so the product can never offer a knob the engine rejects. The converse —
+requiring every accepted kwarg to be exposed — is deliberately NOT gated, and
+an earlier version of this file DID gate it, which is what produced a real
+bug: it forced `model_kwargs` to mean "accepts", the request builder was fed
+from it, and stock requests began carrying `feed_model="point"` to
+`SinusoidalSolver`, the one solver that REFUSES the point gap (momwire#212).
+A gate asserting a product decision as if it were a fact about the class does
+not protect the product; it deforms it.
 
-ACCEPTING IS NOT OFFERING. `razor-2p` accepts `degree` and must never show a
-degree control, because its `basis` axis holds one value. That separation is
-asserted here so nobody closes the gap by "fixing" the list.
+The three knobs that are accepted and deliberately not exposed, each of which
+would change a request payload if listed:
+
+    BSplineSolver   feed_model     axis is ("segment-gap",) — never offered
+    RazorSolver     degree         axis is ("tent",)
+    RazorSolver     n_qp_source    never had a control
+
+`inspect.signature` cannot measure the accepted half either: `HMatrixSolver`
+reports NO keyword arguments and takes the full B-spline set through
+`**kwargs`, and `SinusoidalGalerkinSolver` reports only `feed_model` while
+plainly accepting `extended_kernel`. Construct it.
 """
 
 from __future__ import annotations
@@ -111,45 +130,82 @@ def test_every_listed_kwarg_is_actually_accepted(spec):
             pass
 
 
-@pytest.mark.parametrize("spec", MOMWIRE, ids=lambda s: s.name)
-def test_every_UNLISTED_kwarg_is_actually_rejected(spec):
-    """The direction that keeps the list honest.
+def test_the_deliberately_unexposed_kwargs_are_ACCEPTED_and_still_not_listed():
+    """The three exclusions, pinned with the reason each exists.
 
-    Four of the six solvers take `**kwargs`, so "listed implies accepted"
-    would be satisfied by listing everything everywhere. This is what makes
-    the list a measurement rather than a superset.
+    These are accepted by their classes — asserted by construction below — and
+    exposing any of them changes a request payload, which is what the recorded
+    payload fixture would catch. Pinned here so nobody "fixes" the list by
+    adding what the constructor happens to take.
     """
-    unlisted = sorted(set(_OPTION_SPECS) - set(spec.model_kwargs))
-    assert unlisted, f"{spec.name}: lists every option — nothing to check"
-    for k in unlisted:
-        with pytest.raises(TypeError) as exc:
-            _build(spec, **{k: SAMPLE[k]})
-        assert k in str(exc.value), (
-            f"{spec.name}: {k} raised TypeError but not about {k}: {exc.value}"
-        )
+    by_name = {b.name: b for b in MOMWIRE}
+    cases = [
+        ("bspline", "feed_model", "segment"),
+        ("razor-2p", "degree", 2),
+        ("razor-2p", "n_qp_source", 16),
+    ]
+    for name, kwarg, value in cases:
+        spec = by_name[name]
+        assert kwarg not in spec.model_kwargs, f"{name} now exposes {kwarg}"
+        # ...and it really is accepted, so this is a DECISION and not a
+        # limitation of the class.
+        try:
+            _build(spec, **{kwarg: value})
+        except TypeError as e:  # pragma: no cover - names the failure
+            if kwarg in str(e):
+                pytest.fail(f"{name} does not accept {kwarg} — premise gone: {e}")
+            raise
+        except Exception:  # noqa: BLE001 — accepted the keyword, failed later
+            pass
 
 
-def test_accepting_a_kwarg_is_not_the_same_as_offering_a_control():
-    """`razor-2p` accepts `degree` and offers one value of `basis`.
-
-    Conflating the two is the failure this separation exists to prevent: a
-    generic renderer that drew a control for every accepted kwarg would put a
-    degree tab on the two-point razor lane, whose basis is "tent" and has no
-    degree to choose.
-    """
-    razor = next(b for b in MOMWIRE if b.name == "razor-2p")
-    assert "degree" in razor.model_kwargs
-    from momwire._capabilities import axes_for
-
-    assert axes_for(razor.solver.capabilities)["basis"] == frozenset({"tent"})
-
-
-def test_the_families_that_share_a_constructor_share_a_list():
+def test_the_families_share_a_list_exactly_where_they_share_a_surface():
     """bspline/hmatrix/arrayblock are one class and two accelerated
-    subclasses, so three separate literals would be three things to drift."""
+    subclasses, so three separate literals would be three things to drift.
+
+    The sinusoidal pair does NOT share one any more, and that is the point:
+    the Galerkin member exposes `feed_model` and the point-matched one must
+    not, because it refuses the point gap (momwire#212). They were a single
+    shared tuple until that bug, and splitting them is the fix.
+    """
     by_name = {b.name: b.model_kwargs for b in MOMWIRE}
     assert by_name["bspline"] is by_name["hmatrix"] is by_name["arrayblock"]
-    assert by_name["sinusoidal"] is by_name["sinusoidal-galerkin"]
+    assert by_name["sinusoidal"] is not by_name["sinusoidal-galerkin"]
+    assert set(by_name["sinusoidal-galerkin"]) - set(by_name["sinusoidal"]) == {
+        "feed_model"
+    }
+
+
+def test_the_exposed_lists_reproduce_the_pre_refactor_request_payloads():
+    """The lists are not free choices — they are what the bespoke panels sent.
+
+    Recorded from the frontend before any of this moved (the eight-state
+    fixture), so the renderer swap can be a refactor rather than a change.
+    `extended_kernel` is exposed everywhere and rides only when armed, so it
+    is excluded here the way the wire excludes it.
+    """
+    expected = {
+        "sinusoidal": {"n_qp_const"},
+        "sinusoidal-galerkin": {"feed_model", "n_qp_const"},
+        "bspline": {
+            "auto_tap_ratio_threshold",
+            "degree",
+            "enrichment_min_k",
+            "enrichment_variant",
+            "feed_smoothing_factor",
+            "n_qp_pair",
+            "n_qp_sing",
+            "n_qp_source",
+            "tikhonov_lambda",
+            "use_singular_enrichment",
+        },
+        "razor-2p": set(),
+    }
+    expected["hmatrix"] = expected["arrayblock"] = expected["bspline"]
+    for name, want in expected.items():
+        spec = next(b for b in MOMWIRE if b.name == name)
+        got = set(spec.model_kwargs) - {"extended_kernel"}
+        assert got == want, f"{name}: exposes {sorted(got ^ want)} unexpectedly"
 
 
 def test_n_qp_const_belongs_to_the_sinusoidal_family_and_not_the_bspline_one():
