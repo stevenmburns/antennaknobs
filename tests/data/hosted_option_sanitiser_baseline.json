@@ -1,0 +1,1338 @@
+{
+ "auto_tap_ratio_threshold": [
+  {
+   "err": "ValueError: must be a number",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "in": "0",
+   "ok": true,
+   "out": "0.0"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "in": "0.5",
+   "ok": true,
+   "out": "0.5"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "-1.0",
+   "ok": false
+  },
+  {
+   "in": "0.0",
+   "ok": true,
+   "out": "0.0"
+  },
+  {
+   "in": "1.0",
+   "ok": true,
+   "out": "1.0"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1.0]",
+   "in": "2.0",
+   "ok": false
+  },
+  {
+   "in": "0.5",
+   "ok": true,
+   "out": "0.5"
+  }
+ ],
+ "degree": [
+  {
+   "err": "ValueError: must be an integer",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 2]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 2]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: cannot convert float NaN to integer",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 2]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "in": "1",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "in": "2",
+   "ok": true,
+   "out": "2"
+  },
+  {
+   "err": "ValueError: must be in [1, 2]",
+   "in": "3",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "in": "1.0",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  }
+ ],
+ "enrichment_min_k": [
+  {
+   "err": "ValueError: must be an integer",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [2, 64]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [2, 64]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: cannot convert float NaN to integer",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [2, 64]",
+   "in": "1",
+   "ok": false
+  },
+  {
+   "in": "2",
+   "ok": true,
+   "out": "2"
+  },
+  {
+   "in": "64",
+   "ok": true,
+   "out": "64"
+  },
+  {
+   "err": "ValueError: must be in [2, 64]",
+   "in": "65",
+   "ok": false
+  },
+  {
+   "in": "33.0",
+   "ok": true,
+   "out": "33"
+  },
+  {
+   "in": "2.0",
+   "ok": true,
+   "out": "2"
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "2.5",
+   "ok": false
+  }
+ ],
+ "enrichment_variant": [
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "in": "'raw'",
+   "ok": true,
+   "out": "'raw'"
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "in": "'raw'",
+   "ok": true,
+   "out": "'raw'"
+  },
+  {
+   "in": "'stable'",
+   "ok": true,
+   "out": "'stable'"
+  },
+  {
+   "in": "'tikhonov'",
+   "ok": true,
+   "out": "'tikhonov'"
+  },
+  {
+   "in": "'auto'",
+   "ok": true,
+   "out": "'auto'"
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "'AUTO'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['auto', 'raw', 'stable', 'tikhonov']",
+   "in": "'Raw'",
+   "ok": false
+  }
+ ],
+ "extended_kernel": [
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "in": "True",
+   "ok": true,
+   "out": "True"
+  },
+  {
+   "in": "False",
+   "ok": true,
+   "out": "False"
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "inf",
+   "ok": false
+  }
+ ],
+ "feed_model": [
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "in": "'segment'",
+   "ok": true,
+   "out": "'segment'"
+  },
+  {
+   "in": "'point'",
+   "ok": true,
+   "out": "'point'"
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "'AUTO'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be one of ['point', 'segment']",
+   "in": "'Raw'",
+   "ok": false
+  }
+ ],
+ "feed_smoothing_factor": [
+  {
+   "in": "None",
+   "ok": true,
+   "out": "None"
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "in": "0",
+   "ok": true,
+   "out": "0.0"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 100.0]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "in": "0.5",
+   "ok": true,
+   "out": "0.5"
+  },
+  {
+   "in": "1.5",
+   "ok": true,
+   "out": "1.5"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 100.0]",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 100.0]",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 100.0]",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 100.0]",
+   "in": "-1.0",
+   "ok": false
+  },
+  {
+   "in": "0.0",
+   "ok": true,
+   "out": "0.0"
+  },
+  {
+   "in": "100.0",
+   "ok": true,
+   "out": "100.0"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 100.0]",
+   "in": "101.0",
+   "ok": false
+  },
+  {
+   "in": "50.0",
+   "ok": true,
+   "out": "50.0"
+  }
+ ],
+ "n_qp_const": [
+  {
+   "err": "ValueError: must be an integer",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: cannot convert float NaN to integer",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "in": "1",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "in": "64",
+   "ok": true,
+   "out": "64"
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "65",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "32.5",
+   "ok": false
+  },
+  {
+   "in": "1.0",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  }
+ ],
+ "n_qp_pair": [
+  {
+   "err": "ValueError: must be an integer",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 32]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 32]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: cannot convert float NaN to integer",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 32]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "in": "1",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "in": "32",
+   "ok": true,
+   "out": "32"
+  },
+  {
+   "err": "ValueError: must be in [1, 32]",
+   "in": "33",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "16.5",
+   "ok": false
+  },
+  {
+   "in": "1.0",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  }
+ ],
+ "n_qp_sing": [
+  {
+   "err": "ValueError: must be an integer",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 128]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 128]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: cannot convert float NaN to integer",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 128]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "in": "1",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "in": "128",
+   "ok": true,
+   "out": "128"
+  },
+  {
+   "err": "ValueError: must be in [1, 128]",
+   "in": "129",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "64.5",
+   "ok": false
+  },
+  {
+   "in": "1.0",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  }
+ ],
+ "n_qp_source": [
+  {
+   "err": "ValueError: must be an integer",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: cannot convert float NaN to integer",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "OverflowError: cannot convert float infinity to integer",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "in": "1",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "in": "64",
+   "ok": true,
+   "out": "64"
+  },
+  {
+   "err": "ValueError: must be in [1, 64]",
+   "in": "65",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "32.5",
+   "ok": false
+  },
+  {
+   "in": "1.0",
+   "ok": true,
+   "out": "1"
+  },
+  {
+   "err": "ValueError: must be an integer",
+   "in": "1.5",
+   "ok": false
+  }
+ ],
+ "tikhonov_lambda": [
+  {
+   "err": "ValueError: must be a number",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "True",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "False",
+   "ok": false
+  },
+  {
+   "in": "0",
+   "ok": true,
+   "out": "0.0"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1000.0]",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "in": "0.5",
+   "ok": true,
+   "out": "0.5"
+  },
+  {
+   "in": "1.5",
+   "ok": true,
+   "out": "1.5"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1000.0]",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1000.0]",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a number",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1000.0]",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1000.0]",
+   "in": "-1.0",
+   "ok": false
+  },
+  {
+   "in": "0.0",
+   "ok": true,
+   "out": "0.0"
+  },
+  {
+   "in": "1000.0",
+   "ok": true,
+   "out": "1000.0"
+  },
+  {
+   "err": "ValueError: must be a finite number in [0.0, 1000.0]",
+   "in": "1001.0",
+   "ok": false
+  },
+  {
+   "in": "500.0",
+   "ok": true,
+   "out": "500.0"
+  }
+ ],
+ "use_singular_enrichment": [
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "None",
+   "ok": false
+  },
+  {
+   "in": "True",
+   "ok": true,
+   "out": "True"
+  },
+  {
+   "in": "False",
+   "ok": true,
+   "out": "False"
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "0",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "-1",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "0.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "1.5",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "nan",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "inf",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "'raw'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "'nope'",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "''",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "[1]",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "{}",
+   "ok": false
+  },
+  {
+   "err": "ValueError: must be a boolean",
+   "in": "inf",
+   "ok": false
+  }
+ ]
+}

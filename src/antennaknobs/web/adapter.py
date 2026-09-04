@@ -64,7 +64,7 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -214,6 +214,24 @@ class _BackendSpec:
     # are applied after the request's model_options and win over them, so a
     # bound lane cannot be flipped into a different one from the wire.
     bound: Mapping[str, object] = field(default_factory=dict)
+    # Which of `_OPTION_SPECS` this solver's constructor ACCEPTS — measured by
+    # construction, never by `inspect.signature` (#1006 G2-6).
+    #
+    # The signature is not the answer: `HMatrixSolver` reports NO keyword
+    # arguments at all and takes the full B-spline set through `**kwargs`, and
+    # `SinusoidalGalerkinSolver` reports only `feed_model` while plainly
+    # accepting `extended_kernel`. Four of the six route options through
+    # `**kwargs`. So this list is DECLARED here and GATED by constructing each
+    # cell (tests/test_backend_model_kwargs_1006.py), in both directions — a
+    # listed kwarg must be accepted and an unlisted one must raise TypeError —
+    # which is what stops it drifting from the runtime.
+    #
+    # ACCEPTING A KWARG IS NOT OFFERING A CHOICE. `razor-2p` accepts `degree`,
+    # but its `basis` axis holds the single value "tent", so a degree control
+    # there would be a lie about the engine. What a user may CHOOSE is the
+    # axes question (`axisControls`, G2-5); this is only what the constructor
+    # takes without a TypeError.
+    model_kwargs: tuple[str, ...] = ()
 
 
 _N_QP_CONST = _BackendOption(
@@ -225,9 +243,40 @@ _N_QP_CONST = _BackendOption(
     default=8,
 )
 
+# The constructor kwargs each family takes, MEASURED by construction (see
+# `_BackendSpec.model_kwargs`). Shared tuples because the families genuinely
+# share a constructor surface — bspline/hmatrix/arrayblock are one class and
+# two accelerated subclasses — so a per-entry literal would be three copies
+# that drift apart.
+#
+# The one asymmetry worth noticing: `n_qp_const` is the sinusoidal family's
+# and NOT the b-spline family's, while everything else runs the other way.
+# That is not an oversight — the two families quadrature differently, and it
+# is exactly the kind of fact the `panel` hint could not express, since it
+# named a panel rather than a set of knobs.
+_SIN_FAMILY_KWARGS = ("extended_kernel", "feed_model", "n_qp_const")
+_BSPLINE_FAMILY_KWARGS = (
+    "auto_tap_ratio_threshold",
+    "degree",
+    "enrichment_min_k",
+    "enrichment_variant",
+    "extended_kernel",
+    "feed_model",
+    "feed_smoothing_factor",
+    "n_qp_pair",
+    "n_qp_sing",
+    "n_qp_source",
+    "tikhonov_lambda",
+    "use_singular_enrichment",
+)
+# `degree` is accepted and is NOT a control: the basis axis is ("tent",).
+_RAZOR_KWARGS = ("degree", "extended_kernel", "n_qp_source")
+
+
 _BACKENDS: tuple[_BackendSpec, ...] = (
     _BackendSpec(
         name="sinusoidal",
+        model_kwargs=_SIN_FAMILY_KWARGS,
         label="Sinusoidal",
         solver=SinusoidalSolver,
         options=(_N_QP_CONST,),
@@ -240,6 +289,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # issue #640), which is what its bespoke panel renders.
     _BackendSpec(
         name="sinusoidal-galerkin",
+        model_kwargs=_SIN_FAMILY_KWARGS,
         label="Sin-Galerkin",
         solver=SinusoidalGalerkinSolver,
         options=(_N_QP_CONST,),
@@ -248,6 +298,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     ),
     _BackendSpec(
         name="bspline",
+        model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="B-spline",
         solver=BSplineSolver,
         panel="bspline",
@@ -261,6 +312,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # coefficient, Sommerfeld — rides the accelerated path (measured, #830).
     _BackendSpec(
         name="hmatrix",
+        model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="H-matrix (ACA)",
         solver=HMatrixSolver,
         panel="bspline",
@@ -276,6 +328,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # (odd → interior knot at the feed).
     _BackendSpec(
         name="arrayblock",
+        model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="Array-block",
         solver=ArrayBlockSolver,
         panel="bspline",
@@ -308,6 +361,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # knot at the feed for this basis.
     _BackendSpec(
         name="razor-2p",
+        model_kwargs=_RAZOR_KWARGS,
         label="Razor (2-point)",
         solver=RazorSolver,
         default_n_per_wire=40,
@@ -363,6 +417,12 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "label": b.label,
             "kind": b.kind,
             "supports_ground": b.supports_ground,
+            # Which knobs this backend's constructor takes (#1006 G2-6),
+            # measured by construction. The SPECS for them are served once on
+            # the capabilities payload rather than repeated per row — thirteen
+            # descriptions copied across eight rows is the duplication this
+            # unit exists to remove, not a new one to add.
+            "model_kwargs": list(b.model_kwargs),
             "options_schema": [
                 {
                     "key": o.key,
@@ -588,11 +648,73 @@ def _enum_opt(*allowed: str):
 # n_qp_pair today: momwire#863 made its default depend on whether the deck has
 # wire below the interface, which is a question this layer cannot answer and
 # must not pretend to.
-_AUTO_WHEN_NULL = frozenset({"n_qp_pair"})
+_AUTO_WHEN_NULL: frozenset[str]  # derived from _OPTION_SPECS below
 
-_HOSTED_MODEL_OPTIONS = {
-    "degree": _int_in(1, 2),
-    "n_qp_const": _int_in(1, 64),
+
+class _OptionSpec(NamedTuple):
+    """One solver knob, described once — for the sanitiser AND the schema.
+
+    Before antennaknobs#1006 G2-6 this was a dict of opaque closures, and
+    everything a UI needed to RENDER a knob (its type, its range, its enum
+    values, whether null means auto) existed only as free variables captured
+    inside them. The frontend therefore hand-wrote all of it a second time,
+    which is why `BackendConfigModal` had a bespoke panel per engine at all.
+
+    Reading the closures back with `__closure__` was the obvious shortcut and
+    is deliberately NOT what happens: it is introspection archaeology that
+    breaks silently the first time a sanitiser is rewritten. Instead the spec
+    is the source and `_sanitiser_for` DERIVES the check, so the two cannot
+    disagree — there is nothing to keep in sync.
+
+    `label`/`step` are UI copy. They live here rather than in the frontend
+    because a generic renderer cannot invent them, and a per-engine table of
+    them in the client is exactly the thing G2-6 removes.
+    """
+
+    kind: str  # "int" | "float" | "bool" | "enum"
+    lo: float | None = None
+    hi: float | None = None
+    values: tuple[str, ...] = ()
+    allow_none: bool = False
+    # Null means "let the solver decide", not "send null". Carried as DATA
+    # because antennaknobs#1064 is what happens when a caller decides instead:
+    # a literal here is sent unconditionally and silently overrides momwire's
+    # own per-deck default for every hosted solve. momwire#863 made that
+    # default depend on whether the deck has wire below the interface — a
+    # question this layer cannot answer and must not pretend to.
+    auto_when_null: bool = False
+    label: str = ""
+    step: float = 1
+    default: object = None
+    # Rendered only when this other option is truthy — pure UI gating, not a
+    # refusal. A genuine cross-axis refusal (the extended kernel vs singular
+    # enrichment) is momwire's to state and reaches the client through the
+    # served `constraints`, never through a field here: a refusal invented in
+    # this table would be the retyped-prose failure momwire#888 is about.
+    shown_when: str | None = None
+
+
+def _sanitiser_for(name: str, spec: _OptionSpec):
+    """The hosted validator for one spec — the ONLY place a check is built.
+
+    Messages are preserved verbatim from the closures this replaced, because
+    they are asserted character for character by the baseline fixture
+    (tests/data/hosted_option_sanitiser_baseline.json).
+    """
+    if spec.kind == "bool":
+        return _bool_opt
+    if spec.kind == "enum":
+        return _enum_opt(*spec.values)
+    if spec.kind == "int":
+        return _int_in(int(spec.lo), int(spec.hi))
+    if spec.kind == "float":
+        return _float_in(spec.lo, spec.hi, allow_none=spec.allow_none)
+    raise AssertionError(f"{name}: unknown option kind {spec.kind!r}")
+
+
+_OPTION_SPECS: dict[str, _OptionSpec] = {
+    "degree": _OptionSpec("int", 1, 2, label="degree", default=2),
+    "n_qp_const": _OptionSpec("int", 1, 64, label="n_qp_const (GL pts)", default=8),
     # Capped at 32, and the bound is now a COST choice rather than a crash
     # guard. It used to be 8 because momwire's accelerated pair kernels carried
     # a fixed n_qp^2 <= 64 scratch buffer and raised RuntimeError above that
@@ -612,23 +734,72 @@ _HOSTED_MODEL_OPTIONS = {
     # order is cheap on these decks (momwire#778), 32 is on the plateau for
     # every spelling that ships, and 64 is what the retired bundle would want.
     # Hosted is a public endpoint, so SOME bound stays: this is a raise, not a
-    # removal. Since momwire#863 the usual case is that this key is ABSENT —
-    # see `_AUTO_WHEN_NULL`.
-    "n_qp_pair": _int_in(1, 32),
-    "n_qp_source": _int_in(1, 64),
-    "n_qp_sing": _int_in(1, 128),
-    "feed_smoothing_factor": _float_in(0.0, 100.0, allow_none=True),
+    # removal. Since momwire#863 the usual case is that this key is ABSENT.
+    "n_qp_pair": _OptionSpec(
+        "int",
+        1,
+        32,
+        auto_when_null=True,
+        label="n_qp_pair (GL pts/axis)",
+        default=None,
+    ),
+    "n_qp_source": _OptionSpec("int", 1, 64, label="n_qp_source", default=16),
+    "n_qp_sing": _OptionSpec(
+        "int", 1, 128, label="n_qp_sing (GL pts/axis)", default=32
+    ),
+    "feed_smoothing_factor": _OptionSpec(
+        "float",
+        0.0,
+        100.0,
+        allow_none=True,
+        label="\u03b1 (bump width / h_feed)",
+        step=0.1,
+        default=None,
+    ),
     # Gap-source model on the solvers that offer it (momwire#192/#216):
     # "segment" is NEC's segment-wide gap, "point" the zero-width (converged)
     # gap. The UI words this "NEC-compatible vs converged" (issue #640). The
     # point-matched SinusoidalSolver refuses "point" with its own instructive
     # error (momwire#212), so no per-solver filtering is needed here.
-    "feed_model": _enum_opt("segment", "point"),
-    "use_singular_enrichment": _bool_opt,
-    "enrichment_variant": _enum_opt("raw", "stable", "tikhonov", "auto"),
-    "tikhonov_lambda": _float_in(0.0, 1e3),
-    "auto_tap_ratio_threshold": _float_in(0.0, 1.0),
-    "enrichment_min_k": _int_in(2, 64),
+    "feed_model": _OptionSpec(
+        "enum", values=("segment", "point"), label="feed model", default="point"
+    ),
+    "use_singular_enrichment": _OptionSpec(
+        "bool", label="singular enrichment", default=False
+    ),
+    "enrichment_variant": _OptionSpec(
+        "enum",
+        values=("raw", "stable", "tikhonov", "auto"),
+        label="enrichment_variant",
+        default="raw",
+        shown_when="use_singular_enrichment",
+    ),
+    "tikhonov_lambda": _OptionSpec(
+        "float",
+        0.0,
+        1e3,
+        label="tikhonov_lambda (\u03bb)",
+        step=0.01,
+        default=0.1,
+        shown_when="use_singular_enrichment",
+    ),
+    "auto_tap_ratio_threshold": _OptionSpec(
+        "float",
+        0.0,
+        1.0,
+        label="auto_tap_ratio_threshold",
+        step=0.05,
+        default=0.3,
+        shown_when="use_singular_enrichment",
+    ),
+    "enrichment_min_k": _OptionSpec(
+        "int",
+        2,
+        64,
+        label="enrichment_min_k",
+        default=3,
+        shown_when="use_singular_enrichment",
+    ),
     # NEC's extended thin-wire kernel (the EK card, issue #849, momwire >=
     # 0.26.0). A physics selection like feed_model, not a compute-
     # amplification lever, so it belongs on the hosted allowlist.
@@ -637,7 +808,13 @@ _HOSTED_MODEL_OPTIONS = {
     # MomwireEngine folds either spelling the same way (issue #849's
     # engine-side note), but the named kwarg keeps the adapter's intent
     # explicit and is what unit 1 documented at this call site.
-    "extended_kernel": _bool_opt,
+    "extended_kernel": _OptionSpec("bool", label="extended kernel (EK)", default=False),
+}
+
+# Derived, never written twice. Same name and same shape as the dict of
+# closures this replaced, so every existing call site is untouched.
+_HOSTED_MODEL_OPTIONS = {
+    k: _sanitiser_for(k, spec) for k, spec in _OPTION_SPECS.items()
 }
 
 
@@ -3452,3 +3629,43 @@ def register_all() -> list[str]:
         except Exception as exc:  # noqa: BLE001 — same walk — a design whose default_params will not construct is skipped and logged
             print(f"[adapter] skip {name}: {exc!r}")
     return registered
+
+
+# Derived from the specs rather than restated: `auto_when_null` is the fact,
+# and this set is a view of it. A second literal here is how the two drift.
+_AUTO_WHEN_NULL = frozenset(
+    k for k, spec in _OPTION_SPECS.items() if spec.auto_when_null
+)
+
+
+def model_option_specs() -> dict[str, dict]:
+    """Every solver knob, described once, for a generic renderer (#1006 G2-6).
+
+    Served flat and keyed by kwarg — a backend's `model_kwargs` names which of
+    these apply to it. That split is deliberate: the DESCRIPTION of `degree`
+    (an integer in [1, 2], captioned "degree") is the same fact for every
+    backend that takes it, and copying it into each roster row would be the
+    per-engine duplication G2-6 is removing, re-created one level down.
+
+    `shown_when` is UI gating only. A genuine refusal — the extended kernel
+    against singular enrichment — is momwire's to state and travels in the
+    served `constraints` (momwire#888); nothing here may encode one.
+    """
+    out = {}
+    for key, spec in _OPTION_SPECS.items():
+        row = {
+            "kind": spec.kind,
+            "label": spec.label,
+            "default": spec.default,
+            "auto_when_null": spec.auto_when_null,
+            "shown_when": spec.shown_when,
+        }
+        if spec.kind in ("int", "float"):
+            row["min"] = spec.lo
+            row["max"] = spec.hi
+            row["step"] = spec.step
+            row["allow_none"] = spec.allow_none
+        if spec.kind == "enum":
+            row["values"] = list(spec.values)
+        out[key] = row
+    return out
