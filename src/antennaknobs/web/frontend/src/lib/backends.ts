@@ -21,6 +21,37 @@ export type BackendOptionField = {
   default: number;
 };
 
+/** One solver knob, described by the server (#1006 G2-6).
+ *
+ *  Served once per session on `/capabilities` and keyed by kwarg, NOT repeated
+ *  per roster row: the description of `degree` is the same fact for every
+ *  backend that takes it, and copying it into each row would re-create the
+ *  per-engine duplication this unit removes, one level down. A backend's
+ *  `model_kwargs` names which of these apply to it.
+ *
+ *  Mirrors adapter.model_option_specs(); snake_case because it is wire data. */
+export type ModelOptionSpec = {
+  kind: "int" | "float" | "bool" | "enum";
+  label: string;
+  default: number | string | boolean | null;
+  /** Null means "let the solver decide" and the key is OMITTED from the
+   *  request rather than sent as null. antennaknobs#1064 is what happens when
+   *  a caller substitutes a number instead: it silently overrides momwire's
+   *  own per-deck default, which since momwire#863 depends on the geometry. */
+  auto_when_null: boolean;
+  /** Render only while this other option is truthy. PURE UI GATING — a real
+   *  refusal (the extended kernel against singular enrichment) is momwire's
+   *  and arrives in `constraints`, never here. */
+  shown_when: string | null;
+  min?: number;
+  max?: number;
+  step?: number;
+  allow_none?: boolean;
+  values?: string[];
+};
+
+export type ModelOptionSpecs = Record<string, ModelOptionSpec>;
+
 /** A served roster entry. Mirrors adapter.backend_roster(); snake_case
  *  because it is wire data, not a local shape. */
 export type BackendEntry = {
@@ -53,6 +84,13 @@ export type BackendEntry = {
    *  refusal prose. Null when it cannot be asked; [] when there are none —
    *  different answers, rendered differently. */
   constraints?: BackendConstraint[] | null;
+  /** Which solver kwargs this backend's constructor ACCEPTS (#1006 G2-6),
+   *  measured server-side by construction. Names entries in the served
+   *  `model_option_specs` catalogue.
+   *
+   *  This says what may be SENT, not what may be CHOSEN — see THE OFFERED-VS-
+   *  SENT RULE beside `axisControls`. */
+  model_kwargs?: string[];
 };
 
 /** One refused combination, as momwire measured it (momwire#885). */
@@ -69,7 +107,11 @@ export type BackendConstraint = {
    *  narrower case. "Refused" and "refused when X" are different sentences. */
   condition: string | null;
   reason: string;
-  issue: string;
+  /** Null when the refusal's own prose cites no issue (momwire#888 made
+   *  `Coupling.issue` optional for exactly one row). A plausible-looking
+   *  number invented on either side would be followed, which is worse than
+   *  none — so the absence travels rather than being papered over. */
+  issue: string | null;
 };
 
 /** The design-side inputs a constraint needs. Read from the served design
@@ -208,6 +250,25 @@ export function degreeChoices(b: BackendEntry): (1 | 2)[] {
   return table.map((d) => d.degree);
 }
 
+// THE OFFERED-VS-SENT RULE (#1006 G2-6), the three lines the generic
+// renderer obeys:
+//
+//   1. `model_kwargs` says what may be SENT on the wire.
+//   2. Where an AXIS exists for a kwarg, the axis decides whether a control is
+//      OFFERED — multi-valued and unpinned, i.e. `axisControls`.
+//   3. Where no axis exists, `model_kwargs` drives.
+//
+// Rule 2 is the one that is easy to drop, and dropping it is a behaviour
+// change wearing a refactor's clothes. `bspline` ACCEPTS `feed_model` and has
+// never offered a feed-model control — its `feed_model` axis holds the single
+// value "segment-gap" — so a renderer driven by the kwarg list alone would
+// grow one on bspline, hmatrix and arrayblock. The same rule is why `degree`
+// never appears on `razor-2p`, whose basis axis is ("tent",) even though the
+// constructor takes the keyword.
+//
+// Accepting a keyword and offering a choice are different questions. The
+// server answers the first by construction (`_BackendSpec.model_kwargs`); the
+// axes answer the second.
 export function axisControls(b: BackendEntry): string[] {
   const axes = b.axes;
   if (!axes) return [];
@@ -669,4 +730,46 @@ export function modelOptionsForRequest(
   // of the two locks, not the only one.
   if (extendedKernelActive(b, opts)) out.extended_kernel = true;
   return out;
+}
+
+
+/** The knobs to RENDER for this backend, in order — the offered-vs-sent rule
+ *  above, as a function.
+ *
+ *  Returns kwarg names; the caller looks each up in the served
+ *  `ModelOptionSpecs`. `shown_when` is NOT applied here: it depends on the
+ *  live option values, so it is the renderer's business and is applied per
+ *  draw (`specShown`).
+ */
+export function renderableOptions(
+  b: BackendEntry,
+  specs: ModelOptionSpecs,
+): string[] {
+  const kwargs = b.model_kwargs ?? [];
+  const axisFor: Record<string, string> = {};
+  for (const [axis, kwarg] of Object.entries(AXIS_KWARG)) axisFor[kwarg] = axis;
+  const offeredAxes = new Set(axisControls(b));
+  return kwargs
+    .filter((k) => k in specs)
+    .filter((k) => {
+      const axis = axisFor[k];
+      // Rule 3: no axis governs this kwarg, so the kwarg list decides.
+      if (axis === undefined) return true;
+      // Rule 2: an axis governs it, so the axis decides. When the backend
+      // cannot describe its axes at all (`axes: null`, the released momwire),
+      // `axisControls` is empty and this would hide EVERY axis-governed knob
+      // — including `degree`, which that momwire has always shown. So fall
+      // back to the kwarg list, which is the pre-axes behaviour.
+      if (!b.axes) return true;
+      return offeredAxes.has(axis);
+    })
+    .sort((x, y) => kwargs.indexOf(x) - kwargs.indexOf(y));
+}
+
+/** Is this spec's `shown_when` gate satisfied by the current values? */
+export function specShown(
+  spec: ModelOptionSpec,
+  values: Record<string, unknown>,
+): boolean {
+  return spec.shown_when === null || Boolean(values[spec.shown_when]);
 }
