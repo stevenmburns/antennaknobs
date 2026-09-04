@@ -257,7 +257,34 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
     expect(titled.getAttribute("title")).toContain("momwire#249");
   });
 
-  it("the request payload is unchanged in every state", () => {
+  it("the controls appear in the ORDER the bespoke panel used", () => {
+    // ORDER IS PART OF "looks the same" AND THIS SUITE MISSED IT AT FIRST.
+    // Everything else here compares presence, bounds, captions and payload —
+    // all of which passed while `degree` had moved from just under the kernel
+    // toggle to the bottom of the panel, because the generic loop ran before
+    // the axis-governed controls. A reviewer opening the app would have seen
+    // it immediately; no assertion would have.
+    //
+    // So the axis controls bracket the generic loop the way the old panel
+    // did: degree above it (it was the b-spline panel's first field), feed
+    // model below it (it followed the generic knob on sin-galerkin).
+    mount(b(), defaultOptsFor(b(), SERVED_OPTION_SPECS));
+    const order = Array.from(document.querySelectorAll(".field")).map((f) =>
+      (f.querySelector("label")?.textContent ?? "").trim().replace(/[\d.]+$/, ""),
+    );
+    expect(order).toEqual([
+      "solver" + entry(name).label,
+      "segments / wire (N)",
+      "wire radius (m)",
+      "extended kernel (EK)",
+      "degree",
+      "n_qp_pair: auto",
+      "feed source smoothing",
+      "K≥3 junction singular enrichment",
+    ]);
+  });
+
+    it("the request payload is unchanged in every state", () => {
     const states: Record<string, unknown>[] = [
       {},
       { n_qp_pair: 8 },
