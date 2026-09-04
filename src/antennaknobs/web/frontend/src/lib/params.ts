@@ -134,6 +134,11 @@ export type ExampleDescriptor = {
    *  "solve anyway") gate when the active backend is disallowed; the
    *  solvers' errors remain the enforcement. */
   requires_backends: string[] | null;
+  /** Design-side inputs to the cross-axis constraints (#1006 G2-5). Optional
+   *  so a server predating them reads as "not measured", which the gate
+   *  treats as no claim — the same non-answer `requires_backends: null` makes. */
+  has_stepped_radius_junction?: boolean;
+  has_buried_wire?: boolean;
   /** Near-open high-Q feed (antennaknobs#478): the Sin-Galerkin solver's
    *  "Converged" (point-gap) feed model is recommended for this design —
    *  it collapses the cross-basis residual by 2-3 orders on this class

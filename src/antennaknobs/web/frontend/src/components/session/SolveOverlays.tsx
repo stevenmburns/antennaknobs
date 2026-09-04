@@ -1,6 +1,7 @@
 import {
   normalizeBackend,
   RESTRICTED_BACKEND_REASON,
+  type BackendConstraint,
   type BackendEntry,
   type BackendRoster,
 } from "../../lib/backends";
@@ -11,6 +12,7 @@ export function SolveOverlays({
   onCancelSolve,
   solverWarning,
   backendDisallowed,
+  optionRefusal,
   backend,
   roster,
   requiredBackends,
@@ -25,6 +27,12 @@ export function SolveOverlays({
   onCancelSolve: () => void;
   solverWarning: boolean;
   backendDisallowed: boolean;
+  /** The design-dependent refusal for the current slot, or null (#1006 G2-5).
+   *  Separate from `backendDisallowed`: that one says the SOLVER cannot run
+   *  this design at all and the fix is a different solver; this one says the
+   *  solver can, but not with the OPTION currently set — so the fix is the
+   *  option, and offering a solver switch would be the wrong advice. */
+  optionRefusal: BackendConstraint | null;
   backend: BackendEntry;
   /** The served roster (#628) — needed to resolve `requires_backends` names
    *  (which may include the retired "triangular") into offerable entries. */
@@ -51,6 +59,40 @@ export function SolveOverlays({
           >
             Cancel solve
           </button>
+        )}
+        {solverWarning && !backendDisallowed && optionRefusal && (
+          <div
+            className="solver-suggest"
+            role="alertdialog"
+            aria-label="Solver option unavailable for this design"
+          >
+            <span className="solver-suggest-title">
+              {backend.label} can't run this design with that option
+            </span>
+            {/* momwire's OWN sentence, carried through the roster payload and
+                rendered verbatim. Not paraphrased here: the refusal prose is
+                the thing that tells a user which of the two knobs to move,
+                and a summary of it would go stale the moment momwire's did. */}
+            <span className="solver-suggest-sub">
+              {optionRefusal.reason}
+              {optionRefusal.condition
+                ? ` (applies here because the design has ${optionRefusal.condition}.)`
+                : ""}{" "}
+              ({optionRefusal.issue})
+            </span>
+            <div className="solver-suggest-actions">
+              {/* No "Solve anyway": momwire raises on this combination, so an
+                  override would buy an error dialog rather than a result. */}
+              <button
+                type="button"
+                className="solver-suggest-secondary"
+                onClick={onPause}
+                title="Stop auto-solving so you can keep editing; click Live to resume."
+              >
+                Pause solving
+              </button>
+            </div>
+          </div>
         )}
         {solverWarning && backendDisallowed && (
           <div

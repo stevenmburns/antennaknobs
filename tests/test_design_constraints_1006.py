@@ -32,6 +32,7 @@ import antennaknobs.web.server  # noqa: F401 — resolves the adapter import cyc
 from antennaknobs.cli import resolve_class
 from antennaknobs.web.adapter import (
     _JUNCTION_PORT_BACKENDS,
+    _has_buried_wire,
     _RESTRICTION_REASONS,
     _VERTEX_PORT_BACKENDS,
     _backend_restriction,
@@ -153,3 +154,74 @@ def test_a_design_that_will_not_build_never_breaks_a_listing(name, monkeypatch):
 
     monkeypatch.setattr(ad, "_build_builder", boom)
     assert ad._has_stepped_radius_junction(resolve_class(name)) is False
+
+
+# --------------------------------------------------------------------------
+# The buried input (#1006 G2-5), the design side of momwire#553
+# --------------------------------------------------------------------------
+
+# The three buried decks, and one that sits ON the interface rather than below
+# it — `contact` is a different axis value with different refusals, so a helper
+# that treated z == 0 as buried would grey out the extended kernel across every
+# ground-plane design in the catalog.
+BURIED = [
+    "specialty.buried_dipole",
+    "verticals.buried_radial_vertical",
+    "verticals.elevated_buried_counterpoise",
+]
+
+
+def test_exactly_the_three_buried_decks_are_recognised():
+    from antennaknobs.cli import list_builtin_designs
+
+    got = [n for n in list_builtin_designs() if _has_buried_wire(resolve_class(n))]
+    assert got == BURIED, got
+
+
+def test_a_design_on_the_interface_is_not_buried():
+    """`contact`, not `buried`. Strictly below, and the negative case has to be
+    a deck that actually touches z = 0 — a deck floating above it would answer
+    False for a reason that has nothing to do with the boundary."""
+    assert _has_buried_wire(resolve_class(STEPPED)) is False
+    assert _has_buried_wire(resolve_class(NO_JUNCTIONS)) is False
+
+
+def test_the_buried_field_reaches_the_registry():
+    for name in BURIED:
+        assert REGISTRY[name].has_buried_wire is True
+    assert REGISTRY[STEPPED].has_buried_wire is False
+
+
+def test_buried_is_NOT_read_off_the_ground_requirement():
+    """They agree on today's catalog, and that agreement is the trap.
+
+    `ground_requirement == "sommerfeld"` is a hand-declared statement in a
+    design's `ui_params` about which ground model it needs to mean anything.
+    `has_buried_wire` is a measurement of the built geometry. Reading the first
+    as if it were the second would make a hand-edited hint decide whether
+    momwire's refusal fires — so this asserts the two are computed
+    independently, by moving one and requiring the other to stay put.
+    """
+    sommerfeld = sorted(
+        n for n, e in REGISTRY.items() if e.ground_requirement == "sommerfeld"
+    )
+    assert sommerfeld == BURIED, "the premise moved; re-measure before trusting"
+
+    ex = REGISTRY[BURIED[0]]
+    saved = ex.ground_requirement
+    try:
+        object.__setattr__(ex, "ground_requirement", None)
+        assert _has_buried_wire(resolve_class(BURIED[0])) is True
+    finally:
+        object.__setattr__(ex, "ground_requirement", saved)
+
+
+@pytest.mark.parametrize("name", BURIED)
+def test_a_buried_design_that_will_not_build_never_breaks_a_listing(name, monkeypatch):
+    import antennaknobs.web.adapter as ad
+
+    def boom(*a, **k):
+        raise RuntimeError("deliberate")
+
+    monkeypatch.setattr(ad, "_build_builder", boom)
+    assert ad._has_buried_wire(resolve_class(name)) is False

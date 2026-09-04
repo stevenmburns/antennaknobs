@@ -39,6 +39,46 @@ export type BackendEntry = {
   default_n_per_wire: number;
   accelerator: boolean;
   dense_family: boolean;
+  /** What the CLASS can be configured to: axis -> the values it accepts
+   *  (antennaknobs#1006 G2-1). Null when the installed momwire cannot say
+   *  — rendered as "not described", never as "no axes". */
+  axes?: Record<string, string[]> | null;
+  /** What this PRESET pins. `axes` and `bound` say different things and must
+   *  stay separable: `razor-2p` binds `nec5_quadrature`, so its quadrature is
+   *  fixed on a local install too — the preset is the reason, not host
+   *  policy. This is #1006's "names are saved presets over a product space",
+   *  in the payload. */
+  bound?: Record<string, unknown>;
+  /** Which axis values this backend cannot combine, with momwire's own
+   *  refusal prose. Null when it cannot be asked; [] when there are none —
+   *  different answers, rendered differently. */
+  constraints?: BackendConstraint[] | null;
+};
+
+/** One refused combination, as momwire measured it (momwire#885). */
+export type BackendConstraint = {
+  axis: string;
+  value: string;
+  forbids_axis: string;
+  forbids_value: string;
+  /** False when the forbidden side is a constructor keyword rather than an
+   *  axis — the panel cannot draw it as a cell, so it skips it without
+   *  needing a second list of exceptions. */
+  forbids_is_axis: boolean;
+  /** Null for a flat refusal; a short phrase when it applies only in a
+   *  narrower case. "Refused" and "refused when X" are different sentences. */
+  condition: string | null;
+  reason: string;
+  issue: string;
+};
+
+/** The design-side inputs a constraint needs. Read from the served design
+ *  descriptor, so they are LIVE: they change when the design changes, which
+ *  is what makes the warnings derived state rather than a one-time check. */
+export type DesignConstraintInputs = {
+  has_stepped_radius_junction?: boolean;
+  /** Whether the design puts a wire below the interface (already served). */
+  buried?: boolean | null;
 };
 
 export type BackendRoster = BackendEntry[];
@@ -48,6 +88,189 @@ export type BackendRoster = BackendEntry[];
 export const PANEL_BSPLINE = "bspline";
 export const PANEL_SIN_GALERKIN = "sin-galerkin";
 export const PANEL_PYNEC = "pynec";
+
+// THE CONTROL RULE (antennaknobs#1006 G2-5), written down once:
+//
+//   an axis is a CONTROL iff it is multi-valued in `axes`
+//                      AND it is not pinned by this preset's `bound`
+//                      AND it is not a DERIVED axis (see below).
+//
+// The first clause is the class, the second the preset, and they are two
+// different things. `razor-2p` binds `nec5_quadrature`, so quadrature is not a
+// control on that tab even on a local install — the tab IS the two-point lane
+// and letting a user flip it would make the name a lie.
+//
+// Host policy is a THIRD thing and it is deliberately NOT a clause here. The
+// hosted sanitiser's allowlist (`_HOSTED_MODEL_OPTIONS` in web/adapter.py) is
+// server-side knowledge and no hosted flag reaches this module, so a clause
+// for it here could not be evaluated. It would also be vacuous today:
+// `degree`, `extended_kernel` and `feed_model` are all allowlisted, and the
+// one axis kwarg that is NOT (`nec5_quadrature`) is already dropped by the
+// `bound` clause on the only tab that offers it. Rather than write a clause
+// that cannot fire and cannot be checked, the invariant is pinned on the
+// server, where hosted-ness is actually known:
+// test_axis_controls_1006.py::test_every_axis_control_kwarg_is_hosted_allowed.
+// If a future axis arrives whose kwarg is not allowlisted, that test fails and
+// forces the decision — instead of this file silently rendering a control the
+// hosted sanitiser will drop.
+//
+// The kwarg an axis maps to is not always its own name, so the mapping is
+// explicit rather than guessed from the axis label.
+// The DERIVED axes are never controls, and this is a fourth clause the rule
+// needed rather than an exception to it. `ground_model` and `wire_position`
+// describe the DECK a solver can be pointed at; the declared axes describe how
+// the solver is BUILT. Ground is a user choice but it lives in its own panel,
+// and wire position is not a user choice at all — it is the design's geometry.
+// So they drive CONSTRAINTS (a buried deck forbids the extended kernel) and
+// never controls. Caught by a test that expected two controls and got four.
+export const DERIVED_AXES = ["ground_model", "wire_position"];
+
+export const AXIS_KWARG: Record<string, string> = {
+  basis: "degree",
+  kernel: "extended_kernel",
+  feed_model: "feed_model",
+  quadrature: "nec5_quadrature",
+};
+
+// THE CHOICE LISTS, derived from the axis "wherever an axis exists".
+//
+// Each table below is UI copy — a label, a tooltip, and the opts value the tab
+// sets — keyed by the axis value it presents. The AXIS decides which entries
+// are offered; the table decides how they are named and in what ORDER. Order
+// has to come from here rather than from the payload: momwire serves axis
+// values sorted, which would put "Converged" before "NEC-compatible" and
+// silently reorder a control users have muscle memory for.
+//
+// THE FALLBACK IS NOT VESTIGIAL. `axes` is null on any momwire predating the
+// axis vocabulary, and that is the momwire USERS have — the submodule pointer
+// runs ahead of the PyPI pin by design, so the released package answers null
+// today. Dropping the fallback would delete the feed-model control for every
+// installed user until the pin moves. So the `panel` hint stays as the answer
+// for "cannot be asked", and the axis is the answer wherever it can.
+const FEED_MODEL_CHOICES = [
+  {
+    axisValue: "segment-gap",
+    value: "segment" as FeedModel,
+    label: "NEC-compatible",
+    title:
+      "NEC's segment-wide gap: reproduces NEC/EZNEC behaviour, including " +
+      "reactance drift with mesh density. Use when cross-checking against " +
+      "NEC results.",
+  },
+  {
+    axisValue: "point-gap",
+    value: "point" as FeedModel,
+    label: "Converged",
+    title:
+      "Zero-width (point) gap: converges to the B-spline answer and gives a " +
+      "reciprocal Y. Recommended for near-open high-Q designs (momwire#213).",
+  },
+];
+
+export type FeedModelChoice = (typeof FEED_MODEL_CHOICES)[number];
+
+/** The feed-model tabs this backend offers, in UI order. */
+export function feedModelChoices(b: BackendEntry): FeedModelChoice[] {
+  const vals = b.axes?.feed_model;
+  if (!vals) return b.panel === PANEL_SIN_GALERKIN ? FEED_MODEL_CHOICES : [];
+  return FEED_MODEL_CHOICES.filter((c) => vals.includes(c.axisValue));
+}
+
+/** Does this backend give the user a feed-model CHOICE?
+ *
+ *  Replaces the four `panel === PANEL_SIN_GALERKIN` branches. Plain
+ *  `sinusoidal` declares `feed_model: ["segment-gap"]` — it can carry a feed
+ *  model but not a choice of one (the point gap has no collocation RHS,
+ *  momwire#212) — and that single-valued axis is exactly what the roster
+ *  entry's absent panel hint used to say by omission.
+ */
+export function offersFeedModelChoice(b: BackendEntry): boolean {
+  return feedModelChoices(b).length > 1;
+}
+
+const DEGREE_CHOICES = [
+  { axisValue: "bspline-1", degree: 1 as const },
+  { axisValue: "bspline-2", degree: 2 as const },
+];
+
+/** The B-spline degree tabs this backend offers, in UI order.
+ *
+ *  Was a hardcoded `[1, 2]`. It is the one control in the bspline panel that
+ *  IS an axis; the other five (quadrature orders, the bump width, singular
+ *  enrichment and its variant) are not, which is why that panel survives this
+ *  change and the sin-Galerkin one does not.
+ */
+export function degreeChoices(b: BackendEntry): (1 | 2)[] {
+  const vals = b.axes?.basis;
+  const table = vals
+    ? DEGREE_CHOICES.filter((d) => vals.includes(d.axisValue))
+    : DEGREE_CHOICES;
+  return table.map((d) => d.degree);
+}
+
+export function axisControls(b: BackendEntry): string[] {
+  const axes = b.axes;
+  if (!axes) return [];
+  return Object.keys(axes)
+    .filter((axis) => !DERIVED_AXES.includes(axis))
+    .filter((axis) => (axes[axis]?.length ?? 0) > 1)
+    .filter((axis) => {
+      const kwarg = AXIS_KWARG[axis];
+      return !kwarg || !(kwarg in (b.bound ?? {}));
+    })
+    .sort();
+}
+
+/** The constraint this slot violates on this design, or null.
+ *
+ *  The general form of `extendedKernelRefusal`, and the reason G2-5 extends
+ *  the existing gate path rather than adding one beside it: the answer is
+ *  DERIVED from the backend, the options and the CURRENT DESIGN, so it
+ *  recomputes when any of the three changes. A one-time check when the engine
+ *  is picked would go stale the moment the user switches design, which is the
+ *  question this exists to answer.
+ *
+ *  Only constraints whose forbidden side is an axis are considered: the two
+ *  keyword rows are served (so an API consumer sees the whole inventory) but
+ *  cannot be rendered as a cell, and `near_correction` is not a user control
+ *  at all — momwire defaults it True and the app never sets it, so no panel
+ *  choice can reach that combination. */
+export function backendOptsAllowed(
+  b: BackendEntry,
+  opts: BackendOpts,
+  design: DesignConstraintInputs | null | undefined,
+): BackendConstraint | null {
+  const constraints = b.constraints;
+  if (!constraints || !design) return null;
+  for (const c of constraints) {
+    if (!c.forbids_is_axis) continue;
+    if (c.axis === "kernel" && c.value === "extended" && !opts.extendedKernel) {
+      continue;
+    }
+    if (c.forbids_axis === "wire_position" && c.forbids_value === "buried") {
+      if (design.buried) return c;
+    }
+  }
+  return null;
+}
+
+/** Whether this design trips the stepped-radius junction refusal under the
+ *  extended kernel. Separate from `backendOptsAllowed` because the forbidden
+ *  side is a keyword rather than an axis, so it is a NOTE on the kernel
+ *  control rather than a greyed cell — but it is the same served data and the
+ *  same live derivation. */
+export function steppedJunctionNote(
+  b: BackendEntry,
+  opts: BackendOpts,
+  design: DesignConstraintInputs | null | undefined,
+): BackendConstraint | null {
+  if (!opts.extendedKernel || !design?.has_stepped_radius_junction) return null;
+  return (
+    (b.constraints ?? []).find(
+      (c) => c.axis === "kernel" && c.forbids_axis === "junction_ports",
+    ) ?? null
+  );
+}
 
 export function hasBSplinePanel(b: BackendEntry): boolean {
   return b.panel === PANEL_BSPLINE;
@@ -236,7 +459,7 @@ export function defaultOptsFor(b: BackendEntry): BackendOpts {
   // one the gear menu recommends on near-open designs (#640). Sent
   // explicitly rather than left unset so the wire format says which source
   // ran regardless of which momwire the server is carrying.
-  if (b.panel === PANEL_SIN_GALERKIN) opts.feedModel = "point";
+  if (offersFeedModelChoice(b)) opts.feedModel = "point";
   return opts;
 }
 
@@ -274,6 +497,30 @@ export function extendedKernelRefusal(
 ): string | null {
   if (opts.bspline?.useSingularEnrichment) return EK_ENRICHMENT_REASON;
   return null;
+}
+
+/** The design-dependent refusal for this slot, or null.
+ *
+ *  The gate #1006 point 4 asks for, and it is DERIVED STATE: it takes the
+ *  current design, so switching design re-answers it. A one-time check when
+ *  the engine was picked would still be showing the first design's answer.
+ *
+ *  BOTH constraint shapes gate. `forbids_is_axis` says whether the panel can
+ *  draw the row as a CELL in an axis matrix — `junction_ports` is a property
+ *  of the deck, not an axis, so it has no cell. That is a rendering question
+ *  and NOT a question about whether momwire refuses: both of these sit in a
+ *  solver's `refusals` dict and both raise. Gating only the axis-shaped one
+ *  would let the stepped-radius deck through to an error dialog, which is the
+ *  outcome this whole path exists to prevent.
+ */
+export function designRefusal(
+  b: BackendEntry,
+  opts: BackendOpts,
+  design: DesignConstraintInputs,
+): BackendConstraint | null {
+  return (
+    backendOptsAllowed(b, opts, design) ?? steppedJunctionNote(b, opts, design)
+  );
 }
 
 /** Is the extended kernel actually in force for this slot? True only when the
@@ -317,7 +564,7 @@ export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string 
   // Which value IS the deviation flipped with momwire#654 — the point gap is
   // the solver's default now, so a plain chip means converged and the chip
   // that carries a suffix is the one asking for NEC's source.
-  if (b.panel === PANEL_SIN_GALERKIN && opts.feedModel === "segment")
+  if (offersFeedModelChoice(b) && opts.feedModel === "segment")
     return `${b.label} (NEC gap)${ek}`;
   return `${b.label}${ek}`;
 }
@@ -405,7 +652,7 @@ export function modelOptionsForRequest(
     out.n_qp_sing = o.nQpSing;
     out.enrichment_min_k = o.enrichmentMinK;
   }
-  if (b.panel === PANEL_SIN_GALERKIN) {
+  if (offersFeedModelChoice(b)) {
     // feed_model only here: plain sinusoidal cannot carry the point gap
     // (momwire#212) and must not receive the key at all. The fallback is the
     // solver's own default (momwire#654); a design saved before that default

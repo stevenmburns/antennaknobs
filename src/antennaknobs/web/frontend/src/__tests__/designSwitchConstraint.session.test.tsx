@@ -1,0 +1,202 @@
+/**
+ * The cross-axis constraint is LIVE, through a real <DesignSession> (#1006 G2-5).
+ *
+ * The question this answers is Steve's: what happens when you set an engine on
+ * one design and then switch designs? The whole point of #1006 point 4 is that
+ * the answer is recomputed, not remembered. A check made when the engine was
+ * picked would still be showing the FIRST design's verdict, and the user would
+ * meet momwire's refusal as an error dialog after the solve instead of as a
+ * greyed control before it.
+ *
+ * The sequence, which is the test:
+ *
+ *   sin-Galerkin + extended kernel on a UNIFORM design   -> solving
+ *   switch to the stepped-radius design (elt_whip)       -> withheld, and the
+ *                                                           gate quotes
+ *                                                           momwire's sentence
+ *   switch back                                          -> clears
+ *
+ * The last step is the one that matters most and the one a naive
+ * implementation fails: a gate that latches is indistinguishable from a live
+ * one until you go back.
+ *
+ * MUTATION-CHECKED, and the result is worth writing down because one of the
+ * three mutations did NOT fail:
+ *
+ *   - `steppedJunctionNote` ignoring the design's flag      -> both tests fail
+ *   - `designRefusal` remembering its first non-null answer
+ *     (a one-time check going stale — the exact bug)        -> both tests fail
+ *   - the solve effect latching on `solverWarning`          -> STILL PASSES
+ *
+ * The third survives because DesignSession already clears `solverWarning` on
+ * every antenna switch for the combo warning ("drop any combo warning from the
+ * prior design"), so that particular latch cannot be observed. That is defence
+ * in depth rather than a hole in this test — the derivation-level latch, which
+ * is the failure mode #1006 point 4 is actually about, is caught. Recorded so
+ * the next person to mutate this file does not conclude from the third result
+ * that step (3) proves nothing.
+ *
+ * WHY elt_whip. It is the ONLY design in the catalog with a stepped-radius
+ * junction — pinned Python-side by
+ * test_design_constraints_1006.py::test_exactly_one_catalog_design_is_stepped,
+ * which also fails if a second one appears. The descriptors below carry the
+ * `has_stepped_radius_junction` the server measures for it.
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { DesignSession } from "../components/session/DesignSession";
+import type { ExampleDescriptor } from "../lib/params";
+import { SERVED_ROSTER } from "./backendFixtures";
+
+const BASE: Omit<ExampleDescriptor, "name" | "label"> = {
+  multi_feed: false,
+  param_schema: [],
+  result_schema: [],
+  bands: [],
+  meas_freq_range_mhz: null,
+  default_view: "xz",
+  default_freq: null,
+  default_design_freq: null,
+  default_backend: null,
+  requires_backends: null,
+  has_design_freq: true,
+  variants: ["default"],
+  variant_values: {},
+  sweep_policy: { anchor: "design_freq", lo_factor: 0.8, hi_factor: 1.25 },
+};
+
+// The uniform control deck. Its junctions (if any) join equal radii, so the
+// extended kernel is fine here — which is what makes the switch a measurement
+// rather than a comparison against a design that could never solve.
+const UNIFORM: ExampleDescriptor = {
+  ...BASE,
+  name: "dipoles.probe",
+  label: "Probe dipole",
+  has_stepped_radius_junction: false,
+  has_buried_wire: false,
+};
+
+const STEPPED: ExampleDescriptor = {
+  ...BASE,
+  name: "verticals.elt_whip",
+  label: "elt whip",
+  has_stepped_radius_junction: true,
+  has_buried_wire: false,
+};
+
+// momwire's own sentence, as the roster serves it. Matched on a distinctive
+// fragment rather than in full: the assertion is that the REFUSAL PROSE
+// reaches the user, and pinning every word here would just be a second copy
+// of a string this repo deliberately never retypes.
+const REFUSAL_FRAGMENT = /radius step at a junction/i;
+
+function jsonResponse(body: unknown) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  } as unknown as Response;
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  vi.stubGlobal("fetch", async (url: string) => {
+    const path = String(url);
+    if (path.startsWith("/capabilities"))
+      return jsonResponse({
+        have_pynec: true,
+        backends: SERVED_ROSTER,
+        terrain_presets: [],
+      });
+    if (path.startsWith("/examples"))
+      return jsonResponse({ examples: [UNIFORM, STEPPED], errors: [] });
+    if (path.startsWith("/geometry")) return jsonResponse({ wires: [] });
+    return jsonResponse({});
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+type User = ReturnType<typeof userEvent.setup>;
+
+async function selectDesign(user: User, label: string) {
+  const box = screen.getByRole("combobox", { name: "antenna" });
+  await user.clear(box);
+  await user.type(box, label);
+  await user.click(await screen.findByRole("option", { name: new RegExp(label, "i") }));
+}
+
+/** Put slot A on sinusoidal-Galerkin with the extended kernel armed. */
+async function armSinGalerkinEK(user: User) {
+  await user.click(screen.getByRole("button", { name: "Slot A options" }));
+  await user.click(screen.getByRole("tab", { name: /Sin-Galerkin/ }));
+  await user.click(screen.getByRole("checkbox", { name: /extended kernel \(EK\)/ }));
+  await user.click(screen.getByRole("button", { name: "Close" }));
+}
+
+function gate() {
+  return screen.queryByRole("alertdialog", {
+    name: "Solver option unavailable for this design",
+  });
+}
+
+describe("switching design re-answers the cross-axis constraint", () => {
+  it("gates on the stepped deck and clears when you switch back", async () => {
+    const user = userEvent.setup();
+    render(<DesignSession id={1} active />);
+    await screen.findByRole("tab", { name: /Solver slot A/ });
+
+    await selectDesign(user, "Probe dipole");
+    await armSinGalerkinEK(user);
+
+    // (1) The uniform design solves: the same backend and the same option,
+    // and no gate. Without this the test could pass on a gate that is always
+    // on.
+    await waitFor(() => expect(gate()).toBeNull());
+
+    // (2) Switch to the stepped deck. Nothing about the SLOT changed — same
+    // solver, same kernel flag — so a gate appearing here can only be the
+    // design being re-consulted.
+    await selectDesign(user, "elt whip");
+    const shown = await screen.findByRole("alertdialog", {
+      name: "Solver option unavailable for this design",
+    });
+    expect(shown.textContent).toMatch(REFUSAL_FRAGMENT);
+    // momwire's issue travels with the sentence, so a user can read the
+    // primary source rather than take the UI's word for it.
+    expect(shown.textContent).toMatch(/momwire#398/);
+    // The CONDITION is rendered too. Without it this reads as "the extended
+    // kernel refuses junctions", which is false and would send the user to
+    // the wrong workaround — uniform-radius junctions are the common case.
+    expect(shown.textContent).toMatch(/radius step at the junction/i);
+
+    // (3) …and back. A latched gate passes step (2) and fails here.
+    await selectDesign(user, "Probe dipole");
+    await waitFor(() => expect(gate()).toBeNull());
+  });
+
+  it("does not gate the same design when the kernel is off", async () => {
+    // The other two thirds of the condition. The stepped deck is perfectly
+    // solvable at the reduced kernel, and greying it out unconditionally
+    // would be a worse bug than not gating at all.
+    const user = userEvent.setup();
+    render(<DesignSession id={1} active />);
+    await screen.findByRole("tab", { name: /Solver slot A/ });
+
+    await selectDesign(user, "elt whip");
+    await user.click(screen.getByRole("button", { name: "Slot A options" }));
+    await user.click(screen.getByRole("tab", { name: /Sin-Galerkin/ }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    await waitFor(() => expect(gate()).toBeNull());
+  });
+});

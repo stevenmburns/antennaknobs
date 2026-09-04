@@ -262,8 +262,18 @@ describe("hasBSplinePanel / backendSupportsGround / backendSupportsTerrain", () 
     bspline: true,
     hmatrix: true,
     arrayblock: true,
+    "razor-2p": false,
     pynec: false,
   };
+
+  // The table is keyed by name while the cases come from the roster, so a
+  // roster row with no key here looks up `undefined` — and would PASS for any
+  // backend whose helper also answered undefined. That is not hypothetical:
+  // `razor-2p` was missing from the fixture AND from this table, so the tab
+  // was uncovered in a suite that looks like it iterates everything.
+  it("has an expectation for every served backend", () => {
+    expect(Object.keys(bsplinePanel).sort()).toEqual([...NAMES].sort());
+  });
 
   it.each(NAMES)("hasBSplinePanel(%s)", (name) => {
     expect(hasBSplinePanel(entry(name))).toBe(bsplinePanel[name]);

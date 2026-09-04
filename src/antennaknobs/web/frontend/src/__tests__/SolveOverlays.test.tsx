@@ -56,6 +56,7 @@ function renderOverlays(overrides: OverlayOverrides = {}) {
       solving={false}
       solverWarning={false}
       backendDisallowed={false}
+      optionRefusal={null}
       roster={SERVED_ROSTER}
       requiredBackends={null}
       solveError={null}
