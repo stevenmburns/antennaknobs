@@ -378,10 +378,52 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "accelerator": b.accelerator,
             "dense_family": b.dense_family,
             "buried": _backend_serves_buried(b),
+            "axes": _backend_axes(b),
         }
         for b in _BACKENDS
         if availability.get(b.kind, True)
     ]
+
+
+def _backend_axes(spec):
+    """What this backend is MADE OF — axis -> sorted values — or None when
+    that cannot be asked (antennaknobs#1006 G2-3).
+
+    momwire's rows say what a solver SERVES; `axes_for` adds what it IS, which
+    is what lets a panel show that `bspline` and `hmatrix` differ in assembly
+    alone and `sinusoidal-galerkin` differs from `sinusoidal` in the testing.
+    Read THROUGH `axes_for` and never re-derived here: `ground_model` and
+    `wire_position` are computed from `grounds` / `buried` / `contact` inside
+    momwire, and a second implementation on this side is exactly the drift
+    that module refuses to allow.
+
+    PROBED AS A FEATURE, NEVER AS A VERSION, on `_backend_serves_buried`'s
+    precedent and for a sharper reason than convention. The submodule pointer
+    runs AHEAD of the PyPI pin by design — the pointer is what the tests run
+    against, the pin is what users get — so momwire reports 0.47.0 both with
+    and without `axes_for`, and a version check reads the same number in the
+    two cases it has to tell apart. The hosted app pins 0.47.0 and has no
+    `axes_for`; this box's pointer has it at the same version number.
+
+    None means "this momwire cannot describe itself compositionally", which
+    the frontend renders as *not described* — the same rendering an undeclared
+    row already gets in momwire's generated matrix, so there is one unknown
+    state to design for rather than two. Non-momwire backends answer None for
+    the honest reason: PyNEC and NEC-5 have no momwire capability row at all,
+    and their composition is their own wrapper's business.
+    """
+    if spec.kind != "momwire" or spec.solver is None:
+        return None
+    caps = getattr(spec.solver, "capabilities", None)
+    if caps is None or "axes" not in getattr(caps, "_fields", ()):
+        return None
+    try:
+        from momwire._capabilities import axes_for
+    except ImportError:  # a momwire predating antennaknobs#1006 G2-1
+        return None
+    # frozenset is not JSON; sorted lists keep the payload stable so a
+    # response fixture does not churn on set iteration order.
+    return {axis: sorted(values) for axis, values in axes_for(caps).items()}
 
 
 def _backend_serves_buried(spec):
