@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_sweep_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-04 03:20 +0000
+            created at 2026-09-04 04:59 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -697,8 +697,16 @@
     <p class="pln"><span class="n"><a id="t615" href="#t615">615</a></span><span class="t"><span class="str">    turns &#8594; 8 &#181;H magnetizing, core Q &#8776; 10), landing in the 85&#8211;90 %</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t616" href="#t616">616</a></span><span class="t"><span class="str">    efficiency range bench-measured for such builds, with the customary</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t617" href="#t617">617</a></span><span class="t"><span class="str">    100 pF compensation capacitor across the primary (pass ``None`` to</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t618" href="#t618">618</a></span><span class="t"><span class="str">    omit it). The stock box of ``wire.efhw_sloper``.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t619" href="#t619">619</a></span><span class="t">    <span class="key">return</span> <span class="nam">unun</span><span class="op">(</span><span class="nam">turns</span><span class="op">=</span><span class="num">7.0</span><span class="op">,</span> <span class="nam">lmag_uH</span><span class="op">=</span><span class="num">8.0</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="num">10.0</span><span class="op">,</span> <span class="nam">comp_c_pF</span><span class="op">=</span><span class="nam">comp_c_pF</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t618" href="#t618">618</a></span><span class="t"><span class="str">    omit it).</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t619" href="#t619">619</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t620" href="#t620">620</a></span><span class="t"><span class="str">    ``wire.efhw_sloper`` builds ITS box from this preset but overrides the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t621" href="#t621">621</a></span><span class="t"><span class="str">    capacitor to 60 pF (momwire#874): the coated-wire model lowered that</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t622" href="#t622">622</a></span><span class="t"><span class="str">    antenna&#x27;s feed resistance ~19 %, and no unun ratio or length restores</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t623" href="#t623">623</a></span><span class="t"><span class="str">    the match at 100 pF &#8212; the standard cap bottoms out at SWR 1.327. The</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t624" href="#t624">624</a></span><span class="t"><span class="str">    default here stays the customary value, because 100 pF is what the</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t625" href="#t625">625</a></span><span class="t"><span class="str">    generic FT240-43 box is built with; a design that needs another value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t626" href="#t626">626</a></span><span class="t"><span class="str">    says so itself.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t627" href="#t627">627</a></span><span class="t">    <span class="key">return</span> <span class="nam">unun</span><span class="op">(</span><span class="nam">turns</span><span class="op">=</span><span class="num">7.0</span><span class="op">,</span> <span class="nam">lmag_uH</span><span class="op">=</span><span class="num">8.0</span><span class="op">,</span> <span class="nam">qlmag</span><span class="op">=</span><span class="num">10.0</span><span class="op">,</span> <span class="nam">comp_c_pF</span><span class="op">=</span><span class="nam">comp_c_pF</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -708,7 +716,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_sweep_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-04 03:20 +0000
+            created at 2026-09-04 04:59 +0000
         </p>
     </div>
 </footer>
