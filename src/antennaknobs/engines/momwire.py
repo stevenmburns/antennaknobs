@@ -657,7 +657,12 @@ class MomwireEngine(SimulationEngine):
         # Distributed loading rides only the solvers that model it; warn
         # once (not raise) so a matched-basis sinusoidal comparison of a
         # lossy design still solves — as the ideal wire, stated plainly.
-        _require_coated_wire_support(self._polylines, self._polyline_specs, ground_z)
+        # `self._ground_z`, not the raw argument: the argument defaults to 0.0
+        # even over free space, and a free-space deck has no interface for a
+        # jacketed wire to lie near.
+        _require_coated_wire_support(
+            self._polylines, self._polyline_specs, self._ground_z
+        )
         self._loading_kwargs = {}
         spec = self._wire_spec
         if any(s is not None for s in specs):
