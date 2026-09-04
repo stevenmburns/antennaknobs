@@ -112,25 +112,63 @@ class Builder(AntennaBuilder):
             "qlmag": 10.0,
             # Compensation capacitor across the primary.
             #
-            # 100 -> 60 pF at momwire#874, which gave the jacket its
-            # equivalent radius. That LOWERED the antenna-side feed
-            # resistance at the X = 0 point from 3240.8 to 2611.7 ohm
-            # (-19.4 %, measured at the `ant` port with the unun, comp cap
-            # and coax removed) — the direction theory requires, since an
-            # end-fed half-wave's feed R scales roughly with Zc squared and
-            # the pair LOWERS Zc where inductance alone raises it.
+            # THIS VALUE IS NOT LOAD-BEARING IN THIS MODEL at the design
+            # frequency. Every value from 0 to 100 pF clears the < 1.3 gate
+            # at stock length, in both ground models. Fit what is in the
+            # drawer, or fit nothing:
             #
-            # The rig-side SWR rose (1.20 -> 1.33) not because the antenna
-            # got worse but because this resonant match was tuned for the
-            # old antenna-side value; the naive turns-squared step-down does
-            # not even predict the direction (3240.8/49 = 66.1 against
-            # 2611.7/49 = 53.3), which is how you can tell the comp cap and
-            # lmag are doing the work. Retuning THIS knob alone restores it:
-            # 60 pF gives 56.30 - 4.84j, SWR 1.161, at the unchanged stock
-            # length and unchanged 49:1 ratio — better than the 1.20 it had
-            # before. Length cannot do it: the SWR bowl bottoms at 1.321
-            # across 0.880-0.910 because the problem is R, not X.
-            "comp_c_pF": 60.0,
+            #     C pF        finite-fast              Sommerfeld
+            #      0 (none)   44.22 - 5.43j  1.184     45.15 - 6.36j  1.183
+            #     37.6 (-20%) 50.88 - 3.97j  1.084     51.81 - 5.17j  1.114
+            #     47   (E6)   52.72 - 3.72j  1.094     53.65 - 4.99j  1.127
+            #     56.4 (+20%) 54.64 - 3.52j  1.118     55.55 - 4.87j  1.150
+            #     60          55.40 - 3.46j  1.129     56.30 - 4.84j  1.161
+            #
+            # WHY IT IS NOT LOAD-BEARING, and what that does NOT say. The
+            # model's unun is an ideal Transformer plus a magnetizing shunt
+            # (lmag/qlmag) plus this capacitor — there is NO LEAKAGE
+            # INDUCTANCE term anywhere in it (see `station.unun` and
+            # momwire's `Transformer`, whose own docstring calls its loss
+            # model "deliberately minimal"). A physical FT240-43 49:1 carries
+            # ~100 pF to compensate leakage across the bands, which is a
+            # bench measurement on a real box. This model cannot represent
+            # that, so nothing here argues against the customary 100 pF in a
+            # build — it only says the number does not earn its keep at
+            # 14.1 MHz in this simulation.
+            #
+            # 47 pF: an E6 part, in every kit, and near the bottom of the
+            # SWR bowl. The bowl against C is monotone above its minimum, so
+            # the earlier 60 pF sat up the rising flank:
+            #
+            #                        finite-fast      Sommerfeld
+            #     bowl minimum        37 pF 1.084      34 pF 1.112
+            #     47 pF +-20 % worst        1.118            1.150
+            #
+            # Near the minimum the sensitivity to C is first-order zero,
+            # which is why a sloppy +-20 % E6 part is fine here and a
+            # precision part buys nothing.
+            #
+            # EVERY FIGURE ABOVE NAMES ITS GROUND MODEL, and that is not
+            # pedantry. `("finite", ...)` is true Sommerfeld; `("finite-fast",
+            # ...)` is the reflection-coefficient approximation, and
+            # `tests/test_efhw_sloper.py`'s GROUND constant is the FAST one
+            # while this comment's numbers were originally taken in
+            # Sommerfeld. At the old 60 pF that is 1.129 against 1.161 — and
+            # quoting only the second, unlabelled, is what made a later
+            # reader bisect eight momwire commits looking for a regression
+            # that was never there.
+            #
+            # Antenna-side, for scale: at the `ant` port with the unun, comp
+            # cap and coax removed (the multiport Y before the network), the
+            # upper X = 0 crossing sits at 2676 ohm finite-fast / 2556 ohm
+            # Sommerfeld, swept in frequency at stock length. An earlier
+            # comment quoted 3240.8 -> 2611.7 for the pre/post-momwire#874
+            # pair; the 2611.7 is not reproducible by either a frequency or a
+            # length sweep in either ground model (all four land within 2.5 %
+            # of it and none on it), so measured values replace it. The
+            # ~19 % DROP across #874 — the coated pair lowering Zc, and with
+            # it the end-fed's feed R — is the part that mattered and stands.
+            "comp_c_pF": 47.0,
             "cable": "RG-58",
             "line_len_m": 5.0,
             "ui_params": MappingProxyType(

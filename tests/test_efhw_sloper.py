@@ -35,7 +35,10 @@ def test_stock_tune_matches_fifty_ohms():
     ~2.2 kΩ end-fed feed, stepped down 49:1, through comp cap and coax."""
     (z,) = MomwireEngine(Builder(), **GROUND).impedance()
     gamma = abs((z - 50.0) / (z + 50.0))
-    assert (1 + gamma) / (1 - gamma) < 1.3  # measured 1.17
+    # measured 1.094 at the stock 47 pF. GROUND above is `finite-fast`;
+    # the design's docstring quotes Sommerfeld, where the same deck reads
+    # 1.127 — see the comp_c_pF comment for why both are named there.
+    assert (1 + gamma) / (1 - gamma) < 1.3
 
 
 def test_unun_ratio_sanity():
