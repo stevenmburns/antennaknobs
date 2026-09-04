@@ -63,6 +63,7 @@ function renderModal(overrides: ModalOverrides = {}) {
       backend={backend}
       backends={SERVED_ROSTER}
       requiredBackends={null}
+      design={{}}
       specs={SERVED_OPTION_SPECS}
       suggestConvergedFeed={false}
       opts={defaultOptsFor(backend, SERVED_OPTION_SPECS)}

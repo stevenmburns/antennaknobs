@@ -142,7 +142,14 @@ export function SolveOverlays({
             </div>
           </div>
         )}
-        {solverWarning && !backendDisallowed && (
+        {/* The SOFT mismatch: a performance mismatch the user may override.
+            Excluded while a HARD refusal is showing — `backendDisallowed` (the
+            solver cannot run this design) or `optionRefusal` (momwire refuses
+            these options on this deck). Without the second exclusion both
+            overlays rendered, soft on top, and its "Solve anyway" offered an
+            override for a combination that RAISES. An override button is a
+            promise that the solve can proceed. */}
+        {solverWarning && !backendDisallowed && !optionRefusal && (
           <div
             className="solver-suggest"
             role="alertdialog"

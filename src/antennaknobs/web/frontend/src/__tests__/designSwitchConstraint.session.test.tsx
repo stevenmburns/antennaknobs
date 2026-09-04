@@ -82,6 +82,19 @@ const UNIFORM: ExampleDescriptor = {
   has_buried_wire: false,
 };
 
+// The case Steve hit reviewing G2-7: a buried deck on an accelerated
+// backend. It takes the OPTION path (`backendOptsAllowed` — the served
+// solve_strategy x wire_position row), NOT `requires_backends`, which is
+// exactly why the soft overlay's `!backendDisallowed` guard did not exclude
+// it and both overlays rendered.
+const BURIED: ExampleDescriptor = {
+  ...BASE,
+  name: "verticals.buried_radial_vertical",
+  label: "buried radial vertical",
+  has_stepped_radius_junction: false,
+  has_buried_wire: true,
+};
+
 const STEPPED: ExampleDescriptor = {
   ...BASE,
   name: "verticals.elt_whip",
@@ -124,7 +137,7 @@ beforeEach(() => {
         terrain_presets: [],
       });
     if (path.startsWith("/examples"))
-      return jsonResponse({ examples: [UNIFORM, STEPPED], errors: [] });
+      return jsonResponse({ examples: [UNIFORM, STEPPED, BURIED], errors: [] });
     if (path.startsWith("/geometry")) return jsonResponse({ wires: [] });
     return jsonResponse({});
   });
@@ -206,5 +219,40 @@ describe("switching design re-answers the cross-axis constraint", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     await waitFor(() => expect(gate()).toBeNull());
+  });
+});
+
+
+describe("a buried deck on an accelerated backend shows ONE overlay", () => {
+  it("does not stack the soft mismatch on top of the hard refusal", async () => {
+    // Found by Steve in the running app, not by any gate here. Two overlays
+    // rendered and the top one offered "Solve anyway" — an override for a
+    // combination momwire RAISES on. The soft overlay excluded
+    // `backendDisallowed` but not `optionRefusal`, and this deck reaches the
+    // gate through the second.
+    const user = userEvent.setup();
+    render(<DesignSession id={1} active />);
+    await screen.findByRole("tab", { name: /Solver slot A/ });
+
+    await selectDesign(user, "buried radial vertical");
+    await user.click(screen.getByRole("button", { name: "Slot A options" }));
+    await user.click(screen.getByRole("tab", { name: /Array-block/ }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("alertdialog", {
+          name: "Solver option unavailable for this design",
+        }),
+      ).toBeTruthy(),
+    );
+    // ONE dialog, and no override — the user's way out is a different
+    // solver or a different option, not a button that asks anyway.
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
+    // ...and momwire's own sentence is what it says.
+    expect(
+      screen.getByRole("alertdialog").textContent,
+    ).toMatch(/wire below the ground plane/i);
   });
 });

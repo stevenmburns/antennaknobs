@@ -43,6 +43,7 @@ function renderModal(b: BackendEntry) {
       backend={b}
       backends={SERVED_ROSTER}
       requiredBackends={null}
+      design={{}}
       specs={SERVED_OPTION_SPECS}
       suggestConvergedFeed={false}
       opts={defaultOptsFor(b, SERVED_OPTION_SPECS)}

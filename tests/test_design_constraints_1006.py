@@ -225,3 +225,70 @@ def test_a_buried_design_that_will_not_build_never_breaks_a_listing(name, monkey
 
     monkeypatch.setattr(ad, "_build_builder", boom)
     assert ad._has_buried_wire(resolve_class(name)) is False
+
+
+# --------------------------------------------------------------------------
+# The buried CAPABILITY refusal — a third shape the gate was missing
+# --------------------------------------------------------------------------
+
+
+def test_a_backend_that_cannot_take_buried_serves_momwires_reason():
+    """The boolean alone was not enough, and the gap was found in review.
+
+    `buried` has been served since #1108, but only as True/False/None. With no
+    prose, nothing downstream could gate on it without inventing a reason — so
+    nothing gated at all, and `razor-2p` on a buried design solved, raised,
+    and put a ValueError traceback in the user's error banner.
+
+    This is a SINGLE-CELL refusal and `COUPLINGS` rightly does not name it: a
+    coupling answers "which combinations are refused", and a solver with no
+    buried fill refuses the deck whatever else is set. Two questions, and the
+    gate needs both.
+    """
+    from antennaknobs.web.adapter import backend_roster
+
+    rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
+    cannot = [n for n, r in rows.items() if r["buried"] is False]
+    assert cannot, "no backend refuses buried — this file's premise is gone"
+    for name in cannot:
+        assert rows[name]["buried_refusal"], (
+            f"{name} refuses buried and serves no reason — a gate would have "
+            "to invent one"
+        )
+        assert len(rows[name]["buried_refusal"]) > 40, name
+
+
+def test_the_one_backend_that_serves_buried_has_no_refusal():
+    """Otherwise "everything refuses buried" would satisfy the test above."""
+    from antennaknobs.web.adapter import backend_roster
+
+    rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
+    assert rows["bspline"]["buried"] is True
+    assert rows["bspline"]["buried_refusal"] is None
+
+
+def test_cannot_be_asked_stays_None_on_both_sides():
+    """`buried: null` is NOT "cannot" (#1103). pynec and nec5 answer null
+    because AK has no MEASURED fact about their buried scope — the adapter's
+    own docstring makes a claim about PyNEC, and a sentence in a docstring is
+    not a capability. Serving one as if it were is how a guess becomes a
+    gate."""
+    from antennaknobs.web.adapter import backend_roster
+
+    rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
+    for name in ("pynec", "nec5"):
+        assert rows[name]["buried"] is None
+        assert rows[name]["buried_refusal"] is None
+
+
+def test_the_reason_is_momwires_own_string_not_a_copy():
+    """Referenced, never retyped — the rule that produced momwire#888."""
+    from momwire.deck._solver import BASES
+
+    from antennaknobs.web.adapter import backend_roster
+
+    rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
+    for name, row in rows.items():
+        if not row["buried_refusal"] or name not in BASES:
+            continue
+        assert row["buried_refusal"] is BASES[name][0].capabilities.refusal("buried")

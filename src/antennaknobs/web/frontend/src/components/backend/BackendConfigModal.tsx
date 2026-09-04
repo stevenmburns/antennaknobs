@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import {
   backendAllowed,
+  capabilityRefusal,
+  type DesignConstraintInputs,
   EK_HINT,
   extendedKernelActive,
   AXIS_KWARG,
@@ -67,6 +69,9 @@ export type BackendConfigProps = {
    *  explaining why, rather than disappearing — the picker stays stable
    *  across design switches and the restriction itself is the signal. */
   requiredBackends: string[] | null;
+  /** The loaded design's constraint inputs, so a tab can say it cannot take
+   *  THIS deck before the user selects it. */
+  design: DesignConstraintInputs;
   /** The served solver-knob catalogue (#1006 G2-6): every knob's kind,
    *  bounds, captions and gate. The panel is drawn from this, not from a
    *  per-engine table here. */
@@ -88,6 +93,7 @@ export function BackendConfigModal({
   backend,
   backends,
   requiredBackends,
+  design,
   specs,
   suggestConvergedFeed,
   opts,
@@ -128,15 +134,32 @@ export function BackendConfigModal({
             <div className="geometry-tabs" role="tablist">
               {backends.map((b) => {
                 const allowed = backendAllowed(b, requiredBackends);
+                // EVALUATED PER TAB, not only for the active one. A refusal
+                // the user can only discover by SELECTING the tab and then
+                // closing the modal is a refusal discovered too late — found
+                // in review: Array-block on a buried deck looked ordinary
+                // here and gated only afterwards.
+                //
+                // Deck-level only (`capabilityRefusal`): this asks whether
+                // the solver can take THIS DESIGN at all, which is a property
+                // of the tab. Option-level refusals depend on that tab's own
+                // options, which a user has not set yet, so greying a tab for
+                // one would be predicting a choice they have not made.
+                const refused = capabilityRefusal(b, design);
+                const usable = allowed && refused === null;
                 return (
                   <button
                     key={b.name}
                     role="tab"
                     aria-selected={backend.name === b.name}
                     className={backend.name === b.name ? "active" : ""}
-                    disabled={!allowed}
-                    title={allowed ? undefined : RESTRICTED_BACKEND_REASON}
-                    onClick={() => allowed && onChangeBackend(b)}
+                    disabled={!usable}
+                    title={
+                      allowed
+                        ? (refused?.reason ?? undefined)
+                        : RESTRICTED_BACKEND_REASON
+                    }
+                    onClick={() => usable && onChangeBackend(b)}
                   >
                     {b.label}
                   </button>

@@ -118,6 +118,7 @@ function mount(b: BackendEntry, opts: BackendOpts) {
       backend={b}
       backends={SERVED_ROSTER}
       requiredBackends={null}
+      design={{}}
       specs={SERVED_OPTION_SPECS}
       suggestConvergedFeed={false}
       opts={opts}

@@ -467,6 +467,8 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "accelerator": b.accelerator,
             "dense_family": b.dense_family,
             "buried": _backend_serves_buried(b),
+            # momwire's sentence for a backend that cannot (#1006 review).
+            "buried_refusal": _backend_buried_refusal(b),
             "axes": _backend_axes(b),
             "constraints": _backend_constraints(b),
             # The roster entry's bound kwargs, verbatim (antennaknobs#1006
@@ -609,6 +611,32 @@ def _backend_serves_buried(spec):
     if caps is None or "buried" not in getattr(caps, "_fields", ()):
         return None
     return bool(caps.buried)
+
+
+def _backend_buried_refusal(spec):
+    """momwire's own sentence for why this backend cannot solve a buried deck.
+
+    The BOOLEAN alone was not enough, which a review found the hard way: with
+    the buried capability served but no prose, nothing downstream could gate
+    on it without inventing a reason — so nothing gated on it at all, and
+    `razor-2p` on a buried design solved, raised, and showed the user a
+    traceback banner instead of a refusal.
+
+    This is a SINGLE-CELL refusal, not a pairwise coupling: the solver has no
+    buried fill at all, whatever else is set. `COUPLINGS` therefore does not
+    and should not name it — the couplings answer "which combinations are
+    refused", and this is "which decks this solver cannot take". Two different
+    questions, and the gate needs both.
+    """
+    if spec.kind != "momwire" or spec.solver is None:
+        return None
+    caps = getattr(spec.solver, "capabilities", None)
+    if caps is None or "buried" not in getattr(caps, "_fields", ()):
+        return None
+    if caps.buried:
+        return None
+    refusal = caps.refusal("buried")
+    return refusal if isinstance(refusal, str) else None
 
 
 # ---------------------------------------------------------------------------

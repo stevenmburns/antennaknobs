@@ -21,7 +21,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SolveOverlays } from "../components/session/SolveOverlays";
-import { normalizeBackend } from "../lib/backends";
+import {
+  normalizeBackend,
+  type BackendConstraint,
+} from "../lib/backends";
 import { entry, SERVED_ROSTER,
   SERVED_ALIASES,
 } from "./backendFixtures";
@@ -38,6 +41,7 @@ type OverlayOverrides = Partial<{
   backend: string;
   requiredBackends: string[] | null;
   recommendedBackend: string | null;
+  optionRefusal: BackendConstraint | null;
   solveError: string | null;
 }>;
 
@@ -309,5 +313,71 @@ describe("SolveOverlays — solve error", () => {
   it("omits the alert when solveError is null", () => {
     renderOverlays({ solveError: null });
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+
+// --------------------------------------------------------------------------
+// One refusal, one overlay (#1006 — found by Steve reviewing G2-7 in the app)
+// --------------------------------------------------------------------------
+
+describe("a hard option refusal suppresses the soft mismatch overlay", () => {
+  const REFUSAL: BackendConstraint = {
+    axis: "solve_strategy",
+    value: "element-block",
+    forbids_axis: "wire_position",
+    forbids_value: "buried",
+    forbids_is_axis: true,
+    condition: null,
+    reason: "this deck has a wire below the ground plane, and the fast operator…",
+    issue: "momwire#553",
+  };
+
+  it("renders exactly ONE alertdialog, not two", () => {
+    // Both overlays used to render — soft on top of hard — because the soft
+    // one tested only `!backendDisallowed`. A buried deck on arrayblock takes
+    // the OPTION path (`backendOptsAllowed`), not `requires_backends`, so the
+    // hard gate it needed to exclude was the one it did not name.
+    renderOverlays({
+      solverWarning: true,
+      backendDisallowed: false,
+      optionRefusal: REFUSAL,
+      recommendedBackend: "bspline",
+    });
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Solver option unavailable for this design",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("offers NO \"Solve anyway\", because momwire raises on this", () => {
+    // An override button is a promise that the solve can proceed. Here it
+    // cannot: the combination is in the solver's refusals dict. The user's
+    // way out is the option, not an override — which is why the overlay names
+    // the option instead.
+    renderOverlays({
+      solverWarning: true,
+      backendDisallowed: false,
+      optionRefusal: REFUSAL,
+      recommendedBackend: "bspline",
+    });
+    expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
+  });
+
+  it("still shows the soft mismatch when there is NO refusal", () => {
+    // The other half, so the exclusion cannot pass by hiding the soft overlay
+    // altogether — which would remove a legitimate override.
+    renderOverlays({
+      solverWarning: true,
+      backendDisallowed: false,
+      optionRefusal: null,
+      recommendedBackend: "bspline",
+    });
+    expect(
+      screen.getByRole("alertdialog", { name: "Solver mismatch" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /solve anyway/i })).toBeTruthy();
   });
 });

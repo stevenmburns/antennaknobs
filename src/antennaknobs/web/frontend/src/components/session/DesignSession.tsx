@@ -638,7 +638,19 @@ function DesignSessionBody({
     setComboApproved(true);
     setSolverWarning(false);
     controlsRef.current = buildRequest();
-    requestSolve();
+    // Belt and braces: approving the COMBO does not approve a refusal. This
+    // used to call `requestSolve()` unconditionally, so approving a soft
+    // mismatch asked the solver for a combination momwire raises on.
+    //
+    // DELIBERATELY NOT COVERED BY A TEST, and that is worth stating rather
+    // than hiding behind one. The button that calls this no longer renders
+    // while a refusal stands (SolveOverlays excludes `optionRefusal`), so
+    // there is no path through the UI that reaches here in that state —
+    // mutating this line back to an unconditional `requestSolve()` leaves the
+    // whole suite green. A test that cannot fail is not a test; this is a
+    // second lock behind a first one that IS tested, and it earns its place
+    // by being cheap rather than by being verified.
+    if (!solveWithheld()) requestSolve();
   }
   // "Pause simulation": stop auto-solving so the user can keep editing the design
   // without the engine running, instead of the old "Cancel" that just hid the
@@ -1585,6 +1597,7 @@ function DesignSessionBody({
             backend={slots[gearOpen].backend}
             backends={roster}
             requiredBackends={requiredBackends}
+            design={designConstraintInputs}
             specs={modelOptionSpecs}
             suggestConvergedFeed={
               currentExample?.converged_feed_suggested ?? false
