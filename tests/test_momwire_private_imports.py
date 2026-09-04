@@ -84,6 +84,18 @@ ALLOWED = {
     # precedent. Filed as momwire#884, sibling of momwire#876 rather than an
     # extension of it — #876 is scoped to the coated-wire pair by its title.
     ("web/adapter.py", "momwire._capabilities", "axes_for"),
+    # The couplings table (antennaknobs#1006 G2-4b, momwire#885). Same shape
+    # as `axes_for` above and the same reason: the table holds each refusal's
+    # OWN prose object and the class that raises it, so a consumer that
+    # re-stated either would drift from the refusal it describes. Filtering
+    # here rather than reading momwire's table would also re-open the
+    # mis-attribution `applies_to` was added to close.
+    #
+    # Covered by the same follow-up, momwire#884 — promoting `axes_for` and
+    # `AXIS_VALUES` to public names should take `COUPLINGS` with it, since a
+    # panel that renders the axes needs the constraints on them in the same
+    # breath.
+    ("web/adapter.py", "momwire._couplings", "COUPLINGS"),
     # Compatibility re-exports (momwire#456 ws2 phase B) — see module docstrings.
     ("network.py", "momwire.networks._reduce", "_series_rlc_impedance"),
     ("network.py", "momwire.networks._spec", "_branch_port_refs"),
