@@ -319,6 +319,19 @@ class AntennaExample:
     # tooltip) and coerces a disallowed active selection on switch; the
     # solvers' hard errors remain the enforcement.
     requires_backends: Optional[tuple[str, ...]] = None
+    # The same restriction with its reason attached (antennaknobs#1006 G2-5),
+    # so the withhold gate and the disabled-tab tooltip read one SERVED
+    # sentence instead of the frontend keeping a hardcoded one per cause.
+    # `requires_backends` stays for now: it is what today's frontend reads,
+    # and the two collapse to one in the panel PR rather than in a listing
+    # change nothing consumes yet.
+    backend_restriction: Optional[dict] = None
+    # Whether any junction joins wires of DIFFERENT radii. momwire refuses
+    # `extended_kernel=True` on such a deck (momwire#398 D2), so the panel
+    # notes it on the kernel control before the user solves. Design-dependent
+    # and therefore LIVE — re-read on every design change exactly as
+    # `requires_backends` is, never checked once at selection.
+    has_stepped_radius_junction: bool = False
     # Near-open high-Q feed (antennaknobs#478): the design benefits from the
     # sinusoidal-Galerkin solver's converged (point-gap) feed model, which
     # collapses the cross-basis residual by 2-3 orders on this class

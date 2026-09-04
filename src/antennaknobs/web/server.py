@@ -2512,6 +2512,8 @@ def examples_endpoint():
                     if ex.requires_backends is not None
                     else None
                 ),
+                "backend_restriction": ex.backend_restriction,
+                "has_stepped_radius_junction": ex.has_stepped_radius_junction,
                 "converged_feed_suggested": ex.converged_feed_suggested,
                 "ground_requirement": ex.ground_requirement,
                 "has_design_freq": ex.has_design_freq,
