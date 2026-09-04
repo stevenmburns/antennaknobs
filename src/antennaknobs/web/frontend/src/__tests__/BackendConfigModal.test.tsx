@@ -66,6 +66,7 @@ function renderModal(overrides: ModalOverrides = {}) {
       backends={SERVED_ROSTER}
       requiredBackends={null}
       design={{}}
+      restrictionReason={null}
       specs={SERVED_OPTION_SPECS}
       vocab={SERVED_VOCAB}
       designRefusalNote={null}

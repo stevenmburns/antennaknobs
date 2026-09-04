@@ -138,6 +138,7 @@ function mount(b: BackendEntry, opts: BackendOpts) {
       backends={SERVED_ROSTER}
       requiredBackends={null}
       design={{}}
+      restrictionReason={null}
       specs={SERVED_OPTION_SPECS}
       vocab={SERVED_VOCAB}
       designRefusalNote={null}
