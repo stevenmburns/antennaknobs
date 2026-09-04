@@ -255,7 +255,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder
-from antennaknobs.network import Wire, graded_wire
+from antennaknobs.network import Wire, graded_wire, wire_from_catalog
 
 
 class Builder(AntennaBuilder):
@@ -323,6 +323,17 @@ class Builder(AntennaBuilder):
             # serve). A bare string with no enum_options renders no knob:
             # the convention is chosen by the variant picker, not a slider.
             "convention": "connected",
+            # SURFACE convention only (momwire#865). The radials do not go
+            # under the soil at all: they LIE ON it, which momwire serves as
+            # the elevated family at an explicit small height. `None` means
+            # "the jacket resting on the ground" — h = b, the insulation's
+            # OUTER radius — which is where a real insulated wire's conductor
+            # actually sits and is exactly momwire#875's jacketed floor.
+            "surface_h_m": None,
+            # The wire, for the surface convention. The other conventions run
+            # the design's bare default; only the surface one needs a jacket,
+            # because on the surface the jacket IS the stand-off.
+            "wire_type": None,
             "ui_params": MappingProxyType(
                 {
                     # Buried conductors exist only under a Sommerfeld
@@ -359,6 +370,52 @@ class Builder(AntennaBuilder):
     # crossing serve is the only thing that solves it.
     bundle_params = MappingProxyType({"convention": "bundle"})
 
+    # The SURFACE convention (momwire#865): radials lying ON the ground, the
+    # way most amateurs actually build a screen, rather than plowed under it.
+    #
+    # momwire refuses a wire IN the plane and always will — a conductor on the
+    # interface is not a physical configuration. What a surface radial IS, is
+    # the ELEVATED family at the conductor's own centre height, and for an
+    # insulated wire lying on soil that height is b, the jacket's outer
+    # radius: the jacket rests on the ground and the copper sits a jacket
+    # thickness above it.
+    #
+    # 18 AWG PVC is the default because both of momwire's floors agree there:
+    # b/a = 2.05, so h = b sits at h/a = 2.05, just above the BARE bound of 2a.
+    #
+    # In fact EVERY insulated wire in the catalog clears that bare bound —
+    # 18/22/28 AWG PVC are b/a 2.05 / 2.49 / 3.12, and a thinner conductor
+    # under the same jacket has a LARGER ratio, not a smaller one. So this
+    # variant never actually needs momwire#875's jacketed relaxation today;
+    # it would take an enamel-class jacket (b/a ~ 1.05) to go under h/a = 2,
+    # and the catalog has none. That is a robustness property worth knowing
+    # rather than a gap: the variant is served by the older, stricter bound,
+    # and #875 is what will keep it served if a thin-jacket wire is ever
+    # added.
+    _SURFACE_NOTE = (
+        "Radials lying ON the ground. The height IS the model here: the "
+        "conductor sits one jacket thickness above the soil, and the answer "
+        "is a strong function of that stand-off. A millimetre of grass is "
+        "worth about 41 \u03a9 at 4 radials and about 10 \u03a9 at 16 "
+        "(momwire#865), so with a sparse screen treat the impedance as "
+        "INDICATIVE RATHER THAN PREDICTIVE \u2014 the same wire laid in "
+        "deeper grass is a measurably different antenna. At 16 radials and "
+        "above the class is quotable. Note that momwire raises its own "
+        "per-solve advisory for this, carrying the deck's actual h/a, and "
+        "the app does not surface solver advisories yet (antennaknobs "
+        "follow-up); this note is the static stand-in."
+    )
+
+    surface_params = MappingProxyType(
+        {
+            "convention": "surface",
+            "wire_type": "18-awg-pvc",
+            "ui_params": MappingProxyType(
+                {**default_params["ui_params"], "notes": _SURFACE_NOTE}
+            ),
+        }
+    )
+
     def build_wires(self):
         eps = 0.05
 
@@ -368,6 +425,10 @@ class Builder(AntennaBuilder):
         n_radials = max(1, round(self.n_radials))
         detached = self.convention == "detached"
         bundle = self.convention == "bundle"
+        surface = self.convention == "surface"
+
+        if surface:
+            return self._surface_wires(height, radial, n_radials)
 
         node = (0.0, 0.0, 0.0)
         hub = (0.0, 0.0, -depth)
@@ -458,4 +519,47 @@ class Builder(AntennaBuilder):
         else:
             tups.append(Wire((0.0, 0.0, eps), (0.0, 0.0, height)))
 
+        return tups
+
+    # ------------------------------------------------------------------
+    # The SURFACE convention (momwire#865)
+    # ------------------------------------------------------------------
+
+    def _surface_wires(self, height, radial, n_radials):
+        """Radials lying ON the ground, jacket resting on the soil.
+
+        The radials and the radiator's foot sit together at `h`, so this is
+        one elevated deck with no crossing junction and no rise — the
+        interface is never pierced. The JACKET IS THE STAND-OFF, which is why
+        `h` defaults to the wire's own `b`.
+        """
+        spec = wire_from_catalog(self.wire_type) if self.wire_type else None
+        if spec is None or not spec.insulation_radius:
+            raise ValueError(
+                "the `surface` convention needs an INSULATED wire_type: the "
+                "jacket is what holds the conductor off the soil, and a bare "
+                "wire lying in the plane is refused by momwire (momwire#865). "
+                f"Got wire_type={self.wire_type!r}."
+            )
+        h = self.surface_h_m if self.surface_h_m else spec.insulation_radius
+
+        tups = []
+        for i in range(n_radials):
+            theta = 2 * math.pi / n_radials * i
+            c, s = math.cos(theta), math.sin(theta)
+            x = radial * (0.0 if abs(c) < 1e-15 else c)
+            y = radial * (0.0 if abs(s) < 1e-15 else s)
+            # Foot-first, for the same reason the buried conventions are
+            # hub-first: every radial must leave the shared node so the
+            # screen's mirror symmetry survives the polyline walk.
+            #
+            # THE SPEC RIDES THE RADIALS ONLY. The mast below carries none
+            # and inherits the design's bare default. A SCALAR insulation
+            # would jacket the mast too, which is not the antenna anyone
+            # builds and is worth ~15-30 ohm of spurious reactance — the
+            # trap that sent momwire#874's first reading the wrong way.
+            tups.append(Wire((0.0, 0.0, h), (x, y, h), spec=spec))
+
+        tups.append(Wire((0.0, 0.0, h), (0.0, 0.0, h + 0.05), ex=1 + 0j))
+        tups.append(Wire((0.0, 0.0, h + 0.05), (0.0, 0.0, h + height)))
         return tups

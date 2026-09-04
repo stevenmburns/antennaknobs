@@ -106,7 +106,7 @@ whole shape with a `Drone` — see
 | --- | --- |
 | `verticals.bobtail` | Bobtail curtain: a 3-element vertically-polarised broadside array (L. B. Cebik, W4RNL) |
 | `verticals.bruce` | Bruce array: a series-fed vertically-polarised curtain (L. B. Cebik, W4RNL) |
-| `verticals.buried_radial_vertical` | Ground-mounted quarter-wave vertical over a BURIED radial screen — the classic 40 m base-fed vertical, modelled with the radials where they actually are: in the dirt (momwire#524 phase 2, the crossing serve) · variants: `bundle`, `detached` |
+| `verticals.buried_radial_vertical` | Ground-mounted quarter-wave vertical over a BURIED radial screen — the classic 40 m base-fed vertical, modelled with the radials where they actually are: in the dirt (momwire#524 phase 2, the crossing serve) · variants: `bundle`, `detached`, `surface` |
 | `verticals.challenger` | KJ6ER's "Challenger" — off-center-fed halfwave vertical with 4:1 unun · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `plus` |
 | `verticals.dominator` | KJ6ER's "Dominator" — end-fed halfwave vertical with 49:1 transformer · variants: `band10`, `band12`, `band17`, `plus` |
 | `verticals.elevated_buried_counterpoise` | Elevated-feed vertical over a buried radial screen — the antenna whose counterpoise is capacitive, not galvanic (momwire#553, the buried serve) |
