@@ -198,11 +198,15 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
   // derived axis, or an axis that stops being pinned — and a containment check
   // cannot see an extra element.
   const EXPECTED: Record<string, string[]> = {
+    // `feed_model` joined the b-spline family when momwire#891 corrected a
+    // row that declared the axis single-valued while the constructor
+    // defaulted to the other value. `sinusoidal` keeps a single value because
+    // it genuinely REFUSES the point gap (momwire#212).
     sinusoidal: ["kernel"],
     "sinusoidal-galerkin": ["feed_model", "kernel"],
-    bspline: ["basis", "kernel"],
-    hmatrix: ["basis", "kernel"],
-    arrayblock: ["basis", "kernel"],
+    bspline: ["basis", "feed_model", "kernel"],
+    hmatrix: ["basis", "feed_model", "kernel"],
+    arrayblock: ["basis", "feed_model", "kernel"],
     "razor-2p": ["kernel"],
     pynec: [],
   };

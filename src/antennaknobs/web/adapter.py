@@ -284,6 +284,17 @@ _SIN_KWARGS = ("n_qp_const", "extended_kernel")
 _SIN_GALERKIN_KWARGS = ("n_qp_const", "feed_model", "extended_kernel")
 _BSPLINE_FAMILY_KWARGS = (
     "degree",
+    # EXPOSED as of momwire#891 + Steve's decision. The row used to declare
+    # only the segment gap while the constructor defaulted to the POINT gap —
+    # so the family had a feed model it could not be asked about, and the
+    # composition line said the wrong one. Now the axis is honestly
+    # multi-valued and the choice is offered.
+    #
+    # The request payload therefore GAINS `feed_model` for these three
+    # backends. That is a deliberate wire change, and it does not move any
+    # number: "point" was already the solver's default, so the stock request
+    # now states explicitly what it was getting implicitly.
+    "feed_model",
     "n_qp_pair",
     "n_qp_source",
     "feed_smoothing_factor",

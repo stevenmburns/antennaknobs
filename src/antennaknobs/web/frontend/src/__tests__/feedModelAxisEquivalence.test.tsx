@@ -25,17 +25,13 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { BackendConfigModal } from "../components/backend/BackendConfigModal";
 import {
-  PANEL_SIN_GALERKIN,
   defaultOptsFor,
   feedModelChoices,
   offersFeedModelChoice,
   modelOptionsForRequest,
-  backendDisplayLabel,
   type BackendEntry,
 } from "../lib/backends";
-import { entry, optsWithModel, SERVED_ROSTER,
-  SERVED_VOCAB,
-} from "./backendFixtures";
+import { entry, SERVED_ROSTER, SERVED_VOCAB } from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 function renderModal(b: BackendEntry) {
@@ -73,21 +69,47 @@ function feedTabs(b: BackendEntry) {
   return tabsIn("feed model");
 }
 
-describe("the axis path and the retired hint path agree on the served roster", () => {
-  it.each(SERVED_ROSTER.map((b) => b.name))(
-    "offersFeedModelChoice(%s) matches the old panel hint",
-    (name) => {
-      const b = entry(name);
-      expect(offersFeedModelChoice(b)).toBe(b.panel === PANEL_SIN_GALERKIN);
-    },
-  );
+// THIS EQUIVALENCE HAS NOW DELIBERATELY ENDED, and that is the right outcome
+// rather than a regression.
+//
+// The tests below used to assert `offersFeedModelChoice(b) === (b.panel ===
+// PANEL_SIN_GALERKIN)` for every served backend. That was the CONDITION THE
+// PANEL HINT WAS ALLOWED TO BE DELETED UNDER (#1006 G2-5/G2-6): the axis path
+// had to reproduce the hint exactly before the hint could go.
+//
+// It did, the hint went, and then momwire#891 corrected a row: the B-spline
+// family declared `feed_model: ("segment-gap",)` while its constructor
+// defaulted to the POINT gap, so the axis was mis-declared as single-valued
+// and the choice was invisible. With the row fixed, three more backends
+// legitimately offer the control — so the axis path and the retired hint now
+// DISAGREE, because the hint was carrying the mistake.
+//
+// A migration gate has a lifetime. Holding this one after the migration would
+// have pinned the old panel's mistake in place, which is the opposite of what
+// it was written to protect.
 
-  it("is not passing because both sides are always false", () => {
-    // The guard the equivalence claim needs: exactly one served backend is
-    // supposed to offer the choice. Without this, deleting the control
-    // entirely would satisfy every case above.
+describe("the axis decides, and it now says more than the hint did", () => {
+  it("offers the choice wherever the axis is multi-valued AND exposed", () => {
     const offering = SERVED_ROSTER.filter(offersFeedModelChoice).map((b) => b.name);
-    expect(offering).toEqual(["sinusoidal-galerkin"]);
+    expect(offering).toEqual([
+      "sinusoidal-galerkin",
+      "bspline",
+      "hmatrix",
+      "arrayblock",
+    ]);
+  });
+
+  it("does NOT offer it where the solver refuses the point gap", () => {
+    // `sinusoidal` is the negative case and the important one: it accepts the
+    // kwarg and REFUSES the value (momwire#212), so a rule keyed on the axis
+    // existing — rather than on it being multi-valued and exposed — would
+    // offer a choice that raises.
+    expect(offersFeedModelChoice(entry("sinusoidal"))).toBe(false);
+    expect(entry("sinusoidal").axes!.feed_model).toEqual(["segment-gap"]);
+  });
+
+  it("does NOT offer it on a node-port feed", () => {
+    expect(offersFeedModelChoice(entry("razor-2p"))).toBe(false);
   });
 
   it("renders the same two tabs, with the same labels and order", () => {
@@ -97,40 +119,26 @@ describe("the axis path and the retired hint path agree on the served roster", (
     ]);
   });
 
-  it("still shows no feed-model control on plain sinusoidal", () => {
-    // The absence assertion. `sinusoidal` declares feed_model:
-    // ["segment-gap"] — it HAS a feed model and no choice of one (the point
-    // gap has no collocation RHS, momwire#212). A rule keyed on the axis
-    // EXISTING rather than on it being multi-valued would light this up.
-    expect(entry("sinusoidal").axes!.feed_model).toEqual(["segment-gap"]);
-    expect(feedTabs(entry("sinusoidal"))).toBeNull();
+  it("renders those same two on the b-spline family now", () => {
+    expect(feedTabs(entry("bspline"))).toEqual(["NEC-compatible", "Converged"]);
   });
 
-  it("keeps the wire payload identical either way", () => {
-    // The three non-render branches that also moved off the hint. A control
-    // that renders the same but sends a different request would be the worse
-    // failure, because nothing on screen would say so.
+  it("keeps the wire payload right on both", () => {
     const sg = entry("sinusoidal-galerkin");
     expect(defaultOptsFor(sg, SERVED_OPTION_SPECS).model.feed_model).toBe("point");
-    expect(modelOptionsForRequest(sg, defaultOptsFor(sg, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS).feed_model).toBe("point");
+    // ...and the family that just gained it sends the value it was already
+    // solving with — anchored numerically in test_feed_model_exposure_1006.py.
+    const b = entry("bspline");
     expect(
-      modelOptionsForRequest(
-        sg,
-        optsWithModel("sinusoidal-galerkin", { feed_model: "segment" }),
-        SERVED_OPTION_SPECS,
-      ).feed_model,
-    ).toBe("segment");
-    // ...and plain sinusoidal must not receive the key AT ALL (momwire#212).
+      modelOptionsForRequest(b, defaultOptsFor(b, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS)
+        .feed_model,
+    ).toBe("point");
+    // Plain sinusoidal must still not receive the key AT ALL (momwire#212).
     const sin = entry("sinusoidal");
-    expect("feed_model" in modelOptionsForRequest(sin, defaultOptsFor(sin, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS)).toBe(false);
-    expect(defaultOptsFor(sin, SERVED_OPTION_SPECS).model.feed_model).toBeUndefined();
-  });
-
-  it("keeps the slot chip's (NEC gap) suffix on the same backends", () => {
-    const sg = entry("sinusoidal-galerkin");
-    expect(backendDisplayLabel(sg, optsWithModel("sinusoidal-galerkin", { feed_model: "segment" })))
-      .toContain("(NEC gap)");
-    expect(backendDisplayLabel(sg, defaultOptsFor(sg, SERVED_OPTION_SPECS))).not.toContain("(NEC gap)");
+    expect(
+      "feed_model" in
+        modelOptionsForRequest(sin, defaultOptsFor(sin, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS),
+    ).toBe(false);
   });
 });
 

@@ -107,8 +107,12 @@ def test_the_accepted_but_unexposed_knobs_stay_unexposed():
     either were exposed those tests would be asserting an absence for a reason
     that had evaporated — passing, and meaningless."""
     live = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    assert "feed_model" not in live["bspline"]["model_kwargs"]
-    assert live["bspline"]["axes"]["feed_model"] == ["segment-gap"]
+    # `bspline` USED to be here: it accepted `feed_model` and did not expose
+    # it. That was never a decision — the row mis-declared the axis as
+    # single-valued while the constructor defaulted to the other value
+    # (momwire#891). It is exposed now, so the surviving cases are razor's.
+    assert "feed_model" in live["bspline"]["model_kwargs"]
+    assert live["bspline"]["axes"]["feed_model"] == ["point-gap", "segment-gap"]
     assert "degree" not in live["razor-2p"]["model_kwargs"]
     assert live["razor-2p"]["axes"]["basis"] == ["tent"]
     # ...and the sinusoidal case, which is the one that was actually a bug.

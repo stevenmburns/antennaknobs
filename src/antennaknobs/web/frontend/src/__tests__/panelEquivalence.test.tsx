@@ -304,6 +304,13 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       "n_qp_pair: auto",
       "feed source smoothing",
       "K≥3 junction singular enrichment",
+      // ADDED DELIBERATELY, and it is why this list is asserted rather than
+      // described: the b-spline family gained a feed-model control when
+      // momwire#891 corrected a row that declared the axis single-valued
+      // while the constructor defaulted to the other value. A new control is
+      // exactly the kind of change an order assertion should force someone to
+      // look at, and this is that look.
+      "feed model",
     ]);
   });
 
