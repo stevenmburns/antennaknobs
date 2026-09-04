@@ -49,7 +49,15 @@ class Builder(InvVee):
             # near 14.1 MHz at this height over average ground — insulated
             # wire is a few percent electrically longer than bare, so this
             # sits below the bare-wire invvee factor.
-            "length_factor": 0.9440,
+            #
+            # 0.9440 -> 0.9395 at momwire#874, which gave the jacket its
+            # equivalent radius as well as its series inductance. The coated
+            # wire is now modelled as electrically slightly SHORTER than the
+            # inductance-only reading made it, so the tuned length comes in
+            # 0.47 % — a retune of the same knob, not a design change.
+            # Measured: at 0.9440 the stock deck read 65.38 + 7.72j; at
+            # 0.9395 it reads 64.39 - 0.00j, back inside the 55-75 ohm window.
+            "length_factor": 0.9395,
             "wire_type": "22-awg-pvc",
             "ui_params": MappingProxyType(
                 {
