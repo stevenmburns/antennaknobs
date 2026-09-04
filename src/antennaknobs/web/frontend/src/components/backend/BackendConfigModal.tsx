@@ -174,6 +174,21 @@ export function BackendConfigModal({
             <ExtendedKernelField backend={backend} opts={opts} onPatch={onPatch} />
           )}
 
+          {/* Degree tabs, from the `basis` axis (#1006 G2-5). Rendered
+              whenever the backend offers ANY degree, not only two: that is
+              what the bespoke panel did, and a backend whose basis axis
+              carried one value would otherwise lose the control that says
+              which. `degreeChoices` already returns [] for a backend that
+              does not expose `degree` at all, which is what keeps this off
+              pynec. */}
+          {degreeChoices(backend).length > 0 && (
+            <DegreeField
+              degrees={degreeChoices(backend)}
+              value={num(opts.model.degree)}
+              onSelect={(d) => onPatch({ model: { ...opts.model, degree: d } })}
+            />
+          )}
+
           {/* THE SOLVER KNOBS, drawn from the served catalogue (#1006 G2-6).
               No engine names, no panel hints, no per-knob branches: which
               knobs appear is `renderableOptions`, and each one's widget,
@@ -200,6 +215,8 @@ export function BackendConfigModal({
               />
             ))}
 
+
+
           {/* The axis-derived feed-model control (#1006 G2-5): it renders
               wherever `feed_model` is multi-valued, which is what the
               `sin-galerkin` panel hint used to mean. The hint survives only
@@ -213,21 +230,6 @@ export function BackendConfigModal({
               onSelect={(v) =>
                 onPatch({ model: { ...opts.model, feed_model: v } })
               }
-            />
-          )}
-
-          {/* Degree tabs, from the `basis` axis (#1006 G2-5). Rendered
-              whenever the backend offers ANY degree, not only two: that is
-              what the bespoke panel did, and a backend whose basis axis
-              carried one value would otherwise lose the control that says
-              which. `degreeChoices` already returns [] for a backend that
-              does not expose `degree` at all, which is what keeps this off
-              pynec. */}
-          {degreeChoices(backend).length > 0 && (
-            <DegreeField
-              degrees={degreeChoices(backend)}
-              value={num(opts.model.degree)}
-              onSelect={(d) => onPatch({ model: { ...opts.model, degree: d } })}
             />
           )}
 
