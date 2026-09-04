@@ -17,12 +17,17 @@ import { DesignSession } from "../components/session/DesignSession";
 import type { BackendEntry } from "../lib/backends";
 import type { ExampleDescriptor } from "../lib/params";
 import { SERVED_ROSTER } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const FAKE: BackendEntry = {
   name: "fake-solver",
   label: "Fake Solver",
   kind: "momwire",
   supports_ground: false,
+  // The solver knobs this invented backend EXPOSES (#1006 G2-6). Still a
+  // server-only field, so the probe's thesis is unchanged: registering a
+  // solver is the whole change and no TypeScript moves.
+  model_kwargs: ["n_qp_const"],
   options_schema: [
     {
       key: "n_qp_const",
@@ -85,6 +90,7 @@ beforeEach(() => {
       return jsonResponse({
         have_pynec: true,
         backends: servedRoster,
+        model_option_specs: SERVED_OPTION_SPECS,
         terrain_presets: [],
       });
     if (path.startsWith("/examples"))

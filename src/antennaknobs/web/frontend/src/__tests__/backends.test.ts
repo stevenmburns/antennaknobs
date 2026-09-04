@@ -6,7 +6,6 @@
 // module-scope WS_URL reads window.location), not for these.
 import { describe, it, expect } from "vitest";
 import {
-  BSPLINE_DEFAULT_OPTS,
   backendAllowed,
   backendDisplayLabel,
   backendSupportsGround,
@@ -14,23 +13,22 @@ import {
   comboInappropriate,
   defaultOptsFor,
   defaultSlots,
-  EK_ENRICHMENT_REASON,
   extendedKernelActive,
-  extendedKernelRefusal,
   findBackend,
   hasBSplinePanel,
   normalizeBackend,
   slotFromSeed,
   type BackendEntry,
-  type BackendOpts,
 } from "../lib/backends";
 import {
   backendEntry,
   backendOption,
   entry,
+  optsWithModel,
   ROSTER_NO_PYNEC,
   SERVED_ROSTER,
 } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const NAMES = SERVED_ROSTER.map((b) => b.name);
 
@@ -73,103 +71,118 @@ describe("findBackend", () => {
 
 describe("defaultOptsFor", () => {
   it("seeds the served generic knobs under their own (wire) keys", () => {
-    const opts = defaultOptsFor(entry("sinusoidal"));
-    expect(opts.schema).toEqual({ n_qp_const: 8 });
+    const opts = defaultOptsFor(entry("sinusoidal"), SERVED_OPTION_SPECS);
+    // Keyed by the SERVER's kwarg names, defaults from the SERVED catalogue —
+    // this used to be `opts.schema` beside a panel-shaped `opts.bspline`.
+    // `feed_model` is deliberately ABSENT: `SinusoidalSolver` accepts the
+    // kwarg and refuses the value "point" (momwire#212), so the server does
+    // not EXPOSE it here. Its Galerkin sibling does — asserted below.
+    expect(opts.model).toEqual({ n_qp_const: 8, extended_kernel: false });
+    expect(
+      defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS).model
+        .feed_model,
+    ).toBe("point");
     expect(opts.nPerWire).toBe(30);
   });
 
   it("takes segments/wire from the entry, not a client-side table", () => {
-    expect(defaultOptsFor(entry("arrayblock")).nPerWire).toBe(21);
-    expect(defaultOptsFor(entry("pynec")).nPerWire).toBe(21);
+    expect(defaultOptsFor(entry("arrayblock"), SERVED_OPTION_SPECS).nPerWire).toBe(21);
+    expect(defaultOptsFor(entry("pynec"), SERVED_OPTION_SPECS).nPerWire).toBe(21);
     expect(
-      defaultOptsFor(backendEntry({ name: "x", default_n_per_wire: 7 })).nPerWire,
+      defaultOptsFor(backendEntry({ name: "x", default_n_per_wire: 7 }), SERVED_OPTION_SPECS).nPerWire,
     ).toBe(7);
   });
 
-  it("attaches bespoke panel state only for the entry that names that panel", () => {
-    expect(defaultOptsFor(entry("bspline")).bspline).toEqual(BSPLINE_DEFAULT_OPTS);
-    expect(defaultOptsFor(entry("bspline")).feedModel).toBeUndefined();
-    expect(defaultOptsFor(entry("sinusoidal-galerkin")).feedModel).toBe("point");
-    expect(defaultOptsFor(entry("sinusoidal-galerkin")).bspline).toBeUndefined();
-    expect(defaultOptsFor(entry("sinusoidal")).bspline).toBeUndefined();
-    expect(defaultOptsFor(entry("sinusoidal")).feedModel).toBeUndefined();
+  it("seeds exactly the kwargs the backend ACCEPTS, and no others", () => {
+    // The b-spline family takes twelve knobs and NOT n_qp_const; the
+    // sinusoidal family takes three and DOES. That asymmetry is the server's
+    // measurement (test_backend_model_kwargs_1006.py) and it is the fact the
+    // `panel` hint could never express, since it named a panel rather than a
+    // set of knobs.
+    const bspline = defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS).model;
+    expect(Object.keys(bspline)).toContain("degree");
+    expect(Object.keys(bspline)).not.toContain("n_qp_const");
+    const sin = defaultOptsFor(entry("sinusoidal"), SERVED_OPTION_SPECS).model;
+    expect(Object.keys(sin)).toContain("n_qp_const");
+    expect(Object.keys(sin)).not.toContain("degree");
+    // pynec takes none at all — an empty map, not a guess at some.
+    expect(defaultOptsFor(entry("pynec"), SERVED_OPTION_SPECS).model).toEqual({});
   });
+
 
   // Absence, not `false`: that is the EK card's own convention, and it is what
   // keeps a stock request byte-identical to the pre-#849 one (pinned as JSON
   // in modelOptions.test.ts).
   it("leaves the extended kernel unset on every backend (#849)", () => {
     for (const b of SERVED_ROSTER) {
-      expect(defaultOptsFor(b).extendedKernel).toBeUndefined();
-      expect(extendedKernelActive(b, defaultOptsFor(b))).toBe(false);
+      // False in the map, ABSENT from the wire — `modelOptionsForRequest`
+      // deletes it unless in force, which is what keeps a kernel-off request
+      // byte-identical to the pre-#849 one.
+      expect(defaultOptsFor(b, SERVED_OPTION_SPECS).model.extended_kernel).not.toBe(true);
+      expect(extendedKernelActive(b, defaultOptsFor(b, SERVED_OPTION_SPECS))).toBe(false);
     }
   });
 });
 
-describe("extendedKernelRefusal (#849)", () => {
-  const on = (name: string) => ({ ...defaultOptsFor(entry(name)), extendedKernel: true });
+// `extendedKernelRefusal` and `EK_ENRICHMENT_REASON` are GONE (#1006 G2-6).
+//
+// They were a hand-written copy of momwire's refusal and a DRIFTED one: they
+// cited momwire#271 where momwire's own `_ENRICHMENT_EXTENDED_KERNEL_REFUSAL`
+// cites momwire#249 follow-up C, and gave one reason where it gives three.
+// The tests here asserted that copy — including `expect(EK_ENRICHMENT_REASON)
+// .toContain("momwire#271")`, which pinned the WRONG issue number in place.
+//
+// momwire#888 added the served coupling row, so the exclusion now arrives
+// through `constraints` like every other refusal and is exercised by
+// `designRefusal` in backendAxisControls.test.ts. Nothing is untested; the
+// test moved to where the fact now lives.
 
-  it("passes every backend that momwire serves the kernel on", () => {
-    // Every momwire basis serves the kernel since momwire 0.27.0 — the
-    // Galerkin family joined with momwire#246/#287/#299.
-    for (const name of [
-      "sinusoidal",
-      "sinusoidal-galerkin",
-      "bspline",
-      "hmatrix",
-      "arrayblock",
-    ]) {
-      expect(extendedKernelRefusal(entry(name), on(name))).toBeNull();
-      expect(extendedKernelActive(entry(name), on(name))).toBe(true);
-    }
-  });
-
-  it("refuses alongside singular enrichment, citing momwire#271", () => {
-    const opts = on("bspline");
-    opts.bspline = { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: true };
-    expect(extendedKernelRefusal(entry("bspline"), opts)).toBe(EK_ENRICHMENT_REASON);
-    expect(EK_ENRICHMENT_REASON).toContain("momwire#271");
-    expect(extendedKernelActive(entry("bspline"), opts)).toBe(false);
-    // Enrichment off again and the same slot serves it.
-    opts.bspline = { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: false };
-    expect(extendedKernelActive(entry("bspline"), opts)).toBe(true);
-  });
-
-  it("never activates on PyNEC, which takes no model_options at all", () => {
-    // PyNEC's own extended-kernel support (issue #414) is a separate,
-    // unexposed kwarg — this toggle must not claim to drive it.
-    expect(extendedKernelActive(entry("pynec"), on("pynec"))).toBe(false);
-  });
-
-  it("serves a momwire backend the roster invented and nobody hardcoded", () => {
-    const fake = backendEntry({ name: "fake-solver", label: "Fake" });
-    expect(
-      extendedKernelActive(fake, { ...defaultOptsFor(fake), extendedKernel: true }),
-    ).toBe(true);
-  });
-});
 
 describe("slotFromSeed / defaultSlots", () => {
   it("resolves the stock A/B/C seeds against the full roster", () => {
-    const slots = defaultSlots(SERVED_ROSTER);
+    const slots = defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS);
     expect(slots.A.backend).toBe(entry("bspline"));
     expect(slots.A.opts.nPerWire).toBe(15);
-    expect(slots.A.opts.bspline?.degree).toBe(2);
+    expect(slots.A.opts.model.degree).toBe(2);
     expect(slots.B.backend).toBe(entry("bspline"));
     expect(slots.B.opts.nPerWire).toBe(20);
-    expect(slots.B.opts.bspline?.degree).toBe(1);
+    expect(slots.B.opts.model.degree).toBe(1);
     expect(slots.C.backend).toBe(entry("pynec"));
   });
 
   it("falls back to the roster's first entry when the seeded backend is absent (#429)", () => {
-    const slots = defaultSlots(ROSTER_NO_PYNEC);
+    const slots = defaultSlots(ROSTER_NO_PYNEC, SERVED_OPTION_SPECS);
     expect(slots.C.backend).toBe(ROSTER_NO_PYNEC[0]);
-    expect(slots.C.opts).toEqual(defaultOptsFor(ROSTER_NO_PYNEC[0]));
+    expect(slots.C.opts).toEqual(
+      defaultOptsFor(ROSTER_NO_PYNEC[0], SERVED_OPTION_SPECS),
+    );
   });
 
-  it("applies the seed's deviations without mutating the entry's defaults", () => {
-    slotFromSeed({ backend: "bspline", bspline: { degree: 1 } }, SERVED_ROSTER);
-    expect(BSPLINE_DEFAULT_OPTS.degree).toBe(2);
+  it("applies the seed's deviations without mutating the served defaults", () => {
+    const seeded = slotFromSeed(
+      { backend: "bspline", model: { degree: 1 } },
+      SERVED_ROSTER,
+      SERVED_OPTION_SPECS,
+    );
+    expect(seeded.opts.model.degree).toBe(1);
+    // The catalogue is shared across every slot, so a seed that wrote through
+    // to it would silently re-default every OTHER slot.
+    expect(SERVED_OPTION_SPECS.degree.default).toBe(2);
+    expect(
+      defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS).model.degree,
+    ).toBe(2);
+  });
+
+  it("ignores a seed naming a kwarg the backend does not accept", () => {
+    // A seed is a preset, not an override: putting an unaccepted kwarg on the
+    // wire means the hosted sanitiser drops it and a local install raises
+    // TypeError, neither of which the user asked for.
+    const seeded = slotFromSeed(
+      { backend: "sinusoidal", model: { degree: 1 } },
+      SERVED_ROSTER,
+      SERVED_OPTION_SPECS,
+    );
+    expect(seeded.opts.model.degree).toBeUndefined();
   });
 
   it("seeds a backend the roster invented, with no seed of its own", () => {
@@ -177,14 +190,19 @@ describe("slotFromSeed / defaultSlots", () => {
       name: "fake-solver",
       label: "Fake",
       default_n_per_wire: 9,
+      model_kwargs: ["n_qp_const"],
       options_schema: [backendOption()],
     });
-    const cfg = slotFromSeed({ backend: "fake-solver" }, [...SERVED_ROSTER, fake]);
+    const cfg = slotFromSeed(
+      { backend: "fake-solver" },
+      [...SERVED_ROSTER, fake],
+      SERVED_OPTION_SPECS,
+    );
     expect(cfg.backend).toBe(fake);
     expect(cfg.opts).toEqual({
       nPerWire: 9,
       wireRadius: 0.0005,
-      schema: { n_qp_const: 8 },
+      model: { n_qp_const: SERVED_OPTION_SPECS.n_qp_const.default },
     });
   });
 });
@@ -300,9 +318,7 @@ describe("hasBSplinePanel / backendSupportsGround / backendSupportsTerrain", () 
 
 describe("backendDisplayLabel", () => {
   const withDegree = (name: string, degree: 1 | 2) => {
-    const opts = defaultOptsFor(entry(name));
-    opts.bspline = { ...BSPLINE_DEFAULT_OPTS, degree };
-    return backendDisplayLabel(entry(name), opts);
+    return backendDisplayLabel(entry(name), optsWithModel(name, { degree }));
   };
 
   it("carries the spline degree for every backend on the b-spline panel", () => {
@@ -313,12 +329,11 @@ describe("backendDisplayLabel", () => {
   });
 
   it('suffixes "(NEC gap)" for the sin-galerkin panel with the segment feed model', () => {
-    const opts = defaultOptsFor(entry("sinusoidal-galerkin"));
     expect(
-      backendDisplayLabel(entry("sinusoidal-galerkin"), {
-        ...opts,
-        feedModel: "segment",
-      }),
+      backendDisplayLabel(
+        entry("sinusoidal-galerkin"),
+        optsWithModel("sinusoidal-galerkin", { feed_model: "segment" }),
+      ),
     ).toBe("Sin-Galerkin (NEC gap)");
   });
 
@@ -326,8 +341,8 @@ describe("backendDisplayLabel", () => {
   // momwire#654: the point gap is the solver's default now, so a plain chip
   // is the converged one.
   it("stays plain for the sin-galerkin panel with the default point feed model", () => {
-    const opts = defaultOptsFor(entry("sinusoidal-galerkin"));
-    expect(opts.feedModel).toBe("point");
+    const opts = defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS);
+    expect(opts.model.feed_model).toBe("point");
     expect(backendDisplayLabel(entry("sinusoidal-galerkin"), opts)).toBe(
       "Sin-Galerkin",
     );
@@ -335,9 +350,9 @@ describe("backendDisplayLabel", () => {
 
   it("is the served label for a panel-less backend, including one nobody hardcoded", () => {
     expect(
-      backendDisplayLabel(entry("sinusoidal"), defaultOptsFor(entry("sinusoidal"))),
+      backendDisplayLabel(entry("sinusoidal"), defaultOptsFor(entry("sinusoidal"), SERVED_OPTION_SPECS)),
     ).toBe("Sinusoidal");
-    expect(backendDisplayLabel(entry("pynec"), defaultOptsFor(entry("pynec")))).toBe(
+    expect(backendDisplayLabel(entry("pynec"), defaultOptsFor(entry("pynec"), SERVED_OPTION_SPECS))).toBe(
       "PyNEC",
     );
     const fake = backendEntry({
@@ -345,23 +360,20 @@ describe("backendDisplayLabel", () => {
       label: "Fake",
       options_schema: [backendOption()],
     });
-    expect(backendDisplayLabel(fake, defaultOptsFor(fake))).toBe("Fake");
+    expect(backendDisplayLabel(fake, defaultOptsFor(fake, SERVED_OPTION_SPECS))).toBe("Fake");
   });
 
   // The A/B story of #849 is "same basis, one slot with the kernel": if the
   // chips don't say which, the comparison is unreadable.
   it('affixes "+EK" wherever the extended kernel is in force', () => {
-    const ek = (name: string, over: Partial<BackendOpts> = {}) =>
-      backendDisplayLabel(entry(name), {
-        ...defaultOptsFor(entry(name)),
-        extendedKernel: true,
-        ...over,
-      });
+    const ek = (name: string, over: Record<string, unknown> = {}) =>
+      backendDisplayLabel(
+        entry(name),
+        optsWithModel(name, { extended_kernel: true, ...over }),
+      );
     expect(ek("sinusoidal")).toBe("Sinusoidal +EK");
     expect(ek("bspline")).toBe("B-spline d=2 +EK");
-    expect(ek("bspline", { bspline: { ...BSPLINE_DEFAULT_OPTS, degree: 1 } })).toBe(
-      "B-spline d=1 +EK",
-    );
+    expect(ek("bspline", { degree: 1 })).toBe("B-spline d=1 +EK");
     expect(ek("hmatrix")).toBe("H-matrix (ACA) d=2 +EK");
     expect(ek("arrayblock")).toBe("Array-block d=2 +EK");
   });
@@ -369,30 +381,30 @@ describe("backendDisplayLabel", () => {
   it("leaves the label alone when the kernel is off or refused", () => {
     // Off: the default, and the other half of every A/B pair.
     expect(
-      backendDisplayLabel(entry("bspline"), defaultOptsFor(entry("bspline"))),
+      backendDisplayLabel(entry("bspline"), defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)),
     ).toBe("B-spline d=2");
     // Served on Galerkin since momwire 0.27.0 — the flag on that slot IS a
     // running kernel now, and the chip says so.
     expect(
-      backendDisplayLabel(entry("sinusoidal-galerkin"), {
-        ...defaultOptsFor(entry("sinusoidal-galerkin")),
-        feedModel: "segment",
-        extendedKernel: true,
-      }),
+      backendDisplayLabel(
+        entry("sinusoidal-galerkin"),
+        optsWithModel("sinusoidal-galerkin", {
+          feed_model: "segment",
+          extended_kernel: true,
+        }),
+      ),
     ).toBe("Sin-Galerkin (NEC gap) +EK");
-    // Refused by enrichment.
-    expect(
-      backendDisplayLabel(entry("bspline"), {
-        ...defaultOptsFor(entry("bspline")),
-        bspline: { ...BSPLINE_DEFAULT_OPTS, useSingularEnrichment: true },
-        extendedKernel: true,
-      }),
-    ).toBe("B-spline d=2");
+    // NOTE: the enrichment case used to appear here, asserting the chip
+    // stayed plain because the frontend's own `extendedKernelRefusal` vetoed
+    // the kernel. That local veto is deleted (#1006 G2-6) — the exclusion is
+    // momwire's and travels in `constraints` — so the chip now reflects what
+    // the user asked for, and the refusal is surfaced by `designRefusal` on
+    // the solve path rather than by silently rewriting the label.
     // Never on PyNEC.
     expect(
       backendDisplayLabel(entry("pynec"), {
-        ...defaultOptsFor(entry("pynec")),
-        extendedKernel: true,
+        ...defaultOptsFor(entry("pynec"), SERVED_OPTION_SPECS),
+        model: { extended_kernel: true },
       }),
     ).toBe("PyNEC");
   });

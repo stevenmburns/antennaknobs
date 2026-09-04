@@ -13,10 +13,10 @@ import {
   backendDisplayLabel,
   backendSupportsGround,
   comboInappropriate,
-  hasBSplinePanel,
   modelOptionsForRequest,
   normalizeBackend,
   type BackendRoster,
+  type ModelOptionSpecs,
 } from "../../lib/backends";
 import {
   bandContaining as bandContainingIn,
@@ -107,7 +107,7 @@ import { VfoPanel } from "./VfoPanel";
 // answered; this wrapper holds the one hook that decides, which keeps the
 // body's own (large, order-sensitive) hook sequence untouched.
 export function DesignSession({ id, active }: { id: number; active: boolean }) {
-  const { roster, terrainPresets, error } = useCapabilities();
+  const { roster, terrainPresets, modelOptionSpecs, error } = useCapabilities();
   if (error !== null)
     return (
       <div className="app app-capabilities" role="alert">
@@ -123,6 +123,7 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       active={active}
       roster={roster}
       terrainPresets={terrainPresets}
+      modelOptionSpecs={modelOptionSpecs}
     />
   );
 }
@@ -132,11 +133,14 @@ function DesignSessionBody({
   active,
   roster,
   terrainPresets,
+  modelOptionSpecs,
 }: {
   id: number;
   active: boolean;
   roster: BackendRoster;
   terrainPresets: TerrainPresetSchema[];
+  /** The served solver-knob catalogue (#1006 G2-6). */
+  modelOptionSpecs: ModelOptionSpecs;
 }) {
   const [geometry, setGeometry] = useState<string>("");
 
@@ -367,7 +371,7 @@ function DesignSessionBody({
     updateSlotOpts,
     setSlotBackend,
     resetSlot,
-  } = useSolverSlots({ roster });
+  } = useSolverSlots({ roster, specs: modelOptionSpecs });
   // True once the user clicked "Solve anyway" for the current design+solver
   // combo, so re-solves (knob drags) don't re-warn. Reset whenever the design or
   // solver changes (see the reset effect below). Mirrored into state so the
@@ -793,14 +797,14 @@ function DesignSessionBody({
     }
     if (backend.kind === "momwire") {
       base.momwire_model = backend.name;
-      const opts = modelOptionsForRequest(backend, currentOpts);
+      const opts = modelOptionsForRequest(backend, currentOpts, modelOptionSpecs);
       // Enrichment now solves over ground (momwire #167: PEC image reaction,
       // refl-coef, and Sommerfeld), so this is no longer an error guard — it is
       // a UX choice. Enrichment is a validation-only knob that is redundant for
       // the d=2 basis (issue #565), so we keep it off when ground is active
       // rather than surface a control that can only match or worsen the grounded
       // production solve; the gear shows the validation note.
-      if (hasBSplinePanel(backend) && groundActive) {
+      if (groundActive && "use_singular_enrichment" in opts) {
         opts.use_singular_enrichment = false;
       }
       base.model_options = opts;

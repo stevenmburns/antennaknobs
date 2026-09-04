@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { BackendRoster } from "../../lib/backends";
+import type { BackendRoster, ModelOptionSpecs } from "../../lib/backends";
 import type { TerrainPresetSchema } from "../../lib/ground";
 
 /** GET /capabilities, typed. `have_pynec` is still served for compatibility
@@ -7,6 +7,7 @@ import type { TerrainPresetSchema } from "../../lib/ground";
 type CapabilitiesPayload = {
   backends?: BackendRoster;
   terrain_presets?: TerrainPresetSchema[];
+  model_option_specs?: ModelOptionSpecs;
 };
 
 export type CapabilitiesState = {
@@ -15,6 +16,11 @@ export type CapabilitiesState = {
    *  backend-dependent UI waits instead of rendering a guess. */
   roster: BackendRoster | null;
   terrainPresets: TerrainPresetSchema[];
+  /** The solver-knob catalogue (#1006 G2-6), keyed by kwarg. Empty from a
+   *  server predating it — "describes nothing", which yields a slot with no
+   *  model options rather than a guess at some. Not an error path: the roster
+   *  is what a session cannot start without. */
+  modelOptionSpecs: ModelOptionSpecs;
   error: string | null;
 };
 
@@ -28,6 +34,7 @@ export function useCapabilities(): CapabilitiesState {
   const [terrainPresets, setTerrainPresets] = useState<TerrainPresetSchema[]>(
     [],
   );
+  const [modelOptionSpecs, setModelOptionSpecs] = useState<ModelOptionSpecs>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,6 +47,11 @@ export function useCapabilities(): CapabilitiesState {
         if (cancelled) return;
         setTerrainPresets(
           Array.isArray(c.terrain_presets) ? c.terrain_presets : [],
+        );
+        setModelOptionSpecs(
+          c.model_option_specs && typeof c.model_option_specs === "object"
+            ? c.model_option_specs
+            : {},
         );
         // An empty roster is as unusable as a failed fetch — there would be
         // no solver to pick — so it takes the error path rather than
@@ -58,5 +70,5 @@ export function useCapabilities(): CapabilitiesState {
     };
   }, []);
 
-  return { roster, terrainPresets, error };
+  return { roster, terrainPresets, modelOptionSpecs, error };
 }

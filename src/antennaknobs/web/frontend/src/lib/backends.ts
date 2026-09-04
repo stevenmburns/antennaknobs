@@ -325,7 +325,7 @@ export function backendOptsAllowed(
   if (!constraints || !design) return null;
   for (const c of constraints) {
     if (!c.forbids_is_axis) continue;
-    if (c.axis === "kernel" && c.value === "extended" && !opts.extendedKernel) {
+    if (c.axis === "kernel" && c.value === "extended" && !opts.model.extended_kernel) {
       continue;
     }
     if (c.forbids_axis === "wire_position" && c.forbids_value === "buried") {
@@ -345,7 +345,7 @@ export function steppedJunctionNote(
   opts: BackendOpts,
   design: DesignConstraintInputs | null | undefined,
 ): BackendConstraint | null {
-  if (!opts.extendedKernel || !design?.has_stepped_radius_junction) return null;
+  if (!opts.model.extended_kernel || !design?.has_stepped_radius_junction) return null;
   return (
     (b.constraints ?? []).find(
       (c) => c.axis === "kernel" && c.forbids_axis === "junction_ports",
@@ -504,44 +504,44 @@ export const DEFAULT_WIRE_RADIUS = 0.0005;
 export type BackendOpts = {
   nPerWire: number;
   wireRadius: number;
-  schema: Record<string, number>;
-  bspline?: BSplineOpts;
-  // Sin-Galerkin only (PANEL_SIN_GALERKIN, issue #640, momwire#192).
-  // "point" = Converged (zero-width gap — converges to the B-spline answer,
-  // exactly reciprocal Y; the solver's default since momwire#654, and
-  // recommended for near-open high-Q designs, momwire#213); "segment" =
-  // NEC-compatible (NEC's own segment-wide gap, including the reactance walk
-  // with mesh density). "NEC-compatible" is a claim about the SOURCE and not
-  // about the formulation — for a NEC cross-check the whole formulation is
-  // the `sinusoidal` backend. Deliberately not offered on plain sinusoidal:
-  // the point gap has no collocation RHS (momwire#212), so that solver's
-  // roster entry names no panel.
-  feedModel?: FeedModel;
-  // NEC's extended thin-wire kernel — the `EK` card (issue #849, momwire >=
-  // 0.26.0). Common to every momwire backend rather than panel-specific, so
-  // it sits beside wire radius rather than inside a bespoke panel: it is the
-  // knob that says how the on-axis Green's function treats that radius.
-  // ABSENT = off, which is the EK card's own convention (a deck with no `EK`
-  // card, and `EK -1`, both read as the reduced kernel) and what keeps a
-  // kernel-off request byte-identical to what every release before #849 sent.
-  extendedKernel?: boolean;
+  /** Solver kwargs, keyed by the SERVER'S OWN kwarg name (#1006 G2-6).
+   *
+   *  One flat map, deliberately. This used to be `schema` (the generic
+   *  numeric knobs) plus `bspline` (a bespoke panel's state) plus two loose
+   *  fields, and `opts.bspline` is an engine name in the data model — so a
+   *  renderer over that shape could never be generic, and a grep for engine
+   *  names would have passed only because the name was a property rather
+   *  than a string literal.
+   *
+   *  A key ABSENT means "not set"; for a spec with `auto_when_null` a null
+   *  means "let the solver decide" and the key is dropped from the request
+   *  rather than sent. Both are load-bearing — see `modelOptionsForRequest`.
+   */
+  model: Record<string, unknown>;
 };
 
-/** A backend's stock options: served numeric defaults plus the bespoke
- *  panel's own defaults. */
-export function defaultOptsFor(b: BackendEntry): BackendOpts {
-  const opts: BackendOpts = {
+/** A backend's stock options, from the SERVED spec defaults.
+ *
+ *  Takes the catalogue rather than closing over a local table: the defaults
+ *  are the server's (`_OPTION_SPECS`), and a copy here is the duplication
+ *  #1006 G2-6 removes. An empty catalogue — a server predating it — yields no
+ *  model options at all, which is the honest answer rather than a guess.
+ */
+export function defaultOptsFor(
+  b: BackendEntry,
+  specs: ModelOptionSpecs,
+): BackendOpts {
+  const model: Record<string, unknown> = {};
+  for (const key of b.model_kwargs ?? []) {
+    const spec = specs[key];
+    if (spec === undefined) continue;
+    model[key] = spec.default;
+  }
+  return {
     nPerWire: b.default_n_per_wire,
     wireRadius: DEFAULT_WIRE_RADIUS,
-    schema: Object.fromEntries(b.options_schema.map((f) => [f.key, f.default])),
+    model,
   };
-  if (b.panel === PANEL_BSPLINE) opts.bspline = { ...BSPLINE_DEFAULT_OPTS };
-  // The solver's own default (momwire#654 made it the point gap), and the
-  // one the gear menu recommends on near-open designs (#640). Sent
-  // explicitly rather than left unset so the wire format says which source
-  // ran regardless of which momwire the server is carrying.
-  if (offersFeedModelChoice(b)) opts.feedModel = "point";
-  return opts;
 }
 
 // ---------------------------------------------------------------------------
@@ -556,30 +556,12 @@ export const EK_HINT =
   "— a fraction of a percent at Δ/a > 10, several percent below Δ/a ≈ 3 — " +
   "and costs about 1.0–1.3× the reduced-kernel solve.";
 
-// The one basis that cannot serve the kernel. Named here rather than read off
-// Since momwire 0.27.0 every momwire basis serves the extended kernel — the
-// Galerkin family joined with momwire#246/#287/#299 — so the one refusal left
-// is the enrichment combination below. This is the frontend twin of
-// engines/momwire.py::_extended_kernel_refusal, which raises the same refusal
-// server-side — a stale rule here costs a clear error dialog, not a wrong
-// answer. If a second refusal ever appears, that is the moment to serve the
-// capability as a roster field instead of another local rule.
-export const EK_ENRICHMENT_REASON =
-  "The extended kernel and K≥3 junction singular enrichment cannot be used " +
-  "together (momwire#271): the enrichment DOFs bypass the moment kernels the " +
-  "extended kernel corrects. Turn one of the two off.";
-
-/** Why this slot cannot run the extended kernel, or null if it can. Mirrors
- *  the engine-side refusals so the gear menu can grey the toggle out and say
- *  why, instead of letting the solve come back as an error dialog. */
-export function extendedKernelRefusal(
-  _b: BackendEntry,
-  opts: BackendOpts,
-): string | null {
-  if (opts.bspline?.useSingularEnrichment) return EK_ENRICHMENT_REASON;
-  return null;
-}
-
+// Every momwire basis serves the extended kernel since momwire 0.27.0 (the
+// Galerkin family joined with momwire#246/#287/#299). The refusals that
+// remain are COMBINATIONS, and they are momwire's to state: they arrive in
+// the roster's `constraints` and are read by `designRefusal`. This file no
+// longer carries a local rule about any of them — see momwire#888 for what
+// the last local copy had drifted into.
 /** The design-dependent refusal for this slot, or null.
  *
  *  The gate #1006 point 4 asks for, and it is DERIVED STATE: it takes the
@@ -604,16 +586,27 @@ export function designRefusal(
   );
 }
 
-/** Is the extended kernel actually in force for this slot? True only when the
- *  user asked for it AND this backend can serve it — a slot whose backend
- *  changed under a set flag solves reduced rather than erroring, and the chip
- *  and the request agree with the toggle the gear menu is showing. PyNEC is
- *  excluded outright: it sends no `model_options` at all, and its own
- *  extended-kernel support (issue #414) is a separate, unexposed kwarg. */
+/** Is the extended kernel actually in force for this slot?
+ *
+ *  True only when the user asked for it AND this backend can serve it — a
+ *  slot whose backend changed under a set flag solves reduced rather than
+ *  erroring, so the chip and the request agree with the toggle on screen.
+ *  PyNEC is excluded outright: it sends no `model_options` at all, and its
+ *  own extended-kernel support (issue #414) is a separate, unexposed kwarg.
+ *
+ *  THE ENRICHMENT EXCLUSION NO LONGER LIVES HERE. `EK_ENRICHMENT_REASON` and
+ *  `extendedKernelRefusal` were a hand-written copy of momwire's refusal,
+ *  and a drifted one: they cited momwire#271 where momwire's own
+ *  `_ENRICHMENT_EXTENDED_KERNEL_REFUSAL` cites momwire#249 follow-up C, and
+ *  gave one reason where it gives three. There was no served row to
+ *  reference until momwire#888 added it; now there is, so the copy is gone
+ *  and the exclusion arrives through `constraints` like every other refusal.
+ */
 export function extendedKernelActive(b: BackendEntry, opts: BackendOpts): boolean {
-  if (b.kind !== "momwire" || !opts.extendedKernel) return false;
-  return extendedKernelRefusal(b, opts) === null;
+  if (b.kind !== "momwire" || !opts.model.extended_kernel) return false;
+  return true;
 }
+
 
 // Three abstract solver slots. Each holds one backend choice and its
 // options; the user picks A/B/C with the row of buttons, configures the
@@ -638,14 +631,16 @@ export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string 
   // Affixed only when the kernel is actually IN FORCE, never when a backend
   // that refuses it is carrying a set flag.
   const ek = extendedKernelActive(b, opts) ? " +EK" : "";
-  if (b.panel === PANEL_BSPLINE)
-    return `${b.label} d=${opts.bspline?.degree ?? BSPLINE_DEFAULT_OPTS.degree}${ek}`;
+  // The degree affix, when this backend has a degree at all — read off the
+  // served kwarg, not off a panel hint.
+  const degree = opts.model.degree;
+  if (degree !== undefined && degree !== null) return `${b.label} d=${degree}${ek}`;
   // Surface the non-default feed model on the slot chip: two Sin-Galerkin
   // slots differing only in feed model must be tellable apart at a glance.
   // Which value IS the deviation flipped with momwire#654 — the point gap is
   // the solver's default now, so a plain chip means converged and the chip
   // that carries a suffix is the one asking for NEC's source.
-  if (offersFeedModelChoice(b) && opts.feedModel === "segment")
+  if (offersFeedModelChoice(b) && opts.model.feed_model === "segment")
     return `${b.label} (NEC gap)${ek}`;
   return `${b.label}${ek}`;
 }
@@ -656,7 +651,8 @@ export function backendDisplayLabel(b: BackendEntry, opts: BackendOpts): string 
 export type SlotSeed = {
   backend: string;
   nPerWire?: number;
-  bspline?: Partial<BSplineOpts>;
+  /** Deviations from the backend's stock options, keyed by served kwarg. */
+  model?: Record<string, unknown>;
 };
 
 export const DEFAULT_SLOT_SEEDS: Record<Slot, SlotSeed> = {
@@ -675,7 +671,7 @@ export const DEFAULT_SLOT_SEEDS: Record<Slot, SlotSeed> = {
   // trades cross-check tightness for speed (within 2% of the limit on
   // 45/66 vs 55/66 at the old N=40 — disagreement with A beyond a couple
   // of percent warrants raising N before suspecting the design).
-  B: { backend: "bspline", nPerWire: 20, bspline: { degree: 1 } },
+  B: { backend: "bspline", nPerWire: 20, model: { degree: 1 } },
   C: { backend: "pynec" },
 };
 
@@ -685,20 +681,31 @@ export const DEFAULT_SLOT_SEEDS: Record<Slot, SlotSeed> = {
 // panel applies to a parked preset name (#560). Falling back to the head of
 // the served order rather than a hardcoded name is what keeps this file free
 // of a second roster: the server puts its plainest solver first.
-export function slotFromSeed(seed: SlotSeed, roster: BackendRoster): SlotConfig {
+export function slotFromSeed(
+  seed: SlotSeed,
+  roster: BackendRoster,
+  specs: ModelOptionSpecs,
+): SlotConfig {
   const backend = findBackend(roster, seed.backend) ?? roster[0];
-  const opts = defaultOptsFor(backend);
+  const opts = defaultOptsFor(backend, specs);
   if (seed.nPerWire != null) opts.nPerWire = seed.nPerWire;
-  if (seed.bspline && opts.bspline)
-    opts.bspline = { ...opts.bspline, ...seed.bspline };
+  // Only deviations the backend actually takes: a seed naming a kwarg this
+  // solver does not accept would put it on the wire, where the hosted
+  // sanitiser drops it and a local install raises TypeError.
+  for (const [k, v] of Object.entries(seed.model ?? {})) {
+    if (k in opts.model) opts.model[k] = v;
+  }
   return { backend, opts };
 }
 
-export function defaultSlots(roster: BackendRoster): Record<Slot, SlotConfig> {
+export function defaultSlots(
+  roster: BackendRoster,
+  specs: ModelOptionSpecs,
+): Record<Slot, SlotConfig> {
   return {
-    A: slotFromSeed(DEFAULT_SLOT_SEEDS.A, roster),
-    B: slotFromSeed(DEFAULT_SLOT_SEEDS.B, roster),
-    C: slotFromSeed(DEFAULT_SLOT_SEEDS.C, roster),
+    A: slotFromSeed(DEFAULT_SLOT_SEEDS.A, roster, specs),
+    B: slotFromSeed(DEFAULT_SLOT_SEEDS.B, roster, specs),
+    C: slotFromSeed(DEFAULT_SLOT_SEEDS.C, roster, specs),
   };
 }
 
@@ -710,45 +717,39 @@ export function defaultSlots(roster: BackendRoster): Record<Slot, SlotConfig> {
 export function modelOptionsForRequest(
   b: BackendEntry,
   opts: BackendOpts,
+  specs: ModelOptionSpecs,
 ): Record<string, unknown> {
   if (b.kind !== "momwire") return {};
   const out: Record<string, unknown> = {};
-  for (const f of b.options_schema) out[f.key] = opts.schema[f.key] ?? f.default;
-  if (b.panel === PANEL_BSPLINE) {
-    // bspline, hmatrix, and arrayblock all take the B-spline kwargs; the
-    // accelerators read additional aca_tol/solve_tol from their own defaults.
-    const o = opts.bspline ?? BSPLINE_DEFAULT_OPTS;
-    out.degree = o.degree;
-    // Omitted when auto, so momwire's own per-deck default decides. Never
-    // substitute a literal here: translating auto into 8 or 32 on this side
-    // re-creates the override #1064 is about, and AK does not know the
-    // geometry rule.
-    if (o.nQpPair != null) out.n_qp_pair = o.nQpPair;
-    out.n_qp_source = o.nQpSource;
-    out.feed_smoothing_factor = o.feedSmoothingFactor;
-    out.use_singular_enrichment = o.useSingularEnrichment;
-    out.enrichment_variant = o.enrichmentVariant;
-    out.tikhonov_lambda = o.tikhonovLambda;
-    out.auto_tap_ratio_threshold = o.autoTapRatioThreshold;
-    out.n_qp_sing = o.nQpSing;
-    out.enrichment_min_k = o.enrichmentMinK;
+  for (const key of b.model_kwargs ?? []) {
+    const spec = specs[key];
+    if (spec === undefined) continue;
+    const v = opts.model[key];
+    // NULL MEANS TWO DIFFERENT THINGS and the spec says which.
+    //
+    //   auto_when_null  -> "let the solver decide": DROP the key. Translating
+    //                      auto into a literal here re-creates the override
+    //                      antennaknobs#1064 is about, since momwire#863 made
+    //                      that default depend on the geometry.
+    //   allow_none      -> null IS the value (a sharp delta-gap, for
+    //                      feed_smoothing_factor): SEND it.
+    //
+    // Collapsing the two would either drop a meaningful null or invent a
+    // number for a knob whose default only momwire can compute.
+    if (v === undefined) {
+      if (spec.auto_when_null) continue;
+      out[key] = spec.default;
+      continue;
+    }
+    if (v === null && spec.auto_when_null) continue;
+    out[key] = v;
   }
-  if (offersFeedModelChoice(b)) {
-    // feed_model only here: plain sinusoidal cannot carry the point gap
-    // (momwire#212) and must not receive the key at all. The fallback is the
-    // solver's own default (momwire#654); a design saved before that default
-    // moved carries its own explicit value and is unaffected.
-    out.feed_model = opts.feedModel ?? "point";
-  }
-  // The extended thin-wire kernel travels as a model option (the server pulls
-  // it back out of model_options and passes it as the named `extended_kernel=`
-  // constructor kwarg). Sent ONLY when in force: absence is the reduced
-  // kernel — the EK card's own convention, and the spelling that keeps a
-  // kernel-off request byte-identical to what every release before #849 sent.
-  // The `extendedKernelActive` gate is also what keeps a refused combination
-  // off the wire; the UI disables the toggle on those, so this is the second
-  // of the two locks, not the only one.
+  // The extended thin-wire kernel is sent ONLY when in force: absence is the
+  // reduced kernel — the EK card's own convention, and the spelling that
+  // keeps a kernel-off request byte-identical to what every release before
+  // #849 sent. So it is deleted rather than sent false.
   if (extendedKernelActive(b, opts)) out.extended_kernel = true;
+  else delete out.extended_kernel;
   return out;
 }
 

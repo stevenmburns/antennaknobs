@@ -10,7 +10,9 @@
 // `backendEntry()` instead — including capabilities no real backend has yet
 // (supports_ground: false) and backends that don't exist at all (the
 // zero-frontend-change probe in newBackend.test.tsx).
+import { defaultOptsFor, type BackendOpts } from "../lib/backends";
 import { SERVED_CONSTRAINTS } from "./backendConstraintFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 import type {
   BackendEntry,
   BackendOptionField,
@@ -60,9 +62,9 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // genuinely share a constructor surface, so three literals here would be three
 // things to drift. Pinned against the live payload by
 // tests/test_frontend_option_spec_fixture.py.
-const SIN_KWARGS = ["extended_kernel", "n_qp_const"];
-const SIN_GALERKIN_KWARGS = ["extended_kernel", "feed_model", "n_qp_const"];
-const BSPLINE_KWARGS = ["auto_tap_ratio_threshold", "degree", "enrichment_min_k", "enrichment_variant", "extended_kernel", "feed_smoothing_factor", "n_qp_pair", "n_qp_sing", "n_qp_source", "tikhonov_lambda", "use_singular_enrichment"];
+const SIN_KWARGS = ["n_qp_const", "extended_kernel"];
+const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
+const BSPLINE_KWARGS = ["degree", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
 const RAZOR_KWARGS = ["extended_kernel"];
 
 const BSPLINE_AXES = {
@@ -203,4 +205,25 @@ export function entry(name: string, roster: BackendRoster = SERVED_ROSTER): Back
   const found = roster.find((b) => b.name === name);
   if (!found) throw new Error(`no fixture backend named ${name}`);
   return found;
+}
+
+
+/** Stock options for a fixture backend, using the SERVED spec catalogue.
+ *
+ *  `defaultOptsFor` takes the catalogue since #1006 G2-6 — the defaults are
+ *  the server's, and a copy in the frontend is the duplication that unit
+ *  removes. Tests go through this helper so the catalogue is threaded in one
+ *  place rather than at every call site.
+ */
+export function stockOpts(name: string, over: Partial<BackendOpts> = {}): BackendOpts {
+  return { ...defaultOptsFor(entry(name), SERVED_OPTION_SPECS), ...over };
+}
+
+/** Stock options with specific solver kwargs overridden, by SERVED key. */
+export function optsWithModel(
+  name: string,
+  model: Record<string, unknown>,
+): BackendOpts {
+  const base = defaultOptsFor(entry(name), SERVED_OPTION_SPECS);
+  return { ...base, model: { ...base.model, ...model } };
 }

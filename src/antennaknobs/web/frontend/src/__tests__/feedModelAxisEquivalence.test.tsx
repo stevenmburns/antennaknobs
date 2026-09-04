@@ -33,7 +33,8 @@ import {
   backendDisplayLabel,
   type BackendEntry,
 } from "../lib/backends";
-import { entry, SERVED_ROSTER } from "./backendFixtures";
+import { entry, optsWithModel, SERVED_ROSTER } from "./backendFixtures";
+import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 function renderModal(b: BackendEntry) {
   return render(
@@ -43,7 +44,7 @@ function renderModal(b: BackendEntry) {
       backends={SERVED_ROSTER}
       requiredBackends={null}
       suggestConvergedFeed={false}
-      opts={defaultOptsFor(b)}
+      opts={defaultOptsFor(b, SERVED_OPTION_SPECS)}
       onChangeBackend={vi.fn()}
       onPatch={vi.fn()}
       onReset={vi.fn()}
@@ -103,23 +104,26 @@ describe("the axis path and the retired hint path agree on the served roster", (
     // that renders the same but sends a different request would be the worse
     // failure, because nothing on screen would say so.
     const sg = entry("sinusoidal-galerkin");
-    expect(defaultOptsFor(sg).feedModel).toBe("point");
-    expect(modelOptionsForRequest(sg, defaultOptsFor(sg)).feed_model).toBe("point");
+    expect(defaultOptsFor(sg, SERVED_OPTION_SPECS).model.feed_model).toBe("point");
+    expect(modelOptionsForRequest(sg, defaultOptsFor(sg, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS).feed_model).toBe("point");
     expect(
-      modelOptionsForRequest(sg, { ...defaultOptsFor(sg), feedModel: "segment" })
-        .feed_model,
+      modelOptionsForRequest(
+        sg,
+        optsWithModel("sinusoidal-galerkin", { feed_model: "segment" }),
+        SERVED_OPTION_SPECS,
+      ).feed_model,
     ).toBe("segment");
     // ...and plain sinusoidal must not receive the key AT ALL (momwire#212).
     const sin = entry("sinusoidal");
-    expect("feed_model" in modelOptionsForRequest(sin, defaultOptsFor(sin))).toBe(false);
-    expect(defaultOptsFor(sin).feedModel).toBeUndefined();
+    expect("feed_model" in modelOptionsForRequest(sin, defaultOptsFor(sin, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS)).toBe(false);
+    expect(defaultOptsFor(sin, SERVED_OPTION_SPECS).model.feed_model).toBeUndefined();
   });
 
   it("keeps the slot chip's (NEC gap) suffix on the same backends", () => {
     const sg = entry("sinusoidal-galerkin");
-    expect(backendDisplayLabel(sg, { ...defaultOptsFor(sg), feedModel: "segment" }))
+    expect(backendDisplayLabel(sg, optsWithModel("sinusoidal-galerkin", { feed_model: "segment" })))
       .toContain("(NEC gap)");
-    expect(backendDisplayLabel(sg, defaultOptsFor(sg))).not.toContain("(NEC gap)");
+    expect(backendDisplayLabel(sg, defaultOptsFor(sg, SERVED_OPTION_SPECS))).not.toContain("(NEC gap)");
   });
 });
 
