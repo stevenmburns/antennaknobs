@@ -133,6 +133,36 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "issue": "momwire#553"
     },
     {
+      "axis": "kernel",
+      "value": "extended",
+      "forbids_axis": "singular_enrichment",
+      "forbids_value": "True",
+      "forbids_is_axis": false,
+      "condition": null,
+      "reason": "extended_kernel=True + use_singular_enrichment=True not supported yet \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
+      "issue": "momwire#249"
+    },
+    {
+      "axis": "per_wire_radius",
+      "value": "True",
+      "forbids_axis": "singular_enrichment",
+      "forbids_value": "True",
+      "forbids_is_axis": false,
+      "condition": null,
+      "reason": "use_singular_enrichment + mixed per-wire radii together not supported yet \u2014 the enrichment kernels take a single radius (stevenmburns/momwire#147)",
+      "issue": "momwire#147"
+    },
+    {
+      "axis": "wire_loading",
+      "value": "True",
+      "forbids_axis": "singular_enrichment",
+      "forbids_value": "True",
+      "forbids_is_axis": false,
+      "condition": null,
+      "reason": "use_singular_enrichment + distributed wire loading together not supported yet \u2014 the enrichment bases don't carry the loading overlap term",
+      "issue": null
+    },
+    {
       "axis": "wire_position",
       "value": "contact",
       "forbids_axis": "ground_model",
@@ -153,6 +183,36 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "condition": null,
       "reason": "this deck has a wire below the ground plane, and the fast operator has no per-segment medium. Admissibility is a purely geometric distance test with no notion of which side of the interface a cluster is on; the fused near/far block kernels take a `double k` and would truncate the in-medium k_m = k0*sqrt(eps_tilde) to its real part; and the Sommerfeld composition is carried as ONE global low-rank remainder over ONE grid, where a buried deck needs three blocks over three grids (momwire#553 U5). BSplineSolver serves the deck through its dense fill - this class deliberately does NOT fall back to it, because it exists for decks the dense fill cannot hold, and a silent fallback on a buried array is an out-of-memory rather than a slow answer",
       "issue": "momwire#553"
+    },
+    {
+      "axis": "kernel",
+      "value": "extended",
+      "forbids_axis": "singular_enrichment",
+      "forbids_value": "True",
+      "forbids_is_axis": false,
+      "condition": null,
+      "reason": "extended_kernel=True + use_singular_enrichment=True not supported yet \u2014 the enrichment DOFs bypass the moment kernels entirely (they carry their own \u03a6_sing quadrature), they exist only at K >= 3 junctions where NEC's own gating turns EK off, and the O(a\u00b2) tube expansion was never derived for the s^(-1/2) shapes (stevenmburns/momwire#249 follow-up C)",
+      "issue": "momwire#249"
+    },
+    {
+      "axis": "per_wire_radius",
+      "value": "True",
+      "forbids_axis": "singular_enrichment",
+      "forbids_value": "True",
+      "forbids_is_axis": false,
+      "condition": null,
+      "reason": "use_singular_enrichment + mixed per-wire radii together not supported yet \u2014 the enrichment kernels take a single radius (stevenmburns/momwire#147)",
+      "issue": "momwire#147"
+    },
+    {
+      "axis": "wire_loading",
+      "value": "True",
+      "forbids_axis": "singular_enrichment",
+      "forbids_value": "True",
+      "forbids_is_axis": false,
+      "condition": null,
+      "reason": "use_singular_enrichment + distributed wire loading together not supported yet \u2014 the enrichment bases don't carry the loading overlap term",
+      "issue": null
     },
     {
       "axis": "wire_position",

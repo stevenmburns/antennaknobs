@@ -243,3 +243,39 @@ def test_a_momwire_without_the_table_answers_None():
             sys.modules["momwire._couplings"] = saved
         else:
             del sys.modules["momwire._couplings"]
+
+
+def test_the_accelerators_ARE_told_about_the_refusals_they_inherit():
+    """The mirror of the mis-attribution guard above, and it cost something.
+
+    `HMatrixSolver` and `ArrayBlockSolver` inherit `BSplineSolver`'s refusals
+    dict and raise identically on the three singular-enrichment combinations.
+    momwire#888's rows named `BSplineSolver` alone, so the served payload told
+    the two accelerators nothing about their own refusals — and the panel that
+    greys its enrichment control from those rows stopped greying it on both,
+    which is two backends silently losing a guard. Fixed in momwire#890.
+
+    The guard above asserts a backend is told ONLY about couplings that apply
+    to it; this asserts it IS told about the ones that do. A one-directional
+    gate passes on the direction in front of the author, which is how the
+    original slipped through.
+    """
+    r = _rows()
+    for name in ("bspline", "hmatrix", "arrayblock"):
+        forbids = {c["forbids_axis"] for c in r[name]["constraints"]}
+        assert "singular_enrichment" in forbids, name
+        rows = [
+            c
+            for c in r[name]["constraints"]
+            if c["forbids_axis"] == "singular_enrichment"
+        ]
+        assert {c["axis"] for c in rows} == {
+            "kernel",
+            "per_wire_radius",
+            "wire_loading",
+        }, (name, sorted(c["axis"] for c in rows))
+    # ...and the families that do NOT take the keyword are still not told,
+    # which is the half that was already guarded.
+    for name in ("sinusoidal", "sinusoidal-galerkin", "razor-2p"):
+        forbids = {c["forbids_axis"] for c in r[name]["constraints"]}
+        assert "singular_enrichment" not in forbids, name
