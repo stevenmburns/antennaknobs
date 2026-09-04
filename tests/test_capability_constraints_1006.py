@@ -45,21 +45,25 @@ def _rows():
 
 
 def test_a_backend_is_told_only_about_couplings_that_apply_to_IT():
-    """The regression `applies_to` exists to prevent, asserted as an absence.
+    """The regression `applies_to` exists to prevent, asserted as an ABSENCE.
 
-    `bspline` can be configured to `kernel=extended`, so a reachability filter
-    hands it the Galerkin-only rows. It must not: `BSplineSolver` has no
-    `near_correction` keyword, and a constraint naming one would be advice
-    about a control the user does not have.
+    MEMBERSHIP, NEVER A COUNT. This used to assert `len(...) == 1`, which
+    stopped meaning anything the moment momwire#888 added four rows — and a
+    count cannot distinguish "the right rows" from "some rows". What is
+    actually being protected is the mis-attribution: `bspline` can be
+    configured to `kernel=extended`, so a filter keyed on value reachability
+    would hand it the Galerkin-only rows, and `BSplineSolver` has no
+    `near_correction` keyword at all (measured: TypeError, not a refusal). A
+    constraint naming one would be advice about a control the user lacks.
     """
     r = _rows()
     forbids = {(c["axis"], c["forbids_axis"]) for c in r["bspline"]["constraints"]}
+    # The absence half — this is the guard.
     assert ("kernel", "near_correction") not in forbids
     assert ("kernel", "junction_ports") not in forbids
-    # ...and the row it SHOULD have is there, so this is not passing by
-    # returning nothing.
+    # The presence half, so the absence cannot pass by returning nothing.
     assert ("kernel", "wire_position") in forbids
-    assert len(r["bspline"]["constraints"]) == 1
+    assert ("kernel", "singular_enrichment") in forbids
 
 
 def test_the_galerkin_pair_is_split_the_right_way_round():
@@ -81,26 +85,54 @@ def test_the_galerkin_pair_is_split_the_right_way_round():
 
 
 def test_the_accelerators_get_their_own_row_not_their_parents():
-    """Exact match, not `issubclass`. `ArrayBlockSolver` inherits
-    `HMatrixSolver`'s buried refusal; it must still be told about its OWN
-    solve strategy and not its parent's, or the two rows stop meaning
-    anything."""
+    """Exact class match, not `issubclass`.
+
+    `ArrayBlockSolver` inherits `HMatrixSolver`'s buried refusal; it must be
+    told about its OWN solve strategy and not its parent's, or the two rows
+    stop meaning anything. Asserted as membership on the solve_strategy axis
+    specifically — the two also share the `contact+refl-coef` row now, so a
+    set of ALL their values would no longer separate them.
+    """
     r = _rows()
-    hm = {c["value"] for c in r["hmatrix"]["constraints"]}
-    ab = {c["value"] for c in r["arrayblock"]["constraints"]}
-    assert hm == {"aca"}
-    assert ab == {"element-block"}
+    strat = {
+        n: {c["value"] for c in r[n]["constraints"] if c["axis"] == "solve_strategy"}
+        for n in ("hmatrix", "arrayblock")
+    }
+    assert strat["hmatrix"] == {"aca"}
+    assert strat["arrayblock"] == {"element-block"}
+    # ...and neither carries the other's, which is the actual claim.
+    assert "element-block" not in strat["hmatrix"]
+    assert "aca" not in strat["arrayblock"]
 
 
-def test_a_backend_with_no_coupling_says_so_with_an_empty_list():
-    """Empty is not None. `razor-2p` has no coupling naming `RazorSolver`, and
-    "no constraints" must be distinguishable from "cannot be asked" — the
-    frontend renders those differently and inferring one from the other is the
-    failure #1103's rule exists for."""
+def test_empty_is_not_None_even_though_no_shipped_BACKEND_is_empty_now():
+    """ "No constraints" and "cannot be asked" are different answers.
+
+    This used to ride on `razor-2p == []`. momwire#888's `contact+refl-coef`
+    row names all six momwire classes, so NO shipped backend is empty any
+    more — and a test asserting the distinction through a backend would have
+    quietly stopped exercising the empty case while still passing on the None
+    half. So the empty case is now exercised directly on the function that
+    produces it, with a spec whose class no coupling names.
+
+    The frontend renders the two differently and inferring one from the other
+    is the failure #1103's rule exists for, so the distinction is worth
+    keeping a test for even when no real row shows it.
+    """
+    import dataclasses
+
     r = _rows()
-    assert r["razor-2p"]["constraints"] == []
     assert r["pynec"]["constraints"] is None
     assert r["nec5"]["constraints"] is None
+
+    momwire_spec = next(b for b in _BACKENDS if b.kind == "momwire" and b.solver)
+
+    class _Unnamed:  # a class no COUPLINGS row's applies_to mentions
+        capabilities = momwire_spec.solver.capabilities
+
+    got = _backend_constraints(dataclasses.replace(momwire_spec, solver=_Unnamed))
+    assert got == [], got
+    assert got is not None
 
 
 def test_the_condition_travels_verbatim_and_is_None_when_flat():
@@ -119,12 +151,58 @@ def test_the_non_axis_rows_are_served_with_their_marker_not_dropped():
 
     Dropping them here would decide a presentation question in the seam and
     leave a user picking the extended kernel with no warning at all. Served
-    with `forbids_is_axis=False`, the frontend decides.
+    with `forbids_is_axis=False`, and the frontend decides.
+
+    Membership rather than "all of them": sinusoidal-galerkin now carries the
+    `contact+refl-coef` row too, whose forbidden side IS an axis, so an
+    `all(... is False)` sweep would fail for the right payload.
     """
     r = _rows()
-    sg = r["sinusoidal-galerkin"]["constraints"]
-    assert sg and all(c["forbids_is_axis"] is False for c in sg)
-    assert {c["forbids_axis"] for c in sg} == {"near_correction", "junction_ports"}
+    by_axis = {c["forbids_axis"]: c for c in r["sinusoidal-galerkin"]["constraints"]}
+    for kwarg_side in ("near_correction", "junction_ports"):
+        assert kwarg_side in by_axis
+        assert by_axis[kwarg_side]["forbids_is_axis"] is False
+    # ...and a genuinely compositional side on the same backend is marked the
+    # other way, so the flag is tracking something rather than constant.
+    assert by_axis["ground_model"]["forbids_is_axis"] is True
+
+
+def test_every_served_row_traces_back_to_a_COUPLINGS_row():
+    """Completeness, without a count.
+
+    A row can neither appear from nowhere nor vanish silently: every served
+    constraint must correspond to a real entry in momwire's table, and every
+    entry whose `applies_to` names a served backend must reach that backend.
+    Counts were what this file used before and they broke on the first table
+    change while proving nothing about correctness; this survives new rows and
+    still fails if the seam invents or drops one.
+    """
+    from momwire._couplings import COUPLINGS
+
+    table = {(c.axis_a, c.value_a, c.axis_b, c.value_b): c for c in COUPLINGS}
+    by_name = {b.name: b for b in _BACKENDS}
+
+    for name, row in _rows().items():
+        if row["constraints"] is None:
+            continue
+        served = {
+            (c["axis"], c["value"], c["forbids_axis"], c["forbids_value"])
+            for c in row["constraints"]
+        }
+        # Nothing invented.
+        unknown = served - set(table)
+        assert not unknown, f"{name}: served rows not in COUPLINGS: {sorted(unknown)}"
+        # Nothing dropped: every table row naming this class must be served.
+        solver_cls = by_name[name].solver
+        expected = {
+            key
+            for key, c in table.items()
+            if solver_cls is not None and solver_cls.__name__ in c.applies_to
+        }
+        assert expected <= served, (
+            f"{name}: COUPLINGS names it but the seam dropped "
+            f"{sorted(expected - served)}"
+        )
 
 
 def test_the_reason_is_momwires_own_prose():
