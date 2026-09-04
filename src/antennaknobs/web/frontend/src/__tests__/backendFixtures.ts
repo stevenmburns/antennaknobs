@@ -45,6 +45,7 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
     axes: null,
     bound: {},
     constraints: null,
+    model_kwargs: [],
     ...over,
   };
 }
@@ -55,6 +56,14 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // TRIMMED fixture would let `axisControls` pass here while returning something
 // else against the real payload — the single-valued axes are precisely what
 // the "multi-valued" clause has to see in order to reject them.
+// Mirrors the server's shared tuples (`_SIN_FAMILY_KWARGS` etc.): the families
+// genuinely share a constructor surface, so three literals here would be three
+// things to drift. Pinned against the live payload by
+// tests/test_frontend_option_spec_fixture.py.
+const SIN_KWARGS = ["extended_kernel", "feed_model", "n_qp_const"];
+const BSPLINE_KWARGS = ["auto_tap_ratio_threshold", "degree", "enrichment_min_k", "enrichment_variant", "extended_kernel", "feed_model", "feed_smoothing_factor", "n_qp_pair", "n_qp_sing", "n_qp_source", "tikhonov_lambda", "use_singular_enrichment"];
+const RAZOR_KWARGS = ["degree", "extended_kernel", "n_qp_source"];
+
 const BSPLINE_AXES = {
   basis: ["bspline-1", "bspline-2"],
   testing: ["galerkin"],
@@ -77,6 +86,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "sinusoidal",
     label: "Sinusoidal",
+    model_kwargs: SIN_KWARGS,
     options_schema: [backendOption()],
     axes: {
       ...BSPLINE_AXES,
@@ -89,6 +99,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "sinusoidal-galerkin",
     label: "Sin-Galerkin",
+    model_kwargs: SIN_KWARGS,
     options_schema: [backendOption()],
     panel: "sin-galerkin",
     dense_family: true,
@@ -104,12 +115,14 @@ export const SERVED_ROSTER: BackendRoster = ([
     name: "bspline",
     label: "B-spline",
     panel: "bspline",
+    model_kwargs: BSPLINE_KWARGS,
     dense_family: true,
     axes: BSPLINE_AXES,
   }),
   backendEntry({
     name: "hmatrix",
     label: "H-matrix (ACA)",
+    model_kwargs: BSPLINE_KWARGS,
     panel: "bspline",
     accelerator: true,
     dense_family: true,
@@ -122,6 +135,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "arrayblock",
     label: "Array-block",
+    model_kwargs: BSPLINE_KWARGS,
     panel: "bspline",
     default_n_per_wire: 21,
     accelerator: true,
@@ -141,6 +155,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   backendEntry({
     name: "razor-2p",
     label: "Razor (2-point)",
+    model_kwargs: RAZOR_KWARGS,
     dense_family: true,
     axes: {
       ...BSPLINE_AXES,
