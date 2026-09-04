@@ -39,15 +39,35 @@ export type ModelOptionSpec = {
    *  a caller substitutes a number instead: it silently overrides momwire's
    *  own per-deck default, which since momwire#863 depends on the geometry. */
   auto_when_null: boolean;
-  /** Render only while this other option is truthy. PURE UI GATING — a real
-   *  refusal (the extended kernel against singular enrichment) is momwire's
-   *  and arrives in `constraints`, never here. */
+  /** Render only while this other option is TRUTHY — not "is true":
+   *  `n_qp_source` shows while `feed_smoothing_factor` is a non-null number,
+   *  so a gate naming a boolean is the common case and not the rule.
+   *
+   *  PURE UI GATING. A real refusal (the extended kernel against singular
+   *  enrichment) is momwire's and arrives in `constraints`, never here. */
   shown_when: string | null;
+  /** What the CONTROL offers. Not what the endpoint tolerates — see
+   *  `accepts_min`/`accepts_max`, which are looser. `feed_smoothing_factor`
+   *  differs by 10x between the two, and rendering the accepted pair would
+   *  widen that knob and change its step. Gated server-side as a subset. */
   min?: number;
   max?: number;
   step?: number;
+  /** What the hosted sanitiser will ACCEPT — always ⊇ [min, max]. Served so a
+   *  client can tell "the server would take this" from "the control offers
+   *  this"; the renderer wants the first pair, an API consumer the second. */
+  accepts_min?: number;
+  accepts_max?: number;
   allow_none?: boolean;
   values?: string[];
+  /** Caption for the checkbox that switches a nullable knob on (or to auto).
+   *  Not derivable from `label`: the gates read "n_qp_pair: auto" and "feed
+   *  source smoothing" against labels of "n_qp_pair (GL pts/axis)" and
+   *  "α (bump width / h_feed)".
+   *
+   *  POLARITY falls out rather than being stored: `auto_when_null` means
+   *  checked-when-null, `allow_none` alone means checked-when-set. */
+  gate_label?: string | null;
 };
 
 export type ModelOptionSpecs = Record<string, ModelOptionSpec>;

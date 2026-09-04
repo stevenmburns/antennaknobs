@@ -86,11 +86,12 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
         r["name"]: r["model_kwargs"]
         for r in backend_roster(have_pynec=True, have_nec5=True)
     }
-    assert (
-        _ts_tuple(src, "SIN_KWARGS")
-        == live["sinusoidal"]
-        == live["sinusoidal-galerkin"]
-    )
+    # The sinusoidal pair no longer shares one tuple: the Galerkin member
+    # exposes `feed_model` and the point-matched one must not, because it
+    # REFUSES the point gap (momwire#212). They did share one, and that is
+    # exactly what would have sent a point gap to the solver that raises.
+    assert _ts_tuple(src, "SIN_KWARGS") == live["sinusoidal"]
+    assert _ts_tuple(src, "SIN_GALERKIN_KWARGS") == live["sinusoidal-galerkin"]
     assert (
         _ts_tuple(src, "BSPLINE_KWARGS")
         == live["bspline"]
@@ -100,14 +101,16 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
     assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor-2p"]
 
 
-def test_the_two_facts_the_offered_vs_sent_rule_depends_on_are_still_true():
-    """The frontend's rule-2 tests assert `feed_model` stays unoffered on
-    bspline and `degree` on razor-2p. Both rest on server facts that live
-    here, so if either changed, those tests would be asserting the absence of
-    a control for a reason that had evaporated — passing, and meaningless.
-    """
+def test_the_accepted_but_unexposed_knobs_stay_unexposed():
+    """The frontend's rule-2 tests assert `feed_model` never renders on
+    bspline and `degree` never on razor-2p. Both now rest on EXPOSURE, so if
+    either were exposed those tests would be asserting an absence for a reason
+    that had evaporated — passing, and meaningless."""
     live = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    assert "feed_model" in live["bspline"]["model_kwargs"]
+    assert "feed_model" not in live["bspline"]["model_kwargs"]
     assert live["bspline"]["axes"]["feed_model"] == ["segment-gap"]
-    assert "degree" in live["razor-2p"]["model_kwargs"]
+    assert "degree" not in live["razor-2p"]["model_kwargs"]
     assert live["razor-2p"]["axes"]["basis"] == ["tent"]
+    # ...and the sinusoidal case, which is the one that was actually a bug.
+    assert "feed_model" not in live["sinusoidal"]["model_kwargs"]
+    assert "feed_model" in live["sinusoidal-galerkin"]["model_kwargs"]

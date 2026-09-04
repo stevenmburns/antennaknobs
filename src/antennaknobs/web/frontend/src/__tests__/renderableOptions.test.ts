@@ -27,10 +27,18 @@ import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 const SPECS: ModelOptionSpecs = SERVED_OPTION_SPECS;
 
 describe("rule 2 — an axis governs whether its kwarg is offered", () => {
-  it("does NOT offer feed_model on bspline, which accepts the kwarg", () => {
+  it("does NOT offer feed_model on bspline", () => {
     const b = entry("bspline");
-    // Both halves of the trap, asserted so neither can drift silently:
-    expect(b.model_kwargs).toContain("feed_model");
+    // TWO INDEPENDENT REASONS, both asserted, because either alone would be
+    // enough and relying on one silently would be fragile:
+    //   1. the server does not EXPOSE it (`model_kwargs`), which is what
+    //      keeps it off the request payload;
+    //   2. its axis is single-valued, which is rule 2 here.
+    // `model_kwargs` used to mean "accepts" and DID contain feed_model — the
+    // request builder fed from it then sent a point gap to `SinusoidalSolver`,
+    // the one solver that refuses it (momwire#212). That is why the field
+    // means "exposes" now.
+    expect(b.model_kwargs).not.toContain("feed_model");
     expect(b.axes!.feed_model).toEqual(["segment-gap"]);
     expect(renderableOptions(b, SPECS)).not.toContain("feed_model");
   });
@@ -43,9 +51,12 @@ describe("rule 2 — an axis governs whether its kwarg is offered", () => {
     expect(renderableOptions(b, SPECS)).toContain("feed_model");
   });
 
-  it("does NOT offer degree on razor-2p, which accepts the kwarg", () => {
+  it("does NOT offer degree on razor-2p", () => {
     const b = entry("razor-2p");
-    expect(b.model_kwargs).toContain("degree");
+    // Same two layers. `RazorSolver` accepts `degree` — asserted server-side
+    // by construction in test_backend_model_kwargs_1006.py — and its basis
+    // axis holds one value, so neither the payload nor the panel gets it.
+    expect(b.model_kwargs).not.toContain("degree");
     expect(b.axes!.basis).toEqual(["tent"]);
     expect(renderableOptions(b, SPECS)).not.toContain("degree");
   });
