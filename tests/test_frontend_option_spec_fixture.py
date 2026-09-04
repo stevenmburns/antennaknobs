@@ -35,6 +35,7 @@ FRONTEND = (
 )
 SPEC_FIXTURE = FRONTEND / "optionSpecFixtures.ts"
 ROSTER_FIXTURE = FRONTEND / "backendFixtures.ts"
+AXES_FIXTURE = FRONTEND / "axesFixtures.ts"
 
 REGENERATE = "Regenerate it — the command is in the fixture's header comment."
 
@@ -165,3 +166,64 @@ def test_every_alias_target_is_a_real_backend_and_no_alias_shadows_one():
     for old, new in backend_aliases().items():
         assert new in served, (old, new)
         assert old not in served, f"{old} is a live backend name, not a retired one"
+
+
+def test_the_axes_fixture_matches_the_served_axes():
+    """The gate `axesFixtures.ts` was created to need, and did not have.
+
+    That file exists BECAUSE a fixture drifted: the roster fixture built every
+    entry's axes by spreading one shared literal, so fixing the b-spline
+    family silently gave `sinusoidal` a feed-model choice it does not have,
+    and every gate passed because they compared kwarg tuples and constraints
+    and never axes. Generating the axes removed the inheritance — and then the
+    generated file shipped with a header claiming a Python-side pin that did
+    not exist. The one fixture created in response to drift was the one
+    fixture that could drift unwatched.
+
+    Caught in review by grepping for the reference the header promised. Worth
+    remembering: a comment asserting that a gate exists is not a gate, and it
+    reads exactly like one.
+    """
+    fx = _json_after(AXES_FIXTURE.read_text(), "export const SERVED_AXES")
+    live = {
+        r["name"]: r["axes"] for r in backend_roster(have_pynec=True, have_nec5=True)
+    }
+    assert fx, "fixture parsed as empty — the comparison would be vacuous"
+    assert set(fx) == set(live), (
+        f"fixture and server disagree on WHICH backends exist: "
+        f"{sorted(set(fx) ^ set(live))}. {REGENERATE}"
+    )
+    assert fx == live, f"the axes fixture is stale. {REGENERATE}"
+
+
+@pytest.mark.parametrize(
+    "name",
+    sorted(
+        r["name"] for r in backend_roster(have_pynec=True, have_nec5=True) if r["axes"]
+    ),
+)
+def test_each_backend_axes_block_matches(name):
+    """Per-backend so a failure names the tab, and because the drift this
+    guards against was a SINGLE entry silently inheriting another's values —
+    a whole-object comparison reports that as one enormous diff."""
+    fx = _json_after(AXES_FIXTURE.read_text(), "export const SERVED_AXES")
+    live = {
+        r["name"]: r["axes"] for r in backend_roster(have_pynec=True, have_nec5=True)
+    }
+    assert fx[name] == live[name], f"{name} axes are stale. {REGENERATE}"
+
+
+def test_the_single_valued_axes_are_the_ones_that_can_silently_widen():
+    """The specific shape of the drift, asserted directly.
+
+    A spread widens a single-valued axis into whatever the base declares, and
+    single-valued is exactly the state that carries meaning here: it is what
+    makes an axis the tab's IDENTITY rather than a control. `sinusoidal`'s
+    feed model is the case that actually broke.
+    """
+    fx = _json_after(AXES_FIXTURE.read_text(), "export const SERVED_AXES")
+    assert fx["sinusoidal"]["feed_model"] == ["segment-gap"]
+    assert fx["razor-2p"]["basis"] == ["tent"]
+    # ...and the family that legitimately has two, so this is not just
+    # "everything is single-valued".
+    assert fx["bspline"]["feed_model"] == ["point-gap", "segment-gap"]

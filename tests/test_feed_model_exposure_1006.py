@@ -105,3 +105,82 @@ def test_the_served_default_is_the_solver_default():
     from antennaknobs.web.adapter import _OPTION_SPECS
 
     assert _OPTION_SPECS["feed_model"].default == "point"
+
+
+# --------------------------------------------------------------------------
+# The anchor a USER's request actually exercises
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("design", ["dipoles.invvee"])
+def test_a_catalog_solve_through_the_ADAPTER_is_unchanged(design):
+    """The bare-dipole anchor above proves a SOLVER property: the keyword is
+    honoured and the default is "point". This proves the thing the wire change
+    actually claims — that a stock request moves no number for a user — by
+    going through the path a request takes:
+
+        sanitize_model_options -> hosted whitelist -> _make_momwire_engine
+        -> solver_kwargs
+
+    Two solves of a catalog design, one with `feed_model: "point"` in
+    model_options and one with the key ABSENT, must agree bit for bit. Absent
+    is what every request sent before this change; present is what they send
+    now.
+
+    Keep BOTH anchors: this one would pass if the adapter silently dropped
+    `feed_model` on the floor, and the dipole's non-vacuity half is what rules
+    that out.
+    """
+    from antennaknobs.cli import resolve_class
+    from antennaknobs.web.adapter import _build_builder, _make_momwire_engine
+
+    cls = resolve_class(design)
+
+    def solve(**model_options):
+        req = {
+            "geometry": design,
+            "solver": "momwire",
+            "momwire_model": "bspline",
+            "n_per_wire": 15,
+            "model_options": {"degree": 2, **model_options},
+        }
+        builder = _build_builder(cls, req)
+        builder.freq = 14.2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            eng = _make_momwire_engine(req, builder)
+            return _z(eng.impedance())
+
+    absent = solve()
+    present = solve(feed_model="point")
+    assert absent == present, (absent, present)
+
+
+def test_the_adapter_anchor_is_not_vacuous():
+    """...and the adapter really does forward the value.
+
+    Without this, an adapter that dropped `feed_model` before the constructor
+    would satisfy the test above — the two solves would agree because neither
+    carried it, which is the "passes for the wrong reason" shape.
+    """
+    from antennaknobs.cli import resolve_class
+    from antennaknobs.web.adapter import _build_builder, _make_momwire_engine
+
+    design = "dipoles.invvee"
+    cls = resolve_class(design)
+
+    def solve(**model_options):
+        req = {
+            "geometry": design,
+            "solver": "momwire",
+            "momwire_model": "bspline",
+            "n_per_wire": 15,
+            "model_options": {"degree": 2, **model_options},
+        }
+        builder = _build_builder(cls, req)
+        builder.freq = 14.2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return _z(_make_momwire_engine(req, builder).impedance())
+
+    assert solve(feed_model="point") != solve(feed_model="segment")
