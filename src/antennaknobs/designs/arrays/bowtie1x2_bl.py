@@ -31,7 +31,9 @@ nothing in gain or pattern here.
 
 Freq-based geometry (unlike `specialty.bowtie`, whose dimensions are hand-tuned
 absolute metres): every length is a wavelength factor, so the whole antenna and
-its feed scale with `freq`.
+its feed scale with `freq`. The center tap sits `height_factor` wavelengths up,
+so placed over a ground the array is above it (it used to straddle z = 0, which
+read as a half-buried deck to every ground-aware engine).
 
 Construction (issues #575/#576/#605; re-authored engine-portable per #608):
   - Each bowtie keeps its real center feed-bridge wire (as `specialty.bowtie`
@@ -93,6 +95,13 @@ class Builder(AntennaBuilder):
             "length_factor": 0.5525,
             # Element stacking distance / wavelength (sets the half-line length).
             "del_z_factor": 0.5,
+            # Height of the center tap above the ground / wavelength. The two
+            # elements straddle the tap, so the lower one hangs del_z/2 plus
+            # its own half-height below it; 1.0 keeps that clear of z = 0 over
+            # the whole knob range (at the minimum 0.75 the worst corner —
+            # widest stack, longest and steepest element — still clears by
+            # ~0.2 wavelength). Free-space results do not depend on it.
+            "height_factor": 1.0,
             # Corporate-feed line impedance (matched to the element).
             "zdiff": 100.0,
             # Feeders are common-mode-open (0 -> None): the physical model.
@@ -106,6 +115,7 @@ class Builder(AntennaBuilder):
                     "angle_deg": {"min": 30.0, "max": 60.0, "step": 0.5},
                     "length_factor": {"min": 0.45, "max": 0.65, "step": 0.005},
                     "del_z_factor": {"min": 0.35, "max": 0.75, "step": 0.05},
+                    "height_factor": {"min": 0.75, "max": 3.0, "step": 0.05},
                     "zdiff": {"min": 50.0, "max": 300.0, "step": 10.0},
                     "zcomm": {"min": 0.0, "max": 400.0, "step": 25.0},
                 }
@@ -147,8 +157,12 @@ class Builder(AntennaBuilder):
     def build_wires(self):
         wl, _, _ = self._element_geo()
         dz = self.del_z_factor * wl
-        # Two elements straddling z = 0, so the center tap sits at mid-height.
-        return self._element_wires(0, -0.5 * dz) + self._element_wires(1, +0.5 * dz)
+        # Two elements straddling the center tap at z = height, so the tap
+        # sits at mid-height and the whole array is above the ground.
+        zc = self.height_factor * wl
+        return self._element_wires(0, zc - 0.5 * dz) + self._element_wires(
+            1, zc + 0.5 * dz
+        )
 
     # ---- feed network ---------------------------------------------------
     def build_network(self):
