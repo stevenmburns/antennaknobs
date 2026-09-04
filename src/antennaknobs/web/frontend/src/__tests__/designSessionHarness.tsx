@@ -19,7 +19,11 @@ import { VIEW_PREFS_KEY, type Layout } from "../components/session/useViewPrefs"
 import { VIEWS, type View } from "../lib/view";
 import type { ExampleDescriptor } from "../lib/params";
 import type { BackendRoster } from "../lib/backends";
-import { SERVED_ROSTER } from "./backendFixtures";
+import {
+  SERVED_ROSTER,
+  SERVED_ALIASES,
+  SERVED_SLOT_SEEDS,
+} from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 // A minimal but representative example descriptor — the same fixture
@@ -142,6 +146,8 @@ export function mountDesignSession(opts: MountDesignSessionOptions = {}) {
           have_pynec: true,
           backends: roster,
           model_option_specs: SERVED_OPTION_SPECS,
+          backend_aliases: SERVED_ALIASES,
+          default_slots: SERVED_SLOT_SEEDS,
           terrain_presets: [],
         });
       if (path.startsWith("/examples"))

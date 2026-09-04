@@ -63,6 +63,7 @@ function renderModal(overrides: ModalOverrides = {}) {
       backend={backend}
       backends={SERVED_ROSTER}
       requiredBackends={null}
+      specs={SERVED_OPTION_SPECS}
       suggestConvergedFeed={false}
       opts={defaultOptsFor(backend, SERVED_OPTION_SPECS)}
       {...rest}
@@ -281,11 +282,15 @@ describe("BackendConfigModal — extended kernel (#849)", () => {
     });
     const enrich = screen.getByRole("checkbox", { name: ENRICHMENT });
     expect(enrich).toHaveProperty("disabled", true);
-    expect(
-      within(screen.getByTitle(/Unavailable while the extended kernel/)).getByRole(
-        "checkbox",
-      ),
-    ).toBe(enrich);
+    // The tooltip is MOMWIRE'S OWN SENTENCE, arriving in the served
+    // constraints (momwire#888). The frontend used to carry a paraphrase that
+    // cited momwire#271 where momwire cites #249 follow-up C — asserting the
+    // real issue number here is what makes the drift impossible to
+    // reintroduce.
+    const titled = screen.getByTitle(/use_singular_enrichment=True not/);
+    expect(within(titled).getByRole("checkbox")).toBe(enrich);
+    expect(titled.getAttribute("title")).toContain("momwire#249");
+    expect(titled.getAttribute("title")).not.toContain("momwire#271");
     // …and the kernel itself is still live.
     expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty("disabled", false);
   });

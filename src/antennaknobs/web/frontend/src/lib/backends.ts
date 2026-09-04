@@ -68,6 +68,14 @@ export type ModelOptionSpec = {
    *  POLARITY falls out rather than being stored: `auto_when_null` means
    *  checked-when-null, `allow_none` alone means checked-when-set. */
   gate_label?: string | null;
+  /** The value the gate switches this knob ON to. Not the default — for an
+   *  auto knob the default IS null, and unticking auto pins this instead. */
+  gate_on_value?: number | null;
+  /** When set, `shown_when` must EQUAL this rather than merely be truthy.
+   *  Gates chain: these name `enrichment_variant`, which is itself gated on
+   *  `use_singular_enrichment`, so resolving transitively reproduces the old
+   *  panel's nesting with no chain syntax on the wire. */
+  shown_when_value?: string | null;
 };
 
 export type ModelOptionSpecs = Record<string, ModelOptionSpec>;
@@ -147,9 +155,16 @@ export type BackendRoster = BackendEntry[];
 
 // Panel hints, as served. Named constants so the bespoke components are
 // selected by the server's hint rather than by backend name.
-export const PANEL_BSPLINE = "bspline";
+// PANEL_BSPLINE and PANEL_PYNEC are DELETED (#1006 G2-6). Their knobs are
+// drawn from the served catalogue now, so a panel name selects nothing.
+//
+// PANEL_SIN_GALERKIN survives for ONE use — `feedModelChoices`' fallback for
+// a momwire whose `axes` is null, which is the RELEASED momwire, since the
+// submodule pointer runs ahead of the PyPI pin by design. Deleting it would
+// remove the feed-model control for every installed user until the pin moves,
+// so it goes with that bump and not before. The grep test asserts this exact
+// residue rather than zero.
 export const PANEL_SIN_GALERKIN = "sin-galerkin";
-export const PANEL_PYNEC = "pynec";
 
 // THE CONTROL RULE (antennaknobs#1006 G2-5), written down once:
 //
@@ -233,6 +248,9 @@ export type FeedModelChoice = (typeof FEED_MODEL_CHOICES)[number];
 
 /** The feed-model tabs this backend offers, in UI order. */
 export function feedModelChoices(b: BackendEntry): FeedModelChoice[] {
+  // Same guard as `degreeChoices`: a backend that does not expose the kwarg
+  // has no choice to offer, whatever its axes say or fail to say.
+  if (!(b.model_kwargs ?? []).includes("feed_model")) return [];
   const vals = b.axes?.feed_model;
   if (!vals) return b.panel === PANEL_SIN_GALERKIN ? FEED_MODEL_CHOICES : [];
   return FEED_MODEL_CHOICES.filter((c) => vals.includes(c.axisValue));
@@ -263,6 +281,11 @@ const DEGREE_CHOICES = [
  *  change and the sin-Galerkin one does not.
  */
 export function degreeChoices(b: BackendEntry): (1 | 2)[] {
+  // EXPOSURE FIRST. The axes-null fallback below exists for a momwire that
+  // cannot describe itself — not for a backend that has no degree at all.
+  // Without this, `pynec` (axes: null, exposes nothing) fell through to the
+  // fallback and grew a pair of degree tabs.
+  if (!(b.model_kwargs ?? []).includes("degree")) return [];
   const vals = b.axes?.basis;
   const table = vals
     ? DEGREE_CHOICES.filter((d) => vals.includes(d.axisValue))
@@ -335,27 +358,40 @@ export function backendOptsAllowed(
   return null;
 }
 
-/** Whether this design trips the stepped-radius junction refusal under the
- *  extended kernel. Separate from `backendOptsAllowed` because the forbidden
- *  side is a keyword rather than an axis, so it is a NOTE on the kernel
- *  control rather than a greyed cell — but it is the same served data and the
- *  same live derivation. */
+/** The stepped-radius-junction note for this slot, or null.
+ *
+ *  Separate from `backendOptsAllowed` because the forbidden side is a
+ *  property of the DECK (`junction_ports`) rather than an axis, so it has no
+ *  cell in the product space and is served with `forbids_is_axis: false`.
+ *  That marker is about RENDERING, not about whether momwire refuses — this
+ *  one sits in the solver's `refusals` dict and raises like any other, which
+ *  is why `designRefusal` gates on both shapes.
+ *
+ *  All three parts are required: the backend must carry the row, the user
+ *  must have asked for the extended kernel, and the DESIGN must actually have
+ *  a radius step at a junction. Uniform-radius junctions are the common case
+ *  and are untouched — collapsing the condition would tell a user the
+ *  extended kernel refuses junctions outright, which is false and sends them
+ *  to the wrong workaround.
+ */
 export function steppedJunctionNote(
   b: BackendEntry,
   opts: BackendOpts,
   design: DesignConstraintInputs | null | undefined,
 ): BackendConstraint | null {
-  if (!opts.model.extended_kernel || !design?.has_stepped_radius_junction) return null;
+  if (!opts.model.extended_kernel || !design?.has_stepped_radius_junction) {
+    return null;
+  }
   return (
     (b.constraints ?? []).find(
-      (c) => c.axis === "kernel" && c.forbids_axis === "junction_ports",
+      (c) =>
+        c.axis === "kernel" &&
+        c.value === "extended" &&
+        c.forbids_axis === "junction_ports",
     ) ?? null
   );
 }
 
-export function hasBSplinePanel(b: BackendEntry): boolean {
-  return b.panel === PANEL_BSPLINE;
-}
 
 export function backendSupportsGround(b: BackendEntry): boolean {
   return b.supports_ground;
@@ -431,9 +467,14 @@ export function findBackend(
 export function normalizeBackend(
   name: string | null | undefined,
   roster: BackendRoster,
+  aliases: Record<string, string> = {},
 ): BackendEntry | null {
   if (!name) return null;
-  return findBackend(roster, name === "triangular" ? "bspline" : name);
+  // Retired names come from the server (#1006 G2-6). This used to be an
+  // inline `name === "triangular" ? "bspline" : name`, which was the last
+  // engine-name branch in this file; the server already tolerated the retired
+  // name on the solve path, so it is now said once, there.
+  return findBackend(roster, aliases[name] ?? name);
 }
 
 export type FeedModel = "segment" | "point";
@@ -655,24 +696,23 @@ export type SlotSeed = {
   model?: Record<string, unknown>;
 };
 
-export const DEFAULT_SLOT_SEEDS: Record<Slot, SlotSeed> = {
-  // A is the default working solver: B-spline d=2 — most accurate per
-  // unknown, converged at a small odd N (interior knot at the feed), and
-  // its impedance solve honours finite grounds (Triangular, the old,
-  // now-retired default, folded them to the PEC image). N=15 per the
-  // basis-convergence census (docs/status/2026-07-20): within 2% of the
-  // basis-agreed limit on 50/66 scorable designs (N=21 buys only 3 more,
-  // all within 2.3%), patterns within 0.05 dB of the fine-mesh reference,
-  // ~35% faster ticks. Odd parity keeps the feed's interior knot.
-  A: { backend: "bspline", nPerWire: 15 },
-  // B is the cross-check basis: B-spline d=1 needs a larger N to reach
-  // the same answer (slower), which is what makes agreement with A a
-  // meaningful second opinion rather than the same solve twice. N=20
-  // trades cross-check tightness for speed (within 2% of the limit on
-  // 45/66 vs 55/66 at the old N=40 — disagreement with A beyond a couple
-  // of percent warrants raising N before suspecting the design).
-  B: { backend: "bspline", nPerWire: 20, model: { degree: 1 } },
-  C: { backend: "pynec" },
+/** The stock A/B/C seeds, SERVED (#1006 G2-6).
+ *
+ *  These were a literal here — `A: { backend: "bspline", nPerWire: 15 }` —
+ *  which is three engine names and three product decisions in the client.
+ *  They are decisions with measured reasons (a basis-convergence census), so
+ *  they are a served TABLE rather than something derived from the roster:
+ *  "the first dense backend" would be an accident, not a choice.
+ *
+ *  Empty from a server that predates this, which yields the roster's own
+ *  first entry for every slot — the same fallback a seed naming an absent
+ *  backend already got (#429).
+ */
+export type ServedSlotSeed = {
+  slot: Slot;
+  backend: string;
+  n_per_wire: number | null;
+  model: Record<string, unknown>;
 };
 
 // Resolve a seed against the served roster. A seed naming a backend this
@@ -701,12 +741,27 @@ export function slotFromSeed(
 export function defaultSlots(
   roster: BackendRoster,
   specs: ModelOptionSpecs,
+  seeds: ServedSlotSeed[] = [],
 ): Record<Slot, SlotConfig> {
-  return {
-    A: slotFromSeed(DEFAULT_SLOT_SEEDS.A, roster, specs),
-    B: slotFromSeed(DEFAULT_SLOT_SEEDS.B, roster, specs),
-    C: slotFromSeed(DEFAULT_SLOT_SEEDS.C, roster, specs),
+  // A slot the server said nothing about falls back to the roster's FIRST
+  // entry — the server puts its plainest solver there, and falling back to
+  // the head of the served order is what keeps this file free of a second
+  // roster (#429/#560's precedent).
+  const bySlot = new Map(seeds.map((s) => [s.slot, s]));
+  const one = (slot: Slot): SlotConfig => {
+    const seed = bySlot.get(slot);
+    if (!seed) return { backend: roster[0]!, opts: defaultOptsFor(roster[0]!, specs) };
+    return slotFromSeed(
+      {
+        backend: seed.backend,
+        ...(seed.n_per_wire === null ? {} : { nPerWire: seed.n_per_wire }),
+        model: seed.model,
+      },
+      roster,
+      specs,
+    );
   };
+  return { A: one("A"), B: one("B"), C: one("C") };
 }
 
 

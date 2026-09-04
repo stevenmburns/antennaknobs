@@ -736,6 +736,23 @@ class _OptionSpec(NamedTuple):
     # The POLARITY is not stored because it falls out: `auto_when_null` means
     # checked-when-null ("auto"), `allow_none` alone means checked-when-set.
     gate_label: str | None = None
+    # The value a gate switches the knob ON to. Not derivable and not the
+    # spec default: `n_qp_pair`'s default IS null (auto), and unticking auto
+    # has always pinned 8; `feed_smoothing_factor` switches on to 3 against a
+    # render range starting at 0.5. Both are the panel's long-standing
+    # choices, so they are recorded rather than re-invented.
+    gate_on_value: float | None = None
+    # When set, `shown_when` is satisfied only if that option EQUALS this,
+    # rather than merely being truthy. Two knobs need it: `tikhonov_lambda`
+    # appears only for the tikhonov variant and `auto_tap_ratio_threshold`
+    # only for the auto one — a truthiness gate would show both for every
+    # variant, which is two extra controls on the commonest setting.
+    #
+    # Gates CHAIN: these name `enrichment_variant`, which is itself gated on
+    # `use_singular_enrichment`, so a renderer that resolves the gate
+    # transitively gets the old panel's nesting for free and neither this
+    # table nor the client needs a chain syntax.
+    shown_when_value: str | None = None
     # Rendered only while this other option is TRUTHY — pure UI gating, not a
     # refusal. Truthy, not "is True": `n_qp_source` is shown only while
     # `feed_smoothing_factor` is a non-null number, so a gate naming a
@@ -806,6 +823,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         default=None,
         render_lo=2,
         gate_label="n_qp_pair: auto",
+        gate_on_value=8,
     ),
     "n_qp_source": _OptionSpec(
         "int",
@@ -826,6 +844,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         label="n_qp_sing (GL pts/axis)",
         default=32,
         render_lo=8,
+        render_hi=64,
         shown_when="use_singular_enrichment",
     ),
     "feed_smoothing_factor": _OptionSpec(
@@ -842,6 +861,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         render_hi=10.0,
         render_step=0.5,
         gate_label="feed source smoothing",
+        gate_on_value=3,
     ),
     # Gap-source model on the solvers that offer it (momwire#192/#216):
     # "segment" is NEC's segment-wide gap, "point" the zero-width (converged)
@@ -852,12 +872,17 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         "enum", values=("segment", "point"), label="feed model", default="point"
     ),
     "use_singular_enrichment": _OptionSpec(
-        "bool", label="singular enrichment", default=False
+        # The panel's own caption, character for character — the equivalence
+        # fixture compares captions, and "singular enrichment" would be a
+        # quietly renamed control rather than the same one.
+        "bool",
+        label="K\u22653 junction singular enrichment",
+        default=False,
     ),
     "enrichment_variant": _OptionSpec(
         "enum",
         values=("raw", "stable", "tikhonov", "auto"),
-        label="enrichment_variant",
+        label="variant:",
         default="raw",
         shown_when="use_singular_enrichment",
     ),
@@ -869,7 +894,12 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         step=0.01,
         default=0.1,
         render_hi=10.0,
-        shown_when="use_singular_enrichment",
+        render_step=0.05,
+        # Gated on the VARIANT, which is itself gated on the enrichment
+        # flag — the chain resolves transitively in the renderer, so neither
+        # this table nor the client needs a chain syntax.
+        shown_when="enrichment_variant",
+        shown_when_value="tikhonov",
     ),
     "auto_tap_ratio_threshold": _OptionSpec(
         "float",
@@ -878,7 +908,8 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         label="auto_tap_ratio_threshold",
         step=0.05,
         default=0.3,
-        shown_when="use_singular_enrichment",
+        shown_when="enrichment_variant",
+        shown_when_value="auto",
     ),
     "enrichment_min_k": _OptionSpec(
         "int",
@@ -886,7 +917,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
         64,
         label="enrichment_min_k",
         default=3,
-        render_hi=8,
+        render_hi=6,
         shown_when="use_singular_enrichment",
     ),
     # NEC's extended thin-wire kernel (the EK card, issue #849, momwire >=
@@ -3727,6 +3758,51 @@ _AUTO_WHEN_NULL = frozenset(
 )
 
 
+# Retired backend names a saved session or an old client may still carry,
+# mapped to what they mean now (#1006 G2-6). Served rather than hand-held in
+# the frontend, which had `name === "triangular" ? "bspline" : name` inline —
+# the last engine-name branch in that file.
+#
+# `_make_momwire_engine` already tolerates a retired name on the SOLVE path by
+# falling back to bspline; this is the same fact said once, on the way out, so
+# the picker resolves the old name to the right TAB rather than silently
+# solving something the UI is not showing.
+_BACKEND_ALIASES = {"triangular": "bspline"}
+
+
+def backend_aliases() -> dict[str, str]:
+    """Retired backend names -> the name that supersedes each."""
+    return dict(_BACKEND_ALIASES)
+
+
+# The stock A/B/C solver slots, served so the frontend names no engine.
+#
+# These are PRODUCT choices with measured reasons, which is why they are a
+# table rather than something derived from the roster: "the first dense
+# backend" would be an accident, and the N values below are census results.
+_DEFAULT_SLOTS = (
+    # A is the default working solver: B-spline d=2 — most accurate per
+    # unknown, converged at a small odd N (interior knot at the feed), and its
+    # impedance solve honours finite grounds. N=15 per the basis-convergence
+    # census (docs/status/2026-07-20): within 2% of the basis-agreed limit on
+    # 50/66 scorable designs, patterns within 0.05 dB of the fine-mesh
+    # reference, ~35% faster ticks. Odd parity keeps the feed's interior knot.
+    {"slot": "A", "backend": "bspline", "n_per_wire": 15, "model": {}},
+    # B is the cross-check basis: d=1 needs a larger N to reach the same
+    # answer, which is what makes agreement with A a second opinion rather
+    # than the same solve twice. N=20 trades tightness for speed.
+    {"slot": "B", "backend": "bspline", "n_per_wire": 20, "model": {"degree": 1}},
+    {"slot": "C", "backend": "pynec", "n_per_wire": None, "model": {}},
+)
+
+
+def default_slots() -> list[dict]:
+    """The stock A/B/C seeds. A seed naming a backend this server does not
+    serve is the frontend's to fall back on — the same tolerance a parked
+    terrain preset gets (#560, #429)."""
+    return [dict(s) for s in _DEFAULT_SLOTS]
+
+
 def model_option_specs() -> dict[str, dict]:
     """Every solver knob, described once, for a generic renderer (#1006 G2-6).
 
@@ -3749,6 +3825,8 @@ def model_option_specs() -> dict[str, dict]:
             "auto_when_null": spec.auto_when_null,
             "shown_when": spec.shown_when,
             "gate_label": spec.gate_label,
+            "gate_on_value": spec.gate_on_value,
+            "shown_when_value": spec.shown_when_value,
         }
         if spec.kind in ("int", "float"):
             # The RENDER bounds, falling back to the sanitiser's. What the
