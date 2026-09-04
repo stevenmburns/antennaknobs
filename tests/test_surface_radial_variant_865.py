@@ -50,6 +50,7 @@ suite's 5 s unmarked ceiling, and that marker is the main-only CI lane.
 
 from __future__ import annotations
 
+import sys
 import warnings
 
 import pytest
@@ -110,6 +111,31 @@ def test_the_jacket_rides_the_RADIALS_ONLY():
     # ...and every jacketed wire is horizontal, every bare one vertical.
     assert all(w.p0[2] == w.p1[2] for w in jacketed)
     assert all(w.p0[0] == w.p1[0] == 0.0 for w in bare)
+
+
+def _without_the_coated_pair(monkeypatch):
+    """Make `momwire._surface_height` unimportable, which is what a momwire
+    from before #872 looks like to the guard (a `None` entry in sys.modules
+    raises ImportError on import)."""
+    monkeypatch.setitem(sys.modules, "momwire._surface_height", None)
+
+
+def test_the_guard_refuses_by_name_on_a_momwire_without_the_pair(monkeypatch):
+    """The pinned-build path: the deck must NOT solve into the silent
+    221.7 - 144.3j; it names the missing model and says why a version check
+    would not have helped."""
+    _without_the_coated_pair(monkeypatch)
+    with pytest.raises(ValueError, match="equivalent-radius PAIR"):
+        MomwireEngine(_builder(), **GROUND)
+
+
+def test_the_guard_is_silent_over_free_space(monkeypatch):
+    """Over free space there is no interface for the jacket to rest on, so
+    the same deck on the same old momwire constructs normally. This pins the
+    engine passing its NORMALISED ground_z (None for free space) rather than
+    the raw argument, whose default is 0.0 whatever the ground."""
+    _without_the_coated_pair(monkeypatch)
+    MomwireEngine(_builder(), ground=None)  # must not raise
 
 
 def test_a_bare_wire_type_refuses_by_name():
