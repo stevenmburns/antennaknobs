@@ -3195,7 +3195,45 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
-        eng = _make_momwire_engine(req, builder)
+        # THE PREVIEW MUST NOT CARRY A SOLVER'S REFUSAL.
+        #
+        # momwire#814 moved the buried refusal into engine CONSTRUCTION, so
+        # building with the request's `momwire_model` makes a refused
+        # solver+design combination fail here — in the drawing, before any
+        # solve is decided. A user switching to a buried design with an
+        # accelerated backend selected then saw the raw engine error and no
+        # gate at all, because the client's preview-error path never releases
+        # the gate that would have withheld the solve and shown momwire's own
+        # sentence. This endpoint's docstring already promised the preview is
+        # solver-independent; it was not.
+        #
+        # NOT "always use the default model", which was the obvious fix and is
+        # wrong: measured across the roster, `geometry_distribution()` IS
+        # model-dependent for `razor-2p` — on arrays.bowtiearray1x2 its feed
+        # KNOT INDEX is 1 where every other model gives 0, because the
+        # two-point lane snaps the feed to a different grid. Drawing the feed
+        # marker in the wrong place on every razor preview would trade a rare
+        # blank canvas for a permanent quiet lie.
+        #
+        # So: honour the request, and fall back only when the engine refuses
+        # it. If the fallback fails too, the ORIGINAL error is re-raised —
+        # a deck that genuinely cannot build has nothing to draw, and that
+        # error is about the DESIGN, which the user did choose.
+        try:
+            eng = _make_momwire_engine(req, builder)
+        except Exception as refusal:  # noqa: BLE001 — the refusal's TYPE is
+            # the solver's business and varies (ValueError today,
+            # NotImplementedError elsewhere); narrowing here would silently
+            # stop routing around whichever one a future refusal raises. The
+            # original is re-raised when the fallback fails too, so nothing is
+            # swallowed — only deferred.
+            fallback = {k: v for k, v in req.items() if k != "momwire_model"}
+            try:
+                eng = _make_momwire_engine(fallback, builder)
+            except Exception:  # noqa: BLE001 — a deck that cannot build on
+                # the default model either has nothing to draw; surface the
+                # ORIGINAL error, which is about the design the user chose.
+                raise refusal from None
         geom = eng.geometry_distribution()
         feed_wire_idx, feed_knot_idx = _feed_indices(eng, geom)
         return {
