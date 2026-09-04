@@ -30,7 +30,9 @@ import {
   defaultOptsFor,
   type BackendEntry,
 } from "../lib/backends";
-import { entry, SERVED_ROSTER } from "./backendFixtures";
+import { entry, SERVED_ROSTER,
+  SERVED_VOCAB,
+} from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const BURIED = { buried: true, has_stepped_radius_junction: false };
@@ -111,6 +113,8 @@ describe("the tab itself says it cannot take this deck", () => {
         requiredBackends={null}
         design={design}
         specs={SERVED_OPTION_SPECS}
+        vocab={SERVED_VOCAB}
+        designRefusalNote={null}
         suggestConvergedFeed={false}
         opts={defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)}
         onChangeBackend={vi.fn()}
