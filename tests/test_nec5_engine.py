@@ -1183,26 +1183,25 @@ def test_the_old_flag_prints_negative_resistance_when_fed_below_ground():
     import tempfile
 
     exe = find_nec5()
-    gw = (
-        "GW 1 70 0. 0. -1.500000E-01 0. 0. 1.035000E+01 5.000000E-04\n"
-        + "".join(
-            f"GW {i + 2} 54 0. 0. -1.500000E-01 "
-            f"{6.3336 * dx:.6E} {6.3336 * dy:.6E} -1.500000E-01 5.000000E-04\n"
-            for i, (dx, dy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1)))
-        )
+    gw = "GW 1 70 0. 0. -1.500000E-01 0. 0. 1.035000E+01 5.000000E-04\n" + "".join(
+        f"GW {i + 2} 54 0. 0. -1.500000E-01 "
+        f"{6.3336 * dx:.6E} {6.3336 * dy:.6E} -1.500000E-01 5.000000E-04\n"
+        for i, (dx, dy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1)))
     )
     gn = "GN 0 0 0 0 1.300000E+01 5.000000E-03 1.000000E+00 0.000000E+00 NOFILE\n"
     fr = "FR 0 1 0 0 7.100000E+00 0.000000E+00\n"
 
     def z_of(ge, seg):
-        deck = (
-            f"CM witness\nCE\n{gw}{ge}\n{gn}EX 0 1 {seg} 0 1.0 0.\n{fr}XQ 0\nEN\n"
-        )
+        deck = f"CM witness\nCE\n{gw}{ge}\n{gn}EX 0 1 {seg} 0 1.0 0.\n{fr}XQ 0\nEN\n"
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / "m.nec").write_text(deck)
             subprocess.run(
-                [exe], input="m.nec\nm.out\n\n", text=True,
-                capture_output=True, cwd=td, timeout=600,
+                [exe],
+                input="m.nec\nm.out\n\n",
+                text=True,
+                capture_output=True,
+                cwd=td,
+                timeout=600,
             )
             text = (Path(td) / "m.out").read_text(errors="replace")
         m = re.search(
