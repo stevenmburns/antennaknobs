@@ -1541,6 +1541,127 @@ _TERRAIN_WATER = (80.0, 0.005)
 _TERRAIN_LAND = (13.0, 0.005)
 
 
+# --- Soil constants for the finite ground models (issue #1173) -----------
+#
+# Until #1173 every finite-ground solve in the app used DEFAULT_GROUND's
+# eps_r=10 / sigma=0.002 and the user had no handle on it, even though the
+# soil decides both the answer (Z_in moves several ohms of reactance across
+# the ladder below) and the cost profile of a Sommerfeld sweep.
+#
+# Clamp ranges. eps_r's floor is 1 = vacuum, which is what the Fresnel maths
+# needs (nec_import refuses eps_r <= 1 for the same reason); sigma spans
+# [1e-4, 5] S/m, log-scaled in the UI because that is four and a half
+# decades.
+#
+# The ceiling is 81, not the 80 the issue suggested: sea water is eps_r 81,
+# so a ceiling of 80 would have let the served "salt water" preset be
+# silently clamped to 80.0 by the very endpoint that serves it. Measured,
+# not reasoned — the preset round-trip test below is what caught it, and it
+# is why `test_every_preset_survives_its_own_clamp` exists.
+SOIL_EPS_R_RANGE = (1.0, 81.0)
+SOIL_SIGMA_RANGE = (1e-4, 5.0)
+
+# The named ladder. Every value here is sourced from a number this codebase
+# already stands behind rather than retyped from a book:
+#   v.poor / poor / average / v.good / sea  -- momwire's own ground ladder,
+#     the one its reference-engine study tabulates (momwire
+#     docs/design/contact-over-finite-ground.md 3.2, and the (eps_r, sigma)
+#     pairs in momwire/scripts/spike_contact_plane_reference.py and
+#     capture_contact_nec5_lane.py);
+#   fresh water -- _TERRAIN_WATER above, so the soil menu and the terrain
+#     panel cannot disagree about what water is.
+#
+# The issue's list also names a "good" between average and very good. It is
+# deliberately ABSENT: no value for it exists anywhere in this repo, and a
+# published soil constant is not something to interpolate or recall from
+# memory into a physics default. Dial it by hand or add it here with a
+# citation. See the PR discussion on #1173.
+_SOIL_PRESETS: tuple[tuple[str, str, float, float, str], ...] = (
+    ("very-poor", "very poor", 3.0, 0.0001, "Industrial / city, or dry barren rock."),
+    ("poor", "poor", 5.0, 0.001, "Rocky, sandy or dry soil."),
+    (
+        "average",
+        "average",
+        13.0,
+        0.005,
+        "Pastoral, medium hills — the usual default soil.",
+    ),
+    (
+        "very-good",
+        "very good",
+        20.0,
+        0.0303,
+        "Rich, moist agricultural soil; the classic 20/0.0303 earth.",
+    ),
+    (
+        "fresh-water",
+        "fresh water",
+        *_TERRAIN_WATER,
+        "Fresh water, matching the terrain panel's water medium.",
+    ),
+    ("salt-water", "salt water", 81.0, 5.0, "Sea water."),
+)
+
+
+def soil_presets_schema() -> list[dict]:
+    """The named soil catalog served on GET /capabilities (issue #1173),
+    the same self-describing shape as `terrain_presets_schema` — a
+    Python-only preset needs no TypeScript. Carries the clamp ranges too,
+    so the panel's two knobs get their bounds from the server that
+    enforces them rather than from a second copy in TypeScript."""
+    return [
+        {
+            "name": name,
+            "label": label,
+            "eps_r": eps_r,
+            "sigma": sigma,
+            "tooltip": f"{tooltip} \u03b5r {_num_or_int(eps_r)}, \u03c3 {sigma} S/m.",
+        }
+        for name, label, eps_r, sigma, tooltip in _SOIL_PRESETS
+    ]
+
+
+def _num_or_int(v: float) -> str:
+    """3.0 -> "3" for a tooltip; 20.5 stays "20.5"."""
+    return str(int(v)) if float(v).is_integer() else str(v)
+
+
+def soil_ranges_schema() -> dict:
+    """Clamp bounds + defaults for the two soil knobs, served alongside the
+    presets so the UI slider bounds and the server clamp are one fact."""
+    return {
+        "eps_r": {
+            "min": SOIL_EPS_R_RANGE[0],
+            "max": SOIL_EPS_R_RANGE[1],
+            "default": float(DEFAULT_GROUND[1]),
+        },
+        "sigma": {
+            "min": SOIL_SIGMA_RANGE[0],
+            "max": SOIL_SIGMA_RANGE[1],
+            "default": float(DEFAULT_GROUND[2]),
+            "log": True,
+        },
+    }
+
+
+def _soil_from_request(req: Mapping) -> tuple[float, float]:
+    """The (eps_r, sigma) the request asks for, clamped, defaulting to
+    DEFAULT_GROUND's 10 / 0.002 so a request that predates #1173 — or any
+    client that never sends the field — solves exactly what it did before.
+
+    Client input is untrusted: same clamp-and-fall-back discipline as
+    `_terrain_num`, because a NaN or a string here would otherwise reach
+    NEC's GN card and momwire's Sommerfeld grid.
+    """
+    soil = req.get("soil")
+    if not isinstance(soil, Mapping):
+        return float(DEFAULT_GROUND[1]), float(DEFAULT_GROUND[2])
+    return (
+        _terrain_num(soil, "eps_r", float(DEFAULT_GROUND[1]), *SOIL_EPS_R_RANGE),
+        _terrain_num(soil, "sigma", float(DEFAULT_GROUND[2]), *SOIL_SIGMA_RANGE),
+    )
+
+
 def _terrain_num(t: Mapping, key: str, default: float, lo: float, hi: float) -> float:
     """One clamped, finite terrain parameter — client input is untrusted."""
     try:
@@ -1817,23 +1938,24 @@ def _ground_for_engine(req: dict):
     solves as the TRUE Sommerfeld ground on every solver (momwire >=
     0.8.0: bspline dense, sinusoidal field-based, hmatrix/arrayblock fast
     paths); "fast" → ("finite-fast", ...), the reflection-coefficient
-    model everywhere. The response ships the engine's actual eps/sigma so
-    the frontend far-field Fresnel uses the real constants either way;
-    `ground_model_applied` reports what the impedance solve really
-    used."""
+    model everywhere. Both finite models carry the request's soil (issue
+    #1173, `_soil_from_request`). The response ships the engine's actual
+    eps/sigma so the frontend far-field Fresnel uses the real constants
+    either way; `ground_model_applied` reports what the impedance solve
+    really used."""
     model = _requested_ground_model(req)
     if model is None:
         return None
     if model == "pec":
         return "pec"
     if model == "fast":
-        return ("finite-fast",) + DEFAULT_GROUND[1:]
+        return ("finite-fast",) + _soil_from_request(req)
     if model == "terrain":
         # Faceted terrain (issue #534): impedance solves flat Sommerfeld on
         # the crest medium; the far field applies per-direction specular-
         # facet reflection (engine far_field and server cuts alike).
         return ("terrain", _terrain_from_request(req))
-    return DEFAULT_GROUND
+    return ("finite",) + _soil_from_request(req)
 
 
 def _pynec_ground_applied(ground) -> str:
@@ -1851,17 +1973,18 @@ def _pynec_ground_applied(ground) -> str:
 def _pynec_ground_spec(req: dict):
     """Map the frontend's ground knobs to PyNECEngine's ground spec, matching
     the UI labels. `ground_model` picks the model when ground is on:
-    "sommerfeld" (default) — Sommerfeld-Norton finite ground with
-    DEFAULT_GROUND's eps_r=10, sigma=0.002; "fast" — the same finite ground
-    via NEC's reflection-coefficient approximation; "pec" — perfectly
-    conducting ground. Ground off is free space."""
+    "sommerfeld" (default) — Sommerfeld-Norton finite ground; "fast" — the
+    same finite ground via NEC's reflection-coefficient approximation;
+    "pec" — perfectly conducting ground. Ground off is free space. Both
+    finite models carry the request's soil (issue #1173,
+    `_soil_from_request`), which defaults to DEFAULT_GROUND's 10 / 0.002."""
     model = _requested_ground_model(req)
     if model is None:
         return "free"
     if model == "pec":
         return "pec"
     if model == "fast":
-        return ("finite-fast",) + DEFAULT_GROUND[1:]
+        return ("finite-fast",) + _soil_from_request(req)
     if model == "terrain":
         # PyNEC terrain hybrid (issue #553): NEC-2 has no facet model, but
         # the #534 recipe never lets the facets touch the current solve —
@@ -1870,7 +1993,7 @@ def _pynec_ground_spec(req: dict):
         # the server's far-field composition, fed by the `ground_terrain`
         # field pynec_solve attaches to the response.
         return ("finite",) + _terrain_from_request(req).crest_medium
-    return DEFAULT_GROUND
+    return ("finite",) + _soil_from_request(req)
 
 
 def _nec5_ground_spec(req: dict):
@@ -1889,7 +2012,7 @@ def _nec5_ground_spec(req: dict):
     if model == "terrain":
         return ("finite",) + _terrain_from_request(req).crest_medium
     # "fast" and "sommerfeld" both land on NEC-5's native Sommerfeld.
-    return DEFAULT_GROUND
+    return ("finite",) + _soil_from_request(req)
 
 
 def _nec5_ground_applied(ground) -> str:

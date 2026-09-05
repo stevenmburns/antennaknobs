@@ -2574,6 +2574,8 @@ def capabilities_endpoint():
         composition_axes,
         default_slots,
         model_option_specs,
+        soil_presets_schema,
+        soil_ranges_schema,
         terrain_presets_schema,
     )
 
@@ -2589,6 +2591,8 @@ def capabilities_endpoint():
         "axis_value_labels": axis_value_labels(),
         "default_slots": default_slots(),
         "terrain_presets": terrain_presets_schema(),
+        "soil_presets": soil_presets_schema(),
+        "soil_ranges": soil_ranges_schema(),
     }
 
 
