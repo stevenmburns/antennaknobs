@@ -275,14 +275,24 @@ def test_cannot_be_asked_stays_None():
     claim about PyNEC was a sentence rather than a capability. That was the
     right instinct and the docstring was worse than unproven — it was wrong
     (antennaknobs#1167: PyNEC does not refuse a buried deck, it answers one as
-    though the wire were in air). pynec now serves a MEASURED False; nec5 is
-    the remaining unasked wrapper and keeps the rule.
-    """
-    from antennaknobs.web.adapter import backend_roster
+    though the wire were in air). Then nec5 was measured too (antennaknobs#1025:
+    it serves, once the wrapper stopped transposing the GE card's two fields),
+    so BOTH wrappers now carry measurements and neither is available as the
+    unmeasured example any more.
 
-    rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    assert rows["nec5"]["buried"] is None
-    assert rows["nec5"]["buried_refusal"] is None
+    The rule outlives its examples, so it is asserted through the MECHANISM —
+    a kind with no row — rather than by holding one backend permanently
+    unmeasured to keep a test company.
+    """
+    from antennaknobs.web.adapter import _backend_buried_refusal, _backend_serves_buried
+
+    class _Unmeasured:
+        kind = "no-such-engine"
+        solver = None
+
+    stub = _Unmeasured()
+    assert _backend_serves_buried(stub) is None
+    assert _backend_buried_refusal(stub) is None
 
 
 def test_the_reason_is_momwires_own_string_not_a_copy():
