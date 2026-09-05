@@ -30,7 +30,7 @@ import {
   defaultOptsFor,
   type BackendEntry,
 } from "../lib/backends";
-import { entry, SERVED_ROSTER,
+import { entry, ROSTER_WITH_NEC5, SERVED_ROSTER,
   SERVED_VOCAB,
 } from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
@@ -38,9 +38,20 @@ import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 const BURIED = { buried: true, has_stepped_radius_junction: false };
 const ABOVE = { buried: false, has_stepped_radius_junction: false };
 
-/** The served capability, as momwire reports it. */
-const withBuried = (name: string, buried: boolean | null, reason: string | null) =>
-  ({ ...entry(name), buried, buried_refusal: reason }) as BackendEntry;
+/** The served capability, as momwire reports it — or, for AK's own wrappers
+ *  since #1167, as AK measured it. */
+const withBuried = (
+  name: string,
+  buried: boolean | null,
+  reason: string | null,
+  issue?: string | null,
+) =>
+  ({
+    ...entry(name),
+    buried,
+    buried_refusal: reason,
+    ...(issue === undefined ? {} : { buried_issue: issue }),
+  }) as BackendEntry;
 
 describe("capabilityRefusal — the deck, not a combination", () => {
   it("refuses a buried deck on a solver with no buried fill", () => {
@@ -62,9 +73,18 @@ describe("capabilityRefusal — the deck, not a combination", () => {
   });
 
   it("treats null as CANNOT BE ASKED, never as cannot", () => {
-    // #1103's rule, and the one answer that must never be inferred. pynec and
-    // nec5 are null: AK has no measured fact about their buried scope.
-    expect(capabilityRefusal(withBuried("pynec", null, null), BURIED)).toBeNull();
+    // #1103's rule, and the one answer that must never be inferred. `nec5` is
+    // still null — nobody has measured it. (`pynec` was too until #1167
+    // measured it; the entry here is a null one whatever the roster now says,
+    // because what is under test is the null HANDLING.)
+    // `nec5` lives only in the with-NEC5 roster: the default served shape
+    // omits it, absence being the hosted-simulator state.
+    const nec5 = {
+      ...entry("nec5", ROSTER_WITH_NEC5),
+      buried: null,
+      buried_refusal: null,
+    } as BackendEntry;
+    expect(capabilityRefusal(nec5, BURIED)).toBeNull();
   });
 
   it("says nothing when the capability is false but no prose came with it", () => {
@@ -72,6 +92,38 @@ describe("capabilityRefusal — the deck, not a combination", () => {
     // refusal is worse than an ungated solve: the user is told something
     // nobody measured.
     expect(capabilityRefusal(withBuried("razor-2p", false, null), BURIED)).toBeNull();
+  });
+});
+
+describe("capabilityRefusal cites the right issue (#1167)", () => {
+  it("carries a wrapper's own issue rather than momwire's", () => {
+    // PyNEC's buried limitation is not described by momwire#553, and sending
+    // a user there for it is the same class of error as inventing the reason
+    // — quieter, and just as wrong.
+    const pynec = withBuried(
+      "pynec",
+      false,
+      "PyNEC cannot model a conductor below the ground plane…",
+      "antennaknobs#1167",
+    );
+    expect(capabilityRefusal(pynec, BURIED)!.issue).toBe("antennaknobs#1167");
+  });
+
+  it("still cites momwire#553 for a row that serves no issue", () => {
+    // Every momwire row predates the field, so the fallback is load-bearing
+    // rather than defensive.
+    const razor = withBuried("razor-2p", false, "RazorSolver has no buried fill…");
+    expect(capabilityRefusal(razor, BURIED)!.issue).toBe("momwire#553");
+  });
+
+  it("falls back when the server explicitly sends null", () => {
+    const razor = withBuried(
+      "razor-2p",
+      false,
+      "RazorSolver has no buried fill…",
+      null,
+    );
+    expect(capabilityRefusal(razor, BURIED)!.issue).toBe("momwire#553");
   });
 });
 
