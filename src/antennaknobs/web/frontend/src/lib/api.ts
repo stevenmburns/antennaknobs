@@ -86,6 +86,19 @@ export type SolveResponse = {
    *  phasing harness) declare ui_params["feed_ports"] and get one entry per
    *  element centre here; single-feed designs get a single "feed" entry. */
   feed_positions?: { name: string; position: [number, number, number] }[];
+  /** Solver advisories raised during this solve (#1144).
+   *
+   *  ADVISORY, never error: nothing was refused and nothing was remeshed. A
+   *  deck the solver declines raises instead and never produces a response,
+   *  so anything here is a note about an answer that WAS produced — the UI
+   *  must not render it as a failure.
+   *
+   *  Served on every backend, `[]` where there are none, so its presence is
+   *  not itself a signal to branch on. `category` is the stable identity
+   *  (momwire's warning class); `text` is composed from measured rows and
+   *  carries this deck's own numbers, so it is re-measured and must never be
+   *  matched on. */
+  advisories?: { category: string; text: string }[];
   z_in_re: number;
   z_in_im: number;
   /** Multi-feed geometries (bowtie 1×2 array) populate this; single-feed

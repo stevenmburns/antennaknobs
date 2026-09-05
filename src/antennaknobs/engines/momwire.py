@@ -5,7 +5,9 @@ momwire/web/server.py:_compute_directivity_norm.
 
 from __future__ import annotations
 
+import functools
 import logging
+import warnings
 
 import numpy as np
 from momwire import BSplineSolver, RazorSolver
@@ -398,6 +400,111 @@ def _require_coated_wire_support(polylines, specs, ground_z):
                 "momwire submodule pointer."
             ) from exc
         return
+
+
+# ---------------------------------------------------------------------------
+# Solver advisories (issue #1144)
+# ---------------------------------------------------------------------------
+#
+# momwire raises `UserWarning` subclasses during a solve, composed from
+# measured rows and carrying real numbers about THIS deck. Nothing here caught
+# them, so the UI showed none of them and antennaknobs#1143 shipped a static
+# note as a stand-in.
+#
+# Kept BY MODULE, never by a list of classes. Every advisory momwire defines
+# lives in a `momwire.*` module and none is exported at package level, so the
+# module root is the whole test — and a class momwire adds later is picked up
+# with no edit here. A hardcoded tuple would have been wrong on the day it was
+# written: the issue names three, and momwire 0.49.0 defines four
+# (`SurfaceRadialHeight`, `CoarseCrossingNode`, `RazorFarMeshClass` and
+# `AmbiguousSite`).
+_ADVISORY_ROOT = "momwire"
+
+
+def _is_momwire_advisory(category) -> bool:
+    mod = getattr(category, "__module__", "") or ""
+    return mod.split(".")[0] == _ADVISORY_ROOT
+
+
+class _AdvisoryRecorder:
+    """Collect momwire's advisories across every solver call one request makes.
+
+    DEDUPED on (category, text). The adapter drives several engine methods per
+    request and a sweep drives one per frequency, so the same sentence about
+    the same deck would otherwise be served many times over — a 30-point sweep
+    would ship 30 copies.
+
+    ONE RECORDER PER ENGINE, and the adapter builds an engine per request
+    (`_make_momwire_engine`), so the dedupe is scoped to a request and never
+    carries a sentence from one user's solve into another's response. Worth
+    saying out loud because "deduped" and "cached across requests" would look
+    the same from here and only one of them is wanted.
+
+    Deduping looks unnecessary against momwire 0.49.0 and is not. The advisory
+    is emitted inside `_build_basis_polynomials`, PAST its module-level
+    `_BASIS_POLY_CACHE` hit, so today a repeat solve of one deck emits nothing
+    at all (momwire#927). The moment that is fixed, every sweep point emits,
+    and this is what stands between the fix and thirty identical lines.
+
+    NON-momwire warnings are RE-EMITTED, not dropped. `catch_warnings(
+    record=True)` swallows everything in its scope, so capturing momwire's
+    advisories this way would otherwise silently eat numpy's RuntimeWarnings
+    and antennaknobs' own — a warnings channel whose construction suppresses
+    warnings.
+    """
+
+    def __init__(self):
+        self._seen: set = set()
+        self.items: list = []
+
+    def absorb(self, recorded) -> None:
+        for w in recorded:
+            if not _is_momwire_advisory(w.category):
+                warnings.warn_explicit(
+                    w.message, w.category, w.filename, w.lineno, registry=None
+                )
+                continue
+            text = str(w.message)
+            key = (w.category.__name__, text)
+            if key in self._seen:
+                continue
+            self._seen.add(key)
+            self.items.append({"category": w.category.__name__, "text": text})
+
+
+def _captures_advisories(fn):
+    """Record momwire's advisories raised inside one engine call.
+
+    Applied to the engine methods that reach the solver rather than to a
+    single choke point, because there is no single one: the adapter drives
+    impedance, sweeps, patterns, currents and diagnostics separately, and each
+    constructs its own solver.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        rec = getattr(self, "_advisory_recorder", None)
+        if rec is None:
+            rec = self._advisory_recorder = _AdvisoryRecorder()
+        captured: list = []
+        try:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                try:
+                    return fn(self, *args, **kwargs)
+                finally:
+                    # Copy, then absorb OUTSIDE the block. `caught` is the very
+                    # list `record=True` appends to, so re-emitting a
+                    # non-momwire warning while iterating it appends to it —
+                    # an infinite loop, which is what the first version did.
+                    # Absorbing outside also puts the re-emitted warnings in
+                    # front of the CALLER's filters, which is the whole point
+                    # of passing them on.
+                    captured = list(caught)
+        finally:
+            rec.absorb(captured)
+
+    return wrapper
 
 
 class MomwireEngine(SimulationEngine):
@@ -1136,6 +1243,21 @@ class MomwireEngine(SimulationEngine):
         if self._cancel is not None:
             self._cancel.raise_if_cancelled()
 
+    @property
+    def advisories(self):
+        """momwire's advisories from every solver call this engine has made.
+
+        A list of `{"category", "text"}`, deduped, in first-seen order. Empty
+        for a deck that raised none, which is the ordinary case — the channel
+        must stay silent on a clean solve or it becomes noise and is ignored.
+
+        ADVISORY, not error: nothing was refused and nothing was remeshed. A
+        deck momwire will not solve raises instead, and never reaches here.
+        """
+        rec = getattr(self, "_advisory_recorder", None)
+        return list(rec.items) if rec is not None else []
+
+    @_captures_advisories
     def impedance(self):
         self._raise_if_cancelled()
         wavelength = self._wavelength_for(self.builder.freq)
@@ -1161,6 +1283,7 @@ class MomwireEngine(SimulationEngine):
         """
         return self._reducer.driven_impedance(y_real, wavelength)
 
+    @_captures_advisories
     def impedance_sweep(self, freqs):
         freqs = np.asarray(freqs, dtype=float)
         if freqs.ndim != 1 or freqs.size == 0:
@@ -1306,6 +1429,7 @@ class MomwireEngine(SimulationEngine):
             **self._solver_kwargs,
         )
 
+    @_captures_advisories
     def input_power(self):
         """Input power 1/2·Re(Σ V_f·I_f*) in watts over the SOURCE feeds of
         the excited solve — the gain normaliser (gain = 4π·U/P_in). Power
@@ -1326,6 +1450,7 @@ class MomwireEngine(SimulationEngine):
             return float(p_in)
         return self._p_in_from_excited(sim, z)
 
+    @_captures_advisories
     def solver_diag(self):
         """Array Block solver diagnostics from the last solve (issue #613):
         which coupling path engaged (lattice-FFT / per-pair / dense
@@ -1343,6 +1468,7 @@ class MomwireEngine(SimulationEngine):
         diag = getattr(sim, "solver_diag", None)
         return diag() if diag is not None else None
 
+    @_captures_advisories
     def current_distribution(self):
         self._raise_if_cancelled()
         sim, coeffs, _z = self._solved_excited(self._wavelength_for(self.builder.freq))
@@ -1358,6 +1484,7 @@ class MomwireEngine(SimulationEngine):
             )
         return out
 
+    @_captures_advisories
     def geometry_distribution(self):
         """Per-wire knot positions with zero currents — a cheap geometry-only
         snapshot that skips the (possibly slow) MoM solve.
@@ -1522,6 +1649,7 @@ class MomwireEngine(SimulationEngine):
         M_perp = M_perp + M_refl
         return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
 
+    @_captures_advisories
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):
         self._raise_if_cancelled()
         assert 90 % n_theta == 0 and 90 == del_theta * n_theta
