@@ -193,44 +193,64 @@ def test_ground_geometry_refusals(monkeypatch):
 
 
 def test_buried_deck_ground_flag_follows_the_deck(monkeypatch):
-    """GE's ground flag is chosen per DECK, not merely by the presence of
-    burial (antennaknobs#1025).
+    """The ground flag is decided by BURIAL, not by contact (#1025).
 
     The flag lives in GE's FIRST field; the second is the segment-check flag
     and is physics-irrelevant here (-1, 0 and 2 print the same impedance to
-    every digit, measured on both classes). This wrapper used to write
-    `GE 1 -1` for every buried deck, reading that -1 as "buried support".
+    every digit on both classes). This wrapper once wrote `GE 1 -1` for every
+    buried deck, reading that -1 as "buried support".
 
-    The two settings mean opposite things about a wire END at z=0: flag 1
-    BONDS it to ground, flag -1 leaves the current expansion alone so the
-    current goes to zero there. So a contact deck needs 1 and a deck that
-    never touches the plane needs -1 — and asking for the wrong one is not a
-    detail: flag 1 on the wholly-buried fed dipole printed milliohms, and
-    flag -1 on a contact deck makes the binary refuse the run outright."""
+    The rule went through one wrong intermediate worth recording, because the
+    measurement that settled it is subtle. It briefly keyed on whether a wire
+    END touched z=0, on the evidence that flag -1 made the binary refuse such
+    a deck. That refusal is real but it is not a reason to reach for flag 1:
+    it means the deck has no basis function at that node, and the fix is to
+    continue the conductor BELOW the plane, not to change the flag. Keyed on
+    burial, the connected screen tracks momwire to 2.6 % in R where flag 1 was
+    34.6 % off.
+
+    So: buried wires anywhere -> -1. No buried wires -> 1, untouched.
+    """
     monkeypatch.setenv("NEC5_EXE", sys.executable)
-    # A contact end at z=0 keeps flag 1, buried radials underneath or not.
-    lines = (
-        NEC5Engine(_ContactMonopoleOverBuriedRadials(), ground=("finite", 13.0, 0.005))
-        .deck([7.0])
-        .splitlines()
+    ground = ("finite", 13.0, 0.005)
+
+    from antennaknobs.designs.verticals.buried_radial_vertical import (
+        Builder as BuriedRadialVertical,
     )
-    assert "GE 1 0" in lines
-    # Nothing touching the plane: flag -1.
+
+    # Buried wires with a conductor crossing the plane: flag -1.
+    lines = NEC5Engine(BuriedRadialVertical(), ground=ground).deck([7.1]).splitlines()
+    assert "GE -1 0" in lines
+
+    # Buried wires, nothing touching the plane at all: also -1.
     lines_below = (
-        NEC5Engine(_FullyBuriedFedDipole(), ground=("finite", 13.0, 0.005))
-        .deck([7.1])
-        .splitlines()
+        NEC5Engine(_FullyBuriedFedDipole(), ground=ground).deck([7.1]).splitlines()
     )
     assert "GE -1 0" in lines_below
-    gn = [ln for ln in lines if ln.startswith("GN")][0].split()
+
+    # No buried wires: flag 1, exactly as stage 1 wrote it.
+    lines_above = NEC5Engine(_ElevatedDipole(), ground=ground).deck([28.5]).splitlines()
+    assert "GE 1 0" in lines_above
+    gn = [ln for ln in lines_above if ln.startswith("GN")][0].split()
     assert gn[1] == "0" and float(gn[5]) == 13.0
-    # Above-ground decks are untouched by the stage.
-    lines = (
-        NEC5Engine(_ElevatedDipole(), ground=("finite", 13.0, 0.005))
-        .deck([28.5])
-        .splitlines()
-    )
-    assert "GE 1 0" in lines
+
+
+def test_terminating_on_the_plane_over_buried_wires_is_refused(monkeypatch):
+    """The refusal names the geometry and the way out (#1025).
+
+    `_ContactMonopoleOverBuriedRadials` is the shape: a monopole whose base
+    END sits at z=0, buried radials underneath, nothing continuing below the
+    node. Flag -1 gives that node no basis function, so the conductor reads as
+    open-circuited (598.320-54434.000j on the catalog's detached variant);
+    flag 1 bonds it and prints a plausible number that is 34.6 % from momwire
+    on the connected screen. Neither is a serve, so it refuses.
+
+    Free space is untouched — the rule is about the ground card, and there is
+    no ground card."""
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    with pytest.raises(NotImplementedError, match="ends ON the ground plane"):
+        NEC5Engine(_ContactMonopoleOverBuriedRadials(), ground=("finite", 13.0, 0.005))
+    NEC5Engine(_ContactMonopoleOverBuriedRadials())
 
 
 # The momwire#567 four-radial anchor deck, verbatim from momwire
@@ -238,6 +258,14 @@ def test_buried_deck_ground_flag_follows_the_deck(monkeypatch):
 # scripts/capture_buried_anchor_nec5.py; NEC-5 is (c) LLNL,
 # LLNL-CODE-746721). The banked literal below is what the binary PRINTS
 # for it — same binary, same cards, same print.
+#
+# Kept verbatim, INCLUDING its `GE 1,-1`, even though antennaknobs#1025
+# stopped the wrapper writing that flag: this gates the parser and the
+# binary plumbing on a buried printout, and a golden that reproduces is
+# doing its job whatever the deck says. What the number may be CITED as is
+# a separate question, on momwire#925 — that deck is the contact class with
+# nothing continuing below the plane, which the wrapper now refuses to
+# build.
 _ANCHOR_FOUR_RADIAL_DECK = (
     "CM momwire#567 anchor four-radial\n"
     "CE\n"
@@ -295,11 +323,11 @@ def test_buried_anchor_print_reproduces_through_the_wrapper():
 
 @needs_nec5
 def test_buried_radial_catalog_detached_variant_solves():
-    """The catalog's stake-convention variant, end to end through the
-    binary: `verticals.buried_radial_vertical:detached` is the anchor-CLASS
-    geometry (contact monopole, four detached radials 15 cm down) at the
-    catalog's own knobs — 7.1 MHz, truncated radials — so the value is a
-    smoke bound on the ~90-71j class, not the anchor literal."""
+    """The catalog's stake-convention variant is now REFUSED (#1025).
+
+    It used to solve, and the number it gave was the problem: its monopole
+    stands its lower end IN the plane with no rise while four radials sit
+    15 cm down, which is the combination with no defensible spelling."""
     from antennaknobs.designs.verticals.buried_radial_vertical import (
         Builder as BuriedRadialVertical,
     )
@@ -307,25 +335,33 @@ def test_buried_radial_catalog_detached_variant_solves():
     b = BuriedRadialVertical(
         params=resolve_variant_params(BuriedRadialVertical, "detached")
     )
-    e = NEC5Engine(b, ground=("finite", 13.0, 0.005))
-    (z,) = e.impedance()
-    assert np.isfinite(z.real) and np.isfinite(z.imag)
-    assert 10.0 < abs(z) < 1000.0
-    assert z.real > 0.0
+    with pytest.raises(NotImplementedError, match="ends ON the ground plane"):
+        NEC5Engine(b, ground=("finite", 13.0, 0.005))
 
 
 @needs_nec5
-def test_buried_radial_deck_solves_through_the_wrapper():
-    """The wrapper's own deck path on the anchor-class geometry: a contact
-    monopole over four buried radials, wrapper-built cards (center-knot
-    EX 0 feed — a different source spelling than the anchor's EX 4, so
-    the value is a smoke bound, not the anchor literal)."""
-    e = NEC5Engine(_ContactMonopoleOverBuriedRadials(), ground=("finite", 13.0, 0.005))
-    (z,) = e.impedance()
-    assert np.isfinite(z.real) and np.isfinite(z.imag)
-    # The anchor class prints ~90-71j; the different feed spelling moves
-    # it, but any wrapper/deck defect lands orders of magnitude away.
-    assert 10.0 < abs(z) < 1000.0
+def test_the_connected_spelling_is_the_way_out_and_tracks_momwire(record_property):
+    """The refusal above says to continue the conductor below the plane; this
+    is that deck, which is why the refusal redirects rather than dead-ends.
+
+    The catalog's CONNECTED buried-radial screen has a rise from the buried
+    hub up to the node, so the conductor crosses the interface instead of
+    stopping on it — and it then agrees with momwire to a few percent. Under
+    the flag this wrapper used to write, the same deck read 49.620+20.877j,
+    34.6 % from momwire in R."""
+    from antennaknobs.designs.verticals.buried_radial_vertical import (
+        Builder as BuriedRadialVertical,
+    )
+
+    b = BuriedRadialVertical()
+    ground = ("finite", 13.0, 0.005)
+    assert "GE -1 0" in NEC5Engine(b, ground=ground).deck([b.freq]).splitlines()
+    (z5,) = NEC5Engine(b, ground=ground).impedance()
+    (zm,) = MomwireEngine(b, ground=ground).impedance()
+    record_property("nec5", f"{z5:.4f}")
+    record_property("momwire", f"{zm:.4f}")
+    assert abs(z5.real - zm.real) / abs(zm.real) < 0.05, (z5, zm)
+    assert abs(z5.imag - zm.imag) / abs(zm.imag) < 0.15, (z5, zm)
 
 
 def test_parse_ground_fixtures():
@@ -1099,3 +1135,87 @@ def test_buried_fed_below_tracks_momwire(record_property):
     assert r5[0] > r5[1] > r5[2], r5
     assert rm[0] > rm[1] > rm[2], rm
     assert (r5[0] - r5[2]) > 5.0, r5
+
+
+def test_contact_class_captures_pin_the_ground_flag():
+    """The contact class's banked pair (antennaknobs#1025 follow-up).
+
+    Same deck, same mesh, differing in one card. The witness is the point:
+    the flag this wrapper used to write does not merely shift the answer, it
+    is the whole of what looked like an interface-node convention difference.
+    49.620+20.877j sits 34.58 % from momwire in R; 77.805+44.468j sits 2.58 %.
+
+    Kept as a capture rather than a live solve so it gates without the
+    binary, and so a revert to the old flag fails here rather than quietly
+    re-publishing the old number.
+    """
+    served = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "brv_connected_minus1.out").read_text()
+    )
+    witness = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "brv_connected_ge1_witness.out").read_text()
+    )
+    assert served == [[(8, 223, 77.805 + 44.468j)]]
+    assert witness == [[(8, 223, 49.62 + 20.877j)]]
+
+    a = (FIXTURES / "brv_connected_minus1.nec").read_text().splitlines()
+    b = (FIXTURES / "brv_connected_ge1_witness.nec").read_text().splitlines()
+    differing = [(x, y) for x, y in zip(a, b, strict=True) if x != y]
+    assert differing == [("GE -1 0", "GE 1 0")]
+
+
+@needs_nec5
+def test_the_old_flag_prints_negative_resistance_when_fed_below_ground():
+    """The other witness for the old flag, and the sharpest one.
+
+    Under the flag the wrapper used to write, moving the source to a
+    BELOW-ground segment of the same screen prints NEGATIVE resistance — the
+    same broken class as the milliohms this issue opened on, and impossible
+    for a passive antenna. Under the flag keyed on burial the answer is
+    instead stable across source placement, moving by ~0.04 ohm when the feed
+    moves one segment.
+
+    Hand cards, because the wrapper cannot be asked to write the old flag any
+    more, which is the point.
+    """
+    import re
+    import subprocess
+    import tempfile
+
+    exe = find_nec5()
+    gw = (
+        "GW 1 70 0. 0. -1.500000E-01 0. 0. 1.035000E+01 5.000000E-04\n"
+        + "".join(
+            f"GW {i + 2} 54 0. 0. -1.500000E-01 "
+            f"{6.3336 * dx:.6E} {6.3336 * dy:.6E} -1.500000E-01 5.000000E-04\n"
+            for i, (dx, dy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1)))
+        )
+    )
+    gn = "GN 0 0 0 0 1.300000E+01 5.000000E-03 1.000000E+00 0.000000E+00 NOFILE\n"
+    fr = "FR 0 1 0 0 7.100000E+00 0.000000E+00\n"
+
+    def z_of(ge, seg):
+        deck = (
+            f"CM witness\nCE\n{gw}{ge}\n{gn}EX 0 1 {seg} 0 1.0 0.\n{fr}XQ 0\nEN\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            (Path(td) / "m.nec").write_text(deck)
+            subprocess.run(
+                [exe], input="m.nec\nm.out\n\n", text=True,
+                capture_output=True, cwd=td, timeout=600,
+            )
+            text = (Path(td) / "m.out").read_text(errors="replace")
+        m = re.search(
+            r"- - - ANTENNA INPUT PARAMETERS - - -(.*?)(?:\n\s*\n\s*\n|$)", text, re.S
+        )
+        for line in m.group(1).splitlines():
+            t = line.split()
+            if len(t) >= 12 and re.fullmatch(r"\d+", t[0]):
+                return complex(float(t[7]), float(t[8]))
+        raise AssertionError("no impedance row")
+
+    # segment 1 is below the interface; segment 2 is the first above it.
+    assert z_of("GE 1 0", 1).real < 0.0
+    assert z_of("GE -1 0", 1).real > 70.0
+    # and under the served flag the answer barely notices the feed moving.
+    assert abs(z_of("GE -1 0", 1).real - z_of("GE -1 0", 2).real) < 0.5

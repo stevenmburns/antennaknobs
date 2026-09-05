@@ -47,6 +47,24 @@ def main() -> int:
         "buried_dipole_fed_below": deck,
         "buried_dipole_fed_below_ge1": deck.replace(ge, "GE 1 -1"),
     }
+
+    # The CONTACT class (antennaknobs#1025 follow-up): the connected
+    # buried-radial screen, whose conductor crosses the interface. Served and
+    # witness, same pair as above — the witness is the flag the wrapper used
+    # to write, which is 34.6 % from momwire in R here.
+    from antennaknobs.designs.verticals.buried_radial_vertical import (
+        Builder as BuriedRadialVertical,
+    )
+
+    cb = BuriedRadialVertical()
+    ceng = NEC5Engine(cb, ground=SOIL)
+    cdeck = ceng.deck([float(cb.freq)])
+    cge = next(ln for ln in cdeck.splitlines() if ln.startswith("GE"))
+    if cge != "GE -1 0":
+        print(f"unexpected contact GE card {cge!r}", file=sys.stderr)
+        return 3
+    variants["brv_connected_minus1"] = cdeck
+    variants["brv_connected_ge1_witness"] = cdeck.replace(cge, "GE 1 0")
     manifest_path = FIXTURES / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     for name, text in variants.items():
@@ -67,6 +85,24 @@ def main() -> int:
         "note": (
             "the same deck with ground flag 1, the pre-#1025 spelling: the "
             "witness for the milliohm print, kept so a revert fails a test"
+        ),
+    }
+    manifest["fixtures"]["brv_connected_minus1"] = {
+        "deck": "brv_connected_minus1.nec",
+        "printout": "brv_connected_minus1.out",
+        "note": (
+            "verticals.buried_radial_vertical connected: the CONTACT class "
+            "whose conductor crosses the interface, on ground flag -1 "
+            "(antennaknobs#1025) — 2.6 % from momwire in R"
+        ),
+    }
+    manifest["fixtures"]["brv_connected_ge1_witness"] = {
+        "deck": "brv_connected_ge1_witness.nec",
+        "printout": "brv_connected_ge1_witness.out",
+        "note": (
+            "the same deck on the flag the wrapper used to write: the WITNESS "
+            "for the 34.6 % contact-class error and the flat-in-radial-count "
+            "reading, kept so a revert fails a test"
         ),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

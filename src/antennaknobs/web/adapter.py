@@ -645,30 +645,32 @@ _WRAPPER_BURIED_SCOPE = {
     # is marked False for.
     #
     # WHAT THE True DOES NOT SAY. There is no third state here, so read it as
-    # "the wrapper models the buried medium", not as "every buried sub-class is
-    # equally trustworthy". Measured scope, so nobody has to re-derive it:
+    # "the wrapper models the buried medium", not as "every buried sub-class
+    # is equally trustworthy". Measured scope, so nobody re-derives it:
     #
     #   wholly buried, fed below   validated to 0.15-0.27 % against momwire
-    #   buried wires, fed above    serves; the one catalog deck of this shape
-    #                              (elevated_buried_counterpoise) has |X|/R
-    #                              ~1400, so its R is numerical noise and it
-    #                              validates nothing in either direction
-    #   CONTACT (a bonded end)     serves, with a caveat below
+    #   contact (conductor crosses
+    #   the interface)             2.58 % in R on the four-radial screen,
+    #                              3.85 % on the twelve
+    #   buried wires, fed above    <= 1.7 % across 92 case-study decks
+    #                              (median 0.10 %)
+    #   conductor TERMINATING on
+    #   the plane over buried wires REFUSED by name — no defensible spelling
     #
-    # The contact caveat: that class needs ground flag 1, because flag -1
-    # leaves the current expansion alone and the binary then refuses the run
-    # outright — "voltage source specified where there is no basis function",
-    # which is the flag working as documented, there being no bonded node at
-    # the plane for the source to excite. But flag 1 is documented as not
-    # usable when wires go below the surface, and the contact class asks for
-    # both at once. The binary runs the combination without complaint (its
-    # checks are looser than its documentation, the same lesson as the
-    # mid-span straddle), and the answer it gives sits ~35 % in R from
-    # momwire. That gap was independently adjudicated as the interface-node
-    # convention difference — NEC-5 reads nearly the same impedance with the
-    # radials connected or detached — on antennaknobs#1025 and
-    # momwire#524/#567/#838, so it is not this bug and not fixed by it. Treat
-    # a contact-class NEC-5 buried number as unvalidated rather than wrong.
+    # An earlier version of this comment said the opposite about the contact
+    # class: that it needed the bonding ground flag and sat ~35 % from
+    # momwire, which was read as an interface-node convention difference.
+    # That was measured wrong. The 35 % was the FLAG. Keyed on burial the same
+    # deck reads 77.805+44.468j against momwire's 75.848+40.452j, and the
+    # convention difference — whatever remains of it — is smaller than the
+    # error that was standing in front of it. See antennaknobs#1025.
+    #
+    # The refused row is the honest edge: a conductor that stops on the
+    # interface above buried wires has no basis function under the flag
+    # burial requires (it reads as an open circuit, 598.320-54434.000j on the
+    # catalog's detached variant) and the other flag is documented as
+    # unusable with buried wires. Refusing beats answering wrong, and the
+    # refusal names the way out — continue the conductor below the plane.
     "nec5": (True, None, None),
 }
 

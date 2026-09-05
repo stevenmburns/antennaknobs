@@ -86,7 +86,7 @@ ALLOCATE CM:          10816
 
                                 - - - MATRIX TIMING - - -
 
-                        FILL=    0.799 SEC.,  FACTOR=    0.004 SEC.
+                        FILL=    0.797 SEC.,  FACTOR=    0.004 SEC.
 
 
 
@@ -171,4 +171,4 @@ ALLOCATE CM:          10816
 
  ***** INPUT LINE  5  EN   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
 
- RUN TIME =     0.820
+ RUN TIME =     0.817

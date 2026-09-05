@@ -432,6 +432,7 @@ class NEC5Engine(SimulationEngine):
         """
         self._has_buried_wires = False
         self._has_ground_contact = False
+        contact_nodes = []
         for i, w in enumerate(self._wires):
             z0, z1 = float(w.p0[2]), float(w.p1[2])
             if (z0 < 0.0 < z1) or (z1 < 0.0 < z0):
@@ -446,8 +447,12 @@ class NEC5Engine(SimulationEngine):
                     f"wire {i + 1} lies in the ground plane (z=0), which "
                     "NEC-5's ground forbids"
                 )
-            if z0 == 0.0 or z1 == 0.0:
+            if z0 == 0.0:
                 self._has_ground_contact = True
+                contact_nodes.append(np.asarray(w.p0, dtype=float))
+            if z1 == 0.0:
+                self._has_ground_contact = True
+                contact_nodes.append(np.asarray(w.p1, dtype=float))
             if z0 < 0.0 or z1 < 0.0:
                 if self.ground[0] != "finite":
                     raise NotImplementedError(
@@ -456,6 +461,58 @@ class NEC5Engine(SimulationEngine):
                         "ground=('finite', eps_r, sigma), not PEC"
                     )
                 self._has_buried_wires = True
+
+        if self._has_buried_wires and contact_nodes:
+            self._refuse_contact_without_continuation(contact_nodes)
+
+    def _refuse_contact_without_continuation(self, contact_nodes):
+        """A conductor that STOPS on the interface, in a deck that also has
+        buried wires, has no NEC-5 spelling we can defend (#1025).
+
+        The ground flag is the whole of it. A deck with buried wires must ride
+        flag -1, and flag -1 leaves the current expansion unmodified — so a
+        wire ending at z=0 has its current forced to zero there and no basis
+        function at that node. Feeding it is refused by the binary outright,
+        and a source elsewhere sees the conductor open-circuited: the
+        `detached` buried-radial variant reads 598.320-54434.000j that way
+        against 77.805+44.468j for the same deck with a rise.
+
+        The other flag is not an escape. Flag 1 bonds the node and produces a
+        number, which is what this wrapper used to ship — but it is documented
+        as unusable when wires are buried, and the number it gives is the one
+        that made NEC-5 look flat in radial count (34.6 % from momwire in R on
+        the four-radial screen; the flat-curve reading on the 1937 geometry).
+        A deck served under it is not served, it is answered wrong.
+
+        So the honest answer is a refusal with the way out named: give the
+        conductor something below the plane to continue into. The connected
+        buried-radial spelling — a rise from the buried hub UP to the node —
+        is exactly that, and it agrees with momwire to 2.6 % in R.
+        """
+        tol = 1e-9
+        for node in contact_nodes:
+            for w in self._wires:
+                p0 = np.asarray(w.p0, dtype=float)
+                p1 = np.asarray(w.p1, dtype=float)
+                for here, other in ((p0, p1), (p1, p0)):
+                    if np.allclose(here, node, atol=tol) and other[2] < -tol:
+                        break
+                else:
+                    continue
+                break
+            else:
+                raise NotImplementedError(
+                    f"a conductor ends ON the ground plane at "
+                    f"({node[0]:g}, {node[1]:g}, 0) while this deck also has "
+                    "buried wires: NEC-5 has no documented spelling for that "
+                    "combination. Buried wires require the ground flag that "
+                    "leaves the current expansion alone, which gives a wire "
+                    "ending at z=0 no basis function there — the conductor "
+                    "reads as open-circuited. Continue the conductor BELOW "
+                    "the interface instead (a rise from the buried hub up to "
+                    "this node is the served spelling), or lift it clear of "
+                    "the plane"
+                )
 
     def _ground_lines(self) -> tuple[str, list[str]]:
         """(GE line, GN lines) for the current ground spec.
@@ -507,10 +564,7 @@ class NEC5Engine(SimulationEngine):
         # The second field is physics-irrelevant here: -1, 0 and 2 print the
         # same impedance to every digit. It stays 0 (the default, checks on)
         # so both spellings match the above-ground card.
-        if self._has_buried_wires and not self._has_ground_contact:
-            ge = "GE -1 0"
-        else:
-            ge = "GE 1 0"
+        ge = "GE -1 0" if self._has_buried_wires else "GE 1 0"
         return ge, [
             f"GN 0 0 0 0 {_num(eps_r)} {_num(sigma)} {_num(1.0)} {_num(0.0)} NOFILE"
         ]

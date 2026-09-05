@@ -83,7 +83,7 @@ ALLOCATE CM:           2601
 
                                 - - - MATRIX TIMING - - -
 
-                        FILL=    0.649 SEC.,  FACTOR=    0.000 SEC.
+                        FILL=    0.640 SEC.,  FACTOR=    0.000 SEC.
 
 
 
@@ -168,4 +168,4 @@ ALLOCATE CM:           2601
 
  ***** INPUT LINE  5  EN   0    0    0    0  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00  0.00000E+00
 
- RUN TIME =     0.650
+ RUN TIME =     0.642
