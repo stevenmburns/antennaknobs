@@ -1509,6 +1509,7 @@ function DesignSessionBody({
         />
 
         <CatalogPanel
+          advisories={result?.advisories}
           geomGroups={geomGroups}
           geometry={geometry}
           currentExample={currentExample}

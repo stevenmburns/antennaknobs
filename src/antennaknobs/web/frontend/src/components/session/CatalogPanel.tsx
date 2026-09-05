@@ -4,6 +4,7 @@ import {
 } from "../AwaitingTrustPanel";
 import { GeometryCombobox } from "../params/GeometryCombobox";
 import type { ExampleDescriptor, ExampleGroup } from "../../lib/params";
+import { SolverAdvisories, type Advisory } from "../results/SolverAdvisories";
 
 export function CatalogPanel({
   geomGroups,
@@ -20,7 +21,11 @@ export function CatalogPanel({
   trustDesign,
   onReloadDesign,
   reloadBusy,
+  advisories,
 }: {
+  /** Advisories from the last solve (#1144); absent on a
+   *  geometry-only preview, empty on a clean solve. */
+  advisories?: Advisory[] | null | undefined;
   geomGroups: ExampleGroup[];
   geometry: string;
   currentExample: ExampleDescriptor | undefined;
@@ -79,6 +84,11 @@ export function CatalogPanel({
       {currentExample?.notes && (
         <div className="design-note">{currentExample.notes}</div>
       )}
+      {/* Live advisories from the last solve (#1144), beside the static
+          design note rather than somewhere else: this is where a user
+          already looks for "notes about this design", and for the surface
+          variant the live one supersedes the static stand-in. */}
+      <SolverAdvisories advisories={advisories} />
       {examplesError && (
         <div className="examples-error">
           Failed to load /examples: {examplesError}

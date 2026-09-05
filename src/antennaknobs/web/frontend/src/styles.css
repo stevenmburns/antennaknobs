@@ -3435,3 +3435,40 @@ canvas {
   color: var(--muted);
   margin: 0 0 var(--space-2);
 }
+
+/* Solver advisories from one solve (#1144). Muted like `.design-note`, and
+   deliberately NOT the `.examples-error` alarm styling: nothing was refused
+   and nothing was remeshed, so this explains, it does not warn. */
+.solver-advisories {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.solver-advisory {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+.solver-advisory-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  margin-right: 0.4em;
+}
+.solver-advisory-body {
+  margin-top: var(--space-2);
+}
+.solver-advisory-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.solver-advisory-toggle:hover {
+  color: var(--fg);
+}

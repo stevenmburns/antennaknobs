@@ -1,4 +1,5 @@
 {
+  "advisories[]": "empty_array",
   "cache_hit": "bool",
   "cuts.az_elev_deg": "number",
   "cuts.azimuth[]": "number",

@@ -2321,6 +2321,21 @@ _PEC_GROUND_EPS_R = 1.0e10
 _PEC_GROUND_SIGMA = 0.0
 
 
+def _solver_advisories(eng) -> list:
+    """The solver advisories one solve raised, for the response (issue #1144).
+
+    Served on EVERY backend's response, `[]` where the engine has none, so the
+    field's presence is not itself a signal the client has to branch on. PyNEC
+    and NEC-5 are AK's own wrappers and raise no advisories of this kind; a
+    missing key would make "this backend cannot say" and "this deck raised
+    none" the same absence, which is the distinction #1103 exists to keep.
+
+    ADVISORY, never error. Nothing was refused and nothing was remeshed — a
+    deck momwire declines raises instead, and the request never gets here.
+    """
+    return list(getattr(eng, "advisories", ()) or ())
+
+
 def _momwire_ground_fields(eng, req: dict) -> dict:
     """Ground-describing response fields for a momwire solve.
 
@@ -3323,6 +3338,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         z_primary = zs[0] if zs else complex(0.0, 0.0)
         out = {
             "geometry": name,
+            # Solver advisories from this solve (#1144). Advisory only: the UI
+            # must render them as notes, not failures.
+            "advisories": _solver_advisories(eng),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
@@ -3543,6 +3561,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         z_primary = zs[0] if zs else complex(0.0, 0.0)
         out = {
             "geometry": name,
+            # Solver advisories from this solve (#1144). Advisory only: the UI
+            # must render them as notes, not failures.
+            "advisories": _solver_advisories(eng),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
@@ -3638,6 +3659,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         finite = isinstance(eng.ground, tuple) and eng.ground[0] == "finite"
         out = {
             "geometry": name,
+            # Solver advisories from this solve (#1144). Advisory only: the UI
+            # must render them as notes, not failures.
+            "advisories": _solver_advisories(eng),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,

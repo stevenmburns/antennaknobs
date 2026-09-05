@@ -156,14 +156,20 @@ def test_every_catalog_jacket_clears_the_bare_floor():
             assert w.insulation_radius / w.radius >= 2.0, name
 
 
-def test_the_note_carries_the_advisory_and_admits_the_gap():
-    """The app has no runtime warnings channel yet, so this static note is
-    the stand-in — and it says so, rather than implying the live advisory is
-    surfaced."""
+def test_the_note_carries_the_advisory_and_points_at_the_live_one():
+    """The static note used to say the app did not surface solver advisories.
+    antennaknobs#1144 built that channel, so the note now points at the live
+    advisory instead of standing in for it.
+
+    The class figures stay: they are the swing for +-1 mm, where the live
+    advisory quotes |dR/dh|. Similar-looking, different quantities, and only
+    one of them survives being deleted as "duplicated".
+    """
     note = _params()["ui_params"]["notes"]
     assert "INDICATIVE RATHER THAN PREDICTIVE" in note
     assert "41" in note and "10" in note  # the +-1 mm figures at N=4 and N=16
-    assert "does not surface solver advisories yet" in note
+    assert "does not surface" not in note
+    assert "advisory" in note.lower()
 
 
 # ---------------------------------------------------------------------------

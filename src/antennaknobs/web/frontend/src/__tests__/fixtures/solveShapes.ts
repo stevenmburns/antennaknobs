@@ -13,6 +13,7 @@ import type { Projection } from "../../lib/view";
 // dipoles.invvee (tests/fixtures/solve_keys_invvee.json is the same solve's key-structure sibling).
 export const invveeShape = {
   "geometry": "dipoles.invvee",
+  "advisories": [],
   "wires": [
     {
       "label": "wire0",
@@ -30,11 +31,11 @@ export const invveeShape = {
       ],
       "knot_currents_re": [
         0.0,
-        -0.0016736713661747403
+        -0.0016752899083795055
       ],
       "knot_currents_im": [
         0.0,
-        -0.00019465033732947229
+        -0.00018905979915499643
       ]
     }
   ],
@@ -55,12 +56,12 @@ export const invveeShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 55.17561022158536,
-  "z_in_im": -9.717342725986786,
+  "z_in_re": 55.17841963036034,
+  "z_in_im": -9.521690585175433,
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.481,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 4.182408098131418,
+  "solve_ms": 12.416999787092209,
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -71,13 +72,13 @@ export const invveeShape = {
   "default_view": "yz" as Projection,
   "radiation_efficiency": 1.0,
   "power_budget": [],
-  "input_power_w": 0.008789354966037903,
+  "input_power_w": 0.00879948607218586,
   "solver": "momwire",
   "k_meas_m_inv": 0.5969176207020584,
   "ground_eps_im": -0.0,
-  "directivity_norm": 607.6625919566022,
+  "directivity_norm": 606.9629722094088,
   "cache_hit": false,
-  "solve_id": "a5c45349cd3c9bc3b0dafa621d4dbfb2",
+  "solve_id": "c61d045c1507f2842dc2579c49ccca60",
   "cuts": {
     "az_elev_deg": 15.0,
     "elev_az_deg": 0.0,
@@ -97,6 +98,7 @@ export const invveeShape = {
 // wire.doublet_ladder_tuner (tests/fixtures/solve_keys_doublet_ladder_tuner.json is the same solve's key-structure sibling).
 export const doubletLadderTunerShape = {
   "geometry": "wire.doublet_ladder_tuner",
+  "advisories": [],
   "wires": [
     {
       "label": "wire0",
@@ -114,11 +116,11 @@ export const doubletLadderTunerShape = {
       ],
       "knot_currents_re": [
         0.0,
-        0.0008688071531197113
+        0.0008685875604828952
       ],
       "knot_currents_im": [
         0.0,
-        -0.0004957283375516049
+        -0.0004960829403459372
       ]
     }
   ],
@@ -139,12 +141,12 @@ export const doubletLadderTunerShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 51.3215952742601,
-  "z_in_im": 9.636820920183492,
+  "z_in_re": 51.31067762129014,
+  "z_in_im": 9.663598555301306,
   "design_freq_mhz": 7.1,
   "measurement_freq_mhz": 7.15,
   "lambda_design_m": 42.22428985915493,
-  "solve_ms": 7.117491215467453,
+  "solve_ms": 42.43638552725315,
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -153,11 +155,11 @@ export const doubletLadderTunerShape = {
   "z0_ohms": 50.0,
   "multi_feed": false,
   "default_view": "yz" as Projection,
-  "radiation_efficiency": 0.9199310773186768,
+  "radiation_efficiency": 0.9198967189554222,
   "power_budget": [
     {
       "label": "TL li\u2192feed",
-      "watts": 0.0003511642426188531,
+      "watts": 0.0003513368892358749,
       "path": "",
       "key": "TL li\u2192feed"
     },
@@ -168,7 +170,7 @@ export const doubletLadderTunerShape = {
       "key": "tuner: TwoPort rig\u2192m"
     }
   ],
-  "input_power_w": 0.009410678449394198,
+  "input_power_w": 0.009410759973648998,
   "plane": "rig",
   "planes": [
     "rig",
@@ -177,9 +179,9 @@ export const doubletLadderTunerShape = {
   "solver": "momwire",
   "k_meas_m_inv": 0.14985291906954523,
   "ground_eps_im": -0.0,
-  "directivity_norm": 35.76845550582586,
+  "directivity_norm": 35.76814564810038,
   "cache_hit": false,
-  "solve_id": "59dc4d0a86ae30512951ebfebeeb6efd",
+  "solve_id": "6227dedce17ac72c6cd97fe045051119",
   "cuts": {
     "az_elev_deg": 15.0,
     "elev_az_deg": 0.0,
@@ -199,6 +201,7 @@ export const doubletLadderTunerShape = {
 // dipoles.invvee_catenary (tests/fixtures/solve_keys_invvee_catenary.json is the same solve's key-structure sibling).
 export const invveeCatenaryShape = {
   "geometry": "dipoles.invvee_catenary",
+  "advisories": [],
   "wires": [
     {
       "label": "wire0",
@@ -216,11 +219,11 @@ export const invveeCatenaryShape = {
       ],
       "knot_currents_re": [
         0.0,
-        -0.0025474425589200257
+        -0.0025498046377418855
       ],
       "knot_currents_im": [
         0.0,
-        9.070528556045649e-05
+        0.00036952428791333833
       ]
     }
   ],
@@ -241,12 +244,12 @@ export const invveeCatenaryShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 51.20030756631369,
-  "z_in_im": -0.9381490044027425,
+  "z_in_re": 51.67888907217747,
+  "z_in_im": 4.438900085881425,
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.489,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 7.261528167873621,
+  "solve_ms": 5.3065381944179535,
   "ground": false,
   "height_m": 0.0,
   "ground_eps_r": 10000000000.0,
@@ -255,16 +258,16 @@ export const invveeCatenaryShape = {
   "z0_ohms": 50.0,
   "multi_feed": false,
   "default_view": "yz" as Projection,
-  "radiation_efficiency": 0.9780272478889968,
+  "radiation_efficiency": 0.9780749565980728,
   "power_budget": [
     {
       "label": "wire loss (I\u00b2R)",
-      "watts": 0.00021450435140943586,
+      "watts": 0.0002105740932005504,
       "path": "",
       "key": "wire loss (I\u00b2R)"
     }
   ],
-  "input_power_w": 0.009762288780476398,
+  "input_power_w": 0.00960427258182945,
   "wire_length_m": 4.996458847072652,
   "wire_weight_g": 55.310799437094246,
   "rig": {
@@ -296,20 +299,20 @@ export const invveeCatenaryShape = {
   "solver": "momwire",
   "k_meas_m_inv": 0.5970852883038147,
   "ground_eps_im": -0.0,
-  "directivity_norm": 547.4088297400197,
+  "directivity_norm": 556.4151820321175,
   "cache_hit": false,
-  "solve_id": "0e8b43b6ee8d0f1de97de515b86230a4",
+  "solve_id": "a5318d631e94bb828ec14a7de8c2eebf",
   "cuts": {
     "az_elev_deg": 15.0,
     "elev_az_deg": 0.0,
     "n_dir": 180,
     "floor_dbi": -999.0,
     "azimuth": [
-      1.792,
-      1.786
+      1.791,
+      1.785
     ],
     "elevation": [
-      1.81,
+      1.811,
       1.809
     ]
   }

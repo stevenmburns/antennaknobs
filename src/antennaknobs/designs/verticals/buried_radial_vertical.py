@@ -392,6 +392,15 @@ class Builder(AntennaBuilder):
     # rather than a gap: the variant is served by the older, stricter bound,
     # and #875 is what will keep it served if a thin-jacket wire is ever
     # added.
+    # antennaknobs#1144 built the channel this note was standing in for, so
+    # the closing sentence — that the app does not surface solver advisories —
+    # became false and is replaced by a pointer to the live one.
+    #
+    # The class figures STAY. A first pass here deleted them as duplicated by
+    # momwire's advisory; they are not. The advisory quotes |dR/dh| (about
+    # 50 ohm/mm at N = 4, 4 at N >= 16); these are the swing for +-1 mm at the
+    # same two densities. Similar-looking, different quantities, and the
+    # static one is the question a user actually asks about grass.
     _SURFACE_NOTE = (
         "Radials lying ON the ground. The height IS the model here: the "
         "conductor sits one jacket thickness above the soil, and the answer "
@@ -400,10 +409,9 @@ class Builder(AntennaBuilder):
         "(momwire#865), so with a sparse screen treat the impedance as "
         "INDICATIVE RATHER THAN PREDICTIVE \u2014 the same wire laid in "
         "deeper grass is a measurably different antenna. At 16 radials and "
-        "above the class is quotable. Note that momwire raises its own "
-        "per-solve advisory for this, carrying the deck's actual h/a, and "
-        "the app does not surface solver advisories yet (antennaknobs "
-        "follow-up); this note is the static stand-in."
+        "above the class is quotable. The solver raises its own per-solve "
+        "advisory for this, carrying the deck's actual h and h/a; it appears "
+        "below (antennaknobs#1144)."
     )
 
     surface_params = MappingProxyType(
