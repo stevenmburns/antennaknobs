@@ -18,6 +18,11 @@ JSON ladders. It renders no figures and runs no solver, so it costs a JSON
 load and a string compare and can sit in the default lane. What it cannot
 catch is a stale FIGURE; that needs the real regeneration and its momwire
 dependency, and is the honest limit of this gate rather than an oversight.
+
+The figures lagging the generator is a STATED property, not an accident
+(#1126): a plain run of the generator rebuilds the markdown only, and the
+PNGs are re-rendered on `--figures` (or `--recompute`), so they change in a
+PR only when someone meant them to. The last test below holds that.
 """
 
 from __future__ import annotations
@@ -97,3 +102,35 @@ def test_the_committed_page_matches_a_fresh_render(builder):
         "`build_page()` first, or regenerating will discard it. That has "
         "already cost one contributor attribution.\n\n" + diff
     )
+
+
+def test_a_plain_run_writes_the_markdown_and_never_the_figures(
+    builder, tmp_path, monkeypatch
+):
+    """#1126: the figures are rendered only on request.
+
+    `bydipole1-convergence.png` and `leeson-case5.png` are not byte-stable
+    across matplotlib patch versions (3.11.0 -> 3.11.1 is one pixel taller and
+    different pixel data, not just metadata), so a prose edit that regenerated
+    them silently replaced the committed render with the contributor's
+    toolchain. The decision made once, here: a plain run rebuilds the MARKDOWN
+    only; the figures move with `--figures` (or `--recompute`, whose new
+    ladders the figures must follow) and arrive in a PR as a deliberate
+    binary change, never as a side effect of editing words.
+    """
+    calls: list[str] = []
+    monkeypatch.setattr(
+        builder, "render_figure", lambda *a, **k: calls.append("figure")
+    )
+    monkeypatch.setattr(
+        builder, "render_leeson_figure", lambda *a, **k: calls.append("leeson")
+    )
+    page = tmp_path / "validation.md"
+    monkeypatch.setattr(builder, "PAGE", page)
+
+    assert builder.main([]) == 0
+    assert calls == [], "a plain run rendered figures; #1126 is back"
+    assert page.read_text() == PAGE.read_text()
+
+    assert builder.main(["--figures"]) == 0
+    assert calls == ["figure", "leeson"]
