@@ -337,15 +337,17 @@ buried radials, and a buried dipole — with their own in-medium meshing
 What still refuses does so by name: a wire crossing the interface mid-span,
 a ground-contact wire combined with buried wires (the rise respelling is
 the served path), and near fields or patterns of buried decks. Validation
-below ground is deliberately engine-independent —
-the NEC family's buried-conductor weakness is documented publicly
-(LLNL-TR-490316; corroborated in our licensed materials, details in private
-notes) — so the gates are exact identities (the lossless-limit collapse onto
+below ground rests on exact identities (the lossless-limit collapse onto
 free space, the deep-burial limit onto the infinite-medium solve) plus
 ladder-limit agreement at the half-percent class on the radial and
 counterpoise classes, with the with/without-radials coupling differential
-matching to about a milliohm; no engine numbers are quoted for fully buried
-fed elements. One cost note: a deck's first buried solve builds its
+matching to about a milliohm; and, where a licensed NEC-5 is asked with its
+documented below-ground card, the two engines agree to a few percent on
+wholly buried fed elements and on bonded-base verticals over buried radials
+(the [validation page](/reference/validation/) carries the numbers). The
+one buried spelling NEC-5 has no documented answer for is a conductor that
+stops on the interface above buried wires, which momwire refuses by name on
+its own physics. One cost note: a deck's first buried solve builds its
 below-interface Sommerfeld tables (C++-accelerated since momwire 0.39.0,
 and cached on disk thereafter); crossing-junction pairs use a direct
 designed evaluation whose C++ twin landed in momwire 0.41.0, so a
