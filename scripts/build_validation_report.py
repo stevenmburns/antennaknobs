@@ -27,6 +27,7 @@ JSON is used as-is.
 
     python scripts/build_validation_report.py
     python scripts/build_validation_report.py --recompute
+    python scripts/build_validation_report.py --figures    # re-render the PNGs only
 """
 
 from __future__ import annotations
@@ -1317,14 +1318,22 @@ having no TL stamping) — and measured-data anchors.
 """
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--recompute",
         action="store_true",
-        help="re-run the ByDipole1 ladders live (nec2c + momwire + $NEC5_EXE)",
+        help="re-run the ByDipole1 ladders live (nec2c + momwire + $NEC5_EXE); "
+        "implies --figures, since the figures must follow new ladders",
     )
-    args = ap.parse_args()
+    ap.add_argument(
+        "--figures",
+        action="store_true",
+        help="re-render the two PNG figures too (#1126: off by default, because "
+        "they are not byte-stable across matplotlib patch versions and a prose "
+        "edit must never arrive with binaries in the diff)",
+    )
+    args = ap.parse_args(argv)
 
     sys.path.insert(0, str(ROOT / "scripts"))
     if args.recompute:
@@ -1347,10 +1356,20 @@ def main() -> int:
     votes = json.loads(VOTES.read_text())
     leeson = json.loads(LEESON.read_text())
 
-    render_figure(data, free, pulse)
-    render_leeson_figure(leeson)
+    # #1126: the figures are opt-in. matplotlib 3.11.0 -> 3.11.1 renders them
+    # one pixel taller with different pixel data, so on any box whose
+    # matplotlib differs from the one behind the committed PNGs a plain run
+    # used to replace the committed render with whatever that box produced.
+    # The drift gate compares markdown only (deliberately), so nothing
+    # noticed and every docs PR carried two binaries the author had to
+    # revert by hand. Now a plain run touches words only; the figures move
+    # when asked, and with new ladders, as a deliberate binary change.
+    if args.recompute or args.figures:
+        render_figure(data, free, pulse)
+        render_leeson_figure(leeson)
     PAGE.write_text(build_page(data, free, pulse, phase2, votes, leeson, anchors))
-    print(f"wrote {PAGE.relative_to(ROOT)}")
+    # Relative when it is under the repo, which it is except under test.
+    print(f"wrote {PAGE.relative_to(ROOT) if PAGE.is_relative_to(ROOT) else PAGE}")
     return 0
 
 
