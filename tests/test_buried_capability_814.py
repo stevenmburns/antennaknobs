@@ -172,11 +172,34 @@ def test_every_backend_carries_a_buried_field():
         assert entry["buried"] in (True, False, None), (name, entry["buried"])
 
 
-def test_a_non_momwire_backend_answers_none():
-    """PyNEC's buried scope is its own wrapper's (it refuses a wire below
-    z = 0 outright); it is not a momwire capability row, and the roster says
-    so rather than inventing an answer."""
-    assert _roster()["pynec"]["buried"] is None
+def test_an_unmeasured_wrapper_answers_none():
+    """A wrapper AK has not measured answers None rather than inventing one.
+
+    This named `pynec` and justified it with the adapter docstring's claim
+    that PyNEC "refuses a wire below z = 0 outright". antennaknobs#1167
+    measured that and found the reverse — PyNEC solves a buried deck as though
+    the wire were in air — so pynec now answers False with a measured
+    sentence, and `nec5` is the wrapper still genuinely unasked.
+
+    The rule the test exists for is unchanged: unmeasured means None.
+    """
+    import antennaknobs.web.examples  # noqa: F401 - breaks the adapter's cycle
+    from antennaknobs.web.adapter import backend_roster
+
+    # Its own roster call: the shared `_roster()` above is built with
+    # have_nec5=False, absence being the hosted shape, and nec5 is precisely
+    # the row this needs.
+    rows = {b["name"]: b for b in backend_roster(have_pynec=True, have_nec5=True)}
+    assert rows["nec5"]["buried"] is None
+    assert rows["nec5"]["buried_refusal"] is None
+
+
+def test_pynec_answers_the_measured_false():
+    """The other side of it. See tests/test_pynec_buried_scope_1167.py for the
+    measurement this is the served consequence of."""
+    row = _roster()["pynec"]
+    assert row["buried"] is False
+    assert row["buried_refusal"]
 
 
 @needs_the_cell

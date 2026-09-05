@@ -267,18 +267,22 @@ def test_the_one_backend_that_serves_buried_has_no_refusal():
     assert rows["bspline"]["buried_refusal"] is None
 
 
-def test_cannot_be_asked_stays_None_on_both_sides():
-    """`buried: null` is NOT "cannot" (#1103). pynec and nec5 answer null
-    because AK has no MEASURED fact about their buried scope — the adapter's
-    own docstring makes a claim about PyNEC, and a sentence in a docstring is
-    not a capability. Serving one as if it were is how a guess becomes a
-    gate."""
+def test_cannot_be_asked_stays_None():
+    """`buried: null` is NOT "cannot" (#1103). A wrapper AK has not measured
+    answers null rather than serving a guess.
+
+    This covered pynec and nec5, on the grounds that the adapter's docstring
+    claim about PyNEC was a sentence rather than a capability. That was the
+    right instinct and the docstring was worse than unproven — it was wrong
+    (antennaknobs#1167: PyNEC does not refuse a buried deck, it answers one as
+    though the wire were in air). pynec now serves a MEASURED False; nec5 is
+    the remaining unasked wrapper and keeps the rule.
+    """
     from antennaknobs.web.adapter import backend_roster
 
     rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    for name in ("pynec", "nec5"):
-        assert rows[name]["buried"] is None
-        assert rows[name]["buried_refusal"] is None
+    assert rows["nec5"]["buried"] is None
+    assert rows["nec5"]["buried_refusal"] is None
 
 
 def test_the_reason_is_momwires_own_string_not_a_copy():

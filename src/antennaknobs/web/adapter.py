@@ -480,8 +480,13 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
             "accelerator": b.accelerator,
             "dense_family": b.dense_family,
             "buried": _backend_serves_buried(b),
-            # momwire's sentence for a backend that cannot (#1006 review).
+            # momwire's sentence for a backend that cannot (#1006 review);
+            # AK's own measured sentence for AK's own wrappers (#1167).
             "buried_refusal": _backend_buried_refusal(b),
+            # Which issue that sentence should cite (#1167). Served rather
+            # than hardcoded in the frontend, where it named momwire#553 for
+            # every backend including the ones momwire#553 says nothing about.
+            "buried_issue": _backend_buried_issue(b),
             "axes": _backend_axes(b),
             "constraints": _backend_constraints(b),
             # The roster entry's bound kwargs, verbatim (antennaknobs#1006
@@ -601,6 +606,44 @@ def _backend_axes(spec):
     return {axis: sorted(values) for axis, values in axes_for(caps).items()}
 
 
+# The buried scope of AK's OWN wrappers — MEASURED, not asserted
+# (antennaknobs#1167). One row per wrapper kind: (serves_buried, sentence,
+# issue). A wrapper with no row answers None, which is still the honest
+# "nobody has asked" — so absence is how "unmeasured" is spelled, and there
+# is exactly one way to spell it.
+#
+# This table exists because the momwire path cannot serve these: `buried` is a
+# momwire capability cell carrying momwire's own refusal prose, and AK's
+# wrappers have no such cell. What replaces it is a measurement plus the test
+# that pins it (tests/test_pynec_buried_scope_1167.py), which is what keeps
+# the sentence below from being the docstring assertion it replaced.
+_PYNEC_BURIED_REFUSAL = (
+    "PyNEC cannot model a conductor below the ground plane. NEC-2's "
+    "Sommerfeld-Norton ground is formulated for sources ABOVE the interface "
+    "and has no below-interface case — and nec2++ does not refuse such a "
+    "deck. It solves it, without warning, as though the wire were still in "
+    "air, and returns a plausible-looking number. Measured "
+    "(antennaknobs#1167) on this catalog's buried dipole: moving the wire "
+    "from 5 cm above the interface to 5 cm below moves PyNEC's impedance by "
+    "12%, where momwire's buried fill moves it by a factor of 10. Use a "
+    "momwire backend for buried decks."
+)
+
+_WRAPPER_BURIED_SCOPE = {
+    "pynec": (False, _PYNEC_BURIED_REFUSAL, "antennaknobs#1167"),
+    # nec5 is deliberately ABSENT rather than present-with-None: its scope is
+    # measured in the other half of antennaknobs#1167, on a box that has the
+    # licensed binary. Until then the miss below is the answer.
+}
+
+
+def _wrapper_buried_row(spec):
+    """The measured buried row for one of AK's own wrappers, or None."""
+    if spec.kind == "momwire":
+        return None
+    return _WRAPPER_BURIED_SCOPE.get(spec.kind)
+
+
 def _backend_serves_buried(spec):
     """Whether this backend serves BURIED geometry: True, False, or None when
     the question cannot be asked (issue #1108, momwire#814).
@@ -613,12 +656,21 @@ def _backend_serves_buried(spec):
     that must never be inferred (issue #1103's rule, and issue #966's trap in
     the engine before it).
 
-    Non-momwire backends answer None for a different reason and it is the
-    honest one: their buried scope is their own wrapper's business (PyNEC
-    refuses a wire below z = 0 outright; NEC-5 serves buried decks natively
-    since issue #825's stage), not a momwire capability row.
+    momwire backends answer from momwire's own capability row. AK's wrappers
+    answer from `_WRAPPER_BURIED_SCOPE`, which is a measurement.
+
+    This docstring used to assert that "PyNEC refuses a wire below z = 0
+    outright". Measuring it (antennaknobs#1167) found the opposite, and the
+    opposite in the worst direction: PyNEC does not refuse a buried wire, it
+    solves it wrongly and silently. The one place the wrapper does raise on a
+    buried catalog deck is `buried_radial_vertical`, and that refusal is about
+    the graded-mesh spelling, not about depth — it fires on graded decks above
+    ground too. An unmeasured docstring is exactly how a guess becomes a gate.
     """
-    if spec.kind != "momwire" or spec.solver is None:
+    if spec.kind != "momwire":
+        row = _wrapper_buried_row(spec)
+        return None if row is None else row[0]
+    if spec.solver is None:
         return None
     caps = getattr(spec.solver, "capabilities", None)
     if caps is None or "buried" not in getattr(caps, "_fields", ()):
@@ -640,8 +692,17 @@ def _backend_buried_refusal(spec):
     and should not name it — the couplings answer "which combinations are
     refused", and this is "which decks this solver cannot take". Two different
     questions, and the gate needs both.
+
+    For AK's own wrappers the sentence is AK's, not the engine's, because the
+    engine has none to carry — PyNEC does not refuse a buried deck, it answers
+    one wrongly. That makes the pinning test the sentence's warrant, which is
+    a weaker provenance than momwire's carried prose and is worth knowing when
+    reading it.
     """
-    if spec.kind != "momwire" or spec.solver is None:
+    if spec.kind != "momwire":
+        row = _wrapper_buried_row(spec)
+        return None if row is None else row[1]
+    if spec.solver is None:
         return None
     caps = getattr(spec.solver, "capabilities", None)
     if caps is None or "buried" not in getattr(caps, "_fields", ()):
@@ -650,6 +711,21 @@ def _backend_buried_refusal(spec):
         return None
     refusal = caps.refusal("buried")
     return refusal if isinstance(refusal, str) else None
+
+
+def _backend_buried_issue(spec):
+    """Which issue a buried refusal should cite.
+
+    The frontend renders this to the user beside the sentence. It used to be
+    a literal `momwire#553` in `capabilityRefusal`, which was right while
+    momwire was the only backend that could refuse a deck; pointing a PyNEC
+    user at a momwire issue for a PyNEC limitation is the same class of error
+    as inventing the reason itself, just quieter.
+    """
+    if spec.kind != "momwire":
+        row = _wrapper_buried_row(spec)
+        return None if row is None else row[2]
+    return "momwire#553" if _backend_serves_buried(spec) is False else None
 
 
 # ---------------------------------------------------------------------------

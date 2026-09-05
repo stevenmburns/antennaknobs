@@ -156,6 +156,12 @@ export type BackendEntry = {
    *  so nothing gated at all, and `razor-2p` on a buried design solved,
    *  raised, and showed a traceback instead of a refusal. */
   buried_refusal?: string | null;
+  /** Which issue that refusal should cite (#1167). Served rather than fixed
+   *  here: this was the literal `momwire#553` below, which was right while
+   *  momwire was the only backend that could refuse a deck and became wrong
+   *  the moment PyNEC could — a user reading a PyNEC limitation was sent to a
+   *  momwire issue that does not mention PyNEC. */
+  buried_issue?: string | null;
 };
 
 /** One refused combination, as momwire measured it (momwire#885). */
@@ -677,9 +683,15 @@ export function designRefusal(
  *  rather than report a narrower option-level reason that is also true.
  *
  *  `buried: null` is "cannot be asked" and must not be read as "cannot" —
- *  #1103's rule. pynec and nec5 answer null because their buried scope is
- *  their own wrapper's business and AK has no MEASURED fact about it; a
- *  docstring sentence is not a capability.
+ *  #1103's rule. `nec5` still answers null, because nobody has measured it.
+ *
+ *  `pynec` answered null on the same grounds until #1167 measured it, and the
+ *  measurement inverted the docstring it replaced: PyNEC does not refuse a
+ *  buried wire, it solves one as though it were in air and returns a
+ *  plausible number. So this gate is the only thing standing between a user
+ *  on a buried design and a wrong answer with no traceback to warn them —
+ *  which is a stronger reason to render it than the `razor-2p` case that
+ *  prompted the function, where at least the user saw a crash.
  */
 export function capabilityRefusal(
   b: BackendEntry,
@@ -699,7 +711,9 @@ export function capabilityRefusal(
     forbids_is_axis: false,
     condition: null,
     reason,
-    issue: "momwire#553",
+    // Served per backend (#1167). The fallback keeps every momwire row citing
+    // what it cited before; a wrapper that serves its own issue overrides it.
+    issue: b.buried_issue ?? "momwire#553",
   };
 }
 
