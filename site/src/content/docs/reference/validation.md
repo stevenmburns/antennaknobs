@@ -333,7 +333,7 @@ refusal or a flag, not a number.
 | limit | treatment |
 | --- | --- |
 | Surface patches (SM/SP) | Not modelled. Patch decks refuse at import with the feature named. |
-| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane; a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5 serves buried decks with its own detached-stake convention, which momwire refuses by name; on the buried-radial vertical's connected deck the two engines differ by the node model (NEC-5's point-electrode stake against momwire's crossing fill), 32.5 Ω apart on that design's defaults. On the elevated-detached class, which both serve as the same problem, they agree at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The PyNEC lane refuses buried decks outright. The validation stance below ground is its own paragraph under this table. |
+| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane (the surface class — radials lying *on* the ground — is served instead as the elevated family at an explicit small height, momwire#872; see below); a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5 serves buried decks with its own detached-stake convention, which momwire refuses by name; on the buried-radial vertical's connected deck the two engines differ by the node model (NEC-5's point-electrode stake against momwire's crossing fill), 32.5 Ω apart on that design's defaults. On the elevated-detached class, which both serve as the same problem, they agree at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The PyNEC lane refuses buried decks outright. The validation stance below ground is its own paragraph under this table. |
 | Electrically tiny, fat-conductor loops (magloop class) | Kernel-sensitive beyond any single-kernel read — reduced vs extended thin-wire kernels move results both ways by amounts that swamp formulation agreement. Census rows carry a kernel-sensitivity flag rather than a false-precision number. |
 | `sin` basis on junction fans | A documented instability class on multi-wire junction geometries. bs2 is the default and census basis; `sin` remains available with the caveat attached. |
 | Stepped-radius decks scored against NEC-2 references | The reference is the suspect (two independent formulations agree against it). Census rows carry the stepped-radius flag and score against NEC-5 mutually instead of pretending the nec2c number is truth. |
@@ -393,6 +393,25 @@ with razor or NEC-5 below ground (neither is asked). **Refused by name:** a
 wire lying *in* the interface plane, and a buried structure whose opposite tips
 are more than 4 in-medium wavelengths apart (the below/below remainder is
 tabulated to that range and grows with distance beyond it).
+
+**Radials lying on the ground** — the design's `surface` convention — are
+served since momwire 0.48.0 as the *elevated* family at an explicit small
+height, not as a wire in the plane (momwire#872). The default height is the
+insulation's outer radius: the jacket rests on the soil and the copper sits a
+jacket thickness above it, which is where a real insulated radial's conductor
+is, and momwire's floor for a jacketed wire is exactly that height
+(momwire#875). The coating itself is modelled as an equivalent kernel radius
+with its series inductance (momwire#874). **The height is the model, and the
+answer moves with it:** within a few radii of the ground the impedance of a
+sparse screen is a strong function of stand-off, so below `h/a` = 20 momwire
+issues an advisory and a four-radial deck should read its impedance as
+indicative rather than predictive. Against Severns' 2009 measured surface
+radials (QEX, part 3, Table 1) the class residual at eight radials and more has
+a consistent sign — momwire reads R a few ohms **low** and X a few ohms
+**high** — inside a 6 Ω row bar that is our modelling spread, not a published
+uncertainty (Severns states none). That sign is gated in momwire and is named
+here rather than absorbed; closing it is a coating and grass model, not a
+tuning.
 
 ## Reproducibility
 
