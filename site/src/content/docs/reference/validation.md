@@ -333,33 +333,33 @@ refusal or a flag, not a number.
 | limit | treatment |
 | --- | --- |
 | Surface patches (SM/SP) | Not modelled. Patch decks refuse at import with the feature named. |
-| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane (the surface class — radials lying *on* the ground — is served instead as the elevated family at an explicit small height, momwire#872; see below); a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5 serves buried decks with its own detached-stake convention, which momwire refuses by name; on the buried-radial vertical's connected deck the two engines differ by the node model (NEC-5's point-electrode stake against momwire's crossing fill), 32.5 Ω apart on that design's defaults. On the elevated-detached class, which both serve as the same problem, they agree at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The PyNEC lane refuses buried decks outright. The validation stance below ground is its own paragraph under this table. |
+| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane (the surface class — radials lying *on* the ground — is served instead as the elevated family at an explicit small height, momwire#872; see below); a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5, asked with its documented below-ground card, agrees with momwire on the buried-radial vertical's connected deck to 2.6 % in resistance at the design's defaults (77.8+44.5j against 75.8+40.5j Ω) and on the wholly buried dipole to 0.2 % in resistance across depths; on the elevated-detached class, which both serve as the same problem, they agree at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The one buried spelling NEC-5 has no documented answer for is a conductor stopping on the interface above buried wires (the `detached` variant), which momwire refuses by name on its own physics. The PyNEC lane is gated off buried decks: nec2++ solves a buried wire as though it were in air and returns a plausible number, so the app withholds it with a sentence rather than serve it. The validation stance below ground is its own paragraph under this table. |
 | Electrically tiny, fat-conductor loops (magloop class) | Kernel-sensitive beyond any single-kernel read — reduced vs extended thin-wire kernels move results both ways by amounts that swamp formulation agreement. Census rows carry a kernel-sensitivity flag rather than a false-precision number. |
 | `sin` basis on junction fans | A documented instability class on multi-wire junction geometries. bs2 is the default and census basis; `sin` remains available with the caveat attached. |
 | Stepped-radius decks scored against NEC-2 references | The reference is the suspect (two independent formulations agree against it). Census rows carry the stepped-radius flag and score against NEC-5 mutually instead of pretending the nec2c number is truth. |
 | `wire.sterba_bl` on the momwire `razor` lanes | Not served, at any mesh, with or without ground. The deck carries a junction PORT, and a junction basis is already a through-current unknown, so the razor formulation has nowhere to put one — it refuses by name with `junction_ports` rather than quietly dropping the port. `bspline` serves the deck normally, and is the lane the census uses for it. |
 
-**Below the interface, validation is deliberately engine-independent.** The
-NEC family's buried-conductor weakness is documented publicly
-(LLNL-TR-490316) and corroborated in our licensed materials (details in
-private notes), so no engine number is quoted for a fully buried fed
-element — on this page or anywhere else. The gates are exact identities
-instead: the lossless-limit collapse onto the free-space solve, the
-deep-burial limit onto the infinite-medium solve, and a quasi-static
-two-electrode cross-estimate — plus, on the buried radial and counterpoise
-classes where the reference engine's convergence ladders are clean,
-ladder-limit agreement at the half-percent class with the
-with/without-radials coupling differential matching to about a milliohm.
+**Below the interface, validation stands on two legs.** The engine-independent
+gates are exact identities: the lossless-limit collapse onto the free-space
+solve, the deep-burial limit onto the infinite-medium solve, and a
+quasi-static two-electrode cross-estimate — plus, on the buried radial and
+counterpoise classes, ladder-limit agreement at the half-percent class with
+the with/without-radials coupling differential matching to about a milliohm.
+The cross-engine leg is a licensed NEC-5 asked with its documented
+below-ground card: on the wholly buried fed dipole the two engines agree to
+0.2 % in resistance at 0.15, 1 and 2 m depth (146.4+44.4j against
+146.6+44.7j Ω at 0.15 m), and on the bonded-base vertical over buried radials
+to 2.6 % at four radials and 3.9 % at twelve.
 
 ## Below ground: where we stand
 
-Above ground a number is checked against another engine. Below ground that
-check is closed on purpose: the NEC family's buried-conductor weakness is
-documented (LLNL-TR-490316), so no engine number is quoted for a buried fed
-element anywhere on this page. **The reference is a measurement** — Brown,
-Lewis and Epstein's 1937 buried-radial curves — and **the engine is momwire's
-bspline at degree 2.** We are still working toward agreement between those
-published measurements and the engine; this is where it stands.
+Above ground a number is checked against another engine, and below ground
+it now is too (the cross-engine leg above). **The reference that decides
+the radial-count law is a measurement** — Brown, Lewis and Epstein's 1937
+buried-radial curves — and **the engine is momwire's bspline at degree 2**,
+with a licensed NEC-5 on the same geometry beside it. We are still working
+toward absolute agreement with those published measurements; this is where
+it stands.
 
 Against Fig. 36 (135 ft radials; 3 MHz, 21.4 m mast, No. 8 copper throughout,
 σ = 2×10⁻³, ε_r assumed 15 because the paper states conductivity only):
@@ -367,9 +367,11 @@ Against Fig. 36 (135 ft radials; 3 MHz, 21.4 m mast, No. 8 copper throughout,
 | N | 2 | 15 | 30 | 60 | 113 |
 |---|---|---|---|---|---|
 | momwire | 84.11 | 35.37 | 30.52 | 27.30 | 25.22 |
+| NEC-5 | 87.69 | 37.83 | 32.79 | 29.44 | 27.25 |
 | Fig. 36 | ≥50 | 34 | 30 | 26 | 24.3 |
 
-Within 1.4 Ω at every rung there. Against Fig. 37 (45 ft radials) the gate
+momwire is within 1.4 Ω at every rung there; NEC-5 has the same shape, steep
+below N = 15 and flat past N = 30, and sits 2–4 Ω above the figure. Against Fig. 37 (45 ft radials) the gate
 pins the shape — steep fall, knee near N = 15, plateau — with the plateau
 inside ±6 Ω of the figure and momwire about 4 Ω low; a decade-worse soil fails
 that envelope, which is what makes it a gate. Two residuals are recorded rather
@@ -389,7 +391,8 @@ engines serve, to about 0.1 % in radiated power for a fixed drive.
 **What a user may not claim:** an efficiency against a measured field strength
 (none exists here); a number for a wire fed *in* the soil (gated on shape only,
 because the fed segment's own length still moves the answer); or agreement
-with razor or NEC-5 below ground (neither is asked). **Refused by name:** a
+with razor below ground (it is not asked); agreement with NEC-5 is the
+few-percent class stated above, not closer. **Refused by name:** a
 wire lying *in* the interface plane, and a buried structure whose opposite tips
 are more than 4 in-medium wavelengths apart (the below/below remainder is
 tabulated to that range and grows with distance beyond it).
