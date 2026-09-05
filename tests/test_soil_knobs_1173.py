@@ -241,3 +241,37 @@ def test_capabilities_serves_the_soil_catalog(client):
     assert {"average", "salt-water"} <= served
     for p in caps["soil_presets"]:
         assert set(p) >= {"name", "label", "eps_r", "sigma", "tooltip"}
+
+
+# --- the response constants (/cuts and the near field, issue ask 3) --------
+#
+# /cuts is stateless and the near-field/Fresnel maths reads the constants
+# off the RESPONSE, not off the request — so "the soil reaches the cuts"
+# is really "the response ships the soil the solve used". That makes
+# _momwire_ground_fields the seam worth pinning: it derives its numbers
+# from the engine's own ground tuple, so a soil that reached the engine
+# necessarily reaches the cuts.
+
+
+class _FakeEngine:
+    """Just the two attributes _momwire_ground_fields reads."""
+
+    def __init__(self, ground, model="sommerfeld"):
+        self._ground = ground
+        self._ground_model = model
+
+
+def test_the_response_ships_the_soil_the_solve_used():
+    from antennaknobs.web.adapter import _momwire_ground_fields
+
+    eng = _FakeEngine(_ground_for_engine(_req(soil={"eps_r": 20.0, "sigma": 0.0303})))
+    out = _momwire_ground_fields(eng, _req())
+    assert out["ground_eps_r"] == 20.0
+    assert out["ground_sigma"] == 0.0303
+
+
+def test_the_response_still_ships_the_default_soil_without_the_field():
+    from antennaknobs.web.adapter import _momwire_ground_fields
+
+    out = _momwire_ground_fields(_FakeEngine(_ground_for_engine(_req())), _req())
+    assert (out["ground_eps_r"], out["ground_sigma"]) == tuple(DEFAULT_GROUND[1:])
