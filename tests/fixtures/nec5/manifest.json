@@ -34,6 +34,16 @@
       "deck": "vertical_dipole_pattern.nec",
       "printout": "vertical_dipole_pattern.out",
       "note": "vertical dipole: -999.99 null rows with BLANK SENSE column (12-token rows) at theta=0"
+    },
+    "buried_dipole_fed_below": {
+      "deck": "buried_dipole_fed_below.nec",
+      "printout": "buried_dipole_fed_below.out",
+      "note": "specialty.buried_dipole: the fully-buried FED class (#1025) \u2014 wire and excitation both below the interface, ground flag -1"
+    },
+    "buried_dipole_fed_below_ge1": {
+      "deck": "buried_dipole_fed_below_ge1.nec",
+      "printout": "buried_dipole_fed_below_ge1.out",
+      "note": "the same deck with ground flag 1, the pre-#1025 spelling: the witness for the milliohm print, kept so a revert fails a test"
     }
   }
 }

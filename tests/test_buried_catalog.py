@@ -330,7 +330,11 @@ def test_brv_nec5_now_takes_the_connected_default_too(monkeypatch):
     b = BuriedRadialVertical()
     engine = NEC5Engine(b, ground=("finite",) + SOIL_A)
     lines = engine.deck([b.freq]).splitlines()
-    assert "GE 1 -1" in lines
+    # Ground flag 1: this deck's rise ENDS on the plane, so its base is bonded
+    # (antennaknobs#1025). The second field moved -1 -> 0 with that issue and
+    # is the segment-check flag, not part of the physics — measured identical
+    # on this exact deck (49.62+20.877j either way).
+    assert "GE 1 0" in lines
     # the graded rise and radiator became several GW cards, and the deck
     # carries exactly one rise from the hub to the node
     gw = [ln for ln in lines if ln.startswith("GW ")]
@@ -338,7 +342,10 @@ def test_brv_nec5_now_takes_the_connected_default_too(monkeypatch):
 
     detached = _detached()
     d_engine = NEC5Engine(detached, ground=("finite",) + SOIL_A)
-    assert "GE 1 -1" in d_engine.deck([detached.freq]).splitlines()
+    # Also flag 1: detaching the RADIALS does not detach the rise, whose base
+    # still ends on the plane. Impedance identical under either second field
+    # (50.243+22.145j), so #1025's change is a re-pin here, not a move.
+    assert "GE 1 0" in d_engine.deck([detached.freq]).splitlines()
 
     with pytest.raises(NotImplementedError, match="detached"):
         NEC5Engine(
