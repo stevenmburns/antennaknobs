@@ -204,11 +204,25 @@ NE tables — nothing more.)
   reference has changed from another engine to a measurement: momwire
   gates Brown, Lewis and Epstein's 1937 buried-radial screens, and its
   second reading underground is the same solver at a different basis
-  degree, not NEC-5 — whose interface node, on the same 1937 geometry,
-  comes out nearly flat in radial count. The
-  [validation page](/reference/validation/) carries the current state.
-  Nothing on this page needed to change: the elevated-detached class it
-  studies is one both engines serve, and the attribution above stands.
+  degree. The [validation page](/reference/validation/) carries the
+  current state.
+- **A correction** (5 September 2026). An earlier version of this note
+  said NEC-5's interface node comes out nearly flat in radial count on
+  the 1937 geometry. That was our card, not the engine: the wrapper
+  that wrote NEC-5's decks had the two fields of its ground card
+  transposed, so every buried deck ran with the ground flag set to the
+  value the engine documents as not usable when wires go below the
+  surface ([#1025](https://github.com/stevenmburns/antennaknobs/issues/1025)).
+  With the documented flag, NEC-5 has the measured shape — steep at
+  low radial count, flat past about thirty — and on a bonded-base
+  vertical over buried radials the two engines agree to a few percent
+  in resistance where they had read 35 % apart. The 92 decks on this
+  page carry a driven element clear of the ground over passive buried
+  radials, and re-running all of them with the corrected flag moved
+  NEC-5's column by at most 1.7 % (median 0.1 %), most on the decks
+  whose conductor sits nearest the interface. A 2–5× buried-coupling
+  delta is not touched by a 1.7 % shift in one column, so the
+  attribution above stands; the flat-in-radial-count remark does not.
 
 The companion piece on the momwire primer —
 [the counterpoise question](https://momwire.antennaknobs.dev/act-5/counterpoise/) —
