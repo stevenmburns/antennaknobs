@@ -44,7 +44,11 @@ import type {
   SolveRequest,
   SolveResponse,
 } from "../../lib/api";
-import type { TerrainPresetSchema } from "../../lib/ground";
+import type {
+  SoilPresetSchema,
+  SoilRanges,
+  TerrainPresetSchema,
+} from "../../lib/ground";
 import { BackendConfigModal } from "../backend/BackendConfigModal";
 import { ParamForm } from "../params/ParamForm";
 import { setCutRefineEnabled } from "../charts/cuts";
@@ -112,6 +116,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
   const {
     roster,
     terrainPresets,
+    soilPresets,
+    soilRanges,
     modelOptionSpecs,
     backendAliases,
     defaultSlotSeeds,
@@ -133,6 +139,8 @@ export function DesignSession({ id, active }: { id: number; active: boolean }) {
       active={active}
       roster={roster}
       terrainPresets={terrainPresets}
+      soilPresets={soilPresets}
+      soilRanges={soilRanges}
       modelOptionSpecs={modelOptionSpecs}
       backendAliases={backendAliases}
       defaultSlotSeeds={defaultSlotSeeds}
@@ -146,6 +154,8 @@ function DesignSessionBody({
   active,
   roster,
   terrainPresets,
+  soilPresets,
+  soilRanges,
   modelOptionSpecs,
   backendAliases,
   defaultSlotSeeds,
@@ -155,6 +165,9 @@ function DesignSessionBody({
   active: boolean;
   roster: BackendRoster;
   terrainPresets: TerrainPresetSchema[];
+  /** Served soil catalog + knob bounds (#1173). */
+  soilPresets: SoilPresetSchema[];
+  soilRanges: SoilRanges | null;
   /** The served solver-knob catalogue (#1006 G2-6). */
   modelOptionSpecs: ModelOptionSpecs;
   backendAliases: Record<string, string>;
@@ -448,7 +461,11 @@ function DesignSessionBody({
     groundModel,
     terrainKey,
     groundSummary,
-  } = useGroundConfig({ backend });
+    soil,
+    setSoil,
+    soilForRequest,
+    soilKey,
+  } = useGroundConfig({ backend, soilRanges, soilPresets });
   const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nPerWire} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
@@ -845,6 +862,12 @@ function DesignSessionBody({
     };
     if (base.ground_model === "terrain") {
       base.terrain = { preset: terrainPreset, ...terrainParams };
+    }
+    // Soil constants (#1173). soilForRequest is already undefined for pec /
+    // terrain and for a default soil, so a request that carries no soil is
+    // byte-identical to a pre-#1173 one.
+    if (soilForRequest) {
+      base.soil = soilForRequest;
     }
     if (backend.kind === "momwire") {
       base.momwire_model = backend.name;
@@ -1304,7 +1327,7 @@ function DesignSessionBody({
     geometry, previewReady, backend, backendOptsKey,
     currentValuesKey,
     designFreq, measFreq, plane,
-    groundEnabled, groundModel, terrainKey,
+    groundEnabled, groundModel, terrainKey, soilKey,
   ]);
 
   // Antenna switch: drop the previous antenna's results immediately so nothing
@@ -1614,6 +1637,10 @@ function DesignSessionBody({
           setTerrainPreset={setTerrainPreset}
           terrainParams={terrainParams}
           setTerrainParams={setTerrainParams}
+          soil={soil}
+          setSoil={setSoil}
+          soilPresets={soilPresets}
+          soilRanges={soilRanges}
           groundRequirement={currentExample?.ground_requirement ?? null}
         />
 

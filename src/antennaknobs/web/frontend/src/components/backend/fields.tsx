@@ -102,3 +102,84 @@ export function NumberField({
     </div>
   );
 }
+
+// A number that spans decades: σ runs 1e-4 to 5 S/m, four and a half of
+// them, and a linear slider would put every soil but sea water in the first
+// 0.1% of its travel (issue #1173).
+//
+// The slider is log-scaled; the text box stays LINEAR and authoritative, so
+// an exact value ("0.0303") is typeable and round-trips. Committing from the
+// slider quantises to 3 significant figures — a 200-step slider otherwise
+// emits 0.005012435... and that noise would reach the cache key and the
+// exported GN card.
+export function LogNumberField({
+  label,
+  title,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  title?: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  const [draft, setDraft] = useNumericDraft(value);
+  // Guard the transform rather than trusting the caller: log of a
+  // non-positive bound is NaN, which would silently render a dead slider.
+  const safeMin = min > 0 ? min : 1e-6;
+  const safeMax = max > safeMin ? max : safeMin * 10;
+  const STEPS = 200;
+  const toSlider = (v: number) => {
+    const clamped = Math.min(Math.max(v, safeMin), safeMax);
+    const t =
+      (Math.log(clamped) - Math.log(safeMin)) /
+      (Math.log(safeMax) - Math.log(safeMin));
+    return Math.round(t * STEPS);
+  };
+  const fromSlider = (i: number) => {
+    const t = i / STEPS;
+    const raw = Math.exp(
+      Math.log(safeMin) + t * (Math.log(safeMax) - Math.log(safeMin)),
+    );
+    return Number(raw.toPrecision(3));
+  };
+  return (
+    <div className="field">
+      <label title={title}>
+        <span>{label}</span>
+        <span>{value}</span>
+      </label>
+      <input
+        type="range"
+        aria-label={`${label} (log slider)`}
+        title={title}
+        min={0}
+        max={STEPS}
+        step={1}
+        value={toSlider(value)}
+        onChange={(e) => onChange(fromSlider(Number(e.target.value)))}
+      />
+      <input
+        type="number"
+        aria-label={label}
+        title={title}
+        value={draft}
+        min={min}
+        max={max}
+        step="any"
+        onChange={(e) => {
+          const text = e.target.value;
+          setDraft(text);
+          if (text.trim() === "") return;
+          const v = Number(text);
+          if (!Number.isNaN(v)) onChange(v);
+        }}
+        onBlur={() => setDraft(String(value))}
+      />
+    </div>
+  );
+}
