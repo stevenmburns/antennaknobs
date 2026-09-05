@@ -157,6 +157,22 @@ class _ContactMonopoleOverBuriedRadials(AntennaBuilder):
         return [mono, *radials]
 
 
+class _FullyBuriedFedDipole(AntennaBuilder):
+    """The antennaknobs#1025 class: wire AND excitation below the interface,
+    nothing touching z=0 — `specialty.buried_dipole`'s geometry, meshed
+    verbatim so the gate does not move when auto_mesh does."""
+
+    default_params = {"freq": 7.1}
+
+    def build_wires(self):
+        z, half, gap = -0.15, 2.9557, 0.025
+        return [
+            Wire((-half, 0.0, z), (-gap, 0.0, z), n_seg=25),
+            Wire((-gap, 0.0, z), (gap, 0.0, z), n_seg=2, ex=1 + 0j),
+            Wire((gap, 0.0, z), (half, 0.0, z), n_seg=25),
+        ]
+
+
 def test_ground_geometry_refusals(monkeypatch):
     """What still refuses after the buried stage, each by name: mid-span
     straddles (the binary runs them and prints garbage), in-plane wires,
@@ -176,18 +192,36 @@ def test_ground_geometry_refusals(monkeypatch):
     NEC5Engine(_ContactMonopoleOverBuriedRadials())
 
 
-def test_buried_deck_rides_ge_minus_one(monkeypatch):
-    """The buried stage's card spelling: wholly-below wires over the
-    Sommerfeld ground put -1 in GE's second field — the momwire#567
-    anchor-capture spelling — while above-ground finite decks keep
-    GE 1 0 exactly as stage 1 wrote them."""
+def test_buried_deck_ground_flag_follows_the_deck(monkeypatch):
+    """GE's ground flag is chosen per DECK, not merely by the presence of
+    burial (antennaknobs#1025).
+
+    The flag lives in GE's FIRST field; the second is the segment-check flag
+    and is physics-irrelevant here (-1, 0 and 2 print the same impedance to
+    every digit, measured on both classes). This wrapper used to write
+    `GE 1 -1` for every buried deck, reading that -1 as "buried support".
+
+    The two settings mean opposite things about a wire END at z=0: flag 1
+    BONDS it to ground, flag -1 leaves the current expansion alone so the
+    current goes to zero there. So a contact deck needs 1 and a deck that
+    never touches the plane needs -1 — and asking for the wrong one is not a
+    detail: flag 1 on the wholly-buried fed dipole printed milliohms, and
+    flag -1 on a contact deck makes the binary refuse the run outright."""
     monkeypatch.setenv("NEC5_EXE", sys.executable)
+    # A contact end at z=0 keeps flag 1, buried radials underneath or not.
     lines = (
         NEC5Engine(_ContactMonopoleOverBuriedRadials(), ground=("finite", 13.0, 0.005))
         .deck([7.0])
         .splitlines()
     )
-    assert "GE 1 -1" in lines
+    assert "GE 1 0" in lines
+    # Nothing touching the plane: flag -1.
+    lines_below = (
+        NEC5Engine(_FullyBuriedFedDipole(), ground=("finite", 13.0, 0.005))
+        .deck([7.1])
+        .splitlines()
+    )
+    assert "GE -1 0" in lines_below
     gn = [ln for ln in lines if ln.startswith("GN")][0].split()
     assert gn[1] == "0" and float(gn[5]) == 13.0
     # Above-ground decks are untouched by the stage.
@@ -997,3 +1031,71 @@ def test_corpus_middle_feed_of_odd_wire_lands_on_exact_gap_position(monkeypatch)
         "EX 0 1 5 0 1. 0.\nFR 0 1 0 0 27. 0\nXQ\nEN\n"
     )
     assert z == pytest.approx(12.6, abs=1e-4)
+
+
+# --------------------------------------------------------------------------
+# antennaknobs#1025 — the fully-buried FED class
+# --------------------------------------------------------------------------
+
+
+def test_buried_fed_below_captures_pin_the_ground_flag():
+    """The banked printouts for `specialty.buried_dipole`, whose wire AND
+    excitation are both below the interface.
+
+    Two captures of the SAME deck differing only in GE's ground flag. The
+    witness is the point: flag 1 does not merely shift the answer, it
+    collapses it to milliohms, which is what antennaknobs#1025 reported. The
+    parse is identical across both — the wrapper was reading the binary's own
+    columns faithfully all along, so this was never a parser bug.
+    """
+    served = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "buried_dipole_fed_below.out").read_text()
+    )
+    assert served == [[(2, 26, 146.39 + 44.382j)]]
+
+    witness = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "buried_dipole_fed_below_ge1.out").read_text()
+    )
+    assert witness == [[(2, 26, 0.00036644 + 0.84588j)]]
+
+    # A milliohm resistance on a 5.9 m buried dipole is a broken-class print,
+    # not a physics disagreement — three orders under the served answer.
+    assert witness[0][0][2].real < served[0][0][2].real / 1000
+
+    # The decks differ in exactly one card, and it is the GE one.
+    a = (FIXTURES / "buried_dipole_fed_below.nec").read_text().splitlines()
+    b = (FIXTURES / "buried_dipole_fed_below_ge1.nec").read_text().splitlines()
+    differing = [(x, y) for x, y in zip(a, b, strict=True) if x != y]
+    assert differing == [("GE -1 0", "GE 1 -1")]
+
+
+@needs_nec5
+def test_buried_fed_below_tracks_momwire(record_property):
+    """The cross-engine check the class never had: a fully-buried fed dipole,
+    swept in depth so the comparison is a curve rather than one point.
+
+    Depth is the discriminator. Under the pre-#1025 flag NEC-5 printed the
+    same 0.85j at every depth — an impedance that does not know how deep the
+    antenna is buried is not an answer about a buried antenna."""
+    from antennaknobs.designs.specialty.buried_dipole import Builder as BuriedDipole
+
+    ground = ("finite", 13.0, 0.005)
+    seen = []
+    for depth in (0.15, 1.0, 2.0):
+        b = BuriedDipole()
+        b.depth = depth
+        z5 = complex(NEC5Engine(b, ground=ground).impedance()[0])
+        zm = complex(MomwireEngine(b, ground=ground).impedance()[0])
+        seen.append((depth, z5, zm))
+        record_property(f"nec5_{depth}", f"{z5:.4f}")
+        record_property(f"momwire_{depth}", f"{zm:.4f}")
+        assert abs(z5.real - zm.real) / abs(zm.real) < 0.02, (depth, z5, zm)
+        assert abs(z5.imag - zm.imag) / abs(zm.imag) < 0.06, (depth, z5, zm)
+
+    # Both engines must move with depth, and in the same direction: the
+    # shallow deck is the most resistive on both.
+    r5 = [z5.real for _, z5, _ in seen]
+    rm = [zm.real for _, _, zm in seen]
+    assert r5[0] > r5[1] > r5[2], r5
+    assert rm[0] > rm[1] > rm[2], rm
+    assert (r5[0] - r5[2]) > 5.0, r5

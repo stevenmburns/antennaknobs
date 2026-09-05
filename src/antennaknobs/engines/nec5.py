@@ -431,6 +431,7 @@ class NEC5Engine(SimulationEngine):
           buried side; NEC-5's buried serve is its Sommerfeld path.
         """
         self._has_buried_wires = False
+        self._has_ground_contact = False
         for i, w in enumerate(self._wires):
             z0, z1 = float(w.p0[2]), float(w.p1[2])
             if (z0 < 0.0 < z1) or (z1 < 0.0 < z0):
@@ -445,6 +446,8 @@ class NEC5Engine(SimulationEngine):
                     f"wire {i + 1} lies in the ground plane (z=0), which "
                     "NEC-5's ground forbids"
                 )
+            if z0 == 0.0 or z1 == 0.0:
+                self._has_ground_contact = True
             if z0 < 0.0 or z1 < 0.0:
                 if self.ground[0] != "finite":
                     raise NotImplementedError(
@@ -470,10 +473,44 @@ class NEC5Engine(SimulationEngine):
         _, eps_r, sigma = self.ground
         # FMUR/FMUI are written explicitly (free space's mu) so the NOFILE
         # token cannot be misread into the permeability fields — the file
-        # name is positional after F4. GE's second field is -1 exactly when
-        # the deck carries buried wires — the momwire#567 anchor spelling —
-        # and stays 0 for the served-since-stage-1 above-ground decks.
-        ge = "GE 1 -1" if self._has_buried_wires else "GE 1 0"
+        # name is positional after F4.
+        #
+        # GE's FIRST field is the ground flag and its SECOND is the
+        # segment-check flag (antennaknobs#1025, verified against our
+        # licensed materials). This wrapper used to write `GE 1 -1` for a
+        # buried deck, believing the -1 selected buried support; it does
+        # not, and the two settings of the first field mean opposite things
+        # about a wire END that lands on z=0:
+        #
+        #   1  — ends at z=0 are BONDED to ground. Required by the contact
+        #        class, and not usable when wires go below the surface.
+        #  -1  — the ground is present but the current expansion is not
+        #        modified, so a wire ending at z=0 has its current forced to
+        #        ZERO there. Correct for wires that never touch the plane.
+        #
+        # So the flag follows the deck, not merely the presence of burial:
+        #
+        #   wholly buried, nothing touching z=0  ->  -1
+        #   a contact end at z=0 (with or without buried wires)  ->  1
+        #
+        # Measured on `specialty.buried_dipole` (5.9 m dipole, 15 cm down,
+        # eps_r 13 / sigma 0.005, 7.1 MHz), holding the mesh fixed: the old
+        # `GE 1 ...` printed 0.0004+0.8459j and did not move with depth at
+        # all (0.8459 / 0.8459 / 0.8458 at 0.15 / 1 / 2 m down), which is
+        # the tell — a buried impedance must depend on depth. Its current
+        # distribution carried a factor-37 spike at the source segment with
+        # the phase inverted against both neighbours, so V/I there collapsed.
+        # With the first field at -1 the same deck prints 146.39+44.38j /
+        # 138.32+53.89j / 135.64+57.16j, which tracks momwire to 0.14/0.17/
+        # 0.18 % in R across those depths.
+        #
+        # The second field is physics-irrelevant here: -1, 0 and 2 print the
+        # same impedance to every digit. It stays 0 (the default, checks on)
+        # so both spellings match the above-ground card.
+        if self._has_buried_wires and not self._has_ground_contact:
+            ge = "GE -1 0"
+        else:
+            ge = "GE 1 0"
         return ge, [
             f"GN 0 0 0 0 {_num(eps_r)} {_num(sigma)} {_num(1.0)} {_num(0.0)} NOFILE"
         ]

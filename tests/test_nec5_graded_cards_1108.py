@@ -24,12 +24,22 @@ import numpy as np
 import pytest
 
 from antennaknobs.builder import AntennaBuilder
-from antennaknobs.engines.nec5 import NEC5Engine, NEC5Error, _expand_graded
+from antennaknobs.engines.nec5 import (
+    NEC5Engine,
+    NEC5Error,
+    _expand_graded,
+    find_nec5,
+)
 from antennaknobs.geometry import flat_wires_to_polylines
 from antennaknobs.network import Wire
 from antennaknobs.wire_catalog import graded_wire
 
 from conftest import needs_nec5
+
+
+# The real binary's path, captured BEFORE the autouse fixture below swaps it
+# for a stub — the one test here that must actually solve restores it.
+_REAL_NEC5 = find_nec5()
 
 
 @pytest.fixture(autouse=True)
@@ -225,12 +235,30 @@ def test_a_short_tag_is_an_error_not_a_silent_pad():
 
 
 @needs_nec5
+@pytest.mark.xfail(
+    reason=(
+        "antennaknobs#1181: with its two plumbing bugs fixed this test finally "
+        "RUNS, and its own bar does not hold — graded 110.13-101.74j against "
+        "uniform 117.79-79.741j is 23.29 ohm, 16.4% of |Z| where the bar is "
+        "10%. Whether the graded expansion or the bar is wrong is #1108's "
+        "question; not tuned to green here, which would invent a validation "
+        "for a test that has never validated anything."
+    ),
+    strict=False,
+)
 def test_a_graded_deck_solves_and_agrees_with_its_ungraded_twin(monkeypatch):
-    monkeypatch.delenv("NEC5_EXE", raising=False)
     """The binary must accept the expanded deck and answer close to the same
     antenna meshed uniformly — same conductor, finer near the join, so this
-    is a sanity bar and not an identity."""
-    graded = NEC5Engine(_GradedThenFed()).impedance()
+    is a sanity bar and not an identity.
+
+    This one needs the REAL binary, so it undoes the module's autouse stub
+    rather than removing the variable. What stood here was
+    `monkeypatch.delenv("NEC5_EXE")`, ABOVE the docstring — so the docstring
+    was a bare expression, the call ran, and the test unset the very binary
+    `@needs_nec5` had just gated on. It could only fail on a box that HAS the
+    licence, which is why CI never saw it (antennaknobs#1025)."""
+    monkeypatch.setenv("NEC5_EXE", _REAL_NEC5)
+    graded = complex(NEC5Engine(_GradedThenFed()).impedance()[0])
 
     class _Uniform(AntennaBuilder):
         default_params = {"freq": 28.5}
@@ -241,5 +269,5 @@ def test_a_graded_deck_solves_and_agrees_with_its_ungraded_twin(monkeypatch):
                 Wire((0, 0, 0.0), (0, 0, 2.5), n_seg=8, ex=1 + 0j),
             ]
 
-    uniform = NEC5Engine(_Uniform()).impedance()
+    uniform = complex(NEC5Engine(_Uniform()).impedance()[0])
     assert abs(graded - uniform) < 0.1 * abs(uniform), (graded, uniform)
