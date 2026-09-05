@@ -2,8 +2,9 @@ import type { BackendEntry } from "./backends";
 import { backendSupportsGround, backendSupportsTerrain } from "./backends";
 
 // The UI separates WHAT the ground is from HOW it's solved. GroundType is
-// the shared, backend-agnostic choice: a finite ground (εr=10, σ=0.002), a
-// perfectly conducting one, or a faceted terrain (levee/cliff presets).
+// the shared, backend-agnostic choice: a finite ground (whose soil constants
+// are the user's since issue #1173 — see SoilParams), a perfectly conducting
+// one, or a faceted terrain (levee/cliff presets).
 // It never promises more than the physics — each backend
 // solves it as best it can: PyNEC and the plain B-spline backend offer a
 // method sub-choice (Sommerfeld-Norton vs the reflection-coefficient
@@ -25,6 +26,75 @@ export type FiniteGroundMethod = "sommerfeld" | "fast";
 // The wire value (`ground_model` on SolveRequest): derived from groundType
 // (+ the method wherever finite ground is supported).
 export type GroundModel = "sommerfeld" | "fast" | "pec" | "terrain";
+
+// --- Soil constants for the finite ground models (issue #1173) -------------
+//
+// Served by GET /capabilities (adapter.soil_presets_schema /
+// soil_ranges_schema), exactly like the terrain preset catalog: the panel
+// renders its knobs and its preset list from the server, so a Python-only
+// preset needs no TypeScript and the slider bounds are the same fact as the
+// server-side clamp rather than a second copy of it.
+export type SoilPresetSchema = {
+  name: string;
+  label: string; // radio label
+  eps_r: number;
+  sigma: number;
+  tooltip: string; // radio hover text, carrying the numbers
+};
+export type SoilRangeSchema = {
+  min: number;
+  max: number;
+  default: number;
+  /** sigma only: render on a log scale, it spans four and a half decades. */
+  log?: boolean;
+};
+export type SoilRanges = {
+  eps_r: SoilRangeSchema;
+  sigma: SoilRangeSchema;
+};
+/** The two numbers themselves — the whole soil state. The active preset is
+ *  DERIVED from them (`activeSoilPreset`) rather than stored alongside:
+ *  storing both invites the state where the selected preset name and the
+ *  values disagree, and there is no honest answer about which one wins. */
+export type SoilParams = { eps_r: number; sigma: number };
+
+/** The preset these values ARE, or null for a custom soil. Compared with a
+ *  relative tolerance because the values make a float round-trip through
+ *  JSON and the slider grid; exact equality would flicker the selection off
+ *  for a preset the user just clicked. */
+export function activeSoilPreset(
+  soil: SoilParams,
+  presets: SoilPresetSchema[],
+): SoilPresetSchema | null {
+  const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+  return (
+    presets.find((p) => near(soil.eps_r, p.eps_r) && near(soil.sigma, p.sigma)) ??
+    null
+  );
+}
+
+/** Soil defaults from the served ranges. Null ranges (a server predating
+ *  #1173) yield null, and the panel then renders no soil controls at all —
+ *  the same "absence means the server does not describe it" rule the
+ *  terrain panel follows, rather than a hardcoded 10/0.002 here. */
+export function defaultSoil(ranges: SoilRanges | null): SoilParams | null {
+  return ranges
+    ? { eps_r: ranges.eps_r.default, sigma: ranges.sigma.default }
+    : null;
+}
+
+/** The soil summary shown next to the finite-ground radio: the preset name
+ *  when the values are one, else the numbers. */
+export function soilSummaryLabel(
+  soil: SoilParams | null,
+  presets: SoilPresetSchema[],
+): string {
+  if (!soil) return "";
+  const preset = activeSoilPreset(soil, presets);
+  return preset
+    ? preset.label
+    : `\u03b5r ${soil.eps_r}, \u03c3 ${soil.sigma} S/m`;
+}
 
 // Terrain preset schema, served by GET /capabilities (issue #560). The
 // frontend renders the whole terrain knob panel from this — the presets,

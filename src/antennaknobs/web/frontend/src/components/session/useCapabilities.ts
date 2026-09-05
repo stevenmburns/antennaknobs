@@ -5,13 +5,19 @@ import type {
   ServedSlotSeed,
   CompositionVocabulary,
 } from "../../lib/backends";
-import type { TerrainPresetSchema } from "../../lib/ground";
+import type {
+  SoilPresetSchema,
+  SoilRanges,
+  TerrainPresetSchema,
+} from "../../lib/ground";
 
 /** GET /capabilities, typed. `have_pynec` is still served for compatibility
  *  but is no longer read: PyNEC's availability is roster membership (#628). */
 type CapabilitiesPayload = {
   backends?: BackendRoster;
   terrain_presets?: TerrainPresetSchema[];
+  soil_presets?: SoilPresetSchema[];
+  soil_ranges?: SoilRanges;
   model_option_specs?: ModelOptionSpecs;
   backend_aliases?: Record<string, string>;
   default_slots?: ServedSlotSeed[];
@@ -25,6 +31,13 @@ export type CapabilitiesState = {
    *  backend-dependent UI waits instead of rendering a guess. */
   roster: BackendRoster | null;
   terrainPresets: TerrainPresetSchema[];
+  /** Named soils and the two knobs' bounds (#1173). Empty/null from a server
+   *  predating it, and the ground panel then renders no soil controls —
+   *  absence means "the server does not describe this", the same rule the
+   *  terrain panel follows. Never a hardcoded fallback: the bounds here must
+   *  be the same fact as the server-side clamp. */
+  soilPresets: SoilPresetSchema[];
+  soilRanges: SoilRanges | null;
   /** The solver-knob catalogue (#1006 G2-6), keyed by kwarg. Empty from a
    *  server predating it — "describes nothing", which yields a slot with no
    *  model options rather than a guess at some. Not an error path: the roster
@@ -52,6 +65,8 @@ export function useCapabilities(): CapabilitiesState {
   const [terrainPresets, setTerrainPresets] = useState<TerrainPresetSchema[]>(
     [],
   );
+  const [soilPresets, setSoilPresets] = useState<SoilPresetSchema[]>([]);
+  const [soilRanges, setSoilRanges] = useState<SoilRanges | null>(null);
   const [modelOptionSpecs, setModelOptionSpecs] = useState<ModelOptionSpecs>({});
   const [backendAliases, setBackendAliases] = useState<Record<string, string>>({});
   const [defaultSlotSeeds, setDefaultSlotSeeds] = useState<ServedSlotSeed[]>([]);
@@ -71,6 +86,18 @@ export function useCapabilities(): CapabilitiesState {
         if (cancelled) return;
         setTerrainPresets(
           Array.isArray(c.terrain_presets) ? c.terrain_presets : [],
+        );
+        setSoilPresets(Array.isArray(c.soil_presets) ? c.soil_presets : []);
+        // Both knobs must be described or neither is: a half-served range
+        // would otherwise render one slider with server bounds and one with
+        // guessed ones.
+        setSoilRanges(
+          c.soil_ranges &&
+            typeof c.soil_ranges === "object" &&
+            c.soil_ranges.eps_r &&
+            c.soil_ranges.sigma
+            ? c.soil_ranges
+            : null,
         );
         setModelOptionSpecs(
           c.model_option_specs && typeof c.model_option_specs === "object"
@@ -112,6 +139,8 @@ export function useCapabilities(): CapabilitiesState {
   return {
     roster,
     terrainPresets,
+    soilPresets,
+    soilRanges,
     modelOptionSpecs,
     backendAliases,
     defaultSlotSeeds,

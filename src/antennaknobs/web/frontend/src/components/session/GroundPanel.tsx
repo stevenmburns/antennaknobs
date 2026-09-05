@@ -3,10 +3,14 @@ import type { BackendEntry } from "../../lib/backends";
 import type {
   FiniteGroundMethod,
   GroundType,
+  SoilParams,
+  SoilPresetSchema,
+  SoilRanges,
   TerrainParams,
   TerrainPresetSchema,
 } from "../../lib/ground";
-import { NumberField } from "../backend/fields";
+import { activeSoilPreset } from "../../lib/ground";
+import { LogNumberField, NumberField } from "../backend/fields";
 
 export function GroundPanel({
   backend,
@@ -21,6 +25,10 @@ export function GroundPanel({
   setTerrainPreset,
   terrainParams,
   setTerrainParams,
+  soil = null,
+  setSoil,
+  soilPresets = [],
+  soilRanges = null,
   groundRequirement = null,
 }: {
   backend: BackendEntry;
@@ -35,6 +43,13 @@ export function GroundPanel({
   setTerrainPreset: (v: string) => void;
   terrainParams: TerrainParams;
   setTerrainParams: (fn: (p: TerrainParams) => TerrainParams) => void;
+  /** Soil constants for the finite models (issue #1173). Null soil or null
+   *  ranges renders no soil controls at all — a server that does not
+   *  describe the knobs does not get guessed ones. */
+  soil?: SoilParams | null;
+  setSoil?: (s: SoilParams) => void;
+  soilPresets?: SoilPresetSchema[];
+  soilRanges?: SoilRanges | null;
   /** The active design's required ground model ("sommerfeld" for the
    *  buried-wire designs), or null. Renders the auto-selection notice —
    *  the selection itself is DesignSession's ground-requirement effect. */
@@ -81,7 +96,7 @@ export function GroundPanel({
                 [
                   [
                     "finite",
-                    "finite (εr=10, σ=0.002 S/m)",
+                    "finite",
                     "Finite ground — pick the solve method below (Sommerfeld-Norton or the reflection-coefficient approximation).",
                   ],
                   [
@@ -152,6 +167,67 @@ export function GroundPanel({
                   ))}
                 </div>
               )}
+            {groundType === "finite" &&
+              soil &&
+              soilRanges &&
+              setSoil &&
+              (() => {
+                // Whole sub-panel driven by the /capabilities schema (issue
+                // #1173), the same way the terrain block below is: preset
+                // list, bounds and defaults are all the server's. The active
+                // preset is DERIVED from the two numbers, so dragging a knob
+                // off a preset simply deselects it — there is no stored
+                // preset name that can disagree with the values.
+                const active = activeSoilPreset(soil, soilPresets);
+                return (
+                  <div style={{ marginLeft: "1.2em" }}>
+                    {soilPresets.length > 0 && (
+                      <div role="radiogroup" aria-label="Soil preset">
+                        {soilPresets.map((p) => (
+                          <label
+                            key={p.name}
+                            className="link-toggle"
+                            title={p.tooltip}
+                          >
+                            <input
+                              type="radio"
+                              name="soil-preset"
+                              checked={active?.name === p.name}
+                              onChange={() =>
+                                setSoil({ eps_r: p.eps_r, sigma: p.sigma })
+                              }
+                            />
+                            {p.label}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <NumberField
+                      label="εr (relative permittivity)"
+                      value={soil.eps_r}
+                      min={soilRanges.eps_r.min}
+                      max={soilRanges.eps_r.max}
+                      step={0.1}
+                      onChange={(v) => setSoil({ ...soil, eps_r: v })}
+                    />
+                    <LogNumberField
+                      label="σ (conductivity, S/m)"
+                      value={soil.sigma}
+                      min={soilRanges.sigma.min}
+                      max={soilRanges.sigma.max}
+                      onChange={(v) => setSoil({ ...soil, sigma: v })}
+                    />
+                    <div
+                      style={{ fontSize: "0.85em", opacity: 0.65 }}
+                      title="The soil reaches the impedance solve, the pattern, the sweep and the exported NEC deck's GN card."
+                    >
+                      {active
+                        ? `${active.label} soil`
+                        : "custom soil"}
+                    </div>
+                  </div>
+                );
+              })()}
             {groundType === "terrain" &&
               backendSupportsTerrain(backend) &&
               terrainPresets.length > 0 &&

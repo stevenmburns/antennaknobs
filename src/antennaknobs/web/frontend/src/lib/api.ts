@@ -1,4 +1,4 @@
-import type { GroundModel } from "./ground";
+import type { GroundModel, SoilParams } from "./ground";
 import type { Projection } from "./view";
 
 export type Wire = {
@@ -266,6 +266,12 @@ export type SolveRequest = {
   /** Terrain preset params when ground_model === "terrain" (issue #534);
    *  the server clamps every number, so raw knob state is fine to send. */
   terrain?: { preset: string; [key: string]: number | string };
+  /** Soil constants for the finite ground models (issue #1173). Omitted
+   *  entirely when ground is off or the model is pec/terrain — absence is
+   *  what makes a pre-#1173 request and a default-soil request the same
+   *  bytes, so neither invalidates the other's cached sweep. The server
+   *  clamps both numbers, so raw knob state is fine to send. */
+  soil?: SoilParams;
   /** Cut angles for the server-attached polar traces (issue #547). */
   az_elev_deg?: number;
   elev_az_deg?: number;
