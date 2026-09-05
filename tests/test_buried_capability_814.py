@@ -178,20 +178,26 @@ def test_an_unmeasured_wrapper_answers_none():
     This named `pynec` and justified it with the adapter docstring's claim
     that PyNEC "refuses a wire below z = 0 outright". antennaknobs#1167
     measured that and found the reverse — PyNEC solves a buried deck as though
-    the wire were in air — so pynec now answers False with a measured
-    sentence, and `nec5` is the wrapper still genuinely unasked.
+    the wire were in air — so pynec answers a measured False. It then named
+    `nec5` as the wrapper still genuinely unasked; antennaknobs#1025 measured
+    that one too (it serves), so no shipped wrapper is unmeasured today.
 
-    The rule the test exists for is unchanged: unmeasured means None.
+    The rule the test exists for is unchanged — unmeasured means None — so it
+    is asserted through the MECHANISM, which does not need a backend to stay
+    unmeasured in order to have something to point at.
     """
     import antennaknobs.web.examples  # noqa: F401 - breaks the adapter's cycle
-    from antennaknobs.web.adapter import backend_roster
+    from antennaknobs.web.adapter import (
+        _backend_buried_refusal,
+        _backend_serves_buried,
+    )
 
-    # Its own roster call: the shared `_roster()` above is built with
-    # have_nec5=False, absence being the hosted shape, and nec5 is precisely
-    # the row this needs.
-    rows = {b["name"]: b for b in backend_roster(have_pynec=True, have_nec5=True)}
-    assert rows["nec5"]["buried"] is None
-    assert rows["nec5"]["buried_refusal"] is None
+    class _Unmeasured:
+        kind = "no-such-engine"
+        solver = None
+
+    assert _backend_serves_buried(_Unmeasured()) is None
+    assert _backend_buried_refusal(_Unmeasured()) is None
 
 
 def test_pynec_answers_the_measured_false():

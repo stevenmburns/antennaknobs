@@ -631,9 +631,45 @@ _PYNEC_BURIED_REFUSAL = (
 
 _WRAPPER_BURIED_SCOPE = {
     "pynec": (False, _PYNEC_BURIED_REFUSAL, "antennaknobs#1167"),
-    # nec5 is deliberately ABSENT rather than present-with-None: its scope is
-    # measured in the other half of antennaknobs#1167, on a box that has the
-    # licensed binary. Until then the miss below is the answer.
+    # NEC-5 SERVES buried geometry, measured on the licensed binary
+    # (antennaknobs#1025 / #1167), so its row carries no sentence and the
+    # frontend renders nothing — the same shape as a momwire that serves.
+    #
+    # It earns the True by modelling the interface rather than by returning a
+    # number: on `specialty.buried_dipole`, whose wire AND excitation are both
+    # below the surface, it prints 146.39+44.38j / 138.32+53.89j /
+    # 135.64+57.16j at 0.15 / 1 / 2 m down, tracking momwire to 0.15-0.27 % in
+    # R. That depth dependence is the evidence — the same wrapper before #1025
+    # printed 0.85j at ALL THREE depths, which is what an engine that is not
+    # modelling the burial looks like, and is exactly the failure mode PyNEC
+    # is marked False for.
+    #
+    # WHAT THE True DOES NOT SAY. There is no third state here, so read it as
+    # "the wrapper models the buried medium", not as "every buried sub-class is
+    # equally trustworthy". Measured scope, so nobody has to re-derive it:
+    #
+    #   wholly buried, fed below   validated to 0.15-0.27 % against momwire
+    #   buried wires, fed above    serves; the one catalog deck of this shape
+    #                              (elevated_buried_counterpoise) has |X|/R
+    #                              ~1400, so its R is numerical noise and it
+    #                              validates nothing in either direction
+    #   CONTACT (a bonded end)     serves, with a caveat below
+    #
+    # The contact caveat: that class needs ground flag 1, because flag -1
+    # leaves the current expansion alone and the binary then refuses the run
+    # outright — "voltage source specified where there is no basis function",
+    # which is the flag working as documented, there being no bonded node at
+    # the plane for the source to excite. But flag 1 is documented as not
+    # usable when wires go below the surface, and the contact class asks for
+    # both at once. The binary runs the combination without complaint (its
+    # checks are looser than its documentation, the same lesson as the
+    # mid-span straddle), and the answer it gives sits ~35 % in R from
+    # momwire. That gap was independently adjudicated as the interface-node
+    # convention difference — NEC-5 reads nearly the same impedance with the
+    # radials connected or detached — on antennaknobs#1025 and
+    # momwire#524/#567/#838, so it is not this bug and not fixed by it. Treat
+    # a contact-class NEC-5 buried number as unvalidated rather than wrong.
+    "nec5": (True, None, None),
 }
 
 
@@ -660,12 +696,23 @@ def _backend_serves_buried(spec):
     answer from `_WRAPPER_BURIED_SCOPE`, which is a measurement.
 
     This docstring used to assert that "PyNEC refuses a wire below z = 0
-    outright". Measuring it (antennaknobs#1167) found the opposite, and the
-    opposite in the worst direction: PyNEC does not refuse a buried wire, it
-    solves it wrongly and silently. The one place the wrapper does raise on a
-    buried catalog deck is `buried_radial_vertical`, and that refusal is about
-    the graded-mesh spelling, not about depth — it fires on graded decks above
-    ground too. An unmeasured docstring is exactly how a guess becomes a gate.
+    outright; NEC-5 serves buried decks natively since issue #825's stage".
+    Both halves were prose, and measuring them (antennaknobs#1167, #1025) found
+    both wrong.
+
+    PyNEC does not refuse a buried wire, it solves it wrongly and silently. The
+    one place that wrapper does raise on a buried catalog deck is
+    `buried_radial_vertical`, and that refusal is about the graded-mesh
+    spelling, not depth — it fires on graded decks above ground too.
+
+    NEC-5 did serve buried GEOMETRY, but not the class whose EXCITATION is also
+    below the surface: it printed milliohms there, and printed the same
+    milliohms at every depth. The cause was ours — the wrapper had the two
+    fields of the GE card transposed — and it is fixed in #1025, which is what
+    makes the True above a measurement rather than the same prose restated.
+
+    An unmeasured docstring is exactly how a guess becomes a gate, and this one
+    managed it twice in a single sentence.
     """
     if spec.kind != "momwire":
         row = _wrapper_buried_row(spec)
