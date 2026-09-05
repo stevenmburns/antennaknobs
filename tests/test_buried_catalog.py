@@ -330,22 +330,25 @@ def test_brv_nec5_now_takes_the_connected_default_too(monkeypatch):
     b = BuriedRadialVertical()
     engine = NEC5Engine(b, ground=("finite",) + SOIL_A)
     lines = engine.deck([b.freq]).splitlines()
-    # Ground flag 1: this deck's rise ENDS on the plane, so its base is bonded
-    # (antennaknobs#1025). The second field moved -1 -> 0 with that issue and
-    # is the segment-check flag, not part of the physics — measured identical
-    # on this exact deck (49.62+20.877j either way).
-    assert "GE 1 0" in lines
+    # Ground flag -1: the deck has buried wires, and burial is what decides
+    # the flag (antennaknobs#1025). It was 1 while this wrapper read GE's
+    # SECOND field as the buried selector; keyed on burial, this deck's print
+    # moves 49.620+20.877j -> 77.805+44.468j and its distance from momwire in
+    # R goes 34.58 % -> 2.58 %.
+    assert "GE -1 0" in lines
     # the graded rise and radiator became several GW cards, and the deck
     # carries exactly one rise from the hub to the node
     gw = [ln for ln in lines if ln.startswith("GW ")]
     assert len(gw) > len(_wires(b))
 
-    detached = _detached()
-    d_engine = NEC5Engine(detached, ground=("finite",) + SOIL_A)
-    # Also flag 1: detaching the RADIALS does not detach the rise, whose base
-    # still ends on the plane. Impedance identical under either second field
-    # (50.243+22.145j), so #1025's change is a re-pin here, not a move.
-    assert "GE 1 0" in d_engine.deck([detached.freq]).splitlines()
+    # The detached variant is REFUSED rather than spelled. It has NO rise, so
+    # its monopole stands its lower end IN the plane with nothing continuing
+    # below, over buried radials: flag -1 leaves that node without a basis
+    # function (the deck reads 598.320-54434.000j, an open circuit) and flag 1
+    # is documented as not usable with buried wires. There is no spelling to
+    # choose between, so it refuses.
+    with pytest.raises(NotImplementedError, match="ends ON the ground plane"):
+        NEC5Engine(_detached(), ground=("finite",) + SOIL_A)
 
     with pytest.raises(NotImplementedError, match="detached"):
         NEC5Engine(
@@ -358,23 +361,30 @@ def test_brv_nec5_now_takes_the_connected_default_too(monkeypatch):
 
 @needs_nec5
 def test_brv_nec5_solves_the_connected_default_and_banks_its_print(record_property):
-    """The record, not a gate on agreement (#1104): NEC-5's interface node is
-    a point electrode and momwire's is the crossing fill, so the two answers
-    for this deck are ~30 ohm apart by construction and neither is a bar for
-    the other. What IS pinned is that the binary now takes the design's
-    DEFAULT — before #1108 it could only be given the single-rise spelling by
-    hand — and lands where #1104 measured that spelling: 49.78 + 20.95j ohm at
-    these knobs over eps_r 13 / sigma 0.005.
+    """The record, not a gate on agreement — but the record changed (#1025).
 
-    The bar is deliberately loose (5 ohm). It exists to catch a deck that
-    stopped being this antenna, not to re-derive #1104's number; the banked
-    value is the record and this run reports its own.
+    This used to bank 49.78 + 20.95j and explain the ~30 ohm distance from
+    momwire as intrinsic: "NEC-5's interface node is a point electrode and
+    momwire's is the crossing fill, so the two answers are ~30 ohm apart by
+    construction". That explanation was measured and did not survive. The
+    distance was mostly the GROUND FLAG: this wrapper wrote the flag that
+    bonds a node at z=0 to ground, which is documented as not usable when
+    wires are buried. Keyed on burial instead, the same deck prints
+    77.805 + 44.468j and sits 2.58 % from momwire in R rather than 34.58 %.
+
+    So the two engines are NOT ~30 ohm apart by construction on this deck, and
+    the interface-node difference — whatever remains of it — is smaller than
+    the flag error that was standing in front of it.
+
+    The bar stays deliberately loose (5 ohm) and stays a smoke bound: it
+    exists to catch a deck that stopped being this antenna, not to assert
+    cross-engine agreement.
     """
     b = BuriedRadialVertical()
     z = NEC5Engine(b, ground=("finite",) + SOIL_A).impedance()
     z = complex(z[0] if isinstance(z, list) else z)
     record_property("nec5_Z", f"{z:.4f}")
-    assert abs(z - (49.78 + 20.95j)) < 5.0, z
+    assert abs(z - (77.805 + 44.468j)) < 5.0, z
 
 
 # ---------------------------------------------------------------------------

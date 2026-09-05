@@ -44,6 +44,16 @@
       "deck": "buried_dipole_fed_below_ge1.nec",
       "printout": "buried_dipole_fed_below_ge1.out",
       "note": "the same deck with ground flag 1, the pre-#1025 spelling: the witness for the milliohm print, kept so a revert fails a test"
+    },
+    "brv_connected_minus1": {
+      "deck": "brv_connected_minus1.nec",
+      "printout": "brv_connected_minus1.out",
+      "note": "verticals.buried_radial_vertical connected: the CONTACT class whose conductor crosses the interface, on ground flag -1 (antennaknobs#1025) \u2014 2.6 % from momwire in R"
+    },
+    "brv_connected_ge1_witness": {
+      "deck": "brv_connected_ge1_witness.nec",
+      "printout": "brv_connected_ge1_witness.out",
+      "note": "the same deck on the flag the wrapper used to write: the WITNESS for the 34.6 % contact-class error and the flat-in-radial-count reading, kept so a revert fails a test"
     }
   }
 }
