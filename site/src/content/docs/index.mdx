@@ -25,47 +25,34 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.68.0" icon="star">
-  **Each solver tab says what it is made of.** Under the tab strip the
-  workbench now states an engine's composition in one line — *B-spline ·
-  degree 2 · Galerkin · reduced kernel · converged quadrature · dense · point
-  gap* — so you can see that B-spline, H-matrix and Array-block are one
-  physics differing only in solve strategy, and that Sin-Galerkin is the
-  Sinusoidal basis with a different testing. Every control rewrites its own
-  segment in place. The vocabulary is momwire's, served with the roster
-  ([#1006](https://github.com/stevenmburns/antennaknobs/issues/1006)).
+<Card title="New in v0.69.0" icon="star">
+  **Buried radial screens solve 4× faster, and the radial cap is gone.** A
+  12-radial screen went from 11 s to under 3 s, the served buried deck from
+  2.4 s to 1.1 s, and a 48-radial screen now solves on the hosted app in
+  under 20 s where it used to refuse outright — level with a licensed
+  NEC-5's wall on the same deck. Same impedance to every printed digit. Underneath:
+  the off-edge pair quadrature follows each pair's distance
+  ([momwire#906](https://github.com/stevenmburns/momwire/issues/906)), the
+  buried fill streams through complex-medium C++ assemblers instead of a
+  dense tensor ([momwire#915](https://github.com/stevenmburns/momwire/issues/915)),
+  and the field-form Galerkin assembly is one fused C++ kernel
+  ([momwire#914](https://github.com/stevenmburns/momwire/issues/914)).
 
-  **The solver panel is drawn from what the engine serves.** momwire 0.48.0
-  declares each solver's axes, which combinations it refuses and why, and
-  every knob's bounds and caption; the hand-written panel per engine is
-  gone. A control appears exactly when the engine takes it, a refused
-  combination greys out with momwire's own sentence, and a design a tab
-  cannot solve — a buried deck under the extended kernel — says so inline
-  before you press anything. The feed-model choice now reaches the B-spline
-  family, which always had it
-  ([momwire#891](https://github.com/stevenmburns/momwire/pull/891)).
+  **Choose your soil.** The ground panel gains permittivity and
+  conductivity knobs with named presets — very poor through salt water —
+  carried through sweeps, patterns, cuts, near fields and the exported NEC
+  deck ([#1173](https://github.com/stevenmburns/antennaknobs/issues/1173)).
+  The default soil is unchanged, so nothing you saved moves.
 
-  **Radials lying on the ground.** The buried radial vertical gains a
-  `surface` convention: radials in the grass, served as the elevated family
-  at the jacket's outer radius — where an insulated wire's conductor
-  actually sits — with momwire's advisory when the stand-off is small enough
-  that the height is the answer
-  ([momwire#872](https://github.com/stevenmburns/momwire/issues/872),
-  [#875](https://github.com/stevenmburns/momwire/issues/875)). The coated
-  wire is modelled as an equivalent radius with its series inductance, both
-  halves ([momwire#874](https://github.com/stevenmburns/momwire/issues/874)),
-  and the [validation page](/reference/validation/) states the class
-  residual by sign against Severns' 2009 measurements.
+  **No more mid-sweep stalls over lossy soil.** momwire keeps two
+  Sommerfeld rungs and blends between them instead of refilling at every
+  step, so a 20 m sweep over 20 / 0.03 earth stops pausing in the middle
+  ([momwire#902](https://github.com/stevenmburns/momwire/issues/902)).
 
-  **Retuned for the coated pair.** With the coating modelled, the POTA
-  inverted vee's length factor and the EFHW sloper's compensation capacitor
-  (100 → 47 pF) move to where the same antenna now resonates; the FT240
-  preset keeps its 100 pF and the sloper says why it differs.
-
-  **Big buried screens are fast.** momwire's crossing fill stops multiplying
-  zeros: a 113-radial screen went from 6.35 minutes to under 30 seconds
-  with the impedance unchanged to every digit
-  ([momwire#877](https://github.com/stevenmburns/momwire/issues/877)).
+  **Free-space fills take the same shortcut.** The distance-adaptive
+  quadrature now serves the real-wavenumber fill too — 1.5–2× on bent and
+  multi-wire decks at one thread, with every pinned answer unmoved
+  ([momwire#907](https://github.com/stevenmburns/momwire/issues/907)).
 </Card>
 
 ## The whole pitch, in one line

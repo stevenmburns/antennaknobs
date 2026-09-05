@@ -405,7 +405,15 @@ actually depend on.
 
 The selector describes what the ground **is**, independent of solver:
 
-- **finite (εr=10, σ=0.002 S/m)** — "average" real earth, the default;
+- **finite** — real earth, the default. Its two constants are yours to set:
+  **εr** (relative permittivity, 1–81) and **σ** (conductivity, S/m, on a log
+  scale from 1e-4 to 5), with named presets — very poor, poor, average, very
+  good, fresh water, salt water — that fill both at once. The active preset
+  is read off the two numbers, so dragging a knob off a preset simply
+  deselects it; the default 10 / 0.002 is shown as *custom soil*. The soil
+  travels with every solve — sweeps, patterns, cuts, near fields and the
+  exported NEC deck's `GN 2` card — and a changed soil is a new sweep, not a
+  cache hit;
 - **PEC** — a perfect reflector, mainly for apples-to-apples engine
   comparisons; or
 - **terrain** — a faceted height profile around the site (levee/cliff
