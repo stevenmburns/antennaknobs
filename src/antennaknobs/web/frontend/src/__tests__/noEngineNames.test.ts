@@ -7,12 +7,12 @@
  * true, and it asserts the EXACT residue rather than zero — a test that
  * demanded zero would either be a lie or force a regression to satisfy it.
  *
- * THE RESIDUE IS ONE BRANCH AND IT IS DELIBERATE. `feedModelChoices` falls
- * back to the `sin-galerkin` panel hint when a backend's `axes` is null —
- * which is the momwire USERS HAVE, because the submodule pointer runs ahead
- * of the PyPI pin by design and the released package predates the axis
- * vocabulary. Deleting that branch would take the feed-model control away
- * from every installed user until the pin moves. It goes with that bump.
+ * THE RESIDUE IS A TYPE, NOT A BRANCH. Until v0.68.0 one branch survived:
+ * `feedModelChoices` fell back to the `sin-galerkin` panel hint when a
+ * backend's `axes` was null, because that was the momwire users had while
+ * the submodule pointer ran ahead of the PyPI pin. The pin moved to momwire
+ * 0.48.0 (#1169), which serves the vocabulary, and the branch went with it
+ * (#1170). What remains is the served payload's own `kind` field type.
  */
 import { describe, expect, it } from "vitest";
 // Vite's `?raw` rather than node:fs — the app's tsconfig has no node types,
@@ -63,35 +63,27 @@ describe("no engine names in the two files the unit is about", () => {
     const hits = codeLines(src).flatMap(({ line, n }) =>
       (line.match(ENGINE_NAME) ?? []).map((m) => `${n}: ${m}  ${line.trim()}`),
     );
-    // THE RESIDUE, NAMED EXACTLY. Two things are allowed and nothing else:
-    //
-    //  1. `PANEL_SIN_GALERKIN` — its declaration and the ONE fallback that
-    //     reads it, for a momwire whose `axes` is null. That is the released
-    //     momwire, so deleting the branch removes the feed-model control for
-    //     every installed user until the PyPI pin moves. It goes with that
-    //     bump.
-    //  2. The `kind` union, `"momwire" | "pynec" | "nec5"`. That is the
-    //     served payload's own FIELD TYPE, not a branch on an engine — a
-    //     client cannot type the wire without writing the values the wire
-    //     carries. It is matched narrowly (the union line itself) so that a
-    //     genuine `kind === "pynec"` branch would still fail.
+    // THE RESIDUE, NAMED EXACTLY. One thing is allowed and nothing else:
+    // the `kind` union, `"momwire" | "pynec" | "nec5"`. That is the served
+    // payload's own FIELD TYPE, not a branch on an engine — a client cannot
+    // type the wire without writing the values the wire carries. It is
+    // matched narrowly (the union line itself) so that a genuine
+    // `kind === "pynec"` branch would still fail.
     const allowed = (h: string) =>
-      /PANEL_SIN_GALERKIN/.test(h) ||
-      /"sin-galerkin"/.test(h) ||
       /kind: "momwire" \| "pynec" \| "nec5";$/.test(h);
     const unexpected = hits.filter((h) => !allowed(h));
     expect(unexpected).toEqual([]);
   });
 
-  it("the residue is exactly the axes-null fallback, and nothing else", () => {
+  it("no panel-hint constant survives, and nothing reads the hint", () => {
+    // The axes-null fallback was the one deliberate branch (#1006 G2-6); it
+    // went with the pin bump that made it dead (#1170). If a `PANEL_*`
+    // constant or a read of `.panel` reappears in code, a branch on an engine
+    // name has been added and this test is the place that says so.
     const hits = codeLines(backendsSrc).filter(({ line }) =>
-      /PANEL_SIN_GALERKIN|"sin-galerkin"/.test(line),
+      /PANEL_[A-Z_]+|"sin-galerkin"|\.panel\b/.test(line),
     );
-    // One declaration, one use. If a third appears, a new engine-name branch
-    // has been added and this test is the place that says so.
-    expect(hits).toHaveLength(2);
-    expect(hits[0]!.line).toContain("export const PANEL_SIN_GALERKIN");
-    expect(hits[1]!.line).toContain("b.panel === PANEL_SIN_GALERKIN");
+    expect(hits.map((h) => `${h.n}: ${h.line.trim()}`)).toEqual([]);
   });
 
   it("the modal names no engine at all", () => {

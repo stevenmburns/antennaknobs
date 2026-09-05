@@ -109,8 +109,9 @@ export type BackendEntry = {
   kind: "momwire" | "pynec" | "nec5";
   supports_ground: boolean;
   options_schema: BackendOptionField[];
-  /** Bespoke panel hint — the knobs no numeric renderer can carry. Null for
-   *  a backend whose whole surface is generic. */
+  /** Bespoke panel hint, as served. Nothing in this client reads it since
+   *  #1170 — every knob is drawn from the catalogue and the axes — and it is
+   *  typed only because the wire carries it. */
   panel: string | null;
   default_n_per_wire: number;
   accelerator: boolean;
@@ -189,18 +190,13 @@ export type DesignConstraintInputs = {
 
 export type BackendRoster = BackendEntry[];
 
-// Panel hints, as served. Named constants so the bespoke components are
-// selected by the server's hint rather than by backend name.
-// PANEL_BSPLINE and PANEL_PYNEC are DELETED (#1006 G2-6). Their knobs are
-// drawn from the served catalogue now, so a panel name selects nothing.
-//
-// PANEL_SIN_GALERKIN survives for ONE use — `feedModelChoices`' fallback for
-// a momwire whose `axes` is null, which is the RELEASED momwire, since the
-// submodule pointer runs ahead of the PyPI pin by design. Deleting it would
-// remove the feed-model control for every installed user until the pin moves,
-// so it goes with that bump and not before. The grep test asserts this exact
-// residue rather than zero.
-export const PANEL_SIN_GALERKIN = "sin-galerkin";
+// Panel hints are served but NOT read here. PANEL_BSPLINE and PANEL_PYNEC
+// were deleted in #1006 G2-6 (their knobs come from the served catalogue);
+// PANEL_SIN_GALERKIN outlived them as `feedModelChoices`' fallback for a
+// momwire whose `axes` is null — the released momwire while the submodule
+// pointer ran ahead of the PyPI pin — and went with the pin bump to momwire
+// 0.48.0 (#1169, #1170). The grep test asserts no `PANEL_*` constant and no
+// read of `.panel` survives in this file.
 
 // THE CONTROL RULE (antennaknobs#1006 G2-5), written down once:
 //
@@ -287,14 +283,17 @@ export function feedModelChoices(b: BackendEntry): FeedModelChoice[] {
   // Same guard as `degreeChoices`: a backend that does not expose the kwarg
   // has no choice to offer, whatever its axes say or fail to say.
   if (!(b.model_kwargs ?? []).includes("feed_model")) return [];
+  // A momwire that cannot describe itself (`axes` null) offers no choice:
+  // the honest answer, now that the released momwire serves the vocabulary
+  // (#1170). The hint-keyed fallback that used to sit here is gone.
   const vals = b.axes?.feed_model;
-  if (!vals) return b.panel === PANEL_SIN_GALERKIN ? FEED_MODEL_CHOICES : [];
+  if (!vals) return [];
   return FEED_MODEL_CHOICES.filter((c) => vals.includes(c.axisValue));
 }
 
 /** Does this backend give the user a feed-model CHOICE?
  *
- *  Replaces the four `panel === PANEL_SIN_GALERKIN` branches. Plain
+ *  Replaces the four `panel === "sin-galerkin"` branches. Plain
  *  `sinusoidal` declares `feed_model: ["segment-gap"]` — it can carry a feed
  *  model but not a choice of one (the point gap has no collocation RHS,
  *  momwire#212) — and that single-valued axis is exactly what the roster
