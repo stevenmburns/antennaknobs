@@ -14,11 +14,15 @@ from pathlib import Path
 
 EXE = os.environ["NEC5_EXE"]
 
-GW = ("GW 1 14 0.000000E+00 0.000000E+00 1.000000E+01 "
-      "0.000000E+00 0.000000E+00 0.000000E+00 1.000000E-03\n")
+GW = (
+    "GW 1 14 0.000000E+00 0.000000E+00 1.000000E+01 "
+    "0.000000E+00 0.000000E+00 0.000000E+00 1.000000E-03\n"
+)
 for i, (dx, dy) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1)), start=2):
-    GW += (f"GW {i} 10 0.000000E+00 0.000000E+00 -1.500000E-01 "
-           f"{5.0 * dx:.6E} {5.0 * dy:.6E} -1.500000E-01 1.000000E-03\n")
+    GW += (
+        f"GW {i} 10 0.000000E+00 0.000000E+00 -1.500000E-01 "
+        f"{5.0 * dx:.6E} {5.0 * dy:.6E} -1.500000E-01 1.000000E-03\n"
+    )
 GN = "GN 0 0 0 0 1.300000E+01 5.000000E-03 1.000000E+00 0.000000E+00 NOFILE\n"
 EX = "EX 0 1 14 2 1.000000E+00 0.000000E+00\n"
 FR = "FR 0 1 0 0 7.000000E+00 0.000000E+00\n"
@@ -28,14 +32,22 @@ def run(ge):
     deck = "CM contact scope\nCE\n" + GW + ge + "\n" + GN + EX + FR + "XQ 0\nEN\n"
     with tempfile.TemporaryDirectory(prefix="nec5_sc_") as td:
         (Path(td) / "m.nec").write_text(deck)
-        p = subprocess.run([EXE], input="m.nec\nm.out\n\n", text=True,
-                           capture_output=True, cwd=td, timeout=300)
+        p = subprocess.run(
+            [EXE],
+            input="m.nec\nm.out\n\n",
+            text=True,
+            capture_output=True,
+            cwd=td,
+            timeout=300,
+        )
         out = Path(td) / "m.out"
         text = out.read_text(errors="replace") if out.is_file() else ""
         stdout = (p.stdout or "") + (p.stderr or "")
     z = None
-    m = re.search(r"- - - ANTENNA INPUT PARAMETERS - - -(.*?)(?:\n\s*\n\s*\n|$)", text, re.S)
-    for line in (m.group(1).splitlines() if m else []):
+    m = re.search(
+        r"- - - ANTENNA INPUT PARAMETERS - - -(.*?)(?:\n\s*\n\s*\n|$)", text, re.S
+    )
+    for line in m.group(1).splitlines() if m else []:
         t = line.split()
         if len(t) >= 12 and re.fullmatch(r"\d+", t[0]):
             z = complex(float(t[7]), float(t[8]))
