@@ -2,24 +2,21 @@
  * The axis-derived feed-model control renders what the `panel` hint used to
  * (#1006 G2-5).
  *
- * `BackendConfigModal` no longer branches on `PANEL_SIN_GALERKIN` anywhere;
- * the control appears when the `feed_model` axis is multi-valued. This file is
- * the evidence that the swap was behaviour-preserving, which is the condition
- * the hint was allowed to be removed under.
+ * `BackendConfigModal` branches on no panel hint anywhere; the control
+ * appears when the `feed_model` axis is multi-valued. This file is the
+ * evidence that the swap was behaviour-preserving, which is the condition the
+ * hint was allowed to be removed under.
  *
- * WHAT WAS ACTUALLY REMOVED, precisely — the hint did not vanish, it was
- * DEMOTED. Four `panel === PANEL_SIN_GALERKIN` branches (the modal's render,
- * `defaultOptsFor`, `backendDisplayLabel`, `buildModelOptions`) became
- * `offersFeedModelChoice`. The constant survives in exactly one place, inside
- * `feedModelChoices`, as the answer for a momwire that cannot describe itself.
- *
- * That fallback is load-bearing rather than defensive: `axes` is null on every
- * momwire predating the axis vocabulary, and the submodule pointer runs ahead
- * of the PyPI pin BY DESIGN here, so the released package users install
- * answers null today. A version probe cannot tell the two apart — momwire
- * reports 0.47.0 with and without the vocabulary — which is why the code
- * probes for the feature and why the null case below is a real shipping
- * configuration and not a museum piece.
+ * WHAT WAS REMOVED, and when. Four `panel === "sin-galerkin"` branches (the
+ * modal's render, `defaultOptsFor`, `backendDisplayLabel`,
+ * `buildModelOptions`) became `offersFeedModelChoice` in G2-5. One fallback
+ * survived inside `feedModelChoices` for a momwire whose `axes` is null —
+ * which was the RELEASED momwire while the submodule pointer ran ahead of
+ * the PyPI pin, so deleting it then would have taken the control from every
+ * installed user. The pin moved to momwire 0.48.0 in v0.68.0 (#1169), which
+ * serves the vocabulary, and the fallback went with it (#1170). The `panel`
+ * field is still on the wire; nothing in this client reads it, and the last
+ * describe block below holds that.
  */
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -142,25 +139,32 @@ describe("the axis decides, and it now says more than the hint did", () => {
   });
 });
 
-describe("a momwire that cannot describe itself falls back to the hint", () => {
-  // `axes: null` is what the CURRENTLY RELEASED momwire serves. These cases
-  // are the installed-user path, not a legacy path.
+describe("a momwire that cannot describe itself offers no feed-model choice", () => {
+  // `axes: null` was the RELEASED momwire until the pin moved to 0.48.0
+  // (#1169); the fallback that read the `panel` hint went with that bump
+  // (#1170). A momwire that cannot be asked now gets the honest answer — no
+  // choice — rather than a guess keyed on a hint the vocabulary replaced.
   const legacySG: BackendEntry = { ...entry("sinusoidal-galerkin"), axes: null };
   const legacySin: BackendEntry = { ...entry("sinusoidal"), axes: null };
 
-  it("still offers the choice on the hinted backend", () => {
-    expect(offersFeedModelChoice(legacySG)).toBe(true);
-    expect(feedModelChoices(legacySG).map((c) => c.label)).toEqual([
-      "NEC-compatible",
-      "Converged",
-    ]);
-    expect(feedTabs(legacySG)).toEqual(["NEC-compatible", "Converged"]);
+  it("offers nothing on the backend the hint used to select", () => {
+    expect(legacySG.panel).toBe("sin-galerkin");
+    expect(offersFeedModelChoice(legacySG)).toBe(false);
+    expect(feedModelChoices(legacySG)).toEqual([]);
+    expect(feedTabs(legacySG)).toBeNull();
   });
 
-  it("still offers nothing on the unhinted one", () => {
+  it("offers nothing on the unhinted one either", () => {
     expect(legacySin.panel).toBeNull();
     expect(offersFeedModelChoice(legacySin)).toBe(false);
     expect(feedTabs(legacySin)).toBeNull();
+  });
+
+  it("the hint is served but nothing reads it", () => {
+    // MUTATE THE DATA THE OLD BRANCH READ. If flipping the hint changes the
+    // answer, the fallback is back.
+    const hinted: BackendEntry = { ...legacySin, panel: "sin-galerkin" };
+    expect(feedModelChoices(hinted)).toEqual([]);
   });
 });
 

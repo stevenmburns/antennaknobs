@@ -293,9 +293,8 @@ export function BackendConfigModal({
 
           {/* The axis-derived feed-model control (#1006 G2-5): it renders
               wherever `feed_model` is multi-valued, which is what the
-              `sin-galerkin` panel hint used to mean. The hint survives only
-              inside `feedModelChoices`, as the fallback for a momwire that
-              cannot describe itself — it goes with the PyPI pin bump. */}
+              `sin-galerkin` panel hint used to mean. The hint is served but
+              read nowhere since the pin bump to momwire 0.48.0 (#1170). */}
           {offersFeedModelChoice(backend) && (
             <FeedModelField
               choices={feedModelChoices(backend)}
