@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "antennaknobs"
-version = "0.67.0"
+version = "0.68.0"
 authors = [
   { name="Steven M. Burns", email="smburns47@gmail.com" },
 ]

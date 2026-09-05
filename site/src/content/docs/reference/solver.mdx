@@ -36,7 +36,8 @@ family's own degree-1 case already uses:
   *Converged* (the default zero-width gap — converges to the B-spline
   answer, exactly reciprocal Y) or *NEC-compatible* (a segment-wide gap —
   NEC's own source, including the reactance drift as the mesh refines).
-  It is the "feed model" control in the Sin-Galerkin slot's gear menu, and
+  It is the "feed model" control in the Sin-Galerkin slot's gear menu (the
+  B-spline family carries the same control, defaulting to *Converged*), and
   the workbench is the only place it is offered: the CLI and both momwire
   portals carry one `sinusoidal-galerkin` name, and it is the converged
   one (momwire#654). Reach for *NEC-compatible* when you want NEC's
@@ -175,7 +176,7 @@ loudly rather than silently:
   [Razor](#razor-the-nec-5-formulation-twin) above.
 - **singular enrichment**, on the bases that otherwise serve EK — the
   enrichment degrees of freedom carry their own quadrature and bypass the
-  moment kernels the extended kernel corrects (momwire#271).
+  moment kernels the extended kernel corrects (momwire#249).
 
 Three ways to ask for it: the **extended kernel (EK)** check in a solver
 slot's gear menu (per slot, so you can put the same basis and mesh in two

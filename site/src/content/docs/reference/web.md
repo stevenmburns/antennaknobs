@@ -274,6 +274,27 @@ solves are one external run per request — right for A/B snapshot checks
 against momwire in the next slot, heavier than the in-process engines for
 live dragging.
 
+Under the tab strip in that gear menu, each engine states **what it is made
+of** in one line — basis, testing, kernel, quadrature, solve strategy, feed
+model — for instance *B-spline · degree 2 · Galerkin · reduced kernel ·
+converged quadrature · dense · point gap*. It exists because three of the
+tabs differ in one word: B-spline, H-matrix (ACA) and Array-block are the
+same physics with a different solve strategy, and Sin-Galerkin is the
+Sinusoidal basis with Galerkin testing in place of point matching. Every
+control below the line rewrites its one segment in place, a segment the
+preset pins is marked *(pinned)*, and PyNEC and NEC-5 say *External engine,
+not described compositionally* rather than inventing one. The vocabulary is
+momwire's own, served with the roster — the browser carries no engine names.
+
+The controls themselves are drawn from the served option catalogue rather
+than a hand-written panel per engine, so a knob appears exactly when the
+engine behind the tab takes it, with the server's own bounds and captions.
+When the loaded design cannot be solved with a tab's current settings — a
+buried deck under the extended kernel, say — the tab says so inline with
+momwire's own refusal sentence and the issue it cites, and there is no
+*Solve anyway*: momwire would raise, so an override would buy an error
+dialog rather than a result.
+
 The solver's gear menu also exposes **segments / wire (N)** — how finely each
 wire is discretized. More segments = more accurate (up to convergence) but a
 larger, slower solve. See
@@ -311,22 +332,26 @@ side by side. A slot running it is labelled **+EK** on its chip
 
 Every momwire basis serves it — the Galerkin family joined with momwire
 0.27.0 (momwire#246/#287/#299: every ground model, bent and stepped
-geometry included). One combination is unavailable, and the check greys out
-and says which:
+geometry included). Some combinations are refused, and the check greys out
+and says which, in momwire's words: the reasons are served with the roster
+from momwire's own table of couplings, never retyped here.
 
-- **K≥3 junction singular enrichment** (the validation-only B-spline knob)
-  cannot run alongside it: the enrichment degrees of freedom bypass the very
-  kernels the extended kernel corrects (momwire#271). The two grey each other
-  out, so you can always back out of either.
+- **K≥3 junction singular enrichment** (the validation-only knob on the
+  B-spline family) cannot run alongside it: the enrichment degrees of
+  freedom bypass the very kernels the extended kernel corrects
+  (momwire#249). The two grey each other out, so you can always back out of
+  either.
+- **A buried wire** cannot be solved under it (momwire#553): on a deck with
+  a conductor below the interface the tab says so and withholds the solve.
 
 **PyNEC** has no such check — the toggle drives momwire's kernel. Changing a
 slot's solver resets the check along with that solver's other options, so an
 armed kernel never rides silently onto a basis you just switched to.
 
-### The feed model (Sin-Galerkin only)
+### The feed model
 
-Pick **Sin-Galerkin** and its gear menu grows one more control, **feed
-model** — how the source gap itself is modelled:
+**Sin-Galerkin** and the **B-spline family** (B-spline, H-matrix, Array-block)
+carry a **feed model** control — how the source gap itself is modelled:
 
 - **NEC-compatible** (the default) — NEC's segment-wide gap. The readout
   reproduces NEC/EZNEC behaviour, including the familiar reactance drift as
@@ -341,15 +366,18 @@ of the apparent disagreement between solver bases (momwire#213). What it does
 **not** do is reduce the mesh such a design needs — budget fine segments
 either way; see
 [the near-open feed](/advanced/convergence/#the-four-ways-a-curve-refuses-to-settle).
-A slot running the non-default setting carries a suffix on its chip, so two
-Sin-Galerkin slots stay tellable apart at a glance — and **which value is the
-deviation flipped with momwire#654**. The point gap is the solver's default
-now, so a plain **Sin-Galerkin** chip is the converged one and the chip
-reading **Sin-Galerkin (NEC gap)** is the slot asking for NEC's source.
+A Sin-Galerkin slot running the non-default setting carries a suffix on its
+chip, so two such slots stay tellable apart at a glance — and **which value
+is the deviation flipped with momwire#654**. The point gap is the solver's
+default now, so a plain **Sin-Galerkin** chip is the converged one and the
+chip reading **Sin-Galerkin (NEC gap)** is the slot asking for NEC's source.
+The B-spline family defaults to the point gap too; its chip carries the
+degree instead, and the composition line is where its feed model reads.
 
-No other engine carries the control: the plain **Sinusoidal** solver cannot
-express a zero-width gap under point matching (momwire#212), and the B-spline
-family already uses the point gap.
+The plain **Sinusoidal** solver does not carry the control: it cannot express
+a zero-width gap under point matching (momwire#212), which is why its
+composition line says *segment gap* where Sin-Galerkin's says *point gap* —
+the one difference that follows from the other.
 
 ### One solve at a time
 
