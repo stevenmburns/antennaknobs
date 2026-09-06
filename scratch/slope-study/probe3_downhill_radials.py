@@ -60,24 +60,25 @@ def gain(ff, elev, phi):
     return float(rings[i, j])
 
 
-cases = [
-    (4, 360.0, "4 radials, full circle"),
-    (4, 180.0, "4 radials, downhill half"),
-    (4, 90.0, "4 radials, downhill quarter"),
-    (8, 360.0, "8 radials, full circle"),
-    (8, 180.0, "8 radials, downhill half"),
-]
-print(
-    f"{'case':30s} {'Z':>18s} {'rad.frac':>8s} {'peak':>6s} | ground frame 20°: dn / up | true 45° slope, 3° above downhill horizon"
-)
-for n, sec, name in cases:
-    e = MomwireEngine(sector_builder(n, sec)(), ground=SOIL)
-    z = e.impedance()[0]
-    ff = e.far_field()
-    pm = pattern_metrics(ff)
-    rf = radiated_fraction(ff)
-    g20d, g20u = gain(ff, 20, DOWNHILL), gain(ff, 20, 0.0)
-    g3 = gain(ff, 3 + SLOPE, DOWNHILL)
+if __name__ == "__main__":
+    cases = [
+        (4, 360.0, "4 radials, full circle"),
+        (4, 180.0, "4 radials, downhill half"),
+        (4, 90.0, "4 radials, downhill quarter"),
+        (8, 360.0, "8 radials, full circle"),
+        (8, 180.0, "8 radials, downhill half"),
+    ]
     print(
-        f"{name:30s} {z.real:7.2f}{z.imag:+8.2f}j {rf:8.4f} {pm['peak_gain_dbi']:6.2f} | {g20d:6.2f} / {g20u:6.2f}          | {g3:6.2f} dBi"
+        f"{'case':30s} {'Z':>18s} {'rad.frac':>8s} {'peak':>6s} | ground frame 20°: dn / up | true 45° slope, 3° above downhill horizon"
     )
+    for n, sec, name in cases:
+        e = MomwireEngine(sector_builder(n, sec)(), ground=SOIL)
+        z = e.impedance()[0]
+        ff = e.far_field()
+        pm = pattern_metrics(ff)
+        rf = radiated_fraction(ff)
+        g20d, g20u = gain(ff, 20, DOWNHILL), gain(ff, 20, 0.0)
+        g3 = gain(ff, 3 + SLOPE, DOWNHILL)
+        print(
+            f"{name:30s} {z.real:7.2f}{z.imag:+8.2f}j {rf:8.4f} {pm['peak_gain_dbi']:6.2f} | {g20d:6.2f} / {g20u:6.2f}          | {g3:6.2f} dBi"
+        )
