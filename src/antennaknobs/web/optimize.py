@@ -254,6 +254,11 @@ def optimize(
 
     n_evals = 0
     n_solves = 0
+    # Where the run is, for the readout (#1176). `seed_total` is 0 whenever
+    # the seed is not running, so "am I seeding" is one comparison on the
+    # client and not a phase machine.
+    seed_index = 0
+    seed_total = 0
     # One run's solved points, keyed on the EXACT parameter tuple (issue
     # #1176). Nelder-Mead keeps only its current simplex, so it re-probes
     # points it has already paid for: measured 21-35 % of the solves on a
@@ -306,6 +311,8 @@ def optimize(
                     "params": params,
                     "objective": _objective_value(out, objective),
                     "metrics": _metrics(out),
+                    "seed_index": seed_index,
+                    "seed_total": seed_total,
                 }
             )
         return out
@@ -340,7 +347,11 @@ def optimize(
         lo_a = np.asarray(lo, dtype=float)
         span = np.asarray(hi, dtype=float) - lo_a
 
+        seed_total = seed_budget
+
         def _probe(u):
+            nonlocal seed_index
+            seed_index += 1
             out = _solve_at(lo_a + np.clip(np.asarray(u, float), 0.0, 1.0) * span)
             return (
                 _objective_value(out, objective),
@@ -353,6 +364,8 @@ def optimize(
         )
         # The incumbent is a SOLVED point, never the surface's argmin.
         x0 = list(lo_a + u_best * span)
+        seed_index = 0
+        seed_total = 0
 
     # Cap the work: each eval is a full solve. ~40 per free param, hard-capped so
     # a wide search can't run away. The UI can override via max_evals. The

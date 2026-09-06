@@ -39,6 +39,10 @@ export type OptProgress = {
   params: Record<string, number>;
   objective: number;
   metrics: OptMetrics;
+  /** Where the run is (#1176). Both 0 outside the surrogate seed, so "am I
+   *  seeding" is one comparison and not a phase machine on the client. */
+  seed_index?: number;
+  seed_total?: number;
 };
 export type OptObjective = "swr" | "resonance" | "match_z0";
 const OPT_OBJECTIVE_LABELS: Record<OptObjective, string> = {
@@ -68,6 +72,8 @@ function SimControls({
   optRunning,
   optObjective,
   setOptObjective,
+  optSeed,
+  setOptSeed,
   optResult,
   optProgress,
   optError,
@@ -81,6 +87,8 @@ function SimControls({
   optRunning: boolean;
   optObjective: OptObjective;
   setOptObjective: (v: OptObjective) => void;
+  optSeed: boolean;
+  setOptSeed: (v: boolean) => void;
   optResult: OptimizeResult | null;
   optProgress: OptProgress | null;
   optError: string | null;
@@ -152,6 +160,23 @@ function SimControls({
                   {OPT_OBJECTIVE_LABELS[k]}
                 </button>
               ))}
+              {/* #1176. OFF by default and deliberately: measured
+                  neutral-to-slightly-negative from a TUNED start, and
+                  decisive from a poor one (moxon's plain run is stuck at
+                  SWR 1.60 at every budget from a corner; seeded it reaches
+                  1.0006). A default would slightly hurt the common case to
+                  help the uncommon one, so the user says which they are in. */}
+              <div className="opt-menu-title">Search</div>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={optSeed}
+                className={`gear-menu-item${optSeed ? " is-active" : ""}`}
+                title="Sample the whole knob box first and fit a surface to it, then hand the best point to the local search. Helps when the knobs start far from a good answer; costs a few evals when they do not."
+                onClick={() => setOptSeed(!optSeed)}
+              >
+                Seed from a survey
+              </button>
             </div>
           </>
         )}
@@ -164,9 +189,18 @@ function SimControls({
       {optEnabled && optRunning && optProgress && (
         <span
           className="opt-readout opt-readout-progress"
-          title={`eval ${optProgress.n_evals} — objective ${optProgress.objective.toFixed(4)}, Z ${optProgress.metrics.z_in_re.toFixed(1)} ${optProgress.metrics.z_in_im >= 0 ? "+" : "−"} j${Math.abs(optProgress.metrics.z_in_im).toFixed(1)} Ω`}
+          title={
+            (optProgress.seed_total ?? 0) > 0
+              ? `seeding the search: sampling the box before the fit (#1176), point ${optProgress.seed_index} of ${optProgress.seed_total}`
+              : `eval ${optProgress.n_evals} — objective ${optProgress.objective.toFixed(4)}, Z ${optProgress.metrics.z_in_re.toFixed(1)} ${optProgress.metrics.z_in_im >= 0 ? "+" : "−"} j${Math.abs(optProgress.metrics.z_in_im).toFixed(1)} Ω`
+          }
         >
-          #{optProgress.n_evals} SWR {optProgress.metrics.swr.toFixed(2)}
+          {/* The seed samples the whole box, so its objective jumps around
+              and a plain "#n SWR x" reads as the optimiser going backwards.
+              Naming the phase is what stops that looking like a fault. */}
+          {(optProgress.seed_total ?? 0) > 0
+            ? `seeding ${optProgress.seed_index}/${optProgress.seed_total}`
+            : `#${optProgress.n_evals} SWR ${optProgress.metrics.swr.toFixed(2)}`}
         </span>
       )}
       {optEnabled && !optRunning && optResult && (
@@ -227,6 +261,8 @@ export function VfoPanel({
   optRunning,
   optObjective,
   setOptObjective,
+  optSeed,
+  setOptSeed,
   optResult,
   optProgress,
   optError,
@@ -254,6 +290,8 @@ export function VfoPanel({
   optObjective: OptObjective;
   setOptObjective: (v: OptObjective) => void;
   optResult: OptimizeResult | null;
+  optSeed: boolean;
+  setOptSeed: (v: boolean) => void;
   optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
@@ -303,6 +341,8 @@ export function VfoPanel({
             optRunning={optRunning}
             optObjective={optObjective}
             setOptObjective={setOptObjective}
+            optSeed={optSeed}
+            setOptSeed={setOptSeed}
             optResult={optResult}
             optProgress={optProgress}
             optError={optError}
