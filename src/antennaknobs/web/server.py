@@ -1393,6 +1393,11 @@ def _track_step(req: dict, box: dict, cancel=None) -> dict:
                    for resonance and EXACTLY two for match_z0, else refused
                    by name with the count in the message
         drag       {name, value, span}
+        epoch      bumped by the client whenever the mode is switched ON, so
+                   re-enabling is a fresh root find (rule 4) rather than a
+                   silent continuation of a tracker that was latched
+        demote     opt-in; the demote stage is OFF by default (see
+                   `Tracker.demote`)
 
     **`drag.span` is a contract, not a hint.** It is the dragged knob's DISPLAY
     range (its KnobOpt `dispMax - dispMin`, falling back to the schema
@@ -1420,6 +1425,9 @@ def _track_step(req: dict, box: dict, cancel=None) -> dict:
                 list(t.get("free") or []),
                 str(t.get("objective") or ""),
                 solve_fn=lambda r: solve(r, cancel=cancel),
+                # Off unless the caller asks. See `Tracker.demote` for the
+                # measurement that turned it off by default.
+                demote=bool(t.get("demote")),
             )
             st = tr.start(
                 str(drag.get("name") or ""),

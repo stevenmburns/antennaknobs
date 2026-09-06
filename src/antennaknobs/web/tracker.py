@@ -101,6 +101,7 @@ class Tracker:
         *,
         solve_fn: Callable[[dict], dict],
         tol: float = TRACK_TOL,
+        demote: bool = False,
     ):
         why = refusal(objective, len(free))
         if why:
@@ -111,6 +112,28 @@ class Tracker:
         self.objective = objective
         self.solve_fn = solve_fn
         self.tol = float(tol)
+        # OFF BY DEFAULT. Measured in the running app (#1220), inverted vee,
+        # `angle_deg` dragged at 0.5 deg per keystroke with a correct span of
+        # 60: the tracker demoted four ticks into a perfectly healthy drag and
+        # then latched with "the resonance you are holding disappears here" --
+        # at 42.0 deg, where a 0.5 % length change still restores X = 0, as
+        # dragging back proved.
+        #
+        # The mechanism is a band, not a threshold error. The corrector only
+        # runs once the residual exceeds `tol` (1 ohm), while demote fires on a
+        # prediction error above 0.5 x tol -- so a drift in the 0.5-1 ohm band
+        # is never corrected AND counts against the tangent. On that deck the
+        # per-tick prediction error is ~0.65 ohm, i.e. inside that band, so a
+        # COARSE drag demotes where a fine one would not. That is a per-tick
+        # quantity, which is exactly the class the #1202 study found does not
+        # survive a change of drag resolution.
+        #
+        # The holdability latch alone was exact in all 12 study cells; demote
+        # bought one or two ticks of early warning there and a false alarm
+        # here. The code path and its gates stay so a later study can turn it
+        # on with a tuned rule -- lowering the corrector trigger to 0.5 x tol
+        # is NOT that rule, since it changes the cost model the study priced.
+        self.demote = bool(demote)
         self.n = len(free)
         self.x = np.array(
             [
@@ -321,7 +344,8 @@ class Tracker:
             or abs(a - self.probe_at) >= PROBE_FRAC * self.drag_span
         )
         if (
-            armed
+            self.demote  # OFF by default; see `Tracker.demote`
+            and armed
             and self.n == 1  # SCALAR ONLY
             and pred_err > DEMOTE_FRAC * self.tol
             and probe_due
