@@ -2927,6 +2927,35 @@ canvas {
   color: var(--accent);
   font-weight: 600;
 }
+/* The objective and tracker rows carry a one-line hint after the label (the
+   objective's method, or the tracker's refusal with its knob count). The base
+   .gear-menu-item is nowrap for the short overlay toggles, and the popover
+   opens INTO the sidebar, whose overflow-x:hidden clips anything past ~300px —
+   which is exactly where a hint ends up. So in this menu the hint drops to its
+   own wrapped line, and the row wraps too, capped so the popover cannot outgrow
+   the pane it lives in. */
+.opt-menu {
+  max-width: min(320px, calc(100vw - 2 * var(--space-3)));
+}
+.opt-menu .gear-menu-item {
+  white-space: normal;
+}
+.opt-menu .gear-menu-hint {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted-2);
+  white-space: normal;
+}
+/* A refused tracker row is disabled: it must still read, and read as refused. */
+.opt-menu .gear-menu-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.opt-menu .gear-menu-item:disabled:hover {
+  background: none;
+  color: inherit;
+}
 .opt-pip {
   color: var(--accent);
   margin-left: 2px;
