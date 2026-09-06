@@ -63,7 +63,7 @@ frequencies into a single run using NEC-5's linear `FR` stepping.
 | --- | --- |
 | Impedance, currents, frequency sweeps | served |
 | Grounds | free space, PEC, and NEC-5's **native Sommerfeld** (`("finite", eps_r, sigma)`) |
-| Buried wires | served (v0.61.0) over the Sommerfeld ground — wholly-below wires ride NEC-5's native buried support (`GE 1,-1` + `GN 0`), and an end standing **at** `z = 0` is the legal contact that joins a monopole to its detached screen |
+| Buried wires | served over the Sommerfeld ground — the `GE` ground flag follows the deck: `GE -1 0` where every conductor is below the plane, `GE 1 0` where one stands **at** `z = 0`, which is the legal contact that joins a monopole to its detached screen. The two settings say opposite things about a wire end on the plane (bond it to ground, or leave the current expansion alone), so the flag is a property of the geometry and not a constant |
 | Radiation patterns | served (`compare_patterns`, the web far-field views) |
 | Feeds | plain `Wire.ex`, network `Driven`, and `DrivenCurrent` via NEC-5's **native current source** (`EX 4` — NEC-2 has no equivalent) |
 | Loads | `Load` branches (fixed-Z and series/parallel RLC) at the port |

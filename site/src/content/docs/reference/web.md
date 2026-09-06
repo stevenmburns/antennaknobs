@@ -198,6 +198,49 @@ power into a detuned element than its own generator supplies), so when any
 drawn value crosses zero the axis top rises to show it, with the 0 dB line
 kept as the tick a healthy passive port never crosses.
 
+## Solver advisories
+
+Some decks are solvable but sit somewhere the answer is a strong function of
+something you may not have thought about. When that happens the solver says
+so, and the note appears under the design's description in the catalog panel.
+
+**These are advisories, not errors.** Nothing was refused and nothing was
+re-meshed: the solve ran with exactly the settings you gave it and produced
+exactly the number shown. A deck the solver will not take is refused instead,
+in the backend picker, before it runs.
+
+Three come from momwire and carry that deck's own measured figures:
+
+- **a conductor within a few radii of the ground** — the impedance is a strong
+  function of the stand-off, and the note quotes the deck's actual height and
+  h/a. On a sparse surface screen a millimetre of grass is worth tens of ohms;
+- **an unresolved crossing node** — the mesh where a wire crosses the interface
+  is coarser than its convergence class wants, with the measured bar;
+- **razor-2p's far mesh** — that basis is first order in the far mesh, so its
+  default-mesh answer is not converged. This one fires on *every* razor-2p
+  solve, by design: momwire measured that no solve-free predictor of the error
+  correlates, so there is no honest threshold to gate it behind.
+
+Because the last one is unconditional, it is **collapsed to a count you can
+expand** while the deck-specific notes are always shown in full. An advisory
+that appears every single time trains the eye to skip the whole panel, which
+would take the deck-specific ones down with it.
+
+One advisory is the app's own rather than the solver's:
+
+- **single-valued soil constants**, on a deck with buried conductors solved at
+  14 MHz or above. The soil presets are one (εr, σ) pair each, and real soil
+  disperses with frequency. On the 48-radial buried screen the fixed *average*
+  soil sits 17.7 % from the frequency-dependent value at 14 MHz and 31.9 % at
+  28.5 MHz, against 5.9 % at 1.8 MHz — so above 14 MHz treat a buried deck's
+  impedance as indicative. Elevated antennas are not affected the same way
+  (1–3 % on the same comparison), which is why the note is scoped to buried
+  decks and to the higher bands rather than shown everywhere.
+
+The channel carries whatever the solver raises rather than a fixed list, so an
+advisory added upstream appears here without a client change — an unfamiliar
+one is shown in full rather than collapsed.
+
 ## Optimizing
 
 Next to Live is an **Optimize** toggle (same depressed-when-on look), with a
@@ -235,6 +278,38 @@ a full MoM solve), bounded by your Optimize ranges, and it always runs on the
 fast **momwire** engine — never PyNEC, which is too slow for an interactive loop.
 It's a tuning aid, not a global optimizer: give it sensible ranges and a couple
 of free knobs, not a dozen.
+
+**Evaluations and solves are different numbers.** Nelder–Mead keeps only its
+current simplex, so it re-probes points it has already paid for; those are
+answered from within the run instead of re-solved. A run reports both, and on a
+one-knob run the gap is about a fifth — 24 evaluations for 19 solves on a
+12-radial buried screen. The match is exact, never approximate: a point that
+differs in the last bit is a different point and gets its own solve, so the run
+is the run it would have been, only cheaper.
+
+**Seed from a survey** is an off-by-default switch in the same gear menu, under
+*Search*. With it on, the optimizer first samples the whole knob box, fits a
+surface to the impedance it measured, and hands the most promising point to
+Nelder–Mead as a starting position. Nelder–Mead is still the finisher — the
+survey proposes a place to start, it never decides the answer, and every value
+reported is a point that was actually solved.
+
+It is off by default because it is only worth its cost some of the time. From a
+design's shipped tuning, where the answer is already near the start, the survey
+spends evaluations to arrive at about the same place. From knobs you have
+dragged well away from a good answer it is the difference between converging
+and not: on the Moxon, started from a corner of its ranges, plain Nelder–Mead
+sticks at SWR 1.60 at every budget — it walks into a local basin and parks a
+knob on its bound — while the seeded run reaches 1.0006. Turn it on when you
+are exploring rather than refining.
+
+What it costs is visible: the survey's points are spread across the whole box,
+so their SWR jumps around and none of them need be an improvement. The readout
+says **`seeding 3/6`** through that phase rather than showing an eval count and
+a wandering SWR, because a working search should not look like a failing one.
+The survey's evaluations come out of the same budget, so switching it on never
+makes a run more expensive. One free knob skips it entirely — a one-knob search
+converges quickly enough that surveying would cost more than it saves.
 
 **Multi-feed designs score their worst feed.** On a design with several
 independently driven ports (a bowtie array, a pair of phased verticals), the
@@ -294,6 +369,18 @@ buried deck under the extended kernel, say — the tab says so inline with
 momwire's own refusal sentence and the issue it cites, and there is no
 *Solve anyway*: momwire would raise, so an override would buy an error
 dialog rather than a result.
+
+**On the buried designs, that gate now covers the external engines too, and
+each answer is measured rather than assumed.** **PyNEC** is greyed out: NEC-2's
+Sommerfeld-Norton ground is formulated for sources above the interface and has
+no below-interface case, and nec2++ does not refuse such a deck — it solves it
+as though the wire were still in air and returns a plausible number. Measured,
+moving a buried dipole from 5 cm above the interface to 5 cm below moves
+PyNEC's impedance by 12 % where the physics moves it by a factor of ten. That
+is a worse failure than a refusal, so the tab refuses on PyNEC's behalf.
+**NEC-5** serves buried decks and is not gated; a conductor that stops exactly
+on the plane is refused, because the ground flag a card deck needs differs
+between a buried wire and one bonded to ground.
 
 The solver's gear menu also exposes **segments / wire (N)** — how finely each
 wire is discretized. More segments = more accurate (up to convergence) but a
@@ -413,7 +500,12 @@ The selector describes what the ground **is**, independent of solver:
   deselects it; the default 10 / 0.002 is shown as *custom soil*. The soil
   travels with every solve — sweeps, patterns, cuts, near fields and the
   exported NEC deck's `GN 2` card — and a changed soil is a new sweep, not a
-  cache hit;
+  cache hit. Each preset is a single (εr, σ) pair, while real soil disperses
+  with frequency: on a **buried** deck above about 14 MHz that is worth tens of
+  percent in impedance, and the solve says so in an advisory
+  ([antennaknobs#1188](https://github.com/stevenmburns/antennaknobs/issues/1188)
+  tracks making the presets frequency-dependent). An antenna clear of the
+  ground is barely affected;
 - **PEC** — a perfect reflector, mainly for apples-to-apples engine
   comparisons; or
 - **terrain** — a faceted height profile around the site (levee/cliff
