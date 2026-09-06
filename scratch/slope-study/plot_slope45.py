@@ -148,7 +148,7 @@ ax.text(
 )
 
 fig.suptitle(
-    f"Vertical cut to resonance ({RESONANT:.3f} of a quarter-wave) over 4 buried radials, 7.1 MHz, soil εr 13 / σ 0.005 S/m — gain in the uphill–downhill plane, Z = {z.real:.1f}{z.imag:+.1f}j Ω either way",
+    f"Resonant vertical ({RESONANT:.3f} λ/4, Z = {z.real:.0f} Ω either way) over 4 buried radials, 7.1 MHz, soil εr 13 / σ 0.005 S/m — uphill–downhill plane",
     color=INK,
     fontsize=9.5,
     y=0.98,
