@@ -145,9 +145,31 @@ def optimize(
         x0.append(min(max(cur, lob), hib))
 
     n_evals = 0
+    n_solves = 0
+    # One run's solved points, keyed on the EXACT parameter tuple (issue
+    # #1176). Nelder-Mead keeps only its current simplex, so it re-probes
+    # points it has already paid for: measured 21-35 % of the solves on a
+    # one-knob run (invvee 21 %, a vertical over Sommerfeld 35 %, the buried
+    # screen 25-29 %) and 2-4 % on a two-knob run, where the simplex crawls
+    # through a tight region without landing twice on the same floats.
+    #
+    # THE KEY IS EXACT, deliberately. A tolerance-keyed cache would answer a
+    # DIFFERENT point with a previous point's solve — faster, and a lie about
+    # the objective, which would change the search's trajectory and the answer
+    # it lands on. With exact keys the run is bit-for-bit the run it was, only
+    # cheaper; the "within xatol" repeats (up to 57 % on two knobs) are
+    # deliberately left on the table for the surrogate seeding to address, not
+    # a rounding rule here.
+    #
+    # PER RUN, never across requests. The optimizer's evals bypass the server's
+    # `_SOLVE_CACHE` on purpose — an unbounded budget is a sustained-CPU lever
+    # (#346) — and this does not reopen that: it is bounded by `max_evals`,
+    # lives on the stack of one `optimize()` call, and makes a run strictly
+    # cheaper than the run it replaces.
+    memo: dict[tuple[float, ...], dict] = {}
 
     def _solve_at(x) -> dict:
-        nonlocal n_evals
+        nonlocal n_evals, n_solves
         req = dict(base_req)
         params = {}
         for name, v in zip(names, x, strict=True):
@@ -155,7 +177,12 @@ def optimize(
             req[name] = val
             params[name] = val
         n_evals += 1
-        out = solve_fn(req)
+        key = tuple(params[name] for name in names)
+        out = memo.get(key)
+        if out is None:
+            out = solve_fn(req)
+            n_solves += 1
+            memo[key] = out
         # Emitted here, not via scipy's minimize(callback=...): that callback
         # fires once per Nelder-Mead ITERATION (a reflection/expansion/contraction
         # that itself costs 1-2 evals), not once per eval — e.g. ~30 callbacks for
@@ -215,5 +242,10 @@ def optimize(
         "metrics_before": _metrics(out0),
         "metrics_after": _metrics(out1 if after <= before else out0),
         "n_evals": n_evals,
+        # Objective evaluations vs solver calls: they differ by the memo's
+        # hits (#1176). `n_evals` keeps its meaning — one per `_solve_at`, so
+        # the progress stream stays gapless — and this is what the run
+        # actually cost.
+        "n_solves": n_solves,
         "improved": after < before,
     }
