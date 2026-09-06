@@ -16,6 +16,9 @@ pointer may sit behind the momwire PR that adds it, and an install too old to
 be asked is not a refusal.
 """
 
+import pathlib
+import re
+
 import numpy as np
 import pytest
 
@@ -28,6 +31,17 @@ pytestmark = pytest.mark.skipif(
     not hasattr(momwire, "below_reach_refusal"),
     reason="momwire predates below_reach_refusal (stevenmburns/momwire#1135)",
 )
+
+
+def _pinned_momwire_version():
+    """The `momwire==X.Y.Z` string in pyproject — the contract users install
+    against, which is what the fallback is keyed to (not the submodule, whose
+    pointer deliberately runs ahead)."""
+    text = (pathlib.Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    m = re.search(r'"momwire==([^"]+)"', text)
+    assert m, "no momwire== pin found in pyproject.toml"
+    return m.group(1)
+
 
 SOIL_A = ("finite", 13.0, 0.005)
 SOIL_B = ("finite", 20.0, 0.03)
@@ -131,3 +145,39 @@ def test_the_preflight_agrees_with_the_solve(ground, radial_factor):
     assert (
         momwire.below_reach_refusal(pts, 0.0, (ground[1], ground[2]), 7.1e6) is None
     ), "constructed but momwire's own check refuses the same geometry"
+
+
+# ---------------------------------------------------------------------------
+# the fallback's own expiry
+# ---------------------------------------------------------------------------
+
+# The momwire pin this fallback exists FOR. `_below_reach_refusal` reaches
+# momwire's helper through `getattr` and returns None when it is absent, so an
+# install resolving momwire from PyPI keeps working in the window before the
+# release that carries it. `below_reach_refusal` landed on momwire main AFTER
+# 0.49.0, so every 0.49.0 install lacks it and the fallback is load-bearing.
+_FALLBACK_EXPIRES_AFTER_PIN = "0.49.0"
+
+
+def test_the_getattr_fallback_expires_with_the_pin():
+    """A self-firing tripwire for the fallback in `_below_reach_refusal`.
+
+    Green while the pin still reads the version that predates the helper;
+    RED the moment it is bumped, so the fallback is deleted then rather than
+    outliving its reason. Keyed on the PIN STRING, deliberately not on a
+    capability probe: the submodule already has the helper, so `hasattr`
+    is true in dev mode today and a probe-keyed tripwire would never fire.
+
+    The failure mode this is against is already in this tree's history — an
+    audit found a fallback whose conditions had been met two pin bumps
+    earlier, with a docstring still claiming the old pin.
+    """
+    pinned = _pinned_momwire_version()
+    assert pinned == _FALLBACK_EXPIRES_AFTER_PIN, (
+        f"the momwire pin is now {pinned}, past the {_FALLBACK_EXPIRES_AFTER_PIN} "
+        "that `_below_reach_refusal`'s getattr fallback exists for. If that "
+        "release carries `below_reach_refusal`, DELETE the fallback (and this "
+        "test, and the module-level skipif above): the pin is `==`, so there "
+        "is no resolution path to an older momwire and the fallback is "
+        "provably dead rather than probably unused. See antennaknobs#1135."
+    )
