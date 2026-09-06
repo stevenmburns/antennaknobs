@@ -119,6 +119,42 @@ def _somm_low_wire_risk(tups, wavelength):
 
 
 class PyNECEngine(SimulationEngine):
+    """nec2++ through PyNEC.
+
+    KNOWN ACCURACY LIMIT — a short SOURCE segment (issue #1130). nec2++
+    under-reads the input resistance when the source segment is much shorter
+    than the segments next to it, and neither momwire nor NEC-5 shares the
+    sensitivity. The visible symptom is a radiated fraction ABOVE 1: gain is
+    normalised by the engine's own input power, so a low R inflates the whole
+    pattern by exactly the R ratio (measured pointwise, 1.09717 +- 0.00028
+    against momwire while the R ratio is 1.09589 — the pattern SHAPE is
+    correct, it is the normalising power that is wrong).
+
+    It is the length STEP at the feed, not the absolute length. Measured on
+    `verticals.raised_vertical` over PEC, varying only the gap while its
+    neighbours stay at 0.2464 m (`scratch/1130-study/`):
+
+        neighbour : source     nec2++ R vs momwire
+            4.93 : 1                -8.75 %      <- the shipped deck
+            3.51 : 1                -5.43 %
+            2.72 : 1                -3.48 %
+            2.21 : 1                -2.24 %
+            1.87 : 1                -1.40 %
+            1.51 : 1                -0.60 %
+            1.20 : 1                +0.02 %
+
+    so the error crosses 1 % at roughly a 1.7 : 1 step. Nine 5.6 mm segments
+    in the same 5 cm gap agree to +1.06 %, which is what rules out "short
+    segment" as the cause — the source simply has to be comparable to its
+    neighbours. On a plain centre-fed dipole all three engines agree to
+    0.12 % and every radiated fraction is ~1.00.
+
+    NOT CLAMPED, deliberately. The above-unity fraction is the only place
+    this shows up as an obvious defect; clamping it would leave a deck
+    reporting an 8.75 %-low R with no signal at all. Mesh the feed gap, or
+    give it a length comparable to its neighbours, and the engines agree.
+    """
+
     supports_far_field = True
     # NEC's source placement uses (n_seg+1)//2, which lands on the centre
     # segment for odd n_seg. Even counts get bumped up so the feed sits
