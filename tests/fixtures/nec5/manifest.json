@@ -54,6 +54,36 @@
       "deck": "brv_connected_ge1_witness.nec",
       "printout": "brv_connected_ge1_witness.out",
       "note": "the same deck on the flag the wrapper used to write: the WITNESS for the 34.6 % contact-class error and the flat-in-radial-count reading, kept so a revert fails a test"
+    },
+    "witness_ex_end1": {
+      "deck": "witness_ex_end1.nec",
+      "printout": "witness_ex_end1.out",
+      "note": "EX I4=1: source at end 1. Pairs with end2 \u2014 #1190 EX row."
+    },
+    "witness_ex_end2": {
+      "deck": "witness_ex_end2.nec",
+      "printout": "witness_ex_end2.out",
+      "note": "EX I4=2: source at end 2, the wrapper's spelling."
+    },
+    "witness_ld_discrete_end1": {
+      "deck": "witness_ld_discrete_end1.nec",
+      "printout": "witness_ld_discrete_end1.out",
+      "note": "LD type 4 at LDTAGT=1 (segment end 1)."
+    },
+    "witness_ld_discrete_end2": {
+      "deck": "witness_ld_discrete_end2.nec",
+      "printout": "witness_ld_discrete_end2.out",
+      "note": "LD type 4 at LDTAGT=2 (segment end 2)."
+    },
+    "witness_ld_henries_per_m": {
+      "deck": "witness_ld_henries_per_m.nec",
+      "printout": "witness_ld_henries_per_m.out",
+      "note": "LDTYP=2 with henries per METRE, the intended unit."
+    },
+    "witness_ld_henries_per_seg": {
+      "deck": "witness_ld_henries_per_seg.nec",
+      "printout": "witness_ld_henries_per_seg.out",
+      "note": "the same jacket inductance as henries per SEGMENT in the per-metre slot: wrong by the segment length, so the error SCALES WITH THE MESH and reads as a convergence effect rather than a units bug"
     }
   }
 }
