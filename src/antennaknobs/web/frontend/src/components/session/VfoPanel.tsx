@@ -108,6 +108,7 @@ function SimControls({
   setTrackEnabled,
   trackRefusal,
   trackLatched,
+  trackStatus,
   optResult,
   optProgress,
   optError,
@@ -132,6 +133,9 @@ function SimControls({
   trackRefusal: string | null;
   /** Set while the tracker has latched: the target it was holding is gone. */
   trackLatched: string | null;
+  /** The tracker's raw status, mirrored onto the controls as a data attribute
+   *  so it can be read without depending on where the message renders. */
+  trackStatus: string | null;
   optResult: OptimizeResult | null;
   optProgress: OptProgress | null;
   optError: string | null;
@@ -139,7 +143,7 @@ function SimControls({
 }) {
   const [optMenuOpen, setOptMenuOpen] = useState(false);
   return (
-    <div className="sim-controls">
+    <div className="sim-controls" data-track-status={trackStatus ?? undefined}>
       <button
         type="button"
         className={`toggle-btn${autoSim ? " is-on" : ""}`}
@@ -352,6 +356,7 @@ export function VfoPanel({
   setTrackEnabled,
   trackRefusal,
   trackLatched,
+  trackStatus,
   optResult,
   optProgress,
   optError,
@@ -390,6 +395,9 @@ export function VfoPanel({
   trackRefusal: string | null;
   /** Set while the tracker has latched: the target it was holding is gone. */
   trackLatched: string | null;
+  /** The tracker's raw status, mirrored onto the controls as a data attribute
+   *  so it can be read without depending on where the message renders. */
+  trackStatus: string | null;
   optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
@@ -445,6 +453,7 @@ export function VfoPanel({
             setTrackEnabled={setTrackEnabled}
             trackRefusal={trackRefusal}
             trackLatched={trackLatched}
+            trackStatus={trackStatus}
             optResult={optResult}
             optProgress={optProgress}
             optError={optError}

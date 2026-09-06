@@ -54,6 +54,7 @@ function baseProps() {
     setTrackEnabled: vi.fn(),
     trackRefusal: null,
     trackLatched: null,
+    trackStatus: null,
     setOptObjective: vi.fn(),
     optError: null,
     optPausedBy: null,

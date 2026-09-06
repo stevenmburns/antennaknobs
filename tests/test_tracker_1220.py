@@ -14,10 +14,13 @@ app must display Z at the new knob position, so what matters is EXTRA solves.
 - ARM ONLY ONCE A TANGENT EXISTS. On the first tick the drag partial is
   unknown, the "prediction" is *do not move*, and its error fires any
   threshold — demote at tick 1, latch at tick 2.
-- DEMOTE IS SCALAR ONLY. It stops the thrash when a scalar root folds. The
-  two-knob case has no fold to protect against (det(J) stays healthy to the box
-  edge) and its prediction errors routinely exceed half the tolerance on a
-  HEALTHY stretch, so enabling it there fires ~35 ticks early.
+- DEMOTE IS SCALAR ONLY, and is now OFF BY DEFAULT everywhere. It stops the
+  thrash when a scalar root folds. The two-knob case has no fold to protect
+  against (det(J) stays healthy to the box edge) and its prediction errors
+  routinely exceed half the tolerance on a HEALTHY stretch, so enabling it
+  there fires ~35 ticks early. Driving the SCALAR path in the running app then
+  showed the same failure on a healthy drag (see `Tracker.demote`), so it is
+  opt-in via `demote=True` and the gates below opt in explicitly.
 - RATE-LIMIT BY DRAG DISTANCE. Four separate per-tick quantities failed to
   survive a change of drag resolution during the study.
 
@@ -192,6 +195,41 @@ def test_reversing_the_drag_re_acquires():
 # ---------------------------------------------------------------------------
 
 
+def test_demote_is_off_unless_asked_for():
+    """It demoted four ticks into a healthy real drag and then declared the
+    resonance gone (#1220, and see `Tracker.demote`). The holdability latch was
+    exact in all 12 study cells without it, so it is opt-in.
+
+    The surface here reproduces the mechanism rather than the deck: the root's
+    speed jumps partway through, so the tangent lags and the prediction error
+    lands in the 0.5-1 ohm BAND -- above the demote threshold (0.5 x tol) but
+    below the corrector's trigger (tol), so nothing ever corrects it and it
+    counts against the tangent tick after tick.
+    """
+
+    def kinked(req):
+        h, d = float(req["hold"]), float(req["drag"])
+        # The root walks 25x faster past 0.205, so the first ticks after the
+        # kink carry a prediction error the corrector will not touch.
+        far = max(d - 0.205, 0.0)
+        return {
+            "z_in_re": 50.0,
+            "z_in_im": 40.0 * (h - 0.5) - 8.0 * (d - 0.2) - 800.0 * far,
+            "z0_ohms": 50.0,
+        }
+
+    def statuses(**kw):
+        t = Tracker({"hold": 0.5, "drag": 0.2}, ONE, "resonance", solve_fn=kinked, **kw)
+        # A span of 0.05 with 0.001 steps puts the probe distance at one tick,
+        # so the rate limit is not what is under test here.
+        t.start("drag", 0.2, drag_span=0.05)
+        return {t.tick(float(d))["status"] for d in np.linspace(0.201, 0.212, 12)}
+
+    assert "frozen" not in statuses(), "demote must be off by default"
+    # ...and the stage still works for whoever tunes it later.
+    assert "frozen" in statuses(demote=True), "the opt-in path must still work"
+
+
 def test_the_two_knob_path_never_demotes():
     """Demote exists to stop fold thrash. The two-knob case has no fold, and its
     prediction errors routinely exceed half the tolerance on a healthy stretch,
@@ -205,7 +243,16 @@ def test_the_two_knob_path_never_demotes():
             "z0_ohms": 50.0,
         }
 
-    t = Tracker({"h1": 0.5, "h2": 0.6, "drag": 0.2}, TWO, "match_z0", solve_fn=fn)
+    # demote=True deliberately: the stage is OFF by default now (it demoted
+    # four ticks into a healthy real drag, see `Tracker.demote`), so without
+    # opting in this gate would pass for the wrong reason and prove nothing.
+    t = Tracker(
+        {"h1": 0.5, "h2": 0.6, "drag": 0.2},
+        TWO,
+        "match_z0",
+        solve_fn=fn,
+        demote=True,
+    )
     t.start("drag", 0.2)
     seen = set()
     for d in np.linspace(0.21, 0.50, 20):

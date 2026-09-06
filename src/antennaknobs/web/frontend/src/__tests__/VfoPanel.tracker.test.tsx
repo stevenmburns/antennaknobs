@@ -49,6 +49,7 @@ function baseProps() {
     setTrackEnabled: vi.fn(),
     trackRefusal: null as string | null,
     trackLatched: null as string | null,
+    trackStatus: null as string | null,
   };
 }
 
@@ -146,6 +147,18 @@ describe("the latched readout (#1220/#1216)", () => {
       <VfoPanel {...baseProps()} trackEnabled={false} trackLatched={LOST} />,
     );
     expect(screen.queryByText(new RegExp(LOST))).toBeNull();
+  });
+
+  it("mirrors the status onto the controls, wherever the message renders", () => {
+    // A DOM probe that does not depend on where the wording lives, so a run in
+    // the real app can confirm the state even if the text is somewhere a leaf
+    // walk misses.
+    const { container } = render(
+      <VfoPanel {...baseProps()} trackEnabled trackLatched={LOST} trackStatus="latched" />,
+    );
+    expect(
+      container.querySelector(".sim-controls")?.getAttribute("data-track-status"),
+    ).toBe("latched");
   });
 
   it("shows nothing while tracking is healthy", () => {

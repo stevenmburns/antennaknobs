@@ -1743,6 +1743,7 @@ function DesignSessionBody({
           setTrackEnabled={toggleTrack}
           trackRefusal={trackRefusal}
           trackLatched={trackLatched}
+          trackStatus={trackStatus?.status ?? null}
           currentBands={currentBands}
           measLocked={measLocked}
           measFreq={measFreq}
