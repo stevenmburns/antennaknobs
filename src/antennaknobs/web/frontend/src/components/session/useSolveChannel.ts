@@ -96,9 +96,16 @@ export function useSolveChannel({
   const sentAtRef = useRef<Map<number, number>>(new Map()); // _seq → send time (RTT)
   const solveRafRef = useRef<number | null>(null); // trailing-edge rAF throttle handle
 
-  // Cancel an IN-FLIGHT solve: stop waiting and discard its result. The server
-  // keeps computing (its /ws loop is sequential and a running MoM solve can't be
-  // interrupted), so this cancels the wait, not the computation.
+  // Cancel an IN-FLIGHT solve: stop waiting and discard its result. Purely
+  // client-side — nothing goes on the wire — so the server does keep computing
+  // *this* one and it cancels the wait, not the computation.
+  //
+  // The old reason given here, that "a running MoM solve can't be interrupted",
+  // is not true: the server's /ws reader trips a cancel token the moment a NEWER
+  // request lands (or the socket closes), and the engine polls it at phase
+  // boundaries and solver-internal seams, so a fresh knob change really does
+  // preempt the solve in flight. A bare cancel doesn't, only because it sends no
+  // newer request to trigger that.
   function cancelSolve() {
     if (lastSentSeqRef.current <= lastReceivedSeqRef.current) return; // nothing in flight
     // Mark every seq sent so far as cancelled: onmessage will advance the
