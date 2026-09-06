@@ -3516,7 +3516,16 @@ def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
     assert len(calls) == frames[-1][1]["n_solves"]
     assert frames[-1][1]["n_solves"] <= frames[-1][1]["n_evals"]
     for _, d in frames[:-1]:
-        assert set(d) == {"n_evals", "params", "objective", "metrics"}
+        assert set(d) == {
+            "n_evals",
+            "params",
+            "objective",
+            "metrics",
+            # #1176: where the run is, for the readout. Both 0 outside the
+            # surrogate seed, so the client needs no phase machine.
+            "seed_index",
+            "seed_total",
+        }
         assert set(d["params"]) == {"length_factor"}
 
 

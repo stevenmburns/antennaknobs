@@ -2313,6 +2313,10 @@ async def optimize_endpoint(req: dict, request: Request):
     objective = opt.get("objective", "swr")
     if objective not in OBJECTIVES:
         return _reject({"error": f"unknown objective {objective!r}"})
+    # #1176: surrogate seeding, off unless the client asks. Off by default
+    # because it is measured neutral-to-negative from a TUNED start and only
+    # decisive from a poor one — see the numbers on the issue.
+    seed_surrogate = bool(opt.get("seed_surrogate", False))
     max_evals = opt.get("max_evals")
     if max_evals is not None:
         try:
@@ -2353,6 +2357,7 @@ async def optimize_endpoint(req: dict, request: Request):
             objective,
             solve_fn=ex.momwire_solve,
             max_evals=max_evals,
+            seed_surrogate=seed_surrogate,
             on_progress=on_progress,
         )
 

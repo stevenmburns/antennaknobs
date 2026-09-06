@@ -108,6 +108,10 @@ export function useOptimizer({
   // "vary" + extents + step live in each knob's right-click menu (knobOpt).
   const [optEnabled, setOptEnabled] = useState(false);
   const [optObjective, setOptObjective] = useState<OptObjective>("swr");
+  // #1176. OFF by default: the seed is measured neutral-to-slightly-negative
+  // from a TUNED start and decisive from a poor one, so it is the user's
+  // statement about which they are in, not a default we can guess.
+  const [optSeed, setOptSeed] = useState<boolean>(false);
   const [knobOpt, setKnobOpt] = useState<Record<string, Record<string, KnobOpt>>>({});
   // Open knob context menu: which param + anchor position.
   const [knobMenu, setKnobMenu] = useState<{ name: string; x: number; y: number } | null>(
@@ -200,7 +204,12 @@ export function useOptimizer({
         body: JSON.stringify({
           ...buildRequest(),
           // Reactive runs are warm-started, so a modest eval cap keeps them snappy.
-          optimize: { free, objective: optObjective, max_evals: 40 },
+          optimize: {
+            free,
+            objective: optObjective,
+            max_evals: 40,
+            seed_surrogate: optSeed,
+          },
         }),
       });
       if (ctrl.signal.aborted) return; // superseded by a newer run
@@ -268,6 +277,7 @@ export function useOptimizer({
     knobOpt,
     geometry,
     optObjective,
+    optSeed,
     backend,
     designFreq,
     measFreq,
@@ -326,6 +336,8 @@ export function useOptimizer({
     setOptEnabled,
     optObjective,
     setOptObjective,
+    optSeed,
+    setOptSeed,
     knobOpt,
     setKnobOpt,
     knobMenu,

@@ -905,6 +905,8 @@ function DesignSessionBody({
     optEnabled,
     setOptEnabled,
     optObjective,
+    optSeed,
+    setOptSeed,
     setOptObjective,
     knobOpt,
     setKnobOpt,
@@ -1605,6 +1607,8 @@ function DesignSessionBody({
           setOptPausedBy={setOptPausedBy}
           optRunning={optRunning}
           optObjective={optObjective}
+          optSeed={optSeed}
+          setOptSeed={setOptSeed}
           setOptObjective={setOptObjective}
           optResult={optResult}
           optProgress={optProgress}
