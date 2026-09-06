@@ -163,3 +163,65 @@ describe("the seeding phase reads as a phase, not as going backwards (#1176)", (
     expect(screen.getByText("#5 SWR 1.50")).toBeTruthy();
   });
 });
+
+describe("a root-finder shows its residual, not the SWR (#1202)", () => {
+  // The point of the root-finding paths is that the residual falls
+  // MONOTONICALLY. Showing it is what makes a 4-solve run legible; showing
+  // Nelder-Mead's best-so-far instead would be the #1176 seeding problem
+  // again, so the phase gates which of the two the readout picks.
+  const frame = (over: Partial<OptProgress>): OptProgress => ({
+    n_evals: 4,
+    params: { length_factor: 0.97 },
+    objective: 3.2,
+    metrics: { z_in_re: 48.0, z_in_im: -3.2, z0_ohms: 50, swr: 1.07 },
+    ...over,
+  });
+
+  function show(p: OptProgress, objective: "swr" | "resonance" | "match_z0") {
+    render(
+      <VfoPanel
+        {...baseProps()}
+        optObjective={objective}
+        optRunning
+        optResult={null}
+        optProgress={p}
+      />,
+    );
+  }
+
+  it("names |X| on a resonance secant step", () => {
+    show(frame({ phase: "secant", residual: 3.2 }), "resonance");
+    expect(screen.getByText("#4 |X| 3.20 Ω")).toBeTruthy();
+    expect(screen.queryByText(/SWR/)).toBeNull();
+  });
+
+  it("names |Z−Z₀| on a match_z0 root step", () => {
+    show(frame({ phase: "newton", residual: 3.2 }), "match_z0");
+    expect(screen.getByText("#4 |Z−Z₀| 3.20 Ω")).toBeTruthy();
+  });
+
+  it("keeps the SWR readout for Nelder-Mead, whose residual is not monotone", () => {
+    show(frame({ phase: "nelder-mead", residual: 3.2 }), "resonance");
+    expect(screen.getByText("#4 SWR 1.07")).toBeTruthy();
+    expect(screen.queryByText(/\|X\|/)).toBeNull();
+  });
+
+  it("keeps the SWR readout when the objective is not a root at all", () => {
+    // Multi-feed responses send residual: null even on a root objective.
+    show(frame({ phase: "secant", residual: null }), "resonance");
+    expect(screen.getByText("#4 SWR 1.07")).toBeTruthy();
+  });
+
+  it("falls back to SWR when the server sends no phase (an older server)", () => {
+    show(frame({}), "resonance");
+    expect(screen.getByText("#4 SWR 1.07")).toBeTruthy();
+  });
+
+  it("still shows the seeding phase in preference to a residual", () => {
+    show(
+      frame({ phase: "secant", residual: 3.2, seed_index: 2, seed_total: 6 }),
+      "resonance",
+    );
+    expect(screen.getByText("seeding 2/6")).toBeTruthy();
+  });
+});

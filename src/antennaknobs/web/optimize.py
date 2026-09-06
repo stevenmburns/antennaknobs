@@ -77,6 +77,147 @@ def _objective_value(out: dict, key: str) -> float:
     return max(_swr(z.real, z.imag, z0) for z in zs)  # default: minimise SWR
 
 
+# Root-finding tolerances. `_ROOT_XTOL` is deliberately the SAME 1e-4 that the
+# Nelder-Mead call below passes as `xatol`, so switching methods does not
+# silently change how tightly a knob is resolved; `_ROOT_FTOL` is the residual
+# at which a root is called found. Neither is the study's 1 ohm reporting
+# tolerance (#1202) -- that is how the gates *score* a run, not where a run
+# stops. A secant costs one solve per step and converges superlinearly, so
+# tightening it past the reporting tolerance is nearly free.
+_ROOT_XTOL = 1e-4  # knob units
+_ROOT_FTOL = 1e-3  # ohm
+
+
+def _signed_reactance(out: dict) -> float | None:
+    """The SIGNED X a scalar root-finder needs, or None if there isn't one.
+
+    `_objective_value(.., "resonance")` is `max(abs(X))` over the feeds: an
+    absolute value, and on a multi-feed design a minimax. Neither is a function
+    with a sign change to bracket -- |X| touches zero without crossing it, and
+    a minimax of several feeds generally has no common root at all. So the
+    root-finding path is single-feed only, and this returns None to say so.
+    """
+    zs = _feed_zs(out)
+    if len(zs) != 1:
+        return None
+    return zs[0].imag
+
+
+def _secant_root(probe, x0, lo, hi, budget, *, span_frac=0.05):
+    """Secant on a scalar residual over [lo, hi]. Returns (x, ok, reason).
+
+    Costs ONE new solve per step: the previous iterate is reused, where a
+    Newton finite-difference derivative would pay two. Measured on #1202: 3-4
+    solves against Nelder-Mead's 10-16.
+
+    Bails out (ok=False) when the step leaves the box or the residual grows on
+    two consecutive steps -- the two ways a secant goes wrong on a curve that
+    is not locally monotonic. The caller brackets instead.
+    """
+    span = max((hi - lo) * span_frac, _ROOT_XTOL)
+    a = min(max(float(x0), lo), hi)
+    fa = probe(a)
+    if fa is None:
+        return a, False, "multi-feed"
+    if abs(fa) <= _ROOT_FTOL:
+        return a, True, "already-at-root"
+    # One bracketing step, taken DOWNHILL in |f| where the box allows it.
+    b = a + span if a + span <= hi else a - span
+    b = min(max(b, lo), hi)
+    fb = probe(b)
+    if fb is None:
+        return a, False, "multi-feed"
+    grew = 0
+    best = (abs(fa), a) if abs(fa) < abs(fb) else (abs(fb), b)
+    while budget > 0:
+        budget -= 1
+        if fb == fa:
+            return best[1], False, "flat"
+        c = b - fb * (b - a) / (fb - fa)
+        if not (lo - 1e-12 <= c <= hi + 1e-12):
+            return best[1], False, "left-the-box"
+        c = min(max(c, lo), hi)
+        if abs(c - b) <= _ROOT_XTOL:
+            return c, True, "xtol"
+        fc = probe(c)
+        if fc is None:
+            return best[1], False, "multi-feed"
+        if abs(fc) < best[0]:
+            best = (abs(fc), c)
+        grew = grew + 1 if abs(fc) >= abs(fb) else 0
+        if grew >= 2:
+            return best[1], False, "residual-grew"
+        a, fa, b, fb = b, fb, c, fc
+        if abs(fc) <= _ROOT_FTOL:
+            return c, True, "ftol"
+    return best[1], False, "budget"
+
+
+def _bracket_brent(probe, lo, hi, budget, *, n_scan=5):
+    """Scan for a sign change, then secant-with-bisection-fallback inside it.
+
+    This is the path for a start the secant could not use. If the scan finds NO
+    sign change, the residual has no root in the box -- reported as such
+    (ok=False, "no-sign-change") rather than parked silently on a bound.
+    """
+    if budget < n_scan:
+        n_scan = max(2, budget)
+    vs = list(np.linspace(lo, hi, n_scan))
+    fs = []
+    for v in vs:
+        if budget <= 0:
+            return v, False, "budget"
+        budget -= 1
+        f = probe(v)
+        if f is None:
+            return v, False, "multi-feed"
+        fs.append(f)
+    best = min(zip(vs, fs, strict=True), key=lambda t: abs(t[1]))
+    br = None
+    for i in range(len(vs) - 1):
+        if fs[i] == 0.0:
+            return vs[i], True, "scan-hit"
+        if fs[i] * fs[i + 1] < 0:
+            br = (vs[i], fs[i], vs[i + 1], fs[i + 1])
+            break
+    if br is None:
+        return best[0], False, "no-sign-change"
+    a, fa, b, fb = br
+    while budget > 0:
+        budget -= 1
+        c = b - fb * (b - a) / (fb - fa) if fb != fa else 0.5 * (a + b)
+        if not (min(a, b) < c < max(a, b)):
+            c = 0.5 * (a + b)
+        fc = probe(c)
+        if fc is None:
+            return best[0], False, "multi-feed"
+        if abs(fc) < abs(best[1]):
+            best = (c, fc)
+        if abs(fc) <= _ROOT_FTOL or abs(b - a) <= _ROOT_XTOL:
+            return c, True, "ftol"
+        if fa * fc < 0:
+            b, fb = c, fc
+        else:
+            a, fa = c, fc
+    return best[0], False, "budget"
+
+
+def _residual(out: dict, key: str) -> float | None:
+    """What a ROOT-finder is driving to zero, or None when the objective is not
+    a root problem. Distinct from `_objective_value`: the residual falls
+    monotonically under Newton/secant, which is exactly why the readout shows
+    it instead of a simplex's best-so-far (#1202)."""
+    zs = _feed_zs(out)
+    if len(zs) != 1:
+        return None
+    z = zs[0]
+    if key == "resonance":
+        return abs(z.imag)
+    if key == "match_z0":
+        return abs(z - float(out.get("z0_ohms", 50.0) or 50.0))
+    return None
+
+
 def _metrics(out: dict) -> dict:
     """The handful of numbers the UI shows before/after, derived from one solve.
 
@@ -254,6 +395,10 @@ def optimize(
 
     n_evals = 0
     n_solves = 0
+    # Which stage is running, for the readout (#1202). A root-finder's residual
+    # falls monotonically and a simplex's does not, so the readout needs to say
+    # which it is looking at rather than leaving the user to infer it.
+    phase = "search"
     # Where the run is, for the readout (#1176). `seed_total` is 0 whenever
     # the seed is not running, so "am I seeding" is one comparison on the
     # client and not a phase machine.
@@ -313,6 +458,8 @@ def optimize(
                     "metrics": _metrics(out),
                     "seed_index": seed_index,
                     "seed_total": seed_total,
+                    "phase": phase,
+                    "residual": _residual(out, objective),
                 }
             )
         return out
@@ -321,6 +468,53 @@ def optimize(
         return _objective_value(_solve_at(x), objective)
 
     out0 = _solve_at(x0)
+
+    # --- scalar root path: one knob, X = 0 (#1202) ----------------------
+    # `resonance` on a single knob is a SCALAR ROOT, not a minimum, and
+    # Nelder-Mead never uses that. Measured: 3-4 solves against NM's 10-16 on
+    # both study decks from both starts.
+    #
+    # Guarded on the response being SINGLE-FEED. Multi-feed `resonance` is a
+    # minimax of |X| over ports, which has no sign change to bracket and
+    # generally no common root -- `_signed_reactance` returns None and this
+    # whole branch is skipped, leaving NM exactly as it was.
+    method = "nelder-mead"
+    root_reason = None
+    x_root = None
+    if (
+        objective == "resonance"
+        and len(free) == 1
+        and _signed_reactance(out0) is not None
+    ):
+        lo0, hi0 = lo[0], hi[0]
+        budget0 = (int(max_evals) if max_evals else min(200, 40 * len(free))) - n_evals
+
+        def _probe_x(v):
+            return _signed_reactance(_solve_at([v]))
+
+        phase = "secant"
+        x_root, ok, root_reason = _secant_root(
+            _probe_x, x0[0], lo0, hi0, max(budget0, 2)
+        )
+        if not ok and root_reason != "multi-feed":
+            # The secant's two failure modes (step left the box, residual grew
+            # twice) both mean "this start is not usable", not "there is no
+            # root". Scan for a bracket before giving up on the method.
+            phase = "bracket"
+            x_root, ok, root_reason = _bracket_brent(
+                _probe_x, lo0, hi0, max(budget0 - n_evals + 1, 2)
+            )
+        if ok:
+            method = "secant" if phase == "secant" else "bracket-brent"
+        else:
+            # No root reachable in the box (or the budget ran out). Fall through
+            # to Nelder-Mead from the best SOLVED point, and say why in the
+            # result -- never park silently on a bound.
+            phase = "fallback"
+            method = f"nelder-mead (root: {root_reason})"
+            if x_root is not None:
+                x0 = [min(max(float(x_root), lo0), hi0)]
+            x_root = None
 
     # --- surrogate seeding (#1176) -------------------------------------
     # Runs BEFORE Nelder-Mead and hands it a start, rather than replacing it.
@@ -371,21 +565,28 @@ def optimize(
     # a wide search can't run away. The UI can override via max_evals. The
     # seed's own evals come out of this budget, so a seeded run never costs
     # more solves than an unseeded one.
-    maxfev = max(
-        1, (int(max_evals) if max_evals else min(200, 40 * len(free))) - n_evals + 1
-    )
-    res = minimize(
-        f,
-        x0,
-        method="Nelder-Mead",
-        bounds=list(zip(lo, hi, strict=True)),
-        options={"maxfev": maxfev, "xatol": 1e-4, "fatol": 1e-5},
-    )
+    if x_root is not None:
+        # The root path converged; Nelder-Mead has nothing to add and would
+        # only spend solves confirming it.
+        x_best = [min(max(float(x_root), lo[0]), hi[0])]
+    else:
+        phase = "nelder-mead" if phase == "search" else phase
+        maxfev = max(
+            1, (int(max_evals) if max_evals else min(200, 40 * len(free))) - n_evals + 1
+        )
+        res = minimize(
+            f,
+            x0,
+            method="Nelder-Mead",
+            bounds=list(zip(lo, hi, strict=True)),
+            options={"maxfev": maxfev, "xatol": 1e-4, "fatol": 1e-5},
+        )
 
-    # res.x can sit a hair outside bounds after the final reflection; clip.
-    x_best = [
-        min(max(float(v), lob), hib) for v, lob, hib in zip(res.x, lo, hi, strict=True)
-    ]
+        # res.x can sit a hair outside bounds after the final reflection; clip.
+        x_best = [
+            min(max(float(v), lob), hib)
+            for v, lob, hib in zip(res.x, lo, hi, strict=True)
+        ]
     out1 = _solve_at(x_best)
 
     before = _objective_value(out0, objective)
@@ -414,5 +615,10 @@ def optimize(
         # How many of the evals went to the surrogate seed (#1176); 0 when it
         # did not run. The readout distinguishes the phases with this.
         "n_seed": n_seed,
+        # Which path actually ran, and what the root-finder was driving to zero
+        # (#1202). `residual_after` is None for objectives that are not roots.
+        "method": method,
+        "residual_before": _residual(out0, objective),
+        "residual_after": _residual(out1 if after <= before else out0, objective),
         "improved": after < before,
     }
