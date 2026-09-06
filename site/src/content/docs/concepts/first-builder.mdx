@@ -53,6 +53,10 @@ Reading the one `Wire((0,-y,0), (0,y,0), ex=1+0j)` against the
 - **`ex=1 + 0j`** — this wire is the **driven** element; the source sits on it.
   (A structural, undriven wire is just `Wire(a, b)`.) Exactly one segment in the
   whole design carries the feed — here the wire's own centre segment.
+  `ex=` always feeds the **midpoint of the edge it sits on**, so putting it on a
+  full-length radiator is a mid-element tap rather than a base feed: a
+  base-fed vertical is a *short* driven wire spanning the ground plane with
+  `ex=` on it, joined to the radiator.
 
 <Aside type="note" title="Why the feed has no separate wire">
   Many catalog designs split a dipole into *three* pieces — a left arm, a short
