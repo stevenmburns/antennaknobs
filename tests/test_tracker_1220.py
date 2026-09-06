@@ -1,0 +1,305 @@
+"""The "keep the target while I drag" tracker (#1220), built on #1202/#1216.
+
+The app's real case is not "optimise" but "I am dragging knob A, hold the
+target with the optimise-marked knobs". That is numerical CONTINUATION, and the
+cost model is the whole point: a tick costs ONE solve regardless, because the
+app must display Z at the new knob position, so what matters is EXTRA solves.
+
+## The guard, and why each clause is here (all measured in #1202/#1216)
+
+- LATCH ON HOLDABILITY, not on the fold. Near a saddle-node the residual curve
+  GRAZES zero, so the target stays holdable ~15 ticks past the point where the
+  root formally vanishes. Latching at the fold stops a run the user would not
+  have noticed anything wrong with.
+- ARM ONLY ONCE A TANGENT EXISTS. On the first tick the drag partial is
+  unknown, the "prediction" is *do not move*, and its error fires any
+  threshold — demote at tick 1, latch at tick 2.
+- DEMOTE IS SCALAR ONLY. It stops the thrash when a scalar root folds. The
+  two-knob case has no fold to protect against (det(J) stays healthy to the box
+  edge) and its prediction errors routinely exceed half the tolerance on a
+  HEALTHY stretch, so enabling it there fires ~35 ticks early.
+- RATE-LIMIT BY DRAG DISTANCE. Four separate per-tick quantities failed to
+  survive a change of drag resolution during the study.
+
+Gates:
+
+- G-1220-1  the count/objective check refuses by name, never guesses.
+- G-1220-2  tracking a moving root costs ZERO extra solves.
+- G-1220-3  the cold-start tick does not fire the guard.
+- G-1220-4  holdability latch: the target genuinely unreachable → latched, with
+            the "disappears here" wording, knobs left at their last good value.
+- G-1220-5  re-acquire on drag reversal, from pre-freeze history.
+- G-1220-6  the two-knob path never demotes.
+- G-1220-7  a preempted solve leaves the tracker exactly as it was.
+- G-1220-8  the real fold deck from #1202 latches, and not before the target is
+            genuinely lost.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+import numpy as np
+import pytest
+
+from antennaknobs.web.tracker import Tracker, refusal
+
+ONE = [{"name": "hold", "min": 0.0, "max": 1.0}]
+TWO = [
+    {"name": "h1", "min": 0.0, "max": 1.0},
+    {"name": "h2", "min": 0.0, "max": 1.0},
+]
+
+
+def _linear(slope_hold=40.0, slope_drag=-8.0, root=0.5, a0=0.2):
+    """X = slope_hold*(hold-root) + slope_drag*(drag-a0): the root walks."""
+
+    def fn(req):
+        h, d = float(req["hold"]), float(req["drag"])
+        return {
+            "z_in_re": 50.0,
+            "z_in_im": slope_hold * (h - root) + slope_drag * (d - a0),
+            "z0_ohms": 50.0,
+        }
+
+    return fn
+
+
+# ---------------------------------------------------------------------------
+# G-1220-1
+# ---------------------------------------------------------------------------
+
+
+def test_swr_is_refused_as_not_a_root():
+    msg = refusal("swr", 1)
+    assert msg and "minimisation" in msg
+
+
+@pytest.mark.parametrize(
+    "objective,n,want",
+    [
+        ("resonance", 2, "exactly 1"),
+        ("resonance", 0, "exactly 1"),
+        ("match_z0", 1, "exactly 2"),
+        ("match_z0", 3, "exactly 2"),
+    ],
+)
+def test_the_wrong_knob_count_refuses_with_the_count_in_it(objective, n, want):
+    msg = refusal(objective, n)
+    assert msg and want in msg and str(n) in msg
+
+
+def test_the_right_counts_are_accepted():
+    assert refusal("resonance", 1) is None
+    assert refusal("match_z0", 2) is None
+
+
+def test_constructing_with_a_bad_count_raises_the_same_message():
+    with pytest.raises(ValueError, match="exactly 1"):
+        Tracker({"hold": 0.3}, TWO, "resonance", solve_fn=_linear())
+
+
+# ---------------------------------------------------------------------------
+# G-1220-2 / G-1220-3
+# ---------------------------------------------------------------------------
+
+
+def test_tracking_a_moving_root_costs_no_extra_solves():
+    t = Tracker({"hold": 0.30, "drag": 0.20}, ONE, "resonance", solve_fn=_linear())
+    t.start("drag", 0.20)
+    base = t.n_solves
+    ok = 0
+    for d in np.linspace(0.21, 0.60, 20):
+        r = t.tick(float(d))
+        ok += bool(r["predicted_ok"])
+    assert r["status"] == "tracking", r
+    # The root at drag=0.60 is hold = 0.5 + 8*0.4/40 = 0.58.
+    assert r["params"]["hold"] == pytest.approx(0.58, abs=0.02)
+    assert ok == 20, "the tangent should predict a linear root exactly"
+    assert t.n_solves - base == 20, "one solve per tick, no correctors"
+
+
+def test_the_cold_start_tick_does_not_fire_the_guard():
+    """Tick 1 has no drag partial, so its prediction is "do not move" and its
+    error fires any threshold. The guard must be unarmed until a tangent
+    exists, or every run latches immediately."""
+    t = Tracker({"hold": 0.30, "drag": 0.20}, ONE, "resonance", solve_fn=_linear())
+    t.start("drag", 0.20)
+    assert t.dFda is None, "no tangent yet"
+    r = t.tick(0.25)  # a big first step: prediction cannot help
+    assert r["status"] == "tracking", r
+
+
+# ---------------------------------------------------------------------------
+# G-1220-4 — holdability latch
+# ---------------------------------------------------------------------------
+
+
+def test_a_target_that_leaves_the_box_latches_with_the_right_wording():
+    """The root walks out past hold = 1.0. Once it is unreachable the tracker
+    must latch, say the target disappears, and leave the knobs where they last
+    worked -- not blame a knob for hitting a limit."""
+    t = Tracker(
+        {"hold": 0.50, "drag": 0.20},
+        ONE,
+        "resonance",
+        solve_fn=_linear(slope_drag=-40.0),
+    )
+    t.start("drag", 0.20, drag_span=1.0)
+    last_good = None
+    # The root is hold = 0.5 + (drag - 0.2), so it walks out of the box past
+    # drag = 0.7 and is genuinely unreachable after that.
+    for d in np.linspace(0.22, 0.95, 30):
+        r = t.tick(float(d))
+        if r["status"] == "tracking":
+            last_good = r["params"]["hold"]
+        if r["status"] == "latched":
+            break
+    assert r["status"] == "latched", r
+    assert "disappears here" in r["message"]
+    assert "limit" not in r["message"]
+    assert r["params"]["hold"] == pytest.approx(last_good, abs=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# G-1220-5 — re-acquire on reversal
+# ---------------------------------------------------------------------------
+
+
+def test_reversing_the_drag_re_acquires():
+    t = Tracker(
+        {"hold": 0.50, "drag": 0.20},
+        ONE,
+        "resonance",
+        solve_fn=_linear(slope_drag=-40.0),
+    )
+    t.start("drag", 0.20, drag_span=1.0)
+    ds = list(np.linspace(0.22, 0.95, 30))
+    for d in ds:
+        r = t.tick(float(d))
+        if r["status"] == "latched":
+            break
+    assert r["status"] == "latched"
+    for d in reversed(ds[:-1]):
+        r = t.tick(float(d))
+        if r["status"] == "tracking":
+            break
+    assert r["status"] == "tracking", "dragging back should re-acquire"
+
+
+# ---------------------------------------------------------------------------
+# G-1220-6 — the two-knob path never demotes
+# ---------------------------------------------------------------------------
+
+
+def test_the_two_knob_path_never_demotes():
+    """Demote exists to stop fold thrash. The two-knob case has no fold, and its
+    prediction errors routinely exceed half the tolerance on a healthy stretch,
+    so enabling it there fires ~35 ticks early (#1216)."""
+
+    def fn(req):
+        h1, h2, d = float(req["h1"]), float(req["h2"]), float(req["drag"])
+        return {
+            "z_in_re": 50.0 + 30.0 * (h2 - 0.6) + 4.0 * (h1 - 0.5) - 5.0 * (d - 0.2),
+            "z_in_im": 40.0 * (h1 - 0.5) - 6.0 * (h2 - 0.6) + 3.0 * (d - 0.2),
+            "z0_ohms": 50.0,
+        }
+
+    t = Tracker({"h1": 0.5, "h2": 0.6, "drag": 0.2}, TWO, "match_z0", solve_fn=fn)
+    t.start("drag", 0.2)
+    seen = set()
+    for d in np.linspace(0.21, 0.50, 20):
+        seen.add(t.tick(float(d))["status"])
+    assert "frozen" not in seen, seen
+
+
+# ---------------------------------------------------------------------------
+# G-1220-7 — a cancelled solve must not corrupt the state
+# ---------------------------------------------------------------------------
+
+
+def test_a_preempted_solve_leaves_the_tracker_untouched():
+    """The server preempts an in-flight solve the moment a newer request lands,
+    so a corrector can be cancelled. `tick` must mutate nothing until every
+    solve it needed has returned."""
+    boom = {"on": False}
+    inner = _linear()
+
+    def fn(req):
+        if boom["on"]:
+            raise RuntimeError("cancelled")
+        return inner(req)
+
+    t = Tracker({"hold": 0.30, "drag": 0.20}, ONE, "resonance", solve_fn=fn)
+    t.start("drag", 0.20)
+    for d in (0.22, 0.24, 0.26):
+        t.tick(d)
+    before = (t.x.copy(), t.drag_value, t.mode, t.F.copy(), t.dFda.copy())
+    boom["on"] = True
+    with pytest.raises(RuntimeError):
+        t.tick(0.28)
+    assert np.array_equal(t.x, before[0])
+    assert t.drag_value == before[1]
+    assert t.mode == before[2]
+    assert np.array_equal(t.F, before[3])
+    assert np.array_equal(t.dFda, before[4])
+
+
+# ---------------------------------------------------------------------------
+# G-1220-8 — the real fold deck from #1202
+# ---------------------------------------------------------------------------
+
+
+class _CoupledPair:
+    """The #1202 fold deck. Knobs live on a SUBCLASS, not on an instance: the
+    engine re-instantiates the builder class during meshing, so instance
+    attributes would not survive."""
+
+    @staticmethod
+    def solve_fn(req):
+        from types import MappingProxyType
+
+        from antennaknobs.designs.arrays.lumped_coupled_pair import Builder
+        from antennaknobs.engines.momwire import MomwireEngine
+
+        class _B(Builder):
+            default_params = MappingProxyType(
+                {
+                    **Builder.default_params,
+                    "length_factor": float(req["length_factor"]),
+                    "spacing_factor": 0.13,
+                    "coupling_l_uH": float(req["coupling_l_uH"]),
+                }
+            )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            z = complex(MomwireEngine(_B(), ground=None).impedance()[0])
+        return {"z_in_re": z.real, "z_in_im": z.imag, "z0_ohms": 50.0}
+
+
+def test_the_coupled_pair_fold_latches_only_once_the_target_is_lost():
+    """`coupling_l_uH` dragged down sinks X(length_factor)'s local maximum
+    through zero and the two roots annihilate at L ~ 0.533. #1216 measured that
+    the target stays HOLDABLE to L ~ 0.518 -- the curve grazes zero -- so a
+    guard that latches at the fold stops ~15 ticks early."""
+    free = [{"name": "length_factor", "min": 0.880, "max": 0.960}]
+    t = Tracker(
+        {"length_factor": 0.9087, "coupling_l_uH": 0.60},
+        free,
+        "resonance",
+        solve_fn=_CoupledPair.solve_fn,
+    )
+    s = t.start("coupling_l_uH", 0.60)
+    assert s["status"] == "tracking", s
+    latched_at = None
+    for i, L in enumerate(np.linspace(0.595, 0.495, 15), 1):
+        r = t.tick(float(L))
+        if r["status"] == "latched":
+            latched_at = float(L)
+            break
+    assert latched_at is not None, "the branch does end in this range"
+    # Not before the fold at 0.533, and not far past where it is still holdable.
+    assert latched_at < 0.533, ("latched before the roots even merged", latched_at)
+    assert latched_at > 0.500, ("latched far too late", latched_at)
+    assert "disappears here" in r["message"]
