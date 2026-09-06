@@ -29,6 +29,13 @@ export type OptimizeResult = {
   metrics_before: OptMetrics;
   metrics_after: OptMetrics;
   n_evals: number;
+  /** Which path ran (#1202): "secant", "nelder-mead", or a fallback naming
+   *  why the root path stood down (e.g. "nelder-mead (root: no-sign-change)"). */
+  method?: string;
+  /** What a root-finder drove to zero, before and after. `null` for
+   *  objectives that are not roots, and on multi-feed responses. */
+  residual_before?: number | null;
+  residual_after?: number | null;
   improved: boolean;
 };
 // One `event: progress` frame from the streamed /optimize (issue #773 unit
@@ -43,7 +50,19 @@ export type OptProgress = {
    *  seeding" is one comparison and not a phase machine on the client. */
   seed_index?: number;
   seed_total?: number;
+  /** Which stage produced this frame (#1202). A root-finder's residual falls
+   *  monotonically and a simplex's does not, so the readout has to say which
+   *  it is showing rather than leaving the user to infer it. */
+  phase?: string;
+  /** What the root-finder is driving to zero. `null` whenever the objective
+   *  is not a root problem, so this is never a second objective. */
+  residual?: number | null;
 };
+// Phases whose residual falls monotonically, and is therefore worth showing
+// in place of the SWR. Nelder-Mead's is deliberately NOT here: its best-so-far
+// jumps around, which is the thing #1176's seeding readout already had to
+// stop looking like a fault.
+const ROOT_PHASES = new Set(["secant", "bracket", "newton"]);
 export type OptObjective = "swr" | "resonance" | "match_z0";
 const OPT_OBJECTIVE_LABELS: Record<OptObjective, string> = {
   swr: "SWR",
@@ -192,7 +211,10 @@ function SimControls({
           title={
             (optProgress.seed_total ?? 0) > 0
               ? `seeding the search: sampling the box before the fit (#1176), point ${optProgress.seed_index} of ${optProgress.seed_total}`
-              : `eval ${optProgress.n_evals} — objective ${optProgress.objective.toFixed(4)}, Z ${optProgress.metrics.z_in_re.toFixed(1)} ${optProgress.metrics.z_in_im >= 0 ? "+" : "−"} j${Math.abs(optProgress.metrics.z_in_im).toFixed(1)} Ω`
+              : ROOT_PHASES.has(optProgress.phase ?? "") &&
+                  optProgress.residual != null
+                ? `${optProgress.phase} step — residual ${optProgress.residual.toFixed(4)} Ω, Z ${optProgress.metrics.z_in_re.toFixed(1)} ${optProgress.metrics.z_in_im >= 0 ? "+" : "−"} j${Math.abs(optProgress.metrics.z_in_im).toFixed(1)} Ω`
+                : `eval ${optProgress.n_evals} — objective ${optProgress.objective.toFixed(4)}, Z ${optProgress.metrics.z_in_re.toFixed(1)} ${optProgress.metrics.z_in_im >= 0 ? "+" : "−"} j${Math.abs(optProgress.metrics.z_in_im).toFixed(1)} Ω`
           }
         >
           {/* The seed samples the whole box, so its objective jumps around
@@ -200,7 +222,10 @@ function SimControls({
               Naming the phase is what stops that looking like a fault. */}
           {(optProgress.seed_total ?? 0) > 0
             ? `seeding ${optProgress.seed_index}/${optProgress.seed_total}`
-            : `#${optProgress.n_evals} SWR ${optProgress.metrics.swr.toFixed(2)}`}
+            : ROOT_PHASES.has(optProgress.phase ?? "") &&
+                optProgress.residual != null
+              ? `#${optProgress.n_evals} ${optObjective === "resonance" ? "|X|" : "|Z−Z₀|"} ${optProgress.residual.toFixed(2)} Ω`
+              : `#${optProgress.n_evals} SWR ${optProgress.metrics.swr.toFixed(2)}`}
         </span>
       )}
       {optEnabled && !optRunning && optResult && (

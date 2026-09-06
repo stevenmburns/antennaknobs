@@ -3525,6 +3525,12 @@ def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
             # surrogate seed, so the client needs no phase machine.
             "seed_index",
             "seed_total",
+            # #1202: which stage is running, and what a root-finder is driving
+            # to zero. `residual` is None for objectives that are not roots
+            # (and on multi-feed responses), so the client must treat it as
+            # optional rather than as a second objective.
+            "phase",
+            "residual",
         }
         assert set(d["params"]) == {"length_factor"}
 
@@ -3550,6 +3556,11 @@ def test_optimize_without_the_sse_header_is_todays_json_response(
             "n_evals",
             "n_solves",
             "n_seed",
+            # #1202: which path ran, and the root residual before/after.
+            # `residual_*` is None for objectives that are not roots.
+            "method",
+            "residual_before",
+            "residual_after",
             "improved",
             "geometry",
         ]
