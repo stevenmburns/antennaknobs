@@ -122,6 +122,14 @@ export function useOptimizer({
   // Latest `progress` frame of the in-flight run; reset to null at the start
   // of every runOptimize call so a stale frame never outlives its run.
   const [optProgress, setOptProgress] = useState<OptProgress | null>(null);
+  // Frame-to-frame arrival interval (#1007). The interactive `rtt` is one
+  // request/response pair on the /ws channel, which the optimiser never
+  // touches, so it has no exact analogue mid-run — but the gap between
+  // progress frames is what the user is actually waiting through, and it
+  // carries the same network and queueing the interactive number does. It is a
+  // DIFFERENT quantity and the readout labels it as one.
+  const [optFrameMs, setOptFrameMs] = useState<number | null>(null);
+  const lastFrameAtRef = useRef<number | null>(null);
   const [optError, setOptError] = useState<string | null>(null);
   // When something auto-pauses the optimizer, this holds *why* for a brief cue
   // (cleared on re-enable / after a few seconds): grabbing a knob marked for
@@ -193,6 +201,8 @@ export function useOptimizer({
     setOptRunning(true);
     setOptError(null);
     setOptProgress(null);
+    setOptFrameMs(null);
+    lastFrameAtRef.current = null;
     try {
       const resp = await fetch("/optimize", {
         method: "POST",
@@ -220,7 +230,13 @@ export function useOptimizer({
         for await (const { event, data } of readSseFrames(resp.body, ctrl.signal)) {
           if (ctrl.signal.aborted) break; // superseded mid-stream
           if (event === "progress") {
-            setOptProgress(JSON.parse(data) as OptProgress);
+            {
+              const now = performance.now();
+              const prev = lastFrameAtRef.current;
+              lastFrameAtRef.current = now;
+              setOptFrameMs(prev == null ? null : now - prev);
+              setOptProgress(JSON.parse(data) as OptProgress);
+            }
           } else if (event === "result") {
             applyOptimizeResult(JSON.parse(data) as OptimizeResult);
           } else if (event === "error") {
@@ -345,6 +361,7 @@ export function useOptimizer({
     optRunning,
     optResult,
     optProgress,
+    optFrameMs,
     optError,
     optPausedBy,
     setOptPausedBy,

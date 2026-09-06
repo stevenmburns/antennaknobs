@@ -57,6 +57,14 @@ export type OptProgress = {
   /** What the root-finder is driving to zero. `null` whenever the objective
    *  is not a root problem, so this is never a second objective. */
   residual?: number | null;
+  /** Cost of the last REAL solve in this run (#1007) — held across memo hits,
+   *  which do no engine work and would otherwise read as an instant solve. */
+  solve_ms?: number | null;
+  /** Solves the run has actually paid for. From the SERVER's counter: progress
+   *  events are state, not a ledger, and the stream drops superseded frames
+   *  when its buffer fills, so a client-side tick undercounts exactly when the
+   *  run is fastest. */
+  n_solves?: number;
 };
 // Phases whose residual falls monotonically, and is therefore worth showing
 // in place of the SWR. Nelder-Mead's is deliberately NOT here: its best-so-far

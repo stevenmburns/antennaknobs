@@ -32,6 +32,7 @@ const GROUND_APPLIED_LABEL: Record<string, string> = {
 export function SolveReadout({
   result,
   rttMs,
+  live,
   currentExample,
   effectiveMultiFeed,
   normCheck,
@@ -41,6 +42,20 @@ export function SolveReadout({
 }: {
   result: SolveResponse | null;
   rttMs: number | null;
+  /** Engine timing while an optimiser run is in flight (#1007). The run POSTs
+   *  /optimize and reads an SSE stream, so it never touches the /ws channel
+   *  `rttMs` is measured on — the two fields below froze for the whole run,
+   *  which is exactly when the engine is busiest.
+   *
+   *  `intervalMs` is NOT the same quantity as `rttMs`: the interactive number
+   *  is one request/response pair, this is the gap between progress frames.
+   *  It is what the user is actually waiting through and carries the same
+   *  network and queueing, so it earns the slot — under its own label. */
+  live?: {
+    solveMs: number | null;
+    intervalMs: number | null;
+    nSolves: number | null;
+  } | null;
   currentExample: ExampleDescriptor | undefined;
   effectiveMultiFeed: boolean;
   normCheck: NormCheckData | null;
@@ -293,16 +308,49 @@ export function SolveReadout({
         )}
         <div className="row">
           <span>solve</span>
-          <span className="val">
-            {result ? `${result.solve_ms.toFixed(1)} ms` : "—"}
+          <span
+            className="val"
+            title={
+              live?.solveMs != null
+                ? "the last full solve inside the running optimisation"
+                : undefined
+            }
+          >
+            {live?.solveMs != null
+              ? `${live.solveMs.toFixed(1)} ms`
+              : result
+                ? `${result.solve_ms.toFixed(1)} ms`
+                : "—"}
           </span>
         </div>
         <div className="row">
-          <span>rtt</span>
-          <span className="val">
-            {rttMs != null ? `${rttMs.toFixed(1)} ms` : "—"}
+          <span>{live?.intervalMs != null ? "per eval" : "rtt"}</span>
+          <span
+            className="val"
+            title={
+              live?.intervalMs != null
+                ? "gap between progress frames — not the interactive round trip, which the optimiser's own request never makes"
+                : undefined
+            }
+          >
+            {live?.intervalMs != null
+              ? `${live.intervalMs.toFixed(1)} ms`
+              : rttMs != null
+                ? `${rttMs.toFixed(1)} ms`
+                : "—"}
           </span>
         </div>
+        {live?.nSolves != null && (
+          <div className="row">
+            <span>solves</span>
+            <span
+              className="val"
+              title="full solves this run has paid for, counted by the server — a run of forty looks like one otherwise"
+            >
+              {live.nSolves}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

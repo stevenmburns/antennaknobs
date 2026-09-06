@@ -1021,6 +1021,7 @@ function DesignSessionBody({
     optRunning,
     optResult,
     optProgress,
+    optFrameMs,
     optError,
     optPausedBy,
     setOptPausedBy,
@@ -1041,6 +1042,19 @@ function DesignSessionBody({
     buildRequest,
     setParamAtPath,
   });
+
+  // #1007: the engine-timing fields froze for the whole of an optimiser run,
+  // because `rttMs` belongs to the /ws channel and the run POSTs /optimize with
+  // its own fetch. While a run is in flight these come off the progress frames
+  // instead; `null` outside a run puts the readout straight back on the /ws
+  // numbers with no second code path.
+  const liveSolve = optRunning && optProgress
+    ? {
+        solveMs: optProgress.solve_ms ?? null,
+        intervalMs: optFrameMs,
+        nSolves: optProgress.n_solves ?? null,
+      }
+    : null;
 
   // --- #1220: "keep the target while I drag" -------------------------------
   // The tracker moves the OPTIMIZE-MARKED knobs to hold the objective while the
@@ -2008,6 +2022,7 @@ function DesignSessionBody({
                 {s.id === "info" ? (
                   <>
                     <SolveReadout
+                      live={liveSolve}
                       className="mobile-readout"
                       result={result}
                       rttMs={rttMs}
@@ -2079,6 +2094,7 @@ function DesignSessionBody({
                 than per-cell. `.stage` is the positioned ancestor here, same
                 role `.carousel-slide` plays in rail mode below. */}
             <SolveReadout
+              live={liveSolve}
               className="stage-readout"
               result={result}
               rttMs={rttMs}
@@ -2173,6 +2189,7 @@ function DesignSessionBody({
                   the slide's stale dim already covers it — no own stale class, or
                   the two opacities would compound. */}
               <SolveReadout
+                live={liveSolve}
                 className="stage-readout"
                 result={result}
                 rttMs={rttMs}

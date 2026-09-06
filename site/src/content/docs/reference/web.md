@@ -273,6 +273,13 @@ those views **dim** for the duration — the same stale-fade a mid-solve view
 wears — and light up when the result lands. The schematic stays bright: it's
 drawn from the current knob values and stays right throughout.
 
+The solve readout keeps moving too. Its `solve` field shows the last full solve
+*inside* the run, `rtt` gives way to a **per eval** figure — the gap between
+updates, which is what you are actually waiting through, rather than the
+interactive round trip the optimizer's own request never makes — and a
+**solves** row counts the work the run has paid for, so forty solves stop
+looking like one.
+
 Under the hood it's a derivative-free **Nelder–Mead** search (each evaluation is
 a full MoM solve), bounded by your Optimize ranges, and it always runs on the
 fast **momwire** engine — never PyNEC, which is too slow for an interactive loop.
