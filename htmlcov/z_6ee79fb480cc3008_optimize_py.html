@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">409 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">350<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">59<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">352<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">57<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_progress_stream_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-06 17:56 +0000
+            created at 2026-09-06 19:08 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -202,7 +202,7 @@
     <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">    <span class="key">if</span> <span class="nam">fa</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="key">return</span> <span class="nam">a</span><span class="op">,</span> <span class="key">False</span><span class="op">,</span> <span class="str">&quot;multi-feed&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">    <span class="key">if</span> <span class="nam">abs</span><span class="op">(</span><span class="nam">fa</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="nam">_ROOT_FTOL</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">        <span class="key">return</span> <span class="nam">a</span><span class="op">,</span> <span class="key">True</span><span class="op">,</span> <span class="str">&quot;already-at-root&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">        <span class="key">return</span> <span class="nam">a</span><span class="op">,</span> <span class="key">True</span><span class="op">,</span> <span class="str">&quot;already-at-root&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">    <span class="com"># One bracketing step, taken DOWNHILL in |f| where the box allows it.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">    <span class="nam">b</span> <span class="op">=</span> <span class="nam">a</span> <span class="op">+</span> <span class="nam">span</span> <span class="key">if</span> <span class="nam">a</span> <span class="op">+</span> <span class="nam">span</span> <span class="op">&lt;=</span> <span class="nam">hi</span> <span class="key">else</span> <span class="nam">a</span> <span class="op">-</span> <span class="nam">span</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">    <span class="nam">b</span> <span class="op">=</span> <span class="nam">min</span><span class="op">(</span><span class="nam">max</span><span class="op">(</span><span class="nam">b</span><span class="op">,</span> <span class="nam">lo</span><span class="op">)</span><span class="op">,</span> <span class="nam">hi</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -339,7 +339,7 @@
     <p class="mis show_mis"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">        <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span><span class="op">,</span> <span class="key">False</span><span class="op">,</span> <span class="str">&quot;multi-feed&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">    <span class="nam">best</span> <span class="op">=</span> <span class="op">(</span><span class="nam">float</span><span class="op">(</span><span class="nam">np</span><span class="op">.</span><span class="nam">linalg</span><span class="op">.</span><span class="nam">norm</span><span class="op">(</span><span class="nam">F</span><span class="op">)</span><span class="op">)</span><span class="op">,</span> <span class="nam">x</span><span class="op">.</span><span class="nam">copy</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t259" href="#t259">259</a></span><span class="t">    <span class="key">if</span> <span class="nam">best</span><span class="op">[</span><span class="num">0</span><span class="op">]</span> <span class="op">&lt;=</span> <span class="nam">_ROOT_FTOL</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">        <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span><span class="op">,</span> <span class="key">True</span><span class="op">,</span> <span class="str">&quot;already-at-root&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">        <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span><span class="op">,</span> <span class="key">True</span><span class="op">,</span> <span class="str">&quot;already-at-root&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">    <span class="nam">J</span> <span class="op">=</span> <span class="nam">jac</span><span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="nam">F</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t262" href="#t262">262</a></span><span class="t">    <span class="key">if</span> <span class="nam">J</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t263" href="#t263">263</a></span><span class="t">        <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">best</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">)</span><span class="op">,</span> <span class="key">False</span><span class="op">,</span> <span class="str">&quot;multi-feed&quot;</span>&nbsp;</span><span class="r"></span></p>
@@ -961,7 +961,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_progress_stream_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-06 17:56 +0000
+            created at 2026-09-06 19:08 +0000
         </p>
     </div>
 </footer>
