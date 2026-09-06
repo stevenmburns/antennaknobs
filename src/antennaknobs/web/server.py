@@ -2792,6 +2792,13 @@ async def ws_endpoint(ws: WebSocket):
     # sharing would answer one user's drag with another user's tangent. Living
     # here, beside the mailbox, it also dies with the socket.
     tracker_box: dict = {"t": None, "sig": None}
+    # Solves this connection has actually paid for (#1007), stamped on every
+    # response so the readout can say how much work happened. Counted SERVER
+    # side deliberately: latest-wins skips the send for a solve that was
+    # superseded while it ran, so the client sees fewer responses than there
+    # were solves -- a client-side tick would undercount exactly when the user
+    # is dragging fastest, which is the same trap the progress stream sets.
+    solve_count = {"n": 0}
 
     async def reader() -> None:
         # Starlette requires a single reader on the socket, so *all*
@@ -2969,6 +2976,9 @@ async def ws_endpoint(ws: WebSocket):
             # dropped the echo. The stamp lands on the (deep)copied result solve()
             # returns, never on a cached entry.
             result["_seq"] = req.get("_seq")
+            if not result.get("cache_hit"):
+                solve_count["n"] += 1
+            result["_solves"] = solve_count["n"]
             # Superseded while we solved? A newer request is already queued, so
             # skip this send entirely — its response will carry a higher `_seq`
             # and the client renders monotonically. Saves the full doomed payload

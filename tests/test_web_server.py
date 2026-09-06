@@ -13,6 +13,7 @@ integration territory and want their own targeted tests.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import math
 import threading
@@ -3553,6 +3554,64 @@ def test_optimize_sse_progress_carries_every_feeds_z_on_a_multifeed_design(
         assert m["z_in_im"] == pytest.approx(m["feeds"][0]["z_im"])
 
 
+def test_optimize_sse_progress_carries_live_engine_timing(
+    client: TestClient, monkeypatch
+):
+    """#1007: the readout's `solve` and `rtt` froze for the whole of a run --
+    both come off the /ws channel, and the optimiser POSTs /optimize with its
+    own fetch and reads an SSE stream. `solve_ms` was measured, carried to the
+    choke point every eval passes through, and dropped on the floor there.
+
+    Two properties beyond "the key is present":
+
+    - `solve_ms` HOLDS ACROSS A MEMO HIT. A hit does no engine work, and `out`
+      still carries whatever solve_ms that point cost when it was first solved
+      -- reporting it as this eval's cost would say the engine got
+      instantaneous exactly when it did nothing.
+    - `n_solves` comes from the SERVER. Progress events are state, not a
+      ledger: the stream drops superseded frames when its buffer fills, so a
+      count incremented per received frame undercounts exactly when the run is
+      fastest, which is the case anyone would test last.
+    """
+    ex, calls = _stub_optimize_example()
+    # Give the stub a rising solve cost so a held value is distinguishable from
+    # a re-read one.
+    inner = ex.momwire_solve
+    n = {"i": 0}
+
+    def timed(req, cancel=None):
+        n["i"] += 1
+        out = inner(req, cancel=cancel)
+        out["solve_ms"] = 10.0 + n["i"]
+        return out
+
+    ex.momwire_solve = timed
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    resp = client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS)
+    frames = _sse_frames(resp.text)
+    progress = [d for k, d in frames if k == "progress"]
+    assert progress
+
+    for d in progress:
+        assert isinstance(d["solve_ms"], float)
+        assert isinstance(d["n_solves"], int)
+    # The server's own counter, monotone and never ahead of the eval count.
+    counts = [d["n_solves"] for d in progress]
+    assert counts == sorted(counts)
+    assert all(d["n_solves"] <= d["n_evals"] for d in progress)
+    assert counts[-1] == len(calls), "the count is the engine's, not the stream's"
+    # A memo hit reuses the previous REAL solve's cost rather than reporting
+    # the cached point's original figure as this eval's.
+    hits = [
+        (prev, cur)
+        for prev, cur in itertools.pairwise(progress)
+        if cur["n_solves"] == prev["n_solves"]
+    ]
+    assert hits, "no memo hit in this run, so the hold is untested"
+    for prev, cur in hits:
+        assert cur["solve_ms"] == prev["solve_ms"]
+
+
 def test_optimize_sse_single_feed_metrics_stay_byte_compatible(
     client: TestClient, monkeypatch
 ):
@@ -3610,6 +3669,14 @@ def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
             # optional rather than as a second objective.
             "phase",
             "residual",
+            # #1007: engine timing during a run. The readout's `solve` and
+            # `rtt` came off the /ws channel, which the optimiser never
+            # touches, so both froze for the whole run. `n_solves` rides the
+            # frame rather than being counted client-side: progress events are
+            # state, not a ledger, and the stream drops superseded frames when
+            # its buffer fills.
+            "solve_ms",
+            "n_solves",
         }
         assert set(d["params"]) == {"length_factor"}
 

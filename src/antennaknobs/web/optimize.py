@@ -575,6 +575,7 @@ def optimize(
 
     n_evals = 0
     n_solves = 0
+    last_solve_ms: float | None = None
     # Which stage is running, for the readout (#1202). A root-finder's residual
     # falls monotonically and a simplex's does not, so the readout needs to say
     # which it is looking at rather than leaving the user to infer it.
@@ -607,7 +608,7 @@ def optimize(
     memo: dict[tuple[float, ...], dict] = {}
 
     def _solve_at(x) -> dict:
-        nonlocal n_evals, n_solves
+        nonlocal n_evals, n_solves, last_solve_ms
         req = dict(base_req)
         params = {}
         for name, v in zip(names, x, strict=True):
@@ -621,6 +622,16 @@ def optimize(
             out = solve_fn(req)
             n_solves += 1
             memo[key] = out
+            # The cost of the last REAL solve (#1007). Deliberately not read off
+            # `out` unconditionally: on a memo hit `out` still carries the
+            # solve_ms of whenever that point was first solved, and reporting it
+            # as this eval's cost would say the engine got instantaneous exactly
+            # when it did no work. Holding the last real figure instead keeps
+            # the readout answering "how fast is the engine right now" without
+            # flickering to a cache hit's number.
+            ms = out.get("solve_ms")
+            if isinstance(ms, (int, float)):
+                last_solve_ms = float(ms)
         # Emitted here, not via scipy's minimize(callback=...): that callback
         # fires once per Nelder-Mead ITERATION (a reflection/expansion/contraction
         # that itself costs 1-2 evals), not once per eval — e.g. ~30 callbacks for
@@ -640,6 +651,16 @@ def optimize(
                     "seed_total": seed_total,
                     "phase": phase,
                     "residual": _residual(out, objective),
+                    # #1007: the solve readout froze during a run because the
+                    # only engine-timing it had came from the /ws channel the
+                    # optimiser never touches. `n_solves` rides along rather
+                    # than being counted client-side on purpose -- progress
+                    # events are STATE, not a ledger, and progress_stream drops
+                    # superseded frames when its buffer fills, so a count
+                    # incremented per received frame undercounts exactly when
+                    # the run is fastest.
+                    "solve_ms": last_solve_ms,
+                    "n_solves": n_solves,
                 }
             )
         return out
