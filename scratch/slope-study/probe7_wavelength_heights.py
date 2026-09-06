@@ -64,9 +64,15 @@ if __name__ == "__main__":
         print(
             f"{name:46s} {z.real:7.1f}{z.imag:+8.1f}j {pm['peak_gain_dbi']:6.2f} | {d3:6.2f} / {d10:6.2f} / {d20:6.2f}     | {u60:6.2f} | {x10:6.2f}"
         )
+    # Figure A: the three antennas someone would actually build on this site.
     fig = slope_figure(
-        [results[0], results[1], results[3], results[6]]
-    )  # vertical, radials-on-ground, vee λ/8, vee λ/2
-    out = HERE / "slope45_wavelength_heights.png"
+        [results[0], results[1], results[4]]
+    )  # buried vertical, radials on the ground, vee λ/4
+    out = HERE / "slope45_three_antennas.png"
+    fig.savefig(out, dpi=160)
+    print("wrote", out)
+    # Figure B: the vee alone at the four apex heights.
+    fig = slope_figure(results[3:7])
+    out = HERE / "slope45_vee_heights.png"
     fig.savefig(out, dpi=160)
     print("wrote", out)
