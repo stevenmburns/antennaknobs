@@ -92,6 +92,97 @@ def g_true(ff, az, el, slope):
     return gain_lookup(ff)(eg, ag)
 
 
+def slope_figure(pick, slope=SLOPE):
+    """Elevation cut in the fall-line plane + azimuth ring at 10 deg true, for
+    a list of (name, color, z, ff)."""
+    # --- figure: elevation cut (fall-line plane) + azimuth at 10 deg true
+    fig, axes = plt.subplots(1, 2, subplot_kw={"projection": "polar"}, figsize=(12, 6))
+    fig.patch.set_facecolor("#fcfcfb")
+    ax = axes[0]
+    ax.set_facecolor("#fcfcfb")
+    ax.set_thetamin(-slope)
+    ax.set_thetamax(180)
+    ax.set_rlim(0, (TOP - FLOOR))
+    ax.set_rticks([0, 10, 20, 30])
+    ax.set_yticklabels([])
+    for rv, lab in ((10.0, "−10"), (20.0, "0"), (30.0, "+10 dBi")):
+        ax.text(
+            np.deg2rad(88), rv - 0.6, lab, color=INK2, fontsize=7.5, ha="left", va="top"
+        )
+    ax.set_thetagrids(
+        [0, 30, 60, 90, 120, 150, 180],
+        labels=["0°", "30°", "60°", "90°", "60°", "30°", "0°"],
+        color=INK2,
+        fontsize=8,
+    )
+    ax.grid(color="#e6e5e1", linewidth=0.6)
+    ax.spines["polar"].set_color("#e6e5e1")
+    hill = np.deg2rad(np.linspace(180 - slope, 180, 40))
+    ax.fill_between(hill, 0, (TOP - FLOOR), color=GROUND, alpha=0.35, linewidth=0)
+    ax.plot(
+        [np.deg2rad(-slope), np.deg2rad(180 - slope)],
+        [(TOP - FLOOR), (TOP - FLOOR)],
+        color=INK2,
+        linewidth=1.4,
+    )
+    ax.plot(
+        [0, np.pi],
+        [(TOP - FLOOR), (TOP - FLOOR)],
+        color=INK2,
+        linewidth=0.8,
+        linestyle=(0, (3, 3)),
+    )
+    for name, color, z, ff in pick:
+        ang, g = true_cut(ff, slope)
+        r = np.where(np.isnan(g), np.nan, np.clip(g, FLOOR, TOP) - FLOOR)
+        ax.plot(np.deg2rad(ang), r, color=color, linewidth=2, label=name)
+    ax.set_title(
+        "Elevation, uphill–downhill plane (true angles)", color=INK, fontsize=10, pad=14
+    )
+    ax.text(np.deg2rad(150), 9, "behind\nthe hill", color=INK2, fontsize=8, ha="center")
+
+    ax = axes[1]
+    ax.set_facecolor("#fcfcfb")
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    for name, color, z, ff in pick:
+        az, g = azimuth_ring(ff, 10.0, slope)
+        r = np.where(np.isnan(g), np.nan, np.clip(g, FLOOR, TOP) - FLOOR)
+        ax.plot(np.deg2rad(az), r, color=color, linewidth=2, label=name)
+    ax.set_rlim(0, (TOP - FLOOR))
+    ax.set_rticks([0, 10, 20, 30])
+    ax.set_yticklabels(["", "−10", "0", "+10 dBi"], color=INK2, fontsize=8)
+    ax.set_rlabel_position(135)
+    ax.set_thetagrids(
+        range(0, 360, 30),
+        labels=[
+            "downhill" if d == 0 else ("uphill" if d == 180 else f"{d}°")
+            for d in range(0, 360, 30)
+        ],
+        color=INK2,
+        fontsize=8,
+    )
+    ax.grid(color="#e6e5e1", linewidth=0.6)
+    ax.spines["polar"].set_color("#e6e5e1")
+    ax.set_title("Azimuth at 10° true elevation", color=INK, fontsize=10, pad=14)
+    fig.legend(
+        *ax.get_legend_handles_labels(),
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        fontsize=8,
+        bbox_to_anchor=(0.5, 0.01),
+    )
+    fig.suptitle(
+        f"Mast normal to a {slope:g}° slope, 7.1 MHz, soil εr 13 / σ 0.005 — one level-ground solve each, sky rotated",
+        color=INK,
+        fontsize=10,
+        y=0.98,
+    )
+    fig.tight_layout(rect=(0, 0.06, 1, 0.95))
+    return fig
+
+
 if __name__ == "__main__":
     cases = [("vertical, 4 buried radials", vertical(), "#0b0b0b")]
     cases += [
@@ -122,92 +213,8 @@ if __name__ == "__main__":
             f"{name:46s} {z.real:7.1f}{z.imag:+8.1f}j {pm['peak_gain_dbi']:6.2f} | {d3:6.2f} / {d10:6.2f} / {d20:6.2f}          | {u60:6.2f} | {x10:6.2f}"
         )
 
-    # --- figure: elevation cut (fall-line plane) + azimuth at 10 deg true
     pick = [results[0], results[2], results[4]]  # vertical, vee 5 m, vee 12 m
-    fig, axes = plt.subplots(1, 2, subplot_kw={"projection": "polar"}, figsize=(12, 6))
-    fig.patch.set_facecolor("#fcfcfb")
-    ax = axes[0]
-    ax.set_facecolor("#fcfcfb")
-    ax.set_thetamin(-SLOPE)
-    ax.set_thetamax(180)
-    ax.set_rlim(0, (TOP - FLOOR))
-    ax.set_rticks([0, 10, 20, 30])
-    ax.set_yticklabels([])
-    for rv, lab in ((10.0, "−10"), (20.0, "0"), (30.0, "+10 dBi")):
-        ax.text(
-            np.deg2rad(88), rv - 0.6, lab, color=INK2, fontsize=7.5, ha="left", va="top"
-        )
-    ax.set_thetagrids(
-        [0, 30, 60, 90, 120, 150, 180],
-        labels=["0°", "30°", "60°", "90°", "60°", "30°", "0°"],
-        color=INK2,
-        fontsize=8,
-    )
-    ax.grid(color="#e6e5e1", linewidth=0.6)
-    ax.spines["polar"].set_color("#e6e5e1")
-    hill = np.deg2rad(np.linspace(180 - SLOPE, 180, 40))
-    ax.fill_between(hill, 0, (TOP - FLOOR), color=GROUND, alpha=0.35, linewidth=0)
-    ax.plot(
-        [np.deg2rad(-SLOPE), np.deg2rad(180 - SLOPE)],
-        [(TOP - FLOOR), (TOP - FLOOR)],
-        color=INK2,
-        linewidth=1.4,
-    )
-    ax.plot(
-        [0, np.pi],
-        [(TOP - FLOOR), (TOP - FLOOR)],
-        color=INK2,
-        linewidth=0.8,
-        linestyle=(0, (3, 3)),
-    )
-    for name, color, z, ff in pick:
-        ang, g = true_cut(ff, SLOPE)
-        r = np.where(np.isnan(g), np.nan, np.clip(g, FLOOR, TOP) - FLOOR)
-        ax.plot(np.deg2rad(ang), r, color=color, linewidth=2, label=name)
-    ax.set_title(
-        "Elevation, uphill–downhill plane (true angles)", color=INK, fontsize=10, pad=14
-    )
-    ax.text(np.deg2rad(150), 9, "behind\nthe hill", color=INK2, fontsize=8, ha="center")
-
-    ax = axes[1]
-    ax.set_facecolor("#fcfcfb")
-    ax.set_theta_zero_location("E")
-    ax.set_theta_direction(1)
-    for name, color, z, ff in pick:
-        az, g = azimuth_ring(ff, 10.0, SLOPE)
-        r = np.where(np.isnan(g), np.nan, np.clip(g, FLOOR, TOP) - FLOOR)
-        ax.plot(np.deg2rad(az), r, color=color, linewidth=2, label=name)
-    ax.set_rlim(0, (TOP - FLOOR))
-    ax.set_rticks([0, 10, 20, 30])
-    ax.set_yticklabels(["", "−10", "0", "+10 dBi"], color=INK2, fontsize=8)
-    ax.set_rlabel_position(135)
-    ax.set_thetagrids(
-        range(0, 360, 30),
-        labels=[
-            "downhill" if d == 0 else ("uphill" if d == 180 else f"{d}°")
-            for d in range(0, 360, 30)
-        ],
-        color=INK2,
-        fontsize=8,
-    )
-    ax.grid(color="#e6e5e1", linewidth=0.6)
-    ax.spines["polar"].set_color("#e6e5e1")
-    ax.set_title("Azimuth at 10° true elevation", color=INK, fontsize=10, pad=14)
-    fig.legend(
-        *ax.get_legend_handles_labels(),
-        loc="lower center",
-        ncol=3,
-        frameon=False,
-        fontsize=8,
-        bbox_to_anchor=(0.5, 0.01),
-    )
-    fig.suptitle(
-        f"Mast normal to a {SLOPE:g}° slope, 7.1 MHz, soil εr 13 / σ 0.005 — one level-ground solve each, sky rotated",
-        color=INK,
-        fontsize=10,
-        y=0.98,
-    )
-    fig.tight_layout(rect=(0, 0.06, 1, 0.95))
+    fig = slope_figure(pick)
     out = HERE / "slope45_vee_vs_vertical.png"
     fig.savefig(out, dpi=160)
     print("wrote", out)
