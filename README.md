@@ -167,13 +167,13 @@
 | src/antennaknobs/web/examples/\_feedline.py                          |       29 |        2 |     93% |     73-74 |
 | src/antennaknobs/web/lane.py                                         |      123 |        5 |     96% |128, 146, 149-151 |
 | src/antennaknobs/web/nec5\_backend.py                                |       29 |       16 |     45% |33, 37-41, 48-51, 57-62 |
-| src/antennaknobs/web/optimize.py                                     |       73 |        0 |    100% |           |
+| src/antennaknobs/web/optimize.py                                     |       80 |        0 |    100% |           |
 | src/antennaknobs/web/progress\_stream.py                             |      120 |        1 |     99% |       243 |
 | src/antennaknobs/web/pynec\_backend.py                               |       92 |       38 |     59% |20-22, 73-91, 118, 129-132, 178-185, 197-207, 214-219 |
 | src/antennaknobs/web/server.py                                       |     1056 |       97 |     91% |104-106, 191-195, 326-327, 394, 700-702, 813, 868, 971-974, 1282, 1337, 1393, 1411-1413, 1473, 1499, 1512-1515, 1527-1539, 1546, 1571, 1598-1612, 1661-1663, 1711, 1725, 1754-1755, 1780-1781, 1813, 1893-1900, 1912-1925, 1947, 1950-1956, 2010, 2038, 2041-2042, 2118, 2136-2139, 2155, 2315, 2325, 2647, 2743, 2778, 2780, 2784-2785, 2798, 2809, 2813, 2865-2866, 2889-2897 |
 | src/antennaknobs/web/user\_designs.py                                |       64 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      124 |        0 |    100% |           |
-| **TOTAL**                                                            | **13840** |  **852** | **94%** |           |
+| **TOTAL**                                                            | **13847** |  **852** | **94%** |           |
 
 
 ## Setup coverage badge
