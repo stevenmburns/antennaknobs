@@ -3508,7 +3508,13 @@ def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
     # One progress event per eval, in order, none dropped — and the count
     # agrees with both the result payload and the engine's own call log.
     assert [d["n_evals"] for _, d in frames[:-1]] == list(range(1, len(frames)))
-    assert len(calls) == frames[-1][1]["n_evals"] == len(frames) - 1
+    assert frames[-1][1]["n_evals"] == len(frames) - 1
+    # The engine's call log tracks `n_solves`, not `n_evals`: since #1176 the
+    # optimiser memoises a repeated parameter tuple, so an eval need not be a
+    # solve. One progress frame per EVAL is still the contract — a cache hit
+    # must not stall the stream.
+    assert len(calls) == frames[-1][1]["n_solves"]
+    assert frames[-1][1]["n_solves"] <= frames[-1][1]["n_evals"]
     for _, d in frames[:-1]:
         assert set(d) == {"n_evals", "params", "objective", "metrics"}
         assert set(d["params"]) == {"length_factor"}
@@ -3533,6 +3539,7 @@ def test_optimize_without_the_sse_header_is_todays_json_response(
             "metrics_before",
             "metrics_after",
             "n_evals",
+            "n_solves",
             "improved",
             "geometry",
         ]
@@ -3615,7 +3622,15 @@ def test_optimize_sse_failure_mid_run_still_ends_in_exactly_one_terminal(
         client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS).text
     )
     kinds = [k for k, _ in frames]
-    assert kinds == ["progress", "progress", "error"]
+    # EXACTLY ONE TERMINAL, LAST, with progress before it — the thing this
+    # test is named for. The stub raises on its third SOLVE, and since #1176
+    # a memoised eval is not a solve, so the number of progress frames before
+    # the failure is no longer the number of solver calls. Pinning that count
+    # would pin the memo's hit rate, which is not this test's subject.
+    assert kinds[-1] == "error"
+    assert kinds.count("error") == 1
+    assert set(kinds[:-1]) == {"progress"}
+    assert len(kinds) - 1 >= 2, "the failure must land mid-run, not on eval 1"
     assert "solver gave up" in frames[-1][1]["detail"]
 
 
@@ -3668,7 +3683,7 @@ def test_optimize_sse_max_evals_clamped_when_hosted(
     kind, result = frames[-1]
     assert kind == "result"
     assert result["n_evals"] <= 3 + 2
-    assert len(calls) == result["n_evals"]
+    assert len(calls) == result["n_solves"]  # #1176: solves, not evals
     assert len(frames) - 1 == result["n_evals"]
 
 
@@ -3833,6 +3848,10 @@ def test_a_vanished_client_stops_the_optimizer_mid_run(monkeypatch):
     body = "".join(
         m.get("body", b"").decode() for m in sent if m["type"] == "http.response.body"
     )
-    # The first eval's progress frame made it to the wire; no terminal event
-    # follows, because there was nobody left to send one to.
-    assert [k for k, _ in _sse_frames(body)] == ["progress"]
+    # Progress reached the wire and NO TERMINAL follows, because there was
+    # nobody left to send one to. The frame count is not pinned: the gate is
+    # released on the second SOLVE, and since #1176 a memoised eval is not a
+    # solve, so how many evals ran before it is the memo's business.
+    kinds = [k for k, _ in _sse_frames(body)]
+    assert kinds, "no progress reached the wire at all"
+    assert set(kinds) == {"progress"}
