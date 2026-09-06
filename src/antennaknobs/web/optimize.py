@@ -153,6 +153,175 @@ def _secant_root(probe, x0, lo, hi, budget, *, span_frac=0.05):
     return best[1], False, "budget"
 
 
+def _surrogate_root_start(probe, box, n, rng, z0):
+    """Sample the box, fit Z, and return where the ROOT is predicted to be,
+    plus the sampled points ranked by how close they actually came.
+
+    Deliberately NOT `_surrogate_seed`, and the difference is the whole point.
+    That one returns its best SOLVED sample, which is right for a Nelder-Mead
+    finisher: NM needs a good incumbent and cannot use a prediction.
+
+    A Newton finisher needs something else -- the right BASIN. Measured on the
+    buried vertical (#1202): R along the X = 0 contour rises to 50.7 at
+    radial_factor 0.31, falls to 45.1 at 0.54, then saturates at 48.5. The
+    best-scoring SAMPLE landed at 0.65, past that ridge, where R can never
+    reach 50 and Newton walks into the upper bound. The fitted surface's
+    predicted crossing landed at 0.43, on the correct side, and Newton
+    converged from it in 8 solves.
+
+    So the prediction is a legitimate START (it gets solved on the first step),
+    while the ANSWER stays a solved point -- the abort rule is untouched.
+    """
+    d = len(box)
+    lo = np.array([b[0] for b in box], dtype=float)
+    span = np.array([b[1] - b[0] for b in box], dtype=float)
+    us, zs = [], []
+    for u in _seed_points(d, n, rng):
+        z = probe(lo + np.clip(u, 0.0, 1.0) * span)
+        if z is None:
+            return None, []
+        us.append(np.asarray(u, dtype=float))
+        zs.append(z)
+    ranked = [
+        list(lo + u * span)
+        for u, _ in sorted(zip(us, zs, strict=True), key=lambda t: abs(t[1] - z0))
+    ]
+    A = _quad_features(np.asarray(us))
+    if A.shape[0] < A.shape[1]:
+        return (ranked[0] if ranked else None), ranked
+    re = np.linalg.lstsq(A, np.array([z.real for z in zs]), rcond=None)[0]
+    im = np.linalg.lstsq(A, np.array([z.imag for z in zs]), rcond=None)[0]
+    cand = rng.random((4096, d))
+    F = _quad_features(cand)
+    pred = np.hypot(F @ re - z0, F @ im)
+    u_pred = cand[int(np.argmin(pred))]
+    return list(lo + u_pred * span), ranked
+
+
+def _newton_root2(probe, x0, box, budget, *, broyden_between=True):
+    """Newton on the two-component residual F = (R - R0, X). Returns (x, ok, why).
+
+    Three things here are load-bearing, and each was measured in #1202:
+
+    **Box-aware finite differences.** A plain forward difference is DEGENERATE
+    on the boundary: at a box corner every perturbation clips back onto the
+    corner, J comes out identically zero and the linear solve dies singular.
+    Measured on moxon from the far start -- Newton stopped after 4 solves with
+    a residual of 35 ohm. Stepping inward instead turns that into 7 solves.
+
+    **A fresh Jacobian costs 2 solves, not 3.** The base point is already
+    solved and the #1176 memo answers it for free, so only the two
+    perturbations are new. That is why refreshing is affordable at all.
+
+    **The stall detector.** On the buried vertical, R along the X = 0 contour
+    rises to 50.7 at radial_factor 0.31, falls to 45.1 at 0.54, then saturates
+    at 48.5 -- so a start past that ridge sends Newton chasing R = 50 into the
+    upper bound, where the residual CANNOT be zeroed. Unguarded it burned all
+    80 solves thrashing there. Two non-improving steps buy one Jacobian
+    refresh; a third hands back to the caller, which falls back to Nelder-Mead
+    from the best SOLVED point.
+    """
+    n = len(x0)
+    lo = np.array([b[0] for b in box], dtype=float)
+    hi = np.array([b[1] for b in box], dtype=float)
+    h = np.maximum((hi - lo) * 0.002, 1e-12)
+    used = 0
+
+    def clip(x):
+        return np.minimum(np.maximum(x, lo), hi)
+
+    def call(x):
+        nonlocal used
+        used += 1
+        return probe(x)
+
+    def jac(x, F):
+        """Forward differences, flipped INWARD wherever the box says so."""
+        J = np.zeros((n, n))
+        for j in range(n):
+            step = h[j] if x[j] + h[j] <= hi[j] else -h[j]
+            if x[j] + step < lo[j]:
+                step = h[j]
+            xp = x.copy()
+            xp[j] = min(max(xp[j] + step, lo[j]), hi[j])
+            dh = xp[j] - x[j]
+            Fp = call(xp)
+            if Fp is None:
+                return None
+            J[:, j] = (Fp - F) / (dh if dh else h[j])
+        return J
+
+    x = clip(np.asarray(x0, dtype=float))
+    F = call(x)
+    if F is None:
+        return list(x), False, "multi-feed"
+    best = (float(np.linalg.norm(F)), x.copy())
+    if best[0] <= _ROOT_FTOL:
+        return list(x), True, "already-at-root"
+    J = jac(x, F)
+    if J is None:
+        return list(best[1]), False, "multi-feed"
+    stall = 0
+    refreshed = False
+    while used < budget:
+        try:
+            step = np.linalg.solve(J, -F)
+        except np.linalg.LinAlgError:
+            return list(best[1]), False, "singular"
+        t = 1.0
+        xn, Fn = None, None
+        while used < budget:
+            xt = clip(x + t * step)
+            Ft = call(xt)
+            if Ft is None:
+                return list(best[1]), False, "multi-feed"
+            if np.linalg.norm(Ft) < np.linalg.norm(F) or t < 0.06:
+                xn, Fn = xt, Ft
+                break
+            t *= 0.5
+        if xn is None:
+            return list(best[1]), False, "budget"
+        prev = float(np.linalg.norm(F))
+        nrm = float(np.linalg.norm(Fn))
+        if nrm < best[0]:
+            best = (nrm, xn.copy())
+        moved = float(np.linalg.norm(xn - x))
+        dx, dF = xn - x, Fn - F
+        x, F = xn, Fn
+        if nrm <= _ROOT_FTOL:
+            return list(x), True, "ftol"
+        if moved <= _ROOT_XTOL:
+            # The step went to zero. If the residual is still above tolerance
+            # this is a stationary point of |F| that is NOT a root -- on a real
+            # deck, the two contours not crossing anywhere reachable. Name it
+            # so, rather than reporting the convergence test that caught it.
+            done = best[0] <= _ROOT_FTOL
+            return list(best[1]), done, "xtol" if done else "no-crossing"
+        # A step that does not cut the residual by at least 1 % is not
+        # progress. Two of those in a row is the stall.
+        stall = 0 if nrm < 0.99 * prev else stall + 1
+        if stall >= 2:
+            if refreshed:
+                # Two more non-improving steps AFTER a refresh: the residual
+                # cannot be zeroed from here (typically a bound). Hand back.
+                return list(best[1]), False, "stalled"
+            refreshed = True
+            stall = 0
+            Jn = jac(x, F)
+            if Jn is None:
+                return list(best[1]), False, "multi-feed"
+            J = Jn
+            continue
+        if broyden_between and np.dot(dx, dx) > 0:
+            J = J + np.outer(dF - J @ dx, dx) / np.dot(dx, dx)
+        else:
+            Jn = jac(x, F)
+            if Jn is None:
+                return list(best[1]), False, "multi-feed"
+            J = Jn
+    return list(best[1]), best[0] <= _ROOT_FTOL, "budget"
+
+
 def _bracket_brent(probe, lo, hi, budget, *, n_scan=5):
     """Scan for a sign change, then secant-with-bisection-fallback inside it.
 
@@ -216,6 +385,17 @@ def _residual(out: dict, key: str) -> float | None:
     if key == "match_z0":
         return abs(z - float(out.get("z0_ohms", 50.0) or 50.0))
     return None
+
+
+def _residual_vec(out: dict) -> "np.ndarray | None":
+    """The TWO-COMPONENT root a `match_z0` run is really solving:
+    (R - R0, X). None unless the response is single-feed -- a minimax over
+    several ports is not a root system."""
+    zs = _feed_zs(out)
+    if len(zs) != 1:
+        return None
+    z0 = float(out.get("z0_ohms", 50.0) or 50.0)
+    return np.array([zs[0].real - z0, zs[0].imag])
 
 
 def _metrics(out: dict) -> dict:
@@ -481,6 +661,11 @@ def optimize(
     method = "nelder-mead"
     root_reason = None
     x_root = None
+    # Two knobs to Z0 is a two-component root (R - R0, X). Same single-feed
+    # guard as the scalar path, and the same reason for it.
+    newton_path = (
+        objective == "match_z0" and len(free) == 2 and _residual_vec(out0) is not None
+    )
     if (
         objective == "resonance"
         and len(free) == 1
@@ -505,6 +690,7 @@ def optimize(
                 _probe_x, lo0, hi0, max(budget0 - n_evals + 1, 2)
             )
         if ok:
+            x_root = [x_root]
             method = "secant" if phase == "secant" else "bracket-brent"
         else:
             # No root reachable in the box (or the budget ran out). Fall through
@@ -538,6 +724,7 @@ def optimize(
         # the finisher. Never more than a third of the run.
         total_budget = int(max_evals) if max_evals else min(200, 40 * len(free))
         seed_budget = max(n_coef, min(2 * n_coef, total_budget // 3))
+        phase = "seeding"
         lo_a = np.asarray(lo, dtype=float)
         span = np.asarray(hi, dtype=float) - lo_a
 
@@ -561,6 +748,64 @@ def optimize(
         seed_index = 0
         seed_total = 0
 
+    if newton_path:
+        box2 = list(zip(lo, hi, strict=True))
+        total2 = int(max_evals) if max_evals else min(200, 40 * len(free))
+        rng2 = np.random.default_rng(seed_state)
+
+        def _probe_z(x):
+            # Drives the seeding readout the same way #1176's does: the survey
+            # samples the whole box, so its residual jumps around and a bare
+            # eval number reads as the run going backwards.
+            nonlocal seed_index
+            seed_index += 1
+            zs = _feed_zs(_solve_at(list(x)))
+            return zs[0] if len(zs) == 1 else None
+
+        def _probe_f(x):
+            return _residual_vec(_solve_at(list(x)))
+
+        # The seed runs unconditionally on this path: the study measured that
+        # bare Newton FAILS on a real deck from the catalogue start, so the
+        # global sample is part of the method here rather than a toggle. The
+        # `seed_surrogate` toggle keeps its meaning for the Nelder-Mead path,
+        # which is the only place it ever applied.
+        phase = "seeding"
+        n_coef2 = 1 + 2 + 3
+        seed_index, seed_total = 0, n_coef2
+        x_pred, ranked = _surrogate_root_start(
+            _probe_z, box2, n_coef2, rng2, float(out0.get("z0_ohms", 50.0) or 50.0)
+        )
+        n_seed = n_coef2
+        seed_index, seed_total = 0, 0
+
+        # Try the predicted crossing first, then the best solved samples. A
+        # restart costs only its own steps -- the samples are already paid for,
+        # and the memo answers them free.
+        starts = [x for x in ([x_pred] if x_pred else []) + ranked[:2] if x]
+        phase = "newton"
+        xr, ok, root_reason = None, False, "no-start"
+        for st in starts:
+            budget_n = total2 - n_evals
+            if budget_n < 4:
+                root_reason = "budget"
+                break
+            xr, ok, root_reason = _newton_root2(_probe_f, st, box2, budget_n)
+            if ok:
+                break
+        if ok:
+            x_root, method = xr, "seed + newton"
+        else:
+            # Stalled, singular, or out of budget. Hand the best SOLVED point
+            # to Nelder-Mead and say why -- never present a bound as a root.
+            phase = "fallback"
+            method = f"nelder-mead (root: {root_reason})"
+            if xr is not None:
+                x0 = [
+                    min(max(float(v), lob), hib)
+                    for v, lob, hib in zip(xr, lo, hi, strict=True)
+                ]
+
     # Cap the work: each eval is a full solve. ~40 per free param, hard-capped so
     # a wide search can't run away. The UI can override via max_evals. The
     # seed's own evals come out of this budget, so a seeded run never costs
@@ -568,7 +813,10 @@ def optimize(
     if x_root is not None:
         # The root path converged; Nelder-Mead has nothing to add and would
         # only spend solves confirming it.
-        x_best = [min(max(float(x_root), lo[0]), hi[0])]
+        x_best = [
+            min(max(float(v), lob), hib)
+            for v, lob, hib in zip(x_root, lo, hi, strict=True)
+        ]
     else:
         phase = "nelder-mead" if phase == "search" else phase
         maxfev = max(
