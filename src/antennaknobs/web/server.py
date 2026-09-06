@@ -48,6 +48,7 @@ from threadpoolctl import threadpool_limits
 from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
 
 from . import cost as _cost
+from . import tracker
 from . import nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
@@ -1357,6 +1358,91 @@ def _solve_uncached(req: dict, cancel=None) -> dict:
         out["solver"] = "momwire"
     _attach_derived_em_fields(out)
     _attach_gain_norm(out)
+    return out
+
+
+def _track_signature(req: dict) -> tuple:
+    """What makes a tracker stale. Anything here changing means the old
+    linearisation describes a different surface, so the tracker is rebuilt with
+    a fresh root find rather than continued."""
+    t = req.get("_track") or {}
+    free = t.get("free") or []
+    return (
+        req.get("geometry"),
+        t.get("objective"),
+        tuple((f.get("name"), f.get("min"), f.get("max")) for f in free),
+        (t.get("drag") or {}).get("name"),
+        float(req.get("freq") or 0.0),
+    )
+
+
+def _track_step(req: dict, box: dict, cancel=None) -> dict:
+    """One drag event for the "keep the target while I drag" mode (#1220).
+
+    `req["_track"]` carries:
+
+        objective  "resonance" | "match_z0"  -- `swr` is refused, it is a
+                   minimisation and has no root to hold
+        free       the optimise-marked knobs, [{name, min, max}]; EXACTLY one
+                   for resonance and EXACTLY two for match_z0, else refused
+                   by name with the count in the message
+        drag       {name, value, span}
+
+    **`drag.span` is a contract, not a hint.** It is the dragged knob's DISPLAY
+    range (its KnobOpt `dispMax - dispMin`, falling back to the schema
+    min/max), and it is what the demote stage's rate limit is measured
+    against -- a fraction of the knob's TRAVEL, never a tick count, because
+    every per-tick quantity in the #1202 study failed to survive a change of
+    drag resolution. Omit it and the demote stage stays OFF: it buys one or two
+    ticks of early warning, against the risk of firing tens of ticks early when
+    mis-scaled, and the holdability latch needs no calibration at all.
+
+    The tracker's own solve at the committed point IS this tick's display
+    solve, so it is routed back rather than re-solved -- which is the whole
+    cost model (a tick costs one solve; what matters is EXTRA solves).
+    """
+    t = req.get("_track") or {}
+    drag = t.get("drag") or {}
+    base = {k: v for k, v in req.items() if not k.startswith("_")}
+    sig = _track_signature(req)
+    tr = box.get("t")
+    fresh = tr is None or box.get("sig") != sig or bool(t.get("restart"))
+    try:
+        if fresh:
+            tr = tracker.Tracker(
+                base,
+                list(t.get("free") or []),
+                str(t.get("objective") or ""),
+                solve_fn=lambda r: solve(r, cancel=cancel),
+            )
+            st = tr.start(
+                str(drag.get("name") or ""),
+                float(drag.get("value") or 0.0),
+                drag_span=drag.get("span"),
+            )
+            box["t"], box["sig"] = tr, sig
+        else:
+            tr.base = base
+            tr.solve_fn = lambda r: solve(r, cancel=cancel)
+            st = tr.tick(float(drag.get("value") or 0.0))
+    except ValueError as exc:
+        # The count/objective refusal. Not an error banner: the mode simply
+        # cannot be entered, and the message says why.
+        box["t"] = None
+        out = solve(req, cancel=cancel)
+        out["_track"] = {"status": "refused", "message": str(exc), "params": {}}
+        return out
+    out = tr.last_out()
+    if out is None:
+        # Only reachable if every solve this tick was served from a previous
+        # tick's memo, or preempted. Solve the committed point for the render.
+        r = dict(base)
+        r.update(st["params"])
+        r[str(drag.get("name") or "")] = float(drag.get("value") or 0.0)
+        out = solve(r, cancel=cancel)
+    else:
+        out = deepcopy(out)
+    out["_track"] = st
     return out
 
 
@@ -2687,6 +2773,11 @@ async def ws_endpoint(ws: WebSocket):
     # flag is the only thing the threadpool worker touches). The reader trips it
     # to preempt a solve the moment a newer request lands or the socket closes.
     current: dict = {"token": None}
+    # Per-CONNECTION tracker state (#1220). A tracker is a linearisation about
+    # one point and one design, so it must never be shared between sessions --
+    # sharing would answer one user's drag with another user's tangent. Living
+    # here, beside the mailbox, it also dies with the socket.
+    tracker_box: dict = {"t": None, "sig": None}
 
     async def reader() -> None:
         # Starlette requires a single reader on the socket, so *all*
@@ -2823,9 +2914,23 @@ async def ws_endpoint(ws: WebSocket):
                     # to trip; the mailbox check above covers that stretch.)
                     current["token"] = token
                     try:
-                        result = await run_in_threadpool(
-                            _shed, solve, req, cancel=token
-                        )
+                        if req.get("_track"):
+                            result = await run_in_threadpool(
+                                _shed,
+                                _track_step,
+                                req,
+                                tracker_box,
+                                cancel=token,
+                            )
+                        else:
+                            # Any ordinary solve means the user moved something
+                            # the tracker was not holding for them, so the next
+                            # tracking tick starts from a fresh root find rather
+                            # than a tangent taken about a point that has moved.
+                            tracker_box["sig"] = None
+                            result = await run_in_threadpool(
+                                _shed, solve, req, cancel=token
+                            )
                     finally:
                         current["token"] = None
             except (Superseded, momwire.SolveAborted):

@@ -144,14 +144,23 @@ class Tracker:
         self.n_solves = 0
 
     # -- solving -----------------------------------------------------------
+    def _key(self, x):
+        return tuple(round(float(v), 12) for v in x)
+
     def _F(self, x, drag_value):
         req = dict(self.base)
         for nm, v in zip(self.names, x, strict=True):
             req[nm] = float(v)
         if self.drag_name is not None:
             req[self.drag_name] = float(drag_value)
-        out = self.solve_fn(req)
-        self.n_solves += 1
+        key = self._key(x)
+        hit = self._memo.get(key)
+        if hit is not None:
+            out = hit
+        else:
+            out = self.solve_fn(req)
+            self.n_solves += 1
+            self._memo[key] = out
         if self.objective == "match_z0":
             v = _residual_vec(out)
             return None if v is None else np.asarray(v, dtype=float)
@@ -197,6 +206,7 @@ class Tracker:
         self.drag_name = drag_name
         self.drag_value = float(drag_value)
         self.drag_span = float(drag_span) if drag_span else None
+        self._memo = {}
         self.n_solves = 0
         budget = 40
 
@@ -241,6 +251,7 @@ class Tracker:
     def tick(self, drag_value: float) -> dict:
         """One drag event. Mutates nothing until every solve has returned, so a
         preempted solve leaves the tracker exactly as it was."""
+        self._memo = {}
         a = float(drag_value)
         da = a - (self.drag_value if self.drag_value is not None else a)
         # "Reversing" is a STATE, not a single tick. The sign flips once, but
@@ -394,6 +405,15 @@ class Tracker:
         return self._state(
             self.mode, self._lost() if self.mode == "latched" else None, residual=res
         )
+
+    def last_out(self) -> dict | None:
+        """The solve response at the point this tick committed to -- the tick's
+        display solve, already paid for. None if it was never solved (only
+        possible when a solve was preempted)."""
+        vals = self.frozen if self.mode in ("frozen", "latched") else self.x
+        if vals is None:
+            return None
+        return self._memo.get(self._key(vals))
 
     def _lost(self) -> str:
         what = "resonance" if self.objective == "resonance" else "match"
