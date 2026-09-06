@@ -60,6 +60,9 @@ change a knob:
   - **Display range** — the min/max the knob sweeps between.
   - **Optimize this knob** + **Optimize range** — mark it as a free variable for
     the optimizer and bound its search (see [Optimizing](#optimizing) below).
+    The same range bounds
+    [Keep the target while I drag](#keep-the-target-while-i-drag): a marked knob
+    is the one the hold moves, and it will not leave this range to do it.
 
 Every turn re-solves and redraws live (when **Live** is on — see below).
 
@@ -247,10 +250,9 @@ Next to Live is an **Optimize** toggle (same depressed-when-on look), with a
 **gear menu** beside it for the objective. The optimizer continuously tunes the
 knobs you've marked to hit a target:
 
-1. **Pick an objective** in the gear menu:
-   - **Resonance** — drive the feed-point reactance to zero (X → 0).
-   - **SWR** — minimize SWR against the design's reference impedance (Z₀, 50 Ω
-     by default).
+1. **Pick an objective** in the gear menu — **SWR**, **Resonance** or
+   **Match Z₀**. They differ in more than the target: see
+   [Which objective](#which-objective).
 2. **Mark the knobs to vary** — right-click each knob you'll let the optimizer
    move, check **Optimize this knob**, and set its **Optimize range** (the search
    bounds). A marked knob is visually flagged. To flip the flag from the keyboard,
@@ -260,6 +262,38 @@ knobs you've marked to hit a target:
    time you change a *fixed* knob, it re-tunes the *marked* knobs (a short
    debounce, then a few dozen solves) and writes the best values back, so the
    antenna stays on target as you explore.
+
+### Which objective
+
+The three are not flavours of the same thing. Two of them are **roots** — an
+exact condition with an exact answer — and one is a **minimisation**, and that
+difference decides how many knobs each needs and what the readout shows.
+
+- **SWR** — minimize SWR against the design's reference impedance (Z₀, 50 Ω by
+  default). A best compromise rather than an exact target, searched by
+  Nelder–Mead. It is the only one of the three that works with **any** number of
+  marked knobs and on a **multi-feed** design, which is why it stays the
+  default choice for anything three-knob or many-port.
+- **Resonance** — drive the feed-point reactance to zero (X = 0) exactly. With
+  exactly **one** marked knob this is a scalar root and is solved as one, by a
+  bracketed secant: typically three to five solves where the general search
+  takes ten to sixteen.
+- **Match Z₀** — drive both R = R₀ and X = 0 exactly. With exactly **two**
+  marked knobs this is a two-component root, solved by Newton on (R − R₀, X)
+  with a finite-difference Jacobian, started from a short survey of the knob
+  box. Typically eleven to thirteen solves against Nelder–Mead's thirty to
+  fifty.
+
+The gear menu says which is which in a line each. The knob counts are what the
+root methods need, not a restriction: mark two knobs with Resonance selected,
+or a number other than two with Match Z₀, and the run falls back to
+Nelder–Mead on the same objective rather than refusing. A multi-feed design
+does the same, because a minimax over several ports has no single root.
+
+**The readout shows the residual for the root objectives** — |X| for Resonance,
+|Z − Z₀| for Match Z₀ — rather than an eval count and an SWR. A root method's
+residual falls monotonically, so it is worth watching; a simplex's best-so-far
+is not, and showing one where the other is expected reads as a fault.
 
 **A run shows its work.** Progress streams back per evaluation: the VFO
 panel's readout ticks through each candidate's eval count, impedance, and SWR
@@ -330,6 +364,42 @@ through a network is different: there the match that matters is the network's
 input, so the optimizer scores the driven plane — the same impedance the
 readout shows. The CLI's `optimize` aggregates feeds the same way (it differs
 only in scoring |Z − Z₀| distance rather than SWR).
+
+### Keep the target while I drag
+
+The optimizer tunes for you and hands back an answer. This is the other half:
+you drag a knob and the marked knobs **follow**, holding the target while you
+explore.
+
+The switch is in the same gear menu, under **While dragging**. Turn it on and
+drag any knob you have *not* marked — the marked ones move under your hand to
+keep the objective satisfied, and the chart and readout stay on target
+throughout. It costs one solve per drag tick, the same solve the app already
+owed you to redraw at the new knob position: the hold predicts where the marked
+knobs go and the tick's own solve usually confirms it.
+
+**It needs the objective's exact knob count** — one marked knob for Resonance,
+two for Match Z₀ — because holding an exact target is a root problem. Where the
+optimizer would fall back to a general search, the hold cannot: it refuses, and
+the menu entry says why, with the count it found. SWR is refused for the same
+reason: it is a best compromise, with no target to hold.
+
+**Marked knobs still belong to the optimizer.** Grab one by hand and the hold
+switches off, exactly as it switches an optimizer run off — the knob is yours
+again, and the dragged knob is never promoted into the search.
+
+**When the target runs out.** A marked knob can only move inside its Optimize
+range, and some targets simply stop existing as you drag: the hold stops and
+says *"the resonance you are holding disappears here"* (or *"the match"*). The
+marked knobs stay at their last good values rather than drifting, and the hold
+re-acquires the moment the target is reachable again — whether you carry on in
+the same direction or drag back the way you came.
+
+**What restarts it.** Changing a marked knob's Optimize range, or the
+measurement frequency, restarts the hold from a fresh root find rather than
+continuing: the surface it was tracking is no longer the surface it measured.
+Switching the mode off and on again does the same, which is also the way out of
+a hold you would rather not drag out of.
 
 **Loading a design pauses Optimize.** Switching antenna or picking a variant
 turns Optimize off — its objective and marks belong to the design you left —
