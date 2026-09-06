@@ -267,6 +267,44 @@ def _buried_refusal(solver_cls, polylines, junctions, ground_z):
     return _capability_refusal(solver_cls, *cells)
 
 
+def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz):
+    """The below/below reach refusal this deck would draw, or None.
+
+    antennaknobs#1135: `verticals.buried_radial_vertical` advertises knob
+    ranges that include combinations momwire cannot solve, and the user used
+    to learn that only when the fill raised — after the mixed-medium set-up,
+    tens of seconds in. Asked here instead, at construction, for the same
+    reason `_buried_refusal` is.
+
+    ASKED, not re-derived. The bound is momwire's — its cap is in in-medium
+    wavelengths and its grazing floor moved 0.1 → 0.05 deg at momwire#935 —
+    so a formula written out here would be a second copy that silently stops
+    matching, which is the failure mode `_buried_refusal`'s own note names.
+    `momwire.below_reach_refusal` returns the fill's sentence verbatim.
+
+    Only the SOMMERFELD model has a below/below family to bound; refl-coef
+    never builds that grid. And None on an older momwire that lacks the
+    helper, exactly as `_buried_cell_is_declared` does — an install too old
+    to be asked is not a refusal.
+
+    momwire measures its extents on quadrature nodes; the polyline VERTICES
+    passed here reach further and lie shallower, so the verdict is
+    conservative and can only over-refuse. The gate that matters
+    (`test_below_reach_preflight`) sweeps knob corners and checks the two
+    verdicts agree, because a conservative bound is only useful if it is not
+    conservative enough to refuse a deck the app should offer.
+    """
+    if ground_z is None or ground_eps is None or ground_model != "sommerfeld":
+        return None
+    import momwire
+
+    check = getattr(momwire, "below_reach_refusal", None)
+    if check is None:
+        return None
+    pts = np.concatenate([np.asarray(pl, dtype=float) for pl in polylines])
+    return check(pts, float(ground_z), ground_eps, float(freq_mhz) * 1e6)
+
+
 def _solver_accepts_junctions_kwarg(solver_cls):
     """Whether `solver_cls`'s constructor takes a `junctions=` geometry
     hint at all — a constructor-SHAPE fact, not a capability cell (there is
@@ -863,6 +901,25 @@ class MomwireEngine(SimulationEngine):
             if _solver_supports_ground_eps(self._solver, model):
                 self._ground_eps = (float(self._ground[1]), float(self._ground[2]))
                 self._ground_model = model
+
+        # The below/below REACH pre-flight (issue #1135), here rather than
+        # beside `_buried_refusal` above because it needs the solve-time soil,
+        # which is resolved only a few lines up. That ordering is the point of
+        # the issue's second scope note: the design's `design_eps_r` sizes the
+        # mesh and deliberately does not track the solve (#983), so a
+        # pre-flight reading it would pass decks that then refuse.
+        reach = _below_reach_refusal(
+            self._polylines,
+            self._ground_z,
+            self._ground_eps,
+            self._ground_model,
+            self.builder.freq,
+        )
+        if reach is not None:
+            raise ValueError(
+                f"this deck's buried geometry is outside momwire's "
+                f"below/below domain: {reach}"
+            )
 
         # Map TL tags to feed indices for the legacy build_tls() path.
         self._tag_to_feed = {}
