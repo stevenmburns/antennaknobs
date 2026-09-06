@@ -1218,3 +1218,86 @@ def test_the_old_flag_prints_negative_resistance_when_fed_below_ground():
     assert z_of("GE -1 0", 1).real > 70.0
     # and under the served flag the answer barely notices the feed moving.
     assert abs(z_of("GE -1 0", 1).real - z_of("GE -1 0", 2).real) < 0.5
+
+
+# --------------------------------------------------------------------------
+# antennaknobs#1190 — card-field witnesses
+# --------------------------------------------------------------------------
+
+
+def test_1190_ex_end_field_is_live_and_pinned():
+    """EX's I4 selects the segment END, and #1025 got this wrong.
+
+    That issue measured I4 = 0, 1 and 2 giving one answer and recorded the
+    field as physics-irrelevant. Two things were wrong with that. I4 = 0 and
+    I4 = 2 are the SAME REQUEST by documentation — 0 defers to the sign of I3,
+    which this wrapper always writes positive, and that is end 2 — so two
+    spellings of one thing were read as evidence the field did nothing. And
+    the measurement was taken on a deck under the pre-#1025 ground card, whose
+    answer was degenerate milliohms; a broken answer is insensitive to
+    everything.
+
+    On a healthy deck the ends differ by 0.07 ohm in R and 0.31 in X. Nothing
+    would notice that but this pair.
+    """
+    end1 = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "witness_ex_end1.out").read_text()
+    )
+    end2 = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "witness_ex_end2.out").read_text()
+    )
+    assert end1 == [[(2, 26, 146.46 + 44.696j)]]
+    assert end2 == [[(2, 26, 146.39 + 44.382j)]]
+    assert end1 != end2, "the EX end field stopped mattering — audit it again"
+
+    a = (FIXTURES / "witness_ex_end1.nec").read_text().splitlines()
+    b = (FIXTURES / "witness_ex_end2.nec").read_text().splitlines()
+    differing = [(x, y) for x, y in zip(a, b, strict=True) if x != y]
+    assert differing == [
+        ("EX 0 2 1 1 1.000000E+00 0.000000E+00", "EX 0 2 1 2 1.000000E+00 0.000000E+00")
+    ]
+
+
+def test_1190_ld_discrete_end_field_is_live_and_pinned():
+    """LD's LDTAGT means two different things by type: the last element of a
+    range for DISTRIBUTED loads, the segment END for discrete ones. One slot,
+    two meanings, chosen by the leading type digit — the same shape as the GE
+    bug. A 50 ohm load on the wrong end of one segment moves R by 2 ohm and
+    nothing else."""
+    e1 = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "witness_ld_discrete_end1.out").read_text()
+    )
+    e2 = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "witness_ld_discrete_end2.out").read_text()
+    )
+    assert e1 == [[(2, 26, 50.6 - 1586.1j)]]
+    assert e2 == [[(2, 26, 52.578 - 1586.1j)]]
+    assert abs(e1[0][0][2] - e2[0][0][2]) > 1.0
+
+
+def test_1190_ld_distributed_inductance_is_per_metre():
+    """LDTYP=2 takes henries per METRE. `momwire.insulation_inductance` is
+    documented [H/m] and matches — but a per-SEGMENT value in the same slot
+    also solves, 20 ohm off in X.
+
+    The reason this pair is banked rather than trusted to review: the error is
+    wrong BY THE SEGMENT LENGTH, so it shrinks as the mesh refines. It would
+    present as a convergence effect, which is the most expensive way for a
+    units bug to hide.
+    """
+    per_m = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "witness_ld_henries_per_m.out").read_text()
+    )
+    per_seg = NEC5Engine._parse_input_parameters(
+        (FIXTURES / "witness_ld_henries_per_seg.out").read_text()
+    )
+    assert per_m == [[(2, 26, 38.915 - 1563.5j)]]
+    assert per_seg == [[(2, 26, 38.771 - 1583.1j)]]
+    assert abs(per_m[0][0][2].imag - per_seg[0][0][2].imag) > 10.0
+
+    from momwire import insulation_inductance
+
+    assert "H/m" in insulation_inductance.__doc__, (
+        "insulation_inductance stopped documenting its units as H/m — LDTYP=2 "
+        "needs henries per metre and this test is what ties the two"
+    )
