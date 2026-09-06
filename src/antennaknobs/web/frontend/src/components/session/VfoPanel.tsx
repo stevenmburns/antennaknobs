@@ -69,8 +69,19 @@ const OPT_OBJECTIVE_LABELS: Record<OptObjective, string> = {
   resonance: "Resonance",
   match_z0: "Match Z₀",
 };
-// The two objectives offered in the compact control next to meas-freq.
-const OPT_OBJECTIVES: OptObjective[] = ["swr", "resonance"];
+// The objectives offered in the compact control next to meas-freq, in the
+// order they are shown. SWR stays FIRST and stays available: it is the
+// any-knob-count, any-feed-count best-compromise scalar, and it is a
+// minimisation rather than a root, so it is the only one of the three that
+// works with three knobs or a multi-feed design. Match Z₀ is the exact
+// two-component root (R − R₀, X) that #1208's Newton path and the #1220
+// tracker hold — sharper, but only with exactly two optimise-marked knobs.
+const OPT_OBJECTIVES: OptObjective[] = ["swr", "resonance", "match_z0"];
+const OPT_OBJECTIVE_HINTS: Record<OptObjective, string> = {
+  swr: "best compromise, any number of knobs",
+  resonance: "X = 0 exactly, with one knob",
+  match_z0: "exact match, with two knobs",
+};
 
 // Why the optimizer auto-paused, for the transient cue. `knob` = the user grabbed
 // a marked knob by hand; `load` = a new design/variant was loaded (its marks and
@@ -93,6 +104,10 @@ function SimControls({
   setOptObjective,
   optSeed,
   setOptSeed,
+  trackEnabled,
+  setTrackEnabled,
+  trackRefusal,
+  trackLatched,
   optResult,
   optProgress,
   optError,
@@ -108,6 +123,15 @@ function SimControls({
   setOptObjective: (v: OptObjective) => void;
   optSeed: boolean;
   setOptSeed: (v: boolean) => void;
+  /** #1220: the "keep the target while I drag" mode. */
+  trackEnabled: boolean;
+  setTrackEnabled: (v: boolean) => void;
+  /** Why the mode cannot be entered, or null. Comes from the same rule the
+   *  server enforces, so the switch never offers something that would be
+   *  refused on arrival. */
+  trackRefusal: string | null;
+  /** Set while the tracker has latched: the target it was holding is gone. */
+  trackLatched: string | null;
   optResult: OptimizeResult | null;
   optProgress: OptProgress | null;
   optError: string | null;
@@ -177,6 +201,7 @@ function SimControls({
                   }}
                 >
                   {OPT_OBJECTIVE_LABELS[k]}
+                  <span className="gear-menu-hint"> — {OPT_OBJECTIVE_HINTS[k]}</span>
                 </button>
               ))}
               {/* #1176. OFF by default and deliberately: measured
@@ -196,10 +221,45 @@ function SimControls({
               >
                 Seed from a survey
               </button>
+              {/* #1220. The tracker holds the objective while the user drags
+                  some OTHER knob, by moving the optimise-marked ones. It is a
+                  root problem, so it refuses rather than guesses: Resonance
+                  needs exactly one marked knob and Match Z₀ exactly two, and
+                  SWR is a minimisation with no root to hold at all. The
+                  refusal carries the count, because "it did nothing" is the
+                  failure this exists to avoid. */}
+              <div className="opt-menu-title">While dragging</div>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={trackEnabled}
+                disabled={!!trackRefusal}
+                className={`gear-menu-item${trackEnabled ? " is-active" : ""}`}
+                title={
+                  trackRefusal ??
+                  "While you drag any other knob, move the optimise-marked knobs to hold this target. Dragging a marked knob turns this off."
+                }
+                onClick={() => !trackRefusal && setTrackEnabled(!trackEnabled)}
+              >
+                Keep the target while I drag
+                {trackRefusal && (
+                  <span className="gear-menu-hint"> — {trackRefusal}</span>
+                )}
+              </button>
             </div>
           </>
         )}
       </div>
+      {/* #1220: the tracker latched — the target it was holding is not
+          reachable from here. Deliberately NOT worded as a knob hitting a
+          limit: at the last good tick the held knob is usually nowhere near a
+          bound, and it is the resonance/match itself that has gone. Nor is it
+          worded as permanent: dragging back the way you came re-acquires. */}
+      {trackEnabled && trackLatched && (
+        <span className="opt-readout opt-readout-latched" title={trackLatched}>
+          ⚠ {trackLatched}
+        </span>
+      )}
       {/* Live progress (#773 unit 4): while a run is in flight, the eval
           count/objective/Z-SWR readout tracks the latest `progress` frame
           instead of the previous run's settled result — optProgress is reset
@@ -288,6 +348,10 @@ export function VfoPanel({
   setOptObjective,
   optSeed,
   setOptSeed,
+  trackEnabled,
+  setTrackEnabled,
+  trackRefusal,
+  trackLatched,
   optResult,
   optProgress,
   optError,
@@ -317,6 +381,15 @@ export function VfoPanel({
   optResult: OptimizeResult | null;
   optSeed: boolean;
   setOptSeed: (v: boolean) => void;
+  /** #1220: the "keep the target while I drag" mode. */
+  trackEnabled: boolean;
+  setTrackEnabled: (v: boolean) => void;
+  /** Why the mode cannot be entered, or null. Comes from the same rule the
+   *  server enforces, so the switch never offers something that would be
+   *  refused on arrival. */
+  trackRefusal: string | null;
+  /** Set while the tracker has latched: the target it was holding is gone. */
+  trackLatched: string | null;
   optProgress: OptProgress | null;
   optError: string | null;
   optPausedBy: OptPause | null;
@@ -368,6 +441,10 @@ export function VfoPanel({
             setOptObjective={setOptObjective}
             optSeed={optSeed}
             setOptSeed={setOptSeed}
+            trackEnabled={trackEnabled}
+            setTrackEnabled={setTrackEnabled}
+            trackRefusal={trackRefusal}
+            trackLatched={trackLatched}
             optResult={optResult}
             optProgress={optProgress}
             optError={optError}
