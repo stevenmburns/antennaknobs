@@ -1373,6 +1373,12 @@ def _track_signature(req: dict) -> tuple:
         tuple((f.get("name"), f.get("min"), f.get("max")) for f in free),
         (t.get("drag") or {}).get("name"),
         float(req.get("freq") or 0.0),
+        # The client bumps this every time the mode is switched ON, which is
+        # what makes re-enabling a FRESH ROOT FIND from the current point
+        # (rule 4). Without it the server's tracker survives the toggle -- the
+        # rest of the signature has not moved -- so a user who switched off to
+        # escape a latch was handed the same latched state back.
+        t.get("epoch"),
     )
 
 

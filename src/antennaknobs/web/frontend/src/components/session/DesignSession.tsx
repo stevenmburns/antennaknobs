@@ -397,11 +397,7 @@ function DesignSessionBody({
         setTrackEnabled(false);
         trackDragRef.current = null;
       } else if (typeof value === "number") {
-        trackDragRef.current = {
-          name,
-          value,
-          span: Math.abs((ko?.dispMax ?? 1) - (ko?.dispMin ?? 0)) || 1,
-        };
+        trackDragRef.current = { name, value, span: trackSpanFor(name) };
       }
     }
     setParamAtPath(path, value);
@@ -537,6 +533,14 @@ function DesignSessionBody({
   // measFreq still follows designFreq via the linkMeas useEffect below.
 
   const [trackEnabled, setTrackEnabled] = useState(false);
+  // The values key produced by the tracker's own write-back, so the auto-solve
+  // effect does not re-solve a tick whose display solve already arrived.
+  const answeredKeyRef = useRef<string | null>(null);
+  // Bumped every time the switch turns ON. It rides in `_track` and is part of
+  // the server's staleness signature, which is what makes re-enabling the mode
+  // a FRESH ROOT FIND from the current point (rule 4) rather than a silent
+  // continuation of the tracker that was latched when it was switched off.
+  const trackEpochRef = useRef(0);
   // What the user last dragged, for the tick the tracker is answering. `span`
   // is the knob's DISPLAY range, which is what the server's demote stage
   // measures its rate limit against — a fraction of travel, never a tick
@@ -545,8 +549,34 @@ function DesignSessionBody({
   const trackDragRef = useRef<{
     name: string;
     value: number;
-    span: number;
+    span?: number | undefined;
   } | null>(null);
+  // The dragged knob's full travel, which is what the server's demote stage
+  // measures its rate limit against — a fraction of TRAVEL, never a tick count.
+  //
+  // There is deliberately NO numeric fallback. A knob the user has never
+  // right-clicked has no KnobOpt entry at all, which is every dragged knob in
+  // the normal flow, and `defaultKnobOpt` invents 0..1 for a missing spec — so
+  // a `?? 1` fallback silently reported a 60° knob as spanning 1°, the demote
+  // rate limit was then always due, and the scalar path demoted and latched on
+  // the first tick of every drag. Undefined means "travel unknown", and the
+  // server keeps demote OFF rather than mis-scaling it.
+  function trackSpanFor(name: string): number | undefined {
+    const stored = (knobOpt[geometry] ?? {})[name];
+    if (stored && stored.dispMax > stored.dispMin)
+      return stored.dispMax - stored.dispMin;
+    const spec = currentSchema.find(
+      (x): x is SchemaParamSpec => !isGroup(x) && x.name === name,
+    );
+    if (spec && spec.min != null && spec.max != null && spec.max > spec.min)
+      return spec.max - spec.min;
+    return undefined;
+  }
+
+  function toggleTrack(on: boolean) {
+    if (on) trackEpochRef.current += 1;
+    setTrackEnabled(on);
+  }
   const [result, setResult] = useState<SolveResponse | null>(null);
   // #1220: the solve response carries the knob values the tracker moved, so
   // they are written here, on arrival, rather than mirrored in by an effect
@@ -564,9 +594,16 @@ function DesignSessionBody({
       return;
     }
     const bag = paramValues[geometry] ?? {};
+    let after = bag;
     for (const [name, v] of Object.entries(tk.params ?? {})) {
-      if (typeof v === "number" && bag[name] !== v) setParamAtPath([name], v);
+      if (typeof v === "number" && bag[name] !== v) {
+        after = setValueAtPath(after, [name], v) as ParamValueBag;
+        setParamAtPath([name], v);
+      }
     }
+    // The key those writes will produce, so the auto-solve effect can tell its
+    // own echo from a real change (see the comment there).
+    answeredKeyRef.current = after === bag ? null : JSON.stringify(after);
   }
   // Measurement plane (issue #652 c): null = the design's natural source
   // port (the field is then omitted from requests). A picked plane
@@ -961,6 +998,7 @@ function DesignSessionBody({
         objective: optObjective,
         free: trackFree,
         drag: trackDragRef.current,
+        epoch: trackEpochRef.current,
       };
     }
     return base;
@@ -1417,6 +1455,17 @@ function DesignSessionBody({
     }
     withheldRef.current = false;
     setSolverWarning(false);
+    // #1220: the tracker's write-back moved `currentValuesKey`, and the
+    // response that carried it IS this tick's display solve — re-solving here
+    // would be a second solve per drag tick, doubling a per-tick cost the
+    // #1202 study priced at ~0.05 extra solves.
+    //
+    // Keyed on the ANSWERED key rather than a skip-one-run flag, deliberately:
+    // a flag assumes this effect fires on the write-back, and if it ever did
+    // not it would swallow the next LEGITIMATE solve instead — a worse bug,
+    // invisible in the same way. Any user change moves the key away from the
+    // answered one, so this can only ever suppress the echo.
+    if (currentValuesKey === answeredKeyRef.current) return;
     requestSolve();
     // backendDisallowed/recommendedBackend derive from currentExample/preview/
     // roster, not listed directly — geometry (which tracks currentExample) and
@@ -1691,7 +1740,7 @@ function DesignSessionBody({
             disables the dial). */}
         <VfoPanel
           trackEnabled={trackOn}
-          setTrackEnabled={setTrackEnabled}
+          setTrackEnabled={toggleTrack}
           trackRefusal={trackRefusal}
           trackLatched={trackLatched}
           currentBands={currentBands}

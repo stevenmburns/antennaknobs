@@ -98,6 +98,42 @@ def test_the_signature_covers_everything_that_moves_the_surface():
         assert _track_signature(r) != sig, mutate
 
 
+def test_the_epoch_makes_re_enabling_a_fresh_root_find(stubbed):
+    """Rule 4. Switching the mode off and on again must re-acquire from the
+    current point, not resume the tracker that was latched when it was
+    switched off — that is the user's escape hatch from a latch they do not
+    want to reverse out of.
+
+    Nothing else in the signature moves across a toggle (same geometry, same
+    objective, same knobs, same dragged knob), so without the epoch the server
+    happily continued the old tracker and handed the same latched state back.
+    """
+    box = {"t": None, "sig": None}
+    _track_step(_req(0.20, epoch=1), box)
+    first = box["t"]
+    _track_step(_req(0.21, epoch=1), box)
+    assert box["t"] is first, "same epoch: the tracker continues"
+    _track_step(_req(0.22, epoch=2), box)
+    assert box["t"] is not first, "a new epoch must rebuild the tracker"
+
+
+def test_omitting_the_span_leaves_the_demote_stage_off(stubbed):
+    """`drag.span` is the dragged knob's travel, and the demote rate limit is a
+    fraction of it. A caller that cannot measure travel must not get a
+    mis-scaled demote: measured in the app, a 60-degree knob reported as
+    spanning 1 made the limit always due, so the scalar path demoted and
+    latched on the first tick of every drag."""
+    box = {"t": None, "sig": None}
+    r = dict(_req(0.20))
+    r["_track"]["drag"].pop("span")
+    _track_step(r, box)
+    assert box["t"].drag_span is None
+    # ...and a span that IS supplied is carried through.
+    box2 = {"t": None, "sig": None}
+    _track_step(_req(0.20), box2)
+    assert box2["t"].drag_span == 1.0
+
+
 def test_an_ordinary_solve_invalidates_the_tracker(stubbed):
     """Moving something the tracker was NOT holding means the tangent was taken
     about a point that has since moved, so the next tick must re-find the root
