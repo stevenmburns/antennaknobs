@@ -112,6 +112,14 @@ import { VfoPanel } from "./VfoPanel";
 // the bug this closes. So the session tree mounts only once /capabilities has
 // answered; this wrapper holds the one hook that decides, which keeps the
 // body's own (large, order-sensitive) hook sequence untouched.
+/** What `/ws` returns alongside a tracked solve (#1220). */
+type TrackStatus = {
+  status: "tracking" | "frozen" | "latched" | "refused";
+  message: string | null;
+  params: Record<string, number>;
+  residual: number | null;
+};
+
 export function DesignSession({ id, active }: { id: number; active: boolean }) {
   const {
     roster,
@@ -378,6 +386,24 @@ function DesignSessionBody({
         setOptPausedBy({ kind: "knob", name: path[0] });
       }
     }
+    // #1220 rule 1: ownership is unchanged. A marked knob belongs to the
+    // optimiser/tracker, so grabbing one by hand switches tracking OFF, exactly
+    // as it already switches Optimize off above. The dragged knob is NOT
+    // promoted to an independent variable.
+    if (path.length === 1 && typeof path[0] === "string") {
+      const name = path[0];
+      const ko = (knobOpt[geometry] ?? {})[name];
+      if (ko?.vary) {
+        setTrackEnabled(false);
+        trackDragRef.current = null;
+      } else if (typeof value === "number") {
+        trackDragRef.current = {
+          name,
+          value,
+          span: Math.abs((ko?.dispMax ?? 1) - (ko?.dispMin ?? 0)) || 1,
+        };
+      }
+    }
     setParamAtPath(path, value);
   }
   // Fan_dipole was hand-rolled here pre-PR — fanNBands / fanBandIds /
@@ -510,7 +536,38 @@ function DesignSessionBody({
   // group leaf changes," which doesn't pay for itself for one antenna.
   // measFreq still follows designFreq via the linkMeas useEffect below.
 
+  const [trackEnabled, setTrackEnabled] = useState(false);
+  // What the user last dragged, for the tick the tracker is answering. `span`
+  // is the knob's DISPLAY range, which is what the server's demote stage
+  // measures its rate limit against — a fraction of travel, never a tick
+  // count, because every per-tick quantity in the #1202 study failed to
+  // survive a change of drag resolution.
+  const trackDragRef = useRef<{
+    name: string;
+    value: number;
+    span: number;
+  } | null>(null);
   const [result, setResult] = useState<SolveResponse | null>(null);
+  // #1220: the solve response carries the knob values the tracker moved, so
+  // they are written here, on arrival, rather than mirrored in by an effect
+  // watching `result` — that would be a setState inside an effect and a second
+  // render per drag tick. Written with setParamAtPath and NOT
+  // handleUserParamChange: these are the tracker's OWN knobs, and routing them
+  // through the user path would trip rule 1 and switch the mode off on its own
+  // output.
+  function applyResult(next: SolveResponse | null) {
+    setResult(next);
+    const tk = (next as { _track?: TrackStatus } | null)?._track;
+    if (!tk) return;
+    if (tk.status === "refused") {
+      setTrackEnabled(false);
+      return;
+    }
+    const bag = paramValues[geometry] ?? {};
+    for (const [name, v] of Object.entries(tk.params ?? {})) {
+      if (typeof v === "number" && bag[name] !== v) setParamAtPath([name], v);
+    }
+  }
   // Measurement plane (issue #652 c): null = the design's natural source
   // port (the field is then omitted from requests). A picked plane
   // re-solves everything — readout, charts, sweeps, pattern — with the
@@ -895,6 +952,17 @@ function DesignSessionBody({
     // hexbeam_5band's daisy_chain (single common feed) is now modelled with
     // build_network(), which the shared NetworkReducer solves on momwire and
     // PyNEC alike — so it is no longer greyed out or forced off on momwire.
+    // #1220: when the mode is on and the user has moved a knob the tracker is
+    // NOT holding, ask the server to hold the target across this tick. Absent
+    // otherwise, so an ordinary solve stays an ordinary solve — which is also
+    // what invalidates the tracker's tangent server-side.
+    if (trackOn && trackDragRef.current) {
+      (base as SolveRequest & { _track?: unknown })._track = {
+        objective: optObjective,
+        free: trackFree,
+        drag: trackDragRef.current,
+      };
+    }
     return base;
   }
 
@@ -935,6 +1003,41 @@ function DesignSessionBody({
     buildRequest,
     setParamAtPath,
   });
+
+  // --- #1220: "keep the target while I drag" -------------------------------
+  // The tracker moves the OPTIMIZE-MARKED knobs to hold the objective while the
+  // user drags some other knob. It is a root problem, not a minimisation, so it
+  // refuses rather than guesses when the marks do not suit it.
+  // Plain expressions, not useMemo: this is a handful of knobs per render, and
+  // the React compiler cannot preserve a useMemo across these reads anyway.
+  const trackFree = Object.entries(knobOpt[geometry] ?? {})
+    .filter(([, o]) => o.vary)
+    .map(([name, o]) => ({ name, min: o.optMin, max: o.optMax }));
+  // The same rule the server enforces, so the switch never offers something
+  // that would be refused on arrival. The message carries the COUNT: "it did
+  // nothing" is the failure this exists to avoid.
+  const trackRefusal = ((): string | null => {
+    if (optObjective === "swr")
+      return "SWR is a best compromise, not a target to hold";
+    const want = optObjective === "resonance" ? 1 : 2;
+    const n = trackFree.length;
+    if (n !== want)
+      return `needs exactly ${want} optimise-marked knob${want === 1 ? "" : "s"}; ${n} marked`;
+    return null;
+  })();
+  // A mode that has become impossible is simply not ON — DERIVED, never synced.
+  // Storing it and correcting it in an effect would be a setState in an effect,
+  // and one cascading render, to represent what the render already knows.
+  const trackOn = trackEnabled && !trackRefusal;
+  // Same for the status: the tracker's state IS the last response's, so
+  // mirroring it into React state could only ever disagree with it.
+  const trackStatus =
+    (result as { _track?: TrackStatus } | null)?._track ?? null;
+  const trackLatched =
+    trackOn && trackStatus?.status === "latched"
+      ? (trackStatus.message ?? null)
+      : null;
+
 
   // The feed-network schematic (issue #652): fifth view in the carousel.
   // Keyed on what can change the drawing — knobs, variant, freqs — not on
@@ -1149,7 +1252,7 @@ function DesignSessionBody({
     withheldRef,
     geometryRef,
     previewSigRef,
-    setResult,
+    setResult: applyResult,
     setSolveError,
   });
 
@@ -1587,6 +1690,10 @@ function DesignSessionBody({
             lock pinned to the dial's lower-right corner ("lock to design freq"
             disables the dial). */}
         <VfoPanel
+          trackEnabled={trackOn}
+          setTrackEnabled={setTrackEnabled}
+          trackRefusal={trackRefusal}
+          trackLatched={trackLatched}
           currentBands={currentBands}
           measLocked={measLocked}
           measFreq={measFreq}
