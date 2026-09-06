@@ -38,7 +38,9 @@ def to_polar(elev_deg, gain):
     return np.deg2rad(elev_deg), r
 
 
-eng = MomwireEngine(Builder(), ground=SOIL)
+RESONANT = 0.9531  # length_factor for X = 0 over this soil (bisected 2026-09-05)
+Resonant = type("Resonant", (Builder,), {"length_factor": RESONANT})
+eng = MomwireEngine(Resonant(), ground=SOIL)
 z = eng.impedance()[0]
 ff = eng.far_field()
 psi, g_up, g_dn = elevation_cut(ff)
@@ -146,7 +148,7 @@ ax.text(
 )
 
 fig.suptitle(
-    f"Quarter-wave vertical over 4 buried radials, 7.1 MHz, soil εr 13 / σ 0.005 S/m — gain in the uphill–downhill plane, Z = {z.real:.1f}{z.imag:+.1f}j Ω either way",
+    f"Vertical cut to resonance ({RESONANT:.3f} of a quarter-wave) over 4 buried radials, 7.1 MHz, soil εr 13 / σ 0.005 S/m — gain in the uphill–downhill plane, Z = {z.real:.1f}{z.imag:+.1f}j Ω either way",
     color=INK,
     fontsize=9.5,
     y=0.98,
