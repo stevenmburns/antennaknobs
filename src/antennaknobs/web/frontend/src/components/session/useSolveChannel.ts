@@ -89,6 +89,18 @@ export function useSolveChannel({
   // solve is outstanding iff more has been sent than received. These live in
   // refs so they survive StrictMode/HMR socket teardown — the counter must
   // never rewind below what's already been received.
+  // The socket effect below is deliberately scoped to [active] alone, so
+  // everything it closes over is captured ONCE at socket creation. That was
+  // harmless while `setResult` was a plain useState setter — those are stable.
+  // It is NOT harmless for a caller that passes a function closing over render
+  // state: #1220's `applyResult` closes over `paramValues`, `geometry` and
+  // `setParamAtPath`, and the socket opens before the example settles, so the
+  // captured `geometry` was stale and every tracker write-back landed under
+  // the wrong geometry key — the knob never moved on screen. Calling through a
+  // ref refreshed every render is what keeps the [active] scoping safe for any
+  // future non-setter passed here.
+  const setResultRef = useRef(setResult);
+  setResultRef.current = setResult;
   const seqRef = useRef(0); // last _seq assigned (monotonic, never reset)
   const lastSentSeqRef = useRef(0); // highest _seq put on the wire
   const lastReceivedSeqRef = useRef(0); // highest _seq received or implicitly acked
@@ -306,10 +318,10 @@ export function useSolveChannel({
           // message and clear stale plot data rather than rendering an empty
           // result on top of the last antenna.
           setSolveError(data.error);
-          setResult(null);
+          setResultRef.current(null);
         } else {
           setSolveError(null);
-          setResult(data);
+          setResultRef.current(data);
         }
       }
       syncSolving();
