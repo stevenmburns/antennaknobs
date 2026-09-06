@@ -382,7 +382,30 @@ class Tracker:
 
     def _tick_held(self, a, da, reversed_):
         """Frozen or latched: the display solve at the frozen knobs is free, and
-        on a drag REVERSAL it is what re-acquires."""
+        it is what re-acquires -- in EITHER direction (#1228).
+
+        Reversal-only was the #1216 study's rule, and in use it read as a bug: a
+        user who drags forward through a gap where the target disappears and out
+        the other side, where it is holdable again, stayed latched until they
+        dragged back.
+
+        The two directions re-acquire from DIFFERENT points, which is the whole
+        subtlety:
+
+        - FORWARD, the frozen point is itself within tolerance again -- it IS a
+          root -- so it is adopted directly. No root find, no seed, and no
+          branch ambiguity, because nothing was searched for.
+        - REVERSING, the same tolerance test passes but the branch the user was
+          on has come back somewhere the frozen point merely happens to be near,
+          so it still runs the seeded root find. Seeding from the frozen point
+          out where the branches have separated silently switches branches --
+          measured in #1216, 0.9249 handed back against the user's own 0.9150.
+
+        Deliberately NOT here: the general forward form, a fresh root find while
+        dragging forward when the root reappears somewhere OTHER than the frozen
+        point. That is the branch-switching case, and it stays reversal-only;
+        `test_the_general_forward_case_stays_latched` pins that limit.
+        """
         F = self._F(self.frozen, a)
         if F is None:
             return self._state(self.mode, None)
@@ -425,6 +448,21 @@ class Tracker:
                 self.freeze_dir = 0.0
                 self.drag_value, self.last_da, self.probe_at = a, da, a
                 return self._state("tracking", None, residual=float(np.linalg.norm(G)))
+        if res <= self.tol:
+            # Forward (or a reversal whose seeded find did not land): the frozen
+            # point satisfies the tolerance, so it is a root and adopting it is
+            # the whole re-acquire. The display solve for this tick already paid
+            # for knowing that.
+            self.x = self._clip(np.asarray(self.frozen, float))
+            self.J = self._jac(self.x, F, a)
+            self.F = F
+            self.dFda = None  # tangent is stale across the gap; re-arm
+            self.last_good = self.x.copy()
+            self.mode = "tracking"
+            self.frozen = None
+            self.freeze_dir = 0.0
+            self.drag_value, self.last_da, self.probe_at = a, da, a
+            return self._state("tracking", None, residual=res)
         self.drag_value, self.last_da = a, da
         return self._state(
             self.mode, self._lost() if self.mode == "latched" else None, residual=res
