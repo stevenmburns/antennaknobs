@@ -45,6 +45,26 @@ Three measurements, each of which kills a candidate rule.
    Seeding from the held value a few ticks BEFORE the freeze -- where the two
    roots were still well separated -- plus the direction of travel, re-acquires
    the user's own branch every time in 4-6 solves.
+
+4. AND THE TRIGGER ITSELF HAS TO BE RATE-LIMITED BY DRAG DISTANCE, NOT TICKS.
+   The 3-consecutive-rising-ticks rule as first written reset its counter after
+   every ratio check, so it demanded three FRESH rises per probe and missed the
+   fold entirely on moxon at 15-tick resolution. Not resetting fixes the 60-tick
+   cells but still misses both decks at 15-tick, because a fixed 5-tick probe
+   interval leaves only two probe opportunities on a short drag. Rate-limiting
+   by DRAG DISTANCE instead -- probe once the dragged knob has moved 2 % of its
+   range since the last probe -- fires on all four cells:
+
+        deck            ticks   freeze at   ratio
+        coupled_pair      60      tick 43   0.104
+        coupled_pair      15      tick 11   0.177
+        moxon             60      tick 44   0.236
+        moxon             15      tick 12   0.100
+
+   Four observations now, all inside [0.100, 0.236] against pre-fold values
+   >= 0.42, so the 0.25 threshold still separates. It is the TICK COUNT that
+   keeps failing -- the third time in this study that a per-tick quantity has
+   not survived a change of drag resolution.
 """
 
 import warnings
