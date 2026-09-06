@@ -3490,6 +3490,85 @@ class _FakeRequest:
         return self.disconnected
 
 
+def _stub_multifeed_optimize_example(n_feeds=8):
+    """An 8-port stand-in shaped like `arrays.bowtiearray2x4` — the deck the
+    #789 decision names as the case to look at. Each port sits at a different
+    offset from the match, so `worst_feed` is unambiguous and MOVES as the knob
+    does: feed 0 is never the worst, which is the whole point of the issue."""
+    calls: list[dict] = []
+
+    def momwire_solve(req, cancel=None):
+        calls.append(dict(req))
+        lf = float(req.get("length_factor", 1.0))
+        feeds = [
+            {"z_re": 50.0 + 400.0 * (lf - 1.0) ** 2 + 3.0 * i, "z_im": 2.0 * i}
+            for i in range(n_feeds)
+        ]
+        return {
+            "z_in_re": feeds[0]["z_re"],
+            "z_in_im": feeds[0]["z_im"],
+            "z0_ohms": 50.0,
+            "feeds": feeds,
+        }
+
+    ex = SimpleNamespace(
+        multi_feed=True,
+        count_basis=lambda req: 100,
+        momwire_solve=momwire_solve,
+    )
+    return ex, calls
+
+
+def test_optimize_sse_progress_carries_every_feeds_z_on_a_multifeed_design(
+    client: TestClient, monkeypatch
+):
+    """#789: the live Smith chart draws one hollow ring per feed, with the feed
+    the minimax objective is chasing drawn bright. It can only do that if the
+    per-eval payload carries the whole port table — before this, the frame had
+    feed 0's Z and the worst feed's INDEX but not its impedance, so the ring
+    could sit still while the impedance actually being optimised walked off
+    screen.
+
+    Z only, deliberately: the settled solve's feed rows also carry position and
+    drive voltage, and neither moves during a run."""
+    ex, _calls = _stub_multifeed_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    resp = client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS)
+    assert resp.status_code == 200
+
+    frames = _sse_frames(resp.text)
+    progress = [d for k, d in frames if k == "progress"]
+    assert progress, "no progress frames to check"
+    for d in progress:
+        m = d["metrics"]
+        assert m["n_feeds"] == 8
+        assert len(m["feeds"]) == 8
+        assert set(m["feeds"][0]) == {"z_re", "z_im"}
+        # The worst feed is a real index into the table, and on this deck it is
+        # never feed 0 -- which is the defect the issue was filed about.
+        assert 0 <= m["worst_feed"] < 8
+        assert m["worst_feed"] != 0
+        # feed 0's Z stays where the single-feed readout expects it.
+        assert m["z_in_re"] == pytest.approx(m["feeds"][0]["z_re"])
+        assert m["z_in_im"] == pytest.approx(m["feeds"][0]["z_im"])
+
+
+def test_optimize_sse_single_feed_metrics_stay_byte_compatible(
+    client: TestClient, monkeypatch
+):
+    """The other half of #789's acceptance: the per-feed table is ADDITIVE. A
+    single-feed design's progress metrics keep the exact four-key shape the
+    frontend types, in order -- no empty `feeds`, no `n_feeds: 1`."""
+    ex, _calls = _stub_optimize_example()
+    monkeypatch.setitem(server.EXAMPLES, "fake.opt", ex)
+    resp = client.post("/optimize", json=_opt_req(), headers=_SSE_HEADERS)
+    frames = _sse_frames(resp.text)
+    progress = [d for k, d in frames if k == "progress"]
+    assert progress
+    for d in progress:
+        assert list(d["metrics"]) == ["z_in_re", "z_in_im", "z0_ohms", "swr"]
+
+
 def test_optimize_sse_streams_one_progress_per_eval_then_one_result(
     client: TestClient, monkeypatch
 ):
