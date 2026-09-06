@@ -3540,6 +3540,7 @@ def test_optimize_without_the_sse_header_is_todays_json_response(
             "metrics_after",
             "n_evals",
             "n_solves",
+            "n_seed",
             "improved",
             "geometry",
         ]
