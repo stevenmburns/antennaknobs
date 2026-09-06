@@ -2370,6 +2370,71 @@ _PEC_GROUND_EPS_R = 1.0e10
 _PEC_GROUND_SIGMA = 0.0
 
 
+# --- AK's own solve advisory: the soil constants do not disperse (#1175) ---
+#
+# The #1144 channel carries `category` + `text` and says nothing about who
+# raised it, so AK can put its own note on the same wire. This is the first
+# one, and it is AK's rather than momwire's because the fact is about the
+# APP's soil table, not about the solver: momwire is given two numbers and
+# uses them correctly.
+#
+# WHY 14 MHz, and why the buried class only. Measured in #1175 against
+# K6STI's Hagn/Messier frequency-dependent tables (GC 1.0), on this catalog's
+# 48-radial screen, comparing the served single-valued "average" soil to the
+# frequency-dependent value at each band:
+#
+#     1.8 MHz   5.9 %        14.2 MHz  17.7 %
+#     7.1 MHz  10.4 %        28.5 MHz  31.9 %
+#
+# and on an ELEVATED deck (inv-vee, apex 7 m) the same comparison is 9.1 % at
+# 7.1 MHz falling to 1.3 % at 28.5 — the opposite trend, because an antenna at
+# fixed height gets electrically higher as frequency rises while a
+# ground-mounted screen never does. So the advisory is gated on the geometry
+# being buried AND the measurement frequency being where it matters; firing it
+# on every deck would be the noise that #1144's ranking exists to prevent.
+#
+# Gated on `has_buried_wire` (a measurement of the geometry, z < 0) rather
+# than on "ground-mounted" more loosely: buried is the class #1175 actually
+# measured, and a contact-at-z=0 vertical is a different case nobody has
+# quantified yet.
+SOIL_DISPERSION_CATEGORY = "SoilConstantsSingleValued"
+SOIL_DISPERSION_MHZ = 14.0
+_SOIL_DISPERSION_TEXT = (
+    "the soil constants are single-valued, and real soil disperses with "
+    "frequency: in K6STI's Hagn/Messier tables (GC 1.0) pastoral \u03b5r falls "
+    "33 \u2192 15 between 1.8 and 28.5 MHz while \u03c3 roughly doubles. This "
+    "deck has conductors below the interface, where that matters most \u2014 "
+    "measured on this catalog's 48-radial screen (antennaknobs#1175), the "
+    'fixed "average" soil sits 17.7 % from the frequency-dependent value at '
+    "14.2 MHz and 31.9 % at 28.5 MHz, against 5.9 % at 1.8 MHz. At "
+    "{freq:.4g} MHz treat the impedance as INDICATIVE RATHER THAN PREDICTIVE. "
+    "An elevated antenna is not affected the same way (1\u20133 % on the same "
+    "comparison), because it gets electrically higher as frequency rises and a "
+    "ground-mounted screen does not. Advisory only \u2014 nothing was refused "
+    "and the solve used exactly the constants you set. See antennaknobs#1188."
+)
+
+
+def _soil_dispersion_advisory(req: Mapping, buried: bool, meas_freq: float):
+    """AK's single-valued-soil note, or None (issue #1175, #1188).
+
+    Silent unless all three hold: the deck has a buried conductor, the solve
+    is over a FINITE ground (the note is meaningless over PEC or free space,
+    where there are no soil constants), and the measurement frequency is at or
+    above the band where #1175 measured the error passing ~15 %.
+    """
+    if not buried or not req.get("ground", False):
+        return None
+    if _ground_for_engine(req)[0] not in ("finite", "finite-fast"):
+        return None
+    if not (float(meas_freq) >= SOIL_DISPERSION_MHZ):
+        return None
+    return {
+        "category": SOIL_DISPERSION_CATEGORY,
+        "text": _SOIL_DISPERSION_TEXT.format(freq=float(meas_freq)),
+    }
+
+
 def _solver_advisories(eng) -> list:
     """The solver advisories one solve raised, for the response (issue #1144).
 
@@ -2383,6 +2448,19 @@ def _solver_advisories(eng) -> list:
     deck momwire declines raises instead, and the request never gets here.
     """
     return list(getattr(eng, "advisories", ()) or ())
+
+
+def _advisories_for(eng, req: Mapping, buried: bool, meas_freq: float) -> list:
+    """The solver's advisories plus AK's own, in one list for the response.
+
+    AK's go LAST: the solver knows things about this specific deck that AK
+    does not, and #1144's ranking shows deck-conditional notes first.
+    """
+    out = _solver_advisories(eng)
+    ak = _soil_dispersion_advisory(req, buried, meas_freq)
+    if ak is not None:
+        out.append(ak)
+    return out
 
 
 def _momwire_ground_fields(eng, req: dict) -> dict:
@@ -3387,9 +3465,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         z_primary = zs[0] if zs else complex(0.0, 0.0)
         out = {
             "geometry": name,
-            # Solver advisories from this solve (#1144). Advisory only: the UI
-            # must render them as notes, not failures.
-            "advisories": _solver_advisories(eng),
+            # Solver advisories from this solve (#1144), plus AK's own
+            # single-valued-soil note on a buried deck (#1175). Advisory only:
+            # the UI must render them as notes, not failures.
+            "advisories": _advisories_for(
+                eng, req, hints()["has_buried_wire"], meas_freq
+            ),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
@@ -3610,9 +3691,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         z_primary = zs[0] if zs else complex(0.0, 0.0)
         out = {
             "geometry": name,
-            # Solver advisories from this solve (#1144). Advisory only: the UI
-            # must render them as notes, not failures.
-            "advisories": _solver_advisories(eng),
+            # Solver advisories from this solve (#1144), plus AK's own
+            # single-valued-soil note on a buried deck (#1175). Advisory only:
+            # the UI must render them as notes, not failures.
+            "advisories": _advisories_for(
+                eng, req, hints()["has_buried_wire"], meas_freq
+            ),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,
@@ -3708,9 +3792,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         finite = isinstance(eng.ground, tuple) and eng.ground[0] == "finite"
         out = {
             "geometry": name,
-            # Solver advisories from this solve (#1144). Advisory only: the UI
-            # must render them as notes, not failures.
-            "advisories": _solver_advisories(eng),
+            # Solver advisories from this solve (#1144), plus AK's own
+            # single-valued-soil note on a buried deck (#1175). Advisory only:
+            # the UI must render them as notes, not failures.
+            "advisories": _advisories_for(
+                eng, req, hints()["has_buried_wire"], meas_freq
+            ),
             "wires": _pack_wires(currents),
             "feed_wire_index": feed_wire_idx,
             "feed_knot_index": feed_knot_idx,

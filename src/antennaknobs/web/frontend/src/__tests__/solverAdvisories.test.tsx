@@ -96,6 +96,25 @@ describe("SolverAdvisories", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("renders an AK-AUTHORED category in full, beside momwire's", () => {
+    // #1175: AK puts its own note on this channel (the single-valued soil
+    // constants). It is covered by the unknown-category rule above, but that
+    // rule is general and this is a shipped category — the collapse set is
+    // keyed on the NAME, so a future edit that added it there would be caught
+    // here and not there. Same reason the served issue attribution got its own
+    // gate rather than leaning on the fallback test.
+    const soil = {
+      category: "SoilConstantsSingleValued",
+      text: "the soil constants are single-valued, and real soil disperses with frequency…",
+    };
+    render(<SolverAdvisories advisories={[FARMESH, soil, SURFACE]} />);
+    expect(screen.getByText(/soil constants are single-valued/)).toBeTruthy();
+    expect(screen.getByText(/h\/a = 2\.1/)).toBeTruthy();
+    // ...and the unconditional one is still the only thing collapsed.
+    expect(screen.queryByText(/first order in the far mesh/)).toBeNull();
+    expect(screen.getAllByText("Advisory")).toHaveLength(2);
+  });
+
   it("shows several deck-conditional advisories at once", () => {
     render(<SolverAdvisories advisories={[SURFACE, COARSE]} />);
     expect(screen.getByText(/h\/a = 2\.1/)).toBeTruthy();
