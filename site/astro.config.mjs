@@ -97,6 +97,7 @@ export default defineConfig({
             { label: "Antennas on a levee", slug: "advanced/terrain" },
             { label: "Calibrating against your VNA", slug: "advanced/calibrating" },
             { label: "Buried radials, two engines", slug: "advanced/buried-radials" },
+            { label: "A vertical on a slope", slug: "advanced/vertical-on-a-slope" },
           ],
         },
         {
