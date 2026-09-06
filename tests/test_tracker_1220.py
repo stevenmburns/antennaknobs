@@ -191,6 +191,99 @@ def test_reversing_the_drag_re_acquires():
 
 
 # ---------------------------------------------------------------------------
+# G-1228 — forward re-acquire, and its limit
+# ---------------------------------------------------------------------------
+
+
+def _root_leaves_and_returns():
+    """X = 40*(hold - root(drag)), where root(drag) climbs OUT of the box and
+    then comes back down through the value the tracker froze at.
+
+        drag 0.20 -> root 0.50      in the box, tracking
+        drag 0.30 -> root 1.00      at the top edge
+        drag 0.32 -> root 1.10      gone: nothing in the box holds X = 0
+        drag 0.40 -> root 0.70      back, and it passes the frozen value
+
+    The drag only ever increases, so nothing here is a reversal.
+    """
+
+    def solve_fn(req):
+        h, d = float(req["hold"]), float(req["drag"])
+        root = 0.5 + 5.0 * (d - 0.2) - 10.0 * max(d - 0.32, 0.0)
+        return {"z_in_re": 50.0, "z_in_im": 40.0 * (h - root), "z0_ohms": 50.0}
+
+    return solve_fn
+
+
+def test_a_forward_drag_re_acquires_without_reversing():
+    """#1228. Reversal-only read as a bug in use: drag forward through a gap
+    where the target disappears and out the other side, where it is holdable
+    again, and the tracker stayed latched until you dragged back."""
+    t = Tracker(
+        {"hold": 0.5, "drag": 0.2},
+        ONE,
+        "resonance",
+        solve_fn=_root_leaves_and_returns(),
+    )
+    t.start("drag", 0.2, drag_span=1.0)
+    seen = []
+    for d in np.linspace(0.205, 0.45, 50):  # monotonically FORWARD
+        seen.append(t.tick(float(d))["status"])
+    assert "latched" in seen, "the target must actually be lost in between"
+    # ...and it comes back, without the drag ever reversing.
+    assert seen[-1] == "tracking", seen[-8:]
+    assert seen.index("tracking", seen.index("latched")) > seen.index("latched")
+
+
+def test_the_general_forward_case_stays_latched():
+    """The limit of the rule, not just the rule. When the root reappears
+    somewhere OTHER than the frozen point, re-acquiring would need a fresh root
+    find while dragging forward -- which is the branch-switching case #1216
+    measured (seeding out where the branches have separated handed back 0.9249
+    against the user's 0.9150). That stays reversal-only."""
+
+    def elsewhere(req):
+        h, d = float(req["hold"]), float(req["drag"])
+        # The root climbs out of the box, then reappears far away at 0.10 --
+        # nowhere near the ~1.0 the tracker froze at.
+        root = 0.5 + 5.0 * (d - 0.2) if d < 0.32 else 0.10
+        return {"z_in_re": 50.0, "z_in_im": 40.0 * (h - root), "z0_ohms": 50.0}
+
+    t = Tracker({"hold": 0.5, "drag": 0.2}, ONE, "resonance", solve_fn=elsewhere)
+    t.start("drag", 0.2, drag_span=1.0)
+    seen = []
+    for d in np.linspace(0.205, 0.45, 50):
+        seen.append(t.tick(float(d))["status"])
+    assert "latched" in seen
+    assert seen[-1] == "latched", seen[-8:]
+
+
+def test_reversal_still_re_acquires_through_the_seeded_path():
+    """The two directions re-acquire from DIFFERENT points and both must work:
+    forward adopts the frozen point (it is itself a root), reversing runs the
+    seeded root find because the branch has come back somewhere the frozen
+    point merely happens to be near."""
+    t = Tracker(
+        {"hold": 0.50, "drag": 0.20},
+        ONE,
+        "resonance",
+        solve_fn=_linear(slope_drag=-40.0),
+    )
+    t.start("drag", 0.20, drag_span=1.0)
+    ds = list(np.linspace(0.22, 0.95, 30))
+    for d in ds:
+        r = t.tick(float(d))
+        if r["status"] == "latched":
+            break
+    assert r["status"] == "latched"
+    for d in reversed(ds[:-1]):
+        r = t.tick(float(d))
+        if r["status"] == "tracking":
+            break
+    assert r["status"] == "tracking"
+
+
+# ---------------------------------------------------------------------------
 # G-1220-6 — the two-knob path never demotes
 # ---------------------------------------------------------------------------
 
