@@ -95,22 +95,25 @@ describe("the seeding phase reads as a phase, not as going backwards (#1176)", (
   // The seed samples the WHOLE box, so its objective jumps around. Rendered
   // as "#7 SWR 4.81" that looks like the optimiser losing ground; naming the
   // phase is what stops a working run reading as a fault.
+  const seedFrame = (
+    seed_index: number,
+    seed_total: number,
+  ): OptProgress => ({
+    n_evals: 4,
+    params: { length_factor: 0.9 },
+    objective: 4.81,
+    metrics: { z_in_re: 12, z_in_im: -80, z0_ohms: 50, swr: 4.81 },
+    seed_index,
+    seed_total,
+  });
+
   it("shows 'seeding k/N' while the seed is running", () => {
     render(
       <VfoPanel
         {...baseProps()}
-        {...({
-          optRunning: true,
-          optResult: null,
-          optProgress: {
-            n_evals: 4,
-            params: { a: 1 },
-            objective: 4.81,
-            metrics: { z_in_re: 12, z_in_im: -80, z0_ohms: 50, swr: 4.81 },
-            seed_index: 3,
-            seed_total: 6,
-          },
-        } as any)}
+        optRunning
+        optResult={null}
+        optProgress={seedFrame(3, 6)}
       />,
     );
     expect(screen.getByText("seeding 3/6")).toBeTruthy();
@@ -120,21 +123,20 @@ describe("the seeding phase reads as a phase, not as going backwards (#1176)", (
   it("shows the ordinary eval readout once the seed is done", () => {
     // seed_total 0 is the "not seeding" state, so there is no phase machine
     // on the client — one comparison.
+    const after: OptProgress = {
+      n_evals: 12,
+      params: { length_factor: 0.99 },
+      objective: 1.2,
+      metrics: { z_in_re: 45, z_in_im: 5, z0_ohms: 50, swr: 1.2 },
+      seed_index: 0,
+      seed_total: 0,
+    };
     render(
       <VfoPanel
         {...baseProps()}
-        {...({
-          optRunning: true,
-          optResult: null,
-          optProgress: {
-            n_evals: 12,
-            params: { a: 1 },
-            objective: 1.2,
-            metrics: { z_in_re: 45, z_in_im: 5, z0_ohms: 50, swr: 1.2 },
-            seed_index: 0,
-            seed_total: 0,
-          },
-        } as any)}
+        optRunning
+        optResult={null}
+        optProgress={after}
       />,
     );
     expect(screen.getByText("#12 SWR 1.20")).toBeTruthy();
@@ -142,20 +144,20 @@ describe("the seeding phase reads as a phase, not as going backwards (#1176)", (
   });
 
   it("falls back to the eval readout when the server sends no seed fields", () => {
-    // An older server, or a cached frame from before #1176.
+    // An older server, or a cached frame from before #1176. Without the
+    // nullish guards this renders "seeding undefined/undefined".
+    const legacy: OptProgress = {
+      n_evals: 5,
+      params: { length_factor: 0.98 },
+      objective: 1.5,
+      metrics: { z_in_re: 40, z_in_im: 10, z0_ohms: 50, swr: 1.5 },
+    };
     render(
       <VfoPanel
         {...baseProps()}
-        {...({
-          optRunning: true,
-          optResult: null,
-          optProgress: {
-            n_evals: 5,
-            params: { a: 1 },
-            objective: 1.5,
-            metrics: { z_in_re: 40, z_in_im: 10, z0_ohms: 50, swr: 1.5 },
-          },
-        } as any)}
+        optRunning
+        optResult={null}
+        optProgress={legacy}
       />,
     );
     expect(screen.getByText("#5 SWR 1.50")).toBeTruthy();
