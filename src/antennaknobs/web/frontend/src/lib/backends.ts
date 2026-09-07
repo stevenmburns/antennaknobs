@@ -734,8 +734,42 @@ export function capabilityRefusal(
  *  and the exclusion arrives through `constraints` like every other refusal.
  */
 export function extendedKernelActive(b: BackendEntry, opts: BackendOpts): boolean {
-  if (b.kind !== "momwire" || !opts.model.extended_kernel) return false;
+  if (!offersExtendedKernel(b) || !opts.model.extended_kernel) return false;
   return true;
+}
+
+/** Whether this backend gets an EK control at all (antennaknobs#1255).
+ *
+ *  The EK card is a bespoke widget rather than a generic axis control, and it
+ *  used to be guarded by `kind === "momwire"` with the comment "common to
+ *  every momwire backend". That was TRUE until the Pulse tab (#1148): every
+ *  other momwire row serves `kernel: ["extended", "reduced"]`, and Pulse
+ *  serves `["reduced"]` — the first and, today, only reduced-only momwire
+ *  tab. There is no other reduced-only row to be consistent with, so the fix
+ *  is to obey the rule the generic controls already obey instead of adding a
+ *  second hand-written predicate beside it.
+ *
+ *  Same three lines as the OFFERED-VS-SENT rule above, in the same order
+ *  `degreeChoices` takes them:
+ *
+ *  EXPOSURE FIRST. A backend that cannot be SENT `extended_kernel` gets no
+ *  control, whatever its axes say. This is `degreeChoices`' pynec lesson in a
+ *  second spelling: without it, a `kind === "momwire"` row with null axes and
+ *  no such kwarg falls through the fallback below and grows a checkbox.
+ *
+ *  THEN THE AXIS. Multi-valued means a choice exists; single-valued means the
+ *  class has one kernel and offering the other is offering a refusal.
+ *
+ *  THE NULL FALLBACK IS NOT VESTIGIAL — same argument as `feedModelChoices`'.
+ *  `axes` is null on any momwire predating the axis vocabulary, and hiding EK
+ *  from every backend on such a build would be a silent regression, so a null
+ *  `axes` keeps the pre-#1255 answer.
+ */
+export function offersExtendedKernel(b: BackendEntry): boolean {
+  if (b.kind !== "momwire") return false;
+  if (!(b.model_kwargs ?? []).includes("extended_kernel")) return false;
+  const vals = b.axes?.kernel;
+  return vals ? vals.length > 1 : true;
 }
 
 

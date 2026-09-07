@@ -205,6 +205,10 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
     sinusoidal: ["kernel"],
     "sinusoidal-galerkin": ["feed_model", "kernel"],
     bspline: ["basis", "feed_model", "kernel"],
+    // Pulse (#1148) is the roster's first row with NO controls at all: every
+    // one of its axes is single-valued, which is why #1255 had to stop the EK
+    // card rendering on `kind === "momwire"` alone.
+    pulse: [],
     hmatrix: ["basis", "feed_model", "kernel"],
     arrayblock: ["basis", "feed_model", "kernel"],
     "razor-2p": ["kernel"],
@@ -225,17 +229,33 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
 
   it("keeps the derived axes out even though they are multi-valued", () => {
     // The fourth clause, measured against the real payload rather than a
-    // hand-built row: every momwire tab offers four grounds and at least two
-    // wire positions, so both axes clear the multi-valued bar on every one of
-    // them and ONLY the derived-axis clause keeps them out. Drop that clause
-    // and all six lists above grow by two.
-    for (const b of SERVED_ROSTER) {
-      if (!b.axes) continue;
-      expect(b.axes.ground_model!.length).toBeGreaterThan(1);
-      expect(b.axes.wire_position!.length).toBeGreaterThan(1);
+    // hand-built row. The exclusion is asserted on EVERY row; what has to be
+    // handled carefully is the reason the assertion is not vacuous, which is
+    // that the axis clears the multi-valued bar and only the derived clause
+    // keeps it out.
+    //
+    // `ground_model` does that on every momwire tab (four grounds each).
+    // `wire_position` no longer does: Pulse (#1148) serves ["above"] alone,
+    // so on that row the multi-valued clause would exclude it anyway. Rather
+    // than weaken the check to "greater than 0" — which would let the clause
+    // go untested if every row ever became single-valued — the multi-valued
+    // precondition is asserted per axis over the rows that HAVE it, and
+    // required to be non-empty.
+    const withAxes = SERVED_ROSTER.filter((b) => b.axes);
+    expect(withAxes.length).toBeGreaterThan(0);
+    for (const b of withAxes) {
+      expect(b.axes!.ground_model!.length).toBeGreaterThan(1);
       expect(axisControls(b)).not.toContain("ground_model");
       expect(axisControls(b)).not.toContain("wire_position");
     }
+    const multiPosition = withAxes.filter(
+      (b) => (b.axes!.wire_position?.length ?? 0) > 1,
+    );
+    expect(
+      multiPosition.length,
+      "no row has a multi-valued wire_position, so the derived-axis clause is " +
+        "untested for it — the exclusions above would hold for the wrong reason",
+    ).toBeGreaterThan(0);
   });
 
   it("drops quadrature ONLY on the tab that pins it", () => {

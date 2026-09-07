@@ -110,6 +110,15 @@ export const SERVED_ROSTER: BackendRoster = ([
     model_kwargs: BSPLINE_KWARGS,
     dense_family: true,
   }),
+  // The Pulse tab (#1148). The only momwire row that takes NO model kwargs
+  // and the only one whose `kernel` axis is single-valued — which is why
+  // #1255 had to stop the EK card guarding on `kind === "momwire"`.
+  backendEntry({
+    name: "pulse",
+    label: "Pulse",
+    model_kwargs: [],
+    options_schema: [],
+  }),
   backendEntry({
     name: "hmatrix",
     label: "H-matrix (ACA)",
