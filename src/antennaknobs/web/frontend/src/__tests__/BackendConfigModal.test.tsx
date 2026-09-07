@@ -21,6 +21,7 @@ import {
   RESTRICTED_BACKEND_REASON,
   defaultOptsFor,
   type BackendOpts,
+  offersExtendedKernel,
 } from "../lib/backends";
 import { entry, optsWithModel, SERVED_ROSTER,
   SERVED_VOCAB,
@@ -219,15 +220,34 @@ describe("BackendConfigModal — per-backend knob visibility", () => {
 describe("BackendConfigModal — extended kernel (#849)", () => {
   const EK = /extended kernel \(EK\)/;
   const ENRICHMENT = /junction singular enrichment/;
+  // Split in two by #1255. This used to be one `it.each` over every momwire
+  // backend, asserting the toggle is always there — which is precisely the
+  // "common to every momwire backend" assumption the Pulse tab falsified. The
+  // two lists are derived from the served row so the split cannot go stale.
   const MOMWIRE = NAMES.filter((n) => entry(n).kind === "momwire");
+  const EK_OFFERED = MOMWIRE.filter((n) => offersExtendedKernel(entry(n)));
+  const EK_NOT_OFFERED = MOMWIRE.filter((n) => !offersExtendedKernel(entry(n)));
 
-  it.each(MOMWIRE)("offers the toggle on %s, off by default", (name) => {
+  it("the two lists are both non-empty, so neither `each` below is vacuous", () => {
+    expect(EK_OFFERED.length).toBeGreaterThan(0);
+    expect(EK_NOT_OFFERED.length).toBeGreaterThan(0);
+  });
+
+  it.each(EK_OFFERED)("offers the toggle on %s, off by default", (name) => {
     renderModal({ backend: name });
     expect(screen.getByRole("checkbox", { name: EK })).toHaveProperty(
       "checked",
       false,
     );
   });
+
+  it.each(EK_NOT_OFFERED)(
+    "offers no toggle on %s — it is reduced-kernel only (#1255)",
+    (name) => {
+      renderModal({ backend: name });
+      expect(screen.queryByRole("checkbox", { name: EK })).toBeNull();
+    },
+  );
 
   it("offers no toggle on pynec — its extended kernel is not this knob (#414)", () => {
     renderModal({ backend: "pynec" });

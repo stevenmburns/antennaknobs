@@ -5,6 +5,7 @@ import {
   type DesignConstraintInputs,
   EK_HINT,
   extendedKernelActive,
+  offersExtendedKernel,
   AXIS_KWARG,
   compositionLine,
   type CompositionVocabulary,
@@ -240,11 +241,16 @@ export function BackendConfigModal({
 
           {/* The extended thin-wire kernel (issue #849) sits next to the wire
               radius on purpose — it is the knob that decides how the on-axis
-              Green's function treats that radius. Common to every momwire
-              backend, so it lives here rather than in a bespoke panel; PyNEC
-              gets no row at all (it sends no model_options, and its own
-              extended kernel — issue #414 — is a separate, unexposed kwarg). */}
-          {backend.kind === "momwire" && (
+              Green's function treats that radius. It lives here rather than in
+              a bespoke panel; PyNEC gets no row at all (it sends no
+              model_options, and its own extended kernel — issue #414 — is a
+              separate, unexposed kwarg).
+
+              The guard was `kind === "momwire"` under the comment "common to
+              every momwire backend". The Pulse tab (#1148) made that false —
+              it is reduced-kernel only — so the predicate is derived from the
+              served row now. See `offersExtendedKernel` (#1255). */}
+          {offersExtendedKernel(backend) && (
             <ExtendedKernelField backend={backend} opts={opts} onPatch={onPatch} />
           )}
 
