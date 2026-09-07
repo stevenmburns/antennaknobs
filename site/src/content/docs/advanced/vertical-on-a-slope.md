@@ -4,10 +4,13 @@ description: An advanced worked example — a ground-mounted vertical on a hills
 ---
 
 A question that comes up on the forums every season: *my vertical is on a
-hillside — the mast is perpendicular to the ground, the radials follow the
-slope, none of it is level. What does that do?* The instinct is that the
-radials being "not flat" must matter. It does not, and seeing why turns the
-whole problem into one ordinary solve plus a change of viewpoint.
+hillside — the radials follow the slope, none of it is level. What does that
+do?* The instinct is that the radials being "not flat" must matter. For a mast
+standing normal to the slope it does not, and seeing why turns the whole
+problem into one ordinary solve plus a change of viewpoint. That case is worked
+first. A mast that is plumb, with its radials still following the slope — the
+more common build, and usually what the question means — is a different
+antenna, and it gets its own section below.
 
 Everything below is momwire on the workbench's catalog buried-radial
 vertical — a quarter-wave over four radials buried 15 cm, soil εr 13 /
@@ -119,6 +122,51 @@ overtakes the skew.
 More radials beats placing them: eight all round is 0.8 dB better downhill
 than four packed downhill.
 
+## A plumb mast with radials on the slope
+
+The build most people mean is a vertical that is vertical — plumb to gravity —
+with its radials following the hill. In the ground's frame that is a wire
+leaning off the normal by the slope angle over a level radial field, so it is
+not the level-ground antenna: the feed impedance moves with the lean, and the
+wire's own pattern tilts with it. The read-out is the same rotation as above;
+only the solve changes. Two radial conventions are worth telling apart, because
+they are what an EZNEC user and this catalog would each write down: radials
+just above the surface (an inch, as a sloper deck over flat radials has them)
+and radials buried 15 cm.
+
+![Five antennas on a 45° slope: elevation cut in the fall-line plane and the
+azimuth ring at 10° true elevation. The vertical normal to the slope over
+buried radials, the plumb vertical with horizontal radials on the ground, the
+inverted vee at a quarter-wave apex, the plumb wire with four radials an inch
+above the slope, and the plumb wire with four radials buried 15 cm in the
+slope.](../../../assets/advanced/slope45-five-antennas.png)
+
+| antenna, 45° slope, 7.1 MHz | R | peak | downhill 3° | downhill 10° | uphill 60° |
+|---|---|---|---|---|---|
+| vertical normal to the slope, 4 radials buried 15 cm | 68 Ω | −2.8 dBi | −4.7 dBi | −6.1 dBi | −3.8 dBi |
+| plumb vertical, 4 horizontal radials resting on the ground | 24 Ω | 1.0 dBi | −2.7 dBi | −1.4 dBi | −5.6 dBi |
+| inverted vee, apex λ/4 | 63 Ω | 5.3 dBi | 4.6 dBi | 4.9 dBi | −2.2 dBi |
+| plumb wire, 4 radials 1 in above the slope | 27 Ω | −0.5 dBi | −0.9 dBi | −1.4 dBi | −4.9 dBi |
+| plumb wire, 4 radials buried 15 cm in the slope (NEC-5) | 58 Ω | −2.8 dBi | −3.4 dBi | −3.9 dBi | −8.2 dBi |
+
+The last row is the licensed NEC-5's, read through the same rotation; momwire
+does not fill a leaning mast over a buried screen (see *What each tool can
+do*). Every other row is momwire's. Three things the table says:
+
+- **Where the radials sit moves the feed resistance more than the lean
+  does.** A straight quarter-wave over four radials an inch above this soil
+  reads about 40 Ω on either engine; the same four radials pushed 15 cm under
+  read about 70 Ω on either engine. Four radials in lossy soil are a lossy
+  screen, which is what Brown, Lewis and Epstein measured in 1937 and N6LF
+  measured again in 2009. The lean then takes each of those down by a
+  quarter: 40 → 27 above the surface, 70 → 58 buried.
+- **The plumb wire with its radials just above the surface is the best of
+  the verticals downhill**, 3.8 dB over the mast normal to the slope at 3°,
+  because it wastes less in the ground and its lobe leans the right way.
+  Bury its radials and it gives back 2.4 dB and lands between the two.
+- **The vee still wins.** At a quarter-wave apex it is 5 to 9 dB ahead of
+  every vertical here at 3° downhill.
+
 ## A slope is not a hilltop
 
 The planar model has no valley. Its downhill lobe goes below the true
@@ -143,13 +191,13 @@ bench, is the terrain page's. Neither is a substitute for the other.
   engine. momwire and NEC-5 both solve it, and both give the same rotated
   sky.
 - **A plumb mast on a slope** — vertical to gravity, so tilted off the
-  ground's normal by the slope angle — is a tilted wire reaching the
-  interface. NEC-5 takes a wire through the plane at any angle, so
-  EZNEC Pro/5 and the app's NEC-5 lane spell that deck directly. momwire's
-  buried family refuses a tilted conductor at the crossing node by name; the
-  same antenna with its radials lying on the grass (the catalog's `surface`
-  convention) has no crossing node and takes the tilted mast as ordinary
-  geometry. Measured that way, a 10° tilt moves the feed impedance by about
+  ground's normal by the slope angle — is a tilted wire above a buried
+  screen. NEC-5 takes it, and EZNEC Pro/5 and the app's NEC-5 lane spell
+  that deck directly. momwire's crossing fill has tables for horizontal and
+  vertical segments only, so once any wire crosses the interface it refuses
+  a tilted segment anywhere in the deck by name; the same antenna with its
+  radials lying on the grass (the catalog's `surface` convention) has no
+  crossing and takes the tilted mast as ordinary geometry. Measured that way, a 10° tilt moves the feed impedance by about
   1 %, and a 45° tilt turns the antenna into a sloper: 46+50j Ω against
   61+61j level, with the peak gain unchanged.
 - **The study itself** — the rotated read-out, the azimuth ring at a true
