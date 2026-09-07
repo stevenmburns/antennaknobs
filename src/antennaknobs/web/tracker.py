@@ -115,7 +115,7 @@ class Tracker:
         # OFF BY DEFAULT. Measured in the running app (#1220), inverted vee,
         # `angle_deg` dragged at 0.5 deg per keystroke with a correct span of
         # 60: the tracker demoted four ticks into a perfectly healthy drag and
-        # then latched with "the resonance you are holding disappears here" --
+        # then latched, saying the resonance was not held --
         # at 42.0 deg, where a 0.5 % length change still restores X = 0, as
         # dragging back proved.
         #
@@ -164,6 +164,9 @@ class Tracker:
         self.probe_at = None
         self.drag_span = None
         self.freeze_dir = 0.0  # direction of travel when the guard fired
+        # Which held knobs the corrector was last driven against a bound of, so
+        # a latch can say whether the user's own optimize range is the limit.
+        self.blocked: list[str] = []
         self.n_solves = 0
 
     # -- solving -----------------------------------------------------------
@@ -358,6 +361,7 @@ class Tracker:
             self.drag_value, self.last_da, self.probe_at = a, da, a
             return self._state("frozen", None, residual=res)
         if res > self.tol:
+            self.blocked = self._blocked_by_box(xx)
             self.frozen = (self.last_good if self.last_good is not None else xx).copy()
             self.mode = "latched"
             self.freeze_dir = float(np.sign(da)) or self.freeze_dir
@@ -477,9 +481,51 @@ class Tracker:
             return None
         return self._memo.get(self._key(vals))
 
+    def _blocked_by_box(self, x) -> list[str]:
+        """Held knobs the corrector was driven against a bound of.
+
+        Measured on the CORRECTOR'S CLIPPED ATTEMPT, not on the frozen point.
+        The frozen point is the last value that still HELD tolerance, so on a
+        coarse drag it sits short of the bound -- the root left the box between
+        two ticks and the last good point never got there. Testing it would
+        make the diagnosis depend on drag resolution, which is the class of
+        mistake this tracker has already made four times. The attempt is
+        clipped to the box by construction, so it lands exactly on the bound
+        whenever the root is outside it, at any step size.
+
+        `self.h` is the finite-difference step, 0.2 % of each range, so this
+        reads "clipped against the bound" rather than "near it".
+        """
+        return [
+            nm
+            for j, nm in enumerate(self.names)
+            if x[j] <= self.lo[j] + self.h[j] or x[j] >= self.hi[j] - self.h[j]
+        ]
+
     def _lost(self) -> str:
-        what = "resonance" if self.objective == "resonance" else "match"
-        return f"the {what} you are holding disappears here"
+        """Why the hold stopped, and what the user can do about it.
+
+        Two causes, and they want different sentences because they want
+        different actions. A knob against the end of its optimize range is a
+        LIMIT THE USER SET and can widen; a target with no root within reach is
+        the geometry, and the only way back is the way they came. Naming the
+        place the drag reached says neither, and the place is not one the user
+        can see.
+        """
+        what = "Resonance" if self.objective == "resonance" else "Match"
+        edge = self.blocked
+        if len(edge) == 1:
+            return (
+                f"{what} not held: {edge[0]} is at the end of its optimize "
+                "range — widen it to keep going"
+            )
+        if edge:
+            names = " and ".join(edge)
+            return (
+                f"{what} not held: {names} are at the ends of their optimize "
+                "ranges — widen them to keep going"
+            )
+        return f"{what} not held: none within reach — drag back to recover it"
 
     def _state(self, status, message, *, residual=None, corr=0, pred_ok=None) -> dict:
         vals = self.frozen if self.mode in ("frozen", "latched") else self.x

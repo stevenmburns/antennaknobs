@@ -30,7 +30,9 @@ Gates:
 - G-1220-2  tracking a moving root costs ZERO extra solves.
 - G-1220-3  the cold-start tick does not fire the guard.
 - G-1220-4  holdability latch: the target genuinely unreachable → latched, with
-            the "disappears here" wording, knobs left at their last good value.
+            a message naming the CAUSE (a knob against the end of its
+            optimize range, or no root within reach) and the user's fix, with
+            the knobs left at their last good value.
 - G-1220-5  re-acquire on drag reversal, from pre-freeze history.
 - G-1220-6  the two-knob path never demotes.
 - G-1220-7  a preempted solve leaves the tracker exactly as it was.
@@ -159,8 +161,13 @@ def test_a_target_that_leaves_the_box_latches_with_the_right_wording():
         if r["status"] == "latched":
             break
     assert r["status"] == "latched", r
-    assert "disappears here" in r["message"]
-    assert "limit" not in r["message"]
+    # CAUSE: the knob really is against a bound, so the message must name the
+    # limit the user set and can widen -- not the geometry.
+    assert t.blocked == ["hold"], ("the corrector was not driven to a bound", t.blocked)
+    assert r["message"] == (
+        "Resonance not held: hold is at the end of its optimize range "
+        "— widen it to keep going"
+    ), r["message"]
     assert r["params"]["hold"] == pytest.approx(last_good, abs=1e-9)
 
 
@@ -188,6 +195,58 @@ def test_reversing_the_drag_re_acquires():
         if r["status"] == "tracking":
             break
     assert r["status"] == "tracking", "dragging back should re-acquire"
+
+
+def test_two_knobs_at_their_bounds_are_both_named():
+    """Match Z0 holds with two knobs, so both can be against a bound at once and
+    the sentence has to say so -- naming one would send the user to widen a
+    range that is not the whole problem."""
+
+    def out_of_reach(req):
+        h1, h2 = float(req["h1"]), float(req["h2"])
+        d = float(req["drag"])
+        # Both components need to go far past 1.0 as the drag advances, so both
+        # clip against the upper bound.
+        return {
+            "z_in_re": 50.0 + 60.0 * (h1 - (0.5 + 4.0 * (d - 0.2))),
+            "z_in_im": 60.0 * (h2 - (0.5 + 4.0 * (d - 0.2))),
+            "z0_ohms": 50.0,
+        }
+
+    t = Tracker(
+        {"h1": 0.5, "h2": 0.5, "drag": 0.2}, TWO, "match_z0", solve_fn=out_of_reach
+    )
+    t.start("drag", 0.2, drag_span=1.0)
+    for d in np.linspace(0.21, 0.60, 30):
+        r = t.tick(float(d))
+        if r["status"] == "latched":
+            break
+    assert r["status"] == "latched", r
+    # The precondition is on the CORRECTOR'S clipped attempt, not the frozen
+    # point: the frozen point is the last value that still held, and on a drag
+    # this coarse it sits short of the bound the root went past between ticks.
+    assert t.blocked == ["h1", "h2"], (t.blocked, t.frozen)
+    assert r["message"] == (
+        "Match not held: h1 and h2 are at the ends of their optimize "
+        "ranges — widen them to keep going"
+    ), r["message"]
+
+
+def test_the_message_names_the_objective_not_the_method():
+    """Match Z0 says "Match", Resonance says "Resonance" -- the user picked an
+    objective by that name, not a root-finding method."""
+    t = Tracker(
+        {"hold": 0.5, "drag": 0.2}, ONE, "resonance", solve_fn=_linear(slope_drag=-40.0)
+    )
+    t.start("drag", 0.2, drag_span=1.0)
+    for d in np.linspace(0.22, 0.95, 30):
+        r = t.tick(float(d))
+        if r["status"] == "latched":
+            break
+    assert r["message"].startswith("Resonance not held:"), r["message"]
+    # And the retired wording is gone: "here" was a place on a drag the user
+    # cannot see, and it named neither the cause nor the fix.
+    assert "disappears here" not in r["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -442,4 +501,9 @@ def test_the_coupled_pair_fold_latches_only_once_the_target_is_lost():
     # Not before the fold at 0.533, and not far past where it is still holdable.
     assert latched_at < 0.533, ("latched before the roots even merged", latched_at)
     assert latched_at > 0.500, ("latched far too late", latched_at)
-    assert "disappears here" in r["message"]
+    # CAUSE: nothing is against a bound here -- the two roots annihilated, so
+    # the target itself is gone and widening a range would not bring it back.
+    assert t.blocked == [], ("the fold case must not be blocked by the box", t.blocked)
+    assert r["message"] == (
+        "Resonance not held: none within reach — drag back to recover it"
+    ), r["message"]
