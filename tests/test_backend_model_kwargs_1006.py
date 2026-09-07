@@ -110,9 +110,29 @@ def test_the_bare_deck_builds_so_a_failure_below_means_the_kwarg(spec):
     assert _build(spec) is not None
 
 
+def _assert_the_solver_really_takes_nothing(spec):
+    """An empty `model_kwargs` is a CLAIM about the solver, so it is tested
+    like one. `inspect.signature` cannot answer it -- HarringtonSolver takes
+    `**kwargs` and reports zero keyword arguments -- so each candidate is
+    constructed and the refusal observed."""
+    assert _build(spec) is not None, "the bare deck must build, or this proves nothing"
+    for k, v in (("degree", 1), ("extended_kernel", True), ("n_qp", 8)):
+        with pytest.raises((TypeError, NotImplementedError)):
+            _build(spec, **{k: v})
+
+
 @pytest.mark.parametrize("spec", MOMWIRE, ids=lambda s: s.name)
 def test_every_listed_kwarg_is_actually_accepted(spec):
-    assert spec.model_kwargs, f"{spec.name}: no kwargs listed at all"
+    # A tab with NO options is legitimate and `pulse` is one: every axis it
+    # spans is single-valued, and HarringtonSolver refuses each of the common
+    # kwargs by name rather than ignoring them -- `degree` with "the pulse
+    # expansion IS the degree", `extended_kernel` with "reduced-kernel only",
+    # `n_qp`/`n_qp_pair` with a TypeError (measured, #1148). So "lists at
+    # least one" was a proxy for "lists the right ones"; an empty list is
+    # checked against the solver below rather than asserted away.
+    if not spec.model_kwargs:
+        _assert_the_solver_really_takes_nothing(spec)
+        return
     for k in spec.model_kwargs:
         assert k in _OPTION_SPECS, f"{spec.name}: {k} is not a known option"
         try:

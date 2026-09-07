@@ -96,6 +96,7 @@ import momwire
 from momwire import (
     ArrayBlockSolver,
     BSplineSolver,
+    HarringtonSolver,
     HMatrixSolver,
     RazorSolver,
     SinusoidalGalerkinSolver,
@@ -345,6 +346,27 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         dense_family=True,
     ),
     # Hierarchical (H-matrix / ACA) accelerator — same B-spline basis as
+    # The pulse basis (#1148). momwire's roster names it `pulse` and binds it
+    # to `HarringtonSolver` — point-matched pulse expansion, the textbook
+    # method-of-moments formulation, and a first-class capability row rather
+    # than a variant of another tab: `basis=('pulse',)`,
+    # `testing=('point-matching',)`, all three ground models, centre feeds.
+    #
+    # It was excluded for no reason anyone recorded — #1006 called it an
+    # accident and #1148 measured that nothing about it is unserved. Its own
+    # capability row carries what it cannot do (no wire loading, no junction
+    # ports, no node gaps, no per-wire radius, no buried fill), so the
+    # existing per-design restriction machinery narrows it exactly as it
+    # narrows every other tab; nothing here needs to know.
+    #
+    # No model options: the axes it spans are single-valued, so there is
+    # nothing on this panel to choose.
+    _BackendSpec(
+        name="pulse",
+        model_kwargs=(),
+        label="Pulse",
+        solver=HarringtonSolver,
+    ),
     # bspline; model_options forward verbatim (degree, aca_eta,
     # aca_leaf_size, aca_tol, solve_tol, …). Only singular enrichment falls
     # back to the dense bspline solve inside HMatrixSolver
@@ -4350,6 +4372,7 @@ _AXIS_VALUE_LABELS = {
         "bspline-2": "degree 2",
         "sinusoidal-3term": "3-term sinusoidal",
         "tent": "tent",
+        "pulse": "pulse expansion",
     },
     "testing": {
         "galerkin": "Galerkin",
@@ -4374,6 +4397,7 @@ _AXIS_VALUE_LABELS = {
     "charge_support": {
         "spline": "spline charge",
         "basis-implied": "basis-implied charge",
+        "dual-cell": "dual-cell charge",
     },
 }
 

@@ -122,6 +122,9 @@ def test_backend_roster_served_shape(client):
         "sinusoidal",
         "sinusoidal-galerkin",
         "bspline",
+        # #1148: the pulse basis got its tab. It sits after `bspline` because
+        # the roster is ordered by spec, and its spec is declared there.
+        "pulse",
         "hmatrix",
         "arrayblock",
         "razor-2p",
@@ -133,6 +136,7 @@ def test_backend_roster_served_shape(client):
         "Sinusoidal",
         "Sin-Galerkin",
         "B-spline",
+        "Pulse",
         "H-matrix (ACA)",
         "Array-block",
         "Razor (2-point)",
@@ -146,6 +150,8 @@ def test_backend_roster_served_shape(client):
         "sinusoidal": None,
         "sinusoidal-galerkin": "sin-galerkin",
         "bspline": "bspline",
+        # #1148: pulse takes no model kwargs at all, so it serves no panel.
+        "pulse": None,
         "hmatrix": "bspline",
         "arrayblock": "bspline",
         "razor-2p": None,
@@ -159,6 +165,7 @@ def test_backend_roster_served_shape(client):
         "sinusoidal": ["n_qp_const"],
         "sinusoidal-galerkin": ["n_qp_const"],
         "bspline": [],
+        "pulse": [],
         "hmatrix": [],
         "arrayblock": [],
         # razor-2p's only quadrature knob (n_qp_path) is inert under the
@@ -184,6 +191,7 @@ def test_backend_roster_served_shape(client):
         "sinusoidal": 30,
         "sinusoidal-galerkin": 30,
         "bspline": 30,
+        "pulse": 30,
         "hmatrix": 30,
         "arrayblock": 21,
         "razor-2p": 40,

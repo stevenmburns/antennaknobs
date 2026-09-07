@@ -123,6 +123,38 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
       "contact"
     ]
   },
+  "pulse": {
+    "basis": [
+      "pulse"
+    ],
+    "testing": [
+      "point-matching"
+    ],
+    "charge_support": [
+      "dual-cell"
+    ],
+    "kernel": [
+      "reduced"
+    ],
+    "quadrature": [
+      "converged"
+    ],
+    "solve_strategy": [
+      "dense"
+    ],
+    "feed_model": [
+      "segment-gap"
+    ],
+    "ground_model": [
+      "free",
+      "pec",
+      "refl-coef",
+      "sommerfeld"
+    ],
+    "wire_position": [
+      "above"
+    ]
+  },
   "hmatrix": {
     "basis": [
       "bspline-1",
