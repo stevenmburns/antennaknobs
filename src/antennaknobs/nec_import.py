@@ -38,9 +38,11 @@ stays in ``ignored`` with a per-card reason in ``ignored_detail``.
 ``ex`` markers) and ``network()`` returns the matching ``Network``, ready to
 return from ``build_wires`` / ``build_network``.
 
-Excitation: voltage sources (EX type 0 and 5) drive an antenna in any mode,
-and 4nec2's EX type 6 current source (issue #442) drives it in network mode
-as a ``DrivenCurrent``; plane-wave excitations raise. The engine feeds a
+Excitation: voltage sources (EX type 0 and 5) drive an antenna in any mode;
+4nec2's EX type 6 current source (issue #442) and NEC-5's EX type 4 current
+source (issue #1243, the form EZNEC's NEC-5 export writes) drive it in
+network mode as a ``DrivenCurrent``; plane-wave excitations and NEC-2's
+type 4 (an elementary current source at a point in space) raise. The engine feeds a
 wire tuple at its middle segment, so ``NecDeck.wire_tuples`` splits a wire
 whose EX segment is off-centre into colinear pieces that preserve the
 deck's exact segment boundaries and put the feed on its own 1-segment wire.
@@ -119,14 +121,15 @@ class NecWire:
 class NecFeed:
     """A source EX card resolved onto a wire: 1-based segment ``seg`` of
     ``deck.wires[wire]`` is driven with ``voltage`` volts — or, when
-    ``current`` is True (4nec2's EX 6, issue #442), that complex value is
-    the forced current in amps and the feed becomes a ``DrivenCurrent``
-    in ``deck.network()``.
+    ``current`` is True (4nec2's EX 6, issue #442; NEC-5's EX 4, issue
+    #1243), that complex value is the forced current in amps and the feed
+    becomes a ``DrivenCurrent`` in ``deck.network()``.
 
     ``edge`` (issue #824, the NEC-5 edge-source form): 0 is the ordinary
     NEC-2 center gap; 1/2 places the source at that END of ``seg`` — a
     knot source, which ``network()`` renders as a ``PortAtVertex`` (the
-    series apex feed, #898) on a wire piece ending at that knot."""
+    series apex feed, #898) on a wire piece ending at that knot. An EX 4
+    feed always carries an edge: NEC-5 has no center source."""
 
     wire: int
     seg: int
@@ -2213,16 +2216,34 @@ def parse_nec(
                     f"{where}: EX card asks for plane-wave excitation, which "
                     f"is a scattering run, not a driven antenna"
                 )
-            if ex_type == 6:
-                # 4nec2's current-source excitation (issue #442) — the
-                # phased-array idiom (element drive RATIOS in amps). Only
-                # the network path can express it: it becomes a
-                # DrivenCurrent through the shared MNA reducer. NEC-2
-                # proper has no type 6 (nec2c misparses it as a plane
-                # wave), so there is no native path to fall back on.
+            if ex_type == 4 and card.i(2) == 0:
+                # NEC-2's EX 4 is an ELEMENTARY current source — a point
+                # source in space (F1-F3 its position, F4-F5 its
+                # orientation, F6 its moment) with I2/I3 blank. It drives
+                # nothing on the structure, so it is not a feed. NEC-5
+                # reuses the type number for a segment current source
+                # (below) and always addresses a segment, so a blank I3 is
+                # the NEC-2 meaning.
+                raise card.error(
+                    "EX type 4 with no segment addressed is NEC-2's "
+                    "elementary current source, a point source in space "
+                    "rather than a feed on the structure; antennaknobs can "
+                    "only drive feeds on wires"
+                )
+            current = ex_type in (4, 6)
+            if current:
+                # A current source: 4nec2's type 6 (issue #442, the
+                # phased-array idiom — element drive RATIOS in amps) or
+                # NEC-5's type 4 (issue #1243, the source EZNEC's NEC-5
+                # export writes, F1/F2 in amps). Only the network path can
+                # express either: it becomes a DrivenCurrent through the
+                # shared MNA reducer. NEC-2 proper has no segment current
+                # source (nec2c misparses type 6 as a plane wave), so there
+                # is no native path to fall back on.
+                flavour = "4nec2's" if ex_type == 6 else "NEC-5's"
                 if not network:
                     raise ValueError(
-                        f"{where}: EX type 6 is 4nec2's current-source "
+                        f"{where}: EX type {ex_type} is {flavour} current-source "
                         f"excitation, which needs the network path — "
                         f"parse with network=True"
                     )
@@ -2242,9 +2263,20 @@ def parse_nec(
             # momwire's series node gap / NEC-5's native knot source), so the
             # form imports faithfully — through the network path, which is
             # where vertex ports live.
+            #
+            # EX 4 settles the dialect by itself (NEC-2's type 4 was refused
+            # above), so it takes NEC-5's full end rule with no ambiguity
+            # left: I4 = 1/2 names the end; I4 = 0 defers to the sign of I3,
+            # end 1 when negative and end 2 when positive. There is no
+            # center reading to fall back on — NEC-5 has no center source.
             edge = 0
             seg_field = card.i(2)
-            if seg_field < 0 or card.i(3) == 2:
+            if ex_type == 4:
+                if card.i(3) in (1, 2):
+                    edge = card.i(3)
+                else:
+                    edge = 1 if seg_field < 0 else 2
+            elif seg_field < 0 or card.i(3) == 2:
                 if not network:
                     raise card.error(
                         "this is the NEC-5 edge-source form (a source at a "
@@ -2253,18 +2285,13 @@ def parse_nec(
                         "PortAtVertex, which needs the network path — parse "
                         "with network=True (issue #824)"
                     )
-                if ex_type == 6:
-                    raise card.error(
-                        "EX 6 (current source) at a segment end is not "
-                        "supported yet — voltage edge sources only (#824)"
-                    )
                 edge = 1 if seg_field < 0 else 2
             feeds_raw.append(
                 (
                     card.i(1),
                     abs(seg_field),
                     complex(card.f(4), card.f(5)),
-                    ex_type == 6,
+                    current,
                     edge,
                     where,
                 )

@@ -155,6 +155,7 @@ _seed_defaults_from_deck(Builder)
 | `GR` | Rotate about Z into a cylindrical array |
 | `GS` | Scale — including xnec2c's tag-range extension (scale only tags I1..I2) |
 | `EX` types 0/5 | Voltage-source feeds, resolved through NEC's (tag, segment) addressing |
+| `EX` types 4/6 | Current-source feeds (NEC-5's type 4, 4nec2's type 6), in amps — `network=True` only, see below |
 
 Card semantics are transcribed from the `nec2c` 1.3.1 sources, quirks
 included (tag 0 never increments under any transform), and validated against
@@ -197,6 +198,7 @@ the trap dipole and station designs use), wherever it can express them
 | `LD` type 6 (4nec2 LC-trap) | The parallel RLC 4nec2 itself converts it to: `R_p = Q·ωL` at the deck's first `FR` frequency (F1 is the coil's unloaded Q, 0 → 100) |
 | `LD` type 7 (4nec2 wire insulation) | Per-wire dielectric jackets (`deck.wire_insulation` → `WireSpec.insulation_radius/eps_r`) for wires the card covers in full — the solvers model the insulated-wire velocity factor |
 | `EX` type 6 (4nec2 current source) | A `DrivenCurrent` source — the forced complex current drives the network exactly as 4nec2 would |
+| `EX` type 4 (NEC-5 current source) | The same `DrivenCurrent`, at the segment **end** NEC-5's rule names (I4, else the sign of I3) — the form EZNEC's NEC-5 export writes. NEC-2's type 4 (an elementary current source at a point in space, no segment addressed) is refused by name |
 | `TL` | A `TL` branch: negative z0 (NEC's crossed line) becomes `transposed=True`, zero length resolves to the port separation, conductance-only end admittances become `Shunt(r=1/G)`, reactive ones a fixed 1-port `Admittance` |
 | `NT` with an all-real Y matrix | Its exact resistive pi: a series `TwoPort` between the ports plus a `Shunt` at each |
 | `NT` with susceptance | The full 2×2 complex Y as an `Admittance` branch |
@@ -268,9 +270,14 @@ genuinely collide. The importer resolves it conservatively: the spellings
 that can only be NEC-5 (a negative segment, or the end-selector value NEC-2
 never defines) are **refused with the dialect named** — never silently read
 as a NEC-2 center feed half a segment away — while the one ambiguous value
-keeps its legal NEC-2 meaning. Decks that need the edge-source form solve
-natively on [the NEC-5 engine](/reference/nec5/), which speaks it as a
-first-class citizen.
+keeps its legal NEC-2 meaning. The exception is NEC-5's current source,
+`EX` type 4: NEC-2's type 4 addresses no segment, so a segment-addressed
+type 4 can only be NEC-5, and the importer reads its end field by NEC-5's
+full rule (`I4` names the end; when zero, a positive segment number means
+end 2). With `network=True` the end source imports as a `PortAtVertex`,
+voltage or current alike, and solves on momwire; the deck also solves
+natively on [the NEC-5 engine](/reference/nec5/), which speaks the form as
+a first-class citizen.
 
 ## Programmatic use
 
@@ -287,7 +294,7 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `NecDeck` field | Meaning |
 | --- | --- |
 | `wires` | `tuple[NecWire, ...]` — every straight wire after all transforms (`tag`, `n_seg`, `p1`, `p2`, `radius`) |
-| `feeds` | `tuple[NecFeed, ...]` — each `EX` source resolved onto a wire (`wire` index, 1-based `seg`, complex `voltage`; `current=True` marks a 4nec2 `EX 6` forced current) |
+| `feeds` | `tuple[NecFeed, ...]` — each `EX` source resolved onto a wire (`wire` index, 1-based `seg`, complex `voltage`; `current=True` marks a forced current in amps, 4nec2's `EX 6` or NEC-5's `EX 4`; `edge` 1/2 marks a NEC-5 end source) |
 | `freq_mhz` | The `FR` card's sweep range as `(lo, hi)` MHz, or `None` |
 | `ground` | `True` if the deck requested a ground plane (`GE` flag or a `GN` card) |
 | `comments` | The `CM` header text, line by line |
