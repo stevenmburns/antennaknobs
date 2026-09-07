@@ -92,6 +92,7 @@ from antennaknobs.terrain import (
     hillside_terrain,
     levee_terrain,
 )
+import momwire
 from momwire import (
     ArrayBlockSolver,
     BSplineSolver,
@@ -597,9 +598,16 @@ def _backend_axes(spec):
     caps = getattr(spec.solver, "capabilities", None)
     if caps is None or "axes" not in getattr(caps, "_fields", ()):
         return None
-    try:
-        from momwire._capabilities import axes_for
-    except ImportError:  # a momwire predating antennaknobs#1006 G2-1
+    # Public since momwire#884, and still a FEATURE probe rather than a version
+    # compare: the pointer runs ahead of the release, so a build with
+    # `axes_for` and one without declare the same version.
+    #
+    # `axes_for` is momwire's SINGLE derivation point for the derived axes
+    # (`ground_model` from `grounds`, `wire_position` from `buried`/`contact`).
+    # Deriving them here instead would be the second source of truth
+    # `_capabilities` exists to refuse.
+    axes_for = getattr(momwire, "axes_for", None)
+    if axes_for is None:  # a momwire predating antennaknobs#1006 G2-1
         return None
     # frozenset is not JSON; sorted lists keep the payload stable so a
     # response fixture does not churn on set iteration order.

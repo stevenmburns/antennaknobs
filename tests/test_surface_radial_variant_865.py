@@ -50,7 +50,6 @@ suite's 5 s unmarked ceiling, and that marker is the main-only CI lane.
 
 from __future__ import annotations
 
-import sys
 import warnings
 
 import pytest
@@ -114,10 +113,23 @@ def test_the_jacket_rides_the_RADIALS_ONLY():
 
 
 def _without_the_coated_pair(monkeypatch):
-    """Make `momwire._surface_height` unimportable, which is what a momwire
-    from before #872 looks like to the guard (a `None` entry in sys.modules
-    raises ImportError on import)."""
-    monkeypatch.setitem(sys.modules, "momwire._surface_height", None)
+    """What a momwire from before #872 looks like to the guard.
+
+    Since momwire#876 the pair is PUBLIC (`momwire.equivalent_radius`,
+    `momwire.SURFACE_HEIGHT_CLASS`) and the guard asks the top-level module for
+    the names rather than importing the private modules, so the simulation is
+    to remove the names — nulling `sys.modules["momwire._surface_height"]`
+    would no longer be seen, and the guard would wave the deck through into the
+    silent-wrong-answer path this test exists to prevent.
+
+    Still a FEATURE probe, and it has to be: the submodule pointer runs ahead
+    of the release, so the build with the pair and the build without it declare
+    the same version.
+    """
+    import momwire
+
+    monkeypatch.delattr(momwire, "SURFACE_HEIGHT_CLASS", raising=False)
+    monkeypatch.delattr(momwire, "equivalent_radius", raising=False)
 
 
 def test_the_guard_refuses_by_name_on_a_momwire_without_the_pair(monkeypatch):

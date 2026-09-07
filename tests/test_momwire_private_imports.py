@@ -63,8 +63,6 @@ ALLOWED = {
     # Retiring these wants momwire to promote public names, exactly as
     # momwire#855 did for the two interface-side geometry answers. Filed as
     # the follow-up; until then these are the names the engine depends on.
-    ("engines/momwire.py", "momwire._surface_height", "SURFACE_HEIGHT_CLASS"),
-    ("engines/momwire.py", "momwire._wire_loading", "equivalent_radius"),
     # The capability axes (antennaknobs#1006 G2-3, momwire#882). `/capabilities`
     # serves what each backend is MADE OF, and `axes_for` is by design the
     # SINGLE place the derived axes are computed — `ground_model` from
@@ -83,7 +81,6 @@ ALLOWED = {
     # the panel will reach for next) to public names, on momwire#855's
     # precedent. Filed as momwire#884, sibling of momwire#876 rather than an
     # extension of it — #876 is scoped to the coated-wire pair by its title.
-    ("web/adapter.py", "momwire._capabilities", "axes_for"),
     # The couplings table (antennaknobs#1006 G2-4b, momwire#885). Same shape
     # as `axes_for` above and the same reason: the table holds each refusal's
     # OWN prose object and the class that raises it, so a consumer that
@@ -201,3 +198,53 @@ def test_the_engine_uses_the_public_interface_geometry_names():
     assert "from momwire import ground_touch_tol, grounded_crossing_exemption" in engine
     assert "import _ground_spec" not in engine
     assert "import _medium_spec" not in engine
+
+
+def test_the_capability_and_coated_wire_names_are_public_now():
+    """The retirement momwire#884/#876 unblocked, pinned the way #855's was.
+
+    `is`, not `==`, for the same reason: these must be the very objects momwire
+    calls, because two implementations that merely agree today is how the two
+    copies of the exemption test momwire#848 merged got away with disagreeing.
+
+    THE FEATURE PROBES STAY, and that is the point of the unit rather than an
+    exception to it. momwire's submodule pointer runs ahead of its PyPI release
+    by convention, so a build WITH these names and a build WITHOUT them declare
+    the SAME version — measured, and it is what antennaknobs#1145 left the tree
+    in. A version compare reads one number in the two cases it exists to tell
+    apart. Promoting the names removed the need to reach into a PRIVATE module;
+    it did not remove the need to ask.
+    """
+    import momwire
+    from momwire import _capabilities, _surface_height, _wire_loading
+
+    assert momwire.axes_for is _capabilities.axes_for
+    assert momwire.AXIS_VALUES is _capabilities.AXIS_VALUES
+    assert momwire.equivalent_radius is _wire_loading.equivalent_radius
+    assert momwire.SURFACE_HEIGHT_CLASS is _surface_height.SURFACE_HEIGHT_CLASS
+
+    engine = (SRC / "engines" / "momwire.py").read_text()
+    adapter = (SRC / "web" / "adapter.py").read_text()
+    assert "momwire._surface_height" not in engine
+    assert "momwire._wire_loading" not in engine
+    assert "momwire._capabilities" not in adapter
+    # Still asked of the module, not inferred from a version.
+    assert "getattr(momwire, n, None)" in engine
+    assert 'getattr(momwire, "axes_for", None)' in adapter
+    for f in (engine, adapter):
+        assert "__version__" not in f
+        assert "metadata.version" not in f
+
+
+def test_the_couplings_entry_is_not_retired_by_this_round():
+    """momwire#953 promoted the capability axes and the coated-wire pair; it did
+    NOT promote `COUPLINGS`, which is momwire#885. The census comment for that
+    entry names #884 as its follow-up, so it reads as retired by the same round
+    and is not — the import is still there, and removing the entry would stop
+    counting a debt that still exists.
+    """
+    assert ("web/adapter.py", "momwire._couplings", "COUPLINGS") in ALLOWED
+    assert (
+        "from momwire._couplings import COUPLINGS"
+        in (SRC / "web" / "adapter.py").read_text()
+    )

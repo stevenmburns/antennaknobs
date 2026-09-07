@@ -10,6 +10,7 @@ import logging
 import warnings
 
 import numpy as np
+import momwire
 from momwire import BSplineSolver, RazorSolver
 
 from ..engine import FarField, SimulationEngine, WireCurrents
@@ -420,10 +421,23 @@ def _require_coated_wire_support(polylines, specs, ground_z):
             continue
         if float(np.min(h[h > 0.0], initial=np.inf)) >= 20.0 * spec.radius:
             continue
-        try:
-            from momwire._surface_height import SURFACE_HEIGHT_CLASS  # noqa: F401
-            from momwire._wire_loading import equivalent_radius  # noqa: F401
-        except ImportError as exc:
+        # STILL A FEATURE PROBE, on the public names since momwire#876. Asking
+        # the module for the two names is the only thing that separates a
+        # momwire that models the coated wire from one that does not: the
+        # submodule pointer runs ahead of the release by convention, so both
+        # builds declare the same version and a version compare reads one
+        # number in the two cases it exists to tell apart. Promoting the names
+        # removed the private reach, not the probe.
+        #
+        # Both halves are asked for separately so the refusal can say which is
+        # missing rather than only that something is.
+        missing = [
+            n
+            for n in ("equivalent_radius", "SURFACE_HEIGHT_CLASS")
+            if getattr(momwire, n, None) is None
+        ]
+        if missing:
+            exc = AttributeError(", ".join(missing))
             raise ValueError(
                 "this deck has an insulated wire lying within a few radii of "
                 "the ground, and the installed momwire does not model a "
