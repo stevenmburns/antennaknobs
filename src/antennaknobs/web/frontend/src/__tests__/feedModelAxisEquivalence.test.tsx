@@ -171,7 +171,14 @@ describe("a momwire that cannot describe itself offers no feed-model choice", ()
 describe("degree tabs come from the basis axis", () => {
   it("renders d=1 and d=2 from the axis, not from a literal", () => {
     const b = entry("bspline");
-    expect(b.axes!.basis).toEqual(["bspline-1", "bspline-2"]);
+    // The served axis carries THREE values since momwire#883 added
+    // `bspline-3`, and the panel shows two. That is not a bug and it is the
+    // sharper version of this test: `DEGREE_CHOICES` is a UI table of 1 and 2
+    // that the axis FILTERS, so a new axis value adds no tab on its own.
+    // Whether degree 3 should get one is antennaknobs#1254's open product
+    // question — deliberately not decided here, and this asserts the current
+    // answer rather than leaving it to chance.
+    expect(b.axes!.basis).toEqual(["bspline-1", "bspline-2", "bspline-3"]);
     renderModal(b);
     expect(tabsIn("degree")).toEqual(["d=1", "d=2"]);
   });

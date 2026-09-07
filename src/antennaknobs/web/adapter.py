@@ -4370,6 +4370,20 @@ _AXIS_VALUE_LABELS = {
     "basis": {
         "bspline-1": "degree 1",
         "bspline-2": "degree 2",
+        # momwire#883. Terse like its siblings ON PURPOSE, and NOT a warning
+        # about what degree 3 costs: a segment here is one clause of a
+        # sentence the user reads ("spline basis, degree 3, Galerkin, ..."),
+        # and the phrasing rules above are what keep that sentence readable.
+        # The cost IS real — degree 3 takes momwire's numpy same-edge path
+        # (its C++ dispatch is a 9-case switch) for 5-10x the wall time and a
+        # few percent less error at equal mesh — but a parenthetical here
+        # would be the only segment in the line that argues rather than
+        # names. It has no UI surface to warn from either: `DEGREE_CHOICES`
+        # in the frontend is a UI table of 1 and 2 that the axis FILTERS, so
+        # a new axis value adds no tab and nothing in the app can select
+        # degree 3 today. Whether it should is antennaknobs#1254's open
+        # product question, and the cost note lives there with it.
+        "bspline-3": "degree 3",
         "sinusoidal-3term": "3-term sinusoidal",
         "tent": "tent",
         "pulse": "pulse expansion",
