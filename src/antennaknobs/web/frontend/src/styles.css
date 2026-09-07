@@ -2993,6 +2993,11 @@ canvas {
    it is a state the user caused, not an error. */
 .sim-controls .opt-readout-latched {
   white-space: normal;
+  /* The message names the knob, and a param name is one unbreakable token
+     (`tipspacer_factor`) that can be wider than the column. Wrapping at
+     spaces alone would push it back out past the edge #1237 pulled it in
+     from. */
+  overflow-wrap: anywhere;
   max-width: 9.5em;
   line-height: 1.25;
   color: var(--hot);

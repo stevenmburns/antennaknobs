@@ -127,7 +127,11 @@ describe("the tracker switch (#1220)", () => {
 });
 
 describe("the latched readout (#1220/#1216)", () => {
-  const LOST = "the resonance you are holding disappears here";
+  // The message names the CAUSE and the user's fix. Two causes: a knob against
+  // the end of a range the user set (which they can widen) and no root within
+  // reach (which they can only drag back out of).
+  const LOST =
+    "Resonance not held: length_factor is at the end of its optimize range — widen it to keep going";
 
   it("says the target disappeared, not that a knob hit a limit", () => {
     render(
@@ -135,10 +139,9 @@ describe("the latched readout (#1220/#1216)", () => {
     );
     const el = screen.getByText(new RegExp(LOST));
     expect(el).toBeTruthy();
-    // At the last good tick the held knob is usually nowhere near a bound, so
-    // blaming a limit would be wrong as well as unhelpful.
-    expect(el.textContent).not.toMatch(/limit/i);
-    // And it is not permanent: dragging back the way you came re-acquires.
+    // It names the knob and the action, not the place on the drag the user
+    // cannot see. And it is not permanent: the hold re-acquires by itself.
+    expect(el.textContent).toMatch(/optimize range/);
     expect(el.textContent).not.toMatch(/\bstop\b/i);
   });
 
@@ -163,7 +166,7 @@ describe("the latched readout (#1220/#1216)", () => {
 
   it("shows nothing while tracking is healthy", () => {
     render(<VfoPanel {...baseProps()} trackEnabled trackLatched={null} />);
-    expect(screen.queryByText(/disappears here/)).toBeNull();
+    expect(screen.queryByText(/not held/)).toBeNull();
   });
 });
 

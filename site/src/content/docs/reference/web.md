@@ -388,12 +388,19 @@ reason: it is a best compromise, with no target to hold.
 switches off, exactly as it switches an optimizer run off — the knob is yours
 again, and the dragged knob is never promoted into the search.
 
-**When the target runs out.** A marked knob can only move inside its Optimize
-range, and some targets simply stop existing as you drag: the hold stops and
-says *"the resonance you are holding disappears here"* (or *"the match"*). The
-marked knobs stay at their last good values rather than drifting, and the hold
-re-acquires the moment the target is reachable again — whether you carry on in
-the same direction or drag back the way you came.
+**When the target runs out.** The hold stops and says which of the two things
+happened, because they have different fixes. If a marked knob has reached the
+end of its Optimize range — a limit you set — it names the knob:
+*"Resonance not held: length_factor is at the end of its optimize range —
+widen it to keep going"*, naming both knobs when Match Z₀ has run both out. If
+instead there is no longer a target to hold at all, which happens where a
+resonance simply stops existing as the geometry changes, it says *"Resonance
+not held: none within reach — drag back to recover it"*. Match Z₀ says *Match*
+in place of *Resonance*.
+
+Either way the marked knobs stay at their last good values rather than
+drifting, and the hold re-acquires the moment the target is reachable again —
+whether you carry on in the same direction or drag back the way you came.
 
 **What restarts it.** Changing a marked knob's Optimize range, or the
 measurement frequency, restarts the hold from a fresh root find rather than
