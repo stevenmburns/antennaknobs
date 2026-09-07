@@ -65,7 +65,7 @@ const BURIED_CONSTRAINT: BackendConstraint = {
 const STEP_CONSTRAINT: BackendConstraint = {
   axis: "kernel",
   value: "extended",
-  forbids_axis: "junction_ports",
+  forbids_axis: "junctions",
   forbids_value: "True",
   forbids_is_axis: false,
   condition: "a radius step at the junction",

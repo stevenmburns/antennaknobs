@@ -51,7 +51,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
     {
       "axis": "kernel",
       "value": "extended",
-      "forbids_axis": "junction_ports",
+      "forbids_axis": "junctions",
       "forbids_value": "True",
       "forbids_is_axis": false,
       "condition": "a radius step at the junction",
