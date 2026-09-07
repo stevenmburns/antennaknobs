@@ -145,7 +145,8 @@ def test_the_served_axis_payload_is_json_and_reaches_every_momwire_tab():
     """A gate over an empty payload proves nothing (the recurring failure)."""
     rows = _rows()
     with_axes = [r for r in rows if r["axes"]]
-    assert len(with_axes) == 6, [r["name"] for r in with_axes]
+    # Seven momwire tabs since #1148 gave the pulse basis one.
+    assert len(with_axes) == 7, [r["name"] for r in with_axes]
     assert json.loads(json.dumps(rows))
     # ...and the non-momwire tabs say "cannot be asked" rather than "nothing".
     assert {r["name"] for r in rows if r["axes"] is None} == {"pynec", "nec5"}

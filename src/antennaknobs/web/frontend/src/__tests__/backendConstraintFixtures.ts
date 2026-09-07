@@ -121,6 +121,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "issue": "momwire#282"
     }
   ],
+  "pulse": [],
   "hmatrix": [
     {
       "axis": "solve_strategy",

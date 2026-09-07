@@ -43,11 +43,12 @@ distinction matters because a roster is a list someone chose while a per-deck
 refusal is a property of the deck in front of you.
 
 AND ONE ROSTER IS NOT A STATEMENT. antennaknobs' tabs are `BASES` minus
-`{bspline-d1, pulse, razor-nec5}`, and those three exclusions have three
-different NON-AXIS reasons — a deprecated alias, a UI duplicate, and an
-accident. No axis predicate reproduces the set, and inventing one would encode
-two interface decisions and an oversight as if they were engine properties.
-The list is pinned here with its reasons instead, and the gap is filed.
+`{bspline-d1, razor-nec5}` since #1148, and those two exclusions have two
+different NON-AXIS reasons — a deprecated alias and a UI duplicate. No axis
+predicate reproduces the set, and inventing one would encode two interface
+decisions as if they were engine properties. The list is pinned here with its
+reasons instead. The third exclusion, `pulse`, had no reason at all; #1148
+closed it, which is what this pin existed to make possible.
 
 RESOLUTION STABILITY (#1006 point 1). "Names stay as aliases/presets so
 nothing breaks and no URL or saved session changes meaning." There is no URL
@@ -156,17 +157,22 @@ def test_the_seam_is_a_per_deck_refusal_not_a_roster():
 def test_the_antennaknobs_tab_list_has_no_axis_predicate():
     """Pinned as a LIST with its reasons, because it is not a statement.
 
-    Three exclusions, three non-axis reasons: `razor-nec5` is a deprecated
-    alias of `razor-2p` (a naming fact), `bspline-d1` is the same class under
-    a kwarg the bspline panel already exposes (an interface fact), and `pulse`
-    never got a tab (an accident — #1006's own words). A predicate fitted to
-    this set would encode two of those as engine properties.
+    TWO exclusions now, each with a STATED non-axis reason: `razor-nec5` is a
+    deprecated alias of `razor-2p` (a naming fact — two tabs resolving to the
+    identical point in the product space), and `bspline-d1` is the same class
+    under a kwarg the bspline panel already exposes (an interface fact, and a
+    judgement that belongs to #1006 G2-5 where `degree` becomes a control on
+    the bspline tab). A predicate fitted to this set would still encode both
+    as engine properties, so the list stays a list.
 
-    This test exists to notice when the set changes, so the accident can be
-    closed deliberately rather than drift further.
+    The third was `pulse`, which had no reason at all — #1006 called it an
+    accident. #1148 measured that nothing about it is unserved and gave it a
+    tab, which is what this pin existed to make possible: it fails when the
+    set changes, so the accident could be closed deliberately rather than
+    drift further. It just was.
     """
     tabs = {b.name for b in _BACKENDS if b.kind == "momwire"}
-    assert set(BASES) - tabs == {"bspline-d1", "pulse", "razor-nec5"}
+    assert set(BASES) - tabs == {"bspline-d1", "razor-nec5"}
     assert tabs < set(BASES), "a tab that momwire's roster does not name"
 
 
@@ -209,3 +215,60 @@ def test_antennaknobs_names_agree_with_the_momwire_names_they_bind():
         if b.kind != "momwire" or b.name not in BASES:
             continue
         assert axes_for(b.solver.capabilities) == axes_for(_caps(b.name)), b.name
+
+
+def test_the_pulse_tab_serves_the_basis_momwires_roster_names():
+    """#1148: the accident, closed deliberately.
+
+    `pulse` is not a variant of another tab. momwire's roster binds it to
+    `HarringtonSolver` — point-matched pulse expansion — and its capability row
+    is its own: `basis=('pulse',)`, `testing=('point-matching',)`, all three
+    ground models, centre feeds.
+
+    THE CLASS MATTERS AND IS NOT THE OBVIOUS ONE. `momwire.PulseSolver` shares
+    the name but cannot take the engine path at all: it refuses the `junctions`
+    kwarg the engine passes ("PulseSolver takes no junction spec"). A tab bound
+    to it would raise on every deck. `BASES["pulse"]` is the authority on what
+    the basis means, and it says Harrington.
+    """
+    from momwire import HarringtonSolver
+
+    spec = next(b for b in _BACKENDS if b.name == "pulse")
+    cls, kw = BASES["pulse"]
+    assert spec.solver is cls, (spec.solver, cls)
+    assert cls is HarringtonSolver
+    assert not kw, "a bound kwarg would make the tab a preset, not the basis"
+    axes = cls.capabilities.axes
+    assert axes["basis"] == ("pulse",)
+    assert axes["testing"] == ("point-matching",)
+
+
+def test_the_pulse_tab_actually_solves():
+    """The substance behind the roster line. A tab that renders and raises on
+    every deck would pass every set comparison in this file."""
+    import warnings
+
+    from antennaknobs.designs.dipoles.invvee import Builder
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    spec = next(b for b in _BACKENDS if b.name == "pulse")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        z = complex(MomwireEngine(Builder(), solver=spec.solver).impedance()[0])
+    # Point-matched pulse on a coarse mesh is not bspline; it is a real
+    # impedance, which is all this gate claims.
+    assert 10.0 < z.real < 500.0, z
+    assert abs(z.imag) < 500.0, z
+
+
+def test_the_pulse_entry_has_the_shape_every_other_tab_has():
+    """The frontend renders tabs from the SERVED roster generically — there is
+    no per-backend branch — so a new entry's risk is its shape, not its name.
+    Pinned against the other momwire tabs rather than against a literal."""
+    momwire_tabs = [b for b in _BACKENDS if b.kind == "momwire"]
+    pulse = next(b for b in momwire_tabs if b.name == "pulse")
+    for other in momwire_tabs:
+        assert type(pulse) is type(other)
+    assert pulse.label and isinstance(pulse.label, str)
+    assert pulse.solver is not None
+    assert isinstance(pulse.model_kwargs, tuple)
