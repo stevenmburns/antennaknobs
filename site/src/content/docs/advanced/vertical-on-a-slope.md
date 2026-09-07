@@ -147,11 +147,13 @@ slope.](../../../assets/advanced/slope45-five-antennas.png)
 | plumb vertical, 4 horizontal radials resting on the ground | 24 Ω | 1.0 dBi | −2.7 dBi | −1.4 dBi | −5.6 dBi |
 | inverted vee, apex λ/4 | 63 Ω | 5.3 dBi | 4.6 dBi | 4.9 dBi | −2.2 dBi |
 | plumb wire, 4 radials 1 in above the slope | 27 Ω | −0.5 dBi | −0.9 dBi | −1.4 dBi | −4.9 dBi |
-| plumb wire, 4 radials buried 15 cm in the slope (NEC-5) | 58 Ω | −2.8 dBi | −3.4 dBi | −3.9 dBi | −8.2 dBi |
+| plumb wire, 4 radials buried 15 cm in the slope | 58 Ω (NEC-5), 55 Ω (momwire) | −2.8 dBi | −3.4 dBi | −3.9 dBi | −8.2 dBi |
 
-The last row is the licensed NEC-5's, read through the same rotation; momwire
-does not fill a leaning mast over a buried screen (see *What each tool can
-do*). Every other row is momwire's. Three things the table says:
+The last row's pattern and gains are the licensed NEC-5's, read through the
+same rotation; momwire's impedance for the same deck is beside NEC-5's, and the
+3 Ω between them is the contact-class residual the two engines carry on every
+buried screen with a rise to the surface. Every other row is momwire's. Three
+things the table says:
 
 - **Where the radials sit moves the feed resistance more than the lean
   does.** A straight quarter-wave over four radials an inch above this soil
@@ -193,11 +195,12 @@ bench, is the terrain page's. Neither is a substitute for the other.
 - **A plumb mast on a slope** — vertical to gravity, so tilted off the
   ground's normal by the slope angle — is a tilted wire above a buried
   screen. NEC-5 takes it, and EZNEC Pro/5 and the app's NEC-5 lane spell
-  that deck directly. momwire's crossing fill has tables for horizontal and
-  vertical segments only, so once any wire crosses the interface it refuses
-  a tilted segment anywhere in the deck by name; the same antenna with its
-  radials lying on the grass (the catalog's `surface` convention) has no
-  crossing and takes the tilted mast as ordinary geometry. Measured that way, a 10° tilt moves the feed impedance by about
+  that deck directly. momwire takes it too, since its crossing fill dropped
+  a guard that had refused tilted above-ground segments in any deck with a
+  wire through the interface (momwire#936; the first release after 0.50.0
+  carries it). The same antenna with its radials lying on the grass (the
+  catalog's `surface` convention) has no crossing at all and was always
+  ordinary geometry. Measured that way, a 10° tilt moves the feed impedance by about
   1 %, and a 45° tilt turns the antenna into a sloper: 46+50j Ω against
   61+61j level, with the peak gain unchanged.
 - **The study itself** — the rotated read-out, the azimuth ring at a true
