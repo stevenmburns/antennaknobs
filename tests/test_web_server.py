@@ -1482,11 +1482,17 @@ def test_examples_carry_requires_backends(client: TestClient):
     for e in payload["examples"]:
         assert "requires_backends" in e
     # momwire#182 M5b widened junction-port support to the sinusoidal-Galerkin
-    # solver, so the allowlist is a PAIR now. bspline stays first — it is the
+    # solver; #1152 measured the two accelerators and added them, so the
+    # allowlist is FOUR. On this deck they land at rel 8.8e-6 (hmatrix) and
+    # 8.7e-5 (arrayblock) from the dense parent, INSIDE the 3.2e-4 the
+    # already-admitted sinusoidal-Galerkin sits at — the bar the list applies
+    # was always looser than the accelerators. bspline stays first: it is the
     # reference implementation and `default_backend` is `requires_backends[0]`.
     assert by_name["wire.sterba_bl"]["requires_backends"] == [
         "bspline",
         "sinusoidal-galerkin",
+        "hmatrix",
+        "arrayblock",
     ]
     assert by_name["wire.sterba_bl"]["default_backend"] == "bspline"
     # The unrestricted Sterba siblings stay unrestricted — including the

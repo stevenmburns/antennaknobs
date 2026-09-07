@@ -2959,7 +2959,31 @@ _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 # (momwire#191 removed the node-charge PEC image) but refuse FINITE grounds —
 # the reflection-coefficient and Sommerfeld images of a point charge are not
 # point charges — and reject mixed per-wire radii.
-_JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin")
+#
+# `hmatrix` and `arrayblock` joined in #1152, MEASURED rather than inferred.
+# They were excluded on a docstring that said they "raise
+# NotImplementedError"; momwire declares both as serving `junction_ports`, and
+# on `wire.sterba_bl` (16 `PortAtEnd` ports) both solve and land beside the
+# dense parent:
+#
+#     bspline              672.969912318 + 386.605011472j   (reference)
+#     sinusoidal-galerkin  672.892988555 + 386.842431879j   rel 3.2e-4
+#     hmatrix              672.965974382 + 386.610573299j   rel 8.8e-6
+#     arrayblock           673.035994564 + 386.591938736j   rel 8.7e-5
+#
+# THE ALREADY-ALLOWED MEMBER IS THE LOOSEST. `sinusoidal-galerkin` sits at
+# 3.2e-4, an order beyond either accelerator, so the bar this list actually
+# applies today admits both — refusing them while allowing it was the
+# inconsistency, not a standard they failed.
+#
+# The residual is ACA/GMRES tolerance and nothing structural, which was
+# checked rather than assumed: tightening `aca_tol`/`solve_tol` walks it
+# monotonically to machine precision (hmatrix 8.8e-6 -> 2.1e-11 -> 2.9e-13,
+# arrayblock 8.7e-5 -> 4.7e-10 -> 1.4e-13), so the port columns are being
+# assembled right and only the iterative closure differs. On an easy deck the
+# same three agree to 3.1e-14 — the deviation here is the deck's size and
+# conditioning showing through the approximation, not the ports.
+_JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin", "hmatrix", "arrayblock")
 
 # Backends that implement the SERIES vertex port (`PortAtVertex`, issue
 # #898 / momwire#305's node gaps) — a wider list than the junction-port
@@ -2999,8 +3023,9 @@ _VERTEX_PORT_BACKENDS = (
 _RESTRICTION_REASONS = {
     "junction_ports": (
         "This design attaches network elements at conductor ends "
-        "(junction-node ports) — only the B-spline and sinusoidal-Galerkin "
-        "solvers implement them, and NEC-2 has no equivalent card."
+        "(junction-node ports) — the dense and accelerated momwire solvers "
+        "serve them, but the point-matched sinusoidal and razor solvers do "
+        "not, and NEC-2 has no equivalent card."
     ),
     "vertex_ports": (
         "This design attaches a network element in the middle of a conductor "
@@ -3112,11 +3137,11 @@ def _required_backends(cls) -> tuple[str, ...] | None:
     """Backend allowlist a design is restricted to, or None (no restriction).
 
     Today's only restriction: a design whose network has any `PortAtEnd`
-    resolves to junction-node ports, which only the dense B-spline solver
-    and the sinusoidal-Galerkin solver implement (momwire#172 / momwire#182 —
-    the point-matched sinusoidal and iterative HMatrix/ArrayBlock solvers
-    raise NotImplementedError, and NEC-2 has no equivalent card at all, so
-    `PyNECEngine` rejects the design at construction, issue #579). DERIVED
+    resolves to junction-node ports, which the dense B-spline and
+    sinusoidal-Galerkin solvers and the two accelerators implement
+    (momwire#172 / momwire#182 / #1152) — the POINT-MATCHED sinusoidal and
+    razor solvers refuse them, and NEC-2 has no equivalent card at all, so
+    `PyNECEngine` rejects the design at construction, issue #579. DERIVED
     from the flattened network spec rather than declared per design, so the
     capability cannot drift from what the design actually does. The frontend
     disables the other backend tabs (with an explanatory tooltip) and coerces
