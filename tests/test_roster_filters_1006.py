@@ -243,22 +243,77 @@ def test_the_pulse_tab_serves_the_basis_momwires_roster_names():
     assert axes["testing"] == ("point-matching",)
 
 
-def test_the_pulse_tab_actually_solves():
+# The grounds the Pulse tab has to survive, in the order they cost us
+# something. FREE SPACE is what #1148's gate checked, and it is why #1255
+# happened: `momwire.PulseSolver.__init__` coerced `ground_eps` with
+# `complex()` while every other family stores the `(eps_r, sigma)` pair, so
+# the tab raised `TypeError: complex() argument must be a string or a number,
+# not tuple` on the app's DEFAULT ground and nothing here noticed.
+#
+# The app's default is a plane, finite, refl-coef, 10 / 0.002 — i.e.
+# `("finite-fast", 10.0, 0.002)` — so that spelling is the one a user meets
+# first. `("finite", ...)` is the Sommerfeld spelling and reaches a different
+# momwire path, so it is not implied by the fast one.
+_PULSE_GROUNDS = [
+    None,
+    "pec",
+    ("finite-fast", 10.0, 0.002),
+    ("finite", 10.0, 0.002),
+]
+
+
+@pytest.mark.parametrize("ground", _PULSE_GROUNDS, ids=lambda g: str(g))
+def test_the_pulse_tab_actually_solves(ground):
     """The substance behind the roster line. A tab that renders and raises on
-    every deck would pass every set comparison in this file."""
+    every deck would pass every set comparison in this file.
+
+    Parametrised over the grounds rather than run once in free space: free
+    space is the ONE case that worked while the tab was broken for every
+    finite ground, which is exactly the shape of a gate that cannot fail on
+    the thing it exists to catch (#1255).
+    """
     import warnings
 
     from antennaknobs.designs.dipoles.invvee import Builder
     from antennaknobs.engines.momwire import MomwireEngine
 
     spec = next(b for b in _BACKENDS if b.name == "pulse")
+    kwargs = {} if ground is None else {"ground": ground}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        z = complex(MomwireEngine(Builder(), solver=spec.solver).impedance()[0])
+        z = complex(
+            MomwireEngine(Builder(), solver=spec.solver, **kwargs).impedance()[0]
+        )
     # Point-matched pulse on a coarse mesh is not bspline; it is a real
     # impedance, which is all this gate claims.
     assert 10.0 < z.real < 500.0, z
     assert abs(z.imag) < 500.0, z
+
+
+def test_a_ground_actually_changes_the_pulse_answer():
+    """The parametrised gate above would pass if `ground=` were silently
+    ignored — every arm would solve, in free space, four times. So the arms
+    are required to DIFFER in the answer, which is the only evidence here
+    that the ground reached the solver at all."""
+    import warnings
+
+    from antennaknobs.designs.dipoles.invvee import Builder
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    spec = next(b for b in _BACKENDS if b.name == "pulse")
+    seen = {}
+    for ground in _PULSE_GROUNDS:
+        kwargs = {} if ground is None else {"ground": ground}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            seen[str(ground)] = complex(
+                MomwireEngine(Builder(), solver=spec.solver, **kwargs).impedance()[0]
+            )
+    free = seen["None"]
+    for name, z in seen.items():
+        if name == "None":
+            continue
+        assert abs(z - free) > 1.0, f"{name} answered free space's {free}: {z}"
 
 
 def test_the_pulse_entry_has_the_shape_every_other_tab_has():

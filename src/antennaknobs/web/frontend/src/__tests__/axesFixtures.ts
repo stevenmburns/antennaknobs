@@ -89,7 +89,8 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
   "bspline": {
     "basis": [
       "bspline-1",
-      "bspline-2"
+      "bspline-2",
+      "bspline-3"
     ],
     "testing": [
       "galerkin"
@@ -158,7 +159,8 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
   "hmatrix": {
     "basis": [
       "bspline-1",
-      "bspline-2"
+      "bspline-2",
+      "bspline-3"
     ],
     "testing": [
       "galerkin"
@@ -194,7 +196,8 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
   "arrayblock": {
     "basis": [
       "bspline-1",
-      "bspline-2"
+      "bspline-2",
+      "bspline-3"
     ],
     "testing": [
       "galerkin"
