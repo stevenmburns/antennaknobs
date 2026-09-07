@@ -25,35 +25,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.69.0" icon="star">
-  **Buried radial screens solve 4× faster, and the radial cap is gone.** A
-  12-radial screen went from 11 s to under 3 s, the served buried deck from
-  2.4 s to 1.1 s, and a 48-radial screen now solves where it used to refuse
-  outright: under 20 s on a laptop, where a licensed NEC-5 takes 21 s on the
-  same deck, and about 27 s on the hosted app's smaller VM. Same
-  impedance to every printed digit. Underneath:
-  the off-edge pair quadrature follows each pair's distance
-  ([momwire#906](https://github.com/stevenmburns/momwire/issues/906)), the
-  buried fill streams through complex-medium C++ assemblers instead of a
-  dense tensor ([momwire#915](https://github.com/stevenmburns/momwire/issues/915)),
-  and the field-form Galerkin assembly is one fused C++ kernel
-  ([momwire#914](https://github.com/stevenmburns/momwire/issues/914)).
-
-  **Choose your soil.** The ground panel gains permittivity and
-  conductivity knobs with named presets — very poor through salt water —
-  carried through sweeps, patterns, cuts, near fields and the exported NEC
-  deck ([#1173](https://github.com/stevenmburns/antennaknobs/issues/1173)).
-  The default soil is unchanged, so nothing you saved moves.
-
-  **No more mid-sweep stalls over lossy soil.** momwire keeps two
-  Sommerfeld rungs and blends between them instead of refilling at every
-  step, so a 20 m sweep over 20 / 0.03 earth stops pausing in the middle
-  ([momwire#902](https://github.com/stevenmburns/momwire/issues/902)).
-
-  **Free-space fills take the same shortcut.** The distance-adaptive
-  quadrature now serves the real-wavenumber fill too — 1.5–2× on bent and
-  multi-wire decks at one thread, with every pinned answer unmoved
-  ([momwire#907](https://github.com/stevenmburns/momwire/issues/907)).
+<Card title="New in v0.70.0" icon="star">
+  **Hold the target while you drag.** Mark a knob to optimize, choose
+  Resonance or Match Z₀, switch on *Keep the target while I drag*, and the
+  marked knob follows every other knob you move so the antenna stays resonant
+  (or matched) under your hand — one solve per drag tick. When the target
+  genuinely cannot be held any more the knob freezes at its last good value
+  and the VFO row says so; it re-acquires as soon as it can. **The optimizer
+  treats a match as a root, not a minimum**: one knob to X = 0 in 3 to 5
+  solves, two knobs to Z₀ in 11 to 13, where Nelder–Mead took 10 to 48 and
+  sometimes never converged. **Solvers now tell you what they are unsure
+  about**: a new advisories panel surfaces the warnings momwire raises during a
+  solve instead of discarding them, buried decks are refused by name on the
+  backends that would solve them as though in air, and the soil advisory flags
+  where the single-valued (εr, σ) model stops being trustworthy. Under it,
+  momwire v0.50.0 solves a 48-radial screen in **14.9 s and 1.0 GB**, from
+  16.6 s and 1.5 GB, at the same impedance to nine digits.
 </Card>
 
 ## The whole pitch, in one line

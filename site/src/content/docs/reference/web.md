@@ -314,11 +314,13 @@ interactive round trip the optimizer's own request never makes — and a
 **solves** row counts the work the run has paid for, so forty solves stop
 looking like one.
 
-Under the hood it's a derivative-free **Nelder–Mead** search (each evaluation is
-a full MoM solve), bounded by your Optimize ranges, and it always runs on the
-fast **momwire** engine — never PyNEC, which is too slow for an interactive loop.
-It's a tuning aid, not a global optimizer: give it sensible ranges and a couple
-of free knobs, not a dozen.
+Under the hood, **SWR** is a derivative-free **Nelder–Mead** search, and
+Nelder–Mead is also the finisher whenever a root method cannot apply (see *Which
+objective* above); Resonance and Match Z₀ with the right knob counts are solved
+as roots instead. Every evaluation is a full MoM solve, bounded by your Optimize
+ranges, and it always runs on the fast **momwire** engine — never PyNEC, which is
+too slow for an interactive loop. It's a tuning aid, not a global optimizer: give
+it sensible ranges and a couple of free knobs, not a dozen.
 
 **Evaluations and solves are different numbers.** Nelder–Mead keeps only its
 current simplex, so it re-probes points it has already paid for; those are
@@ -330,10 +332,12 @@ is the run it would have been, only cheaper.
 
 **Seed from a survey** is an off-by-default switch in the same gear menu, under
 *Search*. With it on, the optimizer first samples the whole knob box, fits a
-surface to the impedance it measured, and hands the most promising point to
-Nelder–Mead as a starting position. Nelder–Mead is still the finisher — the
-survey proposes a place to start, it never decides the answer, and every value
-reported is a point that was actually solved.
+surface to the impedance it measured, and hands the most promising point to the
+search as a starting position — to Nelder–Mead for SWR, and to the Newton root
+for Match Z₀, which starts from the surface's predicted crossing rather than its
+best sample. The search is still the finisher — the survey proposes a place to
+start, it never decides the answer, and every value reported is a point that was
+actually solved.
 
 It is off by default because it is only worth its cost some of the time. From a
 design's shipped tuning, where the answer is already near the start, the survey
