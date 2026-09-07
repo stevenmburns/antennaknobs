@@ -60,7 +60,7 @@ def test_a_backend_is_told_only_about_couplings_that_apply_to_IT():
     forbids = {(c["axis"], c["forbids_axis"]) for c in r["bspline"]["constraints"]}
     # The absence half — this is the guard.
     assert ("kernel", "near_correction") not in forbids
-    assert ("kernel", "junction_ports") not in forbids
+    assert ("kernel", "junctions") not in forbids
     # The presence half, so the absence cannot pass by returning nothing.
     assert ("kernel", "wire_position") in forbids
     assert ("kernel", "singular_enrichment") in forbids
@@ -142,7 +142,7 @@ def test_the_condition_travels_verbatim_and_is_None_when_flat():
     junctions are the common case and are untouched."""
     r = _rows()
     by_axis = {c["forbids_axis"]: c for c in r["sinusoidal-galerkin"]["constraints"]}
-    assert by_axis["junction_ports"]["condition"] == "a radius step at the junction"
+    assert by_axis["junctions"]["condition"] == "a radius step at the junction"
     assert by_axis["near_correction"]["condition"] is None
 
 
@@ -159,7 +159,7 @@ def test_the_non_axis_rows_are_served_with_their_marker_not_dropped():
     """
     r = _rows()
     by_axis = {c["forbids_axis"]: c for c in r["sinusoidal-galerkin"]["constraints"]}
-    for kwarg_side in ("near_correction", "junction_ports"):
+    for kwarg_side in ("near_correction", "junctions"):
         assert kwarg_side in by_axis
         assert by_axis[kwarg_side]["forbids_is_axis"] is False
     # ...and a genuinely compositional side on the same backend is marked the

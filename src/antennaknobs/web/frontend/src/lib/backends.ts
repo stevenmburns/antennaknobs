@@ -402,7 +402,7 @@ export function backendOptsAllowed(
 /** The stepped-radius-junction note for this slot, or null.
  *
  *  Separate from `backendOptsAllowed` because the forbidden side is a
- *  property of the DECK (`junction_ports`) rather than an axis, so it has no
+ *  property of the DECK (`junctions`) rather than an axis, so it has no
  *  cell in the product space and is served with `forbids_is_axis: false`.
  *  That marker is about RENDERING, not about whether momwire refuses — this
  *  one sits in the solver's `refusals` dict and raises like any other, which
@@ -428,7 +428,7 @@ export function steppedJunctionNote(
       (c) =>
         c.axis === "kernel" &&
         c.value === "extended" &&
-        c.forbids_axis === "junction_ports",
+        c.forbids_axis === "junctions",
     ) ?? null
   );
 }
@@ -651,7 +651,7 @@ export const EK_HINT =
  *  the engine was picked would still be showing the first design's answer.
  *
  *  BOTH constraint shapes gate. `forbids_is_axis` says whether the panel can
- *  draw the row as a CELL in an axis matrix — `junction_ports` is a property
+ *  draw the row as a CELL in an axis matrix — `junctions` is a property
  *  of the deck, not an axis, so it has no cell. That is a rendering question
  *  and NOT a question about whether momwire refuses: both of these sit in a
  *  solver's `refusals` dict and both raise. Gating only the axis-shaped one
