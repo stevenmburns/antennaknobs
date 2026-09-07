@@ -283,9 +283,10 @@ def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz
     `momwire.below_reach_refusal` returns the fill's sentence verbatim.
 
     Only the SOMMERFELD model has a below/below family to bound; refl-coef
-    never builds that grid. And None on an older momwire that lacks the
-    helper, exactly as `_buried_cell_is_declared` does — an install too old
-    to be asked is not a refusal.
+    never builds that grid. The helper shipped in momwire 0.50.0 and the pin
+    is `==`, so there is no resolution path to an install that lacks it (the
+    getattr fallback that bridged the 0.49.0 window was deleted with the pin
+    bump, as its tripwire required — antennaknobs#1135/#1219).
 
     momwire measures its extents on quadrature nodes; the polyline VERTICES
     passed here reach further and lie shallower, so the verdict is
@@ -296,13 +297,10 @@ def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz
     """
     if ground_z is None or ground_eps is None or ground_model != "sommerfeld":
         return None
-    import momwire
+    from momwire import below_reach_refusal
 
-    check = getattr(momwire, "below_reach_refusal", None)
-    if check is None:
-        return None
     pts = np.concatenate([np.asarray(pl, dtype=float) for pl in polylines])
-    return check(pts, float(ground_z), ground_eps, float(freq_mhz) * 1e6)
+    return below_reach_refusal(pts, float(ground_z), ground_eps, float(freq_mhz) * 1e6)
 
 
 def _solver_accepts_junctions_kwarg(solver_cls):
