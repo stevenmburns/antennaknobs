@@ -176,6 +176,35 @@ if __name__ == "__main__":
             f"{name:50s} {z.real:7.1f}{z.imag:+8.1f}j {ff.max_gain:6.2f} | {d3:6.2f} / {d10:6.2f} / {d20:6.2f}     | {u60:6.2f} | {x10:6.2f}"
         )
         results.append((name, "#eda100", z, ff))
+        # momwire on the same deck, through the .nec importer, now that the
+        # crossing fill serves tilted above-ground segments (momwire#936).
+        try:
+            sys.path.insert(0, str(HERE.parents[1] / "scripts"))
+            from bench_nec_corpus import load_deck
+
+            from antennaknobs import WireSpec
+
+            deck, net, _ = load_deck(
+                (HERE / "op_plumb_buried.nec5.nec").read_text(), "op_plumb_buried"
+            )
+            tups = deck.wire_tuples(specs=True)
+
+            class OPDeck(AntennaBuilder):
+                default_params = MappingProxyType({"freq": FREQ})
+
+                def build_wires(self):
+                    return tups
+
+                def build_network(self):
+                    return net
+
+                def build_wire_material(self):
+                    return WireSpec(radius=deck.dominant_radius())
+
+            zm = MomwireEngine(OPDeck(), ground=SOIL).impedance()[0]
+            print(f"{'  same deck, momwire':50s} {zm.real:7.1f}{zm.imag:+8.1f}j")
+        except NotImplementedError as ex:
+            print(f"  same deck, momwire: refused — {str(ex)[:90]}")
     fig = slope_figure(results)
     fig.suptitle(
         "Five antennas on a 45° slope, 7.1 MHz, soil εr 13 / σ 0.005 — one level-ground solve each, sky rotated",
