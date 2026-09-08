@@ -22,7 +22,11 @@ python nec5_corpus.py check     --exe NEC5CL.exe --src nec5 --keep-dir failed
    names on stdin, as NEC5CL asks for them), classifies the result, keeps the
    printout of anything that did not solve cleanly, and writes
    `check-report.jsonl` with the driving-point impedance of every deck that
-   did. Use `--jobs N` for parallel runs.
+   did. A non-zero exit is reported as a crash with its code, whatever the
+   printout says. Use `--jobs N` for parallel runs. Every report opens with
+   a `_meta` row naming the tool version, step, executable and platform, so
+   reports from different boxes can be compared knowing which instrument
+   made each.
 
 ## What translate changes, and why
 
@@ -32,14 +36,19 @@ NEC-2 style: 72 % of the sources sit on the middle segment of a wire with an
 odd segment count, where no knot exists. Such a wire gets one more segment,
 so its centre is a knot, and the source goes there (`EX 0 tag seg 2`, end 2
 of the segment ending at that knot). A wire with an even count already has a
-centre knot and keeps its mesh. An off-centre feed moves half a segment
-toward the wire's centre and the move is written into the deck; pass
-`--offcenter double` to double that wire's mesh instead so the old centre is
-a knot exactly. When two referenced segments of one wire would land on the
-same knot (two TL ports on a two-segment stub), that wire gets one more
-segment, which always separates them; measured against nec2c on the 92
-corpus decks this touches, that matched doubling the mesh and drew fewer
-NEC-5 geometry complaints. Discrete loads (LD 0/1/4) and TL/NT ports are addressed the same
+centre knot and keeps its mesh. An off-centre feed gets the cheapest
+segment count between N and 2N that puts it on a knot exactly: the centre
+of segment k sits at (2k-1)/(2N) of the wire, so any count that is a
+multiple of 2N/gcd(N, 2k-1) works, and the smallest one not below N is
+taken. That is N+1 for a centre feed, 2N when k and N share no factor, and
+less than doubling otherwise (segment 2 of 6 needs 8, not 12). Several
+references on one wire are aligned together. Measured against nec2c on the
+635 corpus decks where the choice matters, exact alignment reads closer than
+a half-segment shift on 452 of them and farther on 169 (median 0.038 against
+0.055 in 50 Ω reflection coefficient). `--offcenter shift` keeps the mesh and
+moves an off-centre feed half a segment toward the centre instead, recording
+the move; `--offcenter double` always doubles.
+Discrete loads (LD 0/1/4) and TL/NT ports are addressed the same
 way, because NEC-5 attaches those at knots too. Tags shared by several
 wires, GM/GX/GR copies, and absolute (tag 0) segment numbers are all
 resolved before the knot is chosen.

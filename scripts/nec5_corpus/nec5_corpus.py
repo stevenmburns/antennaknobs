@@ -80,7 +80,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.0"
+VERSION = "1.1"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -1425,6 +1425,17 @@ def translate_file(path: Path, rel: str, policy: str, nofile: bool) -> dict:
     return rec
 
 
+def _meta_row(step: str, **fields) -> str:
+    """First line of every report: which instrument produced it. Reports are
+    compared across boxes and builds, and the verdict on a deck can change
+    between versions (1.0 scored a crash that left a partial printout as a
+    clean run; 1.1 scores it as "crash"), so a report must say."""
+    meta = {"tool": "nec5_corpus.py", "version": VERSION, "step": step}
+    meta.update(fields)
+    meta["started"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    return json.dumps({"_meta": meta}) + "\n"
+
+
 def _iter_decks(src: Path):
     for p in sorted(src.rglob("*")):
         if p.is_file() and _is_deck_name(p.name) and p.name != "LICENSES.md":
@@ -1436,6 +1447,9 @@ def cmd_translate(args) -> int:
     out.mkdir(parents=True, exist_ok=True)
     report = open(
         args.report or (out / "translate-report.jsonl"), "w", encoding="utf-8"
+    )
+    report.write(
+        _meta_row("translate", offcenter=args.offcenter, nofile=bool(args.nofile))
     )
     counts = {"translated": 0, "refused": 0, "unreadable": 0, "decks_written": 0}
     reasons = {}
@@ -1593,6 +1607,9 @@ def cmd_check(args) -> int:
     if args.limit:
         decks = decks[: args.limit]
     report = open(args.report or (src / "check-report.jsonl"), "w", encoding="utf-8")
+    report.write(
+        _meta_row("check", exe=exe, platform=sys.platform, timeout_s=args.timeout)
+    )
     keep_dir = Path(args.keep_dir) if args.keep_dir else None
     counts = {}
     errors = {}
