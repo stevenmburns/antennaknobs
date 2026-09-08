@@ -73,12 +73,26 @@ NULL_GAIN_DB = -999.99
 # what the engine can express.
 _NEC5_REDUCER_ROUTE = True
 
-# How far the knot-derived diagonal may sit from NEC-5's own reported source
-# current before `_compute_y_matrix` refuses. Loose enough for printout
-# rounding (the AIP block prints fewer digits than the currents block), tight
-# enough that a wrong knot — an off-by-one, or the segment current instead of
-# the knot average — cannot pass.
-_Y_DIAGONAL_RTOL = 1e-3
+# How far Y may sit from symmetric before `_compute_y_matrix` refuses.
+#
+# RECIPROCITY IS THE GATE, and it replaced a diagonal cross-check that could
+# not be one. The first version compared the knot-interpolated diagonal
+# against NEC-5's own reported source current and refused at 1e-3; on a
+# licensed box it fired on every network design at a consistent 0.4 %, and the
+# printouts said why. NEC-5's `Wire Currents` table carries segment-CENTRE
+# currents only, and at a DRIVEN knot the delta gap makes dI/ds discontinuous,
+# so averaging the two adjacent centres misses by O(h^2 * I''). At an UNDRIVEN
+# port the current is smooth through the knot and the average is second-order
+# accurate — which is exactly why the off-diagonals were fine and only the
+# diagonal was wrong.
+#
+# So the diagonal now comes from the ANTENNA INPUT PARAMETERS block, where
+# NEC-5 reports the driven port's current exactly, and the interpolation is
+# used only where it is valid. That leaves the off-diagonal rule ungated by
+# any external reading — except that a wrong interpolation breaks SYMMETRY,
+# and reciprocity is a property of the operator that needs nothing outside the
+# run to check.
+_Y_RECIPROCITY_RTOL = 1e-2
 
 
 def _network_needs_reducer(net) -> bool:
@@ -468,7 +482,7 @@ class NEC5Engine(SimulationEngine):
         self._reducer = NetworkReducer(network, port_to_idx, next_idx)
 
     def _knot_index(self, idx, knot):
-        """Index into `_currents_from`'s per-wire knot arrays for a port knot.
+        """Index into a wire's knot axis for a port knot.
 
         The same rule `_source_address` uses to place the EX card, read on the
         knot axis instead of the segment axis — the centre knot is the one
@@ -484,22 +498,82 @@ class NEC5Engine(SimulationEngine):
         assert knot == "p1", knot
         return n_total
 
+    def _wire_segments(self, per_tag, idx):
+        """(segment-centre currents, segment lengths) for authored wire `idx`.
+
+        One authored wire may be several tags (issue #1108); its currents are
+        their concatenation in card order and its lengths come from the same
+        expansion, so a graded wire's unequal panels line up with the currents
+        that belong to them.
+        """
+        cur = np.concatenate(
+            [
+                np.asarray(per_tag.get(tag, []), dtype=np.complex128)
+                for tag in self._tags_of[idx]
+            ]
+            or [np.zeros(0, dtype=np.complex128)]
+        )
+        lengths = np.concatenate(
+            [
+                np.full(n, float(np.linalg.norm(np.asarray(b) - np.asarray(a))) / n)
+                for a, b, n in _expand_graded(self._wires[idx])
+            ]
+        )
+        if cur.shape[0] != lengths.shape[0]:
+            raise NEC5Error(
+                f"wire {idx}: {cur.shape[0]} segment currents against "
+                f"{lengths.shape[0]} segments"
+            )
+        return cur, lengths
+
+    def _port_knot_current(self, per_tag, idx, knot):
+        """The current at a port knot, from the segment-centre currents.
+
+        LENGTH-WEIGHTED, not a plain average: the two adjacent centres sit
+        h_a/2 and h_b/2 from the knot, so linear interpolation there weights
+        each by the OTHER segment's length. On a uniform wire this is the
+        0.5/0.5 average `_currents_from` uses; on a graded one (issue #1108)
+        it is not, and the plain average would be first-order.
+
+        Valid only where the current is SMOOTH through the knot — i.e. at an
+        UNDRIVEN port. At a driven knot the delta gap makes dI/ds
+        discontinuous and any interpolation is O(h^2 * I'') wrong (measured
+        0.4 % on the catalog's network designs); the driven port's own current
+        is read from the ANTENNA INPUT PARAMETERS block instead.
+        """
+        cur, lengths = self._wire_segments(per_tag, idx)
+        if cur.shape[0] == 0:
+            raise NEC5Error(f"wire {idx}: no currents in the printout")
+        k = self._knot_index(idx, knot)
+        if k == 0:
+            return cur[0]
+        if k >= cur.shape[0]:
+            return cur[-1]
+        h_a, h_b = float(lengths[k - 1]), float(lengths[k])
+        if h_a + h_b <= 0:
+            raise NEC5Error(f"wire {idx}: zero-length segments at knot {k}")
+        return (cur[k - 1] * h_b + cur[k] * h_a) / (h_a + h_b)
+
     def _compute_y_matrix(self, wavelength):
         """Multiport short-circuit Y at the real ports: one NEC-5 run per
         port, that port driven at 1 V and every other port present but
-        unfed (= shorted), reading the current at every port knot into
-        column j.
+        unfed (= shorted), reading the current at every port into column j.
 
-        THE CONVENTION THIS RESTS ON, stated because it is the one thing a
-        box without the binary cannot check: the current "at a port" is the
-        knot current `_currents_from` already computes — the average of the
-        two adjacent segment-centre currents — which is the shipped,
-        fixture-pinned reading `current_distribution` returns. It is not
-        obviously the only defensible choice, so the diagonal is
-        CROSS-CHECKED against the ANTENNA INPUT PARAMETERS block, which
-        reports the driven port's own current directly. If the knot rule were
-        wrong, that check fails by name on the first real run rather than
-        producing a plausible wrong Y.
+        TWO READINGS, because NEC-5's printout has two and they are not
+        interchangeable:
+
+        * the DRIVEN port's entry, `Y[j, j]`, comes from `ANTENNA INPUT
+          PARAMETERS`, where NEC-5 reports the source current exactly. Driven
+          at 1 V, that current IS Y[j, j].
+        * every OTHER port's entry comes from interpolating the `Wire
+          Currents` table, which carries segment-CENTRE currents only.
+
+        Using the interpolation on the diagonal too was the first version and
+        it was wrong by a consistent 0.4 % on 19 of the catalog's 21 network
+        designs: a delta gap makes dI/ds discontinuous at the driven knot, so
+        no interpolation across it is second-order. Away from the source the
+        current is smooth and the interpolation is fine, which is why only the
+        diagonal was affected.
 
         Sign convention: each wire is a GW card in its authored p0→p1
         direction and NEC-5's EX and current readout follow it, so this Y is
@@ -512,22 +586,19 @@ class NEC5Engine(SimulationEngine):
         for j, drv in enumerate(names):
             idx, knot = self._port_attach[drv]
             text = self._run(self.deck([freq], sources=[(idx, 0, 1 + 0j, knot)]))
-            cur = self._currents_from(self._parse_wire_currents(text)[0])
+            per_tag = self._parse_wire_currents(text)[0]
             for i, name in enumerate(names):
+                if i == j:
+                    continue
                 i_idx, i_knot = self._port_attach[name]
-                Y[i, j] = cur[i_idx].knot_currents[self._knot_index(i_idx, i_knot)]
-            self._check_driven_column(text, Y[j, j], drv)
+                Y[i, j] = self._port_knot_current(per_tag, i_idx, i_knot)
+            Y[j, j] = self._driven_current(text, drv)
+            self._log_knot_gap(per_tag, idx, knot, Y[j, j], drv)
+        self._check_reciprocity(Y, names)
         return Y
 
-    def _check_driven_column(self, text, y_jj, drv):
-        """The driven port's own entry, against NEC-5's own report of it.
-
-        `ANTENNA INPUT PARAMETERS` prints the source's V, I and Z. Driven at
-        1 V, Y[j, j] IS that I. Comparing the knot-derived value against it
-        is what makes the knot convention above a measured claim rather than
-        an assumption — and it costs nothing, since the printout is already
-        in hand.
-        """
+    def _driven_current(self, text, drv):
+        """The driven port's own current, from NEC-5's report of it."""
         rows = self._parse_input_parameters(text)[0]
         if len(rows) != 1:
             raise NEC5Error(
@@ -536,18 +607,59 @@ class NEC5Engine(SimulationEngine):
         z = rows[0][2]
         if z == 0:
             raise NEC5Error(f"port {drv!r} run reported Z = 0")
-        want = 1.0 / z
-        scale = max(abs(want), abs(y_jj))
-        if scale > 0 and abs(y_jj - want) > _Y_DIAGONAL_RTOL * scale:
-            raise NEC5Error(
-                f"port {drv!r}: the knot current {y_jj!r} disagrees with the "
-                f"driven-source current {want!r} that NEC-5 reports for the "
-                f"same run (relative {abs(y_jj - want) / scale:.3e} > "
-                f"{_Y_DIAGONAL_RTOL:g}). The port-current convention in "
-                "`_compute_y_matrix` is wrong for this port, not the network."
+        return 1.0 / z
+
+    def _log_knot_gap(self, per_tag, idx, knot, y_jj, drv):
+        """Record how far the interpolation sits from the exact driven value.
+
+        A MEASUREMENT, not a gate. It is the quantity that exposed the
+        convention error, it is worth a number per port rather than a memory,
+        and it is expected to be nonzero — refusing on it would refuse every
+        correct solve. Rides on the run entry the driven run just appended.
+        """
+        try:
+            interp = self._port_knot_current(per_tag, idx, knot)
+        except NEC5Error:
+            return
+        scale = max(abs(y_jj), abs(interp))
+        if self.run_log:
+            self.run_log[-1]["port"] = drv
+            self.run_log[-1]["knot_vs_driven_rel"] = (
+                float(abs(interp - y_jj) / scale) if scale > 0 else 0.0
             )
 
-    # ---------- ground ----------
+    def _check_reciprocity(self, Y, names):
+        """Y must be symmetric — the gate the off-diagonal rule actually has.
+
+        The interpolated off-diagonals are checked against nothing outside the
+        run, so reciprocity is what stands in for an external reading: a wrong
+        interpolation (an off-by-one knot, an unweighted average on a graded
+        wire, the segment current instead of the knot value) breaks Y[i, j] ==
+        Y[j, i], and the two entries come from DIFFERENT runs, so nothing
+        about the arithmetic can make them agree by construction.
+        """
+        n = len(names)
+        worst = (0.0, None)
+        for i in range(n):
+            for j in range(i + 1, n):
+                scale = max(abs(Y[i, j]), abs(Y[j, i]))
+                if scale <= 0:
+                    continue
+                rel = abs(Y[i, j] - Y[j, i]) / scale
+                if rel > worst[0]:
+                    worst = (rel, (names[i], names[j]))
+        if worst[0] > _Y_RECIPROCITY_RTOL:
+            a, b = worst[1]
+            raise NEC5Error(
+                f"the multiport Y is not reciprocal: ports {a!r} and {b!r} "
+                f"disagree by {worst[0]:.3e} relative, over the "
+                f"{_Y_RECIPROCITY_RTOL:g} this route allows. Y[i,j] and "
+                "Y[j,i] come from different runs, so this is the off-diagonal "
+                "port-current rule in `_port_knot_current`, not the network."
+            )
+        self._y_reciprocity_rel = worst[0]
+
+    # ---------- ground ----------    # ---------- ground ----------
 
     @staticmethod
     def _normalise_ground(ground):

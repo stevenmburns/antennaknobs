@@ -329,17 +329,61 @@ def test_a_reduced_design_solves_and_agrees_with_bspline(design):
 
 
 @needs_nec5
-def test_the_diagonal_cross_check_is_live():
-    """The convention guard must actually run on a real printout — not be a
-    branch nothing reaches. Tightening it to zero must make a real solve
-    fail."""
+def test_the_reciprocity_gate_is_live_and_catches_a_bad_knot():
+    """The off-diagonal rule's only gate must actually fire.
+
+    Two arms, because either alone is weak. Tightening the tolerance to zero
+    proves the comparison runs on a real printout rather than being a branch
+    nothing reaches; perturbing the knot rule proves the gate SEPARATES a
+    right rule from a wrong one — a symmetry check that passes for every
+    interpolation would be worth nothing.
+    """
+    import unittest.mock as mock
+
     from antennaknobs.designs.arrays.lumped_coupled_pair import Builder
 
     eng = NEC5Engine(Builder())
     wl = nec5.C_LIGHT / (eng.builder.freq * 1e6)
-    eng._compute_y_matrix(wl)  # passes at the shipped tolerance
-    import unittest.mock as mock
+    Y = eng._compute_y_matrix(wl)  # passes at the shipped tolerance
+    assert Y.shape[0] >= 2
+    assert eng._y_reciprocity_rel < nec5._Y_RECIPROCITY_RTOL
 
-    with mock.patch.object(nec5, "_Y_DIAGONAL_RTOL", 0.0):
-        with pytest.raises(nec5.NEC5Error, match="port-current convention"):
+    with mock.patch.object(nec5, "_Y_RECIPROCITY_RTOL", 0.0):
+        with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
             eng._compute_y_matrix(wl)
+
+    # A WRONG knot: the adjacent segment centre instead of the interpolated
+    # knot value. Off by one half-segment on every off-diagonal, which
+    # symmetry must see.
+    real = NEC5Engine._port_knot_current
+
+    def off_by_one(self, per_tag, idx, knot):
+        cur, _lengths = self._wire_segments(per_tag, idx)
+        k = self._knot_index(idx, knot)
+        return cur[min(max(k, 0), cur.shape[0] - 1)]
+
+    with mock.patch.object(NEC5Engine, "_port_knot_current", off_by_one):
+        with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
+            NEC5Engine(Builder())._compute_y_matrix(wl)
+    assert NEC5Engine._port_knot_current is real
+
+
+@needs_nec5
+def test_the_driven_diagonal_comes_from_the_input_parameters_block():
+    """Y[j,j] is NEC-5's own reported source current, not an interpolation.
+
+    Pinned because the first version interpolated the diagonal too and was
+    wrong by a consistent 0.4 % on 19 of the catalog's 21 network designs —
+    a delta gap makes dI/ds discontinuous at the driven knot. The gap is
+    still RECORDED per port in `run_log`, as a measurement.
+    """
+    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder
+
+    eng = NEC5Engine(Builder())
+    wl = nec5.C_LIGHT / (eng.builder.freq * 1e6)
+    Y = eng._compute_y_matrix(wl)
+    gaps = [r["knot_vs_driven_rel"] for r in eng.run_log if "knot_vs_driven_rel" in r]
+    assert len(gaps) == Y.shape[0], eng.run_log
+    # Nonzero: if the interpolation agreed exactly the split would be
+    # pointless and this test would be asserting nothing.
+    assert max(gaps) > 1e-4, gaps
