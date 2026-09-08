@@ -36,8 +36,10 @@ centre knot and keeps its mesh. An off-centre feed moves half a segment
 toward the wire's centre and the move is written into the deck; pass
 `--offcenter double` to double that wire's mesh instead so the old centre is
 a knot exactly. When two referenced segments of one wire would land on the
-same knot (two TL ports on a two-segment stub), that wire's mesh is doubled
-regardless. Discrete loads (LD 0/1/4) and TL/NT ports are addressed the same
+same knot (two TL ports on a two-segment stub), that wire gets one more
+segment, which always separates them; measured against nec2c on the 92
+corpus decks this touches, that matched doubling the mesh and drew fewer
+NEC-5 geometry complaints. Discrete loads (LD 0/1/4) and TL/NT ports are addressed the same
 way, because NEC-5 attaches those at knots too. Tags shared by several
 wires, GM/GX/GR copies, and absolute (tag 0) segment numbers are all
 resolved before the knot is chosen.
