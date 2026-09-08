@@ -11,9 +11,10 @@ not.
 agreement improves for every momwire engine, several decks fall from ΔΓ ≈ 1.5
 to ≈ 0.01, and NEC-5 enters the corpus at 2,314 scored decks. Against that,
 **266 engine-deck pairs across 142 decks got measurably worse**, and the cause
-is engine-side rather than reference or import drift. Three causes are named
-and filed (momwire#963, #964, #965); part of the tail remains unattributed,
-and six decks turned out to have references that were never valid.
+is engine-side rather than reference or import drift. Three causes are named and filed (momwire#963, #964, #965) — though the
+largest of them turns out to be a jacket-model change measured against a
+stand-in for that same model, not a regression. Part of the tail remains
+unattributed, and six decks had references that were never valid.
 The tail is in this headline rather than an appendix because it is the part
 that needs work.
 
@@ -271,35 +272,53 @@ touches the BSpline bases only, and its sign is mixed: on
 while **bs2 improves from 0.6184 to 0.0125** on the same deck and the same
 change.
 
-#### 3. momwire 0.48.0, on elevated finite-ground decks (momwire#964)
+#### 3. momwire 0.48.0 — a jacket MODEL change, not a regression (momwire#964)
 
-The same bisect pins a second step at 0.47 → 0.48, across all three bases:
-the 6m Moxon goes 0.0082 → 0.9771 in `sin` and 0.0771 → 1.0145 in bs2, the
-20m diamond 0.0021 → 0.7493, and four members of the `general 2-xx`
-optimised-vertical series move together in `sin`. Every one of these sat below
-ΔΓ 0.01 at 0.47 — near-exact agreement with nec2c — and lands between 0.5 and
-1.0 at 0.48. Widened past the bisect's own decks, **24 of 38 regressed pairs**
-on the 24 largest non-EK regressions move at this single step.
+The same bisect pins a second step at 0.47 → 0.48, across all three bases: the
+6m Moxon goes 0.0082 → 0.9771 in `sin` and 0.0771 → 1.0145 in bs2, the 20m
+diamond 0.0021 → 0.7493, and four members of the `general 2-xx`
+optimised-vertical series move together in `sin`.
 
-The release's headline feature is "a wire may now lie on the ground", and it
-is **not** implicated: none of these decks has a wire at or below z = 0 (the
-minima are 5.3 m to 9.0 m), and no advisory is emitted. The mechanism is the
-release's coated-wire pair — the equivalent radius a′ of a jacketed conductor
-(momwire#874) — established by rebuild-per-commit, not by reading the
-changelog.
+**The separation is exact.** Of the 38 regressed pairs measured at this
+boundary, 24 move and 14 are flat — and **all 24 movers carry an `LD 7`
+insulated-conductor card, while none of the 14 flat pairs do.** Not a
+tendency: every mover, no exceptions, and no residue.
 
-**A correction belongs here.** This section first led with `general 2-04` and
-`general 2-05`, going 0.0016 → 1.1731 and 0.0011 → 1.0290, as the largest
-numbers in the sweep. They are not evidence of anything: their nec2c
-references are −11.42 − 156.68j and −13.42 − 221.50j. A passive antenna cannot
-have negative resistance, so both references are failed solves that printed a
-number, and ΔΓ against them is meaningless. Both decks carry an `LD 7` jacket
-7.4× the conductor radius, which the reference path emulates as a per-metre
-L′; July's momwire modelled it the same way and agreed with nec2c at R ≈ −11,
-two codes agreeing on nonsense. They are struck from the tables above and
-excluded from every comparison. This doc's first version also named
-`_crossing_fill.py` as the suspect by elimination from the changelog; that was
-wrong, and a bisect inside the release found the coated-wire commits instead.
+Decomposed on the 20m diamond, whose reference is healthy (|Γ| 0.71):
+
+| | nec2c | momwire sin | ΔΓ |
+|---|--:|--:|--:|
+| bare, `LD 7` removed | 9.130 − 153.58j | 9.228 − 153.60j | **0.0004** |
+| jacketed, as written | 9.581 − 38.39j | 9.594 − 6.55j | **0.7493** |
+
+Geometry, ground and import agree to four decimals. The entire 0.75 is the
+jacket.
+
+**And the reference is not an oracle here.** nec2c has no `LD 7`, so the
+bench's reference path emulates the jacket as a per-metre L′ — which is
+precisely the model momwire itself used before 0.48. The release replaced it
+with an equivalent-radius pair (a′, momwire#874). So this comparison is one
+jacket model against another, and the bench cannot arbitrate between them.
+What looked like a regression against a reference is a model change measured
+against a stand-in for the same model.
+
+The g1ojs template is `LD 7 0 0 0 4.5 .0016` on a 0.25 mm wire: b/a = 7.4, so
+a′/a = 4.74. momwire#874 was validated at b/a ≈ 2. The open question is
+therefore whether the coated-wire model is right at b/a ≳ 5, not whether 0.48
+broke something — and 82 scored decks in this corpus carry an `LD 7` card, so
+the answer has reach.
+
+The release's headline feature, "a wire may now lie on the ground", is **not**
+implicated: none of these decks has a wire at or below z = 0 (minima 5.3 m to
+9.0 m) and no advisory is emitted.
+
+**Two corrections belong here.** This section first led with `general 2-04`
+and `general 2-05` as the largest numbers in the sweep; their references are
+−11.42 − 156.68j and −13.42 − 221.50j, and a passive antenna cannot have
+negative resistance, so both are struck. It also named `_crossing_fill.py` as
+the suspect, by elimination from the changelog — a bisect inside the release
+found the coated-wire commits instead. Attribution by changelog lost to
+attribution by build.
 
 #### What is still open
 

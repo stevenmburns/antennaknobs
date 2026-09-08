@@ -187,6 +187,38 @@ def deck_scores(rows):
     return out
 
 
+def jacketed_decks(rows, corpus=None):
+    """Decks carrying an `LD 7` (insulated-conductor) card.
+
+    nec2c has no LD 7, so the reference path emulates the jacket as a
+    per-metre L'. That makes the reference ITSELF a jacket model rather than
+    an oracle: a dGamma on one of these decks compares two jacket models, and
+    is only meaningful against a run using the same one. Flagged, not
+    excluded -- the number is real, its interpretation is conditional.
+    """
+    root = Path(corpus) if corpus else None
+    out = set()
+    for r in rows:
+        deck = r["deck"]
+        path = (root / deck) if root else None
+        if path is None or not path.exists():
+            continue
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        for ln in text.splitlines():
+            tok = ln.replace(",", " ").split()
+            if len(tok) >= 2 and tok[0].upper() == "LD":
+                try:
+                    if int(float(tok[1])) == 7:
+                        out.add(deck)
+                        break
+                except ValueError:
+                    pass
+    return out
+
+
 def unphysical_refs(rows):
     """{deck: ref_z} where the nec2c reference is not a passive antenna.
 
@@ -354,6 +386,16 @@ def report(meta, rows, baseline=None, move=0.02):
         print()
     else:
         print("No bare exceptions: every refusal carried a sentence.\n")
+
+    jack = jacketed_decks(rows, (meta or {}).get("corpus"))
+    if jack:
+        scored = {r["deck"] for r in rows if first_z(r.get("nec2c"))}
+        print("### Jacketed decks — reference is a MODEL, not an oracle\n")
+        print(f"{len(jack & scored)} scored decks carry an `LD 7` insulated-conductor")
+        print("card. nec2c has no LD 7, so the reference path emulates the jacket")
+        print("as a per-metre L'. A ΔΓ on one of these compares two jacket models")
+        print("and is comparable only against a run using the same one. Flagged,")
+        print("not excluded.\n")
 
     bad_ref = unphysical_refs(rows)
     if bad_ref:
