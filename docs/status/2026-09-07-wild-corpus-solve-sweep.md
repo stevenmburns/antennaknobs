@@ -160,6 +160,38 @@ is free to move.
 | BSpline d=2 | 2759 | **0.0134** | 0.2889 | 45% | 71% | 88% | 5 |
 | NEC-5 | 2314 | **0.0304** | 0.4158 | 25% | 60% | 83% | 0 |
 
+## Against July on the SAME decks: the B-spline bases improved
+
+Read against the 07-17 table, the B-spline medians look worse (d=2 0.0084 →
+0.0134, d=1 0.0251 → 0.0324) while sinusoidal looks better. That is a cohort
+mismatch, not an engine change: 07-17's table is its *clean* cohort at
+n = 1,623, and its own addendum split that cohort into a verbatim set (d=1
+0.0259) and a resolved-reference set (d=1 0.0531, "electrically small
+VHF/UHF loops, helices and meander dipoles"). The table above is all-scored,
+which is both. Measured on the 07-17 run itself over the wider deck list, d=1's
+median is 0.0324 — the same as today's.
+
+Restricted to the decks scored by each engine in **both** runs (n ≈ 2,750,
+non-finite ΔΓ dropped on both sides):
+
+| engine | n | July median | now | July p90 | now | July ≤0.01 | now |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| Sinusoidal | 2761 | 0.0032 | 0.0036 | 0.0338 | 0.0378 | 68.4 % | 67.1 % |
+| BSpline d=1 | 2754 | 0.0326 | 0.0324 | 0.3668 | 0.3396 | 19.3 % | 19.8 % |
+| BSpline d=2 | 2752 | 0.0142 | 0.0134 | 0.3239 | 0.2867 | 43.7 % | 45.2 % |
+
+d=1 and d=2 improve on every column; sinusoidal is very slightly worse. The
+ordering sinusoidal < d=2 < d=1 holds identically in both runs (d=1 worse than
+sinusoidal by more than 0.01 on 71.3 % of decks in July, 70.6 % now). The
+clean-cohort restriction gives the same answer.
+
+What this column measures is worth restating: ΔΓ against nec2c at the deck's
+own segmentation is *sameness to NEC-2*, not accuracy — PyNEC is the same
+code and scores 0.0002, the sinusoidal basis is NEC-2's own and scores 0.0036.
+A basis that converges differently from NEC-2 on a coarse deck scores worse
+here whether or not it is closer to the truth; that d=1 trails NEC-5 on this
+column says nothing about which is right, and has been so since July.
+
 ## Agreement (clean decks: supported ground, full network)
 
 | engine | n | median | p90 | ≤0.01 | ≤0.05 | ≤0.2 | open |
