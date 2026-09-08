@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """nec5_corpus.py -- a NEC-5 regression corpus from the public NEC-2 decks.
 
 Three steps, one file, standard library only (Python 3.8 or newer):
