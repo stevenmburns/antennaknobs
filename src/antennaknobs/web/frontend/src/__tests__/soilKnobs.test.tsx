@@ -124,8 +124,9 @@ describe("soilSummaryLabel", () => {
 describe("GroundPanel soil sub-panel", () => {
   it("renders the presets and both knobs over finite ground", () => {
     render(<GroundPanel {...panelProps()} />);
-    const group = screen.getByRole("radiogroup", { name: "Soil preset" });
-    expect(within(group).getAllByRole("radio")).toHaveLength(PRESETS.length);
+    const select = screen.getByRole("combobox", { name: "Soil preset" });
+    // One option per preset, plus the disabled "custom soil" placeholder.
+    expect(within(select).getAllByRole("option")).toHaveLength(PRESETS.length + 1);
     expect(numberField(EPS_LABEL)).toBeTruthy();
     expect(numberField(SIGMA_LABEL)).toBeTruthy();
     // The conductivity knob is the log one — four and a half decades.
@@ -135,32 +136,28 @@ describe("GroundPanel soil sub-panel", () => {
     ).toBeTruthy();
   });
 
-  it("checks the radio matching the current values, and only that one", () => {
+  it("selects the preset matching the current values, with its wording", () => {
     render(<GroundPanel {...panelProps()} />);
-    const group = screen.getByRole("radiogroup", { name: "Soil preset" });
-    const checked = within(group)
-      .getAllByRole("radio")
-      .filter((r) => (r as HTMLInputElement).checked);
-    expect(checked).toHaveLength(1);
-    expect(screen.getByTitle(/Pastoral/)).toBeTruthy();
+    const select = screen.getByRole("combobox", { name: "Soil preset" });
+    expect((select as HTMLSelectElement).value).toBe("average");
+    // The book's wording travels: on the option, and in the caption below.
+    expect(within(select).getByTitle("Pastoral.")).toBeTruthy();
+    expect(screen.getByText(/average soil — Pastoral\./)).toBeTruthy();
   });
 
   it("checks NO preset for a custom soil", () => {
     render(<GroundPanel {...panelProps({ soil: { eps_r: 14, sigma: 0.005 } })} />);
-    const group = screen.getByRole("radiogroup", { name: "Soil preset" });
-    expect(
-      within(group)
-        .getAllByRole("radio")
-        .filter((r) => (r as HTMLInputElement).checked),
-    ).toHaveLength(0);
-    expect(screen.getByText("custom soil")).toBeTruthy();
+    const select = screen.getByRole("combobox", { name: "Soil preset" });
+    // The placeholder is selected (value ""), and the caption says so.
+    expect((select as HTMLSelectElement).value).toBe("");
+    expect(screen.getByText("custom soil", { selector: "div" })).toBeTruthy();
   });
 
   it("sends a preset's BOTH constants when picked", async () => {
     const setSoil = vi.fn();
     render(<GroundPanel {...panelProps({ setSoil })} />);
-    const group = screen.getByRole("radiogroup", { name: "Soil preset" });
-    await userEvent.click(within(group).getByTitle("Sea."));
+    const select = screen.getByRole("combobox", { name: "Soil preset" });
+    await userEvent.selectOptions(select, "salt-water");
     expect(setSoil).toHaveBeenCalledWith({ eps_r: 81, sigma: 5 });
   });
 
@@ -185,25 +182,25 @@ describe("GroundPanel soil sub-panel", () => {
 
   it("renders NO soil controls when the server describes no ranges", () => {
     render(<GroundPanel {...panelProps({ soilRanges: null })} />);
-    expect(screen.queryByRole("radiogroup", { name: "Soil preset" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Soil preset" })).toBeNull();
     expect(screen.queryByText(EPS_LABEL)).toBeNull();
   });
 
   it("renders NO soil controls over PEC ground", () => {
     render(<GroundPanel {...panelProps({ groundType: "pec" })} />);
-    expect(screen.queryByRole("radiogroup", { name: "Soil preset" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Soil preset" })).toBeNull();
   });
 
   it("renders NO soil controls when the ground plane is off", () => {
     render(<GroundPanel {...panelProps({ groundEnabled: false })} />);
-    expect(screen.queryByRole("radiogroup", { name: "Soil preset" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Soil preset" })).toBeNull();
   });
 
   it("still renders the knobs when the server serves ranges but no presets", () => {
     // Bounds and menu are separate facts; a preset-less server still gets
     // usable knobs.
     render(<GroundPanel {...panelProps({ soilPresets: [] })} />);
-    expect(screen.queryByRole("radiogroup", { name: "Soil preset" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Soil preset" })).toBeNull();
     expect(numberField(EPS_LABEL)).toBeTruthy();
   });
 
