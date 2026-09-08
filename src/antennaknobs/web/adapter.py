@@ -1692,7 +1692,7 @@ def _requested_ground_model(req: dict):
 
 # Fixed terrain media (v1 of the web exposure, issue #534's QTH numbers):
 # the panel shows them read-only; editable media are a possible follow-up.
-_TERRAIN_WATER = (80.0, 0.005)
+_TERRAIN_WATER = (80.0, 0.001)  # ARRL Antenna Book 25th ed., Table 3.1 (#1175)
 _TERRAIN_LAND = (13.0, 0.005)
 
 
@@ -1716,45 +1716,72 @@ _TERRAIN_LAND = (13.0, 0.005)
 SOIL_EPS_R_RANGE = (1.0, 81.0)
 SOIL_SIGMA_RANGE = (1e-4, 5.0)
 
-# The named ladder. Every value here is sourced from a number this codebase
-# already stands behind rather than retyped from a book:
-#   v.poor / poor / average / v.good / sea  -- momwire's own ground ladder,
-#     the one its reference-engine study tabulates (momwire
-#     docs/design/contact-over-finite-ground.md 3.2, and the (eps_r, sigma)
-#     pairs in momwire/scripts/spike_contact_plane_reference.py and
-#     capture_contact_nec5_lane.py);
-#   fresh water -- _TERRAIN_WATER above, so the soil menu and the terrain
-#     panel cannot disagree about what water is.
-#
-# The issue's list also names a "good" between average and very good. It is
-# deliberately ABSENT: no value for it exists anywhere in this repo, and a
-# published soil constant is not something to interpolate or recall from
-# memory into a physics default. Dial it by hand or add it here with a
-# citation. See the PR discussion on #1173.
+# The named ladder. Every row is the ARRL Antenna Book's Table 3.1,
+# "Conductivities and Dielectric Constants for Common Types of Earth" (25th
+# edition, p. 3.3), checked against the book on 2026-09-08 (issue #1175):
+#   very poor  -- "Cities, industrial areas", 5 / 0.001 (the book's Very Poor;
+#                 the 3 / 0.0001 that shipped with #1173 had the Extremely
+#                 poor row's eps_r and a sigma ten times too low);
+#   poor       -- "Rocky soil, steep hills, typ mountainous", 12-14 / 0.002
+#                 (the book's Poor; 13 is the middle of its eps_r range);
+#   average    -- "Pastoral, medium hills and forestation, heavy clay soil,
+#                 typ central VA", 13 / 0.005 (the book's Average);
+#   good       -- "Pastoral, low hills, rich soil, typ OH and IL", 14 / 0.01.
+#                 The book labels no row Good; this is the row between its
+#                 Average and Very good that the name is used for elsewhere;
+#   very good  -- "Pastoral, low hills, rich soil, typ Dallas TX to Lincoln
+#                 NE", 20 / 0.0303 (the book's Very good);
+#   fresh water -- 80 / 0.001, and _TERRAIN_WATER above follows the same row
+#                 so the soil menu and the terrain panel agree about water;
+#   salt water -- 81 / 5.0.
+# The book also lists Saline (80 / 0.5 or more), marshy flat country
+# (12 / 0.0075), medium hills MD/PA/NY (13 / 0.006), sandy dry coastal
+# (10 / 0.002) and heavy industrial cities (3 / 0.001, Extremely poor); none
+# of those is served as a preset (Steve's call, 2026-09-08). Dial them in by
+# hand.
 _SOIL_PRESETS: tuple[tuple[str, str, float, float, str], ...] = (
-    ("very-poor", "very poor", 3.0, 0.0001, "Industrial / city, or dry barren rock."),
-    ("poor", "poor", 5.0, 0.001, "Rocky, sandy or dry soil."),
+    (
+        "very-poor",
+        "very poor",
+        5.0,
+        0.001,
+        "Cities, industrial areas (ARRL Table 3.1: very poor).",
+    ),
+    (
+        "poor",
+        "poor",
+        13.0,
+        0.002,
+        "Rocky soil, steep hills, mountainous (ARRL Table 3.1: poor).",
+    ),
     (
         "average",
         "average",
         13.0,
         0.005,
-        "Pastoral, medium hills — the usual default soil.",
+        "Pastoral, medium hills, heavy clay soil — the usual default (ARRL Table 3.1: average).",
+    ),
+    (
+        "good",
+        "good",
+        14.0,
+        0.01,
+        "Pastoral, low hills, rich soil, typ. Ohio and Illinois (ARRL Table 3.1).",
     ),
     (
         "very-good",
         "very good",
         20.0,
         0.0303,
-        "Rich, moist agricultural soil; the classic 20/0.0303 earth.",
+        "Pastoral, low hills, rich soil, Dallas to Lincoln (ARRL Table 3.1: very good).",
     ),
     (
         "fresh-water",
         "fresh water",
         *_TERRAIN_WATER,
-        "Fresh water, matching the terrain panel's water medium.",
+        "Fresh water (ARRL Table 3.1), matching the terrain panel's water medium.",
     ),
-    ("salt-water", "salt water", 81.0, 5.0, "Sea water."),
+    ("salt-water", "salt water", 81.0, 5.0, "Sea water (ARRL Table 3.1)."),
 )
 
 
@@ -1878,7 +1905,7 @@ class _TerrainPreset:
     marker: _TerrainMarker | None = None
 
 
-_TERRAIN_MEDIA_NOTE = "media: water εr=80 σ=0.005 · land/crest εr=13 σ=0.005"
+_TERRAIN_MEDIA_NOTE = "media: water εr=80 σ=0.001 · land/crest εr=13 σ=0.005"
 
 
 def _build_levee(v: Mapping[str, float]) -> Terrain:
@@ -2003,7 +2030,7 @@ def _terrain_from_request(req: dict) -> Terrain:
     """Build the faceted-terrain ground from the request's `terrain` preset
     params (ground_model="terrain"). The preset registry maps the clamped
     field values straight onto the antennaknobs.terrain constructors; media
-    are fixed at the QTH constants (water 80/0.005 outward of the cliff/water-
+    are fixed at the QTH constants (water 80/0.001 outward of the cliff/water-
     side toe; land 13/0.005 for crest, slopes and the land plain)."""
     preset, values = _clamped_terrain(req)
     return preset.build(values)
