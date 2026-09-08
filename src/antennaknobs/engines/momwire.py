@@ -341,6 +341,32 @@ def _extended_kernel_refusal(solver, solver_kwargs):
     return _capability_refusal(solver, "extended_kernel")
 
 
+def _node_gaps_refusal(solver_cls):
+    """Why `solver_cls` cannot take `node_gaps=`, or None — straight from
+    momwire's own row, same as `_extended_kernel_refusal` (antennaknobs#1264).
+
+    A PortAtVertex design (the apex-fed class) makes the engine pass
+    `node_gaps=`, and what happens next depended on how the class declines:
+
+      * `SinusoidalSolver` does not declare the parameter AT ALL, so Python
+        raised `TypeError: ... got an unexpected keyword argument
+        'node_gaps'` out of the constructor — a bare type error where every
+        other refusal in the catalog is a sentence. That is the bug.
+      * `HarringtonSolver` also does not declare it, but absorbs it through
+        `**kwargs` and raises momwire's own `NotImplementedError` with the
+        row's prose, which is already the right behaviour.
+
+    Both rows say `node_gaps=False`, so ASKING THE ROW covers the two
+    identically and stops the answer depending on a constructor's signature.
+    That is also why the caller enumerates from the rows rather than naming
+    Sinusoidal: `RazorSolver` declares `node_gaps` and serves them
+    (`junction_ports=False` is a different cell, and a razor deck feeds
+    through node ports), so a hand-list written from the symptom would have
+    refused a combination that works.
+    """
+    return _capability_refusal(solver_cls, "node_gaps")
+
+
 def _ends_in_the_plane(tups, ground_z, *, tol=1e-6):
     """Every ``(tuple_index, "p0"|"p1")`` whose z lies in the ground plane.
 
@@ -1112,6 +1138,23 @@ class MomwireEngine(SimulationEngine):
             kw["ground_model"] = "sommerfeld"
         return kw
 
+    def _require_node_gaps(self):
+        """Raise if this basis cannot take the design's vertex ports.
+
+        Called from BOTH construction sites rather than once at engine
+        construction, deliberately: `_vertex_port_members` is a property of
+        the resolved design and the plain and network paths build their
+        kwargs separately, so a single up-front check would have to duplicate
+        the condition that decides whether `node_gaps=` is passed at all —
+        and the two would drift. Same exception type and the same prose
+        momwire's own constructors use, so an engine-level refusal and an
+        upstream one are indistinguishable to a caller's error path (the
+        argument `_require_extended_kernel` makes just below).
+        """
+        reason = _node_gaps_refusal(self._solver)
+        if reason is not None:
+            raise NotImplementedError(reason)
+
     def _require_extended_kernel(self):
         """Raise if this basis (or these kwargs) cannot serve the extended
         kernel. Same exception type and the same class of message momwire's own
@@ -1167,6 +1210,7 @@ class MomwireEngine(SimulationEngine):
                 for j, v in zip(self._end_port_junctions, volts, strict=True)
             ]
         if self._vertex_port_members:
+            self._require_node_gaps()
             v_volts = (
                 vertex_port_voltages
                 if vertex_port_voltages is not None
@@ -1511,6 +1555,7 @@ class MomwireEngine(SimulationEngine):
             ]
         if self._vertex_port_members:
             # Same guard: only the network path declares vertex ports.
+            self._require_node_gaps()
             kw["node_gaps"] = [
                 (pl, end, complex(v))
                 for (pl, end), v in zip(

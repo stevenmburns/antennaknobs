@@ -3027,6 +3027,23 @@ _VERTEX_PORT_BACKENDS = (
     "nec5",
 )
 
+# Backends whose row SERVES node gaps and which are deliberately not offered
+# above (antennaknobs#1264). This exists so the gap between "what momwire can
+# do" and "what this app offers" is a NAMED, countable set rather than a
+# silent difference between two tuples — `test_node_gaps_refusal_1264.py`
+# requires `serving - allowlist` to equal exactly this, in both directions, so
+# a backend cannot fall out of the tab list unremarked and cannot sit here
+# after its row changes.
+#
+# `razor-2p`: `RazorSolver` has served `node_gaps` since momwire#603 and
+# solves `dipoles.invvee_apex` through this engine today (54.07 - 15.18j
+# against sinusoidal-Galerkin's 54.52 - 12.18j — R within 0.8 %, X within its
+# own first-order-in-the-mesh advisory). It is withheld only because nobody
+# has driven the razor node-gap path across the catalog, and turning on a tab
+# is a product call rather than a lint fix. Widening this is one line plus
+# that verification.
+_VERTEX_PORT_WITHHELD = ("razor-2p",)
+
 
 # Backend restriction copy, server-side (antennaknobs#1006 G2-5). It lived in
 # the frontend as `RESTRICTED_BACKEND_REASON`, whose own comment said to
@@ -3049,11 +3066,26 @@ _RESTRICTION_REASONS = {
         "serve them, but the point-matched sinusoidal and razor solvers do "
         "not, and NEC-2 has no equivalent card."
     ),
+    # THIRD SPELLING OF THIS SENTENCE, and the second one that was false
+    # (antennaknobs#1264). The comment above records the frontend constant
+    # being wrong for a vertex-port design; its replacement then said the
+    # point-matched sinusoidal AND RAZOR solvers do not serve one. Razor has
+    # served `node_gaps` since momwire#603 and solves `dipoles.invvee_apex`
+    # today, so naming it was a capability claim that momwire's own row
+    # contradicts. It now names only what the rows refuse — the point-matched
+    # sinusoidal basis and the pulse/Harrington reference row — and says
+    # plainly that razor's absence from the tab list is OUR conservatism
+    # rather than a refusal, so the sentence stops asserting something a
+    # reader could check and find false.
+    #
+    # `test_node_gaps_refusal_1264.py` checks this text against the rows by
+    # solver family, which is the thing pinning the text never did.
     "vertex_ports": (
         "This design attaches a network element in the middle of a conductor "
         "(a series vertex port) — the dense and accelerated momwire solvers "
-        "serve it, and NEC-5 serves it natively, but the point-matched "
-        "sinusoidal and razor solvers do not."
+        "serve it, and NEC-5 serves it natively. The point-matched sinusoidal "
+        "and pulse bases refuse it. The razor solver does serve it, but is "
+        "not offered here yet."
     ),
 }
 
