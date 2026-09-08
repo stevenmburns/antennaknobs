@@ -257,6 +257,13 @@ bases and carrying the largest numbers in the tail: `general 2-04` sin goes
 returns 3.34 + 156.07j against a −11.42 − 156.68j reference — the reactance
 changes sign.
 
+Widened past the bisect's own eight decks: taking the 24 decks with the
+largest regressions that the kernel flag does *not* explain and re-solving
+them at both releases, **30 of their 44 regressed pairs move at this one
+step** and 14 are flat. The whole `general 2-xx` optimised-vertical series
+moves together in `sin`, every member of it sitting below ΔΓ 0.01 at 0.47 —
+near-exact agreement with nec2c — and between 0.5 and 1.2 at 0.48.
+
 The release's headline feature is "a wire may now lie on the ground", and it
 is **not** implicated: none of these decks has a wire at or below z = 0 (the
 minima are 5.3 m to 9.0 m), and no advisory is emitted. By elimination from
@@ -268,10 +275,10 @@ say otherwise on their geometry.
 #### What is still open
 
 The three causes do not cover the whole tail. 136 of the 272 pairs carry no
-`EK` card at all, and the two release boundaries are pinned on eight decks
-rather than measured across all 144 — a tail-wide re-run at four releases was
-started and abandoned at a measured ~16 h, because the regressed decks are the
-corpus's slowest. At least one deck
+`EK` card at all, and the release boundaries are measured on 8 decks across all 19
+releases plus 24 more at the 0.47/0.48 step, not across all 144 — a tail-wide
+re-run at four releases was started and abandoned at a measured ~16 h, because
+the regressed decks are the corpus's slowest. At least one deck
 (`cebik-w4rnl/.../ch-11/11-2b.nec`, sin 0.0011 → 0.9550) is flat across every
 release from 0.34 to 0.50, so its cause predates the range today's
 antennaknobs can drive at all: the importer requires `momwire.networks`, which
