@@ -340,13 +340,27 @@ def test_the_reciprocity_gate_is_live_and_catches_a_bad_knot():
     """
     import unittest.mock as mock
 
-    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder
+    # hb9cv, NOT a mirror-symmetric pair. THE DESIGN IS THE TEST'S SUBJECT
+    # here, not scenery: on `arrays.lumped_coupled_pair` the two per-port runs
+    # are mirror images, Y[0,1] == Y[1,0] to the BIT, and the residual is
+    # exactly 0.0 — so tightening the tolerance to zero raises nothing and the
+    # arm passes for a gate that could never fire. Measured on the licensed
+    # box: lumped_coupled_pair, delta_looparray_network, moxon_turnstile,
+    # tri_moxon and expanded_lazy_h are all exactly 0.0 for that reason;
+    # hb9cv is 1.9e-05 and phased_driver_yagi 3.8e-05.
+    from antennaknobs.designs.beams.hb9cv import Builder
 
     eng = NEC5Engine(Builder())
     wl = nec5.C_LIGHT / (eng.builder.freq * 1e6)
     Y = eng._compute_y_matrix(wl)  # passes at the shipped tolerance
     assert Y.shape[0] >= 2
     assert eng._y_reciprocity_rel < nec5._Y_RECIPROCITY_RTOL
+    # The precondition, by name: a zero residual makes the next arm vacuous,
+    # and swapping in a symmetric design is the easy way to get one.
+    assert eng._y_reciprocity_rel > 0.0, (
+        "this design's Y is symmetric to the bit, so tightening the tolerance "
+        "below it cannot fire — pick an asymmetric multiport design"
+    )
 
     with mock.patch.object(nec5, "_Y_RECIPROCITY_RTOL", 0.0):
         with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
@@ -377,7 +391,7 @@ def test_the_driven_diagonal_comes_from_the_input_parameters_block():
     a delta gap makes dI/ds discontinuous at the driven knot. The gap is
     still RECORDED per port in `run_log`, as a measurement.
     """
-    from antennaknobs.designs.arrays.lumped_coupled_pair import Builder
+    from antennaknobs.designs.beams.hb9cv import Builder
 
     eng = NEC5Engine(Builder())
     wl = nec5.C_LIGHT / (eng.builder.freq * 1e6)

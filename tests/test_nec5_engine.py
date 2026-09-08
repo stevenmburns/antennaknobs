@@ -1171,6 +1171,7 @@ def test_contact_class_captures_pin_the_ground_flag():
 
 
 @needs_nec5
+@pytest.mark.antenna_computation_check
 def test_the_old_flag_prints_negative_resistance_when_fed_below_ground():
     """The other witness for the old flag, and the sharpest one.
 
