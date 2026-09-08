@@ -207,10 +207,13 @@ Two app-side notes the engine page doesn't carry:
   but not universally fast — it loses the log-periodic on every ground
   model (free space: 14 s vs ArrayBlock's 1.2 s), so "use PyNEC as the
   reference" holds for small designs, not arrays.
-- **Junction-port (`PortAtEnd`) designs** accept `sinusoidal-galerkin` as
-  the second opinion (historically B-spline-only; the sin-Galerkin
-  junction ports run in free space and over a PEC ground — momwire#191 —
-  with finite grounds still refused). `bspline` remains the default.
+- **Junction-port (`PortAtEnd`) designs** accept `sinusoidal-galerkin`,
+  `hmatrix` and `arrayblock` beside the default `bspline` (the two
+  accelerators were measured on the Sterba curtain in #1152 and agree with
+  the dense parent to machine precision as their tolerances tighten; the
+  sin-Galerkin junction ports run in free space and over a PEC ground —
+  momwire#191 — with finite grounds still refused). The point-matched
+  sinusoidal and pulse bases refuse them, with momwire's own sentence.
 
 ## Segments & convergence
 
