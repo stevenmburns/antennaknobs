@@ -1,7 +1,10 @@
 # A NEC-5 regression corpus from the public NEC-2 decks
 
 `nec5_corpus.py` is one Python file, standard library only, Python 3.8 or
-newer, Windows / macOS / Linux. It does three things:
+newer, Windows / macOS / Linux. Run it as `python nec5_corpus.py ...` (or
+`python3` where that is the name); it carries no shebang on purpose, because
+Windows' `py` launcher would follow one to the Store stub that a default
+Windows 11 install leaves at `python3`. It does three things:
 
 ```
 python nec5_corpus.py fetch     --out raw

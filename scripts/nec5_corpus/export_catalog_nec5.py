@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Write antennaknobs' own catalog designs as NEC-5 decks (MIT, ours to share).
 
     NEC5_EXE=/path/to/nec5cl python scripts/nec5_corpus/export_catalog_nec5.py --out catalog-nec5
