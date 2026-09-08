@@ -760,24 +760,23 @@ class Card:
 
 def _split_fields(line: str) -> list:
     """Card fields. A TAB-delimited 4nec2 card may carry an expression with
-    spaces inside one field (`GM 0 0 0 0 0 Fx 0 Fz + 0.24529 100`), so tabs
-    and commas split first and a tab field is only split further on spaces
-    when it is plain numbers (a mixed tab/space deck)."""
+    spaces around its operators inside one field (`Fz + 0.24529`), so tabs
+    and commas split first; a tab field is then split on spaces, and only a
+    bare operator token glues its two neighbours back together (a mixed
+    tab/space deck keeps its plain numbers apart)."""
     if "\t" not in line:
         return line.replace(",", " ").split()
     out = []
     for field in re.split(r"[\t,]+", line):
-        field = field.strip()
-        if not field:
-            continue
-        if " " in field and not re.search(r"[A-Za-z_#^*/]", field):
-            out.extend(field.split())
-        elif (
-            " " in field and re.search(r"[+\-*/^]", field) and not field.startswith("'")
-        ):
-            out.append(field.replace(" ", ""))
-        else:
-            out.extend(field.split()) if " " in field else out.append(field)
+        parts = field.split()
+        i = 0
+        while i < len(parts):
+            if parts[i] in ("+", "-", "*", "/", "^") and 0 < i < len(parts) - 1 and out:
+                out[-1] = out[-1] + parts[i] + parts[i + 1]
+                i += 2
+                continue
+            out.append(parts[i])
+            i += 1
     return out
 
 
