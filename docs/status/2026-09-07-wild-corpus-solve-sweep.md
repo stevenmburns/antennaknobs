@@ -11,8 +11,10 @@ not.
 agreement improves for every momwire engine, several decks fall from ΔΓ ≈ 1.5
 to ≈ 0.01, and NEC-5 enters the corpus at 2,314 scored decks. Against that,
 **272 engine-deck pairs across 144 decks got measurably worse**, and the cause
-is engine-side rather than reference or import drift. The tail is in this
-headline rather than an appendix because it is the part that needs work.
+is engine-side rather than reference or import drift. Three causes are named
+and filed (momwire#963, #964, #965); part of the tail remains unattributed.
+The tail is in this headline rather than an appendix because it is the part
+that needs work.
 
 ## Method
 
@@ -204,37 +206,87 @@ It is not one uniform cause. On
 against a 73 Ω reference) while **bs2 improves on the same deck**, landing at
 75.7 − 76.7j against a reference of 73.0 − 77.0j.
 
-### What the tail is, and what it is not
+### What the tail is: three named causes
 
-Two candidate explanations were measured and neither survives as stated.
+Two candidate explanations were measured first and neither survives as stated,
+which is worth recording because both looked convincing.
 
 **Loads and ground are mostly base rate.** 120 of the 144 decks carry an `LD`
 card and 119 a `GN` card, which looks damning until compared against the
 corpus: 65.9 % and 70.8 % of all comparable decks carry them anyway. The
 enrichment is 1.26× and 1.17× — not a cause.
 
-**High Q does not explain it either.** The obvious physical story is that
-these are high-reactance structures where a small absolute error swings ΔΓ.
-Decks with |X|/R > 1 are enriched 2.36×, but the enrichment *falls* to 1.04×
-above |X|/R > 30. If reactance were the mechanism the trend would run the
-other way.
+**High Q does not explain it either.** The obvious physical story is that these
+are high-reactance structures where a small absolute error swings ΔΓ. Decks
+with |X|/R > 1 are enriched 2.36×, but the enrichment *falls* to 1.04× above
+|X|/R > 30. If reactance were the mechanism the trend would run the other way.
 
-What does stand out is geometry family: `GH` (helix) cards are enriched
-**5.15×**, and the g1ojs collection supplies 68.1 % of the regressed decks
-against 13.4 % of the corpus — **5.08×**. Those decks are dominated by
-magloops, helices and shortened verticals.
+What did survive is three separate causes, each pinned by an experiment.
 
-A related hypothesis — momwire#959's finding that dense collocation returns
-noise once segment length drops below ~0.3 × the kernel radius — was tested
-and is **not confirmed as the explanation for this tail**. Regressed decks do
-sit closer to the limit (median min Δ/a of 6.8 against 40.5 for unchanged
-decks), but essentially none reach 0.3: only 2.6 % fall below Δ/a = 2. The
-measurement covers 38 of the 144 decks, since the parser reads plain `GW`
-cards only and much of this family is `GH`-generated, so it bounds rather than
-settles the question — and the equivalent radius of a jacketed conductor was
-not modelled.
+#### 1. The extended kernel — 85 pairs (momwire#963)
 
-Cause is therefore **open**, tracked as its own issue with the full deck list.
+In July the momwire bases could not honour an `EK` card, so those decks ran
+reduced-kernel; today they honour it. PyNEC honoured EK in both eras and has
+**zero** regressions, which is the control. EK-carrying decks are enriched
+**4.01×** in the tail.
+
+Re-solving all 136 EK-carrying regressed pairs with `extended_kernel=False`
+returns **85** of them to their July value exactly; 16 recover partially and
+35 are unmoved. Median regression in the restored group is 0.034, reaching
+0.99.
+
+The reference is nec2c with the *same* EK card applied, unchanged between
+runs — so both codes now use an extended kernel and they agree *less* than
+when only one of them did. Most of this family is thin-wire Yagis, where EK
+should be a small correction.
+
+#### 2. momwire 0.45.0, the quadrature split — bs1/bs2 on fat loops (momwire#965)
+
+A bisect over all 19 releases from 0.34.0 to 0.50.0 pins a step at
+0.44 → 0.45, the `n_qp_pair` split into cross-edge 8 / same-edge 4 (#743). It
+touches the BSpline bases only, and its sign is mixed: on
+`20m 65cm Circ 10mm Copper Magloop V.nec` bs1 degrades from 0.5773 to 1.0577
+while **bs2 improves from 0.6184 to 0.0125** on the same deck and the same
+change.
+
+#### 3. momwire 0.48.0, on elevated finite-ground decks (momwire#964)
+
+The same bisect pins a second step at 0.47 → 0.48, this one across all three
+bases and carrying the largest numbers in the tail: `general 2-04` sin goes
+0.0016 → 1.1731, the 6m Moxon 0.0082 → 0.9771. On `general 2-04` the solver
+returns 3.34 + 156.07j against a −11.42 − 156.68j reference — the reactance
+changes sign.
+
+The release's headline feature is "a wire may now lie on the ground", and it
+is **not** implicated: none of these decks has a wire at or below z = 0 (the
+minima are 5.3 m to 9.0 m), and no advisory is emitted. By elimination from
+the changelog the only numerical change in that release is one `perf` commit
+to `_crossing_fill.py` whose own message states it is "an exact restriction,
+not an approximation" and reports Z bit-identical on three decks. These decks
+say otherwise on their geometry.
+
+#### What is still open
+
+The three causes do not cover the whole tail. 136 of the 272 pairs carry no
+`EK` card at all, and the two release boundaries are pinned on eight decks
+rather than measured across all 144 — a tail-wide re-run at four releases was
+started and abandoned at a measured ~16 h, because the regressed decks are the
+corpus's slowest. At least one deck
+(`cebik-w4rnl/.../ch-11/11-2b.nec`, sin 0.0011 → 0.9550) is flat across every
+release from 0.34 to 0.50, so its cause predates the range today's
+antennaknobs can drive at all: the importer requires `momwire.networks`, which
+does not exist before ~0.33, while the July baseline ran on ~0.14.
+
+Reproducers for all three live in `scratch/1234-study/`.
+
+A fourth hypothesis was tested and is **not confirmed**: momwire#959's finding
+that dense collocation returns noise below ~0.3 × the kernel radius. Regressed
+decks do sit closer to the limit (median min Δ/a 6.8 against 40.5 for
+unchanged decks) but essentially none reach it — only 2.6 % fall below Δ/a = 2
+and none below 0.3. That measurement covers 38 of the 144 decks, since the
+parser reads plain `GW` cards only and much of this family is `GH`-generated,
+and it does not model the equivalent radius of a jacketed conductor. It bounds
+the question rather than settling it.
 
 ## Incidents
 
@@ -248,8 +300,17 @@ Cause is therefore **open**, tracked as its own issue with the full deck list.
 
 ## Next
 
-- Root-cause the 272-pair regression tail (issue below); the g1ojs / `GH`
-  concentration is the place to start.
-- Refuse rather than return `z = [inf, 0]` on the five open-port decks.
-- Record engine versions in `_meta`.
+- **momwire#964** — 0.48.0 on elevated finite-ground decks. The largest
+  numbers in the tail, and the release's only numerical change asserts it is
+  exact.
+- **momwire#965** — 0.45.0's quadrature split moving bs1 and bs2 in opposite
+  directions on the same deck.
+- **momwire#963** — the extended kernel disagreeing with a reference that was
+  already using one.
+- **momwire#962** — refuse rather than return `z = [inf, 0]`.
+- **#1256** — record engine versions in `_meta`, and verify the nec2c md5
+  rather than trusting `PATH`.
+- Size the unattributed residue: 136 pairs carry no `EK` card, and the
+  pre-0.34 breakages need an antennaknobs worktree at the July commit to
+  reach at all.
 - BSpline d=1's 7 GB peak against an 8 GB cap.
