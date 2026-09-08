@@ -35,8 +35,10 @@ of the segment ending at that knot). A wire with an even count already has a
 centre knot and keeps its mesh. An off-centre feed moves half a segment
 toward the wire's centre and the move is written into the deck; pass
 `--offcenter double` to double that wire's mesh instead so the old centre is
-a knot exactly. Discrete loads (LD 0/1/4) and TL/NT ports are addressed the
-same way, because NEC-5 attaches those at knots too. Tags shared by several
+a knot exactly. When two referenced segments of one wire would land on the
+same knot (two TL ports on a two-segment stub), that wire's mesh is doubled
+regardless. Discrete loads (LD 0/1/4) and TL/NT ports are addressed the same
+way, because NEC-5 attaches those at knots too. Tags shared by several
 wires, GM/GX/GR copies, and absolute (tag 0) segment numbers are all
 resolved before the knot is chosen.
 
@@ -46,10 +48,11 @@ makes NEC-5 stop with "node out of range".
 
 **Dialect.** 4nec2 `SY` symbols are evaluated (its BASIC-style grammar:
 `^`, trig in degrees, `sqr`, unit suffixes) and substituted; commas and tabs
-become spaces; fused mnemonics (`GW1,8,...`) are split; `'` comments,
-`#14`-style AWG gauges and Fortran `D` exponents are resolved; numbers
-longer than NEC-5's field parser accepts (17-digit reprs) are shortened to
-10 significant digits.
+become spaces, with spaced expressions inside a tab-delimited field or inside
+parentheses kept whole; fused mnemonics (`GW1,8,...`) are split; `'`
+comments, `#14`-style AWG gauges (also `#12/ft`, and inside expressions) and
+Fortran `D` exponents are resolved; numbers longer than NEC-5's field parser
+accepts (17-digit reprs) are shortened to 10 significant digits.
 
 **Excitation types.** EX 0 stays a voltage source. 4nec2's EX 6 current
 source becomes NEC-5's EX 4 knot current source. EX 5 becomes EX 0. EX 1-3
@@ -63,42 +66,60 @@ fields on GN, and the GD card, are dropped with a note: NEC-5 has no
 spelling for them and misreads the fields if they are left in.
 
 **Cards NEC-5 does not have** are dropped with a note: EK, KH, CP, IS, JN,
-and 4nec2's LD 6 / LD 7 (its insulated-wire load; NEC-5 crashes on them).
-SM patch surfaces are refused (NEC-5 rejects the card). NX multi-structure
-decks are split into one deck per structure. A deck with no execution
-request (4nec2 adds XQ itself) gets `XQ 0`. A 4nec2 flat loop spelled as a
-one-turn helix with 1e-300 pitch is written as straight pieces, because
-NEC-5's GH computes zero wire length from it.
+VC, MP, and 4nec2's LD 6 / LD 7 (its insulated-wire load; NEC-5 crashes on
+them). SM patch surfaces, GF/WG Green's-function files and CW catenary wires
+are refused. NX multi-structure decks are split into one deck per
+structure. A deck with no execution request (4nec2 adds XQ itself) gets
+`XQ 0`. A 4nec2 flat loop spelled as a one-turn helix with 1e-300 pitch is
+written as straight pieces, because NEC-5's GH computes zero wire length
+from it.
 
 Every one of these conventions was verified by running probe decks through
 a NEC-5 executable and reading the printout, not taken from its source.
 
 ## What to expect from check
 
-On the 3,146 unique decks the tool was developed against (2026-09-08,
-NEC-5 x13 Linux build), a 1-in-13 sample of the translated decks gave:
+On the corpus the tool was developed against (4,009 files, 3,146 unique
+decks; 2026-09-08; NEC-5 x13, Linux build), translate wrote 3,946 decks
+(56 refused, 13 unreadable, all listed in the report) and check gave:
 
 | result | decks | meaning |
 |---|--:|---|
-| ok | 290 | impedance printed, no error |
-| ok-no-source | 3 | plane-wave or geometry-only deck: nothing to print |
-| timeout | 3 | over 120 s (large wire grids) |
-| error | 7 | see below |
+| ok | 3,773 | impedance printed, no error |
+| ok-no-source | 68 | plane-wave or geometry-only deck: nothing to print |
+| error | 79 | NEC-5 stopped or crashed (below) |
+| no-impedance | 7 | a source, but no impedance table (a Cebik NT idiom) |
+| timeout | 18 | over 120 s (large wire grids) |
 
-The seven errors are NEC-5's, not the translator's: `free(): invalid
-pointer` and a segmentation fault on the same family of verticals whenever
-a Sommerfeld ground is present (the identical deck solves in free space),
-`DATAGN` on two patch decks (SP/SC) and on a parallel-RLC load with zero R
-and L, and a singular matrix on one deck with coincident copies. The kept
-printouts under `--keep-dir` show each one. Those crash decks are worth
-keeping: they reproduce.
+The 79 errors are NEC-5's, not the translator's, and are worth keeping as
+regression decks because they reproduce:
+
+- **43 crashes** (`free(): invalid pointer`, segmentation faults) on a
+  family of G1OJS verticals and helices whenever a Sommerfeld ground is
+  present. The identical deck solves in free space.
+- 15 `DATAGN: Input data error`: SP/SC patch decks, and a parallel RLC load
+  (LD 1) with zero R and L.
+- 9 singular matrices (coincident copies), 6 `ISEGNO` errors on the NEC-2
+  manual's patch-plus-wire examples, and a handful of allocation failures.
+
+**Impedance against nec2c.** For 2,695 decks with a nec2c result on the
+untranslated deck, the median difference in 50 Ω reflection coefficient is
+0.070; 6 % of free-space decks and 16 % of finite-ground decks differ by
+more than 0.5. Knot placement moves resonant matches (gamma sections),
+NEC-2's reflection-coefficient ground is not NEC-5's Sommerfeld ground,
+and stepped-diameter Yagis are a known NEC-2 weakness, so a large
+difference is a formulation difference to look at, not a translation
+error.
 
 ## The antennaknobs catalog
 
-`export_catalog_nec5.py` (needs antennaknobs installed) writes our own 100+
-catalog designs as NEC-5 decks at two mesh densities, in free space and over
-a Sommerfeld ground, using the same deck writer the app's NEC-5 lane is
-validated with. Those decks are MIT and ship with this package.
+`export_catalog_nec5.py` (needs antennaknobs installed) writes our own
+catalog as NEC-5 decks at two mesh densities, in free space and over a
+Sommerfeld ground, through the same deck writer the app's NEC-5 lane is
+validated with: 476 decks, of which 168 are the per-port decks the app
+sends for the 26 network designs (one deck per driven port; the network is
+solved outside NEC-5 from the multiport Y). All 476 solve. Those decks are
+MIT and ship with this package.
 
 ## Rights
 

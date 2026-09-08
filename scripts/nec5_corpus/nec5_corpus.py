@@ -867,6 +867,8 @@ _DROP_CARDS = {
     "GD": "GD (NEC-2 second medium / cliff) dropped: NEC-5 has no second-medium spelling",
     "IS": "IS (NEC-4 insulated sheath) dropped: NEC-5 has no insulated-wire card; the wire is bare here",
     "JN": "JN (NEC-4 junction card) dropped: not a NEC-5 command",
+    "VC": "VC (NEC-4 card) dropped: not a NEC-5 command",
+    "MP": "MP (nec2++ medium-parameters card) dropped: not a NEC-5 command",
 }
 _REFUSE_CARDS = {
     "CW": "CW (NEC-4 catenary wire) has no NEC-5 counterpart",
@@ -1453,14 +1455,14 @@ def cmd_translate(args) -> int:
 # ---------------------------------------------------------------------------
 _ERROR_RE = re.compile(
     r"\bERROR\b|FAULTY|INVALID|STOP INPUT|Input data error|illegal value|Singular matrix"
-    r"|Segmentation fault|SIGSEGV|out of range|no basis function|Definition not found",
-    re.I,
-)
+    r"|Segmentation fault|SIGSEGV|out of range|no basis function|Definition not found"
+    r"|invalid pointer|double free|corrupted"
+)  # case-sensitive: NEC-5 shouts its errors; a CM comment echoed in the printout may say "error"
 # Lines that match the pattern above but are not failures: the Sommerfeld
 # table cache probe (NEC-5 looks for SOMMPD.NEX before computing the tables,
 # then writes it), the mesh-calibration remark ("... less than 1% error"),
 # the all-clear, and gfortran's floating-point summary.
-_NOT_ERROR_RE = re.compile(r"GMPINO: Unable to open|% error|NO ERRORS|IEEE_", re.I)
+_NOT_ERROR_RE = re.compile(r"GMPINO: Unable to open|% error|NO ERRORS|IEEE_")
 _AIP_HEADER = "ANTENNA INPUT PARAMETERS"
 _SOURCE_CARD_RE = re.compile(r"^EX\s+[046]\b", re.M)
 
