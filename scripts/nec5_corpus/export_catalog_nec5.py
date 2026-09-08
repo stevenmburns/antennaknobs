@@ -11,8 +11,10 @@ parity, GE/GN spellings and LD forms that lane has been validated with.
 
 Designs whose network needs the shared reducer (transmission lines,
 transformers, balanced lines: things NEC-5 has no native card for) are
-skipped and listed, because a deck without its network would not be the
-design. A manifest.json records what was written and why anything was not.
+written as the per-port decks the app actually sends NEC-5 -- one deck per
+port with that port driven by 1 V -- since the app solves the network
+outside NEC-5 from the resulting multiport Y. A manifest.json records what
+was written and why anything was not.
 
 The NEC-5 executable is only needed for `NEC5Engine`'s constructor check; no
 deck is run here.
@@ -55,14 +57,13 @@ def main(argv=None) -> int:
         cls = importlib.import_module(f"antennaknobs.designs.{dotted}").Builder
         b = cls()
         net = b.build_network()
-        if net is not None and _network_needs_reducer(net):
-            skipped.append(
-                {
-                    "design": dotted,
-                    "why": "network needs the reducer (TL / transformer / balanced line)",
-                }
-            )
-            continue
+        # A design whose network NEC-5 has no native card for (transmission
+        # lines, transformers, balanced lines) is served by the app through
+        # the multiport-Y route: one deck per port, that port driven by 1 V,
+        # the network solved outside NEC-5 from the resulting Y matrix. Those
+        # per-port decks are exactly what the app sends, so they are written
+        # as such (design.rung.ground.portN.nec) rather than skipped.
+        per_port = net is not None and _network_needs_reducer(net)
         base_n = b.nominal_nsegs
         for rung, factor in (("default", 1), ("refined", 2)):
             for gname, ground in GROUNDS.items():
@@ -70,7 +71,22 @@ def main(argv=None) -> int:
                 bb.nominal_nsegs = base_n * factor
                 try:
                     eng = NEC5Engine(bb, ground=ground)
-                    deck = eng.deck([float(bb.freq)])
+                    if per_port:
+                        decks = [
+                            (
+                                f"port{k + 1}",
+                                eng.deck(
+                                    [float(bb.freq)], sources=[(idx, 0, 1 + 0j, knot)]
+                                ),
+                                f"port {k + 1} of {len(eng._port_attach)} ({name}) driven; "
+                                "the network is solved outside NEC-5 from the multiport Y",
+                            )
+                            for k, (name, (idx, knot)) in enumerate(
+                                eng._port_attach.items()
+                            )
+                        ]
+                    else:
+                        decks = [("", eng.deck([float(bb.freq)]), "")]
                 except NEC5Error as e:
                     skipped.append(
                         {
@@ -91,17 +107,26 @@ def main(argv=None) -> int:
                         }
                     )
                     continue
-                name = re.sub(r"[^\w.]", "_", dotted) + f".{rung}.{gname}.nec"
-                header = (
-                    f"CM antennaknobs catalog design {dotted} ({rung} mesh, {gname} ground)\n"
-                    f"CM {b.freq} MHz; MIT licence, github.com/stevenmburns/antennaknobs\n"
-                )
-                (out / name).write_text(
-                    header + deck.replace("CM antennaknobs NEC5Engine deck\n", "", 1)
-                )
-                written.append(
-                    {"design": dotted, "rung": rung, "ground": gname, "file": name}
-                )
+                for suffix, deck, note in decks:
+                    name = (
+                        re.sub(r"[^\w.]", "_", dotted)
+                        + f".{rung}.{gname}"
+                        + (f".{suffix}" if suffix else "")
+                        + ".nec"
+                    )
+                    header = (
+                        f"CM antennaknobs catalog design {dotted} ({rung} mesh, {gname} ground)\n"
+                        f"CM {b.freq} MHz; MIT licence, github.com/stevenmburns/antennaknobs\n"
+                    )
+                    if note:
+                        header += f"CM {note}\n"
+                    (out / name).write_text(
+                        header
+                        + deck.replace("CM antennaknobs NEC5Engine deck\n", "", 1)
+                    )
+                    written.append(
+                        {"design": dotted, "rung": rung, "ground": gname, "file": name}
+                    )
     (out / "manifest.json").write_text(
         json.dumps({"written": written, "skipped": skipped}, indent=1)
     )
