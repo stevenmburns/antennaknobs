@@ -653,8 +653,13 @@ def test_network_refusals(monkeypatch):
                 sources=[Driven(port="feed")],
             )
 
-    with pytest.raises(NotImplementedError, match="TL"):
-        NEC5Engine(Branchy())
+    # SERVED SINCE #1280, not refused: a TL, a finite-Q load and a virtual
+    # port all take the multiport-Y + NetworkReducer route. What used to be
+    # three refusals is now three constructions; the refusals they raised are
+    # still gated, against the route switched off, in
+    # tests/test_nec5_reducer_route_1280.py.
+    eng = NEC5Engine(Branchy())
+    assert eng._use_reducer
 
     class QLoad(_PortDipole):
         def build_network(self):
@@ -664,8 +669,7 @@ def test_network_refusals(monkeypatch):
                 sources=[Driven(port="feed")],
             )
 
-    with pytest.raises(NotImplementedError, match="ql/qc"):
-        NEC5Engine(QLoad())
+    assert NEC5Engine(QLoad())._use_reducer
 
     class Virtual(_PortDipole):
         def build_network(self):
@@ -673,7 +677,9 @@ def test_network_refusals(monkeypatch):
                 ports={"v": PortVirtual(name="v")}, sources=[Driven(port="v")]
             )
 
-    with pytest.raises(NotImplementedError, match="virtual"):
+    # A network of nothing but a virtual port has no real terminal for the Y
+    # route to drive, so it still refuses — by a sentence naming the route.
+    with pytest.raises(NotImplementedError, match="virtual|multiport-Y"):
         NEC5Engine(Virtual())
 
     class Distributed(_PortDipole):

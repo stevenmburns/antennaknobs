@@ -66,11 +66,21 @@ def _run_worker(capsys, deck_text, tmp_path, ground="free"):
     return json.loads(capsys.readouterr().out.strip().splitlines()[-1])
 
 
-def test_worker_tags_tl_deck_out_of_scope(capsys, monkeypatch, tmp_path):
-    """A TL deck refuses at NEC5Engine construction (stage-1 dialect) and
-    the worker tags the row out_of_scope — the census counts it OOS, not
-    as an engine failure. NEC5_EXE is python: never invoked, any
-    executable satisfies the constructor's gate."""
+def test_worker_no_longer_tags_a_tl_deck_out_of_scope(capsys, monkeypatch, tmp_path):
+    """A TL deck is IN scope since #1280.
+
+    It used to refuse at `NEC5Engine` construction — "cannot stamp a TL
+    branch" — and the worker tagged the row `out_of_scope`. The imported TL
+    card becomes a `TL` branch in the design's network, which now takes the
+    multiport-Y + `NetworkReducer` route, so construction succeeds and the row
+    is an ordinary solve.
+
+    Asserted WITHOUT a licensed binary by checking how far it gets: no
+    `out_of_scope` tag, and the failure is the fake NEC5_EXE producing no
+    printout — i.e. it reached the run, which a scope refusal never does.
+    NEC5_EXE is python: never usefully invoked, any executable satisfies the
+    constructor's gate.
+    """
     monkeypatch.setenv("NEC5_EXE", sys.executable)
     res = _run_worker(
         capsys,
@@ -82,9 +92,9 @@ def test_worker_tags_tl_deck_out_of_scope(capsys, monkeypatch, tmp_path):
         "XQ\nEN\n",
         tmp_path,
     )
-    assert res["out_of_scope"] is True
-    assert "NotImplementedError" in res["error"]
-    assert engine_error_kind(res) == "scope"
+    assert not res.get("out_of_scope"), res
+    assert "no printout" in (res.get("error") or ""), res
+    assert "_compute_y_matrix" in (res.get("traceback") or ""), res
 
 
 def test_worker_tags_refl_coef_ground_out_of_scope(capsys, monkeypatch, tmp_path):
