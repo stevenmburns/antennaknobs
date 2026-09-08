@@ -17,7 +17,7 @@ and reads from each printout, with ``NEC5Engine``'s own parsers: the driving-
 point Z per feed and frequency, the power budget, the peak of the radiation
 pattern, and the wire currents. Reported per deck:
 
-  * new-vs-ref: max relative |ΔZ| over feeds/frequencies, the ΔZ itself, the
+  * new-vs-ref: max relative |dZ| over feeds/frequencies, the dZ itself, the
     peak-gain difference in dB, the max relative current difference;
   * new-vs-new: the same quantities across repeats/threads (0 = deterministic);
   * whether the printouts are byte-identical once timing lines are dropped;
@@ -137,7 +137,7 @@ def _z_list(d: dict) -> list[complex]:
 
 
 def _rel_dz(a: dict, b: dict) -> tuple[float | None, float | None]:
-    """(max relative |ΔZ|, max |ΔZ| in ohms) between two extracts, None when
+    """(max relative |dZ|, max |dZ| in ohms) between two extracts, None when
     either has no Z or the feed lists differ in length."""
     za, zb = _z_list(a), _z_list(b)
     if not za or len(za) != len(zb):
@@ -190,6 +190,10 @@ def _collect_decks(specs: list[str]) -> list[Path]:
 
 
 def main(argv=None) -> int:
+    # Windows consoles default to cp1252; keep every print ASCII-safe anyway.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -238,7 +242,7 @@ def main(argv=None) -> int:
         "--z-tol",
         type=float,
         default=1e-4,
-        help="relative |ΔZ| above which a deck is flagged",
+        help="relative |dZ| above which a deck is flagged",
     )
     args = ap.parse_args(argv)
 
