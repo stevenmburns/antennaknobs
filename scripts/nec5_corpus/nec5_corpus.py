@@ -21,11 +21,13 @@ is redistributed by this script; every deck comes from its own source.
   * sources at KNOTS: NEC-2 puts a source at the CENTRE of a segment, NEC-5
     puts it at a segment END (a knot). A wire fed at the centre of its middle
     segment with an odd segment count gets one more segment so that its
-    centre is a knot; an even count already has a centre knot. Off-centre
-    feeds move half a segment toward the wire's centre (`--offcenter shift`,
-    the default, with the move recorded in a CM card; a wire whose referenced
-    segments would share a knot gets one more segment) or the wire's mesh is
-    doubled so the old centre is a knot exactly (`--offcenter double`).
+    centre is a knot; an even count already has a centre knot. An off-centre
+    feed (or load, or line port) gets the cheapest segment count between N
+    and 2N that puts it on a knot exactly: the centre of segment k sits at
+    (2k-1)/(2N) of the wire, so any multiple of 2N/gcd(N, 2k-1) works, and
+    the smallest one not below N is chosen (`--offcenter exact`, the default;
+    `shift` moves the feed half a segment toward the centre instead and keeps
+    the mesh, `double` always doubles).
     The same rule addresses discrete loads and TL/NT ports, which NEC-5 also
     attaches at knots. The NEC-2 print flag in the EX card's 4th field is
     replaced by NEC-5's end selector (a leftover `10` there makes NEC-5 stop);
@@ -1023,6 +1025,7 @@ class Remesh:
         self.policy = policy
         self.refs = {}  # root -> set of local segment numbers referenced as centres
         self.new_n = {}
+        self.centre = {}  # root -> the references read as a centre feed
         self.notes = []
 
     def want(self, ref):
@@ -1036,27 +1039,50 @@ class Remesh:
         k = math.ceil(pos) if pos < n2 / 2 else math.floor(pos)
         return min(max(k, 1), n2 - 1) if n2 > 1 else 1
 
+    @staticmethod
+    def _centre_segs(n: int, segs) -> set:
+        """The references read as a NEC-2 CENTRE feed: the middle segment of
+        an odd count, or ONE of the two segments beside the middle knot of an
+        even count (the nearest NEC-2 could get to the centre). When both of
+        those are referenced they are two distinct positions, not a centre."""
+        if n % 2 == 1:
+            return {(n + 1) // 2} & set(segs)
+        both = {n // 2, n // 2 + 1} & set(segs)
+        return both if len(both) == 1 else set()
+
+    def _exact_count(self, n: int, segs) -> int:
+        """The smallest count N' in [N, 2N] that puts every referenced
+        segment centre on a knot. The centre of segment k sits at
+        (2k-1)/(2N) of the wire, a knot of an N'-mesh iff N' is a multiple
+        of 2N/gcd(N, 2k-1); over several references the gcd runs over all
+        of them. A centre feed asks only for an even N' (the middle knot):
+        N+1 for an odd count, which is the usual case."""
+        centre = self._centre_segs(n, segs)
+        g = n
+        for s in segs:
+            if s not in centre:
+                g = math.gcd(g, 2 * s - 1)
+        base = 2 * n // g
+        n2 = base * max(1, -(-n // base))  # smallest multiple of base >= n
+        while centre and n2 % 2:
+            n2 += base
+        return n2
+
     def decide(self):
         for root, segs in self.refs.items():
             n = self.geo.root_n[root]
             card = self.geo.root_card[root]
+            centre = self._centre_segs(n, segs)
+            self.centre[root] = centre
             if self.policy == "double":
-                exact = all(n % 2 == 0 and s in (n // 2, n // 2 + 1) for s in segs)
-                n2 = n if exact else 2 * n
-            else:
-                odd_centre = any(n % 2 == 1 and s == (n + 1) // 2 for s in segs)
-                n2 = n + 1 if odd_centre else n
-                # Distinct segments must stay distinct knots: two TL ports
-                # on adjacent segments of a short stub would otherwise land
-                # on one knot (a shorted stub merging with an open one). One
-                # more segment always separates them -- the knots are then
-                # (N+1)/N old segments apart, so two centres cannot round to
-                # the same knot -- and on the 92 corpus decks this touches it
-                # matched nec2c as closely as doubling the mesh did, with
-                # fewer NEC-5 geometry complaints.
+                n2 = n if (n % 2 == 0 and centre == set(segs)) else 2 * n
+            elif self.policy == "exact":
+                n2 = self._exact_count(n, segs)
+            else:  # shift: half a segment toward the centre, mesh kept
+                n2 = n + 1 if (n % 2 == 1 and centre) else n
                 knots = {self._knot_of(s, n, n2) for s in segs}
                 if len(knots) < len(segs):
-                    n2 = n + 1
+                    n2 = n + 1  # one more segment always separates two centres
                     self.notes.append(
                         f"{card.mn} tag {card.f[0]}: one segment added so {len(segs)} "
                         "referenced segments map to distinct knots"
@@ -1083,6 +1109,8 @@ class Remesh:
         n = self.geo.root_n[root]
         n2 = self.new_n.get(root, n)
         pos = (seg - 0.5) / n * n2
+        if seg in self.centre.get(root, ()) and n2 % 2 == 0:
+            return self._offset(tag, gidx) + n2 // 2  # the wire's centre knot
         k = self._knot_of(seg, n, n2)
         if abs(pos - round(pos)) >= 1e-9:
             self.notes.append(
@@ -1497,7 +1525,8 @@ def run_exe(exe: str, deck_text: str, timeout: float, keep: Path = None) -> dict
     """Run one deck (file names on stdin, printout in the working directory).
     Status: ok (impedance printed), ok-no-source (nothing to print: plane-wave
     or geometry-only deck), no-impedance (a source but no ANTENNA INPUT
-    PARAMETERS section), error (NEC-5 said so), timeout. With `keep`, the
+    PARAMETERS section), error (NEC-5 said so, exit 0), crash (non-zero exit,
+    code recorded, any partial printout ignored), timeout. With `keep`, the
     printout of a deck that is not ok is saved there."""
     with tempfile.TemporaryDirectory(prefix="nec5c_") as td:
         tdp = Path(td)
@@ -1515,6 +1544,7 @@ def run_exe(exe: str, deck_text: str, timeout: float, keep: Path = None) -> dict
         except subprocess.TimeoutExpired:
             return {"status": "timeout", "wall_s": time.perf_counter() - t0}
         wall = time.perf_counter() - t0
+        rc = proc.returncode
         outp = tdp / "model.out"
         printout = outp.read_text(errors="replace") if outp.is_file() else ""
         console = (proc.stdout or "") + (proc.stderr or "")
@@ -1524,7 +1554,16 @@ def run_exe(exe: str, deck_text: str, timeout: float, keep: Path = None) -> dict
             if _ERROR_RE.search(ln) and not _NOT_ERROR_RE.search(ln)
         ]
         rows = _aip(printout)
-        if errs:
+        # A non-zero exit is a crash whatever the printout says: a binary that
+        # dies after writing the impedance block would otherwise be scored as
+        # a clean run. Windows reports an access violation as 0xC0000005 and
+        # heap corruption as 0xC0000374; Linux reports the signal (-11, -6).
+        if rc != 0:
+            status = "crash"
+            code = f"exit code {rc} (0x{rc & 0xFFFFFFFF:08X})"
+            errs = [code + (": " + errs[0] if errs else "")]
+            rows = []
+        elif errs:
             status = "error"
         elif rows:
             status = "ok"
@@ -1535,10 +1574,12 @@ def run_exe(exe: str, deck_text: str, timeout: float, keep: Path = None) -> dict
         if keep is not None and status not in ("ok", "ok-no-source"):
             keep.parent.mkdir(parents=True, exist_ok=True)
             keep.write_text(
-                printout + "\n--- console ---\n" + console, errors="replace"
+                printout + f"\n--- console (exit code {rc}) ---\n" + console,
+                errors="replace",
             )
         return {
             "status": status,
+            "exit_code": rc,
             "wall_s": wall,
             "error": errs[0][:200] if errs else None,
             "z": [[r[0], r[1], r[2], r[3]] for r in rows[:8]],
@@ -1605,9 +1646,10 @@ def main(argv=None) -> int:
     t.add_argument("--out", default="nec5")
     t.add_argument(
         "--offcenter",
-        choices=("shift", "double"),
-        default="shift",
-        help="off-centre feeds: move half a segment toward the centre (default) or double the wire's mesh",
+        choices=("exact", "shift", "double"),
+        default="exact",
+        help="off-centre feeds: the cheapest count in [N, 2N] that puts them on knots (default), "
+        "a half-segment move toward the centre, or a doubled mesh",
     )
     t.add_argument(
         "--nofile",

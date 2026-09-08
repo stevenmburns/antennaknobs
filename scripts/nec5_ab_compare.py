@@ -81,6 +81,19 @@ def _run_exe(
             return None, time.perf_counter() - t0, f"timeout after {timeout:.0f}s"
         wall = time.perf_counter() - t0
         out = tdp / "model.out"
+        if proc.returncode != 0:
+            # A crash, whatever the printout says: a binary that dies after
+            # writing the impedance block must not be scored as a clean run.
+            # Windows: 0xC0000005 access violation, 0xC0000374 heap
+            # corruption; Linux: the signal number, negative.
+            rc = proc.returncode
+            partial = out.read_text(errors="replace")[-300:] if out.is_file() else ""
+            tail = (proc.stdout or "")[-200:] + (proc.stderr or "")[-200:]
+            note = (
+                f"crash: exit code {rc} (0x{rc & 0xFFFFFFFF:08X}); "
+                f"printout {'partial: ' + partial if partial else 'none'}; {tail}"
+            )
+            return None, wall, note.replace("\n", " | ")
         if not out.is_file():
             tail = (proc.stdout or "")[-300:] + (proc.stderr or "")[-300:]
             return None, wall, "no printout: " + tail.replace("\n", " | ")
