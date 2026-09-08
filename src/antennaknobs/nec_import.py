@@ -93,6 +93,7 @@ _IGNORED_CARDS = {
     "WG": "NGF write request",
     "ZO": "impedance normalisation (xnec2c)",
     "IS": "insulated-wire sheath",
+    "NX": "next structure -- only the first structure in the file was imported",
 }
 
 _UNSUPPORTED_CARDS = {
@@ -705,6 +706,9 @@ def read_nec(
 # (which also takes "nan", "inf" and digit underscores) and excludes Fortran
 # D exponents, so anything unusual is routed through evaluation + reformat.
 _PLAIN_NUM_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\Z")
+# A filename field (SOMEX10.NEC, radials.vg): a stem, a dot, an alphabetic
+# extension -- never a number, never a 4nec2 expression.
+_FILENAME_RE = re.compile(r"[A-Za-z0-9_-]+\.[A-Za-z][A-Za-z0-9]{1,4}")
 
 
 def _format_field(v: float) -> str:
@@ -713,6 +717,47 @@ def _format_field(v: float) -> str:
     if v == int(v) and abs(v) < 1e15:
         return str(int(v))
     return repr(v)
+
+
+def _close_parens(line: str) -> str:
+    """Remove whitespace (and separating commas) inside balanced parentheses,
+    so a 4nec2 expression written with spaces stays one field (#1273):
+    ``GM 0 0 0 0 0 (dHelix/2 - dCplLoop/2 - clSep)/1000 0 clZ/1000 1``."""
+    out, depth = [], 0
+    for ch in line:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(depth - 1, 0)
+        elif depth > 0 and ch in " \t,":
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _split_card_fields(line: str) -> list[str]:
+    """Card fields, free format. Commas and whitespace separate; an expression
+    inside parentheses keeps its spaces (#1273); and on a TAB-delimited 4nec2
+    card an expression with spaces around its operators inside one tab field
+    (``Fz + 0.24529``) is rejoined: tabs split first, a tab field then splits
+    on spaces, and only a bare operator token glues its two neighbours back
+    together, so a mixed tab/space deck keeps its plain numbers apart."""
+    if "(" in line:
+        line = _close_parens(line)
+    if "\t" not in line:
+        return line.replace(",", " ").split()
+    out: list[str] = []
+    for field in re.split(r"[\t,]+", line):
+        parts = field.split()
+        i = 0
+        while i < len(parts):
+            if parts[i] in ("+", "-", "*", "/", "^") and 0 < i < len(parts) - 1 and out:
+                out[-1] = out[-1] + parts[i] + parts[i + 1]
+                i += 2
+                continue
+            out.append(parts[i])
+            i += 1
+    return out
 
 
 def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
@@ -767,7 +812,7 @@ def resolve_sy(text: str, *, name: str = "NEC deck") -> str:
         stripped = stripped.split("'", 1)[0].rstrip()
         if not stripped:
             continue
-        tokens = stripped.replace(",", " ").split()
+        tokens = _split_card_fields(stripped)
         if (
             len(tokens[0]) > 2
             and tokens[0][:2].isalpha()
@@ -901,6 +946,9 @@ def _eval_sy_expr(expr: str, syms: dict, where: str) -> float:
     def err(msg: str) -> ValueError:
         return ValueError(f"{where}: SY expression {expr!r}: {msg}")
 
+    # `#14` wire-gauge shorthand inside an expression (`SY D = #12/in`,
+    # #1272): substitute the radius before tokenising.
+    text = re.sub(r"#(\d+)", lambda m: repr(_awg_radius(int(m.group(1)))), text)
     if not text:
         raise err("empty")
     if len(text) > _SY_MAX_LEN:
@@ -1073,18 +1121,28 @@ def _define_sy(rest: str, syms: dict, where: str) -> None:
         syms[name.lower()] = _eval_sy_expr(expr, syms, where)
 
 
+def _awg_radius(gauge: int) -> float:
+    """AWG gauge -> wire radius in metres."""
+    return 0.5 * 0.127e-3 * 92.0 ** ((36.0 - gauge) / 39.0)
+
+
 def _value(token: str, where: str, syms: dict | None) -> float:
     """A card field: a plain number, 4nec2's ``#nn`` AWG wire-gauge
     shorthand (a radius, in metres), or (when the deck defined SY symbols
     or the token contains a letter) a 4nec2 expression."""
     if token.startswith("#"):
         # AWG gauge n -> diameter 0.127 mm * 92^((36-n)/39); field is a
-        # radius. 4nec2 writes `#14`-style GW radius fields (#418).
-        try:
-            gauge = int(token[1:])
-        except ValueError:
-            raise ValueError(f"{where}: bad wire gauge {token!r}") from None
-        return 0.5 * 0.127e-3 * 92.0 ** ((36.0 - gauge) / 39.0)
+        # radius in metres. 4nec2 writes `#14`-style GW radius fields (#418),
+        # and `#12/ft` / `#14/in` when the deck's own unit is feet or inches
+        # (the radius then reads in that unit, like `.1in/ft`, #1272): the
+        # tail after the gauge is an expression applied to the radius.
+        m = re.match(r"#(\d+)(.*)\Z", token)
+        if m is None:
+            raise ValueError(f"{where}: bad wire gauge {token!r}")
+        radius = _awg_radius(int(m.group(1)))
+        if m.group(2):
+            return _eval_sy_expr(repr(radius) + m.group(2), syms or {}, where)
+        return radius
     try:
         return _float(token, where)
     except ValueError:
@@ -2096,13 +2154,16 @@ def parse_nec(
             # comment out cards). Tolerated after CE as well (#418).
             comments.append(stripped[2:].strip())
             continue
-        if stripped[:2].upper() != "CE":
-            stripped = stripped.split("'", 1)[0].rstrip()
-            if not stripped:
-                continue
+        if stripped[:2].upper() == "CE":
+            # Like CM, identified by its first two columns: "CEFOR THIS RUN"
+            # is the end-of-comments card with its text glued on (#1272).
+            continue
+        stripped = stripped.split("'", 1)[0].rstrip()
+        if not stripped:
+            continue
         # Cards are free-format in practice: mnemonic, then numbers separated
-        # by spaces and/or commas.
-        tokens = stripped.replace(",", " ").split()
+        # by spaces and/or commas (parentheses and tab fields kept whole).
+        tokens = _split_card_fields(stripped)
         # Fused mnemonics (#418): ARRL-era decks glue the mnemonic to the
         # first field ("GW1,8,...", "GE1", "EX5,1,..."). Split when two
         # alphabetic characters run straight into a number.
@@ -2118,10 +2179,14 @@ def parse_nec(
                 f"{where}: expected a NEC card mnemonic, got {tokens[0]!r}"
             )
 
-        if mnemonic == "CE":
-            continue
-
         if mnemonic == "EN":
+            break
+        if mnemonic == "NX":
+            # Next-structure terminator (#1275): the first structure is
+            # complete at this point (it follows an RP/WG/XQ), so import it
+            # and stop, saying so in the skipped note rather than silently
+            # dropping the second antenna.
+            ignored.add(mnemonic)
             break
         if mnemonic == "SY":
             # 4nec2 symbolic variables (#417): bind name=expr (possibly
@@ -2135,6 +2200,18 @@ def parse_nec(
                 f"which antennaknobs cannot model"
             )
         if mnemonic == "GN":
+            # A trailing filename is NEC-4's tabulated Sommerfeld ground
+            # (``GN 2 0 0 0 10. 0.01 SOMEX10.NEC``, #1274) -- the same shape
+            # as NL's mesh file (#1067). Refuse it by name before the field
+            # reaches the SY evaluator, which would call the "." a syntax
+            # error in an expression the deck never wrote.
+            fname = next((t for t in tokens[1:] if _FILENAME_RE.fullmatch(t)), None)
+            if fname is not None:
+                raise ValueError(
+                    f"{where}: GN card names a Sommerfeld ground file ({fname}): "
+                    "NEC-4's tabulated ground is not supported here; use the "
+                    "GN card's own eps_r / sigma fields instead"
+                )
             # The type field decides (#1066): GN -1 is NEC's "nullify the
             # ground parameters and set the free-space condition", the same
             # I1 = -1 convention LD and NT use below. Any other GN asks for
