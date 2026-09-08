@@ -369,23 +369,29 @@ def _links(page: bytes, base: str) -> list:
 
 
 def _deck_from_html(page: bytes) -> bytes:
-    """A deck published inline in a web page: strip tags, decode entities,
-    keep the lines that read as NEC cards."""
+    """A deck published inline in a web page (qsl.net/kk4obi): one card per
+    `<br>`, physical line breaks INSIDE a card, `&nbsp;` as spacing. Cards
+    are rejoined, tags stripped, entities decoded, and the lines that read
+    as NEC cards from the first CM/CE/SY to EN are kept."""
     text = page.decode("latin-1")
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+    text = re.sub(r"[\r\n]+", " ", text)  # wrapped card continues on the same line
+    text = re.sub(r"<br\s*/?>|</p>|</div>|</tr>", "\n", text, flags=re.I)
     text = re.sub(r"<[^>]+>", "", text)
-    text = html.unescape(text)
+    text = html.unescape(text).replace("\xa0", " ")
     lines = []
     started = False
     for ln in text.splitlines():
-        s = ln.strip()
-        if not started and re.match(r"^(CM|CE|SY|GW)\b", s, re.I):
+        s = re.sub(r"\s+", " ", ln).strip()
+        if not s:
+            continue
+        if not started and re.match(r"^(CM\b|CE$|CE\s|SY\s+\w+\s*=|GW\s*\d)", s):
             started = True
-        if started:
-            if re.match(r"^([A-Z]{2})(\b|[\d,.+-])", s) or s.startswith("'") or not s:
-                lines.append(s)
-            if s.upper().startswith("EN"):
-                break
+        if not started:
+            continue
+        if re.match(r"^[A-Z]{2}(\s|$|[\d,.+-])", s) or s.startswith("'"):
+            lines.append(s)
+        if s.upper().startswith("EN") and len(s) <= 3:
+            break
     return ("\n".join(lines) + "\n").encode("latin-1", errors="replace")
 
 
