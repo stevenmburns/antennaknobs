@@ -162,6 +162,15 @@ def deck_scores(rows):
         ref = first_z(r.get("nec2c"))
         if ref is None or (r.get("nec2c") or {}).get("error"):
             continue
+        # A reference with R <= 0 or |Gamma| > 1 is a failed solve that printed
+        # a number. Scoring against it is meaningless in either direction, so
+        # these decks are censused separately and kept out of the medians and
+        # the movers entirely -- 5 decks corpus-wide, but 2 of them sat at the
+        # very top of the 09-07 regression table and read as the worst finding
+        # in the sweep.
+        refc = complex(*ref) if isinstance(ref, (list, tuple)) else complex(ref)
+        if refc.real <= 0 or abs(gamma(refc)) > 1.0:
+            continue
         per = {}
         for e in ENGINES:
             ent = (r.get("engines") or {}).get(e)
@@ -175,6 +184,25 @@ def deck_scores(rows):
                 per[e] = d
         if per:
             out[r["deck"]] = per
+    return out
+
+
+def unphysical_refs(rows):
+    """{deck: ref_z} where the nec2c reference is not a passive antenna.
+
+    R <= 0 or |Gamma| > 1 means the reference solve failed and printed a
+    number anyway. dGamma measured against it is meaningless in either
+    direction, so these decks belong in a census row rather than in the
+    medians or the movers.
+    """
+    out = {}
+    for r in rows:
+        z = first_z(r.get("nec2c"))
+        if z is None or (r.get("nec2c") or {}).get("error"):
+            continue
+        zc = complex(*z) if isinstance(z, (list, tuple)) else complex(z)
+        if zc.real <= 0 or abs(gamma(zc)) > 1.0:
+            out[r["deck"]] = z
     return out
 
 
@@ -326,6 +354,18 @@ def report(meta, rows, baseline=None, move=0.02):
         print()
     else:
         print("No bare exceptions: every refusal carried a sentence.\n")
+
+    bad_ref = unphysical_refs(rows)
+    if bad_ref:
+        print("### Unphysical nec2c references (excluded from every comparison)\n")
+        print("R <= 0 or |Gamma| > 1: the reference solve failed and printed a")
+        print("number, so dGamma against it means nothing in either direction.\n")
+        print("| deck | reference Z | |Gamma| |")
+        print("|---|--:|--:|")
+        for deck, z in sorted(bad_ref.items()):
+            zc = complex(*z)
+            print(f"| `{deck}` | {zc.real:.3f}{zc.imag:+.3f}j | {abs(gamma(zc)):.4f} |")
+        print()
 
     openp = open_ports(rows)
     if openp:
