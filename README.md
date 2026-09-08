@@ -130,7 +130,7 @@
 | src/antennaknobs/drone.py                                            |      131 |        4 |     97% |208, 249-250, 261 |
 | src/antennaknobs/engine.py                                           |       55 |        2 |     96% |  160, 166 |
 | src/antennaknobs/engines/\_\_init\_\_.py                             |        7 |        2 |     71% |       3-4 |
-| src/antennaknobs/engines/momwire.py                                  |      635 |       21 |     97% |147, 417, 421, 423, 866, 1359, 1685, 1746-1762 |
+| src/antennaknobs/engines/momwire.py                                  |      644 |       21 |     97% |147, 417, 421, 423, 875, 1373, 1719, 1780-1796 |
 | src/antennaknobs/engines/nec5.py                                     |      476 |       86 |     82% |78, 171, 215, 282, 293, 295, 302, 319, 333, 379, 629, 727-728, 731-732, 759-762, 765, 792, 799, 813-814, 830, 835, 842-864, 881-882, 895, 902, 910-930, 986-1002, 1009-1010, 1020-1030 |
 | src/antennaknobs/engines/pynec.py                                    |      458 |       30 |     93% |64-66, 348-353, 458, 478, 507, 515, 525, 534, 556, 563, 597, 628, 667, 677, 683, 697, 815-816, 996, 1021, 1025-1036, 1038, 1043 |
 | src/antennaknobs/far\_field.py                                       |      184 |        2 |     99% |    92, 96 |
@@ -174,7 +174,7 @@
 | src/antennaknobs/web/tracker.py                                      |      254 |       30 |     88% |207, 213, 256, 272-273, 302-303, 306, 317-319, 326-327, 333, 415, 438-442, 445-454, 481 |
 | src/antennaknobs/web/user\_designs.py                                |       64 |        6 |     91% |60-61, 92-93, 98-99 |
 | src/antennaknobs/wire\_catalog.py                                    |      124 |        0 |    100% |           |
-| **TOTAL**                                                            | **14492** |  **941** | **94%** |           |
+| **TOTAL**                                                            | **14501** |  **941** | **94%** |           |
 
 
 ## Setup coverage badge
