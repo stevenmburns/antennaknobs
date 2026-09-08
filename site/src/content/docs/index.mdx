@@ -25,22 +25,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.70.0" icon="star">
-  **Hold the target while you drag.** Mark a knob to optimize, choose
-  Resonance or Match Z₀, switch on *Keep the target while I drag*, and the
-  marked knob follows every other knob you move so the antenna stays resonant
-  (or matched) under your hand — one solve per drag tick. When the target
-  genuinely cannot be held any more the knob freezes at its last good value
-  and the VFO row says so; it re-acquires as soon as it can. **The optimizer
-  treats a match as a root, not a minimum**: one knob to X = 0 in 3 to 5
-  solves, two knobs to Z₀ in 11 to 13, where Nelder–Mead took 10 to 48 and
-  sometimes never converged. **Solvers now tell you what they are unsure
-  about**: a new advisories panel surfaces the warnings momwire raises during a
-  solve, buried decks are refused by name on the PyNEC backend, which
-  solves a buried wire as though it were in air, and the soil advisory flags
-  where the single-valued (εr, σ) model stops being trustworthy. Under it,
-  momwire v0.50.0 solves a 48-radial screen in **14.9 s and 1.0 GB**, from
-  16.6 s and 1.5 GB, at the same impedance to nine digits.
+<Card title="New in v0.71.0" icon="star">
+  **The reference row gets a tab.** momwire's Harrington solver — pulse basis,
+  point-matched, the formulation NEC-2 identifies with — is now a backend you
+  can put in a solver slot beside the others, so a "what would NEC-2's own
+  method say" comparison is one click. **Two more tabs on junction-port
+  designs**: the H-matrix and Array-block accelerators now serve them,
+  agreeing with the dense B-spline parent to machine precision as tolerances
+  tighten. **EZNEC's NEC-5 decks import**: the `EX 4` current source that
+  EZNEC Pro+ writes on every NEC-5 export was refused before; it now imports
+  with NEC-5's full end-placement rule. Refusals carry sentences everywhere —
+  a basis that cannot take a node gap says so in momwire's words, never a bare
+  TypeError. Under it, **momwire v0.51.0** solves a leaning mast through the
+  ground (the tilted-crossing guard was over-strict), takes the pulse family's
+  ground as every other family does, and fills a 4,001-segment single wire in
+  **1.6 GB where it took 7 GB** (and could not solve at degree 2) — plus
+  degree 3 on the basis axis, served on the API while the panel keeps its two
+  tabs.
 </Card>
 
 ## The whole pitch, in one line
