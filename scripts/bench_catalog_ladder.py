@@ -60,6 +60,10 @@ def _load(name):
 # `razor-2p`; both bind RazorSolver's identified two-point quadrature, so the
 # current spelling is used and the alias noted rather than measured twice.
 ENGINES = ("bs2", "bs1", "sin", "razor-2p", "pynec", "nec5")
+# The two accelerators are BSplineSolver SUBCLASSES at the same degree, so
+# they are measured against bs2 rather than against each other: same basis,
+# same answer expected, only the matrix representation differs.
+ACCELERATORS = ("hmatrix", "arrayblock")
 DEFAULT_GROUND = ("finite", 13.0, 0.005)
 
 
@@ -125,7 +129,13 @@ def worker_main(design, nseg, engine, ground_json, mem_gb):
 
 def _build(b, engine, ground):
     from antennaknobs.engines.momwire import MomwireEngine
-    from momwire import BSplineSolver, RazorSolver, SinusoidalSolver
+    from momwire import (
+        ArrayBlockSolver,
+        BSplineSolver,
+        HMatrixSolver,
+        RazorSolver,
+        SinusoidalSolver,
+    )
 
     if engine == "pynec":
         from antennaknobs.engines.pynec import PyNECEngine
@@ -144,6 +154,13 @@ def _build(b, engine, ground):
             b,
             solver=RazorSolver,
             solver_kwargs={"nec5_quadrature": True},
+            ground=ground,
+        )
+    if engine in ("hmatrix", "arrayblock"):
+        return MomwireEngine(
+            b,
+            solver=HMatrixSolver if engine == "hmatrix" else ArrayBlockSolver,
+            solver_kwargs={"degree": 2},
             ground=ground,
         )
     if engine in ("bs1", "bs2"):

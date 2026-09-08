@@ -188,3 +188,104 @@ the 0.45.0 quadrature split, which is expected and shrinks with basis.
 - `peak_rss_mb` includes the ~90–100 MB interpreter floor.
 - NEC-5's RSS measures the Python side only; its solver is an external binary.
 - `verticals.elt_whip`'s refined row is a repeat, not a rung (above).
+
+## Addendum — the two accelerators against dense bs2
+
+`HMatrixSolver` and `ArrayBlockSolver` were left out of the run above. They are
+`BSplineSolver` **subclasses at the same degree**, so they are measured against
+bs2 rather than against each other: same basis, same mesh, same expected
+answer, only the matrix representation differs. 412 further cells, same box,
+same rungs, same warm-solve discipline with the cache cleared, one process per
+cell. The ladder JSONL now holds all eight engines (1,648 cells).
+
+### The verdict is one-sided
+
+| | cells | faster than bs2 | same | slower | lighter | heavier | faster **and** lighter |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| hmatrix | 196 | **0** | 0 | 196 | 24 | 16 | **0** |
+| arrayblock | 196 | **54** | 0 | 142 | 34 | 16 | **27** |
+
+**H-matrix never wins.** Not "usually slower" — zero cells faster than dense
+d=2, on every design and both rungs. It is lighter on memory in 24 cells, but
+never lighter *and* faster. On this catalog there is no design for which it is
+the right choice.
+
+**ArrayBlock wins on 54 of 196**, and half of those (27) are also lighter.
+
+### Where ArrayBlock wins, and why it is not "arrays"
+
+The wins look like a namespace at first — 36 of 54 are `arrays.*` — but the
+other 18 give the rule away:
+
+| ×faster | design | rung | segments | bs2 → arrayblock |
+|--:|---|---|--:|---|
+| 45.4 | `arrays.bowtie16x1` | refined | 2752 | 8.268 s → 0.182 s |
+| 40.4 | `arrays.bowtie4x4` | refined | 2752 | 8.014 s → 0.198 s |
+| 36.7 | `arrays.bowtiearray2x4` | refined | 1456 | 2.413 s → 0.066 s |
+| 27.9 | `arrays.delta_looparray_2x2` | refined | 754 | 0.962 s → 0.035 s |
+| 23.2 | `arrays.yagiarray` | refined | 1312 | 1.923 s → 0.083 s |
+| 17.1 | `wire.lazy_h` | refined | 336 | 0.214 s → 0.013 s |
+| 16.8 | `wire.expanded_lazy_h` | refined | 420 | 0.303 s → 0.018 s |
+| 16.6 | `wire.sterba_bl` | refined | 839 | 0.933 s → 0.056 s |
+| 14.2 | `verticals.four_square` | refined | 320 | 0.195 s → 0.014 s |
+| 13.5 | `beams.yagi` | refined | 308 | 0.182 s → 0.013 s |
+| 12.7 | `wire.w8jk` | refined | 216 | 0.116 s → 0.009 s |
+| 10.1 | `verticals.phased_verticals` | refined | 168 | 0.079 s → 0.008 s |
+
+Lazy-H, Sterba curtains, four-square, phased verticals, W8JK, Yagis. The
+predictor is **repeated translated elements**, not the design's namespace —
+which is what ArrayBlock exploits, so the result is the one its name promises,
+spread across four namespaces.
+
+Two secondary patterns:
+
+- **Every design that wins, wins harder at the refined rung** (e.g.
+  `bowtie16x1` 24.9× → 45.4×). The block structure pays off as the dense matrix
+  grows, so the advantage widens exactly where dense hurts most.
+- **Memory follows time but more weakly.** `bowtie4x4` refined drops 540 MB →
+  265 MB, but `bowtie16x1` refined goes *up*, 540 MB → 613 MB, while still being
+  45× faster. Speed and footprint are not the same trade here.
+
+### Where dense bs2 is simply better
+
+The other 142 arrayblock cells and all 196 hmatrix cells. Anything without
+repeated structure — single dipoles, verticals, loops, fans — pays the
+accelerator's setup cost for nothing.
+
+Sharpest case: **`verticals.elt_whip` times out past 600 s on both
+accelerators**, where dense bs2 solves it in 98 s. On the catalog's single most
+expensive design, both accelerators are more than 6× worse before being killed.
+
+### Refusals (all properly worded)
+
+Both accelerators refuse the same four designs, with a sentence each:
+`specialty.buried_dipole`, `verticals.buried_radial_vertical`,
+`verticals.elevated_buried_counterpoise` — "cannot solve this design's buried
+geometry", correct, neither has buried fill — and `wire.terminated_longwire`
+on the below/below domain limit. Plus the `elt_whip` timeouts above.
+
+### The catch: they do not always agree with bs2 — momwire#971
+
+Same basis and same mesh should mean the same answer. **15 cells across 5
+designs disagree with dense bs2 by more than 1e-3 relative**, worst 7.4 %:
+
+| relative ΔZ | engine | rung | design | accelerator | dense bs2 |
+|--:|---|---|---|--:|--:|
+| **7.4e-2** | arrayblock | refined | `arrays.folded_invveearray` | 214.054 + 1.134j | 199.312 + 0.120j |
+| 3.7e-2 | hmatrix | refined | `arrays.folded_invveearray` | 206.508 − 1.572j | 199.312 + 0.120j |
+| 1.4e-2 | arrayblock | refined | `arrays.moxonarray` | 38.653 − 27.141j | 39.241 − 26.831j |
+| 7.1e-3 | arrayblock | refined | `wire.sterba_bl` | 680.425 + 406.999j | 674.831 + 407.463j |
+
+Two things make this more than a tolerance: the disagreement **grows with
+refinement** (folded_invveearray 1.5e-2 default → 7.4e-2 refined), which a rank
+truncation should not do; and both accelerators move on the same designs in
+*different directions*. The affected designs are all repeated-element — the
+same family where the accelerators win — so the speedup and the discrepancy sit
+on the same decks. Filed as **momwire#971**.
+
+### Recommendation
+
+ArrayBlock is worth offering **only** on repeated-element geometry, and only
+once #971 is settled: a 45× speedup on `bowtie16x1` is real, but
+`folded_invveearray` is in the same winning set and is the worst impedance
+disagreement in the run. H-matrix has no case on this catalog at present.
