@@ -582,8 +582,10 @@ The selector describes what the ground **is**, independent of solver:
 
 - **finite** — real earth, the default. Its two constants are yours to set:
   **εr** (relative permittivity, 1–81) and **σ** (conductivity, S/m, on a log
-  scale from 1e-4 to 5), with named presets — very poor, poor, average, very
-  good, fresh water, salt water — that fill both at once. The active preset
+  scale from 1e-4 to 5), with named presets — very poor, poor, average, good,
+  very good, fresh water, salt water, each a row of the ARRL Antenna Book's
+  ground-constants table (25th edition, Table 3.1) — that fill both at once.
+  The active preset
   is read off the two numbers, so dragging a knob off a preset simply
   deselects it; the default 10 / 0.002 is shown as *custom soil*. The soil
   travels with every solve — sweeps, patterns, cuts, near fields and the
@@ -652,7 +654,7 @@ number a live knob:
   below the uphill slope angle the real sky is shadowed by the hill, which
   a specular model cannot express.
 
-Media are fixed in this version (water εr=80 σ=0.005, land and crest εr=13
+Media are fixed in this version (water εr=80 σ=0.001, land and crest εr=13
 σ=0.005 — shown read-only in the panel); arbitrary facet profiles and custom
 media are available from Python via `antennaknobs.terrain`.
 

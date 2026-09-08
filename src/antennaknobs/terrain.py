@@ -321,7 +321,7 @@ def levee_terrain(
     slope_deg: float,
     drop_water: float,
     drop_land: float,
-    water: tuple[float, float] = (80.0, 0.005),
+    water: tuple[float, float] = (80.0, 0.001),
     land: tuple[float, float] = (13.0, 0.005),
     crest: tuple[float, float] | None = None,
     water_azimuth: float = 0.0,

@@ -100,7 +100,7 @@ export function soilSummaryLabel(
 // frontend renders the whole terrain knob panel from this — the presets,
 // their field ranges/labels/units, and the read-only media note all live
 // server-side (adapter.terrain_presets_schema), so a Python-only preset needs
-// no TypeScript. Media are fixed server-side (water 80/0.005, land + crest
+// no TypeScript. Media are fixed server-side (water 80/0.001, land + crest
 // 13/0.005); each preset's media_note describes its own.
 export type TerrainFieldSchema = {
   key: string;
