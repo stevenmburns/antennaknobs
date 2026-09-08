@@ -23,7 +23,8 @@ is redistributed by this script; every deck comes from its own source.
     segment with an odd segment count gets one more segment so that its
     centre is a knot; an even count already has a centre knot. Off-centre
     feeds move half a segment toward the wire's centre (`--offcenter shift`,
-    the default, with the move recorded in a CM card) or the wire's mesh is
+    the default, with the move recorded in a CM card; a wire whose referenced
+    segments would share a knot gets one more segment) or the wire's mesh is
     doubled so the old centre is a knot exactly (`--offcenter double`).
     The same rule addresses discrete loads and TL/NT ports, which NEC-5 also
     attaches at knots. The NEC-2 print flag in the EX card's 4th field is
@@ -1047,13 +1048,18 @@ class Remesh:
                 n2 = n + 1 if odd_centre else n
                 # Distinct segments must stay distinct knots: two TL ports
                 # on adjacent segments of a short stub would otherwise land
-                # on one knot (a shorted stub merging with an open one).
+                # on one knot (a shorted stub merging with an open one). One
+                # more segment always separates them -- the knots are then
+                # (N+1)/N old segments apart, so two centres cannot round to
+                # the same knot -- and on the 92 corpus decks this touches it
+                # matched nec2c as closely as doubling the mesh did, with
+                # fewer NEC-5 geometry complaints.
                 knots = {self._knot_of(s, n, n2) for s in segs}
                 if len(knots) < len(segs):
-                    n2 = 2 * n
+                    n2 = n + 1
                     self.notes.append(
-                        f"{card.mn} tag {card.f[0]}: mesh doubled so {len(segs)} referenced "
-                        "segments map to distinct knots"
+                        f"{card.mn} tag {card.f[0]}: one segment added so {len(segs)} "
+                        "referenced segments map to distinct knots"
                     )
             self.new_n[root] = n2
             if n2 != n:
