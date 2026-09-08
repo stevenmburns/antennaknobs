@@ -182,24 +182,35 @@ export function GroundPanel({
                 return (
                   <div style={{ marginLeft: "1.2em" }}>
                     {soilPresets.length > 0 && (
-                      <div role="radiogroup" aria-label="Soil preset">
-                        {soilPresets.map((p) => (
-                          <label
-                            key={p.name}
-                            className="link-toggle"
-                            title={p.tooltip}
+                      // A <select>, not a radio row: the list is seven long
+                      // and growing, and each row carries the ARRL table's
+                      // wording. It blurs itself after a pick so the arrow
+                      // keys go back to the armed knob rather than walking
+                      // the soils (the BandDropdown rationale).
+                      <div className="field">
+                        <label>
+                          soil preset
+                          <select
+                            aria-label="Soil preset"
+                            value={active?.name ?? ""}
+                            title={active?.tooltip ?? "No preset matches the two constants."}
+                            onChange={(e) => {
+                              const el = e.target as HTMLSelectElement;
+                              const p = soilPresets.find((x) => x.name === el.value);
+                              if (p) setSoil({ eps_r: p.eps_r, sigma: p.sigma });
+                              el.blur();
+                            }}
                           >
-                            <input
-                              type="radio"
-                              name="soil-preset"
-                              checked={active?.name === p.name}
-                              onChange={() =>
-                                setSoil({ eps_r: p.eps_r, sigma: p.sigma })
-                              }
-                            />
-                            {p.label}
-                          </label>
-                        ))}
+                            <option value="" disabled>
+                              custom soil
+                            </option>
+                            {soilPresets.map((p) => (
+                              <option key={p.name} value={p.name} title={p.tooltip}>
+                                {p.label} — εr {p.eps_r}, σ {p.sigma} S/m
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
                     )}
                     <NumberField
@@ -222,7 +233,7 @@ export function GroundPanel({
                       title="The soil reaches the impedance solve, the pattern, the sweep and the exported NEC deck's GN card."
                     >
                       {active
-                        ? `${active.label} soil`
+                        ? `${active.label} soil — ${active.tooltip}`
                         : "custom soil"}
                     </div>
                   </div>
@@ -233,7 +244,7 @@ export function GroundPanel({
               terrainPresets.length > 0 &&
               (() => {
                 // Whole panel driven by the /capabilities schema (issue
-                // #560): radio list, per-preset knobs and media note all
+                // #560): preset list, per-preset knobs and media note all
                 // come from terrainPresets. Fall back to the first preset if
                 // the parked name is absent (a server-side rename).
                 const activePreset =
@@ -241,22 +252,28 @@ export function GroundPanel({
                   terrainPresets[0];
                 return (
                   <div style={{ marginLeft: "1.2em" }}>
-                    <div role="radiogroup" aria-label="Terrain preset">
-                      {terrainPresets.map((p) => (
-                        <label
-                          key={p.name}
-                          className="link-toggle"
-                          title={p.tooltip}
+                    {/* Same <select> as the soil presets, for the same
+                        reasons: the list grows, and it blurs after a pick. */}
+                    <div className="field">
+                      <label>
+                        terrain preset
+                        <select
+                          aria-label="Terrain preset"
+                          value={activePreset.name}
+                          title={activePreset.tooltip}
+                          onChange={(e) => {
+                            const el = e.target as HTMLSelectElement;
+                            setTerrainPreset(el.value);
+                            el.blur();
+                          }}
                         >
-                          <input
-                            type="radio"
-                            name="terrain-preset"
-                            checked={activePreset.name === p.name}
-                            onChange={() => setTerrainPreset(p.name)}
-                          />
-                          {p.label}
-                        </label>
-                      ))}
+                          {terrainPresets.map((p) => (
+                            <option key={p.name} value={p.name} title={p.tooltip}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                     {activePreset.fields.map((f) => (
                       <NumberField

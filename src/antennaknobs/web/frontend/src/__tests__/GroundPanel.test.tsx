@@ -294,21 +294,20 @@ describe("GroundPanel — terrain sub-panel", () => {
   });
   const presets = [levee, cliff];
 
-  it("renders one radio per preset, labelled and titled from the schema", () => {
+  it("renders one option per preset, labelled and titled from the schema", () => {
     renderGroundPanel({
       groundEnabled: true,
       groundType: "terrain",
       terrainPresets: presets,
       terrainPreset: "levee",
     });
-    const leveeRadio = screen.getByRole("radio", { name: "Levee crest" });
-    expect(leveeRadio.closest("label")?.getAttribute("title")).toBe(
-      "Levee tooltip text",
-    );
-    const cliffRadio = screen.getByRole("radio", { name: "Cliff edge" });
-    expect(cliffRadio.closest("label")?.getAttribute("title")).toBe(
-      "Cliff tooltip text",
-    );
+    const select = screen.getByRole("combobox", { name: "Terrain preset" });
+    const leveeOption = within(select).getByRole("option", { name: "Levee crest" });
+    expect(leveeOption.getAttribute("title")).toBe("Levee tooltip text");
+    const cliffOption = within(select).getByRole("option", { name: "Cliff edge" });
+    expect(cliffOption.getAttribute("title")).toBe("Cliff tooltip text");
+    // The active preset's tooltip rides the select itself.
+    expect(select.getAttribute("title")).toBe("Levee tooltip text");
   });
 
   it("fires setTerrainPreset with the clicked preset's name", async () => {
@@ -318,26 +317,25 @@ describe("GroundPanel — terrain sub-panel", () => {
       terrainPresets: presets,
       terrainPreset: "levee",
     });
-    await user.click(screen.getByRole("radio", { name: "Cliff edge" }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Terrain preset" }),
+      "cliff",
+    );
     expect(setTerrainPreset).toHaveBeenCalledWith("cliff");
     expect(setTerrainPreset).toHaveBeenCalledTimes(1);
   });
 
-  it("checks the radio and shows the fields of the preset named by terrainPreset", () => {
+  it("selects the preset named by terrainPreset and shows its fields", () => {
     renderGroundPanel({
       groundEnabled: true,
       groundType: "terrain",
       terrainPresets: presets,
       terrainPreset: "cliff",
     });
-    expect(screen.getByRole("radio", { name: "Levee crest" })).toHaveProperty(
-      "checked",
-      false,
-    );
-    expect(screen.getByRole("radio", { name: "Cliff edge" })).toHaveProperty(
-      "checked",
-      true,
-    );
+    expect(
+      (screen.getByRole("combobox", { name: "Terrain preset" }) as HTMLSelectElement)
+        .value,
+    ).toBe("cliff");
     expect(numberField("drop height (m)")).toBeTruthy();
     expect(screen.queryByText("crest height (m)")).toBeNull();
   });
@@ -349,14 +347,10 @@ describe("GroundPanel — terrain sub-panel", () => {
       terrainPresets: presets,
       terrainPreset: "renamed-on-server",
     });
-    expect(screen.getByRole("radio", { name: "Levee crest" })).toHaveProperty(
-      "checked",
-      true,
-    );
-    expect(screen.getByRole("radio", { name: "Cliff edge" })).toHaveProperty(
-      "checked",
-      false,
-    );
+    expect(
+      (screen.getByRole("combobox", { name: "Terrain preset" }) as HTMLSelectElement)
+        .value,
+    ).toBe("levee");
     expect(numberField("crest height (m)")).toBeTruthy();
     expect(screen.queryByText("drop height (m)")).toBeNull();
   });
