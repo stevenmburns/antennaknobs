@@ -355,9 +355,10 @@ the question rather than settling it.
 
 ## Next
 
-- **momwire#964** — 0.48.0 on elevated finite-ground decks. The largest
-  numbers in the tail, and the release's only numerical change asserts it is
-  exact.
+- **momwire#964** — the coated-wire model at large jacket ratios. The
+  largest numbers in the tail are jacketed decks (every 0.48-step mover
+  carries `LD 7`) measured against the bench's own L′ stand-in for the older
+  model; what is open is the pair's validity at b/a ≳ 5, not a regression.
 - **momwire#965** — 0.45.0's quadrature split moving bs1 and bs2 in opposite
   directions on the same deck.
 - **momwire#963** — the extended kernel disagreeing with a reference that was
@@ -365,7 +366,7 @@ the question rather than settling it.
 - **momwire#962** — refuse rather than return `z = [inf, 0]`.
 - **#1256** — record engine versions in `_meta`, and verify the nec2c md5
   rather than trusting `PATH`.
-- Size the unattributed residue: 136 pairs carry no `EK` card, and the
-  pre-0.34 breakages need an antennaknobs worktree at the July commit to
-  reach at all.
+- The pre-0.34 breakages (e.g. `11-2b`, `VB_28_T`) need an antennaknobs
+  worktree at the July commit to reach at all; the three named causes cover
+  every pair the 0.34→0.50 bisect could see.
 - BSpline d=1's 7 GB peak against an 8 GB cap.
