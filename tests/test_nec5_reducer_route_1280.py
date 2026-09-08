@@ -334,9 +334,14 @@ def test_the_reciprocity_gate_is_live_and_catches_a_bad_knot():
 
     Two arms, because either alone is weak. Tightening the tolerance to zero
     proves the comparison runs on a real printout rather than being a branch
-    nothing reaches; perturbing the knot rule proves the gate SEPARATES a
+    nothing reaches; perturbing ONE PORT's reading proves the gate SEPARATES a
     right rule from a wrong one — a symmetry check that passes for every
     interpolation would be worth nothing.
+
+    Both arms needed the licensed box to get right, and both were vacuous on
+    the first try: the first ran on a design whose Y is symmetric to the bit,
+    the second on a perturbation that is identically zero at a centre-fed
+    port. The comments below record what does not work and why.
     """
     import unittest.mock as mock
 
@@ -366,17 +371,32 @@ def test_the_reciprocity_gate_is_live_and_catches_a_bad_knot():
         with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
             eng._compute_y_matrix(wl)
 
-    # A WRONG knot: the adjacent segment centre instead of the interpolated
-    # knot value. Off by one half-segment on every off-diagonal, which
-    # symmetry must see.
+    # A WRONG READING AT ONE PORT. Scaling a single named port's current
+    # makes Y[i, j] and Y[j, i] disagree, because only one of the two is
+    # affected — which is what a mis-weighted interpolation or a wrong knot on
+    # ONE wire actually looks like. Measured: reciprocity 1.9e-05 -> 9.1e-02.
+    #
+    # WHAT DOES NOT WORK, AND WHY, so the next person does not retry it:
+    #
+    #   * "the adjacent segment centre instead of the interpolated knot" is
+    #     INVISIBLE here. An undriven centre-fed element's current is
+    #     symmetric about its centre knot, so the two adjacent segment centres
+    #     carry the same current and the substitution returns the interpolated
+    #     value. Measured on hb9cv: 1.88e-05 before, 1.88e-05 after, unchanged
+    #     to the digit. Both of its ports are centre knots of symmetric
+    #     elements, and that is the common case rather than a quirk.
+    #   * perturbing by WIRE index without checking which wires carry ports:
+    #     `idx` here is the wire index, not the port index, and hb9cv's ports
+    #     sit on wires 1 and 4 — a probe that scaled wire 0 changed nothing
+    #     and looked like a passing gate.
     real = NEC5Engine._port_knot_current
+    first_idx, first_knot = eng._port_attach[eng._real_port_names[0]]
 
-    def off_by_one(self, per_tag, idx, knot):
-        cur, _lengths = self._wire_segments(per_tag, idx)
-        k = self._knot_index(idx, knot)
-        return cur[min(max(k, 0), cur.shape[0] - 1)]
+    def scale_one_port(self, per_tag, idx, knot):
+        v = real(self, per_tag, idx, knot)
+        return v * 1.1 if (idx, knot) == (first_idx, first_knot) else v
 
-    with mock.patch.object(NEC5Engine, "_port_knot_current", off_by_one):
+    with mock.patch.object(NEC5Engine, "_port_knot_current", scale_one_port):
         with pytest.raises(nec5.NEC5Error, match="not reciprocal"):
             NEC5Engine(Builder())._compute_y_matrix(wl)
     assert NEC5Engine._port_knot_current is real
