@@ -56,7 +56,19 @@ Fixed here by summing the per-sub-edge `counts`.
 | sin | 97 | 94 % | 5 | **1** |
 | razor-2p | 98 | 95 % | 5 | 0 |
 | pynec | 100 | 97 % | 3 | 0 |
-| nec5 | 77 | **75 %** | 26 | 0 |
+| nec5 | 98 | **95 %** | 5 | 0 |
+
+> **The nec5 row moved after this run.** It read `77 | 75 % | 26` when the
+> ladder was taken. All 26 refusals were one sentence in the wrapper — "only
+> Load is served natively" — and antennaknobs#1280 gave `NEC5Engine` the
+> multiport-Y + `NetworkReducer` route PyNEC has used since momwire#575, which
+> lifts 21 of them. The five that still refuse are a floating port
+> (`arrays.bowtie1x2_bl`, `wire.doublet_balanced_tuner`), whose second
+> terminal NEC-5 cannot expose, and a distributed port (`wire.sterba_bl`,
+> `wire.sterba_tl`, `wire.zepp`) — PyNEC drives every segment at V/S and reads
+> the weighted current, and NEC-5's `EX` addresses knots, so the knot-weighting
+> rule for that expansion has not been derived. The timing and memory rows
+> below are the ladder's own and were NOT re-measured for the 21.
 
 Every refusal carries a sentence except one. `dipoles.invvee_apex` on the
 Sinusoidal engine raises `TypeError: SinusoidalSolver.__init__() got an
