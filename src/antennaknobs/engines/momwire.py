@@ -557,6 +557,15 @@ def _captures_advisories(fn):
     return wrapper
 
 
+def _has_batched_sweep(solver_cls) -> bool:
+    """Whether a momwire solver class carries the batched sweep entry points
+    `impedance_sweep` relies on. Every served basis but the pulse family does;
+    `HarringtonSolver` / `PulseSolver` solve one wavenumber at a time."""
+    return hasattr(solver_cls, "compute_impedance_swept") and hasattr(
+        solver_cls, "compute_y_matrix_swept"
+    )
+
+
 class MomwireEngine(SimulationEngine):
     supports_far_field = True
 
@@ -1329,7 +1338,12 @@ class MomwireEngine(SimulationEngine):
     @_captures_advisories
     def impedance(self):
         self._raise_if_cancelled()
-        wavelength = self._wavelength_for(self.builder.freq)
+        return self._impedance_at(self._wavelength_for(self.builder.freq))
+
+    def _impedance_at(self, wavelength):
+        """One frequency's driving-point impedance(s), as a list of complex —
+        the body of `impedance`, factored so the unbatched sweep fallback
+        below can call it per frequency."""
         if self._network is not None:
             Y = self._compute_y_matrix(wavelength)
             return self._reducer.driven_impedance(Y, wavelength)
@@ -1357,6 +1371,26 @@ class MomwireEngine(SimulationEngine):
         freqs = np.asarray(freqs, dtype=float)
         if freqs.ndim != 1 or freqs.size == 0:
             raise ValueError("freqs must be a 1-D non-empty array")
+        if not _has_batched_sweep(self._solver):
+            # The pulse family (HarringtonSolver, momwire's reference row) has
+            # no batched sweep, by design — it is kept as written so its
+            # number can be compared against the formulation NEC-2 identifies
+            # with. Found by driving the Pulse tab (#1148) in the real app: the
+            # sweep died with AttributeError on `compute_impedance_swept` and
+            # the readout went blank. Solve each frequency on its own instead;
+            # slower, and the same answer the single-frequency path gives.
+            rows = []
+            for freq in freqs:
+                self._raise_if_cancelled()
+                rows.append(
+                    np.atleast_1d(
+                        np.asarray(
+                            self._impedance_at(self._wavelength_for(freq)),
+                            dtype=np.complex128,
+                        )
+                    )
+                )
+            return np.vstack(rows)
         s = self._make_solver(wavelength=self._wavelength_for(freqs[0]))
         k_array = 2.0 * np.pi * freqs * 1e6 / C_LIGHT
         if self._network is not None:
