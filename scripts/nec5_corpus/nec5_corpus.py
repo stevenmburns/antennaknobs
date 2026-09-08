@@ -526,6 +526,14 @@ def _eval_sy_expr(expr: str, syms: dict, where: str) -> float:
     def err(msg):
         return DeckError(f"{where}: SY expression {expr!r}: {msg}")
 
+    # `#14` / `#12/ft` wire-gauge shorthand inside an expression
+    # (`SY rw=#14/in`): substitute its value before tokenising.
+    text = re.sub(
+        r"#(\d+)(?:/([A-Za-z]+))?",
+        lambda m: repr(_value(m.group(0), where, syms)),
+        text,
+    )
+
     if not text:
         raise err("empty")
     tokens = []
@@ -681,11 +689,21 @@ def _define_sy(rest: str, syms: dict, where: str) -> None:
 
 def _value(token: str, where: str, syms: dict) -> float:
     if token.startswith("#"):
+        # 4nec2 AWG shorthand: `#14` is the wire RADIUS in metres; `#12/ft`
+        # or `#14/in` is that radius in the deck's own length unit (decks
+        # that scale with GS 0 0 0.3048 write their radii in feet too).
+        gauge_txt, _, unit = token[1:].partition("/")
         try:
-            gauge = int(token[1:])
+            gauge = int(gauge_txt)
         except ValueError:
             raise DeckError(f"{where}: bad wire gauge {token!r}") from None
-        return 0.5 * 0.127e-3 * 92.0 ** ((36.0 - gauge) / 39.0)
+        radius_m = 0.5 * 0.127e-3 * 92.0 ** ((36.0 - gauge) / 39.0)
+        if unit:
+            factor = _SY_CONSTANTS.get(unit.lower())
+            if factor is None:
+                raise DeckError(f"{where}: unknown unit in wire gauge {token!r}")
+            return radius_m / factor
+        return radius_m
     try:
         return float(token)
     except ValueError:
@@ -740,6 +758,43 @@ class Card:
         return " ".join([self.mn, *self.f])
 
 
+def _split_fields(line: str) -> list:
+    """Card fields. A TAB-delimited 4nec2 card may carry an expression with
+    spaces inside one field (`GM 0 0 0 0 0 Fx 0 Fz + 0.24529 100`), so tabs
+    and commas split first and a tab field is only split further on spaces
+    when it is plain numbers (a mixed tab/space deck)."""
+    if "\t" not in line:
+        return line.replace(",", " ").split()
+    out = []
+    for field in re.split(r"[\t,]+", line):
+        field = field.strip()
+        if not field:
+            continue
+        if " " in field and not re.search(r"[A-Za-z_#^*/]", field):
+            out.extend(field.split())
+        elif (
+            " " in field and re.search(r"[+\-*/^]", field) and not field.startswith("'")
+        ):
+            out.append(field.replace(" ", ""))
+        else:
+            out.extend(field.split()) if " " in field else out.append(field)
+    return out
+
+
+def _close_parens(line: str) -> str:
+    """Remove whitespace (and separating commas) inside balanced parentheses."""
+    out, depth = [], 0
+    for ch in line:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(depth - 1, 0)
+        elif depth > 0 and ch in " \t,":
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
 def normalize(text: str, name: str) -> tuple:
     """(comment lines, cards) with SY resolved, separators normalised."""
     syms = {}
@@ -766,7 +821,12 @@ def normalize(text: str, name: str) -> tuple:
         stripped = stripped.split("'", 1)[0].rstrip()
         if not stripped:
             continue
-        tokens = stripped.replace(",", " ").replace("\t", " ").split()
+        # 4nec2 allows spaces inside a parenthesised expression
+        # (`GM 0 0 0 0 0 (rH - 0.0655 - clSep) 0 0.1032 1`); close them up
+        # so the expression stays one field.
+        if "(" in stripped:
+            stripped = _close_parens(stripped)
+        tokens = _split_fields(stripped)
         if (
             len(tokens[0]) > 2
             and tokens[0][:2].isalpha()
@@ -1394,7 +1454,7 @@ def cmd_translate(args) -> int:
 # ---------------------------------------------------------------------------
 _ERROR_RE = re.compile(
     r"\bERROR\b|FAULTY|INVALID|STOP INPUT|Input data error|illegal value|Singular matrix"
-    r"|Segmentation fault|SIGSEGV|out of range|no basis function",
+    r"|Segmentation fault|SIGSEGV|out of range|no basis function|Definition not found",
     re.I,
 )
 # Lines that match the pattern above but are not failures: the Sommerfeld
