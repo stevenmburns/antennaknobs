@@ -79,6 +79,20 @@ def load_design(dotted: str):
     return mod.Builder
 
 
+def _wire_seg_count(spec) -> int:
+    """Segments in one ``build_wires`` entry's n_seg slot.
+
+    Usually an int, but a graded wire spells it as a ``GradedSegments``
+    carrying per-sub-edge ``counts`` (one polyline entry, several edges).
+    ``int()`` on that raises, which is why the whole-catalog ladder found
+    `verticals.buried_radial_vertical` failing on every engine with a
+    TypeError rather than a number."""
+    counts = getattr(spec, "counts", None)
+    if counts is not None:
+        return sum(int(c) for c in counts)
+    return int(spec)
+
+
 def total_nominal_segs(builder_cls, nseg: int) -> int:
     """Total segments the design dials at ``nominal_nsegs=nseg`` (sum of the
     per-wire counts from ``build_wires``, pre-parity-coercion). Engine-
@@ -86,7 +100,7 @@ def total_nominal_segs(builder_cls, nseg: int) -> int:
     before a solver rounds it to its parity."""
     b = builder_cls()
     b.nominal_nsegs = nseg
-    return sum(int(t[2]) for t in b.build_wires())
+    return sum(_wire_seg_count(t[2]) for t in b.build_wires())
 
 
 # --------------------------------------------------------------------------
