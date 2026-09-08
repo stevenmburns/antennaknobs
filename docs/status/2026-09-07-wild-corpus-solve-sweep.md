@@ -10,9 +10,10 @@ not.
 **Headline: a large net improvement with a real regression tail.** Median
 agreement improves for every momwire engine, several decks fall from ΔΓ ≈ 1.5
 to ≈ 0.01, and NEC-5 enters the corpus at 2,314 scored decks. Against that,
-**272 engine-deck pairs across 144 decks got measurably worse**, and the cause
+**266 engine-deck pairs across 142 decks got measurably worse**, and the cause
 is engine-side rather than reference or import drift. Three causes are named
-and filed (momwire#963, #964, #965); part of the tail remains unattributed.
+and filed (momwire#963, #964, #965); part of the tail remains unattributed,
+and six decks turned out to have references that were never valid.
 The tail is in this headline rather than an appendix because it is the part
 that needs work.
 
@@ -128,6 +129,26 @@ Owen Collinear fails this way in PyNEC too, which points at the deck or the
 import rather than at momwire; the other four are momwire-side, and the two
 `patch_999` decks fail in the BSpline bases only.
 
+### Unphysical nec2c references (excluded from every comparison)
+
+Six decks have a reference with R ≤ 0 or |Γ| > 1 — a failed reference solve
+that printed a number. They are censused here and kept out of the medians and
+the movers entirely.
+
+| deck | reference Z | \|Γ\| |
+|---|--:|--:|
+| `arrl/cebik-models/Phased-Arrays/1r5-bc3elendfire-burrad.nec` | −0.005 − 0.001j | 1.0002 |
+| `opensource/g1ojs/Verticals/others/opt/general 2-04.nec` | −11.420 − 156.680j | 1.0429 |
+| `opensource/g1ojs/Verticals/others/opt/general 2-05.nec` | −13.416 − 221.500j | 1.0263 |
+| `opensource/necpp/excessive_gain.nec` | −0.000 − 0.000j | 1.0000 |
+| `opensource/necpp/patch_999_2.nec` | −259.630 − 425.060j | 1.1096 |
+| `opensource/sokyrad/.../80m_delta_loop_...3p9MHz.nec` | −53.017 − 128.640j | 1.2808 |
+
+Only 6 decks of 2,800, but two of them sat at the very top of the regression
+table and read as the worst finding in the sweep. They are 7.8× enriched among
+regressed decks, which is exactly why they surfaced there — a failed reference
+is free to move.
+
 ## Agreement (all scored decks)
 
 | engine | n | median | p90 | ≤0.01 | ≤0.05 | ≤0.2 | open |
@@ -177,13 +198,13 @@ reference. The biggest falls are whole-deck rescues rather than nudges:
 | 1.318 | bs2 | `.../HFmultiband/SHOEBOX.NEC` | 1.3188 | 0.0009 |
 | 1.314 | sin | `.../zz_EZnec/v3.0/BYVee.nec` | 1.3155 | 0.0016 |
 
-## The regression tail: 272 pairs, 144 decks
+## The regression tail: 266 pairs, 142 decks
 
 | engine | regressed pairs |
 |---|--:|
-| Sinusoidal | 100 |
-| BSpline d=1 | 83 |
-| BSpline d=2 | 89 |
+| Sinusoidal | 98 |
+| BSpline d=1 | 81 |
+| BSpline d=2 | 87 |
 | PyNEC | 0 |
 | NEC-5 | 0 |
 
@@ -194,12 +215,13 @@ it. The worst:
 
 | move | engine | deck | was | now |
 |--:|---|---|--:|--:|
-| +1.171 | sin | `.../Verticals/others/opt/general 2-04.nec` | 0.0017 | 1.1731 |
-| +1.028 | sin | `.../Verticals/others/opt/general 2-05.nec` | 0.0011 | 1.0290 |
 | +1.011 | bs1 | `opensource/nec2c/VB_28_T.NEC` | 0.1897 | 1.2010 |
 | +1.005 | bs1 | `opensource/nec2c/VBS_28_T.NEC` | 0.1903 | 1.1953 |
 | +0.994 | sin | `.../Shortened dipoles/Dipole wire diameter.nec` | 0.1798 | 1.1740 |
 | +0.969 | sin | `opensource/g1ojs/_6m/6m Moxon coax inner fed.nec` | 0.0081 | 0.9771 |
+| +0.954 | sin | `cebik-w4rnl/.../ch-11/11-2b.nec` | 0.0011 | 0.9550 |
+| +0.937 | bs2 | `opensource/g1ojs/_6m/6m Moxon coax inner fed.nec` | 0.0776 | 1.0145 |
+| +0.850 | bs1 | `.../20m 65cm Circ 10mm Copper Magloop V.nec` | 0.2073 | 1.0577 |
 
 It is not one uniform cause. On
 `20m 65cm Circ 10mm Copper Magloop V.nec` bs1 regresses hard (133 Ω → 8.5 Ω
@@ -211,9 +233,9 @@ against a 73 Ω reference) while **bs2 improves on the same deck**, landing at
 Two candidate explanations were measured first and neither survives as stated,
 which is worth recording because both looked convincing.
 
-**Loads and ground are mostly base rate.** 120 of the 144 decks carry an `LD`
-card and 119 a `GN` card, which looks damning until compared against the
-corpus: 65.9 % and 70.8 % of all comparable decks carry them anyway. The
+**Loads and ground are mostly base rate.** 118 of the 142 decks carry an `LD`
+card and 117 a `GN` card, which looks damning until compared against the
+corpus: 66.0 % and 70.7 % of all comparable decks carry them anyway. The
 enrichment is 1.26× and 1.17× — not a cause.
 
 **High Q does not explain it either.** The obvious physical story is that these
@@ -251,32 +273,39 @@ change.
 
 #### 3. momwire 0.48.0, on elevated finite-ground decks (momwire#964)
 
-The same bisect pins a second step at 0.47 → 0.48, this one across all three
-bases and carrying the largest numbers in the tail: `general 2-04` sin goes
-0.0016 → 1.1731, the 6m Moxon 0.0082 → 0.9771. On `general 2-04` the solver
-returns 3.34 + 156.07j against a −11.42 − 156.68j reference — the reactance
-changes sign.
-
-Widened past the bisect's own eight decks: taking the 24 decks with the
-largest regressions that the kernel flag does *not* explain and re-solving
-them at both releases, **30 of their 44 regressed pairs move at this one
-step** and 14 are flat. The whole `general 2-xx` optimised-vertical series
-moves together in `sin`, every member of it sitting below ΔΓ 0.01 at 0.47 —
-near-exact agreement with nec2c — and between 0.5 and 1.2 at 0.48.
+The same bisect pins a second step at 0.47 → 0.48, across all three bases:
+the 6m Moxon goes 0.0082 → 0.9771 in `sin` and 0.0771 → 1.0145 in bs2, the
+20m diamond 0.0021 → 0.7493, and four members of the `general 2-xx`
+optimised-vertical series move together in `sin`. Every one of these sat below
+ΔΓ 0.01 at 0.47 — near-exact agreement with nec2c — and lands between 0.5 and
+1.0 at 0.48. Widened past the bisect's own decks, **24 of 38 regressed pairs**
+on the 24 largest non-EK regressions move at this single step.
 
 The release's headline feature is "a wire may now lie on the ground", and it
 is **not** implicated: none of these decks has a wire at or below z = 0 (the
-minima are 5.3 m to 9.0 m), and no advisory is emitted. By elimination from
-the changelog the only numerical change in that release is one `perf` commit
-to `_crossing_fill.py` whose own message states it is "an exact restriction,
-not an approximation" and reports Z bit-identical on three decks. These decks
-say otherwise on their geometry.
+minima are 5.3 m to 9.0 m), and no advisory is emitted. The mechanism is the
+release's coated-wire pair — the equivalent radius a′ of a jacketed conductor
+(momwire#874) — established by rebuild-per-commit, not by reading the
+changelog.
+
+**A correction belongs here.** This section first led with `general 2-04` and
+`general 2-05`, going 0.0016 → 1.1731 and 0.0011 → 1.0290, as the largest
+numbers in the sweep. They are not evidence of anything: their nec2c
+references are −11.42 − 156.68j and −13.42 − 221.50j. A passive antenna cannot
+have negative resistance, so both references are failed solves that printed a
+number, and ΔΓ against them is meaningless. Both decks carry an `LD 7` jacket
+7.4× the conductor radius, which the reference path emulates as a per-metre
+L′; July's momwire modelled it the same way and agreed with nec2c at R ≈ −11,
+two codes agreeing on nonsense. They are struck from the tables above and
+excluded from every comparison. This doc's first version also named
+`_crossing_fill.py` as the suspect by elimination from the changelog; that was
+wrong, and a bisect inside the release found the coated-wire commits instead.
 
 #### What is still open
 
-The three causes do not cover the whole tail. 136 of the 272 pairs carry no
+The three causes do not cover the whole tail. 136 of the 266 pairs carry no
 `EK` card at all, and the release boundaries are measured on 8 decks across all 19
-releases plus 24 more at the 0.47/0.48 step, not across all 144 — a tail-wide
+releases plus 24 more at the 0.47/0.48 step, not across all 142 — a tail-wide
 re-run at four releases was started and abandoned at a measured ~16 h, because
 the regressed decks are the corpus's slowest. At least one deck
 (`cebik-w4rnl/.../ch-11/11-2b.nec`, sin 0.0011 → 0.9550) is flat across every
@@ -290,7 +319,7 @@ A fourth hypothesis was tested and is **not confirmed**: momwire#959's finding
 that dense collocation returns noise below ~0.3 × the kernel radius. Regressed
 decks do sit closer to the limit (median min Δ/a 6.8 against 40.5 for
 unchanged decks) but essentially none reach it — only 2.6 % fall below Δ/a = 2
-and none below 0.3. That measurement covers 38 of the 144 decks, since the
+and none below 0.3. That measurement covers 38 of the 142 decks, since the
 parser reads plain `GW` cards only and much of this family is `GH`-generated,
 and it does not model the equivalent radius of a jacketed conductor. It bounds
 the question rather than settling it.
