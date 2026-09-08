@@ -103,7 +103,7 @@ def _strip_timing(text: str) -> str:
 
 def _extract(text: str) -> dict:
     """What we compare, from one printout. Missing sections are None, not
-    errors — a deck with no RP card has no pattern."""
+    errors - a deck with no RP card has no pattern."""
     d: dict = {"z": None, "peak_gain_db": None, "budget": None, "currents": None}
     try:
         aip = NEC5Engine._parse_input_parameters(text)
