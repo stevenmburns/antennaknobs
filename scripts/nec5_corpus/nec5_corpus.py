@@ -966,6 +966,14 @@ class Remesh:
     def want(self, ref):
         self.refs.setdefault(ref[1], set()).add(ref[3])
 
+    @staticmethod
+    def _knot_of(seg: int, n: int, n2: int) -> int:
+        pos = (seg - 0.5) / n * n2
+        if abs(pos - round(pos)) < 1e-9:
+            return int(round(pos))
+        k = math.ceil(pos) if pos < n2 / 2 else math.floor(pos)
+        return min(max(k, 1), n2 - 1) if n2 > 1 else 1
+
     def decide(self):
         for root, segs in self.refs.items():
             n = self.geo.root_n[root]
@@ -976,6 +984,16 @@ class Remesh:
             else:
                 odd_centre = any(n % 2 == 1 and s == (n + 1) // 2 for s in segs)
                 n2 = n + 1 if odd_centre else n
+                # Distinct segments must stay distinct knots: two TL ports
+                # on adjacent segments of a short stub would otherwise land
+                # on one knot (a shorted stub merging with an open one).
+                knots = {self._knot_of(s, n, n2) for s in segs}
+                if len(knots) < len(segs):
+                    n2 = 2 * n
+                    self.notes.append(
+                        f"{card.mn} tag {card.f[0]}: mesh doubled so {len(segs)} referenced "
+                        "segments map to distinct knots"
+                    )
             self.new_n[root] = n2
             if n2 != n:
                 card.f[1] = str(n2)
@@ -998,11 +1016,8 @@ class Remesh:
         n = self.geo.root_n[root]
         n2 = self.new_n.get(root, n)
         pos = (seg - 0.5) / n * n2
-        if abs(pos - round(pos)) < 1e-9:
-            k = int(round(pos))
-        else:
-            k = math.ceil(pos) if pos < n2 / 2 else math.floor(pos)
-            k = min(max(k, 1), n2 - 1) if n2 > 1 else 1
+        k = self._knot_of(seg, n, n2)
+        if abs(pos - round(pos)) >= 1e-9:
             self.notes.append(
                 f"{what} on tag {tag} segment {seg} of {n} sat mid-segment: moved "
                 f"{abs(k - pos):.2f} segment(s) to knot {k} of {n2} (toward the wire centre)"
