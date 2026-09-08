@@ -151,3 +151,13 @@ what remains is a long tail plus one feature.
   solve sweep.
 - Rejection counts are per deck, keyed on the FIRST sentence the importer
   produced; a deck with two unreadable features is counted once.
+
+> **Addendum, 2026-09-08 evening.** The four census items filed from this run
+> (#1272 gauge-per-unit tokens and glued `CE`, #1273 spaced expressions in
+> parentheses and tab fields, #1274 the GN ground-file sentence, #1275 `NX`)
+> were fixed together, ported from the NEC-5 corpus translator
+> (`scripts/nec5_corpus/`) where they were first worked out against the same
+> decks. Re-run on the same 3,146 unique decks: **rejected 188 → 157**; the
+> three `GN … SOMEX10.NEC` decks now carry the tabulated-ground sentence rather
+> than "unexpected character '.'". The head of the remaining list is the
+> designed refusals (plane-wave EX 46, SP 27, GC taper 20, GF 16, SM 15).
