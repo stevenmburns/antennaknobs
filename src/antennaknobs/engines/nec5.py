@@ -49,8 +49,10 @@ from ..network import (
     PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
+    PortVirtual,
     as_wire,
 )
+from ..network_reduce import NetworkReducer
 
 C_LIGHT = 299_792_458.0
 
@@ -62,6 +64,48 @@ _PATTERN_HEADER = "- - - RADIATION PATTERNS - - -"
 
 # NEC-5 prints -999.99 dB for a true pattern null (zero field on axis).
 NULL_GAIN_DB = -999.99
+
+
+# The reference switch for #1280's route. On (the default), a network NEC-5
+# has no native cards for takes the multiport-Y + shared `NetworkReducer`
+# path; off, it refuses with the pre-#1280 sentence. Flipped by gates, never
+# by callers — the native and reduced routes are not a user choice, they are
+# what the engine can express.
+_NEC5_REDUCER_ROUTE = True
+
+# How far the knot-derived diagonal may sit from NEC-5's own reported source
+# current before `_compute_y_matrix` refuses. Loose enough for printout
+# rounding (the AIP block prints fewer digits than the currents block), tight
+# enough that a wrong knot — an off-by-one, or the segment current instead of
+# the knot average — cannot pass.
+_Y_DIAGONAL_RTOL = 1e-3
+
+
+def _network_needs_reducer(net) -> bool:
+    """True iff this network carries something NEC-5 has no native card for.
+
+    Deliberately the COMPLEMENT of what was native before #1280 rather than a
+    restatement of PyNEC's list: NEC-5's native surface is sources plus plain
+    `LD` loads (#825 stage 1), so anything else reduces. Writing it as "not
+    natively expressible" instead of enumerating TL / TwoPort / Transformer /
+    ... is what stops a new branch type silently defaulting to the native
+    path and emitting no card at all.
+    """
+    if net is None:
+        return False
+    for br in net.branches:
+        if not isinstance(br, Load):
+            return True
+        if br.ql is not None or br.qc is not None:
+            # A finite-Q load re-derives R = wL/Q at every frequency; there is
+            # no LD form for it, and the reducer has one (issue #298).
+            return True
+    for port in net.ports.values():
+        if isinstance(port, PortVirtual):
+            return True
+        if isinstance(port, PortOnWire) and port.distributed:
+            return True
+    return False
 
 
 def find_nec5(explicit: str | None = None) -> str | None:
@@ -211,7 +255,10 @@ class NEC5Engine(SimulationEngine):
                 for i, w in enumerate(self._wires)
                 if w.ex is not None
             ]
-        if not self._sources:
+        if not self._sources and not getattr(self, "_use_reducer", False):
+            # The reducer route carries no EX card of its own — its drive is
+            # resolved from the network onto the multiport Y — so "no sources"
+            # is its normal state, not a design with nothing to solve.
             raise ValueError(
                 "design has no excitation (no Wire.ex entry or network "
                 "source) — nothing to solve"
@@ -264,19 +311,28 @@ class NEC5Engine(SimulationEngine):
         center knot, ``Driven`` as ``EX 0`` (volts) and ``DrivenCurrent``
         as ``EX 4`` (amps, no NEC-2 counterpart). Branches (loads, lines,
         two-ports) are #825 stage 5+ and refuse here."""
-        for br in network.branches:
-            if not isinstance(br, Load):
-                raise NotImplementedError(
-                    f"NEC5Engine cannot stamp a {type(br).__name__} branch "
-                    "(only Load is served natively; lines/two-ports have no "
-                    "NEC-5 native cards on this path)"
-                )
-            if br.ql is not None or br.qc is not None:
-                raise NotImplementedError(
-                    "Load ql/qc (Q-derived series R) is frequency-dependent "
-                    "and has no NEC-5 LD form; spell the loss as an explicit "
-                    "r= at the frequency of interest"
-                )
+        # THE ROUTE DECISION (#1280). Everything NEC-5 has no native card for
+        # — lines, two-ports, transformers, baluns, shunts, virtual ports,
+        # Q-derived loads — goes through the multiport-Y + shared
+        # `NetworkReducer` path PyNEC has used since #575, instead of
+        # refusing. What stays native is exactly what was native before: a
+        # network whose branches are all plain `Load`s, which keeps emitting
+        # LD cards and is bit-identical to today.
+        self._use_reducer = _NEC5_REDUCER_ROUTE and _network_needs_reducer(network)
+        if not self._use_reducer:
+            for br in network.branches:
+                if not isinstance(br, Load):
+                    raise NotImplementedError(
+                        f"NEC5Engine cannot stamp a {type(br).__name__} branch "
+                        "(only Load is served natively; lines/two-ports have "
+                        "no NEC-5 native cards on this path)"
+                    )
+                if br.ql is not None or br.qc is not None:
+                    raise NotImplementedError(
+                        "Load ql/qc (Q-derived series R) is frequency-dependent "
+                        "and has no NEC-5 LD form; spell the loss as an explicit "
+                        "r= at the frequency of interest"
+                    )
         by_name = {w.name: i for i, w in enumerate(self._wires) if w.name}
         if any(w.ex is not None for w in self._wires):
             raise ValueError(
@@ -322,6 +378,16 @@ class NEC5Engine(SimulationEngine):
                 )
             return idx, "center"
 
+        if self._use_reducer:
+            # NO EX CARDS FROM THE NETWORK on this route. The drive is the
+            # reducer's to resolve — a source may even sit on a VIRTUAL port,
+            # which is a circuit node no EX card can address — and the Y runs
+            # below supply their own single source per port. Resolving the
+            # authored sources here would refuse a legitimate design and, on
+            # the ones it did not refuse, put a second feed in every Y deck.
+            self._init_reducer(network, wire_attachment)
+            self._loads = []
+            return []
         sources = []
         for src in network.sources:
             idx, knot = wire_attachment(src.port)
@@ -341,6 +407,145 @@ class NEC5Engine(SimulationEngine):
             idx, knot = wire_attachment(br.port)
             self._loads.append((idx, knot, br))
         return sources
+
+    # ---------- the multiport-Y route (#1280) ----------
+
+    def _init_reducer(self, network, wire_attachment):
+        """Port index map + the shared `NetworkReducer`, exactly the objects
+        `PyNECEngine._init_network` builds.
+
+        REAL PORTS ARE NOT PyNEC's SET. PyNEC's real ports are its
+        `PortOnWire`s; NEC-5 also serves `PortAtVertex` natively (an EX at the
+        shared knot, issue #898), and a vertex port is as real a terminal pair
+        here as a centre gap. So the real set is "every port this engine can
+        address with an EX card", which is what `wire_attachment` already
+        answers — reusing it means the Y route and the single-source route
+        cannot disagree about where a port IS.
+        """
+        real = [
+            n
+            for n, p in network.ports.items()
+            if isinstance(p, (PortOnWire, PortAtVertex))
+            and not (isinstance(p, PortOnWire) and p.distributed)
+        ]
+        self._real_port_names = real
+        self._port_attach = {n: wire_attachment(n) for n in real}
+        port_to_idx = {n: i for i, n in enumerate(real)}
+        next_idx = len(real)
+        for name, port in network.ports.items():
+            if isinstance(port, PortVirtual):
+                port_to_idx[name] = next_idx
+                next_idx += 1
+        for name, port in network.ports.items():
+            if name in port_to_idx:
+                continue
+            if isinstance(port, PortOnWire) and port.distributed:
+                raise NotImplementedError(
+                    f"port {name!r} is distributed (a finite-gap port spanning "
+                    "its whole named wire) — the NEC-5 multiport-Y route "
+                    "serves delta-gap ports only. PyNEC serves this by driving "
+                    "every segment at V/S and reading the weighted current; "
+                    "NEC-5's EX addresses KNOTS, so the same expansion needs a "
+                    "knot-weighting rule that has not been derived. Run this "
+                    "design on bspline or PyNEC."
+                )
+            raise NotImplementedError(
+                f"port {name!r} ({type(port).__name__}) cannot be addressed on "
+                "the NEC-5 multiport-Y route: it is neither an EX-addressable "
+                "port on a real wire nor a virtual circuit node"
+            )
+        # AFTER the per-port refusals above, deliberately: a design whose only
+        # real port is distributed or floating must hear WHICH port and why,
+        # not the generic "no real port" sentence that excluding it produces.
+        if not real:
+            raise NotImplementedError(
+                "this network has no port on a real wire — the NEC-5 "
+                "multiport-Y route drives real terminals and reduces the "
+                "circuit onto them, so a network of virtual nodes alone has "
+                "nothing for it to drive. Give the design a PortOnWire or "
+                "PortAtVertex terminal, or run it on bspline or PyNEC."
+            )
+        self._reducer = NetworkReducer(network, port_to_idx, next_idx)
+
+    def _knot_index(self, idx, knot):
+        """Index into `_currents_from`'s per-wire knot arrays for a port knot.
+
+        The same rule `_source_address` uses to place the EX card, read on the
+        knot axis instead of the segment axis — the centre knot is the one
+        after the middle segment, `p0` the first and `p1` the last. Derived
+        from the EXPANDED segment total so a graded wire (issue #1108) does
+        not shift the centre.
+        """
+        n_total = sum(c[2] for c in _expand_graded(self._wires[idx]))
+        if knot == "center":
+            return n_total // 2
+        if knot == "p0":
+            return 0
+        assert knot == "p1", knot
+        return n_total
+
+    def _compute_y_matrix(self, wavelength):
+        """Multiport short-circuit Y at the real ports: one NEC-5 run per
+        port, that port driven at 1 V and every other port present but
+        unfed (= shorted), reading the current at every port knot into
+        column j.
+
+        THE CONVENTION THIS RESTS ON, stated because it is the one thing a
+        box without the binary cannot check: the current "at a port" is the
+        knot current `_currents_from` already computes — the average of the
+        two adjacent segment-centre currents — which is the shipped,
+        fixture-pinned reading `current_distribution` returns. It is not
+        obviously the only defensible choice, so the diagonal is
+        CROSS-CHECKED against the ANTENNA INPUT PARAMETERS block, which
+        reports the driven port's own current directly. If the knot rule were
+        wrong, that check fails by name on the first real run rather than
+        producing a plausible wrong Y.
+
+        Sign convention: each wire is a GW card in its authored p0→p1
+        direction and NEC-5's EX and current readout follow it, so this Y is
+        in the authored-direction port convention, as PyNEC's is.
+        """
+        freq = C_LIGHT / wavelength / 1e6
+        names = self._real_port_names
+        n = len(names)
+        Y = np.zeros((n, n), dtype=np.complex128)
+        for j, drv in enumerate(names):
+            idx, knot = self._port_attach[drv]
+            text = self._run(self.deck([freq], sources=[(idx, 0, 1 + 0j, knot)]))
+            cur = self._currents_from(self._parse_wire_currents(text)[0])
+            for i, name in enumerate(names):
+                i_idx, i_knot = self._port_attach[name]
+                Y[i, j] = cur[i_idx].knot_currents[self._knot_index(i_idx, i_knot)]
+            self._check_driven_column(text, Y[j, j], drv)
+        return Y
+
+    def _check_driven_column(self, text, y_jj, drv):
+        """The driven port's own entry, against NEC-5's own report of it.
+
+        `ANTENNA INPUT PARAMETERS` prints the source's V, I and Z. Driven at
+        1 V, Y[j, j] IS that I. Comparing the knot-derived value against it
+        is what makes the knot convention above a measured claim rather than
+        an assumption — and it costs nothing, since the printout is already
+        in hand.
+        """
+        rows = self._parse_input_parameters(text)[0]
+        if len(rows) != 1:
+            raise NEC5Error(
+                f"port {drv!r} run reported {len(rows)} source rows, expected 1"
+            )
+        z = rows[0][2]
+        if z == 0:
+            raise NEC5Error(f"port {drv!r} run reported Z = 0")
+        want = 1.0 / z
+        scale = max(abs(want), abs(y_jj))
+        if scale > 0 and abs(y_jj - want) > _Y_DIAGONAL_RTOL * scale:
+            raise NEC5Error(
+                f"port {drv!r}: the knot current {y_jj!r} disagrees with the "
+                f"driven-source current {want!r} that NEC-5 reports for the "
+                f"same run (relative {abs(y_jj - want) / scale:.3e} > "
+                f"{_Y_DIAGONAL_RTOL:g}). The port-current convention in "
+                "`_compute_y_matrix` is wrong for this port, not the network."
+            )
 
     # ---------- ground ----------
 
@@ -611,7 +816,7 @@ class NEC5Engine(SimulationEngine):
         assert knot == "p1", knot
         return n_seg, 2
 
-    def deck(self, freqs, *, rp=None) -> str:
+    def deck(self, freqs, *, rp=None, sources=None) -> str:
         """The NEC-5 input deck for this model at the given frequencies
         (MHz). Multiple frequencies must be uniformly spaced (NEC-5's FR
         does linear stepping); callers with a ragged grid run one deck per
@@ -620,7 +825,13 @@ class NEC5Engine(SimulationEngine):
         ``rp=(n_theta, n_phi, del_theta, del_phi)`` swaps the plain ``XQ``
         execution for an ``RP`` request on the antennaknobs pattern grid
         (theta 0..90-del from zenith, phi 0..360 inclusive of the seam
-        duplicate — the same grid PyNECEngine collects)."""
+        duplicate — the same grid PyNECEngine collects).
+
+        ``sources`` overrides the model's own feed list for ONE call, in the
+        same ``(wire_index, ex_type, value, knot)`` shape `_sources` carries.
+        The multiport-Y route (#1280) uses it to drive one port at a time
+        without mutating the engine; every other caller passes nothing and
+        gets today's deck byte for byte."""
         freqs = np.atleast_1d(np.asarray(freqs, dtype=float))
         if freqs.size > 1:
             steps = np.diff(freqs)
@@ -657,7 +868,7 @@ class NEC5Engine(SimulationEngine):
                 el = float(br.l) if br.l is not None else 0.0
                 c = float(br.c) if br.c is not None else 0.0
                 lines.append(f"LD {ldtyp} {where} {_num(r)} {_num(el)} {_num(c)}")
-        for idx, ex_type, value, knot in self._sources:
+        for idx, ex_type, value, knot in self._sources if sources is None else sources:
             seg, end = self._source_address(idx, knot)
             lines.append(
                 f"EX {ex_type} {self._tag_of(idx)} {seg} {end} "
@@ -979,11 +1190,30 @@ class NEC5Engine(SimulationEngine):
     # ---------- SimulationEngine API ----------
 
     def impedance(self):
+        if getattr(self, "_use_reducer", False):
+            wl = C_LIGHT / (self.builder.freq * 1e6)
+            return np.atleast_1d(
+                self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
+            )
         text = self._run(self.deck([self.builder.freq]))
         return self._impedances_from(self._parse_input_parameters(text)[0])
 
     def impedance_sweep(self, freqs):
         freqs = np.asarray(freqs, dtype=float)
+        if getattr(self, "_use_reducer", False):
+            # One reduction per frequency: the antenna Y and every branch the
+            # reducer stamps are frequency-dependent, and NEC-5's FR stepping
+            # would give one printout for the sweep rather than the per-f Y
+            # this route needs.
+            if freqs.ndim != 1 or freqs.size == 0:
+                raise ValueError("freqs must be a 1-D non-empty array")
+            out = []
+            for f in freqs:
+                wl = C_LIGHT / (float(f) * 1e6)
+                out.append(
+                    self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
+                )
+            return np.array([np.atleast_1d(z) for z in out]).reshape(freqs.size, -1)
         if freqs.ndim != 1 or freqs.size == 0:
             raise ValueError("freqs must be a 1-D non-empty array")
         steps = np.diff(freqs)
