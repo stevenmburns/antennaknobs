@@ -732,13 +732,16 @@ class NEC5Engine(SimulationEngine):
         Above the plane nothing changed. BELOW it is the buried stage:
         wires wholly below z=0 (an end AT z=0 is legal, and is how a
         buried screen meets a contact monopole) ride NEC-5's native
-        buried-wire support — the ``GE`` card's second field goes ``-1``
-        and the Sommerfeld ``GN 0`` card carries the medium, the exact
-        spelling the momwire#567 anchor captures pinned and banked
-        (momwire ``tests/golden_buried_anchor_nec5.py``: the binary
-        prints 90.051-70.731j for the four-radial anchor over
-        eps_r 13 / sigma 0.005). Three refusals remain, each a real
-        limit rather than an unpinned one:
+        buried-wire support — the ``GE`` card's FIRST field goes ``-1``
+        (the burial flag; #1025 found this wrapper had the two fields
+        transposed) and the Sommerfeld ``GN 0`` card carries the medium.
+        The momwire#567 anchor captures (momwire
+        ``tests/golden_buried_anchor_nec5.py``, 90.051-70.731j for the
+        four-radial anchor) are prints under the TRANSPOSED card and are
+        banked there as such (momwire#929), not as the engine's answer;
+        under the documented card a conductor stopping on the plane reads
+        open-circuited, which is the third refusal below. Three refusals
+        remain, each a real limit rather than an unpinned one:
 
         * a wire crossing the plane MID-SPAN — the binary runs it
           without complaint and prints garbage (stage-1 capture), so
