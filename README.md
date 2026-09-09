@@ -401,6 +401,30 @@ Optionally, add the **NEC2 solver** (PyNEC) as an alternative to momwire:
 pip install "pynec-accel>=1.7.4.post2"
 ```
 
+One-shot scripts do the same and finish with an import-and-solve smoke test —
+their output is the thing to paste into an issue if anything fails:
+`bash scripts/install.sh` (Linux / macOS) or `.\scripts\install-windows.ps1`
+(Windows, below).
+
+**Windows** (PowerShell). Python 3.12 is the version every test lane runs;
+`winget` installs it in one line, and the script above offers to. By hand:
+
+```powershell
+winget install --id Python.Python.3.12 --source winget   # then open a NEW PowerShell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install "antennaknobs[web]"
+python -m uvicorn antennaknobs.web.server:app             # then open http://127.0.0.1:8000
+```
+
+If `Activate.ps1` is refused, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+once. Always `python -m pip`, so pip installs into the venv you activated. With
+a licensed NEC-5 (EZNEC Pro+ ships `NEC5CL.exe`), set
+`$env:NEC5_EXE = "C:\Program Files\EZNEC Pro+\NEC5CL.exe"` in the same window
+before starting the server and the NEC-5 tab appears; see the
+[NEC-5 page](https://antennaknobs.dev/reference/nec5/).
+
 Then launch the workbench with `uvicorn antennaknobs.web.server:app`, keeping
 the env prefix from [Running it](#running-it). On **macOS**, `brew install libomp` is required —
 the `momwire` and `pynec-accel` wheels link Homebrew's OpenMP runtime (and share
