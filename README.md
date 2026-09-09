@@ -425,6 +425,14 @@ a licensed NEC-5 (EZNEC Pro+ ships `NEC5CL.exe`), set
 before starting the server and the NEC-5 tab appears; see the
 [NEC-5 page](https://antennaknobs.dev/reference/nec5/).
 
+The lines above are PowerShell (its prompt starts with `PS`). In **Command
+Prompt** (prompt `C:\Users\you>`), the `$env:` form is not understood — it
+fails with "The filename, directory name, or volume label syntax is
+incorrect" — and the spellings are `.\.venv\Scripts\activate.bat` and, with no
+quotes, `set NEC5_EXE=C:\Program Files\EZNEC Pro+\NEC5CL.exe`. Either shell
+works; the variable lives in that window only, so set it and start the
+server in the same one.
+
 Then launch the workbench with `uvicorn antennaknobs.web.server:app`, keeping
 the env prefix from [Running it](#running-it). On **macOS**, `brew install libomp` is required —
 the `momwire` and `pynec-accel` wheels link Homebrew's OpenMP runtime (and share

@@ -43,6 +43,17 @@ On Windows, in PowerShell, before starting the workbench in the same window
 $env:NEC5_EXE = "C:\Program Files\EZNEC Pro+\NEC5CL.exe"
 ```
 
+That is PowerShell syntax (its prompt starts with `PS`). In Command Prompt
+(prompt `C:\Users\you>`) the same line fails with "The filename, directory
+name, or volume label syntax is incorrect"; the Command Prompt spelling is
+
+```bat
+set NEC5_EXE=C:\Program Files\EZNEC Pro+\NEC5CL.exe
+```
+
+with no quotes. Either shell works; the variable lives in that window only,
+so set it and start the workbench in the same one.
+
 Everything below lights up exactly when `NEC5_EXE` resolves — the CLI
 engine name, the workbench slot entry — and disappears when it doesn't.
 If you run a local web instance with the variable set, the NEC-5 slot is
