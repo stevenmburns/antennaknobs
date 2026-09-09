@@ -198,45 +198,113 @@ jobs:
       with:
         GITHUB_TOKEN: ${{ github.token }}
 
-  wheel-smoke:
-    # Install antennaknobs from the BUILT WHEEL with PyPI deps only — no git
-    # submodule — and run one real solve through the web server's entry point.
-    # This is the environment Fly and `pip install antennaknobs` actually get.
-    # The job above installs momwire editable from the submodule, so it can
-    # never catch code that uses a momwire API the pyproject version floor
-    # does not guarantee; that exact split shipped v0.13.0 broken (solves used
-    # momwire.CancelToken while the floor still admitted momwire 0.2.3).
-    #
-    # Deliberately cheap: no submodule checkout, no ccache, no PyNEC, no
-    # frontend build (the server's static mount is gated on the directory
-    # existing, and the smoke only calls the solve path).
+  wheel-build:
+    # Build the wheel ONCE for the smoke matrix below. No submodule, no
+    # frontend (the server's static mount is gated on the directory existing,
+    # and the smoke never fetches the UI).
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
-      # No `submodules:` — momwire MUST come from PyPI here; that's the test.
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v7
+    - uses: actions/setup-python@v7
       with:
         python-version: "3.12"
     - name: Build the wheel
       run: pipx run build --wheel
-    - name: Install from the wheel (PyPI deps only)
-      # Deliberately NOT constrained by constraints-ci.txt: this lane's whole
-      # purpose is to reproduce what `pip install antennaknobs[web]` gets a
-      # real user on the day they run it, floors and all. Pinning it would
-      # defeat the job — it exists precisely to catch a floor that has gone
-      # stale (the v0.13.0 momwire incident referenced above), which a
-      # constrained install can never do.
+    - uses: actions/upload-artifact@v7
+      with:
+        name: wheel
+        path: dist/*.whl
+
+  wheel-smoke:
+    # Install antennaknobs from the BUILT WHEEL with PyPI deps only — no git
+    # submodule — by running the README's install script (per change on Linux;
+    # every platform on dispatch and on the tag). This is the environment `pip install
+    # antennaknobs` actually gets. The `build` job installs momwire editable
+    # from the submodule and carries pynec-accel, so it can never catch:
+    #   - code using a momwire API the pyproject pin does not guarantee (that
+    #     split shipped v0.13.0 broken: solves used momwire.CancelToken while
+    #     the floor still admitted momwire 0.2.3);
+    #   - a first example that only works WITH the optional PyNEC extra
+    #     (v0.71.0 shipped `antennaknobs.Antenna` as None on every plain
+    #     install, #1323 — every dev venv here has pynec-accel, so no one
+    #     saw it until a user lost hours on it).
+    #
+    # The steps are NOT written here: they are scripts/install.sh and
+    # scripts/install-windows.ps1, the one-shot installers the README points
+    # users at. Those scripts ARE the README's path (venv, pip install
+    # antennaknobs[web], the optional pynec-accel line, the quick start's
+    # first example, start the workbench), so what a user runs and what CI
+    # certifies cannot drift apart — and this lane is the only machine test
+    # the PowerShell script gets. publish.yml runs the same scripts against
+    # PyPI on the tag (#1326).
+    #
+    # Cost (Steve, 2026-09-09: the full platform matrix is a RELEASE-time
+    # check, the only time wheels are built): per PR and per push this is ONE
+    # cell — ubuntu, 3.12, plain — the same cost as the old lane. The full
+    # 3 OS × {3.12, 3.14} × {plain, +pynec} matrix runs on workflow_dispatch
+    # (a pre-release rehearsal on a branch) and, against PyPI, in publish.yml
+    # on every tag. The +pynec row is the opposite failure class: both
+    # engines' OpenMP runtimes in one process, where a private copy on either
+    # side silently knocks momwire onto pure Python (Linux, the >=1.7.4.post2
+    # floor) or aborts (macOS).
+    needs: wheel-build
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '{"os":["ubuntu-latest","windows-latest","macos-14"],"python-version":["3.12","3.14"],"pynec":["0","1"]}' || '{"os":["ubuntu-latest"],"python-version":["3.12"],"pynec":["0"]}') }}
+    name: wheel-smoke (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.pynec == '1' && ', +pynec' || '' }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v7
+      # No `submodules:` — momwire MUST come from PyPI here; that's the test.
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ matrix.python-version }}
+    - uses: actions/download-artifact@v8
+      with:
+        name: wheel
+        path: dist
+    - name: Homebrew libomp (macOS)
+      # The momwire and pynec-accel wheels link Homebrew's OpenMP runtime,
+      # exactly as the README's macOS note says.
+      if: runner.os == 'macOS'
+      run: brew install libomp
+    - name: README install script (Linux / macOS)
+      # Deliberately NOT constrained by constraints-ci.txt: this lane exists
+      # to reproduce what `pip install antennaknobs[web]` gets a real user on
+      # the day they run it, floors and all; a constrained install can never
+      # catch a floor that has gone stale. Run from a temp dir so a stray
+      # `momwire/` source dir on CWD can never shadow the installed package.
+      if: runner.os != 'Windows'
+      shell: bash
       run: |
-        WHL=$(ls dist/*.whl)
-        pip install "${WHL}[web]"
-    - name: Solve smoke through the server entry point
-      # Run from a temp dir so a stray `momwire/` source dir on CWD can never
-      # shadow the installed package.
-      run: |
-        SMOKE=$(pwd)/.github/scripts/wheel_solve_smoke.py
+        WHL=$(ls "$GITHUB_WORKSPACE"/dist/*.whl)
+        SCRIPT="$GITHUB_WORKSPACE/scripts/install.sh"
+        SMOKE="$GITHUB_WORKSPACE/.github/scripts/wheel_solve_smoke.py"
         cd "$(mktemp -d)"
-        python "$SMOKE"
+        PYTHON=python ANTENNAKNOBS_SPEC="${WHL}[web]" PYNEC=${{ matrix.pynec }} bash "$SCRIPT"
+        # The seam the v0.13.0 incident was about: the server's solve entry
+        # point with a cancel token, against whatever momwire pip resolved.
+        .venv/bin/python "$SMOKE"
+    - name: README install script (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $whl = (Get-ChildItem "$env:GITHUB_WORKSPACE\dist\*.whl").FullName
+        $script = "$env:GITHUB_WORKSPACE\scripts\install-windows.ps1"
+        $smoke = "$env:GITHUB_WORKSPACE\.github\scripts\wheel_solve_smoke.py"
+        $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+        New-Item -ItemType Directory -Path $tmp | Out-Null
+        Set-Location $tmp
+        $pyexe = (Get-Command python).Source
+        if ("${{ matrix.pynec }}" -eq "1") {
+          & $script -PythonExe $pyexe -Spec "$whl[web]" -PyNEC
+        } else {
+          & $script -PythonExe $pyexe -Spec "$whl[web]"
+        }
+        if ($LASTEXITCODE -ne 0) { throw "install-windows.ps1 failed ($LASTEXITCODE)" }
+        & .\.venv\Scripts\python.exe $smoke
+        if ($LASTEXITCODE -ne 0) { throw "wheel_solve_smoke.py failed ($LASTEXITCODE)" }
 
   frontend:
     # Typecheck + build the workbench frontend (issue #615). The bundle is

@@ -70,6 +70,15 @@ Merge with `/merge-pr` (rebase, CI green first).
 3. Verify: PyPI serves X.Y.Z
    (`curl -s https://pypi.org/pypi/antennaknobs/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"`)
    and `gh release view vX.Y.Z` lists the expected PRs.
+   Then wait for `publish`'s **published-smoke** matrix (#1326): it installs
+   the PUBLISHED pair from PyPI on Linux/Windows/macOS × 3.12/3.14 ×
+   {plain, +pynec} by running the README's own install scripts
+   (`scripts/install.sh`, `scripts/install-windows.ps1`) — the quick start's
+   first example, both engines in one process, and the web server. It
+   retries for ~15 min while PyPI propagates. **Do not announce until all
+   twelve are green**: a red means the release does not install or run as
+   documented for a user (the v0.71.0 `Antenna = None` shape, #1323), and
+   the remedy is a follow-up release, not a note.
 4. Both deploy workflows end with a **Verify fleet convergence** step
    (issue #403): every Fly machine must actually be running the image just
    released — flyd can silently revert a machine seconds after a "healthy"
