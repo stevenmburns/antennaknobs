@@ -81,7 +81,7 @@ spelling for them and misreads the fields if they are left in.
 
 **Cards NEC-5 does not have** are dropped with a note: EK, KH, CP, IS, JN,
 VC, MP, and 4nec2's LD 6 / LD 7 (its insulated-wire load; NEC-5 crashes on
-them). SM patch surfaces, GF/WG Green's-function files and CW catenary wires
+them). SP/SC/SM patch cards (NEC-5 spells a *different* card as SP, so a patch deck is silently another model there, not a syntax error), GF/WG Green's-function files and CW catenary wires
 are refused. NX multi-structure decks are split into one deck per
 structure. A deck with no execution request (4nec2 adds XQ itself) gets
 `XQ 0`. A 4nec2 flat loop spelled as a one-turn helix with 1e-300 pitch is
