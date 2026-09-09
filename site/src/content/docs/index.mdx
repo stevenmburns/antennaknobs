@@ -25,23 +25,25 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.71.0" icon="star">
-  **The reference row gets a tab.** momwire's Harrington solver — pulse basis,
-  point-matched, the oldest thin-wire moment-method scheme, done to Harrington's 1967 specification — is now a backend you
-  can put in a solver slot beside the others, so a "what would NEC-2's own
-  method say" comparison is one click. **Two more tabs on junction-port
-  designs**: the H-matrix and Array-block accelerators now serve them,
-  agreeing with the dense B-spline parent to machine precision as tolerances
-  tighten. **EZNEC's NEC-5 decks import**: the `EX 4` current source that
-  EZNEC Pro+ writes on every NEC-5 export was refused before; it now imports
-  with NEC-5's full end-placement rule. Refusals carry sentences everywhere —
-  a basis that cannot take a node gap says so in momwire's words, never a bare
-  TypeError. Under it, **momwire v0.51.0** solves a leaning mast through the
-  ground (the tilted-crossing guard was over-strict), takes the pulse family's
-  ground as every other family does, and fills a 4,001-segment single wire in
-  **1.6 GB where it took 7 GB** (and could not solve at degree 2) — plus
-  degree 3 on the basis axis, served on the API while the panel keeps its two
-  tabs.
+<Card title="New in v0.72.0" icon="star">
+  **A second opinion underground.** The sinusoidal-Galerkin basis now serves
+  every buried class the B-spline basis does — buried radials and screens,
+  buried fed elements, elevated feeds over buried counterpoises, and the node
+  where a buried radial meets the mast in the ground plane — from its own
+  fill, sharing no below-interface code with the default. A buried number that
+  survives a change of basis is different evidence from one that survives a
+  change of mesh, and the app now offers both on every buried design.
+  **Tabs grey with momwire's own sentence**: where a solver cannot take the
+  loaded design, its tab says why in the engine's words before a solve is
+  attempted, for every capability the design needs. **Degree 3 gets a tab**
+  on the B-spline panel now that momwire runs it on the C++ path. **The
+  default soil is the ARRL "average" row** (εr 13, σ 0.005), so the ground
+  panel opens on a named preset and every default solve moves with it.
+  Editing a design of your own and refreshing now re-solves it — the caches
+  drop what they held for that file. Under it, **momwire v0.52.0** carries
+  the buried serve on its second basis, the degree-3 B-spline moments on the
+  C++ kernels, and a same-edge static fill that is 15–70× ahead of the numpy
+  path at every mesh instead of falling behind it past 400 segments.
 </Card>
 
 ## The whole pitch, in one line
