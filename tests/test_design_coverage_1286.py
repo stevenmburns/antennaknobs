@@ -155,14 +155,6 @@ def test_derivation_agrees_with_the_solver_construction_probe():
         ("verticals.elt_whip", "pulse", "per_wire_radius"),
         ("specialty.buried_dipole", "hmatrix", "buried"),
         ("specialty.buried_dipole", "arrayblock", "buried"),
-        # momwire#1000: serves `buried`, refuses the node where a buried
-        # radial meets the mast in the plane — a COMBINATION row, spelled
-        # the way momwire's `refusal("buried", "crossing_junction")` keys it.
-        (
-            "verticals.buried_radial_vertical",
-            "sinusoidal-galerkin",
-            "buried+crossing_junction",
-        ),
     ],
 )
 def test_known_refusals_are_present(design, backend, capability):
@@ -175,11 +167,14 @@ def test_buried_refusals_are_present():
     """The half the construction probe cannot see, pinned by name.
 
     Two solvers carry a buried fill: `bspline` for every class, and since
-    momwire#980 D1/D2 `sinusoidal-galerkin` for the wholly buried and the
-    mixed classes — but NOT the crossing junction, which it refuses by name
-    (momwire#1000) until D3. So the connected screen is the one design where
-    the two differ, and this pins the difference rather than a single "only
-    bspline" that would have to be quietly widened.
+    momwire#980 `sinusoidal-galerkin` — D1/D2 for the wholly buried and the
+    mixed classes, D3 for the crossing junction. Between D2 and D3 that node
+    was refused by name (momwire#1000) through the `buried+crossing_junction`
+    row, so the connected screen's SG cell is pinned by READING momwire's row
+    rather than by asserting either state: refused with that row's sentence
+    when the row exists, served when it does not. That keeps the gate true
+    across the pointer that moves it, and it still cannot pass vacuously —
+    the sentence, when present, must be momwire's verbatim.
     """
     for design in (
         "specialty.buried_dipole",
@@ -199,9 +194,14 @@ def test_buried_refusals_are_present():
         assert "sinusoidal-galerkin" not in cov["refusals"], design
     cov = adapter.design_backend_coverage("verticals.buried_radial_vertical")
     assert adapter._CROSSING_NEED in cov["needs"]
-    row = cov["refusals"]["sinusoidal-galerkin"]
-    assert row["capability"] == "buried+crossing_junction"
-    assert "crossing junction" in row["reason"].lower()
+    sg_caps = _spec("sinusoidal-galerkin").solver.capabilities
+    sentence = sg_caps.refusal("buried", adapter._CROSSING_NEED)
+    if sentence is None:  # momwire#980 D3 landed: the node is served
+        assert "sinusoidal-galerkin" not in cov["refusals"]
+    else:  # a momwire between D2 and D3: refused by that row, verbatim
+        row = cov["refusals"]["sinusoidal-galerkin"]
+        assert row["capability"] == "buried+crossing_junction"
+        assert row["reason"] == sentence
 
 
 # --------------------------------------------------------------------------

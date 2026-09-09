@@ -3260,8 +3260,10 @@ _COVERAGE_FIELDS = ("junction_ports", "node_gaps", "per_wire_radius", "buried")
 # The one need that is a COMBINATION rather than a field (momwire#1000): a
 # junction in the ground plane joining an above-ground wire to a buried one —
 # the connected radial screen, the bonded-base vertical. A solver can serve
-# `buried` and still refuse that node: `sinusoidal-galerkin` does, until
-# momwire#980 D3 lands its crossing serve. Asked as the solver's own combo
+# `buried` and still refuse that node: `sinusoidal-galerkin` did between
+# momwire#980 D2 and D3, which is the gap this need was built for; with D3
+# landed every momwire buried lane serves it and the row reads empty, and
+# the need stays live for the next such gap. Asked as the solver's own combo
 # row, `capabilities.refusal("buried", "crossing_junction")`, which is the
 # same call `MomwireEngine.__init__` makes before a fill is attempted — so the
 # tab greys for the sentence the engine would raise, rather than after it.
