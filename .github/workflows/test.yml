@@ -227,7 +227,7 @@ jobs:
     #   - a first example that only works WITH the optional PyNEC extra
     #     (v0.71.0 shipped `antennaknobs.Antenna` as None on every plain
     #     install, #1323 — every dev venv here has pynec-accel, so no one
-    #     saw it until a user lost hours on it).
+    #     saw it until a user's install report led us to reproduce it).
     #
     # The steps are NOT written here: they are scripts/install.sh and
     # scripts/install-windows.ps1, the one-shot installers the README points
