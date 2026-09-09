@@ -312,6 +312,10 @@ export function offersFeedModelChoice(b: BackendEntry): boolean {
 const DEGREE_CHOICES = [
   { axisValue: "bspline-1", degree: 1 as const },
   { axisValue: "bspline-2", degree: 2 as const },
+  // antennaknobs#1254, decided 2026-09-10: degree 3 gets a tab once
+  // momwire#999 put its same-edge moments on the C++ path. The axis still
+  // FILTERS this table, so a momwire without `bspline-3` shows two tabs.
+  { axisValue: "bspline-3", degree: 3 as const },
 ];
 
 /** The B-spline degree tabs this backend offers, in UI order.
@@ -321,16 +325,19 @@ const DEGREE_CHOICES = [
  *  enrichment and its variant) are not, which is why that panel survives this
  *  change and the sin-Galerkin one does not.
  */
-export function degreeChoices(b: BackendEntry): (1 | 2)[] {
+export function degreeChoices(b: BackendEntry): (1 | 2 | 3)[] {
   // EXPOSURE FIRST. The axes-null fallback below exists for a momwire that
   // cannot describe itself — not for a backend that has no degree at all.
   // Without this, `pynec` (axes: null, exposes nothing) fell through to the
   // fallback and grew a pair of degree tabs.
   if (!(b.model_kwargs ?? []).includes("degree")) return [];
   const vals = b.axes?.basis;
+  // A momwire that cannot describe itself (axes: null) predates `axes_for`
+  // and therefore `bspline-3` (momwire#883 came later), so the fallback is
+  // the pair such a build actually serves, never the full table.
   const table = vals
     ? DEGREE_CHOICES.filter((d) => vals.includes(d.axisValue))
-    : DEGREE_CHOICES;
+    : DEGREE_CHOICES.filter((d) => d.degree <= 2);
   return table.map((d) => d.degree);
 }
 
@@ -525,7 +532,7 @@ export type FeedModel = "segment" | "point";
 // checkbox-gated sub-forms, and the variant is an enum select that gates two
 // further knobs.
 export type BSplineOpts = {
-  degree: 1 | 2;
+  degree: 1 | 2 | 3;
   nQpPair: number | null; // null = auto (let momwire choose)
   feedSmoothingFactor: number | null; // null = sharp delta-gap
   useSingularEnrichment: boolean;

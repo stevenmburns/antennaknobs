@@ -455,9 +455,9 @@ function DegreeField({
   value,
   onSelect,
 }: {
-  degrees: (1 | 2)[];
+  degrees: (1 | 2 | 3)[];
   value: number | undefined;
-  onSelect: (d: 1 | 2) => void;
+  onSelect: (d: 1 | 2 | 3) => void;
 }) {
   return (
     <div className="field">

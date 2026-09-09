@@ -169,18 +169,16 @@ describe("a momwire that cannot describe itself offers no feed-model choice", ()
 });
 
 describe("degree tabs come from the basis axis", () => {
-  it("renders d=1 and d=2 from the axis, not from a literal", () => {
+  it("renders d=1, d=2 and d=3 from the axis, not from a literal", () => {
     const b = entry("bspline");
-    // The served axis carries THREE values since momwire#883 added
-    // `bspline-3`, and the panel shows two. That is not a bug and it is the
-    // sharper version of this test: `DEGREE_CHOICES` is a UI table of 1 and 2
-    // that the axis FILTERS, so a new axis value adds no tab on its own.
-    // Whether degree 3 should get one is antennaknobs#1254's open product
-    // question — deliberately not decided here, and this asserts the current
-    // answer rather than leaving it to chance.
+    // The served axis has carried THREE values since momwire#883 added
+    // `bspline-3`; the panel showed two until antennaknobs#1254 was decided
+    // (2026-09-10, once momwire#999 put degree 3 on the C++ path). The
+    // `DEGREE_CHOICES` table still FILTERS by the axis — the test below
+    // proves the tabs follow the data — so this asserts the current answer.
     expect(b.axes!.basis).toEqual(["bspline-1", "bspline-2", "bspline-3"]);
     renderModal(b);
-    expect(tabsIn("degree")).toEqual(["d=1", "d=2"]);
+    expect(tabsIn("degree")).toEqual(["d=1", "d=2", "d=3"]);
   });
 
   it("follows the axis when the axis says something else", () => {
@@ -195,7 +193,9 @@ describe("degree tabs come from the basis axis", () => {
     expect(tabsIn("degree")).toEqual(["d=2"]);
   });
 
-  it("keeps both tabs for a momwire that cannot be asked", () => {
+  it("keeps the legacy pair for a momwire that cannot be asked", () => {
+    // axes: null predates `axes_for` and so predates `bspline-3`: the fallback
+    // is the pair such a build serves, not the full table (#1254).
     const legacy: BackendEntry = { ...entry("bspline"), axes: null };
     expect(feedModelChoices(legacy)).toEqual([]);
     renderModal(legacy);

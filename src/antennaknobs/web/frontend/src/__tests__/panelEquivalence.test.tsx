@@ -158,7 +158,7 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
   it("default: the nine stock knobs, with the sub-form collapsed", () => {
     mount(b(), defaultOptsFor(b(), SERVED_OPTION_SPECS));
     const c = controls();
-    expect(c.tabs.map((t) => t.tabs)).toContainEqual(["d=1", "d=2"]);
+    expect(c.tabs.map((t) => t.tabs)).toContainEqual(["d=1", "d=2", "d=3"]);
     // A field's label text includes its value span, so match by prefix.
     const has = (pre: string) => c.numbers.some((n) => n.label?.startsWith(pre));
     // NOT drawn by default, each for its own reason — this is the state the
