@@ -463,6 +463,39 @@ _MOMWIRE_BOUND = {
 }
 
 
+def design_backend_coverage(design: str) -> dict:
+    """Which backends refuse `design`, and each refusal's own sentence (#1286).
+
+    Shape: `{"needs": [...], "refusals": {backend: {capability, reason}}}`.
+    A backend absent from `refusals` has no KNOWN capability refusal — which
+    is not a promise that it solves. See `_design_capability_needs` for the
+    two kinds of refusal and why only one of them is answerable here.
+
+    Computed live, never baked: the 2026-09-08 ladder's own nec5 row moved
+    between the run and its write-up (#1280 lifted 21 refusals), so a stored
+    table is stale the moment a wrapper grows a route.
+
+    Every backend in `_BACKENDS` is answered, including ones this server does
+    not offer — availability (`$NEC5_EXE`, the pynec package) is the roster's
+    question, and mixing the two here would make coverage depend on the box,
+    which is exactly what this is supposed not to do.
+    """
+    try:
+        mod = importlib.import_module(f"{DESIGNS_PKG}.{design}")
+    except Exception:  # noqa: BLE001 — an unknown or broken design gets an empty answer, never a raised listing
+        return {"needs": [], "refusals": {}}
+    cls = getattr(mod, "Builder", None)
+    if cls is None:
+        return {"needs": [], "refusals": {}}
+    needs = _design_capability_needs(cls)
+    refusals = {}
+    for spec in _BACKENDS:
+        found = _backend_capability_refusal(spec, needs)
+        if found is not None:
+            refusals[spec.name] = found
+    return {"needs": sorted(needs), "refusals": refusals}
+
+
 def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
     """The self-describing solver catalog served on GET /capabilities.
 
@@ -3211,6 +3244,108 @@ def _has_buried_wire(cls, params=None) -> bool:
         # helper above: a design that will not build surfaces its real error
         # on the solve path, and a hint never breaks a listing.
         return False
+
+
+# The capability fields a design can REQUIRE. Each is answered against a
+# backend's own `solver.capabilities`, so the sentence a refused tab shows is
+# momwire's (`capabilities.refusal(field)`) rather than a paraphrase — the
+# thing antennaknobs#1264 caught the frontend's own constant getting wrong.
+#
+# Deliberately NOT the full `capabilities._fields` list: this is the set a
+# DESIGN can be measured for. `grounds`, `extended_kernel` and `contact` are
+# properties of the request or the knob panel, not of the geometry, and
+# `refusals` / `axes` are metadata about the capability object itself.
+_COVERAGE_FIELDS = ("junction_ports", "node_gaps", "per_wire_radius", "buried")
+
+
+@lru_cache(maxsize=None)
+def _design_capability_needs(cls) -> frozenset:
+    """Which `_COVERAGE_FIELDS` this design actually exercises.
+
+    MEASURED from the built geometry and network, never declared per design,
+    for the same reason `_has_stepped_radius_junction` is: a hand-written hint
+    drifts from what the design does, and this one feeds a refusal the user
+    reads.
+
+    Verified against the authoritative probe rather than argued: constructing
+    each solver (`_make_solver`, which raises the engine's own refusal and
+    fills nothing) over all 103 designs x 7 momwire backends agrees with this
+    derivation in every cell — see `test_design_coverage_1286.py`, which is
+    the gate and takes ~13 s. This function takes 0.1 s for the whole catalog,
+    which is why the derivation exists at all rather than the probe running in
+    the request.
+
+    NOT a promise that a solve succeeds. It answers the CAPABILITY question,
+    which is a property of (design, backend); a numerical domain limit found
+    during the fill is not, and depends on the ground and mesh the user picks
+    (`wire.terminated_longwire` refused at the 2026-09-08 ladder's settings
+    and serves at the defaults). Callers must present this as known refusals,
+    never as a guarantee.
+    """
+    needs: set[str] = set()
+    try:
+        builder = _build_builder(cls, {})
+    except Exception:  # noqa: BLE001 — same contract as the hint helpers above: a design that will not build surfaces its real error on the solve path
+        return frozenset()
+    try:
+        net = builder.build_network()
+    except Exception:  # noqa: BLE001 — a design that cannot build a network simply has no ports to classify
+        net = None
+    if net is not None:
+        ports = list(net.ports.values())
+        if any(isinstance(p, PortAtEnd) for p in ports):
+            needs.add("junction_ports")
+        if any(isinstance(p, PortAtVertex) for p in ports):
+            needs.add("node_gaps")
+    try:
+        translated = flat_wires_to_polylines(builder.build_wires())
+        if any(z < 0.0 for poly in translated["polylines"] for (_x, _y, z) in poly):
+            needs.add("buried")
+        stock = builder.build_wire_material()
+        default = stock.radius if stock is not None else 0.0005
+        radii = {
+            (s.radius if s is not None else default)
+            for s in translated["polyline_specs"]
+        }
+        # A non-scalar radius is what `HarringtonSolver` refuses (momwire#147);
+        # ONE distinct value is a scalar however many wires carry it.
+        if len(radii) > 1:
+            needs.add("per_wire_radius")
+    except Exception:  # noqa: BLE001 — geometry that will not translate is left unclassified rather than reported wrongly
+        pass
+    return frozenset(needs)
+
+
+def _backend_capability_refusal(spec, needs) -> dict | None:
+    """momwire's own refusal for this (backend, design), or None if served.
+
+    Returns the FIRST unmet capability rather than all of them: the tab needs
+    a sentence, and a design needing two things a backend lacks is not twice
+    refused. `_COVERAGE_FIELDS` order is the tie-break, so the answer is
+    stable across runs.
+    """
+    caps = getattr(getattr(spec, "solver", None), "capabilities", None)
+    if caps is None:
+        # Wrapper backends (PyNEC, NEC-5) carry no momwire capability object.
+        # Their one measurable refusal today is buried, whose sentence
+        # `_backend_buried_refusal` already sources per kind.
+        if "buried" in needs:
+            reason = _backend_buried_refusal(spec)
+            if reason:
+                return {"capability": "buried", "reason": reason}
+        return None
+    for cap_field in _COVERAGE_FIELDS:
+        if cap_field not in needs or cap_field not in getattr(caps, "_fields", ()):
+            continue
+        if getattr(caps, cap_field):
+            continue
+        reason = caps.refusal(cap_field)
+        if isinstance(reason, str) and reason:
+            return {"capability": cap_field, "reason": reason}
+        # A capability that refuses without prose would put an empty tooltip
+        # on the tab. Name the field rather than inventing a sentence.
+        return {"capability": cap_field, "reason": None}
+    return None
 
 
 @lru_cache(maxsize=None)
