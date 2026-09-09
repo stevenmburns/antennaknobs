@@ -884,7 +884,7 @@ _REFUSE_CARDS = {
     # catch). 42 decks in the public collections carry SP/SC. They are not
     # NEC-5 input in any form this tool can write, so they refuse by name.
     "SP": "SP (NEC-2/NEC-4 surface patch) is a different card in NEC-5; a patch deck cannot be translated",
-    "SC": "SC (NEC-2/NEC-4 patch continuation) is a different card in NEC-5; a patch deck cannot be translated",
+    "SC": "SC (NEC-2/NEC-4 patch continuation) is not a NEC-5 command; a patch deck cannot be translated",
     "SM": "SM (NEC-2 multiple-patch surface) is rejected by NEC-5 (DATAGN input error); a patch deck cannot be translated",
     "GF": "GF (NEC-2 numerical Green's function read) has no NEC-5 counterpart",
     "WG": "WG (NEC-2 numerical Green's function write) has no NEC-5 counterpart",
