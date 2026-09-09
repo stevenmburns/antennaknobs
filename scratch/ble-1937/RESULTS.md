@@ -1,5 +1,17 @@
 # BLE 1937 / NEC-5 Validation Manual screen record (2026-09-02)
 
+> **CORRECTION (2026-09-10, after antennaknobs#1025 / momwire#929).** Every NEC-5
+> number in this file was printed under the TRANSPOSED ground card `GE 1,-1`
+> (the wrapper's #1025 defect, fixed 2026-09-05). Under the documented
+> below-ground card the §3 connected deck reads 77.805 + 44.468j (not
+> 49.783 + 20.952j), ~2 Ω from momwire's 75.848 + 40.452j, and the detached
+> deck reads open-circuited (598.320 − 54434.000j) — so §3's "NEC-5 reads the
+> same connected or detached; the ~30 Ω gap is its node" is WITHDRAWN. The
+> §1/§2/§4 tables are likewise transposed-card prints; the corrected Fig. 36
+> column (87.69 / 37.83 / 32.79 / 29.44 / 27.25) lives on the validation page.
+> Kept as the record of what was measured, not as the engine's answer.
+
+
 Every NEC-5 number below was printed by the licensed `nec5cl` (Linux build, `~/antennas/NEC5-downloads/nec5-linux/`) on the deck of the same name in `decks/`. Regenerate a deck with the generator named in each section; run with `nec5cl <deck>.nec <out>` in a scratch directory (it writes a `SOMMPD.NEX` table beside the deck).
 
 Conclusions are on momwire#838 and antennaknobs#1104; the memory note is `nec5-radial-screen-reference`.

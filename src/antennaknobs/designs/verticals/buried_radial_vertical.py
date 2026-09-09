@@ -103,49 +103,59 @@ spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
     its end in the ground plane (ground contact) and the N radials lie at
     ``depth``, joined to each other at a common centre point but touching
     neither the surface nor the monopole. No rises, no crossing node. This
-    is the momwire#567 anchor-class geometry: NEC-5 serves it natively
-    (its point-electrode junction fiction carries the contact current into
-    the soil; the banked binary print for the four-radial anchor mesh is
-    90.051 - 70.731j ohm over eps_r 13 / sigma 0.005 at 7 MHz), while
-    momwire REFUSES it by name — its contact image fiction has no
-    conductor for the spreading soil current a buried observer sees
-    (momwire#567), and its refusal message points back at the connected
-    spelling it does serve.
+    is the momwire#567 anchor-class geometry, and NO engine here serves it
+    (antennaknobs#1025, momwire#929). momwire refuses it by name — its
+    contact image fiction has no conductor for the spreading soil current
+    a buried observer sees (momwire#567), and the refusal points back at
+    the connected spelling it does serve. NEC-5 has no documented spelling
+    for it either: a deck with buried wires must ride the burial ground
+    flag, and under that flag a conductor that stops on the interface has
+    no basis function at the node, so the monopole reads open-circuited
+    (598.320 - 54434.000j ohm on this deck); the other flag is documented
+    as unusable with buried wires. The 90.051 - 70.731j ohm this file once
+    quoted as "NEC-5 serving the anchor natively" was a print under the
+    transposed ground card (the wrapper's own #1025 defect), and the
+    antennaknobs NEC-5 wrapper now refuses the deck rather than repeat it.
 
-The ``detached`` and ``bundle`` spellings each have exactly one engine, and
-each refusal names a spelling that engine DOES serve. The DEFAULT has all of
+The ``bundle`` spelling has exactly one engine (momwire's B-spline crossing
+serve; the sinusoidal-Galerkin basis refuses coincident members by name,
+momwire#1003) and the ``detached`` spelling has none. The DEFAULT has all of
 them — that is what issue #1108 bought — and the spellings were never why the
-engines disagree anyway. Measured 2026-09-02 on the licensed
-NEC-5 binary at this design's default knobs over eps_r 13 / sigma 0.005
-(scratch/ble-1937/RESULTS.md, momwire#838, #1104): NEC-5 reads
-49.78 + 20.95j ohm with the radials CONNECTED to the base through one
-15 cm rise — which is now this design's DEFAULT geometry — and
-50.11 + 21.46j ohm detached. The same answer either way: NEC-5's
-interface node injects the base current into the soil as a point
-electrode (momwire#524 phase 2, momwire#567), so a screen bonded to the
-mast and a screen lying loose underneath cost it the same. momwire's
-connected serve reads 75.85 + 40.45j ohm on the same geometry at
-converged quadrature, 32.5 ohm away, and that gap is NEC-5's node, not
-a convention. Both engines now run the SAME deck, which is what makes
-the comparison a node-model measurement instead of a spelling one.
+engines disagreed anyway. Measured on the licensed NEC-5 binary at this
+design's default knobs over eps_r 13 / sigma 0.005, with the DOCUMENTED
+below-ground card (antennaknobs#1025, 2026-09-05; momwire#931): NEC-5 reads
+77.805 + 44.468j ohm with the radials CONNECTED to the base through one
+15 cm rise — this design's DEFAULT geometry — against momwire's
+75.848 + 40.452j ohm on the same deck at converged quadrature: 2.58 % in
+R, about 2 + 4j ohm. That distance is converged on both sides and does not
+change with radial count or radial length (momwire#931), so it is the two
+engines' interface-node models, and it is the size it is. An earlier
+version of this paragraph quoted NEC-5 at 49.78 + 20.95j connected and
+50.11 + 21.46j detached, "the same answer either way", and built a
+32.5 ohm node-model gap on it. Those prints were the transposed ground
+card; under the documented one the connected deck moved by 28 ohm and the
+detached one stopped being a number. Both engines run the SAME deck, which
+is what makes the comparison a node-model measurement instead of a
+spelling one — and the node models are ~2 ohm apart, not 32.
 
 The measurement decides whose radial-count law is physical. Brown,
 Lewis and Epstein (Proc. IRE, June 1937, Fig. 36; buried radials at
 3 MHz) measured base resistance falling from >= 50 ohm at 2 radials to
 24 ohm at 113; N6LF (QEX, 2009) measured 137 / 86 / 56 / 43 / 40 ohm
-at 4 / 8 / 16 / 32 / 64 surface radials. NEC-5 on BLE's exact geometry
-spans only 36 -> 28 ohm; momwire's crossing serve falls 114 / 81 / 62 /
-50 ohm at N = 2 / 4 / 8 / 16 on a deep screen both engines serve. So
-quote momwire's number as the connected answer, and do NOT quote the
-NEC-5 ``detached`` print as "the other convention's" answer to the same
-antenna: it is a different node model, and its flat law is the wrong
-shape.
+at 4 / 8 / 16 / 32 / 64 surface radials. On BLE's exact geometry, under
+the documented card, BOTH engines have the measured shape — steep below
+N = 15, flat past 30 — momwire within 1.4 ohm of the figure at every
+rung and NEC-5 2-4 ohm above it (the validation page carries the table).
+Quote momwire's number as the connected answer, with NEC-5's ~2 ohm
+beside it as the other node model's; there is no NEC-5 ``detached`` print
+to quote at all.
 
-Read QUADRATURE below before quoting the momwire number. The gap has been
-quoted at three sizes here as the quadrature moved and the spelling changed
-("~35 ohm" was the bundle at n_qp_pair = 4, "~30 ohm" the bundle at 8);
-32.5 ohm is the hub at n_qp_pair = 32, and it is the first one measured on
-the deck BOTH engines run.
+Read QUADRATURE below before quoting the momwire number. The momwire side
+of the gap has been quoted at three sizes here as the quadrature moved and
+the spelling changed ("~35 ohm" was the bundle at n_qp_pair = 4, "~30 ohm"
+the bundle at 8, "32.5 ohm" the hub at 32 against the transposed-card NEC-5
+print); the ~2 ohm above is the hub at converged quadrature against the
+documented-card print, on the deck BOTH engines run.
 
 QUADRATURE — and the spelling change moved this axis more than it moved
 the answer. This deck is momwire#760's class: ONE crossing junction at a

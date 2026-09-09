@@ -20,14 +20,16 @@ outright; a licensed local NEC-5 (`--engine nec5`) serves buried decks as
 of v0.61.0. Since the one-rise hub spelling (issue #1108) **both engines run
 the buried-radial vertical's default spelling**: N radials to a buried hub
 with one rise to the node,
-which momwire's crossing serve and NEC-5 both accept. The variants are still
-one engine each — momwire refuses `detached` (the stake convention: radials
-lying in the dirt, touching nothing), NEC-5 refuses `bundle` (the pre-#1108
-default's N coincident rises) — and each refusal names a spelling that engine
-does serve. On the shared default the two answers still differ by tens of ohms
-at 40 m over average soil, and that gap is now a clean measurement of one
-thing: NEC-5 injects the node current into the soil as a point electrode
-where momwire solves the crossing fill. Same deck, two node models.
+which momwire's crossing serve and NEC-5 both accept. The variants are
+narrower: `bundle` (the pre-#1108 default's N coincident rises) is served by
+momwire's B-spline lane alone, and `detached` (the stake convention: radials
+lying in the dirt, touching nothing) is refused by every engine here — momwire
+by name, and the NEC-5 wrapper because a conductor that stops on the interface
+above buried wires has no documented ground-card spelling. On the shared
+default the two engines agree to a few percent in resistance (about 2 Ω at
+40 m over average soil, converged on both sides and independent of radial
+count), and that residue is the two interface-node models. Same deck, two
+node models, one small number.
 A deck's first momwire solve builds its below-interface Sommerfeld tables
 (cached on disk thereafter); warm solves run in seconds — the
 crossing-junction kernels got their C++ twin in momwire 0.41.0. In the
