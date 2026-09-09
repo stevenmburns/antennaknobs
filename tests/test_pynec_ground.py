@@ -27,9 +27,9 @@ def _flat_dipole(height_m):
 
 
 def test_parse_ground_finite_variants():
-    assert parse_ground("finite") == ("finite", 10.0, 0.002)
+    assert parse_ground("finite") == ("finite", 13.0, 0.005)
     assert parse_ground("finite:13,0.005") == ("finite", 13.0, 0.005)
-    assert parse_ground("finite-fast") == ("finite-fast", 10.0, 0.002)
+    assert parse_ground("finite-fast") == ("finite-fast", 13.0, 0.005)
     assert parse_ground("finite-fast:13,0.005") == ("finite-fast", 13.0, 0.005)
     with pytest.raises(argparse.ArgumentTypeError):
         parse_ground("finite-slow")

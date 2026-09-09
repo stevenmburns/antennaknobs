@@ -1110,7 +1110,7 @@ def test_norm_check_radiated_fraction_matches_far_field_ledger(
     params = dict(mod.Builder.default_params)
     params.update(params_extra)
     eng = MomwireEngine(
-        mod.Builder(params=params), ground=("finite", 10.0, 0.002), ground_z=0.0
+        mod.Builder(params=params), ground=("finite", 13.0, 0.005), ground_z=0.0
     )
     ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
     assert resp["radiated_fraction"] == pytest.approx(radiated_fraction(ff), abs=0.01)
@@ -1689,12 +1689,12 @@ def test_pynec_ground_on_solves_over_finite_ground():
     # reflection-coefficient model.
     assert default["ground_model_applied"] == "refl-coef"
     # ground=True + sommerfeld routes PyNEC to the Sommerfeld finite ground
-    # (εr=10, σ=0.002) rather than silently staying PEC/free, and the
+    # (εr=13, σ=0.005, the ARRL average row) rather than silently staying PEC/free, and the
     # response carries the real constants so the frontend's Fresnel cut
     # matches.
     assert grounded["ground"] is True
-    assert grounded["ground_eps_r"] == 10.0
-    assert grounded["ground_sigma"] == 0.002
+    assert grounded["ground_eps_r"] == 13.0
+    assert grounded["ground_sigma"] == 0.005
     assert grounded["ground_eps_im"] < 0.0  # derived -σ/(ωε₀)
     # the solve actually felt the ground
     dz = abs(
@@ -1725,7 +1725,7 @@ def test_pynec_ground_model_selects_pec_fast_or_sommerfeld():
     # models ship the real ones.
     assert pec["ground_eps_r"] == pytest.approx(1.0e10)
     assert pec["ground_sigma"] == 0.0
-    assert fast["ground_eps_r"] == 10.0
+    assert fast["ground_eps_r"] == 13.0
     # ground_model_applied names the model that ran (PyNEC honours the
     # request directly, so it mirrors ground_model here)
     assert somm["ground_model_applied"] == "sommerfeld"
@@ -3000,8 +3000,8 @@ def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
     # the reflection-coefficient model.
     assert default["ground_model_applied"] == "refl-coef"
     assert pec["ground_model_applied"] == "pec-image"
-    assert somm["ground_eps_r"] == 10.0
-    assert somm["ground_sigma"] == 0.002
+    assert somm["ground_eps_r"] == 13.0
+    assert somm["ground_sigma"] == 0.005
     assert somm["ground_eps_im"] < 0.0  # derived -σ/(ωε₀)
     assert pec["ground_eps_r"] == pytest.approx(1.0e10)
     # "sommerfeld" and "fast" are now genuinely different solves of the
@@ -3033,8 +3033,8 @@ def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
 
     assert fin["ground_model_applied"] == "refl-coef"
     assert pec["ground_model_applied"] == "pec-image"
-    assert fin["ground_eps_r"] == 10.0
-    assert fin["ground_sigma"] == 0.002
+    assert fin["ground_eps_r"] == 13.0
+    assert fin["ground_sigma"] == 0.005
     # The finite solve differs measurably from the PEC image solve — the
     # reactance correction the refl-coef ground exists to deliver.
     z_fin = complex(fin["z_in_re"], fin["z_in_im"])
