@@ -97,7 +97,6 @@ _IGNORED_CARDS = {
 }
 
 _UNSUPPORTED_CARDS = {
-    "GC": "a tapered wire (GW with zero radius + GC continuation)",
     "SP": "a surface patch (SP)",
     "SM": "a multiple-patch surface (SM)",
     "GF": "a numerical Green's function file (GF)",
@@ -1183,15 +1182,76 @@ def _gw(card, wires):
     if n_seg < 1:
         raise card.error(f"segment count must be >= 1, got {n_seg}")
     radius = card.f(8)
-    if radius <= 0.0:
-        raise card.error(
-            "zero wire radius announces "
-            + _UNSUPPORTED_CARDS["GC"]
-            + ", which antennaknobs cannot model"
-        )
     p1 = [card.f(2), card.f(3), card.f(4)]
     p2 = [card.f(5), card.f(6), card.f(7)]
+    # A zero radius is NEC's announcement that a GC continuation follows and
+    # carries the taper (#1294). The wire is parked as-is; `_gc` pops it and
+    # expands it, and `_no_pending_taper` refuses it if the GC never comes.
     wires.append([tag, n_seg, p1, p2, radius])
+
+
+def _taper_steps(n_seg, total, rdel, rad1, rad2):
+    """Per-segment (length, radius) for a GC-tapered run.
+
+    Both progressions are GEOMETRIC, which is what nec2c produces and what
+    this was derived from rather than assumed:
+
+    * lengths -- ``L[i+1] = L[i] * rdel``, scaled so the run still spans the
+      GW's own endpoints. On `ch-3/3-1a-nec2.nec` (9 segments over 0.232 m,
+      rdel 0.8163265) that predicts L1 = 0.050785 and nec2c prints 0.0508.
+    * radii -- geometric from ``rad1`` to ``rad2``. On `YI20_40B.NEC`
+      (16 segments, .006 -> .011) the ratio is (11/6)^(1/15) = 1.041237 and
+      every one of nec2c's sixteen printed radii matches.
+    """
+    if rdel == 1.0:
+        lengths = [total / n_seg] * n_seg
+    else:
+        first = total * (1.0 - rdel) / (1.0 - rdel**n_seg)
+        lengths = [first * rdel**i for i in range(n_seg)]
+    if n_seg == 1 or rad1 == rad2:
+        radii = [rad1] * n_seg
+    else:
+        ratio = (rad2 / rad1) ** (1.0 / (n_seg - 1))
+        radii = [rad1 * ratio**i for i in range(n_seg)]
+    return lengths, radii
+
+
+def _gc(card, wires):
+    """Tapered-wire continuation: expand the preceding zero-radius GW into a
+    run of 1-segment wires with stepped radii and RDEL-progressed lengths.
+
+    They keep the GW's tag, so NEC's ``(tag, segment)`` addressing on EX / LD
+    / TL still resolves -- `_locate_segment` accumulates across every wire
+    carrying the tag, which is the same thing `_gh` relies on.
+    """
+    if not wires or wires[-1][4] > 0.0:
+        raise card.error(
+            "a GC continuation must follow a GW with zero radius, which is "
+            "how NEC announces a tapered wire"
+        )
+    itg, ns = card.i(0), card.i(1)
+    if itg != 0 or ns != 0:
+        raise card.error(
+            f"only the plain continuation form (GC 0 0 RDEL RAD1 RAD2) is "
+            f"translated, got tag {itg} and segment count {ns}"
+        )
+    rdel, rad1, rad2 = card.f(2), card.f(3), card.f(4)
+    if rdel <= 0.0:
+        raise card.error(f"segment-length ratio must be > 0, got {rdel}")
+    if rad1 <= 0.0 or rad2 <= 0.0:
+        raise card.error(f"both taper radii must be > 0, got {rad1} and {rad2}")
+    tag, n_seg, p1, p2, _zero = wires.pop()
+    d = [p2[k] - p1[k] for k in range(3)]
+    total = math.sqrt(sum(c * c for c in d))
+    if total <= 0.0:
+        raise card.error("the tapered wire has zero length")
+    unit = [c / total for c in d]
+    lengths, radii = _taper_steps(n_seg, total, rdel, rad1, rad2)
+    at = list(p1)
+    for length, radius in zip(lengths, radii, strict=True):
+        nxt = [at[k] + unit[k] * length for k in range(3)]
+        wires.append([tag, 1, list(at), nxt, radius])
+        at = nxt
 
 
 def _snap_nec_connections(wires):
@@ -2129,6 +2189,7 @@ def parse_nec(
 
     geometry = {
         "GW": _gw,
+        "GC": _gc,
         "GA": _ga,
         "GH": _gh,
         "GM": _gm,
@@ -2272,6 +2333,17 @@ def parse_nec(
             # resolves anything entering the matrix (#946).
             sym_cell = _symmetry_after(mnemonic, card, wires, segs_before, sym_cell)
         elif mnemonic == "GE":
+            # A zero-radius GW is only legal as the announcement of a GC that
+            # carries the taper (#1294). If the geometry closes with one still
+            # parked, the deck is incomplete rather than tapered -- and the
+            # message must not claim a taper we never saw.
+            for w in wires:
+                if w[4] <= 0.0:
+                    raise card.error(
+                        f"wire tag {w[0]} has zero radius and no GC "
+                        "continuation followed it; a zero radius is only "
+                        "meaningful as the announcement of a tapered wire"
+                    )
             ground = ground or card.i(0) != 0
         elif mnemonic == "FR":
             if freq_mhz is None:
