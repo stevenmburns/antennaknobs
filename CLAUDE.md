@@ -199,6 +199,37 @@ worth keeping readable.
   warns, falls back to pure Python, and **exits 0** over the stale `.so`.
   The `sync` skill's step 5 is the long version.
 
+## Testing: four tests that run nowhere unless you know this
+
+`tests/*_1299.py` are the four tests AK#1299 moved here from momwire because
+their SUBJECT is this repo (the catalog, `nec_import`) and momwire's CI never
+installs its consumer. Before the move they ran in no lane anywhere — and
+two of them were worse than skipped: momwire's `addopts` deselects `slow`,
+and a deselection prints nothing even under `-rs`. A skip is visible when
+you ask; a deselection is not. Check `--collect-only` when a count looks
+short.
+
+- `test_catalog_momwire_predicates_1299.py` — two whole-catalog censuses
+  (repeats / fragmentation). Run on every PR here; ~3 s each, unmarked on
+  purpose.
+- `test_deck_nec2_corpus_1299.py` — importer equivalence over momwire's
+  65-deck `tests/fixtures/nec_portal`, reached THROUGH the installed momwire
+  (the submodule at the recorded pointer). Runs on every PR. Never copy the
+  corpus here: ten momwire modules read the same tree and a copy drifts.
+- `test_deck_nec2_xnec2c_corpus_1299.py` — the same equivalence over
+  xnec2c's `examples/`, a third-party tree neither repo vendors. **Skips on
+  CI, and that is its only legitimate skip.** To run it: `git clone https://github.com/KJ7LNW/xnec2c`, check out
+  the revision in the module's `CENSUS_REVISION`, and either put it at
+  `~/antennas/xnec2c` or set `MOMWIRE_XNEC2C_EXAMPLES=<that checkout>/examples`.
+  A checkout at a different revision skips with both hashes named; drift
+  within the recorded revision fails.
+- `test_moved_corpus_skips_1299.py` — the tripwire: imports both corpus
+  modules (an ImportError is a hard failure, not a skip) and pins each skip
+  to its one documented reason, so a renamed fixture dir, a moved submodule
+  or a typo in the env var cannot present as "corpus not installed". Module-
+  scope `pytestmark` would skip a tripwire written inside the module itself,
+  which is why it is a separate file.
+
 ## Frontend
 
 The app's frontend is `src/antennaknobs/web/frontend/` (Vite + React).
