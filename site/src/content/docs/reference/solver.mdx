@@ -327,19 +327,27 @@ model; the default solver is unaffected.
 **Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
 plane — buried radials and screens, buried fed elements, elevated feeds over
 buried counterpoises — serve **impedance, currents and charges** on the
-`bspline` lane over the Sommerfeld ground. Since momwire 0.41.0 a wire may
-also **cross the interface at a declared junction**: a buried wire whose end
-stands in the ground plane, junction-joined there to one above-ground wire
-(one above × N below, so a connected radial screen spells as N rises meeting
-the monopole at the surface, and a buried hub joining the radials at depth
-is allowed). The [design catalog](/reference/catalog/) now authors buried
+`bspline` lane over the Sommerfeld ground, and since momwire 0.52.0 on the
+`sinusoidal-galerkin` lane as well. The two bases share no fill code below
+the interface, so a buried number now has an in-house second opinion from a
+different formulation rather than a re-run of the same one. Since momwire
+0.41.0 a wire may also **cross the interface at a declared junction**: a
+buried wire whose end stands in the ground plane, junction-joined there to
+one above-ground wire (one above × N below, so a connected radial screen
+spells as N rises meeting the monopole at the surface, and a buried hub
+joining the radials at depth is allowed). That crossing junction is served
+on the `bspline` lane; the `sinusoidal-galerkin` lane refuses it by name
+until it has a crossing serve of its own
+([momwire#980](https://github.com/stevenmburns/momwire/issues/980)), and
+the app greys the tab with that sentence before a solve is attempted. The [design catalog](/reference/catalog/) now authors buried
 geometry directly — a buried-radial vertical, an elevated counterpoise over
 buried radials, and a buried dipole — with their own in-medium meshing
 (medium-aware auto-meshing in the builder at large remains
 [antennaknobs#983](https://github.com/stevenmburns/antennaknobs/issues/983)).
 What still refuses does so by name: a wire crossing the interface mid-span,
 a ground-contact wire combined with buried wires (the rise respelling is
-the served path), and near fields or patterns of buried decks. Validation
+the served path), the crossing junction on the sinusoidal-Galerkin lane,
+and near fields or patterns of buried decks. Validation
 below ground rests on exact identities (the lossless-limit collapse onto
 free space, the deep-burial limit onto the infinite-medium solve) plus
 ladder-limit agreement at the half-percent class on the radial and
