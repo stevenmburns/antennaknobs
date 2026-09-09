@@ -303,13 +303,14 @@ describe("backendSupportsGround / backendSupportsTerrain", () => {
 });
 
 describe("backendDisplayLabel", () => {
-  const withDegree = (name: string, degree: 1 | 2) => {
+  const withDegree = (name: string, degree: 1 | 2 | 3) => {
     return backendDisplayLabel(entry(name), optsWithModel(name, { degree }));
   };
 
   it("carries the spline degree for every backend on the b-spline panel", () => {
     expect(withDegree("bspline", 2)).toBe("B-spline d=2");
     expect(withDegree("bspline", 1)).toBe("B-spline d=1");
+    expect(withDegree("bspline", 3)).toBe("B-spline d=3");
     expect(withDegree("hmatrix", 2)).toBe("H-matrix (ACA) d=2");
     expect(withDegree("arrayblock", 1)).toBe("Array-block d=1");
   });

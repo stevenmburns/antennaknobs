@@ -22,11 +22,11 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_on_value": null,
     "shown_when_value": null,
     "min": 1,
-    "max": 2,
+    "max": 3,
     "step": 1,
     "allow_none": false,
     "accepts_min": 1,
-    "accepts_max": 2
+    "accepts_max": 3
   },
   "n_qp_const": {
     "kind": "int",

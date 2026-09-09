@@ -1013,7 +1013,7 @@ def _sanitiser_for(name: str, spec: _OptionSpec):
 
 
 _OPTION_SPECS: dict[str, _OptionSpec] = {
-    "degree": _OptionSpec("int", 1, 2, label="degree", default=2),
+    "degree": _OptionSpec("int", 1, 3, label="degree", default=2),
     "n_qp_const": _OptionSpec(
         "int",
         1,
@@ -4601,19 +4601,12 @@ _AXIS_VALUE_LABELS = {
     "basis": {
         "bspline-1": "degree 1",
         "bspline-2": "degree 2",
-        # momwire#883. Terse like its siblings ON PURPOSE, and NOT a warning
-        # about what degree 3 costs: a segment here is one clause of a
-        # sentence the user reads ("spline basis, degree 3, Galerkin, ..."),
-        # and the phrasing rules above are what keep that sentence readable.
-        # The cost IS real — degree 3 takes momwire's numpy same-edge path
-        # (its C++ dispatch is a 9-case switch) for 5-10x the wall time and a
-        # few percent less error at equal mesh — but a parenthetical here
-        # would be the only segment in the line that argues rather than
-        # names. It has no UI surface to warn from either: `DEGREE_CHOICES`
-        # in the frontend is a UI table of 1 and 2 that the axis FILTERS, so
-        # a new axis value adds no tab and nothing in the app can select
-        # degree 3 today. Whether it should is antennaknobs#1254's open
-        # product question, and the cost note lives there with it.
+        # momwire#883. Terse like its siblings ON PURPOSE: a segment here is
+        # one clause of a sentence the user reads ("spline basis, degree 3,
+        # Galerkin, ..."), and the phrasing rules above keep it readable.
+        # Degree 3 got its tab on 2026-09-10 (antennaknobs#1254, Steve's
+        # call) once momwire#999 put its same-edge moments on the C++ path —
+        # the 5-10x numpy-path cost that kept it off the tabs is gone.
         "bspline-3": "degree 3",
         "sinusoidal-3term": "3-term sinusoidal",
         "tent": "tent",
@@ -4657,7 +4650,7 @@ def model_option_specs() -> dict[str, dict]:
 
     Served flat and keyed by kwarg — a backend's `model_kwargs` names which of
     these apply to it. That split is deliberate: the DESCRIPTION of `degree`
-    (an integer in [1, 2], captioned "degree") is the same fact for every
+    (an integer in [1, 3], captioned "degree") is the same fact for every
     backend that takes it, and copying it into each roster row would be the
     per-engine duplication G2-6 is removing, re-created one level down.
 
