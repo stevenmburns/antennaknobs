@@ -404,7 +404,10 @@ pip install "pynec-accel>=1.7.4.post2"
 One-shot scripts do the same and finish with an import-and-solve smoke test —
 their output is the thing to paste into an issue if anything fails:
 `bash scripts/install.sh` (Linux / macOS) or `.\scripts\install-windows.ps1`
-(Windows, below).
+(Windows, below). CI runs these same scripts: on Linux for every change, and
+on every release against PyPI on Linux, Windows and macOS, on Python 3.12 and
+3.14, with and without the optional NEC2 solver — so the path you follow here
+is the path that was tested.
 
 **Windows** (PowerShell). Python 3.12 is the version every test lane runs;
 `winget` installs it in one line, and the script above offers to. By hand:

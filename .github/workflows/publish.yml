@@ -71,6 +71,80 @@ jobs:
           packages-dir: dist
           skip-existing: true
 
+  published-smoke:
+    # The release gate (#1326): install the PUBLISHED pair from PyPI — the
+    # exact `pip install "antennaknobs[web]==X.Y.Z"` a user runs — in a fresh
+    # venv on every platform we ship wheels for, by running the README's
+    # install scripts (scripts/install.sh, scripts/install-windows.ps1). Same
+    # matrix and same scripts as test.yml's `wheel-smoke`; the difference is
+    # the source: PyPI's copy after propagation, not the artifact we built.
+    # v0.71.0 shipped `antennaknobs.Antenna` as None on every plain install
+    # (#1323) because every environment that tested it carried pynec-accel;
+    # a dev venv is not a user install, so the gate is the user's install.
+    #
+    # PyPI takes a few minutes to serve a fresh version; the loop retries the
+    # whole (idempotent) script until it does or ~15 min pass. A red here
+    # means the published release does not install or run as documented —
+    # the fix is a follow-up release, and the announcement waits for it.
+    name: published-smoke (${{ matrix.os }}, py${{ matrix.python-version }}${{ matrix.pynec == '1' && ', +pynec' || '' }})
+    needs: publish-pypi
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+        python-version: ["3.12", "3.14"]
+        pynec: ["0", "1"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Homebrew libomp (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libomp
+      - name: README install script against PyPI (Linux / macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SCRIPT="$GITHUB_WORKSPACE/scripts/install.sh"
+          cd "$(mktemp -d)"
+          for attempt in $(seq 1 30); do
+            if PYTHON=python ANTENNAKNOBS_SPEC="antennaknobs[web]==${VERSION}" PYNEC=${{ matrix.pynec }} bash "$SCRIPT"; then
+              exit 0
+            fi
+            echo "attempt $attempt failed (PyPI not serving ${VERSION} yet?); retrying in 30 s"
+            sleep 30
+          done
+          echo "antennaknobs ${VERSION} never installed and ran from PyPI"
+          exit 1
+      - name: README install script against PyPI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $script = "$env:GITHUB_WORKSPACE\scripts\install-windows.ps1"
+          $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+          New-Item -ItemType Directory -Path $tmp | Out-Null
+          Set-Location $tmp
+          $pyexe = (Get-Command python).Source
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            try {
+              if ("${{ matrix.pynec }}" -eq "1") {
+                & $script -PythonExe $pyexe -Spec "antennaknobs[web]==$version" -PyNEC
+              } else {
+                & $script -PythonExe $pyexe -Spec "antennaknobs[web]==$version"
+              }
+              if ($LASTEXITCODE -eq 0) { exit 0 }
+            } catch { Write-Host $_ }
+            Write-Host "attempt $attempt failed (PyPI not serving $version yet?); retrying in 30 s"
+            Start-Sleep -Seconds 30
+          }
+          throw "antennaknobs $version never installed and ran from PyPI"
+
   release:
     name: attach wheel + sdist to release
     needs: build
