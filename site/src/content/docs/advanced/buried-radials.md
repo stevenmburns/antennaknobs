@@ -142,48 +142,54 @@ Practical rules that fall out:
   engine feed conventions; the smooth point feed differs by the
   parasitic-C class above.
 
-## The one real disagreement, and who's right
+## The buried-radial coupling, three ways
+
+> **Correction (2026-09-09).** An earlier version of this section reported
+> the engine's buried-radial coupling at 2.8–5.2× momwire's and attributed
+> the gap to the engine's below-ground fields. The engine column had been
+> captured with its ground card's two fields transposed — the setting its
+> manual documents as not usable when wires go below the surface, the same
+> capture defect found later on the buried-dipole decks. Re-run under the
+> documented card, the two engines agree on the coupling to about 0.01 Ω on
+> every deck and every mesh rung, and the attribution is withdrawn. The
+> printed near-field observation below is unaffected by the card and is kept
+> as a measurement; the inference that was drawn from it is not.
 
 Subtract each engine's no-radial reference from its radial decks at
 matched meshes and the feed convention cancels entirely. What remains
-is each engine's opinion of **the buried-radial coupling itself** —
-and they disagree by a factor:
+is each engine's opinion of **the buried-radial coupling itself** — and,
+under the engine's documented below-ground card, they agree:
 
-| deck | height | engine ΔZ | momwire ΔZ | ratio |
-|---|---|---|---|---|
-| 1 radial | 0.25 m | 0.14+0.86j | −0.07+0.24j | 3.5× |
-| 1 radial | 1.0 m | 0.21+0.48j | −0.04+0.09j | 5.2× |
-| 4 radials | 0.25 m | 0.08+2.39j | −0.45+0.73j | 2.8× |
-| 4 radials | 1.0 m | 0.41+1.45j | −0.21+0.30j | 4.1× |
+| deck | height | engine ΔZ | momwire ΔZ |
+|---|---|---|---|
+| 1 radial | 0.25 m | −0.080+0.238j | −0.07+0.24j |
+| 1 radial | 1.0 m | −0.038+0.094j | −0.04+0.09j |
+| 4 radials | 0.25 m | −0.448+0.727j | −0.45+0.73j |
+| 4 radials | 1.0 m | −0.208+0.303j | −0.21+0.30j |
 
-The engine sees roughly **2–5× momwire's radial effect**, growing with
-height and dominated by reactance. Both engines agree the effect is
-small (single ohms at most on these decks) — but a 3× disagreement on
-the *implemented thing under test* deserves an attribution, not a
-shrug.
+The engine values are the ×8 rung (176 segments on the vertical) and
+move by under 0.01 Ω from ×1 to ×8; the no-radial reference does not move
+at all between the two ground-card settings, which is the control that
+says the card touches only the buried conductors. A third reading landed
+on the same numbers in September 2026: momwire's sinusoidal-Galerkin
+solver, which shares no fill code with its B-spline solver below the
+interface, gives −0.0746+0.2401j and −0.4499+0.7290j for the two 0.25 m
+decks — the B-spline values to four decimals.
 
-So we brought in a third instrument: **empymod**, the open-source
-electromagnetic reference for layered media, computing the below-ground
-illumination of this exact geometry from first principles. The result:
+The effect is small — single ohms at most on these decks, dominated by
+reactance, shrinking with height — and all three readings say so.
 
-- momwire's below-ground fields match empymod to **0.5 %** on this
-  deck, with depth-decay profiles identical to three decimals
-  (1 / 0.679 / 0.422 / 0.207 down the 0.15–2 m ladder at 1 m radius —
-  both instruments).
-- The engine's *printed* near-field tables for the same points decay
-  too slowly with depth (1 / 0.602 / 0.326 / 0.286) and at 2.5 m
-  radius are **non-monotonic** — the printed field strength *rises*
-  going deeper (1 / 0.601 / 0.198 / 0.398). A physical transmitted
-  field in lossy soil cannot do that.
-
-Two independent formulations against one printed table: the coupling
-disagreement is attributed. momwire's radial deltas decay like a real
-transmitted field because its below-ground illumination *is* the real
-transmitted field, verified against an independent reference; the
-engine's printed below-ground fields have a depth defect on this deck
-class, and its radial coupling inherits it. (Engine statements here are
-printed-output measurements on these specific decks — impedances and
-NE tables — nothing more.)
+One printed-output observation survives from the earlier version, as a
+fact about the engine's near-field tables on this deck class and nothing
+more. Against **empymod**, the open-source electromagnetic reference for
+layered media, momwire's below-ground fields match to **0.5 %**, with
+depth-decay profiles identical to three decimals (1 / 0.679 / 0.422 /
+0.207 down the 0.15–2 m ladder at 1 m radius — both instruments). The
+engine's *printed* near-field tables for the same points decay more
+slowly with depth (1 / 0.602 / 0.326 / 0.286) and at 2.5 m radius are
+non-monotonic (1 / 0.601 / 0.198 / 0.398). Those tables print the same
+under either ground-card setting. They are not the coupling: the
+impedances above are what the engine solves, and on those the two agree.
 
 ## What to take away
 
@@ -197,9 +203,8 @@ NE tables — nothing more.)
 - Quote ladders. On buried-soil decks the coarse-mesh prints of
   *either* engine can sit many ohms from that engine's own converged
   value.
-- The remaining cross-engine disagreement is confined to the
-  buried-coupling delta, it is 2–5×, and the independent-reference
-  evidence sides with the smaller number.
+- The buried-coupling delta agrees between the engines to about
+  0.01 Ω under the documented ground card (correction above).
 - **Since this page was written** (September 2026) the below-ground
   reference has changed from another engine to a measurement: momwire
   gates Brown, Lewis and Epstein's 1937 buried-radial screens, and its
@@ -210,11 +215,12 @@ NE tables — nothing more.)
   1937 geometry NEC-5's radial-count law has the measured shape, steep at
   low radial count and flat past about thirty, and on a bonded-base
   vertical over buried radials the two engines agree to a few percent in
-  resistance. The NEC-5 column on this page was captured with one setting
-  of the engine's ground card; with its documented below-ground setting
-  the 92 decks here move by at most 1.7 % (median 0.1 %), most on the
-  decks whose conductor sits nearest the interface, so a 2–5×
-  buried-coupling delta is untouched and the attribution above stands.
+  resistance. The NEC-5 column in the drop-in table above was captured with one
+  setting of the engine's ground card; with its documented below-ground
+  setting the buried-radial decks move by up to 1.7 % in impedance — the
+  same size as the coupling itself, which is why the coupling section
+  carries a correction and the drop-in table's converged agreement
+  (0.2–2 Ω) does not change.
 
 The companion piece on the momwire primer —
 [the counterpoise question](https://momwire.antennaknobs.dev/act-5/counterpoise/) —
