@@ -145,6 +145,33 @@ What the 1e-8 tolerance does buy on this deck is **rank**: at d=1 the global
 remainder needs rank **2,064 of 8,401** at 1e-8 against **192** at the default,
 inside a build the solve never performs.
 
+#### Where the 605 s actually goes
+
+The timing-out cell instrumented by call shape on
+`_zblock_sommerfeld_remainder` — d=2, finite, `aca_tol=1e-8`, n=12,405:
+
+| phase | calls | time | share |
+|---|--:|--:|--:|
+| solve (dense, what a user pays) | — | 78.8 s | — |
+| **forced `build_hmatrix()`** | — | **605.4 s** | 100 % |
+|  ⤷ global-remainder ACA pivots | 1,988 | 42.4 s | 7 % |
+|  ⤷ residual probe | **1** | 0.0 s | ~0 % |
+|  ⤷ dense fallback | **0** | — | — |
+|  ⤷ everything else (block structure) | — | ~563 s | **93 %** |
+
+`somm_rank=994/12,405`, residual 1.749e-05, `fallback=False`.
+
+So the cost is neither of the two things it was first attributed to. **The
+probe is already O(1)** — a single call sampling 64 entries — and **the
+fallback never fires on this deck at any tolerance tested**. The global
+remainder is 7 % of the build even at 1e-8, where its rank is five times the
+default's.
+
+The other 93 % is the H-matrix itself: 18,354 far blocks and 10,805 near
+blocks, each with its own ACA. That is the fragmentation the guard exists to
+refuse, and refusing it is why the real solve costs 78.8 s instead of 684 s.
+There is no scaling refusal to add here; the one that matters already fired.
+
 Two fixes worth having, neither filed yet:
 
 - A **queryable flag** for the fragmentation refusal, alongside
