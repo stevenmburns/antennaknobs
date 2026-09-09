@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-09 15:49 +0000
+            created at 2026-09-09 16:05 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -165,7 +165,7 @@
     <p class="run"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">    <span class="key">from</span> <span class="nam">antennaknobs</span><span class="op">.</span><span class="nam">engines</span><span class="op">.</span><span class="nam">pynec</span> <span class="key">import</span> <span class="nam">DEFAULT_GROUND</span><span class="op">,</span> <span class="nam">PyNECEngine</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t"><span class="key">except</span> <span class="nam">ImportError</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">    <span class="nam">PyNECEngine</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">    <span class="nam">DEFAULT_GROUND</span> <span class="op">=</span> <span class="op">(</span><span class="str">&quot;finite&quot;</span><span class="op">,</span> <span class="num">10.0</span><span class="op">,</span> <span class="num">0.002</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">    <span class="nam">DEFAULT_GROUND</span> <span class="op">=</span> <span class="op">(</span><span class="str">&quot;finite&quot;</span><span class="op">,</span> <span class="num">13.0</span><span class="op">,</span> <span class="num">0.005</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span><span class="op">.</span><span class="nam">engines</span><span class="op">.</span><span class="nam">momwire</span> <span class="key">import</span> <span class="nam">MomwireEngine</span><span class="op">,</span> <span class="nam">_ends_in_the_plane</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span><span class="op">.</span><span class="nam">engines</span><span class="op">.</span><span class="nam">nec5</span> <span class="key">import</span> <span class="nam">NEC5Engine</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t"><span class="key">from</span> <span class="nam">antennaknobs</span><span class="op">.</span><span class="nam">terrain</span> <span class="key">import</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -1943,7 +1943,7 @@
     <p class="pln"><span class="n"><a id="t1861" href="#t1861">1861</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1862" href="#t1862">1862</a></span><span class="t"><span class="key">def</span> <span class="nam">_soil_from_request</span><span class="op">(</span><span class="nam">req</span><span class="op">:</span> <span class="nam">Mapping</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="nam">tuple</span><span class="op">[</span><span class="nam">float</span><span class="op">,</span> <span class="nam">float</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1863" href="#t1863">1863</a></span><span class="t">    <span class="str">&quot;&quot;&quot;The (eps_r, sigma) the request asks for, clamped, defaulting to</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t1864" href="#t1864">1864</a></span><span class="t"><span class="str">    DEFAULT_GROUND&#x27;s 10 / 0.002 so a request that predates #1173 &#8212; or any</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t1864" href="#t1864">1864</a></span><span class="t"><span class="str">    DEFAULT_GROUND&#x27;s 13 / 0.005 (ARRL &quot;average&quot;) so a request that predates #1173 &#8212; or any</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1865" href="#t1865">1865</a></span><span class="t"><span class="str">    client that never sends the field &#8212; solves exactly what it did before.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1866" href="#t1866">1866</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1867" href="#t1867">1867</a></span><span class="t"><span class="str">    Client input is untrusted: same clamp-and-fall-back discipline as</span>&nbsp;</span><span class="r"></span></p>
@@ -2274,7 +2274,7 @@
     <p class="pln"><span class="n"><a id="t2192" href="#t2192">2192</a></span><span class="t"><span class="str">    same finite ground via NEC&#x27;s reflection-coefficient approximation;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2193" href="#t2193">2193</a></span><span class="t"><span class="str">    &quot;pec&quot; &#8212; perfectly conducting ground. Ground off is free space. Both</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2194" href="#t2194">2194</a></span><span class="t"><span class="str">    finite models carry the request&#x27;s soil (issue #1173,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t2195" href="#t2195">2195</a></span><span class="t"><span class="str">    `_soil_from_request`), which defaults to DEFAULT_GROUND&#x27;s 10 / 0.002.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t2195" href="#t2195">2195</a></span><span class="t"><span class="str">    `_soil_from_request`), which defaults to DEFAULT_GROUND&#x27;s 13 / 0.005.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2196" href="#t2196">2196</a></span><span class="t">    <span class="nam">model</span> <span class="op">=</span> <span class="nam">_requested_ground_model</span><span class="op">(</span><span class="nam">req</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2197" href="#t2197">2197</a></span><span class="t">    <span class="key">if</span> <span class="nam">model</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t2198" href="#t2198">2198</a></span><span class="t">        <span class="key">return</span> <span class="str">&quot;free&quot;</span>&nbsp;</span><span class="r"></span></p>
@@ -4784,7 +4784,7 @@
             <a class="nav" href="z_6ee79fb480cc3008_cost_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-09 15:49 +0000
+            created at 2026-09-09 16:05 +0000
         </p>
     </div>
 </footer>

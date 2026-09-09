@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e282ca38d8b324f0_core_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-09 15:49 +0000
+            created at 2026-09-09 16:05 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -409,10 +409,10 @@
     <p class="pln"><span class="n"><a id="t327" href="#t327">327</a></span><span class="t">    <span class="str">&quot;&quot;&quot;--ground argument:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t328" href="#t328">328</a></span><span class="t"><span class="str">    free                          -&gt; None</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t329" href="#t329">329</a></span><span class="t"><span class="str">    pec                           -&gt; &#x27;pec&#x27;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t330" href="#t330">330</a></span><span class="t"><span class="str">    finite                        -&gt; default (&#x27;finite&#x27;, 10.0, 0.002)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t330" href="#t330">330</a></span><span class="t"><span class="str">    finite                        -&gt; default (&#x27;finite&#x27;, 13.0, 0.005)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t331" href="#t331">331</a></span><span class="t"><span class="str">                                     (Sommerfeld-Norton on PyNEC)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t332" href="#t332">332</a></span><span class="t"><span class="str">    finite:&lt;eps_r&gt;,&lt;sigma&gt;        -&gt; (&#x27;finite&#x27;, eps_r, sigma)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t333" href="#t333">333</a></span><span class="t"><span class="str">    finite-fast                   -&gt; default (&#x27;finite-fast&#x27;, 10.0, 0.002)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t333" href="#t333">333</a></span><span class="t"><span class="str">    finite-fast                   -&gt; default (&#x27;finite-fast&#x27;, 13.0, 0.005)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t334" href="#t334">334</a></span><span class="t"><span class="str">                                     (reflection-coefficient approximation)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t335" href="#t335">335</a></span><span class="t"><span class="str">    finite-fast:&lt;eps_r&gt;,&lt;sigma&gt;   -&gt; (&#x27;finite-fast&#x27;, eps_r, sigma)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t336" href="#t336">336</a></span><span class="t"><span class="str">    &quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
@@ -422,7 +422,7 @@
     <p class="run"><span class="n"><a id="t340" href="#t340">340</a></span><span class="t">        <span class="key">return</span> <span class="str">&quot;pec&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t341" href="#t341">341</a></span><span class="t">    <span class="key">for</span> <span class="nam">kind</span> <span class="key">in</span> <span class="op">(</span><span class="str">&quot;finite-fast&quot;</span><span class="op">,</span> <span class="str">&quot;finite&quot;</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t342" href="#t342">342</a></span><span class="t">        <span class="key">if</span> <span class="nam">s</span> <span class="op">==</span> <span class="nam">kind</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t343" href="#t343">343</a></span><span class="t">            <span class="key">return</span> <span class="op">(</span><span class="nam">kind</span><span class="op">,</span> <span class="num">10.0</span><span class="op">,</span> <span class="num">0.002</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t343" href="#t343">343</a></span><span class="t">            <span class="key">return</span> <span class="op">(</span><span class="nam">kind</span><span class="op">,</span> <span class="num">13.0</span><span class="op">,</span> <span class="num">0.005</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t344" href="#t344">344</a></span><span class="t">        <span class="key">if</span> <span class="nam">s</span><span class="op">.</span><span class="nam">startswith</span><span class="op">(</span><span class="nam">kind</span> <span class="op">+</span> <span class="str">&quot;:&quot;</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t345" href="#t345">345</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t346" href="#t346">346</a></span><span class="t">                <span class="nam">eps_r</span><span class="op">,</span> <span class="nam">sigma</span> <span class="op">=</span> <span class="op">(</span><span class="nam">float</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span> <span class="key">for</span> <span class="nam">x</span> <span class="key">in</span> <span class="nam">s</span><span class="op">[</span><span class="nam">len</span><span class="op">(</span><span class="nam">kind</span><span class="op">)</span> <span class="op">+</span> <span class="num">1</span> <span class="op">:</span><span class="op">]</span><span class="op">.</span><span class="nam">split</span><span class="op">(</span><span class="str">&quot;,&quot;</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1501,7 +1501,7 @@
             <a class="nav" href="z_e282ca38d8b324f0_core_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-09 15:49 +0000
+            created at 2026-09-09 16:05 +0000
         </p>
     </div>
 </footer>
