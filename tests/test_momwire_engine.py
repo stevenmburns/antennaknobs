@@ -1910,16 +1910,31 @@ def test_lattice_fft_engages_on_4x4_bowtie_array():
     assert len(z) == 16
 
 
-def test_lattice_fft_beats_per_pair_accuracy_on_4x4_bowtie_array():
-    """Against the dense oracle the FFT representation is strictly the more
-    accurate of the two encodings, on every port.
+def test_lattice_fft_and_per_pair_each_agree_with_dense_on_4x4_bowtie_array():
+    """Both array encodings agree with the dense oracle to a stated bound, and
+    the difference between them is a fact about `aca_tol`, not about the
+    encodings (#1283).
 
-    The two are NOT interchangeable to roundoff and shouldn't be asserted so:
-    the per-pair path compresses each coupling block with ACA to `aca_tol`,
-    while the lattice path stores whole displacement blocks exactly (the FFT
-    convolution needs them in full anyway). Measured here: ~4e-6 mean error
-    for the FFT path vs ~8e-4 for per-pair — a ~200x gap that is entirely
-    per-pair truncation."""
+    The two are NOT interchangeable to roundoff: the per-pair path compresses
+    each coupling block with ACA to `aca_tol`, while the lattice path stores
+    whole displacement blocks exactly (the FFT convolution needs them in full
+    anyway). This test used to assert "the FFT representation is strictly the
+    more accurate of the two, on every port" — true while momwire's default
+    `aca_tol` was 1e-4 (per-pair 7.9e-4 vs FFT 2.07e-5) and false since
+    momwire#974 tightened it to 1e-6 (per-pair 2.8e-6, 7.5x BETTER than FFT).
+    Measured at the pointer that carried #974:
+
+        aca_tol   lattice-FFT   per-pair
+        1e-4      2.070e-05     7.905e-04   FFT more accurate on 16/16 ports
+        1e-6      2.070e-05     2.760e-06   FFT more accurate on 4/16
+
+    So three things are gated, each of which stays true when the default
+    moves again: (1) each path is within 1e-4 of dense on every port; (2) the
+    FFT path's error is INDEPENDENT of `aca_tol` — it has a 2.07e-5 floor of
+    its own (momwire#978) — so it reads the same at 1e-4 and at the default;
+    (3) at an EXPLICIT `aca_tol=1e-4` the original claim holds on every port,
+    pinned the way momwire#974 pinned its own array-vs-dense gate rather than
+    left riding the default."""
     from momwire import ArrayBlockSolver, BSplineSolver
 
     common = {"degree": 2}
@@ -1928,25 +1943,35 @@ def test_lattice_fft_beats_per_pair_accuracy_on_4x4_bowtie_array():
             _bowtie_4x4(), solver=BSplineSolver, solver_kwargs=common
         ).impedance()
     )
-    z_fft = np.array(
-        MomwireEngine(
-            _bowtie_4x4(),
-            solver=ArrayBlockSolver,
-            solver_kwargs={**common, "lattice_fft": True, "require_lattice_fft": True},
-        ).impedance()
-    )
-    z_pair = np.array(
-        MomwireEngine(
-            _bowtie_4x4(),
-            solver=ArrayBlockSolver,
-            solver_kwargs={**common, "lattice_fft": False},
-        ).impedance()
-    )
-    err_fft = np.abs(z_fft - z_dense) / np.abs(z_dense)
-    err_pair = np.abs(z_pair - z_dense) / np.abs(z_dense)
+
+    def _array(**kw):
+        return np.array(
+            MomwireEngine(
+                _bowtie_4x4(), solver=ArrayBlockSolver, solver_kwargs={**common, **kw}
+            ).impedance()
+        )
+
+    z_fft = _array(lattice_fft=True, require_lattice_fft=True)
+    z_fft_loose = _array(lattice_fft=True, require_lattice_fft=True, aca_tol=1e-4)
+    z_pair = _array(lattice_fft=False)
+    z_pair_loose = _array(lattice_fft=False, aca_tol=1e-4)
+
+    def _err(z):
+        return np.abs(z - z_dense) / np.abs(z_dense)
+
+    err_fft, err_fft_loose = _err(z_fft), _err(z_fft_loose)
+    err_pair, err_pair_loose = _err(z_pair), _err(z_pair_loose)
     assert len(z_fft) == 16
+    # (1) each encoding agrees with dense
     assert err_fft.max() < 1e-4, err_fft
-    assert np.all(err_fft <= err_pair), (err_fft, err_pair)
+    assert err_pair.max() < 1e-4, err_pair
+    # (2) the FFT floor is aca_tol's business nowhere: same error at 1e-4
+    #     and at the default (momwire#978 owns what SETS the floor)
+    np.testing.assert_allclose(err_fft_loose, err_fft, rtol=1e-6, atol=1e-9)
+    # (3) the encoding comparison, pinned at the tolerance it was true at
+    assert np.all(err_fft_loose <= err_pair_loose), (err_fft_loose, err_pair_loose)
+    # and the reason the old claim died: per-pair TRACKS aca_tol
+    assert err_pair.max() < err_pair_loose.max() / 10, (err_pair, err_pair_loose)
 
 
 def test_lattice_fft_matches_dense_bspline_on_4x4_bowtie_array():
