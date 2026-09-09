@@ -875,21 +875,57 @@ _DROP_CARDS = {
 _REFUSE_CARDS = {
     "CW": "CW (NEC-4 catenary wire) has no NEC-5 counterpart",
     # SP / SC are NEC-2 / NEC-4 surface-patch cards. NEC-5 spells a DIFFERENT
-    # card with the mnemonic SP, so a patch deck is not a syntax error there:
-    # it is silently read as something else. Fed through untranslated, the
-    # manual's Example 4 (T on a box) solves on stock x13 as three bare wires
-    # with no box, and dies on the a43 beta with an integer divide by zero in
-    # the geometry phase — and this tool reported that as an a43 regression
-    # (Ward note of 2026-09-08, finding 1; corrected 2026-09-09, AC6LA's
-    # catch). 42 decks in the public collections carry SP/SC. They are not
-    # NEC-5 input in any form this tool can write, so they refuse by name.
-    "SP": "SP (NEC-2/NEC-4 surface patch) is a different card in NEC-5; a patch deck cannot be translated",
+    # card with the mnemonic SP (a sphere), so a patch deck is not a syntax
+    # error there: it is silently read as something else. Fed through
+    # untranslated, the manual's Example 4 (T on a box) solves on stock x13
+    # as three bare wires with no box, and dies on the a43 beta with an
+    # integer divide by zero in the geometry phase — and this tool reported
+    # that as an a43 regression (Ward note of 2026-09-08, finding 1;
+    # corrected 2026-09-09, AC6LA's catch). 42 decks in the public
+    # collections carry SP/SC in the patch form.
+    # SP itself is handled by _classify_sp below: NEC-5 has its own SP (a
+    # sphere), so the card refuses only in its NEC-2/NEC-4 patch form.
     "SC": "SC (NEC-2/NEC-4 patch continuation) is not a NEC-5 command; a patch deck cannot be translated",
     "SM": "SM (NEC-2 multiple-patch surface) is rejected by NEC-5 (DATAGN input error); a patch deck cannot be translated",
     "GF": "GF (NEC-2 numerical Green's function read) has no NEC-5 counterpart",
     "WG": "WG (NEC-2 numerical Green's function write) has no NEC-5 counterpart",
 }
 _SYNTHETIC_TAG_BASE = 9001
+
+_SP_PATCH_REFUSAL = (
+    "SP in its NEC-2/NEC-4 surface-patch form (two integers then real "
+    "coordinates) is not legal NEC-5 syntax — NEC-5's SP is a sphere card; "
+    "a patch deck cannot be translated"
+)
+
+
+def _is_int_literal(tok: str) -> bool:
+    try:
+        int(tok)
+    except ValueError:
+        return False
+    return True
+
+
+def _classify_sp(c: Card) -> str:
+    """'nec5' for NEC-5's sphere spelling, 'patch' for the NEC-2/NEC-4 one.
+
+    The two cards share a mnemonic and nothing else. NEC-2/NEC-4:
+    ``SP I1 I2 F1 .. F6`` — two integers (I2 = patch shape 0..3) then real
+    coordinates, at most 8 fields. NEC-5 (Users Manual, "SP – Sphere"):
+    ``SP ITAG NTH NPH IALT X0 Y0 Z0 RAD TH1 TH2 PH1 PH2`` — FOUR integers
+    (two of them patch-edge counts, so >= 1) then eight reals, radius > 0.
+    So fields 3 and 4 are integer counts in NEC-5 and real coordinates in
+    NEC-2; a decimal point or exponent in either settles it, and when both
+    are integer literals the field count and a positive radius do.
+    Example 4's ``SP 0 0 .1 .05 .05 0. 0.`` is a patch on sight."""
+    f = c.f
+    if len(f) < 8 or not all(_is_int_literal(t) for t in f[:4]):
+        return "patch"
+    nth, nph = int(f[1]), int(f[2])
+    if nth < 1 or nph < 1 or c.num(7) <= 0:
+        return "patch"
+    return "nec5"
 
 
 class Geometry:
@@ -1252,6 +1288,10 @@ def translate_deck(
                 continue
             if c.mn in _REFUSE_CARDS:
                 raise Refused(_REFUSE_CARDS[c.mn])
+            if c.mn == "SP":
+                if _classify_sp(c) == "patch":
+                    raise Refused(_SP_PATCH_REFUSAL)
+                notes.append(f"line {c.line}: SP kept as a NEC-5 sphere card")
             if c.mn in ("GW", "GA", "GH", "GM", "GX", "GR"):
                 geo.feed(c)
         elif c.mn in _REFUSE_CARDS:
