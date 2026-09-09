@@ -29,6 +29,32 @@ pip install --upgrade pip
 pip install "antennaknobs[web]"
 ```
 
+### On Windows
+
+The same install in PowerShell. Use **Python 3.12** — it is the version every
+antennaknobs test lane runs; wheels exist for 3.10 through 3.15, but 3.12 is
+the one we can vouch for on Windows today. If `py -3.12` reports nothing,
+install 3.12 from [python.org](https://www.python.org/downloads/windows/) and
+tick *Add python.exe to PATH*.
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install "antennaknobs[web]"
+python -m uvicorn antennaknobs.web.server:app      # then open http://127.0.0.1:8000
+```
+
+If PowerShell refuses to run `Activate.ps1`, allow scripts for your user once:
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Always run pip as
+`python -m pip` so it installs into the venv you just activated and not into
+whichever Python is first on PATH. If the install seems to compile for
+minutes, pip did not pick a wheel — stop and paste the output of
+`python -m pip debug --verbose` into an issue, with
+`python -X faulthandler -c "import antennaknobs; print('IMPORT OK')"` after it.
+With a licensed NEC-5, see [NEC-5](/reference/nec5/) for the one variable that
+adds it as a solver.
+
 :::note
 `momwire` (the solver) comes along as a dependency. Optionally, add the NEC2
 solver (PyNEC) as an alternative to momwire:

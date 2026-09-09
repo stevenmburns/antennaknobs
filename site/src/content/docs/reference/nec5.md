@@ -36,6 +36,13 @@ Point the engine at your executable with one environment variable:
 export NEC5_EXE=~/nec5/nec5cl        # your licensed binary
 ```
 
+On Windows, in PowerShell, before starting the workbench in the same window
+(EZNEC Pro+ ships the binary as `NEC5CL.exe`):
+
+```powershell
+$env:NEC5_EXE = "C:\Program Files\EZNEC Pro+\NEC5CL.exe"
+```
+
 Everything below lights up exactly when `NEC5_EXE` resolves — the CLI
 engine name, the workbench slot entry — and disappears when it doesn't.
 If you run a local web instance with the variable set, the NEC-5 slot is
