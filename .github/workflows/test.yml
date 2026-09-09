@@ -215,7 +215,7 @@ jobs:
         name: wheel
         path: dist/*.whl
 
-  wheel-smoke:
+  wheel-smoke-cells:
     # Install antennaknobs from the BUILT WHEEL with PyPI deps only — no git
     # submodule — by running the README's install script (per change on Linux;
     # every platform on dispatch and on the tag). This is the environment `pip install
@@ -305,6 +305,26 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw "install-windows.ps1 failed ($LASTEXITCODE)" }
         & .\.venv\Scripts\python.exe $smoke
         if ($LASTEXITCODE -ne 0) { throw "wheel_solve_smoke.py failed ($LASTEXITCODE)" }
+
+  wheel-smoke:
+    # The REQUIRED status check, by this exact name. Branch protection names
+    # `wheel-smoke`; a matrix job reports one check PER CELL ("wheel-smoke
+    # (ubuntu-latest, py3.12)"), so the moment the lane above became a matrix
+    # the required context stopped reporting and every PR sat BLOCKED with
+    # all checks green (#1330, 2026-09-09 — the "no checks reported" trap in
+    # CLAUDE.md, from the other side). This job carries the stable name and
+    # fails unless every cell succeeded; `if: always()` so a failed or skipped
+    # cell (e.g. wheel-build red → cells skipped) reports a RED here rather
+    # than no check at all.
+    name: wheel-smoke
+    needs: wheel-smoke-cells
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Every wheel-smoke cell succeeded
+      run: |
+        echo "wheel-smoke-cells: ${{ needs.wheel-smoke-cells.result }}"
+        test "${{ needs.wheel-smoke-cells.result }}" = "success"
 
   frontend:
     # Typecheck + build the workbench frontend (issue #615). The bundle is
