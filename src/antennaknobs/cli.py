@@ -327,10 +327,10 @@ def parse_ground(s):
     """--ground argument:
     free                          -> None
     pec                           -> 'pec'
-    finite                        -> default ('finite', 10.0, 0.002)
+    finite                        -> default ('finite', 13.0, 0.005)
                                      (Sommerfeld-Norton on PyNEC)
     finite:<eps_r>,<sigma>        -> ('finite', eps_r, sigma)
-    finite-fast                   -> default ('finite-fast', 10.0, 0.002)
+    finite-fast                   -> default ('finite-fast', 13.0, 0.005)
                                      (reflection-coefficient approximation)
     finite-fast:<eps_r>,<sigma>   -> ('finite-fast', eps_r, sigma)
     """
@@ -340,7 +340,7 @@ def parse_ground(s):
         return "pec"
     for kind in ("finite-fast", "finite"):
         if s == kind:
-            return (kind, 10.0, 0.002)
+            return (kind, 13.0, 0.005)
         if s.startswith(kind + ":"):
             try:
                 eps_r, sigma = (float(x) for x in s[len(kind) + 1 :].split(","))

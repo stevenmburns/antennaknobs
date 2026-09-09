@@ -163,9 +163,10 @@ side by side:
 | tuner coil loss | — | 6 % |
 | **antenna (accepted)** | **76 %** | **84 %** |
 
-(Every number on this page is solved the way the workbench solves it by
-default: finite ground — εr = 10, σ = 0.002, reflection-coefficient model —
-with the B-spline d = 2 solver. The budget rows are the *network* ledger:
+(Every number on this page is solved over a finite ground — εr = 10,
+σ = 0.002, reflection-coefficient model — with the B-spline d = 2 solver;
+the workbench's default soil is now the average row, εr 13 / σ 0.005, so a
+re-run at the defaults will differ by the soil. The budget rows are the *network* ledger:
 the fraction of rig power that survives to the antenna terminals. Wire I²R
 and the ground's absorption come out of what's left — for that accounting,
 see [Three ledgers of efficiency](/advanced/pota-performer/#the-efficiency-claim-true-in-its-ledger).)

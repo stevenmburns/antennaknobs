@@ -592,7 +592,7 @@ The selector describes what the ground **is**, independent of solver:
   ground-constants table (25th edition, Table 3.1) — that fill both at once.
   The active preset
   is read off the two numbers, so dragging a knob off a preset simply
-  deselects it; the default 10 / 0.002 is shown as *custom soil*. The soil
+  deselects it; the default is the *average* row (εr 13, σ 0.005). The soil
   travels with every solve — sweeps, patterns, cuts, near fields and the
   exported NEC deck's `GN 2` card — and a changed soil is a new sweep, not a
   cache hit. Each preset is a single (εr, σ) pair, while real soil disperses

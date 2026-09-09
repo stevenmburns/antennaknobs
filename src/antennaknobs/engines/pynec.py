@@ -46,7 +46,11 @@ COPPER_CONDUCTIVITY = 5.8e7
 WIRE_CONDUCTIVITY = None
 
 
-DEFAULT_GROUND = ("finite", 10.0, 0.002)  # (kind, dielectric, conductivity)
+DEFAULT_GROUND = (
+    "finite",
+    13.0,
+    0.005,
+)  # (kind, dielectric, conductivity) — ARRL Table 3.1 "average"
 
 
 def _pynec_somm_fixed():
@@ -176,7 +180,7 @@ class PyNECEngine(SimulationEngine):
           "pec"                          — perfectly conducting ground
           ("finite", eps_r, sigma)       — Sommerfeld-Norton finite ground
                                            (default, matches the historical
-                                           hard-coded eps_r=10, sigma=0.002).
+                                           hard-coded eps_r=13, sigma=0.005).
                                            CAVEAT (#448): before pynec-accel
                                            1.7.6, nec2++'s gn 2 was unreliable
                                            for conductors within 0.1λ of the

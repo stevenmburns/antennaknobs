@@ -83,7 +83,7 @@ try:
     from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
 except ImportError:
     PyNECEngine = None
-    DEFAULT_GROUND = ("finite", 10.0, 0.002)
+    DEFAULT_GROUND = ("finite", 13.0, 0.005)
 from antennaknobs.engines.momwire import MomwireEngine, _ends_in_the_plane
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.terrain import (
@@ -1861,7 +1861,7 @@ def soil_ranges_schema() -> dict:
 
 def _soil_from_request(req: Mapping) -> tuple[float, float]:
     """The (eps_r, sigma) the request asks for, clamped, defaulting to
-    DEFAULT_GROUND's 10 / 0.002 so a request that predates #1173 — or any
+    DEFAULT_GROUND's 13 / 0.005 (ARRL "average") so a request that predates #1173 — or any
     client that never sends the field — solves exactly what it did before.
 
     Client input is untrusted: same clamp-and-fall-back discipline as
@@ -2192,7 +2192,7 @@ def _pynec_ground_spec(req: dict):
     same finite ground via NEC's reflection-coefficient approximation;
     "pec" — perfectly conducting ground. Ground off is free space. Both
     finite models carry the request's soil (issue #1173,
-    `_soil_from_request`), which defaults to DEFAULT_GROUND's 10 / 0.002."""
+    `_soil_from_request`), which defaults to DEFAULT_GROUND's 13 / 0.005."""
     model = _requested_ground_model(req)
     if model is None:
         return "free"
