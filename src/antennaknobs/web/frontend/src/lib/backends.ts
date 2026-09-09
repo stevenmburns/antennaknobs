@@ -717,6 +717,36 @@ export function capabilityRefusal(
   };
 }
 
+/** The SERVER's refusal for this backend on this design, or null (#1286).
+ *
+ *  Preferred over every locally-composed reason, and for one reason: this
+ *  string is momwire's own `capabilities.refusal(<capability>)`, carried
+ *  verbatim. `RESTRICTED_BACKEND_REASON` below is a paraphrase and has been
+ *  measurably FALSE twice (#1153, #1264) — a sentence written separately from
+ *  the rule drifts from it, and this one is read by a user asking why a tab
+ *  is off.
+ *
+ *  Wider than `capabilityRefusal`, which answers only the buried deck: this
+ *  also carries node gaps, junction ports and per-wire radius, each with the
+ *  refusing solver's own words rather than one sentence for the design.
+ *
+ *  `undefined` coverage is "not measured" (an older server), NOT "nothing
+ *  refuses" — callers must fall through to the existing gates rather than
+ *  treat it as a clean bill.
+ */
+export type BackendCoverage = {
+  needs: string[];
+  refusals: Record<string, { capability: string; reason: string | null }>;
+};
+
+export function coverageRefusal(
+  backendName: string,
+  coverage: BackendCoverage | null | undefined,
+): { capability: string; reason: string | null } | null {
+  if (!coverage) return null;
+  return coverage.refusals?.[backendName] ?? null;
+}
+
 /** Is the extended kernel actually in force for this slot?
  *
  *  True only when the user asked for it AND this backend can serve it — a

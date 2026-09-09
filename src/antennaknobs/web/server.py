@@ -2512,6 +2512,8 @@ def examples_endpoint():
     Reloads user designs first (live edits without a restart) and returns
     any that failed to load under `errors`, so the UI can show them.
     """
+    from .adapter import design_backend_coverage
+
     load_errors = user_designs.refresh()
 
     def _sweep_policy_json(p) -> dict:
@@ -2618,6 +2620,14 @@ def examples_endpoint():
                     else None
                 ),
                 "backend_restriction": ex.backend_restriction,
+                # Which backends refuse THIS design and momwire's own sentence
+                # for each (#1286). Rides here rather than in a per-design
+                # endpoint because the whole catalog costs 0.06 s cold and
+                # nothing warm, and because the mark belongs on the LIST — the
+                # point is to learn a solver refuses before picking its tab.
+                # Known capability refusals only; absence is not a promise
+                # that a solve succeeds. See `design_backend_coverage`.
+                "backend_coverage": design_backend_coverage(name),
                 "has_stepped_radius_junction": ex.has_stepped_radius_junction,
                 "has_buried_wire": ex.has_buried_wire,
                 "converged_feed_suggested": ex.converged_feed_suggested,

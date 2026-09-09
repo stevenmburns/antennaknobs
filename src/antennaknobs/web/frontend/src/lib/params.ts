@@ -1,3 +1,4 @@
+import type { BackendCoverage } from "./backends";
 import type { Projection } from "./view";
 
 // Schema served by `GET /examples`. The backend's web/examples/_base.py
@@ -146,6 +147,17 @@ export type ExampleDescriptor = {
     backends: string[];
     reason: string | null;
   } | null;
+  /** Which backends refuse THIS design, and each refusal's own sentence
+   *  (#1286). `reason` is momwire's `capabilities.refusal(<capability>)`
+   *  verbatim, per backend — strictly better than `backend_restriction`'s
+   *  one design-wide sentence, which cannot say why THIS solver refuses.
+   *
+   *  KNOWN CAPABILITY refusals only. A backend absent from `refusals` has no
+   *  capability refusal; that is NOT a promise the solve succeeds, because a
+   *  numerical domain limit found during the fill depends on the ground and
+   *  mesh the user picks. Optional, so a server predating it reads as "not
+   *  measured" rather than "nothing refuses". */
+  backend_coverage?: BackendCoverage | null;
   /** Near-open high-Q feed (antennaknobs#478): the Sin-Galerkin solver's
    *  "Converged" (point-gap) feed model is recommended for this design —
    *  it collapses the cross-basis residual by 2-3 orders on this class
