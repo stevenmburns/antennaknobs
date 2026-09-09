@@ -93,6 +93,18 @@ def test_derivation_agrees_with_the_solver_construction_probe():
         if "buried" in adapter._design_capability_needs(_design_cls(name))
     }
     assert buried_designs, "no buried design found — the probe's blind spot is untested"
+    # The crossing junction is the same blind spot one level down
+    # (momwire#1000): `MomwireEngine.__init__` refuses it only when a ground
+    # is given, and the probe runs in free space. Added from the same combo
+    # row the derivation reads, and pinned by name below like `buried` is.
+    crossing_designs = {
+        name
+        for name in REGISTRY
+        if adapter._CROSSING_NEED in adapter._design_capability_needs(_design_cls(name))
+    }
+    assert crossing_designs, (
+        "no crossing design found — the second blind spot is untested"
+    )
 
     disagreements = []
     checked = 0
@@ -102,8 +114,15 @@ def test_derivation_agrees_with_the_solver_construction_probe():
         for backend in _PROBEABLE:
             spec = _spec(backend)
             probed = _probe_refuses(cls, backend)
-            expected_refused = probed is not None or (
-                name in buried_designs and adapter._backend_buried_refusal(spec)
+            caps = getattr(spec.solver, "capabilities", None)
+            expected_refused = (
+                probed is not None
+                or (name in buried_designs and adapter._backend_buried_refusal(spec))
+                or (
+                    name in crossing_designs
+                    and caps is not None
+                    and caps.refusal("buried", adapter._CROSSING_NEED)
+                )
             )
             got_refused = backend in derived
             checked += 1
@@ -136,6 +155,14 @@ def test_derivation_agrees_with_the_solver_construction_probe():
         ("verticals.elt_whip", "pulse", "per_wire_radius"),
         ("specialty.buried_dipole", "hmatrix", "buried"),
         ("specialty.buried_dipole", "arrayblock", "buried"),
+        # momwire#1000: serves `buried`, refuses the node where a buried
+        # radial meets the mast in the plane — a COMBINATION row, spelled
+        # the way momwire's `refusal("buried", "crossing_junction")` keys it.
+        (
+            "verticals.buried_radial_vertical",
+            "sinusoidal-galerkin",
+            "buried+crossing_junction",
+        ),
     ],
 )
 def test_known_refusals_are_present(design, backend, capability):
@@ -145,7 +172,15 @@ def test_known_refusals_are_present(design, backend, capability):
 
 
 def test_buried_refusals_are_present():
-    """The half the construction probe cannot see, pinned by name."""
+    """The half the construction probe cannot see, pinned by name.
+
+    Two solvers carry a buried fill: `bspline` for every class, and since
+    momwire#980 D1/D2 `sinusoidal-galerkin` for the wholly buried and the
+    mixed classes — but NOT the crossing junction, which it refuses by name
+    (momwire#1000) until D3. So the connected screen is the one design where
+    the two differ, and this pins the difference rather than a single "only
+    bspline" that would have to be quietly widened.
+    """
     for design in (
         "specialty.buried_dipole",
         "verticals.buried_radial_vertical",
@@ -153,13 +188,20 @@ def test_buried_refusals_are_present():
     ):
         cov = adapter.design_backend_coverage(design)
         assert "buried" in cov["needs"], design
-        # bspline is the ONLY solver with a buried fill; if that changes this
-        # assertion should fail rather than quietly widen.
         assert "bspline" not in cov["refusals"], design
         for backend in ("hmatrix", "arrayblock", "sinusoidal", "razor-2p", "pulse"):
             assert cov["refusals"][backend]["capability"] == "buried", (
                 f"{backend} on {design}"
             )
+    for design in ("specialty.buried_dipole", "verticals.elevated_buried_counterpoise"):
+        cov = adapter.design_backend_coverage(design)
+        assert adapter._CROSSING_NEED not in cov["needs"], design
+        assert "sinusoidal-galerkin" not in cov["refusals"], design
+    cov = adapter.design_backend_coverage("verticals.buried_radial_vertical")
+    assert adapter._CROSSING_NEED in cov["needs"]
+    row = cov["refusals"]["sinusoidal-galerkin"]
+    assert row["capability"] == "buried+crossing_junction"
+    assert "crossing junction" in row["reason"].lower()
 
 
 # --------------------------------------------------------------------------
@@ -226,7 +268,9 @@ def test_the_sentence_is_the_solvers_own_words():
             )
             if caps is None:  # wrapper backends carry no capability object
                 continue
-            assert row["reason"] == caps.refusal(row["capability"]), (
+            # A combination row ("buried+crossing_junction") is asked as the
+            # two cells momwire keys it by; a field row is one cell.
+            assert row["reason"] == caps.refusal(*row["capability"].split("+")), (
                 f"{name} x {backend}: sentence differs from momwire's"
             )
             checked += 1

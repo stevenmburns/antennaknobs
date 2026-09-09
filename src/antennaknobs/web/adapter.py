@@ -84,7 +84,7 @@ try:
 except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 10.0, 0.002)
-from antennaknobs.engines.momwire import MomwireEngine
+from antennaknobs.engines.momwire import MomwireEngine, _ends_in_the_plane
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.terrain import (
     Terrain,
@@ -3257,6 +3257,16 @@ def _has_buried_wire(cls, params=None) -> bool:
 # `refusals` / `axes` are metadata about the capability object itself.
 _COVERAGE_FIELDS = ("junction_ports", "node_gaps", "per_wire_radius", "buried")
 
+# The one need that is a COMBINATION rather than a field (momwire#1000): a
+# junction in the ground plane joining an above-ground wire to a buried one —
+# the connected radial screen, the bonded-base vertical. A solver can serve
+# `buried` and still refuse that node: `sinusoidal-galerkin` does, until
+# momwire#980 D3 lands its crossing serve. Asked as the solver's own combo
+# row, `capabilities.refusal("buried", "crossing_junction")`, which is the
+# same call `MomwireEngine.__init__` makes before a fill is attempted — so the
+# tab greys for the sentence the engine would raise, rather than after it.
+_CROSSING_NEED = "crossing_junction"
+
 
 @lru_cache(maxsize=None)
 def _design_capability_needs(cls) -> frozenset:
@@ -3298,9 +3308,27 @@ def _design_capability_needs(cls) -> frozenset:
         if any(isinstance(p, PortAtVertex) for p in ports):
             needs.add("node_gaps")
     try:
-        translated = flat_wires_to_polylines(builder.build_wires())
+        tups = builder.build_wires()
+        # The interface at z = 0, which is where every catalog design puts it
+        # (`MomwireEngine`'s default `ground_z`) and the same assumption the
+        # `buried` test below already makes. Ending polylines in the plane is
+        # what makes a node there a DECLARED junction — the engine's own
+        # translation (issue #1108) — and without it the crossing question
+        # cannot be asked of the geometry at all.
+        translated = flat_wires_to_polylines(
+            tups, boundary_ends=_ends_in_the_plane(tups, 0.0)
+        )
         if any(z < 0.0 for poly in translated["polylines"] for (_x, _y, z) in poly):
             needs.add("buried")
+            # momwire's own predicate for the declared-crossing case, the one
+            # `MomwireEngine._buried_refusal` asks (momwire#850/#855): a
+            # junction whose shared point lies in the plane with a member
+            # reaching above it. Re-deriving it here is how a refusal comes
+            # to fire on a deck it was never about (momwire#848).
+            if momwire.grounded_crossing_exemption(
+                translated["polylines"], 0.0, translated["junctions"]
+            ):
+                needs.add(_CROSSING_NEED)
         stock = builder.build_wire_material()
         default = stock.radius if stock is not None else 0.0005
         radii = {
@@ -3345,6 +3373,13 @@ def _backend_capability_refusal(spec, needs) -> dict | None:
         # A capability that refuses without prose would put an empty tooltip
         # on the tab. Name the field rather than inventing a sentence.
         return {"capability": cap_field, "reason": None}
+    if _CROSSING_NEED in needs:
+        # The combination row, in momwire's canonical "a+b" spelling, so the
+        # `capability` a client sees names both halves and the provenance
+        # gate can ask `refusal(*capability.split("+"))` and get this string.
+        reason = caps.refusal("buried", _CROSSING_NEED)
+        if isinstance(reason, str) and reason:
+            return {"capability": f"buried+{_CROSSING_NEED}", "reason": reason}
     return None
 
 
