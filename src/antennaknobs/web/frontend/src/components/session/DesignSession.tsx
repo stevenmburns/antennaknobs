@@ -1830,6 +1830,7 @@ function DesignSessionBody({
             restrictionReason={
               currentExample?.backend_restriction?.reason ?? null
             }
+            backendCoverage={currentExample?.backend_coverage ?? null}
             specs={modelOptionSpecs}
             vocab={compositionVocab}
             designRefusalNote={optionRefusal}

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import {
   backendAllowed,
+  coverageRefusal,
+  type BackendCoverage,
   capabilityRefusal,
   type DesignConstraintInputs,
   EK_HINT,
@@ -81,6 +83,11 @@ export type BackendConfigProps = {
    *  sentence per cause (#1153). Falls back to the generic constant only
    *  when the server sent none. */
   restrictionReason: string | null;
+  /** Per-backend refusals for the active design (#1286), momwire's own
+   *  sentence each. Optional: an older server does not send it, which is
+   *  "not measured" and must fall through to the gates below, not read as
+   *  "nothing refuses". */
+  backendCoverage?: BackendCoverage | null;
   /** The served solver-knob catalogue (#1006 G2-6): every knob's kind,
    *  bounds, captions and gate. The panel is drawn from this, not from a
    *  per-engine table here. */
@@ -110,6 +117,7 @@ export function BackendConfigModal({
   requiredBackends,
   design,
   restrictionReason,
+  backendCoverage,
   specs,
   vocab,
   designRefusalNote,
@@ -163,8 +171,16 @@ export function BackendConfigModal({
                 // of the tab. Option-level refusals depend on that tab's own
                 // options, which a user has not set yet, so greying a tab for
                 // one would be predicting a choice they have not made.
+                // #1286: the SERVER's per-backend sentence first — momwire's
+                // own words for why THIS solver refuses THIS design, covering
+                // node gaps, junction ports and per-wire radius as well as
+                // the buried deck `capabilityRefusal` already answered. It is
+                // checked before the local gates for the reason the comment
+                // below gives: every locally-composed sentence here has been
+                // measurably false at least once.
+                const served = coverageRefusal(b.name, backendCoverage);
                 const refused = capabilityRefusal(b, design);
-                const usable = allowed && refused === null;
+                const usable = allowed && refused === null && served === null;
                 return (
                   <button
                     key={b.name}
@@ -173,7 +189,8 @@ export function BackendConfigModal({
                     className={backend.name === b.name ? "active" : ""}
                     disabled={!usable}
                     title={
-                      allowed
+                      served?.reason ??
+                      (allowed
                         ? (refused?.reason ?? undefined)
                         : // THE SERVED REASON, not the local constant. #1153
                           // measured that constant already FALSE for a
@@ -184,7 +201,7 @@ export function BackendConfigModal({
                           // switched then; this tooltip was not, so the
                           // falsehood survived exactly where a user hovers to
                           // find out why a tab is off.
-                          (restrictionReason ?? RESTRICTED_BACKEND_REASON)
+                          (restrictionReason ?? RESTRICTED_BACKEND_REASON))
                     }
                     onClick={() => usable && onChangeBackend(b)}
                   >

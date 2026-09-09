@@ -149,6 +149,62 @@ describe("BackendConfigModal — backend tab list", () => {
     }
   });
 
+  // #1286: per-backend coverage. The sentence is momwire's own, served per
+  // backend, and must beat both the design-wide `restrictionReason` and the
+  // local `RESTRICTED_BACKEND_REASON` paraphrase.
+  const COVERAGE = {
+    needs: ["node_gaps"],
+    refusals: {
+      sinusoidal: {
+        capability: "node_gaps",
+        reason: "node_gaps are not accepted by SinusoidalSolver: XYZ",
+      },
+    },
+  };
+
+  it("disables only the covered backend and shows the server's own sentence", () => {
+    renderModal({ backend: "bspline", backendCoverage: COVERAGE });
+    const refused = screen.getByRole("tab", { name: entry("sinusoidal").label });
+    expect(refused).toHaveProperty("disabled", true);
+    expect(refused.getAttribute("title")).toBe(
+      COVERAGE.refusals.sinusoidal.reason,
+    );
+    // The ABSENCE half: every other tab must stay enabled with no tooltip, or
+    // "refused" would be indistinguishable from "we marked everything".
+    for (const b of SERVED_ROSTER) {
+      if (b.name === "sinusoidal") continue;
+      const tab = screen.getByRole("tab", { name: b.label });
+      expect(tab).toHaveProperty("disabled", false);
+      expect(tab.getAttribute("title")).toBe(null);
+    }
+  });
+
+  it("prefers the served sentence over the local paraphrase", () => {
+    renderModal({
+      backend: "bspline",
+      backendCoverage: COVERAGE,
+      requiredBackends: ["bspline"],
+      restrictionReason: "a design-wide sentence",
+    });
+    const tab = screen.getByRole("tab", { name: entry("sinusoidal").label });
+    expect(tab.getAttribute("title")).toBe(COVERAGE.refusals.sinusoidal.reason);
+    expect(tab.getAttribute("title")).not.toBe(RESTRICTED_BACKEND_REASON);
+    expect(tab.getAttribute("title")).not.toBe("a design-wide sentence");
+  });
+
+  it("treats absent coverage as not-measured, not as a clean bill", () => {
+    // An older server sends no coverage — the prop is OMITTED, not passed as
+    // undefined, which is what "not measured" actually looks like on the wire.
+    renderModal({
+      backend: "bspline",
+      requiredBackends: ["bspline"],
+      restrictionReason: "a design-wide sentence",
+    });
+    const tab = screen.getByRole("tab", { name: entry("sinusoidal").label });
+    expect(tab).toHaveProperty("disabled", true);
+    expect(tab.getAttribute("title")).toBe("a design-wide sentence");
+  });
+
   it("does not fire onChangeBackend when a disallowed tab is clicked", async () => {
     const { user, onChangeBackend } = renderModal({
       backend: "bspline",
