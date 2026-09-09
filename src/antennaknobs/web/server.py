@@ -1044,6 +1044,49 @@ _SWEEP_Z_WRITER: dict[str, str] = {}
 # request performed zero engine solves" in a test.
 _SWEEP_Z_STATS = {"hits": 0, "misses": 0}
 
+# Which cache entries belong to a USER design (issue #1312). The cache keys
+# hash the REQUEST — design name, knobs, ground, backend — and nothing in a
+# request changes when a `user.*` design's file, or a data file it reads
+# (`read_nec`, `read_json`), changes on disk. `user_designs.refresh()`
+# reloads the Builder class, so the geometry preview is rebuilt from the
+# new file, while the next solve hashes to the pre-edit key and returns the
+# pre-edit currents: a 135-degree mast drawn over a 45-degree heat map.
+# Catalog designs cannot hit this; their code is fixed for the process.
+#
+# So every write for a user geometry is tagged here, and a designs refresh
+# evicts exactly those entries — the catalog's stay warm, and the hosted
+# instance (no user designs) evicts nothing. Tagging rather than a content
+# fingerprint in the key: a fingerprint would have to know every file a
+# design might read, and "the user asked for a refresh" already is the
+# invalidation signal the key was missing.
+_USER_CACHE_KEYS: dict[str, set] = {"solve": set(), "sweep": set()}
+
+
+def _is_user_geometry(req: dict) -> bool:
+    return str(req.get("geometry", "")).startswith(f"{user_designs.USER_NS}.")
+
+
+def _evict_user_design_caches() -> dict[str, int]:
+    """Drop every cached solve, cuts source and sweep point written for a
+    user design. Returns the per-cache eviction counts (observability, and
+    what the gate asserts). Called on every designs refresh."""
+    n_solve = n_cuts = n_sweep = 0
+    for key in _USER_CACHE_KEYS["solve"]:
+        n_solve += _SOLVE_CACHE.pop(key, None) is not None
+        # The cuts source is keyed by the same solve_id.
+        n_cuts += _CUTS_SRC_CACHE.pop(key, None) is not None
+    design_keys = _USER_CACHE_KEYS["sweep"]
+    if design_keys:
+        for key in [k for k in _SWEEP_Z_CACHE if k[0] in design_keys]:
+            del _SWEEP_Z_CACHE[key]
+            n_sweep += 1
+        for dk in design_keys:
+            _SWEEP_Z_WRITER.pop(dk, None)
+    _USER_CACHE_KEYS["solve"].clear()
+    _USER_CACHE_KEYS["sweep"].clear()
+    return {"solve": n_solve, "cuts": n_cuts, "sweep": n_sweep}
+
+
 # Frequencies land back from JSON as the exact float the client sent, but
 # quantise anyway (same reasoning as _CACHE_FLOAT_QUANT): a re-plan that
 # recomputes 28.470000000000002 must still hit.
@@ -1491,6 +1534,8 @@ def solve(req: dict, cancel=None) -> dict:
     _SOLVE_CACHE[key] = deepcopy(out)
     while len(_SOLVE_CACHE) > _SOLVE_CACHE_MAX:
         _SOLVE_CACHE.popitem(last=False)
+    if _is_user_geometry(req):
+        _USER_CACHE_KEYS["solve"].add(key)  # issue #1312
     _remember_cuts_source(key, out)
     # After the cache store: cuts depend on the request's cut angles, so the
     # cached entry stays angle-independent and every request gets fresh cuts.
@@ -1560,6 +1605,8 @@ async def sweep_endpoint(req: dict, request: Request):
     # for the same deterministic plan it asked for last time), every sweep
     # writes it. See _SWEEP_Z_CACHE for why the read side is asymmetric.
     design_key = _sweep_design_key(req)
+    if _is_user_geometry(req):
+        _USER_CACHE_KEYS["sweep"].add(design_key)  # issue #1312
     read_cache = lane_kind == "sweep_refine" or _base_sweep_may_read_cache(
         req, design_key
     )
@@ -2515,6 +2562,9 @@ def examples_endpoint():
     from .adapter import design_backend_coverage
 
     load_errors = user_designs.refresh()
+    # The refresh is the invalidation signal the cache keys lack (#1312):
+    # a user design's file may have changed under an unchanged request.
+    _evict_user_design_caches()
 
     def _sweep_policy_json(p) -> dict:
         return {
@@ -2743,6 +2793,7 @@ def trust_endpoint(req: dict):
     design_trust.trust(path, mode=mode)
     # Register it now so the caller can re-fetch /examples and see it live.
     user_designs.refresh()
+    _evict_user_design_caches()
     return {"ok": True, "stem": path.stem, "mode": mode}
 
 
@@ -2762,6 +2813,7 @@ def untrust_endpoint(req: dict):
         raise HTTPException(status_code=404, detail=f"no such user design: {stem!r}")
     removed = design_trust.untrust(path)
     user_designs.refresh()
+    _evict_user_design_caches()
     return {"ok": True, "stem": path.stem, "removed": removed}
 
 
