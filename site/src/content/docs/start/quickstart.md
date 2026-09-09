@@ -32,8 +32,8 @@ pip install "antennaknobs[web]"
 ### On Windows
 
 The same install in PowerShell. Use **Python 3.12** — it is the version every
-antennaknobs test lane runs; wheels exist for 3.10 through 3.15, but 3.12 is
-the one we can vouch for on Windows today. If `py -3.12` reports nothing,
+antennaknobs test lane runs — or 3.14, which was exercised by hand on Windows
+for v0.72.0 (wheels exist for 3.10 through 3.15). If `py -3.12` reports nothing,
 install 3.12 from [python.org](https://www.python.org/downloads/windows/) and
 tick *Add python.exe to PATH*.
 
@@ -83,7 +83,7 @@ from antennaknobs import Antenna
 from antennaknobs.designs.dipoles.invvee import Builder
 
 ant = Antenna(Builder())  # an inverted-vee dipole, default parameters
-print(ant.impedance())  # -> [(48.5-8.1j)]  ohms in free space, one entry per feed port
+print(ant.impedance())  # -> [(55.1-10.1j)]  ohms in free space, one entry per feed port
 ```
 
 Tune a knob and re-solve — parameters are plain attributes:
@@ -91,10 +91,10 @@ Tune a knob and re-solve — parameters are plain attributes:
 ```python
 b = Builder()
 b.length_factor = 1.0  # stretch the arms
-print(Antenna(b).impedance())
+print(Antenna(b).impedance())  # -> [(60.5+32.3j)]
 
 # over real earth — the workbench's default soil:
-print(Antenna(b, ground=("finite", 13.0, 0.005)).impedance())
+print(Antenna(b, ground=("finite", 13.0, 0.005)).impedance())  # -> [(53.6+34.1j)]
 ```
 
 `Antenna` also gives you the far-field pattern, a frequency sweep of the
