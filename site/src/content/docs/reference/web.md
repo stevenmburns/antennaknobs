@@ -469,11 +469,12 @@ is a worse failure than a refusal, so the tab refuses on PyNEC's behalf.
 **NEC-5** serves buried decks and is not gated; a conductor that stops exactly
 on the plane is refused, because the ground flag a card deck needs differs
 between a buried wire and one bonded to ground. **Sinusoidal-Galerkin** serves
-the wholly buried and the mixed decks since momwire 0.52.0 — a second basis
-sharing no below-interface code with the default — and is greyed only on a
-connected screen, where a buried radial meets the mast at a node in the plane,
-with momwire's own sentence for that junction until the basis has a crossing
-serve of its own (momwire#980).
+the buried classes since momwire 0.52.0 — wholly buried, mixed, and the
+connected screen where a buried radial meets the mast at a node in the plane
+— a second basis sharing no below-interface code with the default. The one
+spelling it greys, with momwire's own sentence, is N coincident rises meeting
+at the node (the catalog's retired `bundle` variant), which stays on the
+B-spline lane.
 
 The solver's gear menu also exposes **segments / wire (N)** — how finely each
 wire is discretized. More segments = more accurate (up to convergence) but a
