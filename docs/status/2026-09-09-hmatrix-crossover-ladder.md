@@ -40,9 +40,11 @@ overhead. That is the class to stop offering it for.
 ## Crossover by (class, degree, ground, `aca_tol`)
 
 Ratio of warm hmatrix wall to warm dense wall, by basis count. Below 1.00 the
-H-matrix is winning.
+H-matrix is winning. The far fraction column is the **top rung's** value and
+falls with the mesh — rhombic runs 0.838 → 0.980, lpda 0.787 → 0.976, skyloop
+**0.000** → 0.687 — which is itself most of the story.
 
-| class | d | ground | tol | far_frac | ratio by n |
+| class | d | ground | tol | far_frac (top rung) | ratio by n |
 |---|--:|---|---|--:|---|
 | wire.rhombic | 1 | finite | def | 0.980 | 1014:4.73 2022:2.94 3030:2.54 4042:1.59 6058:1.22 **8074:0.78** |
 | wire.rhombic | 2 | finite | def | 0.980 | 1014:4.88 2026:3.53 3034:2.72 4042:1.85 6058:1.36 **8078:0.90** |
