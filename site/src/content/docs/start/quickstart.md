@@ -83,7 +83,7 @@ from antennaknobs import Antenna
 from antennaknobs.designs.dipoles.invvee import Builder
 
 ant = Antenna(Builder())  # an inverted-vee dipole, default parameters
-print(ant.impedance())  # -> [(48.6-8.8j)]  ohms, one entry per feed port
+print(ant.impedance())  # -> [(48.5-8.1j)]  ohms in free space, one entry per feed port
 ```
 
 Tune a knob and re-solve — parameters are plain attributes:
@@ -92,6 +92,9 @@ Tune a knob and re-solve — parameters are plain attributes:
 b = Builder()
 b.length_factor = 1.0  # stretch the arms
 print(Antenna(b).impedance())
+
+# over real earth — the workbench's default soil:
+print(Antenna(b, ground=("finite", 13.0, 0.005)).impedance())
 ```
 
 `Antenna` also gives you the far-field pattern, a frequency sweep of the

@@ -11,7 +11,7 @@ import numpy as np
 
 def _as_engine(obj):
     """Accept either an AntennaBuilder (legacy path; wrap with the default
-    Antenna alias = PyNECEngine) or an already-constructed SimulationEngine
+    Antenna alias, the momwire engine since #1323) or an already-constructed SimulationEngine
     instance (lets callers pick the backend and any ground/options)."""
     if isinstance(obj, SimulationEngine):
         return obj
