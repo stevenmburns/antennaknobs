@@ -874,7 +874,18 @@ _DROP_CARDS = {
 }
 _REFUSE_CARDS = {
     "CW": "CW (NEC-4 catenary wire) has no NEC-5 counterpart",
-    "SM": "SM (NEC-2 multiple-patch surface) is rejected by NEC-5 (DATAGN input error); rewrite as SP patches",
+    # SP / SC are NEC-2 / NEC-4 surface-patch cards. NEC-5 spells a DIFFERENT
+    # card with the mnemonic SP, so a patch deck is not a syntax error there:
+    # it is silently read as something else. Fed through untranslated, the
+    # manual's Example 4 (T on a box) solves on stock x13 as three bare wires
+    # with no box, and dies on the a43 beta with an integer divide by zero in
+    # the geometry phase — and this tool reported that as an a43 regression
+    # (Ward note of 2026-09-08, finding 1; corrected 2026-09-09, AC6LA's
+    # catch). 42 decks in the public collections carry SP/SC. They are not
+    # NEC-5 input in any form this tool can write, so they refuse by name.
+    "SP": "SP (NEC-2/NEC-4 surface patch) is a different card in NEC-5; a patch deck cannot be translated",
+    "SC": "SC (NEC-2/NEC-4 patch continuation) is a different card in NEC-5; a patch deck cannot be translated",
+    "SM": "SM (NEC-2 multiple-patch surface) is rejected by NEC-5 (DATAGN input error); a patch deck cannot be translated",
     "GF": "GF (NEC-2 numerical Green's function read) has no NEC-5 counterpart",
     "WG": "WG (NEC-2 numerical Green's function write) has no NEC-5 counterpart",
 }
