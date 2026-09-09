@@ -83,6 +83,7 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
     ],
     "wire_position": [
       "above",
+      "buried",
       "contact"
     ]
   },
