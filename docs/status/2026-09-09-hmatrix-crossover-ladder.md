@@ -111,10 +111,21 @@ The ladder's one timeout row (`elt_whip` d=2 finite, >600 s) was initially read
 as a momwire scaling regression against #979, and nearly filed as one: a
 Sommerfeld fallback quietly filling 4.5 GB. Three things were wrong.
 
-1. **The suppressed warning.** The harness wraps its solve in
-   `simplefilter("ignore")` for tidy output, and `HMatrixFragmented` is the
-   *only* signal that a deck was refused the H-matrix. With it gone there is
-   nothing in the recorded row that says the two arms ran identical code.
+1. **The invisible warning — and it is worse than "suppressed".** The harness
+   wraps its solve in `simplefilter("ignore")` for tidy output, and
+   `HMatrixFragmented` is the *only* signal that a deck was refused the
+   H-matrix. But removing that `ignore` would not have helped: `impedance()`
+   is decorated `@_captures_advisories`, which runs the call inside its own
+   `catch_warnings(record=True)` and **absorbs every momwire-origin warning by
+   module root** into `eng.advisories`, re-emitting only non-momwire ones.
+   `HMatrixFragmented` lives in `momwire.hmatrix`, so it is absorbed.
+
+   Measured: `catch_warnings(record=True)` with `simplefilter("always")`
+   wrapped around construction *and* the solve records **zero** warnings, while
+   the same deck's solver returns `_prefers_dense_for_fragmentation() is True`
+   and raises `HMatrixFragmented` when asked directly. An outer warnings
+   handler is the wrong instrument for this channel by construction; the
+   advisory is only ever readable from `eng.advisories`.
 2. **The timeout row lost its own configuration.** `worker_main` sets
    `aca_tol` in the `out.update(...)` *after* the solve, so a row written by
    the parent on timeout carries the parent's context only — and `aca_tol`
@@ -137,10 +148,10 @@ Two fixes worth having, neither filed yet:
 - A **queryable flag** for the fragmentation refusal, alongside
   `_last_somm_fallback`, so a refusal is legible after the fact instead of only
   as a warning a caller may have suppressed.
-- The harness should **record the engine's advisories rather than discard
-  them**, and assert the two arms differ before reporting a ratio. A relZ of
-  identically 0.0 is not a strong pass; it is the tell that nothing was
-  compared.
+- The harness should **record `eng.advisories` — the property, never an outer
+  `catch_warnings`** — into every row, and assert the two arms actually differ
+  before reporting a ratio. A relZ of identically 0.0 is not a strong pass; it
+  is the tell that nothing was compared.
 
 ## The #984 residual window
 
