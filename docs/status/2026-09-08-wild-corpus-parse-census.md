@@ -143,6 +143,59 @@ The July census's framing — "one tolerant-tokeniser fix" as the second unlock
 — still applies at a smaller scale. There is no third 642-deck unlock left;
 what remains is a long tail plus one feature.
 
+## Addendum (2026-09-09): GC tapered wires — 157 → 147
+
+`nec_import` now translates the canonical NEC-2 tapered wire (a `GW` with zero
+radius followed by `GC 0 0 RDEL RAD1 RAD2`) into a run of one-segment `GW`
+wires carrying the GW's tag, so `(tag, segment)` addressing on EX / LD / TL
+still resolves. **Rejections fall 157 → 147, ten decks, with zero
+regressions** (a full before/after diff of the census: 10 decks move from
+`rejected`, none moves the other way).
+
+Both progressions are geometric, and both were **derived from nec2c's own
+segmentation table** rather than assumed — nec2c reads GC natively:
+
+- **radii** geometric from `RAD1` to `RAD2`. On `YI20_40B.NEC` (16 segments,
+  .006 → .011) the ratio is (11/6)^(1/15) = 1.041237, and all sixteen of
+  nec2c's printed radii match.
+- **lengths** `L[i+1] = L[i] · RDEL`, scaled to the wire's own span. On
+  `ch-3/3-1a-nec2.nec` (9 segments over 0.232 m, RDEL 0.8163265) that predicts
+  L₁ = 0.050785 and nec2c prints 0.0508.
+
+The length taper is **honoured, not refused**. The original issue expected it
+to be rare; it is a third of the canonical set, and `3-1a-nec2.nec` carries two
+different RDEL values in one deck.
+
+Solve gate against nec2c, same decks:
+
+| deck | AK | nec2c | ΔΓ |
+|---|--:|--:|--:|
+| `YI20_40B.NEC` (radius taper) | 25.4685 − 9.8620j | 25.4010 − 9.9794j | 0.00234 |
+| `3-1a-nec2.nec` (length taper) | 70.9267 − 3.1119j | 70.9230 − 3.1248j | **0.00009** |
+
+### What the taper class still holds, and why it is not 30
+
+The issue estimated ~30 decks from the two refusal messages. Classifying all
+30 shows the GC translation was never going to reach most of them:
+
+| decks | class | status |
+|--:|---|---|
+| 10 | **unlocked here** | canonical NEC-2 GC |
+| 10 | `GH` zero radius, **no GC anywhere in the file** | separate issue |
+| 7 | GC in a NEC-4 spelling (6, 7 and 9 fields) | separate issue; refused by name |
+| 3 | no GC — incl. `arrl/RHOM.NEC` | separate issue |
+
+`RHOM.NEC` deserves its own note because it was the issue's headline gate: it
+has **no GC card**, its radius sits on a wrapped continuation line, and
+**nec2c rejects the deck outright** (`GEOMETRY DATA CARD ERROR`), so it could
+never have been the reference it was named as. It needs continuation-line
+support, which is a different fix.
+
+Every remaining case now refuses **by name** — "only the plain continuation
+form … is translated", or "zero radius and no GC continuation followed it" —
+rather than under the old blanket message, which claimed a taper on 13 decks
+that have none.
+
 ## Caveats
 
 - Parse-only. A deck that parses is not necessarily one that solves, and this

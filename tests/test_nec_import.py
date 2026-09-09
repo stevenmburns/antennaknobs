@@ -285,8 +285,14 @@ def test_multiple_feeds_and_complex_voltage():
 def test_errors_are_specific():
     with pytest.raises(ValueError, match="plane-wave"):
         parse_nec("GW 1 3 0 0 0 1 0 0 0.001\nGE\nEX 1 10 10 0 0 0\nEN\n")
-    with pytest.raises(ValueError, match="tapered"):
-        parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGC 0 0 0.5 0.001 0.002\nGE\nEN\n")
+    # The canonical NEC-2 taper (GW zero radius + `GC 0 0 RDEL RAD1 RAD2`) is
+    # TRANSLATED since #1294, not refused, so what stays specific here are the
+    # two ways a taper can still be malformed: a zero radius whose GC never
+    # arrives, and a GC spelling we do not read.
+    with pytest.raises(ValueError, match="no GC continuation followed it"):
+        parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGE\nEN\n")
+    with pytest.raises(ValueError, match="only the plain continuation form"):
+        parse_nec("GW 1 3 0 0 0 1 0 0 0.0\nGC 2 0 0 .001 .001 .004 .1\nGE\nEN\n")
     with pytest.raises(ValueError, match="surface patch"):
         parse_nec("SP 0 0 1 0 0 0 0 0\nGE\nEN\n")
     # NEC-5's NL card names a mesh FILE; the refusal must name the surface
