@@ -19,6 +19,7 @@ from __future__ import annotations
 import importlib
 
 import pytest
+from pathlib import Path
 
 import antennaknobs.web.server  # noqa: F401 — must load before adapter (import cycle)
 from antennaknobs.engines.nec2 import NEC2Engine, NEC2Error
@@ -179,10 +180,9 @@ def test_a_real_solve_reports_a_parsed_budget_not_a_fallback(portal_exe):
     assert budget["wire_loss_w"] > 0.0, budget
     assert eng._excited_efficiency == budget["efficiency_pct"] / 100.0
     assert eng._excited_p_in == budget["input_w"] > 0.0
-    assert [label for label, _w in eng._excited_power_budget][:2] == [
-        "Radiated",
-        "Wire loss",
-    ]
+    assert eng._excited_p_radiated == budget["radiated_w"] > 0.0
+    # LOSSES ONLY — see the protocol comment in `antennaknobs.engine`.
+    assert [label for label, _w in eng._excited_power_budget] == ["Wire loss"]
 
 
 def test_the_web_solve_ships_the_budget_fields(portal_exe):
@@ -193,7 +193,7 @@ def test_the_web_solve_ships_the_budget_fields(portal_exe):
     )
     assert 0.90 < out["radiation_efficiency"] < 1.0, out["radiation_efficiency"]
     assert out["input_power_w"] > 0.0
-    assert [r["label"] for r in out["power_budget"]][:2] == ["Radiated", "Wire loss"]
+    assert [r["label"] for r in out["power_budget"]] == ["Wire loss"]
     assert out["z_in_re"] and out["ground_model_applied"]
 
 
@@ -283,3 +283,47 @@ def test_solve_for_budget_falls_back_for_an_engine_without_a_snapshot():
 
     cli._solve_for_budget(E())
     assert calls == ["currents"]
+
+
+# --------------------------------------------------------------------------
+# the power-budget protocol: the rows are LOSSES
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("engine_module", ["nec2", "nec5"])
+def test_no_wrapper_stamps_radiated_power_as_a_budget_row(engine_module):
+    """The rule the protocol comment in `antennaknobs.engine` states, as a test.
+
+    Every consumer derives what reaches the antenna as `p_in - sum(rows)` —
+    `cli.py` prints it as "antenna (accepted)" and `SolveReadout.tsx` renders the
+    same subtraction — so a row that is not a loss is subtracted from the input as
+    if it were. Both wrappers used to stamp ("Radiated", P_rad) because their
+    printouts list it beside the loss, and on a lossless design that made P_rad
+    == P_in: the CLI and the web NEC-5 tab both read "antenna (accepted): 0 %"
+    where momwire read 100 % (#1354).
+
+    Asserted on the SOURCE, because the mistake is one a new wrapper repeats by
+    copying: the fix is not a value to check but a line not to write.
+    """
+    src = importlib.import_module(f"antennaknobs.engines.{engine_module}").__file__
+    body = Path(src).read_text()
+    stamp = body.split("_excited_power_budget = ", 1)[1].split("\n\n", 1)[0]
+    assert '"Radiated"' not in stamp, stamp[:200]
+    assert '"Wire loss"' in stamp, stamp[:200]
+
+
+def test_the_accepted_remainder_is_the_input_minus_the_losses(portal_exe):
+    """The number the wrong rows made zero. `broadband.t2fd` burns most of its
+    input in a terminating resistor, so the split is a real one: NEC-2 reports it
+    as STRUCTURE LOSS where momwire attributes it to the `Load term` branch, and
+    the two agree to a few tenths of a percent — which is also a cross-engine
+    check that the loss lands in the right column."""
+    B = importlib.import_module("antennaknobs.designs.broadband.t2fd").Builder
+    eng = NEC2Engine(B(), ground="free")
+    _zs, _c, budget = eng.solve_snapshot()
+    losses = sum(w for _label, w in eng._excited_power_budget)
+    accepted = eng._excited_p_in - losses
+    assert 0.55 < losses / eng._excited_p_in < 0.70, losses / eng._excited_p_in
+    assert 0.30 < accepted / eng._excited_p_in < 0.45, accepted / eng._excited_p_in
+    # And radiated is still available, off the protocol's own attribute.
+    assert eng._excited_p_radiated == budget["radiated_w"]

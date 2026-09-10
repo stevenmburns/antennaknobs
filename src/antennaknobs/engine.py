@@ -30,6 +30,37 @@ class FarField(NamedTuple):
     note: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# The duck-typed power-budget protocol every engine stamps, and its ONE rule
+# ---------------------------------------------------------------------------
+#
+# Three attributes, read by `cli.py`'s pattern/schematic commands and by the web
+# adapter's `_budget_rows`, on whichever engine ran:
+#
+#   _excited_p_in            input power, watts
+#   _excited_efficiency      structural efficiency, a fraction
+#   _excited_power_budget    [(label, watts), ...]
+#
+# **THE ROWS ARE LOSSES.** Nothing else. Every consumer derives the remainder
+# that reaches the antenna as `p_in - sum(watts)` — `cli.py` prints it as
+# "antenna (accepted)" and `SolveReadout.tsx` renders the same subtraction — so a
+# row that is not a loss is subtracted from the input as if it were.
+#
+# This was learned the expensive way (issue #1354). The NEC-5 wrapper stamped
+# ("Radiated", P_rad) beside ("Wire loss", P_loss) because its printout's POWER
+# BUDGET block lists both, and the NEC-2 wrapper copied it. On a lossless design
+# that makes P_rad == P_in, so both consumers printed **"antenna (accepted):
+# 0 mW (0.0%)"** where momwire printed 100 %. The web NEC-5 tab had been showing
+# that zero on screen; the CLI only started showing it when #1397 first reached
+# these rows with the subtraction.
+#
+# Radiated power is NOT a budget row. It is available as `_excited_efficiency`
+# (times `_excited_p_in`) and, on the wrappers that parse it from a printout, as
+# `_excited_p_radiated`. The frontend's own "radiated (incl. ground)" row comes
+# from the norm check, which is the honest third ledger — a loss list was never
+# the channel for it.
+
+
 def refuse_graded_wires(tups, engine_name):
     """A card deck takes one uniform count per wire; the graded-mesh spelling
     (``GradedSegments``, momwire#674's node grading) carries a count per EDGE.
