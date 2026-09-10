@@ -34,7 +34,7 @@ python nec5_corpus.py check     --exe NEC5CL.exe --src nec5 --keep-dir failed
 ## Without Python: the Windows executable
 
 The same file, frozen with PyInstaller and signed, is published as
-[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.4)
+[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.5)
 under the tool's own release tag, `nec5-corpus-v<VERSION>` — not with the
 antennaknobs releases, and not inside the Windows workbench, because the
 people who want a NEC-5 corpus do not all want an antenna modeller. Unzip,
