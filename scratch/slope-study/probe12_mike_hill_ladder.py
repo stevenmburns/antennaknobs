@@ -22,6 +22,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+from matplotlib.patches import Polygon  # noqa: E402
 
 from antennaknobs.engines.momwire import MomwireEngine  # noqa: E402
 
@@ -34,6 +35,7 @@ from probe9_mike_hillside import FREQ, LAMBDA, SOIL, mike_terrain  # noqa: E402
 from probe10_mike_elevation_figure import (  # noqa: E402
     C_FLAT,
     GRID,
+    GROUND,
     INK,
     INK2,
     MUTED,
@@ -117,6 +119,63 @@ def panel(ax, H, level, facet, planar):
         )
 
 
+def sketch_axes(ax):
+    """Mike's drawing, generic: plateau left, 45° slope, plain right, the
+    mast half way up; H is the rung of the ladder."""
+    H = 100.0
+    run_m = H
+    left, right = -0.9 * run_m, 1.9 * run_m
+    ground = [
+        (left, H),
+        (0.0, H),
+        (run_m, 0.0),
+        (right, 0.0),
+        (right, -22.0),
+        (left, -22.0),
+    ]
+    ax.add_patch(Polygon(ground, closed=True, facecolor=GROUND, edgecolor=INK2, lw=1.0))
+    x, z = 0.5 * run_m, 0.5 * H
+    ax.plot([x, x], [z, z + 24], color=C_FACET, lw=2.4, solid_capstyle="round")
+    ax.plot([x - 9, x + 9], [z + 1, z + 1], color=C_FACET, lw=1.2, alpha=0.8)
+    ax.text(
+        x + 8, z + 22, "mast, mid-slope", ha="left", va="top", fontsize=8, color=INK
+    )
+    xa = -0.45 * run_m
+    ax.annotate(
+        "",
+        xy=(xa, H),
+        xytext=(xa, 0),
+        arrowprops=dict(arrowstyle="<->", color=INK2, lw=0.9),
+    )
+    ax.text(
+        xa - 6,
+        H / 2,
+        "H",
+        va="center",
+        ha="right",
+        fontsize=9,
+        color=INK,
+        style="italic",
+    )
+    ax.text(0.30 * run_m, 0.14 * H, "45°", fontsize=8, color=INK, ha="center")
+    ax.text(right - 6, -11, "plain", fontsize=8, color=INK2, style="italic", ha="right")
+    ax.text(
+        -0.45 * run_m,
+        H - 14,
+        "plateau",
+        fontsize=8,
+        color=INK2,
+        style="italic",
+        ha="center",
+    )
+    ax.text(left + 4, H + 30, "← uphill", fontsize=7.5, color=INK2)
+    ax.text(right - 4, H + 30, "downhill →", fontsize=7.5, color=INK2, ha="right")
+    ax.set_xlim(left, right)
+    ax.set_ylim(-22, H + 42)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=os.environ.get("PROBE10_CACHE", ""))
@@ -182,10 +241,21 @@ def main():
             ha="center",
             va="bottom",
         )
+    ax_s = fig.add_axes([0.52, 0.255, 0.40, 0.105])
+    sketch_axes(ax_s)
+    fig.text(
+        0.72,
+        0.365,
+        "the profile: mast half way up a 45° hill of relief H",
+        fontsize=8.8,
+        color=INK,
+        ha="center",
+        va="bottom",
+    )
     fig.legend(
         *handles,
         loc="center",
-        bbox_to_anchor=(0.72, 0.27),
+        bbox_to_anchor=(0.72, 0.205),
         fontsize=8,
         frameon=False,
         ncol=1,
@@ -196,7 +266,8 @@ def main():
         "How to read it. Blue is the specular-facet terrain model: the antenna solved on level ground with the local "
         "soil, each far-field direction reflected off the facet its specular point lands on, no diffraction, nothing "
         "read below the horizontal. Orange is the same antenna on an infinite 45° plane, solved in the tilted frame "
-        "and read in the true one (its main lobe, below the horizontal, is off this half-disc). Above the horizontal "
+        "and read in the true one; its main lobe sits below the horizontal, off this half-disc, so the orange line is "
+        "only that lobe's upper skirt. Above the horizontal "
         "a ray shallower than the slope passes over it and reaches the plain, so what the facet model draws downhill "
         "is the direct ray plus the plain's reflection from a mirror H/2 below the mast: at half a wavelength of relief "
         "that is one broad null near 20°; as the relief grows the null multiplies into the height-gain comb of a tall "
