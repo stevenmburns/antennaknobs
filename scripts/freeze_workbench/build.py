@@ -168,6 +168,15 @@ def main() -> int:
     ]
     for name in HIDDEN_IMPORTS:
         cmd += ["--hidden-import", name]
+    # The design catalog is discovered by LISTING the package's `designs`
+    # directory (`adapter.list_designs` walks it with iterdir), and a frozen
+    # bundle keeps modules inside its archive with no directory to list. So
+    # the directory ships as data beside the archive too — the modules still
+    # import from the archive; the listing sees the files.
+    import antennaknobs
+
+    designs = Path(antennaknobs.__file__).resolve().parent / "designs"
+    cmd += ["--add-data", f"{designs}{os.pathsep}antennaknobs/designs"]
     if os.name == "nt":
         runtime = _openmp_runtime()
         if runtime is None:
