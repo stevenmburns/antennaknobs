@@ -121,6 +121,28 @@ disagreement rather than like a bug in one of ours.
 It also means a `nec2` result is reproducible by hand. Download the deck, run
 your own binary over it, and you should get the printout antennaknobs parsed.
 
+## Efficiency and the power budget
+
+The engine reads NEC-2's own **POWER BUDGET** block — input power, radiated
+power, structure loss, network loss and efficiency — and the web lane's
+efficiency and power-budget rows come from it, exactly as the NEC-5 lane's come
+from its printout. A plain `XQ` deck already carries the block, so this costs
+nothing extra; a build that only prints one alongside a pattern request gets a
+single retry with the smallest possible `RP` card, measured at about 10 ms
+against solve times of 0.45 s and 1.1 s on 43-segment and 1376-segment decks —
+inside the process-startup noise either way.
+
+**If the block cannot be read, the solve refuses.** It does not fall back to
+100 % efficiency and zero input power. Those are the values the response fields
+default to, they look exactly like a lossless antenna, and shipping them would
+be the same confident-wrong-answer failure this engine refuses a buried wire to
+avoid.
+
+For the same reason, a printout carrying the binary's own complaint is reported
+as that complaint. A deck the engine rejects used to surface as "no POWER
+BUDGET", which is true and useless — it names the block that is missing rather
+than the reason it is.
+
 ## What to expect from the numbers
 
 `nec2` and `pynec` are the same code family reached two ways, so on a design
