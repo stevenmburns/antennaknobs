@@ -6,26 +6,34 @@ import type { MeasuredData, SolveRequest } from "../../lib/api";
 // handful of setters / builders it needs as arguments and the component keeps
 // owning them.
 
-// Export the current design as a NEC2 .nec card deck and trigger a
-// browser download. The backend reuses the same builder construction as
-// the live solve, so the deck matches what's on screen. Designs with no
-// faithful native-NEC form (TL/DiffTL networks) come back 422; surface
-// the server's message rather than downloading an error page.
+// Export the current design as a .nec card deck and trigger a browser
+// download. The backend reuses the same builder construction as the live
+// solve, so the deck matches what's on screen.
+//
+// `dialect` picks NEC-2 or NEC-5 (issue #1389). BOTH items are always offered,
+// whatever engines are installed: neither writer needs one, and the person who
+// most needs the file is the one without the engine on this machine. What varies
+// is whether the DESIGN can be said in that dialect — a buried, ground-contact
+// or graded design comes back 422 from nec2 with a sentence pointing at the
+// nec5 download, and a TL / virtual-driver network comes back 422 from both.
+// Surface the server's message rather than downloading an error page.
 export async function downloadNec({
   setGearMenuOpen,
   buildRequest,
   geometry,
+  dialect = "nec2",
 }: {
   setGearMenuOpen: (open: boolean) => void;
   buildRequest: () => SolveRequest;
   geometry: string;
+  dialect?: "nec2" | "nec5";
 }) {
   setGearMenuOpen(false);
   try {
     const resp = await fetch("/export_nec", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildRequest()),
+      body: JSON.stringify({ ...buildRequest(), dialect }),
     });
     if (!resp.ok) {
       let detail = `NEC export failed (${resp.status}).`;
@@ -40,7 +48,10 @@ export async function downloadNec({
     const blob = await resp.blob();
     const cd = resp.headers.get("Content-Disposition") ?? "";
     const m = cd.match(/filename="([^"]+)"/);
-    const filename = m ? m[1] : `${geometry.replace(/\./g, "_") || "antenna"}.nec`;
+    const fallbackExt = dialect === "nec5" ? ".nec5.nec" : ".nec";
+    const filename = m
+      ? m[1]
+      : `${geometry.replace(/\./g, "_") || "antenna"}${fallbackExt}`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

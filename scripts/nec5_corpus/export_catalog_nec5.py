@@ -48,6 +48,8 @@ def main(argv=None) -> int:
 
     from antennaknobs.cli import list_builtin_designs
     from antennaknobs.engines.nec5 import NEC5Engine, NEC5Error, _network_needs_reducer
+    from antennaknobs.nec5_export import _ENGINE_CM as ENGINE_CM
+    from antennaknobs.nec5_export import catalog_header
 
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -115,19 +117,18 @@ def main(argv=None) -> int:
                         + (f".{suffix}" if suffix else "")
                         + ".nec"
                     )
-                    header = (
-                        f"CM antennaknobs catalog design {dotted} ({rung} mesh, {gname} ground)\n"
-                        f"CM {b.freq} MHz; MIT licence, github.com/stevenmburns/antennaknobs\n"
-                    )
-                    if note:
-                        header += f"CM {note}\n"
+                    # The header comes from `antennaknobs.nec5_export`, which
+                    # the app's Download NEC-5 button also calls (#1389): a
+                    # download of a design at a catalog rung and ground must be
+                    # the file this ships for it, and one spelling of the text
+                    # is what makes that equality hold.
+                    header = catalog_header(dotted, rung, gname, b.freq, note=note)
                     # newline="\n": the same commit writes the same BYTES on
                     # every platform — the release lane is Windows, and its
                     # first publish differed from a Linux export on every
                     # deck by CRLF alone (#1376). NEC-5 reads either.
                     (out / name).write_text(
-                        header
-                        + deck.replace("CM antennaknobs NEC5Engine deck\n", "", 1),
+                        header + deck.replace(ENGINE_CM, "", 1),
                         newline="\n",
                     )
                     written.append(

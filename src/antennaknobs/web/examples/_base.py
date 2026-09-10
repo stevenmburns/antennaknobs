@@ -377,6 +377,11 @@ class AntennaExample:
     #: distributed bundle offer it.
     nec2_solve: Optional[SolveFn] = None
     nec2_pattern: Optional[SolveFn] = None
+    #: Render the geometry as a NEC-5 card deck (str) for the current request
+    #: (issue #1389). Offered ALWAYS, whatever engines are installed — the
+    #: writer needs none — and it serves the buried / ground-contact / graded
+    #: designs the NEC-2 writer refuses.
+    nec5_export: Optional[Callable[[dict], str]] = None
     # Render the geometry as a NEC2 .nec card deck (str) for the current
     # request (params/variant/freq/ground). None when the design has no
     # faithful native-NEC representation (TL/virtual-driver networks).

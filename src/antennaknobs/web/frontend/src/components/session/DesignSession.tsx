@@ -1648,6 +1648,14 @@ function DesignSessionBody({
           onDownloadNec={() =>
             downloadNec({ setGearMenuOpen, buildRequest, geometry })
           }
+          onDownloadNec5={() =>
+            downloadNec({
+              setGearMenuOpen,
+              buildRequest,
+              geometry,
+              dialect: "nec5",
+            })
+          }
           isMobile={isMobile}
           fullscreen={fullscreen}
           showHeatmap={showHeatmap}

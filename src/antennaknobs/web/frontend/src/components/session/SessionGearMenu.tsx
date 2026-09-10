@@ -12,6 +12,7 @@ export function SessionGearMenu({
   copiedParams,
   onCopyParams,
   onDownloadNec,
+  onDownloadNec5,
   isMobile,
   fullscreen,
   showHeatmap,
@@ -42,6 +43,7 @@ export function SessionGearMenu({
   copiedParams: boolean;
   onCopyParams: () => void;
   onDownloadNec: () => void;
+  onDownloadNec5: () => void;
   isMobile: boolean;
   fullscreen: ReturnType<typeof useFullscreen>;
   showHeatmap: boolean;
@@ -104,14 +106,29 @@ export function SessionGearMenu({
                   >
                     {copiedParams ? "Copied ✓" : "Copy params (Python)"}
                   </button>
+                  {/* Two dialects, both always offered (issue #1389). Neither
+                      writer needs an engine, so hiding one behind an installed
+                      binary would withhold the file from the person who most
+                      needs it. Which one a DESIGN can be said in is the
+                      server's answer: a buried or graded design refuses NEC-2
+                      with a sentence pointing here. */}
                   <button
                     type="button"
                     className="gear-menu-item"
                     role="menuitem"
                     onClick={onDownloadNec}
-                    title="Download this design as a NEC2 .nec card deck (for xnec2c, 4nec2, EZNEC, …)"
+                    title="Download this design as a NEC-2 .nec card deck (for xnec2c, 4nec2, EZNEC, nec2c, …). Buried and graded designs cannot be written as NEC-2 — use the NEC-5 deck for those."
                   >
-                    Download .nec deck
+                    Download NEC-2 .nec
+                  </button>
+                  <button
+                    type="button"
+                    className="gear-menu-item"
+                    role="menuitem"
+                    onClick={onDownloadNec5}
+                    title="Download this design as a NEC-5 .nec card deck (for NEC5CL / EZNEC Pro+). The same deck the corpus tool's catalog-nec5 ships, and the one that carries buried wires and graded meshes."
+                  >
+                    Download NEC-5 .nec
                   </button>
                   {/* Reactive copies of the chart-overlay toggles (same state
                       the overlays use, so the two locations can never

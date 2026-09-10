@@ -276,6 +276,61 @@ def probe_nec2(explicit: str | None = None, *, timeout: float = 20.0) -> str | N
     return exe if ok else None
 
 
+def refuse_nec2_geometry(tups, ground, *, suggest_download: bool = False) -> None:
+    """Refuse geometry a NEC-2 deck cannot carry, by name, rather than let the
+    binary answer.
+
+    NEC-2's ground is a half-space boundary condition on the fields ABOVE it; the
+    formulation has no below-ground medium at all. A buried wire is not rejected
+    by nec2++ — it is solved **as if it were in air** and a number is printed with
+    no warning, the worst failure available to an oracle. So the wrapper refuses,
+    and so does the deck WRITER: handing a user a .nec of a buried antenna is the
+    same wrong answer one step further away from anyone who could catch it
+    (antennaknobs#1389).
+
+    One function for both, so the app cannot offer a download of a deck its own
+    NEC-2 lane would refuse. A wire lying IN the plane is refused for a related
+    reason — its image coincides with itself. A wire with ONE end at z=0 is
+    ordinary NEC-2 (every ground-mounted vertical) and is not refused.
+
+    With no ground there is no plane and nothing to refuse: a free-space model may
+    sit anywhere, below z=0 included.
+
+    `suggest_download` adds the sentence the gear menu needs — the NEC-5 deck of
+    the same design, which is the one the user actually wanted.
+    """
+    if ground is None or ground == "free":
+        return
+    instead = (
+        " — download the NEC-5 deck instead, whose ground serves buried conductors"
+        if suggest_download
+        else ""
+    )
+    for i, t in enumerate(tups):
+        w = as_wire(t)
+        z0, z1 = float(w.p0[2]), float(w.p1[2])
+        if z0 == 0.0 and z1 == 0.0:
+            raise ValueError(
+                f"wire {i + 1} lies in the ground plane (z=0), where its own "
+                "image coincides with it — NEC-2's ground forbids it"
+            )
+        if (z0 < 0.0 < z1) or (z1 < 0.0 < z0):
+            raise NotImplementedError(
+                f"wire {i + 1} crosses the ground plane mid-span: NEC-2 has no "
+                "below-ground medium and solves the buried part as if it were in "
+                "air, so the wrapper refuses rather than report a number nothing "
+                "warns about — split the wire at z=0 and run the buried part on "
+                "momwire (or NEC-5)" + instead
+            )
+        if z0 < 0.0 or z1 < 0.0:
+            raise NotImplementedError(
+                f"wire {i + 1} dips below z=0: NEC-2 has no below-ground medium "
+                "and solves a buried conductor as if it were in air — use the "
+                "momwire engine, whose buried serve is certified, or NEC-5, whose "
+                "Sommerfeld path serves it" + instead
+            )
+
+
 class NEC2Engine(SimulationEngine):
     """A user-supplied NEC-2 console binary, driven over text.
 
@@ -323,46 +378,7 @@ class NEC2Engine(SimulationEngine):
 
     # -- refusals ---------------------------------------------------------
     def _check_geometry_against_ground(self) -> None:
-        """Refuse what NEC-2 will not serve, by name, rather than let it answer.
-
-        NEC-2's ground is a half-space boundary condition on the fields above
-        it; it has no below-ground medium. A buried wire is not rejected by the
-        binary — nec2++ solves it **as if it were in air** and prints a number
-        with no warning, which is the worst possible failure for an oracle. So
-        the wrapper refuses it, the way `PyNECEngine` does, and points at the
-        engines that do serve it.
-
-        A wire lying IN the plane is refused for the same class of reason: its
-        image coincides with itself.
-
-        With no ground there is no plane and nothing to refuse — a free-space
-        deck may sit anywhere, including below z=0.
-        """
-        if self.ground is None or self.ground == "free":
-            return
-        for i, t in enumerate(self.tups):
-            w = as_wire(t)
-            z0, z1 = float(w.p0[2]), float(w.p1[2])
-            if z0 == 0.0 and z1 == 0.0:
-                raise ValueError(
-                    f"wire {i + 1} lies in the ground plane (z=0), where its "
-                    "own image coincides with it — NEC-2's ground forbids it"
-                )
-            if (z0 < 0.0 < z1) or (z1 < 0.0 < z0):
-                raise NotImplementedError(
-                    f"wire {i + 1} crosses the ground plane mid-span: NEC-2 has "
-                    "no below-ground medium and solves the buried part as if it "
-                    "were in air, so the wrapper refuses rather than report a "
-                    "number nothing warns about — split the wire at z=0 and "
-                    "run the buried part on momwire (or NEC-5)"
-                )
-            if z0 < 0.0 or z1 < 0.0:
-                raise NotImplementedError(
-                    f"wire {i + 1} dips below z=0: NEC-2 has no below-ground "
-                    "medium and solves a buried conductor as if it were in "
-                    "air — use the momwire engine, whose buried serve is "
-                    "certified, or NEC-5, whose Sommerfeld path serves it"
-                )
+        return refuse_nec2_geometry(self.tups, self.ground)
 
     # -- running ----------------------------------------------------------
     def deck(self, freq: float, *, npoints: int = 1, df: float = 0.0, rp=None) -> str:

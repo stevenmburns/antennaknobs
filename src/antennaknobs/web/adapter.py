@@ -2828,6 +2828,39 @@ _PYNEC_SEAMS = _SolveSeams(
 )
 
 
+# The catalog export writes two mesh rungs and two grounds and names them in the
+# deck's header. The download reuses those words so that a download at a catalog
+# point is byte-equal to the file the corpus tool's zip ships (#1389); off the
+# grid it says what is true instead of pretending to be a rung.
+_CATALOG_RUNGS = {1: "default", 2: "refined"}
+
+
+def _catalog_rung(cls, builder) -> str:
+    """The header's word for this mesh density."""
+    base = (getattr(cls, "default_params", None) or {}).get("nominal_nsegs")
+    if base is None:
+        base = getattr(type(builder), "nominal_nsegs", None)
+    n = getattr(builder, "nominal_nsegs", None)
+    if not base or not n:
+        return "default"
+    if n % base == 0 and (word := _CATALOG_RUNGS.get(n // base)):
+        return word
+    return f"{n}-per-wire"
+
+
+def _catalog_ground_name(ground) -> str:
+    """The header's word for this ground."""
+    if ground is None or ground == "free":
+        return "free"
+    if ground == "pec":
+        return "pec"
+    if isinstance(ground, tuple) and len(ground) == 3:
+        if (ground[1], ground[2]) == (13.0, 0.005) and ground[0] == "finite":
+            return "somm13"  # the catalog's own soil, so the words match
+        return f"{ground[0]}-{ground[1]:g}-{ground[2]:g}"
+    return "free"
+
+
 def _make_nec2_engine(req: dict, builder):
     """A NEC-2 binary over the SAME ground spec PyNEC gets: this is NEC-2, so
     every ground PyNEC's mapping produces is one it can express."""
@@ -4405,6 +4438,34 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             ground = ("finite",) + ground[1].crest_medium
         return _export_nec(builder, ground=ground, freq=meas_freq)
 
+    def nec5_export(req: dict) -> str:
+        # The NEC-5 twin of `nec_export` (#1389). Same builder construction, so
+        # the deck matches the antenna on screen, and the SAME writer the corpus
+        # tool's `catalog-nec5/` is built with — a download of a design at a
+        # catalog rung and ground is byte-equal to the file that zip ships for
+        # it, which is the gate on this feature.
+        #
+        # No NEC-5 binary is needed and none is looked for: `require_exe=False`
+        # is the writer mode (#1376). Offering this only when $NEC5_EXE resolves
+        # would withhold the file from exactly the person who needs it — the one
+        # without the engine on this machine (decision 1 on #1389).
+        from antennaknobs.nec5_export import export_nec5 as _export_nec5
+
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        ground = _nec5_ground_spec(req)
+        return _export_nec5(
+            builder,
+            ground=ground,
+            freq=meas_freq,
+            design=name,
+            rung=_catalog_rung(cls, builder),
+            ground_name=_catalog_ground_name(ground),
+        )
+
     def schematic_svg(req: dict) -> str | None:
         # Same builder construction as the live solve, so the schematic's
         # component labels (lengths, C/L values, turns ratios) match the
@@ -4534,6 +4595,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         nec5_pattern=nec5_pattern,
         nec2_solve=nec2_solve,
         nec2_pattern=nec2_pattern,
+        nec5_export=nec5_export,
         nec_export=nec_export,
         schematic_svg=schematic_svg,
         params_source=params_source,

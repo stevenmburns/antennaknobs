@@ -14,13 +14,16 @@ deck (``nec2c``) reproduces PyNECEngine's impedance.
 Not supported: TL/virtual-driver networks. PyNECEngine solves those by a
 multiport-Y reduction (a circuit post-process on the field solution), not by
 native NEC ``tl_card``s, so there is no faithful single-deck representation.
-``export_nec`` raises ``NotImplementedError`` for them.
+``export_nec`` raises ``NotImplementedError`` for them, in the DIALECT's name
+rather than PyNEC's: a user reading a download error has not chosen an engine
+(antennaknobs#1389).
 """
 
 from __future__ import annotations
 
+from .engines.nec2 import refuse_nec2_geometry
 from .engines.pynec import DEFAULT_GROUND, WIRE_CONDUCTIVITY, PyNECEngine
-from .network import Load
+from .network import GradedSegments, Load, as_wire
 
 
 def _num(x):
@@ -81,13 +84,31 @@ def export_nec(
     include_rp: append an RP card so the deck also computes a far-field pattern.
     title    : CM comment text; defaults to the builder's qualified name.
     """
+    # Refused HERE rather than inside PyNECEngine, for two reasons the QRZ
+    # thread made plain (#1389). The sentence must say "a NEC-2 deck", not
+    # "PyNEC": a user with NEC-5 in every slot has not selected PyNEC and does
+    # not know this writer borrows its name. And it must point at the NEC-5
+    # download, which serves exactly the designs this refuses.
+    tups = list(builder.build_wires())
+    for i, t in enumerate(tups):
+        if isinstance(as_wire(t).n_seg, GradedSegments):
+            raise NotImplementedError(
+                f"a NEC-2 deck cannot express wire {i}'s graded mesh "
+                "(GradedSegments): a card deck numbers wires by tag, and a "
+                "graded expansion would shift every EX/LD/NT reference — "
+                "download the NEC-5 deck instead, whose writer expands a graded "
+                "wire into chained GW cards and renumbers the references "
+                "(issue #1108)"
+            )
+    refuse_nec2_geometry(tups, ground, suggest_download=True)
     eng = PyNECEngine(builder, ground=ground)
     if eng._use_reducer:
         raise NotImplementedError(
-            "NEC export of TL/virtual-driver networks (and distributed "
-            "finite-gap ports, issue #477) is not supported: PyNECEngine "
-            "solves those by a multiport-Y reduction, not native NEC cards, "
-            "so there is no faithful single-deck representation."
+            "a NEC-2 deck cannot express TL/virtual-driver networks (or "
+            "distributed finite-gap ports, issue #477): the app solves those by "
+            "a multiport-Y reduction over one deck per driven port, not by "
+            "native NEC cards, so there is no faithful single-deck "
+            "representation. The NEC-5 deck cannot express them either."
         )
     freq = builder.freq if freq is None else float(freq)
 
