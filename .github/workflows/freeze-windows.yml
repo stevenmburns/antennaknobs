@@ -122,7 +122,7 @@ jobs:
       - name: Name the bundle
         shell: pwsh
         run: |
-          $base = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_EVENT_NAME -eq 'push') { 'antennaknobs-workbench-windows' }
+          $base = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_EVENT_NAME -eq 'push') { "antennaknobs-workbench-windows-$($env:GITHUB_REF_NAME)" }
                   elseif ($env:MOMWIRE_SIGN_MODE -eq 'azure') { 'antennaknobs-workbench-windows-SIGNTEST' }
                   else { 'antennaknobs-workbench-windows-SELFSIGNED-rehearsal' }
           "BUNDLE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -137,8 +137,18 @@ jobs:
           name: ${{ env.BUNDLE }}
           path: ${{ env.BUNDLE }}.zip
           retention-days: ${{ github.ref_type == 'tag' && 90 || 7 }}
+      - name: A version-less copy for the stable download link (tags)
+        # The site's start/workbench page links
+        # .../releases/latest/download/antennaknobs-workbench-windows.zip; the
+        # versioned zip stays beside it for the archive, and the CI artifact
+        # keeps its versioned name so a run's download is unambiguous.
+        if: github.ref_type == 'tag' && github.event_name == 'push'
+        shell: pwsh
+        run: Copy-Item "$env:BUNDLE.zip" antennaknobs-workbench-windows.zip
       - name: Attach to the GitHub Release (tags)
         if: github.ref_type == 'tag' && github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
-          files: ${{ env.BUNDLE }}.zip
+          files: |
+            ${{ env.BUNDLE }}.zip
+            antennaknobs-workbench-windows.zip
