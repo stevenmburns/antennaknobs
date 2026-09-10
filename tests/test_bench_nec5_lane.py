@@ -94,6 +94,11 @@ def test_worker_no_longer_tags_a_tl_deck_out_of_scope(capsys, monkeypatch, tmp_p
     )
     assert not res.get("out_of_scope"), res
     assert "no printout" in (res.get("error") or ""), res
+    # The frame pins the ROUTE, which is the part "no printout" does not say:
+    # a TL deck reaches the binary through the multiport-Y protocol, one deck
+    # per port, not the native single-deck path. It reads a tail-capped field,
+    # so a failure here can mean the cap (see bench_nec_corpus) rather than the
+    # route — check the untruncated traceback before believing the route moved.
     assert "_compute_y_matrix" in (res.get("traceback") or ""), res
 
 
