@@ -31,6 +31,29 @@ python nec5_corpus.py check     --exe NEC5CL.exe --src nec5 --keep-dir failed
    reports from different boxes can be compared knowing which instrument
    made each.
 
+## Without Python: the Windows executable
+
+The same file, frozen with PyInstaller and signed, is published as
+[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.3)
+under the tool's own release tag, `nec5-corpus-v<VERSION>` — not with the
+antennaknobs releases, and not inside the Windows workbench, because the
+people who want a NEC-5 corpus do not all want an antenna modeller. Unzip,
+and `nec5_corpus.exe translate ...` is `python nec5_corpus.py translate ...`:
+the build's smoke gate runs both over momwire's 65-deck portal corpus and
+requires every written deck byte-equal and the reports line-equal. It is
+built on demand (`freeze-nec5-corpus` workflow, `publish: true`) when this
+file changes, so the release tag's version and `VERSION` here agree.
+`SECURITY-REVIEW.md` beside this file ships in the zip and is linked from
+the release notes with the checksums: what the program can and cannot do to
+a machine, subcommand by subcommand, and how to verify the exe or skip it.
+The review names the version it was written for and a test holds that equal
+to `VERSION`, so bumping the version means re-reading the review.
+
+Keeping the script standard-library only is what makes that build a 9 MB
+file rather than a 160 MB one; the one function it shares with antennaknobs
+(`_classify_sp_fields`, the SP sphere-or-patch rule) is a copy the test
+suite pins equal to the importer's, token for token.
+
 ## What translate changes, and why
 
 **Feed points move to knots.** NEC-2 puts a voltage source at the centre of

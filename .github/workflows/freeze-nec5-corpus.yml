@@ -1,0 +1,175 @@
+name: freeze-nec5-corpus
+
+# The frozen NEC-5 corpus tool (issue #1376): `nec5_corpus.exe`, PyInstaller
+# one-file, smoke-gated against the unfrozen script, Azure-signed on request,
+# published under the tool's OWN release tag `nec5-corpus-v<VERSION>`.
+#
+# Manual only. The tool is for the NEC-5 working group, whose members do not
+# all want antennaknobs, and it changes on its own cadence — so it rides no
+# antennaknobs release and lands in no workbench bundle. Run this when the
+# tool changes:
+#
+#   - default (no inputs): build + smoke, self-signed rehearsal, run artifact
+#     only — the lane's own test.
+#   - azure_sign: true — sign with the real certificate; artifact only.
+#   - publish: true (implies azure_sign) — sign and publish
+#     `nec5_corpus-windows.zip` to the release `nec5-corpus-v<VERSION>`,
+#     creating the tag at this commit if it does not exist, replacing the
+#     asset if it does. NEVER marked "latest": the site's stable link
+#     .../releases/latest/download/antennaknobs-workbench-windows.zip must
+#     keep resolving to an antennaknobs release.
+#
+# The three AZURE_* secrets must exist on this repo; a publish that cannot
+# sign fails rather than shipping an unsigned exe.
+on:
+  workflow_dispatch:
+    inputs:
+      azure_sign:
+        description: "Sign with the Azure Artifact Signing certificate"
+        type: boolean
+        default: false
+      publish:
+        description: "Publish the signed zip to the nec5-corpus-v<VERSION> release (implies azure_sign)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    name: freeze + smoke (windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The smoke's translate gate reads momwire's 65-deck NEC-2 portal
+          # corpus through the submodule; no momwire build, no install.
+          submodules: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install PyInstaller (and nothing else — the tool is standard library only)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.10,<7"
+      - name: Decide the signing mode
+        shell: pwsh
+        env:
+          AZURE_SIGN: ${{ inputs.azure_sign }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          $mode = if ($env:AZURE_SIGN -eq 'true' -or $env:PUBLISH -eq 'true') { 'azure' } else { 'rehearsal' }
+          "MOMWIRE_SIGN_MODE=$mode" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $version = (Select-String -Path scripts/nec5_corpus/nec5_corpus.py -Pattern '^VERSION = "([^"]+)"$').Matches[0].Groups[1].Value
+          if (-not $version) { throw "no VERSION literal in scripts/nec5_corpus/nec5_corpus.py" }
+          "TOOL_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TOOL_TAG=nec5-corpus-v$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "signing: $mode; tool $version"
+      - name: Rehearsal signing certificate (self-signed, never published)
+        if: env.MOMWIRE_SIGN_MODE == 'rehearsal'
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=nec5_corpus rehearsal (NOT a release certificate)" -CertStoreLocation Cert:\CurrentUser\My
+          "MOMWIRE_SIGN_SHA1=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MOMWIRE_SIGN_ALLOW_UNTRUSTED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MOMWIRE_SIGN_TIMESTAMP_URL=http://timestamp.acs.microsoft.com" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: actions/setup-dotnet@v6
+        if: env.MOMWIRE_SIGN_MODE == 'azure'
+        with:
+          dotnet-version: '8.0'
+      - name: Install the Artifact Signing dlib (azure mode)
+        if: env.MOMWIRE_SIGN_MODE == 'azure'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri https://dist.nuget.org/win-x86-commandline/latest/nuget.exe -OutFile nuget.exe
+          & ./nuget.exe install Microsoft.ArtifactSigning.Client -Version 1.0.128 -x -OutputDirectory packages
+          $dlib = Get-ChildItem packages -Recurse -Filter Azure.CodeSigning.Dlib.dll |
+                  Where-Object { $_.Directory.Name -eq 'x64' } | Select-Object -First 1
+          if (-not $dlib) { throw "x64 Azure.CodeSigning.Dlib.dll not found in Microsoft.ArtifactSigning.Client" }
+          "MOMWIRE_SIGN_DLIB=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Write the Artifact Signing metadata (azure mode)
+        if: env.MOMWIRE_SIGN_MODE == 'azure'
+        shell: pwsh
+        run: |
+          $meta = [ordered]@{
+            Endpoint               = "https://wus2.codesigning.azure.net"
+            CodeSigningAccountName = "momwire"
+            CertificateProfileName = "momwire-public-trust"
+            ExcludeCredentials     = @(
+              "ManagedIdentityCredential", "WorkloadIdentityCredential",
+              "SharedTokenCacheCredential", "VisualStudioCredential",
+              "VisualStudioCodeCredential", "AzureCliCredential",
+              "AzurePowerShellCredential", "AzureDeveloperCliCredential",
+              "InteractiveBrowserCredential")
+          }
+          $meta | ConvertTo-Json | Out-File metadata.json -Encoding utf8
+          "MOMWIRE_SIGN_METADATA=$((Resolve-Path metadata.json).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MOMWIRE_SIGN_TIMESTAMP_URL=http://timestamp.acs.microsoft.com" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Freeze (and sign)
+        run: python scripts/freeze_nec5_corpus/build.py
+        env:
+          AZURE_TENANT_ID: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_SECRET || '' }}
+      - name: Smoke the frozen tool against the unfrozen script
+        # A plain interpreter with nothing installed runs the unfrozen side:
+        # that is the "standard library only" promise, gated.
+        run: python scripts/freeze_nec5_corpus/smoke.py dist/nec5_corpus/nec5_corpus.exe
+      - name: Name and zip the tool
+        shell: pwsh
+        run: |
+          $base = if ($env:MOMWIRE_SIGN_MODE -eq 'azure') { "nec5_corpus-windows-$env:TOOL_VERSION" }
+                  else { "nec5_corpus-windows-$env:TOOL_VERSION-SELFSIGNED-rehearsal" }
+          "BUNDLE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Compress-Archive -Path dist/nec5_corpus/* -DestinationPath "$base.zip"
+          $size = (Get-Item "$base.zip").Length
+          "zip: $base.zip $([math]::Round($size / 1MB, 1)) MB"
+          # Checksums for the release notes: what a reader compares against
+          # `certutil -hashfile nec5_corpus.exe SHA256` (SECURITY-REVIEW.md).
+          $exeHash = (Get-FileHash dist/nec5_corpus/nec5_corpus.exe -Algorithm SHA256).Hash.ToLower()
+          $zipHash = (Get-FileHash "$base.zip" -Algorithm SHA256).Hash.ToLower()
+          "EXE_SHA256=$exeHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ZIP_SHA256=$zipHash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "sha256 exe: $exeHash"
+          "sha256 zip: $zipHash"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.BUNDLE }}
+          path: ${{ env.BUNDLE }}.zip
+          retention-days: ${{ inputs.publish && 90 || 7 }}
+      - name: A version-less copy for the release link (publish)
+        # The release asset keeps a version-less name so the link the group
+        # is given, .../releases/download/nec5-corpus-v<VERSION>/nec5_corpus-windows.zip,
+        # is the same shape for every version; the versioned zip stays beside
+        # it, and the CI artifact keeps its versioned name.
+        if: inputs.publish
+        shell: pwsh
+        run: Copy-Item "$env:BUNDLE.zip" nec5_corpus-windows.zip
+      - name: Publish to the tool's own release (publish)
+        if: inputs.publish
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.TOOL_TAG }}
+          name: NEC-5 corpus tool ${{ env.TOOL_VERSION }}
+          # Not a pre-release, but NEVER "latest": that word belongs to the
+          # antennaknobs releases the site's stable download link resolves.
+          make_latest: false
+          body: |
+            `nec5_corpus.exe` ${{ env.TOOL_VERSION }} for Windows, signed — the NEC-5 regression-corpus tool from `scripts/nec5_corpus/`, packaged so that it runs without Python installed. Same tool, same reports as the script. Unzip, and see README.txt inside.
+
+            **Before running it**, read `SECURITY-REVIEW.md` in the zip (also [in the repository](https://github.com/stevenmburns/antennaknobs/blob/${{ github.sha }}/scripts/nec5_corpus/SECURITY-REVIEW.md)): what the program can and cannot do to your machine, and how to verify or rebuild it. Anyone with Python 3.8 or newer can run [the script itself](https://github.com/stevenmburns/antennaknobs/blob/${{ github.sha }}/scripts/nec5_corpus/nec5_corpus.py) instead; it needs nothing installed.
+
+            SHA-256 of `nec5_corpus.exe`: `${{ env.EXE_SHA256 }}`
+            SHA-256 of `nec5_corpus-windows.zip`: `${{ env.ZIP_SHA256 }}`
+            Signed with the momwire public-trust Authenticode certificate (CN=Steve Burns), timestamped.
+
+            Built from ${{ github.sha }} by the `freeze-nec5-corpus` workflow. Not an antennaknobs release; those are the `v*` tags.
+          files: |
+            ${{ env.BUNDLE }}.zip
+            nec5_corpus-windows.zip
