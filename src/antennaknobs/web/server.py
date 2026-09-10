@@ -46,6 +46,7 @@ from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
 
 from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
+from antennaknobs import in_medium
 
 from . import cost as _cost
 from . import tracker
@@ -272,6 +273,60 @@ def _attach_gain_norm(out: dict) -> None:
         return
     k = float(out["k_meas_m_inv"])
     out["directivity_norm"] = _ETA0 * k * k / (8.0 * np.pi * p_in)
+
+
+# Issue #1341: the coarse hemisphere the in-medium assessment evaluates on
+# (3° in θ, 6° in φ — the same density as pattern3d's grid). Both readouts
+# run at ~O(N·directions); 1,800 directions on a 4k-segment mesh is ~100 ms
+# once per solve, and zero when nothing is buried.
+_IN_MEDIUM_THETA = np.deg2rad(np.arange(0.0, 90.0, 3.0))
+_IN_MEDIUM_PHI = np.deg2rad(np.arange(0.0, 360.0, 6.0))
+
+
+def _attach_in_medium_assessment(out: dict) -> None:
+    """Issue #1341: the cuts readout images every segment as if above the
+    ground plane. For currents below the plane that is the wrong problem
+    (the transmitted field, momwire#570), so a response with in-medium
+    currents carries either ``pattern_refusal`` (every current below the
+    plane, or the pattern depends on them past the bar — cuts are then
+    withheld, `_pattern_cuts` returns None) or ``pattern_note`` with
+    ``in_medium_moment_fraction`` / ``in_medium_pattern_delta_db``. The
+    web ground plane sits at z = 0. Never raises: a response the readout
+    cannot digest simply carries no assessment, as it carries no cuts."""
+    if not bool(out.get("ground", False)) or not out.get("wires"):
+        return
+    try:
+        mid, dr, i_mid = _moment_segments(out)
+    except (KeyError, TypeError, ValueError):
+        return
+    if mid.shape[0] == 0:
+        return
+    sin_t, cos_t = np.sin(_IN_MEDIUM_THETA), np.cos(_IN_MEDIUM_THETA)
+    rhat = np.stack(
+        [
+            sin_t[:, None] * np.cos(_IN_MEDIUM_PHI)[None, :],
+            sin_t[:, None] * np.sin(_IN_MEDIUM_PHI)[None, :],
+            np.broadcast_to(cos_t[:, None], (sin_t.size, _IN_MEDIUM_PHI.size)),
+        ],
+        axis=-1,
+    )
+    medium = in_medium.assess(
+        mid,
+        dr,
+        i_mid,
+        0.0,
+        lambda m, d, i: _mag2_at_directions(out, rhat, mid=m, dr=d, i_mid=i),
+    )
+    if medium.fraction == 0.0:
+        return
+    out["in_medium_moment_fraction"] = medium.fraction
+    out["in_medium_pattern_delta_db"] = (
+        medium.delta_db if np.isfinite(medium.delta_db) else None
+    )
+    if medium.served:
+        out["pattern_note"] = medium.note
+    else:
+        out["pattern_refusal"] = medium.refusal
 
 
 def _adaptive_norm_grid(k: float, lo: np.ndarray, hi: np.ndarray) -> tuple[int, int]:
@@ -615,6 +670,10 @@ def _pattern_cuts(
     norm = float(out.get("directivity_norm") or 0.0)
     if norm <= 0.0 or (mid is None and not out.get("wires")):
         return None
+    if out.get("pattern_refusal"):
+        # Issue #1341: the response says why its pattern is not served; a
+        # cut through the same readout would draw exactly what is refused.
+        return None
     t_az = _cut_angles(az_angles_deg)
     t_el = _cut_angles(elev_angles_deg)
 
@@ -679,6 +738,7 @@ _CUTS_SRC_CACHE_MAX = 64
 _CUTS_SRC_FIELDS = (
     "k_meas_m_inv",
     "ground",
+    "pattern_refusal",  # issue #1341: a refused pattern has no cuts either
     "ground_eps_r",
     "ground_eps_im",
     "ground_terrain",
@@ -1401,6 +1461,7 @@ def _solve_uncached(req: dict, cancel=None) -> dict:
         out["solver"] = "momwire"
     _attach_derived_em_fields(out)
     _attach_gain_norm(out)
+    _attach_in_medium_assessment(out)
     return out
 
 

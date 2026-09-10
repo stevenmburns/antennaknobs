@@ -13,6 +13,7 @@ import numpy as np
 import momwire
 from momwire import BSplineSolver, RazorSolver
 
+from .. import in_medium
 from ..engine import FarField, SimulationEngine, WireCurrents
 from ..geometry import flat_wires_to_polylines
 from ..network import (
@@ -1810,6 +1811,31 @@ class MomwireEngine(SimulationEngine):
         sim, coeffs, _z = self._solved_excited(wavelength)
         mid, dr, i_mid = self._segment_dipoles(sim, coeffs)
 
+        # Issue #1341: this readout images every segment in the ground plane
+        # as if it stood above it. For a segment below the plane that is not
+        # an approximation of its far field but a different problem (the
+        # transmitted field, momwire#570), so the currents below the plane
+        # are assessed first — refused by name when they are the whole
+        # structure or when the pattern depends on them past the bar, served
+        # with a note otherwise. The assessment evaluates on the user's own
+        # grid, so it costs one extra readout and nothing when nothing is
+        # buried.
+        theta_deg = np.linspace(0, 90 - del_theta, n_theta)
+        phi_deg = np.linspace(0, 360, n_phi + 1)
+        theta_user = np.deg2rad(theta_deg)
+        phi_user = np.deg2rad(phi_deg)
+        medium = in_medium.assess(
+            mid,
+            dr,
+            i_mid,
+            self._ground_z,
+            lambda m, d, i: self._evaluate_M_perp(
+                m, d, i, k, theta_user, phi_user, freq_hz
+            ),
+        )
+        if not medium.served:
+            raise in_medium.InMediumPatternRefusal(medium.refusal)
+
         # Gain normaliser from the source input power (same convention as the
         # web solve path): gain = 4π·U/P_in = η₀k²/(8π·P_in)·|M_perp|². Load
         # loss lives inside P_in, so terminated antennas come out as GAIN with
@@ -1841,11 +1867,6 @@ class MomwireEngine(SimulationEngine):
             directivity_norm = 4 * np.pi / p_rad * efficiency
 
         # Evaluate on the user grid (NEC convention: θ from 0 to 90−Δθ).
-        theta_deg = np.linspace(0, 90 - del_theta, n_theta)
-        phi_deg = np.linspace(0, 360, n_phi + 1)
-        theta_user = np.deg2rad(theta_deg)
-        phi_user = np.deg2rad(phi_deg)
-
         mag2_user = self._evaluate_M_perp(
             mid, dr, i_mid, k, theta_user, phi_user, freq_hz
         )
@@ -1861,4 +1882,7 @@ class MomwireEngine(SimulationEngine):
             min_gain=float(np.min(dBi)),
             thetas=theta_deg,
             phis=phi_deg,
+            in_medium_moment_fraction=medium.fraction,
+            in_medium_pattern_delta_db=medium.delta_db,
+            note=medium.note,
         )

@@ -243,6 +243,9 @@ function fetchCuts(
   azElevDeg: number,
   elevAzDeg: number,
 ): Promise<PatternCuts | null> {
+  // Issue #1341: a response that says why its pattern is not served has no
+  // cuts at any angle; asking the server would only 400.
+  if (result.pattern_refusal) return Promise.resolve(null);
   const key = cutsKey(result, azElevDeg, elevAzDeg);
   const inFlight = cutsInFlight.get(key);
   if (inFlight) return inFlight;
