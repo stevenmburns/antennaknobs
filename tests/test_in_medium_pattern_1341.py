@@ -124,7 +124,12 @@ def test_free_space_far_field_is_untouched():
     assert ff.in_medium_moment_fraction == 0.0
     assert ff.in_medium_pattern_delta_db == 0.0
     assert ff.note is None
-    assert ff.max_gain == 1.923798486448699  # bit-identical to the pre-#1341 readout
+    # The pre-#1341 readout's number on this deck. "Untouched" is by
+    # construction (nothing below the plane takes the old code path), and the
+    # pin is to the last digit a different BLAS/CPU can still agree on —
+    # CI's runner reads 1.9237984864486997 against 1.923798486448699 here,
+    # which is the cross-machine bit-equality trap, not a change.
+    assert ff.max_gain == pytest.approx(1.923798486448699, rel=1e-12)
 
 
 # --- the web readout ---------------------------------------------------------
