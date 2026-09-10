@@ -5,11 +5,9 @@ shadowing + diffraction soften the peaks and nulls of the plain's
 height-gain comb as the hill grows?"""
 
 import argparse
-import math
 import os
 import pathlib
 import sys
-from types import SimpleNamespace
 
 import matplotlib
 
@@ -25,7 +23,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import probe9_mike_hillside as probe9  # noqa: E402
 from probe4_azimuth_on_slope import gain_lookup  # noqa: E402
-from probe9_mike_hillside import LAMBDA, SOIL, mike_terrain  # noqa: E402
+from probe9_mike_hillside import LAMBDA, mike_terrain  # noqa: E402
 from probe10_mike_elevation_figure import (  # noqa: E402
     C_FLAT,
     C_MID,
