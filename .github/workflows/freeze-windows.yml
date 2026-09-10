@@ -1,0 +1,138 @@
+name: freeze-windows
+
+# The frozen Windows workbench (issue #1349): `antennaknobs-workbench.exe`,
+# PyInstaller one-dir, smoke-gated against the unfrozen package, signed on
+# tags through the same Azure Artifact Signing steps momwire's eznec-dropin
+# lane uses (sign.py is that lane's file, verbatim), attached to the release.
+#
+# Triggers:
+#   - push tag v*: build, smoke, SIGN (azure), attach the zip to the release.
+#   - workflow_dispatch: build + smoke on a branch; self-signed rehearsal by
+#     default, `azure_sign: true` to exercise the real certificate off-tag.
+#
+# The three AZURE_* secrets must exist on THIS repo (they were momwire's
+# first); with them absent a tag build fails at signing rather than shipping
+# unsigned — a release exe is signed or it is not a release exe.
+on:
+  workflow_dispatch:
+    inputs:
+      azure_sign:
+        description: "Sign with the Azure Artifact Signing certificate (off-tag)"
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    name: freeze + smoke (windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        # No submodules: momwire comes from PyPI at the pin, as for a user.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: src/antennaknobs/web/frontend/package-lock.json
+      - name: Build the React frontend
+        # The wheel ships the built bundle as package data (publish.yml does
+        # the same); the freeze collects it from the installed package.
+        working-directory: src/antennaknobs/web/frontend
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the package (web extra) and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[web]" "pyinstaller>=6.10,<7"
+          python -c "import momwire; assert momwire.accelerated, 'momwire accelerator did not load (libomp140?)'"
+      - name: Decide the signing mode
+        shell: pwsh
+        env:
+          AZURE_SIGN: ${{ inputs.azure_sign }}
+        run: |
+          $mode = if ($env:GITHUB_REF_TYPE -eq 'tag' -or $env:AZURE_SIGN -eq 'true') { 'azure' } else { 'rehearsal' }
+          "MOMWIRE_SIGN_MODE=$mode" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Rehearsal signing certificate (self-signed, never on tags)
+        if: env.MOMWIRE_SIGN_MODE == 'rehearsal'
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=antennaknobs workbench rehearsal (NOT a release certificate)" -CertStoreLocation Cert:\CurrentUser\My
+          "MOMWIRE_SIGN_SHA1=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MOMWIRE_SIGN_ALLOW_UNTRUSTED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MOMWIRE_SIGN_TIMESTAMP_URL=http://timestamp.acs.microsoft.com" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: actions/setup-dotnet@v6
+        if: env.MOMWIRE_SIGN_MODE == 'azure'
+        with:
+          dotnet-version: '8.0'
+      - name: Install the Artifact Signing dlib (azure mode)
+        if: env.MOMWIRE_SIGN_MODE == 'azure'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri https://dist.nuget.org/win-x86-commandline/latest/nuget.exe -OutFile nuget.exe
+          & ./nuget.exe install Microsoft.ArtifactSigning.Client -Version 1.0.128 -x -OutputDirectory packages
+          $dlib = Get-ChildItem packages -Recurse -Filter Azure.CodeSigning.Dlib.dll |
+                  Where-Object { $_.Directory.Name -eq 'x64' } | Select-Object -First 1
+          if (-not $dlib) { throw "x64 Azure.CodeSigning.Dlib.dll not found in Microsoft.ArtifactSigning.Client" }
+          "MOMWIRE_SIGN_DLIB=$($dlib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Write the Artifact Signing metadata (azure mode)
+        if: env.MOMWIRE_SIGN_MODE == 'azure'
+        shell: pwsh
+        run: |
+          $meta = [ordered]@{
+            Endpoint               = "https://wus2.codesigning.azure.net"
+            CodeSigningAccountName = "momwire"
+            CertificateProfileName = "momwire-public-trust"
+            ExcludeCredentials     = @(
+              "ManagedIdentityCredential", "WorkloadIdentityCredential",
+              "SharedTokenCacheCredential", "VisualStudioCredential",
+              "VisualStudioCodeCredential", "AzureCliCredential",
+              "AzurePowerShellCredential", "AzureDeveloperCliCredential",
+              "InteractiveBrowserCredential")
+          }
+          $meta | ConvertTo-Json | Out-File metadata.json -Encoding utf8
+          "MOMWIRE_SIGN_METADATA=$((Resolve-Path metadata.json).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MOMWIRE_SIGN_TIMESTAMP_URL=http://timestamp.acs.microsoft.com" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Freeze (and sign)
+        run: python scripts/freeze_workbench/build.py
+        env:
+          AZURE_TENANT_ID: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_SECRET || '' }}
+      - name: Smoke the frozen bundle
+        run: python scripts/freeze_workbench/smoke.py dist/antennaknobs-workbench/antennaknobs-workbench.exe
+      - name: Name the bundle
+        shell: pwsh
+        run: |
+          $base = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_EVENT_NAME -eq 'push') { "antennaknobs-workbench-windows-$($env:GITHUB_REF_NAME)" }
+                  elseif ($env:MOMWIRE_SIGN_MODE -eq 'azure') { 'antennaknobs-workbench-windows-SIGNTEST' }
+                  else { 'antennaknobs-workbench-windows-SELFSIGNED-rehearsal' }
+          "BUNDLE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Zip the bundle
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/antennaknobs-workbench -DestinationPath "$env:BUNDLE.zip"
+          $size = (Get-Item "$env:BUNDLE.zip").Length
+          "zip: $env:BUNDLE.zip $([math]::Round($size / 1MB, 1)) MB"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.BUNDLE }}
+          path: ${{ env.BUNDLE }}.zip
+          retention-days: ${{ github.ref_type == 'tag' && 90 || 7 }}
+      - name: Attach to the GitHub Release (tags)
+        if: github.ref_type == 'tag' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: ${{ env.BUNDLE }}.zip
