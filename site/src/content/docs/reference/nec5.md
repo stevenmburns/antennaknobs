@@ -20,6 +20,26 @@ split, the split is a finding (see [the solver
 page](/reference/solver/) for how antennaknobs treats cross-engine
 differences as data, not noise).
 
+## Getting a NEC-5 deck without the engine
+
+The workbench's gear menu has **Download NEC-5 .nec**, and it is offered whatever
+engines that machine has: writing a deck needs no binary. It is the same file the
+corpus tool's `catalog-nec5/` ships for that design at that mesh and ground, from
+the same writer — so a deck you download and a deck from the published set cannot
+disagree. It is also the dialect that carries what NEC-2 cannot: buried wires,
+wires in the ground plane, and momwire's graded meshes.
+
+### Why no NEC-4.2 download
+
+NEC-4.2 could carry buried wires too, and it is deliberately absent. We have no
+NEC-4 binary to verify a dialect against, and the rule CW taught is that a
+convention is claimed only after a probe deck has been through the engine. The
+NEC-4 population now has NEC-5 beside it, and the hard part — expanding a graded
+mesh into chained wires with the tag references renumbered — would be that work
+done a second time. If you own a NEC-4 binary and want one, start from the NEC-5
+writer with the NEC-5-only cards withheld and the ground card in NEC-4's
+spelling, and verify it against your engine.
+
 ## Licensing, and where the engine will not run
 
 NEC-5 is licensed software. antennaknobs **never bundles, downloads, or

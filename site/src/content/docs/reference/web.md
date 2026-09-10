@@ -966,9 +966,26 @@ copies the current knob values to the clipboard as a paste-ready
 named variant). Drop it straight into a design file to bake in whatever you
 dialed in — no more transcribing values off the screen by hand.
 
-The same gear menu also has **Download .nec deck**, which exports the design as
-a NEC-2 card deck for xnec2c / 4nec2 / EZNEC. The reverse — bringing a `.nec`
-deck someone published *into* the workbench — is
+The same gear menu has two deck downloads: **Download NEC-2 .nec**, for xnec2c /
+4nec2 / EZNEC / nec2c, and **Download NEC-5 .nec**, for NEC5CL / EZNEC Pro+. Both
+are always offered, whatever engines the machine running the workbench has — the
+deck writers need none, and the person who most wants the file is usually the one
+without the engine there.
+
+What varies is the **design**, not the engines. A NEC-2 deck cannot carry a buried
+wire, a wire lying in the ground plane, or a graded mesh (a card deck numbers
+wires by tag and a graded expansion would shift every `EX`/`LD`/`NT` reference),
+so those designs refuse the NEC-2 download with a sentence pointing at the NEC-5
+one — which does carry them. A design whose network is a transmission line or a
+virtual driver refuses both: the app solves those by a multiport-Y reduction over
+one deck per driven port, and no single deck says that in either dialect.
+
+The NEC-5 deck is the same file the corpus tool's `catalog-nec5/` ships for that
+design at that mesh and ground — one writer, so the download and the published
+set cannot disagree. NEC-4.2 is deliberately not offered
+([why](/reference/nec5/#why-no-nec-42-download)).
+
+The reverse — bringing a `.nec` deck someone published *into* the workbench — is
 [Loading NEC decks](/reference/nec-import/).
 
 On phones, the gear menu also has a **full screen** check (under *display*):
