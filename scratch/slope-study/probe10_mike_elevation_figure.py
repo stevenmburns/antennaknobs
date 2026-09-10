@@ -127,20 +127,24 @@ def elevation_cut(ff, az_deg):
 
 
 def profile_axes(ax, H):
+    """Mike's drawing: plateau on the left, the slope falling to the right,
+    plain on the right — so downhill is to the right, as in the polar plots
+    below (az 0 on the right)."""
     run_m = H / math.tan(math.radians(SLOPE_DEG))
-    left, right = -1.5 * LAMBDA, run_m + 1.15 * LAMBDA
+    # x runs downhill: plateau for x < 0, slope 0..run_m, plain beyond
+    left, right = -1.45 * LAMBDA, run_m + 1.5 * LAMBDA
     ground = [
-        (left, 0.0),
-        (0.0, 0.0),
-        (run_m, H),
-        (right, H),
+        (left, H),
+        (0.0, H),
+        (run_m, 0.0),
+        (right, 0.0),
         (right, -15.0),
         (left, -15.0),
     ]
     ax.add_patch(Polygon(ground, closed=True, facecolor=GROUND, edgecolor=INK2, lw=1.0))
     mast = 0.956 * LAMBDA / 4
     for f, color, name in ((0.5, C_MID, "mid-slope"), (1.0, C_CREST, "crest")):
-        x, z = f * run_m, f * H
+        x, z = (1.0 - f) * run_m, f * H
         ax.plot([x, x], [z, z + mast], color=color, lw=2.2, solid_capstyle="round")
         ax.plot(
             [x - 10.5, x + 10.5], [z + 0.6, z + 0.6], color=color, lw=1.2, alpha=0.8
@@ -148,11 +152,17 @@ def profile_axes(ax, H):
         ax.text(
             x, z + mast + 2.5, name, ha="center", va="bottom", fontsize=8.5, color=INK
         )
-    ax.plot([0, 0], [0, mast], color=MUTED, lw=1.4)
+    ax.plot([run_m, run_m], [0, mast], color=MUTED, lw=1.4)
     ax.text(
-        0, mast + 2.5, "toe (= flat)", ha="center", va="bottom", fontsize=8, color=INK2
+        run_m + 3,
+        mast + 1.5,
+        "toe (= flat)",
+        ha="left",
+        va="bottom",
+        fontsize=8,
+        color=INK2,
     )
-    xa = run_m + 0.5 * LAMBDA
+    xa = -0.62 * LAMBDA
     ax.annotate(
         "",
         xy=(xa, H),
@@ -160,42 +170,43 @@ def profile_axes(ax, H):
         arrowprops=dict(arrowstyle="<->", color=INK2, lw=0.9),
     )
     ax.text(
-        xa + 3,
+        xa - 3,
         H / 2,
         f"H = {H:.0f} m\n= {H / LAMBDA:.2g} λ",
         va="center",
+        ha="right",
         fontsize=8.5,
         color=INK,
     )
     ax.text(
-        run_m * 0.66,
+        run_m * 0.34,
         H * 0.18,
         f"{SLOPE_DEG:.0f}°",
         fontsize=8.5,
         color=INK,
         ha="center",
     )
-    ax.text(left + 4, -5.0, "plain", fontsize=8.5, color=INK2, style="italic")
     ax.text(
-        right - 4,
-        H - 6.5,
-        "plateau",
-        fontsize=8.5,
-        color=INK2,
-        style="italic",
-        ha="right",
+        right - 4, -5.0, "plain", fontsize=8.5, color=INK2, style="italic", ha="right"
     )
-    ax.text(left + 4, H + mast + 1, "downhill, az 0 →", fontsize=8, color=INK2)
+    ax.text(-0.5 * LAMBDA, H - 6.5, "plateau", fontsize=8.5, color=INK2, style="italic")
+    ax.text(left + 4, H + mast + 4, "← uphill, az 180", fontsize=8, color=INK2)
     ax.text(
-        right - 4, H + mast + 1, "← uphill, az 180", fontsize=8, color=INK2, ha="right"
+        right - 4, H + mast + 1, "downhill, az 0 →", fontsize=8, color=INK2, ha="right"
     )
-    x0 = left + 8
+    x0 = right - 8 - LAMBDA
     ax.plot([x0, x0 + LAMBDA], [-9.8, -9.8], color=INK, lw=1.2)
     ax.text(
-        x0 + LAMBDA / 2, -9.0, f"λ = {LAMBDA:.1f} m", ha="center", fontsize=8, color=INK
+        x0 + LAMBDA / 2,
+        -10.8,
+        f"λ = {LAMBDA:.1f} m",
+        ha="center",
+        va="top",
+        fontsize=8,
+        color=INK,
     )
     ax.set_xlim(left, right)
-    ax.set_ylim(-15, H + mast + 7)
+    ax.set_ylim(-15, H + mast + 10)
     ax.set_aspect("equal")
     ax.axis("off")
 
