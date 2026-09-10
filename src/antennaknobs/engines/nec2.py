@@ -588,6 +588,18 @@ class NEC2Engine(SimulationEngine):
         ``_excited_efficiency`` / ``_excited_p_in`` / ``_excited_power_budget``
         the web adapter's efficiency and budget helpers read on every engine.
 
+        **ONLY this method stamps them** — not `impedance()`, not
+        `current_distribution()`. `PyNECEngine` differs here: its
+        `current_distribution()` stamps them as a side effect of the in-process
+        solve it already has, so a caller that works on the PyNEC engine can
+        read nothing on this one. The web lane calls `solve_snapshot`, so it is
+        served; `cli.py`'s ``--power`` schematic annotation and the pattern
+        command call `current_distribution()` and then read the attributes, so
+        on this engine they find None and omit the power table. That is a
+        missing annotation and not a wrong number — both sites guard with
+        ``if budget and p_in`` — but it is why a NEC-2 or NEC-5 run prints no
+        budget there where a PyNEC run does.
+
         THE BUDGET IS NOT OPTIONAL. Those attributes have plausible fallbacks —
         `getattr(eng, "_excited_efficiency", 1.0)` — and a NEC-2 tab reporting
         100 % efficiency because nothing was parsed is the same shape of wrong
