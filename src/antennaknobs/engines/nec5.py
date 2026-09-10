@@ -307,16 +307,21 @@ class NEC5Engine(SimulationEngine):
         nec5_exe=None,
         timeout=120.0,
         capture_dir=None,
+        require_exe=True,
     ):
         super().__init__(builder)
         self.ground = self._normalise_ground(ground)
         exe = find_nec5(nec5_exe)
-        if exe is None:
+        if exe is None and require_exe:
             raise NEC5Error(
                 "NEC-5 executable not found. NEC-5 is licensed software that "
                 "antennaknobs cannot bundle: point NEC5_EXE (or nec5_exe=) at "
                 "your licensed nec5cl binary."
             )
+        # ``require_exe=False`` is for deck WRITERS — the catalog export the
+        # corpus tool's release zip carries (#1376) runs on a box with no
+        # engine and never solves. ``deck()`` needs no binary; a solve on an
+        # engine built this way raises the same NEC5Error at run time.
         self._exe = exe
         self._timeout = float(timeout)
         # Printout capture-and-cache (issue #872 phase 0): with capture_dir
@@ -1145,6 +1150,11 @@ class NEC5Engine(SimulationEngine):
         return text
 
     def _run_binary(self, deck: str) -> str:
+        if self._exe is None:
+            raise NEC5Error(
+                "NEC-5 executable not found: this engine was built with "
+                "require_exe=False, which writes decks and cannot run them."
+            )
         return run_deck(self._exe, deck, timeout=self._timeout)
 
     # ---------- parse ----------

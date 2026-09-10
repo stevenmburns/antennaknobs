@@ -52,10 +52,14 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Install PyInstaller (and nothing else — the tool is standard library only)
+      - name: Install PyInstaller and antennaknobs (for the catalog export only)
+        # The exe stays standard-library only: build.py excludes antennaknobs
+        # from the freeze and the smoke runs the unfrozen side with -S so the
+        # package is invisible to it. The package is here so build.py can run
+        # export_catalog_nec5.py and put the 476 catalog decks in the zip.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "pyinstaller>=6.10,<7"
+          python -m pip install . "pyinstaller>=6.10,<7"
       - name: Decide the signing mode
         shell: pwsh
         env:
@@ -161,7 +165,7 @@ jobs:
           # antennaknobs releases the site's stable download link resolves.
           make_latest: false
           body: |
-            `nec5_corpus.exe` ${{ env.TOOL_VERSION }} for Windows, signed — the NEC-5 regression-corpus tool from `scripts/nec5_corpus/`, packaged so that it runs without Python installed. Same tool, same reports as the script. Unzip, and see README.txt inside.
+            `nec5_corpus.exe` ${{ env.TOOL_VERSION }} for Windows, signed — the NEC-5 regression-corpus tool from `scripts/nec5_corpus/`, packaged so that it runs without Python installed. Same tool, same reports as the script. Unzip, and see README.txt inside. Beside the exe: `catalog-nec5/`, antennaknobs' own catalog designs as NEC-5 decks (MIT, with a manifest) written from this same commit, plus the export script and the tool's full README.
 
             **Before running it**, read `SECURITY-REVIEW.md` in the zip (also [in the repository](https://github.com/stevenmburns/antennaknobs/blob/${{ github.sha }}/scripts/nec5_corpus/SECURITY-REVIEW.md)): what the program can and cannot do to your machine, and how to verify or rebuild it. Anyone with Python 3.8 or newer can run [the script itself](https://github.com/stevenmburns/antennaknobs/blob/${{ github.sha }}/scripts/nec5_corpus/nec5_corpus.py) instead; it needs nothing installed.
 

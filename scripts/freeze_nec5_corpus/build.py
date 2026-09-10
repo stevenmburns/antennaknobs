@@ -6,8 +6,14 @@ must stay that way (the smoke proves it against a plain interpreter)::
 
     python scripts/freeze_nec5_corpus/build.py
 
-Produces ``dist/nec5_corpus/``: ``nec5_corpus[.exe]``, a ``README.txt`` and
-the script's ``SECURITY-REVIEW.md`` (which must name this VERSION).
+Produces ``dist/nec5_corpus/``: ``nec5_corpus[.exe]``, a ``README.txt``, the
+script's ``SECURITY-REVIEW.md`` (which must name this VERSION), the tool's
+full ``README.md``, and ``catalog-nec5/`` — antennaknobs' own catalog designs
+written as NEC-5 decks (476 of them, MIT, with a manifest) by
+``export_catalog_nec5.py``, which is included too. The export needs
+antennaknobs importable in the BUILD environment (not in the exe: the exe
+stays standard-library only, and the smoke proves it with ``-S``); no NEC-5
+engine is needed, the export builds its engine with ``require_exe=False``.
 ONE-FILE on purpose, the opposite of the workbench's choice: a 2,000-line
 stdlib script freezes to about 10 MB, self-extracts in well under a second,
 and the working group asked for a tool, not a folder. (The workbench is
@@ -41,6 +47,9 @@ ROOT = HERE.parents[1]
 SCRIPT = ROOT / "scripts" / "nec5_corpus" / "nec5_corpus.py"
 SIGN = ROOT / "scripts" / "freeze_workbench" / "sign.py"
 REVIEW = SCRIPT.parent / "SECURITY-REVIEW.md"
+EXPORT = SCRIPT.parent / "export_catalog_nec5.py"
+TOOL_README = SCRIPT.parent / "README.md"
+CATALOG = "catalog-nec5"
 NAME = "nec5_corpus"
 DIST = ROOT / "dist" / NAME
 
@@ -74,6 +83,11 @@ This is scripts/nec5_corpus/nec5_corpus.py from the antennaknobs repository,
 packaged so that it runs without Python installed. Same tool, same version,
 same reports: a translate-report.jsonl or check-report.jsonl written by this
 program and one written by the script compare line for line.
+
+catalog-nec5/ holds antennaknobs' own catalog designs as NEC-5 decks (MIT,
+ours to share; manifest.json says what each is), written by the included
+export_catalog_nec5.py from the same commit as this program. They are a
+ready-made regression set: `{exe_name} check --exe <NEC5CL> --src catalog-nec5`.
 
 Run it from a PowerShell or Command Prompt window in this folder:
 
@@ -150,6 +164,19 @@ def main() -> int:
         print(f"ERROR: {REVIEW} does not name version {version}", file=sys.stderr)
         return 1
     shutil.copy(REVIEW, DIST / REVIEW.name)
+    shutil.copy(TOOL_README, DIST / TOOL_README.name)
+    shutil.copy(EXPORT, DIST / EXPORT.name)
+    # The catalog decks, from the build environment's antennaknobs (the exe
+    # itself excludes the package; this is a sibling process).
+    export = subprocess.run(
+        [sys.executable, str(EXPORT), "--out", str(DIST / CATALOG)], cwd=ROOT
+    )
+    if export.returncode != 0:
+        print(
+            "ERROR: catalog export failed (is antennaknobs installed here?)",
+            file=sys.stderr,
+        )
+        return export.returncode
     signer = _load_sign()
     signed = signer.sign_if_configured([exe])
     mode = os.environ.get("MOMWIRE_SIGN_MODE")
