@@ -64,9 +64,8 @@ see [NEC-2 as an external engine](/reference/nec2/). 4nec2 installs one as
 purpose: nec2++ is GPLv2, and shipping it would change this download's
 licence.
 
-The solver panel has no NEC-2 tab yet — the engine landed before its web
-lane did, and it is reachable from the command line
-(`--engine nec2`) meanwhile. Setting the path now costs nothing.
+The NEC-2 tab appears in the solver panel the same way the NEC-5 one does, and
+`--engine nec2` reaches the same engine from the command line.
 
 **If you run EZNEC Pro+, the engine is already on your disk.** EZNEC keeps it
 in its `Docs` folder — not under `Program Files`, where people look first —
