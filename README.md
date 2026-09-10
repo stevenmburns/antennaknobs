@@ -370,6 +370,17 @@ description.
 
 ## Install
 
+### Windows, nothing but the zip
+
+Every release attaches a frozen workbench for Windows,
+[`antennaknobs-workbench-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/latest/download/antennaknobs-workbench-windows.zip).
+Unzip it anywhere, run `antennaknobs-workbench.exe`, and a console window
+opens the server on this computer and your browser at it. Nothing is
+installed; delete the folder to remove it. It is the same program as the
+PyPI install below, with momwire's C++ solver inside; a licensed NEC-5 joins
+with one text file beside the exe. Details, the self-test and the options:
+**[antennaknobs.dev/start/workbench](https://antennaknobs.dev/start/workbench/)**.
+
 ### Docker (nothing but Docker required)
 
 ```bash
