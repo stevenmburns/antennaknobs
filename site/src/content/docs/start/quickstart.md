@@ -31,8 +31,9 @@ pip install "antennaknobs[web]"
 
 ### On Windows without Python
 
-Every release ships a frozen workbench for Windows:
-[`antennaknobs-workbench-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/latest/download/antennaknobs-workbench-windows.zip).
+Every release from v0.73.0 ships a frozen workbench for Windows,
+`antennaknobs-workbench-windows.zip`, on the
+[latest release](https://github.com/stevenmburns/antennaknobs/releases/latest).
 Unzip it anywhere, double-click `antennaknobs-workbench.exe`, and a console
 window opens the server on this computer and your browser at it. Nothing is
 installed; delete the folder to remove it, and keep the folder together (the
