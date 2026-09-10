@@ -910,6 +910,91 @@ _REFUSE_CARDS = {
 }
 _SYNTHETIC_TAG_BASE = 9001
 
+# NEC's PROGRAM CONTROL cards: everything that belongs after GE. NEC reads the
+# cards before GE as geometry, so one of these above it is not a NEC-5 gap --
+# it is a deck no NEC of any dialect reads (antennaknobs#1382).
+_CONTROL_CARDS = frozenset(
+    (
+        "GN",
+        "EX",
+        "FR",
+        "LD",
+        "RP",
+        "XQ",
+        "NE",
+        "NH",
+        "PT",
+        "PQ",
+        "KH",
+        "EK",
+        "TL",
+        "NT",
+        "CP",
+        "PL",
+    )
+)
+_INVALID = "not valid NEC input: "
+
+
+def _validate_nec(cards: list) -> None:
+    """Refuse a deck that is not legal NEC input in ANY dialect.
+
+    The 8 decks both NEC-5 binaries answered with `DATAGN: Input data error` on
+    the 2026-09-09 corpus run were all of this class, and nec2c rejects every
+    one of them too -- so they were 8 rows in each binary's error column that
+    said nothing about the binary. Refused with the fault NAMED, never
+    repaired: moving a stray GN below GE would make the model ours rather than
+    the author's, and the working group is comparing binaries on the decks
+    their authors published.
+
+    The three faults, in the order they are checked, which is the order of how
+    much they say about the deck:
+
+    * **No GE at all.** A geometry fragment, not a model (`g1ojs/Clutter
+      file.nec` is one, meant to be pasted into another deck). Checked first,
+      and checked as "no GE anywhere" rather than "no GE before the first
+      control card or EN": Clutter has neither of those, so the narrower rule
+      would pass it.
+    * **A control card above GE.** Named, because which card it is says what
+      the author was doing (`GN` in four of the eight, `EX` in one).
+    * **A GW with radius 0 and no GC after it.** In NEC a zero radius means
+      "the taper is on the GC card that follows"; with no GC the wire has no
+      radius. `rchacker`'s turnstil writes the field away entirely -- eight
+      fields, not nine -- and follows with GS, so an absent radius counts as
+      zero here, the way NEC's fixed-format reader counts it.
+    """
+    if not any(c.mn == "GE" for c in cards):
+        raise Refused(
+            _INVALID + "no GE card anywhere (a geometry fragment, not a model)"
+        )
+    for c in cards:
+        if c.mn == "GE":
+            break
+        if c.mn in _CONTROL_CARDS:
+            raise Refused(
+                _INVALID + f"{c.mn} (a program-control card) on line {c.line}, above GE"
+            )
+    for i, c in enumerate(cards):
+        if c.mn != "GW":
+            continue
+        try:
+            if c.num(8, 0.0) != 0.0:
+                continue
+        except DeckError:
+            continue  # a non-numeric radius is a different complaint
+        after = cards[i + 1].mn if i + 1 < len(cards) else ""
+        if after != "GC":
+            raise Refused(
+                _INVALID
+                + f"GW on line {c.line} has radius 0, which means a GC follows with the "
+                + (
+                    f"taper, and the next card is {after}"
+                    if after
+                    else "taper, and it is the last card"
+                )
+            )
+
+
 _SP_PATCH_REFUSAL = (
     "SP in its NEC-2/NEC-4 surface-patch form (two integers then real "
     "coordinates) is not legal NEC-5 syntax — NEC-5's SP is a sphere card; "
@@ -1311,6 +1396,7 @@ def translate_deck(
     comments: list, cards: list, name: str, policy: str, nofile: bool
 ) -> tuple:
     """(deck text, notes) for ONE structure (no NX inside)."""
+    _validate_nec(cards)
     notes = []
     cards = _expand_flat_gh(cards, notes)
     geo = Geometry()
@@ -1665,6 +1751,7 @@ def cmd_translate(args) -> int:
         _meta_row("translate", offcenter=args.offcenter, nofile=bool(args.nofile))
     )
     counts = {"translated": 0, "refused": 0, "unreadable": 0, "decks_written": 0}
+    n_invalid = 0  # refusals that are the DECK's fault, not a NEC-5 gap (#1382)
     reasons = {}
     note_kinds = {}
     n_files = 0
@@ -1680,6 +1767,8 @@ def cmd_translate(args) -> int:
         if rec["status"] != "translated":
             key = re.sub(r"\d+", "N", rec["reason"])[:90]
             reasons[key] = reasons.get(key, 0) + 1
+            if rec["reason"].startswith(_INVALID):
+                n_invalid += 1
         written = []
         for idx, deck in rec.pop("outputs", []):
             stem = re.sub(r"\.(nec|inp)$", "", rel, flags=re.I)
@@ -1703,6 +1792,14 @@ def cmd_translate(args) -> int:
         _log("\nrefused / unreadable, by reason:")
         for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:25]:
             _log(f"  {v:5d}  {k}")
+    if n_invalid:
+        # Its own line because a census reads the two apart: "not valid NEC
+        # input" is the DECK's fault and belongs on no engine's ledger, where
+        # "no NEC-5 card for it" is a statement about NEC-5 (antennaknobs#1382).
+        _log(
+            f"\nof those, not valid NEC input (any dialect): {n_invalid}"
+            f" of {counts['refused'] + counts['unreadable']} — the deck's fault, not NEC-5's"
+        )
     if note_kinds:
         _log("\ntransformations applied (count of decks x notes):")
         for k, v in sorted(note_kinds.items(), key=lambda kv: -kv[1])[:30]:
