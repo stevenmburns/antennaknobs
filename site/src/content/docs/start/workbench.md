@@ -54,6 +54,20 @@ Put the engine's full path on one line in a text file named `NEC5_EXE.txt`
 beside `antennaknobs-workbench.exe`, then start the workbench again. The
 NEC-5 tab appears in the solver panel.
 
+## Adding a NEC-2 engine
+
+The same door, for an engine you may already own: put the path to a NEC-2
+console binary on one line in `NEC2_EXE.txt` beside the executable (or set
+`NEC2_EXE` before starting), and antennaknobs drives it as a subprocess —
+see [NEC-2 as an external engine](/reference/nec2/). 4nec2 installs one as
+`nec2dxs*.exe`; `nec2c` and `nec2++` are free. No NEC-2 is bundled on
+purpose: nec2++ is GPLv2, and shipping it would change this download's
+licence.
+
+The solver panel has no NEC-2 tab yet — the engine landed before its web
+lane did, and it is reachable from the command line
+(`--engine nec2`) meanwhile. Setting the path now costs nothing.
+
 **If you run EZNEC Pro+, the engine is already on your disk.** EZNEC keeps it
 in its `Docs` folder — not under `Program Files`, where people look first —
 and the filename carries a build suffix, so it is `NEC5CL_x13.exe` rather
