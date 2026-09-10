@@ -119,6 +119,25 @@ are MX, which sizes NEC-4's matrix memory, and PS, which asks it to print the
 electrical lengths of the segments; NEC-5 allocates its own memory and has no
 such print, so left in they read as an input error rather than as the model.
 
+**Decks that no NEC reads are refused before any engine sees them**, with the
+fault named — "not valid NEC input: ...". Three faults, which between them
+account for every deck both NEC-5 binaries answered with `DATAGN: Input data
+error` on the 2026-09-09 corpus run, and which nec2c rejects too:
+
+- a program-control card (GN, EX, FR, LD, RP, XQ, NE, NH, PT, PQ, KH, EK, TL,
+  NT, CP, PL) above `GE`, which NEC reads as geometry;
+- no `GE` anywhere: a geometry fragment meant to be pasted into a model, not a
+  model;
+- a `GW` whose radius is 0 — in NEC that means "the taper is on the `GC` card
+  that follows" — with no `GC` after it. An absent radius counts as zero, the
+  way NEC's fixed-format reader counts it.
+
+They are refused, never repaired. Moving a stray `GN` below `GE` would make
+the model ours rather than the author's, and the group is comparing binaries
+on the decks their authors published. The count gets its own line in
+`translate`'s summary, because "the deck is not valid NEC" belongs on no
+engine's ledger, where "NEC-5 has no card for it" is a statement about NEC-5.
+
 SP in its NEC-2/NEC-4 patch form (NEC-5 spells a *different* card as SP, a
 sphere, which is kept when the fields read as one), SC and SM patch cards and
 GF/WG Green's-function files are refused. NX multi-structure decks are split
