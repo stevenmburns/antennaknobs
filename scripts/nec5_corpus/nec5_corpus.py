@@ -274,7 +274,7 @@ SOURCES = [
 ]
 
 _GEOMETRY_CARD = re.compile(
-    r"^\s*(GW|GA|GH|SP|SM|GM|GR|GX|GC)\s*[\d,\s.+-]", re.I | re.M
+    r"^\s*(GW|GA|GH|CW|SP|SM|GM|GR|GX|GC)\s*[\d,\s.+-]", re.I | re.M
 )
 _USER_AGENT = "nec5_corpus.py/" + VERSION
 
@@ -883,7 +883,13 @@ _DROP_CARDS = {
     "MP": "MP (nec2++ medium-parameters card) dropped: not a NEC-5 command",
 }
 _REFUSE_CARDS = {
-    "CW": "CW (NEC-4 catenary wire) has no NEC-5 counterpart",
+    # CW (catenary wire) is deliberately NOT here. This tool used to refuse it
+    # as NEC-4-only, which the NEC-5 manual contradicts: NEC-5 has a CW card in
+    # the structure-geometry section, spelled field for field as NEC-4.2 spells
+    # it -- CW ITG NS X1 Y1 Z1 X2 Y2 Z2 RAD ICAT RHM ZM, ICAT selecting height
+    # / sag / total length -- so the card passes through with no note. It does
+    # go through `Geometry` (below), because it carries segments that EX/LD
+    # address by (tag, segment) (antennaknobs#1369).
     # SP / SC are NEC-2 / NEC-4 surface-patch cards. NEC-5 spells a DIFFERENT
     # card with the mnemonic SP (a sphere), so a patch deck is not a syntax
     # error there: it is silently read as something else. Fed through
@@ -962,7 +968,7 @@ class Geometry:
 
     def __init__(self):
         self.root_n = {}  # root card id -> segment count (as authored)
-        self.root_card = {}  # root card id -> Card (GW/GA/GH) to rewrite
+        self.root_card = {}  # root card id -> Card (GW/GA/GH/CW) to rewrite
         self.groups = {}  # tag -> [root, root, ...] in tag-relative order
         self.order = []  # (tag, root, index in group) per absolute segment
         self.notes = []
@@ -1017,7 +1023,7 @@ class Geometry:
 
     def feed(self, card: Card):
         mn = card.mn
-        if mn in ("GW", "GA", "GH"):
+        if mn in ("GW", "GA", "GH", "CW"):
             self._add_wire(card)
         elif mn == "GM":
             itsi, nrpt = card.int(0), card.int(1)
@@ -1318,7 +1324,7 @@ def translate_deck(
                 if _classify_sp(c) == "patch":
                     raise Refused(_SP_PATCH_REFUSAL)
                 notes.append(f"line {c.line}: SP kept as a NEC-5 sphere card")
-            if c.mn in ("GW", "GA", "GH", "GM", "GX", "GR"):
+            if c.mn in ("GW", "GA", "GH", "CW", "GM", "GX", "GR"):
                 geo.feed(c)
         elif c.mn in _REFUSE_CARDS:
             raise Refused(_REFUSE_CARDS[c.mn])
