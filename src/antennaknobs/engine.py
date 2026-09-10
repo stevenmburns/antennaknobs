@@ -25,6 +25,7 @@ class FarField(NamedTuple):
     # in the lit hemisphere, and the sentence saying so; one it could not
     # serve raises `antennaknobs.in_medium.InMediumPatternRefusal` instead.
     in_medium_moment_fraction: float = 0.0
+    in_medium_power_share: float = 0.0
     in_medium_pattern_delta_db: float = 0.0
     note: str | None = None
 

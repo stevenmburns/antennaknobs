@@ -316,13 +316,13 @@ def _attach_in_medium_assessment(out: dict) -> None:
         i_mid,
         0.0,
         lambda m, d, i: _mag2_at_directions(out, rhat, mid=m, dr=d, i_mid=i),
+        weights=sin_t[:, None],
     )
     if medium.fraction == 0.0:
         return
     out["in_medium_moment_fraction"] = medium.fraction
-    out["in_medium_pattern_delta_db"] = (
-        medium.delta_db if np.isfinite(medium.delta_db) else None
-    )
+    out["in_medium_power_share"] = medium.power_share
+    out["in_medium_pattern_delta_db"] = medium.delta_db
     if medium.served:
         out["pattern_note"] = medium.note
     else:

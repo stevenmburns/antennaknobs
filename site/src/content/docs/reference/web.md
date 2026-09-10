@@ -96,10 +96,11 @@ buried — the buried dipole — gets its impedance, currents and charges and
 **no pattern**: the polar views carry the sentence instead of a lobe. A
 mixed design — a vertical over buried radials, an elevated feed over a
 buried counterpoise — is read out in full and labelled with the share of
-current below ground, because on those the buried currents move the
-pattern by well under a decibel (the screen's currents cancel in the far
-field); a design whose pattern would move by more than 3 dB is refused the
-same way. The label is the caveat: those currents are imaged as if in air.
+current below ground, because on those the imaged buried currents account
+for under a tenth of the radiated power (a screen's currents cancel in the
+far field); a design where they would account for more than half is
+refused the same way. The label is the caveat: those currents are imaged as
+if in air.
 
 - **Pin the views you watch.** The stage carries a *pinned set*, not the whole
   roster — **Antenna, Azimuth, Elevation, Smith** to start, up to **six**
