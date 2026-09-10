@@ -57,6 +57,20 @@ Plus two **accelerated** solvers for large problems:
 - **`arrayblock`** — element-aware block-low-rank, near-linear on arrays of
   identical / few-shape elements.
 
+Both are **opt-in, and stay that way**. Over a real ground the H-matrix
+lane compresses the Sommerfeld part of the matrix with a global low-rank
+factorisation, and on compact multi-wire decks that factorisation can stop
+early without the stopping test noticing: across the catalog at the default
+tolerance, 32 of 99 designs read more than 1e-6 from the dense answer and
+the worst reads 3e-4
+([census](https://github.com/stevenmburns/antennaknobs/blob/main/docs/status/2026-09-09-hmatrix-catalog-residual-census.md),
+[momwire#1019](https://github.com/stevenmburns/momwire/issues/1019)). The
+solver publishes its remainder residual as a diagnostic and falls back to
+the dense fill when the miss is gross, but no threshold separates the good
+decks from the bad, so no bar is applied: the accelerated lanes are for
+large problems the dense solver cannot hold, and a number you intend to
+quote comes from the dense `bspline` lane (decision 2026-09-10).
+
 And one **formulation twin**:
 
 - **`razor-2p`** — a tent basis tested by NEC-5's own razor-blade rule
