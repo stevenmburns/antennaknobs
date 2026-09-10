@@ -21,6 +21,7 @@ from ..network import (
     PortAtVertex,
     PortOnWire,
     PortVirtual,
+    GradedSegments,
     as_wire,
     validate_named_wires_referenced,
 )
@@ -366,6 +367,66 @@ def _node_gaps_refusal(solver_cls):
     refused a combination that works.
     """
     return _capability_refusal(solver_cls, "node_gaps")
+
+
+def split_wires_at_plane(tups, ground_z, *, tol=1e-6):
+    """Split every straight wire that crosses the ground plane mid-span at
+    the point where its line meets the plane (issue #1346, the app's twin
+    of momwire#667).
+
+    momwire serves current across the interface only through a declared
+    crossing junction — a wire ending IN the plane, sharing that node with
+    a wire starting there — and refuses one polyline with points on both
+    sides by name, because at its API the piercing point would be its
+    guess. For a straight ``build_wires()`` tuple it is not a guess: the
+    line meets the plane at one exact point, and the element count is
+    shared between the two halves in proportion to their lengths (each
+    side at least one; a single element becomes two). The new node lies in
+    the plane, so `_ends_in_the_plane` then ends both polylines there and
+    the walk declares the junction.
+
+    Only a plain structural wire is split. A fed wire (``ex`` set), a named
+    port wire, and a graded wire are left as they are — a feed or a port is
+    a statement about ONE wire, and a graded chain's panels are a mesh
+    statement — and the engine's buried refusal then names the crossing as
+    before. The first half replaces the original in place and the second
+    half is appended, so every other tuple keeps its index (TL tags and
+    port names resolve by it). Over free space, or when nothing crosses,
+    the input comes back unchanged and the free-space path stays
+    byte-identical.
+    """
+    if ground_z is None:
+        return tups
+    gz = float(ground_z)
+    out = list(tups)
+    tail = []
+    changed = False
+    for i, t in enumerate(out):
+        w = as_wire(t)
+        if (
+            w.ex is not None
+            or w.name is not None
+            or isinstance(w.n_seg, GradedSegments)
+        ):
+            continue
+        z0, z1 = float(w.p0[2]) - gz, float(w.p1[2]) - gz
+        if not ((z0 < -tol and z1 > tol) or (z0 > tol and z1 < -tol)):
+            continue
+        f = z0 / (z0 - z1)
+        cross = tuple(float(a + (b - a) * f) for a, b in zip(w.p0, w.p1, strict=True))
+        cross = (cross[0], cross[1], gz)
+        n = int(w.n_seg)
+        if n >= 2:
+            n_first = max(1, min(n - 1, int(round(n * f))))
+            n_second = n - n_first
+        else:
+            n_first = n_second = 1
+        out[i] = w._replace(p1=cross, n_seg=n_first)
+        tail.append(w._replace(p0=cross, n_seg=n_second))
+        changed = True
+    if not changed:
+        return tups
+    return out + tail
 
 
 def _ends_in_the_plane(tups, ground_z, *, tol=1e-6):
@@ -757,6 +818,11 @@ class MomwireEngine(SimulationEngine):
         # `ground` argument.
         self._ground = _normalise_ground(ground)
         self._ground_z = ground_z if self._ground is not None else None
+
+        # Issue #1346: a straight wire crossing the plane mid-span becomes
+        # two wires meeting IN it, which the boundary-ends rule below then
+        # turns into the crossing junction momwire serves. Indices stable.
+        tups = split_wires_at_plane(tups, self._ground_z)
 
         translated = flat_wires_to_polylines(
             tups,
