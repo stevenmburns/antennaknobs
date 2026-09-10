@@ -145,6 +145,25 @@ jobs:
         if: github.ref_type == 'tag' && github.event_name == 'push'
         shell: pwsh
         run: Copy-Item "$env:BUNDLE.zip" antennaknobs-workbench-windows.zip
+      - name: Wait for publish.yml to create the release (tags)
+        # publish.yml's release job creates the release with GitHub's
+        # generated notes and attaches the wheel; it needs only the build
+        # (~3 min) while this job takes ~10, so it normally wins. Wait for it
+        # rather than race it: a release created HERE would have an empty
+        # body, and softprops only generates notes into an empty body on the
+        # call that creates the release.
+        if: github.ref_type == 'tag' && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          for ($i = 0; $i -lt 60; $i++) {
+            gh release view $tag --json tagName 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { Write-Host "release $tag exists"; exit 0 }
+            Start-Sleep -Seconds 20
+          }
+          throw "release $tag was not created by publish.yml within 20 min — check that workflow before re-running this one"
       - name: Attach to the GitHub Release (tags)
         if: github.ref_type == 'tag' && github.event_name == 'push'
         uses: softprops/action-gh-release@v3
