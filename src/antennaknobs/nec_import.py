@@ -136,10 +136,14 @@ def classify_sp(fields) -> str:
     decks it sees. Refusing is still right (antennaknobs models wires only);
     only the name changes.
 
-    ONE implementation, lifted here from `scripts/nec5_corpus/nec5_corpus.py`
-    (#1337), which now imports it. It was derived there from the NEC-5 Users
-    Manual's SP layout and measured against the manual's own examples; a second
-    copy is how the two drift.
+    TWIN of `_classify_sp_fields` in `scripts/nec5_corpus/nec5_corpus.py`,
+    where the rule was derived from the NEC-5 Users Manual's SP layout and
+    measured against the manual's own examples. #1337 lifted it here and had
+    the script import it; #1376 put a copy back in the script, because the
+    script's promise to the working group is "one file, standard library
+    only" and an import of this package broke that. Two copies are how the
+    two drift, so `tests/test_nec_import.py` pins the function bodies equal
+    token for token; edit both or fail the suite.
     """
     if len(fields) < 8 or not all(_is_int_literal(t) for t in fields[:4]):
         return "patch"

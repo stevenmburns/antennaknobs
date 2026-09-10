@@ -7,6 +7,7 @@ exists (developer machines), guarded by a skipif.
 """
 
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -820,19 +821,17 @@ def test_sc_is_named_as_a_patch_continuation():
         parse_nec(_deck_with("SC 0 0 .1 .05 .05 0. 0."))
 
 
-@pytest.mark.parametrize(
-    ("card", "form"),
-    [
-        pytest.param(EX4_PATCH, "patch", id="example-4-eight-fields"),
-        pytest.param(NEC5_SPHERE_CARD, "nec5", id="sphere"),
-        pytest.param("SP 0 0 1 2 3 4 5 6", "patch", id="int-literals-but-nth-zero"),
-        pytest.param("SP 0 1 2.0 3 4. 5. 6. 7.", "patch", id="real-in-a-count-field"),
-        pytest.param(
-            "SP 0 4 4 0 0. 0. 0. 0. 0. 180. 0. 360.", "patch", id="zero-radius"
-        ),
-        pytest.param("SP 0 0 .1 .05 .05 0. 0.", "patch", id="seven-fields"),
-    ],
-)
+SP_CASES = [
+    pytest.param(EX4_PATCH, "patch", id="example-4-eight-fields"),
+    pytest.param(NEC5_SPHERE_CARD, "nec5", id="sphere"),
+    pytest.param("SP 0 0 1 2 3 4 5 6", "patch", id="int-literals-but-nth-zero"),
+    pytest.param("SP 0 1 2.0 3 4. 5. 6. 7.", "patch", id="real-in-a-count-field"),
+    pytest.param("SP 0 4 4 0 0. 0. 0. 0. 0. 180. 0. 360.", "patch", id="zero-radius"),
+    pytest.param("SP 0 0 .1 .05 .05 0. 0.", "patch", id="seven-fields"),
+]
+
+
+@pytest.mark.parametrize(("card", "form"), SP_CASES)
 def test_classify_sp_reads_the_form_not_the_value(card, form):
     """The literal spelling carries the signal, not the parsed number: a count
     field written `2.0` is a real coordinate, so the card is a patch even
@@ -842,22 +841,58 @@ def test_classify_sp_reads_the_form_not_the_value(card, form):
     assert classify_sp(card.split()[1:]) == form
 
 
-def test_the_corpus_translator_uses_this_one_implementation():
-    """#1337 lifted the rule out of the script so there is one of it. If the
-    script grows its own copy again they can disagree about a deck, which is
-    the failure the lift exists to prevent."""
+def _function_body(source: str, name: str):
+    """The AST of `name`'s body with the docstring dropped — what the function
+    DOES, independent of what either copy says about the other."""
+    import ast
+
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            body = node.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(getattr(body[0], "value", None), ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                body = body[1:]
+            return [ast.dump(stmt) for stmt in body]
+    raise AssertionError(f"{name} not found")
+
+
+def test_the_corpus_translator_carries_the_same_implementation():
+    """#1337 lifted the rule out of the script so there was one of it; #1376
+    put a copy back because the script's promise to the working group is "one
+    file, standard library only", and an import of this package broke that.
+    Two copies can disagree about a deck, which is the failure the lift
+    existed to prevent — so the two function bodies are pinned equal here,
+    token for token, docstrings aside. Edit both or fail."""
     import importlib.util
+    import inspect
     import pathlib
+
+    from antennaknobs import nec_import
 
     path = pathlib.Path(__file__).resolve().parents[1] / (
         "scripts/nec5_corpus/nec5_corpus.py"
     )
+    script = path.read_text(encoding="utf-8")
+    package = inspect.getsource(nec_import)
+    assert _function_body(script, "_classify_sp_fields") == _function_body(
+        package, "classify_sp"
+    )
+    assert _function_body(script, "_is_int_literal") == _function_body(
+        package, "_is_int_literal"
+    )
+
+    # The script must load with antennaknobs absent: no import of it anywhere.
+    assert not re.search(r"^\s*(from|import)\s+antennaknobs\b", script, re.M)
+
+    # And it still answers through the script's own Card wrapper.
     spec = importlib.util.spec_from_file_location("nec5_corpus_probe", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-
-    from antennaknobs import nec_import
-
-    assert mod._classify_sp_fields is nec_import.classify_sp
-    # And it still answers through the script's own Card wrapper.
     assert mod._classify_sp(mod.Card("SP", EX4_PATCH.split()[1:], 1)) == "patch"
+    for case in SP_CASES:
+        card, form = case.values
+        assert mod._classify_sp_fields(card.split()[1:]) == form
