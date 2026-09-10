@@ -11,7 +11,7 @@ from . import (
     compare_patterns,
     optimize,
 )
-from .engines import PyNECEngine, MomwireEngine, NEC5Engine, find_nec5
+from .engines import PyNECEngine, MomwireEngine, NEC5Engine, probe_nec5
 from .serialize import builder_params_source
 from .fit import MAX_FREE_PARAMS, LineEmbedding, fit, plot_fit
 from .measured import read_measured
@@ -49,7 +49,7 @@ if PyNECEngine is not None:
 # NEC-5 is licensed, user-supplied software (issue #825): the engine only
 # joins the roster when $NEC5_EXE points at a binary, mirroring how an
 # uninstalled pynec simply isn't a legal --engines name.
-if find_nec5() is not None:
+if probe_nec5() is not None:
     ENGINE_CLASSES["nec5"] = NEC5Engine
 
 MOMWIRE_BASES = {

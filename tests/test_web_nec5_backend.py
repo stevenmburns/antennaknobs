@@ -26,10 +26,23 @@ def client() -> TestClient:
 
 
 def test_have_nec5_is_a_runtime_probe(monkeypatch):
+    """Per request, not per import — and the binary must WORK (#1339).
+
+    This test used to set `NEC5_EXE` to `sys.executable` and assert True. That
+    assertion WAS the bug: pointing the variable at any executable produced a
+    NEC-5 tab that failed only at solve time, which is exactly what happened on
+    the Windows box with an 18 KB spy shim. The Python interpreter is a
+    perfectly good example of a wrong binary, so it now has to answer False.
+    """
+    from antennaknobs.engines import nec5 as nec5_mod
+
+    nec5_mod._PROBE_CACHE.clear()
     monkeypatch.delenv("NEC5_EXE", raising=False)
     assert nec5_backend.have_nec5() is False
     monkeypatch.setenv("NEC5_EXE", sys.executable)
-    assert nec5_backend.have_nec5() is True
+    assert nec5_backend.have_nec5() is False, (
+        "an executable that is not NEC-5 must not put NEC-5 in the roster"
+    )
 
 
 def test_solve_raises_when_example_has_no_nec5_solve():

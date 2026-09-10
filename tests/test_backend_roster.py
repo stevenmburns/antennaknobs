@@ -273,9 +273,15 @@ def test_nec5_entry_is_gated_on_the_binary_probe_at_request_time(client, monkeyp
     served = client.get("/capabilities").json()
     assert "nec5" not in {e["name"] for e in served["backends"]}
 
+    # A WRONG executable must not raise the entry (#1339). This used to assert
+    # `in`, which encoded the defect: any executable produced a NEC-5 tab whose
+    # failure arrived at the first solve. `sys.executable` is a wrong binary.
+    from antennaknobs.engines import nec5 as nec5_mod
+
+    nec5_mod._PROBE_CACHE.clear()
     monkeypatch.setenv("NEC5_EXE", sys.executable)
     served = client.get("/capabilities").json()
-    assert "nec5" in {e["name"] for e in served["backends"]}
+    assert "nec5" not in {e["name"] for e in served["backends"]}
 
 
 # ---------------------------------------------------------------------------

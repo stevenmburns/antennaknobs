@@ -31,6 +31,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import logging
 import subprocess
 import tempfile
 import time
@@ -134,6 +135,112 @@ def find_nec5(explicit: str | None = None) -> str | None:
     if p.is_file() and os.access(p, os.X_OK):
         return str(p)
     return None
+
+
+def run_deck(exe: str, deck: str, *, timeout: float) -> str:
+    """One deck through the binary, returning the printout text.
+
+    Module-level because the availability probe must run a deck the same way a
+    solve does — NEC-5 reads its input and output FILE NAMES from stdin and
+    works in intermediate files, so "is this the right binary" is not a
+    question the filesystem can answer. Exit codes are not trusted (Fortran
+    STOP); the printout's presence and parseability are the health signal.
+    """
+    with tempfile.TemporaryDirectory(prefix="nec5_") as td:
+        tdp = Path(td)
+        (tdp / "model.nec").write_text(deck)
+        try:
+            proc = subprocess.run(
+                [exe],
+                input="model.nec\nmodel.out\n\n",
+                text=True,
+                capture_output=True,
+                cwd=td,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise NEC5Error(f"NEC-5 timed out after {timeout:.0f}s") from e
+        out = tdp / "model.out"
+        if not out.is_file():
+            tail = (proc.stdout or "")[-500:] + (proc.stderr or "")[-500:]
+            raise NEC5Error(f"NEC-5 produced no printout; stdout/stderr: {tail}")
+        return out.read_text(errors="replace")
+
+
+# A one-wire deck the probe runs to prove the binary IS NEC-5 (#1339). Half a
+# wavelength at 300 MHz, three segments, centre-fed: the smallest input that
+# produces an ANTENNA INPUT PARAMETERS block, which is what every solve path
+# parses.
+#
+# `XQ 0` is load-bearing and is why this deck is copied from the shape our own
+# fixtures use rather than hand-written. Without it NEC-5 reads every card,
+# echoes them, prints `RUN TIME = 0.000` and exits having solved nothing — so a
+# probe on an EN-terminated deck rejects the GENUINE binary, which is worse
+# than the bug this fixes. Measured against the real nec5cl while writing it.
+_PROBE_DECK = """CM antennaknobs NEC5_EXE probe
+CE
+GW 1 3 0.000000E+00 -2.500000E-01 0.000000E+00 0.000000E+00 2.500000E-01 \
+0.000000E+00 1.000000E-03
+GE 0
+EX 0 1 2 0 1.000000E+00 0.000000E+00
+FR 0 1 0 0 3.000000E+02 0.000000E+00
+XQ 0
+EN
+""".replace("\\\n", "")
+
+# path -> (mtime, size, verdict, reason). Keyed on the file's identity rather
+# than its name so replacing the binary in place re-probes; the probe costs a
+# process launch and `have_nec5()` is called per request.
+_PROBE_CACHE: dict[str, tuple[float, int, bool, str]] = {}
+
+
+def probe_nec5(explicit: str | None = None, *, timeout: float = 20.0) -> str | None:
+    """The resolved NEC-5 executable, or None with the reason logged.
+
+    `find_nec5` answers "is there an executable file at $NEC5_EXE", which is a
+    question about the filesystem, not about NEC-5. Measured on the Windows box
+    2026-09-09: NEC5_EXE pointed at an 18 KB C# spy shim, `have_nec5()` said
+    yes, the app showed a NEC-5 tab, and the failure arrived at the first solve
+    as the shim's own error text (#1339). Any wrong file does that — the EZNEC
+    GUI exe, a copy in the wrong folder.
+
+    So this RUNS the thing once and requires a parsable printout. On failure it
+    returns None and logs the path with the head of stdout/stderr, so the
+    sentence names the actual file rather than saying NEC-5 is missing.
+    """
+    exe = find_nec5(explicit)
+    if exe is None:
+        return None
+    try:
+        st = os.stat(exe)
+        key = (st.st_mtime, st.st_size)
+    except OSError:  # pragma: no cover - it existed a line ago
+        return None
+    cached = _PROBE_CACHE.get(exe)
+    if cached is not None and (cached[0], cached[1]) == key:
+        return exe if cached[2] else None
+
+    reason = ""
+    try:
+        text = run_deck(exe, _PROBE_DECK, timeout=timeout)
+        ok = _AIP_HEADER in text
+        if not ok:
+            reason = (
+                f"{exe} ran but produced no ANTENNA INPUT PARAMETERS block; "
+                f"printout head: {text[:300]!r}"
+            )
+    except NEC5Error as e:
+        ok, reason = False, f"{exe} is not a working NEC-5 binary: {e}"
+    except OSError as e:  # not executable on this platform, bad format, ...
+        ok, reason = False, f"{exe} could not be executed: {e}"
+
+    _PROBE_CACHE[exe] = (key[0], key[1], ok, reason)
+    if not ok:
+        _log.warning("NEC-5 unavailable: %s", reason)
+    return exe if ok else None
+
+
+_log = logging.getLogger(__name__)
 
 
 class NEC5Error(RuntimeError):
@@ -1038,25 +1145,7 @@ class NEC5Engine(SimulationEngine):
         return text
 
     def _run_binary(self, deck: str) -> str:
-        with tempfile.TemporaryDirectory(prefix="nec5_") as td:
-            tdp = Path(td)
-            (tdp / "model.nec").write_text(deck)
-            try:
-                proc = subprocess.run(
-                    [self._exe],
-                    input="model.nec\nmodel.out\n\n",
-                    text=True,
-                    capture_output=True,
-                    cwd=td,
-                    timeout=self._timeout,
-                )
-            except subprocess.TimeoutExpired as e:
-                raise NEC5Error(f"NEC-5 timed out after {self._timeout:.0f}s") from e
-            out = tdp / "model.out"
-            if not out.is_file():
-                tail = (proc.stdout or "")[-500:] + (proc.stderr or "")[-500:]
-                raise NEC5Error(f"NEC-5 produced no printout; stdout/stderr: {tail}")
-            return out.read_text(errors="replace")
+        return run_deck(self._exe, deck, timeout=self._timeout)
 
     # ---------- parse ----------
 
