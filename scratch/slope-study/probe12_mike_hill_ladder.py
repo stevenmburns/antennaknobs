@@ -218,7 +218,7 @@ def main():
         0.955,
         f"{FREQ} MHz, soil εr {SOIL[0]:.0f} / σ {SOIL[1]} S/m. Plumb quarter-wave, four radials an inch above the "
         f"ground, mid-slope on a {SLOPE:.0f}° hill\nbetween a plain and a plateau; only the hill's relief changes "
-        "from panel to panel. Elevation above the true horizontal, downhill on the right.",
+        "from panel to panel.\nElevation above the true horizontal, downhill on the right.",
         fontsize=8.8,
         color=INK2,
         va="top",
