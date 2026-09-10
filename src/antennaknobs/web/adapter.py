@@ -2735,6 +2735,79 @@ def _source_values(sources) -> list[complex]:
     return [complex(entry[2]) for entry in sources]
 
 
+class _SolveSeams(NamedTuple):
+    """Everything that differs between the engine lanes in ONE web solve.
+
+    `pynec_solve` and `nec5_solve` were ~90-line bodies that agreed line for
+    line except in five places, and the cost of that was not the duplication —
+    it was #1342, where the NEC-5 copy unpacked `_sources` as 3-tuples after
+    the engine grew a fourth field, and every multi-feed design on that lane
+    broke while the PyNEC copy stayed right. A field added to the response, or
+    a bug fixed, had to be applied twice to be applied at all.
+
+    So the body is one function and the differences are these five callables.
+    Each is a genuine difference, not a knob:
+
+    * `make_engine` — the engine, with the lane's own ground-spec mapping.
+    * `run` — PyNEC answers `impedance()` then `current_distribution()` (and
+      the SECOND call is what stamps the `_excited_*` attributes, so the order
+      is load-bearing); NEC-5 answers both from ONE subprocess run through
+      `solve_snapshot`, because a web solve must not spawn two.
+    * `ground_constants` — the eps_r/sigma shipped for the frontend's Fresnel
+      cut. The two rules genuinely differ: PyNEC ships the constants of any
+      tuple ground, NEC-5 only of a `finite` one. The difference is
+      unreachable today (NEC-5 refuses `finite-fast`) and is preserved anyway,
+      because a shared body must not quietly change a lane it is only moving.
+    * `ground_applied` — the label each lane puts on the ground it solved.
+    * `feed_values` — the per-feed drive value: PyNEC's `excitation_pairs`
+      3-tuples, NEC-5's `_sources` 4-tuples. THE #1342 SEAM.
+    """
+
+    make_engine: Callable
+    run: Callable
+    ground_constants: Callable
+    ground_applied: Callable
+    feed_values: Callable
+
+
+def _pynec_ground_constants(eng):
+    """Any tuple ground ships its own constants; PEC and free space ship the
+    placeholders (rho -> -1)."""
+    if isinstance(eng.ground, tuple):
+        return eng.ground[1], eng.ground[2]
+    return _PEC_GROUND_EPS_R, _PEC_GROUND_SIGMA
+
+
+def _nec5_ground_constants(eng):
+    """`finite` only — NEC-5's IPERF 0 is full Sommerfeld and it has no
+    reflection-coefficient option, so `finite-fast` never reaches a solve."""
+    if isinstance(eng.ground, tuple) and eng.ground[0] == "finite":
+        return eng.ground[1], eng.ground[2]
+    return _PEC_GROUND_EPS_R, _PEC_GROUND_SIGMA
+
+
+_PYNEC_SEAMS = _SolveSeams(
+    make_engine=_make_pynec_engine,
+    # impedance() first, then current_distribution() — which is what sets
+    # `_excited_efficiency` / `_excited_p_in`, read further down the body.
+    run=lambda eng: (eng.impedance(), eng.current_distribution()),
+    ground_constants=_pynec_ground_constants,
+    ground_applied=_pynec_ground_applied,
+    feed_values=lambda eng: [v for _t, _s, v in (eng.excitation_pairs or [])],
+)
+
+_NEC5_SEAMS = _SolveSeams(
+    make_engine=_make_nec5_engine,
+    # One subprocess run for impedances, currents and the power budget. The
+    # budget is dropped here and re-read off the engine by `_budget_rows`,
+    # which is where every lane gets it.
+    run=lambda eng: eng.solve_snapshot()[:2],
+    ground_constants=_nec5_ground_constants,
+    ground_applied=_nec5_ground_applied,
+    feed_values=lambda eng: _source_values(eng._sources),
+)
+
+
 def _feed_positions(engine, currents, multi_feed=False):
     """One marker per feed (issue #571), each ``{"name", "position": [x,y,z]}``.
 
@@ -3981,24 +4054,33 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         c.fr_card(0, 1, float(freq_mhz), 0)
         c.xq_card(0)
 
-    def pynec_solve(req: dict) -> dict:
-        # Mirror momwire_solve but route through PyNECEngine. Response
-        # shape is identical so the frontend renders the result the
-        # same way; the `solver` field gets stamped to "pynec" by
-        # server.solve()'s outer wrapper.
+    def _engine_solve(req: dict, seams: _SolveSeams) -> dict:
+        """ONE web solve body for every card-deck engine lane (#1354).
+
+        `pynec_solve` and `nec5_solve` were two ~90-line copies of this that
+        agreed line for line except in the five places `_SolveSeams` names. The
+        duplication was not the cost; #1342 was — the NEC-5 copy unpacked
+        `_sources` as 3-tuples after the engine grew a fourth field, so every
+        multi-feed design broke on that lane while the PyNEC copy stayed right.
+
+        The response shape is identical to `momwire_solve`'s so the frontend
+        renders any engine's result unchanged; `server.solve()`'s outer wrapper
+        stamps the `solver` field.
+        """
         design_freq, meas_freq = _req_freqs(req)
         builder = _build_builder(cls, req)
         builder.freq = meas_freq
         if has_design_freq:
             builder.design_freq = design_freq
         plane, planes = _apply_plane(builder, req)
-        eng = _make_pynec_engine(req, builder)
+        eng = seams.make_engine(req, builder)
         t0 = time.perf_counter()
-        zs = [_json_safe_z(z) for z in eng.impedance()]
-        currents = eng.current_distribution()
+        zs_raw, currents = seams.run(eng)
+        zs = [_json_safe_z(z) for z in zs_raw]
         solve_ms = (time.perf_counter() - t0) * 1e3
         feed_wire_idx, feed_knot_idx = _pynec_feed_indices(builder, currents)
         z_primary = zs[0] if zs else complex(0.0, 0.0)
+        ground_eps_r, ground_sigma = seams.ground_constants(eng)
         out = {
             "geometry": name,
             # Solver advisories from this solve (#1144), plus AK's own
@@ -4022,24 +4104,20 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "solve_ms": solve_ms,
             "ground": bool(req.get("ground", False)),
             "height_m": 0.0,
-            # Ship the eps_r/sigma of the ground the engine actually solved
-            # over: the frontend's far-field cut applies PEC image + Fresnel
-            # with these, so finite grounds get their real constants (tracks
-            # NEC's rp_card pattern to ~0.2 dB) while ground_model="pec" and
-            # free space keep the PEC placeholders (ρ→−1).
-            "ground_eps_r": (
-                eng.ground[1] if isinstance(eng.ground, tuple) else _PEC_GROUND_EPS_R
-            ),
-            "ground_sigma": (
-                eng.ground[2] if isinstance(eng.ground, tuple) else _PEC_GROUND_SIGMA
-            ),
-            "ground_model_applied": _pynec_ground_applied(eng.ground),
+            # The eps_r/sigma of the ground the engine actually solved over:
+            # the frontend's far-field cut applies PEC image + Fresnel with
+            # these, so finite grounds get their real constants (tracks NEC's
+            # rp_card pattern to ~0.2 dB) while ground_model="pec" and free
+            # space keep the PEC placeholders (rho -> -1). Which grounds count
+            # as finite is the lane's own rule — see `_SolveSeams`.
+            "ground_eps_r": ground_eps_r,
+            "ground_sigma": ground_sigma,
+            "ground_model_applied": seams.ground_applied(eng.ground),
             "z0_ohms": hints()["target_z0"],
             "multi_feed": hints()["multi_feed"],
             "default_view": hints()["default_view"],
             # Same fields as the momwire path, so switching engines in the UI
-            # keeps the far-field plot meaning GAIN. current_distribution()
-            # set both from the solved feed/load currents.
+            # keeps the far-field plot meaning GAIN.
             "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
             "power_budget": _budget_rows(eng, builder),
             "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
@@ -4054,7 +4132,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             out["plane"] = plane
             out["planes"] = planes
         if _requested_ground_model(req) == "terrain":
-            # PyNEC terrain hybrid (issue #553): the engine solved over the
+            # Terrain hybrid (issue #553): the engine solved over the
             # crest-medium Sommerfeld spec (so ground_eps_r/sigma above are
             # already the crest constants); re-stamp the applied label and
             # attach the facet model so the server's cut physics applies the
@@ -4066,96 +4144,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 gt["marker"] = marker
             out["ground_terrain"] = gt
         if hints()["multi_feed"] and len(zs) > 1:
-            # PyNECEngine.excitation_pairs is [(tag, sub_seg, voltage)];
-            # pull the voltage off each so per-feed phase comes through.
-            voltages = [v for _t, _s, v in (eng.excitation_pairs or [])]
-            voltages += [complex(1.0, 0.0)] * (len(zs) - len(voltages))
-            out["feeds"] = [
-                {
-                    "z_re": float(z.real),
-                    "z_im": float(z.imag),
-                    "v_re": float(v.real),
-                    "v_im": float(v.imag),
-                }
-                for z, v in zip(zs, voltages, strict=True)
-            ]
-        return out
-
-    def nec5_solve(req: dict) -> dict:
-        # Mirror pynec_solve through the licensed NEC-5 binary: one
-        # subprocess run serves Z, currents and the power budget
-        # (NEC5Engine.solve_snapshot), and the response shape is identical
-        # so the frontend renders it unchanged.
-        design_freq, meas_freq = _req_freqs(req)
-        builder = _build_builder(cls, req)
-        builder.freq = meas_freq
-        if has_design_freq:
-            builder.design_freq = design_freq
-        plane, planes = _apply_plane(builder, req)
-        eng = _make_nec5_engine(req, builder)
-        t0 = time.perf_counter()
-        zs_raw, currents, _budget = eng.solve_snapshot()
-        zs = [_json_safe_z(z) for z in zs_raw]
-        solve_ms = (time.perf_counter() - t0) * 1e3
-        feed_wire_idx, feed_knot_idx = _pynec_feed_indices(builder, currents)
-        z_primary = zs[0] if zs else complex(0.0, 0.0)
-        finite = isinstance(eng.ground, tuple) and eng.ground[0] == "finite"
-        out = {
-            "geometry": name,
-            # Solver advisories from this solve (#1144), plus AK's own
-            # single-valued-soil note on a buried deck (#1175). Advisory only:
-            # the UI must render them as notes, not failures.
-            "advisories": _advisories_for(
-                eng, req, hints()["has_buried_wire"], meas_freq
-            ),
-            "wires": _pack_wires(currents),
-            "feed_wire_index": feed_wire_idx,
-            "feed_knot_index": feed_knot_idx,
-            "feed_position": _pynec_feed_position(builder, currents),
-            "feed_positions": _pynec_feed_positions(
-                builder, currents, hints()["multi_feed"]
-            ),
-            "z_in_re": float(z_primary.real),
-            "z_in_im": float(z_primary.imag),
-            "design_freq_mhz": design_freq,
-            "measurement_freq_mhz": meas_freq,
-            "lambda_design_m": C_LIGHT / (design_freq * 1e6),
-            "solve_ms": solve_ms,
-            "ground": bool(req.get("ground", False)),
-            "height_m": 0.0,
-            "ground_eps_r": eng.ground[1] if finite else _PEC_GROUND_EPS_R,
-            "ground_sigma": eng.ground[2] if finite else _PEC_GROUND_SIGMA,
-            "ground_model_applied": _nec5_ground_applied(eng.ground),
-            "z0_ohms": hints()["target_z0"],
-            "multi_feed": hints()["multi_feed"],
-            "default_view": hints()["default_view"],
-            "radiation_efficiency": float(getattr(eng, "_excited_efficiency", 1.0)),
-            "power_budget": _budget_rows(eng, builder),
-            "input_power_w": float(getattr(eng, "_excited_p_in", None) or 0.0),
-            **_wire_material_results(builder),
-            **_rig_report_results(builder),
-            **_readout_rows_results(builder),
-        }
-        if planes is not None:
-            out["plane"] = plane
-            out["planes"] = planes
-        if _requested_ground_model(req) == "terrain":
-            # Same crest-medium hybrid as the PyNEC path: the engine solved
-            # flat Sommerfeld at the crest constants; the facets enter in
-            # the server's far-field composition via ground_terrain.
-            out["ground_model_applied"] = "terrain"
-            gt = _pack_terrain(_terrain_from_request(req))
-            marker = _terrain_marker(req)
-            if marker:
-                gt["marker"] = marker
-            out["ground_terrain"] = gt
-        if hints()["multi_feed"] and len(zs) > 1:
-            # NEC5Engine._sources is [(wire_idx, ex_type, value, knot)] in
-            # feed order (the engine grew `knot` for the edge-source
-            # spelling, #898; this unpack read three and broke every
-            # multi-feed design on the NEC-5 web path, #1342); value is volts
-            # for EX 0 and amps for EX 4.
-            values = _source_values(eng._sources)
+            # Per-feed drive values so phase comes through. Where the engines
+            # keep them differs, which is the seam #1342 was hiding in.
+            values = seams.feed_values(eng)
             values += [complex(1.0, 0.0)] * (len(zs) - len(values))
             out["feeds"] = [
                 {
@@ -4167,6 +4158,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 for z, v in zip(zs, values, strict=True)
             ]
         return out
+
+    def pynec_solve(req: dict) -> dict:
+        return _engine_solve(req, _PYNEC_SEAMS)
+
+    def nec5_solve(req: dict) -> dict:
+        return _engine_solve(req, _NEC5_SEAMS)
 
     def nec5_pattern(req: dict) -> dict:
         # Same response contract as pynec_backend.pattern (46 thetas
