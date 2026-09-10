@@ -189,7 +189,7 @@ def profile_axes(ax, H):
     ax.text(
         right - 4, -5.0, "plain", fontsize=8.5, color=INK2, style="italic", ha="right"
     )
-    ax.text(-0.5 * LAMBDA, H - 6.5, "plateau", fontsize=8.5, color=INK2, style="italic")
+    ax.text(-0.5 * LAMBDA, H - 13, "plateau", fontsize=8.5, color=INK2, style="italic")
     ax.text(left + 4, H + mast + 4, "← uphill, az 180", fontsize=8, color=INK2)
     ax.text(
         right - 4, H + mast + 1, "downhill, az 0 →", fontsize=8, color=INK2, ha="right"
