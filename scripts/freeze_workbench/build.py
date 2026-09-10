@@ -21,6 +21,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import shutil
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -199,6 +200,35 @@ Docs: https://antennaknobs.dev/   Source: https://github.com/stevenmburns/antenn
     )
 
 
+def _prune_gpl(bundle: Path) -> None:
+    """Remove any PyNEC artefact the collector left behind.
+
+    `--exclude-module PyNEC/_PyNEC` drops the importable code, and on a venv
+    with `pynec-accel` installed that is 36 MB of it. What the module exclude
+    does NOT drop is the distribution's `*.dist-info/` — PyInstaller collects
+    installed metadata independently of whether the module ships — so a build
+    from such a venv still emitted `pynec_accel-1.7.6.dist-info/` with its
+    METADATA, RECORD and `licenses/`.
+
+    That is metadata rather than GPL source, so it is not the licence breach
+    the module would be; it is removed anyway, because "no PyNEC anything in
+    the bundle" is a rule that can be checked, and "some PyNEC files but only
+    the harmless ones" is not. `smoke.py` gate 0 asserts the outcome.
+    """
+    hits = [
+        p
+        for p in bundle.rglob("*")
+        if "pynec" in p.name.lower() and (p.is_dir() or p.is_file())
+    ]
+    for p in sorted(hits, key=lambda q: -len(q.parts)):
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        elif p.exists():
+            p.unlink()
+    if hits:
+        print(f"pruned {len(hits)} PyNEC artefact(s) the collector added")
+
+
 def main() -> int:
     cmd = [
         sys.executable,
@@ -227,6 +257,25 @@ def main() -> int:
         "PySide6",
         "--exclude-module",
         "IPython",
+        # PyNEC is GPL and the workbench is not. `pyproject.toml` keeps it out
+        # of every extra on purpose and antennaknobs#1354's text coupling means
+        # no served path imports it — but `--collect-submodules antennaknobs`
+        # follows the BUILD VENV, so a developer whose venv has `pynec-accel`
+        # installed shipped `PyNEC.py`, `_PyNEC*.so` and a 27 MB
+        # `pynec_accel.libs/` without being told. Measured 2026-09-10 on a dev
+        # box: 36 MB of GPL code in the bundle. `pynec-accel` publishes the two
+        # top-level names below; `smoke.py` gate 0 asserts the OUTCOME, so the
+        # licence does not rest on this list tracking the wheel.
+        "--exclude-module",
+        "PyNEC",
+        "--exclude-module",
+        "_PyNEC",
+        # Nothing in a served path imports pandas, and the shipped v0.73.0
+        # Windows zip has none — but a build venv that happens to have it gets
+        # 18 MB of it collected. Excluded by name so the bundle's contents are
+        # a property of this file rather than of whoever's venv ran it.
+        "--exclude-module",
+        "pandas",
     ]
     for name in HIDDEN_IMPORTS:
         cmd += ["--hidden-import", name]
@@ -273,6 +322,7 @@ def main() -> int:
     if exe is None:
         print(f"ERROR: no {NAME} executable in {bundle}", file=sys.stderr)
         return 1
+    _prune_gpl(bundle)
     _readme(bundle)
     signer = _load_sign()
     signed = signer.sign_if_configured([exe])
