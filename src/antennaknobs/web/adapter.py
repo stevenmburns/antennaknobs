@@ -108,7 +108,7 @@ from momwire import (
 )
 
 from ..geometry import flat_wires_to_polylines
-from .examples import register
+from .examples import REGISTRY, register
 from .examples._base import (
     DEFAULT_AMATEUR_BANDS,
     DEFAULT_SWEEP_POLICY,
@@ -483,12 +483,24 @@ def design_backend_coverage(design: str) -> dict:
     not offer — availability (`$NEC5_EXE`, the pynec package) is the roster's
     question, and mixing the two here would make coverage depend on the box,
     which is exactly what this is supposed not to do.
+
+    Resolved through the REGISTRY, not by package path (#1309). The path form
+    (`importlib.import_module(f"{DESIGNS_PKG}.{design}")`) can only ever name a
+    design shipped inside the package, so every `user.*` design raised
+    ModuleNotFoundError into the broad except and got `{"needs": [],
+    "refusals": {}}` — no tab greyed, and the user met momwire's refusal at
+    solve time instead. That is the experience #1286 exists to remove, on the
+    designs a user is most likely to bring. The registry holds the class that
+    actually registered, whatever loaded it, so both kinds take ONE derivation.
+
+    A name the registry does not hold is answered empty. That is the whole
+    contract now: coverage is a question about a design that has LOADED. A user
+    design that is untrusted or broken is absent here for the same reason it is
+    absent from the picker, and the trust gate stays the only thing that
+    decides whether their file runs — this function never loads anything.
     """
-    try:
-        mod = importlib.import_module(f"{DESIGNS_PKG}.{design}")
-    except Exception:  # noqa: BLE001 — an unknown or broken design gets an empty answer, never a raised listing
-        return {"needs": [], "refusals": {}}
-    cls = getattr(mod, "Builder", None)
+    ex = REGISTRY.get(design)
+    cls = getattr(ex, "builder_cls", None) if ex is not None else None
     if cls is None:
         return {"needs": [], "refusals": {}}
     needs = _design_capability_needs(cls)
@@ -4384,6 +4396,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     return AntennaExample(
         name=name,
         label=name.replace("_", " "),
+        builder_cls=cls,
         momwire_solve=momwire_solve,
         momwire_sweep=momwire_sweep,
         momwire_geometry=momwire_geometry,
