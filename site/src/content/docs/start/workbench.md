@@ -85,7 +85,7 @@ fetch the public NEC-2 decks, translate them for NEC-5, run them through
 your engine, compare two runs) is **not** in the workbench. It is published
 on its own, as a signed 9 MB `nec5_corpus-windows.zip` under the release tag
 `nec5-corpus-v<version>`, for instance
-[nec5-corpus-v1.3](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.3).
+[nec5-corpus-v1.4](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.4).
 Unzip it and read the README.txt inside; it runs without Python, and anyone
 with a working Python 3.8 or newer can run the script itself instead. A
 security review of the script ships in the zip beside the exe and the

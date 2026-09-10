@@ -128,13 +128,15 @@ pitch is written as straight pieces, because NEC-5's GH computes zero wire
 length from it.
 
 Every one of these conventions was verified by running probe decks through
-a NEC-5 executable and reading the printout, not taken from its source — with
-one exception, named here so the claim is not read as covering it. The CW
-pass-through rests on NEC-5's own card table and on the field layout of
-4nec2's NEC-4 catenary deck, which agree field for field; no CW deck has been
-through a NEC-5 engine yet. If NEC-5's CW disagrees after all, a catenary
-deck now fails at the engine, where the printout says so, instead of being
-refused at this seam for a reason NEC-5 does not share.
+a NEC-5 executable and reading the printout, not taken from its source. CW
+included, as of 1.4: 4nec2's NEC-4 catenary card (`CW 1 39 -19.64 0 20
+19.64 0 20 0.001 2 19.64 1`, a 39.28 m span at 20 m with ICAT 2 and ZM 1),
+translated to 40 segments with the feed on a knot, runs in NEC-5, is echoed
+as a CW, and the printout reports "Catenary length = 39.3478" — the 39.28 m
+span plus 8h²/3L for a 1 m sag, so ICAT 2 / ZM read as "sag" in both
+dialects — and the impedance differs from a straight GW of the same span
+(4365+2181j against 4266+2235j at 7 MHz) the way a longer, sagged wire
+should. If a catenary deck fails at the engine, the printout says why.
 
 ## What to expect from check
 
