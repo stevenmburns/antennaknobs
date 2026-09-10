@@ -151,10 +151,13 @@ def main(argv: list[str]) -> int:
         assert not missing, f"manifest names decks that are not there: {missing[:5]}"
         assert len(list(catalog.glob("*.nec"))) == len(names)
         for n in names[:50]:
-            text = (catalog / n).read_text(encoding="ascii", errors="replace")
+            raw = (catalog / n).read_bytes()
+            assert b"\r" not in raw, f"{n}: CRLF — the export must write LF everywhere"
+            text = raw.decode("ascii", errors="replace")
             assert (
                 text.startswith("CM antennaknobs catalog design") and "\nEN" in text
             ), n
+        assert b"\r" not in (catalog / "manifest.json").read_bytes()
         no_engine = [
             s for s in manifest["skipped"] if "executable not found" in s["why"]
         ]
