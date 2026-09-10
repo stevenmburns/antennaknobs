@@ -50,7 +50,7 @@ from antennaknobs import in_medium
 
 from . import cost as _cost
 from . import tracker
-from . import nec5_backend, pynec_backend, user_designs
+from . import nec2_backend, nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
 from .examples import UnknownGeometryError, example_for
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
@@ -1402,11 +1402,7 @@ def _canonical_solve_key(req: dict) -> str:
     # under the requested name would serve a momwire fallback as a NEC-5
     # answer (or vice versa) after the environment changes.
     backend = _external_backend(req)
-    canon["_resolved_solver"] = (
-        "momwire"
-        if backend is None
-        else ("pynec" if backend is pynec_backend else "nec5")
-    )
+    canon["_resolved_solver"] = "momwire" if backend is None else _BACKEND_NAME[backend]
     blob = json.dumps(canon, sort_keys=True, default=str).encode()
     return hashlib.blake2b(blob, digest_size=16).hexdigest()
 
@@ -1437,18 +1433,29 @@ def _shed(fn, *args, **kwargs):
         raise exc
 
 
+# The external-engine backends by request name. A dict rather than a chain of
+# `is` comparisons because the third entry (#1354) turned the two-way ternary
+# that named the resolved solver into the kind of expression a fourth engine
+# gets wrong.
+_EXTERNAL_BACKENDS = {
+    "pynec": (pynec_backend, lambda: pynec_backend.HAVE_PYNEC),
+    "nec5": (nec5_backend, nec5_backend.have_nec5),
+    "nec2": (nec2_backend, nec2_backend.have_nec2),
+}
+_BACKEND_NAME = {mod: name for name, (mod, _avail) in _EXTERNAL_BACKENDS.items()}
+
+
 def _external_backend(req: dict):
-    """The non-momwire backend module a request selects (pynec / nec5), or
-    None for the momwire path. Availability is re-checked here per request;
+    """The non-momwire backend module a request selects (pynec / nec5 / nec2),
+    or None for the momwire path. Availability is re-checked here per request;
     a requested-but-unavailable engine falls back to momwire — the existing
     pynec contract, which the nec5 entry (a runtime $NEC5_EXE probe, issue
-    #825) inherits."""
-    s = req.get("solver")
-    if s == "pynec" and pynec_backend.HAVE_PYNEC:
-        return pynec_backend
-    if s == "nec5" and nec5_backend.have_nec5():
-        return nec5_backend
-    return None
+    #825) and the nec2 entry ($NEC2_EXE, issue #1354) inherit."""
+    entry = _EXTERNAL_BACKENDS.get(req.get("solver"))
+    if entry is None:
+        return None
+    mod, available = entry
+    return mod if available() else None
 
 
 def _solve_uncached(req: dict, cancel=None) -> dict:
@@ -1463,7 +1470,7 @@ def _solve_uncached(req: dict, cancel=None) -> dict:
         if cancel is not None:
             cancel.raise_if_cancelled()
         out = backend.solve(req)
-        out["solver"] = "pynec" if backend is pynec_backend else "nec5"
+        out["solver"] = _BACKEND_NAME[backend]
     else:
         ex = example_for(geometry)
         out = ex.momwire_solve(req, cancel=cancel)
@@ -2819,6 +2826,7 @@ def capabilities_endpoint():
         "backends": backend_roster(
             have_pynec=pynec_backend.HAVE_PYNEC,
             have_nec5=nec5_backend.have_nec5(),
+            have_nec2=nec2_backend.have_nec2(),
         ),
         "model_option_specs": model_option_specs(),
         "backend_aliases": backend_aliases(),

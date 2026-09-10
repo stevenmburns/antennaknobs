@@ -57,10 +57,14 @@ def test_roster_names_match_the_momwire_registry():
 def test_momwire_entries_carry_a_solver_class_and_pynec_does_not():
     """`_MOMWIRE_MODELS.get(model, BSplineSolver)` silently substitutes
     B-spline for an unknown model, so a momwire entry with no class would
-    serve the wrong solver's numbers under the right tab. PyNEC is the one
-    entry with no momwire class — it rides `solver: "pynec"`."""
+    serve the wrong solver's numbers under the right tab.
+
+    The wrapper entries — PyNEC, NEC-5, NEC-2 — are the ones with no momwire
+    class; each rides its own `solver:` name. Written as "not momwire" rather
+    than as a list of wrapper kinds so a fourth wrapper does not have to touch
+    this test to be correct (issue #1354 made it a list of three)."""
     for spec in _BACKENDS:
-        assert (spec.solver is None) == (spec.kind in ("pynec", "nec5")), spec.name
+        assert (spec.solver is None) == (spec.kind != "momwire"), spec.name
     assert all(cls is not None for cls in _MOMWIRE_MODELS.values())
 
 

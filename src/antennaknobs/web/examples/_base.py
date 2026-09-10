@@ -371,6 +371,12 @@ class AntennaExample:
     #: pynec pair, backed by the user's licensed binary via $NEC5_EXE.
     nec5_solve: Optional[SolveFn] = None
     nec5_pattern: Optional[SolveFn] = None
+    #: NEC-2 twins (issue #1354): the same contracts again, backed by a NEC-2
+    #: console binary via $NEC2_EXE. Same physics as the pynec pair reached
+    #: over a subprocess instead of a linked GPL library, which is what lets a
+    #: distributed bundle offer it.
+    nec2_solve: Optional[SolveFn] = None
+    nec2_pattern: Optional[SolveFn] = None
     # Render the geometry as a NEC2 .nec card deck (str) for the current
     # request (params/variant/freq/ground). None when the design has no
     # faithful native-NEC representation (TL/virtual-driver networks).

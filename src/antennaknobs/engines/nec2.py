@@ -68,6 +68,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -89,6 +90,14 @@ _PATTERN_HEADER = "RADIATION PATTERNS"
 # NEC prints -999.99 dB for a true pattern null. Kept verbatim: it is already a
 # dB floor, and inventing -inf here would change what a caller plots.
 NULL_GAIN_DB = -999.99
+
+# What a NEC-2 shouts when it will not run a deck. Case-sensitive on purpose:
+# the printout echoes the deck's own CM comments, and a design whose title says
+# "error" must not read as one.
+_ENGINE_ERROR_RE = re.compile(
+    r"\bERROR\b|FAULTY|INVALID|STOP INPUT|GEOMETRY DATA CARD ERROR"
+    r"|DATA CARD ERROR|not supported"
+)
 
 # The two ways to hand a deck to a NEC-2 binary; see the module docstring.
 FORM_ARGS = "args"
@@ -384,7 +393,18 @@ class NEC2Engine(SimulationEngine):
         return "\n".join(lines) + "\n"
 
     def _run(self, deck: str) -> str:
-        return run_deck(self.exe, deck, timeout=self.timeout)
+        text = run_deck(self.exe, deck, timeout=self.timeout)
+        if _AIP_HEADER not in text:
+            # The binary ran and reported a fault. Say WHAT it said: without
+            # this the first parser to look raises "no ANTENNA INPUT
+            # PARAMETERS" or "no POWER BUDGET", which is true and useless —
+            # it names the block that is missing rather than the reason.
+            # Found on a design carrying an `LD 2` card, where the answer was
+            # "LD type 2 is not supported by this engine".
+            for line in text.splitlines():
+                if _ENGINE_ERROR_RE.search(line):
+                    raise NEC2Error(f"{Path(self.exe).name}: {line.strip()}")
+        return text
 
     # -- parsers ----------------------------------------------------------
     @staticmethod
@@ -484,6 +504,127 @@ class NEC2Engine(SimulationEngine):
         if not gains:
             raise NEC2Error(f"unparseable {_PATTERN_HEADER} section")
         return gains
+
+    @staticmethod
+    def _parse_feed_voltages(text: str) -> list[complex]:
+        """The DRIVE VALUE of each feed, from the printout's own VOLTAGE columns.
+
+        Taken from the report rather than reconstructed from the deck, because
+        the report is what the binary was actually driven with — and because
+        this engine has no resolved-feed list of its own to reconstruct from:
+        `nec_export.export_nec` builds and discards the `PyNECEngine` that
+        resolves them. Row layout as `_parse_input_parameters`: V at 2/3.
+        """
+        chunks = text.split(_AIP_HEADER)[1:]
+        if not chunks:
+            raise NEC2Error(f"no {_AIP_HEADER} in NEC-2 printout")
+        out: list[complex] = []
+        for line in chunks[0].splitlines():
+            toks = line.split()
+            if len(toks) != 11:
+                if out:
+                    break
+                continue
+            try:
+                int(toks[0]), int(toks[1])
+                out.append(complex(float(toks[2]), float(toks[3])))
+            except ValueError:
+                if out:
+                    break
+                continue
+        return out
+
+    @staticmethod
+    def _parse_power_budget(text: str) -> dict:
+        """The POWER BUDGET block, in the same keys `NEC5Engine` returns.
+
+        NEC-2's block, and the spellings are its own::
+
+            INPUT POWER   =  1.1068E-02 Watts
+            RADIATED POWER=  1.1068E-02 Watts
+            STRUCTURE LOSS=  0.0000E+00 Watts
+            NETWORK LOSS  =  0.0000E+00 Watts
+            EFFICIENCY    =  100.00 Percent
+
+        Two differences from NEC-5's that a shared parser would get wrong: the
+        conductor loss is ``STRUCTURE LOSS`` rather than ``WIRE LOSS``, and
+        there is a ``NETWORK LOSS`` line NEC-5 has no counterpart for. The
+        label match is on the label text and not on a column, because
+        ``RADIATED POWER=`` carries no space before its ``=``.
+
+        Raises rather than returning partial: a budget with a missing line is
+        how an efficiency of 1.0 gets shipped as if it were measured.
+        """
+        try:
+            chunk = text.split("POWER BUDGET", 1)[1]
+        except IndexError:
+            raise NEC2Error("no POWER BUDGET in NEC-2 printout") from None
+        keys = {
+            "INPUT POWER": "input_w",
+            "RADIATED POWER": "radiated_w",
+            "STRUCTURE LOSS": "wire_loss_w",
+            "NETWORK LOSS": "network_loss_w",
+            "EFFICIENCY": "efficiency_pct",
+        }
+        out: dict = {}
+        for line in chunk.splitlines()[:12]:
+            for label, key in keys.items():
+                if label in line and "=" in line:
+                    out[key] = float(line.split("=", 1)[1].split()[0])
+        missing = set(keys.values()) - set(out)
+        if missing:
+            raise NEC2Error(
+                f"incomplete POWER BUDGET section: missing {sorted(missing)}, "
+                f"parsed {out}"
+            )
+        return out
+
+    def solve_snapshot(self):
+        """One binary run serving the whole web-solve contract: impedances,
+        knot currents and the power budget from ONE printout.
+
+        `impedance()` and `current_distribution()` each spawn a process, and a
+        web solve must not pay twice. Also stamps the duck-typed
+        ``_excited_efficiency`` / ``_excited_p_in`` / ``_excited_power_budget``
+        the web adapter's efficiency and budget helpers read on every engine.
+
+        THE BUDGET IS NOT OPTIONAL. Those attributes have plausible fallbacks —
+        `getattr(eng, "_excited_efficiency", 1.0)` — and a NEC-2 tab reporting
+        100 % efficiency because nothing was parsed is the same shape of wrong
+        answer as the buried wire this engine refuses: confident, unwarned, and
+        indistinguishable from a real result. So a printout with no budget
+        raises, and the sentence names what was missing.
+
+        A plain ``XQ`` deck already carries the block — measured through
+        momwire's portal, which writes nec2c's printout column for column, on a
+        43-segment and a 1376-segment deck. A build that needs a pattern
+        request to print one gets ONE retry with the smallest possible ``RP``
+        (1x1, measured at ~10 ms of the 0.45 s / 1.10 s those decks cost, i.e.
+        inside the process-startup noise); if that printout has no budget
+        either, the solve refuses.
+        """
+        text = self._run(self.deck(self.builder.freq))
+        try:
+            budget = self._parse_power_budget(text)
+        except NEC2Error:
+            text = self._run(self.deck(self.builder.freq, rp=(1, 1, 0, 0)))
+            budget = self._parse_power_budget(text)
+        zs = self._impedances(self._parse_input_parameters(text)[0])
+        currents = self._currents_from(self._parse_currents(text)[0])
+        self._excited_efficiency = budget["efficiency_pct"] / 100.0
+        self._excited_p_in = budget["input_w"]
+        self._excited_power_budget = [
+            ("Radiated", budget["radiated_w"]),
+            ("Wire loss", budget["wire_loss_w"]),
+        ]
+        # The per-feed drive values, for the web lane's multi-feed response.
+        self._excited_feed_values = self._parse_feed_voltages(text)
+        if budget["network_loss_w"]:
+            # NEC-5 has no counterpart, so this row only ever appears here.
+            self._excited_power_budget.append(
+                ("Network loss", budget["network_loss_w"])
+            )
+        return zs, currents, budget
 
     # -- the engine surface ----------------------------------------------
     def _impedances(self, rows) -> list[complex]:
