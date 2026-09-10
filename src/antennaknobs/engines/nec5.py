@@ -1462,10 +1462,13 @@ class NEC5Engine(SimulationEngine):
         budget = self._parse_power_budget(text)
         self._excited_efficiency = budget["efficiency_pct"] / 100.0
         self._excited_p_in = budget["input_w"]
-        self._excited_power_budget = [
-            ("Radiated", budget["radiated_w"]),
-            ("Wire loss", budget["wire_loss_w"]),
-        ]
+        # LOSSES ONLY — see the protocol comment in `antennaknobs.engine`. This
+        # used to carry ("Radiated", P_rad) as well, which every consumer then
+        # subtracted from the input as if radiating were a loss: on a lossless
+        # design the CLI and the web panel both read "antenna (accepted): 0 %"
+        # where momwire read 100 % (issue #1354).
+        self._excited_power_budget = [("Wire loss", budget["wire_loss_w"])]
+        self._excited_p_radiated = budget["radiated_w"]
         return zs, currents, budget
 
     def _currents_from(self, per_tag):

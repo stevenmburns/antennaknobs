@@ -625,17 +625,20 @@ class NEC2Engine(SimulationEngine):
         currents = self._currents_from(self._parse_currents(text)[0])
         self._excited_efficiency = budget["efficiency_pct"] / 100.0
         self._excited_p_in = budget["input_w"]
-        self._excited_power_budget = [
-            ("Radiated", budget["radiated_w"]),
-            ("Wire loss", budget["wire_loss_w"]),
-        ]
-        # The per-feed drive values, for the web lane's multi-feed response.
-        self._excited_feed_values = self._parse_feed_voltages(text)
+        # LOSSES ONLY — see the power-budget protocol comment in
+        # `antennaknobs.engine`. The radiated power is NOT a budget row: every
+        # consumer subtracts the rows from the input to get what reaches the
+        # antenna, so listing P_rad there printed "antenna (accepted): 0 %" on a
+        # lossless design where momwire printed 100 % (issue #1354).
+        self._excited_power_budget = [("Wire loss", budget["wire_loss_w"])]
         if budget["network_loss_w"]:
-            # NEC-5 has no counterpart, so this row only ever appears here.
+            # NEC-5's block has no counterpart, so this row only appears here.
             self._excited_power_budget.append(
                 ("Network loss", budget["network_loss_w"])
             )
+        self._excited_p_radiated = budget["radiated_w"]
+        # The per-feed drive values, for the web lane's multi-feed response.
+        self._excited_feed_values = self._parse_feed_voltages(text)
         return zs, currents, budget
 
     # -- the engine surface ----------------------------------------------
