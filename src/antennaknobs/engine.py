@@ -17,6 +17,16 @@ class FarField(NamedTuple):
     min_gain: float
     thetas: np.ndarray
     phis: np.ndarray
+    # Issue #1341: what the readout found below the ground plane. Zero / None
+    # for a deck with nothing below it (and for the NEC engines, whose RP is
+    # their own). A momwire deck with in-medium currents the readout could
+    # serve carries the share of current moment below the plane, the
+    # largest change that imaging those currents as if above ground makes
+    # in the lit hemisphere, and the sentence saying so; one it could not
+    # serve raises `antennaknobs.in_medium.InMediumPatternRefusal` instead.
+    in_medium_moment_fraction: float = 0.0
+    in_medium_pattern_delta_db: float = 0.0
+    note: str | None = None
 
 
 def refuse_graded_wires(tups, engine_name):

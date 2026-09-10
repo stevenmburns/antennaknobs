@@ -86,6 +86,21 @@ frequency sweep** the Smith chart plots — run a [sweep](#convergence-sweep)
 and all three fill in together; the marker on each rides the measurement
 frequency.
 
+**Wires below the ground plane and the polar cuts.** The cuts are read out
+of the solved currents with the above-ground formula (an image in the
+plane, then Fresnel reflection). For a current *inside* the soil that is
+the wrong problem: its field above ground is the transmitted field,
+refracted at the interface and attenuated through the medium, which the
+readout does not compute (momwire#570). So a design whose every wire is
+buried — the buried dipole — gets its impedance, currents and charges and
+**no pattern**: the polar views carry the sentence instead of a lobe. A
+mixed design — a vertical over buried radials, an elevated feed over a
+buried counterpoise — is read out in full and labelled with the share of
+current below ground, because on those the buried currents move the
+pattern by well under a decibel (the screen's currents cancel in the far
+field); a design whose pattern would move by more than 3 dB is refused the
+same way. The label is the caveat: those currents are imaged as if in air.
+
 - **Pin the views you watch.** The stage carries a *pinned set*, not the whole
   roster — **Antenna, Azimuth, Elevation, Smith** to start, up to **six**
   pins. Six is a hard cap: more thumbnails than that and none of them is

@@ -297,6 +297,27 @@ export function FarFieldChart({
     }
 
     // Live lobe (filled).
+    // Issue #1341: a live solve whose pattern is refused (every current
+    // below the ground plane, or the pattern depends on in-medium currents
+    // past the bar) draws the sentence in place of a lobe; one served with
+    // a note carries the share of current moment below the plane in the
+    // corner the peak label uses, so the number is beside the number it
+    // qualifies. Ghosts keep drawing: a pin from an above-ground solve is
+    // still a pattern.
+    const refusal = result?.pattern_refusal;
+    if (refusal) {
+      ctx.fillStyle = PC.labelStrong;
+      ctx.font = "11px ui-monospace, monospace";
+      const lines = wrapText(ctx, `pattern not served: ${refusal}`, size - 24);
+      const lh = 14;
+      let y = cy - ((lines.length - 1) * lh) / 2;
+      for (const line of lines) {
+        const w = ctx.measureText(line).width;
+        ctx.fillText(line, cx - w / 2, y);
+        y += lh;
+      }
+      return;
+    }
     if (!liveTrace) return;
     strokeTrace(liveTrace.dbi, {
       stroke: `rgba(${PC.lobeRgb}, 0.9)`,
@@ -387,10 +408,44 @@ export function FarFieldChart({
     const peakText = `peak ${peakDbi >= 0 ? "+" : ""}${peakDbi.toFixed(1)} dBi`;
     const tw = ctx.measureText(peakText).width;
     ctx.fillText(peakText, size - tw - 6, 14);
+    const frac = result?.in_medium_moment_fraction;
+    if (result?.pattern_note && frac != null) {
+      // Issue #1341: the share of current moment below the ground plane,
+      // imaged as if above it; the full sentence is the response's
+      // pattern_note and the canvas title carries it.
+      ctx.fillStyle = PC.labelDim;
+      const medText = `${Math.round(frac * 100)}% of current below ground, imaged`;
+      const mw = ctx.measureText(medText).width;
+      ctx.fillText(medText, size - mw - 6, 26);
+    }
     // cutTracesKey stands in for the fetched trace contents (see above); the
     // other deps cover everything the draw reads directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, pattern, pinned, size, cut, azElevDeg, elevAzDeg, fineNorm, theme, cutTracesKey]);
 
-  return <canvas ref={canvasRef} className="farfield" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className="farfield"
+      title={result?.pattern_refusal ?? result?.pattern_note ?? undefined}
+    />
+  );
+}
+
+/** Greedy word wrap for canvas text (issue #1341's refusal sentence). */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const probe = line ? `${line} ${word}` : word;
+    if (ctx.measureText(probe).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = probe;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
