@@ -422,7 +422,14 @@ python -m uvicorn antennaknobs.web.server:app             # then open http://127
 ```
 
 If `Activate.ps1` is refused, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
-once. Always `python -m pip`, so pip installs into the venv you activated. With
+once. Always `python -m pip`, so pip installs into the venv you activated. If
+`python` prints **nothing at all**, it is not Python: in a window where the
+venv is not active, Windows routes `python` to a Microsoft Store stub (check
+with `Get-Command python` — a path under `WindowsApps` is the stub). Either
+activate the venv in that window, use the venv's interpreter by path
+(`.\.venv\Scripts\python.exe -m uvicorn ...`), or `py -3.12`; to be rid of
+it, switch off `python.exe` and `python3.exe` under *Settings › Apps ›
+Advanced app settings › App execution aliases*. With
 a licensed NEC-5 (EZNEC Pro+ ships `NEC5CL.exe`), set
 `$env:NEC5_EXE = "C:\Program Files\EZNEC Pro+\NEC5CL.exe"` in the same window
 before starting the server and the NEC-5 tab appears; see the
