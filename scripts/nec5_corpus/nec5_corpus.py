@@ -81,7 +81,7 @@ from pathlib import Path
 
 from antennaknobs.nec_import import classify_sp as _classify_sp_fields
 
-VERSION = "1.1"
+VERSION = "1.2"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -1458,6 +1458,135 @@ def translate_file(path: Path, rel: str, policy: str, nofile: bool) -> dict:
     return rec
 
 
+# The environment an OpenMP binary's answer can depend on (antennaknobs#1344).
+# Recorded on every `check` report — PRESENT or explicitly absent — because
+# two runs of the same binary on the same decks on the same box gave
+# different crash/hang splits on 38 decks (2026-09-08 vs 09-09) and the
+# older report could not say what environment produced it. A report that
+# cannot say cannot be compared.
+_ENV_KEYS = (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "OMP_WAIT_POLICY",
+    "OMP_PROC_BIND",
+    "OMP_PLACES",
+    "OMP_DYNAMIC",
+    "KMP_AFFINITY",
+    "KMP_BLOCKTIME",
+    "GOMP_CPU_AFFINITY",
+    "GOMP_SPINCOUNT",
+    "MKL_DYNAMIC",
+    "PYTHONUTF8",
+)
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _environment_meta(exe: str, jobs: int | None = None) -> dict:
+    """What a `check` report must carry to be comparable with another day's
+    (antennaknobs#1344): the thread-relevant environment with absent keys
+    stated as absent, the launching interpreter, the platform, the exe's
+    size and sha256, the sha256 of every DLL beside it (the crash the 09-09
+    run kept lives in libiomp5md), and the job count."""
+    import platform
+
+    env = {k: os.environ.get(k) for k in _ENV_KEYS}
+    env["_other_omp_like"] = sorted(
+        k
+        for k in os.environ
+        if k.startswith(("OMP_", "KMP_", "GOMP_", "MKL_", "OPENBLAS_"))
+        and k not in _ENV_KEYS
+    )
+    exe_path = Path(exe)
+    binaries = {}
+    if exe_path.is_file():
+        binaries[exe_path.name] = {
+            "bytes": exe_path.stat().st_size,
+            "sha256": _sha256(exe_path),
+        }
+        for dll in sorted(exe_path.parent.glob("*.dll")):
+            binaries[dll.name] = {"bytes": dll.stat().st_size, "sha256": _sha256(dll)}
+    return {
+        "env": env,
+        "python": {"executable": sys.executable, "version": platform.python_version()},
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "cpu_count": os.cpu_count(),
+        "cwd": os.getcwd(),
+        "jobs": jobs,
+        "binaries": binaries,
+    }
+
+
+# Fields of the recorded environment that make two `check` reports
+# incomparable when they differ (antennaknobs#1344). The interpreter path is
+# deliberately NOT here: the 09-09 probe ran 44 decks under two interpreters
+# and got identical buckets, so it is recorded but does not refuse.
+_COMPARE_FIELDS = ("env", "platform", "machine", "binaries", "jobs")
+
+
+def _read_report(path: Path) -> tuple[dict, dict]:
+    """(meta, {deck: row}) from a check report."""
+    meta, rows = {}, {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            if "_meta" in rec:
+                meta = rec["_meta"]
+            elif "deck" in rec:
+                rows[rec["deck"]] = rec
+    return meta, rows
+
+
+def cmd_compare(args) -> int:
+    """Diff two check reports deck by deck — after refusing, by name, to
+    compare reports whose recorded environments differ (antennaknobs#1344).
+    `--ignore-env` compares anyway and prints the differences first."""
+    meta_a, rows_a = _read_report(Path(args.a))
+    meta_b, rows_b = _read_report(Path(args.b))
+    env_a, env_b = meta_a.get("environment"), meta_b.get("environment")
+    differing = []
+    if env_a is None or env_b is None:
+        differing.append(
+            "one report carries no recorded environment (written before 1.2)"
+        )
+    else:
+        for field in _COMPARE_FIELDS:
+            if env_a.get(field) != env_b.get(field):
+                differing.append(
+                    f"{field}: {env_a.get(field)!r} != {env_b.get(field)!r}"
+                )
+    if differing:
+        print("environments differ:")
+        for d in differing:
+            print("  " + d)
+        if not args.ignore_env:
+            print("refusing to compare (pass --ignore-env to compare anyway)")
+            return 2
+    moved = []
+    for deck in sorted(set(rows_a) | set(rows_b)):
+        sa = rows_a.get(deck, {}).get("status", "<absent>")
+        sb = rows_b.get(deck, {}).get("status", "<absent>")
+        if sa != sb:
+            moved.append((deck, sa, sb))
+    print(f"decks: {len(rows_a)} vs {len(rows_b)}; moved: {len(moved)}")
+    for deck, sa, sb in moved:
+        print(f"  {deck}: {sa} -> {sb}")
+    return 0
+
+
 def _meta_row(step: str, **fields) -> str:
     """First line of every report: which instrument produced it. Reports are
     compared across boxes and builds, and the verdict on a deck can change
@@ -1641,7 +1770,13 @@ def cmd_check(args) -> int:
         decks = decks[: args.limit]
     report = open(args.report or (src / "check-report.jsonl"), "w", encoding="utf-8")
     report.write(
-        _meta_row("check", exe=exe, platform=sys.platform, timeout_s=args.timeout)
+        _meta_row(
+            "check",
+            exe=exe,
+            platform=sys.platform,
+            timeout_s=args.timeout,
+            environment=_environment_meta(exe, jobs=args.jobs),
+        )
     )
     keep_dir = Path(args.keep_dir) if args.keep_dir else None
     counts = {}
@@ -1727,6 +1862,16 @@ def main(argv=None) -> int:
     c.add_argument("--only", default=None)
     c.add_argument("--limit", type=int, default=0)
     c.set_defaults(fn=cmd_check)
+
+    d = sub.add_parser(
+        "compare",
+        help="diff two check reports deck by deck, refusing if their recorded "
+        "environments differ (antennaknobs#1344)",
+    )
+    d.add_argument("a")
+    d.add_argument("b")
+    d.add_argument("--ignore-env", action="store_true")
+    d.set_defaults(fn=cmd_compare)
 
     ls = sub.add_parser("list", help="list the sources fetch knows about")
     ls.set_defaults(
