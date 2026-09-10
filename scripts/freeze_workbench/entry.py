@@ -102,19 +102,19 @@ def selftest() -> int:
     """The bundle proves itself: momwire's accelerator loaded, the quick
     start's first example solves, the server module imports. Printed, so a
     transcript is the diagnostic; exit 0 only when all three hold."""
+    from importlib.metadata import version
+
     import momwire
 
-    print(
-        f"momwire {getattr(momwire, '__version__', '?')} accelerated = {momwire.accelerated}"
-    )
+    print(f"momwire {version('momwire')} accelerated = {momwire.accelerated}")
     if not momwire.accelerated:
         print("FAIL: momwire's C++ accelerator did not load (OpenMP runtime missing?)")
         return 1
-    from antennaknobs import Antenna, __version__
+    from antennaknobs import Antenna
     from antennaknobs.designs.dipoles.invvee import Builder
 
     z = Antenna(Builder()).impedance()
-    print(f"antennaknobs {__version__} invvee free space: {z}")
+    print(f"antennaknobs {version('antennaknobs')} invvee free space: {z}")
     import antennaknobs.web.server  # noqa: F401
 
     print("server import OK")
@@ -134,14 +134,15 @@ def main(argv: list[str] | None = None) -> int:
     if opts["selftest"]:
         return selftest()
 
+    from importlib.metadata import version
+
     import uvicorn
 
-    from antennaknobs import __version__
     from antennaknobs.web.server import app
 
     port = opts["port"] or _free_port()
     url = f"http://127.0.0.1:{port}/"
-    print(f"{NAME} {__version__}")
+    print(f"{NAME} {version('antennaknobs')}  (momwire {version('momwire')})")
     print(f"  workbench: {url}")
     print(
         f"  NEC-5:     {os.environ.get('NEC5_EXE') or f'not set (put the path in {NEC5_FILE} beside this program)'}"
