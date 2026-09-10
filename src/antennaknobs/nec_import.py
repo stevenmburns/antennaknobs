@@ -97,13 +97,63 @@ _IGNORED_CARDS = {
 }
 
 _UNSUPPORTED_CARDS = {
-    "SP": "a surface patch (SP)",
+    # SP is refused by FORM, not from this table — see `classify_sp` and the
+    # dispatch in the parse loop. It is absent here deliberately.
+    "SC": "a NEC-2/NEC-4 surface-patch continuation (SC)",
     "SM": "a multiple-patch surface (SM)",
     "GF": "a numerical Green's function file (GF)",
     # NEC-5's triangle-mesh surface (stl2nec5 / gmsh2nec5 output, #1067).
     # Listed here so the filename field never reaches the SY evaluator.
     "NL": "an NL triangle-mesh surface (NEC-5)",
 }
+
+
+_SP_BY_FORM = {
+    "nec5": "a NEC-5 sphere (SP)",
+    "patch": "a NEC-2/NEC-4 surface patch (SP)",
+}
+
+
+def classify_sp(fields) -> str:
+    """``"nec5"`` for NEC-5's sphere spelling of SP, ``"patch"`` for NEC-2/4's.
+
+    `fields` is the card's fields AS WRITTEN (the tokens after the mnemonic),
+    because the literal spelling carries the signal: an integral value is not
+    an integer literal.
+
+    The two cards share a mnemonic and nothing else. NEC-2/NEC-4:
+    ``SP I1 I2 F1 .. F6`` — two integers (I2 = patch shape 0..3) then real
+    coordinates, at most 8 fields. NEC-5 (Users Manual, "SP – Sphere"):
+    ``SP ITAG NTH NPH IALT X0 Y0 Z0 RAD TH1 TH2 PH1 PH2`` — FOUR integers, two
+    of them patch-edge counts (so >= 1), then eight reals with radius > 0.
+    So fields 3 and 4 are integer counts in NEC-5 and real coordinates in
+    NEC-2; a decimal point or exponent in either settles it on sight, and when
+    both are integer literals the field count and a positive radius do. The
+    manual's Example 4 card, ``SP 0 0 .1 .05 .05 0. 0.``, is a patch on sight.
+
+    This importer reads BOTH dialects — 4nec2's NEC-2 and EZNEC's NEC-5 export
+    (#456, #1243) — so naming every SP a surface patch was wrong for half the
+    decks it sees. Refusing is still right (antennaknobs models wires only);
+    only the name changes.
+
+    ONE implementation, lifted here from `scripts/nec5_corpus/nec5_corpus.py`
+    (#1337), which now imports it. It was derived there from the NEC-5 Users
+    Manual's SP layout and measured against the manual's own examples; a second
+    copy is how the two drift.
+    """
+    if len(fields) < 8 or not all(_is_int_literal(t) for t in fields[:4]):
+        return "patch"
+    try:
+        nth, nph, radius = int(fields[1]), int(fields[2]), float(fields[7])
+    except ValueError:
+        return "patch"
+    if nth < 1 or nph < 1 or radius <= 0:
+        return "patch"
+    return "nec5"
+
+
+def _is_int_literal(token: str) -> bool:
+    return token.lstrip("+-").isdigit()
 
 
 @dataclass(frozen=True)
@@ -2255,6 +2305,16 @@ def parse_nec(
             # symbol table consulted by every later card field.
             _define_sy(stripped[2:], syms, where)
             continue
+        if mnemonic == "SP":
+            # Refused either way — antennaknobs models wires only — but by the
+            # right name. A NEC-2-form patch in a deck read as NEC-5 is a
+            # DIALECT error: stock NEC5CL reads those cards as spheres and
+            # solves the remaining wires with no box at all (#1337, from the
+            # manual's Example 4).
+            raise ValueError(
+                f"{where}: this deck uses {_SP_BY_FORM[classify_sp(tokens[1:])]}, "
+                f"which antennaknobs cannot model"
+            )
         if mnemonic in _UNSUPPORTED_CARDS:
             raise ValueError(
                 f"{where}: this deck uses {_UNSUPPORTED_CARDS[mnemonic]}, "

@@ -767,3 +767,97 @@ def test_gaps_wider_than_nec_tolerance_stay_open():
     tups = deck.wire_tuples()
     assert len(tups) == 2
     assert any(t[0] == (0.0, 0.01, 0.0) for t in tups)  # end unmoved
+
+
+# ----------------------------------------------------------------------
+# SP is a sphere in NEC-5 and a surface patch in NEC-2/NEC-4 (#1337)
+# ----------------------------------------------------------------------
+#
+# This importer reads BOTH dialects — 4nec2's NEC-2 and EZNEC's NEC-5 export
+# (#456, #1243) — so calling every SP "a surface patch" was wrong for half the
+# decks it sees. Refusing is still right: antennaknobs models wires only.
+#
+# The classifier is `nec_import.classify_sp`, lifted here from the NEC-5 corpus
+# translator (#1337) so there is exactly one implementation; the script imports
+# it back.
+
+# The manual's Example 4, verbatim from nec2c/EX4.nec. Note EIGHT fields, not
+# the seven the issue quoted: the trailing .01 is the patch area. That matters
+# — a classifier keyed only on "at most 8 fields" would not separate this from
+# a sphere. What settles it on sight is the decimal point in field 3.
+EX4_PATCH = "SP 0    0    .1        .05       .05       0.        0.         .01"
+
+# A well-formed NEC-5 sphere: ITAG NTH NPH IALT then eight reals, radius > 0.
+NEC5_SPHERE_CARD = "SP 0 12 24 0 0. 0. 0. 1.5 0. 180. 0. 360."
+
+
+def _deck_with(card: str) -> str:
+    return f"CM t\nCE\nGW 1,9,0.,-5.,0.,0.,5.,0.,.001\nGE 0\n{card}\nEN\n"
+
+
+def test_example_4_patch_is_refused_as_a_patch():
+    from antennaknobs.nec_import import parse_nec
+
+    with pytest.raises(ValueError, match=r"NEC-2/NEC-4 surface patch \(SP\)"):
+        parse_nec(_deck_with(EX4_PATCH))
+
+
+def test_a_nec5_sphere_is_refused_as_a_sphere():
+    from antennaknobs.nec_import import parse_nec
+
+    with pytest.raises(ValueError) as excinfo:
+        parse_nec(_deck_with(NEC5_SPHERE_CARD))
+    message = str(excinfo.value)
+    assert "NEC-5 sphere (SP)" in message
+    # The old sentence called every SP a surface patch. This one is not.
+    assert "surface patch" not in message
+
+
+def test_sc_is_named_as_a_patch_continuation():
+    from antennaknobs.nec_import import parse_nec
+
+    with pytest.raises(ValueError, match=r"surface-patch continuation \(SC\)"):
+        parse_nec(_deck_with("SC 0 0 .1 .05 .05 0. 0."))
+
+
+@pytest.mark.parametrize(
+    ("card", "form"),
+    [
+        pytest.param(EX4_PATCH, "patch", id="example-4-eight-fields"),
+        pytest.param(NEC5_SPHERE_CARD, "nec5", id="sphere"),
+        pytest.param("SP 0 0 1 2 3 4 5 6", "patch", id="int-literals-but-nth-zero"),
+        pytest.param("SP 0 1 2.0 3 4. 5. 6. 7.", "patch", id="real-in-a-count-field"),
+        pytest.param(
+            "SP 0 4 4 0 0. 0. 0. 0. 0. 180. 0. 360.", "patch", id="zero-radius"
+        ),
+        pytest.param("SP 0 0 .1 .05 .05 0. 0.", "patch", id="seven-fields"),
+    ],
+)
+def test_classify_sp_reads_the_form_not_the_value(card, form):
+    """The literal spelling carries the signal, not the parsed number: a count
+    field written `2.0` is a real coordinate, so the card is a patch even
+    though the value is integral."""
+    from antennaknobs.nec_import import classify_sp
+
+    assert classify_sp(card.split()[1:]) == form
+
+
+def test_the_corpus_translator_uses_this_one_implementation():
+    """#1337 lifted the rule out of the script so there is one of it. If the
+    script grows its own copy again they can disagree about a deck, which is
+    the failure the lift exists to prevent."""
+    import importlib.util
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parents[1] / (
+        "scripts/nec5_corpus/nec5_corpus.py"
+    )
+    spec = importlib.util.spec_from_file_location("nec5_corpus_probe", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    from antennaknobs import nec_import
+
+    assert mod._classify_sp_fields is nec_import.classify_sp
+    # And it still answers through the script's own Card wrapper.
+    assert mod._classify_sp(mod.Card("SP", EX4_PATCH.split()[1:], 1)) == "patch"
