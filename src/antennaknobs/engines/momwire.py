@@ -1821,6 +1821,27 @@ class MomwireEngine(SimulationEngine):
                 - z0
             )
             sec_idx = terrain.sector_for(np.degrees(phi))
+            if terrain.diffraction:
+                # Issue #1373: shadowing, the exact tilted-mirror reflection
+                # and UTD wedge diffraction at the facet breaks. Opt-in; the
+                # specular path below is #534's and stays bit-identical.
+                return self._terrain_utd_power(
+                    terrain,
+                    sec_idx,
+                    mid,
+                    dr,
+                    i_mid,
+                    k,
+                    omega,
+                    theta,
+                    phi,
+                    rhat,
+                    h_hat,
+                    v_hat,
+                    M_perp,
+                    z0,
+                    h_ref,
+                )
             z_f = np.empty(rx.shape)
             beta_g = np.empty(rx.shape)
             eps_g = np.empty(rx.shape)
@@ -1863,6 +1884,192 @@ class MomwireEngine(SimulationEngine):
         ] * h_hat
         M_perp = M_perp + M_refl
         return np.sum(M_perp.real**2 + M_perp.imag**2, axis=-1)
+
+    def _terrain_utd_power(
+        self,
+        terrain,
+        sec_idx,
+        mid,
+        dr,
+        i_mid,
+        k,
+        omega,
+        theta,
+        phi,
+        rhat,
+        h_hat,
+        v_hat,
+        M_perp,
+        z0,
+        h_ref,
+    ):
+        """|M_perp|² over the (theta, phi) grid for a faceted terrain with
+        shadowing, exact tilted-mirror reflections and UTD wedge diffraction
+        (issue #1373; the ray geometry lives in ``terrain_utd``).
+
+        Every segment is its own source. That is what makes the sum
+        continuous for an antenna of finite size: a 10 m mast below a crest
+        20 m up and 20 m away has its shadow boundary smeared from 27° to
+        45° across its height, and switching the whole antenna at one
+        reference angle leaves a step no single diffraction term can patch.
+        Per segment, per azimuth column (the segment's position projected
+        onto the cut), per elevation:
+
+        * the direct radiation is kept where the segment's ray clears the
+          profile;
+        * every specular path (single, and double for concave corners)
+          contributes the segment's image across the facet planes in order —
+          positions and current direction mirrored, so a vertical mast
+          reflecting off a 45° slope has the horizontal image it should —
+          with the product of the facets' Fresnel coefficients at the local
+          incidence angles, in the composer's h/v basis;
+        * every break between facets adds the segment's UTD-diffracted field:
+          its moment split into the edge-parallel (soft) and in-plane (hard)
+          components, times the heuristic wedge coefficients (Luebbers'
+          lossy faces, Holm's reflection-count weighting on the concave
+          terms), times ``exp(-jk s')/sqrt(s')`` and the edge's position
+          phase, where the incident and diffracted legs are clear.
+
+        Columns are processed in chunks so the (theta, column, segment)
+        arrays stay a few hundred megabytes at the largest catalog decks.
+        ``h_ref`` is kept in the signature for the caller; the per-segment
+        treatment does not use a reference height.
+        """
+        from .. import terrain_utd as utd  # noqa: PLC0415 — keeps terrain_utd import-light
+
+        del h_ref
+        psi = np.pi / 2.0 - theta  # elevation per row
+        T = theta.shape[0]
+        N = mid.shape[0]
+        cos_p, sin_p = np.cos(phi), np.sin(phi)
+        weighted = i_mid[:, None] * dr  # (N, 3)
+        skip = getattr(utd, "_debug_skip", set())
+        total = np.zeros_like(M_perp)
+        back_idx = terrain.sector_for(np.degrees(phi) + 180.0)
+        pairs = sorted(
+            {(int(a), int(b)) for a, b in zip(sec_idx, back_idx, strict=True)}
+        )
+        chunk = max(1, int(4e5 // max(T * N, 1)))
+        for fi, bi in pairs:
+            cut = utd.build_cut(terrain.sectors[fi], terrain.sectors[bi])
+            all_cols = np.nonzero((sec_idx == fi) & (back_idx == bi))[0]
+            for c0 in range(0, all_cols.size, chunk):
+                cols = all_cols[c0 : c0 + chunk]
+                C = cols.size
+                cp, sp = cos_p[cols], sin_p[cols]
+                rh = rhat[:, cols, :]  # (T, C, 3)
+                hh = h_hat[:, cols, :]
+                vv = v_hat[:, cols, :]
+                # each segment's position in this column's cut: x along the
+                # azimuth, z above the crest plane
+                x_cut = (
+                    mid[None, :, 0] * cp[:, None] + mid[None, :, 1] * sp[:, None]
+                )  # (C, N)
+                z_cut = np.broadcast_to(mid[None, :, 2] - z0, (C, N))
+                src = np.stack([x_cut, z_cut], axis=-1).reshape(-1, 2)  # (C*N, 2)
+
+                def _tcn(arr_pt, C=C, N=N, T=T):
+                    # (C*N, T) -> (T, C, N)
+                    return arr_pt.reshape(C, N, T).transpose(2, 0, 1)
+
+                phase = k * np.einsum("tcx,nx->tcn", rh, mid)
+                E_dir = np.exp(1j * phase)
+                # 1. direct radiation, shadowed per segment
+                vis = _tcn(utd.direct_visible(cut, psi, src=src))
+                if "direct" in skip:
+                    vis = np.zeros_like(vis)
+                M = np.einsum("tcn,nx->tcx", E_dir * vis, weighted)
+                M -= np.sum(M * rh, axis=-1)[..., None] * rh
+                acc = M
+
+                # 2. specular paths, single and double
+                refls = [] if "refl" in skip else utd.reflections(cut, psi, src=src)
+                for r in refls:
+                    m_refl = len(r.planes)
+                    mid_i = np.broadcast_to(mid[None, :, :], (C, N, 3)).copy()
+                    dr_i = np.broadcast_to(dr[None, :, :], (C, N, 3)).copy()
+                    for pl in r.planes:
+                        n3 = np.stack(
+                            [pl.n[0] * cp, pl.n[0] * sp, np.full_like(cp, pl.n[1])],
+                            axis=-1,
+                        )  # (C, 3)
+                        p03 = np.stack(
+                            [
+                                pl.p0[0] * cp,
+                                pl.p0[0] * sp,
+                                np.full_like(cp, z0 + pl.p0[1]),
+                            ],
+                            axis=-1,
+                        )
+                        dn = np.einsum("cnx,cx->cn", mid_i - p03[:, None, :], n3)
+                        mid_i = mid_i - 2.0 * dn[..., None] * n3[:, None, :]
+                        ddn = np.einsum("cnx,cx->cn", dr_i, n3)
+                        dr_i = dr_i - 2.0 * ddn[..., None] * n3[:, None, :]
+                    # the PEC image flips the current once per mirror
+                    w_i = ((-1.0) ** m_refl) * i_mid[None, :, None] * dr_i  # (C, N, 3)
+                    E = np.exp(1j * k * np.einsum("tcx,cnx->tcn", rh, mid_i)) * _tcn(
+                        r.mask
+                    )
+                    comp_h = np.einsum(
+                        "cnx,tcx->tcn", w_i, hh
+                    )  # h-component per segment
+                    comp_v = np.einsum("cnx,tcx->tcn", w_i, vv)
+                    rho_h = np.ones((T, C, N), dtype=complex)
+                    rho_v = np.ones((T, C, N), dtype=complex)
+                    for pl, cti in zip(r.planes, r.cos_tis, strict=True):
+                        cos_ti = _tcn(cti)
+                        sin2 = 1.0 - cos_ti * cos_ti
+                        eps_c = pl.eps_r - 1j * pl.sigma / (omega * EPS0)
+                        Q = np.sqrt(eps_c - sin2)
+                        rho_h = rho_h * (cos_ti - Q) / (cos_ti + Q)
+                        rho_v = rho_v * (eps_c * cos_ti - Q) / (eps_c * cos_ti + Q)
+                    # one mirror: reflected_h = -rho_h M_h (PEC sign convention);
+                    # m mirrors: (-1)^m times the product of the coefficients
+                    S_v = np.sum(E * rho_v * comp_v, axis=-1)  # (T, C)
+                    S_h = ((-1.0) ** m_refl) * np.sum(E * rho_h * comp_h, axis=-1)
+                    acc = acc + S_v[..., None] * vv + S_h[..., None] * hh
+
+                # 3. UTD diffraction at the facet breaks
+                diffs = (
+                    []
+                    if "diff" in skip
+                    else utd.diffractions(cut, psi, k=k, omega=omega, src=src)
+                )
+                h3 = hh[0]  # (C, 3): h_hat does not depend on theta
+                for d in diffs:
+                    dd = d.d.reshape(C, N, 2)
+                    d3 = np.stack(
+                        [
+                            dd[..., 0] * cp[:, None],
+                            dd[..., 0] * sp[:, None],
+                            dd[..., 1],
+                        ],
+                        axis=-1,
+                    )  # (C, N, 3)
+                    v_in = np.cross(d3, h3[:, None, :])  # (C, N, 3)
+                    E_h = np.einsum("nx,cx->cn", weighted, h3)  # (C, N)
+                    E_v = np.einsum("nx,cnx->cn", weighted, v_in)
+                    re3 = np.stack(
+                        [
+                            d.wedge.p[0] * cp,
+                            d.wedge.p[0] * sp,
+                            np.full_like(cp, z0 + d.wedge.p[1]),
+                        ],
+                        axis=-1,
+                    )
+                    ph_out = np.exp(1j * k * np.einsum("tcx,cx->tc", rh, re3))  # (T, C)
+                    gate = _tcn(d.mask)
+                    S_s = (
+                        np.sum(_tcn(d.D_soft) * gate * E_h[None, :, :], axis=-1)
+                        * ph_out
+                    )
+                    S_hd = (
+                        np.sum(_tcn(d.D_hard) * gate * E_v[None, :, :], axis=-1)
+                        * ph_out
+                    )
+                    acc = acc + S_s[..., None] * hh + S_hd[..., None] * vv
+                total[:, cols, :] = acc
+        return np.sum(total.real**2 + total.imag**2, axis=-1)
 
     @_captures_advisories
     def far_field(self, *, n_theta=90, n_phi=360, del_theta=1, del_phi=1):

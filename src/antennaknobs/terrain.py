@@ -91,6 +91,13 @@ class Terrain:
     flat-Sommerfeld ground the impedance solve runs on."""
 
     sectors: tuple[Sector, ...]
+    # Issue #1373: shadowing + UTD wedge diffraction at the facet breaks, and
+    # the exact tilted-mirror reflection (the source imaged across each
+    # facet's own plane) instead of the horizontal-mirror specular formula.
+    # Off by default so the levee / cliff / hillside presets and the
+    # published case-study numbers do not move silently; the follow-up that
+    # flips the default carries the docs sweep. See `terrain_utd.py`.
+    diffraction: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "sectors", tuple(self.sectors))
