@@ -15,6 +15,8 @@ Three gates, each run against the FROZEN executable and nothing else:
    already make.
 3. One solve through the server's own sweep endpoint returns a finite
    impedance from the momwire solver.
+4. ``/export_nec`` (the gear menu's Download .nec) returns a NEC-2 deck. The
+   bundle carries no PyNEC by policy, and the export used to need it (#1387).
 """
 
 from __future__ import annotations
@@ -160,6 +162,22 @@ def main(argv: list[str]) -> int:
         if not zs:
             print("FAIL: the sweep returned no impedance")
             return 1
+
+        # 4. Download .nec through the bundle, which has NO PyNEC by policy
+        # (gate 0). The export used to construct the PyNEC engine, whose
+        # module imported PyNEC at the top, so this button was a 500 in
+        # every bundle before #1387 — and nothing here pressed it.
+        req = json.dumps({"geometry": "dipoles.invvee", "freqs_mhz": [14.1]}).encode()
+        r = urllib.request.Request(  # noqa: S310 — loopback http only
+            base + "/export_nec", data=req, headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(r, timeout=120) as resp:  # noqa: S310 — loopback http only
+            deck = resp.read().decode("utf-8")
+        cards = [ln.split()[0] for ln in deck.splitlines() if ln.strip()]
+        if "GW" not in cards or "EX" not in cards or cards[-1] != "EN":
+            print(f"FAIL: /export_nec returned no NEC deck:\n{deck[:400]}")
+            return 1
+        print(f"gate 4: /export_nec wrote {len(cards)} cards without PyNEC")
         print("SMOKE OK")
         return 0
     finally:

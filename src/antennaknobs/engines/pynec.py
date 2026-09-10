@@ -3,7 +3,11 @@ import re
 import warnings
 
 import numpy as np
-import PyNEC as nec
+
+try:
+    import PyNEC as nec
+except ImportError:  # pynec-accel is optional (GPL; installed separately)
+    nec = None
 
 # Exact round-conductor internal impedance + jacket inductance — public
 # momwire exports since 0.11.0 (momwire#133).
@@ -120,6 +124,51 @@ def _somm_low_wire_risk(tups, wavelength):
             parent[ra] = rb
     grounded = {find(i) for key, i in pts.items() if key[2] <= lo}
     return any(lo < key[2] < hi and find(i) not in grounded for key, i in pts.items())
+
+
+# The card-emission calls the constructor makes. With PyNEC absent the engine
+# builds against `_DeckOnlyContext`, which accepts exactly these as no-ops so
+# the Python-side geometry, port and feed resolution still happens — that is
+# what `nec_export` (Download .nec) reads. Anything else is a solve, and a
+# solve without PyNEC raises the ImportError the missing module would have.
+# AC6LA hit the 500 this replaces on the QRZ Windows thread (AK#1387).
+_DECK_ONLY_CALLS = frozenset(
+    {
+        "get_geometry",
+        "wire",
+        "set_intersection_check",
+        "geometry_complete",
+        "set_extended_thin_wire_kernel",
+        "ld_card",
+        "ex_card",
+        "gn_card",
+        "tl_card",
+        "nt_card",
+    }
+)
+
+PYNEC_MISSING = (
+    "PyNEC is not installed: this engine can write a NEC-2 deck but not solve "
+    "one. Install the optional engine with `pip install pynec-accel` (GPL, "
+    "kept out of every antennaknobs extra and out of the Windows bundle on "
+    "purpose), or solve with momwire."
+)
+
+
+class _DeckOnlyContext:
+    """Stands in for `PyNEC.nec_context()` when PyNEC is absent."""
+
+    def get_geometry(self):
+        return self
+
+    def __getattr__(self, name):
+        if name in _DECK_ONLY_CALLS:
+            return lambda *args, **kwargs: None
+        raise ImportError(PYNEC_MISSING)
+
+
+def _new_context():
+    return nec.nec_context() if nec is not None else _DeckOnlyContext()
 
 
 class PyNECEngine(SimulationEngine):
@@ -365,7 +414,7 @@ class PyNECEngine(SimulationEngine):
             c.set_extended_thin_wire_kernel(True)
 
     def _build_geometry(self):
-        self.c = nec.nec_context()
+        self.c = _new_context()
         geo = self.c.get_geometry()
         self._apply_intersection_policy(geo)
 
@@ -754,7 +803,7 @@ class PyNECEngine(SimulationEngine):
         """A fresh nec_context with only the real build_wires() geometry, wire
         conductivity, and ground — no virtual stubs, no tl_cards. Returns
         (context, {edge_name: (tag, mid_seg)})."""
-        c = nec.nec_context()
+        c = _new_context()
         geo = c.get_geometry()
         self._apply_intersection_policy(geo)
         loc = {}
