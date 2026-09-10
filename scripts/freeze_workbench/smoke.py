@@ -47,6 +47,37 @@ def main(argv: list[str]) -> int:
     exe = Path(argv[0]).resolve()
     assert exe.is_file(), exe
 
+    # 0. NO GPL CODE IN THE BUNDLE. This is a licence gate, not a size one, and
+    # it runs before anything else because a bundle that fails it must not be
+    # signed, zipped or launched.
+    #
+    # PyNEC is GPL and the workbench is not: `pyproject.toml` leaves it out of
+    # every extra deliberately ("installed separately per README"), and
+    # antennaknobs#1354's text coupling exists so the app never needs to import
+    # it. But `--collect-submodules antennaknobs` follows what the BUILD VENV
+    # can see, so a developer whose venv has `pynec-accel` gets `PyNEC.py`,
+    # `_PyNEC*.so` and a 27 MB `pynec_accel.libs/` in the bundle without being
+    # told. Measured on a dev box 2026-09-10: 36 MB of GPL code, silently.
+    #
+    # `build.py` excludes the modules by name; this asserts the outcome, so the
+    # gate does not depend on the exclusion list keeping up with the wheel's
+    # module names.
+    bad = sorted(
+        p.relative_to(exe.parent).as_posix()
+        for p in exe.parent.rglob("*")
+        if p.is_file() and "pynec" in p.name.lower()
+    )
+    if bad:
+        print(
+            "FAIL: GPL code in the bundle — PyNEC must never ship in the "
+            "frozen workbench (antennaknobs#1359). Found:\n  "
+            + "\n  ".join(bad[:20])
+            + (f"\n  ... and {len(bad) - 20} more" if len(bad) > 20 else ""),
+            file=sys.stderr,
+        )
+        return 1
+    print(f"no GPL (pynec) files in {exe.parent.name}: OK")
+
     # 1. selftest against the unfrozen package.
     #
     # A build that prints the openmp line and then fails accelerated=True is
