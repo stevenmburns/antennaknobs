@@ -459,6 +459,39 @@ def make_engine_factory(
 _GROUND_UNSET = object()
 
 
+def _solve_for_budget(eng) -> None:
+    """Run whichever solve stamps the duck-typed power-budget attributes.
+
+    momwire and PyNEC stamp ``_excited_power_budget`` / ``_excited_p_in`` /
+    ``_excited_efficiency`` as a side effect of ``current_distribution()``, off
+    the in-process solve they already have. The SUBPROCESS engines — NEC-2 and
+    NEC-5 — stamp them only in ``solve_snapshot``, which reads the POWER BUDGET
+    block out of the one printout it parses. So ``current_distribution()`` alone
+    left every reader here with None, and ``--power`` printed no table on
+    ``--engine nec2`` / ``--engine nec5`` where a PyNEC run printed one (found
+    while documenting `NEC2Engine.solve_snapshot`, issue #1354).
+
+    ONE process either way: the snapshot REPLACES the `current_distribution()`
+    call rather than following it, and only the two engines that have the method
+    take that branch — so the momwire and PyNEC output cannot move. Verified
+    byte-identical before and after on both.
+
+    What this fixes and what it does not. The `pattern` command's TOTALS table
+    now prints on the subprocess engines. The `--power` SCHEMATIC annotation does
+    NOT change, and cannot be fixed this way: it matches watts to per-BRANCH
+    block labels, and a NEC-2 or NEC-5 printout carries "Radiated" / "Wire loss"
+    (and one NETWORK LOSS total), never a figure per branch. Nothing matches, so
+    the SVG is byte-identical — measured, not assumed. The call is still made
+    here, because after it the duck-typed attributes are CORRECT rather than
+    absent, and the next reader of them is not owed the same surprise.
+    """
+    snapshot = getattr(eng, "solve_snapshot", None)
+    if snapshot is not None:
+        snapshot()
+    else:
+        eng.current_distribution()
+
+
 def deck_extended_kernel_flag(builder_cls) -> bool:
     """True if `builder_cls` came from an `@file.nec`/`@file.ssn` spec whose
     deck carries an EK card (issue #849) — see `file_designs._make_builder`'s
@@ -1110,7 +1143,7 @@ def cli(arguments=None):
             eng = engine_factory_from_args(
                 args, deck_extended_kernel_flag(builder_cls)
             )(builder)
-            eng.current_distribution()
+            _solve_for_budget(eng)
             budget = getattr(eng, "_excited_power_budget", None)
             # With p_in the annotation reads as the budget table's percent
             # instead of the canonical drive's meaningless milliwatts.
@@ -1149,6 +1182,17 @@ def cli(arguments=None):
         # Power budget (issue #299): where the source watts went, from the
         # excited solve the pattern just ran. Only printed when the design
         # has a network with something to report.
+        #
+        # A pattern run does NOT stamp the budget on the subprocess engines —
+        # `far_field` parses the RADIATION PATTERNS block and nothing else — so
+        # they need the one run that does (issue #1354). Guarded on "nothing is
+        # stamped" and on the method existing, so momwire and PyNEC, whose
+        # pattern solve already stamped them, cannot reach it and cannot pay for
+        # it. On NEC-2 / NEC-5 it is one extra process, only when `--power`
+        # asked for a table that would otherwise be silently absent.
+        snapshot = getattr(eng, "solve_snapshot", None)
+        if snapshot is not None and getattr(eng, "_excited_power_budget", None) is None:
+            snapshot()
         budget = getattr(eng, "_excited_power_budget", None)
         p_in = getattr(eng, "_excited_p_in", None)
         if budget and p_in:

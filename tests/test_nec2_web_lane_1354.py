@@ -245,3 +245,41 @@ def test_the_pattern_endpoint_fills_the_grid_and_closes_the_seam(portal_exe):
     assert out["phi_deg"][0] == 0.0 and out["phi_deg"][-1] == 360.0
     assert out["gain_dbi"][0][0] == out["gain_dbi"][0][-1]
     assert max(max(row) for row in out["gain_dbi"]) < 20.0
+
+
+def test_the_cli_stamps_the_budget_on_a_subprocess_engine(portal_exe):
+    """`--engine nec2` prints the pattern command's power table (#1354).
+
+    `cli._solve_for_budget` prefers `solve_snapshot` where an engine has one.
+    Before it, `current_distribution()` was called and the readers found None, so
+    the table was silently absent — the fallback shape this whole lane refuses.
+
+    Only NEC-2 and NEC-5 have `solve_snapshot`, which is what makes the change
+    unable to move the momwire or PyNEC output: there is no branch for them to
+    take. Asserted on the ENGINE rather than through argv so the test needs no
+    plot backend.
+    """
+    import importlib as _il
+
+    cli = _il.import_module("antennaknobs.cli")  # the package attribute shadows it
+    B = _il.import_module("antennaknobs.designs.dipoles.invvee").Builder
+    eng = NEC2Engine(B(), ground="free")
+    assert getattr(eng, "_excited_power_budget", None) is None
+    cli._solve_for_budget(eng)
+    assert eng._excited_power_budget and eng._excited_p_in > 0.0
+
+
+def test_solve_for_budget_falls_back_for_an_engine_without_a_snapshot():
+    """momwire and PyNEC stamp on `current_distribution()`; they must keep
+    taking that path, which is why their CLI output cannot move."""
+    import importlib as _il
+
+    cli = _il.import_module("antennaknobs.cli")
+    calls = []
+
+    class E:
+        def current_distribution(self):
+            calls.append("currents")
+
+    cli._solve_for_budget(E())
+    assert calls == ["currents"]
