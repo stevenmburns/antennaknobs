@@ -19,6 +19,11 @@ The file wins only when the variable is unset. The server stays on
 127.0.0.1: an engine you are licensed for must not be served past your own
 machine.
 
+``NEC2_EXE`` / ``NEC2_EXE.txt`` do the same for a NEC-2 console binary
+(nec2c, nec2++, 4nec2's nec2dxs*.exe). The bundle ships none: nec2++ is
+GPLv2, and shipping it would make this zip a combined work (#1354). It is
+the one engine most users already have, because 4nec2 installs one.
+
 A separate script rather than ``-m antennaknobs.web.server`` because
 PyInstaller wants a file to trace from, and because the browser-opening and
 the NEC5_EXE.txt convenience are this program's and not the library's.
@@ -37,7 +42,14 @@ import webbrowser
 from pathlib import Path
 
 NAME = "antennaknobs-workbench"
-NEC5_FILE = "NEC5_EXE.txt"
+# One file per engine, named after the variable it fills, beside the exe.
+# NEC-5 is licensed software the user supplies (#825); NEC-2 is freely
+# available but GPL, so the bundle drives a user-supplied binary rather than
+# ship one (#1354). Same convenience, same rule: the file loses to the
+# variable.
+EXE_FILES = {"NEC5_EXE": "NEC5_EXE.txt", "NEC2_EXE": "NEC2_EXE.txt"}
+NEC5_FILE = EXE_FILES["NEC5_EXE"]
+NEC2_FILE = EXE_FILES["NEC2_EXE"]
 
 
 def _bundle_dir() -> Path:
@@ -48,8 +60,9 @@ def _bundle_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
-def _nec5_from_file() -> str | None:
-    candidate = _bundle_dir() / NEC5_FILE
+def _exe_from_file(name: str) -> str | None:
+    """The first non-comment line of `name` beside the executable, or None."""
+    candidate = _bundle_dir() / name
     if not candidate.is_file():
         return None
     for line in candidate.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -57,6 +70,10 @@ def _nec5_from_file() -> str | None:
         if line and not line.startswith("#"):
             return line
     return None
+
+
+def _nec5_from_file() -> str | None:
+    return _exe_from_file(NEC5_FILE)
 
 
 def _free_port() -> int:
@@ -126,11 +143,13 @@ def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
     os.environ.setdefault("MPLBACKEND", "Agg")
     opts = _parse(sys.argv[1:] if argv is None else argv)
-    if not os.environ.get("NEC5_EXE"):
-        from_file = _nec5_from_file()
+    for var, fname in EXE_FILES.items():
+        if os.environ.get(var):
+            continue
+        from_file = _exe_from_file(fname)
         if from_file:
-            os.environ["NEC5_EXE"] = from_file
-            print(f"NEC5_EXE = {from_file}  (from {NEC5_FILE})")
+            os.environ[var] = from_file
+            print(f"{var} = {from_file}  (from {fname})")
     if opts["selftest"]:
         return selftest()
 
@@ -146,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  workbench: {url}")
     print(
         f"  NEC-5:     {os.environ.get('NEC5_EXE') or f'not set (put the path in {NEC5_FILE} beside this program)'}"
+    )
+    print(
+        f"  NEC-2:     {os.environ.get('NEC2_EXE') or f'not set (put the path in {NEC2_FILE} beside this program)'}"
     )
     print("  stop:      Ctrl-C in this window")
     if opts["browser"]:

@@ -42,6 +42,7 @@ import numpy as np
 from momwire import insulation_inductance
 
 from ..engine import FarField, SimulationEngine, WireCurrents
+from ._external import find_exe
 from ..network import (
     Driven,
     DrivenCurrent,
@@ -128,13 +129,7 @@ def find_nec5(explicit: str | None = None) -> str | None:
     ``$NEC5_EXE``. Returns None when unset or not an executable file —
     callers decide whether that is an error (engine ctor) or an absence
     (CLI roster, test skip)."""
-    cand = explicit or os.environ.get(NEC5_EXE_ENV)
-    if not cand:
-        return None
-    p = Path(cand).expanduser()
-    if p.is_file() and os.access(p, os.X_OK):
-        return str(p)
-    return None
+    return find_exe(NEC5_EXE_ENV, explicit)
 
 
 def run_deck(exe: str, deck: str, *, timeout: float) -> str:

@@ -193,6 +193,23 @@ and start the workbench again; the NEC-5 tab appears in the solver panel.
 The NEC5_EXE environment variable is honoured too and wins over the file.
 The server listens on 127.0.0.1 only.
 
+NEC-2 (optional, and you may already have one): 4nec2 installs a console
+NEC-2 as nec2dxs*.exe in its exe folder, and nec2c / nec2++ are free
+downloads. Put the full path on one line in NEC2_EXE.txt beside
+{NAME}.exe, for example
+
+    C:\\4nec2\\exe\\nec2dxs11.exe
+
+and the startup line "NEC-2:" in this window confirms the path. NEC2_EXE is
+honoured too and wins over the file. Both invocation styles work -- the file
+names on standard input, or -i/-o arguments -- and the engine finds out which
+by running your binary once. No NEC-2 is bundled on purpose: nec2++ is GPLv2
+and shipping it would change this zip's licence.
+
+The solver panel does not offer a NEC-2 tab in this build: the engine landed
+before its web lane did. Setting the path now costs nothing and the tab will
+find it.
+
 This is the same program as `pip install "antennaknobs[web]"`, packaged.
 Docs: https://antennaknobs.dev/   Source: https://github.com/stevenmburns/antennaknobs
 """,

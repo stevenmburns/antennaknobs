@@ -11,7 +11,14 @@ from . import (
     compare_patterns,
     optimize,
 )
-from .engines import PyNECEngine, MomwireEngine, NEC5Engine, probe_nec5
+from .engines import (
+    PyNECEngine,
+    MomwireEngine,
+    NEC2Engine,
+    NEC5Engine,
+    probe_nec2,
+    probe_nec5,
+)
 from .serialize import builder_params_source
 from .fit import MAX_FREE_PARAMS, LineEmbedding, fit, plot_fit
 from .measured import read_measured
@@ -51,6 +58,12 @@ if PyNECEngine is not None:
 # uninstalled pynec simply isn't a legal --engines name.
 if probe_nec5() is not None:
     ENGINE_CLASSES["nec5"] = NEC5Engine
+# NEC-2 the same way, for a different reason (issue #1354): a NEC-2 binary is
+# freely available but GPL, so antennaknobs drives a user-supplied one over text
+# rather than bundle it. Same probe discipline — the binary must RUN, because
+# `$NEC2_EXE` pointing at any executable is not evidence it is a NEC-2.
+if probe_nec2() is not None:
+    ENGINE_CLASSES["nec2"] = NEC2Engine
 
 MOMWIRE_BASES = {
     "sinusoidal": SinusoidalSolver,
@@ -505,7 +518,7 @@ def cli(arguments=None):
                 help="One or more simulation backends. Each spec is "
                 '"momwire[:sinusoidal|sinusoidal-galerkin|bspline|'
                 'bspline-d1|hmatrix|arrayblock|razor-2p]", '
-                '"pynec", or "nec5". sinusoidal is NEC-2\'s own formulation; '
+                '"pynec", "nec5", or "nec2". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
                 "with degree=1 (tent basis) "
@@ -520,7 +533,10 @@ def cli(arguments=None):
                 "nec5 drives a licensed LOCAL NEC-5 binary and joins the "
                 "roster only when $NEC5_EXE points at one — the real "
                 "engine, not momwire:razor-2p, which is momwire's "
-                "independently written formulation twin. "
+                "independently written formulation twin. nec2 does the same "
+                "for a NEC-2 console binary through $NEC2_EXE (nec2c, "
+                "nec2++, or 4nec2's nec2dxs*.exe): the same physics as "
+                "pynec, reached without linking to a GPL library. "
                 "Cross-products with --builders.",
             )
         else:
@@ -532,7 +548,7 @@ def cli(arguments=None):
                 "momwire:sinusoidal | momwire:sinusoidal-galerkin | "
                 "momwire:bspline | momwire:bspline-d1 | momwire:hmatrix | "
                 "momwire:arrayblock | momwire:razor-2p | "
-                "pynec | nec5 (default: momwire). sinusoidal is NEC-2's own "
+                "pynec | nec5 | nec2 (default: momwire). sinusoidal is NEC-2's own "
                 "formulation; sinusoidal-galerkin is the same basis tested "
                 "variationally and with the point-gap feed model. "
                 "bspline-d1 is bspline with "
@@ -548,7 +564,11 @@ def cli(arguments=None):
                 "a licensed LOCAL NEC-5 binary and joins the roster only "
                 "when $NEC5_EXE points at one — the real engine, not "
                 "momwire:razor-2p, momwire's independently written "
-                "formulation twin; momwire is always available.",
+                "formulation twin. nec2 drives a NEC-2 console binary "
+                "through $NEC2_EXE (nec2c, nec2++, 4nec2's nec2dxs*.exe) — "
+                "the same physics as pynec without linking to a GPL "
+                "library, which is why the frozen workbench can offer it; "
+                "momwire is always available.",
             )
         p.add_argument(
             "--ground",
