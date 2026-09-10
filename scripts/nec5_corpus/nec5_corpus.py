@@ -79,7 +79,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.5"
+VERSION = "1.6"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -480,6 +480,23 @@ class DeckError(ValueError):
 
 class Refused(ValueError):
     """The deck is readable but has no faithful NEC-5 spelling."""
+
+
+class InvalidNEC(ValueError):
+    """The deck is not legal NEC input of ANY dialect (antennaknobs#1386).
+
+    A THIRD thing, and the distinction is the point: `Refused` says something
+    about NEC-5 ("no card for this"), `DeckError` says something about this tool
+    ("could not read it"), and this says something about the DECK -- so it
+    belongs on no engine's ledger and on no ledger of ours.
+
+    Raised only where the fault is checkable from the file alone, with no
+    assumption about any dialect: a count or an address the deck itself
+    contradicts. A non-numeric field or an unrecognised line stays a
+    `DeckError` even though NEC would reject it too, because our own symbol
+    evaluator is the likelier explanation and calling it the deck's fault would
+    be a claim about 4nec2 this tool cannot make.
+    """
 
 
 _PLAIN_NUM_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\Z")
@@ -964,14 +981,14 @@ def _validate_nec(cards: list) -> None:
       zero here, the way NEC's fixed-format reader counts it.
     """
     if not any(c.mn == "GE" for c in cards):
-        raise Refused(
+        raise InvalidNEC(
             _INVALID + "no GE card anywhere (a geometry fragment, not a model)"
         )
     for c in cards:
         if c.mn == "GE":
             break
         if c.mn in _CONTROL_CARDS:
-            raise Refused(
+            raise InvalidNEC(
                 _INVALID + f"{c.mn} (a program-control card) on line {c.line}, above GE"
             )
     for i, c in enumerate(cards):
@@ -984,7 +1001,7 @@ def _validate_nec(cards: list) -> None:
             continue  # a non-numeric radius is a different complaint
         after = cards[i + 1].mn if i + 1 < len(cards) else ""
         if after != "GC":
-            raise Refused(
+            raise InvalidNEC(
                 _INVALID
                 + f"GW on line {c.line} has radius 0, which means a GC follows with the "
                 + (
@@ -1070,7 +1087,9 @@ class Geometry:
         tag = card.int(0)
         n = card.int(1)
         if n <= 0:
-            raise DeckError(f"line {card.line}: {card.mn} with {n} segments")
+            raise InvalidNEC(
+                _INVALID + f"{card.mn} on line {card.line} has {n} segments"
+            )
         if tag == 0:
             tag = self._next_synthetic
             self._next_synthetic += 1
@@ -1145,8 +1164,9 @@ class Geometry:
         address; tag 0 means an absolute segment number."""
         if tag == 0:
             if not 1 <= seg <= len(self.order):
-                raise DeckError(
-                    f"line {line}: {what} absolute segment {seg} outside 1..{len(self.order)}"
+                raise InvalidNEC(
+                    _INVALID + f"{what} on line {line} addresses absolute segment "
+                    f"{seg}, outside 1..{len(self.order)}"
                 )
             t, root, gidx = self.order[seg - 1]
             local = 1
@@ -1157,13 +1177,15 @@ class Geometry:
             return t, root, gidx, local
         grp = self.groups.get(tag)
         if grp is None:
-            raise DeckError(
-                f"line {line}: {what} addresses tag {tag}, which no geometry card defines"
+            raise InvalidNEC(
+                _INVALID + f"{what} on line {line} addresses tag {tag}, which no "
+                "geometry card defines"
             )
         total = self.group_size(tag)
         if not 1 <= seg <= total:
-            raise DeckError(
-                f"line {line}: {what} addresses segment {seg} of tag {tag}, which has {total}"
+            raise InvalidNEC(
+                _INVALID + f"{what} on line {line} addresses segment {seg} of tag "
+                f"{tag}, which has {total}"
             )
         left = seg
         for gidx, root in enumerate(grp):
@@ -1447,8 +1469,9 @@ def translate_deck(
             if typ in (0, 1, 4) and not (tag == 0 and a == 0):
                 if tag != 0 and a == 0:
                     if tag not in geo.groups:
-                        raise DeckError(
-                            f"line {c.line}: LD addresses tag {tag}, which no geometry card defines"
+                        raise InvalidNEC(
+                            _INVALID + f"LD on line {c.line} addresses tag {tag}, "
+                            "which no geometry card defines"
                         )
                     resolved[id(c)] = geo.all_segments(tag)
                 else:
@@ -1583,6 +1606,9 @@ def translate_file(path: Path, rel: str, policy: str, nofile: bool) -> dict:
                 notes if len(parts) == 1 else [f"[{i}] {n}" for n in notes]
             )
             rec["outputs"].append((i if len(parts) > 1 else 0, deck))
+    except InvalidNEC as e:
+        rec["status"] = "invalid"
+        rec["reason"] = str(e)
     except Refused as e:
         rec["status"] = "refused"
         rec["reason"] = str(e)
@@ -1750,8 +1776,13 @@ def cmd_translate(args) -> int:
     report.write(
         _meta_row("translate", offcenter=args.offcenter, nofile=bool(args.nofile))
     )
-    counts = {"translated": 0, "refused": 0, "unreadable": 0, "decks_written": 0}
-    n_invalid = 0  # refusals that are the DECK's fault, not a NEC-5 gap (#1382)
+    counts = {
+        "translated": 0,
+        "refused": 0,
+        "invalid": 0,
+        "unreadable": 0,
+        "decks_written": 0,
+    }
     reasons = {}
     note_kinds = {}
     n_files = 0
@@ -1767,8 +1798,6 @@ def cmd_translate(args) -> int:
         if rec["status"] != "translated":
             key = re.sub(r"\d+", "N", rec["reason"])[:90]
             reasons[key] = reasons.get(key, 0) + 1
-            if rec["reason"].startswith(_INVALID):
-                n_invalid += 1
         written = []
         for idx, deck in rec.pop("outputs", []):
             stem = re.sub(r"\.(nec|inp)$", "", rel, flags=re.I)
@@ -1786,19 +1815,22 @@ def cmd_translate(args) -> int:
         report.write(json.dumps(rec) + "\n")
     report.close()
     _log(
-        f"files: {n_files}  translated: {counts['translated']}  refused: {counts['refused']}  unreadable: {counts['unreadable']}  decks written: {counts['decks_written']}"
+        f"files: {n_files}  translated: {counts['translated']}"
+        f"  refused: {counts['refused']}  invalid: {counts['invalid']}"
+        f"  unreadable: {counts['unreadable']}  decks written: {counts['decks_written']}"
     )
     if reasons:
         _log("\nrefused / unreadable, by reason:")
         for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:25]:
             _log(f"  {v:5d}  {k}")
-    if n_invalid:
-        # Its own line because a census reads the two apart: "not valid NEC
-        # input" is the DECK's fault and belongs on no engine's ledger, where
-        # "no NEC-5 card for it" is a statement about NEC-5 (antennaknobs#1382).
+    if counts["refused"] or counts["invalid"] or counts["unreadable"]:
+        # Three unlike claims, so a census can put each on the right ledger
+        # (antennaknobs#1382, #1386). Spelled out every run, because the words
+        # alone do not say whose fault the deck is.
         _log(
-            f"\nof those, not valid NEC input (any dialect): {n_invalid}"
-            f" of {counts['refused'] + counts['unreadable']} — the deck's fault, not NEC-5's"
+            "\n  refused    = no NEC-5 card for it (about NEC-5)"
+            "\n  invalid    = not valid NEC input of any dialect (about the deck; no engine's fault)"
+            "\n  unreadable = this tool could not read it (about this tool; NOT a claim that no program can)"
         )
     if note_kinds:
         _log("\ntransformations applied (count of decks x notes):")

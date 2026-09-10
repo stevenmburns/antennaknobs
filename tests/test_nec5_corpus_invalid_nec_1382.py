@@ -17,6 +17,10 @@ Three faults, all named in the refusal so a census can tell them apart:
 Refused, never repaired: a moved `GN` would be our model rather than the
 author's, and the working group is comparing binaries on published decks.
 
+These carried the `refused` status when #1382 built them, beside "no NEC-5 card
+for it". #1386 gave them their own, `invalid`, because they are a different
+claim -- see `test_nec5_corpus_status_split_1386.py`.
+
 The decks below are hand-written minimal reproductions of the eight, whose own
 sources are third-party and are fetched rather than vendored.
 """
@@ -134,7 +138,7 @@ def test_the_control_deck_translates(tool, tmp_path):
 )
 def test_a_control_card_before_ge_is_refused_by_name(tool, tmp_path, card):
     rec = _translate(tool, tmp_path, CONTROL_BEFORE_GE.format(card=card))
-    assert rec["status"] == "refused"
+    assert rec["status"] == "invalid"
     assert rec["reason"].startswith(PREFIX), rec["reason"]
     assert card.split()[0] in rec["reason"] and "GE" in rec["reason"], rec["reason"]
 
@@ -145,7 +149,7 @@ def test_a_control_card_before_ge_is_refused_by_name(tool, tmp_path, card):
 )
 def test_a_deck_with_no_ge_is_refused(tool, tmp_path, text, what):
     rec = _translate(tool, tmp_path, text)
-    assert rec["status"] == "refused", what
+    assert rec["status"] == "invalid", what
     assert rec["reason"].startswith(PREFIX), rec["reason"]
     assert "GE" in rec["reason"], rec["reason"]
 
@@ -156,7 +160,7 @@ def test_a_deck_with_no_ge_is_refused(tool, tmp_path, text, what):
 )
 def test_a_gw_with_radius_zero_and_no_gc_is_refused(tool, tmp_path, text, what):
     rec = _translate(tool, tmp_path, text)
-    assert rec["status"] == "refused", what
+    assert rec["status"] == "invalid", what
     assert rec["reason"].startswith(PREFIX), rec["reason"]
     assert "GW" in rec["reason"] and "GC" in rec["reason"], rec["reason"]
 
@@ -191,5 +195,5 @@ def test_the_validity_check_runs_before_the_nec5_vocabulary_check(tool, tmp_path
         "GW 1 5 0 0 0 0 0 1 .001\n", "GW 1 5 0 0 0 0 0 1 .001\nSC 0 0 1 1 1 1\n"
     )
     rec = _translate(tool, tmp_path, text)
-    assert rec["status"] == "refused"
+    assert rec["status"] == "invalid"
     assert rec["reason"].startswith(PREFIX), rec["reason"]

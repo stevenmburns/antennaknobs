@@ -34,7 +34,7 @@ python nec5_corpus.py check     --exe NEC5CL.exe --src nec5 --keep-dir failed
 ## Without Python: the Windows executable
 
 The same file, frozen with PyInstaller and signed, is published as
-[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.5)
+[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.6)
 under the tool's own release tag, `nec5-corpus-v<VERSION>` — not with the
 antennaknobs releases, and not inside the Windows workbench, because the
 people who want a NEC-5 corpus do not all want an antenna modeller. Unzip,
@@ -132,11 +132,35 @@ error` on the 2026-09-09 corpus run, and which nec2c rejects too:
   that follows" — with no `GC` after it. An absent radius counts as zero, the
   way NEC's fixed-format reader counts it.
 
+The same status covers two more faults of the same kind, which the report used
+to file under "unreadable": a wire with a segment count of 0 or less, and an
+`EX`, `LD`, `TL` or `NT` addressing a tag or a segment the geometry does not
+define. Both are counts or addresses the deck contradicts on its own.
+
 They are refused, never repaired. Moving a stray `GN` below `GE` would make
 the model ours rather than the author's, and the group is comparing binaries
-on the decks their authors published. The count gets its own line in
-`translate`'s summary, because "the deck is not valid NEC" belongs on no
-engine's ledger, where "NEC-5 has no card for it" is a statement about NEC-5.
+on the decks their authors published.
+
+### The four outcomes, and whose fault each one is
+
+`translate` reports one of four per deck, and the distinction is the whole
+point of having four rather than two — a census that cannot separate them
+credits an engine with errors that were never its:
+
+| status | the claim it makes | whose fault |
+|---|---|---|
+| `translated` | written out for NEC-5 | — |
+| `refused` | NEC-5 has no card for what this deck asks | NEC-5's limit |
+| `invalid` | not valid NEC input of any dialect | the deck's |
+| `unreadable` | THIS TOOL could not read it | this tool's |
+
+`unreadable` is deliberately the conservative bucket. A 4nec2 `SY` construct
+this tool's evaluator does not resolve, a field it cannot turn into a number,
+a line it does not recognise as a card — NEC would very likely reject those
+too, but our own reader is the likelier explanation, and calling them the
+deck's fault would be a claim about 4nec2 that this tool cannot make. So
+`unreadable` never means "no program can read this"; only `invalid` does, and
+it is raised only where the file alone settles it.
 
 SP in its NEC-2/NEC-4 patch form (NEC-5 spells a *different* card as SP, a
 sphere, which is kept when the fields read as one), SC and SM patch cards and
