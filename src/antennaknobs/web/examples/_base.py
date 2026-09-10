@@ -294,6 +294,17 @@ class AntennaExample:
     label: str
     momwire_solve: SolveFn
     momwire_sweep: SweepFn
+    # The Builder class this example was made from — the one thing that
+    # answers "what does this design do" for a catalog design and a user
+    # design in the SAME way. `design_backend_coverage` reads it (#1309):
+    # deriving the class from the name instead only ever worked for designs
+    # inside the package, because a `user.*` design has no package path.
+    #
+    # Defaulted (and therefore declared below the required fields) so an
+    # example built by hand still constructs; every example `_make_example`
+    # produces carries it. A None here means coverage answers empty rather
+    # than guessing.
+    builder_cls: Optional[type] = None
     # Geometry-only snapshot (wires, feed marker; no solve, no currents) for a
     # fast antenna-shape preview while the real solve runs. Optional so an
     # example without one degrades to "no preview".
