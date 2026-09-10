@@ -1,11 +1,11 @@
-# Security review of nec5_corpus.py version 1.5
+# Security review of nec5_corpus.py version 1.6
 
 Reviewed 2026-09-10 by Claude (Anthropic's model, working in Claude Code) at
 the request of the tool's author, Steven Burns, by reading the whole source
 of `scripts/nec5_corpus/nec5_corpus.py` and the build that freezes it. This
 file ships beside `nec5_corpus.exe` so that a reader can see, before running
 it, what the program can and cannot do to their machine. It is a code
-review, not a penetration test, and it speaks for **version 1.5 only**: the
+review, not a penetration test, and it speaks for **version 1.6 only**: the
 test suite refuses a version bump that does not re-state the version here,
 so a stale review cannot ship by accident.
 
@@ -137,6 +137,15 @@ named in the report, and no output file is written for it. No new input is
 read, nothing new is written, no program is started, and the bundle is the same
 one listed above.
 
+**What 1.6 changed.** Reporting, and less than 1.5 even: a deck that is not
+valid NEC input now gets its own status in the report (`invalid`, beside
+`refused` and `unreadable`) instead of sharing one, and two faults that used to
+be filed as "this tool could not read it" — a wire with no segments, an address
+no geometry defines — are named as the deck's fault. Every one of those decks
+was already being rejected without an output file before this; only the word for
+it changed. Nothing new is read, written, or run, and the bundle is the one
+listed above.
+
 ## About the executable
 
 `nec5_corpus.exe` is this script frozen with PyInstaller (one-file mode)
@@ -172,7 +181,7 @@ To verify or rebuild:
 
 ## Limits of this review
 
-The review covers the script's own code as of version 1.5 and the build
+The review covers the script's own code as of version 1.6 and the build
 that freezes it. It does not cover Python, PyInstaller, Windows, or the
 NEC-5 engine you supply. It was done by reading, with the findings above
 confirmed by running the code (finding 1 was reproduced before it was
