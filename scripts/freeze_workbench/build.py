@@ -181,11 +181,12 @@ Options (from a PowerShell or Command Prompt window in this folder):
     {NAME}.exe --no-browser      print the URL only
     {NAME}.exe --selftest        prove the bundle and exit
 
-NEC-5 (optional, needs your own licensed engine; EZNEC Pro+ ships
-NEC5CL.exe): put its full path on one line in a text file named
+NEC-5 (optional, needs your own licensed engine; EZNEC Pro+ keeps it in
+its Docs folder as NEC5CL_x13.exe, the suffix being the build): put its
+full path on one line in a text file named
 NEC5_EXE.txt beside {NAME}.exe, for example
 
-    C:\\Program Files\\EZNEC Pro+\\NEC5CL.exe
+    C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe
 
 and start the workbench again; the NEC-5 tab appears in the solver panel.
 The NEC5_EXE environment variable is honoured too and wins over the file.

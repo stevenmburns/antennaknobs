@@ -430,8 +430,9 @@ activate the venv in that window, use the venv's interpreter by path
 (`.\.venv\Scripts\python.exe -m uvicorn ...`), or `py -3.12`; to be rid of
 it, switch off `python.exe` and `python3.exe` under *Settings › Apps ›
 Advanced app settings › App execution aliases*. With
-a licensed NEC-5 (EZNEC Pro+ ships `NEC5CL.exe`), set
-`$env:NEC5_EXE = "C:\Program Files\EZNEC Pro+\NEC5CL.exe"` in the same window
+a licensed NEC-5 (EZNEC Pro+ keeps its engine in its own Docs folder, as
+`NEC5CL_x13.exe` — the suffix is the build), set
+`$env:NEC5_EXE = "C:\EZNEC 7.0\Docs\NEC5CL_x13.exe"` in the same window
 before starting the server and the NEC-5 tab appears; see the
 [NEC-5 page](https://antennaknobs.dev/reference/nec5/).
 
@@ -439,7 +440,7 @@ The lines above are PowerShell (its prompt starts with `PS`). In **Command
 Prompt** (prompt `C:\Users\you>`), the `$env:` form is not understood — it
 fails with "The filename, directory name, or volume label syntax is
 incorrect" — and the spellings are `.\.venv\Scripts\activate.bat` and, with no
-quotes, `set NEC5_EXE=C:\Program Files\EZNEC Pro+\NEC5CL.exe`. Either shell
+quotes, `set NEC5_EXE=C:\EZNEC 7.0\Docs\NEC5CL_x13.exe`. Either shell
 works; the variable lives in that window only, so set it and start the
 server in the same one.
 
