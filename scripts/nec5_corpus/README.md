@@ -104,17 +104,32 @@ ground, and the deck says so. NEC-2's radial-screen and second-medium
 fields on GN, and the GD card, are dropped with a note: NEC-5 has no
 spelling for them and misreads the fields if they are left in.
 
+**Catenary wires pass through.** NEC-5 has a CW card of its own, in the
+structure-geometry section, and NEC-4.2 spells it the same way field for
+field (`CW ITG NS X1 Y1 Z1 X2 Y2 Z2 RAD ICAT RHM ZM`, ICAT choosing height /
+sag / total length), so a catenary deck is translated rather than refused and
+the card earns no note. Its segments are addressed and remeshed like a
+`GW`'s: a source or load on a CW moves to a knot the same way, which is the
+only field of the card the translator writes.
+
 **Cards NEC-5 does not have** are dropped with a note: EK, KH, CP, IS, JN,
 VC, MP, and 4nec2's LD 6 / LD 7 (its insulated-wire load; NEC-5 crashes on
-them). SP in its NEC-2/NEC-4 patch form (NEC-5 spells a *different* card as SP, a sphere, which is kept when the fields read as one), SC and SM patch cards, GF/WG Green's-function files and CW catenary wires
-are refused. NX multi-structure decks are split into one deck per
-structure. A deck with no execution request (4nec2 adds XQ itself) gets
-`XQ 0`. A 4nec2 flat loop spelled as a one-turn helix with 1e-300 pitch is
+them). SP in its NEC-2/NEC-4 patch form (NEC-5 spells a *different* card as
+SP, a sphere, which is kept when the fields read as one), SC and SM patch
+cards and GF/WG Green's-function files are refused. NX multi-structure decks
+are split into one deck per structure. A deck with no execution request
+(4nec2 adds XQ itself) gets `XQ 0`. A 4nec2 flat loop spelled as a one-turn helix with 1e-300 pitch is
 written as straight pieces, because NEC-5's GH computes zero wire length
 from it.
 
 Every one of these conventions was verified by running probe decks through
-a NEC-5 executable and reading the printout, not taken from its source.
+a NEC-5 executable and reading the printout, not taken from its source — with
+one exception, named here so the claim is not read as covering it. The CW
+pass-through rests on NEC-5's own card table and on the field layout of
+4nec2's NEC-4 catenary deck, which agree field for field; no CW deck has been
+through a NEC-5 engine yet. If NEC-5's CW disagrees after all, a catenary
+deck now fails at the engine, where the printout says so, instead of being
+refused at this seam for a reason NEC-5 does not share.
 
 ## What to expect from check
 
