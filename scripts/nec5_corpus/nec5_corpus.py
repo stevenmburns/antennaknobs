@@ -79,6 +79,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+from antennaknobs.nec_import import classify_sp as _classify_sp_fields
+
 VERSION = "1.1"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
@@ -899,33 +901,14 @@ _SP_PATCH_REFUSAL = (
 )
 
 
-def _is_int_literal(tok: str) -> bool:
-    try:
-        int(tok)
-    except ValueError:
-        return False
-    return True
-
-
 def _classify_sp(c: Card) -> str:
-    """'nec5' for NEC-5's sphere spelling, 'patch' for the NEC-2/NEC-4 one.
+    """NEC-5 sphere vs NEC-2/NEC-4 patch — see `nec_import.classify_sp`.
 
-    The two cards share a mnemonic and nothing else. NEC-2/NEC-4:
-    ``SP I1 I2 F1 .. F6`` — two integers (I2 = patch shape 0..3) then real
-    coordinates, at most 8 fields. NEC-5 (Users Manual, "SP – Sphere"):
-    ``SP ITAG NTH NPH IALT X0 Y0 Z0 RAD TH1 TH2 PH1 PH2`` — FOUR integers
-    (two of them patch-edge counts, so >= 1) then eight reals, radius > 0.
-    So fields 3 and 4 are integer counts in NEC-5 and real coordinates in
-    NEC-2; a decimal point or exponent in either settles it, and when both
-    are integer literals the field count and a positive radius do.
-    Example 4's ``SP 0 0 .1 .05 .05 0. 0.`` is a patch on sight."""
-    f = c.f
-    if len(f) < 8 or not all(_is_int_literal(t) for t in f[:4]):
-        return "patch"
-    nth, nph = int(f[1]), int(f[2])
-    if nth < 1 or nph < 1 or c.num(7) <= 0:
-        return "patch"
-    return "nec5"
+    The rule lived here until antennaknobs#1337 and now lives in the importer,
+    which refuses SP by form as well; a second copy is how the two would drift.
+    `Card.f` is already the fields as written, which is what it reads.
+    """
+    return _classify_sp_fields(c.f)
 
 
 class Geometry:
