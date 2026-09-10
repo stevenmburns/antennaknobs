@@ -138,6 +138,19 @@ default to, they look exactly like a lossless antenna, and shipping them would
 be the same confident-wrong-answer failure this engine refuses a buried wire to
 avoid.
 
+Verified against `nec2c` 1.3.1 on a machine that has one, through
+`NEC2Engine.solve_snapshot()`:
+
+| design | Z | efficiency | input power |
+|---|---|--:|--:|
+| `dipoles.invvee` | 48.5320 − 8.1039j | 100.00 % | 10.02 mW |
+| `beams.owa_yagi_6el` | 50.4920 + 9.0911j | 98.47 % | 9.59 mW |
+| `dipoles.pota_invvee` | 62.2190 − 7.5632j | 96.02 % | 7.92 mW |
+
+The first row is 100 % because that design's wires are perfect conductors, which
+is the right answer rather than a missing one — the other two are what show the
+number is read from the printout and not assumed.
+
 For the same reason, a printout carrying the binary's own complaint is reported
 as that complaint. A deck the engine rejects used to surface as "no POWER
 BUDGET", which is true and useless — it names the block that is missing rather
