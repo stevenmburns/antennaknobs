@@ -507,7 +507,18 @@ def worker_main(engine: str, deck_path: str, freq: float, ground_json: str):
         import traceback
 
         result["error"] = f"{type(e).__name__}: {e}"
-        result["traceback"] = traceback.format_exc()[-800:]
+        # Tail, not head: the exception and the innermost frames are what a
+        # census reader needs. 4000 rather than the 800 the sibling bench
+        # scripts use, because the frame worth reading is the one in OUR code
+        # and it is the FIRST casualty of a tail cap. Two things eat the budget
+        # from below and neither is under this file's control: how many helper
+        # frames the engine's run path happens to have (adding one to
+        # NEC5Engine._run_binary in #1339 was enough to push the caller out),
+        # and whether the interpreter renders `^^^^` anchor lines under each
+        # frame — 3.12 does, 3.14 does not, which is why 800 passed locally and
+        # failed on CI. A NEC-5 failure's full traceback measures ~1.3 KB here;
+        # the cap is meant to bound a runaway, not to be a tight fit.
+        result["traceback"] = traceback.format_exc()[-4000:]
         if engine == "nec5" and nec5_out_of_scope(e):
             result["out_of_scope"] = True
     print(json.dumps(result))
