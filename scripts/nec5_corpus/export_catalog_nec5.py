@@ -121,15 +121,20 @@ def main(argv=None) -> int:
                     )
                     if note:
                         header += f"CM {note}\n"
+                    # newline="\n": the same commit writes the same BYTES on
+                    # every platform — the release lane is Windows, and its
+                    # first publish differed from a Linux export on every
+                    # deck by CRLF alone (#1376). NEC-5 reads either.
                     (out / name).write_text(
                         header
-                        + deck.replace("CM antennaknobs NEC5Engine deck\n", "", 1)
+                        + deck.replace("CM antennaknobs NEC5Engine deck\n", "", 1),
+                        newline="\n",
                     )
                     written.append(
                         {"design": dotted, "rung": rung, "ground": gname, "file": name}
                     )
     (out / "manifest.json").write_text(
-        json.dumps({"written": written, "skipped": skipped}, indent=1)
+        json.dumps({"written": written, "skipped": skipped}, indent=1), newline="\n"
     )
     print(f"wrote {len(written)} decks, skipped {len(skipped)} -> {out}")
     by = {}
