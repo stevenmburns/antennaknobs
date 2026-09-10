@@ -200,6 +200,48 @@ Docs: https://antennaknobs.dev/   Source: https://github.com/stevenmburns/antenn
     )
 
 
+def _strip_debug_only(bundle: Path) -> None:
+    """`strip --strip-debug` every ELF in the bundle: drop the DWARF, keep the
+    symbol table.
+
+    Not PyInstaller's `--strip`, which is `strip` with its defaults and takes
+    the symbol table with it. momwire#1030 measured the difference on the
+    largest binary here: 34.8 MB unstripped, 2.2 MB with `--strip-debug` and
+    1998 symbols kept, 1.9 MB with `-s` and no symbols at all. 0.4 MB for
+    named backtraces, in the one place where the person hitting the crash has
+    neither a source tree nor a debugger.
+
+    Failures are per-file and non-fatal: a binary that will not strip ships
+    unstripped. Bigger, never broken.
+    """
+    stripped = kept = 0
+    before = sum(p.stat().st_size for p in bundle.rglob("*") if p.is_file())
+    for p in bundle.rglob("*"):
+        if not p.is_file() or p.is_symlink():
+            continue
+        try:
+            with p.open("rb") as fh:
+                if fh.read(4) != b"\x7fELF":
+                    continue
+        except OSError:
+            continue
+        try:
+            subprocess.run(
+                ["strip", "--strip-debug", str(p)],
+                check=True,
+                capture_output=True,
+            )
+            stripped += 1
+        except (OSError, subprocess.CalledProcessError):
+            kept += 1
+    after = sum(p.stat().st_size for p in bundle.rglob("*") if p.is_file())
+    print(
+        f"stripped DWARF from {stripped} ELF file(s), symbols kept"
+        + (f", {kept} refused" if kept else "")
+        + f": {before / 1048576:.0f} MB -> {after / 1048576:.0f} MB"
+    )
+
+
 def _prune_gpl(bundle: Path) -> None:
     """Remove any PyNEC artefact the collector left behind.
 
@@ -277,6 +319,30 @@ def main() -> int:
         "--exclude-module",
         "pandas",
     ]
+    if os.name != "nt":
+        # Linux/macOS only. The published momwire Linux wheel ships its two
+        # extensions UNSTRIPPED — `_accelerators.so` is 34.8 MB "with
+        # debug_info, not stripped", `_near_interface_accel.so` 5.4 MB —
+        # against 1.8 MB for the same extension in the Windows zip, because
+        # MSVC puts debug info in a separate .pdb that is not shipped. So the
+        # 41 MB momwire entry in a Linux bundle is debug symbols, not a
+        # platform difference: `strip --strip-unneeded` takes those two files
+        # from 41 MB to 3 MB, and the stripped `_accelerators.so` is 1.9 MB,
+        # which is the Windows figure.
+        #
+        # NOT on Windows, and this is the reason rather than a preference:
+        # signed binaries must not be repacked after signing (#1349), and
+        # `sign.py` runs on the collected bundle.
+        #
+        # PyInstaller's `--strip` is `strip` with its defaults, which discards
+        # the SYMBOL TABLE as well as the DWARF. `_strip_debug_only()` below
+        # runs `strip --strip-debug` instead, for the reason momwire#1030
+        # settled on the same question: across momwire's two extensions the
+        # symbol table costs 0.4 MB and buys a segfault backtrace that names
+        # the functions instead of printing addresses. A frozen bundle is
+        # exactly where that matters — the user reporting the crash has no
+        # source tree and no debugger.
+        pass  # handled after the build by `_strip_debug_only`
     for name in HIDDEN_IMPORTS:
         cmd += ["--hidden-import", name]
     # The design catalog is discovered by LISTING the package's `designs`
@@ -323,6 +389,8 @@ def main() -> int:
         print(f"ERROR: no {NAME} executable in {bundle}", file=sys.stderr)
         return 1
     _prune_gpl(bundle)
+    if os.name != "nt":
+        _strip_debug_only(bundle)
     _readme(bundle)
     signer = _load_sign()
     signed = signer.sign_if_configured([exe])
