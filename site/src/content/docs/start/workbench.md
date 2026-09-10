@@ -10,9 +10,11 @@ double-click.
 
 ## Setting it up
 
-1. Download
-   [`antennaknobs-workbench-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/latest/download/antennaknobs-workbench-windows.zip)
-   from the latest release.
+1. Download `antennaknobs-workbench-windows.zip` from the
+   [latest release](https://github.com/stevenmburns/antennaknobs/releases/latest)
+   (the direct link is
+   [releases/latest/download/antennaknobs-workbench-windows.zip](https://github.com/stevenmburns/antennaknobs/releases/latest/download/antennaknobs-workbench-windows.zip);
+   releases before v0.73.0 shipped the Python package only).
 2. Unzip it anywhere. **Keep the folder together** — the exe needs the
    `_internal` runtime beside it, and a lone copied-out `.exe` is the one way
    a correct download still fails.
@@ -43,9 +45,10 @@ unfrozen package produces, then exits.
 ## Adding your NEC-5 engine
 
 The workbench solves with momwire out of the box. If you own a licensed
-NEC-5 engine it can drive that too, as a third engine beside momwire and
-PyNEC — see [NEC-5 as a third engine](/reference/nec5/) for what that buys
-you. antennaknobs never bundles, downloads, or hosts the engine.
+NEC-5 engine it can drive that too, as a second engine beside momwire — see
+[NEC-5 as a third engine](/reference/nec5/) for what that buys you (the
+workbench folder carries momwire; the PyNEC engine of the pip install is
+not in it). antennaknobs never bundles, downloads, or hosts the engine.
 
 Put the engine's full path on one line in a text file named `NEC5_EXE.txt`
 beside `antennaknobs-workbench.exe`, then start the workbench again. The
