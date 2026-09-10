@@ -89,6 +89,7 @@ from antennaknobs.engines.momwire import (
     _ends_in_the_plane,
     split_wires_at_plane,
 )
+from antennaknobs.engines.nec2 import NEC2Engine
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.terrain import (
     Terrain,
@@ -459,6 +460,20 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         panel="nec5",
         default_n_per_wire=20,
     ),
+    # A NEC-2 console binary the user supplies (issue #1354), served only when
+    # the machine running the server resolves $NEC2_EXE and the binary RUNS.
+    # Not licensed like NEC-5 — freely available, and GPL, which is the whole
+    # reason it is reached over a subprocess instead of linked: a distributed
+    # bundle can offer this and cannot offer pynec. Same physics as the pynec
+    # entry, so it shares that panel rather than growing one of its own.
+    _BackendSpec(
+        name="nec2",
+        label="NEC-2",
+        solver=None,
+        kind="nec2",
+        panel="pynec",
+        default_n_per_wire=21,
+    ),
 )
 
 _MOMWIRE_MODELS = {b.name: b.solver for b in _BACKENDS if b.kind == "momwire"}
@@ -512,7 +527,9 @@ def design_backend_coverage(design: str) -> dict:
     return {"needs": sorted(needs), "refusals": refusals}
 
 
-def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
+def backend_roster(
+    *, have_pynec: bool, have_nec5: bool = False, have_nec2: bool = False
+) -> list[dict]:
     """The self-describing solver catalog served on GET /capabilities.
 
     Order is list order; the frontend renders its tabs, generic numeric knobs
@@ -521,7 +538,7 @@ def backend_roster(*, have_pynec: bool, have_nec5: bool = False) -> list[dict]:
     the PyNEC entry follows pynec_backend.HAVE_PYNEC and the NEC-5 entry
     follows the $NEC5_EXE binary probe.
     """
-    availability = {"pynec": have_pynec, "nec5": have_nec5}
+    availability = {"pynec": have_pynec, "nec5": have_nec5, "nec2": have_nec2}
     return [
         {
             "name": b.name,
@@ -708,6 +725,14 @@ _PYNEC_BURIED_REFUSAL = (
     "momwire backend for buried decks."
 )
 
+_NEC2_BURIED_REFUSAL = (
+    "NEC-2 has no below-ground medium in its formulation: its ground is a "
+    "boundary condition on the fields above the plane. A buried wire is not "
+    "rejected by the binary — it is solved AS IF IN AIR and a number is "
+    "printed with no warning — so antennaknobs refuses the deck instead. Use a "
+    "momwire backend, whose buried serve is certified, or NEC-5."
+)
+
 _WRAPPER_BURIED_SCOPE = {
     "pynec": (False, _PYNEC_BURIED_REFUSAL, "antennaknobs#1167"),
     # NEC-5 SERVES buried geometry, measured on the licensed binary
@@ -751,6 +776,12 @@ _WRAPPER_BURIED_SCOPE = {
     # unusable with buried wires. Refusing beats answering wrong, and the
     # refusal names the way out — continue the conductor below the plane.
     "nec5": (True, None, None),
+    # NEC-2 does not serve buried geometry and, unlike PyNEC, does not pretend
+    # to: `NEC2Engine` refuses the deck by name. The formulation has no
+    # below-ground medium at all, and nec2++ handed a buried wire solves it as
+    # if it were in air without warning — so False with a sentence, and the
+    # sentence names the engines that do serve it.
+    "nec2": (False, _NEC2_BURIED_REFUSAL, "antennaknobs#1354"),
 }
 
 
@@ -2796,6 +2827,30 @@ _PYNEC_SEAMS = _SolveSeams(
     feed_values=lambda eng: [v for _t, _s, v in (eng.excitation_pairs or [])],
 )
 
+
+def _make_nec2_engine(req: dict, builder):
+    """A NEC-2 binary over the SAME ground spec PyNEC gets: this is NEC-2, so
+    every ground PyNEC's mapping produces is one it can express."""
+    return NEC2Engine(builder, ground=_pynec_ground_spec(req))
+
+
+_NEC2_SEAMS = _SolveSeams(
+    make_engine=_make_nec2_engine,
+    # One subprocess for impedances, currents AND the power budget. Unlike
+    # PyNEC's pair of calls this cannot be two runs: each is a process launch.
+    run=lambda eng: eng.solve_snapshot()[:2],
+    # PyNEC's rule, because the dialect is PyNEC's: a NEC-2 expresses every
+    # ground the mapping produces, `finite-fast` included.
+    ground_constants=_pynec_ground_constants,
+    ground_applied=_pynec_ground_applied,
+    # From the printout's own VOLTAGE columns, stamped by `solve_snapshot`:
+    # this engine has no resolved-feed list to read (`export_nec` builds and
+    # discards the PyNECEngine that resolves them), and the report is what the
+    # binary was actually driven with.
+    feed_values=lambda eng: list(getattr(eng, "_excited_feed_values", None) or []),
+)
+
+
 _NEC5_SEAMS = _SolveSeams(
     make_engine=_make_nec5_engine,
     # One subprocess run for impedances, currents and the power budget. The
@@ -4165,6 +4220,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
     def nec5_solve(req: dict) -> dict:
         return _engine_solve(req, _NEC5_SEAMS)
 
+    def nec2_solve(req: dict) -> dict:
+        return _engine_solve(req, _NEC2_SEAMS)
+
     def nec5_pattern(req: dict) -> dict:
         # Same response contract as pynec_backend.pattern (46 thetas
         # 0..90 x 73 phis 0..360, gains in dBi), from one RP deck run.
@@ -4188,6 +4246,61 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         phis = [pi * del_phi for pi in range(n_phi)]
         gains = [
             [gains_by_angle[(round(th, 2), round(ph, 2))] for ph in phis]
+            for th in thetas
+        ]
+        return {
+            "available": True,
+            "geometry": name,
+            "ground": bool(req.get("ground", False)),
+            "ground_fast": bool(req.get("ground_fast", False)),
+            "height_m": 0.0,
+            "measurement_freq_mhz": meas_freq,
+            "theta_deg": thetas,
+            "phi_deg": phis,
+            "gain_dbi": gains,
+            "pattern_ms": pattern_ms,
+        }
+
+    def nec2_pattern(req: dict) -> dict:
+        """The same response contract as `pynec_backend.pattern` (46 thetas
+        0..90 x 73 phis 0..360, gains in dBi), from one RP deck run.
+
+        A near-twin of `nec5_pattern`, and DELIBERATELY not shared with it yet.
+        The solve bodies were unified because their equality could be gated —
+        13 payloads dumped from both trees and diffed, the NEC-5 ones replayed
+        from captured printouts. There is no captured NEC-5 printout for a
+        46x73 RP (the fixtures hold a 3x5), so a shared pattern body could not
+        be shown to leave the NEC-5 lane's payload untouched, and refactoring it
+        ungated is the mistake this series exists to avoid. Capture that
+        fixture on a licensed box and the two collapse into one body under the
+        same gate.
+        """
+        design_freq, meas_freq = _req_freqs(req)
+        builder = _build_builder(cls, req)
+        builder.freq = meas_freq
+        if has_design_freq:
+            builder.design_freq = design_freq
+        _apply_plane(builder, req)
+        eng = _make_nec2_engine(req, builder)
+        n_theta, n_phi = 46, 73
+        del_theta = 90.0 / (n_theta - 1)
+        del_phi = 360.0 / (n_phi - 1)
+        t0 = time.perf_counter()
+        text = eng._run(
+            eng.deck(meas_freq, rp=(n_theta, n_phi - 1, del_theta, del_phi))
+        )
+        gains_by_angle = eng._parse_radiation_patterns(text)
+        pattern_ms = (time.perf_counter() - t0) * 1e3
+        thetas = [ti * del_theta for ti in range(n_theta)]
+        phis = [pi * del_phi for pi in range(n_phi)]
+        # The 360-degree column is the 0-degree one: NEC-2's RP computes NPH
+        # points from PHIS in steps of DPH, so 72 steps of 5 degrees reach 355
+        # and 360 is never sampled. The response duplicates the seam (the
+        # frontend's polar plot closes on it), and asking the engine for one
+        # more column to get a row it already has would be a wasted degree of
+        # a 46x73 grid. `NEC2Engine.far_field` folds the seam the same way.
+        gains = [
+            [gains_by_angle[(round(th, 2), round(ph % 360.0, 2))] for ph in phis]
             for th in thetas
         ]
         return {
@@ -4419,6 +4532,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         pynec_pattern_excite=pynec_pattern_excite,
         nec5_solve=nec5_solve,
         nec5_pattern=nec5_pattern,
+        nec2_solve=nec2_solve,
+        nec2_pattern=nec2_pattern,
         nec_export=nec_export,
         schematic_svg=schematic_svg,
         params_source=params_source,
