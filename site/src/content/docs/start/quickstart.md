@@ -48,7 +48,14 @@ python -m uvicorn antennaknobs.web.server:app      # then open http://127.0.0.1:
 If PowerShell refuses to run `Activate.ps1`, allow scripts for your user once:
 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Always run pip as
 `python -m pip` so it installs into the venv you just activated and not into
-whichever Python is first on PATH. If the install seems to compile for
+whichever Python is first on PATH. If `python` prints nothing at all, it is
+not Python: in a window where the venv is not active, Windows routes
+`python` to a Microsoft Store stub (`Get-Command python` shows a path under
+`WindowsApps`). Activate the venv in that window, run the venv's interpreter
+by path (`.\.venv\Scripts\python.exe -m uvicorn antennaknobs.web.server:app`),
+or use `py -3.12`; to be rid of the stub, switch off `python.exe` and
+`python3.exe` under *Settings › Apps › Advanced app settings › App execution
+aliases*. If the install seems to compile for
 minutes, pip did not pick a wheel — stop and paste the output of
 `python -m pip debug --verbose` into an issue, with
 `python -X faulthandler -c "import antennaknobs; print('IMPORT OK')"` after it.
