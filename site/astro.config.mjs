@@ -65,6 +65,7 @@ export default defineConfig({
           label: "Start here",
           items: [
             { label: "What is antennaknobs?", slug: "start/welcome" },
+            { label: "Download for Windows", slug: "start/workbench" },
             { label: "Quickstart", slug: "start/quickstart" },
             { label: "Open the live simulator", link: SIMULATOR_URL, attrs: { target: "_blank" } },
           ],
