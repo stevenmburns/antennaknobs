@@ -144,3 +144,20 @@ collections state no licence; the Cebik course models are copyright L. B.
 Cebik (W4RNL, SK), distributed free on his site and mirrored, with no
 redistribution grant stated. That is why the tool fetches rather than ships
 them.
+
+## Comparing two `check` reports
+
+Since 1.2 every `check` report's `_meta` row records the environment that
+produced it: the OpenMP / MKL / OpenBLAS thread variables (present or
+explicitly absent), the interpreter, the platform, the job count, and the
+size and sha256 of the engine and every DLL beside it. Two runs of one binary
+on one box gave different crash-versus-hang splits on 38 decks a day apart
+(2026-09-08 / 09-09) and the older report could not say why, so:
+
+```
+python nec5_corpus.py compare check-a.jsonl check-b.jsonl
+```
+
+diffs the two deck by deck — and refuses, naming the field, when their
+recorded environments differ or one carries none. `--ignore-env` compares
+anyway after printing the differences.
