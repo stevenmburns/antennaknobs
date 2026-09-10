@@ -2126,26 +2126,44 @@ async def norm_check_endpoint(req: dict, request: Request):
 
 @app.post("/export_nec")
 async def export_nec_endpoint(req: dict):
-    """Render the current design as a downloadable NEC2 .nec card deck.
+    """Render the current design as a downloadable .nec card deck.
+
+    `dialect` picks the spelling: "nec2" (the default, so an old client that
+    sends no field keeps the file it always got) or "nec5". Both are offered
+    ALWAYS, whatever engines this machine has — neither writer needs one, and
+    the person who most needs the file is the one without the engine here
+    (decision 1 on issue #1389).
 
     Reuses the same builder construction as the live solve (params, variant,
-    frequency, ground), so the deck matches the antenna on screen. Returns 422
-    for designs with no faithful native-NEC representation (TL/virtual-
-    driver networks), which the frontend surfaces as a message.
+    frequency, ground), so the deck matches the antenna on screen. 422 for a
+    design the chosen dialect cannot express, with the reason as the detail:
+    TL / virtual-driver networks have no single-deck spelling in EITHER dialect,
+    while buried, ground-contact and graded designs refuse only as NEC-2 and the
+    sentence points at the NEC-5 download.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
     ex = example_for(geometry)
-    if ex.nec_export is None:
+    dialect = req.get("dialect") or "nec2"
+    if dialect not in ("nec2", "nec5"):
         raise HTTPException(
-            status_code=422, detail="NEC export unavailable for this design."
+            status_code=422, detail=f"unknown deck dialect {dialect!r}: nec2 or nec5"
+        )
+    writer = ex.nec_export if dialect == "nec2" else ex.nec5_export
+    if writer is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{dialect.upper()} export unavailable for this design.",
         )
     try:
-        deck = await run_in_threadpool(ex.nec_export, req)
+        deck = await run_in_threadpool(writer, req)
     except (NotImplementedError, ValueError) as e:
         # ValueError: request validation (bad freq / radius / n_per_wire) —
         # a clean 422 rather than a 500 (issue #347).
         raise HTTPException(status_code=422, detail=str(e)) from e
-    filename = f"{ex.name.replace('.', '_')}.nec"
+    # Distinct names so the two downloads never overwrite each other in a
+    # browser's download folder.
+    suffix = ".nec" if dialect == "nec2" else ".nec5.nec"
+    filename = f"{ex.name.replace('.', '_')}{suffix}"
     return Response(
         content=deck,
         media_type="text/plain; charset=utf-8",

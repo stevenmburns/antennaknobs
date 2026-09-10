@@ -154,9 +154,24 @@ def main(argv: list[str]) -> int:
             raw = (catalog / n).read_bytes()
             assert b"\r" not in raw, f"{n}: CRLF — the export must write LF everywhere"
             text = raw.decode("ascii", errors="replace")
-            assert (
-                text.startswith("CM antennaknobs catalog design") and "\nEN" in text
-            ), n
+            # Both header lines, not just the first. Since #1389 this header is
+            # written by `antennaknobs.nec5_export.catalog_header`, which the
+            # app's Download NEC-5 button also calls — so a deck in this bundle
+            # and a user's download of the same design at the same rung and
+            # ground are the same bytes. Pinning the second line here is what
+            # catches the shared writer drifting from the bundle.
+            #
+            # ("Both dialects" cannot be pressed in this gate: the corpus tool
+            # ships NEC-5 catalog decks and has no NEC-2 export at all. The
+            # download's own two-dialect behaviour is gated in
+            # tests/test_nec5_download_1389.py, including byte-equality against
+            # this script's output.)
+            head = text.splitlines()[:2]
+            assert head[0].startswith("CM antennaknobs catalog design"), n
+            assert head[1].endswith(
+                "MIT licence, github.com/stevenmburns/antennaknobs"
+            ), (n, head[1])
+            assert "\nEN" in text, n
         assert b"\r" not in (catalog / "manifest.json").read_bytes()
         no_engine = [
             s for s in manifest["skipped"] if "executable not found" in s["why"]
