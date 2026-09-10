@@ -380,6 +380,9 @@ installed; delete the folder to remove it. It is the same program as the
 PyPI install below, with momwire's C++ solver inside; a licensed NEC-5 joins
 with one text file beside the exe. Details, the self-test and the options:
 **[antennaknobs.dev/start/workbench](https://antennaknobs.dev/start/workbench/)**.
+The NEC-5 corpus tool (`scripts/nec5_corpus/`) is published separately, as a
+signed `nec5_corpus.exe` under its own `nec5-corpus-v<version>` release tag,
+rebuilt when the tool changes rather than with every release.
 
 ### Docker (nothing but Docker required)
 
