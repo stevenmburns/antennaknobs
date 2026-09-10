@@ -16,14 +16,21 @@ request (`have_nec5()`), unlike PyNEC's import-time ``HAVE_PYNEC``.
 
 from __future__ import annotations
 
-from ..engines.nec5 import find_nec5
+from ..engines.nec5 import probe_nec5
 from .examples import REGISTRY as EXAMPLES
 from .examples import example_for
 
 
 def have_nec5() -> bool:
-    """True when a licensed NEC-5 binary is resolvable right now."""
-    return find_nec5() is not None
+    """True when a licensed NEC-5 binary is resolvable AND actually runs.
+
+    Resolving is not enough: `$NEC5_EXE` pointing at any executable used to
+    produce a NEC-5 tab that failed only at solve time (#1339). `probe_nec5`
+    runs a one-wire deck once per (path, mtime, size) and logs the path on
+    failure, so a wrong binary is absent from the roster with a sentence that
+    names the file.
+    """
+    return probe_nec5() is not None
 
 
 def solve(req: dict) -> dict:
