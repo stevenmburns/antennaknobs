@@ -113,10 +113,16 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ env.MOMWIRE_SIGN_MODE == 'azure' && secrets.AZURE_CLIENT_SECRET || '' }}
       - name: Smoke the frozen bundle
         run: python scripts/freeze_workbench/smoke.py dist/antennaknobs-workbench/antennaknobs-workbench.exe
+      # The RELEASE zip keeps a version-less name so
+      # .../releases/latest/download/antennaknobs-workbench-windows.zip is a
+      # stable link — the site's start/workbench page points there, the same
+      # way momwire's eznec-dropin lane feeds its own download page. Off-tag
+      # builds keep their distinguishing suffix: those are artifacts a human
+      # picks out of a run, never a link anyone follows.
       - name: Name the bundle
         shell: pwsh
         run: |
-          $base = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_EVENT_NAME -eq 'push') { "antennaknobs-workbench-windows-$($env:GITHUB_REF_NAME)" }
+          $base = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_EVENT_NAME -eq 'push') { 'antennaknobs-workbench-windows' }
                   elseif ($env:MOMWIRE_SIGN_MODE -eq 'azure') { 'antennaknobs-workbench-windows-SIGNTEST' }
                   else { 'antennaknobs-workbench-windows-SELFSIGNED-rehearsal' }
           "BUNDLE=$base" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
