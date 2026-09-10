@@ -46,12 +46,15 @@ def test_moment_fraction_is_current_times_length():
     assert in_medium.moment_fraction(dr, i_mid, mask) == pytest.approx(0.25)
 
 
-def test_pattern_delta_ignores_the_nulls():
-    full = np.array([1.0, 1e-3, 1e-12])
-    above = np.array([1.0, 1e-3, 1e-6])  # a null moved by 60 dB
-    assert in_medium.pattern_delta_db(full, above) == pytest.approx(0.0)
-    above = np.array([2.0, 1e-3, 1e-12])  # the peak moved by 3.01 dB
-    assert in_medium.pattern_delta_db(full, above) == pytest.approx(10 * np.log10(2.0))
+def test_power_share_ignores_the_nulls_and_weights_by_solid_angle():
+    full = np.array([[1.0, 1.0], [1e-3, 1e-3], [1e-12, 1e-12]])
+    above = np.array([[1.0, 1.0], [1e-3, 1e-3], [1e-6, 1e-6]])  # a null filled 60 dB
+    assert in_medium.power_share(full, above) == pytest.approx(0.0)
+    above = np.array([[0.5, 0.5], [1e-3, 1e-3], [1e-12, 1e-12]])  # half the peak gone
+    w = np.array([[1.0], [0.0], [0.0]])
+    assert in_medium.power_share(full, above, w) == pytest.approx(0.5)
+    assert in_medium.peak_delta_db(full, above) == pytest.approx(10 * np.log10(0.5))
+    assert in_medium.peak_delta_db(full, np.zeros_like(full)) == -99.0
 
 
 def test_assess_wholly_buried_refuses_by_name():
@@ -66,21 +69,19 @@ def test_assess_wholly_buried_refuses_by_name():
 def test_assess_serves_under_the_bar_and_refuses_over_it():
     mid, dr, i_mid = _moments([1.0, -0.2], [1.0, 0.1])
 
-    def readout_scaled(factor):
-        # |M|² proportional to the total moment squared: the buried 10 %
-        # moves the pattern by 20·log10(1.1/1.0) ≈ 0.83 dB; scaling the
-        # buried current makes it cross the bar.
-        def evaluate(m, d, i):
-            return np.full(3, (np.sum(np.abs(i)) * factor) ** 2)
+    def readout(m, d, i):
+        # |M|² proportional to the total moment squared, one direction: the
+        # buried 10 % of current is (1.1² − 1²)/1.1² ≈ 17 % of the power.
+        return np.full(3, np.sum(np.abs(i)) ** 2)
 
-        return evaluate
-
-    a = in_medium.assess(mid, dr, i_mid, 0.0, readout_scaled(1.0))
+    a = in_medium.assess(mid, dr, i_mid, 0.0, readout)
     assert a.served and a.note and "momwire#570" in a.note
-    assert a.delta_db == pytest.approx(20 * np.log10(1.1), abs=1e-9)
-    mid, dr, i_mid = _moments([1.0, -0.2], [1.0, 1.0])
-    a = in_medium.assess(mid, dr, i_mid, 0.0, readout_scaled(1.0))
-    assert not a.served and "up to 6.0 dB" in a.refusal
+    assert a.power_share == pytest.approx(1 - 1 / 1.1**2, abs=1e-9)
+    assert a.delta_db == pytest.approx(20 * np.log10(1 / 1.1), abs=1e-9)
+    mid, dr, i_mid = _moments([1.0, -0.2], [1.0, 3.0])  # buried current dominates
+    a = in_medium.assess(mid, dr, i_mid, 0.0, readout)
+    assert not a.served and "of the radiated power" in a.refusal
+    assert a.power_share == pytest.approx(1 - 1 / 16, abs=1e-9)
 
 
 # --- the engine on the catalog ----------------------------------------------
@@ -104,11 +105,13 @@ def test_buried_radial_vertical_pattern_is_served_with_a_note():
 
     eng = MomwireEngine(Builder(), ground=SOIL)
     ff = eng.far_field(n_theta=90, n_phi=360, del_theta=1, del_phi=1)
-    # Measured 2026-09-09 at the design's defaults: 38 % of Σ|I·dl| below
-    # the plane, and the pattern moves 0.46 dB when those segments are
-    # dropped — the symmetric screen's currents cancel in the far field.
+    # Measured 2026-09-10 at the design's defaults: 38 % of Σ|I·dl| below
+    # the plane, the imaged screen accounts for 8.3 % of the radiated power,
+    # and the peak moves 0.37 dB when those segments are dropped — the
+    # symmetric screen's currents cancel in the far field.
     assert 0.30 < ff.in_medium_moment_fraction < 0.45
-    assert 0.2 < ff.in_medium_pattern_delta_db < 1.0
+    assert 0.04 < ff.in_medium_power_share < 0.15
+    assert -1.0 < ff.in_medium_pattern_delta_db < 0.0
     assert ff.note and "momwire#570" in ff.note
     # The served readout is the status quo: the peak is what it was before
     # this issue (the same code path, the same numbers).
@@ -122,6 +125,7 @@ def test_free_space_far_field_is_untouched():
         n_theta=90, n_phi=360, del_theta=1, del_phi=1
     )
     assert ff.in_medium_moment_fraction == 0.0
+    assert ff.in_medium_power_share == 0.0
     assert ff.in_medium_pattern_delta_db == 0.0
     assert ff.note is None
     assert ff.max_gain == 1.923798486448699  # bit-identical to the pre-#1341 readout
@@ -156,7 +160,7 @@ def test_web_wholly_buried_response_refuses_and_withholds_cuts():
     _attach_in_medium_assessment(out)
     assert "momwire#570" in out["pattern_refusal"]
     assert out["in_medium_moment_fraction"] == pytest.approx(1.0)
-    assert out["in_medium_pattern_delta_db"] is None
+    assert out["in_medium_power_share"] == pytest.approx(1.0)
     assert _pattern_cuts(out, 15.0, 0.0) is None
 
 
@@ -166,15 +170,17 @@ def test_web_small_buried_share_is_served_with_a_note():
     assert "pattern_refusal" not in out
     assert "momwire#570" in out["pattern_note"]
     assert out["in_medium_moment_fraction"] == pytest.approx(0.05 / 1.05)
-    assert 0.0 < out["in_medium_pattern_delta_db"] < in_medium.IN_MEDIUM_PATTERN_BAR_DB
+    assert 0.0 < out["in_medium_power_share"] < in_medium.IN_MEDIUM_POWER_SHARE_BAR
     cuts = _pattern_cuts(out, 15.0, 0.0)
     assert cuts is not None and len(cuts["azimuth"]) > 0
 
 
 def test_web_dominant_buried_share_is_refused():
-    out = _hertzian_response([(1.0, 1.0), (-0.5, 1.0)])
+    out = _hertzian_response([(1.0, 0.1), (-0.5, 1.0)])
     _attach_in_medium_assessment(out)
-    assert "up to" in out["pattern_refusal"] and "momwire#570" in out["pattern_refusal"]
+    assert "of the radiated power" in out["pattern_refusal"]
+    assert "momwire#570" in out["pattern_refusal"]
+    assert out["in_medium_power_share"] > in_medium.IN_MEDIUM_POWER_SHARE_BAR
     assert _pattern_cuts(out, 15.0, 0.0) is None
 
 

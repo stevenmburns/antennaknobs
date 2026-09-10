@@ -125,6 +125,10 @@ export type SolveResponse = {
   pattern_refusal?: string;
   pattern_note?: string;
   in_medium_moment_fraction?: number;
+  /** Share of the lit hemisphere's radiated power the imaged in-medium
+   *  currents account for (the refusal bar is one half). */
+  in_medium_power_share?: number;
+  /** Change at the peak direction, dB, when those currents are dropped. */
   in_medium_pattern_delta_db?: number | null;
   /** Advisory key into the server's cuts-source cache (issue #551). When
    *  present, cut refetches send this ~100-byte id (over /ws or POST /cuts)

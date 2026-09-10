@@ -1898,6 +1898,7 @@ class MomwireEngine(SimulationEngine):
             lambda m, d, i: self._evaluate_M_perp(
                 m, d, i, k, theta_user, phi_user, freq_hz
             ),
+            weights=np.sin(theta_user)[:, None],
         )
         if not medium.served:
             raise in_medium.InMediumPatternRefusal(medium.refusal)
@@ -1949,6 +1950,7 @@ class MomwireEngine(SimulationEngine):
             thetas=theta_deg,
             phis=phi_deg,
             in_medium_moment_fraction=medium.fraction,
+            in_medium_power_share=medium.power_share,
             in_medium_pattern_delta_db=medium.delta_db,
             note=medium.note,
         )
