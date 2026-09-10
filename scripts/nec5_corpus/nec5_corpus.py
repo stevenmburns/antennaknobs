@@ -79,8 +79,6 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from antennaknobs.nec_import import classify_sp as _classify_sp_fields
-
 VERSION = "1.2"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
@@ -901,13 +899,48 @@ _SP_PATCH_REFUSAL = (
 )
 
 
-def _classify_sp(c: Card) -> str:
-    """NEC-5 sphere vs NEC-2/NEC-4 patch — see `nec_import.classify_sp`.
+def _classify_sp_fields(fields) -> str:
+    """``"nec5"`` for NEC-5's sphere spelling of SP, ``"patch"`` for NEC-2/4's.
 
-    The rule lived here until antennaknobs#1337 and now lives in the importer,
-    which refuses SP by form as well; a second copy is how the two would drift.
-    `Card.f` is already the fields as written, which is what it reads.
+    `fields` is the card's fields AS WRITTEN (the tokens after the mnemonic),
+    because the literal spelling carries the signal: an integral value is not
+    an integer literal.
+
+    The two cards share a mnemonic and nothing else. NEC-2/NEC-4:
+    ``SP I1 I2 F1 .. F6`` — two integers (I2 = patch shape 0..3) then real
+    coordinates, at most 8 fields. NEC-5 (Users Manual, "SP – Sphere"):
+    ``SP ITAG NTH NPH IALT X0 Y0 Z0 RAD TH1 TH2 PH1 PH2`` — FOUR integers, two
+    of them patch-edge counts (so >= 1), then eight reals with radius > 0.
+    So fields 3 and 4 are integer counts in NEC-5 and real coordinates in
+    NEC-2; a decimal point or exponent in either settles it on sight, and when
+    both are integer literals the field count and a positive radius do. The
+    manual's Example 4 card, ``SP 0 0 .1 .05 .05 0. 0.``, is a patch on sight.
+
+    TWIN of `antennaknobs.nec_import.classify_sp`. The rule was born here,
+    lifted into the importer by antennaknobs#1337 (which then imported it
+    back), and returned here by #1376 so that this file needs nothing
+    installed — "one file, standard library only" is the promise the working
+    group runs it under, and an import of antennaknobs broke it. Two copies
+    are how they drift, so `tests/test_nec_import.py` pins the two function
+    bodies equal, token for token; edit both or fail the suite.
     """
+    if len(fields) < 8 or not all(_is_int_literal(t) for t in fields[:4]):
+        return "patch"
+    try:
+        nth, nph, radius = int(fields[1]), int(fields[2]), float(fields[7])
+    except ValueError:
+        return "patch"
+    if nth < 1 or nph < 1 or radius <= 0:
+        return "patch"
+    return "nec5"
+
+
+def _is_int_literal(token: str) -> bool:
+    return token.lstrip("+-").isdigit()
+
+
+def _classify_sp(c: Card) -> str:
+    """NEC-5 sphere vs NEC-2/NEC-4 patch, on `Card.f`: the fields as written."""
     return _classify_sp_fields(c.f)
 
 
@@ -1815,6 +1848,9 @@ def main(argv=None) -> int:
         description=__doc__.split("\n\n")[0],
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    # The version the reports record; the frozen exe (antennaknobs#1376) has
+    # no other way to say which tool it is.
+    ap.add_argument("--version", action="version", version="nec5_corpus.py " + VERSION)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     f = sub.add_parser("fetch", help="download the public deck collections into --out")
