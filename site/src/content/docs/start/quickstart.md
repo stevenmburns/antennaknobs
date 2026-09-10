@@ -29,7 +29,20 @@ pip install --upgrade pip
 pip install "antennaknobs[web]"
 ```
 
-### On Windows
+### On Windows without Python
+
+Every release ships a frozen workbench for Windows, `antennaknobs-workbench-windows-vX.Y.Z.zip`,
+on the [releases page](https://github.com/stevenmburns/antennaknobs/releases). Unzip it
+anywhere, double-click `antennaknobs-workbench.exe`, and a console window opens the
+server on this computer and your browser at it. Nothing is installed; delete the
+folder to remove it, and keep the folder together (the program needs `_internal`
+beside it). It is the same program as the pip install below, packaged, with
+momwire's C++ solver inside. With a licensed NEC-5, put the full path to
+`NEC5CL.exe` on one line in a text file named `NEC5_EXE.txt` beside the
+executable and start it again; the NEC-5 tab appears. The `README.txt` in the
+folder says the rest (fixed port, no browser, a self-test).
+
+### On Windows with Python
 
 The same install in PowerShell. Use **Python 3.12** — it is the version every
 antennaknobs test lane runs — or 3.14, which was exercised by hand on Windows
