@@ -2716,6 +2716,13 @@ def _declared_feed_ports(cls) -> list[str]:
     return []
 
 
+def _source_values(sources) -> list[complex]:
+    """The drive value of each NEC5Engine source, in feed order, from the
+    `(wire_index, ex_type, value, knot)` tuples `_sources` carries (issue
+    #1342: the tuple grew a fourth field and one unpack did not follow)."""
+    return [complex(entry[2]) for entry in sources]
+
+
 def _feed_positions(engine, currents, multi_feed=False):
     """One marker per feed (issue #571), each ``{"name", "position": [x,y,z]}``.
 
@@ -4131,9 +4138,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 gt["marker"] = marker
             out["ground_terrain"] = gt
         if hints()["multi_feed"] and len(zs) > 1:
-            # NEC5Engine._sources is [(wire_idx, ex_type, value)] in feed
-            # order; value is volts for EX 0 and amps for EX 4.
-            values = [v for _i, _t, v in eng._sources]
+            # NEC5Engine._sources is [(wire_idx, ex_type, value, knot)] in
+            # feed order (the engine grew `knot` for the edge-source
+            # spelling, #898; this unpack read three and broke every
+            # multi-feed design on the NEC-5 web path, #1342); value is volts
+            # for EX 0 and amps for EX 4.
+            values = _source_values(eng._sources)
             values += [complex(1.0, 0.0)] * (len(zs) - len(values))
             out["feeds"] = [
                 {

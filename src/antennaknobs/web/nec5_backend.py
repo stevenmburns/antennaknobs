@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from ..engines.nec5 import find_nec5
 from .examples import REGISTRY as EXAMPLES
+from .examples import example_for
 
 
 def have_nec5() -> bool:
@@ -27,7 +28,7 @@ def have_nec5() -> bool:
 
 def solve(req: dict) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.nec5_solve is None:
         raise ValueError(f"NEC-5 solve not implemented for geometry {ex.name!r}")
     return ex.nec5_solve(req)
@@ -35,7 +36,7 @@ def solve(req: dict) -> dict:
 
 def pattern(req: dict) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.nec5_pattern is None:
         raise ValueError(f"NEC-5 pattern not implemented for geometry {ex.name!r}")
     return ex.nec5_pattern(req)

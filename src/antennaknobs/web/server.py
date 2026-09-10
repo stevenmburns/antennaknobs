@@ -40,7 +40,7 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
@@ -52,6 +52,7 @@ from . import cost as _cost
 from . import tracker
 from . import nec5_backend, pynec_backend, user_designs
 from .examples import REGISTRY as EXAMPLES
+from .examples import UnknownGeometryError, example_for
 from .lane import LaneRegistry, Superseded, cancel_on_disconnect
 from .progress_stream import ProgressStream, ProgressStreamClosed
 
@@ -212,6 +213,14 @@ app = FastAPI(
     redoc_url=None if _HOSTED else "/redoc",
     openapi_url=None if _HOSTED else "/openapi.json",
 )
+
+
+@app.exception_handler(UnknownGeometryError)
+async def _unknown_geometry(_request: Request, exc: UnknownGeometryError):
+    """Issue #1343: a request naming a design the registry does not hold is a
+    client error with the key in it, never a solve of some other design."""
+    return JSONResponse(status_code=400, content={"error": str(exc)})
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -1456,7 +1465,7 @@ def _solve_uncached(req: dict, cancel=None) -> dict:
         out = backend.solve(req)
         out["solver"] = "pynec" if backend is pynec_backend else "nec5"
     else:
-        ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+        ex = example_for(geometry)
         out = ex.momwire_solve(req, cancel=cancel)
         out["solver"] = "momwire"
     _attach_derived_em_fields(out)
@@ -1643,7 +1652,7 @@ async def sweep_endpoint(req: dict, request: Request):
             detail="freqs_mhz entries must be positive, finite numbers",
         )
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    sweep_ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    sweep_ex = example_for(geometry)
     ext_backend = _external_backend(req)
     use_pynec = ext_backend is not None
     solver_name = req.get("solver") if use_pynec else "momwire"
@@ -1870,7 +1879,7 @@ def _solve_z_only(req: dict, cancel=None) -> tuple[complex, list[complex] | None
             cancel.raise_if_cancelled()
         res = backend.solve(req)
     else:
-        ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+        ex = example_for(geometry)
         res = ex.momwire_solve(req, cancel=cancel)
     primary = complex(res["z_in_re"], res["z_in_im"])
     feeds_list = res.get("feeds")
@@ -2118,7 +2127,7 @@ async def export_nec_endpoint(req: dict):
     driver networks), which the frontend surfaces as a message.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.nec_export is None:
         raise HTTPException(
             status_code=422, detail="NEC export unavailable for this design."
@@ -2150,7 +2159,7 @@ async def schematic_endpoint(req: dict):
     network.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.schematic_svg is None:
         return {"available": False}
     try:
@@ -2241,7 +2250,7 @@ async def params_source_endpoint(req: dict):
     Returns ``{"available": False}`` for a design that can't be serialised.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.params_source is None:
         return {"available": False}
     try:
@@ -2321,7 +2330,7 @@ async def pattern_metrics_endpoint(req: dict, request: Request):
     front_to_back_db / az_beamwidth_deg / el_beamwidth_deg (+ the freq).
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.far_field_metrics is None:
         return {"available": False}
     # far_field_metrics runs a full momwire solve; apply the hosted matrix-
@@ -2358,7 +2367,7 @@ async def geometry_endpoint(req: dict):
     uses the momwire builder path regardless of the request's `solver`.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.momwire_geometry is None:
         return {"available": False}
     try:
@@ -2542,7 +2551,7 @@ async def optimize_endpoint(req: dict, request: Request):
             max_evals = min(max_evals, _MAX_OPT_EVALS)
 
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     base = {k: v for k, v in req.items() if k != "optimize"}
     # Every optimizer eval is a full momwire solve of the base geometry (the
     # free knobs never change n_per_wire), so one hosted size check on the

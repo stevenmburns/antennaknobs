@@ -23,6 +23,7 @@ except ImportError:
 
 from ..network_reduce import SingularNetworkError
 from .examples import REGISTRY as EXAMPLES
+from .examples import example_for
 
 
 C_LIGHT = 299_792_458.0
@@ -93,7 +94,7 @@ def _run_solve(
 
 def solve(req: dict) -> dict:
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.pynec_solve is None:
         raise ValueError(f"PyNEC solve not implemented for geometry {ex.name!r}")
     return ex.pynec_solve(req)
@@ -113,7 +114,7 @@ def pattern(req: dict) -> dict:
     examples fall back to one ex_card via `_run_solve()`.
     """
     geometry = req.get("geometry", next(iter(EXAMPLES)))
-    ex = EXAMPLES.get(geometry) or next(iter(EXAMPLES.values()))
+    ex = example_for(geometry)
     if ex.pynec_build is None:
         raise ValueError(f"PyNEC pattern not implemented for geometry {ex.name!r}")
     b = ex.pynec_build(req)

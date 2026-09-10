@@ -27,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from antennaknobs.web import server, user_designs
+from antennaknobs.web.examples import UnknownGeometryError
 from antennaknobs.web.examples import REGISTRY
 from antennaknobs.web.progress_stream import ProgressStream, ProgressStreamClosed
 
@@ -1211,18 +1212,21 @@ def test_pynec_path_also_reports_radiation_efficiency():
     assert lossless_pynec["radiation_efficiency"] == 1.0
 
 
-def test_solve_falls_back_when_geometry_unknown():
-    # An unknown geometry should silently fall back to the first registered
-    # example rather than 500 — the frontend can briefly send a stale name
-    # while it reloads /examples.
-    out = server.solve(
-        {
-            "geometry": "this_geometry_does_not_exist",
-            "measurement_freq_mhz": 28.47,
-        }
-    )
-    assert out["solver"] == "momwire"
-    assert "wires" in out
+def test_solve_refuses_an_unknown_geometry_by_name():
+    # Issue #1343. This used to fall back silently to the first registered
+    # example so a stale name from a frontend mid-reload would not 500 — and
+    # a request for "invvee" came back with solved numbers for a bowtie
+    # array and no error. The refusal names the key; a stale name during a
+    # reload now shows the sentence for a moment instead of another
+    # antenna's numbers, which is the right way round.
+    with pytest.raises(UnknownGeometryError) as ei:
+        server.solve(
+            {
+                "geometry": "this_geometry_does_not_exist",
+                "measurement_freq_mhz": 28.47,
+            }
+        )
+    assert "this_geometry_does_not_exist" in str(ei.value)
 
 
 # ---------------------------------------------------------------------------
@@ -1624,12 +1628,11 @@ def test_deferred_design_view_is_null_then_arrives_with_preview():
     assert g["default_view"] in {"xy", "yz", "xz"}  # real view rides the preview
 
 
-def test_geometry_endpoint_falls_back_when_geometry_unknown(client: TestClient):
+def test_geometry_endpoint_refuses_an_unknown_geometry_with_400(client: TestClient):
+    # Issue #1343: the key in the sentence, never another design's wires.
     r = client.post("/geometry", json={"geometry": "does.not.exist"})
-    assert r.status_code == 200
-    out = r.json()
-    # Falls back to the first registered example rather than erroring.
-    assert "wires" in out and len(out["wires"]) >= 1
+    assert r.status_code == 400
+    assert "does.not.exist" in r.json()["error"]
 
 
 # ---------------------------------------------------------------------------
