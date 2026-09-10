@@ -113,14 +113,19 @@ the card earns no note. Its segments are addressed and remeshed like a
 only field of the card the translator writes.
 
 **Cards NEC-5 does not have** are dropped with a note: EK, KH, CP, IS, JN,
-VC, MP, and 4nec2's LD 6 / LD 7 (its insulated-wire load; NEC-5 crashes on
-them). SP in its NEC-2/NEC-4 patch form (NEC-5 spells a *different* card as
-SP, a sphere, which is kept when the fields read as one), SC and SM patch
-cards and GF/WG Green's-function files are refused. NX multi-structure decks
-are split into one deck per structure. A deck with no execution request
-(4nec2 adds XQ itself) gets `XQ 0`. A 4nec2 flat loop spelled as a one-turn helix with 1e-300 pitch is
-written as straight pieces, because NEC-5's GH computes zero wire length
-from it.
+VC, MX, PS, MP, and 4nec2's LD 6 / LD 7 (its insulated-wire load; NEC-5
+crashes on them). The two NEC-4-only ones a NEC-4 deck is likeliest to carry
+are MX, which sizes NEC-4's matrix memory, and PS, which asks it to print the
+electrical lengths of the segments; NEC-5 allocates its own memory and has no
+such print, so left in they read as an input error rather than as the model.
+
+SP in its NEC-2/NEC-4 patch form (NEC-5 spells a *different* card as SP, a
+sphere, which is kept when the fields read as one), SC and SM patch cards and
+GF/WG Green's-function files are refused. NX multi-structure decks are split
+into one deck per structure. A deck with no execution request (4nec2 adds XQ
+itself) gets `XQ 0`. A 4nec2 flat loop spelled as a one-turn helix with 1e-300
+pitch is written as straight pieces, because NEC-5's GH computes zero wire
+length from it.
 
 Every one of these conventions was verified by running probe decks through
 a NEC-5 executable and reading the printout, not taken from its source — with

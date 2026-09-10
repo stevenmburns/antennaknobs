@@ -880,6 +880,8 @@ _DROP_CARDS = {
     "IS": "IS (NEC-4 insulated sheath) dropped: NEC-5 has no insulated-wire card; the wire is bare here",
     "JN": "JN (NEC-4 junction card) dropped: not a NEC-5 command",
     "VC": "VC (NEC-4 card) dropped: not a NEC-5 command",
+    "MX": "MX (NEC-4 matrix memory allocation) dropped: not a NEC-5 command",
+    "PS": "PS (NEC-4 print of segment electrical lengths) dropped: not a NEC-5 command",
     "MP": "MP (nec2++ medium-parameters card) dropped: not a NEC-5 command",
 }
 _REFUSE_CARDS = {
