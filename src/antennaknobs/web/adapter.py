@@ -84,7 +84,11 @@ try:
 except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 13.0, 0.005)
-from antennaknobs.engines.momwire import MomwireEngine, _ends_in_the_plane
+from antennaknobs.engines.momwire import (
+    MomwireEngine,
+    _ends_in_the_plane,
+    split_wires_at_plane,
+)
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.terrain import (
     Terrain,
@@ -3317,6 +3321,7 @@ def _design_capability_needs(cls) -> frozenset:
         # what makes a node there a DECLARED junction — the engine's own
         # translation (issue #1108) — and without it the crossing question
         # cannot be asked of the geometry at all.
+        tups = split_wires_at_plane(tups, 0.0)  # issue #1346, as the engine does
         translated = flat_wires_to_polylines(
             tups, boundary_ends=_ends_in_the_plane(tups, 0.0)
         )
