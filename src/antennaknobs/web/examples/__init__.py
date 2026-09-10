@@ -19,6 +19,41 @@ from ._base import AntennaExample, ParamSpec
 REGISTRY: dict[str, AntennaExample] = {}
 
 
+class UnknownGeometryError(ValueError):
+    """A request named a design the registry does not hold (issue #1343).
+
+    Raised instead of quietly answering for the first registered design,
+    which is what every `EXAMPLES.get(key) or next(iter(EXAMPLES.values()))`
+    used to do: a request for ``invvee`` instead of ``dipoles.invvee`` came
+    back with solved numbers for ``arrays.bowtie16x1`` and no error, and the
+    Windows box session nearly reported the invvee as broken on NEC-5 on the
+    strength of it (2026-09-09). The server maps this to a 400 naming the
+    key and the nearest registered names; the solve channel formats it like
+    any other solve error.
+    """
+
+
+def example_for(geometry) -> AntennaExample:
+    """The registered design for ``geometry``, or UnknownGeometryError.
+
+    An ABSENT key is a different thing from an unknown one: callers that
+    default a missing key to the first design (``req.get("geometry",
+    next(iter(REGISTRY)))``) keep that convention; this only refuses a key
+    that was given and does not resolve.
+    """
+    ex = REGISTRY.get(geometry)
+    if ex is not None:
+        return ex
+    import difflib
+
+    near = difflib.get_close_matches(str(geometry), list(REGISTRY), n=3, cutoff=0.4)
+    tail = f"; did you mean {', '.join(repr(n) for n in near)}?" if near else ""
+    raise UnknownGeometryError(
+        f"unknown geometry {geometry!r}: not a registered design{tail} "
+        f"(the registry holds {len(REGISTRY)} designs, named like 'dipoles.invvee')"
+    )
+
+
 def register(example: AntennaExample) -> AntennaExample:
     if example.name in REGISTRY:
         raise ValueError(f"duplicate antenna example: {example.name}")
