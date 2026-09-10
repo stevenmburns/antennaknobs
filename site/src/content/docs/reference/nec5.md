@@ -37,10 +37,11 @@ export NEC5_EXE=~/nec5/nec5cl        # your licensed binary
 ```
 
 On Windows, in PowerShell, before starting the workbench in the same window
-(EZNEC Pro+ ships the binary as `NEC5CL.exe`):
+(EZNEC Pro+ keeps its engine in its own Docs folder as `NEC5CL_x13.exe` —
+the suffix is the build; `Docs\LastRun.log` names the one it ran):
 
 ```powershell
-$env:NEC5_EXE = "C:\Program Files\EZNEC Pro+\NEC5CL.exe"
+$env:NEC5_EXE = "C:\EZNEC 7.0\Docs\NEC5CL_x13.exe"
 ```
 
 That is PowerShell syntax (its prompt starts with `PS`). In Command Prompt
@@ -48,7 +49,7 @@ That is PowerShell syntax (its prompt starts with `PS`). In Command Prompt
 name, or volume label syntax is incorrect"; the Command Prompt spelling is
 
 ```bat
-set NEC5_EXE=C:\Program Files\EZNEC Pro+\NEC5CL.exe
+set NEC5_EXE=C:\EZNEC 7.0\Docs\NEC5CL_x13.exe
 ```
 
 with no quotes. Either shell works; the variable lives in that window only,
