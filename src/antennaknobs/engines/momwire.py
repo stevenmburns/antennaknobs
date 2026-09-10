@@ -1949,7 +1949,7 @@ class MomwireEngine(SimulationEngine):
         pairs = sorted(
             {(int(a), int(b)) for a, b in zip(sec_idx, back_idx, strict=True)}
         )
-        chunk = max(1, int(4e5 // max(T * N, 1)))
+        chunk = max(1, int(1.5e5 // max(T * N, 1)))
         for fi, bi in pairs:
             cut = utd.build_cut(terrain.sectors[fi], terrain.sectors[bi])
             all_cols = np.nonzero((sec_idx == fi) & (back_idx == bi))[0]
