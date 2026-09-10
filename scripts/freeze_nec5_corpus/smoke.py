@@ -16,7 +16,10 @@ that needed more would have been built from a script that did.
    decks, frozen and unfrozen, into two fresh directories: every written
    deck byte-equal, and the report line-equal once the ``started``
    timestamp in its ``_meta`` row is masked. Packaging may not move a card.
-4. ``check`` against a NEC-5 engine, ONLY when ``NEC5_EXE`` names one (CI
+4. ``catalog-nec5/`` beside the exe carries the whole catalog: every deck
+   the manifest names exists, is a NEC-5 deck, and none was skipped for
+   want of an engine (the export's engine-free mode is what CI relies on).
+5. ``check`` against a NEC-5 engine, ONLY when ``NEC5_EXE`` names one (CI
    runners have none): the frozen and unfrozen reports agree on every deck's
    status. Skipped with the sentence otherwise.
 """
@@ -85,7 +88,10 @@ def main(argv: list[str]) -> int:
     exe = Path(argv[0]).resolve()
     assert exe.is_file(), exe
     frozen = [str(exe)]
-    unfrozen = [sys.executable, str(SCRIPT)]
+    # -S: no site-packages, so the build environment's antennaknobs (installed
+    # there for the catalog export) is invisible — the unfrozen side runs on
+    # the standard library alone, which is the promise under test.
+    unfrozen = [sys.executable, "-S", str(SCRIPT)]
     version = _tool_version()
 
     # 1. --version
@@ -135,10 +141,33 @@ def main(argv: list[str]) -> int:
             f"frozen == unfrozen byte for byte"
         )
 
-        # 4. check, only with an engine
+        # 4. the catalog decks beside the exe: every deck the manifest names is
+        # there and is a NEC-5 deck, and the count is the whole catalog.
+        catalog = exe.parent / "catalog-nec5"
+        manifest = json.loads((catalog / "manifest.json").read_text(encoding="utf-8"))
+        names = [w["file"] for w in manifest["written"]]
+        assert len(names) >= 400, f"only {len(names)} catalog decks written"
+        missing = [n for n in names if not (catalog / n).is_file()]
+        assert not missing, f"manifest names decks that are not there: {missing[:5]}"
+        assert len(list(catalog.glob("*.nec"))) == len(names)
+        for n in names[:50]:
+            text = (catalog / n).read_text(encoding="ascii", errors="replace")
+            assert (
+                text.startswith("CM antennaknobs catalog design") and "\nEN" in text
+            ), n
+        no_engine = [
+            s for s in manifest["skipped"] if "executable not found" in s["why"]
+        ]
+        assert not no_engine, "the export ran without its engine-free mode"
+        print(
+            f"gate 4: catalog-nec5 carries {len(names)} decks, "
+            f"{len(manifest['skipped'])} designs skipped for cause"
+        )
+
+        # 5. check, only with an engine
         engine = os.environ.get("NEC5_EXE")
         if not engine:
-            print("gate 4: skipped — NEC5_EXE is not set, no NEC-5 engine on this box")
+            print("gate 5: skipped — NEC5_EXE is not set, no NEC-5 engine on this box")
             return 0
         for runner, out in ((frozen, out_f), (unfrozen, out_u)):
             r = _run(
@@ -150,7 +179,7 @@ def main(argv: list[str]) -> int:
         status_f = _statuses(out_f / "check-report.jsonl")
         status_u = _statuses(out_u / "check-report.jsonl")
         assert status_f == status_u, f"check statuses differ: {status_f} vs {status_u}"
-        print(f"gate 4: check agrees on {len(status_f)} deck(s) through {engine}")
+        print(f"gate 5: check agrees on {len(status_f)} deck(s) through {engine}")
     return 0
 
 

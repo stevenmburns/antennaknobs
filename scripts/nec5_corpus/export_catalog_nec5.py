@@ -1,6 +1,6 @@
 """Write antennaknobs' own catalog designs as NEC-5 decks (MIT, ours to share).
 
-    NEC5_EXE=/path/to/nec5cl python scripts/nec5_corpus/export_catalog_nec5.py --out catalog-nec5
+    python scripts/nec5_corpus/export_catalog_nec5.py --out catalog-nec5
 
 Every built-in design is written at its shipped mesh and at double that mesh,
 in free space and over the documented Sommerfeld ground (eps_r 13, sigma
@@ -15,8 +15,10 @@ port with that port driven by 1 V -- since the app solves the network
 outside NEC-5 from the resulting multiport Y. A manifest.json records what
 was written and why anything was not.
 
-The NEC-5 executable is only needed for `NEC5Engine`'s constructor check; no
-deck is run here.
+No NEC-5 executable is needed: the engine is built with ``require_exe=False``
+(a deck writer, never a solver), so the corpus tool's release build can run
+this on a box with no engine (#1376). The output is deterministic — the same
+commit writes the same bytes — which is what lets the release zip carry it.
 """
 
 from __future__ import annotations
@@ -69,7 +71,7 @@ def main(argv=None) -> int:
                 bb = cls()
                 bb.nominal_nsegs = base_n * factor
                 try:
-                    eng = NEC5Engine(bb, ground=ground)
+                    eng = NEC5Engine(bb, ground=ground, require_exe=False)
                     if per_port:
                         decks = [
                             (

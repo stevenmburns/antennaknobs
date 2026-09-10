@@ -43,6 +43,8 @@ the build's smoke gate runs both over momwire's 65-deck portal corpus and
 requires every written deck byte-equal and the reports line-equal. It is
 built on demand (`freeze-nec5-corpus` workflow, `publish: true`) when this
 file changes, so the release tag's version and `VERSION` here agree.
+The zip also carries `catalog-nec5/` — the 476 catalog decks below, written
+from the same commit — with `export_catalog_nec5.py` and this README.
 `SECURITY-REVIEW.md` beside this file ships in the zip and is linked from
 the release notes with the checksums: what the program can and cannot do to
 a machine, subcommand by subcommand, and how to verify the exe or skip it.
@@ -150,7 +152,7 @@ error.
 
 ## The antennaknobs catalog
 
-`export_catalog_nec5.py` (needs antennaknobs installed) writes our own
+`export_catalog_nec5.py` (needs antennaknobs installed, no engine) writes our own
 catalog as NEC-5 decks at two mesh densities, in free space and over a
 Sommerfeld ground, through the same deck writer the app's NEC-5 lane is
 validated with: 476 decks, of which 168 are the per-port decks the app
