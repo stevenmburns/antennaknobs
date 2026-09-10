@@ -79,7 +79,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.2"
+VERSION = "1.3"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -332,9 +332,19 @@ class _Sink:
             self.skipped += 1
             return
         self.seen.add(h)
-        rel = relpath.replace("\\", "/").lstrip("/")
+        rel = relpath.replace("\\", "/")
         rel = re.sub(r"[^\w./ ()+-]", "_", rel)  # Windows-hostile characters
-        dest = self.dir / rel
+        # A member name is the archive's to choose, and `..` in it would
+        # write outside raw/<source>/ (found by the 1.3 security review,
+        # antennaknobs#1376): keep only the plain path components.
+        parts = [c for c in rel.split("/") if c not in ("", ".", "..")]
+        if not parts:
+            self.skipped += 1
+            return
+        dest = self.dir.joinpath(*parts)
+        if not dest.resolve().is_relative_to(self.dir.resolve()):
+            self.skipped += 1
+            return
         dest.parent.mkdir(parents=True, exist_ok=True)
         if dest.exists():
             dest = dest.with_name(dest.stem + "_" + h[:6] + dest.suffix)
