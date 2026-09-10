@@ -1,11 +1,11 @@
-# Security review of nec5_corpus.py version 1.3
+# Security review of nec5_corpus.py version 1.4
 
 Reviewed 2026-09-10 by Claude (Anthropic's model, working in Claude Code) at
 the request of the tool's author, Steven Burns, by reading the whole source
 of `scripts/nec5_corpus/nec5_corpus.py` and the build that freezes it. This
 file ships beside `nec5_corpus.exe` so that a reader can see, before running
 it, what the program can and cannot do to their machine. It is a code
-review, not a penetration test, and it speaks for **version 1.3 only**: the
+review, not a penetration test, and it speaks for **version 1.4 only**: the
 test suite refuses a version bump that does not re-state the version here,
 so a stale review cannot ship by accident.
 
@@ -107,16 +107,41 @@ Nothing else of concern was found: no credentials are read or stored, no
 persistence is established, no privileged operation is attempted, and the
 program exits when its subcommand finishes.
 
+**What 1.4 changed in the script.** Card translation only, and nothing this
+review describes: NEC-4's `CW` (catenary wire) is translated instead of
+refused, and
+its `MX` and `PS` cards are dropped instead of passed through to NEC-5.
+`translate` still does pure text processing under the folders you name, with
+no network and no subprocess. One adjacent effect, stated so the sentence
+above about `fetch` stays exact: the content check that decides whether a
+downloaded file looks like a NEC deck now recognises a catenary deck too, so
+`fetch` keeps a few files it used to discard — written as text under
+`raw/<source>/`, like every other one, and never executed.
+
+**What the zip holds.** 1.4 grew the bundle as well, so here is the whole of
+it: `nec5_corpus.exe`; `README.txt` (how to run it); `README.md` (the
+tool's full documentation); this file; `export_catalog_nec5.py`; and
+`catalog-nec5/`, 476 antennaknobs catalog designs written as NEC-5 decks with
+a `manifest.json` saying what each one is. The decks and the export script are
+MIT and ours to give; they are text, they are input for `check --src
+catalog-nec5`, and nothing in the bundle runs them but the NEC-5 engine you
+supply. The export happens at BUILD time in a sibling process, which is why
+the build environment needs antennaknobs and the exe does not.
+
 ## About the executable
 
 `nec5_corpus.exe` is this script frozen with PyInstaller (one-file mode)
 and signed with the antennaknobs / momwire Authenticode certificate. It is
 built by a public GitHub Actions workflow
 (`.github/workflows/freeze-nec5-corpus.yml` in the repository) from a
-commit named in the release notes; the build installs PyInstaller and
-nothing else, and its smoke gate runs the frozen program and the unfrozen
-script over the same 70 decks and requires byte-identical output. The
-release notes carry the SHA-256 of the exe and the zip.
+commit named in the release notes. The build installs PyInstaller **and**
+antennaknobs — the latter only so that a sibling process can write the
+catalog decks that ship beside the exe; the exe itself excludes the package
+(`--exclude-module antennaknobs`), and the smoke gate runs the unfrozen side
+under `python -S`, so a script that had quietly grown a dependency would fail
+the lane rather than ship. That gate runs the frozen program and the unfrozen
+script over the same 70 decks and requires byte-identical output. The release
+notes carry the SHA-256 of the exe and the zip.
 
 What PyInstaller adds is Python itself and a small bootloader: on each
 launch the exe unpacks its contents into a temporary folder
@@ -138,7 +163,7 @@ To verify or rebuild:
 
 ## Limits of this review
 
-The review covers the script's own code as of version 1.3 and the build
+The review covers the script's own code as of version 1.4 and the build
 that freezes it. It does not cover Python, PyInstaller, Windows, or the
 NEC-5 engine you supply. It was done by reading, with the findings above
 confirmed by running the code (finding 1 was reproduced before it was
