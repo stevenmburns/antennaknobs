@@ -62,6 +62,60 @@ HIDDEN_IMPORTS = (
 )
 
 
+def _vendored_dlls() -> list[Path]:
+    """Every DLL delvewheel vendored beside momwire (`momwire.libs\\`), in
+    whatever mangled names it gave them."""
+    import momwire
+
+    libs = Path(momwire.__file__).resolve().parent.parent / "momwire.libs"
+    return sorted(libs.glob("*.dll")) if libs.is_dir() else []
+
+
+def _loaded_openmp() -> Path | None:
+    """The OpenMP runtime this process already has mapped, whatever it is
+    called. delvewheel renames vendored DLLs, so match on the stem rather
+    than the exact filename."""
+    import ctypes
+    import ctypes.wintypes as wt
+
+    psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetCurrentProcess.restype = wt.HANDLE
+    kernel32.GetCurrentProcess.argtypes = []
+    psapi.EnumProcessModules.restype = wt.BOOL
+    psapi.EnumProcessModules.argtypes = [
+        wt.HANDLE,
+        ctypes.POINTER(wt.HMODULE),
+        wt.DWORD,
+        ctypes.POINTER(wt.DWORD),
+    ]
+    psapi.GetModuleFileNameExW.restype = wt.DWORD
+    psapi.GetModuleFileNameExW.argtypes = [
+        wt.HANDLE,
+        wt.HMODULE,
+        wt.LPWSTR,
+        wt.DWORD,
+    ]
+    proc = kernel32.GetCurrentProcess()
+    handles = (wt.HMODULE * 4096)()
+    needed = wt.DWORD()
+    if not psapi.EnumProcessModules(
+        proc,
+        handles,
+        ctypes.sizeof(handles),
+        ctypes.byref(needed),
+    ):
+        return None
+    stem = OPENMP_DLL[: -len(".dll")]
+    buffer = ctypes.create_unicode_buffer(32768)
+    for i in range(min(needed.value // ctypes.sizeof(wt.HMODULE), len(handles))):
+        if psapi.GetModuleFileNameExW(proc, handles[i], buffer, len(buffer)):
+            path = Path(buffer.value)
+            if path.name.lower().startswith(stem.lower()) and path.is_file():
+                return path
+    return None
+
+
 def _openmp_runtime() -> Path | None:
     import ctypes
     import ctypes.util
@@ -84,6 +138,13 @@ def _openmp_runtime() -> Path | None:
         buffer = ctypes.create_unicode_buffer(32768)
         if kernel32.GetModuleFileNameW(handle, buffer, len(buffer)):
             return Path(buffer.value)
+    # The PyPI wheel is delvewheel-repaired: the vendored runtime moves to
+    # `momwire.libs\` and gains a content-hash suffix
+    # (libomp140.x86_64-<hash>.dll), so the name lookup above misses it even
+    # though the extension has it loaded. Ask the loader what is actually
+    # mapped rather than guessing a filename.
+    if (found := _loaded_openmp()) is not None:
+        return found
     located = ctypes.util.find_library(OPENMP_DLL)
     if located and Path(located).is_file():
         return Path(located)
@@ -188,6 +249,19 @@ def main() -> int:
             return 1
         cmd += ["--add-binary", f"{runtime}{os.pathsep}."]
         print(f"openmp runtime: {runtime}")
+        # delvewheel vendors EVERY non-system DLL the extension links, not
+        # just the OpenMP one, and renames each with a content hash — the
+        # published wheel also carries msvcp140-<hash>.dll, which the
+        # extension imports by that mangled name. Shipping only the OpenMP
+        # DLL leaves the accelerator dead with "DLL load failed ... The
+        # specified module could not be found". At runtime delvewheel's
+        # `os.add_dll_directory` patch in momwire/__init__.py cannot help:
+        # frozen, the package runs from the archive. So flatten the whole
+        # vendored directory next to the bundle's own DLLs.
+        for vendored in _vendored_dlls():
+            if vendored != runtime:
+                cmd += ["--add-binary", f"{vendored}{os.pathsep}."]
+                print(f"vendored runtime: {vendored}")
     cmd.append(str(HERE / "entry.py"))
     print("+", " ".join(cmd), flush=True)
     result = subprocess.run(cmd)

@@ -47,7 +47,15 @@ def main(argv: list[str]) -> int:
     exe = Path(argv[0]).resolve()
     assert exe.is_file(), exe
 
-    # 1. selftest against the unfrozen package
+    # 1. selftest against the unfrozen package.
+    #
+    # A build that prints the openmp line and then fails accelerated=True is
+    # momwire#737; gate 1 is the check. build.py finding *an* OpenMP runtime
+    # says nothing about whether the extension can load: the published wheel
+    # is delvewheel-repaired and vendors several hash-renamed DLLs, so a
+    # bundle can ship libomp, report it happily, and still have a dead
+    # accelerator because a sibling (msvcp140-<hash>.dll) was left behind.
+    # Only running the thing catches that.
     t0 = time.perf_counter()
     out = subprocess.run(
         [str(exe), "--selftest"], capture_output=True, text=True, timeout=600
