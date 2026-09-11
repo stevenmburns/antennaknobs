@@ -674,9 +674,9 @@ number a live knob:
   slope* on one side and falls at the *downhill slope* on the other (facing
   the *downhill bearing*), all earth. There is no bottom to reference and
   none is needed — the slope itself is the reflector, so the effective
-  height grows continuously as the elevation drops. One honest limit:
-  below the uphill slope angle the real sky is shadowed by the hill, which
-  a specular model cannot express.
+  height grows continuously as the elevation drops. Below the uphill slope
+  angle the real sky is shadowed by the hill — which the specular composer
+  cannot express and the diffracted one can; see *Two fields* below.
 
 Media are fixed in this version (water εr=80 σ=0.001, land and crest εr=13
 σ=0.005 — shown read-only in the panel); arbitrary facet profiles and custom
@@ -690,11 +690,40 @@ incidence, that facet's Fresnel coefficients, and the facet's height folded
 into the reflected-path phase, which is what lets a modest mast act
 electrically tall toward a drop-off. A single flat facet reproduces the
 plain finite ground exactly, and the solve readout's ground row reports
-**terrain (crest Somm.)**. It is a specular model: lobe positions and
-direction-dependent asymmetry are its business; diffraction behind a crest
-is not. The worked example —
+**terrain (crest Somm.)**. The worked example —
 [Antennas on a levee](/advanced/terrain/) — shows what it changes on a real
 site and where each flat model fails.
+
+**Two fields, and the chart says which.** The description above is the
+*specular* composer: geometric optics, lobe positions and direction-dependent
+asymmetry. There is a second one that adds what a profile with an edge in it
+actually implies — shadowing, the source imaged across each facet's own plane
+rather than a horizontal mirror, and wedge diffraction at the facet breaks —
+and where the two disagree, it is the one to believe.
+
+It is too slow to draw while you drag: about a second per pattern against
+17 ms, and paid per direction, so no warm-up helps. So the polar charts draw
+the specular field while a knob is moving and compose the diffracted one a
+moment after it settles. The bottom-left corner of each chart says which you
+are looking at — **specular while dragging** or **with diffraction** — and it
+reads the trace that is actually drawn, not the request that fetched it.
+
+Nothing else on the page changes: the impedance, the SWR, the sweep and the
+efficiency ledger are all the flat crest-medium solve either way, so the
+readout numbers do not jump when the lobe does. What moves is the far field,
+and it moves most where the specular model was least believable — on a
+40 m, 45° hill with the mast mid-slope, the uphill band moves by +10 to
++12 dB, geometric optics having reported grazing cancellation through a hill
+that in fact shadows the ray. Peak gain moves by +0.4 to +2.6 dB on the three
+presets.
+
+Two limits worth knowing. Near the **zenith** both composers are computing a
+number close to zero for most antennas, and they reach it by different
+arithmetic — a vertical's zenith null reads −319 dBi one way and −322 the
+other, which is agreement, not a 3 dB discrepancy. And a mast standing right
+**on a crest edge** has structure in the edge's near zone, where a ray model
+of that edge is the weakest thing in the calculation; move the mast a metre
+back from the break and the question goes away.
 
 Engine notes: momwire applies the facet far field natively. **PyNEC runs a
 hybrid** — NEC-2 has no facet model, so NEC solves the currents over the
