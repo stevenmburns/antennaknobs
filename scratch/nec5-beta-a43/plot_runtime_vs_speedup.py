@@ -58,6 +58,8 @@ def main(argv=None):
     ap.add_argument(
         "--title", default="NEC-5 a43 vs stock x13: where the long jobs land"
     )
+    ap.add_argument("--old", default="stock x13", help="label for the reference build")
+    ap.add_argument("--new", default="a43", help="label for the build under test")
     a = ap.parse_args(argv)
     rows = load(a.csv, a.set)
     if not rows:
@@ -96,7 +98,7 @@ def main(argv=None):
         color=POINT,
         edgecolors="none",
         zorder=4,
-        label=f"stock solve >= {a.long:g} s ({len(longs)} decks: {n_up} faster, {n_down} slower on a43)",
+        label=f"{a.old} solve >= {a.long:g} s ({len(longs)} decks: {n_up} faster, {n_down} slower on {a.new})",
     )
     ax.axhline(1.0, color=INK2, lw=1.0, ls="--", zorder=3)
     ax.set_xscale("log")
@@ -107,8 +109,8 @@ def main(argv=None):
     )
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}x"))
     ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_xlabel("stock x13 wall time per deck (log)", color=INK)
-    ax.set_ylabel("speedup = stock wall / a43 wall (log)", color=INK)
+    ax.set_xlabel(f"{a.old} wall time per deck (log)", color=INK)
+    ax.set_ylabel(f"speedup = {a.old} wall / {a.new} wall (log)", color=INK)
     ax.set_title(a.title + f"  ({len(rows)} decks)", color=INK, fontsize=11, loc="left")
     ax.grid(True, which="major", color=GRID, lw=0.8, zorder=0)
     for sp in ax.spines.values():
@@ -120,7 +122,7 @@ def main(argv=None):
     fig.tight_layout()
     fig.savefig(a.out, facecolor=SURF)
     print(
-        f"{len(rows)} decks; long (>= {a.long:g} s): {len(longs)} — {n_up} faster, {n_down} slower on a43 -> {a.out}"
+        f"{len(rows)} decks; long (>= {a.long:g} s): {len(longs)} — {n_up} faster, {n_down} slower on {a.new} -> {a.out}"
     )
     return 0
 
