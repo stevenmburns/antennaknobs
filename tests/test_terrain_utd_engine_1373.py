@@ -45,11 +45,20 @@ def _grid(eng, n_phi=72, del_phi=5):
 
 
 def test_flat_terrain_with_diffraction_reproduces_finite_ground():
+    """Both flags NAMED, because the default flipped.
+
+    `flat_terrain(...)` used to mean the specular path; since the #1373 follow-on
+    `diffraction` defaults to True, so a test that relied on the default would
+    have been comparing the UTD path against #534's bit-identity gate and failing
+    for the right reason in the wrong place. Each arm now says which path it is.
+    """
     plain = _grid(_engine(("finite", *SOIL)))[1]
-    specular = _grid(_engine(("terrain", flat_terrain(*SOIL))))[1]
-    utd = Terrain(sectors=flat_terrain(*SOIL).sectors, diffraction=True)
+    flat = flat_terrain(*SOIL).sectors
+    specular = Terrain(sectors=flat, diffraction=False)
+    utd = Terrain(sectors=flat, diffraction=True)
+    old = _grid(_engine(("terrain", specular)))[1]
     new = _grid(_engine(("terrain", utd)))[1]
-    assert np.array_equal(plain, specular)  # #534's gate 1, still bit-identical
+    assert np.array_equal(plain, old)  # #534's gate 1, still bit-identical
     assert np.max(np.abs(new - plain)) < 1e-8  # dB
 
 

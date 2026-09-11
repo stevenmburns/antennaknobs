@@ -13,6 +13,7 @@ The three acceptance gates from the issue, plus the terrain type system:
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 import importlib.util
 import shutil
@@ -143,9 +144,32 @@ def test_specular_cut_zenith_hits_the_crest():
 # ---------------------------------------------------------------------------
 
 
+def _specular(t: Terrain) -> Terrain:
+    """The geometric-optics field of `t`, with the flag NAMED.
+
+    `Terrain.diffraction` defaults to True since the #1373 follow-up, so the
+    #534 gates in this file — which are gates on `specular_cut` and on
+    agreement with references that have no diffraction term (the plain
+    Sommerfeld ground, nec2c's GN+GD cliff) — say which field they are about
+    rather than inheriting it. Nothing here is weakened by the flip: the
+    diffracted field has its own gates in `test_terrain_utd*_1373.py`.
+    """
+    return dataclasses.replace(t, diffraction=False)
+
+
 def test_flat_terrain_reproduces_finite_ground_bit_identically():
+    """#534's gate 1 is about the SPECULAR path, so it names the flag.
+
+    `Terrain.diffraction` defaults to True since the #1373 follow-up. On a
+    single facet with no break there is no wedge to diffract from, so the two
+    fields agree physically — but the UTD path reaches the answer by imaging
+    the source across each facet's own plane rather than through the
+    horizontal-mirror specular formula, and that is different arithmetic.
+    `test_flat_terrain_with_diffraction_reproduces_finite_ground` (#1373) holds
+    the diffracted arm to 1e-8 dB; bit-identity is this one's to keep.
+    """
     e_fin = _engine(("finite", *SOIL))
-    e_ter = _engine(("terrain", flat_terrain(*SOIL)))
+    e_ter = _engine(("terrain", _specular(flat_terrain(*SOIL))))
     assert complex(e_fin.impedance()[0]) == complex(e_ter.impedance()[0])
     _, g_fin = _grid(e_fin)
     _, g_ter = _grid(e_ter)
@@ -209,7 +233,10 @@ def test_cliff_terrain_tracks_nec2c_gd_cliff():
     )
     el_n, g_n = lb.cliff_elevation_cut(lb.run_nec2c_pattern(deck), phi=0.0)
 
-    t = cliff_terrain(edge=1.5, drop=10.67, inner=SOIL, outer=WATER)
+    # SPECULAR (see `_specular`): nec2c's GN+GD cliff is geometric optics with
+    # no diffraction term of its own, so the diffracted field is not the thing
+    # this 0.5 dB bracket is a bracket on.
+    t = _specular(cliff_terrain(edge=1.5, drop=10.67, inner=SOIL, outer=WATER))
     el_t, grid = _grid(_engine(("terrain", t)))
     g_t = grid[:, 0]  # phi = 0, over the cliff
 
@@ -227,7 +254,11 @@ def test_cliff_terrain_tracks_nec2c_gd_cliff():
 
 @pytest.fixture(scope="module")
 def levee():
-    e_ter = _engine(("terrain", levee_terrain(**QTH)))
+    # SPECULAR: gate 3's claims below are geometric-optics claims — the
+    # crest-governed threshold, the h_eff ride, the two sides' equality above
+    # the threshold. Wedge diffraction breaks all three on purpose, and the
+    # #1373 files gate the diffracted field. See `_specular`.
+    e_ter = _engine(("terrain", _specular(levee_terrain(**QTH))))
     e_crest = _engine(("finite", *SOIL))
     z_ter = complex(e_ter.impedance()[0])
     z_crest = complex(e_crest.impedance()[0])

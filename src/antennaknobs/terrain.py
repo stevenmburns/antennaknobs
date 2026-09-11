@@ -94,10 +94,20 @@ class Terrain:
     # Issue #1373: shadowing + UTD wedge diffraction at the facet breaks, and
     # the exact tilted-mirror reflection (the source imaged across each
     # facet's own plane) instead of the horizontal-mirror specular formula.
-    # Off by default so the levee / cliff / hillside presets and the
-    # published case-study numbers do not move silently; the follow-up that
-    # flips the default carries the docs sweep. See `terrain_utd.py`.
-    diffraction: bool = False
+    #
+    # ON by default since the #1373 follow-up. It was opt-in for one release so
+    # the presets and the published case-study numbers would not move silently,
+    # and the flip carries the table of every number that moved. The impedance
+    # does NOT move -- the solve is flat Sommerfeld at the crest medium either
+    # way -- and the far field does: +0.4 to +2.6 dB of peak on the hosted
+    # presets, and up to +12.5 dB in the uphill band where geometric optics
+    # reported grazing cancellation through a hill that shadows it.
+    #
+    # The cost is why the UI does not use it live: 0.47-1.03 s for a 45x72 grid
+    # against 0.017 s specular, paid per direction (113-320 us against 3.8 us),
+    # so a cached setup does not help. The app composes specular while a knob
+    # moves and the diffracted field once on settle (see `web/server.py`).
+    diffraction: bool = True
 
     def __post_init__(self):
         object.__setattr__(self, "sectors", tuple(self.sectors))
