@@ -51,7 +51,11 @@ Three spec forms work anywhere a `--builder` / `--builders` argument does:
   and its Generator sets the frequency. The `@` sigil keeps the grammar
   unambiguous (a bare `foo.nec` would parse as family `foo`, design `nec`),
   and an `@` spec never splits off a `:variant` suffix, so colons in paths
-  (Windows drive letters) pass through.
+  (Windows drive letters) pass through. One shell trap: in **PowerShell**
+  quote the whole spec, `--builder "@C:\decks\yagi.nec"` — an unquoted `@"`
+  opens a here-string there and the path never reaches the program. The same
+  files dropped in `~/.antennaknobs/designs/` become `user.<name>` designs
+  with no stub (see [Importing a NEC deck](/reference/nec-import/#quick-start)).
 
 ## Patterns
 

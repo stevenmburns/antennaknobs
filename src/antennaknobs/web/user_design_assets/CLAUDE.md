@@ -93,6 +93,13 @@ geometry, never leave the machine.
 
 ### Loading a NEC card deck (`.nec`)
 
+A bare `.nec` (or SimNEC `.ssn`) dropped in this folder is **already a
+design** — it is listed as `user.<filename>` with the deck's own frequency,
+radii, feed and network, and being data it never needs allowing. Write the
+stub below only when the user wants knobs on the deck (`height`, `scale`) or
+their own label; name the stub after the deck and it replaces the bare
+listing.
+
 `read_nec(self, name)` loads a **NEC2 card deck** — the format xnec2c, 4nec2,
 EZNEC, and antenna-handbook listings all speak — with the same folder
 confinement as `read_json`.

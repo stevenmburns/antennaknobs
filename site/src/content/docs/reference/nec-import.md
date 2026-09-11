@@ -23,14 +23,23 @@ is worth porting to a real `AntennaBuilder`.
 
 ## Quick start
 
-For one-off CLI work you don't need a stub at all: every subcommand accepts
-an **`@file.nec`** builder spec that loads the deck on the fly —
-`python -m antennaknobs draw --builder @my_yagi.nec` — and decks mix with
-named designs in `--builders` lists (see
-[Naming a design](/reference/cli/#naming-a-design)). Write the stub when the
-deck should live in your design catalog:
+You don't need any Python to run a deck. **Drop the `.nec` file in
+`~/.antennaknobs/designs/`** (on Windows, `%USERPROFILE%\.antennaknobs\designs\`)
+and it appears in the workbench's design list as `user.<filename>`, with the
+deck's own frequency, per-wire radii, feed and network; the reload button
+next to the design picker re-reads it after an edit. A deck is data, so
+unlike a Python design it never asks to be allowed. For one-off CLI work the
+same loader takes the file straight from a path: every subcommand accepts an
+**`@file.nec`** builder spec — `python -m antennaknobs draw --builder @my_yagi.nec`
+— and decks mix with named designs in `--builders` lists (see
+[Naming a design](/reference/cli/#naming-a-design)). In PowerShell quote the
+whole spec, `--builder "@C:\decks\my_yagi.nec"`: an unquoted `@"` opens a
+here-string there, and the path never reaches the program.
 
-Drop the deck next to a small design stub in `~/.antennaknobs/designs/`:
+Write a stub when you want **knobs** on the deck — a `height` lift, a `scale`
+stretch — or a label of your own. Put it next to the deck in the same folder;
+a stub of the same name as its deck is the design, and the bare deck is not
+listed twice:
 
 ```python
 # my_yagi.py — my_yagi.nec sits next to it
