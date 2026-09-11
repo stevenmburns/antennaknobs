@@ -1654,6 +1654,49 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+# The three thread counts an OpenMP / OpenBLAS / MKL engine reads. Pinned to 1
+# per worker when `--jobs > 1`, unless the user set them (antennaknobs#1403).
+_THREAD_KEYS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
+
+
+def _engine_env(jobs: int) -> tuple[dict, dict, bool]:
+    """(env for the engine, the effective thread values, timings worth reading).
+
+    `--jobs N` runs N engine processes at once, and an OpenMP engine with the
+    thread count left to the environment then asks for N x threads of CPU.
+    Measured on the laptop 2026-09-11: the clean-room OpenMP build took 1,651 s
+    for the corpus under `--jobs 4` against a single-threaded reference's
+    1,447 s, while one deck at a time on an idle box the same binary is 1.8-2.3x
+    FASTER. So a per-deck `wall_s` from an oversubscribed run is not a speed
+    measurement, and nothing in the report used to say so (#1403).
+
+    Two things follow, and the second matters more than the first. The thread
+    counts are pinned to 1 per worker when `--jobs > 1` — unless the user set
+    them, because someone who asks for a thread count has a reason and the tool
+    is not the place to overrule it. And `timing_valid` records whether
+    jobs x threads fits in `os.cpu_count()`, so a report whose wall times cannot
+    be compared SAYS it, rather than leaving a reader to know.
+    """
+    env = dict(os.environ)
+    user_set = {k: os.environ.get(k) for k in _THREAD_KEYS if os.environ.get(k)}
+    if jobs > 1:
+        for k in _THREAD_KEYS:
+            env.setdefault(k, "1")
+    effective = {k: env.get(k) for k in _THREAD_KEYS}
+    # An unset count means the runtime picks, and what it picks is a core per
+    # thread — so treat it as cpu_count rather than as 1, which is the
+    # assumption that hid this.
+    cpus = os.cpu_count() or 1
+    per_worker = max(
+        (int(v) if v and v.isdigit() else cpus) for v in effective.values()
+    )
+    return (
+        env,
+        {"effective": effective, "user_set": sorted(user_set)},
+        (jobs * per_worker <= cpus),
+    )
+
+
 def _environment_meta(exe: str, jobs: int | None = None) -> dict:
     """What a `check` report must carry to be comparable with another day's
     (antennaknobs#1344): the thread-relevant environment with absent keys
@@ -1877,7 +1920,9 @@ def _aip(text: str) -> list:
     return rows
 
 
-def run_exe(exe: str, deck_text: str, timeout: float, keep: Path = None) -> dict:
+def run_exe(
+    exe: str, deck_text: str, timeout: float, keep: Path = None, env: dict = None
+) -> dict:
     """Run one deck (file names on stdin, printout in the working directory).
     Status: ok (impedance printed), ok-no-source (nothing to print: plane-wave
     or geometry-only deck), no-impedance (a source but no ANTENNA INPUT
@@ -1896,6 +1941,7 @@ def run_exe(exe: str, deck_text: str, timeout: float, keep: Path = None) -> dict
                 capture_output=True,
                 cwd=td,
                 timeout=timeout,
+                env=env,
             )
         except subprocess.TimeoutExpired:
             return {"status": "timeout", "wall_s": time.perf_counter() - t0}
@@ -1948,16 +1994,33 @@ def cmd_check(args) -> int:
     decks = [p for p in _iter_decks(src) if not args.only or args.only in p.as_posix()]
     if args.limit:
         decks = decks[: args.limit]
+    engine_env, threads, timing_valid = _engine_env(args.jobs)
     report = open(args.report or (src / "check-report.jsonl"), "w", encoding="utf-8")
+    environment = _environment_meta(exe, jobs=args.jobs)
+    environment["engine_threads"] = threads
     report.write(
         _meta_row(
             "check",
             exe=exe,
             platform=sys.platform,
             timeout_s=args.timeout,
-            environment=_environment_meta(exe, jobs=args.jobs),
+            timing_valid=timing_valid,
+            environment=environment,
         )
     )
+    if args.jobs > 1:
+        pinned = [k for k in _THREAD_KEYS if k not in threads["user_set"]]
+        if pinned:
+            _log(
+                f"--jobs {args.jobs}: pinned {', '.join(pinned)}=1 for the engine "
+                "so the workers do not contend (#1403)"
+            )
+    if not timing_valid:
+        _log(
+            f"NOTE: jobs x threads exceeds {os.cpu_count()} CPUs — the per-deck "
+            "wall_s in this report is NOT a speed measurement, and the report "
+            "records timing_valid: false"
+        )
     keep_dir = Path(args.keep_dir) if args.keep_dir else None
     counts = {}
     errors = {}
@@ -1966,7 +2029,9 @@ def cmd_check(args) -> int:
     def one(p):
         rel = p.relative_to(src)
         keep = (keep_dir / rel.with_suffix(".out")) if keep_dir else None
-        rec = run_exe(exe, p.read_text(errors="replace"), args.timeout, keep)
+        rec = run_exe(
+            exe, p.read_text(errors="replace"), args.timeout, keep, env=engine_env
+        )
         rec["file"] = rel.as_posix()
         return rec
 
