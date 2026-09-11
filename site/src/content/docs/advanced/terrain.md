@@ -115,6 +115,8 @@ sky is clear, the same cut gets **up to 6 dB brighter** instead: a different
 mechanism, the source imaged across the facet's own tilted plane rather than a
 horizontal mirror, which puts a lobe where the specular formula had none. Peak
 gain moves up, by +0.4 to +2.6 dB across the three presets at their defaults.
+[A hillside, three ways](/advanced/hillside-three-models/) shows the two
+composers and the tilted sloper side by side on one hill.
 
 It costs about a second per pattern where the specular composer costs 17 ms,
 and it is paid **per direction**, so no warm-up or cache turns it into a

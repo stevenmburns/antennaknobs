@@ -197,6 +197,9 @@ lives on the other page.
 Which model fits which site: a mast standing *on* a long uniform slope is
 the rotated-sky case on this page; a mast at the top of a slope, or on a
 bench, is the terrain page's. Neither is a substitute for the other.
+[A hillside, three ways](/advanced/hillside-three-models/) puts this page's
+model, the specular facets and the diffracted composer on one 45° hill so the
+three can be compared line by line.
 
 ## What each tool can do
 
