@@ -365,6 +365,12 @@ def main(argv=None) -> int:
             for name, n in rec.get("advisories", []):
                 advis[name] = advis.get(name, 0) + n
             out.write(json.dumps(rec) + "\n")
+            # Flush every row. `pool.map` yields IN ORDER, so one slow deck
+            # holds the writer while later workers race ahead — `Parab50.nec`
+            # blocked it for two and a half minutes on the first real run, and
+            # a fifteen-minute census that dies at minute fourteen with a
+            # buffered file has written nothing at all.
+            out.flush()
             if i % 200 == 0:
                 print(f"  {i}/{len(decks)}  {counts}", flush=True)
     out.close()

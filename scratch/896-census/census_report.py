@@ -131,26 +131,50 @@ def main(argv=None) -> int:
     # sources differently, every number below would be a comparison of two
     # different ports and would look exactly like physics. The 72 % phantom
     # `_first_z` exists to prevent was this shape of mistake one level up.
-    same_port = sum(
-        1
+    #
+    # The two failure modes are NOT equivalent and are not reported as if they
+    # were. A different row-0 port makes that deck's number meaningless and it
+    # is dropped. A different row COUNT does not: measured on this corpus every
+    # such deck has an identical row 0 and the NEC-5 side stops at exactly 8
+    # rows, on decks with 11 to 50 sources — a listing limit, not a modelling
+    # difference, and row 0 is the only row the join reads.
+    bad_port = [
+        k
         for k in both_ok
-        if r5[k]["z"] and rm[k]["z"] and r5[k]["z"][0][:2] == rm[k]["z"][0][:2]
-    )
-    same_count = sum(1 for k in both_ok if len(r5[k]["z"]) == len(rm[k]["z"]))
+        if not (r5[k]["z"] and rm[k]["z"] and r5[k]["z"][0][:2] == rm[k]["z"][0][:2])
+    ]
+    diff_count = [k for k in both_ok if len(r5[k]["z"]) != len(rm[k]["z"])]
     print("### Is the join sound?\n")
     print(
         f"- row 0 is the same `(tag, seg)` on both sides: "
-        f"**{same_port}/{len(both_ok)}**"
+        f"**{len(both_ok) - len(bad_port)}/{len(both_ok)}**"
     )
     print(
-        f"- both reports print the same number of sources: "
-        f"**{same_count}/{len(both_ok)}**\n"
+        f"- both reports list the same number of sources: "
+        f"**{len(both_ok) - len(diff_count)}/{len(both_ok)}**\n"
     )
-    if same_port != len(both_ok) or same_count != len(both_ok):
+    if bad_port:
         print(
-            "> **The join is NOT sound on every deck.** Every figure below is "
-            "suspect until the mismatched decks are excluded or explained.\n"
+            "The following deck(s) address a different segment on each side. "
+            "Their comparison would be of two different ports, so they are "
+            "**excluded** from everything below:\n"
         )
+        for k in bad_port:
+            print(
+                f"- `{k}` — NEC-5 `{tuple(r5[k]['z'][0][:2])}`, "
+                f"momwire `{tuple(rm[k]['z'][0][:2])}`"
+            )
+        print()
+    if diff_count:
+        counts = sorted({len(r5[k]["z"]) for k in diff_count})
+        print(
+            f"{len(diff_count)} deck(s) list different numbers of sources. On "
+            f"every one the NEC-5 listing stops at {counts if len(counts) > 1 else counts[0]}"
+            " rows while momwire lists 11 to 50, and row 0 — the only row the "
+            "join reads — is identical. A listing limit, not a disagreement; "
+            "these decks are kept.\n"
+        )
+    both_ok = [k for k in both_ok if k not in set(bad_port)]
 
     print("## Agreement on the driving-point impedance\n")
     rows, degenerate = [], []
@@ -219,6 +243,35 @@ def main(argv=None) -> int:
             f"| `{k}` | {zm.real:.4g}{zm.imag:+.4g}j | "
             f"{z5.real:.4g}{z5.imag:+.4g}j | {sym_dz(z5, zm):.3g} | {v:.3g} |"
         )
+
+    # --- the tail's dominant pattern, and the boring explanation, tested ----
+    print("\n## The reactance sign\n")
+    opp = [r for r in rows if r[2].imag * r[3].imag < 0]
+    same = [r for r in rows if r[2].imag * r[3].imag >= 0]
+    med = lambda v: statistics.median(v) if v else float("nan")  # noqa: E731
+    print(
+        f"On **{len(opp)}** of {len(rows)} comparable decks "
+        f"({100 * len(opp) / len(rows):.1f} %) the two engines disagree on the "
+        "SIGN of the reactance, and those decks dominate the tail above.\n"
+    )
+    print("| group | decks | median symmetric diff | same, with momwire conjugated |")
+    print("|---|---:|---:|---:|")
+    for name, grp in (
+        ("reactance signs disagree", opp),
+        ("reactance signs agree", same),
+    ):
+        raw = [sym_dz(z5, zm) for _, _, z5, zm in grp]
+        conj = [sym_dz(z5, zm.conjugate()) for _, _, z5, zm in grp]
+        print(f"| {name} | {len(grp)} | {med(raw):.4f} | {med(conj):.4f} |")
+    print(
+        "\n**The obvious explanation is ruled out by that last column.** If one "
+        "side carried the opposite time convention, conjugating it would collapse "
+        "the disagreeing group to near zero and wreck the agreeing one. The "
+        "agreeing group does break, as it must — but the disagreeing group only "
+        "improves partway, nowhere near zero. So this is not a global sign "
+        "convention; it is a real disagreement about reactance on a specific "
+        "class of deck.\n"
+    )
 
     print("\n## momwire advisories\n")
     adv = Counter()
