@@ -44,6 +44,15 @@ export type PatternCuts = {
    *  uniform base resolution; a refined trace's own length governs. */
   az_angles_deg?: number[];
   elev_angles_deg?: number[];
+  /** Which FIELD these samples are of, over a faceted terrain: the #534
+   *  specular composer (false) or the #1373 diffracted one — shadowing,
+   *  tilted mirrors, UTD wedge diffraction (true). Always present.
+   *
+   *  Required rather than optional, and read rather than inferred, because a
+   *  drag and a settle produce cuts for the SAME solve and the SAME angles:
+   *  the client cannot tell them apart from the request it sent, only from
+   *  what came back. The label the user reads is driven by this. */
+  diffraction: boolean;
 };
 
 /** One server-driven readout row (issue #712). Designs produce these from a

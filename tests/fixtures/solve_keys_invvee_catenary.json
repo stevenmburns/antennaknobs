@@ -3,6 +3,7 @@
   "cache_hit": "bool",
   "cuts.az_elev_deg": "number",
   "cuts.azimuth[]": "number",
+  "cuts.diffraction": "bool",
   "cuts.elev_az_deg": "number",
   "cuts.elevation[]": "number",
   "cuts.floor_dbi": "number",
