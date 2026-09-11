@@ -937,6 +937,7 @@ def _cuts_from_source(
     elev_az_deg: float,
     az_angles_deg=None,
     elev_angles_deg=None,
+    diffraction: bool = False,
 ) -> dict | None:
     """Cuts computed from the server-side source for `solve_id`, or None on
     a cache miss (callers map that to 404 / ok=false). Only sources with a
@@ -949,7 +950,13 @@ def _cuts_from_source(
     (issue #744) does NOT take a lane turn the way sweep refinement does:
     there is no solve to serialize, only the existing pattern re-evaluated
     at more directions, on the same no-lane latest-wins channel cut-dial
-    drags already use."""
+    drags already use.
+
+    `diffraction` rides the same road for the same reason (issue #1373): the
+    cached source is the currents, and which far-field composer runs over them
+    is not a property of the cache. So the settled request that asks for the
+    diffracted field is a cache HIT — no re-solve, one composer pass — which is
+    what makes composing it on settle affordable at all."""
     src = _CUTS_SRC_CACHE.get(solve_id)
     if src is None:
         return None
@@ -963,6 +970,7 @@ def _cuts_from_source(
         i_mid=src["_i_mid"],
         az_angles_deg=az_angles_deg,
         elev_angles_deg=elev_angles_deg,
+        diffraction=diffraction,
     )
 
 
@@ -2458,12 +2466,20 @@ def cuts_endpoint(req: dict):
     angles instead of the uniform circle; the response then echoes the
     parameterisation it used.
 
+    Either shape may also set ``diffraction`` (issue #1373) to compose the
+    diffracted field over a faceted terrain instead of the specular one. It is
+    the SETTLED request — the app draws specular while a knob moves, because
+    the diffracted field costs about a second per pattern — and over any other
+    ground it is simply ignored, there being one field. The response always
+    says which it composed.
+
     Returns the same ``cuts`` object the live solve attaches. Sync def →
     FastAPI threadpool, so a big-mesh cut (~100 ms at 4k segments) never
     blocks the event loop.
     """
     az_angles = req.get("az_angles_deg")
     elev_angles = req.get("elev_angles_deg")
+    diffraction = bool(req.get("diffraction", False))
     solve_out = req.get("solve")
     if not isinstance(solve_out, dict):
         solve_id = req.get("solve_id")
@@ -2476,6 +2492,7 @@ def cuts_endpoint(req: dict):
                 float(req.get("elev_az_deg", 0.0)),
                 az_angles_deg=az_angles,
                 elev_angles_deg=elev_angles,
+                diffraction=diffraction,
             )
         except (KeyError, TypeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"bad cuts request: {e}") from e
@@ -2489,6 +2506,7 @@ def cuts_endpoint(req: dict):
             float(req.get("elev_az_deg", 0.0)),
             az_angles_deg=az_angles,
             elev_angles_deg=elev_angles,
+            diffraction=diffraction,
         )
     except (KeyError, TypeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=f"bad cuts request: {e}") from e
@@ -3135,7 +3153,15 @@ async def ws_endpoint(ws: WebSocket):
                             req.get("az_angles_deg") is not None
                             or req.get("elev_angles_deg") is not None
                         )
-                        cuts_box[f"{sid}|{int(refined)}"] = req
+                        # The diffracted field is its own slot for exactly the
+                        # refinement argument above, one step further on: the
+                        # settled request asks for a DIFFERENT FIELD at the same
+                        # solve and the same angles (issue #1373), so a shared
+                        # slot would lose it to every dial drag — and losing it
+                        # is invisible, because the specular reply that wins is
+                        # a perfectly valid trace.
+                        diff = bool(req.get("diffraction", False))
+                        cuts_box[f"{sid}|{int(refined)}|{int(diff)}"] = req
                         cuts_newer.set()
                     continue
                 mailbox[:] = [req]  # overwrite → squash anything unsolved
@@ -3175,6 +3201,7 @@ async def ws_endpoint(ws: WebSocket):
                 sid = creq["solve_id"]
                 az_angles = creq.get("az_angles_deg")
                 elev_angles = creq.get("elev_angles_deg")
+                diffraction = bool(creq.get("diffraction", False))
                 resp: dict = {
                     "_kind": "cuts",
                     "solve_id": sid,
@@ -3182,7 +3209,12 @@ async def ws_endpoint(ws: WebSocket):
                     "elev_az_deg": creq.get("elev_az_deg"),
                     # Echoed so the client can tell a refinement reply from a
                     # plain dial reply for the same solve and angles.
-                    "refined": slot.endswith("|1"),
+                    "refined": slot.split("|")[1] == "1",
+                    # Echoed for the same reason, and OUT HERE rather than only
+                    # inside `cuts`: on a miss there is no `cuts` object to read
+                    # it from, and a settled request that comes back ok:false
+                    # has to be distinguishable from a drag's.
+                    "diffraction": diffraction,
                 }
                 try:
                     cuts = await run_in_threadpool(
@@ -3192,6 +3224,7 @@ async def ws_endpoint(ws: WebSocket):
                         float(creq.get("elev_az_deg", 0.0)),
                         az_angles,
                         elev_angles,
+                        diffraction,
                     )
                 except Exception:  # junk angles must not kill the socket; logged below, which BLE001 permits
                     _logger.exception("ws cuts request failed")
