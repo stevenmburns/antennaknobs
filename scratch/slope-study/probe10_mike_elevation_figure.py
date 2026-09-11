@@ -19,8 +19,10 @@ The uphill sector below the slope angle is hatched in the SPECULAR page only:
 there the model answers with a healthy field straight through the hill, having no
 notion of the hill being in the way, and those numbers are not quoted. The
 diffracted page draws no hatch because it puts the hill in the way -- the band
-COLLAPSES, by 9 dB at 30 degrees uphill on the mid-slope mast here and by 4 to
-36 dB across the band on the 45-degree app preset. A shadow is darker, not
+COLLAPSES, by 9 dB at 30 degrees uphill for THIS page's mast (quarter-wave
+vertical, mid-slope, 40 m hill at 45 degrees) and by 4 to 36 dB across the band
+on the app's hillside preset at the same slope angle, which is a different
+geometry and a different antenna. A shadow is darker, not
 brighter; the first write-up of this change had that backwards, which is why
 `tests/test_terrain_utd_shadow_sign_1373.py` now pins the sign.
 

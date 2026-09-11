@@ -711,14 +711,14 @@ reads the trace that is actually drawn, not the request that fetched it.
 Nothing else on the page changes: the impedance, the SWR, the sweep and the
 efficiency ledger are all the flat crest-medium solve either way, so the
 readout numbers do not jump when the lobe does. What moves is the far field,
-and it moves most where the specular model was least believable. On a
-40 m, 45° hill with the mast mid-slope, the uphill band below the slope angle
-collapses by 4 to 36 dB: geometric optics was reporting a healthy +5.7 dBi
-straight through 45° of hillside, having no notion of the hill being in the way.
-Just above the slope angle, where the sky is clear, the same cut gets up to 6 dB
-*brighter* — a different mechanism, the reflection imaged across the facet's own
-tilted plane rather than a horizontal mirror. Peak gain moves up, by +0.4 to
-+2.6 dB on the three presets.
+and it moves most where the specular model was least believable. On the
+**hillside** preset with its uphill slope set to 45°, the uphill band below that
+angle collapses by 4 to 36 dB: geometric optics was reporting a healthy
++5.7 dBi straight through 45° of hillside, having no notion of the hill being in
+the way. Just above the slope angle, where the sky is clear, the same cut gets up
+to 6 dB *brighter* — a different mechanism, the reflection imaged across the
+facet's own tilted plane rather than a horizontal mirror. Peak gain moves up, by
++0.4 to +2.6 dB across the three presets at their defaults.
 
 Two limits worth knowing. Near the **zenith** both composers are computing a
 number close to zero for most antennas, and they reach it by different

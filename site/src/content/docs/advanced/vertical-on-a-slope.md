@@ -186,9 +186,10 @@ Its uphill numbers below the slope angle used to come with a warning not to
 quote them, and the reason is worth stating precisely: below that angle the hill
 blocks the sky, and a specular model does not know the hill is there — it reports
 a healthy field straight through it. That is now the diffracted composer's job,
-and it is the case it was built for. On a 40 m, 45° hill the same band
-**collapses by 4 to 36 dB** once the shadow and the crest's diffraction are in
-the calculation. The terrain page's charts compose it once the knobs settle.
+and it is the case it was built for. The same band **collapses** once the shadow
+and the crest's diffraction are in the calculation — by 9 dB at 30° uphill for a
+quarter-wave vertical mid-slope on a 40 m, 45° hill, and by 4 to 36 dB across the
+band on the terrain page's hillside preset at the same slope angle. The terrain page's charts compose it once the knobs settle.
 **The numbers on this page are the rotated-sky planar model's**, which has no
 valley and no edge, so its uphill band still is not a thing to quote — the fix
 lives on the other page.
