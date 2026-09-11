@@ -241,12 +241,53 @@ def _advisories(caught) -> list:
     return [[k, v] for k, v in sorted(out.items())]
 
 
-def environment_meta(jobs: int) -> dict:
+def _momwire_provenance() -> dict:
+    """WHICH momwire answered, resolved three ways rather than one.
+
+    `momwire.__version__` does not exist — the first run of this census recorded
+    a literal "?" into the artifact that is supposed to BE the provenance record,
+    which is the one field a census cannot afford to shrug at. So: the installed
+    distribution version, the path actually imported, and — when that path is the
+    submodule working tree rather than site-packages — the submodule's commit and
+    whether it was dirty. A wheel install says so by having no commit.
+    """
+    import importlib.metadata as md
+    import subprocess
+
     import momwire
 
+    path = Path(momwire.__file__).resolve()
+    info: dict = {"import_path": str(path)}
+    try:
+        info["distribution"] = md.version("momwire")
+    except md.PackageNotFoundError:
+        info["distribution"] = None
+    # src/momwire/__init__.py -> the repo root two levels up
+    repo = path.parents[2]
+    info["editable_from_checkout"] = (repo / ".git").exists()
+    if info["editable_from_checkout"]:
+
+        def git(*a):
+            try:
+                return subprocess.run(
+                    ["git", "-C", str(repo), *a],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.strip()
+            except (OSError, subprocess.CalledProcessError):
+                return None
+
+        info["commit"] = git("rev-parse", "--short", "HEAD")
+        info["describe"] = git("describe", "--tags", "--always")
+        info["dirty"] = bool(git("status", "--porcelain"))
+    return info
+
+
+def environment_meta(jobs: int) -> dict:
     return {
         "engine": "momwire",
-        "momwire_version": getattr(momwire, "__version__", "?"),
+        "momwire": _momwire_provenance(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "jobs": jobs,
