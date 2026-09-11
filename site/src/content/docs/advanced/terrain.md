@@ -101,23 +101,42 @@ own medium (εr, σ). It is deliberately **a far-field model**:
 - **What it doesn't do**: no surface roughness, no multiple bounces. Trust it
   for lobe positions and the first-order asymmetry.
 
-**Diffraction, and which of the two you are looking at.** A second composer
-adds the three things a faceted profile actually implies once it has an edge in
-it: shadowing, the exact tilted-mirror reflection (the source imaged across each
-facet's own plane rather than a horizontal mirror), and UTD wedge diffraction at
-the facet breaks. In Python it is now the **default** —
-`Terrain(...)` and all three preset constructors carry `diffraction=True`, so
-the snippet below gets it — and `diffraction=False` asks for the specular model
-this section describes. The **workbench still draws the specular one**: the
-diffracted field costs about a second for a full pattern where the specular one
-costs 17 ms, paid per direction, so it cannot run on every knob drag; composing
-it once when a knob settles is the next piece of work. Until that lands the two
-disagree, and the honest summary of the difference is that geometric optics
-reports grazing cancellation through a hill that in fact shadows the ray: on a
-40 m, 45° hill with the mast mid-slope the uphill band moved by +10 to +12 dB.
-The peak moved by +0.4 to +2.6 dB on the shipped presets. The impedance moved
-by nothing at all, on any of them — the current solve is the flat crest-medium
-Sommerfeld one either way.
+**Diffraction: the second composer, and which one you are looking at.** Once a
+profile has an edge in it, the three bullets above are not the whole story. A
+second composer adds what the edge actually implies — shadowing, the source
+imaged across each facet's own plane rather than a horizontal mirror, and UTD
+wedge diffraction at the facet breaks. Where the two disagree it is the one to
+believe, and the disagreement is not small: on a 40 m, 45° hill with the mast
+mid-slope the uphill band moves by **+10 to +12 dB**, because geometric optics
+reports grazing cancellation through a hill that in fact *shadows* the ray. A
+shadowed, diffracted field is much brighter than a cancelled one. Peak gain
+moves by +0.4 to +2.6 dB on the three presets.
+
+It costs about a second per pattern where the specular composer costs 17 ms,
+and it is paid **per direction**, so no warm-up or cache turns it into a
+drag-time field. So the workbench draws the specular field while a knob is
+moving and composes the diffracted one a moment after it settles; the corner of
+each polar chart says which one is on screen. In Python it is simply the
+default — `Terrain(...)` and all three preset constructors carry
+`diffraction=True`, and `diffraction=False` asks for the specular model.
+
+**The impedance does not move.** Not approximately: `dZ = 0` on every preset.
+The current solve is the flat crest-medium Sommerfeld one either way, which is
+why the readout numbers stay put while the lobe changes shape.
+
+Two limits of the diffracted composer are worth knowing, because both look like
+bugs and neither is:
+
+- **Near the zenith**, both composers are computing a number very close to zero
+  for most antennas, and they get there by different arithmetic. A vertical's
+  zenith null reads −319 dBi through one and −322 through the other; that is
+  agreement about a null, not a 3 dB disagreement about a field. Read the dip,
+  not its depth.
+- **A mast standing right on a crest edge** puts its own structure inside that
+  edge's near zone, where treating the edge as a diffracting wedge is the
+  weakest assumption in the whole calculation. The model will answer; the answer
+  is not worth much. Move the mast a metre back from the break and the question
+  goes away — which is also what you would do on the actual hill.
 
 It's cross-checked against an independent implementation: NEC-2's two-medium
 cliff (`GD` card) agrees with the equivalent single-cliff terrain to within a
