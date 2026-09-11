@@ -79,7 +79,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.7"
+VERSION = "1.8"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -1352,23 +1352,50 @@ class Remesh:
             )
         return self._offset(tag, gidx) + k
 
-    def map_seg(self, tag: int, s: int) -> int:
-        """A NEC-2 tag-relative segment number on the NEW mesh (for ranges)."""
+    def _range_edge(self, tag: int, s: int, *, upper: bool) -> int:
+        """One END of a NEC-2 segment range, on the new mesh.
+
+        A range edge is NOT a segment centre, and mapping it as one is the hole
+        in #1416. Old segment `k` of an N-mesh occupies the fraction
+        [(k-1)/N, k/N] of the wire; on an N'-mesh that span starts inside new
+        segment ``(k-1)*N'//N + 1`` and ends inside new segment
+        ``ceil(k*N'/N)``. Taking those two edges gives the SMALLEST new range
+        that covers the old one — which is what a distributed load wants, since
+        under-covering silently unloads part of the wire the author loaded.
+
+        The property that matters most falls out of it: a range that covered the
+        whole wire still does. a=1 gives (1-1)*N'//N + 1 = 1 and b=N gives
+        ceil(N*N'/N) = N', for every N and N'. The old code mapped each edge as
+        if it were a centre — (k-0.5)/N*N' + 0.5, rounded — which sent 1..25 of
+        a 25-segment wire to 2..50 of a 50-segment one, dropping the first half
+        segment of a whole-wire load and turning it into a partial range. That
+        cost the AK#896 census 175 decks, because a partial `LD 5` range is a
+        thing momwire's nec2 dialect refuses by name where a whole-wire one is
+        its per-wire conductivity.
+
+        Integer arithmetic throughout: `(k-1)*N'//N` and `-(-k*N'//N)` are exact
+        where the float form needed a 1e-9 guard and still rounded 1.5 to 2.
+        """
         _, root, gidx, local = self.geo.resolve(tag, s, "range", 0)
         n = self.geo.root_n[root]
         n2 = self.new_n.get(root, n)
-        local2 = max(1, min(n2, int(round((local - 0.5) / n * n2 + 0.5))))
-        return self._offset(tag, gidx) + local2
+        local2 = -(-local * n2 // n) if upper else (local - 1) * n2 // n + 1
+        return self._offset(tag, gidx) + max(1, min(n2, local2))
 
     def remap_range(self, tag: int, a: int, b: int):
-        """A NEC-2 segment range on a tag (distributed load, PT) on the new mesh."""
+        """A NEC-2 segment range on a tag (distributed load, PT) on the new mesh.
+
+        `0 0` is NEC's "the whole tag" spelling and is returned untouched: it
+        names no segment numbers, so there is nothing to remap and rewriting it
+        as an explicit range would only be a chance to get it wrong.
+        """
         if a == 0 and b == 0:
             return a, b
         total = self.geo.group_size(tag)
         if not 1 <= a <= total:
             return a, b
-        b2 = self.map_seg(tag, min(b, total)) if b else 0
-        return self.map_seg(tag, a), b2
+        b2 = self._range_edge(tag, min(b, total), upper=True) if b else 0
+        return self._range_edge(tag, a, upper=False), b2
 
 
 def _gn(card: Card, nofile: bool, notes: list):

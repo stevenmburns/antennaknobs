@@ -1,11 +1,11 @@
-# Security review of nec5_corpus.py version 1.7
+# Security review of nec5_corpus.py version 1.8
 
 Reviewed 2026-09-10 by Claude (Anthropic's model, working in Claude Code) at
 the request of the tool's author, Steven Burns, by reading the whole source
 of `scripts/nec5_corpus/nec5_corpus.py` and the build that freezes it. This
 file ships beside `nec5_corpus.exe` so that a reader can see, before running
 it, what the program can and cannot do to their machine. It is a code
-review, not a penetration test, and it speaks for **version 1.7 only**: the
+review, not a penetration test, and it speaks for **version 1.8 only**: the
 test suite refuses a version bump that does not re-state the version here,
 so a stale review cannot ship by accident.
 
@@ -123,6 +123,17 @@ downloaded file looks like a NEC deck now recognises a catenary deck too, so
 `fetch` keeps a few files it used to discard — written as text under
 `raw/<source>/`, like every other one, and never executed.
 
+**What 1.8 changed, and it touches nothing this review describes.** Arithmetic
+inside `translate`, on one function: the two ends of a NEC-2 segment range are
+now mapped onto the remeshed wire as range EDGES rather than as segment centres,
+so a range that covered a whole wire before the remesh still covers it
+afterwards (antennaknobs#1416). It affects the `LD` types that carry a range —
+2, 3 and 5 — and `PT`, which is every card the tool remaps by tag and range.
+
+No new input is read, nothing new is written, no program is started, no
+environment variable is read or set, and the bundle is the one 1.4 listed. The
+change is the value of two integers in a card the tool was already rewriting.
+
 **What the zip holds.** 1.4 grew the bundle as well, so here is the whole of
 it: `nec5_corpus.exe`; `README.txt` (how to run it); `README.md` (the
 tool's full documentation); this file; `export_catalog_nec5.py`; and
@@ -205,7 +216,7 @@ To verify or rebuild:
 
 ## Limits of this review
 
-The review covers the script's own code as of version 1.7 and the build
+The review covers the script's own code as of version 1.8 and the build
 that freezes it. It does not cover Python, PyInstaller, Windows, or the
 NEC-5 engine you supply. It was done by reading, with the findings above
 confirmed by running the code (finding 1 was reproduced before it was
