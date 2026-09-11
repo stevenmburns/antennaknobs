@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef } from "react";
 import type { SolveResponse } from "../../lib/api";
 import { cutDbiTop, cutDbiToFrac } from "../../lib/refine";
 import { ThemeContext } from "../hooks";
-import { traceFor, useCutTraces } from "./cuts";
+import { cutsRedrawKey, traceFor, useCutTraces } from "./cuts";
 import { ghostRgb, plotColors } from "./palette";
 import type { FarFieldCut, PatternData, PinnedPattern } from "./types";
 
@@ -45,18 +45,10 @@ export function FarFieldChart({
     azElevDeg,
     elevAzDeg,
   );
-  // Draw-effect dep: changes when a fetched trace replaces a stale one (the
-  // solve identities and angles are already deps of their own). Sample
-  // counts are part of it because a refinement round (issue #744) replaces
-  // a trace with a DENSER one at the same angles — identical on the angle
-  // pair alone, and the redraw is the whole point of the round.
-  const cutTracesKey = cutTraces
-    .map((t) =>
-      t
-        ? `${t.az_elev_deg},${t.elev_az_deg},${t.azimuth.length},${t.elevation.length}`
-        : "-",
-    )
-    .join("|");
+  // Draw-effect dep: see `cutsRedrawKey`. The solve identities and the dial
+  // angles are already deps of their own; this covers what can change at
+  // unchanged angles.
+  const cutTracesKey = cutsRedrawKey(cutTraces);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -120,7 +112,8 @@ export function FarFieldChart({
         ? 10 * Math.log10(fineNorm / liveNorm)
         : null;
     // Let the radial scale grow to fit the shifted overlay when it lands higher.
-    if (liveTrace && gridDeltaDb != null) peaks.push(liveTrace.peakDbi + gridDeltaDb);
+    if (liveTrace && gridDeltaDb != null)
+      peaks.push(liveTrace.peakDbi + gridDeltaDb);
     // Clamp to [0, 1]: a lobe at/above the top sits on the rim instead of
     // drawing past R and clipping against the canvas edge. The map itself
     // lives in lib/refine.ts so the refinement planner (issue #744) judges
@@ -171,7 +164,7 @@ export function FarFieldChart({
     {
       const canvasAngleRad =
         cut === "xy"
-          ? (elevAzDeg * Math.PI) / 180  // azimuth plot: elevation cut's bearing
+          ? (elevAzDeg * Math.PI) / 180 // azimuth plot: elevation cut's bearing
           : (azElevDeg * Math.PI) / 180; // elevation plot: azimuth cut's elevation
       const cosA = Math.cos(canvasAngleRad);
       const sinA = Math.sin(canvasAngleRad);
@@ -224,8 +217,7 @@ export function FarFieldChart({
         // Elevation cut: label which terrain side each horizon points into
         // (the right rim is the cut bearing elevAzDeg).
         const rel =
-          ((((elevAzDeg - terrainMarker.bearing_deg) % 360) + 540) % 360) -
-          180;
+          ((((elevAzDeg - terrainMarker.bearing_deg) % 360) + 540) % 360) - 180;
         const rightLabel =
           Math.abs(rel) <= 90 ? terrainMarker.label : terrainMarker.opposite;
         const leftLabel =
@@ -331,12 +323,15 @@ export function FarFieldChart({
     // the adaptive grid was fine enough; a visible gap is the grid error. Drawn
     // open (no fill) so the solid lobe still reads underneath.
     if (gridDeltaDb != null) {
-      strokeTrace(liveTrace.dbi.map((d) => d + gridDeltaDb), {
-        stroke: `rgba(${PC.lobeRgb}, 0.85)`,
-        width: 1,
-        dash: [2, 2],
-        anglesDeg: liveTrace.anglesDeg,
-      });
+      strokeTrace(
+        liveTrace.dbi.map((d) => d + gridDeltaDb),
+        {
+          stroke: `rgba(${PC.lobeRgb}, 0.85)`,
+          width: 1,
+          dash: [2, 2],
+          anglesDeg: liveTrace.anglesDeg,
+        },
+      );
     }
 
     // NEC exact-pattern overlay (dashed cyan line) when available. Bilinear
@@ -359,18 +354,25 @@ export function FarFieldChart({
         const rx = cut === "xy" ? azSinT * ct : elevAzCos * ct;
         const ry = cut === "xy" ? azSinT * st : elevAzSin * ct;
         const rz = cut === "xy" ? azCosT : st;
-        if (rz < -1e-9) { started = false; continue; }
+        if (rz < -1e-9) {
+          started = false;
+          continue;
+        }
 
-        const thetaDeg = (Math.acos(Math.max(-1, Math.min(1, rz))) * 180) / Math.PI;
+        const thetaDeg =
+          (Math.acos(Math.max(-1, Math.min(1, rz))) * 180) / Math.PI;
         let phiRad = Math.atan2(ry, rx);
         if (phiRad < 0) phiRad += 2 * Math.PI;
         const phiDeg = (phiRad * 180) / Math.PI;
 
         const tf = Math.max(0, Math.min(nt - 1, thetaDeg / dTheta));
         const pf = Math.max(0, Math.min(np_ - 1, phiDeg / dPhi));
-        const t0 = Math.floor(tf), t1 = Math.min(nt - 1, t0 + 1);
-        const p0 = Math.floor(pf), p1 = Math.min(np_ - 1, p0 + 1);
-        const ft = tf - t0, fp = pf - p0;
+        const t0 = Math.floor(tf),
+          t1 = Math.min(nt - 1, t0 + 1);
+        const p0 = Math.floor(pf),
+          p1 = Math.min(np_ - 1, p0 + 1);
+        const ft = tf - t0,
+          fp = pf - p0;
         const g00 = clip(pattern.gain_dbi[t0][p0]);
         const g01 = clip(pattern.gain_dbi[t0][p1]);
         const g10 = clip(pattern.gain_dbi[t1][p0]);
@@ -384,8 +386,10 @@ export function FarFieldChart({
         const frac = dbiToFrac(dBi);
         const px = cx + Math.cos(t) * frac * R;
         const py = cy - Math.sin(t) * frac * R;
-        if (!started) { ctx.moveTo(px, py); started = true; }
-        else ctx.lineTo(px, py);
+        if (!started) {
+          ctx.moveTo(px, py);
+          started = true;
+        } else ctx.lineTo(px, py);
       }
       ctx.strokeStyle = `rgba(${PC.necRgb}, 0.85)`;
       ctx.lineWidth = 1;
@@ -408,6 +412,27 @@ export function FarFieldChart({
     const peakText = `peak ${peakDbi >= 0 ? "+" : ""}${peakDbi.toFixed(1)} dBi`;
     const tw = ctx.measureText(peakText).width;
     ctx.fillText(peakText, size - tw - 6, 14);
+    // Which FIELD this trace is, over a faceted terrain (issue #1373). Always
+    // shown when there are two to choose between, never when there is one: a
+    // label that appears only while the two "differ" would be a label the user
+    // cannot learn, since its absence would mean both "flat ground" and "the
+    // edges happen not to matter here".
+    //
+    // Read off the TRACE, not off the request or the ground model. During a
+    // drag this is the specular field because that is what was composed; a
+    // moment after the knob settles the same corner says the other thing, and
+    // the only way for it to be wrong is for the server to have mislabelled
+    // its own output.
+    if (cutTraces[0] && result?.ground_terrain) {
+      const diffracted = cutTraces[0].diffraction;
+      ctx.fillStyle = diffracted ? PC.labelStrong : PC.labelDim;
+      ctx.font = "10px ui-monospace, monospace";
+      ctx.fillText(
+        diffracted ? "with diffraction" : "specular while dragging",
+        6,
+        size - 6,
+      );
+    }
     const frac = result?.in_medium_moment_fraction;
     if (result?.pattern_note && frac != null) {
       // Issue #1341: the share of current moment below the ground plane,
@@ -421,7 +446,18 @@ export function FarFieldChart({
     // cutTracesKey stands in for the fetched trace contents (see above); the
     // other deps cover everything the draw reads directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, pattern, pinned, size, cut, azElevDeg, elevAzDeg, fineNorm, theme, cutTracesKey]);
+  }, [
+    result,
+    pattern,
+    pinned,
+    size,
+    cut,
+    azElevDeg,
+    elevAzDeg,
+    fineNorm,
+    theme,
+    cutTracesKey,
+  ]);
 
   return (
     <canvas
@@ -433,7 +469,11 @@ export function FarFieldChart({
 }
 
 /** Greedy word wrap for canvas text (issue #1341's refusal sentence). */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
   let line = "";
