@@ -73,10 +73,15 @@ def mike_terrain(H, S_deg, f, medium=SOIL, downhill_az=0.0):
     down = (*ramp(-h_a), Facet(None, -h_a, eps, sig))
     up = (*ramp(+h_up), Facet(None, +h_up, eps, sig))
     return Terrain(
+        # diffraction=False names what this probe's published figure IS: the
+        # specular-facet field, geometric optics only. The flag's default
+        # flipped to True in the #1373 follow-up, and a record of a number is
+        # only a record while it still produces that number.
+        diffraction=False,
         sectors=(
             Sector(downhill_az - 90.0, downhill_az + 90.0, down),
             Sector(downhill_az + 90.0, downhill_az + 270.0, up),
-        )
+        ),
     )
 
 
