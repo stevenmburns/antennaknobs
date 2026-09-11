@@ -289,6 +289,15 @@ diffs the two deck by deck — and refuses, naming the field, when their
 recorded environments differ or one carries none. `--ignore-env` compares
 anyway after printing the differences.
 
+It compares the status AND the first impedance row of each deck: `--tol` sets the
+relative |ΔZ|/|Z| above which an impedance counts as moved (default 1e-4; printout
+last-digit noise sits near 1e-5), movers are listed largest first with both
+impedances, and a deck whose |Z| is under an ohm is called degenerate rather than
+reported as a huge mover — a 5 % change on half an ohm is a large percentage of
+nothing. The first row, not the last: a deck with a multi-point `FR` prints one
+row per frequency, and comparing one report's last against another's first reads a
+72 % disagreement into two builds that agree to the last digit.
+
 **Before 1.7 it compared nothing.** The reader keyed each row on `deck` while
 every writer here writes `file`, so both sides came back empty and every
 comparison printed `decks: 0 vs 0; moved: 0` — a clean pass over no decks, in the

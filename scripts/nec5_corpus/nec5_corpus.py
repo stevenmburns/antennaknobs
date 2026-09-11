@@ -1812,10 +1812,46 @@ def _read_report(path: Path) -> tuple[dict, dict]:
     return meta, rows
 
 
+# Below this, a relative change on |Z| is a large percentage of nothing.
+# `necpp/ga_pjw_1.nec` reports -0.53 ohm in one build and -0.51 in another: a 5 %
+# "move" on a deck whose resistance is NEGATIVE and unphysical to begin with.
+_DEGENERATE_OHMS = 1.0
+
+
+def _first_z(row: dict):
+    """The deck's FIRST reported impedance, or None when it has none.
+
+    First, and named as such, because of the trap that cost a wrong figure on
+    2026-09-11: a deck carrying a multi-point `FR` sweep prints one row per
+    frequency, and comparing one report's LAST row with another's FIRST reads a
+    72 % disagreement into two builds that agree to the last digit.
+    """
+    z = row.get("z") or []
+    if not z:
+        return None
+    row0 = z[0]
+    if not isinstance(row0, (list, tuple)) or len(row0) < 4:
+        return None
+    try:
+        return complex(float(row0[2]), float(row0[3]))
+    except (TypeError, ValueError):
+        return None
+
+
+def _z_str(z: complex) -> str:
+    return f"{z.real:.6g}{z.imag:+.6g}j"
+
+
 def cmd_compare(args) -> int:
     """Diff two check reports deck by deck — after refusing, by name, to
     compare reports whose recorded environments differ (antennaknobs#1344).
-    `--ignore-env` compares anyway and prints the differences first."""
+    `--ignore-env` compares anyway and prints the differences first.
+
+    Compares STATUS and the first IMPEDANCE row. Status alone was the whole of
+    this until 1.7, and status alone is not the question a build A/B asks: two
+    reports with identical buckets differed on 25 decks' impedances, four of them
+    materially, and `compare` called that no change (antennaknobs#1404).
+    """
     meta_a, rows_a = _read_report(Path(args.a))
     meta_b, rows_b = _read_report(Path(args.b))
     env_a, env_b = meta_a.get("environment"), meta_b.get("environment")
@@ -1855,15 +1891,49 @@ def cmd_compare(args) -> int:
             "this tool."
         )
         return 2
+    # Read with a default rather than off the namespace directly:
+    # `cmd_compare` is called with a hand-built namespace by
+    # tests/test_nec5_corpus_meta_1344.py, and a CLI function that breaks on a
+    # caller predating one of its flags is a trap for the next one.
+    tol = getattr(args, "tol", 1e-4)
     moved = []
+    z_moved, z_degenerate, z_absent = [], [], 0
     for deck in sorted(set(rows_a) | set(rows_b)):
-        sa = rows_a.get(deck, {}).get("status", "<absent>")
-        sb = rows_b.get(deck, {}).get("status", "<absent>")
+        ra, rb = rows_a.get(deck, {}), rows_b.get(deck, {})
+        sa = ra.get("status", "<absent>")
+        sb = rb.get("status", "<absent>")
         if sa != sb:
             moved.append((deck, sa, sb))
-    print(f"decks: {len(rows_a)} vs {len(rows_b)}; moved: {len(moved)}")
+        za, zb = _first_z(ra), _first_z(rb)
+        if za is None or zb is None:
+            z_absent += 1
+            continue
+        if abs(za) < _DEGENERATE_OHMS or abs(zb) < _DEGENERATE_OHMS:
+            if za != zb:
+                z_degenerate.append((deck, za, zb))
+            continue
+        rel = abs(za - zb) / abs(za)
+        if rel > tol:
+            z_moved.append((rel, deck, za, zb))
+    print(
+        f"decks: {len(rows_a)} vs {len(rows_b)}; moved: {len(moved)}; "
+        f"impedance moved (> {tol:g}): {len(z_moved)}"
+    )
     for deck, sa, sb in moved:
         print(f"  {deck}: {sa} -> {sb}")
+    for rel, deck, za, zb in sorted(z_moved, reverse=True):
+        print(f"  {deck}: {_z_str(za)} -> {_z_str(zb)}   dZ/|Z| = {rel:.3e}")
+    for deck, za, zb in z_degenerate:
+        # The ga_pjw_1 lesson: that deck reports -0.53 ohm in one build and
+        # -0.51 in the other. A relative change on |Z| under an ohm is a large
+        # percentage of nothing, and printing it as a mover puts an unphysical
+        # deck at the top of the list where a real one should be.
+        print(
+            f"  {deck}: {_z_str(za)} -> {_z_str(zb)}   degenerate "
+            f"(|Z| < {_DEGENERATE_OHMS:g} ohm), percentage meaningless"
+        )
+    if z_absent:
+        print(f"impedance not compared: {z_absent} decks with no row on one side")
     return 0
 
 
@@ -2193,6 +2263,13 @@ def main(argv=None) -> int:
     d.add_argument("a")
     d.add_argument("b")
     d.add_argument("--ignore-env", action="store_true")
+    d.add_argument(
+        "--tol",
+        type=float,
+        default=1e-4,
+        help="relative |dZ|/|Z| above which an impedance counts as moved "
+        "(default 1e-4; last-digit printout noise sits near 1e-5)",
+    )
     d.set_defaults(fn=cmd_compare)
 
     ls = sub.add_parser("list", help="list the sources fetch knows about")

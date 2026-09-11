@@ -123,3 +123,92 @@ def test_a_row_keyed_deck_is_still_read(tool, tmp_path, capsys):
     assert rc == 0, out
     assert "decks: 2 vs 2" in out, out
     assert "moved: 1" in out, out
+
+
+# --------------------------------------------------------------------------
+# and status alone was never the question a build A/B asks
+# --------------------------------------------------------------------------
+
+# One report against another over four decks, one per case:
+#   same      identical impedance
+#   below     a change under the default tolerance (printout last-digit noise)
+#   above     a change over it
+#   degen     |Z| under an ohm, where a percentage means nothing
+#   nozrow    no impedance row on one side (a crash, a timeout, a plane wave)
+Z_A = [
+    ("same.nec", "ok", [[1, 3, 50.0, 1.0]]),
+    ("below.nec", "ok", [[1, 3, 50.0, 1.0]]),
+    ("above.nec", "ok", [[1, 3, 50.0, 1.0]]),
+    ("degen.nec", "ok", [[1, 3, -0.53376, -0.27046]]),
+    ("nozrow.nec", "crash", []),
+]
+Z_B = [
+    ("same.nec", "ok", [[1, 3, 50.0, 1.0]]),
+    ("below.nec", "ok", [[1, 3, 50.0005, 1.0]]),  # 1e-5 relative: noise
+    ("above.nec", "timeout", [[1, 3, 55.0, 1.0]]),  # 1e-1 relative, and a status move
+    ("degen.nec", "ok", [[1, 3, -0.51371, -0.24412]]),
+    ("nozrow.nec", "ok", [[1, 3, 50.0, 1.0]]),
+]
+
+
+@pytest.fixture()
+def z_out(tool, tmp_path, capsys):
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    _report(a, "nec5cl", Z_A)
+    _report(b, "nec5cl", Z_B)
+    rc = tool.main(["compare", str(a), str(b)])
+    assert rc == 0
+    return capsys.readouterr().out
+
+
+def test_the_summary_counts_impedance_movers_beside_status_movers(z_out):
+    assert "decks: 5 vs 5; moved: 2; impedance moved (> 0.0001): 1" in z_out, z_out
+
+
+def test_a_mover_prints_both_impedances_verbatim_and_the_relative_size(z_out):
+    assert "above.nec: 50+1j -> 55+1j" in z_out, z_out
+    # |5| / |50+1j| = 9.998e-02, printed to three figures.
+    assert "dZ/|Z| = 9.998e-02" in z_out, z_out
+
+
+def test_a_change_below_the_tolerance_is_not_a_mover(z_out):
+    """Last-digit printout noise sits near 1e-5, so a 1e-4 default keeps the list
+    to the decks a reader should look at."""
+    assert "below.nec" not in z_out.replace("impedance not compared", ""), z_out
+
+
+def test_a_near_zero_impedance_is_degenerate_not_a_huge_mover(z_out):
+    """The ga_pjw_1 lesson: -0.53 ohm to -0.51 ohm is 5 % of nothing, on a deck
+    whose resistance is negative and unphysical before any build question. Put
+    that at the top of a movers list and it displaces a real finding."""
+    line = next(ln for ln in z_out.splitlines() if "degen.nec" in ln)
+    assert "degenerate" in line and "percentage meaningless" in line, line
+    assert "dZ/|Z|" not in line, line
+
+
+def test_decks_with_no_impedance_row_are_counted_not_silently_dropped(z_out):
+    assert "impedance not compared: 1 decks with no row on one side" in z_out, z_out
+
+
+def test_the_tolerance_is_a_flag(tool, tmp_path, capsys):
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    _report(a, "nec5cl", Z_A)
+    _report(b, "nec5cl", Z_B)
+    tool.main(["compare", str(a), str(b), "--tol", "1e-6"])
+    out = capsys.readouterr().out
+    # At 1e-6 the noise deck joins the list; the degenerate one still does not.
+    assert "impedance moved (> 1e-06): 2" in out, out
+    assert "below.nec" in out, out
+
+
+def test_only_the_first_impedance_row_is_compared(tool, tmp_path, capsys):
+    """The sweep-row trap, as a test. A deck with a multi-point FR prints one row
+    per frequency; comparing one report's LAST row against another's FIRST read a
+    72 % disagreement into two builds that agree to the last digit (2026-09-11).
+    """
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    _report(a, "nec5cl", [("sweep.nec", "ok", [[1, 3, 50.0, 1.0], [1, 3, 900.0, 9.0]])])
+    _report(b, "nec5cl", [("sweep.nec", "ok", [[1, 3, 50.0, 1.0], [1, 3, 111.0, 2.0]])])
+    tool.main(["compare", str(a), str(b)])
+    out = capsys.readouterr().out
+    assert "impedance moved (> 0.0001): 0" in out, out
