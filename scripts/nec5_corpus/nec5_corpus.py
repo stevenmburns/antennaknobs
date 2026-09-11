@@ -501,6 +501,28 @@ class InvalidNEC(ValueError):
 
 _PLAIN_NUM_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\Z")
 
+# The only NEC fields that are WORDS rather than numbers. Everything else that
+# survives SY substitution as a non-number is an unresolved symbol or a typo
+# (antennaknobs#1391) -- and writing one into the deck verbatim turns our bug
+# into the engine's error message.
+#
+# The cards that carry a FILE NAME, exempt whole rather than by position:
+# a name's index moves with the card's optional fields, and guessing it is how a
+# real deck gets refused. Measured over the 3,168-file corpus, these four are
+# exactly the exemptions the decks need --
+#
+#   GN  the ground-screen file (the `NOFILE` sentinel, or a path)
+#   GF  read a numerical Green's function   (`R2-H18-V14.WGF`, `RADIAL8.NGF`)
+#   WG  write one                           (14 decks in the corpus)
+#   PL  the plot output file                (`m20-12-currents.dat`)
+#
+# -- and getting the list wrong is not a silent matter: with only GN exempt, 30
+# decks that this tool REFUSES by name for GF/WG (a precise statement about
+# NEC-5's vocabulary) reported "unreadable" instead (a vague one about our
+# reader), and two Cebik tutorial decks that translate fine stopped translating.
+_WORD_FIELD_CARDS = frozenset(("GN", "GF", "WG", "PL"))
+_WORD_FIELDS = frozenset(("NOFILE",))
+
 _SY_FUNCS = {
     "sin": lambda x: math.sin(math.radians(x)),
     "cos": lambda x: math.cos(math.radians(x)),
@@ -846,7 +868,15 @@ def normalize(text: str, name: str) -> tuple:
                     comments.append(rest)
                 in_comments = False
             continue
-        stripped = stripped.split("'", 1)[0].rstrip()
+        # Trailing comments. `'` was always stripped; `!` was not, and 60 decks
+        # in the corpus use it — `GW 1 5 ... 81.0E-3 ! Drive connection 118.35
+        # 23.67 4.73`. Through 1.6 that prose was read as MORE FIELDS and written
+        # into the output deck verbatim, so `4nec2-models/Objects/747plane.nec`
+        # came out as `GW 1 10 ... 81.0E-3 ! Drive connection 118.35 ...` and
+        # reported `translated` (found while measuring #1391 — the same class of
+        # bug as an unresolved symbol, reached by a different road).
+        for marker in ("'", "!"):
+            stripped = stripped.split(marker, 1)[0].rstrip()
         if not stripped:
             continue
         # 4nec2 allows spaces inside a parenthesised expression
@@ -879,7 +909,23 @@ def normalize(text: str, name: str) -> tuple:
             try:
                 fields.append(_format_field(_value(tok, where, syms)))
             except DeckError:
-                fields.append(tok)  # filename fields (GN ... NOFILE) look like symbols
+                # A token that survives substitution is either a legitimate
+                # WORD field or an unresolved symbol, and the difference matters
+                # (antennaknobs#1391). Written out verbatim, an unresolved symbol
+                # leaves the deck reading `GW 1 6 0 0 0 0 0 nosuch .001`, the
+                # deck reports `translated`, and the failure arrives at the
+                # engine as an engine error that is ours. So only the word
+                # fields NEC actually has are kept; anything else makes the deck
+                # unreadable, with the token named.
+                if mn in _WORD_FIELD_CARDS or tok.upper() in _WORD_FIELDS:
+                    fields.append(tok)
+                else:
+                    raise DeckError(
+                        f"{where}: {mn} field {len(fields) + 1} {tok!r} is not a "
+                        "number and is not a NEC word field — an unresolved SY "
+                        "symbol or a typo; it would have been written into the "
+                        "deck as-is"
+                    ) from None
         cards.append(Card(mn, fields, line_no))
         if mn == "EN":
             break
