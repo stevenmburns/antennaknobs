@@ -165,8 +165,10 @@ reads the row key its own writer writes — through 1.6 it read none, so every
 comparison reported "0 decks, 0 moved", a clean pass over nothing — and an empty
 comparison exits non-zero. A deck carrying a token that is not a number where NEC
 wants one is refused as unreadable instead of being written out with the token
-still in it. No new input is read, nothing new is written, no program is started,
-and the bundle is the one 1.4 listed.
+still in it. And `compare` now reads the first impedance row out of each report
+beside the status — more of the same file it already opens, nothing new written.
+No new input is read, nothing new is written, no program is started, and the
+bundle is the one 1.4 listed.
 
 ## About the executable
 
