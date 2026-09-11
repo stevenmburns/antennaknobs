@@ -56,17 +56,45 @@ def load(path: Path) -> tuple[dict, dict]:
 
 
 def rel_dz(a: dict, b: dict):
-    """|dZ|/|Z| between two reports' FIRST impedance rows, or None.
+    """`compare`'s own relative impedance difference, or None.
 
-    `_DEGENERATE_OHMS` is the corpus tool's own floor, reused: without it a deck
-    whose |Z| is milliohms manufactures a colossal relative difference out of an
-    absolute one nobody would notice.
+    Deliberately `compare`'s formula and not a better one, because the status
+    page cites `compare` as the join and a reader who runs the tool has to get
+    the page's numbers back. Two consequences worth naming rather than quietly
+    inheriting:
+
+    * the denominator is |Z_a| — the FIRST report's — not a symmetric scale.
+      With the NEC-5 report passed as `a` that makes every figure
+      NEC-5-referenced. That is the tool's convention and not a claim that NEC-5
+      is the reference, and it matters more than it looks. Measured on 85
+      jointly-solved decks, `compare`'s ratio and the symmetric one
+      |dZ| / max(|Za|, |Zb|) give the SAME median to five decimals (0.0691) and
+      wildly different tails: p99 1.05 against 0.57, worst 62.8 against 1.01.
+      A deck whose NEC-5 |Z| happens to be small is promoted to "worst
+      disagreement" by the denominator alone.
+
+      So the distribution below is `compare`'s, for reproducibility, and the
+      NAMED CASES are ranked by the symmetric measure with both printed. The
+      tail is the part of this census anyone acts on; it must not be an artifact
+      of which engine sits under the line.
+    * anything under `_DEGENERATE_OHMS` on EITHER side is excluded outright, not
+      floored. A 5 % move on a deck reporting −0.53 ohm is a large percentage of
+      nothing, and `necpp/ga_pjw_1.nec` is the deck that taught the tool so.
+
+    Returns (rel, z_a, z_b), or ("degenerate", z_a, z_b), or None.
     """
     za, zb = _first_z(a), _first_z(b)
     if za is None or zb is None:
         return None
-    scale = max(abs(za), abs(zb), _DEGENERATE_OHMS)
-    return abs(za - zb) / scale, za, zb
+    if abs(za) < _DEGENERATE_OHMS or abs(zb) < _DEGENERATE_OHMS:
+        return ("degenerate", za, zb)
+    return abs(za - zb) / abs(za), za, zb
+
+
+def sym_dz(za: complex, zb: complex) -> float:
+    """|dZ| / max(|Za|, |Zb|): the same difference with neither engine under the
+    line. Used to RANK the named cases; see `rel_dz` for why."""
+    return abs(za - zb) / max(abs(za), abs(zb))
 
 
 def main(argv=None) -> int:
@@ -130,19 +158,16 @@ def main(argv=None) -> int:
         got = rel_dz(r5[k], rm[k])
         if got is None:
             continue
-        # A reported |Z| of exactly zero is not a disagreement, it is an engine
-        # declining to have an opinion. Left in the distribution it scores as a
-        # 100 % mover through the degenerate floor and inflates the tail with
-        # something that is not a difference of physics.
-        if abs(got[1]) == 0.0 or abs(got[2]) == 0.0:
+        if got[0] == "degenerate":
             degenerate.append((k, got[1], got[2]))
             continue
         rows.append((got[0], k, got[1], got[2]))
     rows.sort()
     if degenerate:
         print(
-            f"{len(degenerate)} deck(s) report an impedance of exactly zero on "
-            "one side and are held out of the distribution below:\n"
+            f"{len(degenerate)} deck(s) report |Z| under {_DEGENERATE_OHMS:g} ohm "
+            "on one side and are excluded by `compare`'s own degeneracy rule — a "
+            "large percentage of nothing is not a disagreement:\n"
         )
         print("| deck | momwire Z | NEC-5 Z |")
         print("|---|---|---|")
@@ -172,15 +197,27 @@ def main(argv=None) -> int:
         + " | ".join(f"{vals[int(q * (len(vals) - 1))]:.2e}" for q in qs)
         + " |"
     )
-    print(f"\nMedian {statistics.median(vals):.2e}; worst {vals[-1]:.2e}.\n")
+    sym_vals = sorted(sym_dz(r[2], r[3]) for r in rows)
+    print(
+        f"\nMedian {statistics.median(vals):.2e}; worst {vals[-1]:.2e} — but see "
+        "the tail table: that worst figure is `compare`'s NEC-5-referenced ratio "
+        f"and the same deck is {sym_vals[-1]:.2e} measured symmetrically. The "
+        "median is identical either way.\n"
+    )
 
     print(f"## The tail: the {a.cases} widest disagreements\n")
-    print("| deck | momwire Z | NEC-5 Z | rel |dZ|/|Z| |")
-    print("|---|---|---|---:|")
-    for v, k, z5, zm in rows[: -a.cases - 1 : -1]:
+    print(
+        "Ranked by the symmetric measure, with `compare`'s NEC-5-referenced "
+        "ratio beside it. Where the two columns diverge sharply, the deck's "
+        "NEC-5 |Z| is small and `compare`'s figure is mostly its denominator.\n"
+    )
+    print("| deck | momwire Z | NEC-5 Z | symmetric | `compare` |")
+    print("|---|---|---|---:|---:|")
+    ranked = sorted(rows, key=lambda r: sym_dz(r[2], r[3]), reverse=True)
+    for v, k, z5, zm in ranked[: a.cases]:
         print(
             f"| `{k}` | {zm.real:.4g}{zm.imag:+.4g}j | "
-            f"{z5.real:.4g}{z5.imag:+.4g}j | {v:.3g} |"
+            f"{z5.real:.4g}{z5.imag:+.4g}j | {sym_dz(z5, zm):.3g} | {v:.3g} |"
         )
 
     print("\n## momwire advisories\n")
