@@ -446,12 +446,14 @@ engine, and the PyNEC reference. The available engines are the momwire bases
 on a machine with a licensed binary, **NEC-5**
 ([setup and terms](/reference/nec5/)): the slot appears exactly when the
 server resolves `NEC5_EXE`, which is why the hosted simulator never shows
-it while your own local instance can. The list is **served by the backend
-you're pointed at**, so a server without an optional engine simply doesn't
-offer it, rather than offering a slot that fails on the first solve. NEC-5
-solves are one external run per request — right for A/B snapshot checks
-against momwire in the next slot, heavier than the in-process engines for
-live dragging.
+it while your own local instance can — and, the same way, **NEC-2**
+([setup](/reference/nec2/)) when the server resolves `NEC2_EXE` to any NEC-2
+console binary (nec2c, nec2++, the one 4nec2 ships). The list is **served by
+the backend you're pointed at**, so a server without an optional engine
+simply doesn't offer it, rather than offering a slot that fails on the first
+solve. NEC-5 and NEC-2 solves are one external run per request — right for
+A/B snapshot checks against momwire in the next slot, heavier than the
+in-process engines for live dragging.
 
 Under the tab strip in that gear menu, each engine states **what it is made
 of** in one line — basis, testing, kernel, quadrature, solve strategy, feed

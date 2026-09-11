@@ -29,20 +29,21 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.73.0" icon="star">
-  **Download and double-click.** Every release now ships a signed Windows
-  workbench: unzip, run `antennaknobs-workbench.exe`, and the server opens in
-  your browser with momwire's C++ solver inside — no Python, nothing
-  installed, delete the folder to remove it. A licensed NEC-5 joins with one
-  text file beside the exe. **Patterns respect the ground.** A far field is
-  read out only from the currents above the interface; a design whose
-  radiating current is wholly buried refuses by name, and a mixed design says
-  what share of its radiated power the imaged buried currents carry. **The
-  app serves the one-wire crossing spelling**: a straight wire through the
-  ground plane is split at the plane before the engine sees it. **A wrong
-  design key is refused, never answered with another design's numbers**, and
-  every multi-feed design solves on the NEC-5 tab. The README's install
-  scripts are now what CI runs on every release, on three operating systems.
+<Card title="New in v0.74.0" icon="star">
+  **The engines you already own.** A **NEC-2 tab** appears in the solver
+  panel when you point `NEC2_EXE` at any NEC-2 console binary — nec2c,
+  nec2++, the one 4nec2 ships — driven over a text deck like NEC-5, so the
+  app and the Windows workbench offer NEC-2 without distributing GPL code,
+  with the engine's own power budget parsed rather than assumed. **Download
+  .nec now offers both dialects, always**: a NEC-2 deck or a NEC-5 deck,
+  whatever engines are installed; a buried or graded design refuses the
+  NEC-2 one and says why, and the NEC-5 deck is the same file the corpus
+  tool ships. **Runs on every x86 CPU**: momwire 0.53.0 carries an AVX2 and a
+  baseline build of its accelerators and chooses before importing, so a
+  machine without AVX2 gets a slower solver instead of a vanished process.
+  **The NEC-5 tab's "accepted power" was wrongly 0 %**; fixed. The NEC-5
+  corpus tool for the working group ships as its own signed exe with the
+  476 catalog decks and a security review beside it.
 </Card>
 
 ## The whole pitch, in one line
