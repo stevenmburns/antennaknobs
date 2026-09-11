@@ -98,10 +98,26 @@ own medium (εr, σ). It is deliberately **a far-field model**:
   angle by the facet's slope, applies that facet's Fresnel coefficients, and
   adds the facet's height offset to the reflected path phase — which is how
   the antenna "gets taller" toward the drops.
-- **What it doesn't do**: no diffraction over the crest edge, no surface
-  roughness, no multiple bounces. It's a specular model — trust it for lobe
-  positions and the first-order asymmetry, not for field strength deep in a
-  shadow.
+- **What it doesn't do**: no surface roughness, no multiple bounces. Trust it
+  for lobe positions and the first-order asymmetry.
+
+**Diffraction, and which of the two you are looking at.** A second composer
+adds the three things a faceted profile actually implies once it has an edge in
+it: shadowing, the exact tilted-mirror reflection (the source imaged across each
+facet's own plane rather than a horizontal mirror), and UTD wedge diffraction at
+the facet breaks. In Python it is now the **default** —
+`Terrain(...)` and all three preset constructors carry `diffraction=True`, so
+the snippet below gets it — and `diffraction=False` asks for the specular model
+this section describes. The **workbench still draws the specular one**: the
+diffracted field costs about a second for a full pattern where the specular one
+costs 17 ms, paid per direction, so it cannot run on every knob drag; composing
+it once when a knob settles is the next piece of work. Until that lands the two
+disagree, and the honest summary of the difference is that geometric optics
+reports grazing cancellation through a hill that in fact shadows the ray: on a
+40 m, 45° hill with the mast mid-slope the uphill band moved by +10 to +12 dB.
+The peak moved by +0.4 to +2.6 dB on the shipped presets. The impedance moved
+by nothing at all, on any of them — the current solve is the flat crest-medium
+Sommerfeld one either way.
 
 It's cross-checked against an independent implementation: NEC-2's two-medium
 cliff (`GD` card) agrees with the equivalent single-cliff terrain to within a
@@ -109,8 +125,9 @@ constant ~0.1 dB from 3° to 60° elevation. (If you try that comparison
 yourself, mind the trap: NEC-2 silently ignores `GD` under the normal `RP 0`
 pattern request — the cliff only reaches the pattern in `RP` modes 2/3/5/6.)
 A degenerate single-flat-facet terrain reproduces the plain finite ground
-bit-for-bit, so switching the feature on costs nothing when the ground really
-is flat.
+bit-for-bit through the specular composer, and to within 1e-8 dB through the
+diffracted one — a single unbroken facet has no wedge to diffract from — so
+switching the feature on costs nothing when the ground really is flat.
 
 ## Driving it
 
@@ -159,6 +176,7 @@ the site has real relief within a few wavelengths of the mast. The strongest
 signals that it's worth switching on: the ground falls away in the directions
 you care about (the flat model is understating your low-angle gain), the
 drop-off differs by direction (no single flat model can be right), or land
-meets water (the media differ as much as the heights). And keep the model's
-scope in mind: it sharpens *where the lobes point*; it does not model what
-happens behind a hill.
+meets water (the media differ as much as the heights). And keep the model's scope in
+mind: the specular composer sharpens *where the lobes point* and says nothing
+trustworthy about what happens behind a hill; the diffracted one is the one to
+reach for when behind-the-hill is the question you came with.
