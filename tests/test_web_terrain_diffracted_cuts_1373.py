@@ -27,14 +27,18 @@ slicing, and the composer is now literally shared with the engine):
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
+from starlette.testclient import TestClient
 
 from antennaknobs.terrain import Terrain, cliff_terrain, flat_terrain, levee_terrain
 from antennaknobs.web.server import (
     _CUT_FLOOR_DBI,
     _mag2_at_directions,
     _pattern_cuts,
+    app,
 )
 
 # Imported after server: adapter and examples import each other cyclically,
@@ -252,3 +256,140 @@ def test_the_packed_form_carries_no_flag():
     leave two sources of truth."""
     packed = _pack_terrain(Terrain(sectors=flat_terrain(*SOIL).sectors))
     assert "diffraction" not in packed
+
+
+# --- transport --------------------------------------------------------------
+#
+# The physics above is reached through two roads — POST /cuts (stateless body
+# and the solve_id fast path) and the /ws cuts sidecar — and the dwell path uses
+# the ws one. What matters here is that the flag survives each road and that the
+# settled request cannot be swallowed by a drag.
+
+_TERRAIN_SOLVE_REQ = {
+    "geometry": "dipoles.invvee",
+    "measurement_freq_mhz": 21.2,
+    "momwire_model": "bspline",
+    "ground": True,
+    "ground_model": "terrain",
+    "terrain": {"preset": "levee"},
+    "az_elev_deg": 15.0,
+    "elev_az_deg": 0.0,
+}
+
+
+@pytest.fixture(scope="module")
+def ws_client() -> TestClient:
+    return TestClient(app)
+
+
+def _ws_solve(client: TestClient) -> dict:
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps(_TERRAIN_SOLVE_REQ))
+        return json.loads(ws.receive_text())
+
+
+def test_post_cuts_composes_the_diffracted_field_both_shapes(ws_client):
+    """The fast path and the stateless backstop must agree — a settled request
+    that fell back to the full body after a cache eviction must not quietly draw
+    the other field."""
+    result = _ws_solve(ws_client)
+    base = {"az_elev_deg": 15.0, "elev_az_deg": 0.0}
+    body = {
+        k: result[k]
+        for k in (
+            "wires",
+            "k_meas_m_inv",
+            "ground",
+            "ground_eps_r",
+            "ground_eps_im",
+            "ground_terrain",
+            "measurement_freq_mhz",
+            "directivity_norm",
+        )
+    }
+    by_id = ws_client.post(
+        "/cuts", json={**base, "solve_id": result["solve_id"], "diffraction": True}
+    )
+    by_body = ws_client.post("/cuts", json={**base, "solve": body, "diffraction": True})
+    spec = ws_client.post("/cuts", json={**base, "solve_id": result["solve_id"]})
+    assert by_id.status_code == by_body.status_code == spec.status_code == 200
+    assert by_id.json()["diffraction"] is True
+    assert by_body.json()["diffraction"] is True
+    assert spec.json()["diffraction"] is False
+    assert by_id.json()["elevation"] == by_body.json()["elevation"]
+    assert by_id.json()["elevation"] != spec.json()["elevation"]
+
+
+def test_the_settled_request_gets_its_own_ws_slot(ws_client):
+    """Latest-wins per solve is right for dial drags. The settled request asks
+    for a DIFFERENT FIELD at the same solve and the same angles, so sharing a
+    slot would lose it to every drag — and lose it invisibly, because the
+    specular reply that wins is a perfectly valid trace. Same argument as #744's
+    refinement slot, one step further on."""
+    with ws_client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps(_TERRAIN_SOLVE_REQ))
+        result = json.loads(ws.receive_text())
+        base = {
+            "_kind": "cuts",
+            "solve_id": result["solve_id"],
+            "az_elev_deg": 15.0,
+            "elev_az_deg": 0.0,
+        }
+        ws.send_text(json.dumps(base))
+        ws.send_text(json.dumps({**base, "diffraction": True}))
+        replies = [json.loads(ws.receive_text()) for _ in range(2)]
+    by_field = {r["diffraction"]: r for r in replies}
+    assert set(by_field) == {False, True}, "a reply was squashed"
+    assert all(r["ok"] for r in replies)
+    assert by_field[True]["cuts"]["diffraction"] is True
+    assert by_field[False]["cuts"]["diffraction"] is False
+    assert by_field[True]["cuts"]["elevation"] != by_field[False]["cuts"]["elevation"]
+
+
+def test_refinement_and_the_settled_field_are_independent_slots(ws_client):
+    """All four combinations have to survive together: the dwell path refines
+    the diffracted trace too, so a two-bit slot key is the requirement, not a
+    one-bit one with diffraction folded into `refined`."""
+    angles = [0.0, 90.0, 180.0, 270.0]
+    with ws_client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps(_TERRAIN_SOLVE_REQ))
+        result = json.loads(ws.receive_text())
+        base = {
+            "_kind": "cuts",
+            "solve_id": result["solve_id"],
+            "az_elev_deg": 15.0,
+            "elev_az_deg": 0.0,
+        }
+        for refined in (False, True):
+            for diff in (False, True):
+                req = dict(base)
+                if refined:
+                    req["elev_angles_deg"] = angles
+                if diff:
+                    req["diffraction"] = True
+                ws.send_text(json.dumps(req))
+        replies = [json.loads(ws.receive_text()) for _ in range(4)]
+    seen = {(r["refined"], r["diffraction"]) for r in replies}
+    assert seen == {(False, False), (False, True), (True, False), (True, True)}
+    for r in replies:
+        assert r["ok"], r
+        assert len(r["cuts"]["elevation"]) == (len(angles) if r["refined"] else 180)
+        assert r["cuts"]["diffraction"] is r["diffraction"]
+
+
+def test_diffraction_is_harmless_over_a_flat_ground(ws_client):
+    """Over any non-faceted ground there is one field, so the flag is ignored
+    rather than rejected — a client that keeps asking after the user switches
+    ground models must not start getting errors."""
+    req = {k: v for k, v in _TERRAIN_SOLVE_REQ.items() if k != "terrain"}
+    req["ground_model"] = "sommerfeld"
+    with ws_client.websocket_connect("/ws") as ws:
+        ws.send_text(json.dumps(req))
+        result = json.loads(ws.receive_text())
+    base = {"az_elev_deg": 15.0, "elev_az_deg": 0.0, "solve_id": result["solve_id"]}
+    on = ws_client.post("/cuts", json={**base, "diffraction": True}).json()
+    off = ws_client.post("/cuts", json=base).json()
+    assert on["elevation"] == off["elevation"]
+    # It still reports what it was ASKED for, so the client's label logic has
+    # one rule rather than a ground-model special case.
+    assert on["diffraction"] is True and off["diffraction"] is False
