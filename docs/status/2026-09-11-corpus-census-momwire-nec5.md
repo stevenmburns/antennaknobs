@@ -34,6 +34,15 @@ measures the second.
 - **Join**: `compare`'s own `_first_z` — row 0 of the first frequency's
   ANTENNA INPUT PARAMETERS on each side.
 - **Regenerate**: `scratch/896-census/census_report.py --nec5 <a> --momwire <b>`.
+  The committed script reproduces every table on this page byte for byte from
+  the two reports; checked rather than claimed.
+
+**The census itself is deterministic.** Run twice end to end on the same box —
+891 s and 889 s — the two reports agree on **3,076 of 3,076 rows**, status,
+error text, impedances and advisories alike, with only the wall clock excluded.
+That matters more here than it would for a benchmark: a census whose refusals or
+impedances wandered between runs could not support a named-case list, because
+nobody could tell a finding from a re-roll.
 
 ## Why the translated decks, and what that costs
 
