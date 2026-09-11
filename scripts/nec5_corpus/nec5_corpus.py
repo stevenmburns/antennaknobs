@@ -79,7 +79,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.8"
+VERSION = "1.9"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
@@ -1487,11 +1487,108 @@ def _expand_flat_gh(cards: list, notes: list) -> list:
     return out
 
 
+# Two GW cards whose endpoints coincide are the same wire written twice, and
+# they make the moment matrix EXACTLY singular: two basis functions with
+# identical kernels of opposite sign. That is an invalid deck, not a hard one
+# (antennaknobs#1430).
+#
+# Why it is worth refusing rather than passing on. `qantenna/airplane.nec` has
+# GW 116 and GW 117 as one wire with reversed endpoints, and its "answer"
+# depended on the fill order: a row-order fill leaves ~1e-13 of rounding
+# residue for the LU to pivot on, and three NEC-5 builds returned three
+# different impedances for it (80.9-83.1j, 92.2-61.5j, 74.2+105.4j). It was the
+# public corpus's widest engine-vs-engine mover, and the disagreement was
+# entirely about which rounding residue each build happened to produce. A
+# column-order fill gets exact zero rows and says so. Comparing engines on a
+# deck like this measures floating point, not electromagnetics.
+#
+# TOLERANCE: a millionth of the wire's own length, with a tiny absolute floor
+# for a degenerate zero-length card. Deliberately tight. The defect being caught
+# is a deck listing the same wire twice — in both corpus cases the coordinates
+# agree to every printed digit — and a LOOSER, radius-scaled test would start
+# refusing decks whose wires are merely close, which is a modelling judgement
+# this tool has no business making.
+#
+# LIMIT, stated rather than implied: only the AUTHORED GW/CW cards are checked.
+# `Geometry` tracks the tag groups and segment order that GM / GX / GR copies
+# produce but never materialises their coordinates, so a duplicate created BY a
+# transform slips through. Both known cases are authored pairs. Catching the
+# transformed kind means computing the transforms, which is a different and much
+# larger change.
+_COINCIDENT_REL = 1e-6
+_COINCIDENT_ABS = 1e-12
+
+
+def _gm_separates(cards, t1: int, t2: int) -> bool:
+    """Does some `GM` move exactly ONE of tags `t1`, `t2`?
+
+    This guard is why the check above is sound, and measuring the corpus is what
+    put it here: without it, three valid decks are wrongly refused. Both
+    `dscn2.nec` copies write `GW 1` and `GW 2` with identical coordinates and
+    then carry `GM ... 2.0` — a tag range naming tag 2 alone — which moves the
+    second away from the first. `2m Circular Slot Cube V Pol.nec` does the same
+    with tags 100 and 200. Authored as coincident, separated before the solve,
+    and not duplicates at all.
+
+    Conservative in the safe direction: any GM whose tag range covers one of the
+    pair and not the other makes the tool DECLINE to refuse, without asking
+    whether that GM's transform is non-zero or where it actually lands the wire.
+    Declining to refuse a deck that may be invalid costs a comparison; refusing
+    a deck that is valid loses it, and would be the tool telling a user their
+    model is broken when it is not.
+    """
+    for c in cards:
+        if c.mn != "GM" or len(c.f) <= 8:
+            continue
+        a, b = Geometry._its_range(c.f[8])
+        covers = lambda t: a <= 0 or (t >= a and (b <= 0 or t <= b))  # noqa: E731
+        if covers(t1) != covers(t2):
+            return True
+    return False
+
+
+def _duplicate_wire(cards) -> str | None:
+    """`"GW a / GW b"` for the first coincident authored wire pair, else None."""
+    wires = []
+    for c in cards:
+        if c.mn not in ("GW", "CW") or len(c.f) < 9:
+            continue
+        try:
+            a = tuple(float(x) for x in c.f[2:5])
+            b = tuple(float(x) for x in c.f[5:8])
+        except (TypeError, ValueError):
+            continue
+        length = math.dist(a, b)
+        wires.append((c, a, b, max(length * _COINCIDENT_REL, _COINCIDENT_ABS)))
+    for i, (ci, ai, bi, ti) in enumerate(wires):
+        for cj, aj, bj, tj in wires[i + 1 :]:
+            tol = min(ti, tj)
+            if (math.dist(ai, aj) <= tol and math.dist(bi, bj) <= tol) or (
+                math.dist(ai, bj) <= tol and math.dist(bi, aj) <= tol
+            ):
+                try:
+                    if _gm_separates(cards, int(ci.f[0]), int(cj.f[0])):
+                        continue
+                except (TypeError, ValueError):
+                    pass
+                return (
+                    f"{ci.mn} tag {ci.f[0]} (line {ci.line}) / "
+                    f"{cj.mn} tag {cj.f[0]} (line {cj.line})"
+                )
+    return None
+
+
 def translate_deck(
     comments: list, cards: list, name: str, policy: str, nofile: bool
 ) -> tuple:
     """(deck text, notes) for ONE structure (no NX inside)."""
     _validate_nec(cards)
+    dup = _duplicate_wire(cards)
+    if dup:
+        raise InvalidNEC(
+            _INVALID + f"the same wire is listed twice ({dup}), which makes the "
+            "moment matrix singular"
+        )
     notes = []
     cards = _expand_flat_gh(cards, notes)
     geo = Geometry()
