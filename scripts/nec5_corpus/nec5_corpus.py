@@ -1741,7 +1741,15 @@ _COMPARE_FIELDS = ("env", "platform", "machine", "binaries", "jobs")
 
 
 def _read_report(path: Path) -> tuple[dict, dict]:
-    """(meta, {deck: row}) from a check report."""
+    """(meta, {deck: row}) from a check or translate report.
+
+    Accepts BOTH row keys, and the reason is antennaknobs#1404: this read
+    `rec["deck"]` while every writer here has written `rec["file"]`, so it
+    returned an EMPTY dict from every report and `compare` printed
+    "decks: 0 vs 0; moved: 0" — a clean pass over nothing, in the published
+    signed exe. Keying on either is the fix; `cmd_compare` refusing an empty
+    comparison is what makes the class of mistake loud next time.
+    """
     meta, rows = {}, {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -1751,8 +1759,10 @@ def _read_report(path: Path) -> tuple[dict, dict]:
             rec = json.loads(line)
             if "_meta" in rec:
                 meta = rec["_meta"]
-            elif "deck" in rec:
-                rows[rec["deck"]] = rec
+                continue
+            key = rec.get("deck") or rec.get("file")
+            if key is not None:
+                rows[key] = rec
     return meta, rows
 
 
@@ -1781,6 +1791,24 @@ def cmd_compare(args) -> int:
         if not args.ignore_env:
             print("refusing to compare (pass --ignore-env to compare anyway)")
             return 2
+    # An empty comparison is never a successful one (antennaknobs#1404). Said
+    # before any verdict, and non-zero, because "moved: 0" over no decks at all
+    # is the most convincing wrong answer this tool can give.
+    for label, meta in ((args.a, meta_a), (args.b, meta_b)):
+        if meta.get("timing_valid") is False:
+            print(
+                f"WARNING: {label} was written with jobs x threads over the CPU "
+                "count (timing_valid: false) — its wall times are not a speed "
+                "measurement; statuses and impedances are unaffected"
+            )
+    if not rows_a or not rows_b:
+        print(
+            f"no decks to compare: {args.a} has {len(rows_a)} deck rows, "
+            f"{args.b} has {len(rows_b)} — a report with no decks in it is not "
+            "a comparison. Check that both files are check reports written by "
+            "this tool."
+        )
+        return 2
     moved = []
     for deck in sorted(set(rows_a) | set(rows_b)):
         sa = rows_a.get(deck, {}).get("status", "<absent>")
