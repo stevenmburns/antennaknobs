@@ -7,9 +7,22 @@ Layout: a sketch of the profile modelled, then one conventional half-disc
 elevation plot per hill (downhill to the right, uphill to the left, radius in
 dBi), one line per case: flat ground, the mast at mid-slope, the mast at the
 crest. The toe is not drawn because the model reproduces flat ground there
-exactly (asserted below). The uphill sector below the slope angle is hatched:
-the model has no diffraction, so it reports grazing cancellation where the
-crest shadows the sky, and those numbers are not quoted.
+exactly (asserted below).
+
+`--diffraction` composes the #1373 field instead — shadowing, tilted mirrors and
+UTD wedge diffraction at the facet breaks. It is the DEFAULT of the library and
+what the workbench draws once its knobs settle; this probe keeps the specular
+page reachable because that is what the first page sent to Mike showed, and a
+figure is only a record while it can still be reproduced.
+
+The uphill sector below the slope angle is hatched in the SPECULAR page only:
+there the model answers with a healthy field straight through the hill, having no
+notion of the hill being in the way, and those numbers are not quoted. The
+diffracted page draws no hatch because it puts the hill in the way -- the band
+COLLAPSES, by 9 dB at 30 degrees uphill on the mid-slope mast here and by 4 to
+36 dB across the band on the 45-degree app preset. A shadow is darker, not
+brighter; the first write-up of this change had that backwards, which is why
+`tests/test_terrain_utd_shadow_sign_1373.py` now pins the sign.
 
 Antenna: AC6LA's spelling from the second QRZ post (probe8) on flat ground —
 plumb 0.956 λ/4 mast fed at its foot one inch up, four λ/4 radials one inch
@@ -21,6 +34,7 @@ layout can be iterated without re-solving.
 """
 
 import argparse
+import dataclasses
 import math
 import os
 import pathlib
@@ -89,7 +103,21 @@ class PlumbVerticalSurfaceRadials(AntennaBuilder):
         return tups
 
 
+def with_diffraction(ground, on: bool):
+    """`mike_terrain` is pinned specular (probe9), so the flag is NAMED in both
+    directions — this probe's two pages must differ by the field and nothing
+    else, including the version of the terrain constructor they ran against."""
+    if not on or ground[0] != "terrain":
+        return ground
+    return (ground[0], dataclasses.replace(ground[1], diffraction=True))
+
+
 def solve(ground, key, cache):
+    # The field is part of the CACHE KEY. Without it a second run with the flag
+    # flipped reads the first run's npz back and plots the other page's numbers
+    # under the new title — the quietest way this probe could lie.
+    if ground[0] == "terrain" and ground[1].diffraction:
+        key = f"{key}_utd"
     path = cache / f"probe10_{key}.npz"
     if path.exists():
         d = np.load(path, allow_pickle=False)
@@ -211,7 +239,7 @@ def profile_axes(ax, H):
     ax.axis("off")
 
 
-def polar_axes(ax, rows, *, H):
+def polar_axes(ax, rows, *, H, hatch_uphill=True):
     def line(ff, color, lw, ls, label):
         els_d, g_d = elevation_cut(ff, 0.0)
         els_u, g_u = elevation_cut(ff, 180.0)
@@ -223,8 +251,13 @@ def polar_axes(ax, rows, *, H):
     line(rows["flat"]["ff"], C_FLAT, 1.5, (0, (4, 3)), "flat ground")
     line(rows["mid"]["ff"], C_MID, 2.0, "-", "mast at mid-slope")
     line(rows["crest"]["ff"], C_CREST, 2.0, "-", "mast at the crest")
-    th_s = np.radians(np.linspace(180.0 - SLOPE_DEG, 180.0, 40))
-    ax.fill_between(th_s, RMIN, RMAX, color=MUTED, alpha=0.14, hatch="///", lw=0)
+    if hatch_uphill:
+        # Specular page only: below the slope angle geometric optics reports
+        # grazing cancellation where the crest shadows the sky. The diffracted
+        # composer answers that band properly, so its page draws no hatch —
+        # leaving it in would go on disclaiming the one thing that got fixed.
+        th_s = np.radians(np.linspace(180.0 - SLOPE_DEG, 180.0, 40))
+        ax.fill_between(th_s, RMIN, RMAX, color=MUTED, alpha=0.14, hatch="///", lw=0)
 
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
@@ -266,7 +299,14 @@ def polar_axes(ax, rows, *, H):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=os.environ.get("PROBE10_CACHE", ""))
+    ap.add_argument(
+        "--diffraction",
+        action="store_true",
+        help="compose the #1373 diffracted field (shadowing + UTD wedges) "
+        "instead of the #534 specular one",
+    )
     args = ap.parse_args()
+    utd = bool(args.diffraction)
     cache = pathlib.Path(args.cache) if args.cache else HERE / "cache"
     cache.mkdir(parents=True, exist_ok=True)
 
@@ -274,13 +314,24 @@ def main():
     for H in HILLS:
         for f, name in ((0.5, "mid"), (1.0, "crest")):
             rows[(H, name)] = solve(
-                ("terrain", mike_terrain(H, SLOPE_DEG, f)), f"H{H:.0f}_{name}", cache
+                with_diffraction(("terrain", mike_terrain(H, SLOPE_DEG, f)), utd),
+                f"H{H:.0f}_{name}",
+                cache,
             )
+    # The toe identity is the SPECULAR composer's, and is checked as such even
+    # on the diffracted run. With the mast at the toe the downhill side is flat,
+    # so geometric optics cannot tell the terrain from level ground and the
+    # agreement is exact. The diffracted composer CAN tell: the 40 m hill
+    # standing behind the mast shadows and diffracts, and it says so most loudly
+    # near the zenith, where a plumb vertical's own field is ~0 and anything
+    # else present fills the null (measured: −34.9 dBi level, −4.0 diffracted at
+    # 89°). Comparing that against level ground and calling the gap an error
+    # would be demanding that the new composer reproduce the blind spot.
     toe = solve(("terrain", mike_terrain(HILLS[0], SLOPE_DEG, 0.0)), "H40_toe", cache)
     _, g_toe = elevation_cut(toe["ff"], 0.0)
     _, g_flat = elevation_cut(rows["flat"]["ff"], 0.0)
     toe_dev = float(np.nanmax(np.abs(g_toe - g_flat)))
-    print(f"toe vs flat, downhill cut: max |Δ| = {toe_dev:.2e} dB")
+    print(f"toe vs flat (specular), downhill cut: max |Δ| = {toe_dev:.2e} dB")
     for key, r in rows.items():
         print(
             f"{str(key):16s} Z {r['Z'].real:6.2f}{r['Z'].imag:+7.2f}j  peak {r['peak']:6.2f}  "
@@ -291,7 +342,9 @@ def main():
     fig.text(
         0.07,
         0.968,
-        "M0AGP's hillside: elevation patterns from the specular-facet ground",
+        "M0AGP's hillside: elevation patterns with shadowing and diffraction"
+        if utd
+        else "M0AGP's hillside: elevation patterns from the specular-facet ground",
         fontsize=12.5,
         color=INK,
         va="baseline",
@@ -324,7 +377,7 @@ def main():
             "crest": rows[(H, "crest")],
         }
         ax = fig.add_axes([0.5 - w / 2, cy - h / 2, w, h], projection="polar")
-        polar_axes(ax, sub, H=H)
+        polar_axes(ax, sub, H=H, hatch_uphill=not utd)
         fig.text(
             0.5,
             top + 0.02,
@@ -343,29 +396,50 @@ def main():
                 ncol=3,
             )
     z = rows["flat"]["Z"]
-    fig.text(
-        0.07,
-        0.015,
+    common = (
         "How to read it. The antenna is solved on level ground with the local soil (feed impedance "
-        f"{z.real:.1f}{z.imag:+.1f}j Ω in every case: the model does not see the tilt under the radials). "
-        "Each far-field direction is then reflected off the facet its specular point lands on, with that "
-        "facet's Fresnel coefficients and its height as extra path phase. Geometric optics only: no "
-        "diffraction at the crest or the toe and no surface-wave interaction with either break, which is "
-        "the regime you call hard. Hatched sector: uphill below the slope angle is behind the crest, where "
-        "the model reports grazing cancellation instead of a diffracted field, so those numbers are not "
-        "quoted. At the crest the slope acts as a tilted mirror of growing effective height (the low-angle "
-        "gain downhill); at mid-slope the specular point for 15–35° lands on the plain below and the extra "
-        "phase puts a null where level ground has its lobe. The sharp notches between 30° and 50° downhill are "
-        "where the specular point steps from the slope onto the plain: a facet model is discontinuous there, "
-        "and a real hill is not. At the toe the model reproduces level ground "
-        f"exactly (checked: {toe_dev:.0e} dB). Facets shorter than a few wavelengths sit outside the "
-        "model's comfortable regime, so the 40 m hill is the more credible of the two.",
-        fontsize=7.4,
-        color=INK2,
-        wrap=True,
-        va="bottom",
+        f"{z.real:.1f}{z.imag:+.1f}j Ω in every case: the model does not see the tilt under the radials, "
+        "and the number is the same under both composers). "
     )
-    out = HERE / "mike_hillside_elevation_2026-09-10"
+    if utd:
+        caption = common + (
+            "Each far-field direction is then composed with shadowing, the source imaged across each "
+            "facet's own plane, and UTD wedge diffraction at the crest and the toe — the breaks the "
+            "earlier page had to disclaim. Uphill below the slope angle is no longer hatched, and the "
+            "band is much DARKER than the earlier page showed (−15.3 dBi against −5.9 at 30° uphill, "
+            "mast mid-slope): the specular model was answering straight through the hill, and putting "
+            "the hill in the calculation takes that away. The steps between 30° and 50° downhill, where "
+            "the specular point crossed from the slope onto the plain, are patched by the diffraction "
+            "term at the same break — a facet model is discontinuous there and a real hill is not. "
+            "Two things to hold lightly. Near the zenith the direct field of a plumb vertical is "
+            "essentially zero, so whatever else is present fills that null: the crest's diffraction "
+            "raises the toe case's 89° sample from −34.9 dBi to −4.0. Read the dip, not its depth. And "
+            "a mast at the crest sits inside the edge's near zone, where treating the break as a "
+            "diffracting wedge is the weakest assumption here — the mid-slope panel is the sounder one "
+            "to quote. Facets shorter than a few wavelengths sit outside the model's comfortable "
+            "regime, so the 40 m hill is the more credible of the two."
+        )
+    else:
+        caption = common + (
+            "Each far-field direction is then reflected off the facet its specular point lands on, with that "
+            "facet's Fresnel coefficients and its height as extra path phase. Geometric optics only: no "
+            "diffraction at the crest or the toe and no surface-wave interaction with either break, which is "
+            "the regime you call hard. Hatched sector: uphill below the slope angle is behind the crest, where "
+            "the model reports grazing cancellation instead of a diffracted field, so those numbers are not "
+            "quoted. At the crest the slope acts as a tilted mirror of growing effective height (the low-angle "
+            "gain downhill); at mid-slope the specular point for 15–35° lands on the plain below and the extra "
+            "phase puts a null where level ground has its lobe. The sharp notches between 30° and 50° downhill are "
+            "where the specular point steps from the slope onto the plain: a facet model is discontinuous there, "
+            "and a real hill is not. At the toe the model reproduces level ground "
+            f"exactly (checked: {toe_dev:.0e} dB). Facets shorter than a few wavelengths sit outside the "
+            "model's comfortable regime, so the 40 m hill is the more credible of the two."
+        )
+    fig.text(0.07, 0.015, caption, fontsize=7.4, color=INK2, wrap=True, va="bottom")
+    out = HERE / (
+        "mike_hillside_elevation_utd_2026-09-10"
+        if utd
+        else "mike_hillside_elevation_2026-09-10"
+    )
     fig.savefig(out.with_suffix(".png"), dpi=170, facecolor="white")
     fig.savefig(out.with_suffix(".pdf"), facecolor="white")
     print("wrote", out.with_suffix(".png"), "and .pdf")

@@ -1,5 +1,9 @@
 """Between the 40 m hill and the 1000 m one: a ladder of relief at 45°, the
-mast mid-slope, through the specular-facet terrain (issue #534). One
+mast mid-slope, through the specular-facet terrain (issue #534).
+
+`--diffraction` runs the #1373 composer instead — shadowing, tilted mirrors and
+UTD wedge diffraction at the breaks. Expect the uphill band below 45° to collapse
+rather than brighten: the specular ladder answers straight through each hill. One
 half-disc elevation plot per hill, each with level ground (dashed) and the
 rotated-sky planar-slope solve (orange, its below-horizontal lobe not
 drawn) for reference. The question: how the picture moves from the
@@ -12,6 +16,7 @@ same facet count so the ladder differs only in relief.
 """
 
 import argparse
+import dataclasses
 import os
 import pathlib
 import sys
@@ -58,15 +63,20 @@ F_MAST = 0.5
 HILLS = (40.0, 100.0, 200.0, 400.0, 1000.0)
 
 
-def solve_facet(cache, H):
+def solve_facet(cache, H, *, diffraction=False):
     def make():
         probe9.N_FACETS = N_FACETS
         terrain = mike_terrain(H, SLOPE, F_MAST)
+        if diffraction:
+            terrain = dataclasses.replace(terrain, diffraction=True)
         e = MomwireEngine(PlumbVerticalSurfaceRadials(), ground=("terrain", terrain))
         return e.impedance()[0], e.far_field()
 
+    # The field is part of the CACHE NAME. Sharing it would let a flipped flag
+    # read the other page's far fields back and plot them under the new title.
+    tag = "_utd" if diffraction else ""
     return _cache_ff(
-        cache / f"probe11_facet_H{H:.0f}_S{SLOPE:.0f}_n{N_FACETS}.npz", make
+        cache / f"probe11_facet_H{H:.0f}_S{SLOPE:.0f}_n{N_FACETS}{tag}.npz", make
     )
 
 
@@ -179,13 +189,19 @@ def sketch_axes(ax):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=os.environ.get("PROBE10_CACHE", ""))
+    ap.add_argument(
+        "--diffraction",
+        action="store_true",
+        help="compose the #1373 diffracted field instead of the #534 specular one",
+    )
     args = ap.parse_args()
+    utd = bool(args.diffraction)
     cache = pathlib.Path(args.cache) if args.cache else HERE / "cache"
     cache.mkdir(parents=True, exist_ok=True)
 
     level, _ = solve_level(cache)
     planar, _ = solve_planar(cache, SLOPE)
-    facets = {H: solve_facet(cache, H)[0] for H in HILLS}
+    facets = {H: solve_facet(cache, H, diffraction=utd)[0] for H in HILLS}
     gl = gain_lookup(level)
     ang, gp = true_cut(planar, SLOPE)
     print(f"{'hill':>8s} {'λ':>5s} | down 3° / 10° / 20° / 30° | peak above horizontal")
@@ -208,7 +224,12 @@ def main():
     fig.text(
         0.07,
         0.968,
-        "M0AGP's hillside from half a wavelength to twenty-four: a ladder of relief",
+        (
+            "M0AGP's hillside, shadowed and diffracted: a ladder of relief"
+            if utd
+            else "M0AGP's hillside from half a wavelength to twenty-four: "
+            "a ladder of relief"
+        ),
         fontsize=12.5,
         color=INK,
         va="baseline",
@@ -278,7 +299,9 @@ def main():
         wrap=True,
         va="bottom",
     )
-    out = HERE / "mike_hill_ladder_2026-09-10"
+    out = HERE / (
+        "mike_hill_ladder_utd_2026-09-10" if utd else "mike_hill_ladder_2026-09-10"
+    )
     fig.savefig(out.with_suffix(".png"), dpi=170, facecolor="white")
     fig.savefig(out.with_suffix(".pdf"), facecolor="white")
     print("wrote", out.with_suffix(".png"), "and .pdf")
