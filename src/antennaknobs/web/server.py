@@ -411,8 +411,16 @@ def _terrain_from_packed(d: dict) -> Terrain:
     """Rebuild the faceted terrain from a response's `ground_terrain` field
     (the adapter's _pack_terrain). Validation lives in the terrain
     dataclasses — bad client data raises ValueError/TypeError/KeyError,
-    which the /cuts endpoint maps to a 400."""
+    which the /cuts endpoint maps to a 400.
+
+    `diffraction=False`: the packed form carries facets only, never the flag,
+    so a cut must be told which field it is a cut OF. It is the specular one
+    here, matching `_terrain_from_request` — a cut and the grid it is read
+    against have to come from the same field. See that function for why the
+    web path pins it and which PR moves the pin.
+    """
     return Terrain(
+        diffraction=False,
         sectors=tuple(
             Sector(
                 az0=float(s["az0"]),
@@ -428,7 +436,7 @@ def _terrain_from_packed(d: dict) -> Terrain:
                 ),
             )
             for s in d["sectors"]
-        )
+        ),
     )
 
 

@@ -62,7 +62,7 @@ import os
 import pathlib
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, NamedTuple
 
@@ -2205,7 +2205,14 @@ def _terrain_from_request(req: dict) -> Terrain:
     are fixed at the QTH constants (water 80/0.001 outward of the cliff/water-
     side toe; land 13/0.005 for crest, slopes and the land plain)."""
     preset, values = _clamped_terrain(req)
-    return preset.build(values)
+    # SPECULAR, explicitly. `Terrain.diffraction` defaults to True since the
+    # #1373 follow-up, and the web path is the one caller that cannot simply
+    # take the default: the diffracted field costs 0.47-1.03 s for a 45x72 grid
+    # against 0.017 s, paid per direction, so taking it here would put a second
+    # of latency on every knob drag. The dwell path (specular while dragging,
+    # the diffracted pattern composed once on settle, with a label while the two
+    # differ) is the follow-on PR, and THIS LINE is the seam it moves.
+    return replace(preset.build(values), diffraction=False)
 
 
 def _terrain_marker(req: dict) -> dict | None:
