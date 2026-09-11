@@ -1,10 +1,14 @@
-# momwire against NEC-5 over the public NEC corpus
+# momwire bs2 against NEC-5 over the public NEC corpus
 
 **Evidence, not a scoreboard.** AK#896. Measured 2026-09-11 on antennaknobs
 `746c641d0` and momwire **0.53.0**, imported from the editable submodule at
-`23d81e5` (tag `v0.53.0`, clean working tree) rather than from a wheel —
-the per-deck artifact records all three, plus the import path, so "which
-build answered" is recoverable from the data and not only from this line.
+`23d81e5` (tag `v0.53.0`, clean working tree) rather than from a wheel, running
+the portal's default basis **momwire bs2 (B-spline, d=2)**. "momwire" alone
+names a package and not a solver — the portal's roster carries seven bases that
+disagree with each other by design — so the artifact records the basis, its
+solver class and degree, and the banner they were read from, beside the version,
+commit and import path. Which build and which basis answered is recoverable from
+the data and not only from this line.
 Skylake box, over the 21 public deck collections
 `scripts/nec5_corpus/nec5_corpus.py fetch` knows about. 3,076 decks, 889 s on
 the momwire side. Per-deck momwire rows in
@@ -41,9 +45,12 @@ measures the second.
   The committed script reproduces every table on this page byte for byte from
   the two reports; checked rather than claimed.
 
-**The census itself is deterministic.** Run twice end to end on the same box —
-891 s and 889 s — the two reports agree on **3,076 of 3,076 rows**, status,
-error text, impedances and advisories alike, with only the wall clock excluded.
+**The census itself is deterministic.** Run three times end to end on the same
+box — 891 s, 889 s and 889 s — the reports agree on every row: status, error
+text, impedances and advisory classes alike, with only the wall clock excluded.
+The third run differs from the first on exactly **6 rows of 3,076**, and only
+because it applies the `no-drive` status introduced below; nothing else moved,
+which is the check rather than an exception to it.
 That matters more here than it would for a benchmark: a census whose refusals or
 impedances wandered between runs could not support a named-case list, because
 nobody could tell a finding from a re-roll.
@@ -91,9 +98,36 @@ divides by |Z_NEC5|, which on this corpus gives the same median to five decimals
 and a wildly different tail (worst 1.45e+03 against 1.96). A deck must not
 become the corpus's worst disagreement by having a small denominator.
 
+## An exact zero is not an impedance
+
+Six decks solve, report `ok`, and print an impedance of exactly zero at the
+feed. They were filed under "|Z| under 1 ohm, degenerate" — as though they were
+very small numbers rather than no answer at all.
+
+The cause is measured, not inferred. NEC defaults an `EX` card with a zero
+voltage to **1 V**; momwire's portal takes the zero literally, so nothing is
+driven and the printout carries 0 V, 0 A and 0 ohm. NEC-5 reads the same
+translated bytes, prints V = 1.0 and returns 54.832+3.001j on
+`4nec2-models/Equations/Moxon.nec`; given an explicit 1 V the portal solves the
+same deck normally at 58.889+6.705j. A drive failure, not a small impedance.
+
+They now carry a status of their own, `no-drive`, with the printed source
+voltage in the error text; they count as momwire bs2 refusals in the coverage
+table above and no longer appear in the degenerate table. Filed as
+stevenmburns/momwire#1041.
+
+Sweeping the artifact for both parts exactly `0.0` **and** for |Z| < 1e-9 found
+**six**, where three were expected: the two Moxons and `qantenna/yg_4el_20.nec`,
+plus `necpp/patch_999.nec`, `necpp/patch_999_2.nec` and `necpp/ga_pjw_1.nec`
+(|Z| = 1.17e-12). All six are row 0 with a single source, so each affects its
+whole deck. `ga_pjw_1.nec` is worth noting twice: it is also one of the five
+decks that moved between the reference NEC-5 build and 63d0f93, so its departure
+from the degenerate table removes a row that was never a disagreement about
+physics.
+
 ## Publication discipline
 
-momwire's per-deck rows are committed beside this page. The NEC-5 side appears
+momwire bs2's per-deck rows are committed beside this page. The NEC-5 side appears
 as **aggregates and named cases with their impedances only** — no per-deck NEC-5
 report is committed anywhere, which is the strict reading of the standing rule.
 AK#896's Phase 0 note records a more permissive position (captures as End-User
@@ -104,26 +138,29 @@ added and the adjudication section gets materially more legible.
 
 ## Coverage
 
+The momwire side is **momwire bs2 (B-spline, d=2)**, read from the portal's own banner and recorded per run in the artifact's `_meta.environment.basis`; called momwire bs2 below.
+
 - decks in the NEC-5 report: **3076**
 - decks in the momwire report: **3076**
 - joined on `file`: **3076**
 
-| status | NEC-5 | momwire |
+| status | NEC-5 | momwire bs2 |
 |---|---:|---:|
 | `crash` | 43 | 5 |
 | `error` | 10 | 622 |
+| `no-drive` | 0 | 6 |
 | `no-impedance` | 8 | 0 |
-| `ok` | 2946 | 2443 |
+| `ok` | 2946 | 2437 |
 | `ok-no-source` | 67 | 0 |
 | `over-cap` | 0 | 6 |
 | `timeout` | 2 | 0 |
 
-Both engines solved and printed an impedance on **2390** decks.
+Both engines solved and printed an impedance on **2386** decks.
 
 ### Is the join sound?
 
-- row 0 is the same `(tag, seg)` on both sides: **2389/2390**
-- both reports list the same number of sources: **2380/2390**
+- row 0 is the same `(tag, seg)` on both sides: **2385/2386**
+- both reports list the same number of sources: **2376/2386**
 
 The following deck(s) address a different segment on each side. Their comparison would be of two different ports, so they are **excluded** from everything below:
 
@@ -133,11 +170,10 @@ The following deck(s) address a different segment on each side. Their comparison
 
 ## Agreement on the driving-point impedance
 
-25 deck(s) report |Z| under 1 ohm on one side and are excluded by `compare`'s own degeneracy rule — a large percentage of nothing is not a disagreement:
+21 deck(s) report |Z| under 1 ohm on one side and are excluded by `compare`'s own degeneracy rule — a large percentage of nothing is not a disagreement:
 
-| deck | momwire Z | NEC-5 Z |
+| deck | momwire bs2 Z (ohm) | NEC-5 Z (ohm) |
 |---|---|---|
-| `4nec2-models/Equations/Moxon.nec` | 0+0j | 54.83+3.001j |
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/10-4-2.nec` | 0.03579+0.003214j | 0.03585+0.001451j |
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-10.nec` | 0.01375+0.0001382j | 0.01413+0.002862j |
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-10a.nec` | 0.01375+0.0001382j | 0.01413+0.002862j |
@@ -156,16 +192,13 @@ The following deck(s) address a different segment on each side. Their comparison
 | `cebik-w4rnl/models/Yagis-HF/nec/2el60mwireYagi.nec` | 0.01879-0.002225j | 0.02166+0.004231j |
 | `g1ojs/160m/160m Coax Magloop V.nec` | 0.4039+0.2693j | 0.4264+6.053j |
 | `g1ojs/_2m/Hentenna based/2m Small Hentenna Loop 700x200 Stub Match Wire dia.nec` | 0.03134+0.6602j | 0.1774-1.576j |
-| `icecube-dbesson/Moxon.nec` | 0+0j | 54.83+3.001j |
-| `necpp/ga_pjw_1.nec` | -1.106e-12-3.816e-13j | -0.5338-0.2705j |
 | `necpp/plet_helixumts.nec` | 1.67e-11+0.0007148j | 3.39e-06-7.686e-06j |
-| `qantenna/yg_4el_20.nec` | 0+0j | 17.46-17.29j |
 | `sokyrad/unsorted/10m efhw narrow rect 28.4mhz  10m efhw narrow rect 28.4mhz.nec` | 1.465e-07+4.997e-05j | 6.536e-08+3.806e-05j |
 | `sokyrad/unsorted/stacked_146MHz_moxon_vertical_0_75lambda.nec` | 0.02045+6.104j | 0.03756+0.2698j |
 
 Comparable decks: **2364**
 
-| relative |dZ|/|Z| | decks | share |
+| relative difference \|Zm-Zn\|/\|Zn\| | decks | share |
 |---|---:|---:|
 | < 0.1 % | 6 | 0.3 % |
 | < 1 % | 142 | 6.0 % |
@@ -174,7 +207,7 @@ Comparable decks: **2364**
 
 | quantile | p50 | p75 | p90 | p95 | p99 |
 |---|---:|---:|---:|---:|---:|
-| relative |dZ|/|Z| | 1.10e-01 | 2.33e-01 | 5.55e-01 | 1.08e+00 | 3.21e+01 |
+| relative difference \|Zm-Zn\|/\|Zn\| | 1.10e-01 | 2.33e-01 | 5.55e-01 | 1.08e+00 | 3.21e+01 |
 
 Median 1.10e-01; worst 1.45e+03 — but see the tail table: that worst figure is `compare`'s NEC-5-referenced ratio and the same deck is 1.96e+00 measured symmetrically. The median is identical either way.
 
@@ -182,7 +215,7 @@ Median 1.10e-01; worst 1.45e+03 — but see the tail table: that worst figure is
 
 Ranked by the symmetric measure, with `compare`'s NEC-5-referenced ratio beside it. Where the two columns diverge sharply, the deck's NEC-5 |Z| is small and `compare`'s figure is mostly its denominator.
 
-| deck | momwire Z | NEC-5 Z | symmetric | `compare` |
+| deck | momwire bs2 Z (ohm) = Zm | NEC-5 Z (ohm) = Zn | symmetric rel. diff \|Zm-Zn\|/max(\|Zm\|,\|Zn\|) | `compare`'s rel. diff \|Zm-Zn\|/\|Zn\| |
 |---|---|---|---:|---:|
 | `g1ojs/160m/160m Single Turn Coax Magloop V.nec` | 0.4037-2.898j | 0.426+2.953j | 1.96 | 1.96 |
 | `g1ojs/opt/Loaded V-20.nec` | 8.295+177j | 7.772-200.3j | 1.88 | 1.88 |
@@ -209,7 +242,7 @@ Ranked by the symmetric measure, with `compare`'s NEC-5-referenced ratio beside 
 
 On **455** of 2364 comparable decks (19.2 %) the two engines disagree on the SIGN of the reactance, and those decks dominate the tail above.
 
-| group | decks | median symmetric diff | same, with momwire conjugated |
+| group | decks | median symmetric rel. diff | same, with Zm conjugated |
 |---|---:|---:|---:|
 | reactance signs disagree | 455 | 0.1911 | 0.1221 |
 | reactance signs agree | 1909 | 0.0952 | 0.4582 |
@@ -217,14 +250,14 @@ On **455** of 2364 comparable decks (19.2 %) the two engines disagree on the SIG
 **The obvious explanation is ruled out by that last column.** If one side carried the opposite time convention, conjugating it would collapse the disagreeing group to near zero and wreck the agreeing one. The agreeing group does break, as it must — but the disagreeing group only improves partway, nowhere near zero. So this is not a global sign convention; it is a real disagreement about reactance on a specific class of deck.
 
 
-## momwire advisories
+## momwire bs2 advisories
 
 | advisory | decks |
 |---|---:|
 | `SurfaceRadialHeight` | 33 |
 | `LinAlgWarning` | 1 |
 
-## Where momwire declined
+## Where momwire bs2 declined
 
 | reason | decks |
 |---|---:|

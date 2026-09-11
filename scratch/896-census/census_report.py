@@ -97,6 +97,15 @@ def sym_dz(za: complex, zb: complex) -> float:
     return abs(za - zb) / max(abs(za), abs(zb))
 
 
+def _basis_label(meta: dict) -> str:
+    """How to name the momwire side in every heading. "momwire" alone names a
+    package, not a solver: the portal's roster carries seven bases that
+    disagree with each other by design, so a census that says only "momwire"
+    has named the package and not the instrument."""
+    b = (meta.get("environment") or {}).get("basis") or {}
+    return b.get("label") or "momwire (basis not recorded)"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--nec5", required=True)
@@ -106,16 +115,23 @@ def main(argv=None) -> int:
 
     m5, r5 = load(Path(a.nec5).expanduser())
     mm, rm = load(Path(a.momwire).expanduser())
+    basis = _basis_label(mm)
+    short = basis.split(" (")[0]  # "momwire bs2" after first use
     keys = sorted(set(r5) & set(rm))
 
     print("## Coverage\n")
+    print(
+        f"The momwire side is **{basis}**, read from the portal's own banner and "
+        "recorded per run in the artifact's `_meta.environment.basis`; called "
+        f"{short} below.\n"
+    )
     print(f"- decks in the NEC-5 report: **{len(r5)}**")
     print(f"- decks in the momwire report: **{len(rm)}**")
     print(f"- joined on `file`: **{len(keys)}**\n")
 
     s5 = Counter(r5[k]["status"] for k in keys)
     sm = Counter(rm[k]["status"] for k in keys)
-    print("| status | NEC-5 | momwire |")
+    print(f"| status | NEC-5 | {short} |")
     print("|---|---:|---:|")
     for st in sorted(set(s5) | set(sm)):
         print(f"| `{st}` | {s5.get(st, 0)} | {sm.get(st, 0)} |")
@@ -193,7 +209,7 @@ def main(argv=None) -> int:
             "on one side and are excluded by `compare`'s own degeneracy rule — a "
             "large percentage of nothing is not a disagreement:\n"
         )
-        print("| deck | momwire Z | NEC-5 Z |")
+        print(f"| deck | {short} Z (ohm) | NEC-5 Z (ohm) |")
         print("|---|---|---|")
         for k, z5, zm in degenerate:
             print(
@@ -206,7 +222,7 @@ def main(argv=None) -> int:
         return 2
     vals = [r[0] for r in rows]
     print(f"Comparable decks: **{len(rows)}**\n")
-    print("| relative |dZ|/|Z| | decks | share |")
+    print("| relative difference \\|Zm-Zn\\|/\\|Zn\\| | decks | share |")
     print("|---|---:|---:|")
     lo = 0.0
     for hi, label in BANDS:
@@ -217,7 +233,7 @@ def main(argv=None) -> int:
     print("\n| quantile | " + " | ".join(f"p{int(q * 100)}" for q in qs) + " |")
     print("|---|" + "---:|" * len(qs))
     print(
-        "| relative |dZ|/|Z| | "
+        "| relative difference \\|Zm-Zn\\|/\\|Zn\\| | "
         + " | ".join(f"{vals[int(q * (len(vals) - 1))]:.2e}" for q in qs)
         + " |"
     )
@@ -235,7 +251,11 @@ def main(argv=None) -> int:
         "ratio beside it. Where the two columns diverge sharply, the deck's "
         "NEC-5 |Z| is small and `compare`'s figure is mostly its denominator.\n"
     )
-    print("| deck | momwire Z | NEC-5 Z | symmetric | `compare` |")
+    print(
+        f"| deck | {short} Z (ohm) = Zm | NEC-5 Z (ohm) = Zn | "
+        "symmetric rel. diff \\|Zm-Zn\\|/max(\\|Zm\\|,\\|Zn\\|) | "
+        "`compare`'s rel. diff \\|Zm-Zn\\|/\\|Zn\\| |"
+    )
     print("|---|---|---|---:|---:|")
     ranked = sorted(rows, key=lambda r: sym_dz(r[2], r[3]), reverse=True)
     for v, k, z5, zm in ranked[: a.cases]:
@@ -254,7 +274,7 @@ def main(argv=None) -> int:
         f"({100 * len(opp) / len(rows):.1f} %) the two engines disagree on the "
         "SIGN of the reactance, and those decks dominate the tail above.\n"
     )
-    print("| group | decks | median symmetric diff | same, with momwire conjugated |")
+    print("| group | decks | median symmetric rel. diff | same, with Zm conjugated |")
     print("|---|---:|---:|---:|")
     for name, grp in (
         ("reactance signs disagree", opp),
@@ -273,7 +293,7 @@ def main(argv=None) -> int:
         "class of deck.\n"
     )
 
-    print("\n## momwire advisories\n")
+    print(f"\n## {short} advisories\n")
     adv = Counter()
     for k in keys:
         for name, n in rm[k].get("advisories") or []:
@@ -286,7 +306,7 @@ def main(argv=None) -> int:
     else:
         print("_None raised._")
 
-    print("\n## Where momwire declined\n")
+    print(f"\n## Where {short} declined\n")
     why = Counter()
     for k in keys:
         rec = rm[k]

@@ -99,6 +99,7 @@ TIMEOUT_S = 300.0
 MEM_GB = 6.0
 
 _GW_RE = re.compile(r"^\s*GW\b", re.I)
+_AIP_HEADER = "ANTENNA INPUT PARAMETERS"
 
 
 def deck_segments(body: str) -> int:
@@ -161,11 +162,33 @@ def run_one_in_process(body: str) -> dict:
             rec["status"] = "no-impedance"
             rec["error"] = f"{type(exc).__name__}: {exc}"[:300]
             return rec
-        rec["status"] = "ok"
-        # The corpus tool's row shape: [tag, seg, Zre, Zim], first frequency
-        # only — `_first_z` reads row 0, and a multi-point FR sweep prints one
-        # section per frequency.
         rec["z"] = [[t, s_, z.real, z.imag] for t, s_, z in freqs[0]]
+        # An exact zero is not an impedance. It is a solve that produced no
+        # current at the feed, and reporting it as `ok` filed three decks under
+        # "degenerate, |Z| under 1 ohm" as though they were very small numbers
+        # rather than no answer at all.
+        #
+        # Measured cause on 4nec2-models/Equations/Moxon.nec, whose EX card
+        # carries a zero voltage: NEC-5 reads the same bytes, prints V = 1.0 and
+        # returns 54.832+3.001j — NEC defaults a zero EX voltage to one volt.
+        # The portal takes the zero literally, so the source drives nothing and
+        # the printout carries 0 V, 0 A and 0 ohm. Given an explicit 1 V the same
+        # deck solves normally (58.889+6.705j). So this is a DRIVE failure, not
+        # a small impedance, and it gets a status that says so.
+        z0 = complex(*rec["z"][0][2:4]) if rec["z"] else None
+        if z0 is not None and abs(z0) < 1e-9:
+            rec["status"] = "no-drive"
+            rec["error"] = (
+                f"feed ({rec['z'][0][0]}, {rec['z'][0][1]}) reports |Z| = "
+                f"{abs(z0):.3g}: no current at the source"
+                + (
+                    f"; printed V = {_printed_volts(out)}"
+                    if _printed_volts(out)
+                    else ""
+                )
+            )
+            return rec
+        rec["status"] = "ok"
         return rec
 
     m = re.search(r"ERROR:?\s*(.+)", blob)
@@ -231,6 +254,20 @@ def run_one(path: Path, timeout: float, mem_gb: float) -> dict:
     }
 
 
+def _printed_volts(printout: str) -> str:
+    """The source voltage the printout actually carries, for a `no-drive` row —
+    the difference between "the solver failed" and "the deck asked for 0 V"."""
+    try:
+        chunk = printout.split(_AIP_HEADER)[1]
+    except IndexError:
+        return ""
+    for line in chunk.splitlines():
+        t = line.split()
+        if len(t) == 11 and t[0].lstrip("-").isdigit():
+            return f"{t[2]} {t[3]}"
+    return ""
+
+
 def _advisories(caught) -> list:
     """Advisory class names with counts — the class is the fact, the prose is
     long and identical every time."""
@@ -239,6 +276,63 @@ def _advisories(caught) -> list:
         name = getattr(w.category, "__name__", str(w.category))
         out[name] = out.get(name, 0) + 1
     return [[k, v] for k, v in sorted(out.items())]
+
+
+def _momwire_basis() -> dict:
+    """WHICH BASIS answered, read rather than assumed.
+
+    "momwire" alone does not identify a solver: the portal's roster carries
+    seven, from a degree-1 B-spline to a NEC-closest sinusoidal, and they do not
+    agree with each other by design. A census that says only "momwire" has named
+    the package and not the instrument.
+
+    The portal stamps its choice on the banner as a SUFFIX — `+bs1`, `+hm`,
+    `+sin` and so on — and the default `bspline` entry's suffix is the empty
+    string, so the absence of a suffix is itself the answer. That is read here
+    rather than inferred: the banner from a probe deck is matched against
+    `portal._BANNER_SUFFIXES`, and the resulting name is looked up in
+    `deck.BASES` for the solver class and its bound kwargs. The degree comes
+    from the class signature when the roster does not bind one, which is how
+    `bspline` resolves to degree 2 without anyone writing "2" down.
+    """
+    import inspect
+
+    from momwire import deck
+    from momwire.portal import run_deck
+    from momwire.portal._portal import _BANNER_SUFFIXES
+
+    probe = (
+        "CM basis probe\nCE\nGW 1 11 0 0 -2.5 0 0 2.5 0.001\nGE 0\n"
+        "FR 0 1 0 0 30.0 0\nEX 0 1 6 0 1.0 0.0\nXQ\nEN\n"
+    )
+    banner = next(
+        (ln for ln in run_deck(probe)[0].splitlines() if "VERSION:" in ln), ""
+    ).strip()
+    # Longest suffix first: "" matches everything, so it must be tried last.
+    name = next(
+        (
+            n
+            for n, suf in sorted(_BANNER_SUFFIXES.items(), key=lambda kv: -len(kv[1]))
+            if suf and banner.endswith(suf)
+        ),
+        "bspline",
+    )
+    entry = deck.BASES.get(name)
+    info = {"name": name, "banner": banner}
+    if entry:
+        cls, bound = entry
+        info["solver"] = f"{cls.__module__}.{cls.__qualname__}"
+        info["bound_kwargs"] = dict(bound)
+        sig = inspect.signature(cls.__init__).parameters
+        deg = bound.get("degree")
+        if deg is None and "degree" in sig:
+            deg = sig["degree"].default
+        info["degree"] = deg
+        if name == "bspline" and deg == 2:
+            info["label"] = "momwire bs2 (B-spline, d=2)"
+        else:
+            info["label"] = f"momwire {name}" + (f" (d={deg})" if deg else "")
+    return info
 
 
 def _momwire_provenance() -> dict:
@@ -287,6 +381,7 @@ def _momwire_provenance() -> dict:
 def environment_meta(jobs: int) -> dict:
     return {
         "engine": "momwire",
+        "basis": _momwire_basis(),
         "momwire": _momwire_provenance(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
