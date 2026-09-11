@@ -89,11 +89,23 @@ const cutsWsPending = new Map<string, (reply: CutsWsReply) => void>();
 // delivers — slower, never wrong.
 const CUTS_WS_TIMEOUT_MS = 1500;
 
-/** Explicit per-cut sampling angles for a refinement request (issue #744).
- *  Absent on a plain dial request, which keeps the uniform circle. */
-type CutAngles = { az_angles_deg?: number[]; elev_angles_deg?: number[] };
+/** Everything a cuts request can ask for beyond the dial angles.
+ *
+ *  `az_angles_deg` / `elev_angles_deg`: explicit per-cut sampling angles for a
+ *  refinement request (issue #744). Absent on a plain dial request, which keeps
+ *  the uniform circle.
+ *
+ *  `diffraction`: compose the #1373 field over a faceted terrain — shadowing,
+ *  tilted mirrors, UTD wedge diffraction — instead of #534's specular one.
+ *  Absent while a knob is moving, set once it settles. Ignored by the server
+ *  over any other ground, so no caller needs a ground-model special case. */
+type CutExtra = {
+  az_angles_deg?: number[];
+  elev_angles_deg?: number[];
+  diffraction?: boolean;
+};
 
-const isRefined = (extra: CutAngles | undefined): boolean =>
+const isRefined = (extra: CutExtra | undefined): boolean =>
   !!(extra?.az_angles_deg || extra?.elev_angles_deg);
 
 // The refined flag is part of the pending key (and echoed by the server):
@@ -101,24 +113,37 @@ const isRefined = (extra: CutAngles | undefined): boolean =>
 // the same angles, and answering one with the other's trace would either
 // throw the densified samples away or hand them to a caller expecting the
 // uniform circle.
+//
+// The diffracted flag is part of it for the same reason (issue #1373), and the
+// mistake it prevents is worse: the settle asks for a different FIELD at the
+// same solve and the same angles, so a shared key would answer it with the
+// drag's specular trace — a perfectly plausible-looking curve, silently the
+// wrong one. The server's sidecar keys its own slots the same way.
 function cutsWsPendingKey(
   solveId: string,
   az: number,
   el: number,
   refined: boolean,
+  diffraction: boolean,
 ): string {
-  return `${solveId}:${az}:${el}:${refined ? 1 : 0}`;
+  return `${solveId}:${az}:${el}:${refined ? 1 : 0}:${diffraction ? 1 : 0}`;
 }
 
 function requestCutsViaWs(
   solveId: string,
   azElevDeg: number,
   elevAzDeg: number,
-  extra?: CutAngles,
+  extra?: CutExtra,
 ): Promise<CutsWsReply> {
   const send = cutsWsSend;
   if (!send) return Promise.resolve({ status: "unavailable" });
-  const key = cutsWsPendingKey(solveId, azElevDeg, elevAzDeg, isRefined(extra));
+  const key = cutsWsPendingKey(
+    solveId,
+    azElevDeg,
+    elevAzDeg,
+    isRefined(extra),
+    !!extra?.diffraction,
+  );
   return new Promise((resolve) => {
     const timer = window.setTimeout(() => {
       cutsWsPending.delete(key);
@@ -158,6 +183,12 @@ export type CutsWsMessage = {
    *  #744). Absent from a pre-#744 server, which only ever sent uniform
    *  cuts — so undefined reads as false, the right answer for it. */
   refined?: boolean;
+  /** Server echo of "this reply carries the diffracted field" (issue #1373).
+   *  Read from the ENVELOPE rather than from `cuts.diffraction`, because a
+   *  miss carries no `cuts` and still has to be routed to the waiter that
+   *  asked for it. Absent from a pre-#1373 server, which only ever composed
+   *  the specular field — so undefined reads as false, the right answer. */
+  diffraction?: boolean;
   ok: boolean;
   cuts?: PatternCuts;
 };
@@ -168,10 +199,15 @@ export function resolveCutsWsMessage(data: CutsWsMessage): void {
     data.az_elev_deg,
     data.elev_az_deg,
     !!data.refined,
+    !!data.diffraction,
   );
   const pending = cutsWsPending.get(key);
   if (!pending) return; // timed out / superseded — fallback already running
-  pending(data.ok && data.cuts ? { status: "ok", cuts: data.cuts } : { status: "miss" });
+  pending(
+    data.ok && data.cuts
+      ? { status: "ok", cuts: data.cuts }
+      : { status: "miss" },
+  );
 }
 
 /** Socket died: nothing pending will ever be answered on it. Resolving as
@@ -207,7 +243,7 @@ function requestCuts(
   result: SolveResponse,
   azElevDeg: number,
   elevAzDeg: number,
-  extra?: CutAngles,
+  extra?: CutExtra,
 ): Promise<PatternCuts | null> {
   const postCuts = (body: object): Promise<Response> =>
     fetch("/cuts", {
@@ -223,7 +259,12 @@ function requestCuts(
   return (async (): Promise<PatternCuts | null> => {
     const solveId = result.solve_id;
     if (solveId) {
-      const viaWs = await requestCutsViaWs(solveId, azElevDeg, elevAzDeg, extra);
+      const viaWs = await requestCutsViaWs(
+        solveId,
+        azElevDeg,
+        elevAzDeg,
+        extra,
+      );
       if (viaWs.status === "ok") return viaWs.cuts;
       if (viaWs.status === "unavailable") {
         const r = await postCuts({ solve_id: solveId });
@@ -345,6 +386,63 @@ const mergeAngles = (
     ...added,
   ].sort((a, b) => a - b);
 
+// --- Diffracted field on settle (issue #1373) ------------------------------
+// A faceted terrain has two far fields: #534's specular composer, and #1373's
+// with shadowing, tilted mirrors and UTD wedge diffraction. The second is the
+// honest one wherever the profile has an edge — on a 45-degree hill it moves
+// the uphill band by 10 to 12 dB, geometric optics having reported grazing
+// cancellation through a hill that actually shadows the ray — and it costs
+// about a second per pattern against 17 ms, PER DIRECTION, so no warm-up or
+// cache makes it a drag-time field.
+//
+// So the app draws specular while a knob moves and composes the diffracted
+// field once the knob settles, on the same dwell the refinement rounds use.
+// The swap is a cache write under the SAME key: the chart draws whatever is
+// cached, exactly as it already does for a refined trace replacing a uniform
+// one, and the label reads the trace's own `diffraction` flag rather than
+// anything about the request that fetched it.
+//
+// The settle costs no solve. The server's cuts-source cache holds the
+// currents, and which composer runs over them is not a property of that cache
+// — so this is a cache hit and one composer pass.
+
+const diffractedInFlight = new Map<string, Promise<void>>();
+
+/** Whether this solve HAS a second field to compose. Faceted terrain only:
+ *  over a flat ground of any medium there is one field, and asking would buy a
+ *  byte-identical trace. (The server ignores the flag there rather than
+ *  erroring, so this is an optimisation and not a correctness guard.) */
+const hasTwoFields = (result: SolveResponse): boolean =>
+  !!result.ground_terrain;
+
+/** Compose the diffracted cuts for one settled solve and cache them in place
+ *  of the specular ones. Resolves either way; any failure just leaves the
+ *  specular trace on screen, which is a true picture of a different field
+ *  rather than a broken one. */
+function composeDiffracted(
+  result: SolveResponse,
+  azElevDeg: number,
+  elevAzDeg: number,
+): Promise<void> {
+  if (!hasTwoFields(result)) return Promise.resolve();
+  const key = cutsKey(result, azElevDeg, elevAzDeg);
+  const running = diffractedInFlight.get(key);
+  if (running) return running; // both polar charts settle at once
+  const cur = cachedCuts(result, azElevDeg, elevAzDeg);
+  if (cur?.diffraction) return Promise.resolve(); // already the settled field
+  const p = requestCuts(result, azElevDeg, elevAzDeg, { diffraction: true })
+    .then((cuts) => {
+      // Guard the flag rather than trusting the request: a server that
+      // ignored it (older build, non-faceted ground) would otherwise have its
+      // specular trace cached as though it were the settled field, and the
+      // label would then lie in the one direction that matters.
+      if (cuts?.diffraction) cacheCuts(key, cuts);
+    })
+    .finally(() => diffractedInFlight.delete(key));
+  diffractedInFlight.set(key, p);
+  return p;
+}
+
 /** Densify the ON-SCREEN cuts of one solve where the polar trace corners,
  *  in rounds, writing each round back under the plain cuts key so the
  *  charts pick it up. Which cuts to buy angles for comes from the mounted-
@@ -396,7 +494,12 @@ function refineCuts(
       // from the request entirely — "absent means uniform" is the wire
       // contract, and forcing an explicit list would make the response
       // (and every cached copy of it) carry 180 angles for nothing.
-      const extra: CutAngles = {};
+      const extra: CutExtra = {};
+      // Refine whatever field is on screen. Once the settle has swapped the
+      // diffracted trace in, its corners are the ones worth spending angles
+      // on — and planning against the specular curve would put them where the
+      // OTHER field bends.
+      if (cur.diffraction) extra.diffraction = true;
       if (azAdd.length > 0 || cur.az_angles_deg) {
         extra.az_angles_deg = mergeAngles(
           cur.az_angles_deg,
@@ -456,18 +559,33 @@ export function useCutTraces(
     // scrub-safe: a cut-dial drag re-fires this effect, the cleanup below
     // clears the pending timer, and no refinement request is ever issued
     // for an angle the user passed through.
-    const scheduleRefine = () => {
-      if (!live || !cutRefineEnabled) return;
+    // Both settle actions share one dwell and one timer, in this order: get
+    // the right FIELD first (issue #1373), then spend refinement angles on
+    // its corners. The reverse order would plan the densification against
+    // the specular curve and then throw the plan at a differently-shaped one.
+    //
+    // The diffracted compose is NOT gated on cutRefineEnabled. They are
+    // different features that happen to share a dwell: "adaptive resolution"
+    // off means "the uniform circle is enough", not "draw the other field".
+    const scheduleSettle = () => {
+      if (!live) return;
       refineTimer = window.setTimeout(() => {
-        refineCuts(live, azElevDeg, elevAzDeg).then(() => {
-          if (!cancelled) setFetchTick((t) => t + 1);
-        });
+        composeDiffracted(live, azElevDeg, elevAzDeg)
+          .then(() => {
+            if (cancelled) return null;
+            setFetchTick((t) => t + 1); // show the settled field now
+            if (!cutRefineEnabled) return null;
+            return refineCuts(live, azElevDeg, elevAzDeg);
+          })
+          .then(() => {
+            if (!cancelled) setFetchTick((t) => t + 1);
+          });
       }, CUT_REFINE_DWELL_MS);
     };
     if (missing.length === 0) {
       // Already drawable at these angles (the solve shipped with them, or a
-      // previous fetch cached them) — straight to the refinement dwell.
-      scheduleRefine();
+      // previous fetch cached them) — straight to the settle dwell.
+      scheduleSettle();
       return () => {
         cancelled = true;
         if (refineTimer) window.clearTimeout(refineTimer);
@@ -477,14 +595,13 @@ export function useCutTraces(
     // the server squashes per-solve latest-wins), a much tighter debounce
     // makes cut drags feel live; the original 120 ms guard stays for the
     // full-body HTTP fallback, whose requests are 10 KB–300 KB (issue #551).
-    const delay =
-      cutsWsSend && missing.every((r) => r.solve_id) ? 30 : 120;
+    const delay = cutsWsSend && missing.every((r) => r.solve_id) ? 30 : 120;
     const h = window.setTimeout(() => {
       Promise.all(missing.map((r) => fetchCuts(r, azElevDeg, elevAzDeg))).then(
         () => {
           if (cancelled) return;
           setFetchTick((t) => t + 1);
-          scheduleRefine();
+          scheduleSettle();
         },
       );
     }, delay);
@@ -509,6 +626,35 @@ export function useCutTraces(
     }
     return cutsLatest.get(r) ?? r.cuts ?? null;
   });
+}
+
+/** The redraw signature of a set of cut traces, for a chart's draw effect.
+ *
+ *  Lives here rather than inline in the chart because every component of it is
+ *  a fact about what the cuts layer can hand back at unchanged angles, and each
+ *  was added because something changed invisibly without it:
+ *
+ *  - sample counts: a #744 refinement round replaces a trace with a DENSER one
+ *    at the same angles;
+ *  - the field: a #1373 settle replaces a trace with the OTHER FIELD at the
+ *    same angles and the same sample count, so this is the one component
+ *    carrying no length of its own — and the swap is the whole point of the
+ *    dwell, so without it the settle computes, caches, and never appears.
+ */
+export function cutsRedrawKey(traces: readonly (PatternCuts | null)[]): string {
+  return traces
+    .map((t) =>
+      t
+        ? [
+            t.az_elev_deg,
+            t.elev_az_deg,
+            t.azimuth.length,
+            t.elevation.length,
+            t.diffraction ? "d" : "s",
+          ].join(",")
+        : "-",
+    )
+    .join("|");
 }
 
 // One chart's trace from a cuts payload: the dBi samples for the requested
