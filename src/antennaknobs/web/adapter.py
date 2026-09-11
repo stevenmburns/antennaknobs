@@ -90,7 +90,7 @@ from antennaknobs.engines.momwire import (
     split_wires_at_plane,
 )
 from antennaknobs.engines.nec2 import NEC2Engine
-from antennaknobs.engines.nec5 import NEC5Engine
+from antennaknobs.engines.nec5 import NEC5Engine, _network_needs_reducer
 from antennaknobs.terrain import (
     Terrain,
     cliff_terrain,
@@ -732,6 +732,38 @@ _NEC2_BURIED_REFUSAL = (
     "printed with no warning — so antennaknobs refuses the deck instead. Use a "
     "momwire backend, whose buried serve is certified, or NEC-5."
 )
+
+# What each WRAPPER does with a network no single deck expresses (#1395).
+#
+# momwire needs no row: the reducer is momwire's own, and a TL network is what
+# `build_network()` is for. The three wrappers differ, and the difference is not
+# a detail a user can guess from the tab label:
+#
+#   pynec  SERVES it — PyNECEngine solves it by a multiport-Y reduction outside
+#          the field solve, one deck per driven port.
+#   nec5   SERVES it — the same route since #1280.
+#   nec2   REFUSES it. `nec_export.export_nec` writes ONE deck, and there is no
+#          faithful single-deck spelling of a reduction, so the engine and the
+#          Download NEC-2 button refuse together (#1354).
+#
+# Before this the coverage grid asked the wrappers only about `buried`, so a TL
+# design showed an OFFERED NEC-2 tab and met the refusal after a click — the
+# experience #1286 exists to remove, surviving in the one corner it never
+# reached.
+_NETWORK_NEED = "network_reduction"
+
+_NEC2_NETWORK_REFUSAL = (
+    "a NEC-2 deck cannot express a transmission line, a transformer or a "
+    "virtual driver: the app solves those by a multiport-Y reduction over one "
+    "deck per driven port, and no single deck says that. Use momwire, whose "
+    "network is native, or the PyNEC or NEC-5 tab, which reduce it the same way."
+)
+
+_WRAPPER_NETWORK_SCOPE = {
+    "pynec": (True, None, None),
+    "nec5": (True, None, None),
+    "nec2": (False, _NEC2_NETWORK_REFUSAL, "antennaknobs#1395"),
+}
 
 _WRAPPER_BURIED_SCOPE = {
     "pynec": (False, _PYNEC_BURIED_REFUSAL, "antennaknobs#1167"),
@@ -3493,6 +3525,14 @@ def _design_capability_needs(cls) -> frozenset:
             needs.add("junction_ports")
         if any(isinstance(p, PortAtVertex) for p in ports):
             needs.add("node_gaps")
+        # A network no single card deck expresses: a transmission line, a
+        # transformer, a virtual driver, a finite-Q load, a distributed port
+        # (antennaknobs#1395). Asked with `_network_needs_reducer`, the engines'
+        # OWN predicate, rather than a second list of branch types here — a
+        # copy would drift, and the drift would grey a tab that solves or offer
+        # one that does not.
+        if _network_needs_reducer(net):
+            needs.add(_NETWORK_NEED)
     try:
         tups = builder.build_wires()
         # The interface at z = 0, which is where every catalog design puts it
@@ -3541,13 +3581,19 @@ def _backend_capability_refusal(spec, needs) -> dict | None:
     """
     caps = getattr(getattr(spec, "solver", None), "capabilities", None)
     if caps is None:
-        # Wrapper backends (PyNEC, NEC-5) carry no momwire capability object.
-        # Their one measurable refusal today is buried, whose sentence
-        # `_backend_buried_refusal` already sources per kind.
+        # Wrapper backends (PyNEC, NEC-5, NEC-2) carry no momwire capability
+        # object, so their rows are per-kind tables rather than a capabilities
+        # cell. Buried first, then the network kind: a backend that cannot take
+        # the deck's GEOMETRY should say that rather than a narrower reason that
+        # is also true — the same order `designRefusal` uses on the client.
         if "buried" in needs:
             reason = _backend_buried_refusal(spec)
             if reason:
                 return {"capability": "buried", "reason": reason}
+        if _NETWORK_NEED in needs:
+            row = _WRAPPER_NETWORK_SCOPE.get(spec.kind)
+            if row is not None and row[0] is False:
+                return {"capability": _NETWORK_NEED, "reason": row[1]}
         return None
     for cap_field in _COVERAGE_FIELDS:
         if cap_field not in needs or cap_field not in getattr(caps, "_fields", ()):
