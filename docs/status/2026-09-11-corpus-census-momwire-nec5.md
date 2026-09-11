@@ -1,8 +1,12 @@
 # momwire against NEC-5 over the public NEC corpus
 
 **Evidence, not a scoreboard.** AK#896. Measured 2026-09-11 on antennaknobs
-`0aba1faa0` / momwire `?`, Skylake box, over the 21 public deck collections
-`scripts/nec5_corpus/nec5_corpus.py fetch` knows about. 3,076 decks, 891 s on
+`746c641d0` and momwire **0.53.0**, imported from the editable submodule at
+`23d81e5` (tag `v0.53.0`, clean working tree) rather than from a wheel —
+the per-deck artifact records all three, plus the import path, so "which
+build answered" is recoverable from the data and not only from this line.
+Skylake box, over the 21 public deck collections
+`scripts/nec5_corpus/nec5_corpus.py fetch` knows about. 3,076 decks, 889 s on
 the momwire side. Per-deck momwire rows in
 `data/2026-09-11-corpus-census-momwire.jsonl`.
 
