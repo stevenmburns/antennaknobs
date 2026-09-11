@@ -107,10 +107,14 @@ second composer adds what the edge actually implies — shadowing, the source
 imaged across each facet's own plane rather than a horizontal mirror, and UTD
 wedge diffraction at the facet breaks. Where the two disagree it is the one to
 believe, and the disagreement is not small: on a 40 m, 45° hill with the mast
-mid-slope the uphill band moves by **+10 to +12 dB**, because geometric optics
-reports grazing cancellation through a hill that in fact *shadows* the ray. A
-shadowed, diffracted field is much brighter than a cancelled one. Peak gain
-moves by +0.4 to +2.6 dB on the three presets.
+mid-slope the uphill band below the slope angle **collapses by 4 to 36 dB** —
+because geometric optics was reporting a healthy +5.7 dBi *straight through
+45 degrees of hillside*, having no concept of the hill being in the way, and the
+diffracted composer is what puts it there. Just above the slope angle, where the
+sky is clear, the same cut gets **up to 6 dB brighter** instead: a different
+mechanism, the source imaged across the facet's own tilted plane rather than a
+horizontal mirror, which puts a lobe where the specular formula had none. Peak
+gain moves up, by +0.4 to +2.6 dB on the three presets.
 
 It costs about a second per pattern where the specular composer costs 17 ms,
 and it is paid **per direction**, so no warm-up or cache turns it into a

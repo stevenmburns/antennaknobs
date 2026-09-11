@@ -100,8 +100,11 @@ class Terrain:
     # and the flip carries the table of every number that moved. The impedance
     # does NOT move -- the solve is flat Sommerfeld at the crest medium either
     # way -- and the far field does: +0.4 to +2.6 dB of peak on the hosted
-    # presets, and up to +12.5 dB in the uphill band where geometric optics
-    # reported grazing cancellation through a hill that shadows it.
+    # presets, and the uphill band below a hill's slope angle COLLAPSES by 4 to
+    # 36 dB, geometric optics having reported a healthy field straight through a
+    # hill it has no notion of. The sign of that is pinned by
+    # tests/test_terrain_utd_shadow_sign_1373.py, because the first write-up of
+    # this change stated it backwards.
     #
     # The cost is why the UI does not use it live: 0.47-1.03 s for a 45x72 grid
     # against 0.017 s specular, paid per direction (113-320 us against 3.8 us),

@@ -389,11 +389,11 @@ const mergeAngles = (
 // --- Diffracted field on settle (issue #1373) ------------------------------
 // A faceted terrain has two far fields: #534's specular composer, and #1373's
 // with shadowing, tilted mirrors and UTD wedge diffraction. The second is the
-// honest one wherever the profile has an edge — on a 45-degree hill it moves
-// the uphill band by 10 to 12 dB, geometric optics having reported grazing
-// cancellation through a hill that actually shadows the ray — and it costs
-// about a second per pattern against 17 ms, PER DIRECTION, so no warm-up or
-// cache makes it a drag-time field.
+// honest one wherever the profile has an edge — on a 45-degree hill the uphill
+// band below the slope angle collapses by 4 to 36 dB, geometric optics having
+// reported a healthy field straight through a hill it has no notion of — and it
+// costs about a second per pattern against 17 ms, PER DIRECTION, so no warm-up
+// or cache makes it a drag-time field.
 //
 // So the app draws specular while a knob moves and composes the diffracted
 // field once the knob settles, on the same dwell the refinement rounds use.

@@ -183,14 +183,15 @@ because the specular point walks down the hill and the antenna effectively
 gets taller.
 
 Its uphill numbers below the slope angle used to come with a warning not to
-quote them: below that angle the hill shadows the sky, and a specular model
-answers with grazing cancellation instead of a shadow. That is now the
-diffracted composer's job, and it is the case it was built for — on a 40 m,
-45° hill the same band reads +10 to +12 dB higher, because a shadowed,
-diffracted field is a much brighter thing than a cancelled one. The terrain
-page's charts compose it once the knobs settle. **The numbers on this page are
-the rotated-sky planar model's**, which has no valley and no edge, so its
-uphill band still is not a thing to quote — the fix lives on the other page.
+quote them, and the reason is worth stating precisely: below that angle the hill
+blocks the sky, and a specular model does not know the hill is there — it reports
+a healthy field straight through it. That is now the diffracted composer's job,
+and it is the case it was built for. On a 40 m, 45° hill the same band
+**collapses by 4 to 36 dB** once the shadow and the crest's diffraction are in
+the calculation. The terrain page's charts compose it once the knobs settle.
+**The numbers on this page are the rotated-sky planar model's**, which has no
+valley and no edge, so its uphill band still is not a thing to quote — the fix
+lives on the other page.
 
 Which model fits which site: a mast standing *on* a long uniform slope is
 the rotated-sky case on this page; a mast at the top of a slope, or on a
