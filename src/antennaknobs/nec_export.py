@@ -135,18 +135,35 @@ def export_nec(
             ldtyp = 1 if br.parallel else 0
             lines.append(f"LD {ldtyp} {tag} {seg} {seg} {_num(r)} {_num(l)} {_num(c)}")
 
-    # Wire material (issue #316): the same global LD cards the engine
-    # emits — conductor loss as LD 5 (spec conductivity from the design,
-    # else the module-level oracle constant; normally None → card omitted,
-    # PEC) and the insulation jacket's series inductance as LD 2 (H/m).
-    sigma = (
-        eng._wire_spec.conductivity if eng._wire_spec is not None else WIRE_CONDUCTIVITY
-    )
-    if sigma is not None:
-        lines.append(f"LD 5 0 0 0 {_num(sigma)} 0. 0.")
-    l_ins = eng._insulation_l_per_m()
-    if l_ins is not None:
-        lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
+    # Wire material (issue #316): the same LD cards the engine emits —
+    # conductor loss as LD 5 (spec conductivity from the design, else the
+    # module-level oracle constant; normally None → card omitted, PEC) and
+    # the insulation jacket's series inductance as LD 2 (H/m). Issue #1427:
+    # the same per-wire rule as `PyNECEngine._emit_wire_material` — when any
+    # wire carries its own spec (a deck loaded from a file does), every wire
+    # gets per-tag cards from its effective spec; otherwise one global card
+    # per effect, byte-identical to before. The two paths are exclusive.
+    if any(as_wire(t).spec is not None for t in eng.tups):
+        for tag, t in enumerate(eng.tups, start=1):
+            w = as_wire(t)
+            eff = w.spec if w.spec is not None else eng._wire_spec
+            sigma = eff.conductivity if eff is not None else WIRE_CONDUCTIVITY
+            if sigma is not None:
+                lines.append(f"LD 5 {tag} 0 0 {_num(sigma)} 0. 0.")
+            l_ins = eng._insulation_l_per_m(eff, eng._radius_for(t))
+            if l_ins is not None:
+                lines.append(f"LD 2 {tag} 0 0 0. {_num(l_ins)} 0.")
+    else:
+        sigma = (
+            eng._wire_spec.conductivity
+            if eng._wire_spec is not None
+            else WIRE_CONDUCTIVITY
+        )
+        if sigma is not None:
+            lines.append(f"LD 5 0 0 0 {_num(sigma)} 0. 0.")
+        l_ins = eng._insulation_l_per_m()
+        if l_ins is not None:
+            lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
 
     gn = _gn(eng.ground)
     if gn:

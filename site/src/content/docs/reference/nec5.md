@@ -135,7 +135,13 @@ during development:
   the other engines drive. A `PortAtVertex` apex feed uses this
   natively: its source is the named wire's *own end knot* (segment 1
   end 1, or segment n end 2), so no parity coercion applies and a
-  vertex-only wire keeps its authored segment count.
+  vertex-only wire keeps its authored segment count. A deck imported with an
+  odd count is rounded the same way — 4nec2's Example 2 dipole goes to NEC-5
+  as 10 segments with the source at the centre knot, not 9 with a centre
+  segment — and the solver-slot label shows the *requested* count. At nine
+  segments on a half-wave dipole that convention alone is worth a couple of
+  ohms against the deck's own spelling in the same engine; both converge as
+  N grows.
 - **The "fast" ground model is served as full Sommerfeld.** NEC-5 has no
   reflection-coefficient approximation (its `IPERF 0` *is* the Sommerfeld
   solution), so asking for the fast model gets the accurate one, and the
