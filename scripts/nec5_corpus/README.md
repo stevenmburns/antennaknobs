@@ -34,7 +34,7 @@ python nec5_corpus.py check     --exe NEC5CL.exe --src nec5 --keep-dir failed
 ## Without Python: the Windows executable
 
 The same file, frozen with PyInstaller and signed, is published as
-[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.6)
+[`nec5_corpus-windows.zip`](https://github.com/stevenmburns/antennaknobs/releases/tag/nec5-corpus-v1.7)
 under the tool's own release tag, `nec5-corpus-v<VERSION>` — not with the
 antennaknobs releases, and not inside the Windows workbench, because the
 people who want a NEC-5 corpus do not all want an antenna modeller. Unzip,
@@ -235,6 +235,43 @@ Cebik (W4RNL, SK), distributed free on his site and mirrored, with no
 redistribution grant stated. That is why the tool fetches rather than ships
 them.
 
+## An unresolved symbol, or a comment, is not a field
+
+A token that survives 4nec2 `SY` substitution without becoming a number is either
+a **word field NEC actually has** — a file name on `GN`, `GF`, `WG` or `PL` — or
+an unresolved symbol, and the difference decides whether the deck can be written.
+Through 1.6 anything unresolved was kept and written out, so
+`GW 1 5 0 0 0 0 0 nosuch .001` came back as a `translated` deck with `nosuch`
+still in it and failed at the engine, as an engine error that was ours. Since 1.7
+such a deck is `unreadable` with the token named, and no deck is written.
+
+Trailing `!` comments are stripped, as `'` always was. 60 decks in the corpus use
+one, and through 1.6 the prose after the `!` was read as more fields:
+`4nec2-models/Objects/747plane.nec` came out with every one of its 423 `GW` cards
+carrying 13 to 15 fields instead of 9.
+
+## `--jobs` and what a wall time means
+
+`check --jobs N` runs N engines at once. An OpenMP engine that also reads
+`OMP_NUM_THREADS` from the environment then asks for N × threads of CPU, and on a
+4-core box `--jobs 4` is 16 threads contending: measured 2026-09-11, one such
+build took 1,651 s for the corpus that way against a single-threaded reference's
+1,447 s, while one deck at a time on an idle box the same binary is 1.8–2.3×
+**faster**. A per-deck `wall_s` from an oversubscribed run is not a speed
+measurement.
+
+So since 1.7, when `--jobs > 1` the tool sets `OMP_NUM_THREADS`,
+`OPENBLAS_NUM_THREADS` and `MKL_NUM_THREADS` to 1 **in the engine's environment**
+— unless you set them yourself, because someone who asks for a thread count has
+a reason — and says which it pinned. The report's `_meta` records the effective
+values and a `timing_valid` flag, false when jobs × threads exceeds the CPU
+count; `compare` prints one warning line for a report carrying it. Statuses and
+impedances are unaffected either way: it is only the timings that cannot be read.
+
+For a timing comparison, run `--jobs 1` and leave the thread count where you want
+it. That is the same setting a single-deck run uses, so the numbers mean the same
+thing.
+
 ## Comparing two `check` reports
 
 Since 1.2 every `check` report's `_meta` row records the environment that
@@ -251,3 +288,10 @@ python nec5_corpus.py compare check-a.jsonl check-b.jsonl
 diffs the two deck by deck — and refuses, naming the field, when their
 recorded environments differ or one carries none. `--ignore-env` compares
 anyway after printing the differences.
+
+**Before 1.7 it compared nothing.** The reader keyed each row on `deck` while
+every writer here writes `file`, so both sides came back empty and every
+comparison printed `decks: 0 vs 0; moved: 0` — a clean pass over no decks, in the
+published exe. Either key is read now, and an empty comparison exits non-zero
+saying so, because a report with no decks in it is never a successful
+comparison.

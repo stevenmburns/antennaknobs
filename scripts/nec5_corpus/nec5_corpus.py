@@ -79,7 +79,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-VERSION = "1.6"
+VERSION = "1.7"
 DECK_EXTS = (".nec", ".inp")  # matched case-insensitively
 
 # ---------------------------------------------------------------------------
