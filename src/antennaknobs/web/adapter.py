@@ -765,6 +765,66 @@ _WRAPPER_NETWORK_SCOPE = {
     "nec2": (False, _NEC2_NETWORK_REFUSAL, "antennaknobs#1395"),
 }
 
+# The two remaining wrapper rows (#1395), so the table is not half filled. Each
+# cell is the engine's OWN refusal, quoted from the site that raises it, and each
+# is `True` / `False` / `None` for the reason #1103 gives: None is "cannot be
+# asked" and must never be read as "serves", because that is the one answer a
+# missing measurement must not silently produce.
+#
+# `junction_ports` -- a `PortAtEnd`, the junction-node port:
+#   pynec  REFUSES by name (engines/pynec.py, issue #579): NT/TL cards attach to
+#          segment interiors, and synthesising a stub reintroduces the attachment
+#          artefact PortAtEnd exists to remove.
+#   nec2   REFUSES -- `export_nec` resolves through a PyNECEngine, so it raises
+#          that same sentence. Measured: it is what `wire.sterba_bl` returns.
+#   nec5   NOT MEASURED. `engines/nec5.py` never mentions `PortAtEnd`, so it does
+#          not refuse one by name -- but nothing shows it SERVES one either, and
+#          the catalog's only junction-port design (`wire.sterba_bl`) also carries
+#          a distributed port, which NEC-5 refuses for that separate reason. So
+#          the cell is None and the tab is not greyed on a guess.
+#
+# `node_gaps` -- a `PortAtVertex`, the series apex feed:
+#   pynec  REFUSES by name (issue #898): NEC-2 has no segment-END source, so the
+#          true series apex feed is inexpressible and the honest near-miss is a
+#          DIFFERENT model the user must author.
+#   nec2   REFUSES -- the same sentence through the writer.
+#   nec5   SERVES it natively (#898: an EX at the shared knot).
+_PYNEC_JUNCTION_REFUSAL = (
+    "PyNEC cannot represent PortAtEnd, a junction-node port: NEC-2's NT and TL "
+    "cards attach to segment interiors, and synthesising a stub would reintroduce "
+    "the attachment artefact this port exists to remove. Run it on a momwire "
+    "backend (antennaknobs#579)."
+)
+_NEC2_JUNCTION_REFUSAL = (
+    "a NEC-2 deck cannot represent PortAtEnd, a junction-node port: NT and TL "
+    "cards attach to segment interiors, so there is no card for a current "
+    "injected at a shared node. Run it on a momwire backend (antennaknobs#579)."
+)
+_PYNEC_VERTEX_REFUSAL = (
+    "PyNEC cannot represent PortAtVertex, a series apex feed at a junction knot: "
+    "NEC-2 has no segment-END source. The honest near-miss -- a short bridge wire "
+    "carrying a centre gap -- is a different model, never a silent substitution. "
+    "Run it on momwire or NEC-5 (antennaknobs#898)."
+)
+_NEC2_VERTEX_REFUSAL = (
+    "a NEC-2 deck cannot represent PortAtVertex, a series apex feed at a junction "
+    "knot: NEC-2 has no segment-END source. Run it on momwire or NEC-5, or author "
+    "the short-bridge idiom explicitly (antennaknobs#898)."
+)
+
+_WRAPPER_PORT_SCOPE = {
+    "junction_ports": {
+        "pynec": (False, _PYNEC_JUNCTION_REFUSAL, "antennaknobs#579"),
+        "nec2": (False, _NEC2_JUNCTION_REFUSAL, "antennaknobs#579"),
+        "nec5": (None, None, None),  # not measured — see the note above
+    },
+    "node_gaps": {
+        "pynec": (False, _PYNEC_VERTEX_REFUSAL, "antennaknobs#898"),
+        "nec2": (False, _NEC2_VERTEX_REFUSAL, "antennaknobs#898"),
+        "nec5": (True, None, None),
+    },
+}
+
 _WRAPPER_BURIED_SCOPE = {
     "pynec": (False, _PYNEC_BURIED_REFUSAL, "antennaknobs#1167"),
     # NEC-5 SERVES buried geometry, measured on the licensed binary
@@ -3590,6 +3650,15 @@ def _backend_capability_refusal(spec, needs) -> dict | None:
             reason = _backend_buried_refusal(spec)
             if reason:
                 return {"capability": "buried", "reason": reason}
+        # Then the port kinds, in `_COVERAGE_FIELDS` order so the answer is
+        # stable across runs, and the network last: a port the engine has no card
+        # for is a more basic refusal than a network it cannot reduce.
+        for cap in ("junction_ports", "node_gaps"):
+            if cap not in needs:
+                continue
+            row = _WRAPPER_PORT_SCOPE[cap].get(spec.kind)
+            if row is not None and row[0] is False:
+                return {"capability": cap, "reason": row[1]}
         if _NETWORK_NEED in needs:
             row = _WRAPPER_NETWORK_SCOPE.get(spec.kind)
             if row is not None and row[0] is False:

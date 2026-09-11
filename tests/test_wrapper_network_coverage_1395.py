@@ -173,3 +173,95 @@ def test_every_wrapper_kind_has_a_row(kind):
     assert isinstance(serves, bool)
     if serves is False:
         assert reason and issue, (kind, reason, issue)
+
+
+# --------------------------------------------------------------------------
+# the two remaining rows: a half-filled table is worse than an empty one
+# --------------------------------------------------------------------------
+
+
+def test_a_junction_port_design_greys_pynec_and_nec2():
+    """`wire.sterba_bl` is the catalog's only `PortAtEnd` design. PyNEC refuses it
+    by name (#579) and the NEC-2 writer raises that same sentence, so both tabs
+    grey; NEC-5's cell is unmeasured and is not greyed on a guess."""
+    cov = adapter.design_backend_coverage("wire.sterba_bl")
+    assert "junction_ports" in cov["needs"], cov["needs"]
+    for backend in ("pynec", "nec2"):
+        assert cov["refusals"][backend]["capability"] == "junction_ports", cov
+        assert "PortAtEnd" in cov["refusals"][backend]["reason"]
+    assert "nec5" not in cov["refusals"], (
+        "NEC-5's junction-port cell is None (not measured) and must not grey a tab"
+    )
+
+
+def test_a_vertex_port_design_greys_pynec_and_nec2_but_not_nec5():
+    """`dipoles.invvee_apex` is the catalog's only `PortAtVertex` design, and NEC-5
+    serves that natively (#898) — which is the whole reason the cells are per
+    backend rather than one sentence for the design."""
+    cov = adapter.design_backend_coverage("dipoles.invvee_apex")
+    assert "node_gaps" in cov["needs"], cov["needs"]
+    for backend in ("pynec", "nec2"):
+        assert cov["refusals"][backend]["capability"] == "node_gaps", cov
+        assert "PortAtVertex" in cov["refusals"][backend]["reason"]
+    assert "nec5" not in cov["refusals"], "NEC-5 serves a vertex port (#898)"
+
+
+def test_a_port_refusal_outranks_a_network_one():
+    """`wire.sterba_bl` needs BOTH. A port the engine has no card for is the more
+    basic refusal, and a user hovering a greyed tab should read that rather than a
+    narrower reason that is also true."""
+    cov = adapter.design_backend_coverage("wire.sterba_bl")
+    assert "network_reduction" in cov["needs"], cov["needs"]
+    assert cov["refusals"]["nec2"]["capability"] == "junction_ports", cov["refusals"]
+
+
+@pytest.mark.parametrize("capability", ["junction_ports", "node_gaps"])
+@pytest.mark.parametrize("kind", ["pynec", "nec5", "nec2"])
+def test_every_wrapper_kind_has_a_row_for_every_port_capability(capability, kind):
+    """Three states, not two (#1103): a wrapper ABSENT from a table would read as
+    "serves", which is the one answer that must never be inferred. `None` is
+    present and explicit where nothing has been measured."""
+    row = adapter._WRAPPER_PORT_SCOPE[capability]
+    assert kind in row, (capability, kind)
+    serves, reason, issue = row[kind]
+    assert serves in (True, False, None)
+    if serves is False:
+        assert reason and issue, (capability, kind)
+    else:
+        assert reason is None and issue is None, (capability, kind)
+
+
+def test_the_port_sentences_name_a_backend_that_does_serve_it():
+    """A greyed tab with no way forward is a dead end."""
+    for cap, design in (
+        ("junction_ports", "wire.sterba_bl"),
+        ("node_gaps", "dipoles.invvee_apex"),
+    ):
+        for backend in ("pynec", "nec2"):
+            reason = adapter.design_backend_coverage(design)["refusals"][backend][
+                "reason"
+            ]
+            assert "momwire" in reason, (cap, backend, reason)
+            if cap == "node_gaps":
+                assert "NEC-5" in reason, (cap, backend, reason)
+
+
+def test_the_probe_still_answers_a_useful_number_after_the_new_capabilities():
+    """The exclusion set grew by the two port capabilities, so the guard against a
+    vacuous agreement test has to be re-checked rather than assumed: the network
+    question must still be asked of most of the catalog."""
+    asked = sum(
+        1
+        for name in REGISTRY
+        if (cls := _design_cls(name)) is not None
+        and not (adapter._design_capability_needs(cls) & _EARLIER_CAPABILITY)
+    )
+    assert asked >= 80, asked
+    # And the two port designs are exactly what the exclusion covers beyond buried.
+    excluded = {
+        name
+        for name in REGISTRY
+        if (cls := _design_cls(name)) is not None
+        and (adapter._design_capability_needs(cls) & {"junction_ports", "node_gaps"})
+    }
+    assert excluded == {"wire.sterba_bl", "dipoles.invvee_apex"}, excluded
