@@ -24,6 +24,13 @@ from . import design_screen, design_trust
 USER_NS = "user"
 _MODULE_PREFIX = "antennaknobs._user_designs"
 
+# Antenna DATA files that count as designs in a user folder (issue #1419): a
+# NEC card deck or a SimNEC circuit dropped beside the ``.py`` designs shows
+# up as ``user.<stem>`` with no stub, through the same pure-data loader the
+# CLI's ``@file`` spec uses. Data never executes, so these bypass the trust
+# gate that Python designs go through.
+DECK_SUFFIXES = (".nec", ".ssn")
+
 
 def default_user_dir() -> Path:
     """The primary user-design folder: ``$ANTENNAKNOBS_USER_DIR`` if set,
@@ -69,6 +76,13 @@ def _is_design_file(path: Path) -> bool:
     return not (stem.startswith("_") or stem == "TEMPLATE")
 
 
+def is_deck_file(path: Path) -> bool:
+    """True for a data-file design (``.nec`` / ``.ssn``) as opposed to a
+    Python one — the two load differently and only the Python one needs
+    trusting."""
+    return path.suffix.lower() in DECK_SUFFIXES
+
+
 def load_builder(path: Path, *, trust: bool | None = None):
     """Import a single user file by path and return its ``Builder`` class.
     Re-executes the file on every call, so edits are picked up live.
@@ -80,7 +94,16 @@ def load_builder(path: Path, *, trust: bool | None = None):
     advisory screen report so a UI/CLI can show what the design does before the
     user decides — and is NOT executed. Pass ``trust=True`` to bypass the gate
     for a file you already vouch for (e.g. programmatic/test use).
+
+    A ``.nec`` / ``.ssn`` file is data, not code: it goes through
+    ``file_designs.builder_from_file`` (the CLI's ``@file`` loader), which
+    parses and never executes, so the trust gate does not apply and ``trust``
+    is ignored.
     """
+    if is_deck_file(path):
+        from .file_designs import builder_from_file
+
+        return builder_from_file(str(path))
     if trust is None:
         trust = design_trust.is_trusted(path)
     if not trust:
@@ -109,12 +132,20 @@ def load_builder(path: Path, *, trust: bool | None = None):
 
 def iter_design_files() -> Iterator[tuple[str, Path]]:
     """Yield ``(stem, path)`` for each user design file across all folders,
-    first-folder-wins on a duplicate stem (matching the web's priority order)."""
+    first-folder-wins on a duplicate stem (matching the web's priority order).
+
+    Within one folder the ``.py`` designs come first and the data-file designs
+    (``.nec`` / ``.ssn``, issue #1419) after them, so a stub beside its deck —
+    the documented ``my_yagi.py`` + ``my_yagi.nec`` recipe — is the design and
+    the bare deck of the same stem is not listed twice."""
     seen: set[str] = set()
     for d in user_design_dirs():
         if not d.is_dir():
             continue
-        for path in sorted(d.glob("*.py")):
+        entries = sorted(d.glob("*.py")) + sorted(
+            p for p in d.iterdir() if p.is_file() and is_deck_file(p)
+        )
+        for path in entries:
             if not _is_design_file(path):
                 continue
             if path.stem in seen:
