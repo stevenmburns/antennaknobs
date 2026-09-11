@@ -1,11 +1,11 @@
-# Security review of nec5_corpus.py version 1.6
+# Security review of nec5_corpus.py version 1.7
 
 Reviewed 2026-09-10 by Claude (Anthropic's model, working in Claude Code) at
 the request of the tool's author, Steven Burns, by reading the whole source
 of `scripts/nec5_corpus/nec5_corpus.py` and the build that freezes it. This
 file ships beside `nec5_corpus.exe` so that a reader can see, before running
 it, what the program can and cannot do to their machine. It is a code
-review, not a penetration test, and it speaks for **version 1.6 only**: the
+review, not a penetration test, and it speaks for **version 1.7 only**: the
 test suite refuses a version bump that does not re-state the version here,
 so a stale review cannot ship by accident.
 
@@ -32,8 +32,13 @@ it at. It uses nothing outside Python's standard library. Specifically:
   dynamic import, or compiled extension. 4nec2 `SY` expressions in decks
   are parsed by a small hand-written arithmetic evaluator, not by Python.
 - **Environment.** It reads a fixed list of thread-related environment
-  variables (`OMP_NUM_THREADS` and the like) to record in `check` reports,
-  and modifies none.
+  variables (`OMP_NUM_THREADS` and the like) to record in `check` reports. It
+  changes none of them in YOUR shell. Since 1.7 it does set three of them —
+  `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` — to `1` in the
+  environment it hands the engine, and only when `check --jobs` is above 1 and
+  only for variables you have not set yourself; the value used is recorded in the
+  report. That is a child process's environment, not the machine's, and it exists
+  so N concurrent engines do not each ask for every core.
 
 ## What each subcommand does
 
@@ -146,6 +151,23 @@ was already being rejected without an output file before this; only the word for
 it changed. Nothing new is read, written, or run, and the bundle is the one
 listed above.
 
+**What 1.7 changed, and this one DOES touch something the review describes.** For
+the first time a release here changes the ENVIRONMENT the engine runs in: with
+`check --jobs` above 1, three thread-count variables are set to `1` in the CHILD's
+environment unless you set them yourself, so N concurrent engines do not each
+claim every core (the measurement is in the README). Your own shell is untouched,
+no other variable is read or written, and the report records what was used. The
+**Environment** bullet above is corrected accordingly rather than left standing —
+it used to say this program modifies none, and that is no longer true.
+
+The rest of 1.7 is reading and refusing, and strictly less of both. `compare` now
+reads the row key its own writer writes — through 1.6 it read none, so every
+comparison reported "0 decks, 0 moved", a clean pass over nothing — and an empty
+comparison exits non-zero. A deck carrying a token that is not a number where NEC
+wants one is refused as unreadable instead of being written out with the token
+still in it. No new input is read, nothing new is written, no program is started,
+and the bundle is the one 1.4 listed.
+
 ## About the executable
 
 `nec5_corpus.exe` is this script frozen with PyInstaller (one-file mode)
@@ -181,7 +203,7 @@ To verify or rebuild:
 
 ## Limits of this review
 
-The review covers the script's own code as of version 1.6 and the build
+The review covers the script's own code as of version 1.7 and the build
 that freezes it. It does not cover Python, PyInstaller, Windows, or the
 NEC-5 engine you supply. It was done by reading, with the findings above
 confirmed by running the code (finding 1 was reproduced before it was
