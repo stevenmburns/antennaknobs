@@ -145,6 +145,33 @@ def test_the_crossover_sits_near_the_slope_angle(cuts):
     assert np.mean(below < -5.0) > 0.8, "the dark band is not contiguous"
 
 
+def test_the_facet_seam_stops_stepping(cuts):
+    """The other thing the composer fixes, and the one a chart shows first.
+
+    A specular model picks ONE facet per direction, so where the specular point
+    crosses a break the answer jumps — a real hill does not. On the downhill
+    side of a 45 degree hill that seam sits around 45-50 degrees of elevation
+    and steps by ~3 dB between adjacent whole degrees. The diffraction term at
+    that same break is what closes it.
+
+    Measured on probe9's 40 m hill at 1 degree resolution: the largest
+    one-degree jump across the seam band falls from 3.03 dB to 0.18 dB with the
+    mast mid-slope, and 2.01 to 0.29 at the crest. Asserted here on the preset
+    geometry and at this file's coarser grid, so the claim is about continuity
+    improving by a lot rather than about those particular decibels.
+    """
+    elev, _, _, s_dn, d_dn = cuts
+    order = np.argsort(elev)
+    e, spec, diff = elev[order], s_dn[order], d_dn[order]
+    band = (e >= 25.0) & (e <= 60.0)
+    step_spec = float(np.max(np.abs(np.diff(spec[band]))))
+    step_diff = float(np.max(np.abs(np.diff(diff[band]))))
+    assert step_diff < step_spec, (
+        f"largest step across the facet seam: specular {step_spec:.2f} dB, "
+        f"diffracted {step_diff:.2f} dB — the seam should get SMOOTHER"
+    )
+
+
 def test_the_downhill_side_barely_moves(cuts):
     """The direction with no hill in it is the control.
 

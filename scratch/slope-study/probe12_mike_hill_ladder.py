@@ -80,7 +80,7 @@ def solve_facet(cache, H, *, diffraction=False):
     )
 
 
-def panel(ax, H, level, facet, planar):
+def panel(ax, H, level, facet, planar, *, utd=False):
     def draw(th_deg, g, color, lw, ls, label):
         g = np.asarray(g, dtype=float)
         g = np.clip(np.where(np.isfinite(g), g, RMIN), RMIN, None)
@@ -100,9 +100,22 @@ def panel(ax, H, level, facet, planar):
     ang, gp = true_cut(planar, SLOPE)
     draw(np.asarray(ang), gp, C_PLANAR, 1.3, "-", "rotated sky (infinite 45° plane)")
     th, g = facet_line(facet)
-    draw(th, g, C_FACET, 1.8, "-", "facet model, mast mid-slope")
-    th_s = np.radians(np.linspace(180.0 - SLOPE, 180.0, 40))
-    ax.fill_between(th_s, RMIN, RMAX, color=MUTED, alpha=0.14, hatch="///", lw=0)
+    draw(
+        th,
+        g,
+        C_FACET,
+        1.8,
+        "-",
+        "facet model + shadowing and diffraction"
+        if utd
+        else "facet model, mast mid-slope",
+    )
+    if not utd:
+        # The hatch disclaims the band behind the crest, which the specular
+        # model answers straight through. The diffracted page answers it
+        # properly, so hatching there would disclaim the fix.
+        th_s = np.radians(np.linspace(180.0 - SLOPE, 180.0, 40))
+        ax.fill_between(th_s, RMIN, RMAX, color=MUTED, alpha=0.14, hatch="///", lw=0)
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_thetamin(0)
@@ -251,7 +264,7 @@ def main():
     for H, (cx, top) in zip(HILLS, slots, strict=True):
         cy = top - r_h / 2  # 0–180 wedge centred in a square box: top at cy + r_h/2
         ax = fig.add_axes([cx - w / 2, cy - h / 2, w, h], projection="polar")
-        panel(ax, H, level, facets[H], planar)
+        panel(ax, H, level, facets[H], planar, utd=utd)
         handles = ax.get_legend_handles_labels()
         fig.text(
             cx,
@@ -281,19 +294,36 @@ def main():
         frameon=False,
         ncol=1,
     )
+    blue = (
+        "Blue is the terrain model with shadowing, the source imaged across each facet's own plane, and UTD "
+        "wedge diffraction at the crest and the toe: the antenna solved on level ground with the local soil, "
+        "nothing read below the horizontal. "
+        if utd
+        else "Blue is the specular-facet terrain model: the antenna solved on level ground with the local "
+        "soil, each far-field direction reflected off the facet its specular point lands on, no diffraction, "
+        "nothing read below the horizontal. "
+    )
+    tail = (
+        "Uphill below the slope angle is no longer hatched and is no longer bright: the hill is in the "
+        "calculation now, so that band is a shadow rather than a field reported straight through 45° of "
+        "hillside, and it reads far lower than the specular page's. Read the ladder for how the downhill comb "
+        "moves with relief; uphill, read it for the shape of the shadow, not the last decibel."
+        if utd
+        else "Hatched: uphill below the slope angle, behind the crest, quoted by no model here."
+    )
     fig.text(
         0.07,
         0.015,
-        "How to read it. Blue is the specular-facet terrain model: the antenna solved on level ground with the local "
-        "soil, each far-field direction reflected off the facet its specular point lands on, no diffraction, nothing "
-        "read below the horizontal. Orange is the same antenna on an infinite 45° plane, solved in the tilted frame "
+        "How to read it. "
+        + blue
+        + "Orange is the same antenna on an infinite 45° plane, solved in the tilted frame "
         "and read in the true one; its main lobe sits below the horizontal, off this half-disc, so the orange line is "
         "only that lobe's upper skirt. Above the horizontal "
         "a ray shallower than the slope passes over it and reaches the plain, so what the facet model draws downhill "
         "is the direct ray plus the plain's reflection from a mirror H/2 below the mast: at half a wavelength of relief "
         "that is one broad null near 20°; as the relief grows the null multiplies into the height-gain comb of a tall "
         "antenna, sliding toward the horizon, while the gain right at the horizon settles near the rotated sky's value. "
-        "Hatched: uphill below the slope angle, behind the crest, quoted by no model here.",
+        + tail,
         fontsize=7.4,
         color=INK2,
         wrap=True,
