@@ -1823,8 +1823,10 @@ class MomwireEngine(SimulationEngine):
             sec_idx = terrain.sector_for(np.degrees(phi))
             if terrain.diffraction:
                 # Issue #1373: shadowing, the exact tilted-mirror reflection
-                # and UTD wedge diffraction at the facet breaks. Opt-in; the
-                # specular path below is #534's and stays bit-identical.
+                # and UTD wedge diffraction at the facet breaks. This is the
+                # DEFAULT branch since the #1373 follow-up; the specular path
+                # below is #534's, reached by a caller that names
+                # diffraction=False, and stays bit-identical for it.
                 return self._terrain_utd_power(
                     terrain,
                     sec_idx,
