@@ -45,6 +45,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
 
+from antennaknobs.engines.momwire import terrain_utd_power
 from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
 from antennaknobs import in_medium
 
@@ -407,20 +408,20 @@ def _moment_segments(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     )
 
 
-def _terrain_from_packed(d: dict) -> Terrain:
+def _terrain_from_packed(d: dict, *, diffraction: bool = False) -> Terrain:
     """Rebuild the faceted terrain from a response's `ground_terrain` field
     (the adapter's _pack_terrain). Validation lives in the terrain
     dataclasses — bad client data raises ValueError/TypeError/KeyError,
     which the /cuts endpoint maps to a 400.
 
-    `diffraction=False`: the packed form carries facets only, never the flag,
-    so a cut must be told which field it is a cut OF. It is the specular one
-    here, matching `_terrain_from_request` — a cut and the grid it is read
-    against have to come from the same field. See that function for why the
-    web path pins it and which PR moves the pin.
+    The packed form carries facets only, NEVER the flag, so a caller has to
+    say which field it wants a cut of — there is no default to inherit and no
+    way to recover the choice from the wire. `diffraction` defaults to False
+    because that is the field a drag draws; the settled request asks for True
+    (issue #1373's dwell path) and the response says which it got.
     """
     return Terrain(
-        diffraction=False,
+        diffraction=diffraction,
         sectors=tuple(
             Sector(
                 az0=float(s["az0"]),
@@ -478,6 +479,114 @@ def _terrain_ray_geometry(terrain: Terrain, rhat, mid, dr, i_mid):
     )
 
 
+# Below this |sin(elevation)| a direction is treated as ON the horizon by the
+# diffracted composer, and left at zero for the caller to floor.
+#
+# Not a fudge factor — the measured edge of a real failure. Under about this
+# elevation the specular point has run past ~6e9 m and `terrain_utd.reflections`
+# no longer resolves a reflected path at all, so the composer returns the DIRECT
+# wave alone. Over a lossy half-space the grazing field goes to zero (both
+# Fresnel coefficients tend to −1 and cancel the direct wave), so direct-only is
+# the one answer that is wrong in the worst direction: on a flat terrain it
+# reported +1.761 dBi where the specular composer correctly reports −298.
+#
+# It is not measure-zero either, which is why it needs handling rather than a
+# caveat: the elevation cut's great-circle parameter passes through t = 180°
+# exactly on every request, and sin(180°) is +1.2e-16 in float — above the
+# horizon by arithmetic, so not floored, and a +1.8 dBi spike on the horizon of
+# every diffracted elevation cut.
+#
+# Measured 2026-09-10 on the flat single-facet terrain, sweeping rz by decades:
+# the direct-only answer appears at rz <= 1e-9 and the composer agrees with the
+# specular path exactly from rz >= 1e-8 up. The threshold sits on the clean side
+# of that boundary. It corresponds to an elevation of 5.7e-7 degrees, where the
+# field is already 139 dB below the peak — far below the chart's floor, and far
+# below anything #744's refinement can ask for (its minimum segment is about a
+# pixel and a half of a 380 px polar plot).
+_UTD_GRAZING_RZ = 1e-8
+
+
+def _utd_mag2(
+    terrain: Terrain,
+    rhat: np.ndarray,
+    h_hat: np.ndarray,
+    v_hat: np.ndarray,
+    M_perp: np.ndarray,
+    mid,
+    dr,
+    i_mid,
+    k: float,
+    omega: float,
+) -> np.ndarray:
+    """|M_perp|² at arbitrary directions through the DIFFRACTED composer.
+
+    `momwire.terrain_utd_power` is the one implementation of the #1373 physics
+    — shadowing, tilted-mirror reflections, UTD wedge diffraction — and it is
+    written over a separable (theta, phi) grid, because the profile a ray has
+    to clear is a property of its azimuth. What arrives here is the opposite:
+    an unstructured direction set, made more unstructured by #744's refinement
+    of either polar circle onto an explicit non-uniform angle list.
+
+    So the directions are GROUPED BY AZIMUTH and each group is evaluated as a
+    one-column grid. Nothing is interpolated and nothing is evaluated at an
+    azimuth it does not belong to; the cost is exactly one call per distinct
+    azimuth, which for the two polar cuts is three (the azimuth circle sits at
+    one elevation, and the elevation great circle uses one bearing above the
+    horizon and the opposite one on the other side of the zenith).
+
+    That this is exact is `tests/test_terrain_utd_slicing_1373.py`, not an
+    assumption: the composer chunks columns and derives its sector pairing over
+    the whole phi array, so a narrow call takes a different route through it
+    than the same column takes inside a wide one.
+
+    Below-horizon directions are skipped rather than evaluated. The caller
+    floors them, so their value is never read — and on the elevation cut that
+    is half the samples. Directions within float slop OF the horizon are
+    skipped for a different and load-bearing reason: see `_UTD_GRAZING_RZ`.
+    """
+    flat = rhat.reshape(-1, 3)
+    n = flat.shape[0]
+    h_f = h_hat.reshape(-1, 3)
+    v_f = v_hat.reshape(-1, 3)
+    m_f = M_perp.reshape(-1, 3)
+    rz = flat[:, 2]
+    theta_all = np.arccos(np.clip(rz, -1.0, 1.0))
+    # Quantised so directions meant to share a bearing DO, whatever float
+    # route produced them: the azimuth circle's samples are built from one
+    # cos/sin pair, but a refined elevation cut's are not, and two bearings
+    # differing in the 15th digit would otherwise buy two composer calls and
+    # two independent ray-geometry builds for one physical azimuth.
+    phi_all = np.round(np.arctan2(flat[:, 1], flat[:, 0]), 9)
+    power = np.zeros(n)
+    above = rz > _UTD_GRAZING_RZ
+    for ph in np.unique(phi_all[above]):
+        sel = above & (phi_all == ph)
+        phi = np.array([float(ph)])
+        col = np.s_[:, None, :]
+        power[sel] = terrain_utd_power(
+            terrain,
+            terrain.sector_for(np.degrees(phi)),
+            mid,
+            dr,
+            i_mid,
+            k,
+            omega,
+            theta_all[sel],
+            phi,
+            flat[sel][col],
+            h_f[sel][col],
+            v_f[sel][col],
+            m_f[sel][col],
+            # The surface sits at z=0 in a response's frame — the same
+            # assumption the PEC image in `_mag2_at_directions` is built on
+            # (`mid * [1, 1, -1]`), so the two composers cannot disagree
+            # about where the ground is.
+            0.0,
+            None,  # h_ref: the per-segment treatment has no reference height
+        )[:, 0]
+    return power.reshape(rhat.shape[:-1])
+
+
 def _mag2_at_directions(
     out: dict,
     rhat: np.ndarray,
@@ -486,6 +595,7 @@ def _mag2_at_directions(
     dr=None,
     i_mid=None,
     terrain_pec: bool = False,
+    diffraction: bool = False,
 ):
     """|M_perp|² at arbitrary far-field directions — the single server-side
     implementation of the pattern physics (issue #547; the frontend's JS
@@ -502,6 +612,19 @@ def _mag2_at_directions(
     forced to a perfect reflector (ρ_h=−1, ρ_v=+1). The reference integral
     for the terrain ground-absorption ledger: the real/PEC power ratio
     cancels the geometric restructuring and isolates media absorption.
+
+    diffraction (faceted-terrain responses only): compose the #1373 field —
+    shadowing, tilted mirrors, UTD wedge diffraction — instead of #534's
+    specular one, via `_utd_mag2`. Everything below this branch is the
+    specular composer; the diffracted one is complete in itself and returns
+    directly, since it recomputes the direct term per segment rather than
+    correcting a reflected wave onto it.
+
+    `terrain_pec` and `diffraction` are mutually exclusive, and asserted so.
+    The PEC ledger's whole point is a ratio against a reference that differs
+    ONLY in the media, and the composer has no PEC mode — so a diffracted
+    numerator over a specular denominator would silently report the
+    geometric restructuring the ratio exists to cancel.
     """
     k = float(out["k_meas_m_inv"])
     ground_on = bool(out.get("ground", False))
@@ -561,6 +684,20 @@ def _mag2_at_directions(
         M_img_v = np.sum(M_img_perp * v_hat, axis=-1)
 
         terr = out.get("ground_terrain")
+        if terr and diffraction:
+            assert not terrain_pec, "the PEC ledger has no diffracted reference"
+            return _utd_mag2(
+                _terrain_from_packed(terr, diffraction=True),
+                rhat,
+                h_hat,
+                v_hat,
+                M_perp,
+                mid,
+                dr,
+                i_mid,
+                k,
+                2.0 * np.pi * float(out["measurement_freq_mhz"]) * 1e6,
+            )
         if terr:
             # Faceted terrain (issue #534): per ray, find the facet the
             # specular point lands on, shift the image plane to the facet
@@ -659,6 +796,7 @@ def _pattern_cuts(
     i_mid=None,
     az_angles_deg=None,
     elev_angles_deg=None,
+    diffraction: bool = False,
 ) -> dict | None:
     """The two polar-chart traces (issue #547): the azimuth cut at elevation
     `az_elev_deg` and the great-circle elevation cut through azimuth
@@ -712,7 +850,9 @@ def _pattern_cuts(
     # different sample counts, and one evaluation over (n_az + n_el, 3) is
     # the same work as two.
     rhat = np.concatenate([az_rhat, el_rhat], axis=0)
-    mag2 = _mag2_at_directions(out, rhat, mid=mid, dr=dr, i_mid=i_mid)
+    mag2 = _mag2_at_directions(
+        out, rhat, mid=mid, dr=dr, i_mid=i_mid, diffraction=diffraction
+    )
     if bool(out.get("ground", False)):
         mag2 = np.where(rhat[..., 2] < 0.0, 0.0, mag2)
 
@@ -726,6 +866,12 @@ def _pattern_cuts(
         "floor_dbi": _CUT_FLOOR_DBI,
         "azimuth": [round(float(v), 3) for v in dbi[: len(t_az)]],
         "elevation": [round(float(v), 3) for v in dbi[len(t_az) :]],
+        # Which FIELD these samples are of. Absent-means-specular would have
+        # worked for the wire, but not for the chart: the label the user reads
+        # ("specular while dragging" / "with diffraction") is only honest if it
+        # is driven by what the server actually composed, and a drag and a
+        # settle land in the same client-side cache keyed by solve and angles.
+        "diffraction": bool(diffraction),
     }
     if az_angles_deg is not None:
         cuts["az_angles_deg"] = [round(float(a), 6) for a in np.degrees(t_az)]

@@ -32,6 +32,7 @@ function uniformCuts(n: number, az = 15, el = 0): PatternCuts {
     floor_dbi: -999,
     azimuth: dbi,
     elevation: dbi,
+    diffraction: false,
   };
 }
 
@@ -46,6 +47,7 @@ function cutsAtAngles(anglesDeg: number[], az = 15, el = 0): PatternCuts {
     elevation: dbi,
     az_angles_deg: anglesDeg,
     elev_angles_deg: anglesDeg,
+    diffraction: false,
   };
 }
 
