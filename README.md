@@ -448,7 +448,10 @@ a licensed NEC-5 (EZNEC Pro+ keeps its engine in its own Docs folder, as
 `NEC5CL_x13.exe` — the suffix is the build), set
 `$env:NEC5_EXE = "C:\EZNEC 7.0\Docs\NEC5CL_x13.exe"` in the same window
 before starting the server and the NEC-5 tab appears; see the
-[NEC-5 page](https://antennaknobs.dev/reference/nec5/).
+[NEC-5 page](https://antennaknobs.dev/reference/nec5/). A NEC-2 console
+binary joins the same way through `NEC2_EXE` — 4nec2 ships one, as
+`$env:NEC2_EXE = "C:\4nec2\exe\nec2dxs11.exe"` — and the NEC-2 tab appears;
+see the [NEC-2 page](https://antennaknobs.dev/reference/nec2/).
 
 The lines above are PowerShell (its prompt starts with `PS`). In **Command
 Prompt** (prompt `C:\Users\you>`), the `$env:` form is not understood — it
