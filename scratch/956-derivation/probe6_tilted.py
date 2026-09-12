@@ -8,31 +8,33 @@ showed the mask is not the whole story on a LEANING test member (drift grew
     E^V  = C1 [ k^2 V zhat  -  grad W  +  grad(-dz'V) ]        (vertical source)
     E^Hx = C1 [ U xhat  +  dxW zhat   +  grad(dxV) ]           (horizontal source)
 
-so, tested along the wire and by parts on both sides, the EXACT sandwich is
+so, tested along the wire and by parts on both sides (t.grad = d/dl on the
+test, t'.grad' = d/dl' on the source, tx' dx' = d/dl' - tz' dz' on the z dxW
+term), the EXACT sandwich for ANY orientations is
 
     s_u                                     (as shipped)
-  + (F tz)_A  k^2 V  (F tz)_B               (k^2 V ALONE -- no dzW)
-  + (F tz)_A   W   ((1 - tz^2) F')_B        (source TRANSVERSE charge)
-  +   F'_A     W    (F tz)_B                (FULL test charge)
+  + (F tz)_A (k^2 V + dz'W) (F tz)_B        (the W derivative on the SOURCE coordinate)
+  + (F tz)_A   W   F'_B                     (full source charge)
+  +   F'_A     W  (F tz)_B                  (full test charge)
   - F'_A V F'_B                             (as shipped)
-  + BT + SQ + CORNER                        (as shipped)
-  + SW  on the source ends x (1 - tz'^2)    (the W end of the source by-parts)
-  + TW  on the TEST ends: -c1 sigma f_m(E) INT f_n tz' W(E, .)   (NEW)
+  + BT + SQ + CORNER + SW                   (as shipped)
+  + TW on the TEST ends: -c1 sigma f_m(E) INT f_n tz' W(E, .)   (NEW)
 
-On a VERTICAL test the pair (k^2V - dzW) equals (k^2V + s_w2 + TW) by parts, so
-the shipped s_zz and the mask fix coincide there and every vertical-radiator
-number stands. On a leaning test they differ by
--tz(1-tz)(2+tz) INT f_m dzW f_n + tz^2 tx INT f_m dxW f_n.
+Per lambda on a vertical pair k^2 + g-(g+-g-) - g-(g+-g-) + g+(g+-g-) + g+g- =
+lam^2 and every end term cancels. The shipped k^2V - dzW was the by-parted form
+of the test-side W term on a VERTICAL test, so s_w2 counted it twice there
+(#956's rise residual) and it was wrong on a leaning member; the transverse
+mask of probes 1-5 is this form's axis-aligned special case.
 
 This probe builds a NON-crossing deck with a TILTED above wire and a TILTED
 below wire (plus an off-axis horizontal control), where the solver's own cross
 quadrant is the transmitted-grid field form, and compares against it:
 
-    exact   = the branch's `cross_complete_block` (general spelling)
+    exact   = the branch's `cross_complete_block` (the symmetric spelling)
     mask    = probe2's mask-only patch (transverse mask on s_w2 + SW)
 
-Expected: exact agrees to the grid's accuracy (~1e-5) on every block; mask
-departs on the tilted x tilted block.
+Measured: exact agrees to the grid's accuracy (1.2e-5) at every lean; the mask
+departs by up to 8e-3 whenever either member leans.
 """
 
 import os
