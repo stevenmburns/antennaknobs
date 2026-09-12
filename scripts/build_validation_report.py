@@ -1179,7 +1179,7 @@ refusal or a flag, not a number.
 | limit | treatment |
 | --- | --- |
 | Surface patches (SM/SP) | Not modelled. Patch decks refuse at import with the feature named. |
-| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground — and, for every class below, on the `sinusoidal-galerkin` lane since momwire 0.52.0, a second basis sharing no fill code below the interface: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane (the surface class — radials lying *on* the ground — is served instead as the elevated family at an explicit small height, momwire#872; see below); a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5, asked with its documented below-ground card, differs from momwire on the buried-radial vertical's connected deck by a converged 2 Ω in resistance (about 2 + 5j Ω; 77.8+44.5j against 75.8+40.5j Ω at the design's defaults) that does not change with radial count or radial length — about 3 % at four radials and 4.5 % at twelve only because the resistance itself falls as radials are added; the difference scales with the length of conductor inside the soil and has no lumped term at the crossing node (momwire#931) and on the wholly buried dipole to 0.2 % in resistance across depths; on the elevated-detached class, which both serve as the same problem, they agree at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The one buried spelling NEC-5 has no documented answer for is a conductor stopping on the interface above buried wires (the `detached` variant), which momwire refuses by name on its own physics. The PyNEC lane is gated off buried decks: nec2++ solves a buried wire as though it were in air and returns a plausible number, so the app withholds it with a sentence rather than serve it. The validation stance below ground is its own paragraph under this table. |
+| Buried wires / below-ground conductors | **Served** on the momwire `bspline` lane over the Sommerfeld ground — and, for every class below, on the `sinusoidal-galerkin` lane since momwire 0.52.0, a second basis sharing no fill code below the interface: impedance, currents and charges for wires strictly below the interface (buried radials and screens, buried fed elements, elevated feeds over buried counterpoises), and an above-ground wire joined at the surface to buried wires at a declared junction (the connected radial screen). **Refused by name:** a wire crossing the interface mid-span; ground-contact wires mixed with buried wires; a wire lying *in* the interface plane (the surface class — radials lying *on* the ground — is served instead as the elevated family at an explicit small height, momwire#872; see below); a buried structure whose opposite tips are more than 4 in-medium wavelengths apart (the below/below remainder is tabulated to that range and grows with distance beyond it, so there is no honest clamp); and near fields / patterns of buried decks. A licensed local NEC-5, asked with its documented below-ground card, agrees with momwire on the buried-radial vertical's connected deck to a fraction of an ohm in resistance (78.1+46.3j against 77.8+44.5j Ω at the design's defaults: 0.3 Ω in R at the shipped mesh, 0.2 Ω at twice it), on the wholly buried dipole to 0.2 % in resistance across depths, and on the elevated-detached class, which both serve as the same problem, at the 0.2–2 Ω level converged ([the buried-radials study](/advanced/buried-radials/)). The one buried spelling NEC-5 has no documented answer for is a conductor stopping on the interface above buried wires (the `detached` variant), which momwire refuses by name on its own physics. The PyNEC lane is gated off buried decks: nec2++ solves a buried wire as though it were in air and returns a plausible number, so the app withholds it with a sentence rather than serve it. The validation stance below ground is its own paragraph under this table. |
 | Electrically tiny, fat-conductor loops (magloop class) | Kernel-sensitive beyond any single-kernel read — reduced vs extended thin-wire kernels move results both ways by amounts that swamp formulation agreement. Census rows carry a kernel-sensitivity flag rather than a false-precision number. |
 | `sin` basis on junction fans | A documented instability class on multi-wire junction geometries. bs2 is the default and census basis; `sin` remains available with the caveat attached. |
 | Stepped-radius decks scored against NEC-2 references | The reference is the suspect (two independent formulations agree against it). Census rows carry the stepped-radius flag and score against NEC-5 mutually instead of pretending the nec2c number is truth. |
@@ -1195,13 +1195,8 @@ The cross-engine leg is a licensed NEC-5 asked with its documented
 below-ground card: on the wholly buried fed dipole the two engines agree to
 0.2 % in resistance at 0.15, 1 and 2 m depth (146.4+44.4j against
 146.6+44.7j Ω at 0.15 m). On the bonded-base vertical over buried radials
-the two engines differ by a converged 2 Ω in resistance (about 2 + 5j Ω)
-that does not change with radial count or radial length — about 3 % at
-four radials and 4.5 % at twelve only because the resistance itself falls
-as radials are added. The difference scales with the length of conductor
-inside the soil and has no lumped term at the crossing node; it is real,
-not convergence: NEC-5 refines away from momwire, and its single-mesh
-figures (2.6 % / 3.9 %) understate it (momwire#931). The third leg is
+at the catalog's defaults they agree to 0.3 Ω in resistance at the shipped
+mesh and 0.2 Ω at twice it. The third leg is
 in-house and arrived with momwire 0.52.0: the sinusoidal-Galerkin basis
 serves the wholly buried and the mixed classes from its own fill, sharing no
 below-interface code with `bspline`, and the two bases are gated to agree
@@ -1228,14 +1223,14 @@ Against Fig. 36 (135 ft radials; 3 MHz, 21.4 m mast, No. 8 copper throughout,
 
 | N | 2 | 15 | 30 | 60 | 113 |
 |---|---|---|---|---|---|
-| momwire | 84.11 | 35.37 | 30.52 | 27.30 | 25.22 |
+| momwire | 84.97 | 36.21 | 31.36 | 28.13 | 26.05 |
 | NEC-5 | 87.69 | 37.83 | 32.79 | 29.44 | 27.25 |
 | Fig. 36 | ≥50 | 34 | 30 | 26 | 24.3 |
 
-momwire is within 1.4 Ω at every rung there; NEC-5 has the same shape, steep
+momwire is within 2.2 Ω at every rung there; NEC-5 has the same shape, steep
 below N = 15 and flat past N = 30, and sits 2–4 Ω above the figure. Against Fig. 37 (45 ft radials) the gate
 pins the shape — steep fall, knee near N = 15, plateau — with the plateau
-inside ±6 Ω of the figure and momwire about 4 Ω low; a decade-worse soil fails
+inside ±6 Ω of the figure and momwire about 2–3 Ω low; a decade-worse soil fails
 that envelope, which is what makes it a gate. Two residuals are recorded rather
 than smoothed: the permittivity assumption alone is worth about 3.6 Ω, and the
 measured benefit of the longer radials (6.7 Ω at N = 113) comes out at 1.75 Ω,
@@ -1246,7 +1241,7 @@ ordering of input resistance against radial count; the input impedance at the
 design's knob corners to the mesh tolerance the gate holds (0.10 Ω, which
 catches a 3× coarsening and not a 2×); and the radiated fraction as a
 self-consistency bound — it never exceeds one, and burying more radials raises
-it (0.077 → 0.170 from one radial to four on the catalog soil), with the
+it (0.076 → 0.165 from one radial to four on the catalog soil), with the
 far-field integral cross-checked against nec2++ on an above-ground deck both
 engines serve, to about 0.1 % in radiated power for a fixed drive.
 

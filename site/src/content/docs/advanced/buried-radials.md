@@ -214,8 +214,8 @@ impedances above are what the engine solves, and on those the two agree.
 - **Where the two engines stand below ground** (September 2026). On the
   1937 geometry NEC-5's radial-count law has the measured shape, steep at
   low radial count and flat past about thirty, and on a bonded-base
-  vertical over buried radials the two engines agree to a few percent in
-  resistance. The NEC-5 column in the drop-in table above was captured with one
+  vertical over buried radials the two engines agree to a fraction of an
+  ohm in resistance. The NEC-5 column in the drop-in table above was captured with one
   setting of the engine's ground card; with its documented below-ground
   setting the buried-radial decks move by up to 1.7 % in impedance — the
   same size as the coupling itself, which is why the coupling section
