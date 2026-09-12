@@ -9,6 +9,7 @@ export function SolverSlotTabs({
   backend,
   currentOpts,
   nPerWire,
+  fixedSegmentCounts = false,
 }: {
   slots: Record<Slot, SlotConfig>;
   activeSlot: Slot;
@@ -17,12 +18,16 @@ export function SolverSlotTabs({
   backend: BackendEntry;
   currentOpts: BackendOpts;
   nPerWire: number;
+  /** AK#1432: the design's wires carry their own counts (file designs), so
+   *  the label says so instead of showing an N that does nothing. */
+  fixedSegmentCounts?: boolean;
 }) {
+  const nLabel = (n: number) => (fixedSegmentCounts ? "deck's own" : String(n));
   return (
     <div className="field">
       <label>
         <span>solver slot</span>
-        <span>{backendDisplayLabel(backend, currentOpts)} · N={nPerWire}</span>
+        <span>{backendDisplayLabel(backend, currentOpts)} · N={nLabel(nPerWire)}</span>
       </label>
       <div className="backend-tabs" role="tablist">
         {SLOT_ORDER.map((s) => {
@@ -32,9 +37,9 @@ export function SolverSlotTabs({
               <button
                 role="tab"
                 aria-selected={activeSlot === s}
-                aria-label={`Solver slot ${s}: ${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${cfg.opts.nPerWire}`}
+                aria-label={`Solver slot ${s}: ${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${nLabel(cfg.opts.nPerWire)}`}
                 className={`backend-tab-btn ${activeSlot === s ? "active" : ""}`}
-                title={`${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${cfg.opts.nPerWire}`}
+                title={`${backendDisplayLabel(cfg.backend, cfg.opts)}, N=${nLabel(cfg.opts.nPerWire)}`}
                 onClick={() => onSelect(s)}
               >
                 <span className="slot-letter">{s}</span>

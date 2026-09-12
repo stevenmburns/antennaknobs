@@ -488,7 +488,8 @@ function DesignSessionBody({
     soilForRequest,
     soilKey,
   } = useGroundConfig({ backend, soilRanges, soilPresets });
-  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nPerWire} · ${groundSummary}`;
+  const nLabel = currentExample?.fixed_segment_counts ? "deck's own" : String(nPerWire);
+  const tabSummary = `${(currentExample?.label ?? geometry) || "new design"} · ${backendDisplayLabel(backend, currentOpts)} N=${nLabel} · ${groundSummary}`;
   useEffect(() => {
     reportSummary(id, tabSummary);
   }, [id, tabSummary, reportSummary]);
@@ -1238,6 +1239,32 @@ function DesignSessionBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExample]);
 
+  // Ground SEED (AK#1432): a file design's deck says what ground it models
+  // (GE 0 = free space, GE 1 / GN 1 = perfect, GN 0 / GN 2 = finite with the
+  // card's medium), so the switch starts where the deck is instead of at the
+  // app's default finite ground — which had NEC-5 refusing a free-space
+  // dipole at z = 0 until the user unticked ground by hand. Same key and
+  // same contract as the requirement seed above: fires on the design switch
+  // only, and the user can change anything afterwards.
+  useEffect(() => {
+    const seed = currentExample?.ground_seed ?? null;
+    if (!seed) return;
+    if (seed === "free") {
+      setGroundEnabled(false);
+      return;
+    }
+    setGroundEnabled(true);
+    if (seed === "pec") {
+      setGroundType("pec");
+      return;
+    }
+    setGroundType("finite");
+    setFiniteGroundMethod(seed === "fast" ? "fast" : "sommerfeld");
+    const m = currentExample?.ground_medium ?? null;
+    if (m && setSoil) setSoil({ eps_r: m.eps_r, sigma: m.sigma });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentExample]);
+
   function selectBand(nextKey: string) {
     const nb = currentBands.find((b) => b.key === nextKey);
     if (!nb) return;
@@ -1806,6 +1833,7 @@ function DesignSessionBody({
           backend={backend}
           currentOpts={currentOpts}
           nPerWire={nPerWire}
+          fixedSegmentCounts={currentExample?.fixed_segment_counts ?? false}
         />
 
         <GroundPanel
@@ -1826,6 +1854,8 @@ function DesignSessionBody({
           soilPresets={soilPresets}
           soilRanges={soilRanges}
           groundRequirement={currentExample?.ground_requirement ?? null}
+          groundSeed={currentExample?.ground_seed ?? null}
+          groundMedium={currentExample?.ground_medium ?? null}
         />
 
         {gearOpen && (

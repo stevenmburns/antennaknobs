@@ -3204,6 +3204,19 @@ def _variant_params(cls, variant: str | None) -> dict:
     return resolve_variant_params(cls, variant)
 
 
+def _ui_medium(default_params: dict):
+    """`ui_params["ground_medium"]` as {"eps_r": float, "sigma": float}, or
+    None when absent or malformed (a file design's GN medium, AK#1432)."""
+    ui = default_params.get("ui_params") or {}
+    m = ui.get("ground_medium")
+    if not isinstance(m, dict):
+        return None
+    try:
+        return {"eps_r": float(m["eps_r"]), "sigma": float(m["sigma"])}
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _ui_scalar(default_params: dict, key: str, default):
     ui = default_params.get("ui_params") or {}
     if key in ui and not isinstance(ui[key], dict):
@@ -4710,6 +4723,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         ground_requirement=(
             str(gr) if (gr := _ui_scalar(dp, "ground_requirement", None)) else None
         ),
+        # AK#1432: what a file design's deck says about ground, and that its
+        # wires carry their own counts. `ground_medium` is a dict, which
+        # `_ui_scalar` deliberately skips, so it is read directly.
+        ground_seed=(str(gs) if (gs := _ui_scalar(dp, "ground_seed", None)) else None),
+        ground_medium=_ui_medium(dp),
+        fixed_segment_counts=bool(_ui_scalar(dp, "fixed_segment_counts", False)),
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,

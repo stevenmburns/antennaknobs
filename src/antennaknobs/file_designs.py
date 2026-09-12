@@ -60,11 +60,29 @@ def _seed_freq(freq_range):
 
 
 def _make_builder(
-    stem, freq, meas_range, notes, wires_fn, network_fn, *, extended_kernel=False
+    stem,
+    freq,
+    meas_range,
+    notes,
+    wires_fn,
+    network_fn,
+    *,
+    extended_kernel=False,
+    ground=None,
+    ground_method=None,
 ):
     ui: dict = {}
     if meas_range:
         ui["meas_freq_range"] = tuple(meas_range)
+    # AK#1432: the deck says what ground it models, so the folder route seeds
+    # the app's switch from it instead of the app's default finite ground
+    # (which made NEC-5 refuse a free-space dipole at z = 0). The wires carry
+    # the deck's own segment counts, which the app honours regardless of its
+    # per-wire N — the flag lets the label say so.
+    ui["ground_seed"], medium = ground_seed(ground, ground_method)
+    if medium is not None:
+        ui["ground_medium"] = medium
+    ui["fixed_segment_counts"] = True
     note = " ".join(n for n in notes if n)
     if note:
         ui["notes"] = note
@@ -83,6 +101,9 @@ def _make_builder(
         # extended thin-wire kernel gets it without an extra flag, and a
         # deck that doesn't still honors an explicit `--extended-kernel`.
         file_extended_kernel = extended_kernel
+        # The deck's ground in the CLI's `--ground` shape (AK#1432): the
+        # `@file` route applies it when `--ground` is not given.
+        file_ground = ground
 
         def build_wires(self):
             return wires_fn()
@@ -107,7 +128,23 @@ def _nec_builder(path: Path, text: str):
         lambda: deck.wire_tuples(specs=True),
         deck.network,
         extended_kernel=deck.extended_kernel,
+        ground=deck.ground_spec,
+        ground_method=deck.ground_method,
     )
+
+
+def ground_seed(ground, method=None):
+    """The ``ui_params`` pair a file design publishes for the app (AK#1432):
+    ``(seed, medium)`` with seed one of "free" / "pec" / "sommerfeld" /
+    "fast" and medium ``{"eps_r", "sigma"}`` for the finite seeds, None
+    otherwise. `ground` is the CLI's `--ground` shape."""
+    if ground is None:
+        return "free", None
+    if ground == "pec":
+        return "pec", None
+    kind, eps_r, sigma = ground
+    seed = "fast" if kind == "finite-fast" else (method or "sommerfeld")
+    return seed, {"eps_r": float(eps_r), "sigma": float(sigma)}
 
 
 def _ground_note(ground) -> str | None:
@@ -149,6 +186,8 @@ def _ssn_builder(path: Path, text: str):
         lambda: deck.wire_tuples(specs=True),
         circuit.network,
         extended_kernel=deck.extended_kernel,
+        ground=circuit.ground,
+        ground_method="sommerfeld",
     )
 
 
