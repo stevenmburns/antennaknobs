@@ -26,10 +26,8 @@ momwire's B-spline lane alone, and `detached` (the stake convention: radials
 lying in the dirt, touching nothing) is refused by every engine here — momwire
 by name, and the NEC-5 wrapper because a conductor that stops on the interface
 above buried wires has no documented ground-card spelling. On the shared
-default the two engines agree to a few percent in resistance (about 2 Ω at
-40 m over average soil, converged on both sides and independent of radial
-count), and that residue is the two interface-node models. Same deck, two
-node models, one small number.
+default the two engines agree to a fraction of an ohm in resistance (0.3 Ω
+at 40 m over average soil at the shipped mesh, 0.2 Ω at twice it).
 A deck's first momwire solve builds its below-interface Sommerfeld tables
 (cached on disk thereafter); warm solves run in seconds — the
 crossing-junction kernels got their C++ twin in momwire 0.41.0. In the
