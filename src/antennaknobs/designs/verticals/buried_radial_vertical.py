@@ -90,8 +90,8 @@ spelled three ways, and they are DIFFERENT STRUCTURES, not meshes of one:
     by decision (2026-09-03, momwire#813/#814) razor-2p is the above-ground
     twin of licensed NEC-5 and B-spline is the buried and contact engine —
     the underground reference is measurement (Brown-Lewis-Epstein 1937,
-    momwire#838), not the binary. What momwire and NEC-5 then DISAGREE about
-    is the node model, not the geometry — see below.
+    momwire#838), not the binary. On that shared geometry momwire and NEC-5
+    agree to a fraction of an ohm — see below.
   * The ``bundle`` variant: the pre-#1108 connected spelling, N coincident
     rises. momwire's B-spline crossing serve is the only thing that solves
     it — the NEC-5 binary silently prints garbage for coincident wires
@@ -126,17 +126,25 @@ design's default knobs over eps_r 13 / sigma 0.005, with the DOCUMENTED
 below-ground card (antennaknobs#1025, 2026-09-05; momwire#931): NEC-5 reads
 77.805 + 44.468j ohm with the radials CONNECTED to the base through one
 15 cm rise — this design's DEFAULT geometry — against momwire's
-75.848 + 40.452j ohm on the same deck at converged quadrature: 2.58 % in
-R, about 2 + 4j ohm. That distance is converged on both sides and does not
-change with radial count or radial length (momwire#931), so it is the two
-engines' interface-node models, and it is the size it is. An earlier
-version of this paragraph quoted NEC-5 at 49.78 + 20.95j connected and
+78.132 + 46.338j ohm on the same deck (momwire v0.54.0): 0.33 ohm in R at
+this mesh. Carried to convergence on both sides (NEC-5 by Richardson
+extrapolation over a uniform mesh ladder) they read 78.080 + 45.974j and
+78.154 + 46.445j, 0.07 + 0.47j ohm apart
+(scratch/956-derivation/DERIVATION-WTERMS.md).
+
+Before momwire#956 momwire read 75.848 + 40.452j here, and this paragraph
+called the ~2 + 4j ohm distance the two engines' interface-node models,
+because it did not change with radial count or radial length (momwire#931).
+It was momwire's crossing kernel carrying a W-family term the field form
+does not have. The term accumulates along the buried vertical conductor —
+the rise — which is why radial count and length could not move it.
+An earlier version still quoted NEC-5 at 49.78 + 20.95j connected and
 50.11 + 21.46j detached, "the same answer either way", and built a
 32.5 ohm node-model gap on it. Those prints were the transposed ground
 card; under the documented one the connected deck moved by 28 ohm and the
 detached one stopped being a number. Both engines run the SAME deck, which
-is what makes the comparison a node-model measurement instead of a
-spelling one — and the node models are ~2 ohm apart, not 32.
+is what makes the comparison meaningful — and they agree to a fraction of
+an ohm.
 
 The measurement decides whose radial-count law is physical. Brown,
 Lewis and Epstein (Proc. IRE, June 1937, Fig. 36; buried radials at
@@ -144,17 +152,19 @@ Lewis and Epstein (Proc. IRE, June 1937, Fig. 36; buried radials at
 24 ohm at 113; N6LF (QEX, 2009) measured 137 / 86 / 56 / 43 / 40 ohm
 at 4 / 8 / 16 / 32 / 64 surface radials. On BLE's exact geometry, under
 the documented card, BOTH engines have the measured shape — steep below
-N = 15, flat past 30 — momwire within 1.4 ohm of the figure at every
-rung and NEC-5 2-4 ohm above it (the validation page carries the table).
-Quote momwire's number as the connected answer, with NEC-5's ~2 ohm
-beside it as the other node model's; there is no NEC-5 ``detached`` print
-to quote at all.
+N = 15, flat past 30. The ohm-level placement against the figure (momwire
+within 1.4 ohm at every rung, NEC-5 2-4 ohm above it; the validation page
+carries the table) was measured before momwire#956 raised momwire's R on
+this class by about 2 ohm, and has not been re-measured since. Quote
+momwire's number as the connected answer, with NEC-5's beside it as the
+independent reading; there is no NEC-5 ``detached`` print to quote at all.
 
 Read QUADRATURE below before quoting the momwire number. The momwire side
-of the gap has been quoted at three sizes here as the quadrature moved and
-the spelling changed ("~35 ohm" was the bundle at n_qp_pair = 4, "~30 ohm"
-the bundle at 8, "32.5 ohm" the hub at 32 against the transposed-card NEC-5
-print); the ~2 ohm above is the hub at converged quadrature against the
+of the gap has been quoted at four sizes here as the quadrature, the
+spelling and the kernel changed ("~35 ohm" was the bundle at n_qp_pair = 4,
+"~30 ohm" the bundle at 8, "32.5 ohm" the hub at 32 against the
+transposed-card NEC-5 print, "~2 ohm" the hub before momwire#956); the
+figures above are the hub at converged quadrature against the
 documented-card print, on the deck BOTH engines run.
 
 QUADRATURE — and the spelling change moved this axis more than it moved
@@ -166,18 +176,20 @@ measured. **It does not survive a converged reference.** Both ladders
 below are re-referenced to q=256 (they used to be referenced to q=32,
 which the old text itself noted was "still moving ~0.25 ohm at 24->32";
 an unconverged reference flattens the tail of a ladder). Fixed mesh, this
-design's default knobs, eps_r 13 / sigma 0.005 at 7.1 MHz, momwire
-9eda56f — the commit this repo pins.
+design's default knobs, eps_r 13 / sigma 0.005 at 7.1 MHz. The hub ladder
+is momwire v0.54.0, re-measured 2026-09-12: momwire#956 shifted every rung
+by about 2.3 + 5.9j ohm and left the convergence shape as it was. The
+bundle ladder is momwire 9eda56f, from before that fix.
 
 The DEFAULT (hub) spelling — the shipped one, and the ladder to quote:
 
     n_qp_pair   Z                     from q=256    local slope
-        4       75.8015 + 39.7820j    0.6752
-        8       75.8371 + 40.2843j    0.1717        1.98   <- the default today
-       16       75.8475 + 40.4189j    0.0367        2.23
-       32       75.8502 + 40.4507j    0.0047        3.36
-       64       75.8507 + 40.4555j    0.0001        6.75
-                                      fit q^-3.11
+        4       78.0832 + 45.6683j    0.6759
+        8       78.1189 + 46.1711j    0.1718        1.98
+       16       78.1293 + 46.3058j    0.0367        2.23
+       32       78.1321 + 46.3377j    0.0048        2.95   <- the default today
+       64       78.1325 + 46.3425j    0.0001        5.97
+                                      fit q^-3.14
 
 The ``bundle`` variant, the RETIRED spelling (pre-#1108). Kept as the
 record it is: every headline figure this file carried before 2026-09-03
@@ -203,7 +215,7 @@ closed on this record.
 So the reactive-floor caveat this file used to carry is the BUNDLE's, and
 it is quadrature error rather than anything structural. The hub at the
 shipped n_qp_pair=8 sits 0.17 ohm from its own converged answer, and at
-q=32 it is 0.0047 ohm — on the plateau. The bundle needs ~64 to get there.
+q=32 it is 0.0048 ohm — on the plateau. The bundle needs ~64 to get there.
 
 **The N coincident rises were most of the quadrature problem.** At the
 shipped n_qp_pair = 8 the hub sits 0.172 ohm from its own converged answer

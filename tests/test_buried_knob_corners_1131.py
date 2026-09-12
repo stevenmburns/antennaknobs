@@ -47,10 +47,15 @@ SOIL_A = ("finite", 13.0, 0.005)
 SOIL_B = ("finite", 20.0, 0.03)
 SOIL_C = ("finite", 5.0, 0.001)
 
-# Banked 2026-09-03 by scratch/buried-unit4/probe_knob_corners.py on momwire
-# 84211f8. The default row reproduces scratch/g1b-bs1-bs2/RESULTS.md's hub
-# values to the digit (75.8502+40.4507j, bs1 75.6774+39.9275j), which is what
-# ties this file to the record rather than to one run of one probe.
+# Re-banked 2026-09-12 on momwire v0.54.0. Its crossing fix (momwire#956)
+# moved every corner, from 1.8 ohm (mild_sparse) up to 16.2 ohm (depth_max).
+# depth_max has the tallest rise, and the pre-fix error grew with rise length.
+# The default is now 78.1321+46.3377j (bs1 77.9607+45.8129j), the shipped-mesh
+# answer scratch/956-derivation/DERIVATION-WTERMS.md records for the fix. The
+# degree pairs moved by at most 0.005 ohm. Before the fix the default read
+# 75.8502+40.4507j (bs1 75.6774+39.9275j), banked 2026-09-03 on momwire 84211f8
+# by scratch/buried-unit4/probe_knob_corners.py and matching
+# scratch/g1b-bs1-bs2/RESULTS.md to the digit.
 #
 # Tolerance is 0.10 Ω, and the number was MEASURED rather than chosen to look
 # safe. 0.5 Ω was the first draft and it is vacuous: a 7x mesh coarsening
@@ -58,21 +63,22 @@ SOIL_C = ("finite", 5.0, 0.001)
 # bar waves through every coarsening this deck can express. At 0.10 Ω the gate
 # catches a 3x coarsening (nominal 7, 0.140 Ω) and worse; it does NOT catch a
 # 2x one (nominal 11, 0.070 Ω), and that is the honest limit rather than a
-# number to round away. Cross-machine agreement is ~1e-4 (this file's default
-# row matches the laptop-measured RESULTS.md to four decimals), so 0.10 Ω is
-# three orders of margin over hardware drift.
+# number to round away. Cross-machine agreement is ~1e-4 (the pre-fix default
+# row matched the laptop-measured RESULTS.md to four decimals), so 0.10 Ω is
+# three orders of margin over hardware drift. The coarsening figures in this
+# note were measured before momwire#956 and have not been re-measured.
 CORNERS = {
-    "default": ({}, SOIL_A, 75.8502 + 40.4507j, 0.551),
-    "n_radials_min": ({"n_radials": 1}, SOIL_A, 168.1857 + 43.0702j, 0.593),
-    "depth_max": ({"depth": 0.5}, SOIL_A, 76.4130 + 56.6759j, 0.542),
-    "length_max": ({"length_factor": 1.2}, SOIL_A, 117.9832 + 225.7894j, 0.687),
-    "radial_max": ({"radial_factor": 1.5}, SOIL_A, 75.7392 + 37.6876j, 0.552),
-    "soil_B_dense": ({}, SOIL_B, 56.9466 + 35.6788j, 0.550),
+    "default": ({}, SOIL_A, 78.1321 + 46.3377j, 0.552),
+    "n_radials_min": ({"n_radials": 1}, SOIL_A, 170.6069 + 48.7379j, 0.595),
+    "depth_max": ({"depth": 0.5}, SOIL_A, 84.7118 + 70.6136j, 0.547),
+    "length_max": ({"length_factor": 1.2}, SOIL_A, 120.6456 + 231.8948j, 0.683),
+    "radial_max": ({"radial_factor": 1.5}, SOIL_A, 78.0190 + 43.5740j, 0.554),
+    "soil_B_dense": ({}, SOIL_B, 59.4301 + 42.7550j, 0.552),
     "mild_sparse": (
         {"n_radials": 1, "depth": 0.05, "length_factor": 0.8, "radial_factor": 0.3},
         SOIL_C,
-        139.9202 - 344.1216j,
-        0.363,
+        140.6354 - 342.4703j,
+        0.365,
     ),
 }
 

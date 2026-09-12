@@ -10,16 +10,18 @@ mesh. The radiated fraction — "where do the watts go" — was not. Two gates:
    exceed one (a fill that double-counts the image, or a P_in taken from the
    wrong port, would push it over), and adding buried radials must raise it
    monotonically — that is the whole reason a screen is buried. Measured on
-   verticals.buried_radial_vertical at soil A (eps_r 13, sigma 0.005):
+   verticals.buried_radial_vertical at soil A (eps_r 13, sigma 0.005), on
+   momwire v0.54.0 (after the momwire#956 crossing fix, which moved Z_in by
+   about 2.5 + 5.8j ohm and eta by 1-3 % relative):
 
        N   Z_in                 eta
-       1   168.186 + 43.070j    0.0766
-       2   107.964 + 43.057j    0.1189
-       3    87.020 + 41.693j    0.1479
-       4    75.850 + 40.451j    0.1699
+       1   170.607 + 48.738j    0.0756
+       2   110.296 + 48.883j    0.1165
+       3    89.319 + 47.562j    0.1443
+       4    78.132 + 46.338j    0.1651
 
-   The same ordering holds on poor (5/0.001: 0.060 → 0.143) and good
-   (20/0.03: 0.223 → 0.349) soil, and good > A > poor at every N.
+   The same ordering holds on poor (5/0.001: 0.059 → 0.138) and good
+   (20/0.03: 0.216 → 0.335) soil, and good > A > poor at every N.
 
 2. AN OUTSIDE REFERENCE for the pattern code over a Sommerfeld ground. The
    buried deck itself has no second engine (NEC-2 has no buried wire, and NEC-5
@@ -79,7 +81,7 @@ def test_bf1_buried_radials_raise_the_radiated_fraction_and_never_past_one(
         f"more buried radials must radiate more of the input power: {etas}"
     )
     # The screen is worth something: one to four radials is not a rounding
-    # step (measured 0.077 -> 0.170; bar with margin).
+    # step (measured 0.076 -> 0.165; bar with margin).
     assert etas[2] - etas[0] > 0.05, etas
 
 
