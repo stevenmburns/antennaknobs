@@ -1,0 +1,250 @@
+{
+ "members": [
+  {
+   "file": "4nec2-models/HFActiveFeed/2lsloper.nec",
+   "raw": "4nec2-models/HFActiveFeed/2lsloper.nec",
+   "class": "split",
+   "zmin": -68.0,
+   "zmax": 68.0,
+   "nodes": 0,
+   "wires": 2,
+   "segs": 22,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-1/1-3.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-1/1-3.nec",
+   "class": "crossing",
+   "zmin": -0.163821,
+   "zmax": 40.0,
+   "nodes": 1,
+   "wires": 32,
+   "segs": 62,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-4a-nec4.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-4a-nec4.nec",
+   "class": "crossing",
+   "zmin": -0.004,
+   "zmax": 0.237,
+   "nodes": 1,
+   "wires": 10,
+   "segs": 532,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2.nec",
+   "class": "crossing",
+   "zmin": -0.163821,
+   "zmax": 40.0,
+   "nodes": 1,
+   "wires": 32,
+   "segs": 62,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "cebik-w4rnl/models/LPDAs/nec/lpma3r5-4-6el86ft75o-buriedradials.nec",
+   "raw": "cebik-w4rnl/models/LPDAs/nec/lpma3r5-4-6el86ft75o-buriedradials.nec",
+   "class": "crossing",
+   "zmin": -0.6858,
+   "zmax": 23.0124,
+   "nodes": 8,
+   "wires": 976,
+   "segs": 2690,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "cebik-w4rnl/models/Phased-Arrays/nec/1r5-bc3elendfire-burrad.nec",
+   "raw": "cebik-w4rnl/models/Phased-Arrays/nec/1r5-bc3elendfire-burrad.nec",
+   "class": "crossing",
+   "zmin": -0.1927553,
+   "zmax": 19255.07,
+   "nodes": 3,
+   "wires": 70,
+   "segs": 1029,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "cebik-w4rnl/models/Phased-Arrays/nec/1r8-4el-endfire-burrad.nec",
+   "raw": "cebik-w4rnl/models/Phased-Arrays/nec/1r8-4el-endfire-burrad.nec",
+   "class": "crossing",
+   "zmin": -0.164,
+   "zmax": 16382.76,
+   "nodes": 4,
+   "wires": 93,
+   "segs": 1372,
+   "gn": [
+    0
+   ]
+  },
+  {
+   "file": "icecube-dbesson/2lsloper.nec",
+   "raw": "icecube-dbesson/2lsloper.nec",
+   "class": "split",
+   "zmin": -68.0,
+   "zmax": 68.0,
+   "nodes": 0,
+   "wires": 2,
+   "segs": 22,
+   "gn": [
+    0
+   ]
+  }
+ ],
+ "unreadable": [
+  {
+   "file": "4nec2-models/Nec4/Catenary.nec",
+   "raw": "4nec2-models/Nec4/Catenary.nec",
+   "error": "ValueError: Catenary.nec, line 4: unrecognised NEC card 'CW'"
+  },
+  {
+   "file": "4nec2-models/Objects/747plane.nec",
+   "raw": "4nec2-models/Objects/747plane.nec",
+   "error": "ValueError: 747plane.nec, line 8: bad number '!'"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/8-6-1.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/8-6-1.NEC",
+   "error": "ValueError: 8-6-1.NEC, line 12: LD card: segment 55 is out of range \u2014 tag 3 has only 54 segments"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-11.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-11.nec",
+   "error": "ValueError: 11-11.nec, line 7: GC card: only the plain continuation form (GC 0 0 RDEL RAD1 RAD2) is translated, got tag 2 and segment count 0"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-11a.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-11/11-11a.nec",
+   "error": "ValueError: 11-11a.nec, line 7: GC card: only the plain continuation form (GC 0 0 RDEL RAD1 RAD2) is translated, got tag 2 and segment count 0"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-2a.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-2a.nec",
+   "error": "ValueError: 19-2a.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6a.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6a.nec",
+   "error": "ValueError: 19-6a.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6b.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6b.nec",
+   "error": "ValueError: 19-6b.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6c.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6c.nec",
+   "error": "ValueError: 19-6c.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6d.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6d.nec",
+   "error": "ValueError: 19-6d.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6e.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-19/19-6e.nec",
+   "error": "ValueError: 19-6e.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-14.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-14.nec",
+   "error": "ValueError: 20-14.nec, line 12: unrecognised NEC card 'PS'"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15a.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15a.nec",
+   "error": "ValueError: 20-15a.nec, line 9: unrecognised NEC card 'UM'"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15b.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-20/20-15b.nec",
+   "error": "ValueError: 20-15b.nec, line 9: unrecognised NEC card 'UM'"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2a-nec4.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2a-nec4.nec",
+   "error": "ValueError: 3-2a-nec4.nec, line 5: GC card: only the plain continuation form (GC 0 0 RDEL RAD1 RAD2) is translated, got tag 2 and segment count 0"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2b-nec4.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-3/3-2b-nec4.nec",
+   "error": "ValueError: 3-2b-nec4.nec, line 6: GC card: only the plain continuation form (GC 0 0 RDEL RAD1 RAD2) is translated, got tag 2 and segment count 0"
+  },
+  {
+   "file": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-4/4-8.nec",
+   "raw": "cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-4/4-8.nec",
+   "error": "ValueError: 4-8.nec, line 4: GH card: wire radius must be > 0"
+  },
+  {
+   "file": "cebik-w4rnl/nec2-ex3.nec",
+   "raw": "cebik-w4rnl/nec2-ex3.nec",
+   "error": "ValueError: nec2-ex3.nec, line 15: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/nec2-ex7.nec",
+   "raw": "cebik-w4rnl/nec2-ex7.nec",
+   "error": "ValueError: nec2-ex7.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/nec4-ex10_1.nec",
+   "raw": "cebik-w4rnl/nec4-ex10.nec",
+   "error": "ValueError: nec4-ex10.nec, line 11: GN card names a Sommerfeld ground file (SOMEX10.NEC): NEC-4's tabulated ground is not supported here; use the GN card's own "
+  },
+  {
+   "file": "cebik-w4rnl/nec4-ex10_2.nec",
+   "raw": "cebik-w4rnl/nec4-ex10.nec",
+   "error": "ValueError: nec4-ex10.nec, line 11: GN card names a Sommerfeld ground file (SOMEX10.NEC): NEC-4's tabulated ground is not supported here; use the GN card's own "
+  },
+  {
+   "file": "cebik-w4rnl/nec4-ex10_3.nec",
+   "raw": "cebik-w4rnl/nec4-ex10.nec",
+   "error": "ValueError: nec4-ex10.nec, line 11: GN card names a Sommerfeld ground file (SOMEX10.NEC): NEC-4's tabulated ground is not supported here; use the GN card's own "
+  },
+  {
+   "file": "cebik-w4rnl/nec4-ex11.nec",
+   "raw": "cebik-w4rnl/nec4-ex11.nec",
+   "error": "ValueError: nec4-ex11.nec, line 7: GN card names a Sommerfeld ground file (SOMEX10.NEC): NEC-4's tabulated ground is not supported here; use the GN card's own e"
+  },
+  {
+   "file": "cebik-w4rnl/nec4-ex3.nec",
+   "raw": "cebik-w4rnl/nec4-ex3.nec",
+   "error": "ValueError: nec4-ex3.nec, line 13: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "cebik-w4rnl/nec4-ex7.nec",
+   "raw": "cebik-w4rnl/nec4-ex7.nec",
+   "error": "ValueError: nec4-ex7.nec, line 9: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "nec2c/EX3.nec",
+   "raw": "nec2c/EX3.nec",
+   "error": "ValueError: EX3.nec, line 16: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "necpp/example3.nec",
+   "raw": "necpp/example3.nec",
+   "error": "ValueError: example3.nec, line 16: EX card asks for plane-wave excitation, which is a scattering run, not a driven antenna"
+  },
+  {
+   "file": "necpp/sommerfield1.nec",
+   "raw": "necpp/sommerfield1.nec",
+   "error": "ValueError: sommerfield1.nec, line 9: LD card: segment 18 is out of range \u2014 tag 1 has only 17 segments"
+  }
+ ]
+}
