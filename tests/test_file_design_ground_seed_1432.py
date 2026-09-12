@@ -152,27 +152,23 @@ def test_g1432_12_malformed_medium_reads_as_none():
 # ---------------------------------------------------------------------------
 
 
-def test_g1432_13_cli_engine_factory_defaults_to_the_files_ground(
-    monkeypatch, tmp_path
-):
-    seen = []
-
-    class Fake:
-        def __init__(self, builder, **kw):
-            seen.append(kw)
-
-    monkeypatch.setitem(cli.ENGINE_CLASSES, "fake", Fake)
+def test_g1432_13_cli_file_ground_default(tmp_path):
     gn2 = _builder(tmp_path, deck("GE 1", "GN 2 0 0 0 13 0.005"))
     (tmp_path / "free.nec").write_text(deck("GE 0"))
     free = builder_from_file(str(tmp_path / "free.nec"))
     from antennaknobs.designs.dipoles.invvee import Builder as Invvee
 
-    f = cli.make_engine_factory("fake", cli._GROUND_UNSET)
-    f(gn2())
-    f(free())
-    f(Invvee())
-    assert seen == [{"ground": ("finite", 13.0, 0.005)}, {"ground": "free"}, {}]
+    U = cli._GROUND_UNSET
+    assert cli.file_ground_default(U, gn2) == ("finite", 13.0, 0.005)
+    assert cli.file_ground_default(U, gn2()) == ("finite", 13.0, 0.005)  # instance too
+    assert cli.file_ground_default(U, free) == "free"  # never a bare None
+    assert cli.file_ground_default(U, Invvee) is U  # catalog: the engine's default
     # an explicit --ground wins over the file
-    seen.clear()
-    cli.make_engine_factory("fake", "pec")(gn2())
-    assert seen == [{"ground": "pec"}]
+    assert cli.file_ground_default("pec", gn2) == "pec"
+    assert cli.file_ground_default(None, gn2) is None
+    # and make_engine_factory's contract is untouched: the class, or a partial of it
+    from functools import partial
+
+    assert cli.make_engine_factory("momwire", U) is cli.ENGINE_CLASSES["momwire"]
+    f = cli.make_engine_factory("momwire", cli.file_ground_default(U, gn2))
+    assert isinstance(f, partial) and f.keywords == {"ground": ("finite", 13.0, 0.005)}
