@@ -31,6 +31,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | every buried design's pattern (wholly buried refused; mixed served with a note, #1341) |
 | 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 31 % in R and 16 % in \|Z\| (+14 Ω R, −12 kΩ X on \|Z\| ≈ 62–74 kΩ), at both meshes and all three momwire commits | **open disagreement** (AK#1443) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
+| 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
 
 The four-count in #5 and the six in #2 overlap: the six `GE −1` decks are the
 four mixed-radius ones plus the two split slopers, so lifting #2 alone
@@ -107,7 +108,34 @@ against the designed tables (probe5's method) on this deck's pairs; the grid's
 range and interpolation error at the counterpoise's height/depth; NEC-5's own
 ladder. **2–3 days to localise;** the fix depends on what it names.
 
-### U7 — the buried far field (momwire#570)
+### U7 — the wholly buried rod's −1.20 % of R (momwire#1027)
+
+The last miss on the #956 record: five hits and this one, after momwire#1047.
+A centre-fed vertical rod with both ends below z = 0, Richardson-extrapolated
+on both engines, reads ΔR/R = −1.20 %. That fraction holds to within 1 % of
+itself across 16× in depth, 20× in conductivity and 8× in frequency, and it
+moves only with the rod's length: −3.9 % at 0.15 m, −0.27 % at 2.4 m.
+momwire's two bases agree on it to five figures, so it is not a basis
+artefact. It is not #956's mechanism either. That residual was positive,
+grew with length and was absolute; this one is negative, falls with length
+and is a fixed fraction of R. The #956 fix did not touch wholly buried decks
+(census).
+
+One lead to test first, not a conclusion. At fixed length the frequency sweep
+changes L/λ_m several-fold without moving the fraction, so it follows *physical*
+length (L/a, or the feed gap's share of L), not electrical length. Localise
+in this order, registering a prediction before each run:
+(a) the same rod in an infinite medium of the same soil, on both engines. If
+the fraction survives with no interface, the Sommerfeld remainder is out of
+the path.
+(b) The feed-gap axis: gap length and EX spelling at fixed L. The g1b probe
+already found a buried-fed drift on this axis in any medium.
+(c) L/a at fixed L.
+**2–3 days to localise;** the fix depends on what it names. Gate: the
+#1027 table re-run on both engines, and the census's wholly buried rows
+moving only if this unit says they should.
+
+### U8 — the buried far field (momwire#570)
 
 The far-zone asymptotics of the transmitted family: stationary phase over the
 below→above Sommerfeld integrals, with the lateral wave and the critical-angle
@@ -131,11 +159,12 @@ current #1341 note (0.46 dB) says it should.
 | 4 | U4 below range | 2–4 | 3 decks |
 | 5 | U5 mixed radii | 5–10 | 4 decks; thin radials on a fat mast |
 | 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number |
-| 7 | U7 far field | 15–25 | every buried pattern |
+| 7 | U7 buried rod | 2–3 (+fix) | every wholly buried fed element's R |
+| 8 | U8 far field | 15–25 | every buried pattern |
 
-About 6–10 weeks of session time end to end, U7 alone being a third of it.
+About 6–10 weeks of session time end to end, U8 alone being a third of it.
 U1–U4 are the cheap half and clear the corpus population that the census
-cannot exercise today; U5 is the one users will meet first; U7 is the one that
+cannot exercise today; U5 is the one users will meet first; U8 is the one that
 turns "impedance and currents only" into a complete buried serve.
 
 ## What is deliberately not on the plan
