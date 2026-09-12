@@ -326,6 +326,13 @@ class NEC5Engine(SimulationEngine):
         # never re-solves. The stored printouts are End-User Reports under
         # the NEC-5 license (LLNL-CODE-746721); the binary itself is never
         # copied or distributed.
+        if capture_dir is None:
+            # AK#1428: `ANTENNAKNOBS_CAPTURE_DIR/nec5` when the caller passes
+            # nothing — the workbench exe's `--capture-dir`, the server's and
+            # the CLI's launch environment all land here.
+            from ..engine_capture import capture_dir_from_env
+
+            capture_dir = capture_dir_from_env("nec5")
         self._capture_dir = Path(capture_dir).expanduser() if capture_dir else None
         if self._capture_dir is not None:
             self._capture_dir.mkdir(parents=True, exist_ok=True)
@@ -1170,14 +1177,25 @@ class NEC5Engine(SimulationEngine):
             cached = self._capture_dir / f"{h}.out"
             if cached.is_file():
                 self.run_log.append({"hash": h, "cached": True, "seconds": 0.0})
+                _log.info("NEC-5 %s: printout served from capture %s", h, cached)
                 return cached.read_text(errors="replace")
+        # AK#1428: at DEBUG the log carries exactly what the binary is given
+        # and exactly what it prints; at INFO one line per run.
+        _log.debug(
+            "NEC-5 %s: deck for %s (%d lines)\n%s", h, self._exe, deck.count("\n"), deck
+        )
         t0 = time.perf_counter()
         text = self._run_binary(deck)
         seconds = time.perf_counter() - t0
         self.run_log.append({"hash": h, "cached": False, "seconds": seconds})
+        _log.info("NEC-5 %s: %.2f s, printout %d lines", h, seconds, text.count("\n"))
+        _log.debug("NEC-5 %s: printout\n%s", h, text)
         if self._capture_dir is not None:
             (self._capture_dir / f"{h}.nec").write_text(deck)
             (self._capture_dir / f"{h}.out").write_text(text)
+            _log.info(
+                "NEC-5 %s: deck and printout captured under %s", h, self._capture_dir
+            )
         return text
 
     def _run_binary(self, deck: str) -> str:

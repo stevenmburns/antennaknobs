@@ -11,6 +11,12 @@ server log, and Ctrl-C stops it.
     antennaknobs-workbench --no-browser # print the URL only
     antennaknobs-workbench --selftest   # prove the bundle: accelerator +
                                         # one solve, printed, exit 0
+    antennaknobs-workbench --capture-dir C:\\ak-captures
+                                        # every NEC-5 / NEC-2 run leaves its
+                                        # deck and printout there (AK#1428)
+    antennaknobs-workbench --log-level DEBUG
+                                        # the decks and printouts in this
+                                        # window too, as they run
 
 The licensed NEC-5 engine is found the way the pip install finds it, through
 ``NEC5_EXE`` — and, for someone who double-clicks, through a one-line text
@@ -95,13 +101,27 @@ def _open_when_up(url: str, health: str, *, deadline_s: float = 120.0) -> None:
 
 
 def _parse(argv: list[str]) -> dict:
-    opts = {"port": None, "browser": True, "selftest": False}
+    opts = {
+        "port": None,
+        "browser": True,
+        "selftest": False,
+        "log_level": None,
+        "capture_dir": None,
+    }
     it = iter(argv)
     for a in it:
         if a == "--port":
             opts["port"] = int(next(it))
         elif a.startswith("--port="):
             opts["port"] = int(a.split("=", 1)[1])
+        elif a == "--log-level":
+            opts["log_level"] = next(it)
+        elif a.startswith("--log-level="):
+            opts["log_level"] = a.split("=", 1)[1]
+        elif a == "--capture-dir":
+            opts["capture_dir"] = next(it)
+        elif a.startswith("--capture-dir="):
+            opts["capture_dir"] = a.split("=", 1)[1]
         elif a == "--no-browser":
             opts["browser"] = False
         elif a == "--selftest":
@@ -113,6 +133,17 @@ def _parse(argv: list[str]) -> dict:
             print(f"{NAME}: unknown option {a!r}", file=sys.stderr)
             raise SystemExit(2)
     return opts
+
+
+def _apply_capture_opts(opts: dict) -> None:
+    """The two AK#1428 flags become the environment variables the library
+    reads (`antennaknobs.engine_capture`), so the exe, `uvicorn` and the CLI
+    share one code path. A flag beats a variable already in the environment;
+    the variable alone still works without the flag."""
+    if opts.get("log_level"):
+        os.environ["ANTENNAKNOBS_LOG_LEVEL"] = str(opts["log_level"])
+    if opts.get("capture_dir"):
+        os.environ["ANTENNAKNOBS_CAPTURE_DIR"] = str(opts["capture_dir"])
 
 
 def selftest() -> int:
@@ -143,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
     os.environ.setdefault("MPLBACKEND", "Agg")
     opts = _parse(sys.argv[1:] if argv is None else argv)
+    _apply_capture_opts(opts)
     for var, fname in EXE_FILES.items():
         if os.environ.get(var):
             continue
@@ -169,6 +201,13 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"  NEC-2:     {os.environ.get('NEC2_EXE') or f'not set (put the path in {NEC2_FILE} beside this program)'}"
     )
+    if os.environ.get("ANTENNAKNOBS_CAPTURE_DIR"):
+        print(
+            f"  capture:   {os.environ['ANTENNAKNOBS_CAPTURE_DIR']}  "
+            "(every engine deck and printout, as nec5/ and nec2/ <hash>.nec + .out)"
+        )
+    if os.environ.get("ANTENNAKNOBS_LOG_LEVEL"):
+        print(f"  log level: {os.environ['ANTENNAKNOBS_LOG_LEVEL']}")
     print("  stop:      Ctrl-C in this window")
     if opts["browser"]:
         threading.Thread(
