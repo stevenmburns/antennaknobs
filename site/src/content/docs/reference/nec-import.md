@@ -231,7 +231,16 @@ A deck also carries run configuration, which the workbench manages itself.
 Those cards are recorded in `deck.ignored` rather than translated:
 
 - `GN`/`GD` ground and the `GE` ground flag — the workbench applies **its own
-  ground model** (`deck.ground` tells you the deck wanted one)
+  ground model**, but since v0.75.1 that model **starts where the deck is**:
+  a deck in the designs folder opens with the ground switch set from its
+  cards (`GE 0` off; `GE 1` or `GN 1` perfect; `GN 2` finite + Sommerfeld
+  and `GN 0` finite + reflection coefficients, each with the card's own
+  ε<sub>r</sub> and σ in the soil fields), the ground panel says "from the
+  file", and the CLI's `@file.nec` route applies the same unless `--ground`
+  is given. `deck.ground_spec` carries it in the CLI's `--ground` shape and
+  `deck.ground` still says whether the deck wanted a ground at all. The
+  solver-slot label reads **N = deck's own** for such a design: its `GW`
+  segment counts are what the solvers honour, whatever the slot's N says.
 - `LD` loading, `TL`/`NT` feedlines and networks — unless imported with
   `network=True` as above
 - `FR` sweeps (harvested into `deck.freq_mhz`), `RP`/`NE`/`NH`/`XQ` output requests
@@ -306,6 +315,7 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `feeds` | `tuple[NecFeed, ...]` — each `EX` source resolved onto a wire (`wire` index, 1-based `seg`, complex `voltage`; `current=True` marks a forced current in amps, 4nec2's `EX 6` or NEC-5's `EX 4`; `edge` 1/2 marks a NEC-5 end source) |
 | `freq_mhz` | The `FR` card's sweep range as `(lo, hi)` MHz, or `None` |
 | `ground` | `True` if the deck requested a ground plane (`GE` flag or a `GN` card) |
+| `ground_spec`, `ground_method` | The ground the deck models, in the CLI's `--ground` shape — `None` (free space), `"pec"`, `("finite", eps_r, sigma)` for `GN 2`, `("finite-fast", eps_r, sigma)` for `GN 0` — and the finite model's name (`"sommerfeld"` / `"fast"`) |
 | `comments` | The `CM` header text, line by line |
 | `ignored` | Mnemonics of run-configuration cards seen but not applied |
 | `loads`, `tls`, `nts` | The translated LD/TL/NT records (`network=True` only) |

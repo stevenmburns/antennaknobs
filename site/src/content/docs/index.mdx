@@ -29,23 +29,27 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.75.0" icon="star">
-  **Just drop the deck in.** A 4nec2 / NEC-2 `.nec` file (or a SimNEC
-  `.ssn`) copied into `~/.antennaknobs/designs/` is now a design: it appears
-  in the workbench's picker as `user.<name>` with the deck's own frequency,
-  per-wire radii, feed and network, the reload button re-reads it after an
-  edit, and because it is data rather than Python it never asks to be
-  allowed. The stub is only for knobs. **The hill is in the way now**: the
-  terrain ground shadows the sky behind a crest, reflects off each facet as
-  a tilted mirror and diffracts at the breaks, on by default for patterns
-  and the CLI; the workbench draws the fast specular field while a knob
-  moves and the diffracted one a moment after it settles, and the corner of
-  each polar chart says which is on screen. A new worked example,
-  [A hillside, three ways](/advanced/hillside-three-models/), puts the
-  tilted sloper, the specular facets and the diffracted composer on one 45°
-  hill. **The corpus tool keeps whole-wire loads whole** after remesh, which
-  had refused 175 published decks. A PowerShell trap on `@file.nec` specs is
-  documented: quote the whole spec.
+<Card title="New in v0.75.1" icon="star">
+  **The deck says what ground it models, and now the app listens.** A `.nec`
+  dropped in `~/.antennaknobs/designs/` opens with the ground switch set
+  from its own `GE` / `GN` cards — free space off, perfect ground on, a
+  `GN 2` finite ground on with the card's own ε<sub>r</sub> and σ in the soil
+  fields — so a free-space dipole at z&nbsp;=&nbsp;0 solves on the NEC-5 tab
+  without first unticking ground by hand; the ground panel says "from the
+  file", and the solver-slot label reads **N = deck's own** because a deck's
+  segment counts are what the solvers honour. The CLI's `@file.nec` route
+  applies the same default when `--ground` is not given. **See what the
+  engine saw**: start the workbench with `--capture-dir <folder>` and every
+  NEC-5 / NEC-2 run leaves the deck it was given and the printout it returned
+  beside each other, or `--log-level DEBUG` to watch them in the console —
+  the same two as `ANTENNAKNOBS_CAPTURE_DIR` / `ANTENNAKNOBS_LOG_LEVEL` for
+  any launch ([details](/reference/nec5/#seeing-what-the-engine-saw)). And a
+  deck's per-wire `LD 5` loads survive the app's remesh. From v0.75.0:
+  **just drop the deck in** — a 4nec2 / NEC-2 `.nec` (or SimNEC `.ssn`) in the
+  designs folder is a design, with the deck's own frequency, radii, feed and
+  network, no stub and no allow step; and **the hill is in the way** — the
+  terrain ground shadows, reflects and diffracts, on by default, with a
+  worked [hillside example](/advanced/hillside-three-models/).
 </Card>
 
 ## The whole pitch, in one line

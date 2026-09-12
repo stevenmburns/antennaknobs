@@ -335,7 +335,12 @@ error.
 
 An imported deck brings its own: a `@file.nec` design whose deck carries an
 `EK` card is solved with the kernel on without the flag, and either source
-turns it on (`EK -1`, like an absent card, leaves it off).
+turns it on (`EK -1`, like an absent card, leaves it off). The same goes for
+ground since v0.75.1: with no `--ground`, a `@file.nec` design is solved
+under the ground its own `GE` / `GN` cards model — `GE 0` free space, `GE 1`
+or `GN 1` perfect, `GN 2` finite with the card's ε<sub>r</sub> and σ, `GN 0`
+the reflection-coefficient model — and an explicit `--ground` still wins.
+Catalog designs keep each engine's own default as before.
 
 ## Comparing engines
 
