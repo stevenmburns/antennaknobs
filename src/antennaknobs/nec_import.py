@@ -290,6 +290,17 @@ class NecDeck:
     ignored: tuple[str, ...]  # run-config card mnemonics seen but not applied
     # network=True translation results (all empty in the default mode):
     loads: tuple[NecLoad, ...] = ()
+    # The ground the deck MODELS, in the CLI's `--ground` shape (AK#1432):
+    # None = free space (GE 0 and no GN, or GN -1), "pec" = a perfect ground
+    # (GN 1, or GE 1 with no GN — NEC's default), ("finite", eps_r, sigma)
+    # for GN 2 and ("finite-fast", eps_r, sigma) for GN 0, the card's own
+    # medium either way. `ground_method` names the
+    # finite model the deck asked for: "sommerfeld" (GN 2) or "fast" (GN 0,
+    # the reflection-coefficient approximation); None otherwise. The folder
+    # route seeds the app's ground switch from these; the CLI's `@file` route
+    # uses them when `--ground` is not given.
+    ground_spec: object = None
+    ground_method: str | None = None
     tls: tuple[NecTL, ...] = ()
     nts: tuple[NecNT, ...] = ()
     conductivity: float | None = None  # whole-structure LD 5, S/m
@@ -2237,6 +2248,7 @@ def parse_nec(
     freq_mhz: tuple[float, float] | None = None
     fr_first_mhz: float | None = None
     ground = False
+    ground_spec, ground_method = None, None
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
     sym_cell: int | None = None  # GX/GR symmetry cell, in segments (#946)
@@ -2345,10 +2357,21 @@ def parse_nec(
             card = _Card(mnemonic, tokens[1:], where, syms)
             if card.i(0) == -1:
                 ground = False
+                ground_spec, ground_method = None, None
                 ignored.discard(mnemonic)
             else:
                 ground = True
                 ignored.add(mnemonic)
+                gtype = card.i(0)
+                if gtype == 1:
+                    ground_spec, ground_method = "pec", None
+                else:
+                    # GN 0 (reflection coefficients) and GN 2 (Sommerfeld)
+                    # both carry eps_r in F1 and sigma (S/m) in F2; the CLI
+                    # spells the two models "finite-fast" and "finite".
+                    kind = "finite" if gtype == 2 else "finite-fast"
+                    ground_spec = (kind, card.f(4), card.f(5))
+                    ground_method = "sommerfeld" if gtype == 2 else "fast"
             continue
         if network and mnemonic in ("LD", "TL", "NT", "IS"):
             # Collected raw and translated after the loop, once the wire
@@ -2566,6 +2589,9 @@ def parse_nec(
         feeds=tuple(feeds),
         freq_mhz=freq_mhz,
         ground=ground,
+        # GE 1 with no GN card is NEC's perfect ground.
+        ground_spec=("pec" if ground and ground_spec is None else ground_spec),
+        ground_method=ground_method,
         comments=tuple(comments),
         ignored=tuple(sorted(ignored)),
         loads=loads,

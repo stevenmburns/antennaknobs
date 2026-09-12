@@ -172,6 +172,17 @@ export type ExampleDescriptor = {
    *  method and notes it in the ground panel. Absent/null = no
    *  requirement. Declared statically in the design's ui_params. */
   ground_requirement?: string | null;
+  /** AK#1432 — file designs only: the ground the deck itself models,
+   *  "free" | "pec" | "sommerfeld" | "fast" (the GN finite model). On
+   *  selection the session seeds the ground switch, type, method and soil
+   *  from it; the ground panel says so. Absent/null = catalog design. */
+  ground_seed?: string | null;
+  /** The deck's GN medium for the finite seeds, else absent/null. */
+  ground_medium?: { eps_r: number; sigma: number } | null;
+  /** AK#1432 — the design's wires carry their own segment counts, which
+   *  the solvers honour whatever the slot's N says; the slot label reads
+   *  "deck's own" instead of a number that does nothing. */
+  fixed_segment_counts?: boolean;
   /** True when the Builder has a `design_freq` param that scales
    *  geometry (design_freq-sized designs). When false, the design-freq
    *  band-tab row is hidden because dragging it would be a no-op. */

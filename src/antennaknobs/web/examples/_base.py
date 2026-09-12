@@ -365,6 +365,18 @@ class AntennaExample:
     # The frontend auto-selects finite ground + the Sommerfeld method when
     # such a design loads and shows a small notice in the ground panel.
     ground_requirement: Optional[str] = None
+    # AK#1432 — file designs: the ground the deck itself models, "free" /
+    # "pec" / "sommerfeld" / "fast" (the GN finite model), with the GN
+    # card's medium as {"eps_r", "sigma"} for the finite two. The frontend
+    # seeds the ground switch, type, method and soil from it on selection —
+    # a statement of what the file says, distinct from `ground_requirement`
+    # (what the physics needs). None for catalog designs.
+    ground_seed: Optional[str] = None
+    ground_medium: Optional[dict] = None
+    # AK#1432 — the design's wires carry their own segment counts (every
+    # deck's GW does), which the solvers honour whatever the slot's N says;
+    # the slot label reads "deck's own" instead of a number that does nothing.
+    fixed_segment_counts: bool = False
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
     #: NEC-5 twins (issue #825): same request/response contracts as the

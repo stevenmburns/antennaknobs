@@ -451,9 +451,26 @@ def make_engine_factory(
             # isn't wired to a deck or this flag.
         else:
             kwargs["extended_kernel"] = True
-    if not kwargs:
-        return cls
-    return partial(cls, **kwargs)
+    if ground_spec is not _GROUND_UNSET:
+        if not kwargs:
+            return cls
+        return partial(cls, **kwargs)
+
+    # AK#1432: with no --ground, a file design's own ground (its GE/GN cards,
+    # `file_designs._make_builder`'s `file_ground`) is the default — the deck
+    # says what it models. Free space is passed as "free", which every engine
+    # reads as no ground; a bare None would mean "the engine's default" to
+    # NEC-2 and PyNEC (finite), the very confusion this closes. Catalog
+    # designs carry no `file_ground` and keep the engine's default as before.
+    def factory(builder, **extra):
+        kw = dict(kwargs, **extra)
+        if "ground" not in kw:
+            fg = getattr(type(builder), "file_ground", _GROUND_UNSET)
+            if fg is not _GROUND_UNSET:
+                kw["ground"] = "free" if fg is None else fg
+        return cls(builder, **kw)
+
+    return factory
 
 
 _GROUND_UNSET = object()

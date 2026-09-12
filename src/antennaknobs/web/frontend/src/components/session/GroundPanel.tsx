@@ -1,4 +1,5 @@
 import { backendSupportsGround, backendSupportsTerrain } from "../../lib/backends";
+import { groundSeedText } from "../../lib/ground";
 import type { BackendEntry } from "../../lib/backends";
 import type {
   FiniteGroundMethod,
@@ -30,6 +31,8 @@ export function GroundPanel({
   soilPresets = [],
   soilRanges = null,
   groundRequirement = null,
+  groundSeed = null,
+  groundMedium = null,
 }: {
   backend: BackendEntry;
   groundEnabled: boolean;
@@ -54,13 +57,30 @@ export function GroundPanel({
    *  buried-wire designs), or null. Renders the auto-selection notice —
    *  the selection itself is DesignSession's ground-requirement effect. */
   groundRequirement?: string | null;
+  /** AK#1432 — a file design's own ground ("free" | "pec" | "sommerfeld" |
+   *  "fast") and its GN medium; the session seeded the switch from them,
+   *  and this notice says so. */
+  groundSeed?: string | null;
+  groundMedium?: { eps_r: number; sigma: number } | null;
 }) {
+  const seedText = groundSeedText(groundSeed, groundMedium);
   return (
     <>
       {!backendSupportsGround(backend) && groundEnabled && (
         <div className="field" title="This backend doesn't model ground; ignored until you switch to one that does.">
           <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
             ground plane ignored for {backend.label}
+          </em>
+        </div>
+      )}
+
+      {seedText && (
+        <div
+          className="field"
+          title="The file's GE/GN cards say what ground it models; the ground switch, model and medium were set from them when the design loaded. You can still change any of them."
+        >
+          <em style={{ color: "var(--muted)", fontSize: "var(--text-sm)" }}>
+            {seedText}
           </em>
         </div>
       )}
