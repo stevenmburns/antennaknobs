@@ -41,9 +41,12 @@ measures the second.
   subprocess under a 300 s wall timeout and a 6 GB address-space rlimit.
 - **Join**: `compare`'s own `_first_z` — row 0 of the first frequency's
   ANTENNA INPUT PARAMETERS on each side.
-- **Regenerate**: `scratch/896-census/census_report.py --nec5 <a> --momwire <b>`.
-  The committed script reproduces every table on this page byte for byte from
-  the two reports; checked rather than claimed.
+- **Regenerate**: `scratch/896-census/census_report.py --cases 20 --nec5 <a>
+  --momwire <b>`. The committed script reproduces every table on this page byte
+  for byte from the two reports; checked rather than claimed. `--cases 20` is
+  part of the command and not a detail — the script's default is 25, so without
+  it the tail table below comes out five rows longer and the byte-for-byte claim
+  fails on exactly that table.
 
 **The census itself is deterministic.** Run three times end to end on the same
 box — 891 s, 889 s and 889 s — the reports agree on every row: status, error
