@@ -103,7 +103,7 @@ def ends_and_corner_fixed(ctx, A, B, eps_t, k_p, c1, gz, memo=None, *, corner=Tr
     wA_tz = wA * tzA
     buf, bufT = _Rank1Buffer(), _Rank1Buffer()
     tzB_end = end_tz(ctx, B) if FIX["W"] else np.zeros(len(B["ends"]))
-    for pt, sign, fv in A["ends"]:
+    for pt, sign, fv, *_h in A["ends"]:
         rho_e = np.hypot(pt[0] - B["nodes"][:, 0], pt[1] - B["nodes"][:, 1])
         te = CF._tables(
             ctx,
@@ -119,7 +119,7 @@ def ends_and_corner_fixed(ctx, A, B, eps_t, k_p, c1, gz, memo=None, *, corner=Tr
         _rank1_add(
             t_ab, nz, fv[nz], _real_matvec_c(B["Fd"], wB * te["V"]), c1 * sign, buf
         )
-    for (pt, sign, fv), tze in zip(B["ends"], tzB_end, strict=True):
+    for (pt, sign, fv, *_h), tze in zip(B["ends"], tzB_end, strict=True):
         rho_e = np.hypot(A["nodes"][:, 0] - pt[0], A["nodes"][:, 1] - pt[1])
         te = CF._tables(
             ctx,
@@ -149,8 +149,8 @@ def ends_and_corner_fixed(ctx, A, B, eps_t, k_p, c1, gz, memo=None, *, corner=Tr
         return t_ab
     a_wire = float(ctx.a_wire)
     v_corner = None
-    for pt_a, sig_a, fv_a in A["ends"]:
-        for pt_b, sig_b, fv_b in B["ends"]:
+    for pt_a, sig_a, fv_a, *_ha in A["ends"]:
+        for pt_b, sig_b, fv_b, *_hb in B["ends"]:
             in_plane = abs(pt_a[2] - gz) <= 1e-12 and abs(pt_b[2] - gz) <= 1e-12
             if not in_plane and not FIX["C"]:
                 continue

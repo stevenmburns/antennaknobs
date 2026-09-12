@@ -203,6 +203,69 @@ Not settled here:
   move. antennaknobs' published buried-radial numbers (case study, validation
   page, #956's own literal) move with the release.
 
+## 6. The general form — any orientation (added after the lean sweep)
+
+The transverse mask of §0–§4 is exact only when the member carrying F′ is
+vertical or horizontal. momwire#936's OP lean sweep on the masked branch
+(`probe9`, NEC-5 local) read −1.36 % at lean 0 (was −4.48 %) but a drift of
+−1.20 pp to 45° (was +0.70 pp): the mask changed the leaning member's answer
+and did not close it. Re-deriving for an arbitrary test tangent t and source
+tangent t′ from the spectral forms of (7a)–(7e),
+
+    E^V  = C₁[ k²V ẑ − ∇W + ∇(−∂z′V) ]          (vertical source)
+    E^Hx = C₁[ U x̂ + ∂xW ẑ + ∇(∂xV) ]            (horizontal source)
+
+tested along the wire (∫ f_m t·E) and integrated by parts on both sides —
+t·∇Φ = dΦ/dl on any straight wire, t′·∇′ = d/dl′ on the source, and
+tx′∂x′ = d/dl′ − tz′∂z′ for the ẑ∂xW term — gives
+
+    Z_ab = s_u + (F t̂z)_A (k²V + ∂z′W) (F t̂z)_B + (F t̂z)_A W F′_B + F′_A W (F t̂z)_B
+           − F′_A V F′_B + BT + SQ + CORNER + SW + TW
+
+with FULL charges everywhere, the ẑẑ kernel's W derivative on the SOURCE
+coordinate (+∂z′W, not −∂zW), SW the source-end W term the code already
+had, and TW = −c1 σ f_m(E)·∫ f_n t̂z′ W(E,·) the test-end W term it never had.
+Check on a vertical × vertical pair per λ: k² + γ₋(γ₊−γ₋) − γ₋(γ₊−γ₋) +
+γ₊(γ₊−γ₋) + γ₊γ₋ = k² + γ₊² = λ², and every end term cancels
+(s_w1/s_w2/s_phi ends + BT + SW + SQ + TW + CORNER = 0). Against the shipped
+spelling the bulk difference is (γ₊−γ₋)² Ṽ — the same excess §1 found —
+because k²V − ∂zW is the by-parted form of the test-side W term on a vertical
+test and s_w2 then counted it once more. The §0–§4 mask is the special case of
+this form on axis-aligned members and every number in §0 stands.
+
+`probe6_tilted.py`: a non-crossing deck whose above and on-axis below wires
+LEAN, where the solver's own cross quadrant is the transmitted-grid field form.
+The symmetric spelling on the fill's axes against that grid:
+
+| lean above / below | symmetric spelling | transverse mask only | control wire (both) |
+|---|---|---|---|
+| 0° / 0° | 1.24e-05 | 1.24e-05 | 2.16e-05 |
+| 30° / 0° | 1.17e-05 | 8.45e-03 | 1.67e-05 |
+| 0° / 25° | 1.21e-05 | 8.01e-03 | 2.16e-05 |
+| 30° / 25° | 1.17e-05 | 1.73e-03 | 1.67e-05 |
+| 60° / 45° | 1.24e-05 | 3.88e-03 | 8.14e-06 |
+
+The grid's own accuracy at every lean. **The fix is two lines and one end
+term:** `_CROSS_KEYS` dzW → dzpW with `k²V + ∂z′W` in the ẑẑ kernel (dense,
+ACA and `_main_sandwich`), and the TW end term on the test axis's ends in
+`_ends_and_corner` (the reversed block's "by_role" SW code path, made
+unconditional, IS that term transposed — the #813 by_role/by_parts dichotomy
+was a false one; both end terms are the spelling). No masks, no change to the
+ends table. Branch `956-wterms-transverse` in the momwire submodule.
+
+On the symmetric spelling the #956 deck's shipped-mesh answer is
+78.13206 + 46.33768j (the mask read 78.13206 + 46.33766j — the two differ by
+the by-parts quadrature residual, as they must on vertical members), and
+momwire#936's OP lean sweep against NEC-5 (`probe9`, local binary) reads
+
+| lean | shipped (recorded) | transverse mask | symmetric spelling |
+|---|---|---|---|
+| 0° | −4.48 % | −1.36 % | −1.36 % |
+| 45° | −5.18 % | −2.56 % | −1.50 % |
+| drift 0 → 45° | +0.70 pp | −1.20 pp | **−0.14 pp** |
+
+so the sin²α lean signature #936 recorded was this term too.
+
 ## 5. Traps met on the way
 
 - Matching wire ends by POINT hands every hub end the tangent of whichever
