@@ -1,0 +1,5 @@
+# Cached blocks and matrices: 12 MB of .npy intermediates that every probe
+# regenerates from the deck. The record is MEASUREMENTS.md and the tables in
+# it, not the arrays they were computed from.
+blocks/
+__pycache__/

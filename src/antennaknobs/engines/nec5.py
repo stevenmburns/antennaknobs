@@ -397,14 +397,7 @@ class NEC5Engine(SimulationEngine):
         # insulated-wire card (the full 3.2/3.3 command roster carries no
         # IS — NEC-4's card did not survive), so the emulation is the only
         # route.
-        self._material_lines = []
-        if spec is not None and spec.conductivity is not None:
-            self._material_lines.append(f"LD 5 0 0 0 {_num(spec.conductivity)} 0. 0.")
-        if spec is not None and spec.insulation_radius:
-            l_ins = insulation_inductance(
-                spec.radius, spec.insulation_radius, spec.insulation_eps_r
-            )
-            self._material_lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
+        self._wire_spec = spec
         self._has_buried_wires = False
         # Coincident-bundle first: its refusal names the `detached`
         # variant this engine DOES serve (the design-level message);
@@ -422,8 +415,51 @@ class NEC5Engine(SimulationEngine):
                 tuple(range(len(self._cards) + 1, len(self._cards) + 1 + len(sub)))
             )
             self._cards.extend((i, *c) for c in sub)
+        self._material_lines = self._build_material_lines()
         if self.ground is not None:
             self._check_geometry_against_ground()
+
+    def _build_material_lines(self) -> list[str]:
+        """The LD cards for wire material, built once the tags exist.
+
+        Issue #1427: a design loaded from a file carries its material PER WIRE
+        (`wire_tuples(specs=True)` — each `Wire.spec` has that GW card's
+        radius and LD 5 conductivity) and defines no design-level
+        `build_wire_material()`. The radius was already read per wire; the
+        conductivity was read from the design-level spec only, so an imported
+        deck's copper loss never reached NEC-5 (AC6LA's Example 2: 68.6−j17.8
+        on the tab against 70.5−j16.2 with the load). Same rule as PyNEC's
+        `_emit_wire_material` (#388): with no per-wire spec, one global card
+        per effect, byte-identical to before; when any wire carries its own
+        spec, every wire gets per-tag cards from its effective spec (its own,
+        else the design default), one card per GW card of a graded wire. The
+        two paths are exclusive — NEC stacks LD cards on a segment in series,
+        so a global card plus a per-tag card would double the loss.
+        """
+        spec = self._wire_spec
+        lines: list[str] = []
+        if any(w.spec is not None for w in self._wires):
+            for i, w in enumerate(self._wires):
+                eff = w.spec if w.spec is not None else spec
+                if eff is None:
+                    continue
+                for tag in self._tags_of[i]:
+                    if eff.conductivity is not None:
+                        lines.append(f"LD 5 {tag} 0 0 {_num(eff.conductivity)} 0. 0.")
+                    if eff.insulation_radius:
+                        l_ins = insulation_inductance(
+                            self._radii[i], eff.insulation_radius, eff.insulation_eps_r
+                        )
+                        lines.append(f"LD 2 {tag} 0 0 0. {_num(l_ins)} 0.")
+            return lines
+        if spec is not None and spec.conductivity is not None:
+            lines.append(f"LD 5 0 0 0 {_num(spec.conductivity)} 0. 0.")
+        if spec is not None and spec.insulation_radius:
+            l_ins = insulation_inductance(
+                spec.radius, spec.insulation_radius, spec.insulation_eps_r
+            )
+            lines.append(f"LD 2 0 0 0 0. {_num(l_ins)} 0.")
+        return lines
 
     def _resolve_network_sources(self, network):
         """Map a build_network() spec onto NEC-5 edge sources — stage 4 of
