@@ -451,29 +451,29 @@ def make_engine_factory(
             # isn't wired to a deck or this flag.
         else:
             kwargs["extended_kernel"] = True
-    if ground_spec is not _GROUND_UNSET:
-        if not kwargs:
-            return cls
-        return partial(cls, **kwargs)
-
-    # AK#1432: with no --ground, a file design's own ground (its GE/GN cards,
-    # `file_designs._make_builder`'s `file_ground`) is the default — the deck
-    # says what it models. Free space is passed as "free", which every engine
-    # reads as no ground; a bare None would mean "the engine's default" to
-    # NEC-2 and PyNEC (finite), the very confusion this closes. Catalog
-    # designs carry no `file_ground` and keep the engine's default as before.
-    def factory(builder, **extra):
-        kw = dict(kwargs, **extra)
-        if "ground" not in kw:
-            fg = getattr(type(builder), "file_ground", _GROUND_UNSET)
-            if fg is not _GROUND_UNSET:
-                kw["ground"] = "free" if fg is None else fg
-        return cls(builder, **kw)
-
-    return factory
+    if not kwargs:
+        return cls
+    return partial(cls, **kwargs)
 
 
 _GROUND_UNSET = object()
+
+
+def file_ground_default(ground, builder):
+    """AK#1432: with no --ground, a file design's own ground (its GE/GN
+    cards, `file_designs._make_builder`'s `file_ground`) is the default —
+    the deck says what it models. Free space is passed as "free", which
+    every engine reads as no ground; a bare None would mean "the engine's
+    default" to NEC-2 and PyNEC (finite), the very confusion this closes.
+    Catalog designs carry no `file_ground` and keep the engine's default;
+    an explicit --ground always wins."""
+    if ground is not _GROUND_UNSET:
+        return ground
+    cls = builder if isinstance(builder, type) else type(builder)
+    fg = getattr(cls, "file_ground", _GROUND_UNSET)
+    if fg is _GROUND_UNSET:
+        return _GROUND_UNSET
+    return "free" if fg is None else fg
 
 
 def _solve_for_budget(eng) -> None:
@@ -664,10 +664,12 @@ def cli(arguments=None):
             help="Azimuth angle (rear) for the elevation plot.",
         )
 
-    def engine_factory_from_args(args, deck_extended_kernel=False):
+    def engine_factory_from_args(args, deck_extended_kernel=False, builder=None):
         ground = (
             args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
         )
+        if builder is not None:
+            ground = file_ground_default(ground, builder)  # AK#1432
         return make_engine_factory(
             args.engine,
             ground,
@@ -742,7 +744,9 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(args, deck_extended_kernel_flag(builder))
+        engine = engine_factory_from_args(
+            args, deck_extended_kernel_flag(builder), builder=builder
+        )
         measured = read_measured(args.measured, z0=args.z0) if args.measured else None
         if measured is not None and (args.patterns or args.gain):
             # Measured S11 has nothing to say about a pattern or gain chart.
@@ -831,7 +835,9 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(args, deck_extended_kernel_flag(builder))
+        engine = engine_factory_from_args(
+            args, deck_extended_kernel_flag(builder), builder=builder
+        )
         opt_builder = optimize(
             builder(),
             args.params,
@@ -1012,7 +1018,7 @@ def cli(arguments=None):
                 args.params,
                 z0=args.z0,
                 engine=engine_factory_from_args(
-                    args, deck_extended_kernel_flag(builder_cls)
+                    args, deck_extended_kernel_flag(builder_cls), builder=builder_cls
                 ),
                 bounds=pairs,
                 fractions=args.fractions,
@@ -1158,7 +1164,7 @@ def cli(arguments=None):
         budget = p_in = None
         if args.power:
             eng = engine_factory_from_args(
-                args, deck_extended_kernel_flag(builder_cls)
+                args, deck_extended_kernel_flag(builder_cls), builder=builder_cls
             )(builder)
             _solve_for_budget(eng)
             budget = getattr(eng, "_excited_power_budget", None)
@@ -1190,7 +1196,9 @@ def cli(arguments=None):
 
     def f(args):
         builder = get_builder(args.builder)
-        engine = engine_factory_from_args(args, deck_extended_kernel_flag(builder))
+        engine = engine_factory_from_args(
+            args, deck_extended_kernel_flag(builder), builder=builder
+        )
         eng = engine(builder())
         if args.wireframe:
             pattern3d(eng, fn=args.fn)
@@ -1247,7 +1255,7 @@ def cli(arguments=None):
             builder_cls = get_builder(bname)
             eng = make_engine_factory(
                 espec,
-                ground,
+                file_ground_default(ground, builder_cls),  # AK#1432
                 extended_kernel=args.extended_kernel,
                 deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
             )
