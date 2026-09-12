@@ -8,6 +8,10 @@ phase-0 z′-clamp edge, the only unvalidated entries in the matrix.
 Status marks: **[derived]** = algebra on this page, **[pinned]** = verified
 numerically by a probe, **[open]** = awaiting one.
 
+> **§6 and §7 are superseded** — their probe numbers were measured against a
+> ẑẑ cross kernel that momwire#956 corrected (fixed in #1043, released in
+> 0.54.0). See the banner above §6. §0–§5 are unaffected.
+
 ## 0. Why the shipped contour fails at the corner [derived + probe12]
 
 Every kernel of the family is `2∫₀^∞ (·) Ẽ J₀(λρ) λ dλ` with
@@ -140,7 +144,51 @@ the shipped graded solves (probe19: B+split → Δ ≈ 0 stable) suggest the
 self blocks are not the diverging piece, so this edge is assessed AFTER
 the cross-table swap, not before.
 
-## 6. Probe ledger
+> ## ⚠ SUPERSEDED KERNEL — read before trusting any number in §6 or §7
+>
+> **Every probe 27–34 number below was measured on 2026-08-26 against the ẑẑ
+> cross kernel `k²V − ∂zW`. momwire#956 found that spelling wrong** — the exact
+> one is `k²V + ∂z′W` (the SOURCE-side derivative), plus a test-end W term the
+> old spelling omitted, because `s_w2` was counting the by-parted test-side term
+> a second time on a vertical test. Fixed in momwire#1043, released in **momwire
+> 0.54.0**.
+>
+> These probes call `_crossing_fill` (verified 2026-09-12 by a tripwire on its
+> entry points: probe29 alone reaches `cross_complete_block_split`,
+> `_main_split`, `_ends_and_corner`, `self_completions` and `axis_data`), so the
+> corrected kernel changes what they compute. **The ledger is therefore stale by
+> construction, not merely unreproduced.** It is not a small shift: the g1
+> adjudication deck moved 138.9609−102.6097j → 169.7756−82.2800j, i.e. Δ-vs-mono
+> +67.36−53.57j → +98.17−33.24j — and Δ-vs-mono is the very quantity §7's
+> adjudicator 2 tracks to zero.
+>
+> **Two of §7's three instruments also no longer discriminate**, measured on
+> Haswell on both the fix branch and main:
+>
+> * **probe34** — all five omission spellings (M-only, M+SW, B, A,
+>   A+corner-no-selfcomp) return the SAME Z to every digit, where §6 records them
+>   as distinct. A knob that cannot move the answer cannot adjudicate, so §7's
+>   "no omission spelling reproduces engine Δ" is not re-derivable.
+> * **probe33** — no σ-collapse: Δ goes 71 → 431 → 74, not → 0, so §7's
+>   adjudicator 2 is not re-derivable.
+> * **probe29**'s ε̃ = 1 anchor reads 11.9321−1020.8398j identically on three
+>   commits spanning #1040, against §6's 17.5619−758.1617j.
+>
+> Two practical notes for anyone re-running this suite: the probes need derived
+> bytes the bank does not carry (`bench_nec5_walk_why` lives in `scripts/`, off
+> the probe path; `probe23-blocks-g1.npz` is written by probe23), and those
+> blocks are computed FROM momwire so they must be regenerated **per commit** or
+> a run compares a commit against itself. The probes also WRITE INTO
+> `results/`, overwriting the very records being compared against.
+>
+> The re-adjudication, with the full pair tables, is momwire
+> `scratch/956-readjudication/MEASUREMENTS.md` (momwire#1044).
+>
+> **What stands unaffected:** §0–§5's derivations, and the #956 residual itself,
+> which the fix closes — ΔR −0.078 Ω against the pre-fix +2.1+4.9j Ω, reproduced
+> on two machines.
+
+## 6. Probe ledger [MEASURED ON THE SUPERSEDED KERNEL — see the banner above]
 
 | # | claim | instrument | status |
 |---|---|---|---|
@@ -171,7 +219,8 @@ quadrature-convergent node treatment is the COMPLETE field-form-equivalent
 spelling — all by-parts ends and corners, all four families, one
 convention (designed kernels, radius rule, graded-to-a quadrature).
 
-## 7. Session-5 verdict [measured 2026-08-26]
+## 7. Session-5 verdict [measured 2026-08-26 — SUPERSEDED KERNEL, and two of
+##    its three instruments no longer discriminate; see the §6 banner]
 
 **The near-interface kernel build is DONE and both gates are PASSED.**
 Designed evaluation of the six transmitted surfaces exists, is pinned to
