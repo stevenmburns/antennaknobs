@@ -66,7 +66,7 @@ def _ld_lines(deck):
 
 
 def test_per_wire_specs_become_per_tag_ld5_cards():
-    deck = NEC5Engine(TwoWires(), ground=None).deck([300.0])
+    deck = NEC5Engine(TwoWires(), ground=None, require_exe=False).deck([300.0])
     assert _ld_lines(deck) == [
         "LD 5 1 0 0 5.800000E+07 0. 0.",
         "LD 5 2 0 0 3.500000E+07 0. 0.",
@@ -77,7 +77,7 @@ def test_per_wire_specs_become_per_tag_ld5_cards():
 
 
 def test_design_level_material_is_the_global_card_as_before():
-    deck = NEC5Engine(DesignLevel(), ground=None).deck([300.0])
+    deck = NEC5Engine(DesignLevel(), ground=None, require_exe=False).deck([300.0])
     assert _ld_lines(deck) == ["LD 5 0 0 0 5.800000E+07 0. 0."]
 
 
@@ -85,7 +85,7 @@ def test_imported_deck_keeps_its_copper(tmp_path):
     path = tmp_path / "Example2.nec"
     path.write_text(EXAMPLE2)
     b = builder_from_file(str(path))()
-    deck = NEC5Engine(b, ground=None).deck([300.0])
+    deck = NEC5Engine(b, ground=None, require_exe=False).deck([300.0])
     assert "LD 5 1 0 0 5.800100E+07 0. 0." in deck
     assert "LD 5 0 0 0" not in deck
 
