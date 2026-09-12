@@ -29,7 +29,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 4 | "below/below pair separation R₁ = 136 m (8.9 in-medium λ), past the 4 in-medium λ the remainder is tabulated to" | range | 3 | — |
 | 5 | "crossing serve with per-wire radii: ρ_eff = √(ρ² + a²) regularizes the corner with ONE radius, and a mixed-radius convention is not pinned" (momwire#524 phase 2) | scope | 4 | every real screen: radials thinner than the mast |
 | 6 | "RP asks for the far field of a deck with a wire below the plane … the transmitted family's far-zone asymptotics" (momwire#570) | **formulation** | 1 | every buried design's pattern (wholly buried refused; mixed served with a note, #1341) |
-| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by ~20 % (14 Ω R, ~12 kΩ X on \|Z\| ≈ 70 kΩ), at both meshes and all three momwire commits | **open disagreement** (issue being filed) | — | 1 design |
+| 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 31 % in R and 16 % in \|Z\| (+14 Ω R, −12 kΩ X on \|Z\| ≈ 62–74 kΩ), at both meshes and all three momwire commits | **open disagreement** (AK#1443) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 
 The four-count in #5 and the six in #2 overlap: the six `GE −1` decks are the
@@ -97,7 +97,7 @@ through U2. **1–2 weeks.** Gate: the catalog's BRV at equal radii
 bit-identical (no regression), the mixed-radius ladder inside the equal-radius
 ladder's residual band.
 
-### U6 — the open counterpoise disagreement (1 design)
+### U6 — the open counterpoise disagreement (1 design, AK#1443)
 
 `elevated_buried_counterpoise` is a `split` deck (above and below, nothing at
 z = 0), so it goes through the transmitted **grid**, not the crossing fill.
