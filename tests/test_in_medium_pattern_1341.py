@@ -114,8 +114,11 @@ def test_buried_radial_vertical_pattern_is_served_with_a_note():
     assert -1.0 < ff.in_medium_pattern_delta_db < 0.0
     assert ff.note and "momwire#570" in ff.note
     # The served readout is the status quo: the peak is what it was before
-    # this issue (the same code path, the same numbers).
-    assert ff.max_gain == pytest.approx(-2.5851294708057764, abs=1e-6)
+    # this issue (the same code path, the same numbers). Re-pinned on
+    # momwire v0.54.0: its crossing fix (momwire#956) moved this peak by
+    # -0.124 dB, from -2.5851294708057764. The three shares above held to
+    # the digits quoted (0.3774 / 0.0829 / -0.368 dB).
+    assert ff.max_gain == pytest.approx(-2.7092732487947693, abs=1e-6)
 
 
 def test_free_space_far_field_is_untouched():

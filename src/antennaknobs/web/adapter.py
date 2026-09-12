@@ -846,8 +846,10 @@ _WRAPPER_BURIED_SCOPE = {
     #
     #   wholly buried, fed below   validated to 0.15-0.27 % against momwire
     #   contact (conductor crosses
-    #   the interface)             2.58 % in R on the four-radial screen,
-    #                              3.85 % on the twelve
+    #   the interface)             0.42 % in R on the four-radial screen
+    #                              (0.26 % at 2x mesh), momwire v0.54.0;
+    #                              the twelve-radial 3.85 % predates
+    #                              momwire#956 and is not re-measured
     #   buried wires, fed above    <= 1.7 % across 92 case-study decks
     #                              (median 0.10 %)
     #   conductor TERMINATING on
@@ -857,9 +859,10 @@ _WRAPPER_BURIED_SCOPE = {
     # class: that it needed the bonding ground flag and sat ~35 % from
     # momwire, which was read as an interface-node convention difference.
     # That was measured wrong. The 35 % was the FLAG. Keyed on burial the same
-    # deck reads 77.805+44.468j against momwire's 75.848+40.452j, and the
-    # convention difference — whatever remains of it — is smaller than the
-    # error that was standing in front of it. See antennaknobs#1025.
+    # deck reads 77.805+44.468j against momwire's 78.132+46.338j (v0.54.0).
+    # The ~2+4j ohm left before momwire#956 was momwire's crossing kernel, not
+    # a convention difference. See antennaknobs#1025 and
+    # scratch/956-census/BURIED-CENSUS.md.
     #
     # The refused row is the honest edge: a conductor that stops on the
     # interface above buried wires has no basis function under the flag

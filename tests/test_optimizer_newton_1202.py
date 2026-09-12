@@ -273,4 +273,8 @@ def test_buried_vertical_two_knobs_reaches_z0(start):
     res = optimize(dict(zip(knobs, start, strict=True)), free, "match_z0", solve_fn=fn)
     assert res["method"] == "seed + newton", res["method"]
     assert res["residual_after"] < 1.0, res["residual_after"]
-    assert res["n_solves"] <= 16, res["n_solves"]
+    # Re-pinned on momwire v0.54.0: its crossing fix (momwire#956) raised this
+    # deck's Z by ~2.5 + 6j ohm, which moves the Z0 crossing in knob space, and
+    # both starts now take 18 solves (the bar was 16). G-1202-8's +2 margin
+    # holds. The R-contour figures in the module docstring predate that fix.
+    assert res["n_solves"] <= 20, res["n_solves"]
