@@ -319,10 +319,22 @@ def main(argv=None) -> int:
     for msg, n in why.most_common(20):
         print(f"| {msg} | {n} |")
 
+    # The momwire side is named by VERSION AND COMMIT, because the version alone
+    # does not identify a solver here: the census runs momwire imported editable
+    # from the submodule at the recorded pointer, which normally sits ahead of
+    # the released version, and a pointer bump can move rows without the version
+    # moving at all. An earlier spelling read `environment.momwire_version`,
+    # which the artifact has never carried -- so the published page names its
+    # NEC-5 binary and prints `?` for momwire. Missing keys still degrade to `?`
+    # rather than raising, but the keys below are the ones written.
+    mw = mm.get("environment", {}).get("momwire", {})
+    mw_name = mw.get("distribution", "?")
+    if mw.get("commit"):
+        mw_name += f" @ {mw['commit']}" + (" DIRTY" if mw.get("dirty") else " clean")
     print(
         "\n<sub>Environments — NEC-5: "
         f"`{m5.get('exe', '?')}`, momwire: "
-        f"`{mm.get('environment', {}).get('momwire_version', '?')}`, "
+        f"`{mw_name}`, "
         f"seg cap {mm.get('environment', {}).get('seg_cap', '?')}, "
         f"timing_valid {mm.get('timing_valid', '?')}.</sub>"
     )

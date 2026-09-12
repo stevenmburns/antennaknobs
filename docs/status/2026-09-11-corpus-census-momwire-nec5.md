@@ -1,18 +1,66 @@
 # momwire bs2 against NEC-5 over the public NEC corpus
 
-**Evidence, not a scoreboard.** AK#896. Measured 2026-09-11 on antennaknobs
-`746c641d0` and momwire **0.53.0**, imported from the editable submodule at
-`23d81e5` (tag `v0.53.0`, clean working tree) rather than from a wheel, running
-the portal's default basis **momwire bs2 (B-spline, d=2)**. "momwire" alone
-names a package and not a solver — the portal's roster carries seven bases that
-disagree with each other by design — so the artifact records the basis, its
-solver class and degree, and the banner they were read from, beside the version,
-commit and import path. Which build and which basis answered is recoverable from
-the data and not only from this line.
+**Evidence, not a scoreboard.** AK#896. Measured 2026-09-11 on momwire **0.53.0**,
+imported from the editable submodule at `23d81e5` (tag `v0.53.0`, clean working
+tree) rather than from a wheel, running the portal's default basis **momwire bs2
+(B-spline, d=2)**. "momwire" alone names a package and not a solver — the
+portal's roster carries seven bases that disagree with each other by design — so
+the artifact records the basis, its solver class and degree, and the banner they
+were read from, beside the version, commit and import path. Which build and which
+basis answered is recoverable from the data and not only from this line.
+
+**The commit is named for a reason, not for form.** This census runs momwire at
+the submodule POINTER, which normally sits ahead of the released version, so
+`0.53.0` does not by itself identify the solver that answered — a pointer bump
+can move rows while the version string stands still. `momwire#1043` (draft, the
+crossing `ẑẑ` kernel) is the known pending change of that shape. Naming the
+commit is what makes a future move attributable instead of mysterious; what it
+will move, and how far, is not something this page measures.
+
 Skylake box, over the 21 public deck collections
-`scripts/nec5_corpus/nec5_corpus.py fetch` knows about. 3,076 decks, 889 s on
-the momwire side. Per-deck momwire rows in
-`data/2026-09-11-corpus-census-momwire.jsonl`.
+`scripts/nec5_corpus/nec5_corpus.py fetch` knows about. **3,066 decks** (the
+translate report writes 3,067 — see the re-render note), 887 s on the momwire
+side. Per-deck momwire rows in `data/2026-09-11-corpus-census-momwire.jsonl`.
+
+## Re-rendered 2026-09-11 on corpus tool 1.9
+
+The first publication of this page was rendered on corpus tool **1.6**. Two
+corpus fixes have landed since, and every number below has been re-measured on
+**1.9**, which carries both: **#1416** (a whole-wire `LD` segment range must stay
+whole-wire, PR #1422) and **#1430** (a deck listing the same wire twice is
+invalid, PR #1431).
+
+| | first publication (1.6) | this page (1.9) |
+|---|---:|---:|
+| deck files in the corpus | 3,076 | **3,066** |
+| `written` in the translate report | 3,077 | **3,067** |
+| decks both engines solve with an impedance | 2,386 | **2,541** |
+| **comparable after the degeneracy rule** | **2,364** | **2,519** |
+| reactance-sign disagreements | 455 (19.2 %) | **493 (19.6 %)** |
+| median relative difference | 1.10e-01 | **1.05e-01** |
+
+The corpus lost ten decks and gained 155 comparable ones, and those are two
+different fixes doing two different things:
+
+- **#1430 removed ten decks** that list the same wire twice. Nothing else about
+  them changed; nothing else in the corpus changed either.
+- **#1416 recovered 158 decks for momwire** — the whole of the cost this page
+  used to report as its own (see below), and by far the larger effect.
+
+**The re-render moved nothing else, and that is checked rather than hoped.**
+Splitting the 3,066 surviving decks by whether their translated bytes changed at
+all: on the **2,896** whose bytes are unchanged, **zero** NEC-5 impedances and
+**zero** statuses moved on either engine; on the **170** #1416 remeshed, 95 NEC-5
+impedances moved and 158 momwire refusals became solves. Whatever is different
+below is one of the two fixes and nothing else. The full record, including the
+re-render's own determinism passes, is `scratch/896-census/RERENDER-1430.md`;
+the commands are `scratch/896-census/rerender_1430.sh`.
+
+The NEC-5 side is the same binary as the first publication, by hash rather than
+by assertion: the executable that report's metadata names no longer exists on
+this box, and `nec5cl-x13` is byte-identical to it (sha256 `2068ae67…`,
+1,265,856 bytes), with `compare` over the *first* tree reporting `moved: 0` and
+zero impedances moved at 1e-9 across all 3,076 decks.
 
 ## What this census can and cannot say
 
@@ -26,7 +74,7 @@ spending that on, not a substitute for it. A deck where the two disagree is a
 *question*; the census's job is to turn three thousand decks into a short,
 ranked, reproducible list of them.
 
-Read the headline with that in mind. A median disagreement of 11 % at
+Read the headline with that in mind. A median disagreement of 10.5 % at
 author-chosen density is the **convergence-rate gap made visible at scale**: a
 coarse deck leaves the O(1/N) formulation further from its own limit than the
 B-spline basis is from the same limit, so the gap at N-as-published is expected
@@ -36,7 +84,9 @@ measures the second.
 ## Method
 
 - **Decks**: the translated tree — the same bytes into both engines.
-- **NEC-5 side**: the existing `check` report, unchanged.
+- **NEC-5 side**: `nec5_corpus.py check`, re-run over this tree at the same
+  settings as the first publication (`OMP`/`OPENBLAS` 4, `--timeout 300`,
+  `--jobs` 4) with the binary that publication used. 918 s.
 - **momwire side**: `scratch/896-census/census_momwire.py`, one deck per
   subprocess under a 300 s wall timeout and a 6 GB address-space rlimit.
 - **Join**: `compare`'s own `_first_z` — row 0 of the first frequency's
@@ -48,15 +98,24 @@ measures the second.
   it the tail table below comes out five rows longer and the byte-for-byte claim
   fails on exactly that table.
 
-**The census itself is deterministic.** Run three times end to end on the same
-box — 891 s, 889 s and 889 s — the reports agree on every row: status, error
-text, impedances and advisory classes alike, with only the wall clock excluded.
-The third run differs from the first on exactly **6 rows of 3,076**, and only
-because it applies the `no-drive` status introduced below; nothing else moved,
-which is the check rather than an exception to it.
+**The census itself is deterministic**, and the re-render re-established that
+rather than inheriting it. Two full passes over this tree — 887 s and 885 s —
+agree on **every one of 3,066 rows**: status, error text, impedances and advisory
+classes alike, with only `wall_s` excluded. Zero rows differ. (The first
+publication's three passes measured 891 s, 889 s and 889 s and agreed likewise,
+differing on 6 rows only because the third introduced the `no-drive` status
+described below.)
+
 That matters more here than it would for a benchmark: a census whose refusals or
 impedances wandered between runs could not support a named-case list, because
 nobody could tell a finding from a re-roll.
+
+**`--jobs` is a wall-clock parameter and nothing else**, which is worth stating
+because getting it wrong costs a comparison rather than a run. `census_momwire.py`
+defaults to `--jobs 1`; both publications used **4**. A 1-way pass measured ~3x
+the wall for **0.93x** the summed per-deck `wall_s` over the 1,634 decks it
+reached — the same work at the same speed per deck, and a wall figure that could
+not honestly be set beside 889 s.
 
 ## Why the translated decks, and what that costs
 
@@ -71,15 +130,39 @@ the corpus's most heavily parameterised models and report the gap as a momwire
 limitation, which it is not. Translated also makes the join exact by
 construction.
 
-The cost is ours and is the single largest refusal below: **175 decks lost to
-`LD 5` on a partial-wire range.** NEC-5 addresses knots where NEC-2 addresses
-segment centres, so `translate` remeshes a wire to put a referenced centre on a
-knot and remaps the references — by design. The side effect is that a
-**whole-wire** `LD 5` stops being whole-wire: `GW 1 25` with `LD 5 1 1 25`
-becomes `GW 1 50` with `LD 5 1 2 50`, and momwire's nec2 dialect, which carries
-per-wire conductivity but not partial ranges, refuses it. Whether `2 50` is the
-right remap is a question for whoever owns `translate`; that it converts a
-whole-wire load into a partial one is the part that costs this census 175 decks.
+The cost used to be ours, and was the single largest refusal on this page:
+**175 decks lost to `LD 5` on a partial-wire range** at first publication, now
+**16**. NEC-5 addresses knots where NEC-2 addresses segment centres, so
+`translate` remeshes a wire to put a referenced centre on a knot and remaps the
+references — by design. The side effect was that a **whole-wire** `LD 5` stopped
+being whole-wire: `GW 1 25` with `LD 5 1 1 25` became `GW 1 50` with
+`LD 5 1 2 50`, and momwire's nec2 dialect, which carries per-wire conductivity
+but not partial ranges, refused it.
+
+The first publication left that open — "whether `2 50` is the right remap is a
+question for whoever owns `translate`". **It was not**, and #1416 answered it: a
+range that covered a whole wire before the remesh covers the whole wire after it,
+so `LD 5 1 1 25` becomes `LD 5 1 1 50`. Measured here, that recovers **158 of the
+175** — every one of them a deck whose refusal text was exactly this, and every
+one of them now solving. One more left the corpus under #1430.
+
+The remaining **16** split two ways, and the split is measured from the authors'
+own raw decks rather than assumed:
+
+- **11** carry `LD 5` on a range that is already partial in the raw deck. Those
+  are momwire's dialect limit — per-wire conductivity, no partial ranges — and
+  nothing about `translate` is implicated.
+- **5** are ours still, in a form #1416 does not reach: `LD 5 0 1 N`, a **tag-0**
+  load over absolute segment numbers `1..N` where N is the structure's whole
+  segment count. The remesh grows the structure — 211 → 222 segments on
+  `sokyrad/…/K8UY_yagi_2m_original.nec`, 97 → 99, 395 → 403, 136 → 139 on the
+  others — and the range is left at `1 211`, so a whole-structure load silently
+  becomes a partial one. #1416 made a whole-**wire** range stay whole-wire; the
+  tag-0 whole-**structure** range is the hole in #1423.
+
+This is also why the re-render is worth more than a version bump: the census's
+largest self-reported defect is now measured as fixed, on the corpus that
+reported it.
 
 It does **not** bias the comparison: both engines read the same translated bytes,
 so every deck that got through was the same antenna on both sides.
@@ -103,9 +186,11 @@ become the corpus's worst disagreement by having a small denominator.
 
 ## An exact zero is not an impedance
 
-Six decks solve, report `ok`, and print an impedance of exactly zero at the
+Six decks solved, reported `ok`, and printed an impedance of exactly zero at the
 feed. They were filed under "|Z| under 1 ohm, degenerate" — as though they were
-very small numbers rather than no answer at all.
+very small numbers rather than no answer at all. **Four remain in this corpus**;
+the two that left are `necpp/patch_999.nec` and `necpp/patch_999_2.nec`, which
+#1430 now refuses at translation because each lists the same wire twice.
 
 The cause is measured, not inferred. NEC defaults an `EX` card with a zero
 voltage to **1 V**; momwire's portal takes the zero literally, so nothing is
@@ -122,8 +207,10 @@ stevenmburns/momwire#1041.
 Sweeping the artifact for both parts exactly `0.0` **and** for |Z| < 1e-9 found
 **six**, where three were expected: the two Moxons and `qantenna/yg_4el_20.nec`,
 plus `necpp/patch_999.nec`, `necpp/patch_999_2.nec` and `necpp/ga_pjw_1.nec`
-(|Z| = 1.17e-12). All six are row 0 with a single source, so each affects its
-whole deck. `ga_pjw_1.nec` is worth noting twice: it is also one of the five
+(|Z| = 1.17e-12). All six were row 0 with a single source, so each affected its
+whole deck. The coverage table above now counts **four**, for the reason given at
+the top of this section — the two `patch_999` decks are out of the corpus, not
+re-classified. `ga_pjw_1.nec` is worth noting twice: it is also one of the five
 decks that moved between the reference NEC-5 build and 63d0f93, so its departure
 from the degenerate table removes a row that was never a disagreement about
 physics.
@@ -143,27 +230,27 @@ added and the adjudication section gets materially more legible.
 
 The momwire side is **momwire bs2 (B-spline, d=2)**, read from the portal's own banner and recorded per run in the artifact's `_meta.environment.basis`; called momwire bs2 below.
 
-- decks in the NEC-5 report: **3076**
-- decks in the momwire report: **3076**
-- joined on `file`: **3076**
+- decks in the NEC-5 report: **3066**
+- decks in the momwire report: **3066**
+- joined on `file`: **3066**
 
 | status | NEC-5 | momwire bs2 |
 |---|---:|---:|
 | `crash` | 43 | 5 |
-| `error` | 10 | 622 |
-| `no-drive` | 0 | 6 |
-| `no-impedance` | 8 | 0 |
-| `ok` | 2946 | 2437 |
-| `ok-no-source` | 67 | 0 |
+| `error` | 6 | 461 |
+| `no-drive` | 0 | 4 |
+| `no-impedance` | 7 | 0 |
+| `ok` | 2942 | 2590 |
+| `ok-no-source` | 66 | 0 |
 | `over-cap` | 0 | 6 |
 | `timeout` | 2 | 0 |
 
-Both engines solved and printed an impedance on **2386** decks.
+Both engines solved and printed an impedance on **2541** decks.
 
 ### Is the join sound?
 
-- row 0 is the same `(tag, seg)` on both sides: **2385/2386**
-- both reports list the same number of sources: **2376/2386**
+- row 0 is the same `(tag, seg)` on both sides: **2540/2541**
+- both reports list the same number of sources: **2531/2541**
 
 The following deck(s) address a different segment on each side. Their comparison would be of two different ports, so they are **excluded** from everything below:
 
@@ -178,6 +265,7 @@ The following deck(s) address a different segment on each side. Their comparison
 | deck | momwire bs2 Z (ohm) | NEC-5 Z (ohm) |
 |---|---|---|
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/10-4-2.nec` | 0.03579+0.003214j | 0.03585+0.001451j |
+| `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-1/16-5.nec` | 0.02794+0.02427j | 0.0268+0.02473j |
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-10.nec` | 0.01375+0.0001382j | 0.01413+0.002862j |
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-10a.nec` | 0.01375+0.0001382j | 0.01413+0.002862j |
 | `cebik-w4rnl/Basic-Intermediate-Tutorial-Models/Tutorial-2/ch-10/10-10b.nec` | 0.01375+0.0001382j | 0.01413+0.002862j |
@@ -195,24 +283,23 @@ The following deck(s) address a different segment on each side. Their comparison
 | `cebik-w4rnl/models/Yagis-HF/nec/2el60mwireYagi.nec` | 0.01879-0.002225j | 0.02166+0.004231j |
 | `g1ojs/160m/160m Coax Magloop V.nec` | 0.4039+0.2693j | 0.4264+6.053j |
 | `g1ojs/_2m/Hentenna based/2m Small Hentenna Loop 700x200 Stub Match Wire dia.nec` | 0.03134+0.6602j | 0.1774-1.576j |
-| `necpp/plet_helixumts.nec` | 1.67e-11+0.0007148j | 3.39e-06-7.686e-06j |
 | `sokyrad/unsorted/10m efhw narrow rect 28.4mhz  10m efhw narrow rect 28.4mhz.nec` | 1.465e-07+4.997e-05j | 6.536e-08+3.806e-05j |
 | `sokyrad/unsorted/stacked_146MHz_moxon_vertical_0_75lambda.nec` | 0.02045+6.104j | 0.03756+0.2698j |
 
-Comparable decks: **2364**
+Comparable decks: **2519**
 
 | relative difference \|Zm-Zn\|/\|Zn\| | decks | share |
 |---|---:|---:|
-| < 0.1 % | 6 | 0.3 % |
-| < 1 % | 142 | 6.0 % |
-| < 10 % | 975 | 41.2 % |
-| >= 10 % | 1241 | 52.5 % |
+| < 0.1 % | 7 | 0.3 % |
+| < 1 % | 151 | 6.0 % |
+| < 10 % | 1066 | 42.3 % |
+| >= 10 % | 1295 | 51.4 % |
 
 | quantile | p50 | p75 | p90 | p95 | p99 |
 |---|---:|---:|---:|---:|---:|
-| relative difference \|Zm-Zn\|/\|Zn\| | 1.10e-01 | 2.33e-01 | 5.55e-01 | 1.08e+00 | 3.21e+01 |
+| relative difference \|Zm-Zn\|/\|Zn\| | 1.05e-01 | 2.28e-01 | 5.42e-01 | 1.05e+00 | 3.12e+01 |
 
-Median 1.10e-01; worst 1.45e+03 — but see the tail table: that worst figure is `compare`'s NEC-5-referenced ratio and the same deck is 1.96e+00 measured symmetrically. The median is identical either way.
+Median 1.05e-01; worst 1.45e+03 — but see the tail table: that worst figure is `compare`'s NEC-5-referenced ratio and the same deck is 1.96e+00 measured symmetrically. The median is identical either way.
 
 ## The tail: the 20 widest disagreements
 
@@ -243,12 +330,12 @@ Ranked by the symmetric measure, with `compare`'s NEC-5-referenced ratio beside 
 
 ## The reactance sign
 
-On **455** of 2364 comparable decks (19.2 %) the two engines disagree on the SIGN of the reactance, and those decks dominate the tail above.
+On **493** of 2519 comparable decks (19.6 %) the two engines disagree on the SIGN of the reactance, and those decks dominate the tail above.
 
 | group | decks | median symmetric rel. diff | same, with Zm conjugated |
 |---|---:|---:|---:|
-| reactance signs disagree | 455 | 0.1911 | 0.1221 |
-| reactance signs agree | 1909 | 0.0952 | 0.4582 |
+| reactance signs disagree | 493 | 0.1794 | 0.1147 |
+| reactance signs agree | 2026 | 0.0923 | 0.4624 |
 
 **The obvious explanation is ruled out by that last column.** If one side carried the opposite time convention, conjugating it would collapse the disagreeing group to near zero and wreck the agreeing one. The agreeing group does break, as it must — but the disagreeing group only improves partway, nowhere near zero. So this is not a global sign convention; it is a real disagreement about reactance on a specific class of deck.
 
@@ -257,23 +344,23 @@ On **455** of 2364 comparable decks (19.2 %) the two engines disagree on the SIG
 
 | advisory | decks |
 |---|---:|
-| `SurfaceRadialHeight` | 33 |
+| `SurfaceRadialHeight` | 39 |
 | `LinAlgWarning` | 1 |
 
 ## Where momwire bs2 declined
 
 | reason | decks |
 |---|---:|
-| LD 5 conductivity on a partial-wire segment range is not supported by this engine — per-wi | 175 |
 | GH (helix) is not part of this engine's nec2 dialect, whose geometry is GW with GM / GS tr | 71 |
 | EX type 4 is not a voltage source; this engine drives EX 0 only | 59 |
 | EX type 1 is not a voltage source; this engine drives EX 0 only | 37 |
 | GN type 3 is not supported by this engine | 34 |
 | LD type 2 is not supported by this engine | 29 |
 | GA (wire arc) is not part of this engine's nec2 dialect, whose geometry is GW with GM / GS | 29 |
-| deck has no EX card — nothing drives the structure | 26 |
+| deck has no EX card — nothing drives the structure | 24 |
 | wire 0 start lies in the ground plane: ground CONTACT under ground_model='refl-coef' is re | 19 |
 | GC (tapered wire continuation) is not part of this engine's nec2 dialect | 17 |
+| LD 5 conductivity on a partial-wire segment range is not supported by this engine — per-wi | 16 |
 | RP 3 asks for a cliff pattern over a ground with no second medium stated (an all-zero EPSR | 16 |
 | NE over a finite ground is not supported by this engine (the near field of a Sommerfeld ha | 10 |
 | unrecognised NEC card 'CW' | 7 |
@@ -281,8 +368,8 @@ On **455** of 2364 comparable decks (19.2 %) the two engines disagree on the SIG
 | PL (plot request) is not supported by this engine | 7 |
 | RP 2 asks for a cliff pattern over a ground with no second medium stated (an all-zero EPSR | 6 |
 | RP mode 1 is not supported by this engine (modes 0, 2, 3 only) | 5 |
-| wire 0 end lies in the ground plane: ground CONTACT under ground_model='refl-coef' is refu | 4 |
+| wire 0 end lies in the ground plane: ground CONTACT under ground_model='refl-coef' is refu | 5 |
 | wire 1 end, wire 4 end lies in the ground plane: ground CONTACT under ground_model='refl-c | 3 |
 | RP mode 4 is not supported by this engine (modes 0, 2, 3 only) | 3 |
 
-<sub>Environments — NEC-5: `/home/smburns/nec5-timing/nec5-src/nec5cl`, momwire: `?`, seg cap 4000, timing_valid True.</sub>
+<sub>Environments — NEC-5: `/home/smburns/nec5-timing/nec5cl-x13`, momwire: `0.53.0 @ 23d81e5 clean`, seg cap 4000, timing_valid True.</sub>
