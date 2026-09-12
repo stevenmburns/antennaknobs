@@ -58,6 +58,11 @@ from .lane import LaneRegistry, Superseded, cancel_on_disconnect
 from .progress_stream import ProgressStream, ProgressStreamClosed
 
 _logger = logging.getLogger(__name__)
+# AK#1428: `ANTENNAKNOBS_LOG_LEVEL` in the launch environment turns on the
+# engine run log (INFO one line per run, DEBUG the decks and printouts).
+from ..engine_capture import configure_logging_from_env as _configure_logging  # noqa: E402
+
+_configure_logging()
 
 
 def _physical_cpu_count() -> int:

@@ -66,10 +66,12 @@ why the parsers are not shared:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
 import subprocess
+import time
 import tempfile
 from pathlib import Path
 
@@ -355,12 +357,24 @@ class NEC2Engine(SimulationEngine):
         ground=None,
         nec2_exe: str | None = None,
         timeout: float = 120.0,
+        capture_dir=None,
     ):
         super().__init__(builder)
         from .pynec import DEFAULT_GROUND
 
         self.ground = DEFAULT_GROUND if ground is None else ground
         self.timeout = float(timeout)
+        # AK#1428: with a capture dir (or `ANTENNAKNOBS_CAPTURE_DIR/nec2` from
+        # the environment) every run writes `<hash>.nec` and `<hash>.out`
+        # beside each other. Write-only — unlike NEC-5's #872 cache, a
+        # captured NEC-2 printout is never served back.
+        if capture_dir is None:
+            from ..engine_capture import capture_dir_from_env
+
+            capture_dir = capture_dir_from_env("nec2")
+        self._capture_dir = Path(capture_dir).expanduser() if capture_dir else None
+        if self._capture_dir is not None:
+            self._capture_dir.mkdir(parents=True, exist_ok=True)
         exe = find_nec2(nec2_exe)
         if exe is None:
             raise NEC2Error(
@@ -409,7 +423,25 @@ class NEC2Engine(SimulationEngine):
         return "\n".join(lines) + "\n"
 
     def _run(self, deck: str) -> str:
+        h = hashlib.sha256(deck.encode()).hexdigest()[:16]
+        _log.debug(
+            "NEC-2 %s: deck for %s (%d lines)\n%s", h, self.exe, deck.count("\n"), deck
+        )
+        t0 = time.perf_counter()
         text = run_deck(self.exe, deck, timeout=self.timeout)
+        _log.info(
+            "NEC-2 %s: %.2f s, printout %d lines",
+            h,
+            time.perf_counter() - t0,
+            text.count("\n"),
+        )
+        _log.debug("NEC-2 %s: printout\n%s", h, text)
+        if self._capture_dir is not None:
+            (self._capture_dir / f"{h}.nec").write_text(deck)
+            (self._capture_dir / f"{h}.out").write_text(text)
+            _log.info(
+                "NEC-2 %s: deck and printout captured under %s", h, self._capture_dir
+            )
         if _AIP_HEADER not in text:
             # The binary ran and reported a fault. Say WHAT it said: without
             # this the first parser to look raises "no ANTENNA INPUT

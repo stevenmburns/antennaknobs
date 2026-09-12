@@ -501,6 +501,10 @@ def deck_extended_kernel_flag(builder_cls) -> bool:
 
 
 def cli(arguments=None):
+    # AK#1428: `ANTENNAKNOBS_LOG_LEVEL` turns on the engine run log here too.
+    from .engine_capture import configure_logging_from_env
+
+    configure_logging_from_env()
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -453,6 +453,12 @@ binary joins the same way through `NEC2_EXE` — 4nec2 ships one, as
 `$env:NEC2_EXE = "C:\4nec2\exe\nec2dxs11.exe"` — and the NEC-2 tab appears;
 see the [NEC-2 page](https://antennaknobs.dev/reference/nec2/).
 
+To see exactly what either engine was given and printed, start the workbench
+with `--capture-dir <folder>` (every run leaves `<hash>.nec` and `<hash>.out`
+there) or `--log-level DEBUG`; the same two as environment variables,
+`ANTENNAKNOBS_CAPTURE_DIR` and `ANTENNAKNOBS_LOG_LEVEL`, for a `uvicorn` or
+CLI launch — see the [NEC-5 page](https://antennaknobs.dev/reference/nec5/#seeing-what-the-engine-saw).
+
 The lines above are PowerShell (its prompt starts with `PS`). In **Command
 Prompt** (prompt `C:\Users\you>`), the `$env:` form is not understood — it
 fails with "The filename, directory name, or volume label syntax is

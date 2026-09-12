@@ -75,6 +75,25 @@ set NEC5_EXE=C:\EZNEC 7.0\Docs\NEC5CL_x13.exe
 with no quotes. Either shell works; the variable lives in that window only,
 so set it and start the workbench in the same one.
 
+## Seeing what the engine saw
+
+When a NEC-5 answer surprises you, the two things to look at are the deck
+antennaknobs handed the binary and the printout it got back. Two switches
+expose both, for NEC-5 and NEC-2 alike:
+
+```bash
+export ANTENNAKNOBS_CAPTURE_DIR=~/ak-captures   # every run leaves nec5/<hash>.nec + <hash>.out
+export ANTENNAKNOBS_LOG_LEVEL=DEBUG             # the deck and printout in the server log as they run
+```
+
+The packaged workbench takes the same two as `--capture-dir DIR` and
+`--log-level DEBUG`. The capture directory is the pair of files to attach
+to a report; the hash in the file name is the deck's own, so two runs of
+the same deck share one pair. At `INFO` the log is one line per run (hash,
+seconds, printout length). For NEC-5 a captured printout is also served
+back for the same deck without re-running the binary; NEC-2 captures are
+write-only.
+
 Everything below lights up exactly when `NEC5_EXE` resolves — the CLI
 engine name, the workbench slot entry — and disappears when it doesn't.
 If you run a local web instance with the variable set, the NEC-5 slot is
