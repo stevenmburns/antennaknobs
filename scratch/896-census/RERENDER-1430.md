@@ -110,20 +110,75 @@ remesh that changes the mesh need not change the impedance.)
 
 ## The momwire side
 
-Running: two passes at `--jobs 4`. **`--jobs` matters, and only to the wall
-clock.** The script's default is 1; the published run recorded
-`_meta.environment.jobs = 4`. A 1-way pass measured ~3x the wall for **0.93x**
-the summed per-deck `wall_s` over the 1,634 decks it reached — same work, same
-speed per deck, a wall figure that cannot be put beside the published 889 s. The
-1-way partial is kept as `census-1430-momwire-j1-partial.jsonl` so the
+Two passes at `--jobs 4`, **887 s** and **885 s**, against the first
+publication's 891 / 889 / 889 s. Determinism: **0 of 3,066 rows differ** on
+anything but `wall_s` — status, error text, impedance and advisory classes all
+identical.
+
+**`--jobs` matters, and only to the wall clock.** The script's default is 1; both
+publications recorded `_meta.environment.jobs = 4`. A 1-way pass measured ~3x the
+wall for **0.93x** the summed per-deck `wall_s` over the 1,634 decks it reached —
+same work, same speed per deck, a wall figure that cannot be put beside 889 s.
+The 1-way partial is kept as `census-1430-momwire-j1-partial.jsonl` so the
 dispatch-width question can be answered from data rather than by assertion.
 
-## One page correction that is not about the numbers
+### What moved, and why
 
-The page's Method section says it regenerates with
+| group | decks | status transitions |
+|---|---:|---|
+| deck bytes unchanged | 2,896 | **none** |
+| remeshed by #1416 | 170 | `error` -> `ok` on **158**; 12 unchanged |
+| removed by #1430 | 10 | were 5 `ok`, 3 `error`, 2 `no-drive` |
+
+All 158 flips carried the same refusal text: `LD 5 conductivity on a partial-wire
+segment range is not supported by this engine`. That is the defect the published
+page reported as **its own largest cost — 175 decks** — and #1416 retires 158 of
+them. One more of the 175 left the corpus under #1430.
+
+### The 16 that still refuse, split by measurement rather than by assumption
+
+Reading the AUTHORS' raw decks, not the translated ones:
+
+- **11** carry `LD 5` on a range that is already partial before any remesh.
+  momwire's nec2 dialect has per-wire conductivity and no partial ranges, so
+  those are its dialect limit and nothing to do with `translate`.
+- **5** are still ours, in a form #1416 does not reach — `LD 5 0 1 N`, a **tag-0**
+  load over absolute segment numbers where N is the whole structure's segment
+  count:
+
+  | deck | segments raw -> translated | `LD` range |
+  |---|---|---|
+  | `sokyrad/k8uy_yagi_10el/models/K8UY_yagi_2m_original.nec` | 211 -> 222 | `1 211` |
+  | `sokyrad/unsorted/K8UY_yagi_2m_original.nec` | 211 -> 222 | `1 211` |
+  | `sokyrad/unsorted/2m70cm_moxon_nested.nec` | 97 -> 99 | `1 97` |
+  | `sokyrad/unsorted/2m70cm_moxon_nested_four_masted.nec` | 395 -> 403 | `1 395` |
+  | `sokyrad/unsorted/6m_2m_70cm_moxon-yagi.nec` | 136 -> 139 | `1 136` |
+
+  The remesh grows the structure and leaves the range where it was, so a
+  whole-structure load becomes a partial one. #1416 made a whole-WIRE range stay
+  whole-wire; this is the whole-STRUCTURE form, and it is the hole in **#1423**.
+
+### `no-drive`
+
+Six at first publication, **four** now. The two that left are
+`necpp/patch_999.nec` and `necpp/patch_999_2.nec`, which #1430 refuses at
+translation because each lists the same wire twice. They are out of the corpus,
+not re-classified.
+
+## Two page corrections that are not numbers
+
+**The regeneration command was incomplete.** The Method section said
 `census_report.py --nec5 <a> --momwire <b>`. Run exactly that way the script
 prints the tail table with **25** rows; the page carries **20**. The flag
-`--cases 20` is what the page was actually generated with, and with it the
-committed script reproduces the page's generated half **byte for byte** from the
-committed data — checked. The claim was true; the command recording it was
-incomplete, and the re-render states the flag.
+`--cases 20` is what the page was generated with, and with it the committed
+script reproduces the page's generated half **byte for byte** from the committed
+data — checked in both directions, on the old data and on the new. The claim was
+true; the command recording it was not complete.
+
+**The footer never named momwire.** `census_report.py` read
+`environment.momwire_version`, a key the artifact has never written, so the
+published page names its NEC-5 binary and prints `momwire: ?`. It now reads
+`environment.momwire.{distribution,commit,dirty}` and prints
+`0.53.0 @ 23d81e5 clean`. This matters beyond tidiness: the census runs momwire
+at the submodule POINTER, which normally sits ahead of the released version, so
+the version string alone does not identify the solver that answered.
