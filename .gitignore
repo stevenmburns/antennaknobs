@@ -19,6 +19,8 @@ src/antennaknobs/*.html
 *.egg-info/
 *.so
 .venv/
+# Side-by-side venvs, e.g. a PyPI install to check a release (.venv-0.76.1).
+.venv-*/
 pg/
 node_modules/
 src/antennaknobs/web/frontend/dist/
