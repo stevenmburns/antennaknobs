@@ -85,8 +85,11 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
         (repeats if part.n_shapes < part.n_elem else no_repeats).append(name)
 
     assert len(repeats) == 27, sorted(repeats)
-    assert len(no_repeats) == 72, len(no_repeats)
-    assert len(errors) == 4, sorted(errors)
+    # 73 and 3 since AK#1464: `wire.terminated_longwire` has nothing buried,
+    # and it used to refuse at construction under finite ground because the
+    # below/below pre-flight counted its two ground terminations as buried.
+    assert len(no_repeats) == 73, len(no_repeats)
+    assert len(errors) == 3, sorted(errors)
     # The Yagi class is the reason this advises: multi-element, all distinct.
     for yagi in ("beams.owa_yagi", "beams.moxon", "broadband.lpda"):
         assert yagi in no_repeats
