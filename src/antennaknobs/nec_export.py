@@ -121,12 +121,26 @@ def export_nec(
         lines.append(_gw(tag, t[2], t[0], t[1], eng._radius_for(t)))
     lines.append("GE 0")
 
-    # --- Load branches -> LD cards (type 0 series / 1 parallel RLC) ---
+    # --- Load branches -> LD cards (type 0 series / 1 parallel RLC, type 4
+    # fixed R + jX): the cards `PyNECEngine._emit_load_card` hands PyNEC ---
     if eng._network is not None:
         for br in eng._network.branches:
             if not isinstance(br, Load):
                 continue
             tag, seg = eng._network_port_loc[br.port]
+            if br.z is not None:
+                # antennaknobs#1485: a fixed complex impedance, which is what an
+                # LD 4 reactive load imports as (#422), has no R/L/C legs, so it
+                # used to reach the all-zero `continue` below and vanish. The
+                # NEC-2 tab then solved the design without its load. Type 4:
+                # F1 = R, F2 = X (ohms); z == 0 is no load, as in PyNECEngine.
+                z = complex(br.z)
+                if z != 0:
+                    lines.append(
+                        f"LD 4 {tag} {seg} {seg} "
+                        f"{_num(z.real)} {_num(z.imag)} {_num(0.0)}"
+                    )
+                continue
             r = float(br.r) if br.r is not None else 0.0
             l = float(br.l) if br.l is not None else 0.0
             c = float(br.c) if br.c is not None else 0.0
