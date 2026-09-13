@@ -1,13 +1,20 @@
-# Security review of nec5_corpus.py version 1.9
+# Security review of nec5_corpus.py version 1.10
 
 Reviewed 2026-09-10 by Claude (Anthropic's model, working in Claude Code) at
 the request of the tool's author, Steven Burns, by reading the whole source
 of `scripts/nec5_corpus/nec5_corpus.py` and the build that freezes it. This
 file ships beside `nec5_corpus.exe` so that a reader can see, before running
 it, what the program can and cannot do to their machine. It is a code
-review, not a penetration test, and it speaks for **version 1.9 only**: the
+review, not a penetration test, and it speaks for **version 1.10 only**: the
 test suite refuses a version bump that does not re-state the version here,
 so a stale review cannot ship by accident.
+
+**Re-read 2026-09-13 for 1.10** (antennaknobs#1442, #1435). Two changes to
+`translate` only. A `GN 2` card is now written as `GN 2` instead of `GN 0`.
+When two sources would write the same output file, one is kept and the
+other is reported as a `collision` rather than overwriting it. Neither
+change adds a file, network or process behaviour, and the second one
+writes less. Every claim below stands as written.
 
 ## The short version
 
@@ -230,7 +237,7 @@ To verify or rebuild:
 
 ## Limits of this review
 
-The review covers the script's own code as of version 1.9 and the build
+The review covers the script's own code as of version 1.10 and the build
 that freezes it. It does not cover Python, PyInstaller, Windows, or the
 NEC-5 engine you supply. It was done by reading, with the findings above
 confirmed by running the code (finding 1 was reproduced before it was
