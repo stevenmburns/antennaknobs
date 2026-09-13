@@ -179,6 +179,10 @@ export type ExampleDescriptor = {
   ground_seed?: string | null;
   /** The deck's GN medium for the finite seeds, else absent/null. */
   ground_medium?: { eps_r: number; sigma: number } | null;
+  /** The card a finite seed came from when the default label would name the
+   *  wrong one — "NEC-5 GN 0", a NEC-5 deck's Sommerfeld ground. Absent =
+   *  the NEC-2 reading ("GN 2" / "GN 0"). */
+  ground_card?: string | null;
   /** AK#1432 — the design's wires carry their own segment counts, which
    *  the solvers honour whatever the slot's N says; the slot label reads
    *  "deck's own" instead of a number that does nothing. */

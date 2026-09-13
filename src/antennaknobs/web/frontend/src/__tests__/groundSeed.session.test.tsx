@@ -42,6 +42,16 @@ const GN0: ExampleDescriptor = {
   fixed_segment_counts: true,
 };
 
+const NEC5_GN0: ExampleDescriptor = {
+  ...HARNESS_EXAMPLE,
+  name: "user.nec5gn0deck",
+  label: "NEC-5 GN 0 deck",
+  ground_seed: "sommerfeld",
+  ground_medium: { eps_r: 13, sigma: 0.005 },
+  ground_card: "NEC-5 GN 0",
+  fixed_segment_counts: true,
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -84,6 +94,16 @@ describe("ground seed from a file design (AK#1432)", () => {
     await waitFor(() => {
       expect(
         (screen.getByRole("radio", { name: /refl-coef/ }) as HTMLInputElement).checked,
+      ).toBe(true);
+    });
+  });
+
+  it("NEC-5 GN 0: Sommerfeld, and the notice names the deck's own card (AC6LA)", async () => {
+    mountDesignSession({ examples: [NEC5_GN0] });
+    await screen.findByText(/from the file: finite ground, Sommerfeld \(NEC-5 GN 0\), εr 13, σ 0.005 S\/m/);
+    await waitFor(() => {
+      expect(
+        (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement).checked,
       ).toBe(true);
     });
   });

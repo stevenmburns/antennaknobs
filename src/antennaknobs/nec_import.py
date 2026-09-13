@@ -293,14 +293,22 @@ class NecDeck:
     # The ground the deck MODELS, in the CLI's `--ground` shape (AK#1432):
     # None = free space (GE 0 and no GN, or GN -1), "pec" = a perfect ground
     # (GN 1, or GE 1 with no GN — NEC's default), ("finite", eps_r, sigma)
-    # for GN 2 and ("finite-fast", eps_r, sigma) for GN 0, the card's own
-    # medium either way. `ground_method` names the
+    # for GN 2 and ("finite-fast", eps_r, sigma) for a NEC-2 deck's GN 0 (a
+    # NEC-5 deck's GN 0 is Sommerfeld, so "finite"), the card's own medium
+    # either way. `ground_method` names the
     # finite model the deck asked for: "sommerfeld" (GN 2) or "fast" (GN 0,
     # the reflection-coefficient approximation); None otherwise. The folder
     # route seeds the app's ground switch from these; the CLI's `@file` route
     # uses them when `--ground` is not given.
     ground_spec: object = None
     ground_method: str | None = None
+    # The GN card the ground came from ("GN 0" / "GN 2"), None without one.
+    ground_card: str | None = None
+    # The deck shows NEC-5's dialect: the GN card's NOFILE sentinel, or an EX
+    # source at a segment END (#824). NEC-2 has neither. It decides what GN 0
+    # means: NEC-5 has no reflection-coefficient ground, so its GN 0 is the
+    # full Sommerfeld solution.
+    nec5_dialect: bool = False
     tls: tuple[NecTL, ...] = ()
     nts: tuple[NecNT, ...] = ()
     conductivity: float | None = None  # whole-structure LD 5, S/m
@@ -482,7 +490,11 @@ class NecDeck:
         None when the deck carries nothing the app overrides.
         """
         parts = []
-        if self.ignored:
+        # GN is not listed: the app seeds its ground switch from the deck's
+        # GE/GN (AK#1432) and the `@file` route applies it, so calling it "not
+        # applied" contradicted the ground panel beside it (AC6LA, 2026-09-13).
+        shown = tuple(m for m in self.ignored if m != "GN")
+        if shown:
             why: dict[str, list[str]] = {}
             for m, reason in self.ignored_detail:
                 if reason not in why.setdefault(m, []):
@@ -495,10 +507,8 @@ class NecDeck:
                     return f"{m} ({_IGNORED_CARDS[m]})"
                 return m
 
-            cards = ", ".join(describe(m) for m in self.ignored)
+            cards = ", ".join(describe(m) for m in shown)
             parts.append(f"deck cards not applied: {cards}")
-        if self.ground:
-            parts.append("the deck models a ground plane")
         if self.virtual_anchors:
             tags = ", ".join(str(t) for t in self.virtual_anchor_tags())
             n = len(self.virtual_anchors)
@@ -517,9 +527,7 @@ class NecDeck:
             return None
         body = "; ".join(parts)
         return (
-            body[0].upper()
-            + body[1:]
-            + " — the app's own ground/loading/sweep settings are used instead."
+            body[0].upper() + body[1:] + " — the app's own settings are used instead."
         )
 
     @cached_property
@@ -2421,6 +2429,8 @@ def parse_nec(
     ground = False
     ground_contact_interpolates = True
     ground_spec, ground_method = None, None
+    ground_card = None
+    nec5_dialect = False
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
     sym_cell: int | None = None  # GX/GR symmetry cell, in segments (#946)
@@ -2509,6 +2519,14 @@ def parse_nec(
                 f"which antennaknobs cannot model"
             )
         if mnemonic == "GN":
+            # NEC-5's GN names a ground file, and the magic name NOFILE says
+            # there is none (NEC-5 Users Manual, GN card). antennaknobs' own
+            # NEC-5 decks carry it (NEC5Engine, the corpus tool), so a deck
+            # saved from a capture must open again (AC6LA, 2026-09-13). NEC-2
+            # has no such field, so it also settles the dialect.
+            if tokens[-1].upper() == "NOFILE":
+                tokens = tokens[:-1]
+                nec5_dialect = True
             # A trailing filename is NEC-4's tabulated Sommerfeld ground
             # (``GN 2 0 0 0 10. 0.01 SOMEX10.NEC``, #1274) -- the same shape
             # as NL's mesh file (#1067). Refuse it by name before the field
@@ -2529,12 +2547,13 @@ def parse_nec(
             card = _Card(mnemonic, tokens[1:], where, syms)
             if card.i(0) == -1:
                 ground = False
-                ground_spec, ground_method = None, None
+                ground_spec, ground_method, ground_card = None, None, None
                 ignored.discard(mnemonic)
             else:
                 ground = True
                 ignored.add(mnemonic)
                 gtype = card.i(0)
+                ground_card = f"GN {gtype}"
                 if gtype == 1:
                     ground_spec, ground_method = "pec", None
                 else:
@@ -2697,6 +2716,8 @@ def parse_nec(
                         "with network=True (issue #824)"
                     )
                 edge = 1 if seg_field < 0 else 2
+            if edge:
+                nec5_dialect = True
             feeds_raw.append(
                 (
                     card.i(1),
@@ -2756,6 +2777,14 @@ def parse_nec(
         )
         ignored |= skipped
 
+    # NEC-5 has no reflection-coefficient ground: its GN 0, like GN 2, is the
+    # full Sommerfeld solution. Reading a NEC-5 deck's GN 0 the NEC-2 way
+    # seeded the app with the approximation the deck never asked for (AC6LA,
+    # 2026-09-13).
+    if nec5_dialect and ground_method == "fast":
+        ground_spec = ("finite", *ground_spec[1:])
+        ground_method = "sommerfeld"
+
     return NecDeck(
         wires=tuple(
             NecWire(tag, ns, tuple(p1), tuple(p2), rad)
@@ -2768,6 +2797,8 @@ def parse_nec(
         # GE 1 with no GN card is NEC's perfect ground.
         ground_spec=("pec" if ground and ground_spec is None else ground_spec),
         ground_method=ground_method,
+        ground_card=ground_card,
+        nec5_dialect=nec5_dialect,
         comments=tuple(comments),
         ignored=tuple(sorted(ignored)),
         loads=loads,

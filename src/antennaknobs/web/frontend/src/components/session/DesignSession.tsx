@@ -1856,6 +1856,7 @@ function DesignSessionBody({
           groundRequirement={currentExample?.ground_requirement ?? null}
           groundSeed={currentExample?.ground_seed ?? null}
           groundMedium={currentExample?.ground_medium ?? null}
+          groundCard={currentExample?.ground_card ?? null}
         />
 
         {gearOpen && (

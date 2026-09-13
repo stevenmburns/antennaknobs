@@ -33,6 +33,7 @@ export function GroundPanel({
   groundRequirement = null,
   groundSeed = null,
   groundMedium = null,
+  groundCard = null,
 }: {
   backend: BackendEntry;
   groundEnabled: boolean;
@@ -62,8 +63,10 @@ export function GroundPanel({
    *  and this notice says so. */
   groundSeed?: string | null;
   groundMedium?: { eps_r: number; sigma: number } | null;
+  /** The card the seed came from when it is not the NEC-2 reading. */
+  groundCard?: string | null;
 }) {
-  const seedText = groundSeedText(groundSeed, groundMedium);
+  const seedText = groundSeedText(groundSeed, groundMedium, groundCard);
   return (
     <>
       {!backendSupportsGround(backend) && groundEnabled && (
