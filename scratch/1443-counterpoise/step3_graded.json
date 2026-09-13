@@ -1,0 +1,57 @@
+{
+ "meta": {
+  "nec5_exe": "/home/smburns/nec5-timing/nec5cl-x13-static",
+  "nec5_sha256": "7ebf343d7d01283b83fae8192cd9c6ca434b5befb232065fc12b4d729f06a9f3"
+ },
+ "radiator": "graded",
+ "rows": [
+  {
+   "nn": 21,
+   "graded": true,
+   "source_f": 4,
+   "momwire_segs": 261,
+   "nec5_segs": 260,
+   "deck_sha": "9ed0b5bbadafa876",
+   "momwire": "(26.49816970076117-56574.56971820887j)",
+   "nec5": "(25.231-56390j)",
+   "dR_pct": -4.782102745476678,
+   "dZ_pct": 0.32624914114205156,
+   "dG_pct": -4.157766745874283,
+   "dB_pct": 0.32624339954996656,
+   "secs_momwire": 4.2,
+   "secs_nec5": 0.8
+  },
+  {
+   "nn": 42,
+   "graded": true,
+   "source_f": 4,
+   "momwire_segs": 492,
+   "nec5_segs": 491,
+   "deck_sha": "644eb6ffc2daf081",
+   "momwire": "(26.5015397423096-56574.54725931974j)",
+   "nec5": "(25.277-56389j)",
+   "dR_pct": -4.620636212901343,
+   "dZ_pct": 0.3279766054694064,
+   "dG_pct": -3.991912663826882,
+   "dB_pct": 0.32797134252672133,
+   "secs_momwire": 7.1,
+   "secs_nec5": 1.9
+  },
+  {
+   "nn": 84,
+   "graded": true,
+   "source_f": 4,
+   "momwire_segs": 964,
+   "nec5_segs": 963,
+   "deck_sha": "7c4ef7c18b4d115d",
+   "momwire": "(26.503931617354045-56574.53125969009j)",
+   "nec5": "(25.296-56389j)",
+   "dR_pct": -4.557556345954066,
+   "dZ_pct": 0.3279482257751416,
+   "dG_pct": -3.928471350258434,
+   "dB_pct": 0.32794312849687,
+   "secs_momwire": 5.7,
+   "secs_nec5": 5.0
+  }
+ ]
+}
