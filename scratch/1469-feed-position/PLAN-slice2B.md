@@ -77,3 +77,27 @@ Predictions:
   - Prediction: after is closer on at least 80 % of the discrete-LD decks that solve on both runs. A miss is reported, not re-gated.
   - The 4 `short_dipole_loaded` decks have no before, so their after distance is reported alone.
 - **G1 and G6** hold unchanged.
+
+## Amendment 2 (2026-09-13, before any ladder solve): G9, part B's own momwire evidence
+Why:
+- G5 hit 19/19, but Skylake found that every mover carries a discrete LD. G5 therefore measures #1483, not part B's positioned-feed spelling; catalog NEC-5 decks put feeds on knots.
+
+Observed before registering, and unregistered (scratchpad capture, default momwire engine, 5363bbbe5 against 9951ee368, momwire 495b6c9):
+- On the 65 nec_portal decks, 52 are identical, 0 change status, and exactly the 10 decks with off-centre attachments move:
+  - the 6 MININEC verticals, 1.772e-3
+  - `dipole_load_ld4` 3.561e-3 and `dipole_load_ld0` 2.387e-3
+  - `apex_pq_reversed_walk` 5.3e-4
+  - `mininec_gp80_seam` 5.9e-5
+- The 6 MININEC verticals share one geometry (identical Z), so the 10 decks are **5 distinct geometries**.
+
+Reference: no catalog design exists for these decks, and a cross-basis reference is barred (never gate cross-basis agreement). The reference is therefore each deck's own refinement ladder, on the same engine:
+- Solve Z_before(r) and Z_after(r) at r = 1, 3, 9 (`NecDeck.refined`, odd r) with `partB_portal_ladder.py`.
+- Reference `Z_ref` = the midpoint of Z_before(9) and Z_after(9).
+
+Predictions, scored per distinct geometry (5):
+- **G9a, the spellings converge.** |Z_before(9) − Z_after(9)| < |Z_before(1) − Z_after(1)| / 3 on at least 4 of 5.
+  - Reason: the cut's extra junctions sit at segment boundaries, and refinement shrinks the segment they isolate.
+  - A geometry that misses G9a has no well-defined common limit, and its G9b row is reported but not scored.
+- **G9b, direction.** |Z_after(1) − Z_ref| < |Z_before(1) − Z_ref| on at least 4 of the scored geometries (bar 80 %).
+  - Reason: slice 1's whole-wire spelling moved catalog imports toward the design.
+- A miss is reported, not re-gated.
