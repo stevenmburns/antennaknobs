@@ -87,8 +87,10 @@ export ANTENNAKNOBS_LOG_LEVEL=DEBUG             # the deck and printout in the s
 ```
 
 The packaged workbench takes the same two as `--capture-dir DIR` and
-`--log-level DEBUG`. The capture directory is the pair of files to attach
-to a report; the hash in the file name is the deck's own, so two runs of
+`--log-level DEBUG`. It also takes the engine itself as `--nec5-exe PATH` (and
+`--nec2-exe PATH`), which reads the same in PowerShell and Command Prompt
+and wins over both `NEC5_EXE` and a `NEC5_EXE.txt` beside the program. The
+capture directory is the pair of files to attach to a report; the hash in the file name is the deck's own, so two runs of
 the same deck share one pair. At `INFO` the log is one line per run (hash,
 seconds, printout length). For NEC-5 a captured printout is also served
 back for the same deck without re-running the binary; NEC-2 captures are
