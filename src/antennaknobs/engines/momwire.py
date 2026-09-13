@@ -270,7 +270,9 @@ def _buried_refusal(solver_cls, polylines, junctions, ground_z):
     return _capability_refusal(solver_cls, *cells)
 
 
-def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz):
+def _below_reach_refusal(
+    polylines, ground_z, ground_eps, ground_model, freq_mhz, *, solver_factory=None
+):
     """The below/below reach refusal this deck would draw, or None.
 
     antennaknobs#1135: `verticals.buried_radial_vertical` advertises knob
@@ -300,9 +302,26 @@ def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz
     `wire.terminated_longwire` (its two terminations) and any two
     ground-mounted verticals under finite ground were refused this way.
 
-    momwire measures its extents on quadrature nodes; the polyline VERTICES
-    passed here reach further and lie shallower, so the verdict is
-    conservative and can only over-refuse. The gate that matters
+    EXACT when the solver can say (antennaknobs#1464). `solver_factory` builds
+    the solver the solve would build, and momwire's
+    `BSplineSolver.buried_serve_refusal()` runs the fill's own pre-grid
+    sequence (scope, crossing labels, serve plan) on its own quadrature nodes
+    and returns the fill's sentence. Over VERTICES, a crossing node's vertex
+    sits exactly in the plane, so two nodes at different places paired at
+    theta = 0 and every multi-node deck was refused on the grazing floor for
+    the wrong reason.
+
+    The engine passes `solver_factory` only for a solver class that has the
+    method, so a class that cannot answer is never built at construction:
+    building one runs its constructor's own refusals early (razor refuses a
+    crossing deck in `__init__`, which `test_buried_capability_814` forbids
+    the engine from doing at construction).
+
+    The vertex helper is the fallback for a solver without that method
+    (sinusoidal-Galerkin, razor, and BSpline before momwire#1055). momwire
+    measures its extents on quadrature nodes; the polyline VERTICES passed
+    there reach further and lie shallower, so that verdict is conservative
+    and can only over-refuse. The gate that matters
     (`test_below_reach_preflight`) sweeps knob corners and checks the two
     verdicts agree, because a conservative bound is only useful if it is not
     conservative enough to refuse a deck the app should offer.
@@ -312,6 +331,18 @@ def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz
     gz = float(ground_z)
     if not any(float(np.asarray(pl, dtype=float)[:, 2].min()) < gz for pl in polylines):
         return None
+    solver = solver_factory() if solver_factory is not None else None
+    ask = getattr(solver, "buried_serve_refusal", None)
+    if ask is not None:
+        try:
+            return ask()
+        except (ValueError, NotImplementedError):
+            # The method is meant to RETURN its sentence, but its wire
+            # labeling runs before its own try: a ground-contact end beside a
+            # buried wire raises there (the detached BRV). That deck keeps
+            # refusing where it always did, at the fill's labeling step, so
+            # the vertex verdict below stands for it, exactly as before.
+            pass
     from momwire import below_reach_refusal
 
     pts = np.concatenate([np.asarray(pl, dtype=float) for pl in polylines])
@@ -1230,12 +1261,18 @@ class MomwireEngine(SimulationEngine):
             self._ground_eps,
             self._ground_model,
             self.builder.freq,
+            solver_factory=(
+                (
+                    lambda: self._make_solver(
+                        wavelength=self._wavelength_for(self.builder.freq)
+                    )
+                )
+                if hasattr(self._solver, "buried_serve_refusal")
+                else None
+            ),
         )
         if reach is not None:
-            raise ValueError(
-                f"this deck's buried geometry is outside momwire's "
-                f"below/below domain: {reach}"
-            )
+            raise ValueError(f"momwire refuses this deck's buried geometry: {reach}")
 
         # Map TL tags to feed indices for the legacy build_tls() path.
         self._tag_to_feed = {}
