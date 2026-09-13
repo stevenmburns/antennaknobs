@@ -132,3 +132,74 @@ def test_an_unreachable_position_keeps_the_parity_count():
     from antennaknobs.engines.pynec import PyNECEngine
 
     assert PyNECEngine(_b(feed_at=1 / 3)).tups[0][2] == 21
+
+
+# ---------------------------------------------------------------------------
+# the offset advisory
+# ---------------------------------------------------------------------------
+
+
+def _placement_notes(advisories):
+    return [a for a in advisories if a["category"] == "FeedPlacement"]
+
+
+@needs_position
+def test_an_exactly_placed_port_raises_no_advisory():
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    assert _placement_notes(PyNECEngine(_b(feed_at=0.3)).advisories) == []
+
+
+@needs_position
+def test_pynec_names_the_offset_it_could_not_avoid():
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.pynec import PyNECEngine
+
+    (note,) = _placement_notes(PyNECEngine(_b(feed_at=1 / 3)).advisories)
+    assert "'feed'" in note["text"] and "segment centre" in note["text"]
+    assert "mm away" in note["text"]
+
+
+@needs_position
+def test_nec5_names_the_offset_past_the_cap():
+    from antennaknobs.engines.nec5 import NEC5Engine
+
+    (note,) = _placement_notes(
+        NEC5Engine(_b(feed_at=0.123), require_exe=False).advisories
+    )
+    assert "knot" in note["text"]
+
+
+@needs_position
+def test_momwire_reports_a_snapping_solvers_own_placement():
+    """Razor snaps to its knots. At 0.123 no knot count up to 2x reaches the
+    port, so razor places it on its nearest knot and the note says how far."""
+    from momwire import RazorSolver
+
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    eng = MomwireEngine(_b(feed_at=0.123), solver=RazorSolver)
+    eng.impedance()
+    (note,) = _placement_notes(eng.advisories)
+    assert "'feed'" in note["text"] and "mm away" in note["text"]
+
+
+@needs_position
+def test_momwire_bspline_places_exactly_and_says_nothing():
+    from antennaknobs.engines.momwire import MomwireEngine
+
+    eng = MomwireEngine(_b(feed_at=0.3))
+    eng.impedance()
+    assert _placement_notes(eng.advisories) == []
+
+
+@needs_position
+def test_the_app_serves_the_note():
+    pytest.importorskip("PyNEC")
+    import antennaknobs.web.examples  # noqa: F401  registration order
+    from antennaknobs.engines.pynec import PyNECEngine
+    from antennaknobs.web import adapter
+
+    served = adapter._solver_advisories(PyNECEngine(_b(feed_at=1 / 3)))
+    assert _placement_notes(served)

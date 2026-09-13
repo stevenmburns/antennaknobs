@@ -14,7 +14,7 @@ import momwire
 from momwire import BSplineSolver, RazorSolver
 
 from .. import in_medium
-from ..engine import FarField, SimulationEngine, WireCurrents
+from ..engine import FarField, SimulationEngine, WireCurrents, placement_note
 from ..geometry import flat_wires_to_polylines
 from ..network import (
     PortAtEnd,
@@ -1542,7 +1542,7 @@ class MomwireEngine(SimulationEngine):
                 (pl, end, complex(v))
                 for (pl, end), v in zip(self._vertex_port_members, v_volts, strict=True)
             ]
-        return self._solver(
+        solver = self._solver(
             wires=self._polylines,
             n_per_edge_per_wire=self._edge_segments,
             feeds=self._solver_feeds(),
@@ -1556,6 +1556,53 @@ class MomwireEngine(SimulationEngine):
             **self._kernel_solver_kwargs(extended_kernel),
             **self._solver_kwargs,
         )
+        self._note_feed_placements(solver)
+        return solver
+
+    def _note_feed_placements(self, solver):
+        """Record, once per engine, where the solver put each positioned port.
+
+        momwire's `feed_placements()` (momwire#1059) is the solver's own answer,
+        so this reports what the fill does rather than re-deriving a grid rule
+        (AK#1469). Only ports that name a position are reported. A distributed
+        port's sub-feeds are mapped back to their port through W.
+        """
+        if getattr(self, "_placement_notes", None) is not None:
+            return
+        notes = []
+        report = getattr(solver, "feed_placements", None)
+        if report is not None and self._network is not None:
+            placements = report()
+            weights = self._feed_W
+            for k, name in enumerate(self._feed_names):
+                port = self._network.ports.get(name)
+                at = port_at(port) if isinstance(port, PortOnWire) else None
+                if at is None:
+                    continue
+                row = k if weights is None else int(np.flatnonzero(weights[:, k])[0])
+                if row >= len(placements):
+                    continue
+                offset = float(placements[row].offset)
+                if abs(offset) <= 1e-9 * max(
+                    1.0, abs(float(placements[row].requested))
+                ):
+                    continue
+                pl, _arc, _v = self._feeds[k]
+                seg = np.linalg.norm(
+                    np.diff(np.asarray(self._polylines[pl]), axis=0), axis=1
+                )
+                edge = float(seg[self._feed_edges[k][1]])
+                notes.append(
+                    placement_note(
+                        name,
+                        port_wire(port),
+                        at,
+                        at + offset / edge * self._feed_dirs[k],
+                        offset,
+                        "site",
+                    )
+                )
+        self._placement_notes = notes
 
     @staticmethod
     def _wavelength_for(freq_mhz):
@@ -1699,7 +1746,9 @@ class MomwireEngine(SimulationEngine):
         deck momwire will not solve raises instead, and never reaches here.
         """
         rec = getattr(self, "_advisory_recorder", None)
-        return list(rec.items) if rec is not None else []
+        items = list(rec.items) if rec is not None else []
+        # AK's own placement notes follow momwire's (AK#1469).
+        return items + list(getattr(self, "_placement_notes", None) or [])
 
     @_captures_advisories
     def impedance(self):
