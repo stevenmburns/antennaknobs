@@ -1427,7 +1427,11 @@ def _gn(card: Card, nofile: bool, notes: list):
             notes.append(
                 "GN: second-medium / cliff fields dropped: NEC-5 has no second-medium spelling"
             )
-        line = f"GN 0 0 0 0 {eps} {sig}"
+        # GN 2 stays GN 2 (antennaknobs#1442). NEC-5 reads GN 0 and GN 2 as the same
+        # Sommerfeld ground, but a NEC-2 reader of this tree (momwire's portal)
+        # takes GN 0 as reflection coefficients, so rewriting 2 as 0 swapped the
+        # ground model the author asked for on every cross-engine row.
+        line = f"GN {iperf} 0 0 0 {eps} {sig}"
         if nofile:
             line += " 1 0 NOFILE"
         return line
