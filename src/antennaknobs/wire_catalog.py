@@ -539,6 +539,34 @@ def gap_knot(n_seg, at):
     return min(max(int(k), 1), max(n_seg - 1, 1))
 
 
+def on_site(m, at, family, tol=1e-9):
+    """Whether a port at `at` (None is the middle) sits exactly on a site of
+    an `m`-segment wire: a segment centre (k - 1/2)/m for the "centre" family,
+    an interior knot k/m for the "knot" family (AK#1469)."""
+    x = (0.5 if at is None else float(at)) * m
+    if family == "centre":
+        x -= 0.5
+    return abs(x - round(x)) <= tol * max(m, 1)
+
+
+def site_count(n_seg, positions, family, *, cap=2):
+    """The smallest segment count from `n_seg` up to ``cap * n_seg`` at which
+    every position on the wire is a site of the engine's grid, or None
+    (AK#1469).
+
+    The "centre" family is the segment-centre engines (PyNEC, NEC-2,
+    sinusoidal, BSpline d=2); the "knot" family is the knot engines (NEC-5,
+    razor, BSpline d=1). A position of None is the middle, so a wire whose
+    ports all sit at the middle gets the old parity rule: odd for centres,
+    even for knots.
+    """
+    n_seg = max(int(n_seg), 1)
+    for m in range(n_seg, cap * n_seg + 1):
+        if all(on_site(m, at, family) for at in positions):
+            return m
+    return None
+
+
 def validate_named_wires_referenced(named_wires, network):
     """Reject named ``build_wires()`` wires that no `PortOnWire` references
     (issue #578).
