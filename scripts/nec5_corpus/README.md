@@ -143,8 +143,8 @@ on the decks their authors published.
 
 ### The four outcomes, and whose fault each one is
 
-`translate` reports one of four per deck, and the distinction is the whole
-point of having four rather than two — a census that cannot separate them
+`translate` reports one of five per deck, and the distinction is the whole
+point of having five rather than two — a census that cannot separate them
 credits an engine with errors that were never its:
 
 | status | the claim it makes | whose fault |
@@ -153,6 +153,7 @@ credits an engine with errors that were never its:
 | `refused` | NEC-5 has no card for what this deck asks | NEC-5's limit |
 | `invalid` | not valid NEC input of any dialect | the deck's |
 | `unreadable` | THIS TOOL could not read it | this tool's |
+| `collision` | another source translates to the same output path (a `foo.inp` beside a `foo.nec`); that one is kept, a `.nec` source over an `.inp` | the source tree's |
 
 `unreadable` is deliberately the conservative bucket. A 4nec2 `SY` construct
 this tool's evaluator does not resolve, a field it cannot turn into a number,
