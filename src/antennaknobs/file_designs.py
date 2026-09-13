@@ -71,6 +71,7 @@ def _make_builder(
     ground=None,
     ground_method=None,
     file_deck=None,
+    ground_card=None,
 ):
     ui: dict = {}
     if meas_range:
@@ -83,6 +84,11 @@ def _make_builder(
     ui["ground_seed"], medium = ground_seed(ground, ground_method)
     if medium is not None:
         ui["ground_medium"] = medium
+        # The card the finite seed came from, when the default label would
+        # name the wrong one: a NEC-5 deck's GN 0 is Sommerfeld, which the
+        # panel otherwise spells "Sommerfeld (GN 2)" (AC6LA, 2026-09-13).
+        if ground_card:
+            ui["ground_card"] = ground_card
     ui["fixed_segment_counts"] = True
     note = " ".join(n for n in notes if n)
     if note:
@@ -134,6 +140,11 @@ def _nec_builder(path: Path, text: str, refine: int = 1):
         extended_kernel=deck.extended_kernel,
         ground=deck.ground_spec,
         ground_method=deck.ground_method,
+        ground_card=(
+            f"NEC-5 {deck.ground_card}"
+            if deck.nec5_dialect and deck.ground_card
+            else None
+        ),
         file_deck=deck,
     )
 

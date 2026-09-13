@@ -168,11 +168,13 @@ export function groundSummaryLabel(
 export function groundSeedText(
   seed: string | null | undefined,
   medium: { eps_r: number; sigma: number } | null | undefined,
+  card?: string | null,
 ): string | null {
   if (!seed) return null;
   if (seed === "free") return "from the file: free space (GE 0) — ground plane off";
   if (seed === "pec") return "from the file: perfect ground (GE 1 / GN 1)";
-  const model = seed === "fast" ? "reflection coefficients (GN 0)" : "Sommerfeld (GN 2)";
+  const model =
+    seed === "fast" ? `reflection coefficients (${card ?? "GN 0"})` : `Sommerfeld (${card ?? "GN 2"})`;
   const med = medium ? `, εr ${medium.eps_r}, σ ${medium.sigma} S/m` : "";
   return `from the file: finite ground, ${model}${med}`;
 }
