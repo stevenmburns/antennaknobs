@@ -306,6 +306,7 @@ class NEC5Engine(SimulationEngine):
     ):
         super().__init__(builder)
         self.ground = self._normalise_ground(ground)
+        self._refuse_ge_minus_one_contact(self.ground)
         exe = find_nec5(nec5_exe)
         if exe is None and require_exe:
             raise NEC5Error(

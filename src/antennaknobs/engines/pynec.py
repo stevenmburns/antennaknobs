@@ -333,6 +333,7 @@ class PyNECEngine(SimulationEngine):
         # Network, the engine drives ex_card/tl_card calls off the spec instead.
         self.tls = [] if self._network is not None else builder.build_tls()
         self.ground = ground
+        self._refuse_ge_minus_one_contact(self.ground)
         # One warning per instance for the gn 2 near-ground defect (#448).
         self._somm_lowz_warned = False
         self.excitation_pairs = None

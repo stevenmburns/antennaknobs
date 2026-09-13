@@ -335,6 +335,51 @@ class NecDeck:
     # discard IS the deck's physics under NEC.
     symmetry_cell: int | None = None
     symmetry_dropped_loads: int = 0
+    # antennaknobs#1460: False when the deck's GE card is NEGATIVE (`GE -1`),
+    # which NEC reads as the ground plane WITHOUT the ground-contact current
+    # expansion. Every engine here serves the interpolated (`GE 1`) contact,
+    # so a free end standing in the plane is refused wherever an engine
+    # applies a ground (`ge_minus_one_contact_refusal`).
+    ground_contact_interpolates: bool = True
+
+    def free_plane_ends(self) -> tuple[tuple[int, str], ...]:
+        """Every wire end standing in the ground plane (z = 0) that is NOT a
+        crossing junction, as ``(wire index, "p1" | "p2")`` (antennaknobs#1460).
+
+        The same definition as momwire's deck reader (momwire#1052,
+        `deck/_nec2.py::_crossing_junction_at`), so the two readers agree deck
+        for deck. In the plane means |z| within `_NEC_SMIN` of the end's
+        segment length (nec2c's `conect` rule). A crossing junction is an
+        in-plane node where some wire with an end there continues ABOVE the
+        plane and another continues BELOW it, with ends coinciding within the
+        larger of the two wires' tolerances. A buried wire that only reaches up
+        to the plane is a free end.
+        """
+
+        def tol(w):
+            return _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
+
+        out = []
+        for i, w in enumerate(self.wires):
+            t = tol(w)
+            for name, end in (("p1", w.p1), ("p2", w.p2)):
+                if abs(float(end[2])) > t:
+                    continue
+                above = below = False
+                for v in self.wires:
+                    tv = max(t, tol(v))
+                    for e, other in ((v.p1, v.p2), (v.p2, v.p1)):
+                        if all(
+                            abs(float(e[k]) - float(end[k])) <= tv for k in range(3)
+                        ):
+                            z = float(other[2])
+                            if z > tv:
+                                above = True
+                            elif z < -tv:
+                                below = True
+                if not (above and below):
+                    out.append((i, name))
+        return tuple(out)
 
     def refined(self, r: int) -> NecDeck:
         """The same deck with every wire's segment count multiplied by ``r``.
@@ -2281,6 +2326,48 @@ def _translate_network_cards(
     )
 
 
+# nec2c's `conect` contact tolerance, momwire's `_SMIN`: an end is AT a point
+# when it lies within SMIN of its own segment length (antennaknobs#1460).
+_NEC_SMIN = 1.0e-3
+
+
+def ge_minus_one_contact_refusal(deck, ground):
+    """The refusal message for a `GE -1` deck with a FREE wire end in the
+    ground plane under an APPLIED ground, else None (antennaknobs#1460).
+
+    `GE -1` declares the plane without the ground-contact current expansion,
+    and every engine here serves the interpolated (`GE 1`) contact, so serving
+    such an end would be a silently different answer: nec2c prints 39.8+23.3j
+    and 57-4012j for the two readings of a grounded quarter-wave (momwire#489).
+    A crossing junction is not a contact end (`NecDeck.free_plane_ends`). The
+    message is momwire's deck reader's, word for word.
+
+    `ground` is the engine's RESOLVED ground, and None or "free" is free space,
+    with no image to disagree about. The engines call this at construction
+    (`SimulationEngine._refuse_ge_minus_one_contact`), not the parser: the CLI's
+    `--ground` and the app's ground switch apply a ground after parsing.
+    """
+    if deck is None or ground is None or ground == "free":
+        return None
+    if deck.ground_contact_interpolates:
+        return None
+    ends = deck.free_plane_ends()
+    if not ends:
+        return None
+    i, name = ends[0]
+    w = deck.wires[i]
+    z = float((w.p1 if name == "p1" else w.p2)[2])
+    return (
+        f"GE -1 declares the ground plane without the "
+        f"ground-contact current expansion, and wire "
+        f"{w.tag}'s end stands in the plane "
+        f"(z = {z:g}); this engine serves "
+        f"the interpolated (GE 1) contact only — "
+        f"write GE 1, or lift the wire clear of the "
+        f"plane"
+    )
+
+
 def parse_nec(
     text: str,
     *,
@@ -2316,6 +2403,7 @@ def parse_nec(
     freq_mhz: tuple[float, float] | None = None
     fr_first_mhz: float | None = None
     ground = False
+    ground_contact_interpolates = True
     ground_spec, ground_method = None, None
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
@@ -2500,6 +2588,9 @@ def parse_nec(
                         "meaningful as the announcement of a tapered wire"
                     )
             ground = ground or card.i(0) != 0
+            # antennaknobs#1460: keep the SIGN. GE -1 is the plane WITHOUT the
+            # ground-contact current expansion (momwire#489).
+            ground_contact_interpolates = card.i(0) >= 0
         elif mnemonic == "FR":
             if freq_mhz is None:
                 nfrq = max(card.i(1), 1)
@@ -2657,6 +2748,7 @@ def parse_nec(
         feeds=tuple(feeds),
         freq_mhz=freq_mhz,
         ground=ground,
+        ground_contact_interpolates=ground_contact_interpolates,
         # GE 1 with no GN card is NEC's perfect ground.
         ground_spec=("pec" if ground and ground_spec is None else ground_spec),
         ground_method=ground_method,
