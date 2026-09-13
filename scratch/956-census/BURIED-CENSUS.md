@@ -129,6 +129,15 @@ measurement above. Worth its own look; it is not evidence about #1043 either way
 
 ## Population B — the public NEC corpus
 
+> **Re-rendered 2026-09-13 on corpus tool 1.11.** Population B is **six** decks,
+> not eight: `4nec2-models/HFActiveFeed/2lsloper.nec` and
+> `icecube-dbesson/2lsloper.nec` were never buried — a tab-field tokenizer bug
+> read `-68 ft` as two fields and shifted every later `GW` column, putting a wire
+> at z = −68 m. Corrected, the deck is an 80 m sloper running **z 7.9248 …
+> 41.148 m**, above ground throughout, and momwire solves it. The tables in this
+> section are the eight-deck measurement as taken; the six-deck population and
+> its refusals at momwire main are in `scratch/896-census/RERENDER-1442.md`.
+
 **The corpus cannot exercise this fix.** Eight decks qualify, and all eight are
 refused by momwire at all three commits. The interesting part is why, because the
 first two reasons are ours.
