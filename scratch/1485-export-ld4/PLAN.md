@@ -100,3 +100,33 @@ were rewritten before any commit:
   touches the exporter: 350 passed, 45 skipped, 0 failed.
 - The skips are environment gates: 21 need a NEC-5 binary, and 19 in
   `test_port_position_1469` need momwire#1059 in the submodule pointer.
+
+## Follow-up: re-run on AK main 89b4403a3 (with #1484) and the pointer momwire [2026-09-13]
+
+**Why a re-run.** #1484 changed the importer so that network mode no longer
+cuts wires at attachments. It landed on main, and #1486 was rebased onto it,
+giving head 0a04691d9.
+
+**What changed for this run.**
+- **momwire:** the commit AK's pointer records, 495b6c951, built in this
+  worktree. The original rows ran against the root checkout's older momwire.
+- **Baseline:** a comparison on the new base itself. `before2` is main
+  89b4403a3 without the fix; `after2` is 0a04691d9 with it. The original rows
+  used base 5363bbbe5.
+- **The original rows above stand as recorded.**
+
+| id | re-run result |
+|---|---|
+| PC1 | **HIT.** 0 of 112 catalog entries changed. There are 0 z-load calls, and 0 designs carry a z-load. |
+| PC2 | **HIT, including the literal line.** 1 of 65 decks changed, `dipole_load_ld4.deck`, by one added `LD 4 1 3 3` line. That is exactly the registered line, now that the importer keeps the deck's 9-segment wire whole. The original row's miss (`LD 4 2 1 1`) came from the old importer splitting the wire, not from the export. |
+| PC3 | **HIT.** PyNEC Z on the loaded deck is 128.31031511549514−8.794223397483352j with and without the fix, bit for bit. It differs from the original rows' value in the 12th significant figure; that difference moved with #1484's import, not with this change. |
+| PC4 | **HIT.** Without the fix, the NEC-2 tab reads 79.24+45.364j: 0.020 Ω from PyNEC with no load, and 73.1 Ω from PyNEC loaded. With the fix, it reads 128.31−8.813j, 0.019 Ω from PyNEC loaded. |
+
+**Tests on the rebased tree, with the pointer momwire.** `PortOnWire` now has
+`wire` and `at`.
+- The run covered `test_port_position_1469`, `test_ld4_reactive_load`,
+  `test_nec2_engine_1354`, and every test file that touches the exporter:
+  **372 passed, 23 skipped, 0 failed.**
+- The 19 `test_port_position_1469` tests that skipped against the older
+  momwire now run and pass. Every remaining skip is a NEC-5-binary gate.
+- T1's `_network_port_loc` assertion holds under both importers.
