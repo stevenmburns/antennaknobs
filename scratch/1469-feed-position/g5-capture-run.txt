@@ -1,0 +1,7 @@
+=== baseline 5363bbbe5 (12:39:24) ===
+/home/smburns/nec5-timing/g5-1469/baseline-5363bbbe5.json: 476 decks, 468 ok, 8 refused or failed
+    baseline wall 83 s
+=== after bdeedfdd2 (12:40:47) ===
+/home/smburns/nec5-timing/g5-1469/after-bdeedfdd2.json: 476 decks, 472 ok, 4 refused or failed
+    after wall 80 s
+G5CAPTURESDONE 12:42:07
