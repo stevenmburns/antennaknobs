@@ -154,16 +154,46 @@ edge-source form on 1,175 of 1,176 translated decks). The same deck now reads
 
 ### The eight decks
 
-| deck | class | zmin (m) | wires | NEC-5 Z | momwire, all three commits |
-|---|---|---:|---:|---|---|
-| `cebik …/Tutorial-2/ch-1/1-3.nec` | crossing | −0.1638 | 32 | 41.8150+4.6753j | refused |
-| `cebik …/Tutorial-2/ch-3/3-2.nec` | crossing | −0.1638 | 32 | 41.8150+4.6753j | refused |
-| `cebik …/Tutorial-2/ch-11/11-4a-nec4.nec` | crossing | −0.0040 | 10 | 37.4470−3.7412j | refused |
-| `cebik …/LPDAs/nec/lpma3r5-4-6el86ft75o-buriedradials.nec` | crossing | −0.6858 | 976 | 50.5850−4.1415j | refused |
-| `cebik …/Phased-Arrays/nec/1r5-bc3elendfire-burrad.nec` | crossing | −0.1928 | 70 | 0.0209−0.0304j | refused |
-| `cebik …/Phased-Arrays/nec/1r8-4el-endfire-burrad.nec` | crossing | −0.1640 | 93 | 0.0035−0.0172j | refused |
-| `4nec2-models/HFActiveFeed/2lsloper.nec` | split | −68.0000 | 2 | 24.3570−19.2450j | refused |
-| `icecube-dbesson/2lsloper.nec` | split | −68.0000 | 2 | 24.3570−19.2450j | refused |
+| deck | class | zmin (m) | wires | NEC-5 Z, deck as translated (`GE -1`) | NEC-5 Z, lifted deck (`GN 2` + `GE 1`) | momwire, all three commits |
+|---|---|---:|---:|---|---|---|
+| `cebik …/Tutorial-2/ch-1/1-3.nec` | crossing | −0.1638 | 32 | **47.1250+10.4880j** | 41.8150+4.6753j | refused |
+| `cebik …/Tutorial-2/ch-3/3-2.nec` | crossing | −0.1638 | 32 | **47.1250+10.4880j** | 41.8150+4.6753j | refused |
+| `cebik …/Tutorial-2/ch-11/11-4a-nec4.nec` | crossing | −0.0040 | 10 | **50.2260+8.4939j** | 37.4470−3.7412j | refused |
+| `cebik …/LPDAs/nec/lpma3r5-4-6el86ft75o-buriedradials.nec` | crossing | −0.6858 | 976 | **53.0700−3.5386j** | 50.5850−4.1415j | refused |
+| `cebik …/Phased-Arrays/nec/1r5-bc3elendfire-burrad.nec` | crossing | −0.1928 | 70 | **0.0167−0.0258j** | 0.0209−0.0304j | refused |
+| `cebik …/Phased-Arrays/nec/1r8-4el-endfire-burrad.nec` | crossing | −0.1640 | 93 | **0.0035−0.0163j** | 0.0035−0.0172j | refused |
+| `4nec2-models/HFActiveFeed/2lsloper.nec` | split | −68.0000 | 2 | 24.3570−19.2450j | *same — carries `GE 1`* | refused |
+| `icecube-dbesson/2lsloper.nec` | split | −68.0000 | 2 | 24.3570−19.2450j | *same — carries `GE 1`* | refused |
+
+**The first publication of this table printed only the LIFTED column, headed
+"NEC-5 Z".** That is wrong for the six `GE -1` decks and it is worth saying how it
+happened. Population B needed momwire past two of our own gates, so a lifted tree
+(`GN 0`→`GN 2`, `GE -1`→`GE 1`) was built and NEC-5 was run on it too, so both
+engines would read the same bytes — deliberate, and labelled as such in the prose
+below. `popb_table.py` then wrote BOTH columns to `popb-rows.csv`,
+`R_nec5_published` and `R_nec5_lifted`, and both are still there and correct. The
+markdown table collapsed them into one and filled it from the lifted run. **The
+tool kept the distinction; the prose lost it.**
+
+It matters because NEC-5 does not read the two spellings the same: 4.8 % apart on
+the LPDA, 16 % on the two tutorial decks, **35 %** on `11-4a-nec4`. And `GE -1` is
+NEC-5's card for a deck with buried wires — our own `NEC5Engine` writes exactly
+that (`ge = "GE -1 0" if self._has_buried_wires else "GE 1 0"`), with AK#1025
+recording the other flag as unusable with them — so the deck's own `GE -1` is the
+reference and the lifted column is context.
+
+**No public page carries the lifted numbers.** Checked: the census artifact
+`docs/status/data/2026-09-11-corpus-census-momwire.jsonl` holds all six decks as
+momwire *error* rows whose text itself reads `GE -1 declares the ground plane…`,
+so the published census used the decks as translated; the only other hit for any
+of these decks, `1r5-bc3elendfire-burrad` in
+`docs/status/2026-09-07-wild-corpus-solve-sweep.md`, carries −0.005−0.001j from a
+different tree, which is neither of the values here. The lifted numbers appear in
+this table and — correctly labelled — in `popb-rows.csv`, and nowhere else.
+
+None of this changes Population B's conclusion, which is that momwire refuses all
+eight decks at all three commits; those refusal sentences are momwire's, measured
+on the lifted tree deliberately. The NEC-5 column was context, not the finding.
 
 (The two phased-array decks' NEC-5 impedances are ~0.02 Ω and ~0.003 Ω, which
 `compare`'s own degeneracy rule would exclude anyway.)
