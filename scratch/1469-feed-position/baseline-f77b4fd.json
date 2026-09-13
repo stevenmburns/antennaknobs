@@ -1,0 +1,6393 @@
+{
+ "momwire": {
+  "arrays.bowtie16x1.default.free.nec": {
+   "s": 0.88,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     300.6651794496755,
+     14.45117340991672
+    ],
+    [
+     307.570536323933,
+     208.26726440581598
+    ],
+    [
+     683.8113625360279,
+     71.24127092058359
+    ],
+    [
+     322.3844516239733,
+     74.76287742603044
+    ],
+    [
+     397.9066770914938,
+     186.95744743335692
+    ],
+    [
+     556.2720833144987,
+     111.86920626702506
+    ],
+    [
+     319.7789910149741,
+     96.25023687753671
+    ],
+    [
+     475.7208522385843,
+     152.8361929039555
+    ],
+    [
+     475.7208522386118,
+     152.8361929038819
+    ],
+    [
+     319.7789910149787,
+     96.2502368775413
+    ],
+    [
+     556.2720833144252,
+     111.86920626712282
+    ],
+    [
+     397.906677091565,
+     186.9574474333259
+    ],
+    [
+     322.38445162394584,
+     74.76287742600783
+    ],
+    [
+     683.8113625359135,
+     71.24127092060282
+    ],
+    [
+     307.5705363239795,
+     208.26726440588484
+    ],
+    [
+     300.6651794496361,
+     14.451173409951885
+    ]
+   ]
+  },
+  "arrays.bowtie16x1.default.somm13.nec": {
+   "s": 5.43,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     321.5011372729918,
+     -4.488160278530656
+    ],
+    [
+     348.65885504211445,
+     211.21921654215214
+    ],
+    [
+     754.7345870854629,
+     -82.94267228386822
+    ],
+    [
+     351.6752958666917,
+     37.011973666129
+    ],
+    [
+     431.34010987523976,
+     161.40238259238026
+    ],
+    [
+     614.5021912002923,
+     45.57535723306511
+    ],
+    [
+     363.22788047028024,
+     62.47516035222465
+    ],
+    [
+     515.3205086738919,
+     108.47033859411285
+    ],
+    [
+     515.320508673956,
+     108.47033859408155
+    ],
+    [
+     363.22788047027814,
+     62.47516035224963
+    ],
+    [
+     614.502191200251,
+     45.57535723317141
+    ],
+    [
+     431.3401098753263,
+     161.4023825923495
+    ],
+    [
+     351.67529586664506,
+     37.0119736661237
+    ],
+    [
+     754.7345870854327,
+     -82.94267228384635
+    ],
+    [
+     348.6588550421551,
+     211.21921654221242
+    ],
+    [
+     321.50113727296286,
+     -4.488160278496927
+    ]
+   ]
+  },
+  "arrays.bowtie16x1.refined.free.nec": {
+   "s": 3.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     300.6861265173626,
+     14.549403560110743
+    ],
+    [
+     307.53716890666595,
+     208.34285543956062
+    ],
+    [
+     684.0077038758108,
+     71.00327020147415
+    ],
+    [
+     322.32640450260146,
+     74.89633952220409
+    ],
+    [
+     397.9337460650932,
+     187.04877536558794
+    ],
+    [
+     556.4467392663721,
+     111.77647169210745
+    ],
+    [
+     319.6879022854737,
+     96.38905078959813
+    ],
+    [
+     475.8333340274992,
+     152.86427629327332
+    ],
+    [
+     475.833334027635,
+     152.86427629313442
+    ],
+    [
+     319.68790228544526,
+     96.3890507896047
+    ],
+    [
+     556.4467392662235,
+     111.7764716922013
+    ],
+    [
+     397.93374606527505,
+     187.048775365527
+    ],
+    [
+     322.32640450256736,
+     74.89633952226765
+    ],
+    [
+     684.0077038759548,
+     71.00327020178094
+    ],
+    [
+     307.5371689067743,
+     208.3428554394317
+    ],
+    [
+     300.6861265173394,
+     14.549403560125228
+    ]
+   ]
+  },
+  "arrays.bowtie16x1.refined.somm13.nec": {
+   "s": 15.58,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     321.5220310471423,
+     -4.392608102784492
+    ],
+    [
+     348.6251795115712,
+     211.3056579559809
+    ],
+    [
+     754.7759800021582,
+     -83.25683939582417
+    ],
+    [
+     351.6227520538836,
+     37.16094569361722
+    ],
+    [
+     431.38272448023037,
+     161.50622844367524
+    ],
+    [
+     614.6513203188341,
+     45.43153470875971
+    ],
+    [
+     363.1298826828421,
+     62.63769777827464
+    ],
+    [
+     515.441613615708,
+     108.49103197422914
+    ],
+    [
+     515.4416136156856,
+     108.49103197417936
+    ],
+    [
+     363.1298826828381,
+     62.637697778260105
+    ],
+    [
+     614.6513203187313,
+     45.431534708718864
+    ],
+    [
+     431.3827244802855,
+     161.50622844365665
+    ],
+    [
+     351.62275205387556,
+     37.16094569364418
+    ],
+    [
+     754.7759800024129,
+     -83.25683939581074
+    ],
+    [
+     348.6251795115906,
+     211.30565795588038
+    ],
+    [
+     321.52203104714954,
+     -4.392608102794564
+    ]
+   ]
+  },
+  "arrays.bowtie4x4.default.free.nec": {
+   "s": 0.89,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     270.12805424414665,
+     -61.91983984369778
+    ],
+    [
+     211.40016790008113,
+     -139.0515158440586
+    ],
+    [
+     208.75429793634945,
+     -136.3162580447641
+    ],
+    [
+     276.3857508458876,
+     -61.99256441846241
+    ],
+    [
+     506.11792083104535,
+     27.342099053158993
+    ],
+    [
+     325.87908299728446,
+     -71.41099168037242
+    ],
+    [
+     325.3013406939033,
+     -68.94173336741044
+    ],
+    [
+     526.0995299804614,
+     5.171650412174276
+    ],
+    [
+     506.11792083110913,
+     27.3420990530977
+    ],
+    [
+     325.87908299730987,
+     -71.41099168036357
+    ],
+    [
+     325.30134069370314,
+     -68.94173336734858
+    ],
+    [
+     526.0995299803515,
+     5.1716504122783755
+    ],
+    [
+     270.12805424412335,
+     -61.91983984369447
+    ],
+    [
+     211.4001679000825,
+     -139.0515158440431
+    ],
+    [
+     208.75429793639404,
+     -136.31625804482493
+    ],
+    [
+     276.38575084591497,
+     -61.99256441849741
+    ]
+   ]
+  },
+  "arrays.bowtie4x4.default.somm13.nec": {
+   "s": 4.85,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     301.7210682769158,
+     -84.47746528497049
+    ],
+    [
+     210.0113757560125,
+     -122.5681394354904
+    ],
+    [
+     211.56413501808333,
+     -145.70828584799366
+    ],
+    [
+     270.99688773154844,
+     -63.767062500019534
+    ],
+    [
+     560.2390692761948,
+     -88.49852135044281
+    ],
+    [
+     318.5975154474569,
+     -60.22175404621481
+    ],
+    [
+     331.80860306121656,
+     -67.15061853841004
+    ],
+    [
+     527.5179136427013,
+     -6.976291674971631
+    ],
+    [
+     560.2390692761522,
+     -88.49852135048965
+    ],
+    [
+     318.59751544748906,
+     -60.22175404619804
+    ],
+    [
+     331.8086030610277,
+     -67.1506185383502
+    ],
+    [
+     527.5179136426075,
+     -6.976291674831683
+    ],
+    [
+     301.7210682769093,
+     -84.47746528496626
+    ],
+    [
+     210.01137575600893,
+     -122.56813943548009
+    ],
+    [
+     211.56413501812278,
+     -145.7082858480438
+    ],
+    [
+     270.9968877315793,
+     -63.767062500042286
+    ]
+   ]
+  },
+  "arrays.bowtie4x4.refined.free.nec": {
+   "s": 2.9,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     270.140308953546,
+     -61.83638566763174
+    ],
+    [
+     211.38825418151654,
+     -138.959927521699
+    ],
+    [
+     208.7485418177516,
+     -136.22751084960314
+    ],
+    [
+     276.3940598977143,
+     -61.91439907330972
+    ],
+    [
+     506.1194255199225,
+     27.395358589590213
+    ],
+    [
+     325.9250299095074,
+     -71.32680783508641
+    ],
+    [
+     325.3420266687158,
+     -68.86287321012635
+    ],
+    [
+     526.0912872925894,
+     5.241929311537781
+    ],
+    [
+     506.1194255195798,
+     27.39535858958941
+    ],
+    [
+     325.92502990942626,
+     -71.32680783509655
+    ],
+    [
+     325.3420266688243,
+     -68.86287321013867
+    ],
+    [
+     526.0912872925029,
+     5.2419293116043155
+    ],
+    [
+     270.1403089535907,
+     -61.83638566766884
+    ],
+    [
+     211.3882541815485,
+     -138.95992752172364
+    ],
+    [
+     208.74854181771425,
+     -136.22751084955598
+    ],
+    [
+     276.3940598977578,
+     -61.9143990733047
+    ]
+   ]
+  },
+  "arrays.bowtie4x4.refined.somm13.nec": {
+   "s": 15.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     301.7234026032364,
+     -84.39242080862216
+    ],
+    [
+     210.00394883008028,
+     -122.4877965845887
+    ],
+    [
+     211.55580735680064,
+     -145.6067578441279
+    ],
+    [
+     271.0119034704884,
+     -63.692331566033005
+    ],
+    [
+     560.2448632586672,
+     -88.40531551164747
+    ],
+    [
+     318.6303250319747,
+     -60.146883583649704
+    ],
+    [
+     331.8576658540351,
+     -67.06851447616371
+    ],
+    [
+     527.501605359195,
+     -6.908841272471291
+    ],
+    [
+     560.2448632584184,
+     -88.40531551137104
+    ],
+    [
+     318.63032503188384,
+     -60.14688358363577
+    ],
+    [
+     331.8576658541136,
+     -67.06851447620302
+    ],
+    [
+     527.5016053591374,
+     -6.9088412723960735
+    ],
+    [
+     301.7234026032809,
+     -84.39242080865526
+    ],
+    [
+     210.0039488301156,
+     -122.48779658462371
+    ],
+    [
+     211.55580735677984,
+     -145.60675784407792
+    ],
+    [
+     271.0119034705198,
+     -63.69233156603833
+    ]
+   ]
+  },
+  "arrays.bowtiearray.default.free.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     201.37408054556082,
+     42.383778318906124
+    ],
+    [
+     223.52202433472232,
+     35.54782902614327
+    ],
+    [
+     201.3740805455612,
+     42.38377831890284
+    ],
+    [
+     223.52202433471547,
+     35.54782902613844
+    ]
+   ]
+  },
+  "arrays.bowtiearray.default.somm13.nec": {
+   "s": 1.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     209.30718606457566,
+     46.68823395193265
+    ],
+    [
+     204.13419722278564,
+     41.6798918237762
+    ],
+    [
+     209.307186064575,
+     46.68823395192381
+    ],
+    [
+     204.13419722277695,
+     41.67989182376297
+    ]
+   ]
+  },
+  "arrays.bowtiearray.refined.free.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     201.39665129714805,
+     42.48723633747457
+    ],
+    [
+     223.52079537806446,
+     35.640641256332486
+    ],
+    [
+     201.39665129715135,
+     42.487236337463735
+    ],
+    [
+     223.5207953780443,
+     35.64064125630903
+    ]
+   ]
+  },
+  "arrays.bowtiearray.refined.somm13.nec": {
+   "s": 1.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     209.32809212271718,
+     46.79617159955821
+    ],
+    [
+     204.13490832973912,
+     41.76443675791758
+    ],
+    [
+     209.32809212272755,
+     46.79617159956404
+    ],
+    [
+     204.13490832972988,
+     41.764436757909614
+    ]
+   ]
+  },
+  "arrays.bowtiearray1x2.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     183.20224646223195,
+     32.20753735641022
+    ],
+    [
+     183.2022464622311,
+     32.207537356405155
+    ]
+   ]
+  },
+  "arrays.bowtiearray1x2.default.somm13.nec": {
+   "s": 0.66,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     172.97642463168722,
+     56.90577108330514
+    ],
+    [
+     172.97642463168754,
+     56.90577108330873
+    ]
+   ]
+  },
+  "arrays.bowtiearray1x2.refined.free.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     183.20899030139128,
+     32.299583584818535
+    ],
+    [
+     183.208990301395,
+     32.299583584828575
+    ]
+   ]
+  },
+  "arrays.bowtiearray1x2.refined.somm13.nec": {
+   "s": 0.25,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     172.98216535607517,
+     56.99842534077595
+    ],
+    [
+     172.98216535607676,
+     56.99842534078526
+    ]
+   ]
+  },
+  "arrays.bowtiearray2x4.default.free.nec": {
+   "s": 0.25,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     212.37046495370734,
+     36.32453940032741
+    ],
+    [
+     234.7408913979218,
+     28.064251429473774
+    ],
+    [
+     186.14288998328922,
+     17.56576926170316
+    ],
+    [
+     205.77094323043266,
+     8.908054032163351
+    ],
+    [
+     186.14288998329508,
+     17.565769261704215
+    ],
+    [
+     205.77094323042485,
+     8.90805403215732
+    ],
+    [
+     212.3704649537087,
+     36.324539400332625
+    ],
+    [
+     234.7408913979228,
+     28.064251429476972
+    ]
+   ]
+  },
+  "arrays.bowtiearray2x4.default.somm13.nec": {
+   "s": 2.77,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     219.5208597927876,
+     39.115926160428195
+    ],
+    [
+     215.9221067336537,
+     33.75375383221472
+    ],
+    [
+     194.74632022111354,
+     19.7602809154434
+    ],
+    [
+     187.9397355185405,
+     20.465177859635936
+    ],
+    [
+     194.7463202211142,
+     19.76028091544517
+    ],
+    [
+     187.93973551854128,
+     20.46517785963915
+    ],
+    [
+     219.52085979278618,
+     39.11592616042704
+    ],
+    [
+     215.92210673365398,
+     33.753753832213974
+    ]
+   ]
+  },
+  "arrays.bowtiearray2x4.refined.free.nec": {
+   "s": 0.97,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     212.3917163706243,
+     36.428069379691976
+    ],
+    [
+     234.73698810825587,
+     28.157601419685665
+    ],
+    [
+     186.1654886123319,
+     17.666244472561637
+    ],
+    [
+     205.77150304377355,
+     9.000768843237237
+    ],
+    [
+     186.16548861231644,
+     17.66624447255721
+    ],
+    [
+     205.77150304380612,
+     9.000768843255592
+    ],
+    [
+     212.3917163706209,
+     36.42806937968405
+    ],
+    [
+     234.7369881082521,
+     28.157601419679118
+    ]
+   ]
+  },
+  "arrays.bowtiearray2x4.refined.somm13.nec": {
+   "s": 4.55,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     219.540690937656,
+     39.22343725664334
+    ],
+    [
+     215.92088503906118,
+     33.83936236784922
+    ],
+    [
+     194.76801553421967,
+     19.86605191587098
+    ],
+    [
+     187.94040079370447,
+     20.548195666352527
+    ],
+    [
+     194.7680155342043,
+     19.866051915865363
+    ],
+    [
+     187.94040079373005,
+     20.548195666373722
+    ],
+    [
+     219.5406909376381,
+     39.223437256617565
+    ],
+    [
+     215.92088503906788,
+     33.83936236785399
+    ]
+   ]
+  },
+  "arrays.delta_looparray.default.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     107.90613287859112,
+     -4.437286734209278
+    ],
+    [
+     107.90613287860704,
+     -4.437286734168596
+    ]
+   ]
+  },
+  "arrays.delta_looparray.default.somm13.nec": {
+   "s": 0.75,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     96.22378840347943,
+     -2.4418782129485264
+    ],
+    [
+     96.22378840349174,
+     -2.4418782129085534
+    ]
+   ]
+  },
+  "arrays.delta_looparray.refined.free.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     107.91406440843716,
+     -4.391876141678723
+    ],
+    [
+     107.91406440844018,
+     -4.391876141669246
+    ]
+   ]
+  },
+  "arrays.delta_looparray.refined.somm13.nec": {
+   "s": 0.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     96.23084977728033,
+     -2.396197585017362
+    ],
+    [
+     96.23084977728342,
+     -2.396197585005746
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4.default.free.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     190.96721088438986,
+     39.94588220430166
+    ],
+    [
+     187.02821985990067,
+     48.403664196387
+    ],
+    [
+     187.02821985989883,
+     48.40366419638291
+    ],
+    [
+     190.96721088438562,
+     39.945882204297874
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4.default.somm13.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     170.72399283553554,
+     47.72933185556492
+    ],
+    [
+     163.36652498342642,
+     62.33088458011519
+    ],
+    [
+     163.36652498342465,
+     62.33088458010423
+    ],
+    [
+     170.7239928355323,
+     47.72933185556578
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4.refined.free.nec": {
+   "s": 0.29,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     190.99811664339333,
+     40.049021909338755
+    ],
+    [
+     187.0537488672789,
+     48.49677217670257
+    ],
+    [
+     187.05374886728265,
+     48.49677217671516
+    ],
+    [
+     190.99811664341846,
+     40.049021909393275
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4.refined.somm13.nec": {
+   "s": 1.28,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     170.75185712775252,
+     47.83439077801111
+    ],
+    [
+     163.3888259729303,
+     62.42632710709956
+    ],
+    [
+     163.38882597292988,
+     62.42632710709888
+    ],
+    [
+     170.75185712776928,
+     47.83439077805066
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4_grouped.default.free.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     266.4532557156099,
+     59.1426967158222
+    ],
+    [
+     283.52828362641446,
+     74.93416412242127
+    ],
+    [
+     283.52828362641094,
+     74.93416412241478
+    ],
+    [
+     266.4532557156098,
+     59.142696715815845
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4_grouped.default.somm13.nec": {
+   "s": 1.66,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     247.75769809934462,
+     64.1627662383584
+    ],
+    [
+     242.53204177429456,
+     100.67711214938139
+    ],
+    [
+     242.53204177429558,
+     100.67711214938797
+    ],
+    [
+     247.7576980993428,
+     64.16276623835356
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4_grouped.refined.free.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     266.49832974960725,
+     59.25947062926416
+    ],
+    [
+     283.57058765125333,
+     75.0210036307094
+    ],
+    [
+     283.5705876512647,
+     75.02100363072053
+    ],
+    [
+     266.49832974960594,
+     59.25947062922059
+    ]
+   ]
+  },
+  "arrays.delta_looparray_1x4_grouped.refined.somm13.nec": {
+   "s": 2.41,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     247.79507308621402,
+     64.27939095056523
+    ],
+    [
+     242.57527062509828,
+     100.7733892020099
+    ],
+    [
+     242.5752706251081,
+     100.77338920204714
+    ],
+    [
+     247.79507308619915,
+     64.27939095049464
+    ]
+   ]
+  },
+  "arrays.delta_looparray_2x2.default.free.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     208.40328246761763,
+     54.82317850282785
+    ],
+    [
+     229.5632621513088,
+     76.46362826045609
+    ],
+    [
+     208.4032824676202,
+     54.823178502831794
+    ],
+    [
+     229.56326215130844,
+     76.46362826045673
+    ]
+   ]
+  },
+  "arrays.delta_looparray_2x2.default.somm13.nec": {
+   "s": 0.34,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     205.61093268507386,
+     49.40538572577439
+    ],
+    [
+     242.32251581647117,
+     80.90131800631544
+    ],
+    [
+     205.61093268507454,
+     49.405385725779155
+    ],
+    [
+     242.32251581647154,
+     80.90131800632051
+    ]
+   ]
+  },
+  "arrays.delta_looparray_2x2.refined.free.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     208.4361430921568,
+     54.909220095899784
+    ],
+    [
+     229.5891329679736,
+     76.5487946858108
+    ],
+    [
+     208.43614309215997,
+     54.909220095898554
+    ],
+    [
+     229.58913296796672,
+     76.54879468579406
+    ]
+   ]
+  },
+  "arrays.delta_looparray_2x2.refined.somm13.nec": {
+   "s": 1.32,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     205.64490216824782,
+     49.49001078306374
+    ],
+    [
+     242.34688972908506,
+     80.98729473180813
+    ],
+    [
+     205.64490216825573,
+     49.49001078307136
+    ],
+    [
+     242.34688972907486,
+     80.98729473179321
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.default.free.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.21931387200172,
+     7.340805225153352
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.default.free.port2.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.2193140548236,
+     7.340805250349636
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.default.somm13.port1.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.76445989559792,
+     4.789351240373305
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.default.somm13.port2.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.76446008492167,
+     4.7893512276642305
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.refined.free.port1.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.2271815179709,
+     7.386325022682884
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.refined.free.port2.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.2271815491641,
+     7.386325023151311
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.refined.somm13.port1.nec": {
+   "s": 0.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.77160063100797,
+     4.835254920571331
+    ]
+   ]
+  },
+  "arrays.delta_looparray_network.refined.somm13.port2.nec": {
+   "s": 0.34,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.77160066340298,
+     4.835254914421589
+    ]
+   ]
+  },
+  "arrays.folded_invveearray.default.free.nec": {
+   "s": 0.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     191.8340631895222,
+     -8.302060754761492
+    ],
+    [
+     217.94301321479466,
+     9.39977967147413
+    ],
+    [
+     191.8340631895227,
+     -8.302060754758514
+    ],
+    [
+     217.9430132147953,
+     9.399779671475956
+    ]
+   ]
+  },
+  "arrays.folded_invveearray.default.somm13.nec": {
+   "s": 1.24,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     199.3344561612548,
+     -0.24482200908307336
+    ],
+    [
+     199.53001616560496,
+     0.37876728017075467
+    ],
+    [
+     199.33445616125096,
+     -0.24482200908480728
+    ],
+    [
+     199.5300161656078,
+     0.37876728017217964
+    ]
+   ]
+  },
+  "arrays.folded_invveearray.refined.free.nec": {
+   "s": 0.26,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     191.80804027312433,
+     -8.371905769920563
+    ],
+    [
+     217.9277205367912,
+     9.331478132086119
+    ],
+    [
+     191.8080402731204,
+     -8.371905769917523
+    ],
+    [
+     217.9277205367927,
+     9.331478132088897
+    ]
+   ]
+  },
+  "arrays.folded_invveearray.refined.somm13.nec": {
+   "s": 1.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     199.31107874154404,
+     -0.31641438462473465
+    ],
+    [
+     199.51093037502943,
+     0.3121792675425758
+    ],
+    [
+     199.31107874153838,
+     -0.3164143846287197
+    ],
+    [
+     199.51093037503804,
+     0.31217926755221426
+    ]
+   ]
+  },
+  "arrays.hentenna_array.default.free.nec": {
+   "s": 0.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     93.15752081606092,
+     41.14423034606484
+    ],
+    [
+     93.15752081606196,
+     41.144230346071204
+    ]
+   ]
+  },
+  "arrays.hentenna_array.default.somm13.nec": {
+   "s": 0.17,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     92.5073990505417,
+     44.06632196939219
+    ],
+    [
+     92.50739905054101,
+     44.06632196938114
+    ]
+   ]
+  },
+  "arrays.hentenna_array.refined.free.nec": {
+   "s": 0.18,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     93.15124068223733,
+     41.201809122552696
+    ],
+    [
+     93.151240682244,
+     41.20180912257717
+    ]
+   ]
+  },
+  "arrays.hentenna_array.refined.somm13.nec": {
+   "s": 0.82,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     92.50107740301797,
+     44.12384977606742
+    ],
+    [
+     92.50107740301944,
+     44.12384977604649
+    ]
+   ]
+  },
+  "arrays.hourglass_array.default.free.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     99.279562863025,
+     25.685049053127624
+    ],
+    [
+     99.27956286302508,
+     25.685049053127706
+    ]
+   ]
+  },
+  "arrays.hourglass_array.default.somm13.nec": {
+   "s": 0.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     98.05516275499448,
+     28.858869135780836
+    ],
+    [
+     98.05516275499299,
+     28.858869135769062
+    ]
+   ]
+  },
+  "arrays.hourglass_array.refined.free.nec": {
+   "s": 0.16,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     99.27637297620583,
+     25.723734374310723
+    ],
+    [
+     99.27637297620714,
+     25.72373437431582
+    ]
+   ]
+  },
+  "arrays.hourglass_array.refined.somm13.nec": {
+   "s": 0.81,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     98.05195393928945,
+     28.897591689609573
+    ],
+    [
+     98.05195393928594,
+     28.897591689593018
+    ]
+   ]
+  },
+  "arrays.invveearray.default.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.19709538374953,
+     -8.797313281058315
+    ],
+    [
+     54.827669683225864,
+     -4.1567005107272825
+    ],
+    [
+     47.19709538374729,
+     -8.797313281061758
+    ],
+    [
+     54.827669683226574,
+     -4.156700510724036
+    ]
+   ]
+  },
+  "arrays.invveearray.default.somm13.nec": {
+   "s": 0.12,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     49.40206003637447,
+     -6.864018930149891
+    ],
+    [
+     49.59446603216187,
+     -6.361328127014679
+    ],
+    [
+     49.4020600363739,
+     -6.864018930146106
+    ],
+    [
+     49.59446603216063,
+     -6.361328127016136
+    ]
+   ]
+  },
+  "arrays.invveearray.refined.free.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.22556709425711,
+     -8.624807631768547
+    ],
+    [
+     54.83335370244814,
+     -3.985193206087813
+    ],
+    [
+     47.22556709426145,
+     -8.624807631768318
+    ],
+    [
+     54.83335370244508,
+     -3.9851932060898503
+    ]
+   ]
+  },
+  "arrays.invveearray.refined.somm13.nec": {
+   "s": 0.29,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     49.42114916758885,
+     -6.689685962311082
+    ],
+    [
+     49.61203622009013,
+     -6.189373087413136
+    ],
+    [
+     49.42114916758579,
+     -6.6896859623157034
+    ],
+    [
+     49.61203622008473,
+     -6.189373087419398
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.18231915397284,
+     -42.94946154607173
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.default.free.port2.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.18231915397257,
+     -42.94946154606913
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.default.somm13.port1.nec": {
+   "s": 0.52,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.808258509912022,
+     -42.59330461113597
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.default.somm13.port2.nec": {
+   "s": 0.55,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.808258509911894,
+     -42.59330461113528
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.121598778631153,
+     -42.6897191027133
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.refined.free.port2.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.12159877863273,
+     -42.68971910272154
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.refined.somm13.port1.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.739581150874727,
+     -42.34168663118499
+    ]
+   ]
+  },
+  "arrays.lumped_coupled_pair.refined.somm13.port2.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.73958115087686,
+     -42.341686631184544
+    ]
+   ]
+  },
+  "arrays.moxonarray.default.free.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     40.29356783808577,
+     -26.64027271697568
+    ],
+    [
+     39.868978667684836,
+     -30.15750899940595
+    ],
+    [
+     40.29356783808834,
+     -26.64027271697344
+    ],
+    [
+     39.86897866768646,
+     -30.157508999403905
+    ]
+   ]
+  },
+  "arrays.moxonarray.default.somm13.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     39.03390680094533,
+     -27.30800077610445
+    ],
+    [
+     41.555826435016165,
+     -30.161280280564267
+    ],
+    [
+     39.03390680094467,
+     -27.30800077609515
+    ],
+    [
+     41.55582643501589,
+     -30.16128028055775
+    ]
+   ]
+  },
+  "arrays.moxonarray.refined.free.nec": {
+   "s": 0.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     40.487680721331536,
+     -26.167674377378347
+    ],
+    [
+     40.05919635323954,
+     -29.693687333765833
+    ],
+    [
+     40.487680721327195,
+     -26.16767437737501
+    ],
+    [
+     40.0591963532472,
+     -29.693687333772317
+    ]
+   ]
+  },
+  "arrays.moxonarray.refined.somm13.nec": {
+   "s": 0.99,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     39.217805097373756,
+     -26.850694804819508
+    ],
+    [
+     41.76630161921027,
+     -29.682976680292292
+    ],
+    [
+     39.21780509737454,
+     -26.850694804817582
+    ],
+    [
+     41.766301619227406,
+     -29.682976680289734
+    ]
+   ]
+  },
+  "arrays.yagiarray.default.free.nec": {
+   "s": 0.25,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     83.39694990211771,
+     0.9394990289514051
+    ],
+    [
+     83.7111715790277,
+     0.8675745443273938
+    ],
+    [
+     83.39694990211689,
+     0.9394990289576413
+    ],
+    [
+     83.71117157901823,
+     0.8675745443300428
+    ]
+   ]
+  },
+  "arrays.yagiarray.default.somm13.nec": {
+   "s": 1.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     81.88818743960466,
+     2.7391364353789993
+    ],
+    [
+     85.40861439278748,
+     -8.706162812751174
+    ],
+    [
+     81.88818743959304,
+     2.739136435371839
+    ],
+    [
+     85.40861439280282,
+     -8.70616281275578
+    ]
+   ]
+  },
+  "arrays.yagiarray.refined.free.nec": {
+   "s": 0.74,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     83.27969547261522,
+     0.995329064495776
+    ],
+    [
+     83.59028723970648,
+     0.9227675011530124
+    ],
+    [
+     83.27969547259819,
+     0.9953290644961432
+    ],
+    [
+     83.59028723971119,
+     0.922767501148251
+    ]
+   ]
+  },
+  "arrays.yagiarray.refined.somm13.nec": {
+   "s": 3.96,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     81.77979297339012,
+     2.7842038595148124
+    ],
+    [
+     85.24527739643885,
+     -8.625313868192025
+    ],
+    [
+     81.77979297339463,
+     2.78420385951488
+    ],
+    [
+     85.24527739645185,
+     -8.625313868200893
+    ]
+   ]
+  },
+  "beams.hb9cv.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     32.94113378307793,
+     119.67154780233166
+    ]
+   ]
+  },
+  "beams.hb9cv.default.free.port2.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     53.65955238771221,
+     60.91876987701408
+    ]
+   ]
+  },
+  "beams.hb9cv.default.somm13.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     31.22526721488262,
+     118.23553865835538
+    ]
+   ]
+  },
+  "beams.hb9cv.default.somm13.port2.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.67146134260177,
+     59.417811475400356
+    ]
+   ]
+  },
+  "beams.hb9cv.refined.free.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     33.064589170602915,
+     119.98002464867324
+    ]
+   ]
+  },
+  "beams.hb9cv.refined.free.port2.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     53.73232715769312,
+     61.12539926593479
+    ]
+   ]
+  },
+  "beams.hb9cv.refined.somm13.port1.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     31.336262346189784,
+     118.53497772663845
+    ]
+   ]
+  },
+  "beams.hb9cv.refined.somm13.port2.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.73367048635231,
+     59.628782128053686
+    ]
+   ]
+  },
+  "beams.hexbeam.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.02865606031213,
+     20.20458125424164
+    ]
+   ]
+  },
+  "beams.hexbeam.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.58556410468651,
+     16.25664801290611
+    ]
+   ]
+  },
+  "beams.hexbeam.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.10565591100955,
+     20.348377152484336
+    ]
+   ]
+  },
+  "beams.hexbeam.refined.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.6497400034025,
+     16.396470235015965
+    ]
+   ]
+  },
+  "beams.moxon.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.834524351734615,
+     -17.195223549005842
+    ]
+   ]
+  },
+  "beams.moxon.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.38946071681771,
+     -20.400467410142284
+    ]
+   ]
+  },
+  "beams.moxon.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.039886918371636,
+     -16.947169039944114
+    ]
+   ]
+  },
+  "beams.moxon.refined.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.586595113706906,
+     -20.175876057440952
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.default.free.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.52627928435386,
+     -0.3323468472447293
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.default.free.port2.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.526279284352654,
+     -0.3323468472372064
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.default.somm13.port1.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.419977772473544,
+     -0.3537702334486651
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.default.somm13.port2.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.42024124833371,
+     -0.3395436085839449
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.refined.free.port1.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.73030190617902,
+     -0.17712647793858485
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.refined.free.port2.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.73030190616585,
+     -0.17712647793941827
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.refined.somm13.port1.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.619452221492466,
+     -0.19914339286766458
+    ]
+   ]
+  },
+  "beams.moxon_turnstile.refined.somm13.port2.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     61.61978481919739,
+     -0.18434827408343543
+    ]
+   ]
+  },
+  "beams.owa_yagi.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.22905533506962,
+     0.7200785860830177
+    ]
+   ]
+  },
+  "beams.owa_yagi.default.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.101683422912174,
+     1.5770512353170865
+    ]
+   ]
+  },
+  "beams.owa_yagi.refined.free.nec": {
+   "s": 0.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.260430140597904,
+     0.8941573494131899
+    ]
+   ]
+  },
+  "beams.owa_yagi.refined.somm13.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     47.18941132346325,
+     1.7523144934173247
+    ]
+   ]
+  },
+  "beams.owa_yagi_6el.default.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.043564595415575,
+     9.02941810492544
+    ]
+   ]
+  },
+  "beams.owa_yagi_6el.default.somm13.nec": {
+   "s": 2.9,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.13780478467751,
+     9.164806455999972
+    ]
+   ]
+  },
+  "beams.owa_yagi_6el.refined.free.nec": {
+   "s": 0.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.34054690939972,
+     8.545046648110315
+    ]
+   ]
+  },
+  "beams.owa_yagi_6el.refined.somm13.nec": {
+   "s": 2.98,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.44912178407746,
+     8.680025268948933
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.default.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     5.83471351228107,
+     -76.17526404067652
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.default.free.port2.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     31.862324752306307,
+     -11.49475606516828
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.default.somm13.port1.nec": {
+   "s": 0.92,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     6.429063235327128,
+     -76.22505731222068
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.default.somm13.port2.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.09944164252677,
+     -12.451833807783586
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.refined.free.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     5.923160751172055,
+     -75.78280932473558
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.refined.free.port2.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     31.818652795238748,
+     -11.188875162603056
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.refined.somm13.port1.nec": {
+   "s": 0.17,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     6.533208388750786,
+     -75.8407339399699
+    ]
+   ]
+  },
+  "beams.phased_driver_yagi.refined.somm13.port2.nec": {
+   "s": 0.16,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.064539639627966,
+     -12.125346397299417
+    ]
+   ]
+  },
+  "beams.yagi.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     34.490073494494666,
+     -36.42048074665301
+    ]
+   ]
+  },
+  "beams.yagi.default.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     34.51888009732056,
+     -37.0690552087968
+    ]
+   ]
+  },
+  "beams.yagi.refined.free.nec": {
+   "s": 0.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     34.562376524458216,
+     -36.1697450741752
+    ]
+   ]
+  },
+  "beams.yagi.refined.somm13.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     34.59194921215504,
+     -36.82583836381478
+    ]
+   ]
+  },
+  "broadband.discone.default.free.nec": {
+   "s": 0.16,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     18.086572900189097,
+     -30.99578150329903
+    ]
+   ]
+  },
+  "broadband.discone.default.somm13.nec": {
+   "s": 0.43,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     18.538166071802735,
+     -30.83684330402053
+    ]
+   ]
+  },
+  "broadband.discone.refined.free.nec": {
+   "s": 0.35,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     18.085446563708587,
+     -31.052423811879756
+    ]
+   ]
+  },
+  "broadband.discone.refined.somm13.nec": {
+   "s": 1.56,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     18.53705980815394,
+     -30.89353288744144
+    ]
+   ]
+  },
+  "broadband.g5rv.default.free.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.46522286192774,
+     49.67812210301095
+    ]
+   ]
+  },
+  "broadband.g5rv.default.somm13.port1.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     115.15487120610777,
+     50.23821075473945
+    ]
+   ]
+  },
+  "broadband.g5rv.refined.free.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.49400854519325,
+     49.88306541304844
+    ]
+   ]
+  },
+  "broadband.g5rv.refined.somm13.port1.nec": {
+   "s": 0.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     115.18477002311624,
+     50.44502660671445
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port1.nec": {
+   "s": 0.19,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     461.4675080109406,
+     -1511.8701108919886
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port10.nec": {
+   "s": 0.19,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.823089217933038,
+     -146.90898931766924
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port2.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2074.3615876482045,
+     -2374.5787366859468
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port3.nec": {
+   "s": 0.19,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3962.0012264108846,
+     1074.919148681433
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port4.nec": {
+   "s": 0.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1309.1631748887123,
+     1680.4796307543784
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port5.nec": {
+   "s": 0.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     544.6140435976741,
+     1077.6769539032061
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port6.nec": {
+   "s": 0.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     310.01987105598266,
+     699.4095671101471
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port7.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     148.83100652853472,
+     458.925839408621
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port8.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.787316587755456,
+     181.81620156379282
+    ]
+   ]
+  },
+  "broadband.lpda.default.free.port9.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     62.88285437383037,
+     -6.238243763101958
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port1.nec": {
+   "s": 0.96,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     514.9339369030934,
+     -1535.8222989013618
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port10.nec": {
+   "s": 0.92,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.908509552956119,
+     -146.90239568536
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port2.nec": {
+   "s": 0.93,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2299.612748841294,
+     -2197.369672105147
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port3.nec": {
+   "s": 0.93,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3490.576159059608,
+     1153.8941304056602
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port4.nec": {
+   "s": 0.92,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1239.1483468324304,
+     1525.4530763332552
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port5.nec": {
+   "s": 0.92,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     581.1013468782022,
+     996.8486785676345
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port6.nec": {
+   "s": 0.98,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     349.23068869389806,
+     683.4595519722521
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port7.nec": {
+   "s": 0.92,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     161.07460566323064,
+     466.10422678426215
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port8.nec": {
+   "s": 0.92,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     31.234757626934197,
+     182.52292968263643
+    ]
+   ]
+  },
+  "broadband.lpda.default.somm13.port9.nec": {
+   "s": 0.93,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     64.59076400139723,
+     -10.048187861964253
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port1.nec": {
+   "s": 0.65,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     461.2600734694902,
+     -1511.527704660373
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port10.nec": {
+   "s": 0.63,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.872065841850137,
+     -146.57072307250965
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port2.nec": {
+   "s": 0.63,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2073.193466784318,
+     -2374.5139398773676
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port3.nec": {
+   "s": 0.64,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3963.470618485282,
+     1073.3436141210295
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port4.nec": {
+   "s": 0.63,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1309.8481444443155,
+     1680.8792969074862
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port5.nec": {
+   "s": 0.63,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     544.8165487436186,
+     1078.0366977527162
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port6.nec": {
+   "s": 0.64,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     310.1269601880075,
+     699.6545552816992
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port7.nec": {
+   "s": 0.64,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     148.97191562556986,
+     459.1654955883694
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port8.nec": {
+   "s": 0.64,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.756147556776355,
+     182.18576243557047
+    ]
+   ]
+  },
+  "broadband.lpda.refined.free.port9.nec": {
+   "s": 0.63,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     62.89424178633203,
+     -6.0851144803500175
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port1.nec": {
+   "s": 3.12,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     514.7032334334149,
+     -1535.4803452299273
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port10.nec": {
+   "s": 3.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.962419556062393,
+     -146.56302295152156
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port2.nec": {
+   "s": 3.12,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2298.428283729409,
+     -2197.5562234557615
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port3.nec": {
+   "s": 3.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3491.9090050073737,
+     1152.7716362005788
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port4.nec": {
+   "s": 3.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1239.7440165039538,
+     1525.8364416911274
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port5.nec": {
+   "s": 3.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     581.276982436947,
+     997.1535931115227
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port6.nec": {
+   "s": 3.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     349.35978062695307,
+     683.6692895227629
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port7.nec": {
+   "s": 3.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     161.2419847923167,
+     466.3535974544479
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port8.nec": {
+   "s": 3.17,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     31.201616395564628,
+     182.89718759111366
+    ]
+   ]
+  },
+  "broadband.lpda.refined.somm13.port9.nec": {
+   "s": 3.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     64.59549630009586,
+     -9.898087128409346
+    ]
+   ]
+  },
+  "broadband.t2fd.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     897.4127444387468,
+     -610.4999362841003
+    ]
+   ]
+  },
+  "broadband.t2fd.default.somm13.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     886.4103210736599,
+     -617.9992016084187
+    ]
+   ]
+  },
+  "broadband.t2fd.refined.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     897.457480295092,
+     -610.3440814394643
+    ]
+   ]
+  },
+  "broadband.t2fd.refined.somm13.nec": {
+   "s": 0.13,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     886.4546817640055,
+     -617.847630173311
+    ]
+   ]
+  },
+  "dipoles.dipole_turnstile.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     69.65218545479942,
+     -15.890575374975947
+    ],
+    [
+     69.6521854548032,
+     -15.890575374980834
+    ]
+   ]
+  },
+  "dipoles.dipole_turnstile.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     64.47425913235588,
+     -10.457191826254657
+    ],
+    [
+     65.20378152359257,
+     -9.96410119898055
+    ]
+   ]
+  },
+  "dipoles.dipole_turnstile.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     69.67804971007014,
+     -15.694060194272838
+    ],
+    [
+     69.67804971006689,
+     -15.69406019427247
+    ]
+   ]
+  },
+  "dipoles.dipole_turnstile.refined.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     64.49829586811808,
+     -10.258399273298778
+    ],
+    [
+     65.2281164632275,
+     -9.765139996621402
+    ]
+   ]
+  },
+  "dipoles.folded_invvee.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     222.94098685887445,
+     -30.264482066021113
+    ]
+   ]
+  },
+  "dipoles.folded_invvee.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     197.88352384626214,
+     -22.93207127562869
+    ]
+   ]
+  },
+  "dipoles.folded_invvee.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     222.92071482289816,
+     -30.331199601335292
+    ]
+   ]
+  },
+  "dipoles.folded_invvee.refined.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     197.86562757673514,
+     -22.999695550074044
+    ]
+   ]
+  },
+  "dipoles.folded_invvee_balun.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     222.94098685887445,
+     -30.264482066021113
+    ]
+   ]
+  },
+  "dipoles.folded_invvee_balun.default.somm13.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     197.88352384626214,
+     -22.93207127562869
+    ]
+   ]
+  },
+  "dipoles.folded_invvee_balun.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     222.92071482289816,
+     -30.331199601335292
+    ]
+   ]
+  },
+  "dipoles.folded_invvee_balun.refined.somm13.port1.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     197.86562757673514,
+     -22.999695550074044
+    ]
+   ]
+  },
+  "dipoles.invvee.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.08101902382748,
+     -10.163125179856857
+    ]
+   ]
+  },
+  "dipoles.invvee.default.somm13.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.85897273406384,
+     -8.498811223693107
+    ]
+   ]
+  },
+  "dipoles.invvee.refined.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.10215752824861,
+     -9.970752396759204
+    ]
+   ]
+  },
+  "dipoles.invvee.refined.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.877499318841615,
+     -8.306062429072021
+    ]
+   ]
+  },
+  "dipoles.invvee_apex.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     54.573457251893885,
+     -12.302008148931765
+    ]
+   ]
+  },
+  "dipoles.invvee_apex.default.somm13.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.329424227237325,
+     -10.871216358082332
+    ]
+   ]
+  },
+  "dipoles.invvee_apex.refined.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     54.51958564828125,
+     -12.120126828308905
+    ]
+   ]
+  },
+  "dipoles.invvee_apex.refined.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.283161513248785,
+     -10.682783897097774
+    ]
+   ]
+  },
+  "dipoles.invvee_catenary.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.930354939774816,
+     -48.15215156651139
+    ]
+   ]
+  },
+  "dipoles.invvee_catenary.default.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.44531551309214,
+     -47.03447269222001
+    ]
+   ]
+  },
+  "dipoles.invvee_catenary.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.96811762830927,
+     -47.88177044103053
+    ]
+   ]
+  },
+  "dipoles.invvee_catenary.refined.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.478402436694125,
+     -46.76400952721167
+    ]
+   ]
+  },
+  "dipoles.invvee_coax_station.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.08101902382799,
+     -10.163125179854665
+    ]
+   ]
+  },
+  "dipoles.invvee_coax_station.default.somm13.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.59869854288483,
+     -12.758204687682783
+    ]
+   ]
+  },
+  "dipoles.invvee_coax_station.refined.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.10215752824982,
+     -9.970752396761098
+    ]
+   ]
+  },
+  "dipoles.invvee_coax_station.refined.somm13.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.62138879293413,
+     -12.56668783917272
+    ]
+   ]
+  },
+  "dipoles.koch_dipole.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     35.26574939725046,
+     6.246091133227411
+    ]
+   ]
+  },
+  "dipoles.koch_dipole.default.somm13.nec": {
+   "s": 0.37,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     35.18839085748883,
+     1.4277724681736708
+    ]
+   ]
+  },
+  "dipoles.koch_dipole.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     35.274460084924144,
+     6.3978636816418115
+    ]
+   ]
+  },
+  "dipoles.koch_dipole.refined.somm13.nec": {
+   "s": 0.38,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     35.197029948653224,
+     1.578331996630584
+    ]
+   ]
+  },
+  "dipoles.ocf_dipole.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     225.87285325365627,
+     -33.0659989004506
+    ]
+   ]
+  },
+  "dipoles.ocf_dipole.default.somm13.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     214.77689704653932,
+     -11.089714069317532
+    ]
+   ]
+  },
+  "dipoles.ocf_dipole.refined.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     226.00946745931384,
+     -32.601893042495796
+    ]
+   ]
+  },
+  "dipoles.ocf_dipole.refined.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     214.90957115516727,
+     -10.6104108502675
+    ]
+   ]
+  },
+  "dipoles.pota_invvee.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     51.16937943427175,
+     -70.65405175887025
+    ]
+   ]
+  },
+  "dipoles.pota_invvee.default.somm13.nec": {
+   "s": 0.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     62.59187220986742,
+     -65.3612479611185
+    ]
+   ]
+  },
+  "dipoles.pota_invvee.refined.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     51.180919343999236,
+     -70.51384730780464
+    ]
+   ]
+  },
+  "dipoles.pota_invvee.refined.somm13.nec": {
+   "s": 0.24,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     62.606138335325355,
+     -65.21957193466629
+    ]
+   ]
+  },
+  "dipoles.short_dipole_loaded.default.free.nec": {
+   "msg": "wire 1: piece between knots 10 and 11 is claimed by more than one attachment (a knot source needs its own wire end, #824)",
+   "s": 0.0,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "ValueError"
+  },
+  "dipoles.short_dipole_loaded.default.somm13.nec": {
+   "msg": "wire 1: piece between knots 10 and 11 is claimed by more than one attachment (a knot source needs its own wire end, #824)",
+   "s": 0.0,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "ValueError"
+  },
+  "dipoles.short_dipole_loaded.refined.free.nec": {
+   "msg": "wire 1: piece between knots 20 and 21 is claimed by more than one attachment (a knot source needs its own wire end, #824)",
+   "s": 0.0,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "ValueError"
+  },
+  "dipoles.short_dipole_loaded.refined.somm13.nec": {
+   "msg": "wire 1: piece between knots 20 and 21 is claimed by more than one attachment (a knot source needs its own wire end, #824)",
+   "s": 0.0,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "ValueError"
+  },
+  "loops.bisquare.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     121.58516102137,
+     391.67142238555175
+    ]
+   ]
+  },
+  "loops.bisquare.default.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     117.48591028257277,
+     388.5367709471484
+    ]
+   ]
+  },
+  "loops.bisquare.refined.free.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     121.58403867672129,
+     391.6859279157932
+    ]
+   ]
+  },
+  "loops.bisquare.refined.somm13.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     117.48485409718813,
+     388.551229834888
+    ]
+   ]
+  },
+  "loops.delta_loop.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.71232664003938,
+     43.472535429032334
+    ]
+   ]
+  },
+  "loops.delta_loop.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.6232081555828,
+     41.30565911456202
+    ]
+   ]
+  },
+  "loops.delta_loop.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.72003690010749,
+     43.51635107218504
+    ]
+   ]
+  },
+  "loops.delta_loop.refined.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.63035419679818,
+     41.349407425476
+    ]
+   ]
+  },
+  "loops.delta_loop_flyby.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.71232664003938,
+     43.472535429032334
+    ]
+   ]
+  },
+  "loops.delta_loop_flyby.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.6232081555828,
+     41.30565911456202
+    ]
+   ]
+  },
+  "loops.delta_loop_flyby.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.72003690010749,
+     43.51635107218504
+    ]
+   ]
+  },
+  "loops.delta_loop_flyby.refined.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.63035419679818,
+     41.349407425476
+    ]
+   ]
+  },
+  "loops.delta_loop_reflected.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.71232664003938,
+     43.472535429032334
+    ]
+   ]
+  },
+  "loops.delta_loop_reflected.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.6232081555828,
+     41.30565911456202
+    ]
+   ]
+  },
+  "loops.delta_loop_reflected.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.72003690010749,
+     43.51635107218504
+    ]
+   ]
+  },
+  "loops.delta_loop_reflected.refined.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.63035419679818,
+     41.349407425476
+    ]
+   ]
+  },
+  "loops.delta_loop_slanted.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     108.83700019384688,
+     54.92736339061413
+    ],
+    [
+     108.83700019384716,
+     54.92736339063154
+    ]
+   ]
+  },
+  "loops.delta_loop_slanted.default.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.15286924708043,
+     45.252752133449206
+    ],
+    [
+     103.15286924707618,
+     45.25275213344812
+    ]
+   ]
+  },
+  "loops.delta_loop_slanted.refined.free.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     108.84348266608438,
+     54.9658374847327
+    ],
+    [
+     108.84348266611424,
+     54.965837484803274
+    ]
+   ]
+  },
+  "loops.delta_loop_slanted.refined.somm13.nec": {
+   "s": 0.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.15900496365833,
+     45.290724003058045
+    ],
+    [
+     103.15900496369079,
+     45.290724003141065
+    ]
+   ]
+  },
+  "loops.delta_loop_topdown.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.71232664003938,
+     43.472535429032334
+    ]
+   ]
+  },
+  "loops.delta_loop_topdown.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.6232081555828,
+     41.30565911456202
+    ]
+   ]
+  },
+  "loops.delta_loop_topdown.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     110.72003690010749,
+     43.51635107218504
+    ]
+   ]
+  },
+  "loops.delta_loop_topdown.refined.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.63035419679818,
+     41.349407425476
+    ]
+   ]
+  },
+  "loops.diamond_loop.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     221.00656915711266,
+     58.193267091047
+    ]
+   ]
+  },
+  "loops.diamond_loop.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     205.02139014055035,
+     38.83940624249188
+    ]
+   ]
+  },
+  "loops.diamond_loop.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     221.01853996778573,
+     58.26486345808102
+    ]
+   ]
+  },
+  "loops.diamond_loop.refined.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     205.03289664149386,
+     38.909581021832665
+    ]
+   ]
+  },
+  "loops.diamond_loop_turnstile.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     98.71923244198787,
+     44.67254822230851
+    ],
+    [
+     98.71923244198724,
+     44.6725482223044
+    ]
+   ]
+  },
+  "loops.diamond_loop_turnstile.default.somm13.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.40645827204418,
+     37.004040760459496
+    ],
+    [
+     101.91648604955316,
+     36.86561504130615
+    ]
+   ]
+  },
+  "loops.diamond_loop_turnstile.refined.free.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     98.71538026116752,
+     44.66714097351292
+    ],
+    [
+     98.71538026116725,
+     44.66714097350608
+    ]
+   ]
+  },
+  "loops.diamond_loop_turnstile.refined.somm13.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     102.4024149310178,
+     36.99895605967346
+    ],
+    [
+     101.91246391784138,
+     36.86053862874179
+    ]
+   ]
+  },
+  "loops.horizontal_loop.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     124.82029253664706,
+     -2.309845805629546
+    ]
+   ]
+  },
+  "loops.horizontal_loop.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     121.05816008234777,
+     -25.92506620064845
+    ]
+   ]
+  },
+  "loops.horizontal_loop.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     124.81933451131286,
+     -2.2965525699010843
+    ]
+   ]
+  },
+  "loops.horizontal_loop.refined.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     121.05753430896556,
+     -25.911682921563656
+    ]
+   ]
+  },
+  "loops.horizontal_loop_drone.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     106.20987870231457,
+     -150.75229626485398
+    ]
+   ]
+  },
+  "loops.horizontal_loop_drone.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.32294454422404,
+     -170.2200994742216
+    ]
+   ]
+  },
+  "loops.horizontal_loop_drone.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     106.21001855522937,
+     -150.74616572695706
+    ]
+   ]
+  },
+  "loops.horizontal_loop_drone.refined.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.32338289321339,
+     -170.21407190185923
+    ]
+   ]
+  },
+  "loops.inv_delta_loop.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     96.14989211630214,
+     49.295442835982534
+    ]
+   ]
+  },
+  "loops.inv_delta_loop.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.28350523124098,
+     41.530201323046136
+    ]
+   ]
+  },
+  "loops.inv_delta_loop.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     96.15521290982147,
+     49.33058223062854
+    ]
+   ]
+  },
+  "loops.inv_delta_loop.refined.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     103.28916458460566,
+     41.56468746187448
+    ]
+   ]
+  },
+  "loops.quad.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     129.98106922328324,
+     -1.0850871995149438
+    ]
+   ]
+  },
+  "loops.quad.default.somm13.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     124.06528019346683,
+     0.8494332678459249
+    ]
+   ]
+  },
+  "loops.quad.refined.free.nec": {
+   "s": 0.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     129.96519742266057,
+     -1.1003814824482998
+    ]
+   ]
+  },
+  "loops.quad.refined.somm13.nec": {
+   "s": 0.28,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     124.05105888057332,
+     0.835097947238955
+    ]
+   ]
+  },
+  "loops.skyloop_lmatch.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     258.26168512563265,
+     -80.36603616454794
+    ]
+   ]
+  },
+  "loops.skyloop_lmatch.default.somm13.port1.nec": {
+   "s": 1.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     257.1600047548907,
+     -82.61089823174969
+    ]
+   ]
+  },
+  "loops.skyloop_lmatch.refined.free.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     258.32352058248506,
+     -80.38125660961217
+    ]
+   ]
+  },
+  "loops.skyloop_lmatch.refined.somm13.port1.nec": {
+   "s": 1.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     257.22178452548474,
+     -82.6261991656021
+    ]
+   ]
+  },
+  "loops.triangular_skyloop.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.70017446269557,
+     0.9801783991426931
+    ]
+   ]
+  },
+  "loops.triangular_skyloop.default.somm13.nec": {
+   "s": 3.52,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     128.53904182839162,
+     53.76624892107197
+    ]
+   ]
+  },
+  "loops.triangular_skyloop.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     113.68722228975878,
+     0.9601032156580463
+    ]
+   ]
+  },
+  "loops.triangular_skyloop.refined.somm13.nec": {
+   "s": 3.56,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     128.52392829771617,
+     53.74069951407929
+    ]
+   ]
+  },
+  "multiband.fandipole.default.free.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.25195320169382,
+     -20.469981313514396
+    ]
+   ]
+  },
+  "multiband.fandipole.default.somm13.nec": {
+   "s": 0.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     38.14157274383835,
+     -19.41294847891704
+    ]
+   ]
+  },
+  "multiband.fandipole.refined.free.nec": {
+   "s": 0.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.83904240353128,
+     -19.11883210002907
+    ]
+   ]
+  },
+  "multiband.fandipole.refined.somm13.nec": {
+   "s": 0.94,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     38.64831491859316,
+     -18.038440862444133
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.free.port1.nec": {
+   "s": 0.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.04548330322771,
+     24.284597447504538
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.free.port2.nec": {
+   "s": 0.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     7.975114136698984,
+     -263.96562191059223
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.free.port3.nec": {
+   "s": 0.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     6.700885579989183,
+     -442.59160054860945
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.free.port4.nec": {
+   "s": 0.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3.3691441188351448,
+     -616.0195786022176
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.free.port5.nec": {
+   "s": 0.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2.16662737737294,
+     -790.3386633289049
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.somm13.port1.nec": {
+   "s": 0.55,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     52.211567883157244,
+     30.42364978457345
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.somm13.port2.nec": {
+   "s": 0.53,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     6.6803645688040305,
+     -264.08658075421806
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.somm13.port3.nec": {
+   "s": 0.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     5.554610838872456,
+     -442.6466051336441
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.somm13.port4.nec": {
+   "s": 0.29,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2.7274976965684274,
+     -616.0318021481459
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.default.somm13.port5.nec": {
+   "s": 0.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1.6815229555065585,
+     -790.3354570463335
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.free.port1.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.089561832080804,
+     24.38422010545006
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.free.port2.nec": {
+   "s": 0.25,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.005100456924296,
+     -263.8255429295259
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.free.port3.nec": {
+   "s": 0.29,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     6.7129391147268365,
+     -442.41324064595017
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.free.port4.nec": {
+   "s": 0.29,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3.375443452272208,
+     -615.8105879782157
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.free.port5.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2.1721545119145134,
+     -790.1501628342313
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.somm13.port1.nec": {
+   "s": 1.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     52.27216058486553,
+     30.526346157867742
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.somm13.port2.nec": {
+   "s": 0.97,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     6.705173780269057,
+     -263.9423898675398
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.somm13.port3.nec": {
+   "s": 0.94,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     5.564319540499163,
+     -442.46431094093674
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.somm13.port4.nec": {
+   "s": 1.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2.732567780787562,
+     -615.8206698052703
+    ]
+   ]
+  },
+  "multiband.hexbeam_5band.refined.somm13.port5.nec": {
+   "s": 1.17,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1.6859482534134358,
+     -790.1454473015058
+    ]
+   ]
+  },
+  "multiband.trap_dipole.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     81.88025718336331,
+     52.78407344858495
+    ]
+   ]
+  },
+  "multiband.trap_dipole.default.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     81.97850093972602,
+     40.77063376358767
+    ]
+   ]
+  },
+  "multiband.trap_dipole.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     81.9216889799007,
+     52.93536989837216
+    ]
+   ]
+  },
+  "multiband.trap_dipole.refined.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     82.01610327570612,
+     40.91591815067142
+    ]
+   ]
+  },
+  "multiband.trap_fan_dipole.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     24.491963260397085,
+     -139.45823930276347
+    ]
+   ]
+  },
+  "multiband.trap_fan_dipole.default.somm13.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     21.970172926253582,
+     -138.55127191623941
+    ]
+   ]
+  },
+  "multiband.trap_fan_dipole.refined.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     24.52750988387949,
+     -139.17795292603338
+    ]
+   ]
+  },
+  "multiband.trap_fan_dipole.refined.somm13.nec": {
+   "s": 0.13,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.001057351580258,
+     -138.27022408290563
+    ]
+   ]
+  },
+  "multiband.twoband_fan_dipole.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     56.67298693250099,
+     -8.536260820467518
+    ]
+   ]
+  },
+  "multiband.twoband_fan_dipole.default.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.76592269764416,
+     -5.759057004485067
+    ]
+   ]
+  },
+  "multiband.twoband_fan_dipole.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     56.760928709979126,
+     -8.15487217087397
+    ]
+   ]
+  },
+  "multiband.twoband_fan_dipole.refined.somm13.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     50.8435359106833,
+     -5.373337706210614
+    ]
+   ]
+  },
+  "specialty.bowtie.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     187.77858345811967,
+     13.609139148249508
+    ]
+   ]
+  },
+  "specialty.bowtie.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     203.33865537671514,
+     13.551212423951878
+    ]
+   ]
+  },
+  "specialty.bowtie.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     187.7836845735286,
+     13.693369781108412
+    ]
+   ]
+  },
+  "specialty.bowtie.refined.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     203.34409618933927,
+     13.635870861559843
+    ]
+   ]
+  },
+  "specialty.buried_dipole.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3.731858740545036,
+     -1925.1545455453388
+    ]
+   ]
+  },
+  "specialty.buried_dipole.default.somm13.nec": {
+   "s": 1.26,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     146.45717156901446,
+     43.97106422668033
+    ]
+   ]
+  },
+  "specialty.buried_dipole.refined.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     3.732924250883073,
+     -1925.0426263318036
+    ]
+   ]
+  },
+  "specialty.buried_dipole.refined.somm13.nec": {
+   "s": 1.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     146.4660675608119,
+     43.99104340115168
+    ]
+   ]
+  },
+  "specialty.continuous_helix.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.69983518436893,
+     13.81090571651014
+    ]
+   ]
+  },
+  "specialty.continuous_helix.default.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.88742486261122,
+     14.395004037762252
+    ]
+   ]
+  },
+  "specialty.continuous_helix.refined.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.734785762289043,
+     16.483336585463398
+    ]
+   ]
+  },
+  "specialty.continuous_helix.refined.somm13.nec": {
+   "s": 0.12,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.91802654222004,
+     17.067455862313324
+    ]
+   ]
+  },
+  "specialty.faceted_helix.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.721158034717973,
+     15.429263986311868
+    ]
+   ]
+  },
+  "specialty.faceted_helix.default.somm13.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.905982769926815,
+     16.013662476530843
+    ]
+   ]
+  },
+  "specialty.faceted_helix.refined.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.71860839042106,
+     15.44492435054097
+    ]
+   ]
+  },
+  "specialty.faceted_helix.refined.somm13.nec": {
+   "s": 0.13,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.903352572081538,
+     16.028712709506298
+    ]
+   ]
+  },
+  "specialty.hentenna.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.124579827969384,
+     38.82050130485377
+    ]
+   ]
+  },
+  "specialty.hentenna.default.somm13.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.73768568513688,
+     38.91559953411649
+    ]
+   ]
+  },
+  "specialty.hentenna.refined.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     43.121523566090474,
+     38.87302299021042
+    ]
+   ]
+  },
+  "specialty.hentenna.refined.somm13.nec": {
+   "s": 0.16,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.73461066873139,
+     38.968146700133154
+    ]
+   ]
+  },
+  "specialty.hentenna_slant.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.72748524123651,
+     24.678580846905618
+    ]
+   ]
+  },
+  "specialty.hentenna_slant.default.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.116715399771834,
+     24.800802208063775
+    ]
+   ]
+  },
+  "specialty.hentenna_slant.refined.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.722672626145,
+     24.79458775037315
+    ]
+   ]
+  },
+  "specialty.hentenna_slant.refined.somm13.nec": {
+   "s": 0.16,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.11184164475041,
+     24.9168315927909
+    ]
+   ]
+  },
+  "specialty.hourglass.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.615585602778594,
+     28.75691515993019
+    ]
+   ]
+  },
+  "specialty.hourglass.default.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.46757661396134,
+     28.435416284889275
+    ]
+   ]
+  },
+  "specialty.hourglass.refined.free.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.61436135513587,
+     28.782360371706055
+    ]
+   ]
+  },
+  "specialty.hourglass.refined.somm13.nec": {
+   "s": 0.26,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.466329447689645,
+     28.460871632004164
+    ]
+   ]
+  },
+  "specialty.hourglass_slant.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.58466871864226,
+     34.39061302361597
+    ]
+   ]
+  },
+  "specialty.hourglass_slant.default.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.40688554991982,
+     33.147953264768915
+    ]
+   ]
+  },
+  "specialty.hourglass_slant.refined.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.58694231761393,
+     34.47162682920565
+    ]
+   ]
+  },
+  "specialty.hourglass_slant.refined.somm13.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.40925287930739,
+     33.22825294854357
+    ]
+   ]
+  },
+  "verticals.bobtail.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.262912097093604,
+     -17.96407920359107
+    ]
+   ]
+  },
+  "verticals.bobtail.default.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     44.67351847871453,
+     -18.236106374330976
+    ]
+   ]
+  },
+  "verticals.bobtail.refined.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.26972907992494,
+     -17.744976409966082
+    ]
+   ]
+  },
+  "verticals.bobtail.refined.somm13.nec": {
+   "s": 0.25,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     44.67915588048065,
+     -18.016320957553752
+    ]
+   ]
+  },
+  "verticals.bruce.default.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     255.9700255256442,
+     -1178.4846800456714
+    ]
+   ]
+  },
+  "verticals.bruce.default.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     236.82533480670787,
+     -1146.9578472549508
+    ]
+   ]
+  },
+  "verticals.bruce.refined.free.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     256.00202961667276,
+     -1178.2138184604842
+    ]
+   ]
+  },
+  "verticals.bruce.refined.somm13.nec": {
+   "s": 0.39,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     236.85303452269835,
+     -1146.688953868458
+    ]
+   ]
+  },
+  "verticals.buried_radial_vertical.default.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     20.74313486116678,
+     -86.33192700322299
+    ]
+   ]
+  },
+  "verticals.buried_radial_vertical.default.somm13.nec": {
+   "msg": "a deck with a crossing junction and an above-side or in-plane OTHER junction is not served: the complete crossing spelling completes every value-1 end on its axes, and only the below axis's completions (the crossing node and the buried hub) are measured (momwire#524 phase 2)",
+   "s": 0.01,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "NotImplementedError"
+  },
+  "verticals.buried_radial_vertical.refined.free.nec": {
+   "s": 0.13,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     20.746982414627396,
+     -86.27427702428274
+    ]
+   ]
+  },
+  "verticals.buried_radial_vertical.refined.somm13.nec": {
+   "msg": "a deck with a crossing junction and an above-side or in-plane OTHER junction is not served: the complete crossing spelling completes every value-1 end on its axes, and only the below axis's completions (the crossing node and the buried hub) are measured (momwire#524 phase 2)",
+   "s": 0.02,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "NotImplementedError"
+  },
+  "verticals.challenger.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     139.689528966753,
+     8.15074326492043
+    ]
+   ]
+  },
+  "verticals.challenger.default.somm13.port1.nec": {
+   "s": 0.34,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     197.60359755265586,
+     28.667384300961192
+    ]
+   ]
+  },
+  "verticals.challenger.refined.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     140.0124742958347,
+     8.968728417073748
+    ]
+   ]
+  },
+  "verticals.challenger.refined.somm13.port1.nec": {
+   "s": 0.32,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     198.03526211362416,
+     29.508128692890903
+    ]
+   ]
+  },
+  "verticals.dominator.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1140.2256016400747,
+     -939.7931380120375
+    ]
+   ]
+  },
+  "verticals.dominator.default.somm13.port1.nec": {
+   "s": 0.35,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1203.9410016458419,
+     -837.4080449930677
+    ]
+   ]
+  },
+  "verticals.dominator.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1135.179717067363,
+     -940.4378657301907
+    ]
+   ]
+  },
+  "verticals.dominator.refined.somm13.port1.nec": {
+   "s": 0.39,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1199.217565450966,
+     -838.7859221663061
+    ]
+   ]
+  },
+  "verticals.elevated_buried_counterpoise.default.free.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.194810508366679,
+     -55414.47526213794
+    ]
+   ]
+  },
+  "verticals.elevated_buried_counterpoise.default.somm13.nec": {
+   "s": 3.51,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     24.790387048443918,
+     -55354.03648038698
+    ]
+   ]
+  },
+  "verticals.elevated_buried_counterpoise.refined.free.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     8.185717430236764,
+     -55400.04634456454
+    ]
+   ]
+  },
+  "verticals.elevated_buried_counterpoise.refined.somm13.nec": {
+   "s": 4.24,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     24.721114006225676,
+     -55339.06121516081
+    ]
+   ]
+  },
+  "verticals.elt_whip.default.free.nec": {
+   "msg": "Unable to allocate 225. MiB for an array with shape (3, 3, 373, 4395) and data type complex128",
+   "s": 2.04,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "MemoryError"
+  },
+  "verticals.elt_whip.default.somm13.nec": {
+   "msg": "Unable to allocate 225. MiB for an array with shape (3, 3, 373, 4395) and data type complex128",
+   "s": 2.22,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "MemoryError"
+  },
+  "verticals.elt_whip.refined.free.nec": {
+   "msg": "Unable to allocate 2.31 GiB for an array with shape (12438, 12438) and data type complex128",
+   "s": 1.97,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "MemoryError"
+  },
+  "verticals.elt_whip.refined.somm13.nec": {
+   "msg": "Unable to allocate 2.31 GiB for an array with shape (12438, 12438) and data type complex128",
+   "s": 2.71,
+   "status": "error",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "type": "MemoryError"
+  },
+  "verticals.four_square.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     27.86966700476646,
+     -27.095309290587636
+    ],
+    [
+     28.546831922260484,
+     1.691056772434584
+    ],
+    [
+     28.546831922257983,
+     1.6910567724356416
+    ],
+    [
+     21.837114239137318,
+     39.73655121618854
+    ]
+   ]
+  },
+  "verticals.four_square.default.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     27.89796824940161,
+     -27.046849775278677
+    ],
+    [
+     28.298709301370636,
+     1.8802059363061971
+    ],
+    [
+     28.298709301371947,
+     1.8802059363059402
+    ],
+    [
+     21.081660964146753,
+     39.57955584033479
+    ]
+   ]
+  },
+  "verticals.four_square.refined.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     28.039265317266562,
+     -26.721135031948638
+    ],
+    [
+     28.60581238257021,
+     2.0489275257554023
+    ],
+    [
+     28.605812382567564,
+     2.048927525754723
+    ],
+    [
+     21.60705463903346,
+     40.23720279898704
+    ]
+   ]
+  },
+  "verticals.four_square.refined.somm13.nec": {
+   "s": 0.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     28.07137096501983,
+     -26.668136775048758
+    ],
+    [
+     28.356240017510753,
+     2.2389196332428423
+    ],
+    [
+     28.35624001750863,
+     2.2389196332456267
+    ],
+    [
+     20.84565135520168,
+     40.076204236452924
+    ]
+   ]
+  },
+  "verticals.half_square.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.525253597696235,
+     -8.400690756712056
+    ]
+   ]
+  },
+  "verticals.half_square.default.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     57.2086583770583,
+     -6.908940729945917
+    ]
+   ]
+  },
+  "verticals.half_square.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.542173961147526,
+     -8.23020302699129
+    ]
+   ]
+  },
+  "verticals.half_square.refined.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     57.22439661505322,
+     -6.737961849180349
+    ]
+   ]
+  },
+  "verticals.inverted_l.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     17.280878724105122,
+     0.08912293566813953
+    ]
+   ]
+  },
+  "verticals.inverted_l.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     17.357674936449556,
+     0.7758292507585297
+    ]
+   ]
+  },
+  "verticals.inverted_l.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     17.285657159581774,
+     0.1942417824381978
+    ]
+   ]
+  },
+  "verticals.inverted_l.refined.somm13.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     17.362548431645024,
+     0.8811152049763791
+    ]
+   ]
+  },
+  "verticals.inverted_l_tmatch.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     11.128503387072499,
+     -116.58758967914002
+    ]
+   ]
+  },
+  "verticals.inverted_l_tmatch.default.somm13.port1.nec": {
+   "s": 0.33,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     10.673545047567352,
+     -116.20929335284046
+    ]
+   ]
+  },
+  "verticals.inverted_l_tmatch.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     11.130815024507704,
+     -116.49632410631033
+    ]
+   ]
+  },
+  "verticals.inverted_l_tmatch.refined.somm13.port1.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     10.67576426300775,
+     -116.117870654464
+    ]
+   ]
+  },
+  "verticals.jpole.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     66.57696495364546,
+     24.875880251364823
+    ]
+   ]
+  },
+  "verticals.jpole.default.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     67.01243522259375,
+     24.833361766111953
+    ]
+   ]
+  },
+  "verticals.jpole.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     66.36942702972198,
+     24.943034173510522
+    ]
+   ]
+  },
+  "verticals.jpole.refined.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     66.80330799126266,
+     24.899390152809335
+    ]
+   ]
+  },
+  "verticals.phased_verticals.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.29001614371453,
+     36.01510760216025
+    ],
+    [
+     105.6760824489674,
+     176.48185229707187
+    ]
+   ]
+  },
+  "verticals.phased_verticals.default.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.92825651780353,
+     36.209462686590314
+    ],
+    [
+     103.08224138910292,
+     179.5491273721793
+    ]
+   ]
+  },
+  "verticals.phased_verticals.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.33303616724353,
+     36.155477959614615
+    ],
+    [
+     106.0489277097075,
+     176.6533248041841
+    ]
+   ]
+  },
+  "verticals.phased_verticals.refined.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     58.97248526173217,
+     36.34977059540475
+    ],
+    [
+     103.45914754640549,
+     179.74074879098796
+    ]
+   ]
+  },
+  "verticals.pota_performer.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     37.484840564200724,
+     2.648481618952203
+    ]
+   ]
+  },
+  "verticals.pota_performer.default.somm13.nec": {
+   "s": 0.21,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.35342678653909,
+     0.7044315021712203
+    ]
+   ]
+  },
+  "verticals.pota_performer.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     37.534232575022784,
+     2.9443689509854134
+    ]
+   ]
+  },
+  "verticals.pota_performer.refined.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     45.40519681891003,
+     0.9913663111628325
+    ]
+   ]
+  },
+  "verticals.raised_vertical.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.890333117975246,
+     -0.9465105182614734
+    ]
+   ]
+  },
+  "verticals.raised_vertical.default.somm13.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     49.79407387621218,
+     -3.632976280594332
+    ]
+   ]
+  },
+  "verticals.raised_vertical.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     42.90187337518236,
+     -0.8245410657142669
+    ]
+   ]
+  },
+  "verticals.raised_vertical.refined.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     49.806116134158756,
+     -3.5123845093872363
+    ]
+   ]
+  },
+  "verticals.rectangle.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.077389620695207,
+     -0.5056754284522872
+    ]
+   ]
+  },
+  "verticals.rectangle.default.somm13.port1.nec": {
+   "s": 0.27,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     12.896042989365817,
+     -2.115875790244672
+    ]
+   ]
+  },
+  "verticals.rectangle.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     13.077421241861451,
+     -0.4841149005765705
+    ]
+   ]
+  },
+  "verticals.rectangle.refined.somm13.port1.nec": {
+   "s": 0.38,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     12.896079359611853,
+     -2.094320172592846
+    ]
+   ]
+  },
+  "verticals.right_angle_delta.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.98638633793932,
+     -1.9951471059962425
+    ]
+   ]
+  },
+  "verticals.right_angle_delta.default.somm13.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.680451940788274,
+     -5.314956732517705
+    ]
+   ]
+  },
+  "verticals.right_angle_delta.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     48.98777523725698,
+     -1.8594629224205796
+    ]
+   ]
+  },
+  "verticals.right_angle_delta.refined.somm13.nec": {
+   "s": 0.08,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     46.68178157460922,
+     -5.179410659618741
+    ]
+   ]
+  },
+  "verticals.stub_matched_vertical.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.023024184593694,
+     -0.08516316805494586
+    ]
+   ]
+  },
+  "verticals.stub_matched_vertical.default.somm13.port1.nec": {
+   "s": 0.2,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.94162250649603,
+     -0.6758173140116779
+    ]
+   ]
+  },
+  "verticals.stub_matched_vertical.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.031484369914793,
+     0.03244901033371173
+    ]
+   ]
+  },
+  "verticals.stub_matched_vertical.refined.somm13.port1.nec": {
+   "s": 0.3,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.95156381636096,
+     -0.5602102733185634
+    ]
+   ]
+  },
+  "verticals.tri_moxon.default.free.port1.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.353337687558394,
+     1.3463160802512477
+    ]
+   ]
+  },
+  "verticals.tri_moxon.default.free.port2.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.353428654787805,
+     1.3453657512418262
+    ]
+   ]
+  },
+  "verticals.tri_moxon.default.free.port3.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.35342865478704,
+     1.3453657512415258
+    ]
+   ]
+  },
+  "verticals.tri_moxon.default.somm13.port1.nec": {
+   "s": 0.16,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.44913730887828,
+     1.7311181890983758
+    ]
+   ]
+  },
+  "verticals.tri_moxon.default.somm13.port2.nec": {
+   "s": 1.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.449232460018436,
+     1.7301684429542725
+    ]
+   ]
+  },
+  "verticals.tri_moxon.default.somm13.port3.nec": {
+   "s": 0.18,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.449232460018294,
+     1.7301684429466935
+    ]
+   ]
+  },
+  "verticals.tri_moxon.refined.free.port1.nec": {
+   "s": 0.12,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.58575935498965,
+     1.5213281798589546
+    ]
+   ]
+  },
+  "verticals.tri_moxon.refined.free.port2.nec": {
+   "s": 0.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.58584774371235,
+     1.5203769822324855
+    ]
+   ]
+  },
+  "verticals.tri_moxon.refined.free.port3.nec": {
+   "s": 0.14,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.5858477437109,
+     1.5203769822319764
+    ]
+   ]
+  },
+  "verticals.tri_moxon.refined.somm13.port1.nec": {
+   "s": 0.59,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.68426323052459,
+     1.9077920853468417
+    ]
+   ]
+  },
+  "verticals.tri_moxon.refined.somm13.port2.nec": {
+   "s": 0.56,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.684355793107216,
+     1.9068414355029932
+    ]
+   ]
+  },
+  "verticals.tri_moxon.refined.somm13.port3.nec": {
+   "s": 0.6,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     55.68435579310632,
+     1.9068414355009362
+    ]
+   ]
+  },
+  "verticals.vertical.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.023024184593694,
+     -0.08516316805494586
+    ]
+   ]
+  },
+  "verticals.vertical.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.94162250649603,
+     -0.6758173140116779
+    ]
+   ]
+  },
+  "verticals.vertical.refined.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     22.031484369914793,
+     0.03244901033371173
+    ]
+   ]
+  },
+  "verticals.vertical.refined.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     30.95156381636096,
+     -0.5602102733185634
+    ]
+   ]
+  },
+  "wire.doublet_ladder_tuner.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     192.78529041663174,
+     589.3231761605318
+    ]
+   ]
+  },
+  "wire.doublet_ladder_tuner.default.somm13.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     224.56849239485325,
+     631.760703790611
+    ]
+   ]
+  },
+  "wire.doublet_ladder_tuner.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     192.8209663952618,
+     589.4948422035294
+    ]
+   ]
+  },
+  "wire.doublet_ladder_tuner.refined.somm13.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     224.61114715432046,
+     631.9393754081436
+    ]
+   ]
+  },
+  "wire.edz.default.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     143.87026221918282,
+     -791.6378290122693
+    ]
+   ]
+  },
+  "wire.edz.default.somm13.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     153.16063275094461,
+     -804.8043614684085
+    ]
+   ]
+  },
+  "wire.edz.refined.free.port1.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     143.82914767084046,
+     -791.4055556060612
+    ]
+   ]
+  },
+  "wire.edz.refined.somm13.port1.nec": {
+   "s": 0.1,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     153.1142773275356,
+     -804.5682271316537
+    ]
+   ]
+  },
+  "wire.efhw_sloper.default.free.port1.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     880.6678326520451,
+     26.479522073239547
+    ]
+   ]
+  },
+  "wire.efhw_sloper.default.somm13.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     978.153159818688,
+     -71.9354053789829
+    ]
+   ]
+  },
+  "wire.efhw_sloper.refined.free.port1.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     880.9804831902753,
+     26.973376599112786
+    ]
+   ]
+  },
+  "wire.efhw_sloper.refined.somm13.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     978.4557679755269,
+     -71.48903810982091
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.default.free.port1.nec": {
+   "s": 0.04,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     141.89224872761767,
+     -789.8932755513945
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.default.free.port2.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     141.89224872761494,
+     -789.8932755513857
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.default.somm13.port1.nec": {
+   "s": 0.13,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     152.2129488524386,
+     -802.7787717175539
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.default.somm13.port2.nec": {
+   "s": 2.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     134.2549058001689,
+     -797.0065455339069
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.refined.free.port1.nec": {
+   "s": 0.15,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     141.85304759450136,
+     -789.6612065495597
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.refined.free.port2.nec": {
+   "s": 0.09,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     141.85304759450034,
+     -789.6612065495564
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.refined.somm13.port1.nec": {
+   "s": 0.43,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     152.167991887978,
+     -802.5432528129982
+    ]
+   ]
+  },
+  "wire.expanded_lazy_h.refined.somm13.port2.nec": {
+   "s": 0.4,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     134.21708539445797,
+     -796.7713218945146
+    ]
+   ]
+  },
+  "wire.lazy_h.default.free.nec": {
+   "s": 0.02,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     4116.275836427657,
+     -2741.8849937775663
+    ],
+    [
+     4116.275836427636,
+     -2741.8849937775744
+    ]
+   ]
+  },
+  "wire.lazy_h.default.somm13.nec": {
+   "s": 0.07,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     4043.505148964398,
+     -2860.6795498724764
+    ],
+    [
+     4148.315963374637,
+     -2662.042150033061
+    ]
+   ]
+  },
+  "wire.lazy_h.refined.free.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     4113.640723865907,
+     -2743.309821944387
+    ],
+    [
+     4113.640723866116,
+     -2743.3098219442845
+    ]
+   ]
+  },
+  "wire.lazy_h.refined.somm13.nec": {
+   "s": 0.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     4040.78252275353,
+     -2861.944634091495
+    ],
+    [
+     4145.754290479844,
+     -2663.5509924506364
+    ]
+   ]
+  },
+  "wire.longwire.default.free.nec": {
+   "s": 0.05,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     131.456944698311,
+     -13.161680839554199
+    ]
+   ]
+  },
+  "wire.longwire.default.somm13.nec": {
+   "s": 2.0,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     131.61246570880206,
+     -13.93348153007097
+    ]
+   ]
+  },
+  "wire.longwire.refined.free.nec": {
+   "s": 0.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     131.48119911016326,
+     -12.953054089103912
+    ]
+   ]
+  },
+  "wire.longwire.refined.somm13.nec": {
+   "s": 2.83,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     131.63906984107746,
+     -13.724421195066597
+    ]
+   ]
+  },
+  "wire.rhombic.default.free.nec": {
+   "s": 0.49,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1081.2179918816776,
+     -359.8921786673272
+    ]
+   ]
+  },
+  "wire.rhombic.default.somm13.nec": {
+   "s": 4.25,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1095.884959654235,
+     -331.34887377694673
+    ]
+   ]
+  },
+  "wire.rhombic.refined.free.nec": {
+   "s": 2.17,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1081.2489290808492,
+     -359.825756262563
+    ]
+   ]
+  },
+  "wire.rhombic.refined.somm13.nec": {
+   "s": 11.22,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1095.9139759791215,
+     -331.28041252783635
+    ]
+   ]
+  },
+  "wire.sterba.default.free.nec": {
+   "s": 0.31,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     623.9374835068252,
+     199.70687336041874
+    ]
+   ]
+  },
+  "wire.sterba.default.somm13.nec": {
+   "s": 1.19,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     624.4097092231955,
+     214.82434328919013
+    ]
+   ]
+  },
+  "wire.sterba.refined.free.nec": {
+   "s": 1.29,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     624.4002115359551,
+     199.36332572313705
+    ]
+   ]
+  },
+  "wire.sterba.refined.somm13.nec": {
+   "s": 4.98,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     624.8985896888918,
+     214.49450797658474
+    ]
+   ]
+  },
+  "wire.terminated_longwire.default.free.nec": {
+   "s": 0.64,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     450.6090115661162,
+     -3475.3229633094975
+    ]
+   ]
+  },
+  "wire.terminated_longwire.default.somm13.nec": {
+   "s": 4.58,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     523.9418567282484,
+     1.1924142001328608
+    ]
+   ]
+  },
+  "wire.terminated_longwire.refined.free.nec": {
+   "s": 5.37,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     451.88248075555975,
+     -3433.063018662851
+    ]
+   ]
+  },
+  "wire.terminated_longwire.refined.somm13.nec": {
+   "s": 11.54,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     448.5437329786806,
+     -24.324823950956638
+    ]
+   ]
+  },
+  "wire.vbeam.default.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2003.4165314760503,
+     -2805.3214884137433
+    ]
+   ]
+  },
+  "wire.vbeam.default.somm13.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1979.0675830723565,
+     -2993.290456681432
+    ]
+   ]
+  },
+  "wire.vbeam.refined.free.nec": {
+   "s": 0.06,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     2002.1356010755771,
+     -2804.8846139562643
+    ]
+   ]
+  },
+  "wire.vbeam.refined.somm13.nec": {
+   "s": 0.23,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     1977.706216220074,
+     -2992.7144017516207
+    ]
+   ]
+  },
+  "wire.w8jk.default.free.nec": {
+   "s": 0.01,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     25.622567224058674,
+     533.8002145418279
+    ],
+    [
+     25.622567224059583,
+     533.8002145418266
+    ]
+   ]
+  },
+  "wire.w8jk.default.somm13.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     24.98452990437333,
+     533.2867085677265
+    ],
+    [
+     24.984529904371055,
+     533.2867085677303
+    ]
+   ]
+  },
+  "wire.w8jk.refined.free.nec": {
+   "s": 0.03,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     25.632475226654115,
+     534.0650637918326
+    ],
+    [
+     25.63247522665759,
+     534.0650637918237
+    ]
+   ]
+  },
+  "wire.w8jk.refined.somm13.nec": {
+   "s": 0.11,
+   "status": "ok",
+   "tree": "/tmp/claude-1000/-home-smburns-antennas-antennaknobs/f7cfa049-164e-4346-b2bf-ad44984d6fa6/scratchpad/ak-baseline-f77b4fd/src",
+   "z": [
+    [
+     24.99417113947581,
+     533.5513672270165
+    ],
+    [
+     24.994171139476936,
+     533.5513672270151
+    ]
+   ]
+  }
+ },
+ "nec5_ac6la": {
+  "deck": "CM antennaknobs NEC5Engine deck\nCE\nGW 1 20 0.000000E+00 5.000000E-02 7.000000E+00 0.000000E+00 2.184661E+00 5.682399E+00 5.000000E-04\nGW 2 20 0.000000E+00 -2.184661E+00 5.682399E+00 0.000000E+00 -5.000000E-02 7.000000E+00 5.000000E-04\nGW 3 1 0.000000E+00 -5.000000E-02 7.000000E+00 0.000000E+00 0.000000E+00 7.000000E+00 5.000000E-04\nGW 4 1 0.000000E+00 0.000000E+00 7.000000E+00 0.000000E+00 5.000000E-02 7.000000E+00 5.000000E-04\nGE 1 0\nGN 0 0 0 0 1.300000E+01 5.000000E-03 1.000000E+00 0.000000E+00 NOFILE\nEX 0 3 1 2 1.000000E+00 0.000000E+00\nFR 0 1 0 0 2.847000E+01 0.000000E+00\nXQ 0\nEN\n",
+  "z": [
+   [
+    48.497,
+    -11.378
+   ]
+  ]
+ }
+}
