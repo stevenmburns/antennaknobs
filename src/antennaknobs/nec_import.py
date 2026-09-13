@@ -2481,6 +2481,9 @@ def parse_nec(
     ground_spec, ground_method = None, None
     ground_card = None
     nec5_dialect = False
+    # A `CM NEC-5` card declares the deck NEC-5 (AK#1476). It is the only
+    # way a deck with no NOFILE and no explicit EX end field can say so.
+    nec5_declared = False
     extended_kernel = False
     syms: dict[str, float] = {}  # SY symbol table (#417)
     sym_cell: int | None = None  # GX/GR symmetry cell, in segments (#946)
@@ -2511,7 +2514,13 @@ def parse_nec(
             # NEC identifies cards by the first two columns, so a glued
             # "CMtext..." is a comment too (wild decks write "cmRP ..." to
             # comment out cards). Tolerated after CE as well (#418).
-            comments.append(stripped[2:].strip())
+            text = stripped[2:].strip()
+            comments.append(text)
+            # The whole comment must be the declaration: a comment that
+            # merely mentions NEC-5 ("converted from a NEC-5 deck") is
+            # prose, not a dialect (AK#1476).
+            if text.upper() in ("NEC-5", "NEC5"):
+                nec5_declared = True
             continue
         if stripped[:2].upper() == "CE":
             # Like CM, identified by its first two columns: "CEFOR THIS RUN"
@@ -2756,7 +2765,7 @@ def parse_nec(
                     edge = card.i(3)
                 else:
                     edge = 1 if seg_field < 0 else 2
-            elif seg_field < 0 or card.i(3) == 2:
+            elif nec5_declared or seg_field < 0 or card.i(3) == 2:
                 if not network:
                     raise card.error(
                         "this is the NEC-5 edge-source form (a source at a "
@@ -2765,7 +2774,16 @@ def parse_nec(
                         "PortAtVertex, which needs the network path — parse "
                         "with network=True (issue #824)"
                     )
-                edge = 1 if seg_field < 0 else 2
+                if nec5_declared and card.i(3) in (1, 2):
+                    # A declared NEC-5 deck (AK#1476) takes the manual's full
+                    # rule, as EX 4 does: I4 = 1/2 names the end. I4 = 1 is
+                    # ambiguous only while the dialect is unknown.
+                    edge = card.i(3)
+                else:
+                    # I4 = 0 defers to the sign of I3 (negative = end 1). In a
+                    # declared deck that is Dan's EX 0 1 10 0: end 2 of
+                    # segment 10, the centre of a 20-segment wire.
+                    edge = 1 if seg_field < 0 else 2
             if edge:
                 nec5_dialect = True
             feeds_raw.append(
@@ -2831,6 +2849,8 @@ def parse_nec(
     # full Sommerfeld solution. Reading a NEC-5 deck's GN 0 the NEC-2 way
     # seeded the app with the approximation the deck never asked for (AC6LA,
     # 2026-09-13).
+    if nec5_declared:
+        nec5_dialect = True
     if nec5_dialect and ground_method == "fast":
         ground_spec = ("finite", *ground_spec[1:])
         ground_method = "sommerfeld"

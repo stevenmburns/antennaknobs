@@ -308,6 +308,13 @@ deck also solves natively on [the NEC-5 engine](/reference/nec5/), which
 speaks the form as a first-class citizen. NEC-5's `GN` card also names a
 ground file, and the `NOFILE` that says there is none is accepted.
 
+A deck that shows neither `NOFILE` nor an explicit end field reads as NEC-2,
+because the `EX` card alone cannot say which program it was written for.
+Such a deck declares itself NEC-5 with a comment card whose whole text is
+`NEC-5` (`CM NEC-5`). An `EX` with `I4 = 0` then reads NEC-5's way: end 2
+of a positive segment, end 1 of a negative one. A comment that only
+mentions NEC-5 declares nothing.
+
 ## Programmatic use
 
 Outside a design, `parse_nec(text, name=...)` takes raw deck text and returns
