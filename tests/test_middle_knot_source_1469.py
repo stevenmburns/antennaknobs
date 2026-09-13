@@ -8,8 +8,9 @@ then sat at the middle of a piece, 2.5 cm off the source on the NEC-5 lane,
 and the momwire lane drew no marker at all.
 
 A middle knot source is antennaknobs' standard middle-of-wire feed, so the
-wire now stays whole and carries a PortOnWire. Every other knot source keeps
-the #824 cut; this file pins both, and where each marker lands.
+wire now stays whole and carries a PortOnWire. Since slice 2 part B an
+off-centre interior knot source keeps its wire whole too, as a port at its
+position; this file pins both, and where each marker lands.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ import pytest
 from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.engines.nec5 import NEC5Engine
 from antennaknobs.file_designs import builder_from_file
-from antennaknobs.network import PortAtVertex, PortOnWire
+from antennaknobs.network import PortOnWire
 from antennaknobs.nec_import import parse_nec
 
 # dist/nec5_corpus/catalog-nec5/dipoles.invvee.default.somm13.nec, verbatim.
@@ -40,7 +41,7 @@ XQ 0
 EN
 """
 
-# A source at knot 5 of an 11-segment vertical: off-centre, so it keeps the cut.
+# A source at knot 5 of an 11-segment vertical: off-centre, so a positioned port.
 OFF_CENTRE = (
     "CE\nGW 1 11 0 0 0 0 0 11 .001\nGE 0\nEX 0 1 -6 0 1 0\nFR 0 1 0 0 14 0\nEN\n"
 )
@@ -103,25 +104,36 @@ def test_nec5_gets_the_authored_wire_back(tmp_path):
     assert [r[1:5] for r in ex] == [["0", "3", "1", "2"]]
 
 
-def test_an_off_centre_knot_keeps_the_cut():
+def test_an_off_centre_knot_keeps_its_wire_whole_at_its_position():
+    """AK#1469 part B: no cut. The knot is a port at 5/11 of the whole wire."""
     deck = parse_nec(OFF_CENTRE, network=True)
-    assert [t[2] for t in deck.wire_tuples()] == [5, 6]
-    assert isinstance(deck.network().ports["feed"], PortAtVertex)
+    assert [(t[2], t[4] if len(t) > 4 else None) for t in deck.wire_tuples()] == [
+        (11, "feed")
+    ]
+    port = deck.network().ports["feed"]
+    assert isinstance(port, PortOnWire) and port.at == pytest.approx(5 / 11)
 
 
-def test_a_middle_knot_with_a_second_claim_keeps_the_cut():
-    """A load elsewhere on the fed wire is a second claim, so the #824 cut
-    stays: the wire is refined to 4 segments with its source at knot 2 and a
-    load on segment 4. (On the verbatim 2-segment wire any load collides with
-    the knot's own piece, which the importer already refuses by name.)"""
+def test_a_middle_knot_and_a_load_share_one_wire():
+    """AK#1469 part B: a load elsewhere on the fed wire no longer forces the
+    cut. The wire keeps its 4 segments, is named for the pair, and each port
+    names its position: the source at the middle knot, the load at the centre
+    of segment 4."""
     text = (
         AC6LA.replace("GW 3 2 ", "GW 3 4 ")
         .replace("EX 0 3 1 2 ", "EX 0 3 2 2 ")
         .replace("XQ 0\n", "LD 0 3 4 4 50 0 0\nXQ 0\n")
     )
     deck = parse_nec(text, network=True)
-    assert len(deck.wire_tuples()) > 3
-    assert isinstance(deck.network().ports["feed"], PortAtVertex)
+    assert [(t[2], t[4] if len(t) > 4 else None) for t in deck.wire_tuples()] == [
+        (20, None),
+        (20, None),
+        (4, "w3"),
+    ]
+    ports = deck.network().ports
+    assert (ports["feed"].wire, ports["feed"].at) == ("w3", None)
+    assert ports["load1"].wire == "w3"
+    assert ports["load1"].at == pytest.approx(3.5 / 4)
 
 
 def test_refinement_keeps_the_middle_knot_in_the_middle():

@@ -115,17 +115,16 @@ def test_spiralhat_import_pynec_matches_nec2c():
 
 
 def test_spiralhat_wires_keep_authored_segment_counts():
-    """The unfed hat wires (authored 2, 4) and the unfed mast remainder (20)
-    survive import+coercion unchanged; only the 1-seg fed base is odd-forced
-    (already odd). Asserting the EXACT count multiset — not mere membership —
-    so a partial bump (a 4 sneaking to 5) is caught (issue #450)."""
+    """The unfed hat wires (authored 2, 4) survive import+coercion unchanged,
+    and so does the fed 21-segment mast: its source at segment 1 is a port at
+    1/42 of the whole mast (AK#1469 part B), already a segment centre at 21.
+    Asserting the EXACT count multiset, not mere membership, so a partial bump
+    (a 4 sneaking to 5) is caught (issue #450)."""
     deck = parse_nec(_SPIRALHAT_10, name="spiralhat10", network=True)
     eng = MomwireEngine(_import_builder(deck), solver=SinusoidalSolver, ground=_GROUND)
     counts = Counter(
         as_wire(t).n_seg for t in eng._coerce_wire_tuples(deck.wire_tuples())
     )
-    # 6×2-seg + 16×4-seg hat wires, the 20-seg mast remainder, the 1-seg fed
-    # base = 24 wires. No wire bumped to an odd 3 / 5 / 21.
-    assert counts == {1: 1, 2: 6, 4: 16, 20: 1}, (
-        f"segment counts altered: {dict(counts)}"
-    )
+    # 6×2-seg + 16×4-seg hat wires and the whole 21-seg mast = 23 wires. No
+    # hat wire bumped to an odd 3 / 5.
+    assert counts == {2: 6, 4: 16, 21: 1}, f"segment counts altered: {dict(counts)}"
