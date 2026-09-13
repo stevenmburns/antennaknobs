@@ -26,6 +26,7 @@ from ..network import (
     validate_named_wires_referenced,
 )
 from ..terrain import Terrain, specular_cut
+from ..wire_catalog import port_at, port_wire
 from ..network_reduce import (
     NetworkReducer,
     poison_singular_sample,
@@ -1057,8 +1058,22 @@ class MomwireEngine(SimulationEngine):
         # turns into the crossing junction momwire serves. Indices stable.
         tups = split_wires_at_plane(tups, self._ground_z)
 
+        # Gap ports (AK#1469): each PortOnWire becomes one feed at its own
+        # position on the wire it names, so several ports can share a wire.
+        # None (no network) keeps the translator's one-feed-per-named-wire rule.
+        gap_ports = (
+            [
+                (name, port_wire(port), port_at(port))
+                for name, port in self._network.ports.items()
+                if isinstance(port, PortOnWire)
+            ]
+            if self._network is not None
+            else None
+        )
+        self._named_wires = [as_wire(t).name for t in tups]
         translated = flat_wires_to_polylines(
             tups,
+            gap_ports=gap_ports,
             end_ports=[(w, e) for _n, w, e in self._end_ports]
             + [(w, e) for _n, w, e in self._vertex_ports],
             boundary_ends=_ends_in_the_plane(tups, self._ground_z),
@@ -1296,7 +1311,8 @@ class MomwireEngine(SimulationEngine):
         and every named wire is referenced by a PortOnWire (issue #578 — an
         unreferenced name would be a silent open gap cutting the wire)."""
         net = self._network
-        validate_named_wires_referenced(self._feed_names, net)
+        validate_named_wires_referenced(self._named_wires, net)
+        # Feeds are named after their PORT since AK#1469.
         feed_name_to_idx = {n: i for i, n in enumerate(self._feed_names) if n}
 
         port_to_idx = {}
@@ -1305,8 +1321,8 @@ class MomwireEngine(SimulationEngine):
                 if name not in feed_name_to_idx:
                     raise ValueError(
                         f"network port {name!r} is a PortOnWire but no wire in "
-                        f"build_wires() carries that name; named wires: "
-                        f"{sorted(feed_name_to_idx)}"
+                        f"build_wires() carries that name ({port_wire(port)!r}); "
+                        f"named wires: {sorted({n for n in self._named_wires if n})}"
                     )
                 port_to_idx[name] = feed_name_to_idx[name]
 

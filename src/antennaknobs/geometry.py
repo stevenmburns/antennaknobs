@@ -38,7 +38,9 @@ def _round_point(p, eps):
     return tuple(round(float(c) / eps) * eps for c in p)
 
 
-def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None, boundary_ends=None):
+def flat_wires_to_polylines(
+    tups, *, eps=1e-6, end_ports=None, boundary_ends=None, gap_ports=None
+):
     """Convert flat wire tuples to momwire polyline form.
 
     ``end_ports`` (issue #579): iterable of ``(wire_name, "p0"|"p1")`` pairs
@@ -71,11 +73,21 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None, boundary_ends=Non
     in the ground plane, which keeps the rule geometric and keeps every
     media question on momwire's side of the seam.
 
+    ``gap_ports`` (AK#1469): iterable of ``(port_name, wire_name, at)``, the
+    delta-gap ports on named wires. ``at`` is an arclength fraction from the
+    wire's AUTHORED p0 (whichever way the walk runs), or None for the middle.
+    Each port becomes one feed named after the PORT, so several ports can
+    share a wire, and a named wire no port sits on gets no feed. None keeps
+    the original rule: one feed per named wire, at its middle, named after
+    the wire. The two agree bit for bit when every port is named after its
+    own wire and sits at the middle. Legacy ``ex`` tuples are unaffected.
+
     Returns a dict with keys:
         polylines       : list of (M, 3) np.ndarray
         edge_segments   : list of list[int] — n_seg per edge per polyline
         feeds           : list of (polyline_idx, arclength, voltage) —
-                          one entry per excited tuple, in registration
+                          one entry per excited tuple (per gap port when
+                          ``gap_ports`` is given), in registration
                           order. Suitable to pass directly to a
                           momwire solver's feeds=... kwarg.
         feed_dirs       : list of int — +1/-1 per feed: whether the walk
@@ -462,6 +474,11 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None, boundary_ends=Non
     # A tuple is a feed if either (a) it has a non-None ex value (legacy
     # voltage-driven feed) or (b) it has a non-None name (network-port
     # placeholder, voltage gets set later by `build_network()`).
+    ports_on_wire = None
+    if gap_ports is not None:
+        ports_on_wire = {}
+        for port_name, wire_name, at in gap_ports:
+            ports_on_wire.setdefault(wire_name, []).append((port_name, at))
     feeds = []
     feed_names = []
     feed_edges = []
@@ -478,15 +495,29 @@ def flat_wires_to_polylines(tups, *, eps=1e-6, end_ports=None, boundary_ends=Non
         feed_pl, feed_edge_idx = edge_to_polyline[tup_index]
         polyline = polylines[feed_pl]
         edge_lengths = np.linalg.norm(np.diff(polyline, axis=0), axis=1)
-        feed_arclength = float(
-            edge_lengths[:feed_edge_idx].sum() + 0.5 * edge_lengths[feed_edge_idx]
-        )
-        feeds.append(
-            (feed_pl, feed_arclength, complex(voltage if voltage is not None else 0))
-        )
-        feed_names.append(name)
-        feed_edges.append((feed_pl, feed_edge_idx))
-        feed_dirs.append(edge_walk_dir[tup_index])
+        walk_dir = edge_walk_dir[tup_index]
+        if ports_on_wire is None or voltage is not None:
+            sites = [(name, None)]
+        else:
+            sites = ports_on_wire.get(name, [])
+        for site_name, at in sites:
+            # `at` is measured from the AUTHORED p0, and the walk may run this
+            # edge the other way. The middle (0.5) is the same either way, and
+            # it is computed exactly as it always was.
+            frac = 0.5 if at is None else (at if walk_dir == 1 else 1.0 - at)
+            feed_arclength = float(
+                edge_lengths[:feed_edge_idx].sum() + frac * edge_lengths[feed_edge_idx]
+            )
+            feeds.append(
+                (
+                    feed_pl,
+                    feed_arclength,
+                    complex(voltage if voltage is not None else 0),
+                )
+            )
+            feed_names.append(site_name)
+            feed_edges.append((feed_pl, feed_edge_idx))
+            feed_dirs.append(walk_dir)
 
     if not feeds and not end_port_nodes:
         raise ValueError("no excitation found in wire list")
