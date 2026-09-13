@@ -1,0 +1,12 @@
+=== translate pass B, for determinism (00:54:20) ===
+report: /home/smburns/nec5-timing/nec5-1443b/translate-report.jsonl
+TREES IDENTICAL
+=== NEC-5 check, x13, on the 1.11 tree (00:54:37) ===
+      1  exit code N (NxFFFFFFFA): double free or corruption (!prev)
+
+report: /home/smburns/nec5-timing/check-1443-nec5.jsonl
+=== momwire census pass a, momwire 23d81e5 (the published pointer) (01:09:59) ===
+3066 decks in 2159 s: {'error': 423, 'ok': 2627, 'no-drive': 4, 'over-cap': 6, 'timeout': 1, 'crash': 5}
+=== momwire census pass b, momwire 23d81e5 (the published pointer) (01:45:58) ===
+3066 decks in 2160 s: {'error': 423, 'ok': 2627, 'no-drive': 4, 'over-cap': 6, 'timeout': 1, 'crash': 5}
+RERENDER1443DONE 02:21:58
