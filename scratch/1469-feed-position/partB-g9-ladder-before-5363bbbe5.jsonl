@@ -1,0 +1,15 @@
+{"deck": "mininec_vertical_rp0.deck", "r": 1, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[39.88597306040603, 23.374129125412423]], "s": 0.01}
+{"deck": "mininec_vertical_rp0.deck", "r": 3, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[39.99455511172532, 23.673155225933566]], "s": 0.01}
+{"deck": "mininec_vertical_rp0.deck", "r": 9, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[40.05360020059726, 23.834784952552006]], "s": 0.03}
+{"deck": "apex_pq_reversed_walk.deck", "r": 1, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[73.8593052510054, -365.80121807766284]], "s": 0.01}
+{"deck": "apex_pq_reversed_walk.deck", "r": 3, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[69.21081753648788, -350.4223372837354]], "s": 0.01}
+{"deck": "apex_pq_reversed_walk.deck", "r": 9, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[67.02470482492333, -342.63525551460765]], "s": 0.01}
+{"deck": "mininec_gp80_seam.deck", "r": 1, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[50.639603867541595, 0.05287404457644222]], "s": 0.02}
+{"deck": "mininec_gp80_seam.deck", "r": 3, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[51.52897584074738, 1.0416198911907162]], "s": 0.08}
+{"deck": "mininec_gp80_seam.deck", "r": 9, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[52.17126927474358, 1.8196500110892666]], "s": 0.49}
+{"deck": "dipole_load_ld0.deck", "r": 1, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[148.32044570687475, 191.7335731125754]], "s": 0.01}
+{"deck": "dipole_load_ld0.deck", "r": 3, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[154.5459082029295, 195.9150851799497]], "s": 0.01}
+{"deck": "dipole_load_ld0.deck", "r": 9, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[157.40379381903784, 197.85316907522395]], "s": 0.01}
+{"deck": "dipole_load_ld4.deck", "r": 1, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[127.68845979035567, -9.332517236715299]], "s": 0.0}
+{"deck": "dipole_load_ld4.deck", "r": 3, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[127.20658459882463, -9.479382269769136]], "s": 0.01}
+{"deck": "dipole_load_ld4.deck", "r": 9, "tree": "/home/smburns/antennas/antennaknobs/src", "status": "ok", "z": [[127.03173027926317, -9.475436475835103]], "s": 0.01}

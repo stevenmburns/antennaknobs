@@ -1,0 +1,32 @@
+apex_pq_reversed_walk.deck
+    r=1: before 73.85931-365.80122j  after 73.88044-365.99962j  |diff| 1.995e-01
+    r=3: before 69.21082-350.42234j  after 69.20914-350.41252j  |diff| 9.957e-03
+    r=9: before 67.02470-342.63526j  after 67.02476-342.63547j  |diff| 2.262e-04
+    G9a: d9 2.262e-04 vs d1/3 6.651e-02 -> HIT
+    G9b: |after(1)-ref| 2.435e+01 vs |before(1)-ref| 2.415e+01 -> MISS
+dipole_load_ld0.deck
+    r=1: before 148.32045+191.73357j  after 148.34731+192.31154j  |diff| 5.786e-01
+    r=3: before 154.54591+195.91509j  after 154.54302+196.05614j  |diff| 1.411e-01
+    r=9: before 157.40379+197.85317j  after 157.40188+197.86200j  |diff| 9.039e-03
+    G9a: d9 9.039e-03 vs d1/3 1.929e-01 -> HIT
+    G9b: |after(1)-ref| 1.062e+01 vs |before(1)-ref| 1.095e+01 -> HIT
+dipole_load_ld4.deck
+    r=1: before 127.68846-9.33252j  after 127.79973-8.89041j  |diff| 4.559e-01
+    r=3: before 127.20658-9.47938j  after 127.23277-9.37197j  |diff| 1.106e-01
+    r=9: before 127.03173-9.47544j  after 127.03360-9.46798j  |diff| 7.688e-03
+    G9a: d9 7.688e-03 vs d1/3 1.520e-01 -> HIT
+    G9b: |after(1)-ref| 9.624e-01 vs |before(1)-ref| 6.704e-01 -> MISS
+mininec_gp80_seam.deck
+    r=1: before 50.63960+0.05287j  after 50.63891+0.05580j  |diff| 3.003e-03
+    r=3: before 51.52898+1.04162j  after 51.52920+1.04090j  |diff| 7.530e-04
+    r=9: before 52.17127+1.81965j  after 52.17127+1.81965j  |diff| 1.229e-06
+    G9a: d9 1.229e-06 vs d1/3 1.001e-03 -> HIT
+    G9b: |after(1)-ref| 2.337e+00 vs |before(1)-ref| 2.338e+00 -> HIT
+mininec_vertical_rp0.deck
+    r=1: before 39.88597+23.37413j  after 39.88892+23.45600j  |diff| 8.193e-02
+    r=3: before 39.99456+23.67316j  after 39.99462+23.69652j  |diff| 2.337e-02
+    r=9: before 40.05360+23.83478j  after 40.05361+23.83347j  |diff| 1.313e-03
+    G9a: d9 1.313e-03 vs d1/3 2.731e-02 -> HIT
+    G9b: |after(1)-ref| 4.124e-01 vs |before(1)-ref| 4.896e-01 -> HIT
+G9a: 5/5 (bar 4 of 5)
+G9b: 3/5 = 60 % (bar 80 %)
