@@ -117,12 +117,12 @@ def test_an_off_centre_knot_keeps_its_wire_whole_at_its_position():
 def test_a_middle_knot_and_a_load_share_one_wire():
     """AK#1469 part B: a load elsewhere on the fed wire no longer forces the
     cut. The wire keeps its 4 segments, is named for the pair, and each port
-    names its position: the source at the middle knot, the load at the centre
-    of segment 4."""
+    names its position: the source at the middle knot, the load at knot 3 (the
+    deck is NEC-5, so `LD 0 3 3 2` is end 2 of segment 3, AK#1483)."""
     text = (
         AC6LA.replace("GW 3 2 ", "GW 3 4 ")
         .replace("EX 0 3 1 2 ", "EX 0 3 2 2 ")
-        .replace("XQ 0\n", "LD 0 3 4 4 50 0 0\nXQ 0\n")
+        .replace("XQ 0\n", "LD 0 3 3 2 50 0 0\nXQ 0\n")
     )
     deck = parse_nec(text, network=True)
     assert [(t[2], t[4] if len(t) > 4 else None) for t in deck.wire_tuples()] == [
@@ -133,7 +133,7 @@ def test_a_middle_knot_and_a_load_share_one_wire():
     ports = deck.network().ports
     assert (ports["feed"].wire, ports["feed"].at) == ("w3", None)
     assert ports["load1"].wire == "w3"
-    assert ports["load1"].at == pytest.approx(3.5 / 4)
+    assert ports["load1"].at == pytest.approx(3 / 4)
 
 
 def test_refinement_keeps_the_middle_knot_in_the_middle():
