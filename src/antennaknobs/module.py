@@ -28,20 +28,20 @@ are element-internal and auto-namespaced — never bound by hand.
 detection still recognizes), replacing the hand-unrolled offset loops.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .cell import Cell, Placement, flatten_placements
 from .network import (
     PortAtEnd,
     PortAtVertex,
     PortOnWire,
-    PortOnWireFloating,
     PortVirtual,
     Wire,
     _branch_port_refs,
     _rewrite_branch,
 )
 from .transform import Transform
+from .wire_catalog import port_wire
 
 
 @dataclass(frozen=True)
@@ -76,9 +76,13 @@ class Module:
                     raise ValueError(
                         f"port key {key!r} must equal PortOnWire name {port.name!r}"
                     )
-                if port.name not in feeds:
+                wire = port_wire(port)
+                if wire not in feeds:
                     raise ValueError(
                         f"feed port {port.name!r} names no cell feed {self.cell.feeds!r}"
+                        if wire == port.name
+                        else f"feed port {port.name!r} sits on wire {wire!r}, "
+                        f"which is no cell feed {self.cell.feeds!r}"
                     )
             elif isinstance(port, (PortAtEnd, PortAtVertex)):
                 if port.wire not in feeds:
@@ -143,10 +147,17 @@ class Assembly:
 
 
 def _rewrite_port(port, prefix):
-    if isinstance(port, PortOnWireFloating):  # subclass — must precede PortOnWire
-        return PortOnWireFloating(prefix + port.name, port.distributed)
-    if isinstance(port, PortOnWire):
-        return PortOnWire(prefix + port.name, port.distributed)
+    if isinstance(
+        port, PortOnWire
+    ):  # incl. PortOnWireFloating: replace() keeps the type
+        # replace() keeps every field, so a port's wire and position survive
+        # namespacing (AK#1469). Rebuilding from name and `distributed` alone
+        # dropped them silently. The wire is namespaced by the same rule as the
+        # cell's feed wires.
+        changes = {"name": prefix + port.name}
+        if getattr(port, "wire", None) is not None:
+            changes["wire"] = prefix + port.wire
+        return replace(port, **changes)
     if isinstance(port, PortAtEnd):
         return PortAtEnd(prefix + port.wire, port.end)
     if isinstance(port, PortAtVertex):
@@ -159,9 +170,8 @@ def expand_modules(instances) -> Assembly:
 
     The geometry is expanded through :func:`flatten_placements` (feeds default
     to ``"<instance>.<feed>"``); the network ports/branches are namespaced by
-    the SAME rule, so a feed's wire name and its port name are guaranteed
-    equal by construction — the property the hand-written designs can only hope
-    holds."""
+    the SAME rule, so a feed port and the wire it sits on cannot drift apart —
+    the property the hand-written designs can only hope holds."""
     placements = [
         Placement(inst.name, inst.of.cell, inst.transform) for inst in instances
     ]
