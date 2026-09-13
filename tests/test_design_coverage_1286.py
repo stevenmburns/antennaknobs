@@ -280,10 +280,13 @@ def test_the_sentence_is_the_solvers_own_words():
 def test_coverage_is_not_a_promise_that_a_solve_succeeds():
     """The documented limit, pinned so it cannot be quietly widened.
 
-    `wire.terminated_longwire` is the 2026-09-08 ladder's one refusal on every
-    engine, on a below/below domain limit — and it has NO capability refusal
-    here, because that limit depends on the ground the user picks rather than
-    on the design. If this ever starts reporting one, the docstring promising
+    `wire.terminated_longwire` has NO capability refusal here. A ground-dependent
+    limit is asked at engine construction or at the solve, not declared per
+    design, so an empty `refusals` is not a promise that a solve succeeds. The
+    2026-09-08 ladder recorded this design refused under finite ground on a
+    below/below domain limit. That refusal was antennaknobs' own pre-flight
+    counting the two ground terminations as buried (AK#1464), and it is gone.
+    If this ever starts reporting a capability refusal, the docstring promising
     callers that absence is not a guarantee needs revisiting too.
     """
     cov = adapter.design_backend_coverage("wire.terminated_longwire")

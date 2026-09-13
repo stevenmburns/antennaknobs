@@ -291,6 +291,15 @@ def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz
     getattr fallback that bridged the 0.49.0 window was deleted with the pin
     bump, as its tripwire required — antennaknobs#1135/#1219).
 
+    ONLY A DECK WITH A WIRE STRICTLY BELOW THE PLANE IS ASKED
+    (antennaknobs#1464). momwire's helper keeps every point at or below the
+    plane, so a ground-contact end counts as "buried" there. Two contact ends
+    at different places then pair at depth sum 0: theta = 0 at any spacing,
+    and R1 = their distance. A deck with nothing buried has no below/below
+    pair for the fill to bound, and it used to be refused for one.
+    `wire.terminated_longwire` (its two terminations) and any two
+    ground-mounted verticals under finite ground were refused this way.
+
     momwire measures its extents on quadrature nodes; the polyline VERTICES
     passed here reach further and lie shallower, so the verdict is
     conservative and can only over-refuse. The gate that matters
@@ -299,6 +308,9 @@ def _below_reach_refusal(polylines, ground_z, ground_eps, ground_model, freq_mhz
     conservative enough to refuse a deck the app should offer.
     """
     if ground_z is None or ground_eps is None or ground_model != "sommerfeld":
+        return None
+    gz = float(ground_z)
+    if not any(float(np.asarray(pl, dtype=float)[:, 2].min()) < gz for pl in polylines):
         return None
     from momwire import below_reach_refusal
 
