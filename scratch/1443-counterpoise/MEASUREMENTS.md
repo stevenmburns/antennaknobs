@@ -54,3 +54,60 @@ the census meant by it.
 | P1.3 | ΔR / max\|R\| = 31.2 % and 31.3 %; \|ΔZ\| / max\|Z\| = 16.4 % and 15.3 % | pending |
 
 A miss on P1.1 or P1.2 stops the unit and is reported before anything else.
+
+### Step 1 measured
+
+`scratch/956-census/popa_worker.py`, threads pinned; rows in `step1_rows.jsonl`.
+ΔR below is NEC-5 − momwire; the census tabulates momwire − NEC-5.
+
+| nominal_nsegs | momwire (`1dbd384`) | census momwire (all three commits) | NEC-5 (x13-static) | census NEC-5 | ΔR | ΔR / max\|R\| | \|ΔZ\| / max\|Z\| |
+|---|---|---|---|---|---|---|---|
+| 21 | 44.56018940137673 − 73719.31963777544j | identical | 30.643 − 61604.0j | identical | −13.9172 | 31.2 % | 16.4 % |
+| 42 | 42.78958801156905 − 72708.61049930776j | R …1156906, X identical | 29.417 − 61557.0j | identical | −13.3726 | 31.3 % | 15.3 % |
+
+| id | verdict |
+|---|---|
+| P1.1 | **MISSED, by one unit in the last place.** Bit-identical at nominal_nsegs 21 (R and X) and in X at 42; R at 42 is 42.78958801156905 against the census's …906 on all three of its commits (1.7e-16 relative). The cause (the `1dbd384` source against `ad3cb9f`, or today's rebuild of the accelerators) is not examined. Reported before step 2 runs, as the stop rule requires; it is immaterial at every scale this unit reads |
+| P1.2 | **HIT** — NEC-5's printed Z identical at both meshes, x13-static against the census's dynamic x13 |
+| P1.3 | **HIT** — 31.2 % / 31.3 % in R, 16.4 % / 15.3 % in \|Z\| |
+
+### The mesh at the source, both census decks
+
+| tag | wire | nominal_nsegs 21 | nominal_nsegs 42 |
+|---|---|---|---|
+| 1 | fed wire, z 0.50 → 0.55 m | 2 × 25.00 mm (momwire: 1 × 50 mm) | 2 × 25.00 mm (momwire: 1 × 50 mm) |
+| 2 | radiator, 10.506 m | 21 × 500.29 mm | 42 × 250.14 mm |
+| 3–6 | radials at z = −0.15 m, 6.334 m each | 54 × 117.29 mm | 107 × 59.19 mm |
+
+The radiator's first segment is **20× NEC-5's fed segment at nominal_nsegs 21
+(10× momwire's)** and 10× (5×) at 42. The step sits on the source of a
+near-open driving point, and doubling nominal_nsegs halves the jump without
+touching the fed wire.
+
+## Step 2 — the source region (registered before the run)
+
+`step2_source.py`, nominal_nsegs 21, F = 1 / 2 / 4 / 8. Ports matched:
+momwire's feed parity patched to even, so it shares NEC-5's knot source.
+Segment counts and the knot are asserted equal at every rung. The `feed`
+ladder's F = 1 NEC-5 deck is asserted to be the census's sha.
+
+- **`feed` ladder**: the fed wire at 2F segments (25 mm / F); radiator and
+  radials exactly as the census meshes them. The jump at the source grows with
+  F. This measures the fed segment alone.
+- **`graded` ladder**: the fed wire at 2F segments, and the radiator graded
+  away from it by an explicit schedule. Panels double in length from 2·(25 mm /
+  F); each panel's segment is min(500.29 mm, max(25 mm / F, panel start / 2)),
+  so adjacent segments differ by at most 2× and none exceeds the census
+  radiator segment. `graded_wire`'s growth-4, two-per-panel recipe was not used:
+  on this radiator it makes 2.4 m segments in the middle, the confound that
+  voided momwire#1048's P2b.3.
+
+| id | prediction | verdict |
+|---|---|---|
+| P2.1 | **blind**, `feed`: from F = 1 to F = 8 each engine's R moves by more than 1 % of itself, and ΔR / max\|R\| moves by more than 3 pp | pending |
+| P2.2 | **blind**, `graded`: \|ΔR\| / max\|R\| is below 20 % at F = 1 (the jump removed) and below 15 % at F = 8 | pending |
+
+Competing outcome, registered with them: P2.2 holding near 31 % means the
+source region is not the mechanism on this deck, and the plan's grid probes
+(the transmitted grid's field form against designed tables; its range and
+interpolation error at this height and depth) come next.
