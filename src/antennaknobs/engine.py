@@ -4,7 +4,8 @@ from typing import ClassVar, Literal, NamedTuple
 
 import numpy as np
 
-from .network import GradedSegments, Wire, as_wire
+from .network import GradedSegments, PortOnWire, Wire, as_wire
+from .wire_catalog import port_at, port_wire, site_count
 
 _logger = logging.getLogger(__name__)
 
@@ -97,6 +98,24 @@ class WireCurrents(NamedTuple):
     knot_currents: np.ndarray  # (M,)   complex
 
 
+def _port_positions(builder):
+    """{wire name: [at, ...]} for every wire carrying a gap port with an
+    explicit position (AK#1469), read from the builder's network.
+
+    A wire whose ports all sit at the middle is absent: the parity rule already
+    serves it, and the old counts must not move. No builder (a stub borrowing
+    the coercion) means no positions."""
+    build = getattr(builder, "build_network", None)
+    net = build() if callable(build) else None
+    if net is None:
+        return {}
+    by_wire: dict = {}
+    for port in net.ports.values():
+        if isinstance(port, PortOnWire) and not getattr(port, "distributed", False):
+            by_wire.setdefault(port_wire(port), []).append(port_at(port))
+    return {w: ats for w, ats in by_wire.items() if any(a is not None for a in ats)}
+
+
 class SimulationEngine(ABC):
     supports_far_field: ClassVar[bool] = False
     # Engines that demand a specific basis parity override this. The
@@ -158,6 +177,7 @@ class SimulationEngine(ABC):
         parity = self.segment_parity
         if parity == "any":
             return tups
+        positions = _port_positions(getattr(self, "builder", None))
         seen = set()
         out = []
         for t in tups:
@@ -189,6 +209,16 @@ class SimulationEngine(ABC):
                 w.ex is not None or w.name is not None
             ) and w.name not in self._parity_exempt_names()
             n_new = self.coerce_n_seg(w.n_seg, parity) if marked else max(1, w.n_seg)
+            # A port positioned along this wire (AK#1469) wants a count at which
+            # its position is a site of this engine's grid, not just the middle.
+            # Up to 2x the authored count; failing that, the parity count stays
+            # and the engine places the port on its nearest site.
+            at_here = positions.get(w.name) if marked else None
+            family = {"odd": "centre", "even": "knot"}.get(parity)
+            if at_here and family is not None:
+                m = site_count(w.n_seg, at_here, family)
+                if m is not None:
+                    n_new = m
             if n_new != w.n_seg and (w.n_seg, n_new) not in seen:
                 seen.add((w.n_seg, n_new))
                 _logger.info(

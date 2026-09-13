@@ -408,9 +408,11 @@ def test_pynec_feeds_the_segment_at_names():
     eng = _pynec(feed_at=0.3)
     eng.impedance()
     if eng._network_port_loc:
-        assert eng._network_port_loc["feed"] == (1, 7)
+        assert eng._network_port_loc["feed"] == (1, gap_segment(eng.tups[0][2], 0.3))
     else:
-        assert eng._port_drive_points["feed"] == [(7, 1.0)]
+        assert eng._port_drive_points["feed"] == [
+            (gap_segment(eng.tups[0][2], 0.3), 1.0)
+        ]
 
 
 @needs_position
@@ -451,5 +453,5 @@ def test_simnec_station_cards_feed_the_segment_at_names():
     eng = _pynec(feed_at=0.3)
     cards = _station_cards(eng, "feed", [], FREQ)
     assert [" ".join(c.split()[:4]) for c in cards if c.startswith("EX")] == [
-        "EX 0 1 7"
+        f"EX 0 1 {gap_segment(eng.tups[0][2], 0.3)}"
     ]
