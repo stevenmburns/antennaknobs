@@ -13,6 +13,8 @@ synthetic antenna Y (fast, no MoM), then a cross-engine MoM check that PyNEC
 the solve — including the load-on-the-fed-segment case.
 """
 
+import shutil
+
 import numpy as np
 import pytest
 
@@ -171,3 +173,98 @@ def test_ld4_reactive_on_parasitic_segment_cross_engine_agrees():
     assert abs(z_pynec - z_mw) / abs(z_mw) < 0.02
     z_bare = _mw_z(parse_nec(loaded.format(ld=""), network=True))
     assert abs(z_mw - z_bare) > 1.0
+
+
+# ---------------------------------------------------------------------------
+# 4. export_nec writes the fixed-z load as LD 4 (antennaknobs#1485)
+# ---------------------------------------------------------------------------
+def _ld_rows(text, ldtyp):
+    return [ln.split() for ln in text.splitlines() if ln.split()[:2] == ["LD", ldtyp]]
+
+
+def _export(builder):
+    pytest.importorskip("PyNEC")
+    from antennaknobs.nec_export import export_nec
+
+    return export_nec(builder, ground="free", include_rp=False)
+
+
+def test_export_writes_a_fixed_z_load_as_ld4_at_its_segment():
+    """The hole in #1485: `export_nec` read only a Load's R/L/C legs, so a
+    `Load(z=...)` fell through to the all-zero `continue`, no card was written,
+    and the NEC-2 tab, which runs this export, solved the design without its
+    load. It is now PyNECEngine's `ld_card(4, tag, seg, seg, R, X, 0)` as text,
+    on the segment PyNECEngine puts that card on.
+
+    That location is in the export's own numbering, not the imported deck's:
+    the importer gives a loaded segment a one-segment wire of its own, and the
+    export numbers wires by the GW cards it writes. So the row does not read
+    "tag 1 seg 2" the way the source deck did, and asserting that would test
+    the importer, not this card."""
+    deck = parse_nec(_dipole7("LD 4 1 2 2 100 -50"), network=True)
+    (row,) = _ld_rows(_export(_deck_builder(deck)), "4")
+    eng = PyNECEngine(_deck_builder(deck), ground="free")
+    (load,) = [br for br in eng._network.branches if isinstance(br, Load)]
+    tag, seg = eng._network_port_loc[load.port]
+    assert row[2:5] == [str(tag), str(seg), str(seg)], (row, tag, seg)
+    assert [float(v) for v in row[5:8]] == [100.0, -50.0, 0.0], row
+
+
+def test_the_exported_ld4_reads_back_as_the_same_load():
+    """Import the export and export it again: the same fixed-z load comes back,
+    and the second export repeats the first, card for card, so the LD 4 names
+    the same segment of the same geometry both times."""
+    deck = parse_nec(_dipole7("LD 4 1 2 2 100 -50"), network=True)
+    first = _export(_deck_builder(deck))
+    back = parse_nec(first, network=True)
+    assert [ld.z for ld in back.loads] == [complex(100.0, -50.0)]
+    second = _export(_deck_builder(back))
+    cards = ("GW", "GE", "LD", "EX", "FR")
+    assert [ln for ln in second.splitlines() if ln[:2] in cards] == [
+        ln for ln in first.splitlines() if ln[:2] in cards
+    ]
+
+
+def test_a_zero_fixed_z_load_writes_no_card():
+    """z == 0 is no load at all: PyNECEngine skips its ld_card, and the export
+    writes nothing for it either."""
+    deck = parse_nec(_dipole7("LD 4 1 2 2 100 -50"), network=True)
+    net = deck.network()
+    zeroed = Network(
+        ports=net.ports,
+        branches=[
+            Load(port=br.port, z=0j) if isinstance(br, Load) else br
+            for br in net.branches
+        ],
+        sources=net.sources,
+    )
+
+    class ZeroLoad(type(_deck_builder(deck))):
+        def build_network(self):
+            return zeroed
+
+    assert _ld_rows(_export(ZeroLoad()), "4") == []
+
+
+@pytest.mark.skipif(shutil.which("nec2c") is None, reason="nec2c CLI not installed")
+def test_the_nec2_tab_solves_the_fixed_z_load_it_used_to_drop(monkeypatch):
+    """The NEC-2 tab (`NEC2Engine`) runs `export_nec`'s deck through the user's
+    own binary, so until the hole in #1485 was filled it disagreed with PyNEC on
+    a z-load design by exactly the missing load. Against a real nec2c it now
+    agrees with PyNEC to the repo's nec2c bar (0.1 ohm, `test_nec_export.py`),
+    and it is nowhere near the load-free impedance."""
+    pytest.importorskip("PyNEC")
+    from antennaknobs.engines.nec2 import NEC2Engine
+
+    monkeypatch.setenv("NEC2_EXE", shutil.which("nec2c"))
+    loaded = _dipole7("LD 4 1 2 2 100 -50")
+
+    def z_of(engine_cls, text):
+        builder = _deck_builder(parse_nec(text, network=True))
+        return complex(np.atleast_1d(engine_cls(builder, ground="free").impedance())[0])
+
+    z_nec2 = z_of(NEC2Engine, loaded)
+    z_pynec = z_of(PyNECEngine, loaded)
+    z_bare = z_of(PyNECEngine, _dipole7())
+    assert abs(z_nec2 - z_pynec) < 0.1, (z_nec2, z_pynec)
+    assert abs(z_nec2 - z_bare) > 1.0, (z_nec2, z_bare)
