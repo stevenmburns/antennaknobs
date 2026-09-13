@@ -339,7 +339,8 @@ turns it on (`EK -1`, like an absent card, leaves it off). The same goes for
 ground since v0.75.1: with no `--ground`, a `@file.nec` design is solved
 under the ground its own `GE` / `GN` cards model — `GE 0` free space, `GE 1`
 or `GN 1` perfect, `GN 2` finite with the card's ε<sub>r</sub> and σ, `GN 0`
-the reflection-coefficient model — and an explicit `--ground` still wins.
+the reflection-coefficient model (Sommerfeld in a NEC-5 deck, which has no
+reflection-coefficient ground) — and an explicit `--ground` still wins.
 Catalog designs keep each engine's own default as before.
 
 ## Comparing engines
@@ -376,6 +377,22 @@ design            peak dBi  takeoff°    F/B dB    az bw°    el bw°
 dipoles.invvee        1.93         1       0.0        85        89
 beams.yagi            8.89         1       8.2        60        42
 ```
+
+### A refinement ladder for an imported deck
+
+A catalog design refines through its own mesh knobs, but an imported `.nec`
+deck's only mesh is its `GW` segment counts. `ladder` multiplies every wire's
+count by each odd factor, re-solves on every engine you name, and prints the
+impedance at each rung, the step between rungs, and a first-order Richardson
+estimate from the last two:
+
+```bash
+python -m antennaknobs ladder --builder @my_dipole.nec \
+  --refine 1 3 9 --engines momwire nec5
+```
+
+The factors are odd so that a centre gap stays a centre gap and a knot source
+stays a knot source. The default is `1 3 9`.
 
 ## Copying params back to code
 
