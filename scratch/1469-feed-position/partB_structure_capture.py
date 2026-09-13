@@ -32,7 +32,7 @@ def _row(path, label):
             k: [type(p).__name__, getattr(p, "wire", None), getattr(p, "at", None)]
             for k, p in net.ports.items()
         }
-    except Exception as exc:  # a refusal is a recorded outcome
+    except Exception as exc:  # noqa: BLE001 — a refusal is a recorded outcome
         row["import"] = f"ERR {type(exc).__name__}: {exc}"[:300]
         return row
     tmp = tempfile.mkdtemp()
@@ -52,9 +52,9 @@ def _row(path, label):
         ):
             try:
                 row[lane] = make()
-            except Exception as exc:  # the refusal text is the datum
+            except Exception as exc:  # noqa: BLE001 — the refusal text is the datum
                 row[lane] = f"ERR {type(exc).__name__}: {exc}"[:300]
-    except Exception as exc:  # a census records what it cannot build
+    except Exception as exc:  # noqa: BLE001 — a census records what it cannot build
         row["build"] = f"ERR {type(exc).__name__}: {exc}"[:300]
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -68,8 +68,16 @@ def main(argv):
     if os.path.exists(out):
         with open(out, encoding="utf-8") as fh:
             done = {(r["set"], r["deck"]) for r in map(json.loads, fh)}
-    jobs = [("catalog-nec5", os.path.join(catalog, n)) for n in sorted(os.listdir(catalog)) if n.endswith(".nec")]
-    jobs += [("nec_portal", os.path.join(portal, n)) for n in sorted(os.listdir(portal)) if n.endswith(".deck")]
+    jobs = [
+        ("catalog-nec5", os.path.join(catalog, n))
+        for n in sorted(os.listdir(catalog))
+        if n.endswith(".nec")
+    ]
+    jobs += [
+        ("nec_portal", os.path.join(portal, n))
+        for n in sorted(os.listdir(portal))
+        if n.endswith(".deck")
+    ]
     with open(out, "a", encoding="utf-8") as fh:
         for label, path in jobs:
             if (label, os.path.basename(path)) in done:
