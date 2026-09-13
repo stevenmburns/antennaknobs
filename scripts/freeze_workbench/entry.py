@@ -17,18 +17,25 @@ server log, and Ctrl-C stops it.
     antennaknobs-workbench --log-level DEBUG
                                         # the decks and printouts in this
                                         # window too, as they run
+    antennaknobs-workbench --nec5-exe "C:\\EZNEC 7.0\\Docs\\NEC5CL_x13.exe"
+                                        # the licensed NEC-5 engine; reads the
+                                        # same in PowerShell and Command Prompt
+    antennaknobs-workbench --nec2-exe C:\\4nec2\\exe\\nec2dxs11.exe
+                                        # a NEC-2 console binary, the same way
 
-The licensed NEC-5 engine is found the way the pip install finds it, through
-``NEC5_EXE`` — and, for someone who double-clicks, through a one-line text
-file ``NEC5_EXE.txt`` beside the executable holding the path to NEC5CL.exe.
-The file wins only when the variable is unset. The server stays on
-127.0.0.1: an engine you are licensed for must not be served past your own
-machine.
+The licensed NEC-5 engine is found three ways, first match wins: the
+``--nec5-exe PATH`` flag; the ``NEC5_EXE`` variable the pip install reads; and,
+for someone who double-clicks, a one-line text file ``NEC5_EXE.txt`` beside
+the executable holding the path to NEC5CL.exe. The flag exists because the
+variable is spelled one way in PowerShell (``$env:NEC5_EXE = "..."``) and
+another in Command Prompt (``set NEC5_EXE=...``), and users mix the two up.
+The server stays on 127.0.0.1: an engine you are licensed for must not be
+served past your own machine.
 
-``NEC2_EXE`` / ``NEC2_EXE.txt`` do the same for a NEC-2 console binary
-(nec2c, nec2++, 4nec2's nec2dxs*.exe). The bundle ships none: nec2++ is
-GPLv2, and shipping it would make this zip a combined work (#1354). It is
-the one engine most users already have, because 4nec2 installs one.
+``--nec2-exe`` / ``NEC2_EXE`` / ``NEC2_EXE.txt`` do the same for a NEC-2
+console binary (nec2c, nec2++, 4nec2's nec2dxs*.exe). The bundle ships none:
+nec2++ is GPLv2, and shipping it would make this zip a combined work (#1354).
+It is the one engine most users already have, because 4nec2 installs one.
 
 A separate script rather than ``-m antennaknobs.web.server`` because
 PyInstaller wants a file to trace from, and because the browser-opening and
@@ -48,12 +55,13 @@ import webbrowser
 from pathlib import Path
 
 NAME = "antennaknobs-workbench"
-# One file per engine, named after the variable it fills, beside the exe.
-# NEC-5 is licensed software the user supplies (#825); NEC-2 is freely
-# available but GPL, so the bundle drives a user-supplied binary rather than
-# ship one (#1354). Same convenience, same rule: the file loses to the
-# variable.
+# One file per engine, named after the variable it fills, beside the exe, and
+# one flag per engine that fills the same variable. NEC-5 is licensed software
+# the user supplies (#825); NEC-2 is freely available but GPL, so the bundle
+# drives a user-supplied binary rather than ship one (#1354). The same rule for
+# both: the flag beats the variable, and the variable beats the file.
 EXE_FILES = {"NEC5_EXE": "NEC5_EXE.txt", "NEC2_EXE": "NEC2_EXE.txt"}
+EXE_FLAGS = {"NEC5_EXE": "--nec5-exe", "NEC2_EXE": "--nec2-exe"}
 NEC5_FILE = EXE_FILES["NEC5_EXE"]
 NEC2_FILE = EXE_FILES["NEC2_EXE"]
 
@@ -100,6 +108,16 @@ def _open_when_up(url: str, health: str, *, deadline_s: float = 120.0) -> None:
             time.sleep(0.5)
 
 
+def _value(it, flag: str) -> str:
+    """The argument after `flag`, or a usage error naming the flag. Without
+    this, ``--nec5-exe`` typed with the path forgotten ends in a traceback."""
+    try:
+        return next(it)
+    except StopIteration:
+        print(f"{NAME}: {flag} needs a value", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
 def _parse(argv: list[str]) -> dict:
     opts = {
         "port": None,
@@ -107,21 +125,28 @@ def _parse(argv: list[str]) -> dict:
         "selftest": False,
         "log_level": None,
         "capture_dir": None,
+        "nec5_exe": None,
+        "nec2_exe": None,
     }
     it = iter(argv)
     for a in it:
         if a == "--port":
-            opts["port"] = int(next(it))
+            opts["port"] = int(_value(it, a))
         elif a.startswith("--port="):
             opts["port"] = int(a.split("=", 1)[1])
         elif a == "--log-level":
-            opts["log_level"] = next(it)
+            opts["log_level"] = _value(it, a)
         elif a.startswith("--log-level="):
             opts["log_level"] = a.split("=", 1)[1]
         elif a == "--capture-dir":
-            opts["capture_dir"] = next(it)
+            opts["capture_dir"] = _value(it, a)
         elif a.startswith("--capture-dir="):
             opts["capture_dir"] = a.split("=", 1)[1]
+        elif a in EXE_FLAGS.values():
+            opts[a[2:].replace("-", "_")] = _value(it, a)
+        elif a.startswith(tuple(f"{flag}=" for flag in EXE_FLAGS.values())):
+            flag, value = a.split("=", 1)
+            opts[flag[2:].replace("-", "_")] = value
         elif a == "--no-browser":
             opts["browser"] = False
         elif a == "--selftest":
@@ -144,6 +169,44 @@ def _apply_capture_opts(opts: dict) -> None:
         os.environ["ANTENNAKNOBS_LOG_LEVEL"] = str(opts["log_level"])
     if opts.get("capture_dir"):
         os.environ["ANTENNAKNOBS_CAPTURE_DIR"] = str(opts["capture_dir"])
+    # --nec5-exe / --nec2-exe become NEC5_EXE / NEC2_EXE the same way. A flag
+    # beats a variable already set, and a set variable means NEC5_EXE.txt is
+    # not consulted, so the order is flag, then variable, then file.
+    if opts.get("nec5_exe"):
+        os.environ["NEC5_EXE"] = str(opts["nec5_exe"])
+    if opts.get("nec2_exe"):
+        os.environ["NEC2_EXE"] = str(opts["nec2_exe"])
+
+
+def _apply_exe_files() -> None:
+    """``NEC5_EXE.txt`` / ``NEC2_EXE.txt`` beside the executable, for a variable
+    still unset after the flags. A variable already set, by the environment or
+    by ``--nec5-exe`` / ``--nec2-exe``, is left alone. That makes the order flag,
+    then variable, then file."""
+    for var, fname in EXE_FILES.items():
+        if os.environ.get(var):
+            continue
+        from_file = _exe_from_file(fname)
+        if from_file:
+            os.environ[var] = from_file
+            print(f"{var} = {from_file}  (from {fname})")
+
+
+def _engine_line(var: str) -> str:
+    """What the startup summary says about one engine. An unset engine names
+    the routes to set it. A path that is not an executable file gets a note:
+    the engines' `find_exe` treats it as no engine at all, so its tab never
+    appears, and before this the path printed as if it were fine."""
+    path = os.environ.get(var)
+    if not path:
+        return (
+            f"not set ({EXE_FLAGS[var]} PATH, or the path in {EXE_FILES[var]} "
+            "beside this program)"
+        )
+    p = Path(path).expanduser()
+    if p.is_file() and os.access(p, os.X_OK):
+        return path
+    return f"{path}  (not an executable file, so this engine is off: check the path)"
 
 
 def selftest() -> int:
@@ -175,13 +238,7 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("MPLBACKEND", "Agg")
     opts = _parse(sys.argv[1:] if argv is None else argv)
     _apply_capture_opts(opts)
-    for var, fname in EXE_FILES.items():
-        if os.environ.get(var):
-            continue
-        from_file = _exe_from_file(fname)
-        if from_file:
-            os.environ[var] = from_file
-            print(f"{var} = {from_file}  (from {fname})")
+    _apply_exe_files()
     if opts["selftest"]:
         return selftest()
 
@@ -195,12 +252,8 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://127.0.0.1:{port}/"
     print(f"{NAME} {version('antennaknobs')}  (momwire {version('momwire')})")
     print(f"  workbench: {url}")
-    print(
-        f"  NEC-5:     {os.environ.get('NEC5_EXE') or f'not set (put the path in {NEC5_FILE} beside this program)'}"
-    )
-    print(
-        f"  NEC-2:     {os.environ.get('NEC2_EXE') or f'not set (put the path in {NEC2_FILE} beside this program)'}"
-    )
+    print(f"  NEC-5:     {_engine_line('NEC5_EXE')}")
+    print(f"  NEC-2:     {_engine_line('NEC2_EXE')}")
     if os.environ.get("ANTENNAKNOBS_CAPTURE_DIR"):
         print(
             f"  capture:   {os.environ['ANTENNAKNOBS_CAPTURE_DIR']}  "

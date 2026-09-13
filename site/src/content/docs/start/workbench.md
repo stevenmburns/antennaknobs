@@ -36,6 +36,8 @@ Options, from a PowerShell or Command Prompt window in the folder:
 antennaknobs-workbench.exe --port 8000       a fixed port
 antennaknobs-workbench.exe --no-browser      print the URL only
 antennaknobs-workbench.exe --selftest        prove the bundle and exit
+antennaknobs-workbench.exe --nec5-exe PATH   use the NEC-5 engine at PATH
+antennaknobs-workbench.exe --nec2-exe PATH   use the NEC-2 engine at PATH
 ```
 
 `--selftest` is worth running once if you are unsure the download is intact:
@@ -57,8 +59,8 @@ NEC-5 tab appears in the solver panel.
 ## Adding a NEC-2 engine
 
 The same door, for an engine you may already own: put the path to a NEC-2
-console binary on one line in `NEC2_EXE.txt` beside the executable (or set
-`NEC2_EXE` before starting), and antennaknobs drives it as a subprocess —
+console binary on one line in `NEC2_EXE.txt` beside the executable (or start
+with `--nec2-exe PATH`, or set `NEC2_EXE`), and antennaknobs drives it as a subprocess —
 see [NEC-2 as an external engine](/reference/nec2/). 4nec2 installs one as
 `nec2dxs*.exe`; `nec2c` and `nec2++` are free. No NEC-2 is bundled on
 purpose: nec2++ is GPLv2, and shipping it would change this download's
@@ -80,9 +82,16 @@ and copy the name you actually find. If you are not sure which engine EZNEC
 is driving, open `Docs\LastRun.log` — EZNEC records every run there as
 `Running ext engine <full path>`, which is the path to paste.
 
-The `NEC5_EXE` environment variable works too and wins over the file; that is
-the form to use if you are starting the workbench from a shell rather than by
-double-clicking.
+If you start the workbench from a window rather than by double-clicking, you
+can name the engine on the command line instead. The flag reads the same in
+PowerShell and Command Prompt, and wins over the file:
+
+```text
+antennaknobs-workbench.exe --nec5-exe "C:\EZNEC 7.0\Docs\NEC5CL_x13.exe"
+```
+
+The `NEC5_EXE` environment variable works too: it wins over the file and
+loses to the flag.
 
 ## When you want the Python package instead
 
