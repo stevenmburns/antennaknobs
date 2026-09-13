@@ -369,3 +369,85 @@ odd port at 2F + 1, mid-segment. F stops at 12: the fed segments are then about
 Competing outcome, registered with them: \|ΔG\| holding near 4 % across F is
 a converged G difference on a clean mesh with a matched-size source. That is
 what the plan's transmitted-grid probes are for, and they come next.
+
+### P3.4 measured
+
+`step3_source_graded.py`, `step3_source_graded.json`. Graded radiator,
+nominal_nsegs 42, momwire's odd port asserted off-knot and one segment away
+from NEC-5 at every rung.
+
+| F | fed seg NEC-5 / momwire | segs momwire / NEC-5 | momwire Z | NEC-5 Z | ΔR/max\|R\| | ΔG/max\|G\| | ΔB/max\|B\| |
+|---|---|---|---|---|---|---|---|
+| 4 | 6.250 / 5.556 mm | 492 / 491 | 26.5015 − 56574.5j | 25.277 − 56389j | -4.62 % | -3.99 % | +0.33 % |
+| 6 | 4.167 / 3.846 mm | 498 / 497 | 25.5994 − 55504.2j | 24.634 − 55329j | -3.77 % | -3.16 % | +0.32 % |
+| 8 | 3.125 / 2.941 mm | 502 / 501 | 24.9916 − 54771.3j | 24.193 − 54633j | -3.20 % | -2.70 % | +0.25 % |
+| 12 | 2.083 / 2.000 mm | 512 / 511 | 24.1289 − 53722.2j | 23.561 − 53696j | -2.35 % | -2.26 % | +0.05 % |
+
+| id | verdict |
+|---|---|
+| P3.4a | **HIT** — \|ΔG\| 3.99, 3.16, 2.70, 2.26 %, monotone, below 2.5 % at F = 12 |
+| P3.4b | **HIT** — \|ΔB\| 0.33, 0.32, 0.25, 0.05 %, below 0.5 % throughout |
+
+**The G residual falls with the fed segment, roughly as √h.** A two-point fit
+ΔG = a + c·√h through F = 4 and F = 12 gives c = -1.641 %/√mm and a = +0.11 %. It
+predicts -3.24 % at F = 6 (measured -3.16), -2.79 % at F = 8 (measured -2.70). The fitted limit is near zero.
+Indicative only: four points, and an assumed form. Both engines' Z are still
+moving along this axis (momwire's X by 5 % from F = 4 to 12), with B equal
+between them at every rung.
+
+## Provisional verdict
+
+**AK#1443's 31 % in R (16 % in \|Z\|) is not an engine or transmitted-grid
+defect shown by this record.** At the catalog mesh it stacks three things:
+
+1. **The fed segment's size.** antennaknobs' per-engine parity coercion gives
+   momwire one 50 mm fed segment and NEC-5 two 25 mm ones. At a near-open feed
+   the source region's susceptance is most of \|Y\|, and the census rows
+   differ by 16 % in B. With the fed segments of comparable size, momwire's
+   stock port matches NEC-5's B within 0.2 % (P2.5).
+2. **NEC-5's sensitivity to the segment-length step beside the source.** On the
+   design's own radiator NEC-5's R moves 7 % from nominal_nsegs 21 to 84 while
+   momwire's moves 0.6 % (step 3). Grading the radiator away from the source
+   removes it.
+3. **Near-open conditioning.** R ≈ G / B²: the census rows agree in G within
+   1.5–4 % while R differs by 31 %.
+
+**On a clean mesh** — radiator graded from the source, far mesh converged,
+fed segments of matched size — the engines agree on B within 0.33 %, and their
+G difference falls with the fed segment, −3.99 → −2.26 % from 6.25 to
+2.08 mm, toward a fitted limit near zero. The plan's transmitted-grid probes
+were conditional on G holding near 4 % on a clean mesh; it did not, so they
+were not run.
+
+**Not claimed:** that the two limits coincide exactly; or that B converges. It
+does not, on any spelling measured. At a near-open feed, B and R are comparable
+between engines only at a matched fed-segment size, and any published number
+there has to state that size.
+
+**For antennaknobs, after this verdict (held on review's list):** the
+per-engine parity coercion hands the two engines source regions that differ by
+2×, which is material only at a near-open feed. Census rows for such decks
+should compare in Y, or state the fed-segment size each engine saw.
+
+## Scoreboard
+
+| step | prediction | verdict |
+|---|---|---|
+| 1 | P1.1 momwire bit-identical to the census | **MISSED** (one ULP, cross-machine) |
+| 1 | P1.2 NEC-5 prints the census Z | **HIT** |
+| 1 | P1.3 31.2 / 31.3 % reproduce | **HIT** |
+| 2 | P2.1 the fed segment alone moves both engines | **HIT** |
+| 2 | P2.2 graded source < 20 % at F = 1, < 15 % at F = 8 | **SPLIT** |
+| 2 | P2.3 `feed` ladder in Y (unseen rows) | **SPLIT** (G 5.19 % at F = 8) |
+| 2 | P2.4 `graded` ladder in Y (unseen rows) | **HIT** |
+| 2 | P2.5a odd and even momwire B converge < 1.5 % | **MISSED** (2.95 %) |
+| 2 | P2.5b their G < 2 % | **HIT** |
+| 2 | P2.5c odd-port ΔB within 1 pp of matched | **MISSED** (0.10 vs 3.05 %) |
+| 3 | P3.1 B flat in the far mesh | **HIT** (informed) |
+| 3 | P3.2 \|ΔG\| < 2 % at nominal_nsegs 84 | **MISSED** |
+| 3 | P3.3 radiators' G within 1 pp at 84 | **MISSED** |
+| 3 | P3.4a G falls with the source, < 2.5 % at F = 12 | **HIT** |
+| 3 | P3.4b \|ΔB\| < 0.5 % along the source | **HIT** (informed) |
+
+**8 hits, 5 misses, 2 splits.** P2.3 and P2.4 were registered after three of
+their rows had printed; they cover only the rows not yet seen.
