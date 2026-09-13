@@ -42,6 +42,7 @@ from momwire import (
 # stays library-only — a choice, not an oversight.
 
 import argparse
+import math
 import logging
 from importlib import import_module
 from types import ModuleType
@@ -457,6 +458,29 @@ def make_engine_factory(
 
 
 _GROUND_UNSET = object()
+
+
+def ladder_estimate(rungs):
+    """First-order Richardson from a refinement ladder's last two rungs.
+
+    ``rungs`` is [(refinement factor, Z), ...] in ascending factor order. Returns
+    ``(Z_inf, shrinking)``, or None with fewer than two rungs. ``Z_inf`` is
+    Z_hi + (Z_hi - Z_lo) / (r_hi / r_lo - 1), the first-order extrapolation in
+    the segment length. ``shrinking`` is False when the ladder has three or more
+    rungs and the last step is no smaller than the one before it. That means the
+    ladder is not yet in its asymptotic range and the extrapolation should not
+    be trusted. With two rungs there is nothing to compare, so it is True.
+    """
+    if len(rungs) < 2:
+        return None
+    (r_lo, z_lo), (r_hi, z_hi) = rungs[-2], rungs[-1]
+    z_inf = z_hi + (z_hi - z_lo) / (r_hi / r_lo - 1)
+    shrinking = True
+    if len(rungs) >= 3:
+        prev_step = abs(rungs[-2][1] - rungs[-3][1])
+        last_step = abs(z_hi - z_lo)
+        shrinking = last_step < prev_step
+    return z_inf, shrinking
 
 
 def file_ground_default(ground, builder):
@@ -1278,6 +1302,108 @@ def cli(arguments=None):
             azimuth_f=args.azimuth_f,
             azimuth_r=args.azimuth_r,
         )
+
+    p.set_defaults(func=f)
+
+    p = subparsers.add_parser(
+        "ladder",
+        help="Refine an imported .nec deck by odd factors and print each engine's impedance ladder",
+        description="Refinement ladder for an imported card deck (U2 of "
+        "docs/plan-buried-scope-closure.md). A catalog design refines through "
+        "its own mesh knobs; a deck's only mesh is its GW counts, so this "
+        "multiplies every wire's segment count by each odd factor in --refine "
+        "(the source region included), re-solves every engine, and prints the "
+        "impedance per rung, the step between rungs, and a first-order "
+        "Richardson estimate from the last two. Odd factors keep a centre gap a "
+        "centre gap and a knot source a knot source (antennaknobs#1456).",
+    )
+    p.add_argument(
+        "--builder",
+        required=True,
+        help="The deck to refine, as @path/to/file.nec.",
+    )
+    p.add_argument(
+        "--refine",
+        type=int,
+        nargs="+",
+        default=[1, 3, 9],
+        help="Odd refinement factors, ascending (default: 1 3 9).",
+    )
+    add_engine_args(p, plural=True)
+
+    def f(args):
+        from .file_designs import builder_from_file
+
+        spec = args.builder
+        if not (spec.startswith("@") and spec.lower().endswith(".nec")):
+            raise SystemExit(
+                f"ladder refines a .nec card deck: pass --builder @file.nec, got {spec!r}"
+            )
+        factors = list(args.refine)
+        if any(r < 1 or r % 2 == 0 for r in factors) or factors != sorted(set(factors)):
+            raise SystemExit(
+                f"--refine takes distinct odd positive factors in ascending order, got {factors}"
+            )
+        ground = (
+            args.ground if args.ground is _GROUND_UNSET else parse_ground(args.ground)
+        )
+        for espec in args.engines:
+            print(f"\n{spec[1:]}  engine {espec}")
+            print(
+                f"  {'r':>3} {'segs':>6} {'fed seg (mm)':>14} {'Z (ohm)':>24} {'step':>22} {'|step| ratio':>13}"
+            )
+            rows = []
+            for r in factors:
+                builder_cls = builder_from_file(spec[1:], refine=r)
+                deck = builder_cls.file_deck_parsed
+                eng = make_engine_factory(
+                    espec,
+                    file_ground_default(ground, builder_cls),
+                    extended_kernel=args.extended_kernel,
+                    deck_extended_kernel=deck_extended_kernel_flag(builder_cls),
+                )
+                z = complex(eng(builder_cls()).impedance()[0])
+                segs = sum(
+                    w.n_seg
+                    for i, w in enumerate(deck.wires)
+                    if i not in deck.virtual_anchors
+                )
+                fed = sorted(
+                    {
+                        round(
+                            1e3
+                            * math.dist(deck.wires[fd.wire].p1, deck.wires[fd.wire].p2)
+                            / deck.wires[fd.wire].n_seg,
+                            3,
+                        )
+                        for fd in deck.feeds
+                    }
+                )
+                step = z - rows[-1][1] if rows else None
+                ratio = (
+                    abs(rows[-1][2]) / abs(step)
+                    if step is not None and rows[-1][2] is not None and abs(step) > 0
+                    else None
+                )
+                rows.append((r, z, step))
+                print(
+                    f"  {r:>3} {segs:>6} {', '.join(f'{x:g}' for x in fed):>14} "
+                    f"{z.real:>11.4f}{z.imag:+12.4f}j "
+                    f"{'' if step is None else f'{step.real:+10.4f}{step.imag:+10.4f}j':>22} "
+                    f"{'' if ratio is None else f'{ratio:.2f}':>13}"
+                )
+            estimate = ladder_estimate([(r, z) for r, z, _ in rows])
+            if estimate is not None:
+                z_inf, shrinking = estimate
+                verdict = (
+                    "indicative"
+                    if shrinking
+                    else "UNRELIABLE: the last step did not shrink, so the ladder is not yet in its asymptotic range"
+                )
+                print(
+                    f"  Richardson (first order in h, last two rungs, {verdict}): "
+                    f"{z_inf.real:.4f}{z_inf.imag:+.4f}j"
+                )
 
     p.set_defaults(func=f)
 

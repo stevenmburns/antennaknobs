@@ -52,7 +52,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cached_property
 
 from . import network as _net
@@ -335,6 +335,74 @@ class NecDeck:
     # discard IS the deck's physics under NEC.
     symmetry_cell: int | None = None
     symmetry_dropped_loads: int = 0
+
+    def refined(self, r: int) -> NecDeck:
+        """The same deck with every wire's segment count multiplied by ``r``.
+
+        This is the refinement path for an imported deck (U2 of
+        docs/plan-buried-scope-closure.md): a Builder refines through its own
+        mesh knobs, but a deck's only mesh is its GW counts, so a ladder over a
+        deck needs this. Every segment is divided, the source region included.
+        A ladder that holds the fed segment fixed converges in the far mesh
+        alone, which is how momwire#1027 read a numerical difference as a
+        physical one.
+
+        ``r`` must be ODD. An old segment's centre is then the centre of its
+        middle piece, and an old knot is still a knot. So a centre gap stays a
+        centre gap and a knot source stays a knot source at every rung. An even
+        ``r`` would turn a centre feed into a knot feed, which is a change of
+        port, not a refinement (antennaknobs#1456).
+
+        References move with the mesh: a centre attachment (feed, lumped load,
+        TL/NT end) goes to the middle piece of its old segment, and a knot
+        source keeps its knot. A lumped load stays ONE element. Per-wire
+        materials are per-wire and do not move. Virtualized TL anchors (a
+        1-segment wire parked far away, issue #427) keep their single segment.
+        """
+        if not isinstance(r, int) or r < 1 or r % 2 == 0:
+            raise ValueError(
+                f"refinement factor must be an odd positive integer, got {r!r}"
+            )
+        if r == 1:
+            return self
+        anchors = self.virtual_anchors
+
+        def centre(wire: int, seg: int) -> int:
+            return seg if wire in anchors else (seg - 1) * r + (r + 1) // 2
+
+        def feed(f: NecFeed) -> NecFeed:
+            if f.wire in anchors:
+                return f
+            if f.edge == 1:
+                return replace(f, seg=(f.seg - 1) * r + 1)
+            if f.edge == 2:
+                return replace(f, seg=f.seg * r)
+            return replace(f, seg=centre(f.wire, f.seg))
+
+        return replace(
+            self,
+            wires=tuple(
+                w if i in anchors else replace(w, n_seg=w.n_seg * r)
+                for i, w in enumerate(self.wires)
+            ),
+            feeds=tuple(feed(f) for f in self.feeds),
+            loads=tuple(replace(ld, seg=centre(ld.wire, ld.seg)) for ld in self.loads),
+            tls=tuple(
+                replace(
+                    t, seg_a=centre(t.wire_a, t.seg_a), seg_b=centre(t.wire_b, t.seg_b)
+                )
+                for t in self.tls
+            ),
+            nts=tuple(
+                replace(
+                    t, seg_a=centre(t.wire_a, t.seg_a), seg_b=centre(t.wire_b, t.seg_b)
+                )
+                for t in self.nts
+            ),
+            symmetry_cell=None
+            if self.symmetry_cell is None
+            else self.symmetry_cell * r,
+        )
 
     def virtual_anchor_tags(self) -> tuple[int, ...]:
         """The NEC tags of the wires virtualized as TL anchors (issue #427),
