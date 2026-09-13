@@ -6,6 +6,7 @@ stays bounded on a laptop.
 
     PYTHONPATH=<tree>/src python partB_pynec_z.py <catalog dir> <portal dir> <out.jsonl> [workers]
 """
+
 import json
 import os
 import shutil
@@ -34,7 +35,11 @@ def _solve(job):
     from antennaknobs.engines.pynec import PyNECEngine
     from antennaknobs.file_designs import builder_from_file
 
-    row = {"set": label, "deck": os.path.basename(path), "tree": os.path.dirname(os.path.dirname(antennaknobs.__file__))}
+    row = {
+        "set": label,
+        "deck": os.path.basename(path),
+        "tree": os.path.dirname(os.path.dirname(antennaknobs.__file__)),
+    }
     t0 = time.time()
     tmp = tempfile.mkdtemp()
     try:
@@ -51,7 +56,7 @@ def _solve(job):
             zs = eng.impedance()
             zs = zs if isinstance(zs, (list, tuple)) else [zs]
             row.update(status="ok", z=[[complex(z).real, complex(z).imag] for z in zs])
-    except Exception as exc:  # a refusal is a recorded outcome
+    except Exception as exc:  # noqa: BLE001 — a refusal is a recorded outcome
         row.update(status="error", type=type(exc).__name__, msg=str(exc)[:300])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -66,10 +71,21 @@ def main(argv):
     if os.path.exists(out):
         with open(out, encoding="utf-8") as fh:
             done = {(r["set"], r["deck"]) for r in map(json.loads, fh)}
-    jobs = [("catalog-nec5", os.path.join(catalog, n)) for n in sorted(os.listdir(catalog)) if n.endswith(".nec")]
-    jobs += [("nec_portal", os.path.join(portal, n)) for n in sorted(os.listdir(portal)) if n.endswith(".deck")]
+    jobs = [
+        ("catalog-nec5", os.path.join(catalog, n))
+        for n in sorted(os.listdir(catalog))
+        if n.endswith(".nec")
+    ]
+    jobs += [
+        ("nec_portal", os.path.join(portal, n))
+        for n in sorted(os.listdir(portal))
+        if n.endswith(".deck")
+    ]
     jobs = [j for j in jobs if (j[0], os.path.basename(j[1])) not in done]
-    with open(out, "a", encoding="utf-8") as fh, ProcessPoolExecutor(workers, initializer=_cap) as ex:
+    with (
+        open(out, "a", encoding="utf-8") as fh,
+        ProcessPoolExecutor(workers, initializer=_cap) as ex,
+    ):
         for row in ex.map(_solve, jobs):
             fh.write(json.dumps(row) + "\n")
             fh.flush()

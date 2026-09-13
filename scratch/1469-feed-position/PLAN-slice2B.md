@@ -49,3 +49,31 @@ DRAFT for registration, 2026-09-13 (Laptop-builder). To be committed under `scra
   - PyNEC Z on both sets
   - NEC-2 export and NEC-5 deck text, plus import structure
 - The momwire captures are the heavy part (476 decks). Proposal: Skylake runs them; the laptop runs structure, decks and PyNEC.
+
+## Amendment 1 (2026-09-13, before any LD change): NEC-5 discrete loads, AK#1483
+Found by the part-B round-trip gate, and present on main too:
+- On a NEC-5 deck, a discrete `LD` (type 0/1/4/6) is read as a NEC-2 segment range, so one load at a knot imports as one load per segment.
+- The same 43 NEC-5 round-trip misses show on the baseline tree, and 35 of them carry discrete loads.
+- Part B would turn the 4 `short_dipole_loaded` refusals into wrong imports. The fix therefore lands on this branch as its own commit.
+
+Scope:
+- The deck is NEC-5 (`NOFILE`, an EX end field, or `CM NEC-5`).
+- A discrete LD with I3 ≠ 0 becomes ONE load at knot I3 − 1 (I4 = 1) or I3 (otherwise).
+- The load shares a source's port on the same knot.
+- It is placed like a knot source: `_site_plan` position, or `_vertex_plan` at a wire end or junction cut.
+- An LD with I3 = 0 and LD 2/3/5/7 keep range semantics, and NEC-2 decks are untouched.
+- 28 catalog-nec5 decks are NEC-5 with discrete loads; no nec_portal deck is.
+
+Predictions:
+- **G2'.**
+  - PyNEC Z changes only on the 28 catalog-nec5 discrete-LD decks. Every other deck that solves on both runs matches the part-B after capture (09f752465) to 1e-9 relative.
+  - The 4 `short_dipole_loaded` decks keep importing.
+- **G4'.**
+  - NEC-5 round-trip misses drop from 43 to 8. The 8 are the non-LD portal decks the gate already lists: 6 TL/NT decks whose NEC-5 deck re-imports with no voltage source, plus `dipole_nt_all_zero` and `dipole_rp_crossed_quadrature`.
+  - NEC-2 round-trip misses stay at the same 2.
+- **G8, direction.**
+  - Reference: PyNEC Z of the catalog design itself, built as `native_reference.py` builds it (`cls()`, `nominal_nsegs` × {default 1, refined 2}, ground free or ("finite", 13, 0.005)).
+  - Compared: PyNEC Z of the imported deck before this fix (09f752465) and after.
+  - Prediction: after is closer on at least 80 % of the discrete-LD decks that solve on both runs. A miss is reported, not re-gated.
+  - The 4 `short_dipole_loaded` decks have no before, so their after distance is reported alone.
+- **G1 and G6** hold unchanged.
