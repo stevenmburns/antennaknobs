@@ -510,6 +510,35 @@ def port_at(port):
     return getattr(port, "at", None)
 
 
+def gap_segment(n_seg, at):
+    """The 1-based segment a NEC-2-style delta gap at `at` drives (AK#1469).
+
+    None is the middle segment, ``(n_seg + 1) // 2``, exactly as before.
+    Otherwise it is the segment whose centre is nearest the point. A point
+    exactly on a knot is equidistant from two centres, and the smaller
+    arclength wins, as momwire's own snap does (momwire#623)."""
+    if at is None:
+        return (n_seg + 1) // 2
+    x = float(at) * n_seg
+    k = round(x)
+    seg = int(k) if abs(x - k) <= 1e-9 * max(n_seg, 1) else math.floor(x) + 1
+    return min(max(seg, 1), n_seg)
+
+
+def gap_knot(n_seg, at):
+    """The interior knot a NEC-5 source at `at` drives (AK#1469).
+
+    None is the centre knot, ``n_seg // 2``, exactly as before. Otherwise it is
+    the nearest interior knot. A point exactly at a segment centre is
+    equidistant from two knots, and the smaller arclength wins."""
+    if at is None:
+        return n_seg // 2
+    x = float(at) * n_seg
+    lo = math.floor(x)
+    k = lo if x - lo <= 0.5 + 1e-9 else lo + 1
+    return min(max(int(k), 1), max(n_seg - 1, 1))
+
+
 def validate_named_wires_referenced(named_wires, network):
     """Reject named ``build_wires()`` wires that no `PortOnWire` references
     (issue #578).

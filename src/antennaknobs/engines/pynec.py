@@ -33,6 +33,11 @@ from ..network import (
     load_impedance,
     validate_named_wires_referenced,
 )
+from ..wire_catalog import (
+    gap_segment,
+    port_at,
+    port_wire,
+)
 from ..network_reduce import C_LIGHT, NetworkReducer, poison_singular_sample
 
 _logger = logging.getLogger(__name__)
@@ -528,14 +533,17 @@ class PyNECEngine(SimulationEngine):
         virtual-driver networks take the NetworkReducer path instead."""
         for name, port in self._network.ports.items():
             if isinstance(port, PortOnWire):
-                if name not in self._feed_name_to_loc:
+                wire = port_wire(port)
+                if wire not in self._feed_name_to_loc:
                     raise ValueError(
                         f"network port {name!r} is a PortOnWire but no wire in "
-                        f"build_wires() carries that name; named wires: "
+                        f"build_wires() carries that name ({wire!r}); named wires: "
                         f"{sorted(self._feed_name_to_loc)}"
                     )
-                tag, mid_seg, _p0, _p1, _ns = self._feed_name_to_loc[name]
-                self._network_port_loc[name] = (tag, mid_seg)
+                # The segment `at` names on the port's own wire (AK#1469); the
+                # middle segment when it names none, as before.
+                tag, _mid_seg, _p0, _p1, n_seg = self._feed_name_to_loc[wire]
+                self._network_port_loc[name] = (tag, gap_segment(n_seg, port_at(port)))
 
     def _emit_network_cards(self):
         """Emit a natively-representable network as NEC2 ld_cards / nt_cards +
@@ -766,11 +774,14 @@ class PyNECEngine(SimulationEngine):
         self._real_port_names = [
             n for n, p in net.ports.items() if isinstance(p, PortOnWire)
         ]
+        # A gap port may name another wire than itself (AK#1469).
+        self._port_wire_of = {n: port_wire(net.ports[n]) for n in self._real_port_names}
         for name in self._real_port_names:
-            if name not in named:
+            if self._port_wire_of[name] not in named:
                 raise ValueError(
                     f"network port {name!r} is a PortOnWire but no wire in "
-                    f"build_wires() carries that name; named wires: {sorted(named)}"
+                    f"build_wires() carries that name ({self._port_wire_of[name]!r}); "
+                    f"named wires: {sorted(named)}"
                 )
         port_to_idx = {n: i for i, n in enumerate(self._real_port_names)}
         next_idx = len(self._real_port_names)
@@ -792,13 +803,16 @@ class PyNECEngine(SimulationEngine):
         name_to_tup = {t[4]: t for t in self.tups if len(t) >= 5 and t[4] is not None}
         self._port_drive_points = {}
         for name in self._real_port_names:
-            n_seg = int(name_to_tup[name][2])
-            if net.ports[name].distributed:
+            port = net.ports[name]
+            n_seg = int(name_to_tup[self._port_wire_of[name]][2])
+            if port.distributed:
                 self._port_drive_points[name] = [
                     (s, 1.0 / n_seg) for s in range(1, n_seg + 1)
                 ]
             else:
-                self._port_drive_points[name] = [((n_seg + 1) // 2, 1.0)]
+                self._port_drive_points[name] = [
+                    (gap_segment(n_seg, port_at(port)), 1.0)
+                ]
 
     def _make_real_context(self):
         """A fresh nec_context with only the real build_wires() geometry, wire
@@ -946,14 +960,14 @@ class PyNECEngine(SimulationEngine):
         Y = np.zeros((n, n), dtype=np.complex128)
         for j, drv in enumerate(names):
             c, loc = self._make_real_context()
-            tag = loc[drv][0]
+            tag = loc[self._port_wire_of[drv]][0]
             for seg, w in self._port_drive_points[drv]:
                 c.ex_card(0, tag, seg, 0, w, 0.0, 0, 0, 0, 0)
             c.fr_card(0, 1, freq, 0)
             c.xq_card(0)
             sc = c.get_structure_currents(0)
             for i, name in enumerate(names):
-                tag_i = loc[name][0]
+                tag_i = loc[self._port_wire_of[name]][0]
                 Y[i, j] = sum(
                     w * self._port_current(sc, tag_i, seg)
                     for seg, w in self._port_drive_points[name]
@@ -970,7 +984,7 @@ class PyNECEngine(SimulationEngine):
         V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wavelength))
         c, loc = self._make_real_context()
         for i, name in enumerate(self._real_port_names):
-            tag = loc[name][0]
+            tag = loc[self._port_wire_of[name]][0]
             v = complex(V[i])
             for seg, w in self._port_drive_points[name]:
                 c.ex_card(0, tag, seg, 0, (w * v).real, (w * v).imag, 0, 0, 0, 0)

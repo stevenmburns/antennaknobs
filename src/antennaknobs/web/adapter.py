@@ -77,7 +77,8 @@ from antennaknobs.builder import (
     diff_params,
     resolve_variant_params,
 )
-from antennaknobs.network import PortAtEnd, PortAtVertex, as_wire
+from antennaknobs.network import PortAtEnd, PortAtVertex, PortOnWire, as_wire
+from antennaknobs.wire_catalog import port_at, port_wire
 
 try:
     from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
@@ -3069,37 +3070,53 @@ def _feed_positions(engine, currents, multi_feed=False):
     return [{"name": "feed", "position": pos}] if pos is not None else []
 
 
+def _pynec_driven(builder):
+    """(port name, wire name, at, network) for the driven port on the engine
+    lanes, or all None but the network for a legacy `ev` design.
+
+    A gap port may name another wire and a position on it (AK#1469), so the
+    build_wires() tuple that carries it is found by its WIRE. Every other port
+    is found by its own name, at the middle, as before."""
+    net = builder.build_network() if hasattr(builder, "build_network") else None
+    if net is None or not net.sources:
+        return None, None, None, net
+    port_name = net.sources[0].port
+    port = net.ports.get(port_name)
+    if isinstance(port, PortOnWire):
+        return port_name, port_wire(port), port_at(port), net
+    return port_name, port_name, None, net
+
+
 def _pynec_feed_indices(builder, currents) -> tuple[int, int]:
     """PyNECEngine returns one WireCurrents per build_wires() tuple in
     the same order, so the feed wire index is the position of the tuple
-    that carries the driven port. Place the marker on that wire's centre
-    knot — close enough to NEC's per-segment feed for a UI dot.
+    that carries the driven port. Place the marker on the knot nearest the
+    port's position, the centre knot when it names none: close enough to
+    NEC's per-segment feed for a UI dot.
 
     Network-spec designs route excitation through build_network() rather
     than the per-tuple `ev` field. Network-spec named tuples include
     non-driven ports (trap stubs, TL endpoints), so we look up the driven
-    port's name and pick the tuple that matches.
+    port's wire and pick the tuple that matches.
     """
     tuples = list(builder.build_wires())
-    driven_name = None
-    if hasattr(builder, "build_network"):
-        net = builder.build_network()
-        if net is not None and net.sources:
-            driven_name = net.sources[0].port
+    driven_name, driven_wire, at, _net = _pynec_driven(builder)
     for i, t in enumerate(tuples):
         ev = t[3]
         name = t[4] if len(t) >= 5 else None
-        # Network-spec path: only the named tuple matching the Driven port.
+        # Network-spec path: only the named tuple carrying the Driven port.
         # Legacy path (no network): first `ev` is the feed.
         if driven_name is not None:
-            if name != driven_name:
+            if name != driven_wire:
                 continue
         elif ev is None:
             continue
         if i >= len(currents):
             return 0, 0
         k = currents[i].knot_positions.shape[0]
-        return i, k // 2
+        if at is None:
+            return i, k // 2
+        return i, min(max(int(round(at * (k - 1))), 0), max(k - 1, 0))
     return 0, 0
 
 
@@ -3107,25 +3124,21 @@ def _pynec_feed_position(builder, currents):
     """Exact 3D feed point on the engine lanes (PyNEC, NEC-2, NEC-5).
 
     A `PortAtVertex` source sits on its knot: the named piece's authored end.
-    Every other feed sits at the fed wire's physical MIDDLE. NEC-2 feeds the
-    middle segment's centre on an odd count and NEC-5 the centre knot on an
-    even count, and both ARE that point. Reading the middle segment's centre
+    A gap port sits at its position along its wire (AK#1469), and at the fed
+    wire's physical MIDDLE when it names none. NEC-2 feeds the middle
+    segment's centre on an odd count and NEC-5 the centre knot on an even
+    count, and both ARE that point. Reading the middle segment's centre
     instead put an even-count (NEC-5) marker half a segment off, and a
     vertex source's marker on the middle of its piece (AC6LA, 2026-09-13).
     Mirrors `_pynec_feed_indices`' driven-tuple selection.
     """
     tuples = list(builder.build_wires())
-    driven_name = None
-    net = None
-    if hasattr(builder, "build_network"):
-        net = builder.build_network()
-        if net is not None and net.sources:
-            driven_name = net.sources[0].port
+    driven_name, driven_wire, at, net = _pynec_driven(builder)
     for i, t in enumerate(tuples):
         ev = t[3]
         name = t[4] if len(t) >= 5 else None
         if driven_name is not None:
-            if name != driven_name:
+            if name != driven_wire:
                 continue
         elif ev is None:
             continue
@@ -3137,37 +3150,50 @@ def _pynec_feed_position(builder, currents):
         port = net.ports.get(driven_name) if driven_name is not None else None
         if isinstance(port, PortAtVertex):
             return (knots[0] if port.end == "p0" else knots[-1]).tolist()
-        return (0.5 * (knots[0] + knots[-1])).tolist()
+        if at is None:
+            return (0.5 * (knots[0] + knots[-1])).tolist()
+        return (knots[0] + at * (knots[-1] - knots[0])).tolist()
     return None
 
 
 def _pynec_feed_positions(builder, currents, multi_feed=False):
     """PyNEC analogue of `_feed_positions` (issue #571), gated by multi_feed:
     build_network() designs → declared feed ports (matched to their
-    build_wires() tuple by name); inline-`ex` designs → each `ev`-driven tuple.
-    Each marker sits on its wire's centre. Falls back to the single primary."""
+    build_wires() tuple by wire); inline-`ex` designs → each `ev`-driven tuple.
+    Each marker sits at its port's position, the wire's centre when it names
+    none. Falls back to the single primary."""
     out = []
     if multi_feed:
         tuples = list(builder.build_wires())
         net = builder.build_network() if hasattr(builder, "build_network") else None
 
-        def center(i):
+        def point(i, at=None):
             knots = currents[i].knot_positions
-            return (0.5 * (knots[0] + knots[-1])).tolist() if knots.shape[0] else None
+            if not knots.shape[0]:
+                return None
+            if at is None:
+                return (0.5 * (knots[0] + knots[-1])).tolist()
+            return (knots[0] + at * (knots[-1] - knots[0])).tolist()
 
         if net is not None:
             by_name = {t[4]: i for i, t in enumerate(tuples) if len(t) >= 5 and t[4]}
             for nm in _declared_feed_ports(type(builder)):
-                i = by_name.get(nm)
-                if i is not None and i < len(currents) and center(i) is not None:
-                    out.append({"name": nm, "position": center(i)})
+                port = net.ports.get(nm)
+                wire, at = (
+                    (port_wire(port), port_at(port))
+                    if isinstance(port, PortOnWire)
+                    else (nm, None)
+                )
+                i = by_name.get(wire)
+                if i is not None and i < len(currents) and point(i, at) is not None:
+                    out.append({"name": nm, "position": point(i, at)})
         else:
             for i, t in enumerate(tuples):
                 if (t[3] if len(t) > 3 else None) is None or i >= len(currents):
                     continue
-                if center(i) is not None:
+                if point(i) is not None:
                     nm = t[4] if len(t) >= 5 and t[4] else f"feed {len(out)}"
-                    out.append({"name": nm, "position": center(i)})
+                    out.append({"name": nm, "position": point(i)})
     if out:
         return out
     pos = _pynec_feed_position(builder, currents)
