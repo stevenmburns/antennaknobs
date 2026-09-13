@@ -237,7 +237,11 @@ Those cards are recorded in `deck.ignored` rather than translated:
   and `GN 0` finite + reflection coefficients, each with the card's own
   ε<sub>r</sub> and σ in the soil fields), the ground panel says "from the
   file", and the CLI's `@file.nec` route applies the same unless `--ground`
-  is given. `deck.ground_spec` carries it in the CLI's `--ground` shape and
+  is given. A NEC-5 deck is the exception for `GN 0`: NEC-5 has no
+  reflection-coefficient ground, so its `GN 0` is Sommerfeld, and the panel
+  says "Sommerfeld (NEC-5 GN 0)". A deck reads as NEC-5 when its `GN` card
+  ends in NEC-5's `NOFILE`, or when a source sits at a segment end.
+  `deck.ground_spec` carries it in the CLI's `--ground` shape and
   `deck.ground` still says whether the deck wanted a ground at all. The
   solver-slot label reads **N = deck's own** for such a design: its `GW`
   segment counts are what the solvers honour, whatever the slot's N says.
@@ -249,9 +253,10 @@ Expect readouts to differ from a deck's published numbers when those numbers
 relied on its ground or on cards the translation could not express.
 
 `deck.skipped_note()` turns that record into one human-readable sentence
-("Deck cards not applied: LD (loading), RP (radiation-pattern request); the
-deck models a ground plane — …"), or `None` when the deck carries nothing the
-workbench overrides. Deck-backed design stubs put it under
+("Deck cards not applied: LD (loading), RP (radiation-pattern request) — the
+app's own settings are used instead."), or `None` when the deck carries
+nothing the workbench overrides. The ground is not listed, because the
+workbench seeds its ground from the deck as described above. Deck-backed design stubs put it under
 `ui_params["notes"]` and the workbench shows it beneath the antenna selector,
 so the mismatch is explained right where the deck is viewed.
 
@@ -292,10 +297,16 @@ keeps its legal NEC-2 meaning. The exception is NEC-5's current source,
 `EX` type 4: NEC-2's type 4 addresses no segment, so a segment-addressed
 type 4 can only be NEC-5, and the importer reads its end field by NEC-5's
 full rule (`I4` names the end; when zero, a positive segment number means
-end 2). With `network=True` the end source imports as a `PortAtVertex`,
-voltage or current alike, and solves on momwire; the deck also solves
-natively on [the NEC-5 engine](/reference/nec5/), which speaks the form as
-a first-class citizen.
+end 2). With `network=True`, a voltage source on a wire's **middle knot**
+imports as that whole wire with an ordinary middle-of-wire port, the way
+antennaknobs feeds every centre-fed design: the wire is not cut, and each
+engine feeds its middle. Every other end source imports as a
+`PortAtVertex`, voltage or current alike: a source at a wire end, at an
+off-centre knot, a current source, or a middle knot on a wire that carries
+another load, source or mid-wire junction. It solves on momwire, and the
+deck also solves natively on [the NEC-5 engine](/reference/nec5/), which
+speaks the form as a first-class citizen. NEC-5's `GN` card also names a
+ground file, and the `NOFILE` that says there is none is accepted.
 
 ## Programmatic use
 
@@ -315,7 +326,8 @@ deck = parse_nec(open("some.nec").read(), name="some.nec")
 | `feeds` | `tuple[NecFeed, ...]` — each `EX` source resolved onto a wire (`wire` index, 1-based `seg`, complex `voltage`; `current=True` marks a forced current in amps, 4nec2's `EX 6` or NEC-5's `EX 4`; `edge` 1/2 marks a NEC-5 end source) |
 | `freq_mhz` | The `FR` card's sweep range as `(lo, hi)` MHz, or `None` |
 | `ground` | `True` if the deck requested a ground plane (`GE` flag or a `GN` card) |
-| `ground_spec`, `ground_method` | The ground the deck models, in the CLI's `--ground` shape — `None` (free space), `"pec"`, `("finite", eps_r, sigma)` for `GN 2`, `("finite-fast", eps_r, sigma)` for `GN 0` — and the finite model's name (`"sommerfeld"` / `"fast"`) |
+| `ground_spec`, `ground_method` | The ground the deck models, in the CLI's `--ground` shape — `None` (free space), `"pec"`, `("finite", eps_r, sigma)` for `GN 2`, `("finite-fast", eps_r, sigma)` for a NEC-2 deck's `GN 0` (a NEC-5 deck's `GN 0` is `"finite"`) — and the finite model's name (`"sommerfeld"` / `"fast"`) |
+| `ground_card`, `nec5_dialect` | The `GN` card the ground came from (`"GN 0"` / `"GN 2"`, or `None`), and whether the deck shows NEC-5's dialect: `NOFILE` on its `GN` card, or a source at a segment end |
 | `comments` | The `CM` header text, line by line |
 | `ignored` | Mnemonics of run-configuration cards seen but not applied |
 | `loads`, `tls`, `nts` | The translated LD/TL/NT records (`network=True` only) |
