@@ -4759,6 +4759,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # `_ui_scalar` deliberately skips, so it is read directly.
         ground_seed=(str(gs) if (gs := _ui_scalar(dp, "ground_seed", None)) else None),
         ground_medium=_ui_medium(dp),
+        ground_card=(str(gc) if (gc := _ui_scalar(dp, "ground_card", None)) else None),
         fixed_segment_counts=bool(_ui_scalar(dp, "fixed_segment_counts", False)),
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,

@@ -87,3 +87,26 @@ def test_a_nec2_folder_deck_keeps_the_default_label(tmp_path):
     ui = dict(builder_from_file(str(p)).default_params)["ui_params"]
     assert ui["ground_seed"] == "fast"
     assert "ground_card" not in ui
+
+
+def test_examples_serves_the_card_the_panel_names(tmp_path, monkeypatch):
+    """The card has to reach the browser, not only `ui_params`. The real-app
+    drive on 2026-09-13 found /examples dropping it, so the panel fell back to
+    "Sommerfeld (GN 2)" on a deck that says GN 0."""
+    from fastapi.testclient import TestClient
+
+    import antennaknobs.web.server as server
+
+    (tmp_path / "dipoles.invvee.default.somm13.nec").write_text(
+        CATALOG_NEC5, encoding="utf-8"
+    )
+    (tmp_path / "gn0.nec").write_text(NEC2_GN0, encoding="utf-8")
+    monkeypatch.setenv("ANTENNAKNOBS_USER_DIR", str(tmp_path))
+    with TestClient(server.app) as c:
+        examples = {e["name"]: e for e in c.get("/examples").json()["examples"]}
+    nec5 = examples["user.dipoles.invvee.default.somm13"]
+    assert nec5["ground_seed"] == "sommerfeld"
+    assert nec5["ground_card"] == "NEC-5 GN 0"
+    nec2 = examples["user.gn0"]
+    assert nec2["ground_seed"] == "fast"
+    assert nec2["ground_card"] is None

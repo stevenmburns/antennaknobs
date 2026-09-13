@@ -373,6 +373,10 @@ class AntennaExample:
     # (what the physics needs). None for catalog designs.
     ground_seed: Optional[str] = None
     ground_medium: Optional[dict] = None
+    # The card a finite seed came from, when the panel's default label would
+    # name the wrong one: "NEC-5 GN 0" for a NEC-5 deck, whose GN 0 is
+    # Sommerfeld. None otherwise.
+    ground_card: Optional[str] = None
     # AK#1432 — the design's wires carry their own segment counts (every
     # deck's GW does), which the solvers honour whatever the slot's N says;
     # the slot label reads "deck's own" instead of a number that does nothing.
