@@ -80,12 +80,16 @@ describe("ground seed from a file design (AK#1432)", () => {
     mountDesignSession({ examples: [GN2] });
     await screen.findByText(/from the file: finite ground, Sommerfeld \(GN 2\), εr 20, σ 0.02 S\/m/);
     await waitFor(() => expect(groundBox().checked).toBe(true));
-    expect(
-      (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement).checked,
-    ).toBe(true);
-    expect(
-      (screen.getByRole("radio", { name: /finite/ }) as HTMLInputElement).checked,
-    ).toBe(true);
+    // The switch and the method radios settle in separate updates, so the
+    // radios wait too (CI caught the Sommerfeld radio a render behind).
+    await waitFor(() => {
+      expect(
+        (screen.getByRole("radio", { name: "Sommerfeld" }) as HTMLInputElement).checked,
+      ).toBe(true);
+      expect(
+        (screen.getByRole("radio", { name: /finite/ }) as HTMLInputElement).checked,
+      ).toBe(true);
+    });
   });
 
   it("GN 0: ground on, finite, the reflection-coefficient method", async () => {
