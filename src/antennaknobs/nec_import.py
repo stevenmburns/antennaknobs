@@ -563,6 +563,44 @@ class NecDeck:
         return plan
 
     @cached_property
+    def _middle_knot_plan(self) -> dict[int, str]:
+        """wire index → port name for a NEC-5 voltage edge source at a wire's
+        MIDDLE knot, on a wire that carries no other claim (AK#1469).
+
+        That source is antennaknobs' standard middle-of-wire feed, so the wire
+        stays whole and carries a `PortOnWire`. NEC5Engine writes it back as
+        `EX tag n/2 2`, the other engines feed the wire's middle their own way,
+        and no piece is cut. NEC5Engine's own centre feeds ARE this spelling,
+        so every catalog-nec5 deck round-trips wire for wire (AC6LA,
+        2026-09-13). Everything else keeps the #824 cut in `_vertex_plan`: an
+        off-centre knot, a wire end, a second claim on the wire, a junction
+        cut, a virtual anchor, or an EX 4 current source.
+        """
+        if not self.network_mode:
+            return {}
+        claimed = {wi for (wi, _seg) in self._port_plan}
+        edges_on: dict[int, int] = {}
+        for f in self.feeds:
+            if f.edge:
+                edges_on[f.wire] = edges_on.get(f.wire, 0) + 1
+        plan: dict[int, str] = {}
+        single = len(self.feeds) == 1
+        for k, f in enumerate(self.feeds, 1):
+            if not f.edge or f.current:
+                continue
+            n = self.wires[f.wire].n_seg
+            knot = f.seg - 1 if f.edge == 1 else f.seg
+            if (
+                2 * knot == n
+                and edges_on[f.wire] == 1
+                and f.wire not in claimed
+                and not self._junction_cuts.get(f.wire)
+                and f.wire not in self.virtual_anchors
+            ):
+                plan[f.wire] = "feed" if single else f"feed{k}"
+        return plan
+
+    @cached_property
     def _vertex_plan(self) -> dict[tuple[int, int], tuple[str, str]]:
         """(wire index, local knot 0..n_seg) → (port name, "p0"|"p1") for
         every NEC-5 edge source (issue #824). The knot is the shared feed
@@ -572,8 +610,9 @@ class NecDeck:
         piece ENDING there ("p1"); knot 0 is the whole piece's "p0"."""
         plan: dict[tuple[int, int], tuple[str, str]] = {}
         single = len(self.feeds) == 1
+        middle = self._middle_knot_plan
         for k, f in enumerate(self.feeds, 1):
-            if not f.edge:
+            if not f.edge or f.wire in middle:
                 continue
             knot = f.seg - 1 if f.edge == 1 else f.seg
             key = (f.wire, knot)
@@ -727,6 +766,12 @@ class NecDeck:
             }
             n = w.n_seg
             spec = spec_for(i, w)
+            middle_name = self._middle_knot_plan.get(i)
+            if middle_name is not None:
+                # AK#1469: a middle knot source is the standard middle-of-wire
+                # feed. The wire stays whole and carries the port name.
+                emit(w.p1, w.p2, n, None, middle_name, spec)
+                continue
             if not per and not cutset and not vper:
                 emit(w.p1, w.p2, n, None, spec=spec)
                 continue
@@ -812,6 +857,9 @@ class NecDeck:
         # convention).
         for (_wi, _knot), (pname, end) in self._vertex_plan.items():
             ports[pname] = _net.PortAtVertex(pname, end=end)
+        # A middle knot source is a plain middle-of-wire port (AK#1469).
+        for pname in self._middle_knot_plan.values():
+            ports[pname] = _net.PortOnWire(pname)
         branches: list = []
         for ld in self.loads:
             branches.append(
@@ -857,6 +905,8 @@ class NecDeck:
                 branches.append(_net.Shunt(port=b, r=nt.shunt_r_b))
 
         def feed_port(f):
+            if f.edge and f.wire in self._middle_knot_plan:
+                return self._middle_knot_plan[f.wire]
             if f.edge:
                 knot = f.seg - 1 if f.edge == 1 else f.seg
                 return self._vertex_plan[(f.wire, knot)][0]
