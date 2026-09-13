@@ -67,7 +67,7 @@ A miss on P1.1 or P1.2 stops the unit and is reported before anything else.
 
 | id | verdict |
 |---|---|
-| P1.1 | **MISSED, by one unit in the last place.** Bit-identical at nominal_nsegs 21 (R and X) and in X at 42; R at 42 is 42.78958801156905 against the census's …906 on all three of its commits (1.7e-16 relative). The cause (the `1dbd384` source against `ad3cb9f`, or today's rebuild of the accelerators) is not examined. Reported before step 2 runs, as the stop rule requires; it is immaterial at every scale this unit reads |
+| P1.1 | **MISSED, by one unit in the last place — a cross-machine ULP, not examined further.** The #1441 census ran on Skylake; between `ad3cb9f` and `1dbd384` momwire gained only the skill doc, the version bump and scratch, no `src/` change; the house rule is never to pin cross-machine bit equality. Bit-identical at nominal_nsegs 21 (R and X) and in X at 42; R at 42 is 42.78958801156905 against the census's …906 on all three of its commits (1.7e-16 relative). The cause (the `1dbd384` source against `ad3cb9f`, or today's rebuild of the accelerators) is not examined. Reported before step 2 runs, as the stop rule requires; it is immaterial at every scale this unit reads |
 | P1.2 | **HIT** — NEC-5's printed Z identical at both meshes, x13-static against the census's dynamic x13 |
 | P1.3 | **HIT** — 31.2 % / 31.3 % in R, 16.4 % / 15.3 % in \|Z\| |
 
@@ -111,3 +111,40 @@ Competing outcome, registered with them: P2.2 holding near 31 % means the
 source region is not the mechanism on this deck, and the plan's grid probes
 (the transmitted grid's field form against designed tables; its range and
 interpolation error at this height and depth) come next.
+
+### The admittance reading (raised on review; registered while step 2 was already running)
+
+At a near-open driving point R is a small, ill-conditioned part of Z. So each
+ladder is also read as Y = 1/Z = G + jB, with the G fraction next to the R
+fraction.
+
+**Timing, stated before any prediction.** Both step-2 ladders were launched
+before this reading was asked for. When it was registered, three rows had
+already printed: `feed` F = 1 and F = 2, and `graded` F = 1. For those rows,
+and for the census rows, the numbers below are computed from Z already in
+hand, not predicted. No further ladder output was read before this was
+committed.
+
+| row | G momwire (S) | G NEC-5 (S) | ΔG / max\|G\| | B momwire (S) | B NEC-5 (S) | ΔB / max\|B\| | ΔR / max\|R\| |
+|---|---|---|---|---|---|---|---|
+| census nn 21 (stock ports) | 8.19944e-09 | 8.07446e-09 | -1.52 % | 1.35650e-05 | 1.62327e-05 | +16.43 % | -31.23 % |
+| census nn 42 (stock ports) | 8.09406e-09 | 7.76325e-09 | -4.09 % | 1.37535e-05 | 1.62451e-05 | +15.34 % | -31.25 % |
+| feed F = 1 (seen) | 8.46821e-09 | 8.07446e-09 | -4.65 % | 1.46459e-05 | 1.62327e-05 | +9.78 % | -22.38 % |
+| feed F = 2 (seen) | 8.18399e-09 | 8.41899e-09 | +2.79 % | 1.58087e-05 | 1.70300e-05 | +7.17 % | -11.35 % |
+| graded F = 1 (seen) | 8.32540e-09 | 7.39957e-09 | -11.12 % | 1.49398e-05 | 1.62747e-05 | +8.20 % | -25.10 % |
+
+On the census deck the two engines agree in **G to 1.5–4 %** while R differs by
+31 %, and **B differs by 15–16 %**. At a near-open R ≈ G / B², so a 16 %
+difference in B by itself makes about a 35 % difference in R. The 31 % in R is
+mostly the susceptance difference, read through that conditioning. The
+susceptance is the source region's and the radiator's capacitance, and it
+falls as the port is matched and the fed segment shrinks (16.4 → 9.8 → 7.2 % on
+the seen `feed` rows).
+
+| id | prediction (rows not yet seen only) | verdict |
+|---|---|---|
+| P2.3 | `feed` F = 4 and F = 8: ΔB / max\|B\| below 7.2 % at F = 4 and lower again at F = 8; \|ΔG / max\|G\|\| below 5 % at both | pending |
+| P2.4 | `graded` F = 2, 4, 8: ΔB / max\|B\| below 8.2 % at each and falling with F; \|ΔG / max\|G\|\| below 12 % at each | pending |
+
+Informed by the seen rows and flagged as such; P2.1 and P2.2 stand as
+registered.
