@@ -912,6 +912,9 @@ def _close_parens(line: str) -> str:
     return "".join(out)
 
 
+_NUMBER_TOKEN = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eEdD][+-]?\d+)?$")
+
+
 def _split_card_fields(line: str) -> list[str]:
     """Card fields, free format. Commas and whitespace separate; an expression
     inside parentheses keeps its spaces (#1273); and on a TAB-delimited 4nec2
@@ -930,6 +933,19 @@ def _split_card_fields(line: str) -> list[str]:
         while i < len(parts):
             if parts[i] in ("+", "-", "*", "/", "^") and 0 < i < len(parts) - 1 and out:
                 out[-1] = out[-1] + parts[i] + parts[i + 1]
+                i += 2
+                continue
+            # A number followed by a unit symbol in the SAME tab field (`-68 ft`,
+            # `60.7 uh`) is the juxtaposed product the SY evaluator already
+            # reads (`SY X=135 ft`). Splitting it shifted every later column: a
+            # sloper became a wire 68 m underground. Glued, it evaluates as one
+            # value; a number followed by anything else (`4.0 #12`) stays apart.
+            if (
+                i + 1 < len(parts)
+                and _NUMBER_TOKEN.match(parts[i])
+                and parts[i + 1].lower() in _SY_UNITS
+            ):
+                out.append(parts[i] + parts[i + 1])
                 i += 2
                 continue
             out.append(parts[i])
