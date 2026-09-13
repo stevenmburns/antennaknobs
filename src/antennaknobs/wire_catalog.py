@@ -497,6 +497,19 @@ def as_wire(t) -> Wire:
     return Wire(*t)
 
 
+def port_wire(port) -> str:
+    """The geometry wire a gap port sits on: its ``wire`` when it names one
+    (momwire#1059, AK#1469), else its own ``name``. Read through ``getattr``
+    so a momwire without the field (0.54.0) still works."""
+    return getattr(port, "wire", None) or port.name
+
+
+def port_at(port):
+    """A gap port's position along its wire, as an arclength fraction from the
+    wire's authored ``p0``, or None for the middle (momwire#1059, AK#1469)."""
+    return getattr(port, "at", None)
+
+
 def validate_named_wires_referenced(named_wires, network):
     """Reject named ``build_wires()`` wires that no `PortOnWire` references
     (issue #578).
@@ -517,7 +530,10 @@ def validate_named_wires_referenced(named_wires, network):
     # here at CALL time, because they lived in `antennaknobs.network`, which
     # imports this module for its compatibility re-exports; the circuit half
     # moving down dissolved that cycle.
-    gap_names = {n for n, p in network.ports.items() if isinstance(p, PortOnWire)}
+    gap_ports = [p for p in network.ports.values() if isinstance(p, PortOnWire)]
+    # Keyed by the WIRE a gap sits on, which is the port's own name unless it
+    # names another (AK#1469).
+    gap_names = {port_wire(p) for p in gap_ports}
     # End and vertex ports both name geometry without cutting a gap, so
     # they share one rule against gap ports (a wire may carry BOTH an end
     # and a vertex port — on different or even the same endpoint, where
@@ -544,3 +560,31 @@ def validate_named_wires_referenced(named_wires, network):
             "that cuts the wire there (issue #578). Reference each name in "
             "Network.ports, or drop the name."
         )
+    # Several gap ports may share one wire (a NEC deck's feed and its loads,
+    # AK#1469), with two exceptions.
+    by_wire: dict = {}
+    for p in gap_ports:
+        by_wire.setdefault(port_wire(p), []).append(p)
+    for wire, ports in sorted(by_wire.items()):
+        if len(ports) < 2:
+            continue
+        spread = [p.name for p in ports if p.distributed]
+        if spread:
+            raise ValueError(
+                f"wire {wire!r} carries the distributed port {spread[0]!r} and "
+                f"{len(ports) - 1} other port(s): a distributed gap spans its "
+                "whole wire, so it cannot share it (AK#1469)."
+            )
+        seen: dict = {}
+        for p in ports:
+            at = port_at(p)
+            where = 0.5 if at is None else float(at)
+            if where in seen:
+                raise ValueError(
+                    f"ports {seen[where]!r} and {p.name!r} sit at the same point "
+                    f"of wire {wire!r} (at = {where:g}). Two gaps at one point "
+                    "give identical admittance columns, so the network is "
+                    "singular: use one port and attach both branches to it "
+                    "(AK#1469)."
+                )
+            seen[where] = p.name
