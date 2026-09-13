@@ -148,3 +148,80 @@ the seen `feed` rows).
 
 Informed by the seen rows and flagged as such; P2.1 and P2.2 stand as
 registered.
+
+### Step 2 measured
+
+`step2_source.py`, nominal_nsegs 21, ports matched (momwire's segment counts
+and knot source asserted equal to NEC-5's at every rung). `feed` F = 1
+reproduced the census deck sha. Rows in `step2_feed_nn21.json` and
+`step2_graded_nn21.json`. Fractions are (NEC-5 − momwire) / max.
+
+`feed` — the fed segment refined, radiator as the census meshes it (500 mm):
+
+| F | segs | fed seg | momwire Z | NEC-5 Z | ΔR/max\|R\| | \|ΔZ\|/max\|Z\| | ΔG/max\|G\| | ΔB/max\|B\| |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 239 | 25.000 mm | 39.4782 − 68278.3j | 30.643 − 61604j | −22.38 % | 9.78 % | −4.65 % | +9.78 % |
+| 2 | 241 | 12.500 mm | 32.7471 − 63256.3j | 29.029 − 58720j | −11.35 % | 7.17 % | +2.79 % | +7.17 % |
+| 4 | 245 | 6.250 mm | 28.9962 − 59097.1j | 27.677 − 56539j | −4.55 % | 4.33 % | +4.11 % | +4.33 % |
+| 8 | 253 | 3.125 mm | 26.6950 − 56498.2j | 26.466 − 54775j | −0.86 % | 3.05 % | +5.19 % | +3.05 % |
+
+`graded` — the fed segment refined and the radiator graded away from it:
+
+| F | segs | fed seg | momwire Z | NEC-5 Z | ΔR/max\|R\| | \|ΔZ\|/max\|Z\| | ΔG/max\|G\| | ΔB/max\|B\| |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 250 | 25.000 mm | 37.3008 − 66935.5j | 27.937 − 61445j | −25.10 % | 8.20 % | −11.12 % | +8.20 % |
+| 2 | 254 | 12.500 mm | 32.5729 − 63188.3j | 26.443 − 58562j | −18.82 % | 7.32 % | −5.49 % | +7.32 % |
+| 4 | 260 | 6.250 mm | 28.7956 − 59030.4j | 25.231 − 56390j | −12.38 % | 4.47 % | −3.98 % | +4.47 % |
+| 8 | 270 | 3.125 mm | 26.5158 − 56436.8j | 24.149 − 54633j | −8.93 % | 3.20 % | −2.81 % | +3.20 % |
+
+| id | verdict |
+|---|---|
+| P2.1 | **HIT** — momwire's R moves 32 %, NEC-5's 13.6 %, and the R fraction 21.5 pp, from F = 1 to 8 |
+| P2.2 | **SPLIT** — −25.10 % at F = 1 misses "< 20 %"; −8.93 % at F = 8 meets "< 15 %" |
+| P2.3 | **SPLIT** — ΔB 4.33 % then 3.05 %, below 7.2 % and falling (hit); \|ΔG\| 4.11 % at F = 4 (hit) but 5.19 % at F = 8 (misses "< 5 %" by 0.19 pp) |
+| P2.4 | **HIT** — ΔB 7.32 / 4.47 / 3.20 %, below 8.2 % and falling; \|ΔG\| 5.49 / 3.98 / 2.81 %, below 12 % |
+
+(The runs used a `zip(edges[:-1], edges[1:])` spelling that ruff's RUF007
+flagged at launch. The committed script uses `itertools.pairwise(edges)`,
+which yields the same pairs.)
+
+**What the ladders say, as observations:**
+
+- **Neither engine's census Z is converged on the source axis.** From F = 1 to
+  8 on the `feed` ladder, momwire's X moves −68278 → −56498 Ω (17.3 %) and
+  NEC-5's −61604 → −54775 Ω (11.1 %). The census compared two stock-mesh
+  numbers with the source unrefined on both.
+- **B carries \|ΔZ\|, and it converges the same way on both ladders**: 3.05 %
+  and 3.20 % at F = 8 whether or not the 20:1 jump is graded away. At a
+  near-open, ΔB and ΔX are the same number.
+- **G, and R with it, is where the two ladders part.** At F = 8 grading the
+  radiator moves the G fraction from +5.2 % to −2.8 % and the R fraction from
+  −0.86 % to −8.93 %, while B barely moves. R at this driving point depends on
+  the radiator's mesh as well as the source's, and is too ill-conditioned to
+  adjudicate a 31 % question on its own.
+- **Matching the port is not immaterial here.** At F = 1 it moved momwire's B
+  by 8 % (1.3565e-5 → 1.4646e-5 S) and took the R fraction from 31.2 % to
+  22.4 %. On #1027's rod the same change moved R by 2e-12, and on
+  `buried_radial_vertical` by 4.4e-6. The difference is the near-open: the
+  source region's susceptance is most of |Y|.
+
+### P2.5 — do momwire's two port spellings converge to the same Y? (registered before the run)
+
+The `feed` ladder again, with momwire on antennaknobs' own odd-parity port
+(no patch). The builder asks for 2F fed segments; the odd coercion makes them
+2F + 1 (F = 1 auto-meshes to one), so the gap sits mid-segment as the census
+has it. NEC-5 unchanged. The harness asserts that momwire's feed is NOT on a
+knot and that its segment count differs from NEC-5's by exactly one. Read in Y
+against both NEC-5 and the port-matched momwire of `step2_feed_nn21.json`.
+
+| id | prediction | verdict |
+|---|---|---|
+| P2.5a | **blind**: the odd- and even-port momwire converge together. Their B differ by less than 1.5 % at F = 8 (8 % at F = 1), shrinking monotonically with F | pending |
+| P2.5b | **blind**: their G differ by less than 2 % at F = 8 | pending |
+| P2.5c | **blind**: at F = 8 the odd-port momwire's ΔB against NEC-5 is within 1 pp of the matched one's 3.05 % | pending |
+
+Competing outcome, registered with them: B apart by more than 3 % at F = 8 and
+not shrinking means the port definition is a genuine modelling choice at a
+near-open feed. antennaknobs would then have to declare which port a
+cross-engine row uses, and that becomes a finding about the comparison method,
+not an engine defect.
