@@ -32,6 +32,7 @@ Ground rules carried from the #956 arc, which are what made it converge:
 | 7 | `elevated_buried_counterpoise` disagrees with NEC-5 by 31 % in R and 16 % in \|Z\| (+14 Ω R, −12 kΩ X on \|Z\| ≈ 62–74 kΩ), at both meshes and all three momwire commits | **open disagreement** (AK#1443) | — | 1 design |
 | 8 | AK#1417's gate: no refinement path for an imported deck (every ladder tool is Builder-driven) | tooling | blocks per-deck ladders on all of the above | — |
 | 9 | a wholly buried vertical rod reads a constant −1.20 % of R against NEC-5, invariant in depth, conductivity and frequency (momwire#1027) | **open disagreement** | — | every wholly buried fed element |
+| 10 | "a deck with N crossing junctions … the crossing serve completes ONE crossing node per deck" (momwire#1054; before it, a bare assert in the fill, AK#1464) | scope | 3 (the lpma3r5 LPDA with 8 nodes; two cebik phased arrays with 3 and 4) | every multi-element buried array |
 
 The four-count in #5 and the six in #2 overlap: the six `GE −1` decks are the
 four mixed-radius ones plus the two split slopers, so lifting #2 alone
@@ -81,7 +82,7 @@ refusing free in-plane ends. The free end under `GE −1` (momwire#865 / #597)
 stays unserved and is not part of this unit. **Gate:** a `GE −1` crossing deck
 solves bit-identically to its `GE 1` twin; #489's grounded quarter-wave free-end
 refusal still fires; and the six decks then stop at their declared scope
-limits (U4, U5, U8) instead of at the flag. The antennaknobs importer drops the
+limits (U4, U5, U8, U9) instead of at the flag. The antennaknobs importer drops the
 GE sign altogether, which is its own fix (#1460). Not verified: that NEC-4.2,
 the source of the Cebik decks, gives `GE −1` the same buried-wire meaning as
 NEC-5. **About 1 day.**
@@ -164,20 +165,59 @@ below/below point reader) if the readout contract is settled on the way.
 pattern against empymod and NEC-5; the BRV's pattern moving by less than its
 current #1341 note (0.46 dB) says it should.
 
+### U9 — more than one crossing node (3 decks, every multi-element buried array)
+
+momwire's crossing fill completes ONE crossing node per deck, and a second
+node is refused by name (momwire#1054). Before that, a two-node deck passed
+the serve plan and died on an assert in the fill (AK#1464).
+
+**A scoping read of the code (2026-09-13), not yet measured:**
+- The by-parts end terms are already evaluated at every end-to-node distance.
+- On a crossing deck the crossing fill is the only place cross-node pairs are
+  computed (no transmitted grid is built), so nothing is counted twice.
+- The one term fixed to a single point is the corner V(a).
+
+The working hypothesis is one missing term, plus text: the cross-node corner
+−σσ′·c1·V(√(ρ² + a²)), the point-charge pair term that the same-medium self
+completions already carry.
+
+Plan:
+- (a) Confirm the corner is the only same-node-only term, and derive its
+  cross-node form.
+- (b) The ε̃ = 1 collapse: two rise-plus-monopole pairs 12 m apart against
+  the free-space bent-wire solve. W = 0 there, so it isolates the corner.
+  Cover both σσ′ orientations.
+- (c) A separation ladder at 5 / 12 / 50 / 200 m on soil A: Z11 approaches the
+  single-node print, Z12 goes to 0, and Z12 = Z21.
+- (d) The three corpus decks through U2 against NEC-5, gated on Z12 and on
+  the change from the single-node answer rather than on absolute Z.
+
+Then AK#1464's construction-time preflight measures on the fill's own nodes,
+through a momwire helper.
+
+**4–6 days; 10 or more if (b) fails**, which would mean a gap beyond the
+corner. Gate: single-node decks bit-identical (the crossing rod, the fan, the
+hub, the U5 rod, SG), split-vs-dense parity on the two-node deck, and SG vs
+bspline at the class tolerance. Each of the three decks also carries other
+walls: U4's range on all three, the grazing floor on the LPDA, and U5's
+within-side radius spread on the phased arrays. The LPDA's 8 fans may need a
+fill-cost unit of their own.
+
 ## Order and size
 
 | order | unit | days | unblocks |
 |---|---|---|---|
 | 1 | U1 translator | 0.5 | provenance on 930 census rows |
 | 2 | U2 refine path | 2–3 | ladders on corpus decks for everything below |
-| 3 | U3 GE −1 crossing | ~1 | 6 decks reach their real limits (U4/U5/U8) |
+| 3 | U3 GE −1 crossing | ~1 | 6 decks reach their real limits (U4/U5/U8/U9) |
 | 4 | U4 below range | 2–4 | 3 decks |
 | 5 | U5 mixed radii | 5–10 | 4 decks; thin radials on a fat mast |
 | 6 | U6 counterpoise | 2–3 (+fix) | 1 design's published number |
 | 7 | U7 buried rod | 2–3 (+fix) | every wholly buried fed element's R |
 | 8 | U8 far field | 15–25 | every buried pattern |
+| 9 | U9 several crossing nodes | 4–6 | 3 decks; every multi-element buried array |
 
-About 6–10 weeks of session time end to end, U8 alone being a third of it.
+About 7–11 weeks of session time end to end, U8 alone being a third of it.
 U1–U4 are the cheap half and clear the corpus population that the census
 cannot exercise today; U5 is the one users will meet first; U8 is the one that
 turns "impedance and currents only" into a complete buried serve.
